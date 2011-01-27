@@ -1,4 +1,4 @@
-import parser, version, osproc, strutils, re, os
+import parser, version, osproc, strutils, re, os, parseutils
 
 type
   EInstall = object of EBase
@@ -7,18 +7,18 @@ type
 
 proc getNimVersion(cmd: string = "nimrod"): String =
   var output = execProcess(cmd & " -v")
-  # TODO: Fix this. Don't know why it doesn't work.
-  ##echo(splitlines(output)[0])
-  # :\
-  if splitlines(output)[0] =~ re"(Version\s.+?\s)":
-    echo(matches[0])
-    for i in items(matches):
-      echo(i)
-  else: 
-    nil
-    #echo(":(")
-  
-  return "0.8.10"
+  var line = splitLines(output)[0]
+
+  # Thanks Araq :)
+  var i = 0
+  var nimrodVersion = ""
+  i = skipIgnoreCase(line, "Nimrod Compiler Version ")
+  if i <= 0: raise newException(EInstall, "Cannot detect Nimrod's version")
+  i = parseToken(line, nimrodVersion, {'.', '0'..'9'}, i)
+  if nimrodVersion.len == 0: 
+    raise newException(EInstall, "Cannot detect Nimrod's version")
+
+  return nimrodVersion
 
 proc dependExists(name: string, verRange: PVersionRange): Bool =
   if name == "nimrod":
@@ -33,7 +33,7 @@ proc dependExists(name: string, verRange: PVersionRange): Bool =
     # ... or just look for the package in PATH + $nimrod/lib/babel/packageName
     assert(False)
 
-proc verifyDepends*(proj: TProject): seq[TDepend] =
+proc verifyDepends(proj: TProject): seq[TDepend] =
   result = @[]
   for i in items(proj.depends):
     var spl = i.split()
@@ -58,12 +58,45 @@ proc verifyDepends*(proj: TProject): seq[TDepend] =
     if not dependExists(nameStr, verRange):
       result.add((nameStr, verRange))
 
+proc createDirs(dirs: seq[string]) =
+  for i in items(dirs):
+    if not existsDir(i):
+      createDir(i)
+
+proc copyFiles(proj: TProject) =
+  # This will create a $home/.babel and lib/ or bin/. It will also copy all the
+  # files listed in proj.modules and proj.files.
+  when defined(windows):
+    var babelDir = getHomeDir() / "babel"
+  else:
+    var babelDir = getHomeDir() / ".babel"
+
+  var dirs = @[babelDir, babelDir / "lib", babelDir / "bin"]
+
+  if proj.library:
+    var projDir = babelDir / "lib" / (proj.name & "-" & proj.version)
+    dirs.add(projDir)
+    createDirs(dirs)
+    # Copy the files
+    for i in items(proj.modules):
+      stdout.write("Copying " & i.addFileExt("nim") & "...")
+      copyFile(i.addFileExt("nim"), projDir / i.addFileExt("nim"))
+      echo(" Done!")
+    if proj.files.len > 0:
+      for i in items(proj.files):
+        copyFile(i, projDir / i)
+      
+  elif proj.executable:
+    # TODO: Copy files for executable.
+    assert(false)
+  
+
 proc install*(name: string, filename: string = "") =
   ## Install package by the name of ``name``, filename specifies where to look for it
   ## if left as "", the current working directory will be assumed.
   # TODO: Add a `debug` variable? If true the status messages get echo-ed,
   # vice-versa if false?
-  var babelFile: TProject = initProj()
+  var babelFile: TProject
   var path = ""
   if filename == "":
     path = name.addFileExt("babel")
@@ -74,8 +107,8 @@ proc install*(name: string, filename: string = "") =
   babelFile = parseBabel(path)
 
   var ret = babelFile.verify()
-  if not ret.b:
-    raise newException(EInstall, "Verifying the .babel file failed: " & ret.reason)
+  if ret != "":
+    raise newException(EInstall, "Verifying the .babel file failed: " & ret)
   
   if babelFile.depends.len == 1:
     echo("Verifying 1 dependency...")
@@ -87,8 +120,10 @@ proc install*(name: string, filename: string = "") =
   else:
     echo("All dependencies verified!")
 
-  echo("Installing " & name)
-  # TODO: Install.
+  echo("Installing " & name & "...")
+  babelFile.copyFiles()
+
+  echo("Package " & name & " successfully installed.")
 
 when isMainModule:
   install("babel")

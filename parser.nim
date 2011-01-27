@@ -19,9 +19,9 @@ type
 
     unknownFields*: seq[string] # TODO:
     
-  EParseErr* = object of EIO
+  EParseErr* = object of EBase
 
-proc initProj*(): TProject =
+proc initProj(): TProject =
   result.name = ""
   result.version = ""
   result.author = ""
@@ -37,7 +37,6 @@ proc initProj*(): TProject =
   result.files   = @[]
   
   result.unknownFields = @[]
-  
 
 proc parseList(s: string): seq[string] =
   result = @[]  
@@ -50,6 +49,7 @@ proc parseErr(p: TCfgParser, msg: string) =
                                 $p.getColumn() & ") " & msg)
 
 proc parseBabel*(file: string): TProject =
+  result = initProj()
   var f = newFileStream(file, fmRead)
   if f != nil:
     var p: TCfgParser
@@ -123,20 +123,20 @@ proc parseBabel*(file: string): TProject =
   else:
     raise newException(EIO, "Cannot open " & file)
 
-proc isEmpty*(s: string): Bool = return s == ""
+proc isEmpty(s: string): Bool = return s == ""
 
-proc verify*(proj: TProject): tuple[b: Bool, reason: string] =
+proc verify*(proj: TProject): string =
   ## Checks whether the required fields have been specified.
   if isEmpty(proj.name) or isEmpty(proj.version) or isEmpty(proj.author) or
      isEmpty(proj.category) or isEmpty(proj.desc):
-    return (False, "Missing required fields.")
+    return "Missing required fields."
   elif proj.library == false and proj.executable == false:
-    return (False, "Either a valid Library needs to be specified or a valid Bin.")
+    return "Either a valid Library needs to be specified or a valid Bin."
   elif proj.library == true and proj.modules.len() == 0:
-    return (False, "A valid library needs at least one ExposedModule listed.")
+    return "A valid library needs at least one ExposedModule listed."
   # TODO: Rules for Bin.
 
-  return (True, "")
+  return ""
 
 when isMainModule:
   for i in items(parseList("test, asdasd >sda;       jsj, kk          >>, sd")):

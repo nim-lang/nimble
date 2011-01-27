@@ -17,11 +17,11 @@ type
     of verLater, verEarlier, verEqLater, verEqEarlier:
       ver*: TVersion
     of verIntersect:
-      verI*: tuple[left: PVersionRange, right: PVersionRange]
+      verILeft, verIRight: PVersionRange
     of verAny:
       nil
 
-  EParseVersion = object of EBase
+  EParseVersion = object of EInvalidValue
 
 proc newVersion*(ver: string): TVersion = return TVersion(ver)
 
@@ -61,10 +61,9 @@ proc withinRange*(ver: TVersion, ran: PVersionRange): Bool =
   of verEqEarlier:
     return ver <= ran.ver
   of verIntersect:
-    return withinRange(ver, ran.verI.left) and withinRange(ver, ran.verI.right)
+    return withinRange(ver, ran.verILeft) and withinRange(ver, ran.verIRight)
   of verAny:
     return True
-
 
 proc makeRange*(version: string, op: string): PVersionRange =
   new(result)
@@ -93,20 +92,19 @@ proc parseVersionRange*(s: string): PVersionRange =
     of '>', '<', '=':
       op.add(s[i])
     of '&':
-      var left = makeRange(version, op)      
+      result.kind = verIntersect
+      result.verILeft = makeRange(version, op)      
       
       # Parse everything after &
       # Recursion <3
-      var right = parseVersionRange(copy(s, i + 1))
+      result.verIRight = parseVersionRange(copy(s, i + 1))
 
       # Disallow more than one verIntersect. It's pointless and could lead to
       # major unknown mistakes.
-      if right.kind == verIntersect:
+      if result.verIRight.kind == verIntersect:
         raise newException(EParseVersion, 
             "Having more than one `&` in a version range is pointless")      
-
-      result.kind = verIntersect
-      result.verI = (left, right)
+      
       break
 
     of '0'..'9', '.':
