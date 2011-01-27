@@ -19,7 +19,7 @@ type
 
     unknownFields*: seq[string] # TODO:
     
-  EParseErr* = object of EBase
+  EParseErr* = object of EIO
 
 proc initProj(): TProject =
   result.name = ""

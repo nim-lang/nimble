@@ -60,8 +60,7 @@ proc verifyDepends(proj: TProject): seq[TDepend] =
 
 proc createDirs(dirs: seq[string]) =
   for i in items(dirs):
-    if not existsDir(i):
-      createDir(i)
+    createDir(i)
 
 proc copyFiles(proj: TProject) =
   # This will create a $home/.babel and lib/ or bin/. It will also copy all the
@@ -84,8 +83,10 @@ proc copyFiles(proj: TProject) =
       echo(" Done!")
     if proj.files.len > 0:
       for i in items(proj.files):
+        stdout.write("Copying " & i.addFileExt("nim") & "...")
         copyFile(i, projDir / i)
-      
+        echo(" Done!")      
+
   elif proj.executable:
     # TODO: Copy files for executable.
     assert(false)
