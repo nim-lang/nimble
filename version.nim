@@ -2,10 +2,11 @@
 import strutils
 type
   TVersion* = distinct string
+
   TVersionRangeEnum* = enum
     verLater,     # > V
     verEarlier,   # < V
-    verEqLater,   # >= V -- Equal or laterparseInt(sVer[i])
+    verEqLater,   # >= V -- Equal or later
     verEqEarlier, # <= V -- Equal or earlier
     verIntersect, # > V & < V
     verAny        # *
@@ -97,7 +98,13 @@ proc parseVersionRange*(s: string): PVersionRange =
       # Parse everything after &
       # Recursion <3
       var right = parseVersionRange(copy(s, i + 1))
-      
+
+      # Disallow more than one verIntersect. It's pointless and could lead to
+      # major unknown mistakes.
+      if right.kind == verIntersect:
+        raise newException(EParseVersion, 
+            "Having more than one `&` in a version range is pointless")      
+
       result.kind = verIntersect
       result.verI = (left, right)
       break
@@ -121,10 +128,10 @@ when isMainModule:
   assert(newVersion("1.0.1") > newVersion("1.0"))
   assert(newVersion("1.0.6") <= newVersion("1.0.6"))
 
-  var inter1 = parseVersionRange(">= 1.0 & <= 1.5")
+  var inter1 = parseVersionRange(">= 1.0 & <= 1.5 & > 1.1 ")
 
   assert(not withinRange(newVersion("1.5.1"), inter1))
-  assert(withinRange(newVersion("1.2.3.4.5.6.7.8.9.10.11.12"), inter1))
+  assert(withinRange(newVersion("1.0.2.3.4.5.6.7.8.9.10.11.12"), inter1))
 
   assert(newVersion("1") == newVersion("1"))
 
