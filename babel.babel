@@ -1,0 +1,15 @@
+; Babel library
+name          = "babel"
+version       = "0.1.0"
+author        = "Dominik Picheta"
+category      = "Distribution"
+description   = """Babel framework: Specifies a common interface for programmers 
+                   to more easily build their applications in portable way."""
+
+[Library]
+Depends        = "nimrod >= 0.8.10"
+ExposedModules = "parser, installer, version" ; No need for .nim
+
+;[Bin babel]
+;Depends       = "nimrod >= 0.8.11"
+;
