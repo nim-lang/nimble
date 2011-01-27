@@ -20,13 +20,6 @@ proc getNimVersion(cmd: string = "nimrod"): String =
   
   return "0.8.10"
 
-proc join(s: seq[string], sep: char = ' '): string =
-  result = ""
-  for i in 0..len(s)-1:
-    if i < len(s)-1:
-      result.add($sep)
-    result.add(s[i])
-    
 proc dependExists(name: string, verRange: PVersionRange): Bool =
   if name == "nimrod":
     var nimVer = getNimVersion()
@@ -51,7 +44,7 @@ proc verifyDepends*(proj: TProject): seq[TDepend] =
     elif spl.len > 1:
       nameStr = spl[0]
       spl.del(0)
-      verStr  = join(spl, ' ')
+      verStr  = join(spl, " ")
     else:
       raise newException(EInstall, "Incorrect dependency got: " & i)
     
@@ -73,9 +66,9 @@ proc install*(name: string, filename: string = "") =
   var babelFile: TProject = initProj()
   var path = ""
   if filename == "":
-    path = name & ".babel"
+    path = name.addFileExt("babel")
   else:
-    path = filename / name & ".babel"
+    path = filename / name.addFileExt("babel")
 
   echo("Reading ", path, "...")
   babelFile = parseBabel(path)
