@@ -30,8 +30,8 @@ proc dependExists(name: string, verRange: PVersionRange): Bool =
   if name == "nimrod":
     var nimVer = getNimVersion()
     if not withinRange(newVersion(nimVer), verRange):
-      raise newException(EInstall, "Nimrod version(" & 
-                         nimVer & ") doesn't satisfy dependency")
+      raise newException(EInstall, "Nimrod version doesn't satisfy dependency: " &
+                         nimVer & " " & $verRange)
     else: return True
   else:
     for kind, path in walkDir(getBabelDir() / "lib"):

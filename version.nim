@@ -121,6 +121,23 @@ proc parseVersionRange*(s: string): PVersionRange =
       raise newException(EParseVersion, "Unexpected char in version range: " & s[i])
     inc(i)
 
+proc `$`*(verRange: PVersionRange): String =
+  case verRange.kind
+  of verLater:
+    result = "> "
+  of verEarlier:
+    result = "< "
+  of verEqLater:
+    result = ">= "
+  of verEqEarlier:
+    result = "<= "
+  of verIntersect:
+    result = $verRange.verILeft & " & " & $verRange.verIRight
+  of verAny:
+    return "Any"
+
+  result.add(string(verRange.ver))
+
 when isMainModule:
   assert(newVersion("1.0") < newVersion("1.4"))
   assert(newVersion("1.0.1") > newVersion("1.0"))
