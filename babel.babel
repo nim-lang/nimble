@@ -1,4 +1,5 @@
 ; Babel library
+[Package]
 name          = "babel"
 version       = "0.1.0"
 author        = "Dominik Picheta"
@@ -9,8 +10,8 @@ description   = """Babel framework: Specifies a common interface for programmers
 [Library]
 Depends        = "nimrod >= 0.8.10"
 ExposedModules = "parser, installer, version" ; No need for .nim
-Files          = "babel.babel"
+;Files          = "babel.babel"
 
-;[Bin babel]
+;[Exe]
 ;Depends       = "nimrod >= 0.8.11"
-;
+;Exe           = "babel"

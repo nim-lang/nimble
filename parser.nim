@@ -19,7 +19,7 @@ type
 
     unknownFields*: seq[string] # TODO:
     
-  EParseErr* = object of EIO
+  EParseErr* = object of EInvalidValue
 
 proc initProj(): TProject =
   result.name = ""
@@ -63,7 +63,7 @@ proc parseBabel*(file: string): TProject =
         break
       of cfgKeyValuePair:
         case section
-        of "":
+        of "package":
           case normalize(e.key):
           of "name":
             result.name = e.value
@@ -110,6 +110,8 @@ proc parseBabel*(file: string): TProject =
           result.library = True
         of "bin":
           result.executable = True
+        of "package":
+          nil
         else:
           p.parseErr("Unknown section: " & section)
 

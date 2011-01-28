@@ -5,6 +5,12 @@ type
 
   TDepend = tuple[name: String, verRange: PVersionRange]
 
+proc getBabelDir(): string =
+  when defined(windows):
+    result = getHomeDir() / "babel"
+  else:
+    result = getHomeDir() / ".babel"
+
 proc getNimVersion(cmd: string = "nimrod"): String =
   var output = execProcess(cmd & " -v")
   var line = splitLines(output)[0]
@@ -28,10 +34,15 @@ proc dependExists(name: string, verRange: PVersionRange): Bool =
                          nimVer & ") doesn't satisfy dependency")
     else: return True
   else:
-    # TODO: Figure out how to check whether a package has been installed...
-    # ... Perhaps a list of all the packages that have been installed?
-    # ... or just look for the package in PATH + $nimrod/lib/babel/packageName
-    assert(False)
+    for kind, path in walkDir(getBabelDir() / "lib"):
+      if kind == pcDir:
+        var dir = path.extractFilename()
+        if dir.startsWith(name):
+          var ver = copy(dir, name.len() + 1)
+          if withinRange(newVersion(ver), verRange):
+            return True
+
+  return False
 
 proc verifyDepends(proj: TProject): seq[TDepend] =
   result = @[]
@@ -43,7 +54,7 @@ proc verifyDepends(proj: TProject): seq[TDepend] =
       nameStr = spl[0]
     elif spl.len > 1:
       nameStr = spl[0]
-      spl.del(0)
+      spl.delete(0)
       verStr  = join(spl, " ")
     else:
       raise newException(EInstall, "Incorrect dependency got: " & i)
@@ -65,10 +76,7 @@ proc createDirs(dirs: seq[string]) =
 proc copyFiles(proj: TProject) =
   # This will create a $home/.babel and lib/ or bin/. It will also copy all the
   # files listed in proj.modules and proj.files.
-  when defined(windows):
-    var babelDir = getHomeDir() / "babel"
-  else:
-    var babelDir = getHomeDir() / ".babel"
+  var babelDir = getBabelDir()
 
   var dirs = @[babelDir, babelDir / "lib", babelDir / "bin"]
 
