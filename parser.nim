@@ -1,4 +1,4 @@
-import parsecfg, streams, strutils, version
+import parsecfg, streams, strutils
 
 type
   TProject* = object
@@ -16,6 +16,7 @@ type
     files*: seq[string]   # files
 
     executable*: bool
+    exeFile*: string
 
     unknownFields*: seq[string] # TODO:
     
@@ -91,12 +92,14 @@ proc parseBabel*(file: string): TProject =
             result.modules = e.value.parseList()
           else:
             p.parseErr("Unknown key: " & e.key)
-        of "executable":
+        of "exe":
           case normalize(e.key)
           of "depends":
             result.depends = e.value.parseList()
-          of "extrafiles":
+          of "files":
             result.files = e.value.parseList()
+          of "exe":
+            result.exeFile = e.value
           else:
             p.parseErr("Unknown key: " & e.key)
 
@@ -108,7 +111,7 @@ proc parseBabel*(file: string): TProject =
         case normalize(e.section):
         of "library":
           result.library = True
-        of "bin":
+        of "exe":
           result.executable = True
         of "package":
           nil

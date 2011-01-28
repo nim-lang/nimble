@@ -1,4 +1,4 @@
-import parser, version, osproc, strutils, re, os, parseutils
+import "babel/parser", "babel/version", osproc, strutils, re, os, parseutils
 
 type
   EInstall = object of EBase
@@ -37,10 +37,15 @@ proc dependExists(name: string, verRange: PVersionRange): Bool =
     for kind, path in walkDir(getBabelDir() / "lib"):
       if kind == pcDir:
         var dir = path.extractFilename()
-        if dir.startsWith(name):
-          var ver = copy(dir, name.len() + 1)
-          if withinRange(newVersion(ver), verRange):
-            return True
+        if dir == name:
+          var conf   = parseBabel(path / dir.addFileExt(".babel"))
+          var verRet = conf.verify()
+          if verRet == "":
+            if withinRange(newVersion(conf.version), verRange):
+              return True
+          else:
+            raise newException(EInstall, "Package has an invalid .babel file: " &
+                               verRet)
 
   return False
 
@@ -75,13 +80,14 @@ proc createDirs(dirs: seq[string]) =
 
 proc copyFiles(proj: TProject) =
   # This will create a $home/.babel and lib/ or bin/. It will also copy all the
-  # files listed in proj.modules and proj.files.
+  # files listed in proj.modules and proj.files and the .babel file.
   var babelDir = getBabelDir()
 
   var dirs = @[babelDir, babelDir / "lib", babelDir / "bin"]
 
   if proj.library:
-    var projDir = babelDir / "lib" / (proj.name & "-" & proj.version)
+    # TODO: How will we handle multiple versions?
+    var projDir = babelDir / "lib" / proj.name # $babel/lib/name
     dirs.add(projDir)
     createDirs(dirs)
     # Copy the files
@@ -94,6 +100,12 @@ proc copyFiles(proj: TProject) =
         stdout.write("Copying " & i.addFileExt("nim") & "...")
         copyFile(i, projDir / i)
         echo(" Done!")      
+
+    # Copy the .babel file.
+    var babelFile = proj.name.addFileExt("babel")
+    stdout.write("Copying " & babelFile & "...")
+    copyFile(babelFile, projDir / babelFile)
+    echo(" Done!")
 
   elif proj.executable:
     # TODO: Copy files for executable.
@@ -135,4 +147,4 @@ proc install*(name: string, filename: string = "") =
   echo("Package " & name & " successfully installed.")
 
 when isMainModule:
-  install("babel")
+  install(paramStr(1))
