@@ -34,11 +34,11 @@ proc dependExists(name: string, verRange: PVersionRange): Bool =
                          nimVer & " " & $verRange)
     else: return True
   else:
-    for kind, path in walkDir(getBabelDir() / "lib"):
-      if kind == pcDir:
-        var dir = path.extractFilename()
-        if dir == name:
-          var conf   = parseBabel(path / dir.addFileExt(".babel"))
+    for kind, path in walkDir(getBabelDir() / "packages"):
+      if kind == pcFile:
+        var file = path.extractFilename()
+        if file == name.addFileExt("babel"):
+          var conf   = parseBabel(path)
           var verRet = conf.verify()
           if verRet == "":
             if withinRange(newVersion(conf.version), verRange):
@@ -83,7 +83,7 @@ proc copyFiles(proj: TProject) =
   # files listed in proj.modules and proj.files and the .babel file.
   var babelDir = getBabelDir()
 
-  var dirs = @[babelDir, babelDir / "lib", babelDir / "bin"]
+  var dirs = @[babelDir, babelDir / "lib", babelDir / "bin", babelDir / "packages"]
 
   if proj.library:
     # TODO: How will we handle multiple versions?
@@ -92,19 +92,21 @@ proc copyFiles(proj: TProject) =
     createDirs(dirs)
     # Copy the files
     for i in items(proj.modules):
-      stdout.write("Copying " & i.addFileExt("nim") & "...")
-      copyFile(i.addFileExt("nim"), projDir / i.addFileExt("nim"))
+      var file = proj.confDir / i.addFileExt("nim")
+      stdout.write("Copying " & file & "...")
+      copyFile(file, projDir / i.addFileExt("nim"))
       echo(" Done!")
     if proj.files.len > 0:
       for i in items(proj.files):
-        stdout.write("Copying " & i.addFileExt("nim") & "...")
-        copyFile(i, projDir / i)
+        var file = proj.confDir / i
+        stdout.write("Copying " & file & "...")
+        copyFile(file, projDir / i)
         echo(" Done!")      
 
-    # Copy the .babel file.
-    var babelFile = proj.name.addFileExt("babel")
+    # Copy the .babel file into the packages folder.
+    var babelFile = proj.confDir / proj.name.addFileExt("babel")
     stdout.write("Copying " & babelFile & "...")
-    copyFile(babelFile, projDir / babelFile)
+    copyFile(babelFile, babelDir / "packages" / babelFile)
     echo(" Done!")
 
   elif proj.executable:
@@ -141,10 +143,10 @@ proc install*(name: string, filename: string = "") =
   else:
     echo("All dependencies verified!")
 
-  echo("Installing " & name & "...")
+  echo("Installing " & babelFile.name & "...")
   babelFile.copyFiles()
 
-  echo("Package " & name & " successfully installed.")
+  echo("Package " & babelFile.name & " successfully installed.")
 
 when isMainModule:
   install(paramStr(1))

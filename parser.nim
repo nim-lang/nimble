@@ -1,4 +1,4 @@
-import parsecfg, streams, strutils
+import parsecfg, streams, strutils, os
 
 type
   TProject* = object
@@ -20,6 +20,8 @@ type
 
     unknownFields*: seq[string] # TODO:
     
+    confDir*: string # Directory of the babel file, "" if current work dir.
+
   EParseErr* = object of EInvalidValue
 
 proc initProj(): TProject =
@@ -36,8 +38,11 @@ proc initProj(): TProject =
   result.depends = @[]
   result.modules = @[]
   result.files   = @[]
-  
+  result.exeFile = ""
+
   result.unknownFields = @[]
+
+  result.confDir = ""
 
 proc parseList(s: string): seq[string] =
   result = @[]  
@@ -51,6 +56,8 @@ proc parseErr(p: TCfgParser, msg: string) =
 
 proc parseBabel*(file: string): TProject =
   result = initProj()
+  result.confDir = splitFile(file).dir
+
   var f = newFileStream(file, fmRead)
   if f != nil:
     var p: TCfgParser
