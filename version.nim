@@ -138,6 +138,10 @@ proc `$`*(verRange: PVersionRange): String =
 
   result.add(string(verRange.ver))
 
+proc newVRAny*(): PVersionRange =
+  new(result)
+  result.kind = verAny
+
 when isMainModule:
   assert(newVersion("1.0") < newVersion("1.4"))
   assert(newVersion("1.0.1") > newVersion("1.0"))

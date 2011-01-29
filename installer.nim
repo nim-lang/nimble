@@ -1,4 +1,4 @@
-import "babel/parser", "babel/version", osproc, strutils, re, os, parseutils
+import parser, version, osproc, strutils, re, os, parseutils, streams
 
 type
   EInstall = object of EBase
@@ -26,6 +26,14 @@ proc getNimVersion(cmd: string = "nimrod"): String =
 
   return nimrodVersion
 
+proc compile*(file: string, flags: string = "") =
+  var args: string = flags & "c " & file
+  echo("Compiling " & file & "...")
+  var code = execShellCmd(findExe("nimrod") & " " & args)
+  if code != quitSuccess:
+    raise newException(EInstall, "Compilation failed: Nimrod returned exit code " &
+                       $code)
+
 proc dependExists(name: string, verRange: PVersionRange): Bool =
   if name == "nimrod":
     var nimVer = getNimVersion()
@@ -38,14 +46,16 @@ proc dependExists(name: string, verRange: PVersionRange): Bool =
       if kind == pcFile:
         var file = path.extractFilename()
         if file == name.addFileExt("babel"):
-          var conf   = parseBabel(path)
-          var verRet = conf.verify()
-          if verRet == "":
-            if withinRange(newVersion(conf.version), verRange):
-              return True
-          else:
-            raise newException(EInstall, "Package has an invalid .babel file: " &
-                               verRet)
+          if verRange.kind != verAny:
+            var conf   = parseBabel(path)
+            var verRet = conf.verify()
+            if verRet == "":
+              if withinRange(newVersion(conf.version), verRange):
+                return True
+            else:
+              raise newException(EInstall, "Package has an invalid .babel file: " &
+                                 verRet)
+          else: return True
 
   return False
 
@@ -84,35 +94,43 @@ proc copyFiles(proj: TProject) =
   var babelDir = getBabelDir()
 
   var dirs = @[babelDir, babelDir / "lib", babelDir / "bin", babelDir / "packages"]
-
+  createDirs(dirs)
   if proj.library:
     # TODO: How will we handle multiple versions?
     var projDir = babelDir / "lib" / proj.name # $babel/lib/name
-    dirs.add(projDir)
-    createDirs(dirs)
+    createDir(projDir)
     # Copy the files
     for i in items(proj.modules):
-      var file = proj.confDir / i.addFileExt("nim")
-      stdout.write("Copying " & file & "...")
-      copyFile(file, projDir / i.addFileExt("nim"))
+      var file   = proj.confDir / i.addFileExt("nim")
+      var copyTo = projDir / i.addFileExt("nim")
+      stdout.write("Copying " & file & " to " & copyTo & "...")
+      copyFile(file, copyTo)
       echo(" Done!")
     if proj.files.len > 0:
       for i in items(proj.files):
-        var file = proj.confDir / i
-        stdout.write("Copying " & file & "...")
-        copyFile(file, projDir / i)
-        echo(" Done!")      
-
-    # Copy the .babel file into the packages folder.
-    var babelFile = proj.confDir / proj.name.addFileExt("babel")
-    stdout.write("Copying " & babelFile & "...")
-    copyFile(babelFile, babelDir / "packages" / babelFile)
-    echo(" Done!")
+        var file   = proj.confDir / i
+        var copyTo = projDir / i
+        stdout.write("Copying " & file & " to " & copyTo & "...")
+        copyFile(file, copyTo)
+        echo(" Done!")
 
   elif proj.executable:
-    # TODO: Copy files for executable.
-    assert(false)
-  
+    var exeSrcFile = proj.confDir / proj.exeFile.addFileExt("nim")
+    # Compile
+    compile(exeSrcFile)
+    
+    var exeCmpFile = exeSrcFile.changeFileExt(ExeExt)
+    var copyTo = babelDir / "bin" / proj.exeFile.addFileExt(ExeExt)
+    stdout.write("Copying " & exeCmpFile & " to " & copyTo & "...")
+    copyFile(exeCmpFile, copyTo)
+    echo(" Done!")
+
+  # Copy the .babel file into the packages folder.
+  var babelFile = proj.confDir / proj.name.addFileExt("babel")
+  var copyTo    = babelDir / "packages" / proj.name.addFileExt("babel")
+  stdout.write("Copying " & babelFile & " to " & copyTo & "...")
+  copyFile(babelFile, copyTo)
+  echo(" Done!")
 
 proc install*(name: string, filename: string = "") =
   ## Install package by the name of ``name``, filename specifies where to look for it
@@ -132,7 +150,14 @@ proc install*(name: string, filename: string = "") =
   var ret = babelFile.verify()
   if ret != "":
     raise newException(EInstall, "Verifying the .babel file failed: " & ret)
-  
+
+  # Check whether this package is already installed
+  # TODO: Different versions
+  # TODO: Commented for testing -- Uncomment.
+  #if dependExists(babelFile.name, newVRAny()):
+  #  raise newException(EInstall, 
+  #          "This package is already installed: TODO: different versions.")
+
   if babelFile.depends.len == 1:
     echo("Verifying 1 dependency...")
   else:
