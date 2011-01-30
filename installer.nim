@@ -45,16 +45,16 @@ proc dependExists(name: string, verRange: PVersionRange): Bool =
     for kind, path in walkDir(getBabelDir() / "packages"):
       if kind == pcFile:
         var file = path.extractFilename()
-        if file == name.addFileExt("babel"):
+        if file.startswith(name & "-"):
           if verRange.kind != verAny:
-            var conf   = parseBabel(path)
-            var verRet = conf.verify()
-            if verRet == "":
-              if withinRange(newVersion(conf.version), verRange):
+            var ver = ""
+            # This will have a dot at the end, it doesn't cause trouble though.
+            var ret = file.parseToken(ver, digits + {'.'}, name.len() + 1)
+            if ret != 0:
+              if withinRange(newVersion(ver), verRange):
                 return True
             else:
-              raise newException(EInstall, "Package has an invalid .babel file: " &
-                                 verRet)
+              raise newException(EInstall, "Invalid .babel file: " & file)
           else: return True
 
   return False
@@ -84,9 +84,26 @@ proc verifyDepends(proj: TProject): seq[TDepend] =
     if not dependExists(nameStr, verRange):
       result.add((nameStr, verRange))
 
+proc createDirDebug(dir: string) =
+  # Have to check, so that it doesn't echo...
+  if not existsDir(dir):
+    stdout.write("Creating directory " & dir & "...")
+    createDir(dir)
+    echo(" Done!")
+
 proc createDirs(dirs: seq[string]) =
   for i in items(dirs):
-    createDir(i)
+    createDirDebug(i)
+
+proc copyFileDebug(file, copyTo: string) =
+  stdout.write("Copying " & file & " to " & copyTo & "...")
+  copyFile(file, copyTo)
+  echo(" Done!")
+
+proc moveFileDebug(file, moveTo: string) =
+  stdout.write("Moving " & file & " to " & moveTo & "...")
+  moveFile(file, moveTo)
+  echo(" Done!")
 
 proc copyFiles(proj: TProject) =
   # This will create a $home/.babel and lib/ or bin/. It will also copy all the
@@ -98,21 +115,17 @@ proc copyFiles(proj: TProject) =
   if proj.library:
     # TODO: How will we handle multiple versions?
     var projDir = babelDir / "lib" / proj.name # $babel/lib/name
-    createDir(projDir)
+    createDirDebug(projDir)
     # Copy the files
     for i in items(proj.modules):
       var file   = proj.confDir / i.addFileExt("nim")
       var copyTo = projDir / i.addFileExt("nim")
-      stdout.write("Copying " & file & " to " & copyTo & "...")
-      copyFile(file, copyTo)
-      echo(" Done!")
+      copyFileDebug(file, copyTo)
     if proj.files.len > 0:
       for i in items(proj.files):
         var file   = proj.confDir / i
         var copyTo = projDir / i
-        stdout.write("Copying " & file & " to " & copyTo & "...")
-        copyFile(file, copyTo)
-        echo(" Done!")
+        copyFileDebug(file, copyTo)
 
   elif proj.executable:
     var exeSrcFile = proj.confDir / proj.exeFile.addFileExt("nim")
@@ -121,16 +134,53 @@ proc copyFiles(proj: TProject) =
     
     var exeCmpFile = exeSrcFile.changeFileExt(ExeExt)
     var copyTo = babelDir / "bin" / proj.exeFile.addFileExt(ExeExt)
-    stdout.write("Copying " & exeCmpFile & " to " & copyTo & "...")
-    copyFile(exeCmpFile, copyTo)
-    echo(" Done!")
+    copyFileDebug(exeCmpFile, copyTo)
 
   # Copy the .babel file into the packages folder.
   var babelFile = proj.confDir / proj.name.addFileExt("babel")
-  var copyTo    = babelDir / "packages" / proj.name.addFileExt("babel")
-  stdout.write("Copying " & babelFile & " to " & copyTo & "...")
-  copyFile(babelFile, copyTo)
-  echo(" Done!")
+  # addFileExt fails in this situation. Although it's fine without .babel
+  var copyTo    = babelDir / "packages" / 
+                  (proj.name & "-" & proj.version)
+  copyFileDebug(babelFile, copyTo)
+  
+
+
+proc upgrade(proj: TProject) =
+  ## This proc moves the files in lib/package into lib/package/lastVersion
+  ## It then copies the new version into lib/package.
+  
+  var babelDir = getBabelDir()
+  # Find the config for the latest (currently installed) package version in
+  # packages/
+  var latestVersion = "0"
+  var path = ""
+  for kind, confPath in walkDir(babelDir / "packages"):
+    if kind == pcFile:
+      var file = confPath.extractFilename()
+      if file.startsWith(proj.name & "-"):
+        var ver = ""
+        # This will have a dot at the end, it doesn't cause trouble though.
+        discard file.parseToken(ver, digits + {'.'}, proj.name.len() + 1)
+        echo(ver)
+        if ver > latestVersion: 
+          latestVersion = ver
+          path = confPath
+
+  assert(path != "")
+
+  if proj.library:
+    echo("Reading " & path & "...")
+    var latestConf = parseBabel(path)
+    var newVerDir  = babelDir / "lib" / latestConf.name / latestConf.version
+    createDirDebug(newVerDir)
+    # Move the files
+    for kind, path in walkDir(babelDir / "lib" / latestConf.name):
+      if kind == pcFile:
+        moveFileDebug(path, newVerDir / path.extractFilename())
+
+  # Install the new version
+  copyFiles(proj)
+  
 
 proc install*(name: string, filename: string = "") =
   ## Install package by the name of ``name``, filename specifies where to look for it
@@ -151,12 +201,13 @@ proc install*(name: string, filename: string = "") =
   if ret != "":
     raise newException(EInstall, "Verifying the .babel file failed: " & ret)
 
+  var upgrade = False # Specifies whether to upgrade
   # Check whether this package is already installed
-  # TODO: Different versions
-  # TODO: Commented for testing -- Uncomment.
-  #if dependExists(babelFile.name, newVRAny()):
-  #  raise newException(EInstall, 
-  #          "This package is already installed: TODO: different versions.")
+  if dependExists(babelFile.name, newVREq(babelFile.version)):
+    raise newException(EInstall, 
+            "This package is already installed!")
+  elif dependExists(babelFile.name, newVREarlier(babelFile.version)):
+    upgrade = True
 
   if babelFile.depends.len == 1:
     echo("Verifying 1 dependency...")
@@ -168,8 +219,13 @@ proc install*(name: string, filename: string = "") =
   else:
     echo("All dependencies verified!")
 
-  echo("Installing " & babelFile.name & "...")
-  babelFile.copyFiles()
+  if not upgrade:
+    echo("Installing " & babelFile.name & "-" & babelFile.version & "...")
+    babelFile.copyFiles()
+  else:
+    echo("Upgrading " & babelFile.name & " to version " &
+         babelFile.version & "...")
+    babelFile.upgrade()
 
   echo("Package " & babelFile.name & " successfully installed.")
 

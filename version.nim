@@ -9,12 +9,13 @@ type
     verEqLater,   # >= V -- Equal or later
     verEqEarlier, # <= V -- Equal or earlier
     verIntersect, # > V & < V
+    verEq,        # V
     verAny        # *
 
   PVersionRange* = ref TVersionRange
   TVersionRange* = object
     case kind*: TVersionRangeEnum
-    of verLater, verEarlier, verEqLater, verEqEarlier:
+    of verLater, verEarlier, verEqLater, verEqEarlier, verEq:
       ver*: TVersion
     of verIntersect:
       verILeft, verIRight: PVersionRange
@@ -60,6 +61,8 @@ proc withinRange*(ver: TVersion, ran: PVersionRange): Bool =
     return ver >= ran.ver
   of verEqEarlier:
     return ver <= ran.ver
+  of verEq:
+    return ver == ran.ver
   of verIntersect:
     return withinRange(ver, ran.verILeft) and withinRange(ver, ran.verIRight)
   of verAny:
@@ -131,6 +134,8 @@ proc `$`*(verRange: PVersionRange): String =
     result = ">= "
   of verEqEarlier:
     result = "<= "
+  of verEq:
+    result = ""
   of verIntersect:
     result = $verRange.verILeft & " & " & $verRange.verIRight
   of verAny:
@@ -141,6 +146,16 @@ proc `$`*(verRange: PVersionRange): String =
 proc newVRAny*(): PVersionRange =
   new(result)
   result.kind = verAny
+
+proc newVREarlier*(ver: String): PVersionRange =
+  new(result)
+  result.kind = verEarlier
+  result.ver = newVersion(ver)
+
+proc newVREq*(ver: string): PVersionRange =
+  new(result)
+  result.kind = verEq
+  result.ver = newVersion(ver)
 
 when isMainModule:
   assert(newVersion("1.0") < newVersion("1.4"))
