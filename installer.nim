@@ -5,6 +5,12 @@ type
 
   TDepend = tuple[name: String, verRange: PVersionRange]
 
+var debug* = 1 ## 0 = no messages, 1 - 3 = less to more verbose respectively.
+
+proc echoD*(s: string, verbosity: int = 1, nl: bool = True) =
+  if debug >= verbosity:
+    stdout.write(s & (if nl: "\n" else: ""))
+
 proc getBabelDir(): string =
   when defined(windows):
     result = getHomeDir() / "babel"
@@ -28,7 +34,7 @@ proc getNimVersion(cmd: string = "nimrod"): String =
 
 proc compile*(file: string, flags: string = "") =
   var args: string = flags & "c " & file
-  echo("Compiling " & file & "...")
+  echoD("Compiling " & file & "...")
   var code = execShellCmd(findExe("nimrod") & " " & args)
   if code != quitSuccess:
     raise newException(EInstall, "Compilation failed: Nimrod returned exit code " &
@@ -61,19 +67,8 @@ proc dependExists(name: string, verRange: PVersionRange): Bool =
 
 proc verifyDepends(proj: TProject): seq[TDepend] =
   result = @[]
-  for i in items(proj.depends):
-    var spl = i.split()
-    var nameStr = ""
-    var verStr  = ""
-    if spl.len == 1:
-      nameStr = spl[0]
-    elif spl.len > 1:
-      nameStr = spl[0]
-      spl.delete(0)
-      verStr  = join(spl, " ")
-    else:
-      raise newException(EInstall, "Incorrect dependency got: " & i)
-    
+  for nameStr, verStr in items(proj.depends):
+    echoD("  " & nameStr & " " & verStr & "...", 2, False)
     var verRange: PVersionRange
     if verStr == "":
       new(verRange)
@@ -83,27 +78,30 @@ proc verifyDepends(proj: TProject): seq[TDepend] =
 
     if not dependExists(nameStr, verRange):
       result.add((nameStr, verRange))
+      echoD(" FAIL", 2)
+    else:
+      echoD(" OK", 2)
 
 proc createDirDebug(dir: string) =
   # Have to check, so that it doesn't echo...
   if not existsDir(dir):
-    stdout.write("Creating directory " & dir & "...")
+    echoD("Creating directory " & dir & "...", 3, False)
     createDir(dir)
-    echo(" Done!")
+    echoD(" Done!", 3)
 
 proc createDirs(dirs: seq[string]) =
   for i in items(dirs):
     createDirDebug(i)
 
 proc copyFileDebug(file, copyTo: string) =
-  stdout.write("Copying " & file & " to " & copyTo & "...")
+  echoD("Copying " & file & " to " & copyTo & "...", 3, False)
   copyFile(file, copyTo)
-  echo(" Done!")
+  echoD(" Done!", 3)
 
 proc moveFileDebug(file, moveTo: string) =
-  stdout.write("Moving " & file & " to " & moveTo & "...")
+  echoD("Moving " & file & " to " & moveTo & "...", 3, False)
   moveFile(file, moveTo)
-  echo(" Done!")
+  echoD(" Done!", 3)
 
 proc copyFiles(proj: TProject) =
   # This will create a $home/.babel and lib/ or bin/. It will also copy all the
@@ -161,7 +159,6 @@ proc upgrade(proj: TProject) =
         var ver = ""
         # This will have a dot at the end, it doesn't cause trouble though.
         discard file.parseToken(ver, digits + {'.'}, proj.name.len() + 1)
-        echo(ver)
         if ver > latestVersion: 
           latestVersion = ver
           path = confPath
@@ -169,7 +166,7 @@ proc upgrade(proj: TProject) =
   assert(path != "")
 
   if proj.library:
-    echo("Reading " & path & "...")
+    echoD("Reading " & path & "...", 3)
     var latestConf = parseBabel(path)
     var newVerDir  = babelDir / "lib" / latestConf.name / latestConf.version
     createDirDebug(newVerDir)
@@ -194,7 +191,7 @@ proc install*(name: string, filename: string = "") =
   else:
     path = filename / name.addFileExt("babel")
 
-  echo("Reading ", path, "...")
+  echoD("Reading " & path & "...", 3)
   babelFile = parseBabel(path)
 
   var ret = babelFile.verify()
@@ -210,24 +207,24 @@ proc install*(name: string, filename: string = "") =
     upgrade = True
 
   if babelFile.depends.len == 1:
-    echo("Verifying 1 dependency...")
+    echoD("Verifying 1 dependency...")
   else:
-    echo("Verifying ", babelFile.depends.len(), " dependencies...")
+    echoD("Verifying " & $babelFile.depends.len() & " dependencies...")
   var dependsNeeded = babelFile.verifyDepends()
   if dependsNeeded.len() > 0:
     raise newException(EInstall, "TODO: Download & Install dependencies.")
   else:
-    echo("All dependencies verified!")
+    echoD("All dependencies verified!")
 
   if not upgrade:
-    echo("Installing " & babelFile.name & "-" & babelFile.version & "...")
+    echoD("Installing " & babelFile.name & "-" & babelFile.version & "...")
     babelFile.copyFiles()
   else:
-    echo("Upgrading " & babelFile.name & " to version " &
+    echoD("Upgrading " & babelFile.name & " to version " &
          babelFile.version & "...")
     babelFile.upgrade()
 
-  echo("Package " & babelFile.name & " successfully installed.")
+  echoD("Package " & babelFile.name & " successfully installed.")
 
 when isMainModule:
   install(paramStr(1))

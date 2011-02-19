@@ -11,7 +11,7 @@ type
     homepage*: String
 
     library*: bool
-    depends*: seq[string] # Dependencies
+    depends*: seq[tuple[name, vRange: string]] # Dependencies
     modules*: seq[string] # ExtraModules
     files*: seq[string]   # files
 
@@ -49,6 +49,38 @@ proc parseList(s: string): seq[string] =
   var many = s.split({',', ';'})
   for i in items(many):
     result.add(i.strip())
+
+proc skipUntil(s, token: string, o: var string): int =
+  ## Captures each char until `token` is found, sets `o` to the captured string,
+  ## and returns the number of characters captured.
+  var i = 0
+  while True:
+    case s[i]
+    of '\0':
+      break
+    else:
+      var found = False
+      for t in 0..len(token)-1:
+        if s[i+t] == token[t]:
+          found = True
+        else:
+          found = False
+          break
+      if found:
+        break
+    inc(i)
+  o = copy(s, 0, i-1)
+  return i
+
+proc parseDepends(s: string): seq[tuple[name, vRange: string]] =
+  result = @[]  
+  var many = s.split({',', ';'})
+  for i in items(many):
+    var stripped = i.strip()
+    var name = ""
+    var index = skipUntil(stripped, " ", name)
+    var vRange = stripped.copy(index)
+    result.add((name.strip(), vRange.strip()))
     
 proc parseErr(p: TCfgParser, msg: string) =
   raise newException(EParseErr, "(" & $p.getLine() & ", " &
@@ -92,7 +124,7 @@ proc parseBabel*(file: string): TProject =
         of "library":
           case normalize(e.key)
           of "depends":
-            result.depends = e.value.parseList()
+            result.depends = e.value.parseDepends()
           of "files":
             result.files = e.value.parseList()
           of "exposedmodules":
@@ -102,7 +134,7 @@ proc parseBabel*(file: string): TProject =
         of "exe":
           case normalize(e.key)
           of "depends":
-            result.depends = e.value.parseList()
+            result.depends = e.value.parseDepends()
           of "files":
             result.files = e.value.parseList()
           of "exe":
@@ -155,3 +187,7 @@ when isMainModule:
     echo(i)
   var project = parseBabel("babel.babel")
   echo project.library
+  echo()
+  var o = ""
+  echo skipUntil("nimrod >= 0.8.10", " ", o)
+  echo(o)
