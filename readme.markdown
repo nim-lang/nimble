@@ -1,21 +1,27 @@
 # Babel
-Babel is a work in progress package manager for Nimrod.
+Babel is a work in progress *package manager* for Nimrod.
+
+## Compiling babel
+You will need the latest Nimrod compiler from github to compile babel.
+
+Compiling it is as simple as ``nimrod c babel``.
 
 ## Babel's folder structure
 Babel stores everything that has been installed in ~/.babel on Unix systems and 
-in your $home/babel on Windows. Libraries are stored in $babelDir/libs.
+in your $home/.babel on Windows. Libraries are stored in $babelDir/libs.
 
 ## Libraries
 Libraries may contain a ``ProjectName.nim`` file, this file will be copied
-to ~/.babel/libs/ProjectName.nim allowing anyone to import it by doing
+to ~/.babel/libs/ProjectName.nim allowing anyone to import it with
 ``import ProjectName``, it is recommended to include such a file, however
 it's not a requirement.
 
-All public modules should be placed in a ``ProjectName/`` folder. The reason for
+All modules should be placed in a ``ProjectName/`` folder. The reason for
 this is that the main project file can then import the modules that it needs
-and the import filename will work before the installation and after.
+with confidence that the filename of those modules will not change after
+installation.
 
-Any private modules should be placed, by convention, in
+All private modules should be placed, by convention, in
 a ``private`` folder inside the ``ProjectName/`` folder, these are modules which
 the user of your library should not be importing. All files and folders in
 ``ProjectName/`` will be copied as-is, you can however specify to skip some
