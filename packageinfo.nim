@@ -67,5 +67,22 @@ proc getPackage*(pkg: string, packagesPath: string, resPkg: var TPackage): bool 
     return true
   return false
   
-  
-  
+proc getPackageList*(packagesPath: string): seq[TPackage] =
+  result = @[]
+  let packages = parseFile(packagesPath)
+  for p in packages:
+    var pkg: TPackage
+    pkg.name = p["name"].str
+    pkg.url = p["url"].str
+    pkg.downloadMethod = p["method"].str
+    pkg.tags = @[]
+    for t in p["tags"]:
+      pkg.tags.add(t.str)
+    pkg.description = p["description"].str
+    result.add(pkg)
+
+proc echoPackage*(pkg: TPackage) =
+  echo(pkg.name & ":")
+  echo("  url:         " & pkg.url & " (" & pkg.downloadMethod & ")")
+  echo("  tags:        " & pkg.tags.join(", "))
+  echo("  description: " & pkg.description)

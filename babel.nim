@@ -4,7 +4,7 @@ import packageinfo
 
 type
   TActionType = enum
-    ActionNil, ActionUpdate, ActionInstall
+    ActionNil, ActionUpdate, ActionInstall, ActionSearch
 
   TAction = object
     case typ: TActionType
@@ -13,14 +13,21 @@ type
       optionalURL: string # Overrides default package list.
     of ActionInstall:
       optionalName: seq[string] # When this is @[], installs package from current dir.
+    of ActionSearch:
+      search: seq[string] # Search string.
+      byTag: bool
 
 const
   help = """
-Usage: babel COMMAND
+Usage: babel COMMAND [opts]
 
 Commands:
   install        Installs a list of packages.
   update         Updates package list. A package list URL can be optionally specificed.
+  search         Searches for a specified package.
+
+Search:
+  --tags         Searches by tags, otherwise by name.
 """
   babelVersion = "0.1.0"
   defaultPackageURL = "https://github.com/nimrod-code/packages/raw/master/packages.json"
@@ -46,6 +53,10 @@ proc parseCmdLine(): TAction =
         of "update":
           result.typ = ActionUpdate
           result.optionalURL = ""
+        of "search":
+          result.typ = ActionSearch
+          result.search = @[]
+          result.byTag = false
         else: writeHelp()
       else:
         case result.typ
@@ -55,10 +66,16 @@ proc parseCmdLine(): TAction =
           result.optionalName.add(key)
         of ActionUpdate:
           result.optionalURL = key
+        of ActionSearch:
+          result.search.add(key)
     of cmdLongOption, cmdShortOption:
       case key
       of "help", "h": writeHelp()
       of "version", "v": writeVersion()
+      of "tags", "t":
+        case result.typ
+        of ActionSearch: result.byTag = true
+        else: writeHelp()
     of cmdEnd: assert(false) # cannot happen
   if result.typ == ActionNil:
     writeHelp()
@@ -197,6 +214,30 @@ proc install(packages: seq[String]) =
       else:
         quit("Package not found.", QuitFailure)
 
+proc search(action: TAction) =
+  assert action.typ == ActionSearch
+  if action.search == @[]:
+    quit("Please specify a search string.", QuitFailure)
+  let pkgList = getPackageList(getBabelDir() / "packages.json")
+  var notFound = true
+  if action.byTag:
+    for pkg in pkgList:
+      for word in action.search:
+        if word in pkg.tags:
+          echoPackage(pkg)
+          echo(" ")
+          notFound = false
+          break
+  else:
+    for pkg in pkgList:
+      if pkg.name in action.search:
+        echoPackage(pkg)
+        echo(" ")
+        notFound = false
+
+  if notFound:
+    echo("No package found.")
+
 proc doAction(action: TAction) =
   case action.typ
   of ActionUpdate:
@@ -206,6 +247,8 @@ proc doAction(action: TAction) =
       update()
   of ActionInstall:
     install(action.optionalName)
+  of ActionSearch:
+    search(action)
   of ActionNil:
     assert false
 
