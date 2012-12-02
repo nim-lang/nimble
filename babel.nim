@@ -63,6 +63,17 @@ proc parseCmdLine(): TAction =
   if result.typ == ActionNil:
     writeHelp()
 
+proc prompt(question: string): bool =
+  echo(question & " [y/N]")
+  let yn = stdin.readLine()
+  case yn.normalize
+  of "y", "yes":
+    return true
+  of "n", "no":
+    return false
+  else:
+    return false
+
 proc update(url: string = defaultPackageURL) =
   echo("Downloading package list from " & url)
   downloadFile(url, getHomeDir() / ".babel" / "packages.json")
@@ -134,9 +145,18 @@ proc installFromDir(dir: string) =
   if babelFile == "":
     quit("Specified directory does not contain a .babel file.", QuitFailure)
   var pkgInfo = readPackageInfo(babelFile)
+  
+  if not existsDir(dir / pkgInfo.name):
+    quit("Package modules should be placed in a " & pkgInfo.name & dirSep &
+         " directory.", QuitFailure)
+  
   if not existsDir(getLibsDir() / pkgInfo.name):
     createDir(getLibsDir() / pkgInfo.name)
-  else: echo("Warning: Package already exists.")
+  else: 
+    if not prompt("Package already exists. Overwrite?"):
+      quit(QuitSuccess)
+    removeDir(getLibsDir() / pkgInfo.name)
+    createDir(getLibsDir() / pkgInfo.name)
   
   # Find main project file.
   let nimFile = dir / pkgInfo.name.addFileExt("nim")
@@ -149,9 +169,11 @@ proc installFromDir(dir: string) =
       copyFileD(nimrodFile, changeRoot(dir, getLibsDir(), nimrodFile))
       pkgInfo.skipFiles.add(changeRoot(dir, "", nimrodFile))
   else:
-    quit("Could not find main package file.", QuitFailure)
+    # TODO: Make this an error? Which can be overriden in .babel file?
+    echo("Warning: Could not find main package file.")
   
-  copyFilesRec(dir, dir, pkgInfo)
+  copyFilesRec(dir / pkgInfo.name, dir / pkgInfo.name, pkgInfo)
+  echo(pkgInfo.name & " installed successfully.")
 
 proc install(packages: seq[String]) =
   if packages == @[]:
