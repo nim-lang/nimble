@@ -107,7 +107,7 @@ proc copyFileD(fro, to: string) =
   echo(fro, " -> ", to)
   copyFile(fro, to)
 
-proc getBabelDir: string = return getHomeDir() / ".babel"
+proc getBabelDir: string = return getHomeDir() / "babel"
 
 proc getLibsDir: string = return getBabelDir() / "libs"
 
