@@ -25,9 +25,6 @@ Commands:
   install        Installs a list of packages.
   update         Updates package list. A package list URL can be optionally specificed.
   search         Searches for a specified package.
-
-Search:
-  --tags         Searches by tags, otherwise by name.
 """
   babelVersion = "0.1.0"
   defaultPackageURL = "https://github.com/nimrod-code/packages/raw/master/packages.json"
@@ -72,10 +69,6 @@ proc parseCmdLine(): TAction =
       case key
       of "help", "h": writeHelp()
       of "version", "v": writeVersion()
-      of "tags", "t":
-        case result.typ
-        of ActionSearch: result.byTag = true
-        else: writeHelp()
     of cmdEnd: assert(false) # cannot happen
   if result.typ == ActionNil:
     writeHelp()
@@ -91,9 +84,13 @@ proc prompt(question: string): bool =
   else:
     return false
 
+proc getBabelDir: string = return getHomeDir() / "babel"
+
+proc getLibsDir: string = return getBabelDir() / "libs"
+
 proc update(url: string = defaultPackageURL) =
   echo("Downloading package list from " & url)
-  downloadFile(url, getHomeDir() / ".babel" / "packages.json")
+  downloadFile(url, getBabelDir() / "packages.json")
   echo("Done.")
 
 proc findBabelFile(dir: string): string =
@@ -106,10 +103,6 @@ proc findBabelFile(dir: string): string =
 proc copyFileD(fro, to: string) =
   echo(fro, " -> ", to)
   copyFile(fro, to)
-
-proc getBabelDir: string = return getHomeDir() / "babel"
-
-proc getLibsDir: string = return getBabelDir() / "libs"
 
 proc samePaths(p1, p2: string): bool =
   ## Normalizes path (by adding a trailing slash) and compares.
@@ -215,17 +208,19 @@ proc search(action: TAction) =
   assert action.typ == ActionSearch
   if action.search == @[]:
     quit("Please specify a search string.", QuitFailure)
+  if not existsFile(getBabelDir() / "packages.json"):
+    quit("Please run babel update.", QuitFailure)
   let pkgList = getPackageList(getBabelDir() / "packages.json")
   var notFound = true
-  if action.byTag:
-    for pkg in pkgList:
-      for word in action.search:
-        if word in pkg.tags:
-          echoPackage(pkg)
-          echo(" ")
-          notFound = false
-          break
-  else:
+  for pkg in pkgList:
+    for word in action.search:
+      if word in pkg.tags:
+        echoPackage(pkg)
+        echo(" ")
+        notFound = false
+        break
+  if notFound:
+    # Search by tag.
     for pkg in pkgList:
       if pkg.name in action.search:
         echoPackage(pkg)
@@ -250,10 +245,10 @@ proc doAction(action: TAction) =
     assert false
 
 when isMainModule:
-  if not existsDir(getHomeDir() / ".babel"):
-    createDir(getHomeDir() / ".babel")
-  if not existsDir(getHomeDir() / ".babel" / "libs"):
-    createDir(getHomeDir() / ".babel" / "libs")
+  if not existsDir(getBabelDir()):
+    createDir(getBabelDir())
+  if not existsDir(getLibsDir()):
+    createDir(getLibsDir())
   
   parseCmdLine().doAction()
   
