@@ -97,10 +97,11 @@ proc update(url: string = defaultPackageURL) =
   echo("Done.")
 
 proc findBabelFile(dir: string): string =
+  result = ""
   for kind, path in walkDir(dir):
     if kind == pcFile and path.splitFile.ext == ".babel":
-      return path
-  return ""
+      if result != "": quit("Only one .babel file should be present in " & dir)
+      result = path
 
 proc copyFileD(fro, to: string) =
   echo(fro, " -> ", to)
@@ -127,7 +128,7 @@ proc changeRoot(origRoot, newRoot, path: string): string =
     raise newException(EInvalidValue,
       "Cannot change root of path: Path does not begin with original root.")
 
-proc copyFilesRec(origDir, currentDir: string, pkgInfo: TPackageInfo) =
+proc copyFilesRec(origDir, currentDir, dest: string, pkgInfo: TPackageInfo) =
   for kind, file in walkDir(currentDir):
     if kind == pcDir:
       var skip = false
@@ -142,9 +143,9 @@ proc copyFilesRec(origDir, currentDir: string, pkgInfo: TPackageInfo) =
       
       if skip: continue
       # Create the dir.
-      createDir(changeRoot(origDir, getLibsDir() / pkgInfo.name, file))
+      createDir(changeRoot(origDir, dest, file))
       
-      copyFilesRec(origDir, file, pkgInfo)
+      copyFilesRec(origDir, file, dest, pkgInfo)
     else:
       var skip = false
       if file.splitFile().name[0] == '.': skip = true
@@ -155,46 +156,40 @@ proc copyFilesRec(origDir, currentDir: string, pkgInfo: TPackageInfo) =
           break
       
       if not skip:
-        copyFileD(file, changeRoot(origDir, getLibsDir() / pkgInfo.name, file)) 
+        copyFileD(file, changeRoot(origDir, dest, file)) 
       
-proc installFromDir(dir: string) =
+proc installFromDir(dir: string, latest: bool) =
   let babelFile = findBabelFile(dir)
   if babelFile == "":
     quit("Specified directory does not contain a .babel file.", QuitFailure)
   var pkgInfo = readPackageInfo(babelFile)
   
-  if not existsDir(dir / pkgInfo.name):
-    quit("Package modules should be placed in a " & pkgInfo.name & dirSep &
-         " directory.", QuitFailure)
-  
-  if not existsDir(getLibsDir() / pkgInfo.name):
-    createDir(getLibsDir() / pkgInfo.name)
+  let pkgDestDir = getLibsDir() / (pkgInfo.name &
+                   (if latest: "" else: '-' & pkgInfo.version))
+  if not existsDir(pkgDestDir):
+    createDir(pkgDestDir)
   else: 
     if not prompt("Package already exists. Overwrite?"):
       quit(QuitSuccess)
-    removeDir(getLibsDir() / pkgInfo.name)
-    createDir(getLibsDir() / pkgInfo.name)
+    removeDir(pkgDestDir)
+    createDir(pkgDestDir)
   
-  # Find main project file.
-  let nimFile = dir / pkgInfo.name.addFileExt("nim")
-  let nimrodFile = dir / pkgInfo.name.addFileExt("nimrod")
-  if existsFile(nimFile) or existsFile(nimrodFile):
-    if existsFile(nimFile):
-      copyFileD(nimFile, changeRoot(dir, getLibsDir(), nimFile))
-      pkgInfo.skipFiles.add(changeRoot(dir, "", nimFile))
-    elif existsFile(nimrodFile):
-      copyFileD(nimrodFile, changeRoot(dir, getLibsDir(), nimrodFile))
-      pkgInfo.skipFiles.add(changeRoot(dir, "", nimrodFile))
-  else:
-    # TODO: Make this an error? Which can be overriden in .babel file?
-    echo("Warning: Could not find main package file.")
-  
-  copyFilesRec(dir / pkgInfo.name, dir / pkgInfo.name, pkgInfo)
+  copyFilesRec(dir, dir, pkgDestDir, pkgInfo)
   echo(pkgInfo.name & " installed successfully.")
+
+proc doCmd(cmd: string) =
+  let exitCode = execCmd(cmd)
+  if exitCode != QuitSuccess:
+    quit("Execution failed with exit code " & $exitCode, QuitFailure)
+
+proc getDVCSTag(pkg: TPackage): string =
+  result = pkg.dvcsTag
+  if result == "":
+    result = pkg.version
 
 proc install(packages: seq[String]) =
   if packages == @[]:
-    installFromDir(getCurrentDir())
+    installFromDir(getCurrentDir(), false)
   else:
     if not existsFile(getBabelDir() / "packages.json"):
       quit("Please run babel update.", QuitFailure)
@@ -202,15 +197,17 @@ proc install(packages: seq[String]) =
       var pkg: TPackage
       if getPackage(p, getBabelDir() / "packages.json", pkg):
         let downloadDir = (getTempDir() / "babel" / pkg.name)
+        let dvcsTag = getDVCSTag(pkg)
         case pkg.downloadMethod
         of "git":
           echo("Executing git...")
           removeDir(downloadDir)
-          let exitCode = execCmd("git clone " & pkg.url & " " & downloadDir)
-          if exitCode != QuitSuccess:
-            quit("Execution of git failed.", QuitFailure)
+          doCmd("git clone " & pkg.url & " " & downloadDir)
+          if dvcsTag != "":
+            doCmd("cd \"" & downloadDir & "\" && git checkout " & dvcsTag)
         else: quit("Unknown download method: " & pkg.downloadMethod, QuitFailure)
-        installFromDir(downloadDir)
+        
+        installFromDir(downloadDir, dvcsTag == "")
       else:
         quit("Package not found.", QuitFailure)
 

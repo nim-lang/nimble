@@ -11,7 +11,9 @@ type
 
   TPackage* = object
     name*: string
+    version*: string
     url*: string
+    dvcsTag*: string
     downloadMethod*: string
     tags*: seq[string]
     description*: string
@@ -53,17 +55,36 @@ proc readPackageInfo*(path: string): TPackageInfo =
   else:
     quit("Cannot open package info: " & path, QuitFailure)
 
+proc optionalField(obj: PJsonNode, name: string): string =
+  if existsKey(obj, name):
+    if obj[name].kind == JString:
+      return obj[name].str
+    else:
+      quit("Corrupted packages.json file. " & name & " field is of unexpected type.")
+  else: return ""
+
+proc requiredField(obj: PJsonNode, name: string): string =
+  if existsKey(obj, name):
+    if obj[name].kind == JString:
+      return obj[name].str
+    else:
+      quit("Corrupted packages.json file. " & name & " field is of unexpected type.")
+  else:
+    quit("Package in packages.json file does not contain a " & name & " field.")
+
 proc getPackage*(pkg: string, packagesPath: string, resPkg: var TPackage): bool =
   let packages = parseFile(packagesPath)
   for p in packages:
     if p["name"].str != pkg: continue
     resPkg.name = pkg
-    resPkg.url = p["url"].str
-    resPkg.downloadMethod = p["method"].str
+    resPkg.url = p.requiredField("url")
+    resPkg.version = p.optionalField("version")
+    resPkg.downloadMethod = p.requiredField("method")
+    resPkg.dvcsTag = p.optionalField("dvcs-tag")
     resPkg.tags = @[]
     for t in p["tags"]:
       resPkg.tags.add(t.str)
-    resPkg.description = p["description"].str
+    resPkg.description = p.requiredField("description")
     return true
   return false
   
@@ -72,13 +93,15 @@ proc getPackageList*(packagesPath: string): seq[TPackage] =
   let packages = parseFile(packagesPath)
   for p in packages:
     var pkg: TPackage
-    pkg.name = p["name"].str
-    pkg.url = p["url"].str
-    pkg.downloadMethod = p["method"].str
+    pkg.name = p.requiredField("name")
+    pkg.version = p.optionalField("version")
+    pkg.url = p.requiredField("url")
+    pkg.downloadMethod = p.requiredField("method")
+    pkg.dvcsTag = p.optionalField("dvcs-tag")
     pkg.tags = @[]
     for t in p["tags"]:
       pkg.tags.add(t.str)
-    pkg.description = p["description"].str
+    pkg.description = p.requiredField("description")
     result.add(pkg)
 
 proc echoPackage*(pkg: TPackage) =

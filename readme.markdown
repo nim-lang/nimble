@@ -11,21 +11,23 @@ Babel stores everything that has been installed in ~/.babel on Unix systems and
 in your $home/.babel on Windows. Libraries are stored in $babelDir/libs.
 
 ## Libraries
-Libraries may contain a ``ProjectName.nim`` file, this file will be copied
-to ~/.babel/libs/ProjectName.nim allowing anyone to import it with
-``import ProjectName``, it is recommended to include such a file, however
-it's not a requirement.
 
-All modules should be placed in a ``ProjectName/`` folder. The reason for
-this is that the main project file can then import the modules that it needs
-with confidence that the filename of those modules will not change after
-installation.
+By convention, if you have a single file with the same filename as your package
+name, then you can include it in the same directory as the .babel file.
+However, if you have other public modules whose names are quite common, 
+they should be included in a separate directory by the name of "PackageName", so
+as to not pollute the namespace. This will mean that your main file can be
+imported by simply writing ``import PackageName`` and all other public modules
+can be imported by writing ``import PackageName/module``. This structure can be
+seen being used by (jester)[https://github.com/dom96/jester].
 
 All private modules should be placed, by convention, in
-a ``private`` folder inside the ``ProjectName/`` folder, these are modules which
-the user of your library should not be importing. All files and folders in
-``ProjectName/`` will be copied as-is, you can however specify to skip some
-directories or files in your .babel file.
+a ``private`` folder, these are modules which
+the user of your library should not be importing.
+
+All files and folders in the directory of where the .babel file resides will be
+copied as-is, you can however skip some directories or files in your by setting
+the 'SkipDirs' or 'SkipFiles' options in your .babel file.
 
 ## Example .babel file
 
