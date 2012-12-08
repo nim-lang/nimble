@@ -4,18 +4,17 @@ import packageinfo
 
 type
   TActionType = enum
-    ActionNil, ActionUpdate, ActionInstall, ActionSearch
+    ActionNil, ActionUpdate, ActionInstall, ActionSearch, ActionList
 
   TAction = object
     case typ: TActionType
-    of ActionNil: nil
+    of ActionNil, ActionList: nil
     of ActionUpdate:
       optionalURL: string # Overrides default package list.
     of ActionInstall:
       optionalName: seq[string] # When this is @[], installs package from current dir.
     of ActionSearch:
       search: seq[string] # Search string.
-      byTag: bool
 
 const
   help = """
@@ -25,6 +24,7 @@ Commands:
   install        Installs a list of packages.
   update         Updates package list. A package list URL can be optionally specificed.
   search         Searches for a specified package.
+  list           Lists all packages.
 """
   babelVersion = "0.1.0"
   defaultPackageURL = "https://github.com/nimrod-code/packages/raw/master/packages.json"
@@ -53,7 +53,8 @@ proc parseCmdLine(): TAction =
         of "search":
           result.typ = ActionSearch
           result.search = @[]
-          result.byTag = false
+        of "list":
+          result.typ = ActionList
         else: writeHelp()
       else:
         case result.typ
@@ -65,6 +66,8 @@ proc parseCmdLine(): TAction =
           result.optionalURL = key
         of ActionSearch:
           result.search.add(key)
+        of ActionList:
+          writeHelp()
     of cmdLongOption, cmdShortOption:
       case key
       of "help", "h": writeHelp()
@@ -230,6 +233,14 @@ proc search(action: TAction) =
   if notFound:
     echo("No package found.")
 
+proc list =
+  if not existsFile(getBabelDir() / "packages.json"):
+    quit("Please run babel update.", QuitFailure)
+  let pkgList = getPackageList(getBabelDir() / "packages.json")
+  for pkg in pkgList:
+    echoPackage(pkg)
+    echo(" ")
+
 proc doAction(action: TAction) =
   case action.typ
   of ActionUpdate:
@@ -241,6 +252,8 @@ proc doAction(action: TAction) =
     install(action.optionalName)
   of ActionSearch:
     search(action)
+  of ActionList:
+    list()
   of ActionNil:
     assert false
 
