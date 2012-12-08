@@ -19,7 +19,7 @@ they should be included in a separate directory by the name of "PackageName", so
 as to not pollute the namespace. This will mean that your main file can be
 imported by simply writing ``import PackageName`` and all other public modules
 can be imported by writing ``import PackageName/module``. This structure can be
-seen being used by (jester)[https://github.com/dom96/jester].
+seen being used by [jester](https://github.com/dom96/jester).
 
 All private modules should be placed, by convention, in
 a ``private`` folder, these are modules which
@@ -63,5 +63,5 @@ ask on the nimrod [forum](http://forum.nimrod-code.org), or ask on Freenode in
 the #nimrod channel.
 
 ## About
-Babel has been written by (Dominik Picheta)[http://picheta.me/] and is licensed 
+Babel has been written by [Dominik Picheta](http://picheta.me/) and is licensed 
 under the BSD license (Look at license.txt for more info).
