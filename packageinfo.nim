@@ -5,22 +5,43 @@ type
     version*: string
     author*: string
     description*: string
-    library*: bool
+    license*: string
     skipDirs*: seq[string]
     skipFiles*: seq[string]
 
   TPackage* = object
     name*: string
     version*: string
+    license*: string
     url*: string
     dvcsTag*: string
     downloadMethod*: string
     tags*: seq[string]
     description*: string
 
-proc readPackageInfo*(path: string): TPackageInfo =
+proc initPackageInfo(): TPackageInfo =
+  result.name = ""
+  result.version = ""
+  result.author = ""
+  result.description = ""
+  result.license = ""
   result.skipDirs = @[]
   result.skipFiles = @[]
+
+proc validatePackageInfo(pkgInfo: TPackageInfo, path: string) =
+  if pkgInfo.name == "":
+    quit("Incorrect .babel file: " & path & " does not contain a name field.")
+  if pkgInfo.version == "":
+    quit("Incorrect .babel file: " & path & " does not contain a version field.")
+  if pkgInfo.author == "":
+    quit("Incorrect .babel file: " & path & " does not contain an author field.")
+  if pkgInfo.description == "":
+    quit("Incorrect .babel file: " & path & " does not contain a description field.")
+  if pkgInfo.license == "":
+    quit("Incorrect .babel file: " & path & " does not contain a license field.")
+
+proc readPackageInfo*(path: string): TPackageInfo =
+  result = initPackageInfo()
   var fs = newFileStream(path, fmRead)
   if fs != nil:
     var p: TCfgParser
@@ -41,6 +62,7 @@ proc readPackageInfo*(path: string): TPackageInfo =
           of "version": result.version = ev.value
           of "author": result.author = ev.value
           of "description": result.description = ev.value
+          of "license": result.license = ev.value
         of "library":
           case ev.key.normalize
           of "skipdirs":
@@ -54,6 +76,7 @@ proc readPackageInfo*(path: string): TPackageInfo =
     close(p)
   else:
     quit("Cannot open package info: " & path, QuitFailure)
+  validatePackageInfo(result, path)
 
 proc optionalField(obj: PJsonNode, name: string): string =
   if existsKey(obj, name):
@@ -81,6 +104,7 @@ proc getPackage*(pkg: string, packagesPath: string, resPkg: var TPackage): bool 
     resPkg.version = p.optionalField("version")
     resPkg.downloadMethod = p.requiredField("method")
     resPkg.dvcsTag = p.optionalField("dvcs-tag")
+    resPkg.license = p.requiredField("license")
     resPkg.tags = @[]
     for t in p["tags"]:
       resPkg.tags.add(t.str)
@@ -98,6 +122,7 @@ proc getPackageList*(packagesPath: string): seq[TPackage] =
     pkg.url = p.requiredField("url")
     pkg.downloadMethod = p.requiredField("method")
     pkg.dvcsTag = p.optionalField("dvcs-tag")
+    pkg.license = p.requiredField("license")
     pkg.tags = @[]
     for t in p["tags"]:
       pkg.tags.add(t.str)
@@ -106,6 +131,14 @@ proc getPackageList*(packagesPath: string): seq[TPackage] =
 
 proc echoPackage*(pkg: TPackage) =
   echo(pkg.name & ":")
+  if pkg.version != "":
+    echo("  version:     " & pkg.version)
+  else:
+    echo("  version:     HEAD")
   echo("  url:         " & pkg.url & " (" & pkg.downloadMethod & ")")
   echo("  tags:        " & pkg.tags.join(", "))
   echo("  description: " & pkg.description)
+  echo("  license:     " & pkg.license)
+  if pkg.dvcsTag != "":
+    echo("    dvcs-tag:  " & pkg.dvcsTag)
+  

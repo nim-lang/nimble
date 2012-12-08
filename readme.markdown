@@ -38,11 +38,14 @@ name          = "ProjectName"
 version       = "0.1.0"
 author        = "Dominik Picheta"
 description   = """Example .babel file."""
+license       = "MIT"
 
 [Library]
 SkipDirs = "SomeDir" ; ./ProjectName/SomeDir will be skipped.
 SkipFiles = "file.txt,file2.txt" ; ./ProjectName/{file.txt, file2.txt} will be skipped.
 ```
+
+All the fields under ``[Package]`` are required.
 
 ## Submitting your package to the package list.
 Babel's packages list is stored on github and everyone is encouraged to add
