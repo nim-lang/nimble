@@ -40,12 +40,15 @@ author        = "Dominik Picheta"
 description   = """Example .babel file."""
 license       = "MIT"
 
-[Library]
 SkipDirs = "SomeDir" ; ./ProjectName/SomeDir will be skipped.
 SkipFiles = "file.txt,file2.txt" ; ./ProjectName/{file.txt, file2.txt} will be skipped.
+
+[Deps]
+Requires: "nimrod >= 0.8.0"
 ```
 
-All the fields under ``[Package]`` are required.
+All the fields (except ``SkipDirs`` and ``SkipFiles``) under ``[Package]`` are 
+required.
 
 ## Submitting your package to the package list.
 Babel's packages list is stored on github and everyone is encouraged to add

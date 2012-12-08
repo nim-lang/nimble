@@ -1,4 +1,5 @@
-import parsecfg, json, streams, strutils
+import parsecfg, json, streams, strutils, parseutils
+import version
 type
   TPackageInfo* = object
     name*: string
@@ -8,6 +9,7 @@ type
     license*: string
     skipDirs*: seq[string]
     skipFiles*: seq[string]
+    requires*: seq[tuple[name: string, ver: PVersionRange]]
 
   TPackage* = object
     name*: string
@@ -27,6 +29,7 @@ proc initPackageInfo(): TPackageInfo =
   result.license = ""
   result.skipDirs = @[]
   result.skipFiles = @[]
+  result.requires = @[]
 
 proc validatePackageInfo(pkgInfo: TPackageInfo, path: string) =
   if pkgInfo.name == "":
@@ -39,6 +42,14 @@ proc validatePackageInfo(pkgInfo: TPackageInfo, path: string) =
     quit("Incorrect .babel file: " & path & " does not contain a description field.")
   if pkgInfo.license == "":
     quit("Incorrect .babel file: " & path & " does not contain a license field.")
+
+proc parseRequires(req: string): tuple[name: string, ver: PVersionRange] =
+  try:
+    var i = skipUntil(req, whitespace)
+    result.name = req[0 .. i]
+    result.ver = parseVersionRange(req[i .. -1])
+  except EParseVersion:
+    quit("Unable to parse dependency version range: " & getCurrentExceptionMsg())
 
 proc readPackageInfo*(path: string): TPackageInfo =
   result = initPackageInfo()
@@ -63,12 +74,18 @@ proc readPackageInfo*(path: string): TPackageInfo =
           of "author": result.author = ev.value
           of "description": result.description = ev.value
           of "license": result.license = ev.value
-        of "library":
-          case ev.key.normalize
           of "skipdirs":
             result.skipDirs.add(ev.value.split(','))
           of "skipfiles":
             result.skipFiles.add(ev.value.split(','))
+          else:
+            quit("Invalid field: " & ev.key, QuitFailure)
+        of "deps", "dependencies":
+          case ev.key.normalize
+          of "requires":
+            result.requires.add(parseRequires(ev.value))
+          else:
+            quit("Invalid field: " & ev.key, QuitFailure)
         else: quit("Invalid section: " & currentSection, QuitFailure)
       of cfgOption: quit("Invalid package info, should not contain --" & ev.value, QuitFailure)
       of cfgError:
