@@ -1,3 +1,6 @@
+# Copyright (C) Dominik Picheta. All rights reserved.
+# BSD License. Look at license.txt for more info.
+
 ## Module for handling versions and version ranges such as ``>= 1.0 & <= 1.5``
 import strutils
 type

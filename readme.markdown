@@ -61,3 +61,7 @@ fit and then send a pull request.
 If you have any questions about the project you can ask me directly on github, 
 ask on the nimrod [forum](http://forum.nimrod-code.org), or ask on Freenode in
 the #nimrod channel.
+
+## About
+Babel has been written by (Dominik Picheta)[http://picheta.me/] and is licensed 
+under the BSD license (Look at license.txt for more info).
