@@ -7,8 +7,8 @@ You will need the latest Nimrod compiler from github to compile babel.
 Compiling it is as simple as ``nimrod c babel``.
 
 ## Babel's folder structure
-Babel stores everything that has been installed in ~/babel on Unix systems and 
-in your $home/babel on Windows. Libraries are stored in $babelDir/libs.
+Babel stores everything that has been installed in ~/.babel on Unix systems and 
+in your $home/.babel on Windows. Libraries are stored in $babelDir/libs.
 
 ## Libraries
 

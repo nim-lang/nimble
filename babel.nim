@@ -90,7 +90,7 @@ proc prompt(question: string): bool =
   else:
     return false
 
-proc getBabelDir: string = return getHomeDir() / "babel"
+proc getBabelDir: string = return getHomeDir() / ".babel"
 
 proc getLibsDir: string = return getBabelDir() / "libs"
 
