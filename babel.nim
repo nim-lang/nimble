@@ -148,7 +148,6 @@ proc copyFilesRec(origDir, currentDir, dest: string, pkgInfo: TPackageInfo) =
     else:
       var skip = false
       if file.splitFile().name[0] == '.': skip = true
-      if file.splitFile().ext == "": skip = true
       for ignoreFile in pkgInfo.skipFiles:
         if samePaths(file, origDir / ignoreFile):
           skip = true
