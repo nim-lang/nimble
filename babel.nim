@@ -199,10 +199,16 @@ proc install(packages: seq[String]) =
         case pkg.downloadMethod
         of "git":
           echo("Executing git...")
-          removeDir(downloadDir)
-          doCmd("git clone --depth 1 " & pkg.url & " " & downloadDir)
-          if dvcsTag != "":
-            doCmd("cd \"" & downloadDir & "\" && git checkout " & dvcsTag)
+          if existsDir(downloadDir / ".git"):
+            doCmd("cd "& downloadDir &" && git pull")
+            if dvcsTag != "":
+              doCmd("git checkout "& dvcsTag)
+          else:
+            removeDir(downloadDir)
+            doCmd("git clone --depth 1 " & pkg.url & " " & downloadDir)
+            if dvcsTag != "":
+              doCmd("cd \"" & downloadDir & "\" && git checkout " & dvcsTag)
+          
         else: quit("Unknown download method: " & pkg.downloadMethod, QuitFailure)
         
         installFromDir(downloadDir, dvcsTag == "")
