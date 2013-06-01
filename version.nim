@@ -2,7 +2,7 @@
 # BSD License. Look at license.txt for more info.
 
 ## Module for handling versions and version ranges such as ``>= 1.0 & <= 1.5``
-import strutils
+import strutils, tables, hashes, parseutils
 type
   TVersion* = distinct string
 
@@ -31,17 +31,18 @@ proc newVersion*(ver: string): TVersion = return TVersion(ver)
 
 proc `$`*(ver: TVersion): String {.borrow.}
 
+proc hash*(ver: TVersion): THash {.borrow.}
+
 proc `<`*(ver: TVersion, ver2: TVersion): Bool =
   var sVer = string(ver).split('.')
   var sVer2 = string(ver2).split('.')
   for i in 0..max(sVer.len, sVer2.len)-1:
-    if i > sVer.len-1:
-      return True
-    elif i > sVer2.len-1:
-      return False
-
-    var sVerI = parseInt(sVer[i])
-    var sVerI2 = parseInt(sVer2[i])
+    var sVerI = 0
+    if i < sVer.len:
+      discard parseInt(sVer[i], sVerI)
+    var sVerI2 = 0
+    if i < sVer2.len:
+      discard parseInt(sVer2[i], sVerI2)
     if sVerI < sVerI2:
       return True
     elif sVerI == sVerI2:
@@ -49,7 +50,20 @@ proc `<`*(ver: TVersion, ver2: TVersion): Bool =
     else:
       return False
 
-proc `==`*(ver: TVersion, ver2: TVersion): Bool {.borrow.}
+proc `==`*(ver: TVersion, ver2: TVersion): Bool =
+  var sVer = string(ver).split('.')
+  var sVer2 = string(ver2).split('.')
+  for i in 0..max(sVer.len, sVer2.len)-1:
+    var sVerI = 0
+    if i < sVer.len:
+      discard parseInt(sVer[i], sVerI)
+    var sVerI2 = 0
+    if i < sVer2.len:
+      discard parseInt(sVer2[i], sVerI2)
+    if sVerI == sVerI2:
+      result = true
+    else:
+      return False
 
 proc `<=`*(ver: TVersion, ver2: TVersion): Bool =
   return (ver == ver2) or (ver < ver2)
@@ -70,6 +84,9 @@ proc withinRange*(ver: TVersion, ran: PVersionRange): Bool =
     return withinRange(ver, ran.verILeft) and withinRange(ver, ran.verIRight)
   of verAny:
     return True
+
+proc contains*(ran: PVersionRange, ver: TVersion): bool =
+  return withinRange(ver, ran)
 
 proc makeRange*(version: string, op: string): PVersionRange =
   new(result)
@@ -110,7 +127,7 @@ proc parseVersionRange*(s: string): PVersionRange =
       result.verIRight = parseVersionRange(substr(s, i + 1))
 
       # Disallow more than one verIntersect. It's pointless and could lead to
-      # major unknown mistakes.
+      # major unpredictable mistakes.
       if result.verIRight.kind == verIntersect:
         raise newException(EParseVersion,
             "Having more than one `&` in a version range is pointless")
@@ -135,7 +152,6 @@ proc parseVersionRange*(s: string): PVersionRange =
     inc(i)
 
 proc `$`*(verRange: PVersionRange): String =
-  echo(verRange.repr())
   case verRange.kind
   of verLater:
     result = "> "
@@ -150,7 +166,7 @@ proc `$`*(verRange: PVersionRange): String =
   of verIntersect:
     return $verRange.verILeft & " & " & $verRange.verIRight
   of verAny:
-    return "Any"
+    return "any version"
 
   result.add(string(verRange.ver))
 
@@ -168,10 +184,22 @@ proc newVREq*(ver: string): PVersionRange =
   result.kind = verEq
   result.ver = newVersion(ver)
 
+proc findLatest*(verRange: PVersionRange, versions: TTable[TVersion, string]): tuple[ver: TVersion, tag: string] =
+  result = (newVersion(""), "")
+  for ver, tag in versions:
+    if not withinRange(ver, verRange): continue
+    if ver > result.ver:
+      result = (ver, tag)
+
 when isMainModule:
   doAssert(newVersion("1.0") < newVersion("1.4"))
   doAssert(newVersion("1.0.1") > newVersion("1.0"))
   doAssert(newVersion("1.0.6") <= newVersion("1.0.6"))
+  #doAssert(not withinRange(newVersion("0.1.0"), parseVersionRange("> 0.1")))
+  doAssert(not (newVersion("0.1.0") < newVersion("0.1")))
+  doAssert(not (newVersion("0.1.0") > newVersion("0.1")))
+  doAssert(newVersion("0.1.0") < newVersion("0.1.0.0.1"))
+  doAssert(newVersion("0.1.0") <= newVersion("0.1"))
 
   var inter1 = parseVersionRange(">= 1.0 & <= 1.5")
   var inter2 = parseVersionRange("1.0")
@@ -182,5 +210,18 @@ when isMainModule:
   doAssert(withinRange(newVersion("1.0.2.3.4.5.6.7.8.9.10.11.12"), inter1))
 
   doAssert(newVersion("1") == newVersion("1"))
+  doAssert(newVersion("1.0.2.4.6.1.2.123") == newVersion("1.0.2.4.6.1.2.123"))
+  doAssert(newVersion("1.0.2") != newVersion("1.0.2.4.6.1.2.123"))
+
+  doAssert(not (newVersion("") < newVersion("0.0.0")))
+  doAssert(newVersion("") < newVersion("1.0.0"))
+  doAssert(newVersion("") < newVersion("0.1.0"))
+
+  var versions = toTable[TVersion, string]({newVersion("0.1.1"): "v0.1.1", newVersion("0.2.3"): "v0.2.3", newVersion("0.5"): "v0.5"})
+  doAssert findLatest(parseVersionRange(">= 0.1 & <= 0.4"), versions) == (newVersion("0.2.3"), "v0.2.3")
+
+  
+  doAssert newVersion("0.1-rc1") < newVersion("0.2")
+  doAssert newVersion("0.1-rc1") < newVersion("0.1")
 
   echo("Everything works!")

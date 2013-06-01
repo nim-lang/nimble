@@ -12,6 +12,7 @@ type
     skipDirs*: seq[string]
     skipFiles*: seq[string]
     requires*: seq[tuple[name: string, ver: PVersionRange]]
+    bin*: seq[string]
 
   TPackage* = object
     name*: string
@@ -32,6 +33,7 @@ proc initPackageInfo(): TPackageInfo =
   result.skipDirs = @[]
   result.skipFiles = @[]
   result.requires = @[]
+  result.bin = @[]
 
 proc validatePackageInfo(pkgInfo: TPackageInfo, path: string) =
   if pkgInfo.name == "":
@@ -47,9 +49,13 @@ proc validatePackageInfo(pkgInfo: TPackageInfo, path: string) =
 
 proc parseRequires(req: string): tuple[name: string, ver: PVersionRange] =
   try:
-    var i = skipUntil(req, whitespace)
-    result.name = req[0 .. i]
-    result.ver = parseVersionRange(req[i .. -1])
+    if ' ' in req:
+      var i = skipUntil(req, whitespace)
+      result.name = req[0 .. i].strip
+      result.ver = parseVersionRange(req[i .. -1])
+    else:
+      result.name = req.strip
+      result.ver = PVersionRange(kind: verAny)
   except EParseVersion:
     quit("Unable to parse dependency version range: " & getCurrentExceptionMsg())
 
@@ -80,12 +86,15 @@ proc readPackageInfo*(path: string): TPackageInfo =
             result.skipDirs.add(ev.value.split(','))
           of "skipfiles":
             result.skipFiles.add(ev.value.split(','))
+          of "bin":
+            result.bin = ev.value.split(',')
           else:
             quit("Invalid field: " & ev.key, QuitFailure)
         of "deps", "dependencies":
           case ev.key.normalize
           of "requires":
-            result.requires.add(parseRequires(ev.value))
+            for v in ev.value.split(','):
+              result.requires.add(parseRequires(v.strip))
           else:
             quit("Invalid field: " & ev.key, QuitFailure)
         else: quit("Invalid section: " & currentSection, QuitFailure)
@@ -94,7 +103,7 @@ proc readPackageInfo*(path: string): TPackageInfo =
         echo(ev.msg)
     close(p)
   else:
-    quit("Cannot open package info: " & path, QuitFailure)
+    raise newException(EInvalidValue, "Cannot open package info: " & path)
   validatePackageInfo(result, path)
 
 proc optionalField(obj: PJsonNode, name: string): string =

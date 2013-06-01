@@ -1,23 +1,25 @@
 # Copyright (C) Dominik Picheta. All rights reserved.
 # BSD License. Look at license.txt for more info.
 
-import httpclient, parseopt, os, strutils, osproc
+import httpclient, parseopt, os, strutils, osproc, pegs, tables, parseutils
 
-import packageinfo
+import packageinfo, version
 
 type
   TActionType = enum
-    ActionNil, ActionUpdate, ActionInstall, ActionSearch, ActionList
+    ActionNil, ActionUpdate, ActionInstall, ActionSearch, ActionList, ActionBuild
 
   TAction = object
     case typ: TActionType
-    of ActionNil, ActionList: nil
+    of ActionNil, ActionList, ActionBuild: nil
     of ActionUpdate:
       optionalURL: string # Overrides default package list.
     of ActionInstall:
       optionalName: seq[string] # When this is @[], installs package from current dir.
     of ActionSearch:
       search: seq[string] # Search string.
+  
+  EBabel = object of EBase
 
 const
   help = """
@@ -25,6 +27,7 @@ Usage: babel COMMAND [opts]
 
 Commands:
   install        Installs a list of packages.
+  build          Builds a package.
   update         Updates package list. A package list URL can be optionally specificed.
   search         Searches for a specified package.
   list           Lists all packages.
@@ -50,6 +53,8 @@ proc parseCmdLine(): TAction =
         of "install":
           result.typ = ActionInstall
           result.optionalName = @[]
+        of "build":
+          result.typ = ActionBuild
         of "update":
           result.typ = ActionUpdate
           result.optionalURL = ""
@@ -69,7 +74,7 @@ proc parseCmdLine(): TAction =
           result.optionalURL = key
         of ActionSearch:
           result.search.add(key)
-        of ActionList:
+        of ActionList, ActionBuild:
           writeHelp()
     of cmdLongOption, cmdShortOption:
       case key
@@ -90,13 +95,21 @@ proc prompt(question: string): bool =
   else:
     return false
 
-proc getBabelDir: string = return getHomeDir() / ".babel"
+proc getNimrodVersion: TVersion =
+  let vOutput = execProcess("nimrod -v")
+  var matches: array[0..MaxSubpatterns, string]
+  if vOutput.find(peg"'Version'\s{(\d\.)+\d}", matches) == -1:
+    quit("Couldn't find Nimrod version.", QuitFailure)
+  newVersion(matches[0])
 
-proc getLibsDir: string = return getBabelDir() / "libs"
+let babelDir = getHomeDir() / ".babel"
+let libsDir = babelDir / "libs"
+let binDir = babelDir / "bin"
+let nimVer = getNimrodVersion()
 
 proc update(url: string = defaultPackageURL) =
   echo("Downloading package list from " & url)
-  downloadFile(url, getBabelDir() / "packages.json")
+  downloadFile(url, babelDir / "packages.json")
   echo("Done.")
 
 proc findBabelFile(dir: string): string =
@@ -127,6 +140,11 @@ proc changeRoot(origRoot, newRoot, path: string): string =
     raise newException(EInvalidValue,
       "Cannot change root of path: Path does not begin with original root.")
 
+proc doCmd(cmd: string) =
+  let exitCode = execCmd(cmd)
+  if exitCode != QuitSuccess:
+    quit("Execution failed with exit code " & $exitCode, QuitFailure)
+
 proc copyFilesRec(origDir, currentDir, dest: string, pkgInfo: TPackageInfo) =
   for kind, file in walkDir(currentDir):
     if kind == pcDir:
@@ -149,78 +167,189 @@ proc copyFilesRec(origDir, currentDir, dest: string, pkgInfo: TPackageInfo) =
       var skip = false
       if file.splitFile().name[0] == '.': skip = true
       for ignoreFile in pkgInfo.skipFiles:
+        if ignoreFile.endswith("babel"):
+          quit(ignoreFile & " must be installed.")
         if samePaths(file, origDir / ignoreFile):
           skip = true
           break
       
       if not skip:
         copyFileD(file, changeRoot(origDir, dest, file)) 
-      
-proc installFromDir(dir: string, latest: bool) =
+
+proc getPkgInfo(dir: string): TPackageInfo =
   let babelFile = findBabelFile(dir)
   if babelFile == "":
     quit("Specified directory does not contain a .babel file.", QuitFailure)
-  var pkgInfo = readPackageInfo(babelFile)
-  
-  let pkgDestDir = getLibsDir() / (pkgInfo.name &
+  result = readPackageInfo(babelFile)
+
+# TODO: Move to packageinfo.nim
+
+proc getInstalledPkgs(): seq[tuple[path: string, info: TPackageInfo]] =
+  ## Gets a list of installed packages
+  result = @[]
+  for kind, path in walkDir(libsDir):
+    if kind == pcDir:
+      let babelFile = findBabelFile(path)
+      if babelFile != "":
+        result.add((path, readPackageInfo(babelFile)))
+      else:
+        # TODO: Abstract logging.
+        echo("WARNING: No .babel file found for ", path)
+
+proc findPkg(pkglist: seq[tuple[path: string, info: TPackageInfo]],
+             dep: tuple[name: string, ver: PVersionRange],
+             r: var tuple[path: string, info: TPackageInfo]): bool =
+  for pkg in pkglist:
+    if pkg.info.name != dep.name: continue
+    if withinRange(newVersion(pkg.info.version), dep.ver):
+      if not result or newVersion(r.info.version) < newVersion(pkg.info.version):
+        r = pkg
+        result = true
+
+proc install(packages: seq[String], verRange: PVersionRange): string {.discardable.}
+proc processDeps(pkginfo: TPackageInfo): seq[string] =
+  ## Verifies and installs dependencies.
+  ##
+  ## Returns the list of paths to pass to the compiler during build phase.
+  result = @[]
+  let pkglist = getInstalledPkgs()
+  for dep in pkginfo.requires:
+    if dep.name == "nimrod":
+      if not withinRange(nimVer, dep.ver):
+        quit("Unsatisfied dependency: " & dep.name & " (" & $dep.ver & ")")
+    else:
+      echo("Looking for ", dep.name, " (", $dep.ver, ")...")
+      var pkg: tuple[path: string, info: TPackageInfo]
+      if not findPkg(pkglist, dep, pkg):
+        let dest = install(@[dep.name], dep.ver)
+        if dest != "":
+          # only add if not a binary package
+          result.add(dest)
+      else:
+        echo("Dependency already satisfied.")
+        if pkg.info.bin.len == 0:
+          result.add(pkg.path)
+
+proc buildFromDir(dir: string, paths: seq[string]) =
+  ## Builds a package which resides in ``dir``
+  var pkgInfo = getPkgInfo(dir)
+  var args = ""
+  for path in paths: args.add("--path:" & path & " ")
+  for bin in pkgInfo.bin:
+    echo("Building ", pkginfo.name, "/", bin, "...")
+    echo(args)
+    doCmd("nimrod c -d:release " & args & dir / bin)
+
+proc installFromDir(dir: string, latest: bool): string =
+  ## Returns where package has been installed to. If package is a binary,
+  ## ``""`` is returned.
+  var pkgInfo = getPkgInfo(dir)
+  let pkgDestDir = libsDir / (pkgInfo.name &
                    (if latest: "" else: '-' & pkgInfo.version))
-  if not existsDir(pkgDestDir):
-    createDir(pkgDestDir)
-  else: 
+  if existsDir(pkgDestDir):
     if not prompt("Package already exists. Overwrite?"):
       quit(QuitSuccess)
     removeDir(pkgDestDir)
-    createDir(pkgDestDir)
   
-  copyFilesRec(dir, dir, pkgDestDir, pkgInfo)
-  echo(pkgInfo.name & " installed successfully.")
-
-proc doCmd(cmd: string) =
-  let exitCode = execCmd(cmd)
-  if exitCode != QuitSuccess:
-    quit("Execution failed with exit code " & $exitCode, QuitFailure)
+  echo("Installing ", pkginfo.name, "-", pkginfo.version)
+  
+  # Dependencies need to be processed before the creation of the pkg dir.
+  let paths = processDeps(pkginfo)
+  
+  createDir(pkgDestDir)
+  if pkgInfo.bin.len > 0:
+    buildFromDir(dir, paths)
+    createDir(binDir)
+    for bin in pkgInfo.bin:
+      copyFileD(dir / bin, binDir / bin)
+      let currentPerms = getFilePermissions(binDir / bin)
+      setFilePermissions(binDir / bin, currentPerms + {fpUserExec})
+    # Copy the .babel to lib/
+    let babelFile = findBabelFile(dir)
+    copyFileD(babelFile, changeRoot(dir, pkgDestDir, babelFile))
+    result = ""
+  else:
+    copyFilesRec(dir, dir, pkgDestDir, pkgInfo)
+    echo(pkgInfo.name & " installed successfully.")
+    result = pkgDestDir
 
 proc getDVCSTag(pkg: TPackage): string =
   result = pkg.dvcsTag
   if result == "":
     result = pkg.version
 
-proc install(packages: seq[String]) =
-  if packages == @[]:
-    installFromDir(getCurrentDir(), false)
+proc getTagsList(dir: string): seq[string] =
+  let output = execProcess("cd \"" & dir & "\" && git tag")
+  if output.len > 0:
+    result = output.splitLines()
   else:
-    if not existsFile(getBabelDir() / "packages.json"):
+    result = @[]
+
+proc getVersionList(dir: string): TTable[TVersion, string] =
+  # Returns: TTable of version -> git tag name
+  result = initTable[TVersion, string]()
+  let tags = getTagsList(dir)
+  for tag in tags:
+    let i = skipUntil(tag, digits) # skip any chars before the version
+    # TODO: Better checking, tags can have any names. Add warnings and such.
+    result[newVersion(tag[i .. -1])] = tag
+
+proc install(packages: seq[String], verRange: PVersionRange): string =
+  if packages == @[]:
+    result = installFromDir(getCurrentDir(), false)
+  else:
+    if not existsFile(babelDir / "packages.json"):
       quit("Please run babel update.", QuitFailure)
     for p in packages:
       var pkg: TPackage
-      if getPackage(p, getBabelDir() / "packages.json", pkg):
+      if getPackage(p, babelDir / "packages.json", pkg):
         let downloadDir = (getTempDir() / "babel" / pkg.name)
-        let dvcsTag = getDVCSTag(pkg)
+        #let dvcsTag = getDVCSTag(pkg)
         case pkg.downloadMethod
         of "git":
           echo("Executing git...")
           if existsDir(downloadDir / ".git"):
-            doCmd("cd "& downloadDir &" && git pull")
+            doCmd("cd " & downloadDir & " && git pull")
           else:
             removeDir(downloadDir)
             doCmd("git clone --depth 1 " & pkg.url & " " & downloadDir)
           
-          if dvcsTag != "":
-            doCmd("cd \"" & downloadDir & "\" && git checkout " & dvcsTag)
-          
+          # TODO: Determine if version is a commit hash, if it is. Move the
+          # git repo to ``babelDir/libs``, then babel can simply checkout
+          # the correct hash instead of constantly cloning and copying.
+          let versions = getVersionList(downloadDir)
+          if versions.len > 0:
+            let latest = findLatest(verRange, versions)
+            
+            if latest.tag != "":
+              doCmd("cd \"" & downloadDir & "\" && git checkout " & latest.tag)
+          elif verRange.kind != verAny:
+            let pkginfo = getPkgInfo(downloadDir)
+            if pkginfo.version.newVersion notin verRange:
+              raise newException(EBabel,
+                    "No versions of " & pkg.name &
+                    " exist (this usually means that `git tag` returned nothing)." &
+                    "Git HEAD also does not satisfy version range: " & $verRange)
+            # We use GIT HEAD if it satisfies our ver range
+            
         else: quit("Unknown download method: " & pkg.downloadMethod, QuitFailure)
         
-        installFromDir(downloadDir, dvcsTag == "")
+        result = installFromDir(downloadDir, false)
       else:
-        quit("Package not found.", QuitFailure)
+        raise newException(EBabel, "Package not found.")
+
+proc build =
+  var pkgInfo = getPkgInfo(getCurrentDir())
+  let paths = processDeps(pkginfo)
+  buildFromDir(getCurrentDir(), paths)
 
 proc search(action: TAction) =
   assert action.typ == ActionSearch
   if action.search == @[]:
     quit("Please specify a search string.", QuitFailure)
-  if not existsFile(getBabelDir() / "packages.json"):
+  if not existsFile(babelDir / "packages.json"):
     quit("Please run babel update.", QuitFailure)
-  let pkgList = getPackageList(getBabelDir() / "packages.json")
+  let pkgList = getPackageList(babelDir / "packages.json")
   var notFound = true
   for pkg in pkgList:
     for word in action.search:
@@ -241,9 +370,9 @@ proc search(action: TAction) =
     echo("No package found.")
 
 proc list =
-  if not existsFile(getBabelDir() / "packages.json"):
+  if not existsFile(babelDir / "packages.json"):
     quit("Please run babel update.", QuitFailure)
-  let pkgList = getPackageList(getBabelDir() / "packages.json")
+  let pkgList = getPackageList(babelDir / "packages.json")
   for pkg in pkgList:
     echoPackage(pkg)
     echo(" ")
@@ -256,22 +385,30 @@ proc doAction(action: TAction) =
     else:
       update()
   of ActionInstall:
-    install(action.optionalName)
+    # TODO: Allow user to specify version.
+    install(action.optionalName, PVersionRange(kind: verAny))
   of ActionSearch:
     search(action)
   of ActionList:
     list()
+  of ActionBuild:
+    build()
   of ActionNil:
     assert false
 
 when isMainModule:
-  if not existsDir(getBabelDir()):
-    createDir(getBabelDir())
-  if not existsDir(getLibsDir()):
-    createDir(getLibsDir())
+  if not existsDir(babelDir):
+    createDir(babelDir)
+  if not existsDir(libsDir):
+    createDir(libsDir)
   
-  parseCmdLine().doAction()
-  
+  when defined(release):
+    try:
+      parseCmdLine().doAction()
+    except EBabel:
+      quit("FAILURE: " & getCurrentExceptionMsg())
+  else:
+    parseCmdLine().doAction()
   
   
   
