@@ -1,9 +1,10 @@
 # Copyright (C) Dominik Picheta. All rights reserved.
 # BSD License. Look at license.txt for more info.
-import parsecfg, json, streams, strutils, parseutils
-import version
+import parsecfg, json, streams, strutils, parseutils, os
+import version, common
 type
   TPackageInfo* = object
+    mypath*: string ## The path of this .babel file
     name*: string
     version*: string
     author*: string
@@ -25,6 +26,7 @@ type
     description*: string
 
 proc initPackageInfo(): TPackageInfo =
+  result.mypath = ""
   result.name = ""
   result.version = ""
   result.author = ""
@@ -61,6 +63,7 @@ proc parseRequires(req: string): tuple[name: string, ver: PVersionRange] =
 
 proc readPackageInfo*(path: string): TPackageInfo =
   result = initPackageInfo()
+  result.mypath = path
   var fs = newFileStream(path, fmRead)
   if fs != nil:
     var p: TCfgParser
@@ -156,6 +159,49 @@ proc getPackageList*(packagesPath: string): seq[TPackage] =
       pkg.tags.add(t.str)
     pkg.description = p.requiredField("description")
     result.add(pkg)
+
+proc findBabelFile*(dir: string): string =
+  result = ""
+  for kind, path in walkDir(dir):
+    if kind == pcFile and path.splitFile.ext == ".babel":
+      if result != "":
+        raise newException(EBabel, "Only one .babel file should be present in " & dir)
+      result = path
+
+proc getPkgInfo*(dir: string): TPackageInfo =
+  ## Find the .babel file in ``dir`` and parses it, returning a TPackageInfo.
+  let babelFile = findBabelFile(dir)
+  if babelFile == "":
+    quit("Specified directory does not contain a .babel file.", QuitFailure)
+  result = readPackageInfo(babelFile)
+
+proc getInstalledPkgs*(libsDir: string): seq[TPackageInfo] =
+  ## Gets a list of installed packages.
+  ##
+  ## ``libsDir`` is in most cases: ~/.babel/libs/
+  result = @[]
+  for kind, path in walkDir(libsDir):
+    if kind == pcDir:
+      let babelFile = findBabelFile(path)
+      if babelFile != "":
+        result.add(readPackageInfo(babelFile))
+      else:
+        # TODO: Abstract logging.
+        echo("WARNING: No .babel file found for ", path)
+
+proc findPkg*(pkglist: seq[TPackageInfo],
+             dep: tuple[name: string, ver: PVersionRange],
+             r: var TPackageInfo): bool =
+  ## Searches ``pkglist`` for a package of which version is withing the range
+  ## of ``dep.ver``. ``True`` is returned if a package is found. If multiple
+  ## packages are found the newest one is returned (the one with the highest
+  ## version number)
+  for pkg in pkglist:
+    if pkg.name != dep.name: continue
+    if withinRange(newVersion(pkg.version), dep.ver):
+      if not result or newVersion(r.version) < newVersion(pkg.version):
+        r = pkg
+        result = true
 
 proc echoPackage*(pkg: TPackage) =
   echo(pkg.name & ":")
