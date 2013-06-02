@@ -205,14 +205,7 @@ proc findPkg*(pkglist: seq[TPackageInfo],
 
 proc echoPackage*(pkg: TPackage) =
   echo(pkg.name & ":")
-  if pkg.version != "":
-    echo("  version:     " & pkg.version)
-  else:
-    echo("  version:     HEAD")
   echo("  url:         " & pkg.url & " (" & pkg.downloadMethod & ")")
   echo("  tags:        " & pkg.tags.join(", "))
   echo("  description: " & pkg.description)
   echo("  license:     " & pkg.license)
-  if pkg.dvcsTag != "":
-    echo("    dvcs-tag:  " & pkg.dvcsTag)
-  
