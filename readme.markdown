@@ -1,54 +1,111 @@
 # Babel
-Babel is a work in progress *package manager* for Nimrod.
+Babel is a *beta*-grade *package manager* for the Nimrod programming language.
 
 ## Compiling babel
-You will need the latest Nimrod compiler from github to compile babel.
+You will need the latest Nimrod compiler from github to compile babel (version 0.9.2 may work).
 
-Compiling it is as simple as ``nimrod c babel``.
+Compiling it is as simple as ``nimrod c -d:release babel``.
 
 ## Babel's folder structure
 Babel stores everything that has been installed in ~/.babel on Unix systems and 
-in your $home/.babel on Windows. Libraries are stored in $babelDir/libs.
+in your $home/.babel on Windows. Libraries are stored in $babelDir/libs, and
+binaries are stored in $babelDir/bin.
 
-## Libraries
+## Packages
 
-By convention, if you have a single file with the same filename as your package
-name, then you can include it in the same directory as the .babel file.
-However, if you have other public modules whose names are quite common, 
-they should be included in a separate directory by the name of "PackageName", so
-as to not pollute the namespace. This will mean that your main file can be
-imported by simply writing ``import PackageName`` and all other public modules
-can be imported by writing ``import PackageName/module``. This structure can be
-seen being used by [jester](https://github.com/dom96/jester).
+Babel works on git repositories as its primary source of packages. Its list of
+packages is stored in a JSON file which is freely accessible in the
+[nimrod-code/packages repository](https://github.com/nimrod-code/packages).
+This JSON file provides babel with the required Git URL to clone the package
+and install it. Installation and build instructions are contained inside a
+ini-style file with the ``.babel`` file extension. The babel file shares
+the package's name. 
 
-All private modules should be placed, by convention, in
-a ``private`` folder, these are modules which
-the user of your library should not be importing.
+### Libraries
+
+When babel installs a library it will copy all the files that it downloaded
+into ``$babelDir/libs/pkgname-ver``. It's up to the package creator to make sure
+that the package directory layout is correct, this is so that users of the
+package can correctly import the package.
+
+By convention, it is suggested that the layout be as follows. The directory
+layout is determined by the nature of your package, that is, whether your
+package exposes only one module or multiple modules.
+
+If your package exposes only a single module, then that module should be
+present in the root directory (the directory with the babel file) of your git
+repository, it is recommended that in this case you name that module whatever
+your package's name is. A good example of this is the
+[jester](https://github.com/dom96/jester) package which exposes the ``jester``
+module. In this case the jester package is imported with ``import jester``.
+
+If your package exposes multiple modules then the modules should be in a 
+``PackageName`` directory. This will allow for a certain measure of isolation
+from other packages which expose modules with the same names. In this case
+the package's modules will be imported with ``import PackageName/module``.
+
+You are free to combine the two approaches described.
+
+In regards to modules which you do **not** wish to be exposed. You should place
+them in a ``PackageName/private`` directory. Your modules may then import these
+private modules with ``import PackageName/private/module``. This directory
+structure may be enforced in the future. 
 
 All files and folders in the directory of where the .babel file resides will be
-copied as-is, you can however skip some directories or files in your by setting
+copied as-is, you can however skip some directories or files by setting
 the 'SkipDirs' or 'SkipFiles' options in your .babel file.
 
-## Example .babel file
+#### Example library .babel file
 
 ```ini
-; Example babel file
 [Package]
 name          = "ProjectName"
 version       = "0.1.0"
-author        = "Dominik Picheta"
-description   = """Example .babel file."""
+author        = "Your Name"
+description   = "Example .babel file."
 license       = "MIT"
 
-SkipDirs = "SomeDir" ; ./ProjectName/SomeDir will be skipped.
-SkipFiles = "file.txt,file2.txt" ; ./ProjectName/{file.txt, file2.txt} will be skipped.
+SkipDirs = "SomeDir" ; ./SomeDir will not be installed
+SkipFiles = "file.txt,file2.txt" ; ./{file.txt, file2.txt} will not be installed
 
 [Deps]
-Requires: "nimrod >= 0.8.0"
+Requires: "nimrod >= 0.9.2"
 ```
 
 All the fields (except ``SkipDirs`` and ``SkipFiles``) under ``[Package]`` are 
-required.
+required. ``[Deps]`` may be ommitted.
+
+### Binary packages
+
+These are application packages which require building prior to installation.
+A package is automatically a binary package as soon as it sets at least one
+``bin`` value, like so:
+
+```ini
+bin = "main"
+```
+
+In this case when ``babel install`` is invoked, babel will build the ``main.nim``
+file and subsequently copy it into ``$babelDir/bin/``.
+
+Dependencies are automatically installed before building.
+
+## Dependencies
+
+Dependencies are specified under the ``[Deps]`` section in a babel file.
+The ``requires`` key is used to specify them. For example:
+
+```ini
+[Deps]
+Requires: "nimrod >= 0.9.2, jester > 0.1 & <= 0.5"
+```
+
+Dependency lists support version ranges. These versions may either be a concrete
+version like ``0.1``, or they may contain any of the less-than (``<``),
+greater-than (``>``), less-than-or-equal-to (``<=``) and greater-than-or-equal-to
+(``>=``). Two version ranges may be combined using the ``&`` operator for example:
+``> 0.2 & < 1.0`` which will install a package with the version greater than 0.2
+and less than 1.0.
 
 ## Submitting your package to the package list.
 Babel's packages list is stored on github and everyone is encouraged to add
