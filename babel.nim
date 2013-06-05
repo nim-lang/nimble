@@ -212,6 +212,11 @@ proc installFromDir(dir: string, latest: bool): string =
     echo(pkgInfo.name & " installed successfully.")
     result = pkgDestDir
 
+
+  ## remove old unversioned directory 
+  if not latest:
+    removeDir libsDir / pkgInfo.name
+
 proc getTagsList(dir: string): seq[string] =
   let output = execProcess("cd \"" & dir & "\" && git tag")
   if output.len > 0:
