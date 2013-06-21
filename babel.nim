@@ -113,8 +113,8 @@ proc doCmd(cmd: string) =
     quit("Execution failed with exit code " & $exitCode, QuitFailure)
 
 proc copyFilesRec(origDir, currentDir, dest: string, pkgInfo: TPackageInfo) =
-  ## Used for library-only packages. Copies all the required files, skips
-  ## files specified in the .babel file.
+  ## Copies all the required files, skips files specified in the .babel file
+  ## (TPackageInfo).
   for kind, file in walkDir(currentDir):
     if kind == pcDir:
       var skip = false
@@ -122,7 +122,7 @@ proc copyFilesRec(origDir, currentDir, dest: string, pkgInfo: TPackageInfo) =
         if samePaths(file, origDir / ignoreDir):
           skip = true
           break
-      let thisDir = splitPath(file).tail 
+      let thisDir = splitPath(file).tail
       assert thisDir != ""
       if thisDir[0] == '.': skip = true
       if thisDir == "nimcache": skip = true
@@ -141,6 +141,11 @@ proc copyFilesRec(origDir, currentDir, dest: string, pkgInfo: TPackageInfo) =
         if samePaths(file, origDir / ignoreFile):
           skip = true
           break
+      
+      for ignoreExt in pkgInfo.skipExt:
+        if file.splitFile.ext == ('.' & ignoreExt):
+          skip = true
+          break 
       
       if not skip:
         copyFileD(file, changeRoot(origDir, dest, file)) 
@@ -181,14 +186,19 @@ proc buildFromDir(dir: string, paths: seq[string]) =
 
 proc installFromDir(dir: string, latest: bool): string =
   ## Returns where package has been installed to. If package is a binary,
-  ## ``""`` is returned.
+  ## ``""`` is returned. The return value of this function is used by
+  ## ``processDeps`` to gather a list of paths to pass to the nimrod compiler.
   var pkgInfo = getPkgInfo(dir)
   let pkgDestDir = libsDir / (pkgInfo.name &
                    (if latest: "" else: '-' & pkgInfo.version))
   if existsDir(pkgDestDir):
-    if not prompt("Package already exists. Overwrite?"):
+    if not prompt(pkgInfo.name & " already exists. Overwrite?"):
       quit(QuitSuccess)
     removeDir(pkgDestDir)
+    # Remove any symlinked binaries
+    for bin in pkgInfo.bin:
+      # TODO: Check that this binary belongs to the package being installed.
+      removeFile(binDir / bin)
   
   echo("Installing ", pkginfo.name, "-", pkginfo.version)
   
@@ -199,18 +209,27 @@ proc installFromDir(dir: string, latest: bool): string =
   if pkgInfo.bin.len > 0:
     buildFromDir(dir, paths)
     createDir(binDir)
+    # Copy all binaries and files that are not skipped
+    var nPkgInfo = pkgInfo
+    nPkgInfo.skipExt.add("nim") # Implicitly skip .nim files
+    copyFilesRec(dir, dir, pkgDestDir, nPkgInfo)
+    # Set file permissions to +x for all binaries built,
+    # and symlink them on *nix OS' to $babelDir/bin/
     for bin in pkgInfo.bin:
-      copyFileD(dir / bin, binDir / bin)
-      let currentPerms = getFilePermissions(binDir / bin)
-      setFilePermissions(binDir / bin, currentPerms + {fpUserExec})
-    # Copy the .babel to lib/
-    let babelFile = findBabelFile(dir)
-    copyFileD(babelFile, changeRoot(dir, pkgDestDir, babelFile))
+      let currentPerms = getFilePermissions(pkgDestDir / bin)
+      setFilePermissions(pkgDestDir / bin, currentPerms + {fpUserExec})
+      when defined(unix):
+        doCmd("ln -s \"" & pkgDestDir / bin & "\" " & binDir / bin)
+      elif defined(windows):
+        {.error: "TODO WINDOWS".}
+      else:
+        {.error: "Sorry, your platform is not supported.".}
     result = ""
   else:
     copyFilesRec(dir, dir, pkgDestDir, pkgInfo)
-    echo(pkgInfo.name & " installed successfully.")
     result = pkgDestDir
+
+  echo(pkgInfo.name & " installed successfully.")
 
 proc getTagsList(dir: string): seq[string] =
   let output = execProcess("cd \"" & dir & "\" && git tag")

@@ -12,6 +12,7 @@ type
     license*: string
     skipDirs*: seq[string]
     skipFiles*: seq[string]
+    skipExt*: seq[string]
     requires*: seq[tuple[name: string, ver: PVersionRange]]
     bin*: seq[string]
 
@@ -34,6 +35,7 @@ proc initPackageInfo(): TPackageInfo =
   result.license = ""
   result.skipDirs = @[]
   result.skipFiles = @[]
+  result.skipExt = @[]
   result.requires = @[]
   result.bin = @[]
 
@@ -89,6 +91,8 @@ proc readPackageInfo*(path: string): TPackageInfo =
             result.skipDirs.add(ev.value.split(','))
           of "skipfiles":
             result.skipFiles.add(ev.value.split(','))
+          of "skipext":
+            result.skipExt.add(ev.value.split(','))
           of "bin":
             result.bin = ev.value.split(',')
           else:

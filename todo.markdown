@@ -9,3 +9,4 @@
 * more package download methods
   * Allow for proper versions of packages to download. Reuse 'version' field
     in packages.json.
+* Install only .nim files when installing library packages?
