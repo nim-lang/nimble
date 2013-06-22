@@ -94,7 +94,8 @@ proc readPackageInfo*(path: string): TPackageInfo =
           of "skipext":
             result.skipExt.add(ev.value.split(','))
           of "bin":
-            result.bin = ev.value.split(',')
+            for i in ev.value.split(','):
+              result.bin.add(i.addFileExt(ExeExt))
           else:
             quit("Invalid field: " & ev.key, QuitFailure)
         of "deps", "dependencies":

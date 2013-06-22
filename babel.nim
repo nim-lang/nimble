@@ -182,7 +182,7 @@ proc buildFromDir(dir: string, paths: seq[string]) =
   for path in paths: args.add("--path:" & path & " ")
   for bin in pkgInfo.bin:
     echo("Building ", pkginfo.name, "/", bin, "...")
-    doCmd("nimrod c -d:release " & args & dir / bin)
+    doCmd("nimrod c -d:release " & args & dir / bin.changeFileExt("nim"))
 
 proc installFromDir(dir: string, latest: bool): string =
   ## Returns where package has been installed to. If package is a binary,
@@ -222,7 +222,7 @@ proc installFromDir(dir: string, latest: bool): string =
       when defined(unix):
         doCmd("ln -s \"" & pkgDestDir / bin & "\" " & binDir / bin)
       elif defined(windows):
-        {.error: "TODO WINDOWS".}
+        writeFile(binDir / bin, pkgDestDir / bin & "\n") 
       else:
         {.error: "Sorry, your platform is not supported.".}
     result = ""
