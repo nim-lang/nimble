@@ -112,6 +112,16 @@ proc doCmd(cmd: string) =
   if exitCode != QuitSuccess:
     quit("Execution failed with exit code " & $exitCode, QuitFailure)
 
+template cd(dir: string, body: stmt) =
+  ## Sets the current dir to ``dir``, executes ``body`` and restores the
+  ## previous working dir.
+  let lastDir = getCurrentDir()
+  echo("cd ", dir)
+  setCurrentDir(dir)
+  echo(getCurrentDir())
+  body
+  setCurrentDir(lastDir)
+
 proc copyFilesRec(origDir, currentDir, dest: string, pkgInfo: TPackageInfo) =
   ## Copies all the required files, skips files specified in the .babel file
   ## (TPackageInfo).
@@ -198,7 +208,10 @@ proc installFromDir(dir: string, latest: bool): string =
     # Remove any symlinked binaries
     for bin in pkgInfo.bin:
       # TODO: Check that this binary belongs to the package being installed.
-      removeFile(binDir / bin)
+      when defined(windows):
+        removeFile(binDir / bin.changeFileExt("bat"))
+      else:
+        removeFile(binDir / bin)
   
   echo("Installing ", pkginfo.name, "-", pkginfo.version)
   
@@ -218,11 +231,13 @@ proc installFromDir(dir: string, latest: bool): string =
     for bin in pkgInfo.bin:
       let currentPerms = getFilePermissions(pkgDestDir / bin)
       setFilePermissions(pkgDestDir / bin, currentPerms + {fpUserExec})
-      echo("Creating symlink: ", pkgDestDir / bin, " -> ", binDir / bin)
       when defined(unix):
+        echo("Creating symlink: ", pkgDestDir / bin, " -> ", binDir / bin)
         doCmd("ln -s \"" & pkgDestDir / bin & "\" " & binDir / bin)
       elif defined(windows):
-        writeFile(binDir / bin, pkgDestDir / bin & "\n") 
+        let dest = binDir / bin.changeFileExt("bat")
+        echo("Creating stub: ", pkgDestDir / bin, " -> ", dest)
+        writeFile(dest, pkgDestDir / bin & " %*\n")
       else:
         {.error: "Sorry, your platform is not supported.".}
     result = ""
@@ -237,7 +252,8 @@ proc installFromDir(dir: string, latest: bool): string =
     removeDir libsDir / pkgInfo.name
 
 proc getTagsList(dir: string): seq[string] =
-  let output = execProcess("cd \"" & dir & "\" && git tag")
+  cd dir:
+    let output = execProcess("git tag")
   if output.len > 0:
     result = output.splitLines()
   else:
@@ -254,12 +270,14 @@ proc getVersionList(dir: string): TTable[TVersion, string] =
 
 proc downloadPkg(pkg: TPackage, verRange: PVersionRange): string =
   let downloadDir = (getTempDir() / "babel" / pkg.name)
+  if not existsDir(getTempDir() / "babel"): createDir(getTempDir() / "babel")
   echo("Downloading ", pkg.name, " into ", downloadDir, "...")
   case pkg.downloadMethod
   of "git":
     echo("Executing git...")
     if existsDir(downloadDir / ".git"):
-      doCmd("cd " & downloadDir & " && git pull")
+      cd downloadDir:
+        doCmd("git pull")
     else:
       removeDir(downloadDir)
       doCmd("git clone --depth 1 " & pkg.url & " " & downloadDir)
@@ -275,7 +293,8 @@ proc downloadPkg(pkg: TPackage, verRange: PVersionRange): string =
       let latest = findLatest(verRange, versions)
       
       if latest.tag != "":
-        doCmd("cd \"" & downloadDir & "\" && git checkout " & latest.tag)
+        cd downloadDir:
+          doCmd("git checkout " & latest.tag)
     elif verRange.kind != verAny:
       let pkginfo = getPkgInfo(downloadDir)
       if pkginfo.version.newVersion notin verRange:
