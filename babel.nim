@@ -177,13 +177,10 @@ proc processDeps(pkginfo: TPackageInfo): seq[string] =
       if not findPkg(pkglist, dep, pkg):
         echo("None found, installing...")
         let dest = install(@[dep.name], dep.ver)
-        if dest != "":
-          # only add if not a binary package
-          result.add(dest)
+        result.add(dest)
       else:
         echo("Dependency already satisfied.")
-        if pkg.bin.len == 0:
-          result.add(pkg.mypath.splitFile.dir)
+        result.add(pkg.mypath.splitFile.dir)
 
 proc buildFromDir(dir: string, paths: seq[string]) =
   ## Builds a package which resides in ``dir``
@@ -195,8 +192,8 @@ proc buildFromDir(dir: string, paths: seq[string]) =
     doCmd("nimrod c -d:release " & args & dir / bin.changeFileExt("nim"))
 
 proc installFromDir(dir: string, latest: bool): string =
-  ## Returns where package has been installed to. If package is a binary,
-  ## ``""`` is returned. The return value of this function is used by
+  ## Returns where package has been installed to.
+  ## The return value of this function is used by
   ## ``processDeps`` to gather a list of paths to pass to the nimrod compiler.
   var pkgInfo = getPkgInfo(dir)
   let pkgDestDir = libsDir / (pkgInfo.name &
@@ -240,10 +237,9 @@ proc installFromDir(dir: string, latest: bool): string =
         writeFile(dest, pkgDestDir / bin & " %*\n")
       else:
         {.error: "Sorry, your platform is not supported.".}
-    result = ""
   else:
     copyFilesRec(dir, dir, pkgDestDir, pkgInfo)
-    result = pkgDestDir
+  result = pkgDestDir
 
   echo(pkgInfo.name & " installed successfully.")
 
