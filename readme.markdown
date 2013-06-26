@@ -53,7 +53,10 @@ structure may be enforced in the future.
 
 All files and folders in the directory of where the .babel file resides will be
 copied as-is, you can however skip some directories or files by setting
-the 'SkipDirs' or 'SkipFiles' options in your .babel file.
+the ``SkipDirs``, ``SkipFiles`` or ``SkipExt`` options in your .babel file.
+Directories and files can also be specified on a *whitelist* basis, if you
+specify either of ``InstallDirs``, ``InstallFiles`` or ``InstallExt`` then
+babel will **only** install the files specified.
 
 #### Example library .babel file
 
@@ -89,6 +92,8 @@ In this case when ``babel install`` is invoked, babel will build the ``main.nim`
 file, copy it into ``$babelDir/pkgs/pkgname-ver/`` and subsequently create a
 symlink to the binary in ``$babelDir/bin/``. On Windows a stub .bat file is
 created instead.
+
+Other files will be copied in the same way as they are for library packages.
 
 Dependencies are automatically installed before building.
 

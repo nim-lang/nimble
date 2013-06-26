@@ -13,6 +13,9 @@ type
     skipDirs*: seq[string]
     skipFiles*: seq[string]
     skipExt*: seq[string]
+    installDirs*: seq[string]
+    installFiles*: seq[string]
+    installExt*: seq[string]
     requires*: seq[tuple[name: string, ver: PVersionRange]]
     bin*: seq[string]
 
@@ -36,6 +39,9 @@ proc initPackageInfo(): TPackageInfo =
   result.skipDirs = @[]
   result.skipFiles = @[]
   result.skipExt = @[]
+  result.installDirs = @[]
+  result.installFiles = @[]
+  result.installExt = @[]
   result.requires = @[]
   result.bin = @[]
 
@@ -93,6 +99,12 @@ proc readPackageInfo*(path: string): TPackageInfo =
             result.skipFiles.add(ev.value.split(','))
           of "skipext":
             result.skipExt.add(ev.value.split(','))
+          of "installdirs":
+            result.installDirs.add(ev.value.split(','))
+          of "installfiles":
+            result.installFiles.add(ev.value.split(','))
+          of "installext":
+            result.installExt.add(ev.value.split(','))
           of "bin":
             for i in ev.value.split(','):
               result.bin.add(i.addFileExt(ExeExt))

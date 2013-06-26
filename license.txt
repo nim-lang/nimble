@@ -1,4 +1,4 @@
-Copyright (c) 2012, Dominik Picheta
+Copyright (c) 2013, Dominik Picheta
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without

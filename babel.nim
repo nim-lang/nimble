@@ -107,6 +107,10 @@ proc copyFileD(fro, to: string) =
   echo(fro, " -> ", to)
   copyFile(fro, to)
 
+proc copyDirD(fro, to: string) =
+  echo(fro, " -> ", to)
+  copyDir(fro, to)
+
 proc doCmd(cmd: string) =
   let exitCode = execCmd(cmd)
   if exitCode != QuitSuccess:
@@ -122,42 +126,81 @@ template cd(dir: string, body: stmt) =
   body
   setCurrentDir(lastDir)
 
+proc checkInstallFile(pkgInfo: TPackageInfo,
+                      origDir, file: string): bool =
+  ## Checks whether ``file`` should be installed.
+  ## ``True`` means file should be skipped.
+
+  for ignoreFile in pkgInfo.skipFiles:
+    if ignoreFile.endswith("babel"):
+      raise newException(EBabel, ignoreFile & " must be installed.")
+    if samePaths(file, origDir / ignoreFile):
+      result = true
+      break
+
+  for ignoreExt in pkgInfo.skipExt:
+    if file.splitFile.ext == ('.' & ignoreExt):
+      result = true
+      break
+
+  if file.splitFile().name[0] == '.': result = true
+
+proc checkInstallDir(pkgInfo: TPackageInfo,
+                     origDir, dir: string): bool =
+  ## Determines whether ``dir`` should be installed.
+  ## ``True`` means dir should be skipped.
+  for ignoreDir in pkgInfo.skipDirs:
+    if samePaths(dir, origDir / ignoreDir):
+      result = true
+      break
+
+  let thisDir = splitPath(dir).tail
+  assert thisDir != ""
+  if thisDir[0] == '.': result = true
+  if thisDir == "nimcache": result = true
+
+proc copyWithExt(origDir, currentDir, dest: string, pkgInfo: TPackageInfo) =
+  for kind, path in walkDir(currentDir):
+    if kind == pcDir:
+      copyWithExt(origDir, path, dest, pkgInfo)
+    else:
+      for iExt in pkgInfo.installExt:
+        if path.splitFile.ext == ('.' & iExt):
+          createDir(changeRoot(origDir, dest, path).splitFile.dir)
+          copyFileD(path, changeRoot(origDir, dest, path))
+
 proc copyFilesRec(origDir, currentDir, dest: string, pkgInfo: TPackageInfo) =
   ## Copies all the required files, skips files specified in the .babel file
   ## (TPackageInfo).
-  for kind, file in walkDir(currentDir):
-    if kind == pcDir:
-      var skip = false
-      for ignoreDir in pkgInfo.skipDirs:
-        if samePaths(file, origDir / ignoreDir):
-          skip = true
-          break
-      let thisDir = splitPath(file).tail
-      assert thisDir != ""
-      if thisDir[0] == '.': skip = true
-      if thisDir == "nimcache": skip = true
-      
-      if skip: continue
-      # Create the dir.
-      createDir(changeRoot(origDir, dest, file))
-      
-      copyFilesRec(origDir, file, dest, pkgInfo)
-    else:
-      var skip = false
-      if file.splitFile().name[0] == '.': skip = true
-      for ignoreFile in pkgInfo.skipFiles:
-        if ignoreFile.endswith("babel"):
-          raise newException(EBabel, ignoreFile & " must be installed.")
-        if samePaths(file, origDir / ignoreFile):
-          skip = true
-          break
-      
-      for ignoreExt in pkgInfo.skipExt:
-        if file.splitFile.ext == ('.' & ignoreExt):
-          skip = true
-          break 
-      
-      if not skip:
+  let whitelistMode =
+          pkgInfo.installDirs.len != 0 or
+          pkgInfo.installFiles.len != 0 or
+          pkgInfo.installExt.len != 0
+  if whitelistMode:
+    for file in pkgInfo.installFiles:
+      createDir(dest / file.splitFile.dir)
+      copyFileD(origDir / file, dest / file)
+
+    for dir in pkgInfo.installDirs:
+      # TODO: Allow skipping files inside dirs?
+      copyDirD(origDir / dir, dest / dir)
+
+    copyWithExt(origDir, currentDir, dest, pkgInfo)
+  else:
+    for kind, file in walkDir(currentDir):
+      if kind == pcDir:
+        let skip = pkgInfo.checkInstallDir(origDir, file)
+        
+        if skip: continue
+        # Create the dir.
+        createDir(changeRoot(origDir, dest, file))
+        
+        copyFilesRec(origDir, file, dest, pkgInfo)
+      else:
+        let skip = pkgInfo.checkInstallFile(origDir, file)
+
+        if skip: continue
+
         copyFileD(file, changeRoot(origDir, dest, file)) 
 
 proc install(packages: seq[String], verRange: PVersionRange): string {.discardable.}
@@ -220,12 +263,13 @@ proc installFromDir(dir: string, latest: bool): string =
     buildFromDir(dir, paths)
     createDir(binDir)
     # Copy all binaries and files that are not skipped
-    var nPkgInfo = pkgInfo
-    nPkgInfo.skipExt.add("nim") # Implicitly skip .nim files
-    copyFilesRec(dir, dir, pkgDestDir, nPkgInfo)
+    copyFilesRec(dir, dir, pkgDestDir, pkgInfo)
     # Set file permissions to +x for all binaries built,
     # and symlink them on *nix OS' to $babelDir/bin/
     for bin in pkgInfo.bin:
+      if not existsFile(pkgDestDir / bin):
+        copyFileD(dir / bin, pkgDestDir / bin)
+      
       let currentPerms = getFilePermissions(pkgDestDir / bin)
       setFilePermissions(pkgDestDir / bin, currentPerms + {fpUserExec})
       when defined(unix):

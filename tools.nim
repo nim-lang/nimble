@@ -14,8 +14,11 @@ proc getNimrodVersion*: TVersion =
 
 proc samePaths*(p1, p2: string): bool =
   ## Normalizes path (by adding a trailing slash) and compares.
-  let cp1 = if not p1.endsWith("/"): p1 & "/" else: p1
-  let cp2 = if not p2.endsWith("/"): p2 & "/" else: p2
+  var cp1 = if not p1.endsWith("/"): p1 & "/" else: p1
+  var cp2 = if not p2.endsWith("/"): p2 & "/" else: p2
+  cp1 = cp1.replace('/', DirSep).replace('\\', DirSep)
+  cp2 = cp2.replace('/', DirSep).replace('\\', DirSep)
+  
   return cmpPaths(cp1, cp2) == 0
 
 proc changeRoot*(origRoot, newRoot, path: string): string =
