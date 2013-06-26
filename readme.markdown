@@ -86,7 +86,9 @@ bin = "main"
 ```
 
 In this case when ``babel install`` is invoked, babel will build the ``main.nim``
-file and subsequently copy it into ``$babelDir/bin/``.
+file, copy it into ``$babelDir/libs/pkgname-ver/`` and subsequently create a
+symlink to the binary in ``$babelDir/bin/``. On Windows a stub .bat file is
+created instead.
 
 Dependencies are automatically installed before building.
 
