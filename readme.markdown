@@ -8,7 +8,7 @@ Compiling it is as simple as ``nimrod c -d:release babel``.
 
 ## Babel's folder structure
 Babel stores everything that has been installed in ~/.babel on Unix systems and 
-in your $home/.babel on Windows. Libraries are stored in $babelDir/libs, and
+in your $home/.babel on Windows. Libraries are stored in $babelDir/pkgs, and
 binaries are stored in $babelDir/bin.
 
 ## Packages
@@ -24,7 +24,7 @@ the package's name.
 ### Libraries
 
 When babel installs a library it will copy all the files that it downloaded
-into ``$babelDir/libs/pkgname-ver``. It's up to the package creator to make sure
+into ``$babelDir/pkgs/pkgname-ver``. It's up to the package creator to make sure
 that the package directory layout is correct, this is so that users of the
 package can correctly import the package.
 
@@ -86,7 +86,7 @@ bin = "main"
 ```
 
 In this case when ``babel install`` is invoked, babel will build the ``main.nim``
-file, copy it into ``$babelDir/libs/pkgname-ver/`` and subsequently create a
+file, copy it into ``$babelDir/pkgs/pkgname-ver/`` and subsequently create a
 symlink to the binary in ``$babelDir/bin/``. On Windows a stub .bat file is
 created instead.
 

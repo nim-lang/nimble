@@ -94,7 +94,7 @@ proc prompt(question: string): bool =
     return false
 
 let babelDir = getHomeDir() / ".babel"
-let libsDir = babelDir / "libs"
+let pkgsDir = babelDir / "pkgs"
 let binDir = babelDir / "bin"
 let nimVer = getNimrodVersion()
 
@@ -166,7 +166,7 @@ proc processDeps(pkginfo: TPackageInfo): seq[string] =
   ##
   ## Returns the list of paths to pass to the compiler during build phase.
   result = @[]
-  let pkglist = getInstalledPkgs(libsDir)
+  let pkglist = getInstalledPkgs(pkgsDir)
   for dep in pkginfo.requires:
     if dep.name == "nimrod":
       if not withinRange(nimVer, dep.ver):
@@ -196,7 +196,7 @@ proc installFromDir(dir: string, latest: bool): string =
   ## The return value of this function is used by
   ## ``processDeps`` to gather a list of paths to pass to the nimrod compiler.
   var pkgInfo = getPkgInfo(dir)
-  let pkgDestDir = libsDir / (pkgInfo.name &
+  let pkgDestDir = pkgsDir / (pkgInfo.name &
                    (if latest: "" else: '-' & pkgInfo.version))
   if existsDir(pkgDestDir):
     if not prompt(pkgInfo.name & " already exists. Overwrite?"):
@@ -243,10 +243,6 @@ proc installFromDir(dir: string, latest: bool): string =
 
   echo(pkgInfo.name & " installed successfully.")
 
-  ## remove old unversioned directory 
-  if not latest:
-    removeDir libsDir / pkgInfo.name
-
 proc getTagsList(dir: string): seq[string] =
   cd dir:
     let output = execProcess("git tag")
@@ -280,7 +276,7 @@ proc downloadPkg(pkg: TPackage, verRange: PVersionRange): string =
       doCmd("git clone --depth 1 " & pkg.url & " " & downloadDir)
     
     # TODO: Determine if version is a commit hash, if it is. Move the
-    # git repo to ``babelDir/libs``, then babel can simply checkout
+    # git repo to ``babelDir/pkgs``, then babel can simply checkout
     # the correct hash instead of constantly cloning and copying.
     # N.B. This may still partly be requires, as one lib may require hash A
     # whereas another lib requires hash B and they are both required by the
@@ -379,8 +375,8 @@ proc doAction(action: TAction) =
 when isMainModule:
   if not existsDir(babelDir):
     createDir(babelDir)
-  if not existsDir(libsDir):
-    createDir(libsDir)
+  if not existsDir(pkgsDir):
+    createDir(pkgsDir)
   
   when defined(release):
     try:
