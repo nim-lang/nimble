@@ -18,6 +18,7 @@ type
     installExt*: seq[string]
     requires*: seq[tuple[name: string, ver: PVersionRange]]
     bin*: seq[string]
+    rootDir*: string
 
   TPackage* = object
     name*: string
@@ -44,6 +45,7 @@ proc initPackageInfo(): TPackageInfo =
   result.installExt = @[]
   result.requires = @[]
   result.bin = @[]
+  result.rootDir = ""
 
 proc validatePackageInfo(pkgInfo: TPackageInfo, path: string) =
   if pkgInfo.name == "":
@@ -93,6 +95,7 @@ proc readPackageInfo*(path: string): TPackageInfo =
           of "author": result.author = ev.value
           of "description": result.description = ev.value
           of "license": result.license = ev.value
+          of "rootdir": result.rootDir = ev.value
           of "skipdirs":
             result.skipDirs.add(ev.value.split(','))
           of "skipfiles":
@@ -188,8 +191,9 @@ proc findBabelFile*(dir: string): string =
 proc getPkgInfo*(dir: string): TPackageInfo =
   ## Find the .babel file in ``dir`` and parses it, returning a TPackageInfo.
   let babelFile = findBabelFile(dir)
+  echo(dir)
   if babelFile == "":
-    quit("Specified directory does not contain a .babel file.", QuitFailure)
+    raise newException(EBabel, "Specified directory does not contain a .babel file.")
   result = readPackageInfo(babelFile)
 
 proc getInstalledPkgs*(libsDir: string): seq[TPackageInfo] =
@@ -219,6 +223,14 @@ proc findPkg*(pkglist: seq[TPackageInfo],
       if not result or newVersion(r.version) < newVersion(pkg.version):
         r = pkg
         result = true
+
+proc getRealDir*(pkgInfo: TPackageInfo): string =
+  ## Returns the ``pkgInfo.rootDir`` or the .mypath directory if package does
+  ## not specify the root dir.
+  if pkgInfo.rootDir != "":
+    result = pkgInfo.mypath.splitFile.dir / pkgInfo.rootDir
+  else:
+    result = pkgInfo.mypath.splitFile.dir
 
 proc echoPackage*(pkg: TPackage) =
   echo(pkg.name & ":")

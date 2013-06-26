@@ -203,6 +203,9 @@ proc copyFilesRec(origDir, currentDir, dest: string, pkgInfo: TPackageInfo) =
 
         copyFileD(file, changeRoot(origDir, dest, file)) 
 
+  copyFileD(pkgInfo.mypath,
+            changeRoot(pkgInfo.mypath.splitFile.dir, dest, pkgInfo.mypath))
+
 proc install(packages: seq[String], verRange: PVersionRange): string {.discardable.}
 proc processDeps(pkginfo: TPackageInfo): seq[string] =
   ## Verifies and installs dependencies.
@@ -225,20 +228,22 @@ proc processDeps(pkginfo: TPackageInfo): seq[string] =
         echo("Dependency already satisfied.")
         result.add(pkg.mypath.splitFile.dir)
 
-proc buildFromDir(dir: string, paths: seq[string]) =
-  ## Builds a package which resides in ``dir``
-  var pkgInfo = getPkgInfo(dir)
+proc buildFromDir(pkgInfo: TPackageInfo, paths: seq[string]) =
+  ## Builds a package as specified by ``pkgInfo``.
+  let realDir = pkgInfo.getRealDir()
   var args = ""
   for path in paths: args.add("--path:" & path & " ")
   for bin in pkgInfo.bin:
     echo("Building ", pkginfo.name, "/", bin, "...")
-    doCmd("nimrod c -d:release " & args & dir / bin.changeFileExt("nim"))
+    doCmd("nimrod c -d:release " & args & realDir / bin.changeFileExt("nim"))
 
 proc installFromDir(dir: string, latest: bool): string =
   ## Returns where package has been installed to.
   ## The return value of this function is used by
   ## ``processDeps`` to gather a list of paths to pass to the nimrod compiler.
   var pkgInfo = getPkgInfo(dir)
+  let realDir = pkgInfo.getRealDir()
+  
   let pkgDestDir = pkgsDir / (pkgInfo.name &
                    (if latest: "" else: '-' & pkgInfo.version))
   if existsDir(pkgDestDir):
@@ -260,15 +265,15 @@ proc installFromDir(dir: string, latest: bool): string =
   
   createDir(pkgDestDir)
   if pkgInfo.bin.len > 0:
-    buildFromDir(dir, paths)
+    buildFromDir(pkgInfo, paths)
     createDir(binDir)
     # Copy all binaries and files that are not skipped
-    copyFilesRec(dir, dir, pkgDestDir, pkgInfo)
+    copyFilesRec(realDir, realDir, pkgDestDir, pkgInfo)
     # Set file permissions to +x for all binaries built,
     # and symlink them on *nix OS' to $babelDir/bin/
     for bin in pkgInfo.bin:
       if not existsFile(pkgDestDir / bin):
-        copyFileD(dir / bin, pkgDestDir / bin)
+        copyFileD(realDir / bin, pkgDestDir / bin)
       
       let currentPerms = getFilePermissions(pkgDestDir / bin)
       setFilePermissions(pkgDestDir / bin, currentPerms + {fpUserExec})
@@ -282,7 +287,7 @@ proc installFromDir(dir: string, latest: bool): string =
       else:
         {.error: "Sorry, your platform is not supported.".}
   else:
-    copyFilesRec(dir, dir, pkgDestDir, pkgInfo)
+    copyFilesRec(realDir, realDir, pkgDestDir, pkgInfo)
   result = pkgDestDir
 
   echo(pkgInfo.name & " installed successfully.")
@@ -361,7 +366,7 @@ proc install(packages: seq[String], verRange: PVersionRange): string =
 proc build =
   var pkgInfo = getPkgInfo(getCurrentDir())
   let paths = processDeps(pkginfo)
-  buildFromDir(getCurrentDir(), paths)
+  buildFromDir(pkgInfo, paths)
 
 proc search(action: TAction) =
   assert action.typ == ActionSearch
