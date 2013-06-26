@@ -273,6 +273,7 @@ proc downloadPkg(pkg: TPackage, verRange: PVersionRange): string =
     echo("Executing git...")
     if existsDir(downloadDir / ".git"):
       cd downloadDir:
+        doCmd("git checkout master")
         doCmd("git pull")
     else:
       removeDir(downloadDir)
