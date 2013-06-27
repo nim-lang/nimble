@@ -386,10 +386,11 @@ proc search(action: TAction) =
   if notFound:
     # Search by name.
     for pkg in pkgList:
-      if pkg.name in action.search:
-        echoPackage(pkg)
-        echo(" ")
-        notFound = false
+      for word in action.search:
+        if word in pkg.name:
+          echoPackage(pkg)
+          echo(" ")
+          notFound = false
 
   if notFound:
     echo("No package found.")
