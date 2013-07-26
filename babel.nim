@@ -3,7 +3,7 @@
 
 import httpclient, parseopt, os, strutils, osproc, pegs, tables, parseutils
 
-import packageinfo, version, common, tools
+import packageinfo, version, common, tools, download
 
 type
   TActionType = enum
@@ -102,29 +102,6 @@ proc update(url: string = defaultPackageURL) =
   echo("Downloading package list from " & url)
   downloadFile(url, babelDir / "packages.json")
   echo("Done.")
-
-proc copyFileD(fro, to: string) =
-  echo(fro, " -> ", to)
-  copyFile(fro, to)
-
-proc copyDirD(fro, to: string) =
-  echo(fro, " -> ", to)
-  copyDir(fro, to)
-
-proc doCmd(cmd: string) =
-  let exitCode = execCmd(cmd)
-  if exitCode != QuitSuccess:
-    quit("Execution failed with exit code " & $exitCode, QuitFailure)
-
-template cd(dir: string, body: stmt) =
-  ## Sets the current dir to ``dir``, executes ``body`` and restores the
-  ## previous working dir.
-  let lastDir = getCurrentDir()
-  echo("cd ", dir)
-  setCurrentDir(dir)
-  echo(getCurrentDir())
-  body
-  setCurrentDir(lastDir)
 
 proc checkInstallFile(pkgInfo: TPackageInfo,
                       origDir, file: string): bool =
@@ -292,61 +269,12 @@ proc installFromDir(dir: string, latest: bool): string =
 
   echo(pkgInfo.name & " installed successfully.")
 
-proc getTagsList(dir: string): seq[string] =
-  cd dir:
-    let output = execProcess("git tag")
-  if output.len > 0:
-    result = output.splitLines()
-  else:
-    result = @[]
-
-proc getVersionList(dir: string): TTable[TVersion, string] =
-  # Returns: TTable of version -> git tag name
-  result = initTable[TVersion, string]()
-  let tags = getTagsList(dir)
-  for tag in tags:
-    let i = skipUntil(tag, digits) # skip any chars before the version
-    # TODO: Better checking, tags can have any names. Add warnings and such.
-    result[newVersion(tag[i .. -1])] = tag
-
 proc downloadPkg(pkg: TPackage, verRange: PVersionRange): string =
   let downloadDir = (getTempDir() / "babel" / pkg.name)
   if not existsDir(getTempDir() / "babel"): createDir(getTempDir() / "babel")
   echo("Downloading ", pkg.name, " into ", downloadDir, "...")
-  case pkg.downloadMethod
-  of "git":
-    echo("Executing git...")
-    if existsDir(downloadDir / ".git"):
-      cd downloadDir:
-        doCmd("git checkout master")
-        doCmd("git pull")
-    else:
-      removeDir(downloadDir)
-      doCmd("git clone --depth 1 " & pkg.url & " " & downloadDir)
+  doDownload(pkg, downloadDir, verRange)
     
-    # TODO: Determine if version is a commit hash, if it is. Move the
-    # git repo to ``babelDir/pkgs``, then babel can simply checkout
-    # the correct hash instead of constantly cloning and copying.
-    # N.B. This may still partly be requires, as one lib may require hash A
-    # whereas another lib requires hash B and they are both required by the
-    # project you want to build.
-    let versions = getVersionList(downloadDir)
-    if versions.len > 0:
-      let latest = findLatest(verRange, versions)
-      
-      if latest.tag != "":
-        cd downloadDir:
-          doCmd("git checkout " & latest.tag)
-    elif verRange.kind != verAny:
-      let pkginfo = getPkgInfo(downloadDir)
-      if pkginfo.version.newVersion notin verRange:
-        raise newException(EBabel,
-              "No versions of " & pkg.name &
-              " exist (this usually means that `git tag` returned nothing)." &
-              "Git HEAD also does not satisfy version range: " & $verRange)
-      # We use GIT HEAD if it satisfies our ver range
-      
-  else: raise newException(EBabel, "Unknown download method: " & pkg.downloadMethod)
   result = downloadDir
 
 proc install(packages: seq[String], verRange: PVersionRange): string =

@@ -118,6 +118,19 @@ greater-than (``>``), less-than-or-equal-to (``<=``) and greater-than-or-equal-t
 ``> 0.2 & < 1.0`` which will install a package with the version greater than 0.2
 and less than 1.0.
 
+## Versions
+
+Versions of cloned packages via git or mercurial are determined through
+the repo's *tags*.
+
+When installing a package which needs to be downloaded, after the
+download is complete and if the package is distributed through a VCS, babel
+will check the cloned repo's tags list. If no tags exist, babel will simply
+install the HEAD (or tip in mercurial) of the repo. If tags exist, babel will
+attempt to look for tags which resemble versions (e.g. v0.1) and will then
+find the latest version out of the available tags, once it does so it will install
+the package after checking out the latest version.
+
 ## .babel reference
 
 ### [Package]
@@ -126,7 +139,7 @@ and less than 1.0.
 
 * ``name`` - The name of the package.
 * ``version`` - The *current* version of this package. This should be incremented
-  after tagging the current version using ``git tag``.
+  **after** tagging the current version using ``git tag`` or ``hg tag``.
 * ``author`` - The name of the author of this package.
 * ``description`` - A string describing the package.
 * ``license`` - The name of the license in which this package is licensed under.

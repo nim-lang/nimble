@@ -5,6 +5,21 @@
 import osproc, pegs, strutils, os
 import version
 
+# TODO: Merge with common.nim?
+
+proc doCmd*(cmd: string) =
+  let exitCode = execCmd(cmd)
+  if exitCode != QuitSuccess:
+    quit("Execution failed with exit code " & $exitCode, QuitFailure)
+
+template cd*(dir: string, body: stmt) =
+  ## Sets the current dir to ``dir``, executes ``body`` and restores the
+  ## previous working dir.
+  let lastDir = getCurrentDir()
+  setCurrentDir(dir)
+  body
+  setCurrentDir(lastDir)
+
 proc getNimrodVersion*: TVersion =
   let vOutput = execProcess("nimrod -v")
   var matches: array[0..MaxSubpatterns, string]
