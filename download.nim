@@ -41,7 +41,7 @@ proc doClone(meth: TDownloadMethod, url, downloadDir: string) =
   of TDownloadMethod.Git:
     doCmd("git clone --depth 1 " & url & " " & downloadDir)
   of TDownloadMethod.Hg:
-    doCmd("hg clone " & url & " " & downloadDir)
+    doCmd("hg clone -r tip " & url & " " & downloadDir)
 
 proc getTagsList(dir: string, meth: TDownloadMethod): seq[string] =
   cd dir:
