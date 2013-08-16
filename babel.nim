@@ -211,8 +211,10 @@ proc buildFromDir(pkgInfo: TPackageInfo, paths: seq[string]) =
   var args = ""
   for path in paths: args.add("--path:" & path & " ")
   for bin in pkgInfo.bin:
-    echo("Building ", pkginfo.name, "/", bin, "...")
-    doCmd("nimrod c -d:release " & args & realDir / bin.changeFileExt("nim"))
+    echo("Building ", pkginfo.name, "/", bin, " using ", pkgInfo.backend,
+         " backend...")
+    doCmd("nimrod $# -d:release $#" %
+          [pkgInfo.backend, args & realDir / bin.changeFileExt("nim")])
 
 proc installFromDir(dir: string, latest: bool): string =
   ## Returns where package has been installed to.

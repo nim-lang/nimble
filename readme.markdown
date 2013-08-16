@@ -172,6 +172,10 @@ the package after checking out the latest version.
 * ``bin`` - A list of files which should be built separated by commas with
   no file extension required. This option turns your package into a *binary
   package*, babel will build the files specified and install them appropriately.
+* ``backend`` - Specifies the backend which will be used to build the files
+  listed in ``bin``. Possible values include: ``c``, ``cc``, ``cpp``, ``objc``,
+  ``js``.
+  **Default**: c
 
 ### [Deps]/[Dependencies]
 

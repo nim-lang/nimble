@@ -19,6 +19,7 @@ type
     requires*: seq[tuple[name: string, ver: PVersionRange]]
     bin*: seq[string]
     srcDir*: string
+    backend*: string
 
   TPackage* = object
     name*: string
@@ -46,6 +47,7 @@ proc initPackageInfo(): TPackageInfo =
   result.requires = @[]
   result.bin = @[]
   result.srcDir = ""
+  result.backend = "c"
 
 proc validatePackageInfo(pkgInfo: TPackageInfo, path: string) =
   if pkgInfo.name == "":
@@ -58,6 +60,8 @@ proc validatePackageInfo(pkgInfo: TPackageInfo, path: string) =
     quit("Incorrect .babel file: " & path & " does not contain a description field.")
   if pkgInfo.license == "":
     quit("Incorrect .babel file: " & path & " does not contain a license field.")
+  if pkgInfo.backend notin ["c", "cc", "objc", "cpp", "js"]:
+    raise newException(EBabel, "'" & pkgInfo.backend & "' is an invalid backend.")
 
 proc parseRequires(req: string): tuple[name: string, ver: PVersionRange] =
   try:
@@ -111,6 +115,10 @@ proc readPackageInfo*(path: string): TPackageInfo =
           of "bin":
             for i in ev.value.split(','):
               result.bin.add(i.addFileExt(ExeExt))
+          of "backend":
+            result.backend = ev.value.toLower()
+            case result.backend.normalize
+            of "javascript": result.backend = "js"
           else:
             quit("Invalid field: " & ev.key, QuitFailure)
         of "deps", "dependencies":
