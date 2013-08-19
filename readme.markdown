@@ -1,10 +1,13 @@
 # Babel
 Babel is a *beta*-grade *package manager* for the Nimrod programming language.
 
-## Compiling babel
+## Installation
+
 You will need the latest Nimrod compiler from github to compile babel (version 0.9.2 may work).
 
-Compiling it is as simple as ``nimrod c -d:release babel``.
+Compile babel by executing: ``nimrod c -d:release babel``. Then simply install
+babel by executing ``./babel install``. You should then add ``~/.babel/bin``
+to your $PATH.
 
 ## Babel's folder structure
 Babel stores everything that has been installed in ~/.babel on Unix systems and 

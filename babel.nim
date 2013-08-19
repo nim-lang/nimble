@@ -257,6 +257,7 @@ proc installFromDir(dir: string, latest: bool): string =
       let currentPerms = getFilePermissions(pkgDestDir / bin)
       setFilePermissions(pkgDestDir / bin, currentPerms + {fpUserExec})
       when defined(unix):
+        if existsFile(binDir / bin): removeFile(binDir / bin)
         echo("Creating symlink: ", pkgDestDir / bin, " -> ", binDir / bin)
         doCmd("ln -s \"" & pkgDestDir / bin & "\" " & binDir / bin)
       elif defined(windows):
