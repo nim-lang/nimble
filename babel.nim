@@ -268,7 +268,7 @@ proc installFromDir(dir: string, latest: bool): string =
       elif defined(windows):
         let dest = binDir / bin.changeFileExt("bat")
         echo("Creating stub: ", pkgDestDir / bin, " -> ", dest)
-        writeFile(dest, pkgDestDir / bin & " %*\n")
+        writeFile(dest, "\"" & pkgDestDir / bin & "\" %*\n")
       else:
         {.error: "Sorry, your platform is not supported.".}
   else:
