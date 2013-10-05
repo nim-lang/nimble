@@ -25,7 +25,7 @@ Usage: babel COMMAND [opts]
 
 Commands:
   install      [pkgname, ...] Installs a list of packages.
-  build        [pkgname]      Builds a package.
+  build                       Builds a package.
   update       [url]          Updates package list. A package list URL can be optionally specified.
   search       pkg/tag        Searches for a specified package. Search is performed by tag and by name.
   list                        Lists all packages.
