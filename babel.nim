@@ -242,9 +242,10 @@ proc installFromDir(dir: string, latest: bool): string =
   # Dependencies need to be processed before the creation of the pkg dir.
   let paths = processDeps(pkginfo)
   
+  if pkgInfo.bin.len > 0: buildFromDir(pkgInfo, paths)
+  
   createDir(pkgDestDir)
   if pkgInfo.bin.len > 0:
-    buildFromDir(pkgInfo, paths)
     createDir(binDir)
     # Copy all binaries and files that are not skipped
     copyFilesRec(realDir, realDir, pkgDestDir, pkgInfo)

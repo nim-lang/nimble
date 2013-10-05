@@ -3,14 +3,14 @@
 #
 # Various miscellaneous utility functions reside here.
 import osproc, pegs, strutils, os
-import version
+import version, common
 
 # TODO: Merge with common.nim?
 
 proc doCmd*(cmd: string) =
   let exitCode = execCmd(cmd)
   if exitCode != QuitSuccess:
-    quit("Execution failed with exit code " & $exitCode, QuitFailure)
+    raise newException(EBabel, "Execution failed with exit code " & $exitCode)
 
 template cd*(dir: string, body: stmt) =
   ## Sets the current dir to ``dir``, executes ``body`` and restores the
