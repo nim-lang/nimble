@@ -29,6 +29,10 @@ Commands:
   update       [url]          Updates package list. A package list URL can be optionally specified.
   search       pkg/tag        Searches for a specified package. Search is performed by tag and by name.
   list                        Lists all packages.
+
+Options:
+  -h                          Print this help message.
+  -v                          Print version information.
 """
   babelVersion = "0.1.0"
   defaultPackageURL = "https://github.com/nimrod-code/packages/raw/master/packages.json"
@@ -38,7 +42,7 @@ proc writeHelp() =
   quit(QuitSuccess)
 
 proc writeVersion() =
-  echo(babelVersion)
+  echo("babel v$# compiled at $# $#" % [babelVersion, compileDate, compileTime])
   quit(QuitSuccess)
 
 proc parseCmdLine(): TAction =
