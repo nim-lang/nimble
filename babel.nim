@@ -213,12 +213,12 @@ proc buildFromDir(pkgInfo: TPackageInfo, paths: seq[string]) =
   ## Builds a package as specified by ``pkgInfo``.
   let realDir = pkgInfo.getRealDir()
   var args = ""
-  for path in paths: args.add("--path:" & path & " ")
+  for path in paths: args.add("--path:\"" & path & "\" ")
   for bin in pkgInfo.bin:
     echo("Building ", pkginfo.name, "/", bin, " using ", pkgInfo.backend,
          " backend...")
-    doCmd("nimrod $# -d:release \"$#\"" %
-          [pkgInfo.backend, args & realDir / bin.changeFileExt("nim")])
+    doCmd("nimrod $# -d:release $# \"$#\"" %
+          [pkgInfo.backend, args, realDir / bin.changeFileExt("nim")])
 
 proc installFromDir(dir: string, latest: bool): string =
   ## Returns where package has been installed to.
