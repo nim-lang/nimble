@@ -9,6 +9,10 @@ Compile babel by executing: ``nimrod c -d:release babel``. Then simply install
 babel by executing ``./babel install``. You should then add ``~/.babel/bin``
 to your $PATH.
 
+**Note**: On **Windows** you must rename ``babel.exe`` to ``babel1.exe`` and
+subsequently run ``babel1.exe install``. This is because Windows will lock
+the process which is being run.
+
 ## Babel's folder structure
 Babel stores everything that has been installed in ~/.babel on Unix systems and 
 in your $home/.babel on Windows. Libraries are stored in $babelDir/pkgs, and
