@@ -296,14 +296,22 @@ proc install(packages: seq[String], verRange: PVersionRange): string =
     result = installFromDir(getCurrentDir(), false)
   else:
     if not existsFile(babelDir / "packages.json"):
-      quit("Please run babel update.", QuitFailure)
+      if didUpdatePackages == false and prompt("Local packages.json not found, download it from internet?"):
+          update()
+          install(packages, verRange)
+      else:
+        quit("Please run babel update.", QuitFailure)
     for p in packages:
       var pkg: TPackage
       if getPackage(p, babelDir / "packages.json", pkg):
         let downloadDir = downloadPkg(pkg, verRange)
         result = installFromDir(downloadDir, false)
       else:
-        raise newException(EBabel, "Package not found.")
+        if didUpdatePackages == false and prompt(p & " not found in local packages.json, check internet for updated packages?"):
+          update()
+          install(@[p], verRange)
+        else:
+            raise newException(EBabel, "Package not found.")
 
 proc build =
   var pkgInfo = getPkgInfo(getCurrentDir())
