@@ -76,7 +76,10 @@ description   = "Example .babel file."
 license       = "MIT"
 
 SkipDirs = "SomeDir" ; ./SomeDir will not be installed
-SkipFiles = "file.txt,file2.txt" ; ./{file.txt, file2.txt} will not be installed
+SkipFiles = """
+file.txt,
+file2.txt,
+""" ; ./{file.txt, file2.txt} will not be installed
 
 [Deps]
 Requires: "nimrod >= 0.9.2"
