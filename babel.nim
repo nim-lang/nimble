@@ -101,10 +101,16 @@ let babelDir = getHomeDir() / ".babel"
 let pkgsDir = babelDir / "pkgs"
 let binDir = babelDir / "bin"
 let nimVer = getNimrodVersion()
+var didUpdatePackages = false
 
 proc update(url: string = defaultPackageURL) =
+  ## Downloads the package list from the specified URL.
+  ##
+  ## If the download is successful, the global didUpdatePackages is set to
+  ## true. Otherwise an exception is raised on error.
   echo("Downloading package list from " & url)
   downloadFile(url, babelDir / "packages.json")
+  didUpdatePackages = true
   echo("Done.")
 
 proc checkInstallFile(pkgInfo: TPackageInfo,
