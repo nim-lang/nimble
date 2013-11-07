@@ -1,1 +1,7 @@
+# Any path
+*.swp
 *~
+nimcache/
+
+# Absolute paths
+/babel
