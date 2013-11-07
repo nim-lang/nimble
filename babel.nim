@@ -19,6 +19,11 @@ type
     of ActionSearch:
       search: seq[string] # Search string.
 
+  TForcePrompt = enum
+    DontForcePrompt, ForcePromptYes, ForcePromptNo
+
+var forcePrompts = DontForcePrompt
+
 const
   help = """
 Usage: babel COMMAND [opts]
@@ -31,8 +36,10 @@ Commands:
   list                        Lists all packages.
 
 Options:
-  -h                          Print this help message.
-  -v                          Print version information.
+  -h, -help                   Print this help message.
+  -v, -version                Print version information.
+  -y, -accept                 Accept all interactive prompts.
+  -n, -reject                 Reject all interactive prompts.
 """
   babelVersion = "0.1.0"
   defaultPackageURL = "https://github.com/nimrod-code/packages/raw/master/packages.json"
@@ -82,20 +89,34 @@ proc parseCmdLine(): TAction =
       case key
       of "help", "h": writeHelp()
       of "version", "v": writeVersion()
+      of "accept", "y": forcePrompts = ForcePromptYes
+      of "reject", "n": forcePrompts = ForcePromptNo
     of cmdEnd: assert(false) # cannot happen
   if result.typ == ActionNil:
     writeHelp()
 
 proc prompt(question: string): bool =
-  echo(question & " [y/N]")
-  let yn = stdin.readLine()
-  case yn.normalize
-  of "y", "yes":
+  ## Asks an interactive question and returns the result.
+  ##
+  ## The proc will return immediately without asking the user if the global
+  ## forcePrompts has a value different than DontForcePrompt.
+  case forcePrompts
+  of ForcePromptYes:
+    echo(question & " -> [forced yes]")
     return true
-  of "n", "no":
+  of ForcePromptNo:
+    echo(question & " -> [forced no]")
     return false
-  else:
-    return false
+  of DontForcePrompt:
+    echo(question & " [y/N]")
+    let yn = stdin.readLine()
+    case yn.normalize
+    of "y", "yes":
+      return true
+    of "n", "no":
+      return false
+    else:
+      return false
 
 let babelDir = getHomeDir() / ".babel"
 let pkgsDir = babelDir / "pkgs"
