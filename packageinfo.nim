@@ -140,21 +140,25 @@ proc readPackageInfo*(path: string): TPackageInfo =
     raise newException(EInvalidValue, "Cannot open package info: " & path)
   validatePackageInfo(result, path)
 
-proc optionalField(obj: PJsonNode, name: string): string =
+proc optionalField(obj: PJsonNode, name: string, default = ""): string =
+  ## Queries ``obj`` for the optional ``name`` string.
+  ##
+  ## Returns the value of ``name`` if it is a valid string, or aborts execution
+  ## if the field exists but is not of string type. If ``name`` is not present,
+  ## returns ``default``.
   if existsKey(obj, name):
     if obj[name].kind == JString:
       return obj[name].str
     else:
       quit("Corrupted packages.json file. " & name & " field is of unexpected type.")
-  else: return ""
+  else: return default
 
 proc requiredField(obj: PJsonNode, name: string): string =
-  if existsKey(obj, name):
-    if obj[name].kind == JString:
-      return obj[name].str
-    else:
-      quit("Corrupted packages.json file. " & name & " field is of unexpected type.")
-  else:
+  ## Queries ``obj`` for the required ``name`` string.
+  ##
+  ## Aborts execution if the field does not exist or is of invalid json type.
+  result = optionalField(obj, name, nil)
+  if result == nil:
     quit("Package in packages.json file does not contain a " & name & " field.")
 
 proc getPackage*(pkg: string, packagesPath: string, resPkg: var TPackage): bool =
