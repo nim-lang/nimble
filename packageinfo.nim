@@ -22,14 +22,17 @@ type
     backend*: string
 
   TPackage* = object
+    # Required fields in a package.
     name*: string
-    version*: string
+    url*: string # Download location.
     license*: string
-    url*: string
-    dvcsTag*: string
     downloadMethod*: string
-    tags*: seq[string]
     description*: string
+    tags*: seq[string] # Even if empty, always a valid non nil seq. \
+    # From here on, optional fields set to the emtpy string if not available.
+    version*: string
+    dvcsTag*: string
+    web*: string # Info url for humans.
 
 proc initPackageInfo(): TPackageInfo =
   result.mypath = ""
@@ -168,6 +171,7 @@ proc getPackage*(pkg: string, packagesPath: string, resPkg: var TPackage): bool 
     for t in p["tags"]:
       resPkg.tags.add(t.str)
     resPkg.description = p.requiredField("description")
+    resPkg.web = p.optionalField("web")
     return true
   return false
   
@@ -186,6 +190,7 @@ proc getPackageList*(packagesPath: string): seq[TPackage] =
     for t in p["tags"]:
       pkg.tags.add(t.str)
     pkg.description = p.requiredField("description")
+    pkg.web = p.optionalField("web")
     result.add(pkg)
 
 proc findBabelFile*(dir: string): string =
@@ -245,3 +250,5 @@ proc echoPackage*(pkg: TPackage) =
   echo("  tags:        " & pkg.tags.join(", "))
   echo("  description: " & pkg.description)
   echo("  license:     " & pkg.license)
+  if pkg.web.len > 0:
+    echo("  website:     " & pkg.web)
