@@ -161,40 +161,40 @@ proc requiredField(obj: PJsonNode, name: string): string =
   if result == nil:
     quit("Package in packages.json file does not contain a " & name & " field.")
 
+proc fromJson(obj: PJSonNode): TPackage =
+  ## Constructs a TPackage object from a JSON node.
+  ##
+  ## Aborts execution if the JSON node doesn't contain the required fields.
+  result.name = obj.requiredField("name")
+  result.version = obj.optionalField("version")
+  result.url = obj.requiredField("url")
+  result.downloadMethod = obj.requiredField("method")
+  result.dvcsTag = obj.optionalField("dvcs-tag")
+  result.license = obj.requiredField("license")
+  result.tags = @[]
+  for t in obj["tags"]:
+    result.tags.add(t.str)
+  result.description = obj.requiredField("description")
+  result.web = obj.optionalField("web")
+
 proc getPackage*(pkg: string, packagesPath: string, resPkg: var TPackage): bool =
+  ## Searches ``packagesPath`` file saving into ``resPkg`` the found package.
+  ##
+  ## Pass in ``pkg`` the name of the package you are searching for. As
+  ## convenience the proc returns a boolean specifying if the ``resPkg`` was
+  ## successfully filled with good data.
   let packages = parseFile(packagesPath)
   for p in packages:
-    if p["name"].str != pkg: continue
-    resPkg.name = pkg
-    resPkg.url = p.requiredField("url")
-    resPkg.version = p.optionalField("version")
-    resPkg.downloadMethod = p.requiredField("method")
-    resPkg.dvcsTag = p.optionalField("dvcs-tag")
-    resPkg.license = p.requiredField("license")
-    resPkg.tags = @[]
-    for t in p["tags"]:
-      resPkg.tags.add(t.str)
-    resPkg.description = p.requiredField("description")
-    resPkg.web = p.optionalField("web")
-    return true
-  return false
-  
+    if p["name"].str == pkg:
+      resPkg = p.fromJson()
+      return true
+
 proc getPackageList*(packagesPath: string): seq[TPackage] =
+  ## Returns the list of packages found at the specified path.
   result = @[]
   let packages = parseFile(packagesPath)
   for p in packages:
-    var pkg: TPackage
-    pkg.name = p.requiredField("name")
-    pkg.version = p.optionalField("version")
-    pkg.url = p.requiredField("url")
-    pkg.downloadMethod = p.requiredField("method")
-    pkg.dvcsTag = p.optionalField("dvcs-tag")
-    pkg.license = p.requiredField("license")
-    pkg.tags = @[]
-    for t in p["tags"]:
-      pkg.tags.add(t.str)
-    pkg.description = p.requiredField("description")
-    pkg.web = p.optionalField("web")
+    let pkg: TPackage = p.fromJson()
     result.add(pkg)
 
 proc findBabelFile*(dir: string): string =
