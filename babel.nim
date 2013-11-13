@@ -3,19 +3,21 @@
 
 import httpclient, parseopt, os, strutils, osproc, pegs, tables, parseutils
 
-import packageinfo, version, common, tools, download
+import packageinfo, version, common, tools, download, algorithm
 
 type
   TActionType = enum
-    ActionNil, ActionUpdate, ActionInstall, ActionSearch, ActionList, ActionBuild
+    ActionNil, ActionUpdate, ActionInstall, ActionSearch, ActionList,
+    ActionBuild, ActionPath
 
   TAction = object
     case typ: TActionType
     of ActionNil, ActionList, ActionBuild: nil
     of ActionUpdate:
       optionalURL: string # Overrides default package list.
-    of ActionInstall:
-      optionalName: seq[string] # When this is @[], installs package from current dir.
+    of ActionInstall, ActionPath:
+      optionalName: seq[string] # \
+      # When this is @[], installs package from current dir.
     of ActionSearch:
       search: seq[string] # Search string.
 
@@ -29,6 +31,7 @@ Commands:
   update       [url]          Updates package list. A package list URL can be optionally specified.
   search       pkg/tag        Searches for a specified package. Search is performed by tag and by name.
   list                        Lists all packages.
+  path         [pkgname, ...] Shows absolute path to the installed packages.
 
 Options:
   -h                          Print this help message.
@@ -65,12 +68,15 @@ proc parseCmdLine(): TAction =
           result.search = @[]
         of "list":
           result.typ = ActionList
+        of "path":
+          result.typ = ActionPath
+          result.optionalName = @[]
         else: writeHelp()
       else:
         case result.typ
         of ActionNil:
           assert false
-        of ActionInstall:
+        of ActionInstall, ActionPath:
           result.optionalName.add(key)
         of ActionUpdate:
           result.optionalURL = key
@@ -339,6 +345,37 @@ proc list =
     echoPackage(pkg)
     echo(" ")
 
+type VersionAndPath = tuple[version: TVersion, path: string]
+
+proc listPaths(packages: seq[String]) =
+  ## Loops over installing packages displaying their installed paths.
+  ##
+  ## If there are several pacakges installed, only the last one (the version
+  ## listed in the packages.json) will be displayed. If any package name is not
+  ## found, the proc displays a missing message and continues through the list,
+  ## but at the end quits with a non zero exit error.
+  ##
+  ## On success the proc returns normally.
+  var errors = 0
+  for name in packages:
+    var installed: seq[VersionAndPath] = @[]
+    # There may be several, list all available ones and sort by version.
+    for file in walkFiles(pkgsDir / name & "-*" / name & ".babel"):
+      var pkgInfo = getPkgInfo(splitFile(file).dir)
+      var v: VersionAndPath
+      v.version = newVersion(pkgInfo.version)
+      v.path = pkgsDir / (pkgInfo.name & '-' & pkgInfo.version)
+      installed.add(v)
+
+    if installed.len > 0:
+      sort(installed, system.cmp[VersionAndPath], Descending)
+      echo installed[0].path
+    else:
+      echo "FAILURE: Package '" & name & "' not installed"
+      errors += 1
+  if errors > 0:
+    quit("FAILURE: At least one specified package was not found", QuitFailure)
+
 proc doAction(action: TAction) =
   case action.typ
   of ActionUpdate:
@@ -353,6 +390,8 @@ proc doAction(action: TAction) =
     search(action)
   of ActionList:
     list()
+  of ActionPath:
+    listPaths(action.optionalName)
   of ActionBuild:
     build()
   of ActionNil:
@@ -371,7 +410,3 @@ when isMainModule:
       quit("FAILURE: " & getCurrentExceptionMsg())
   else:
     parseCmdLine().doAction()
-  
-  
-  
-  
