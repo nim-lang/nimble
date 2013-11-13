@@ -317,7 +317,7 @@ proc install(packages: seq[String], verRange: PVersionRange): string =
     result = installFromDir(getCurrentDir(), false)
   else:
     if not existsFile(babelDir / "packages.json"):
-      if didUpdatePackages == false and prompt("Local packages.json not found, download it from internet?"):
+      if prompt("Local packages.json not found, download it from internet?"):
           update()
           install(packages, verRange)
       else:
