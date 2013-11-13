@@ -78,6 +78,23 @@ proc parseRequires(req: string): tuple[name: string, ver: PVersionRange] =
   except EParseVersion:
     quit("Unable to parse dependency version range: " & getCurrentExceptionMsg())
 
+proc multiSplit(s: string): seq[string] =
+  ## Returns ``s`` split by newline and comma characters.
+  ##
+  ## Before returning, all individual entries are stripped of whitespace and
+  ## also empty entries are purged from the list. If after all the cleanups are
+  ## done no entries are found in the list, the proc returns a sequence with
+  ## the original string as the only entry.
+  result = split(s, {char(0x0A), char(0x0D), ','})
+  map(result, proc(x: var string) = x = x.strip())
+  for i in countdown(result.len()-1, 0):
+    if len(result[i]) < 1:
+      result.del(i)
+  # Huh, nothing to return? Return given input.
+  if len(result) < 1:
+    return @[s]
+
+
 proc readPackageInfo*(path: string): TPackageInfo =
   result = initPackageInfo()
   result.mypath = path
@@ -104,19 +121,19 @@ proc readPackageInfo*(path: string): TPackageInfo =
           of "license": result.license = ev.value
           of "srcdir": result.srcDir = ev.value
           of "skipdirs":
-            result.skipDirs.add(ev.value.split(','))
+            result.skipDirs.add(ev.value.multiSplit)
           of "skipfiles":
-            result.skipFiles.add(ev.value.split(','))
+            result.skipFiles.add(ev.value.multiSplit)
           of "skipext":
-            result.skipExt.add(ev.value.split(','))
+            result.skipExt.add(ev.value.multiSplit)
           of "installdirs":
-            result.installDirs.add(ev.value.split(','))
+            result.installDirs.add(ev.value.multiSplit)
           of "installfiles":
-            result.installFiles.add(ev.value.split(','))
+            result.installFiles.add(ev.value.multiSplit)
           of "installext":
-            result.installExt.add(ev.value.split(','))
+            result.installExt.add(ev.value.multiSplit)
           of "bin":
-            for i in ev.value.split(','):
+            for i in ev.value.multiSplit:
               result.bin.add(i.addFileExt(ExeExt))
           of "backend":
             result.backend = ev.value.toLower()
@@ -127,7 +144,7 @@ proc readPackageInfo*(path: string): TPackageInfo =
         of "deps", "dependencies":
           case ev.key.normalize
           of "requires":
-            for v in ev.value.split(','):
+            for v in ev.value.multiSplit:
               result.requires.add(parseRequires(v.strip))
           else:
             quit("Invalid field: " & ev.key, QuitFailure)
