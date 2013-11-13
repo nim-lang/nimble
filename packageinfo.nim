@@ -22,14 +22,17 @@ type
     backend*: string
 
   TPackage* = object
+    # Required fields in a package.
     name*: string
-    version*: string
+    url*: string # Download location.
     license*: string
-    url*: string
-    dvcsTag*: string
     downloadMethod*: string
-    tags*: seq[string]
     description*: string
+    tags*: seq[string] # Even if empty, always a valid non nil seq. \
+    # From here on, optional fields set to the emtpy string if not available.
+    version*: string
+    dvcsTag*: string
+    web*: string # Info url for humans.
 
 proc initPackageInfo(): TPackageInfo =
   result.mypath = ""
@@ -137,55 +140,61 @@ proc readPackageInfo*(path: string): TPackageInfo =
     raise newException(EInvalidValue, "Cannot open package info: " & path)
   validatePackageInfo(result, path)
 
-proc optionalField(obj: PJsonNode, name: string): string =
+proc optionalField(obj: PJsonNode, name: string, default = ""): string =
+  ## Queries ``obj`` for the optional ``name`` string.
+  ##
+  ## Returns the value of ``name`` if it is a valid string, or aborts execution
+  ## if the field exists but is not of string type. If ``name`` is not present,
+  ## returns ``default``.
   if existsKey(obj, name):
     if obj[name].kind == JString:
       return obj[name].str
     else:
       quit("Corrupted packages.json file. " & name & " field is of unexpected type.")
-  else: return ""
+  else: return default
 
 proc requiredField(obj: PJsonNode, name: string): string =
-  if existsKey(obj, name):
-    if obj[name].kind == JString:
-      return obj[name].str
-    else:
-      quit("Corrupted packages.json file. " & name & " field is of unexpected type.")
-  else:
+  ## Queries ``obj`` for the required ``name`` string.
+  ##
+  ## Aborts execution if the field does not exist or is of invalid json type.
+  result = optionalField(obj, name, nil)
+  if result == nil:
     quit("Package in packages.json file does not contain a " & name & " field.")
 
+proc fromJson(obj: PJSonNode): TPackage =
+  ## Constructs a TPackage object from a JSON node.
+  ##
+  ## Aborts execution if the JSON node doesn't contain the required fields.
+  result.name = obj.requiredField("name")
+  result.version = obj.optionalField("version")
+  result.url = obj.requiredField("url")
+  result.downloadMethod = obj.requiredField("method")
+  result.dvcsTag = obj.optionalField("dvcs-tag")
+  result.license = obj.requiredField("license")
+  result.tags = @[]
+  for t in obj["tags"]:
+    result.tags.add(t.str)
+  result.description = obj.requiredField("description")
+  result.web = obj.optionalField("web")
+
 proc getPackage*(pkg: string, packagesPath: string, resPkg: var TPackage): bool =
+  ## Searches ``packagesPath`` file saving into ``resPkg`` the found package.
+  ##
+  ## Pass in ``pkg`` the name of the package you are searching for. As
+  ## convenience the proc returns a boolean specifying if the ``resPkg`` was
+  ## successfully filled with good data.
   let packages = parseFile(packagesPath)
   for p in packages:
-    if p["name"].str != pkg: continue
-    resPkg.name = pkg
-    resPkg.url = p.requiredField("url")
-    resPkg.version = p.optionalField("version")
-    resPkg.downloadMethod = p.requiredField("method")
-    resPkg.dvcsTag = p.optionalField("dvcs-tag")
-    resPkg.license = p.requiredField("license")
-    resPkg.tags = @[]
-    for t in p["tags"]:
-      resPkg.tags.add(t.str)
-    resPkg.description = p.requiredField("description")
-    return true
-  return false
-  
+    if p["name"].str == pkg:
+      resPkg = p.fromJson()
+      return true
+
 proc getPackageList*(packagesPath: string): seq[TPackage] =
+  ## Returns the list of packages found at the specified path.
   result = @[]
   let packages = parseFile(packagesPath)
   for p in packages:
-    var pkg: TPackage
-    pkg.name = p.requiredField("name")
-    pkg.version = p.optionalField("version")
-    pkg.url = p.requiredField("url")
-    pkg.downloadMethod = p.requiredField("method")
-    pkg.dvcsTag = p.optionalField("dvcs-tag")
-    pkg.license = p.requiredField("license")
-    pkg.tags = @[]
-    for t in p["tags"]:
-      pkg.tags.add(t.str)
-    pkg.description = p.requiredField("description")
+    let pkg: TPackage = p.fromJson()
     result.add(pkg)
 
 proc findBabelFile*(dir: string): string =
@@ -245,3 +254,5 @@ proc echoPackage*(pkg: TPackage) =
   echo("  tags:        " & pkg.tags.join(", "))
   echo("  description: " & pkg.description)
   echo("  license:     " & pkg.license)
+  if pkg.web.len > 0:
+    echo("  website:     " & pkg.web)
