@@ -351,9 +351,9 @@ proc build(options: TOptions) =
 proc search(action: TAction) =
   assert action.typ == ActionSearch
   if action.search == @[]:
-    quit("Please specify a search string.", QuitFailure)
+    raise newException(EBabel, "Please specify a search string.")
   if not existsFile(babelDir / "packages.json"):
-    quit("Please run babel update.", QuitFailure)
+    raise newException(EBabel, "Please run babel update.")
   let pkgList = getPackageList(babelDir / "packages.json")
   var notFound = true
   for pkg in pkgList:
@@ -377,7 +377,7 @@ proc search(action: TAction) =
 
 proc list =
   if not existsFile(babelDir / "packages.json"):
-    quit("Please run babel update.", QuitFailure)
+    raise newException(EBabel, "Please run babel update.")
   let pkgList = getPackageList(babelDir / "packages.json")
   for pkg in pkgList:
     echoPackage(pkg)
@@ -409,10 +409,10 @@ proc listPaths(packages: seq[String]) =
       sort(installed, system.cmp[VersionAndPath], Descending)
       echo installed[0].path
     else:
-      echo "FAILURE: Package '" & name & "' not installed"
+      echo "Warning: Package '" & name & "' not installed"
       errors += 1
   if errors > 0:
-    quit("FAILURE: At least one specified package was not found", QuitFailure)
+    raise newException(EBabel, "At least one of the specified packages was not found")
 
 proc doAction(options: TOptions) =
   case options.action.typ
