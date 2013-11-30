@@ -295,12 +295,15 @@ proc installFromDir(dir: string, latest: bool, options: TOptions): string =
       
       let currentPerms = getFilePermissions(pkgDestDir / bin)
       setFilePermissions(pkgDestDir / bin, currentPerms + {fpUserExec})
+      let cleanBin = bin.extractFilename
       when defined(unix):
-        if existsFile(binDir / bin): removeFile(binDir / bin)
-        echo("Creating symlink: ", pkgDestDir / bin, " -> ", binDir / bin)
-        doCmd("ln -s \"" & pkgDestDir / bin & "\" " & binDir / bin)
+        # TODO: Verify that we are removing an old bin of this package, not
+        # some other package's binary!
+        if existsFile(binDir / bin): removeFile(binDir / cleanBin)
+        echo("Creating symlink: ", pkgDestDir / bin, " -> ", binDir / cleanBin)
+        doCmd("ln -s \"" & pkgDestDir / bin & "\" " & binDir / cleanBin)
       elif defined(windows):
-        let dest = binDir / bin.changeFileExt("bat")
+        let dest = binDir / cleanBin.changeFileExt("bat")
         echo("Creating stub: ", pkgDestDir / bin, " -> ", dest)
         writeFile(dest, "\"" & pkgDestDir / bin & "\" %*\n")
       else:
