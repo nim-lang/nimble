@@ -21,6 +21,11 @@ type
     of ActionSearch:
       search: seq[string] # Search string.
 
+  TForcePrompt = enum
+    DontForcePrompt, ForcePromptYes, ForcePromptNo
+
+var forcePrompts = DontForcePrompt
+
 const
   help = """
 Usage: babel COMMAND [opts]
@@ -34,8 +39,10 @@ Commands:
   path         [pkgname, ...] Shows absolute path to the installed packages.
 
 Options:
-  -h                          Print this help message.
-  -v                          Print version information.
+  -h, -help                   Print this help message.
+  -v, -version                Print version information.
+  -y, -accept                 Accept all interactive prompts.
+  -n, -reject                 Reject all interactive prompts.
 """
   babelVersion = "0.1.0"
   defaultPackageURL = "https://github.com/nimrod-code/packages/raw/master/packages.json"
@@ -88,29 +95,49 @@ proc parseCmdLine(): TAction =
       case key
       of "help", "h": writeHelp()
       of "version", "v": writeVersion()
+      of "accept", "y": forcePrompts = ForcePromptYes
+      of "reject", "n": forcePrompts = ForcePromptNo
     of cmdEnd: assert(false) # cannot happen
   if result.typ == ActionNil:
     writeHelp()
 
 proc prompt(question: string): bool =
-  echo(question & " [y/N]")
-  let yn = stdin.readLine()
-  case yn.normalize
-  of "y", "yes":
+  ## Asks an interactive question and returns the result.
+  ##
+  ## The proc will return immediately without asking the user if the global
+  ## forcePrompts has a value different than DontForcePrompt.
+  case forcePrompts
+  of ForcePromptYes:
+    echo(question & " -> [forced yes]")
     return true
-  of "n", "no":
+  of ForcePromptNo:
+    echo(question & " -> [forced no]")
     return false
-  else:
-    return false
+  of DontForcePrompt:
+    echo(question & " [y/N]")
+    let yn = stdin.readLine()
+    case yn.normalize
+    of "y", "yes":
+      return true
+    of "n", "no":
+      return false
+    else:
+      return false
 
 let babelDir = getHomeDir() / ".babel"
 let pkgsDir = babelDir / "pkgs"
 let binDir = babelDir / "bin"
 let nimVer = getNimrodVersion()
+var didUpdatePackages = false
 
 proc update(url: string = defaultPackageURL) =
+  ## Downloads the package list from the specified URL.
+  ##
+  ## If the download is successful, the global didUpdatePackages is set to
+  ## true. Otherwise an exception is raised on error.
   echo("Downloading package list from " & url)
   downloadFile(url, babelDir / "packages.json")
+  didUpdatePackages = true
   echo("Done.")
 
 proc checkInstallFile(pkgInfo: TPackageInfo,
@@ -296,14 +323,22 @@ proc install(packages: seq[String], verRange: PVersionRange): string =
     result = installFromDir(getCurrentDir(), false)
   else:
     if not existsFile(babelDir / "packages.json"):
-      quit("Please run babel update.", QuitFailure)
+      if prompt("Local packages.json not found, download it from internet?"):
+          update()
+          install(packages, verRange)
+      else:
+        quit("Please run babel update.", QuitFailure)
     for p in packages:
       var pkg: TPackage
       if getPackage(p, babelDir / "packages.json", pkg):
         let downloadDir = downloadPkg(pkg, verRange)
         result = installFromDir(downloadDir, false)
       else:
-        raise newException(EBabel, "Package not found.")
+        if didUpdatePackages == false and prompt(p & " not found in local packages.json, check internet for updated packages?"):
+          update()
+          install(@[p], verRange)
+        else:
+            raise newException(EBabel, "Package not found.")
 
 proc build =
   var pkgInfo = getPkgInfo(getCurrentDir())
