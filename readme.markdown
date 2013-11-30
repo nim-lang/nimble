@@ -129,7 +129,7 @@ packages is stored in a JSON file which is freely accessible in the
 This JSON file provides babel with the required Git URL to clone the package
 and install it. Installation and build instructions are contained inside a
 ini-style file with the ``.babel`` file extension. The babel file shares the
-package's name. 
+package's name.
 
 ## Contribution
 
