@@ -358,11 +358,12 @@ proc search(action: TAction) =
   var notFound = true
   for pkg in pkgList:
     for word in action.search:
-      if word in pkg.tags:
-        echoPackage(pkg)
-        echo(" ")
-        notFound = false
-        break
+      for tag in pkg.tags:
+        if word in tag:
+          echoPackage(pkg)
+          echo(" ")
+          notFound = false
+          break
   if notFound:
     # Search by name.
     for pkg in pkgList:
