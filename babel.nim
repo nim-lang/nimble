@@ -6,6 +6,10 @@ import httpclient, parseopt, os, strutils, osproc, pegs, tables, parseutils
 import packageinfo, version, common, tools, download, algorithm
 
 type
+  TOptions = object
+    forcePrompts: TForcePrompt
+    action: TAction
+
   TActionType = enum
     ActionNil, ActionUpdate, ActionInstall, ActionSearch, ActionList,
     ActionBuild, ActionPath
@@ -23,8 +27,6 @@ type
 
   TForcePrompt = enum
     DontForcePrompt, ForcePromptYes, ForcePromptNo
-
-var forcePrompts = DontForcePrompt
 
 const
   help = """
@@ -55,58 +57,58 @@ proc writeVersion() =
   echo("babel v$# compiled at $# $#" % [babelVersion, compileDate, compileTime])
   quit(QuitSuccess)
 
-proc parseCmdLine(): TAction =
-  result.typ = ActionNil
+proc parseCmdLine(): TOptions =
+  result.action.typ = ActionNil
   for kind, key, val in getOpt():
     case kind
     of cmdArgument:
-      if result.typ == ActionNil:
+      if result.action.typ == ActionNil:
         case key
         of "install":
-          result.typ = ActionInstall
-          result.optionalName = @[]
+          result.action.typ = ActionInstall
+          result.action.optionalName = @[]
         of "build":
-          result.typ = ActionBuild
+          result.action.typ = ActionBuild
         of "update":
-          result.typ = ActionUpdate
-          result.optionalURL = ""
+          result.action.typ = ActionUpdate
+          result.action.optionalURL = ""
         of "search":
-          result.typ = ActionSearch
-          result.search = @[]
+          result.action.typ = ActionSearch
+          result.action.search = @[]
         of "list":
-          result.typ = ActionList
+          result.action.typ = ActionList
         of "path":
-          result.typ = ActionPath
-          result.optionalName = @[]
+          result.action.typ = ActionPath
+          result.action.optionalName = @[]
         else: writeHelp()
       else:
-        case result.typ
+        case result.action.typ
         of ActionNil:
           assert false
         of ActionInstall, ActionPath:
-          result.optionalName.add(key)
+          result.action.optionalName.add(key)
         of ActionUpdate:
-          result.optionalURL = key
+          result.action.optionalURL = key
         of ActionSearch:
-          result.search.add(key)
+          result.action.search.add(key)
         of ActionList, ActionBuild:
           writeHelp()
     of cmdLongOption, cmdShortOption:
       case key
       of "help", "h": writeHelp()
       of "version", "v": writeVersion()
-      of "accept", "y": forcePrompts = ForcePromptYes
-      of "reject", "n": forcePrompts = ForcePromptNo
+      of "accept", "y": result.forcePrompts = ForcePromptYes
+      of "reject", "n": result.forcePrompts = ForcePromptNo
     of cmdEnd: assert(false) # cannot happen
-  if result.typ == ActionNil:
+  if result.action.typ == ActionNil:
     writeHelp()
 
-proc prompt(question: string): bool =
+proc prompt(options: TOptions, question: string): bool =
   ## Asks an interactive question and returns the result.
   ##
   ## The proc will return immediately without asking the user if the global
   ## forcePrompts has a value different than DontForcePrompt.
-  case forcePrompts
+  case options.forcePrompts
   of ForcePromptYes:
     echo(question & " -> [forced yes]")
     return true
@@ -128,7 +130,6 @@ let babelDir = getHomeDir() / ".babel"
 let pkgsDir = babelDir / "pkgs"
 let binDir = babelDir / "bin"
 let nimVer = getNimrodVersion()
-var didUpdatePackages = false
 
 proc update(url: string = defaultPackageURL) =
   ## Downloads the package list from the specified URL.
@@ -137,7 +138,6 @@ proc update(url: string = defaultPackageURL) =
   ## true. Otherwise an exception is raised on error.
   echo("Downloading package list from " & url)
   downloadFile(url, babelDir / "packages.json")
-  didUpdatePackages = true
   echo("Done.")
 
 proc checkInstallFile(pkgInfo: TPackageInfo,
@@ -220,8 +220,9 @@ proc copyFilesRec(origDir, currentDir, dest: string, pkgInfo: TPackageInfo) =
   copyFileD(pkgInfo.mypath,
             changeRoot(pkgInfo.mypath.splitFile.dir, dest, pkgInfo.mypath))
 
-proc install(packages: seq[String], verRange: PVersionRange): string {.discardable.}
-proc processDeps(pkginfo: TPackageInfo): seq[string] =
+proc install(packages: seq[String], verRange: PVersionRange, options: TOptions,
+             doPrompt = true): string {.discardable.}
+proc processDeps(pkginfo: TPackageInfo, options: TOptions): seq[string] =
   ## Verifies and installs dependencies.
   ##
   ## Returns the list of paths to pass to the compiler during build phase.
@@ -236,7 +237,7 @@ proc processDeps(pkginfo: TPackageInfo): seq[string] =
       var pkg: TPackageInfo
       if not findPkg(pkglist, dep, pkg):
         echo("None found, installing...")
-        let dest = install(@[dep.name], dep.ver)
+        let dest = install(@[dep.name], dep.ver, options)
         result.add(dest)
       else:
         echo("Dependency already satisfied.")
@@ -253,7 +254,7 @@ proc buildFromDir(pkgInfo: TPackageInfo, paths: seq[string]) =
     doCmd("nimrod $# -d:release $# \"$#\"" %
           [pkgInfo.backend, args, realDir / bin.changeFileExt("nim")])
 
-proc installFromDir(dir: string, latest: bool): string =
+proc installFromDir(dir: string, latest: bool, options: TOptions): string =
   ## Returns where package has been installed to.
   ## The return value of this function is used by
   ## ``processDeps`` to gather a list of paths to pass to the nimrod compiler.
@@ -263,7 +264,7 @@ proc installFromDir(dir: string, latest: bool): string =
   let pkgDestDir = pkgsDir / (pkgInfo.name &
                    (if latest: "" else: '-' & pkgInfo.version))
   if existsDir(pkgDestDir):
-    if not prompt(pkgInfo.name & " already exists. Overwrite?"):
+    if not options.prompt(pkgInfo.name & " already exists. Overwrite?"):
       quit(QuitSuccess)
     removeDir(pkgDestDir)
     # Remove any symlinked binaries
@@ -277,7 +278,7 @@ proc installFromDir(dir: string, latest: bool): string =
   echo("Installing ", pkginfo.name, "-", pkginfo.version)
   
   # Dependencies need to be processed before the creation of the pkg dir.
-  let paths = processDeps(pkginfo)
+  let paths = processDeps(pkginfo, options)
   
   if pkgInfo.bin.len > 0: buildFromDir(pkgInfo, paths)
   
@@ -315,34 +316,36 @@ proc downloadPkg(pkg: TPackage, verRange: PVersionRange): string =
   if not existsDir(getTempDir() / "babel"): createDir(getTempDir() / "babel")
   echo("Downloading ", pkg.name, " into ", downloadDir, "...")
   doDownload(pkg, downloadDir, verRange)
-    
   result = downloadDir
 
-proc install(packages: seq[String], verRange: PVersionRange): string =
+proc install(packages: seq[String], verRange: PVersionRange, options: TOptions,
+             doPrompt = true): string =
   if packages == @[]:
-    result = installFromDir(getCurrentDir(), false)
+    result = installFromDir(getCurrentDir(), false, options)
   else:
     if not existsFile(babelDir / "packages.json"):
-      if prompt("Local packages.json not found, download it from internet?"):
-          update()
-          install(packages, verRange)
+      if doPrompt and
+          options.prompt("Local packages.json not found, download it from internet?"):
+        update()
+        install(packages, verRange, options, false)
       else:
         quit("Please run babel update.", QuitFailure)
     for p in packages:
       var pkg: TPackage
       if getPackage(p, babelDir / "packages.json", pkg):
         let downloadDir = downloadPkg(pkg, verRange)
-        result = installFromDir(downloadDir, false)
+        result = installFromDir(downloadDir, false, options)
       else:
-        if didUpdatePackages == false and prompt(p & " not found in local packages.json, check internet for updated packages?"):
+        if doPrompt and
+            options.prompt(p & " not found in local packages.json, check internet for updated packages?"):
           update()
-          install(@[p], verRange)
+          install(@[p], verRange, options, false)
         else:
-            raise newException(EBabel, "Package not found.")
+          raise newException(EBabel, "Package not found.")
 
-proc build =
+proc build(options: TOptions) =
   var pkgInfo = getPkgInfo(getCurrentDir())
-  let paths = processDeps(pkginfo)
+  let paths = processDeps(pkginfo, options)
   buildFromDir(pkgInfo, paths)
 
 proc search(action: TAction) =
@@ -385,7 +388,7 @@ type VersionAndPath = tuple[version: TVersion, path: string]
 proc listPaths(packages: seq[String]) =
   ## Loops over installing packages displaying their installed paths.
   ##
-  ## If there are several pacakges installed, only the last one (the version
+  ## If there are several packages installed, only the last one (the version
   ## listed in the packages.json) will be displayed. If any package name is not
   ## found, the proc displays a missing message and continues through the list,
   ## but at the end quits with a non zero exit error.
@@ -411,24 +414,24 @@ proc listPaths(packages: seq[String]) =
   if errors > 0:
     quit("FAILURE: At least one specified package was not found", QuitFailure)
 
-proc doAction(action: TAction) =
-  case action.typ
+proc doAction(options: TOptions) =
+  case options.action.typ
   of ActionUpdate:
-    if action.optionalURL != "":
-      update(action.optionalURL)
+    if options.action.optionalURL != "":
+      update(options.action.optionalURL)
     else:
       update()
   of ActionInstall:
     # TODO: Allow user to specify version.
-    install(action.optionalName, PVersionRange(kind: verAny))
+    install(options.action.optionalName, PVersionRange(kind: verAny), options)
   of ActionSearch:
-    search(action)
+    search(options.action)
   of ActionList:
     list()
   of ActionPath:
-    listPaths(action.optionalName)
+    listPaths(options.action.optionalName)
   of ActionBuild:
-    build()
+    build(options)
   of ActionNil:
     assert false
 
