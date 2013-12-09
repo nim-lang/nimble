@@ -352,31 +352,34 @@ proc build(options: TOptions) =
   buildFromDir(pkgInfo, paths)
 
 proc search(action: TAction) =
+  ## Searches for matches in ``action.search``.
+  ##
+  ## Searches are done in a case insensitive way making all strings lower case.
+  ## This requires the input search to already be lower case.
   assert action.typ == ActionSearch
   if action.search == @[]:
     raise newException(EBabel, "Please specify a search string.")
   if not existsFile(babelDir / "packages.json"):
     raise newException(EBabel, "Please run babel update.")
   let pkgList = getPackageList(babelDir / "packages.json")
-  var found: seq[string] = @[]
-  for pkg in pkgList:
-    for word in action.search:
-      for tag in pkg.tags:
-        if word in tag:
-          echoPackage(pkg)
-          echo(" ")
-          found.add(pkg.name)
-          break
+  var found = false
+  template onFound: stmt =
+    echoPackage(pkg)
+    echo(" ")
+    found = true
+    break
   
-  # Search by name.
   for pkg in pkgList:
     for word in action.search:
-      if word in pkg.name and pkg.name notin found:
-        echoPackage(pkg)
-        echo(" ")
-        found.add(pkg.name)
+      # Search by name.
+      if word.toLower() in pkg.name.toLower():
+        onFound()
+      # Search by tag.
+      for tag in pkg.tags:
+        if word.toLower() in tag.toLower():
+          onFound()
 
-  if found.len == 0:
+  if not found:
     echo("No package found.")
 
 proc list =

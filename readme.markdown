@@ -103,6 +103,8 @@ substrings). Example:
       description: Nimrod math library
       license:     MIT
 
+Searches are performed ignoring case.
+
 ### babel path
 
 The babel ``path`` command will shows the absolute path to the installed
