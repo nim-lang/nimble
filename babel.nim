@@ -358,25 +358,25 @@ proc search(action: TAction) =
   if not existsFile(babelDir / "packages.json"):
     raise newException(EBabel, "Please run babel update.")
   let pkgList = getPackageList(babelDir / "packages.json")
-  var notFound = true
+  var found: seq[string] = @[]
   for pkg in pkgList:
     for word in action.search:
       for tag in pkg.tags:
         if word in tag:
           echoPackage(pkg)
           echo(" ")
-          notFound = false
+          found.add(pkg.name)
           break
-  if notFound:
-    # Search by name.
-    for pkg in pkgList:
-      for word in action.search:
-        if word in pkg.name:
-          echoPackage(pkg)
-          echo(" ")
-          notFound = false
+  
+  # Search by name.
+  for pkg in pkgList:
+    for word in action.search:
+      if word in pkg.name and pkg.name notin found:
+        echoPackage(pkg)
+        echo(" ")
+        found.add(pkg.name)
 
-  if notFound:
+  if found.len == 0:
     echo("No package found.")
 
 proc list =
