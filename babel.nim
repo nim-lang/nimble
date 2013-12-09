@@ -90,7 +90,7 @@ proc parseCmdLine(): TOptions =
         of ActionUpdate:
           result.action.optionalURL = key
         of ActionSearch:
-          result.action.search.add(key)
+          result.action.search.add(toLower(key))
         of ActionList, ActionBuild:
           writeHelp()
     of cmdLongOption, cmdShortOption:
@@ -352,6 +352,10 @@ proc build(options: TOptions) =
   buildFromDir(pkgInfo, paths)
 
 proc search(action: TAction) =
+  ## Searches for matches in ``action.search``.
+  ##
+  ## Searches are done in a case insensitive way making all strings lower case.
+  ## This requires the input search to already be lower case.
   assert action.typ == ActionSearch
   if action.search == @[]:
     raise newException(EBabel, "Please specify a search string.")
@@ -361,8 +365,9 @@ proc search(action: TAction) =
   var notFound = true
   for pkg in pkgList:
     for word in action.search:
+      assert word == toLower(word)
       for tag in pkg.tags:
-        if word in tag:
+        if word in toLower(tag):
           echoPackage(pkg)
           echo(" ")
           notFound = false
@@ -371,7 +376,7 @@ proc search(action: TAction) =
     # Search by name.
     for pkg in pkgList:
       for word in action.search:
-        if word in pkg.name:
+        if word in toLower(pkg.name):
           echoPackage(pkg)
           echo(" ")
           notFound = false
