@@ -71,6 +71,14 @@ repository, if the package has no tagged versions then the latest commit in the
 remote repository will be installed. If you already have that version installed 
 Babel will ask you whether you wish it to overwrite your local copy.
 
+You can force Babel to download the latest commit from the package's repo, for
+example:
+
+    $ babel install nimgame#head
+
+This is of course git specific, for hg use ``tip`` instead of ``head``. A
+branch, tag, or commit hash may also be specified in the place of ``head``.
+
 If you don't specify a parameter and there is a ``package.babel`` file in your
 current working directory Babel will install the package residing in
 the current working directory. This can be useful for developers who are testing
