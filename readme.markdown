@@ -49,11 +49,14 @@ packages.  Example:
 Some commands may remind you to run ``babel update`` or will run it for you if
 they fail.
 
+You can also optionally supply this command with a URL if you would like to use
+a third-party package list.
+
 ### babel install
 
 The ``install`` command will download and install a package. You need to pass
 the name of the package (or packages) you want to install. If any of the
-packages depends on other Babel packages Babel will also fetch them for you.
+packages depend on other Babel packages Babel will also install them.
 Example:
 
     $ babel install nake
@@ -62,14 +65,17 @@ Example:
     ...
     nake installed successfully
 
-Babel always fetches and installs the latest version of a package. If you
-already have that version installed it will ask to overwrite your local copy.
+Babel always fetches and installs the latest version of a package. Note that
+latest version is defined as the latest tagged version in the git (or hg)
+repository, if the package has no tagged versions then the latest commit in the
+remote repository will be installed. If you already have that version installed 
+Babel will ask you whether you wish it to overwrite your local copy.
 
 If you don't specify a parameter and there is a ``package.babel`` file in your
-current working directory Babel will ask if you want to install that. This can
-be useful for developers who are testing locally their ``.babel`` files before
-submitting them. See [developers.markdown](developers.markdown) for more info
-on this.
+current working directory Babel will install the package residing in
+the current working directory. This can be useful for developers who are testing
+locally their ``.babel`` files before submitting them to the official package 
+list. See [developers.markdown](developers.markdown) for more info on this.
 
 ### babel build
 
@@ -80,7 +86,10 @@ so there is rarely any reason to use this command directly.
 ### babel list
 
 The ``list`` command will display the known list of packages available for
-Babel.
+Babel. An optional ``--ver`` parameter can be specified to tell Babel to
+query remote git repositories for the list of versions of the packages and to
+then print the versions. Please note however that this can be slow as each
+package must be queried separately.
 
 ### babel search
 
@@ -103,13 +112,18 @@ substrings). Example:
       description: Nimrod math library
       license:     MIT
 
-Searches are performed ignoring case.
+Searches are case insensitive.
+
+An optional ``--ver`` parameter can be specified to tell Babel to
+query remote git repositories for the list of versions of the packages and to
+then print the versions. Please note however that this can be slow as each
+package must be queried separately.
 
 ### babel path
 
-The babel ``path`` command will shows the absolute path to the installed
+The babel ``path`` command will show the absolute path to the installed
 packages matching the specified parameters. Since there can be many versions of
-the same package installed, the ``path`` command will always use the latest
+the same package installed, the ``path`` command will always show the latest
 version. Example:
 
     $ babel path argument_parser
@@ -146,5 +160,7 @@ the #nimrod channel.
 
 ## About
 
-Babel has been written by [Dominik Picheta](http://picheta.me/) and is licensed 
-under the BSD license (Look at license.txt for more info).
+Babel has been written by [Dominik Picheta](http://picheta.me/) with help from
+a number of
+[contributors](https://github.com/nimrod-code/babel/graphs/contributors).
+It is licensed under the BSD license (Look at license.txt for more info).
