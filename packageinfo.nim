@@ -90,7 +90,8 @@ proc parseRequires(req: string): tuple[name: string, ver: PVersionRange] =
       result.name = req.strip
       result.ver = PVersionRange(kind: verAny)
   except EParseVersion:
-    quit("Unable to parse dependency version range: " & getCurrentExceptionMsg())
+    raise newException(EBabel, "Unable to parse dependency version range: " &
+                               getCurrentExceptionMsg())
 
 proc multiSplit(s: string): seq[string] =
   ## Returns ``s`` split by newline and comma characters.
@@ -153,18 +154,18 @@ proc readPackageInfo*(path: string): TPackageInfo =
             case result.backend.normalize
             of "javascript": result.backend = "js"
           else:
-            quit("Invalid field: " & ev.key, QuitFailure)
+            raise newException(EBabel, "Invalid field: " & ev.key)
         of "deps", "dependencies":
           case ev.key.normalize
           of "requires":
             for v in ev.value.multiSplit:
               result.requires.add(parseRequires(v.strip))
           else:
-            quit("Invalid field: " & ev.key, QuitFailure)
-        else: quit("Invalid section: " & currentSection, QuitFailure)
-      of cfgOption: quit("Invalid package info, should not contain --" & ev.value, QuitFailure)
+            raise newException(EBabel, "Invalid field: " & ev.key)
+        else: raise newException(EBabel, "Invalid section: " & currentSection)
+      of cfgOption: raise newException(EBabel, "Invalid package info, should not contain --" & ev.value)
       of cfgError:
-        echo(ev.msg)
+        raise newException(EBabel, "Error parsing .babel file: " & ev.msg)
     close(p)
   else:
     raise newException(EInvalidValue, "Cannot open package info: " & path)
@@ -180,7 +181,7 @@ proc optionalField(obj: PJsonNode, name: string, default = ""): string =
     if obj[name].kind == JString:
       return obj[name].str
     else:
-      quit("Corrupted packages.json file. " & name & " field is of unexpected type.")
+      raise newException(EBabel, "Corrupted packages.json file. " & name & " field is of unexpected type.")
   else: return default
 
 proc requiredField(obj: PJsonNode, name: string): string =
@@ -189,7 +190,8 @@ proc requiredField(obj: PJsonNode, name: string): string =
   ## Aborts execution if the field does not exist or is of invalid json type.
   result = optionalField(obj, name, nil)
   if result == nil:
-    quit("Package in packages.json file does not contain a " & name & " field.")
+    raise newException(EBabel, 
+        "Package in packages.json file does not contain a " & name & " field.")
 
 proc fromJson(obj: PJSonNode): TPackage =
   ## Constructs a TPackage object from a JSON node.
