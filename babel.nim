@@ -391,12 +391,14 @@ proc search(options: TOptions) =
   if not found:
     echo("No package found.")
 
-proc list =
+proc list(options: TOptions) =
   if not existsFile(babelDir / "packages.json"):
     raise newException(EBabel, "Please run babel update.")
   let pkgList = getPackageList(babelDir / "packages.json")
   for pkg in pkgList:
     echoPackage(pkg)
+    if options.queryVersions:
+      echoPackageVersions(pkg)
     echo(" ")
 
 type VersionAndPath = tuple[version: TVersion, path: string]
@@ -450,7 +452,7 @@ proc doAction(options: TOptions) =
   of ActionSearch:
     search(options)
   of ActionList:
-    list()
+    list(options)
   of ActionPath:
     listPaths(options.action.optionalName)
   of ActionBuild:

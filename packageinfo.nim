@@ -98,7 +98,6 @@ proc multiSplit(s: string): seq[string] =
   if len(result) < 1:
     return @[s]
 
-
 proc readPackageInfo*(path: string): TPackageInfo =
   result = initPackageInfo()
   result.mypath = path

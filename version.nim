@@ -253,7 +253,7 @@ when isMainModule:
   var versions = toTable[TVersion, string]({newVersion("0.1.1"): "v0.1.1", newVersion("0.2.3"): "v0.2.3", newVersion("0.5"): "v0.5"})
   doAssert findLatest(parseVersionRange(">= 0.1 & <= 0.4"), versions) == (newVersion("0.2.3"), "v0.2.3")
 
-  # TODO: These fail.
+  # TODO: Allow these in later versions?
   #doAssert newVersion("0.1-rc1") < newVersion("0.2")
   #doAssert newVersion("0.1-rc1") < newVersion("0.1")
 
