@@ -54,17 +54,27 @@ proc initPackageInfo(): TPackageInfo =
 
 proc validatePackageInfo(pkgInfo: TPackageInfo, path: string) =
   if pkgInfo.name == "":
-    quit("Incorrect .babel file: " & path & " does not contain a name field.")
+    raise newException(EBabel, "Incorrect .babel file: " & path &
+                       " does not contain a name field.")
   if pkgInfo.version == "":
-    quit("Incorrect .babel file: " & path & " does not contain a version field.")
+    raise newException(EBabel, "Incorrect .babel file: " & path &
+                       " does not contain a version field.")
   if pkgInfo.author == "":
-    quit("Incorrect .babel file: " & path & " does not contain an author field.")
+    raise newException(EBabel, "Incorrect .babel file: " & path &
+                       " does not contain an author field.")
   if pkgInfo.description == "":
-    quit("Incorrect .babel file: " & path & " does not contain a description field.")
+    raise newException(EBabel, "Incorrect .babel file: " & path &
+                       " does not contain a description field.")
   if pkgInfo.license == "":
-    quit("Incorrect .babel file: " & path & " does not contain a license field.")
+    raise newException(EBabel, "Incorrect .babel file: " & path &
+                       " does not contain a license field.")
   if pkgInfo.backend notin ["c", "cc", "objc", "cpp", "js"]:
     raise newException(EBabel, "'" & pkgInfo.backend & "' is an invalid backend.")
+  for c in pkgInfo.version:
+    if c notin ({'.'} + digits):
+      raise newException(EBabel,
+          "Version may only consist of numbers and the '.' character " &
+          "but found '" & c & "'.")
 
 proc parseRequires(req: string): tuple[name: string, ver: PVersionRange] =
   try:
