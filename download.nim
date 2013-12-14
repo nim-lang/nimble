@@ -152,23 +152,21 @@ proc doDownload*(pkg: TPackage, downloadDir: string, verRange: PVersionRange) =
               "Git HEAD also does not satisfy version range: " & $verRange)
       # We use GIT HEAD if it satisfies our ver range
 
-proc echoPackage*(pkg: TPackage) =
-  echo(pkg.name & ":")
-  echo("  url:         " & pkg.url & " (" & pkg.downloadMethod & ")")
-  echo("  tags:        " & pkg.tags.join(", "))
-  echo("  description: " & pkg.description)
-  echo("  license:     " & pkg.license)
-  if pkg.web.len > 0:
-    echo("  website:     " & pkg.web)
+proc echoPackageVersions*(pkg: TPackage) =
   let downMethod = pkg.downloadMethod.getDownloadMethod()
   case downMethod
   of TDownloadMethod.Git:
     try:
       let versions = getTagsListRemote(pkg.url, downMethod).getVersionList()
       if versions.len > 0:
-        echo("  versions:    ")
-        for k, ver in versions:
-          echo "    ", ver
+        var vstr = ""
+        var i = 0
+        for v in values(versions):
+          if i != 0:
+            vstr.add(", ")
+          vstr.add(v)
+          i.inc
+        echo("  versions:    " & vstr)
       else:
         echo("  versions:    (No versions tagged in the remote repository)")
     except EOS:

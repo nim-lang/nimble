@@ -264,3 +264,12 @@ proc getRealDir*(pkgInfo: TPackageInfo): string =
     result = pkgInfo.mypath.splitFile.dir / pkgInfo.srcDir
   else:
     result = pkgInfo.mypath.splitFile.dir
+
+proc echoPackage*(pkg: TPackage) =
+  echo(pkg.name & ":")
+  echo("  url:         " & pkg.url & " (" & pkg.downloadMethod & ")")
+  echo("  tags:        " & pkg.tags.join(", "))
+  echo("  description: " & pkg.description)
+  echo("  license:     " & pkg.license)
+  if pkg.web.len > 0:
+    echo("  website:     " & pkg.web)

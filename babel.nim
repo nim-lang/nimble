@@ -8,6 +8,7 @@ import packageinfo, version, common, tools, download, algorithm
 type
   TOptions = object
     forcePrompts: TForcePrompt
+    queryVersions: bool
     action: TAction
 
   TActionType = enum
@@ -33,18 +34,23 @@ const
 Usage: babel COMMAND [opts]
 
 Commands:
-  install      [pkgname, ...] Installs a list of packages.
-  build                       Builds a package.
-  update       [url]          Updates package list. A package list URL can be optionally specified.
-  search       pkg/tag        Searches for a specified package. Search is performed by tag and by name.
-  list                        Lists all packages.
-  path         [pkgname, ...] Shows absolute path to the installed packages.
+  install      [pkgname, ...]     Installs a list of packages.
+  build                           Builds a package.
+  update       [url]              Updates package list. A package list URL can 
+                                  be optionally specified.
+  search       [--ver] pkg/tag    Searches for a specified package. Search is 
+                                  performed by tag and by name.
+  list         [--ver]            Lists all packages.
+  path         pkgname ...        Shows absolute path to the installed packages 
+                                  specified.
 
 Options:
-  -h, -help                   Print this help message.
-  -v, -version                Print version information.
-  -y, -accept                 Accept all interactive prompts.
-  -n, -reject                 Reject all interactive prompts.
+  -h, --help                      Print this help message.
+  -v, --version                   Print version information.
+  -y, --accept                    Accept all interactive prompts.
+  -n, --reject                    Reject all interactive prompts.
+      --ver                       Query remote server for package version 
+                                  information when searching or listing packages
 """
   babelVersion = "0.1.0"
   defaultPackageURL = "https://github.com/nimrod-code/packages/raw/master/packages.json"
@@ -99,6 +105,7 @@ proc parseCmdLine(): TOptions =
       of "version", "v": writeVersion()
       of "accept", "y": result.forcePrompts = ForcePromptYes
       of "reject", "n": result.forcePrompts = ForcePromptNo
+      of "ver": result.queryVersions = true
     of cmdEnd: assert(false) # cannot happen
   if result.action.typ == ActionNil:
     writeHelp()
@@ -351,13 +358,12 @@ proc build(options: TOptions) =
   let paths = processDeps(pkginfo, options)
   buildFromDir(pkgInfo, paths)
 
-proc search(action: TAction) =
-  ## Searches for matches in ``action.search``.
+proc search(options: TOptions) =
+  ## Searches for matches in ``options.action.search``.
   ##
   ## Searches are done in a case insensitive way making all strings lower case.
-  ## This requires the input search to already be lower case.
-  assert action.typ == ActionSearch
-  if action.search == @[]:
+  assert options.action.typ == ActionSearch
+  if options.action.search == @[]:
     raise newException(EBabel, "Please specify a search string.")
   if not existsFile(babelDir / "packages.json"):
     raise newException(EBabel, "Please run babel update.")
@@ -365,12 +371,14 @@ proc search(action: TAction) =
   var found = false
   template onFound: stmt =
     echoPackage(pkg)
+    if options.queryVersions:
+      echoPackageVersions(pkg)
     echo(" ")
     found = true
     break
   
   for pkg in pkgList:
-    for word in action.search:
+    for word in options.action.search:
       # Search by name.
       if word.toLower() in pkg.name.toLower():
         onFound()
@@ -432,7 +440,7 @@ proc doAction(options: TOptions) =
     # TODO: Allow user to specify version.
     install(options.action.optionalName, PVersionRange(kind: verAny), options)
   of ActionSearch:
-    search(options.action)
+    search(options)
   of ActionList:
     list()
   of ActionPath:
