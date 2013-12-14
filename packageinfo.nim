@@ -72,6 +72,10 @@ proc parseRequires(req: string): tuple[name: string, ver: PVersionRange] =
       var i = skipUntil(req, whitespace)
       result.name = req[0 .. i].strip
       result.ver = parseVersionRange(req[i .. -1])
+    elif '#' in req:
+      var i = skipUntil(req, {'#'})
+      result.name = req[0 .. i-1]
+      result.ver = parseVersionRange(req[i .. -1])
     else:
       result.name = req.strip
       result.ver = PVersionRange(kind: verAny)

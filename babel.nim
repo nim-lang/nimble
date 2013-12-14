@@ -136,7 +136,6 @@ proc prompt(options: TOptions, question: string): bool =
 let babelDir = getHomeDir() / ".babel"
 let pkgsDir = babelDir / "pkgs"
 let binDir = babelDir / "bin"
-let nimVer = getNimrodVersion()
 
 proc update(url: string = defaultPackageURL) =
   ## Downloads the package list from the specified URL.
@@ -227,8 +226,8 @@ proc copyFilesRec(origDir, currentDir, dest: string, pkgInfo: TPackageInfo) =
   copyFileD(pkgInfo.mypath,
             changeRoot(pkgInfo.mypath.splitFile.dir, dest, pkgInfo.mypath))
 
-proc install(packages: seq[String], verRange: PVersionRange, options: TOptions,
-             doPrompt = true): string {.discardable.}
+proc install(packages: seq[tuple[name: string, verRange: PVersionRange]],
+             options: TOptions, doPrompt = true): string {.discardable.}
 proc processDeps(pkginfo: TPackageInfo, options: TOptions): seq[string] =
   ## Verifies and installs dependencies.
   ##
@@ -237,6 +236,7 @@ proc processDeps(pkginfo: TPackageInfo, options: TOptions): seq[string] =
   let pkglist = getInstalledPkgs(pkgsDir)
   for dep in pkginfo.requires:
     if dep.name == "nimrod":
+      let nimVer = getNimrodVersion()
       if not withinRange(nimVer, dep.ver):
         quit("Unsatisfied dependency: " & dep.name & " (" & $dep.ver & ")")
     else:
@@ -244,7 +244,7 @@ proc processDeps(pkginfo: TPackageInfo, options: TOptions): seq[string] =
       var pkg: TPackageInfo
       if not findPkg(pkglist, dep, pkg):
         echo("None found, installing...")
-        let dest = install(@[dep.name], dep.ver, options)
+        let dest = install(@[(dep.name, dep.ver)], options)
         result.add(dest)
       else:
         echo("Dependency already satisfied.")
@@ -328,8 +328,8 @@ proc downloadPkg(pkg: TPackage, verRange: PVersionRange): string =
   doDownload(pkg, downloadDir, verRange)
   result = downloadDir
 
-proc install(packages: seq[String], verRange: PVersionRange, options: TOptions,
-             doPrompt = true): string =
+proc install(packages: seq[tuple[name: string, verRange: PVersionRange]],
+             options: TOptions, doPrompt = true): string =
   if packages == @[]:
     result = installFromDir(getCurrentDir(), false, options)
   else:
@@ -337,19 +337,20 @@ proc install(packages: seq[String], verRange: PVersionRange, options: TOptions,
       if doPrompt and
           options.prompt("Local packages.json not found, download it from internet?"):
         update()
-        install(packages, verRange, options, false)
+        install(packages, options, false)
       else:
         quit("Please run babel update.", QuitFailure)
-    for p in packages:
+    
+    for pv in packages:
       var pkg: TPackage
-      if getPackage(p, babelDir / "packages.json", pkg):
-        let downloadDir = downloadPkg(pkg, verRange)
+      if getPackage(pv.name, babelDir / "packages.json", pkg):
+        let downloadDir = downloadPkg(pkg, pv.verRange)
         result = installFromDir(downloadDir, false, options)
       else:
         if doPrompt and
-            options.prompt(p & " not found in local packages.json, check internet for updated packages?"):
+            options.prompt(pv.name & " not found in local packages.json, check internet for updated packages?"):
           update()
-          install(@[p], verRange, options, false)
+          install(@[pv], options, false)
         else:
           raise newException(EBabel, "Package not found.")
 
@@ -437,8 +438,15 @@ proc doAction(options: TOptions) =
     else:
       update()
   of ActionInstall:
-    # TODO: Allow user to specify version.
-    install(options.action.optionalName, PVersionRange(kind: verAny), options)
+    var installList: seq[tuple[name: string, verRange: PVersionRange]] = @[]
+    for name in options.action.optionalName:
+      if '#' in name:
+        let i = find(name, '#')
+        installList.add((name[0 .. i-1], name[i .. -1].parseVersionRange()))
+      else:
+        installList.add((name, PVersionRange(kind: verAny)))
+      
+    install(installList, options)
   of ActionSearch:
     search(options)
   of ActionList:

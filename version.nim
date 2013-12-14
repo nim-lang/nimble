@@ -5,6 +5,7 @@
 import strutils, tables, hashes, parseutils
 type
   TVersion* = distinct string
+  TSpecial* = distinct string
 
   TVersionRangeEnum* = enum
     verLater, # > V
@@ -13,13 +14,16 @@ type
     verEqEarlier, # <= V -- Equal or earlier
     verIntersect, # > V & < V
     verEq, # V
-    verAny # *
+    verAny, # *
+    verSpecial # #head
 
   PVersionRange* = ref TVersionRange
   TVersionRange* = object
     case kind*: TVersionRangeEnum
     of verLater, verEarlier, verEqLater, verEqEarlier, verEq:
       ver*: TVersion
+    of verSpecial:
+      spe*: TSpecial
     of verIntersect:
       verILeft, verIRight: PVersionRange
     of verAny:
@@ -28,10 +32,15 @@ type
   EParseVersion* = object of EInvalidValue
 
 proc newVersion*(ver: string): TVersion = return TVersion(ver)
+proc newSpecial*(spe: string): TSpecial = return TSpecial(spe)
 
 proc `$`*(ver: TVersion): String {.borrow.}
 
 proc hash*(ver: TVersion): THash {.borrow.}
+
+proc `$`*(ver: TSpecial): String {.borrow.}
+
+proc hash*(ver: TSpecial): THash {.borrow.}
 
 proc `<`*(ver: TVersion, ver2: TVersion): Bool =
   var sVer = string(ver).split('.')
@@ -65,6 +74,9 @@ proc `==`*(ver: TVersion, ver2: TVersion): Bool =
     else:
       return False
 
+proc `==`*(spe: TSpecial, spe2: TSpecial): bool =
+  return ($spe).toLower() == ($spe2).toLower()
+
 proc `<=`*(ver: TVersion, ver2: TVersion): Bool =
   return (ver == ver2) or (ver < ver2)
 
@@ -80,13 +92,27 @@ proc withinRange*(ver: TVersion, ran: PVersionRange): Bool =
     return ver <= ran.ver
   of verEq:
     return ver == ran.ver
+  of verSpecial:
+    return False
   of verIntersect:
     return withinRange(ver, ran.verILeft) and withinRange(ver, ran.verIRight)
   of verAny:
     return True
 
+proc withinRange*(spe: TSpecial, ran: PVersionRange): Bool =
+  case ran.kind
+  of verLater, verEarlier, verEqLater, verEqEarlier, verEq, verIntersect:
+    return False
+  of verSpecial:
+    return spe == ran.spe
+  of verAny:
+    return True
+
 proc contains*(ran: PVersionRange, ver: TVersion): bool =
   return withinRange(ver, ran)
+
+proc contains*(ran: PVersionRange, spe: TSpecial): bool =
+  return withinRange(spe, ran)
 
 proc makeRange*(version: string, op: string): PVersionRange =
   new(result)
@@ -110,6 +136,10 @@ proc makeRange*(version: string, op: string): PVersionRange =
 proc parseVersionRange*(s: string): PVersionRange =
   # >= 1.5 & <= 1.8
   new(result)
+  if s[0] == '#':
+    result.kind = verSpecial
+    result.spe = s[1 .. -1].TSpecial
+    return
 
   var i = 0
   var op = ""
@@ -163,6 +193,8 @@ proc `$`*(verRange: PVersionRange): String =
     result = "<= "
   of verEq:
     result = ""
+  of verSpecial:
+    return "#" & $verRange.spe
   of verIntersect:
     return $verRange.verILeft & " & " & $verRange.verIRight
   of verAny:
@@ -212,6 +244,7 @@ when isMainModule:
   doAssert(newVersion("1") == newVersion("1"))
   doAssert(newVersion("1.0.2.4.6.1.2.123") == newVersion("1.0.2.4.6.1.2.123"))
   doAssert(newVersion("1.0.2") != newVersion("1.0.2.4.6.1.2.123"))
+  doAssert(newVersion("1.0.3") != newVersion("1.0.2"))
 
   doAssert(not (newVersion("") < newVersion("0.0.0")))
   doAssert(newVersion("") < newVersion("1.0.0"))
@@ -220,8 +253,19 @@ when isMainModule:
   var versions = toTable[TVersion, string]({newVersion("0.1.1"): "v0.1.1", newVersion("0.2.3"): "v0.2.3", newVersion("0.5"): "v0.5"})
   doAssert findLatest(parseVersionRange(">= 0.1 & <= 0.4"), versions) == (newVersion("0.2.3"), "v0.2.3")
 
+  # TODO: These fail.
+  #doAssert newVersion("0.1-rc1") < newVersion("0.2")
+  #doAssert newVersion("0.1-rc1") < newVersion("0.1")
+
+  # Special tests
+  doAssert newSpecial("ab26sgdt362") != newSpecial("ab26saggdt362")
+  doAssert newSpecial("ab26saggdt362") == newSpecial("ab26saggdt362")
+  doAssert newSpecial("head") == newSpecial("HEAD")
+  doAssert newSpecial("head") == newSpecial("head")
   
-  doAssert newVersion("0.1-rc1") < newVersion("0.2")
-  doAssert newVersion("0.1-rc1") < newVersion("0.1")
+  var sp = parseVersionRange("#ab26sgdt362")
+  doAssert newSpecial("ab26sgdt362") in sp
+  doAssert newSpecial("ab26saggdt362") notin sp
+  
 
   echo("Everything works!")

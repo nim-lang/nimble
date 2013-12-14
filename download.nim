@@ -36,14 +36,16 @@ proc doPull(meth: TDownloadMethod, downloadDir: string) =
     cd downloadDir:
       doCmd("hg pull")
 
-proc doClone(meth: TDownloadMethod, url, downloadDir: string, branch = "") =
+proc doClone(meth: TDownloadMethod, url, downloadDir: string, branch = "", tip = true) =
   let branchArg = if branch == "": "" else: "-b " & branch & " "
   case meth
   of TDownloadMethod.Git:
+    let depthArg = if tip: "--depth 1 " else: ""
     # TODO: Get rid of the annoying 'detached HEAD' message somehow?
-    doCmd("git clone --depth 1 " & branchArg & url & " " & downloadDir)
+    doCmd("git clone " & depthArg & branchArg & url & " " & downloadDir)
   of TDownloadMethod.Hg:
-    doCmd("hg clone -r tip " & branchArg & url & " " & downloadDir)
+    let tipArg = if tip: "-r tip " else: ""
+    doCmd("hg clone " & tipArg & branchArg & url & " " & downloadDir)
 
 proc getTagsList(dir: string, meth: TDownloadMethod): seq[string] =
   cd dir:
@@ -100,57 +102,70 @@ proc getDownloadMethod*(meth: string): TDownloadMethod =
   else:
     raise newException(EBabel, "Invalid download method: " & meth)
 
+proc getHeadName*(meth: TDownloadMethod): string =
+  ## Returns the name of the download method specific head. i.e. for git
+  ## it's ``head`` for hg it's ``tip``.
+  case meth
+  of TDownloadMethod.Git: "head"
+  of TDownloadMethod.Hg: "tip"
+
 proc doDownload*(pkg: TPackage, downloadDir: string, verRange: PVersionRange) =
+  template getLatestByTag(meth: stmt): stmt {.dirty, immediate.} =
+    echo("Found tags...")
+    # Find latest version that fits our ``verRange``.
+    var latest = findLatest(verRange, versions)
+    ## Note: HEAD is not used when verRange.kind is verAny. This is
+    ## intended behaviour, the latest tagged version will be used in this case.
+    if latest.tag != "":
+      meth
+
+  proc verifyHead() =
+    ## Makes sure that HEAD satisfies the requested version range.
+    let pkginfo = getPkgInfo(downloadDir)
+    if pkginfo.version.newVersion notin verRange:
+      raise newException(EBabel,
+            "No versions of " & pkg.name &
+            " exist (this usually means that `git tag` returned nothing)." &
+            "Git HEAD also does not satisfy version range: " & $verRange)
+  
   let downMethod = pkg.downloadMethod.getDownloadMethod()
   echo "Downloading ", pkg.name, " using ", downMethod, "..."
-  
-  case downMethod
-  of TDownloadMethod.Git:
-    # For Git we have to query the repo remotely for its tags. This is
-    # necessary as cloning with a --depth of 1 removes all tag info.
-    let versions = getTagsListRemote(pkg.url, downMethod).getVersionList()
-    if versions.len > 0:
-      echo("Found tags...")
-      var latest = findLatest(verRange, versions)
-      ## Note: HEAD is not used when verRange.kind is verAny. This is
-      ## intended behaviour, the latest tagged version will be used in this case.
-      if latest.tag != "":
-        echo("Cloning latest tagged version: ", latest.tag)
-        removeDir(downloadDir)
-        doClone(downMethod, pkg.url, downloadDir, latest.tag)
-    else:
-      # If no commits have been tagged on the repo we just clone HEAD.
-      removeDir(downloadDir)
+  removeDir(downloadDir)
+  if verRange.kind == verSpecial:
+    # We want a specific commit/branch/tag here.
+    if verRange.spe == newSpecial(getHeadName(downMethod)):
       doClone(downMethod, pkg.url, downloadDir) # Grab HEAD.
-      if verRange.kind != verAny:
-        # Make sure that HEAD satisfies the requested version range.
-        let pkginfo = getPkgInfo(downloadDir)
-        if pkginfo.version.newVersion notin verRange:
-          raise newException(EBabel,
-                "No versions of " & pkg.name &
-                " exist (this usually means that `git tag` returned nothing)." &
-                "Git HEAD also does not satisfy version range: " & $verRange)
-  of TDownloadMethod.Hg:
-    removeDir(downloadDir)
-    doClone(downMethod, pkg.url, downloadDir)
-    let versions = getTagsList(downloadDir, downMethod).getVersionList()
-  
-    if versions.len > 0:
-      echo("Found tags...")
-      var latest = findLatest(verRange, versions)
-      ## Note: HEAD is not used when verRange.kind is verAny. This is
-      ## intended behaviour, the latest tagged version will be used in this case.
-      if latest.tag != "":
-        echo("Switching to latest tagged version: ", latest.tag)
-        doCheckout(downMethod, downloadDir, latest.tag)
-    elif verRange.kind != verAny:
-      let pkginfo = getPkgInfo(downloadDir)
-      if pkginfo.version.newVersion notin verRange:
-        raise newException(EBabel,
-              "No versions of " & pkg.name &
-              " exist (this usually means that `git tag` returned nothing)." &
-              "Git HEAD also does not satisfy version range: " & $verRange)
-      # We use GIT HEAD if it satisfies our ver range
+    else:
+      # We don't know if we got a commit hash or a branch here, and
+      # we can't clone a specific commit (with depth 1) according to:
+      # http://stackoverflow.com/a/7198956/492186
+      doClone(downMethod, pkg.url, downloadDir, tip = false)
+      doCheckout(downMethod, downloadDir, $verRange.spe)
+  else:
+    case downMethod
+    of TDownloadMethod.Git:
+      # For Git we have to query the repo remotely for its tags. This is
+      # necessary as cloning with a --depth of 1 removes all tag info.
+      let versions = getTagsListRemote(pkg.url, downMethod).getVersionList()
+      if versions.len > 0:
+        getLatestByTag:
+          echo("Cloning latest tagged version: ", latest.tag)
+          doClone(downMethod, pkg.url, downloadDir, latest.tag)
+      else:
+        # If no commits have been tagged on the repo we just clone HEAD.
+        doClone(downMethod, pkg.url, downloadDir) # Grab HEAD.
+        if verRange.kind != verAny:
+          verifyHead()
+    of TDownloadMethod.Hg:
+      doClone(downMethod, pkg.url, downloadDir)
+      let versions = getTagsList(downloadDir, downMethod).getVersionList()
+    
+      if versions.len > 0:
+        getLatestByTag:
+          echo("Switching to latest tagged version: ", latest.tag)
+          doCheckout(downMethod, downloadDir, latest.tag)
+      elif verRange.kind != verAny:
+        verifyHead()
 
 proc echoPackageVersions*(pkg: TPackage) =
   let downMethod = pkg.downloadMethod.getDownloadMethod()
