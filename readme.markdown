@@ -85,6 +85,9 @@ the current working directory. This can be useful for developers who are testing
 locally their ``.babel`` files before submitting them to the official package 
 list. See [developers.markdown](developers.markdown) for more info on this.
 
+A URL to a repository can also be specified, Babel will automatically detect
+the type of the repository that the url points to and install it.
+
 ### babel build
 
 The ``build`` command is mostly used by developers who want to test building
