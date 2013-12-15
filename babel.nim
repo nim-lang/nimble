@@ -321,6 +321,14 @@ proc installFromDir(dir: string, latest: bool, options: TOptions): string =
 
   echo(pkgInfo.name & " installed successfully.")
 
+proc downloadPkg(url: string, verRange: PVersionRange,
+                 downMethod: TDownloadMethod): string =
+  let downloadDir = (getTempDir() / "babel" / "url_unknown")
+  if not existsDir(getTempDir() / "babel"): createDir(getTempDir() / "babel")
+  echo("Downloading ", url, " into ", downloadDir, "...")
+  doDownload(url, downloadDir, verRange, downMethod)
+  result = downloadDir
+
 proc downloadPkg(pkg: TPackage, verRange: PVersionRange): string =
   let downloadDir = (getTempDir() / "babel" / pkg.name)
   if not existsDir(getTempDir() / "babel"): createDir(getTempDir() / "babel")
@@ -333,6 +341,7 @@ proc install(packages: seq[tuple[name: string, verRange: PVersionRange]],
   if packages == @[]:
     result = installFromDir(getCurrentDir(), false, options)
   else:
+    # If packages.json is not present ask the user if they want to download it.
     if not existsFile(babelDir / "packages.json"):
       if doPrompt and
           options.prompt("Local packages.json not found, download it from internet?"):
@@ -341,18 +350,25 @@ proc install(packages: seq[tuple[name: string, verRange: PVersionRange]],
       else:
         quit("Please run babel update.", QuitFailure)
     
+    # Install each package.
     for pv in packages:
-      var pkg: TPackage
-      if getPackage(pv.name, babelDir / "packages.json", pkg):
-        let downloadDir = downloadPkg(pkg, pv.verRange)
+      if pv.name.startsWith(peg" @'://' "):
+        let meth = checkUrlType(pv.name)
+        let downloadDir = downloadPkg(pv.name, pv.verRange, meth)
         result = installFromDir(downloadDir, false, options)
       else:
-        if doPrompt and
-            options.prompt(pv.name & " not found in local packages.json, check internet for updated packages?"):
-          update()
-          install(@[pv], options, false)
+        var pkg: TPackage
+        if getPackage(pv.name, babelDir / "packages.json", pkg):
+          let downloadDir = downloadPkg(pkg, pv.verRange)
+          result = installFromDir(downloadDir, false, options)
         else:
-          raise newException(EBabel, "Package not found.")
+          # If package is not found give the user a chance to update package.json
+          if doPrompt and
+              options.prompt(pv.name & " not found in local packages.json, check internet for updated packages?"):
+            update()
+            install(@[pv], options, false)
+          else:
+            raise newException(EBabel, "Package not found.")
 
 proc build(options: TOptions) =
   var pkgInfo = getPkgInfo(getCurrentDir())

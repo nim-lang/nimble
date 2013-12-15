@@ -6,7 +6,7 @@ import parseutils, os, osproc, strutils, tables
 import packageinfo, common, version, tools
 
 type  
-  TDownloadMethod {.pure.} = enum
+  TDownloadMethod* {.pure.} = enum
     Git = "git", Hg = "hg"
 
 proc getSpecificDir(meth: TDownloadMethod): string =
@@ -109,7 +109,17 @@ proc getHeadName*(meth: TDownloadMethod): string =
   of TDownloadMethod.Git: "head"
   of TDownloadMethod.Hg: "tip"
 
-proc doDownload*(pkg: TPackage, downloadDir: string, verRange: PVersionRange) =
+proc checkUrlType*(url: string): TDownloadMethod =
+  ## Determines the download method based on the URL.
+  if execCmdEx("git ls-remote " & url).exitCode == QuitSuccess:
+    return TDownloadMethod.Git
+  elif execCmdEx("hg identify " & url).exitCode == QuitSuccess:
+    return TDownloadMethod.Hg
+  else:
+    raise newException(EBabel, "Unable to identify url.")
+
+proc doDownload*(url: string, downloadDir: string, verRange: PVersionRange,
+                 downMethod: TDownloadMethod) =
   template getLatestByTag(meth: stmt): stmt {.dirty, immediate.} =
     echo("Found tags...")
     # Find latest version that fits our ``verRange``.
@@ -124,40 +134,38 @@ proc doDownload*(pkg: TPackage, downloadDir: string, verRange: PVersionRange) =
     let pkginfo = getPkgInfo(downloadDir)
     if pkginfo.version.newVersion notin verRange:
       raise newException(EBabel,
-            "No versions of " & pkg.name &
+            "No versions of " & url &
             " exist (this usually means that `git tag` returned nothing)." &
             "Git HEAD also does not satisfy version range: " & $verRange)
   
-  let downMethod = pkg.downloadMethod.getDownloadMethod()
-  echo "Downloading ", pkg.name, " using ", downMethod, "..."
   removeDir(downloadDir)
   if verRange.kind == verSpecial:
     # We want a specific commit/branch/tag here.
     if verRange.spe == newSpecial(getHeadName(downMethod)):
-      doClone(downMethod, pkg.url, downloadDir) # Grab HEAD.
+      doClone(downMethod, url, downloadDir) # Grab HEAD.
     else:
       # We don't know if we got a commit hash or a branch here, and
       # we can't clone a specific commit (with depth 1) according to:
       # http://stackoverflow.com/a/7198956/492186
-      doClone(downMethod, pkg.url, downloadDir, tip = false)
+      doClone(downMethod, url, downloadDir, tip = false)
       doCheckout(downMethod, downloadDir, $verRange.spe)
   else:
     case downMethod
     of TDownloadMethod.Git:
       # For Git we have to query the repo remotely for its tags. This is
       # necessary as cloning with a --depth of 1 removes all tag info.
-      let versions = getTagsListRemote(pkg.url, downMethod).getVersionList()
+      let versions = getTagsListRemote(url, downMethod).getVersionList()
       if versions.len > 0:
         getLatestByTag:
           echo("Cloning latest tagged version: ", latest.tag)
-          doClone(downMethod, pkg.url, downloadDir, latest.tag)
+          doClone(downMethod, url, downloadDir, latest.tag)
       else:
         # If no commits have been tagged on the repo we just clone HEAD.
-        doClone(downMethod, pkg.url, downloadDir) # Grab HEAD.
+        doClone(downMethod, url, downloadDir) # Grab HEAD.
         if verRange.kind != verAny:
           verifyHead()
     of TDownloadMethod.Hg:
-      doClone(downMethod, pkg.url, downloadDir)
+      doClone(downMethod, url, downloadDir)
       let versions = getTagsList(downloadDir, downMethod).getVersionList()
     
       if versions.len > 0:
@@ -166,6 +174,11 @@ proc doDownload*(pkg: TPackage, downloadDir: string, verRange: PVersionRange) =
           doCheckout(downMethod, downloadDir, latest.tag)
       elif verRange.kind != verAny:
         verifyHead()
+
+proc doDownload*(pkg: TPackage, downloadDir: string, verRange: PVersionRange) =
+  let downMethod = pkg.downloadMethod.getDownloadMethod()
+  echo "Downloading ", pkg.name, " using ", downMethod, "..."
+  doDownload(pkg.url, downloadDir, verRange, downMethod)
 
 proc echoPackageVersions*(pkg: TPackage) =
   let downMethod = pkg.downloadMethod.getDownloadMethod()
