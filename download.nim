@@ -128,6 +128,9 @@ proc doDownload*(url: string, downloadDir: string, verRange: PVersionRange,
     ## intended behaviour, the latest tagged version will be used in this case.
     if latest.tag != "":
       meth
+    else:
+      raise newException(EBabel,
+          "Could not find a version which fits the specified range: " & $verRange)
 
   proc verifyHead() =
     ## Makes sure that HEAD satisfies the requested version range.
@@ -174,11 +177,6 @@ proc doDownload*(url: string, downloadDir: string, verRange: PVersionRange,
           doCheckout(downMethod, downloadDir, latest.tag)
       elif verRange.kind != verAny:
         verifyHead()
-
-proc doDownload*(pkg: TPackage, downloadDir: string, verRange: PVersionRange) =
-  let downMethod = pkg.downloadMethod.getDownloadMethod()
-  echo "Downloading ", pkg.name, " using ", downMethod, "..."
-  doDownload(pkg.url, downloadDir, verRange, downMethod)
 
 proc echoPackageVersions*(pkg: TPackage) =
   let downMethod = pkg.downloadMethod.getDownloadMethod()

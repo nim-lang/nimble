@@ -325,15 +325,16 @@ proc downloadPkg(url: string, verRange: PVersionRange,
                  downMethod: TDownloadMethod): string =
   let downloadDir = (getTempDir() / "babel" / "url_unknown")
   if not existsDir(getTempDir() / "babel"): createDir(getTempDir() / "babel")
-  echo("Downloading ", url, " into ", downloadDir, "...")
+  echo("Downloading ", url, " into ", downloadDir, " using ", downMethod, "...")
   doDownload(url, downloadDir, verRange, downMethod)
   result = downloadDir
 
 proc downloadPkg(pkg: TPackage, verRange: PVersionRange): string =
   let downloadDir = (getTempDir() / "babel" / pkg.name)
   if not existsDir(getTempDir() / "babel"): createDir(getTempDir() / "babel")
-  echo("Downloading ", pkg.name, " into ", downloadDir, "...")
-  doDownload(pkg, downloadDir, verRange)
+  let downMethod = pkg.downloadMethod.getDownloadMethod()
+  echo("Downloading ", pkg.name, " into ", downloadDir, " using ", downMethod, "...")
+  doDownload(pkg.url, downloadDir, verRange, downMethod)
   result = downloadDir
 
 proc install(packages: seq[tuple[name: string, verRange: PVersionRange]],
