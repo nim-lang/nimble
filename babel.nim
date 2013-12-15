@@ -323,14 +323,14 @@ proc installFromDir(dir: string, latest: bool, options: TOptions): string =
 
 proc downloadPkg(url: string, verRange: PVersionRange,
                  downMethod: TDownloadMethod): string =
-  let downloadDir = (getTempDir() / "babel" / "url_unknown")
+  let downloadDir = (getTempDir() / "babel" / getDownloadDirName(url, verRange))
   if not existsDir(getTempDir() / "babel"): createDir(getTempDir() / "babel")
   echo("Downloading ", url, " into ", downloadDir, " using ", downMethod, "...")
   doDownload(url, downloadDir, verRange, downMethod)
   result = downloadDir
 
 proc downloadPkg(pkg: TPackage, verRange: PVersionRange): string =
-  let downloadDir = (getTempDir() / "babel" / pkg.name)
+  let downloadDir = (getTempDir() / "babel" / getDownloadDirName(pkg, verRange))
   if not existsDir(getTempDir() / "babel"): createDir(getTempDir() / "babel")
   let downMethod = pkg.downloadMethod.getDownloadMethod()
   echo("Downloading ", pkg.name, " into ", downloadDir, " using ", downMethod, "...")

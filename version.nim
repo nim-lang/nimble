@@ -202,6 +202,19 @@ proc `$`*(verRange: PVersionRange): String =
 
   result.add(string(verRange.ver))
 
+proc getSimpleString*(verRange: PVersionRange): string =
+  ## Gets a string with no special symbols and spaces. Used for dir name creation
+  ## in tools.nim
+  case verRange.kind
+  of verSpecial:
+    result = $verRange.spe
+  of verLater, verEarlier, verEqLater, verEqEarlier, verEq:
+    result = $verRange.ver
+  of verIntersect:
+    result = getSimpleString(verRange.verILeft) & "_" & getSimpleString(verRange.verIRight)
+  of verAny:
+    result = ""
+
 proc newVRAny*(): PVersionRange =
   new(result)
   result.kind = verAny

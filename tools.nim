@@ -2,8 +2,8 @@
 # BSD License. Look at license.txt for more info.
 #
 # Various miscellaneous utility functions reside here.
-import osproc, pegs, strutils, os
-import version, common
+import osproc, pegs, strutils, os, parseurl
+import version, common, packageinfo
 
 # TODO: Merge with common.nim?
 
@@ -46,3 +46,24 @@ proc changeRoot*(origRoot, newRoot, path: string): string =
   else:
     raise newException(EInvalidValue,
       "Cannot change root of path: Path does not begin with original root.")
+
+proc getDownloadDirName*(url: string, verRange: PVersionRange): string =
+  ## Creates a directory name based on the specified ``url``
+  result = ""
+  let purl = parseUrl(url)
+  for i in purl.hostname:
+    case i
+    of strutils.Letters, strutils.Digits:
+      result.add i
+    else: nil
+  result.add "_"
+  for i in purl.path:
+    case i
+    of strutils.Letters, strutils.Digits:
+      result.add i
+    else: nil
+  result.add "_"
+  result.add getSimpleString(verRange)
+
+proc getDownloadDirName*(pkg: TPackage, verRange: PVersionRange): string =
+  result = pkg.name & "_" & verRange.getSimpleString
