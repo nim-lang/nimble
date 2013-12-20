@@ -34,6 +34,9 @@ type
     dvcsTag*: string
     web*: string # Info url for humans.
 
+  TMetadata* = object
+    url*: string
+
 proc initPackageInfo(): TPackageInfo =
   result.mypath = ""
   result.name = ""
@@ -209,6 +212,18 @@ proc fromJson(obj: PJSonNode): TPackage =
   result.description = obj.requiredField("description")
   result.web = obj.optionalField("web")
 
+proc readMetadata*(path: string): TMetadata =
+  ## Reads the metadata present in ``~/.babel/pkgs/pkg-0.1/babelmeta.json``
+  let bmeta = path / "babelmeta.json"
+  if not existsFile(bmeta):
+    result.url = ""
+    echo("WARNING: No babelmeta.json file found in " & path)
+    return
+    # TODO: Make this an error.
+  let cont = readFile(path / "babelmeta.json")
+  let jsonmeta = parseJson(cont)
+  result.url = jsonmeta["url"].str
+
 proc getPackage*(pkg: string, packagesPath: string, resPkg: var TPackage): bool =
   ## Searches ``packagesPath`` file saving into ``resPkg`` the found package.
   ##
@@ -244,32 +259,33 @@ proc getPkgInfo*(dir: string): TPackageInfo =
     raise newException(EBabel, "Specified directory does not contain a .babel file.")
   result = readPackageInfo(babelFile)
 
-proc getInstalledPkgs*(libsDir: string): seq[TPackageInfo] =
+proc getInstalledPkgs*(libsDir: string): seq[tuple[pkginfo: TPackageInfo, meta: TMetaData]] =
   ## Gets a list of installed packages.
   ##
-  ## ``libsDir`` is in most cases: ~/.babel/libs/
+  ## ``libsDir`` is in most cases: ~/.babel/pkgs/
   result = @[]
   for kind, path in walkDir(libsDir):
     if kind == pcDir:
       let babelFile = findBabelFile(path)
       if babelFile != "":
-        result.add(readPackageInfo(babelFile))
+        let meta = readMetadata(path)
+        result.add((readPackageInfo(babelFile), meta))
       else:
         # TODO: Abstract logging.
         echo("WARNING: No .babel file found for ", path)
 
-proc findPkg*(pkglist: seq[TPackageInfo],
+proc findPkg*(pkglist: seq[tuple[pkginfo: TPackageInfo, meta: TMetaData]],
              dep: tuple[name: string, ver: PVersionRange],
              r: var TPackageInfo): bool =
-  ## Searches ``pkglist`` for a package of which version is withing the range
+  ## Searches ``pkglist`` for a package of which version is within the range
   ## of ``dep.ver``. ``True`` is returned if a package is found. If multiple
   ## packages are found the newest one is returned (the one with the highest
   ## version number)
   for pkg in pkglist:
-    if pkg.name != dep.name: continue
-    if withinRange(newVersion(pkg.version), dep.ver):
-      if not result or newVersion(r.version) < newVersion(pkg.version):
-        r = pkg
+    if pkg.pkginfo.name != dep.name and pkg.meta.url != dep.name: continue
+    if withinRange(newVersion(pkg.pkginfo.version), dep.ver):
+      if not result or newVersion(r.version) < newVersion(pkg.pkginfo.version):
+        r = pkg.pkginfo
         result = true
 
 proc getRealDir*(pkgInfo: TPackageInfo): string =
@@ -281,7 +297,7 @@ proc getRealDir*(pkgInfo: TPackageInfo): string =
     result = pkgInfo.mypath.splitFile.dir
 
 proc getNameVersion*(pkgpath: string): tuple[name, version: string] =
-  ## Splits ``pkgpath`` in the format ``/home/user/.babel/libs/package-0.1``
+  ## Splits ``pkgpath`` in the format ``/home/user/.babel/pkgs/package-0.1``
   ## into ``(packagea, 0.1)``
   result.name = ""
   result.version = ""

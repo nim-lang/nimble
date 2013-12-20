@@ -1,7 +1,8 @@
 # Copyright (C) Dominik Picheta. All rights reserved.
 # BSD License. Look at license.txt for more info.
 
-import httpclient, parseopt, os, strutils, osproc, pegs, tables, parseutils, strtabs
+import httpclient, parseopt, os, strutils, osproc, pegs, tables, parseutils,
+       strtabs, json
 
 import packageinfo, version, common, tools, download, algorithm
 
@@ -272,7 +273,7 @@ proc buildFromDir(pkgInfo: TPackageInfo, paths: seq[string]) =
     doCmd("nimrod $# -d:release $# \"$#\"" %
           [pkgInfo.backend, args, realDir / bin.changeFileExt("nim")])
 
-proc installFromDir(dir: string, latest: bool, options: TOptions): seq[string] =
+proc installFromDir(dir: string, latest: bool, options: TOptions, url: string): seq[string] =
   ## Returns where package has been installed to.
   ## The return value of this function is used by
   ## ``processDeps`` to gather a list of paths to pass to the nimrod compiler.
@@ -329,6 +330,10 @@ proc installFromDir(dir: string, latest: bool, options: TOptions): seq[string] =
   else:
     copyFilesRec(realDir, realDir, pkgDestDir, pkgInfo)
   
+  # Save a babelmeta.json file.
+  var babelmeta = %{"url": %url}
+  writeFile(pkgDestDir / "babelmeta.json", $babelmeta)
+  
   result = paths # Return the paths to the dependencies of this package.
   result.add pkgDestDir
 
@@ -353,7 +358,7 @@ proc downloadPkg(pkg: TPackage, verRange: PVersionRange): string =
 proc install(packages: seq[tuple[name: string, verRange: PVersionRange]],
              options: TOptions, doPrompt = true): seq[string] =
   if packages == @[]:
-    result = installFromDir(getCurrentDir(), false, options)
+    result = installFromDir(getCurrentDir(), false, options, "")
   else:
     # If packages.json is not present ask the user if they want to download it.
     if not existsFile(babelDir / "packages.json"):
@@ -369,12 +374,12 @@ proc install(packages: seq[tuple[name: string, verRange: PVersionRange]],
       if pv.name.startsWith(peg" @'://' "):
         let meth = checkUrlType(pv.name)
         let downloadDir = downloadPkg(pv.name, pv.verRange, meth)
-        result = installFromDir(downloadDir, false, options)
+        result = installFromDir(downloadDir, false, options, pv.name)
       else:
         var pkg: TPackage
         if getPackage(pv.name, babelDir / "packages.json", pkg):
           let downloadDir = downloadPkg(pkg, pv.verRange)
-          result = installFromDir(downloadDir, false, options)
+          result = installFromDir(downloadDir, false, options, pkg.url)
         else:
           # If package is not found give the user a chance to update package.json
           if doPrompt and
