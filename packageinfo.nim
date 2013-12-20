@@ -280,6 +280,22 @@ proc getRealDir*(pkgInfo: TPackageInfo): string =
   else:
     result = pkgInfo.mypath.splitFile.dir
 
+proc getNameVersion*(pkgpath: string): tuple[name, version: string] =
+  ## Splits ``pkgpath`` in the format ``/home/user/.babel/libs/package-0.1``
+  ## into ``(packagea, 0.1)``
+  result.name = ""
+  result.version = ""
+  let tail = pkgpath.splitPath.tail
+  if '-' notin tail:
+    result.name = tail
+    return
+  
+  for i in countdown(tail.len-1, 0):
+    if tail[i] == '-':
+      result.name = tail[0 .. i-1]
+      result.version = tail[i+1 .. -1]
+      break
+
 proc echoPackage*(pkg: TPackage) =
   echo(pkg.name & ":")
   echo("  url:         " & pkg.url & " (" & pkg.downloadMethod & ")")
@@ -288,3 +304,7 @@ proc echoPackage*(pkg: TPackage) =
   echo("  license:     " & pkg.license)
   if pkg.web.len > 0:
     echo("  website:     " & pkg.web)
+
+when isMainModule:
+  doAssert getNameVersion("/home/user/.babel/libs/packagea-0.1") == ("packagea", "0.1")
+  doAssert getNameVersion("/home/user/.babel/libs/package-a-0.1") == ("package-a", "0.1")

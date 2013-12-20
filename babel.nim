@@ -1,7 +1,7 @@
 # Copyright (C) Dominik Picheta. All rights reserved.
 # BSD License. Look at license.txt for more info.
 
-import httpclient, parseopt, os, strutils, osproc, pegs, tables, parseutils
+import httpclient, parseopt, os, strutils, osproc, pegs, tables, parseutils, strtabs
 
 import packageinfo, version, common, tools, download, algorithm
 
@@ -227,7 +227,7 @@ proc copyFilesRec(origDir, currentDir, dest: string, pkgInfo: TPackageInfo) =
             changeRoot(pkgInfo.mypath.splitFile.dir, dest, pkgInfo.mypath))
 
 proc install(packages: seq[tuple[name: string, verRange: PVersionRange]],
-             options: TOptions, doPrompt = true): string {.discardable.}
+             options: TOptions, doPrompt = true): seq[string] {.discardable.}
 proc processDeps(pkginfo: TPackageInfo, options: TOptions): seq[string] =
   ## Verifies and installs dependencies.
   ##
@@ -244,11 +244,22 @@ proc processDeps(pkginfo: TPackageInfo, options: TOptions): seq[string] =
       var pkg: TPackageInfo
       if not findPkg(pkglist, dep, pkg):
         echo("None found, installing...")
-        let dest = install(@[(dep.name, dep.ver)], options)
-        result.add(dest)
+        let paths = install(@[(dep.name, dep.ver)], options)
+        result.add(paths)
       else:
         echo("Dependency already satisfied.")
         result.add(pkg.mypath.splitFile.dir)
+  
+  # Check if two packages of the same name (but different version) are listed
+  # in the path.
+  var pkgsInPath: PStringTable = newStringTable(modeCaseSensitive)
+  for p in result:
+    let (name, version) = getNameVersion(p)
+    if pkgsInPath.hasKey(name):
+      raise newException(EBabel,
+        "Cannot satisfy the dependency on $1 $2 and $1 $3" %
+          [name, version, pkgsInPath[name]])
+    pkgsInPath[name] = version
 
 proc buildFromDir(pkgInfo: TPackageInfo, paths: seq[string]) =
   ## Builds a package as specified by ``pkgInfo``.
@@ -261,17 +272,17 @@ proc buildFromDir(pkgInfo: TPackageInfo, paths: seq[string]) =
     doCmd("nimrod $# -d:release $# \"$#\"" %
           [pkgInfo.backend, args, realDir / bin.changeFileExt("nim")])
 
-proc installFromDir(dir: string, latest: bool, options: TOptions): string =
+proc installFromDir(dir: string, latest: bool, options: TOptions): seq[string] =
   ## Returns where package has been installed to.
   ## The return value of this function is used by
   ## ``processDeps`` to gather a list of paths to pass to the nimrod compiler.
   var pkgInfo = getPkgInfo(dir)
   let realDir = pkgInfo.getRealDir()
   
-  let pkgDestDir = pkgsDir / (pkgInfo.name &
-                   (if latest: "" else: '-' & pkgInfo.version))
+  let versionStr = (if latest: "" else: '-' & pkgInfo.version)
+  let pkgDestDir = pkgsDir / (pkgInfo.name & versionStr)
   if existsDir(pkgDestDir):
-    if not options.prompt(pkgInfo.name & " already exists. Overwrite?"):
+    if not options.prompt(pkgInfo.name & versionStr & " already exists. Overwrite?"):
       quit(QuitSuccess)
     removeDir(pkgDestDir)
     # Remove any symlinked binaries
@@ -317,7 +328,9 @@ proc installFromDir(dir: string, latest: bool, options: TOptions): string =
         {.error: "Sorry, your platform is not supported.".}
   else:
     copyFilesRec(realDir, realDir, pkgDestDir, pkgInfo)
-  result = pkgDestDir
+  
+  result = paths # Return the paths to the dependencies of this package.
+  result.add pkgDestDir
 
   echo(pkgInfo.name & " installed successfully.")
 
@@ -338,7 +351,7 @@ proc downloadPkg(pkg: TPackage, verRange: PVersionRange): string =
   result = downloadDir
 
 proc install(packages: seq[tuple[name: string, verRange: PVersionRange]],
-             options: TOptions, doPrompt = true): string =
+             options: TOptions, doPrompt = true): seq[string] =
   if packages == @[]:
     result = installFromDir(getCurrentDir(), false, options)
   else:
