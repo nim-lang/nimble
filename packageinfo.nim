@@ -281,6 +281,8 @@ proc findPkg*(pkglist: seq[tuple[pkginfo: TPackageInfo, meta: TMetaData]],
   ## of ``dep.ver``. ``True`` is returned if a package is found. If multiple
   ## packages are found the newest one is returned (the one with the highest
   ## version number)
+  ##
+  ## **Note**: dep.name here could be a URL, hence the need for pkglist.meta. 
   for pkg in pkglist:
     if pkg.pkginfo.name != dep.name and pkg.meta.url != dep.name: continue
     if withinRange(newVersion(pkg.pkginfo.version), dep.ver):

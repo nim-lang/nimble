@@ -62,8 +62,15 @@ proc getDownloadDirName*(url: string, verRange: PVersionRange): string =
     of strutils.Letters, strutils.Digits:
       result.add i
     else: nil
-  result.add "_"
-  result.add getSimpleString(verRange)
+    
+  let verSimple = getSimpleString(verRange)
+  if verSimple != "":
+    result.add "_"
+    result.add verSimple
 
 proc getDownloadDirName*(pkg: TPackage, verRange: PVersionRange): string =
-  result = pkg.name & "_" & verRange.getSimpleString
+  result = pkg.name
+  let verSimple = getSimpleString(verRange)
+  if verSimple != "":
+    result.add "_"
+    result.add verSimple

@@ -58,10 +58,14 @@ proc getTagsList(dir: string, meth: TDownloadMethod): seq[string] =
   if output.len > 0:
     case meth
     of TDownloadMethod.Git:
-      result = output.splitLines()
+      result = @[]
+      for i in output.splitLines():
+        if i == "": continue
+        result.add(i)
     of TDownloadMethod.Hg:
       result = @[]
       for i in output.splitLines():
+        if i == "": continue
         var tag = ""
         discard parseUntil(i, tag, ' ')
         if tag != "tip":
@@ -91,9 +95,10 @@ proc getVersionList*(tags: seq[string]): TTable[TVersion, string] =
   # Returns: TTable of version -> git tag name
   result = initTable[TVersion, string]()
   for tag in tags:
-    let i = skipUntil(tag, digits) # skip any chars before the version
-    # TODO: Better checking, tags can have any names. Add warnings and such.
-    result[newVersion(tag[i .. -1])] = tag
+    if tag != "":
+      let i = skipUntil(tag, digits) # skip any chars before the version
+      # TODO: Better checking, tags can have any names. Add warnings and such.
+      result[newVersion(tag[i .. -1])] = tag
 
 proc getDownloadMethod*(meth: string): TDownloadMethod =
   case meth
