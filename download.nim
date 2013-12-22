@@ -20,7 +20,10 @@ proc doCheckout(meth: TDownloadMethod, downloadDir, branch: string) =
   case meth
   of TDownloadMethod.Git:
     cd downloadDir:
-      doCmd("git checkout " & branch)
+      # Force is used here because local changes may appear straight after a
+      # clone has happened. Like in the case of git on Windows where it
+      # messes up the damn line endings.
+      doCmd("git checkout --force " & branch)
   of TDownloadMethod.Hg:
     cd downloadDir:
       doCmd("hg checkout " & branch)
