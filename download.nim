@@ -131,20 +131,21 @@ proc doDownload*(url: string, downloadDir: string, verRange: PVersionRange,
     var latest = findLatest(verRange, versions)
     ## Note: HEAD is not used when verRange.kind is verAny. This is
     ## intended behaviour, the latest tagged version will be used in this case.
-    if latest.tag != "":
-      meth
-    else:
-      raise newException(EBabel,
-          "Could not find a version which fits the specified range: " & $verRange)
+    
+    # If no tagged versions satisfy our range latest.tag will be "".
+    # We still clone in that scenario because we want to try HEAD in that case.
+    # https://github.com/nimrod-code/babel/issues/22
+    meth
 
-  proc verifyHead() =
-    ## Makes sure that HEAD satisfies the requested version range.
+  proc verifyClone() =
+    ## Makes sure that the downloaded package's version satisfies the requested
+    ## version range.
     let pkginfo = getPkgInfo(downloadDir)
     if pkginfo.version.newVersion notin verRange:
       raise newException(EBabel,
-            "No versions of " & url &
-            " exist (this usually means that `git tag` returned nothing)." &
-            "Git HEAD also does not satisfy version range: " & $verRange)
+        "Downloaded package's version does not satisfy requested version " &
+        "range: wanted $1 got $2." %
+        [$verRange, $pkginfo.version])
   
   removeDir(downloadDir)
   if verRange.kind == verSpecial:
@@ -170,8 +171,8 @@ proc doDownload*(url: string, downloadDir: string, verRange: PVersionRange,
       else:
         # If no commits have been tagged on the repo we just clone HEAD.
         doClone(downMethod, url, downloadDir) # Grab HEAD.
-        if verRange.kind != verAny:
-          verifyHead()
+      
+      verifyClone()
     of TDownloadMethod.Hg:
       doClone(downMethod, url, downloadDir)
       let versions = getTagsList(downloadDir, downMethod).getVersionList()
@@ -180,8 +181,8 @@ proc doDownload*(url: string, downloadDir: string, verRange: PVersionRange,
         getLatestByTag:
           echo("Switching to latest tagged version: ", latest.tag)
           doCheckout(downMethod, downloadDir, latest.tag)
-      elif verRange.kind != verAny:
-        verifyHead()
+      
+      verifyClone()
 
 proc echoPackageVersions*(pkg: TPackage) =
   let downMethod = pkg.downloadMethod.getDownloadMethod()
