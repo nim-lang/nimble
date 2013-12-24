@@ -6,6 +6,7 @@ description   = "Nimrod package manager."
 license       = "BSD"
 
 bin = "babel"
+srcDir = "src"
 
 [Deps]
 Requires: "nimrod >= 0.9.2"
