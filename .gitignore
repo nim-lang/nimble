@@ -4,4 +4,5 @@
 nimcache/
 
 # Absolute paths
-/babel
+/src/babel
+/tests/tester
