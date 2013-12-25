@@ -26,10 +26,10 @@ executing ``babel install babel``.
 
 On Windows installing Babel is slightly more complex:
 
-  git clone https://github.com/nimrod-code/babel.git
-  nimrod c src\babel
-  cp src\babel.exe src\babel1.exe
-  src\babel1.exe install
+    git clone https://github.com/nimrod-code/babel.git
+    nimrod c src\babel
+    cp src\babel.exe src\babel1.exe
+    src\babel1.exe install
 
 This is required because Windows will lock the process which is being run.
 
