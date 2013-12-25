@@ -9,24 +9,29 @@ You will need the latest [Nimrod compiler from
 github](https://github.com/Araq/Nimrod) to compile babel (version 0.9.2 may
 work).
 
-Once you have the latest Nimrod compiler you can compile babel by executing the
-following sequence of commands to clone the repository, compile babel, then
-install itself:
+### Unix
+
+On Unix operating systems Babel can be compiled and installed with two simple
+commands. After successfully grabbing the latest Nimrod compiler simply execute
+the following commands to clone babel, compile it and then install it.
 
     git clone https://github.com/nimrod-code/babel.git
-    cd babel/src
-    nimrod c -d:release babel
-    cd ..
-    ./src/babel install
-
+    nimrod c -r src/babel install
+    
 After these steps babel should be compiled and installed. You should then add
-``~/.babel/bin`` to your ``$PATH``. If you want to get rid of the git checkout
-and use babel to keep itself up to date, run ``babel install babel`` at least
-once to install as a normal binary package.
+``~/.babel/bin`` to your ``$PATH``. Updating babel can then be done by
+executing ``babel install babel``.
 
-**Note**: On **Windows** you must rename ``babel.exe`` to ``babel1.exe`` and
-subsequently run ``babel1.exe install``. This is because Windows will lock
-the process which is being run.
+### Windows
+
+On Windows installing Babel is slightly more complex:
+
+  git clone https://github.com/nimrod-code/babel.git
+  nimrod c src\babel
+  cp src\babel.exe src\babel1.exe
+  src\babel1.exe install
+
+This is required because Windows will lock the process which is being run.
 
 ## Babel's folder structure and packages
 
