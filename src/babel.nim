@@ -270,7 +270,7 @@ proc buildFromDir(pkgInfo: TPackageInfo, paths: seq[string]) =
   for bin in pkgInfo.bin:
     echo("Building ", pkginfo.name, "/", bin, " using ", pkgInfo.backend,
          " backend...")
-    doCmd("nimrod $# -d:release $# \"$#\"" %
+    doCmd("nimrod $# -d:release --noBabelPath $# \"$#\"" %
           [pkgInfo.backend, args, realDir / bin.changeFileExt("nim")])
 
 proc installFromDir(dir: string, latest: bool, options: TOptions, url: string): seq[string] =
