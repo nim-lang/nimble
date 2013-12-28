@@ -2,9 +2,9 @@
 # BSD License. Look at license.txt for more info.
 
 import httpclient, parseopt, os, strutils, osproc, pegs, tables, parseutils,
-       strtabs, json
+       strtabs, json, algorithm
 
-import packageinfo, version, common, tools, download, algorithm
+import babelpkg/packageinfo, babelpkg/version, babelpkg/common, babelpkg/tools, babelpkg/download
 
 type
   TOptions = object
