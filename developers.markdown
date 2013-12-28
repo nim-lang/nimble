@@ -90,6 +90,14 @@ be a binary/library combo which is fine.
 
 Dependencies are automatically installed before building.
 
+## Hybrids
+
+One thing to note about library and binary package hybrids is that your binary
+will most likely share the name of the package. This will mean that you will
+not be able to put your .nim files in a ``pkgname`` directory. The current
+convention to get around this problem is to append ``pkg`` to the name as is
+done for babel.
+
 # Dependencies
 
 Dependencies are specified under the ``[Deps]`` section in a babel file.
