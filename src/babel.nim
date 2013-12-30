@@ -53,7 +53,7 @@ Options:
       --ver                       Query remote server for package version 
                                   information when searching or listing packages
 """
-  babelVersion = "0.1.0"
+  babelVersion = "0.2.0"
   defaultPackageURL = "https://github.com/nimrod-code/packages/raw/master/packages.json"
 
 proc writeHelp() =
