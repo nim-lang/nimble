@@ -7,7 +7,13 @@ language](http://nimrod-lang.org).
 
 You will need the latest [Nimrod compiler from
 github](https://github.com/Araq/Nimrod) to compile babel (version 0.9.2 may
-work).
+work). To run babel you will need to have installed some of the tools it
+depends on to check out source code. For instance, if a package is hosted on
+[Github](https://github.com) you require to have [git](http://www.git-scm.com)
+installed and added to your environment ``PATH``. Same goes for
+[Mercurial](http://mercurial.selenic.com) repositories on
+[Bitbucket](https://bitbucket.org). On Windows you will also need [OpenSSL
+DLLs](https://www.openssl.org) for secure network connections.
 
 ### Unix
 
