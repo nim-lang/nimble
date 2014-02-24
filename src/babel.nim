@@ -451,12 +451,18 @@ proc listPaths(packages: seq[String]) =
   for name in packages:
     var installed: seq[VersionAndPath] = @[]
     # There may be several, list all available ones and sort by version.
-    for file in walkFiles(pkgsDir / name & "-*" / name & ".babel"):
-      var pkgInfo = getPkgInfo(splitFile(file).dir)
-      var v: VersionAndPath
-      v.version = newVersion(pkgInfo.version)
-      v.path = pkgsDir / (pkgInfo.name & '-' & pkgInfo.version)
-      installed.add(v)
+    for kind, path in walkDir(pkgsDir):
+      if kind != pcDir or not path.startsWith(pkgsDir / name): continue
+
+      let babelFile = path / name.addFileExt("babel")
+      if existsFile(babelFile):
+        var pkgInfo = getPkgInfo(path)
+        var v: VersionAndPath
+        v.version = newVersion(pkgInfo.version)
+        v.path = pkgsDir / (pkgInfo.name & '-' & pkgInfo.version)
+        installed.add(v)
+      else:
+        echo "Warning: No .babel file found for ", path
 
     if installed.len > 0:
       sort(installed, system.cmp[VersionAndPath], Descending)
