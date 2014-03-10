@@ -134,7 +134,15 @@ proc prompt(options: TOptions, question: string): bool =
     else:
       return false
 
-let babelDir = getHomeDir() / ".babel"
+when defined(nimrodEnv):
+  let normalBabelDir = getAppDir() / ".." / ".."
+else:
+  let normalBabelDir = getHomeDir() / ".babel"
+
+let envBabelDir = getEnv("BABEL_HOME")
+let babelDir = if envBabelDir.len > 0: envBabelDir
+               else: normalBabelDir
+
 let pkgsDir = babelDir / "pkgs"
 let binDir = babelDir / "bin"
 
