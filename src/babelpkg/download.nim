@@ -34,6 +34,8 @@ proc doPull(meth: TDownloadMethod, downloadDir: string) =
     doCheckout(meth, downloadDir, "master")
     cd downloadDir:
       doCmd("git pull")
+      if existsFile(".gitmodules"):
+        doCmd("git submodule update")
   of TDownloadMethod.Hg:
     doCheckout(meth, downloadDir, "default")
     cd downloadDir:
@@ -45,7 +47,8 @@ proc doClone(meth: TDownloadMethod, url, downloadDir: string, branch = "", tip =
   of TDownloadMethod.Git:
     let depthArg = if tip: "--depth 1 " else: ""
     # TODO: Get rid of the annoying 'detached HEAD' message somehow?
-    doCmd("git clone " & depthArg & branchArg & url & " " & downloadDir)
+    doCmd("git clone --recursive " & depthArg & branchArg & url &
+          " " & downloadDir)
   of TDownloadMethod.Hg:
     let tipArg = if tip: "-r tip " else: ""
     doCmd("hg clone " & tipArg & branchArg & url & " " & downloadDir)
