@@ -190,7 +190,8 @@ proc copyWithExt(origDir, currentDir, dest: string, pkgInfo: TPackageInfo) =
           createDir(changeRoot(origDir, dest, path).splitFile.dir)
           copyFileD(path, changeRoot(origDir, dest, path))
 
-proc copyFilesRec(origDir, currentDir, dest: string, pkgInfo: TPackageInfo) =
+proc copyFilesRec(origDir, currentDir, dest: string,
+                  options: TOptions, pkgInfo: TPackageInfo) =
   ## Copies all the required files, skips files specified in the .babel file
   ## (TPackageInfo).
   let whitelistMode =
@@ -199,11 +200,23 @@ proc copyFilesRec(origDir, currentDir, dest: string, pkgInfo: TPackageInfo) =
           pkgInfo.installExt.len != 0
   if whitelistMode:
     for file in pkgInfo.installFiles:
+      let src = origDir / file
+      if not src.existsFile():
+        if options.prompt("Missing file " & src & ". Continue?"):
+          continue
+        else:
+          quit(QuitSuccess)
       createDir(dest / file.splitFile.dir)
-      copyFileD(origDir / file, dest / file)
+      copyFileD(src, dest / file)
 
     for dir in pkgInfo.installDirs:
       # TODO: Allow skipping files inside dirs?
+      let src = origDir / dir
+      if not src.existsDir():
+        if options.prompt("Missing directory " & src & ". Continue?"):
+          continue
+        else:
+          quit(QuitSuccess)
       copyDirD(origDir / dir, dest / dir)
 
     copyWithExt(origDir, currentDir, dest, pkgInfo)
@@ -216,7 +229,7 @@ proc copyFilesRec(origDir, currentDir, dest: string, pkgInfo: TPackageInfo) =
         # Create the dir.
         createDir(changeRoot(origDir, dest, file))
         
-        copyFilesRec(origDir, file, dest, pkgInfo)
+        copyFilesRec(origDir, file, dest, options, pkgInfo)
       else:
         let skip = pkgInfo.checkInstallFile(origDir, file)
 
@@ -305,7 +318,7 @@ proc installFromDir(dir: string, latest: bool, options: TOptions, url: string): 
   if pkgInfo.bin.len > 0:
     createDir(binDir)
     # Copy all binaries and files that are not skipped
-    copyFilesRec(realDir, realDir, pkgDestDir, pkgInfo)
+    copyFilesRec(realDir, realDir, pkgDestDir, options, pkgInfo)
     # Set file permissions to +x for all binaries built,
     # and symlink them on *nix OS' to $babelDir/bin/
     for bin in pkgInfo.bin:
@@ -328,7 +341,7 @@ proc installFromDir(dir: string, latest: bool, options: TOptions, url: string): 
       else:
         {.error: "Sorry, your platform is not supported.".}
   else:
-    copyFilesRec(realDir, realDir, pkgDestDir, pkgInfo)
+    copyFilesRec(realDir, realDir, pkgDestDir, options, pkgInfo)
   
   # Save a babelmeta.json file.
   var babelmeta = %{"url": %url}
