@@ -22,6 +22,7 @@ commands. After successfully grabbing the latest Nimrod compiler simply execute
 the following commands to clone babel, compile it and then install it.
 
     git clone https://github.com/nimrod-code/babel.git
+    cd babel
     nimrod c -r src/babel install
     
 After these steps babel should be compiled and installed. You should then add
@@ -33,6 +34,7 @@ executing ``babel install babel``.
 On Windows installing Babel is slightly more complex:
 
     git clone https://github.com/nimrod-code/babel.git
+    cd babel
     nimrod c src\babel
     cp src\babel.exe src\babel1.exe
     src\babel1.exe install
