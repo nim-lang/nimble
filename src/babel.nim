@@ -4,6 +4,11 @@
 import httpclient, parseopt, os, strutils, osproc, pegs, tables, parseutils,
        strtabs, json, algorithm
 
+when defined(windows):
+  import windows
+else:
+  import posix
+
 import babelpkg/packageinfo, babelpkg/version, babelpkg/common, babelpkg/tools, babelpkg/download
 
 type
@@ -352,17 +357,30 @@ proc installFromDir(dir: string, latest: bool, options: TOptions, url: string): 
 
   echo(pkgInfo.name & " installed successfully.")
 
+proc getBabelTempDir(): string =
+  ## Returns a path to a temporary directory.
+  ##
+  ## The returned path will be the same for the duration of the process but
+  ## different for different runs of it. You have to make sure to create it
+  ## first. In release builds the directory will be removed when babel finishes
+  ## its work.
+  result = getTempDir()/"babel_"
+  when defined(windows):
+    result.add($GetCurrentProcessId())
+  else:
+    result.add($getpid())
+
 proc downloadPkg(url: string, verRange: PVersionRange,
                  downMethod: TDownloadMethod): string =
-  let downloadDir = (getTempDir() / "babel" / getDownloadDirName(url, verRange))
-  if not existsDir(getTempDir() / "babel"): createDir(getTempDir() / "babel")
+  let downloadDir = (getBabelTempDir() / getDownloadDirName(url, verRange))
+  createDir(downloadDir.extractFilename)
   echo("Downloading ", url, " into ", downloadDir, " using ", downMethod, "...")
   doDownload(url, downloadDir, verRange, downMethod)
   result = downloadDir
 
 proc downloadPkg(pkg: TPackage, verRange: PVersionRange): string =
-  let downloadDir = (getTempDir() / "babel" / getDownloadDirName(pkg, verRange))
-  if not existsDir(getTempDir() / "babel"): createDir(getTempDir() / "babel")
+  let downloadDir = (getBabelTempDir() / getDownloadDirName(pkg, verRange))
+  createDir(downloadDir.extractFilename)
   let downMethod = pkg.downloadMethod.getDownloadMethod()
   echo("Downloading ", pkg.name, " into ", downloadDir, " using ", downMethod, "...")
   doDownload(pkg.url, downloadDir, verRange, downMethod)
@@ -525,5 +543,7 @@ when isMainModule:
       parseCmdLine().doAction()
     except EBabel:
       quit("FAILURE: " & getCurrentExceptionMsg())
+    finally:
+      removeDir(getBabelTempDir())
   else:
     parseCmdLine().doAction()
