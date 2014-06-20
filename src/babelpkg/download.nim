@@ -3,7 +3,7 @@
 
 import parseutils, os, osproc, strutils, tables
 
-import packageinfo, common, version, tools
+import packageinfo, version, tools
 
 type  
   TDownloadMethod* {.pure.} = enum

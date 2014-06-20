@@ -2,10 +2,11 @@
 # BSD License. Look at license.txt for more info.
 #
 # Various miscellaneous utility functions reside here.
-import osproc, pegs, strutils, os, parseurl
-import version, common, packageinfo
+import osproc, pegs, strutils, os, parseurl, sets
+import version, packageinfo
 
-# TODO: Merge with common.nim?
+type
+  EBabel* = object of EBase
 
 proc doCmd*(cmd: string) =
   let exitCode = execCmd(cmd)
@@ -47,6 +48,19 @@ proc changeRoot*(origRoot, newRoot, path: string): string =
     raise newException(EInvalidValue,
       "Cannot change root of path: Path does not begin with original root.")
 
+proc copyFileD*(fro, to: string): string =
+  ## Returns the destination (``to``).
+  echo(fro, " -> ", to)
+  copyFile(fro, to)
+  result = to
+
+proc copyDirD*(fro, to: string): seq[string] =
+  ## Returns the filenames of the files in the directory that were copied.
+  result = @[]
+  echo("Copying directory: ", fro, " -> ", to)
+  for path in walkDirRec(fro):
+    result.add copyFileD(path, changeRoot(fro, to, path))
+
 proc getDownloadDirName*(url: string, verRange: PVersionRange): string =
   ## Creates a directory name based on the specified ``url``
   result = ""
@@ -68,9 +82,6 @@ proc getDownloadDirName*(url: string, verRange: PVersionRange): string =
     result.add "_"
     result.add verSimple
 
-proc getDownloadDirName*(pkg: TPackage, verRange: PVersionRange): string =
-  result = pkg.name
-  let verSimple = getSimpleString(verRange)
-  if verSimple != "":
-    result.add "_"
-    result.add verSimple
+proc incl*(s: var TSet[string], v: seq[string] | TSet[string]) =
+  for i in v:
+    s.incl i

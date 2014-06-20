@@ -2,9 +2,9 @@
 # BSD License. Look at license.txt for more info.
 
 import httpclient, parseopt, os, strutils, osproc, pegs, tables, parseutils,
-       strtabs, json, algorithm
+       strtabs, json, algorithm, sets
 
-import babelpkg/packageinfo, babelpkg/version, babelpkg/common, babelpkg/tools, babelpkg/download
+import babelpkg/packageinfo, babelpkg/version, babelpkg/tools, babelpkg/download
 
 type
   TOptions = object
@@ -180,20 +180,26 @@ proc checkInstallDir(pkgInfo: TPackageInfo,
   if thisDir[0] == '.': result = true
   if thisDir == "nimcache": result = true
 
-proc copyWithExt(origDir, currentDir, dest: string, pkgInfo: TPackageInfo) =
+proc copyWithExt(origDir, currentDir, dest: string,
+                 pkgInfo: TPackageInfo): seq[string] =
+  ## Returns the filenames of the files that have been copied
+  ## (their destination).
+  result = @[]
   for kind, path in walkDir(currentDir):
     if kind == pcDir:
-      copyWithExt(origDir, path, dest, pkgInfo)
+      result.add copyWithExt(origDir, path, dest, pkgInfo)
     else:
       for iExt in pkgInfo.installExt:
         if path.splitFile.ext == ('.' & iExt):
           createDir(changeRoot(origDir, dest, path).splitFile.dir)
-          copyFileD(path, changeRoot(origDir, dest, path))
+          result.add copyFileD(path, changeRoot(origDir, dest, path))
 
 proc copyFilesRec(origDir, currentDir, dest: string,
-                  options: TOptions, pkgInfo: TPackageInfo) =
+                  options: TOptions, pkgInfo: TPackageInfo): TSet[string] =
   ## Copies all the required files, skips files specified in the .babel file
   ## (TPackageInfo).
+  ## Returns a list of filepaths to files which have been installed.
+  result = initSet[string]()
   let whitelistMode =
           pkgInfo.installDirs.len != 0 or
           pkgInfo.installFiles.len != 0 or
@@ -207,7 +213,7 @@ proc copyFilesRec(origDir, currentDir, dest: string,
         else:
           quit(QuitSuccess)
       createDir(dest / file.splitFile.dir)
-      copyFileD(src, dest / file)
+      result.incl copyFileD(src, dest / file)
 
     for dir in pkgInfo.installDirs:
       # TODO: Allow skipping files inside dirs?
@@ -217,9 +223,9 @@ proc copyFilesRec(origDir, currentDir, dest: string,
           continue
         else:
           quit(QuitSuccess)
-      copyDirD(origDir / dir, dest / dir)
+      result.incl copyDirD(origDir / dir, dest / dir)
 
-    copyWithExt(origDir, currentDir, dest, pkgInfo)
+    result.incl copyWithExt(origDir, currentDir, dest, pkgInfo)
   else:
     for kind, file in walkDir(currentDir):
       if kind == pcDir:
@@ -229,15 +235,15 @@ proc copyFilesRec(origDir, currentDir, dest: string,
         # Create the dir.
         createDir(changeRoot(origDir, dest, file))
         
-        copyFilesRec(origDir, file, dest, options, pkgInfo)
+        result.incl copyFilesRec(origDir, file, dest, options, pkgInfo)
       else:
         let skip = pkgInfo.checkInstallFile(origDir, file)
 
         if skip: continue
 
-        copyFileD(file, changeRoot(origDir, dest, file)) 
+        result.incl copyFileD(file, changeRoot(origDir, dest, file))
 
-  copyFileD(pkgInfo.mypath,
+  result.incl copyFileD(pkgInfo.mypath,
             changeRoot(pkgInfo.mypath.splitFile.dir, dest, pkgInfo.mypath))
 
 proc install(packages: seq[tuple[name: string, verRange: PVersionRange]],
@@ -286,19 +292,52 @@ proc buildFromDir(pkgInfo: TPackageInfo, paths: seq[string]) =
     doCmd("nimrod $# -d:release --noBabelPath $# \"$#\"" %
           [pkgInfo.backend, args, realDir / bin.changeFileExt("nim")])
 
-proc installFromDir(dir: string, latest: bool, options: TOptions, url: string): seq[string] =
-  ## Returns where package has been installed to.
+proc saveBabelMeta(pkgDestDir, url: string, filesInstalled: TSet[string]) =
+  var babelmeta = %{"url": %url}
+  babelmeta["files"] = newJArray()
+  for file in filesInstalled:
+    babelmeta["files"].add(%changeRoot(pkgDestDir, "", file))
+  writeFile(pkgDestDir / "babelmeta.json", $babelmeta)
+
+proc removePkgDir(dir: string, options: TOptions) =
+  ## Removes files belonging to the package in ``dir``.
+  try:
+    var babelmeta = parseFile(dir / "babelmeta.json")
+    if not babelmeta.hasKey("files"):
+      raise newException(EJsonParsingError,
+                         "Meta data does not contain required info.")
+    for file in babelmeta["files"]:
+      removeFile(dir / file.str)
+  except EOS, EJsonParsingError:
+    echo("Error: Unable to read babelmeta.json: ", getCurrentExceptionMsg())
+    if not options.prompt("Would you like to COMPLETELY overwrite ALL files " &
+                          "in " & dir & "?"):
+      quit(QuitSuccess)
+    removeDir(dir)
+
+proc installFromDir(dir: string, latest: bool, options: TOptions,
+                    url: string): seq[string] =
+  ## Returns where package has been installed to, together with paths
+  ## to the packages this package depends on.
   ## The return value of this function is used by
   ## ``processDeps`` to gather a list of paths to pass to the nimrod compiler.
   var pkgInfo = getPkgInfo(dir)
   let realDir = pkgInfo.getRealDir()
-  
+  # Dependencies need to be processed before the creation of the pkg dir.
+  let paths = processDeps(pkginfo, options)
+
+  echo("Installing ", pkginfo.name, "-", pkginfo.version)
+
+  # Build before removing an existing package (if one exists). This way
+  # if the build fails then the old package will still be installed.
+  if pkgInfo.bin.len > 0: buildFromDir(pkgInfo, paths)
+
   let versionStr = (if latest: "" else: '-' & pkgInfo.version)
   let pkgDestDir = pkgsDir / (pkgInfo.name & versionStr)
   if existsDir(pkgDestDir):
     if not options.prompt(pkgInfo.name & versionStr & " already exists. Overwrite?"):
       quit(QuitSuccess)
-    removeDir(pkgDestDir)
+    removePkgDir(pkgDestDir, options)
     # Remove any symlinked binaries
     for bin in pkgInfo.bin:
       # TODO: Check that this binary belongs to the package being installed.
@@ -306,24 +345,21 @@ proc installFromDir(dir: string, latest: bool, options: TOptions, url: string): 
         removeFile(binDir / bin.changeFileExt("bat"))
       else:
         removeFile(binDir / bin)
-  
-  echo("Installing ", pkginfo.name, "-", pkginfo.version)
-  
-  # Dependencies need to be processed before the creation of the pkg dir.
-  let paths = processDeps(pkginfo, options)
-  
-  if pkgInfo.bin.len > 0: buildFromDir(pkgInfo, paths)
+
+  ## Will contain a list of files which have been installed.
+  var filesInstalled: TSet[string]
   
   createDir(pkgDestDir)
   if pkgInfo.bin.len > 0:
     createDir(binDir)
     # Copy all binaries and files that are not skipped
-    copyFilesRec(realDir, realDir, pkgDestDir, options, pkgInfo)
+    filesInstalled = copyFilesRec(realDir, realDir, pkgDestDir, options,
+                                  pkgInfo)
     # Set file permissions to +x for all binaries built,
     # and symlink them on *nix OS' to $babelDir/bin/
     for bin in pkgInfo.bin:
       if not existsFile(pkgDestDir / bin):
-        copyFileD(realDir / bin, pkgDestDir / bin)
+        filesInstalled.incl copyFileD(realDir / bin, pkgDestDir / bin)
       
       let currentPerms = getFilePermissions(pkgDestDir / bin)
       setFilePermissions(pkgDestDir / bin, currentPerms + {fpUserExec})
@@ -341,11 +377,11 @@ proc installFromDir(dir: string, latest: bool, options: TOptions, url: string): 
       else:
         {.error: "Sorry, your platform is not supported.".}
   else:
-    copyFilesRec(realDir, realDir, pkgDestDir, options, pkgInfo)
+    filesInstalled = copyFilesRec(realDir, realDir, pkgDestDir, options,
+                                  pkgInfo)
   
   # Save a babelmeta.json file.
-  var babelmeta = %{"url": %url}
-  writeFile(pkgDestDir / "babelmeta.json", $babelmeta)
+  saveBabelMeta(pkgDestDir, url, filesInstalled)
   
   result = paths # Return the paths to the dependencies of this package.
   result.add pkgDestDir

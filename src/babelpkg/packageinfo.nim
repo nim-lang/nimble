@@ -1,7 +1,7 @@
 # Copyright (C) Dominik Picheta. All rights reserved.
 # BSD License. Look at license.txt for more info.
 import parsecfg, json, streams, strutils, parseutils, os
-import version, common
+import version, tools
 type
   TPackageInfo* = object
     mypath*: string ## The path of this .babel file
@@ -322,6 +322,13 @@ proc echoPackage*(pkg: TPackage) =
   echo("  license:     " & pkg.license)
   if pkg.web.len > 0:
     echo("  website:     " & pkg.web)
+
+proc getDownloadDirName*(pkg: TPackage, verRange: PVersionRange): string =
+  result = pkg.name
+  let verSimple = getSimpleString(verRange)
+  if verSimple != "":
+    result.add "_"
+    result.add verSimple
 
 when isMainModule:
   doAssert getNameVersion("/home/user/.babel/libs/packagea-0.1") == ("packagea", "0.1")
