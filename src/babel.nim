@@ -137,7 +137,17 @@ proc prompt(options: TOptions, question: string): bool =
     else:
       return false
 
-let babelDir = getHomeDir() / ".babel"
+when defined(nimrodEnv):
+  let normalBabelDir = getAppDir() / ".." / ".."
+  let nimrodPath = getAppDir() / "nimrod"
+else:
+  let normalBabelDir = getHomeDir() / ".babel"
+  let nimrodPath = "nimrod"
+
+let envBabelDir = getEnv("BABEL_HOME")
+let babelDir = if envBabelDir.len > 0: envBabelDir
+               else: normalBabelDir
+
 let pkgsDir = babelDir / "pkgs"
 let binDir = babelDir / "bin"
 
@@ -294,7 +304,7 @@ proc buildFromDir(pkgInfo: TPackageInfo, paths: seq[string]) =
   for bin in pkgInfo.bin:
     echo("Building ", pkginfo.name, "/", bin, " using ", pkgInfo.backend,
          " backend...")
-    doCmd("nimrod $# -d:release --noBabelPath $# \"$#\"" %
+    doCmd(nimrodPath & " $# -d:release --noBabelPath $# \"$#\"" %
           [pkgInfo.backend, args, realDir / bin.changeFileExt("nim")])
 
 proc saveBabelMeta(pkgDestDir, url: string, filesInstalled: TSet[string]) =
