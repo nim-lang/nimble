@@ -272,6 +272,8 @@ proc processDeps(pkginfo: TPackageInfo, options: TOptions): seq[string] =
       else:
         echo("Dependency already satisfied.")
         result.add(pkg.mypath.splitFile.dir)
+        # Process the dependencies of this dependency.
+        result.add(processDeps(pkg, options))
   
   # Check if two packages of the same name (but different version) are listed
   # in the path.
