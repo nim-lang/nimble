@@ -12,10 +12,9 @@ test "can reject same version dependencies":
   let (outp, exitCode) = execCmdEx(path & " install -y https://github.com/babel-test/packagebin.git")
   #echo outp
   # TODO: outp is not in the correct order.
-  let ls = outp.splitLines()
+  let ls = outp.strip.splitLines()
   check exitCode != QuitSuccess
-  check ls[ls.len-2] == "Error: unhandled exception: Cannot satisfy the dependency on PackageA 0.2.0 and PackageA 0.5.0 [EBabel]"
-  # Last is ""? TODO
+  check ls[ls.len-1] == "Error: unhandled exception: Cannot satisfy the dependency on PackageA 0.2.0 and PackageA 0.5.0 [EBabel]"
 
 test "can update":
   let (outp, exitCode) = execCmdEx(path & " update")
