@@ -278,7 +278,7 @@ proc processDeps(pkginfo: TPackageInfo, options: TOptions): seq[string] =
   var pkgsInPath: PStringTable = newStringTable(modeCaseSensitive)
   for p in result:
     let (name, version) = getNameVersion(p)
-    if pkgsInPath.hasKey(name):
+    if pkgsInPath.hasKey(name) and pkgsInPath[name] != version:
       raise newException(EBabel,
         "Cannot satisfy the dependency on $1 $2 and $1 $3" %
           [name, version, pkgsInPath[name]])
