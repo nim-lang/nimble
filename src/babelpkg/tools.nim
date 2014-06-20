@@ -9,9 +9,19 @@ type
   EBabel* = object of EBase
 
 proc doCmd*(cmd: string) =
+  let bin = cmd.split(' ')[0]
+  if findExe(bin) == "":
+    raise newException(EBabel, "'" & bin & "' not in PATH.")
+
   let exitCode = execCmd(cmd)
   if exitCode != QuitSuccess:
     raise newException(EBabel, "Execution failed with exit code " & $exitCode)
+
+proc doCmdEx*(cmd: string): tuple[output: TaintedString, exitCode: int] =
+  let bin = cmd.split(' ')[0]
+  if findExe(bin) == "":
+    raise newException(EBabel, "'" & bin & "' not in PATH.")
+  return execCmdEx(cmd)
 
 template cd*(dir: string, body: stmt) =
   ## Sets the current dir to ``dir``, executes ``body`` and restores the

@@ -83,7 +83,7 @@ proc getTagsListRemote*(url: string, meth: TDownloadMethod): seq[string] =
   result = @[]
   case meth
   of TDownloadMethod.Git:
-    var (output, exitCode) = execCmdEx("git ls-remote --tags " & url)
+    var (output, exitCode) = doCmdEx("git ls-remote --tags " & url)
     if exitCode != QuitSuccess:
       raise newException(EOS, "Unable to query remote tags for " & url &
           ". Git returned: " & output)
@@ -122,9 +122,9 @@ proc getHeadName*(meth: TDownloadMethod): string =
 
 proc checkUrlType*(url: string): TDownloadMethod =
   ## Determines the download method based on the URL.
-  if execCmdEx("git ls-remote " & url).exitCode == QuitSuccess:
+  if doCmdEx("git ls-remote " & url).exitCode == QuitSuccess:
     return TDownloadMethod.Git
-  elif execCmdEx("hg identify " & url).exitCode == QuitSuccess:
+  elif doCmdEx("hg identify " & url).exitCode == QuitSuccess:
     return TDownloadMethod.Hg
   else:
     raise newException(EBabel, "Unable to identify url.")
