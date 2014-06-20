@@ -3,6 +3,11 @@
 Babel is a *beta*-grade *package manager* for the [Nimrod programming
 language](http://nimrod-lang.org).
 
+**Note:** This readme explains how to install and use babel. It does not
+explain how to create babel packages. Take a look at the
+[developers.markdown file](developers.markdown) for information regarding
+package creation.
+
 ## Installation
 
 You will need version 0.9.4 of the [Nimrod
@@ -171,6 +176,24 @@ which can be useful to read the bundled documentation. Example:
     /usr/local/bin
     $ cd `babel path argument_parser`
     $ less README.md
+
+## Configuration
+
+At startup Babel will attempt to read ``$AppDir/babel/babel.ini``,
+where ``$AppDir`` is ``~/.config/`` on Linux and
+``C:\Users\<YourUser>\AppData\Roaming\`` on Windows.
+
+The format of this file corresponds to the ini format with some Nimrod
+enhancements. For example:
+
+```ini
+babelDir = r"C:\Babel\"
+```
+
+You can currently configure the following in this file:
+
+* ``babelDir`` - The directory which babel uses for package installation.
+  **Default:** ``~/.babel/``
 
 ## Packages
 
