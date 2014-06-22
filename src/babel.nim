@@ -304,9 +304,8 @@ proc addRevDep(options: TOptions, dep: tuple[name, version: string],
 
 proc removeRevDep(options: TOptions, pkg: TPackageInfo) =
   ## Removes ``pkg`` from the reverse dependencies of every package.
-  for depTup in pkg.requires:
-    let thisDep = options.babelData["reverseDeps"][depTup.name]
-    if thisDep.isNil: continue
+  proc remove(options: TOptions, pkg: TPackageInfo, depTup: TPkgTuple,
+              thisDep: PJsonNode) =
     for ver, val in thisDep:
       if ver.newVersion in depTup.ver:
         var newVal = newJArray()
@@ -314,7 +313,17 @@ proc removeRevDep(options: TOptions, pkg: TPackageInfo) =
           if not (revDep["name"].str == pkg.name and
                   revDep["version"].str == pkg.version):
             newVal.add revDep
-        options.babelData["reverseDeps"][depTup.name][ver] = newVal
+        thisDep[ver] = newVal
+
+  for depTup in pkg.requires:
+    if depTup.name.isURL():
+      # We sadly must go through everything in this case...
+      for key, val in options.babelData["reverseDeps"]:
+        options.remove(pkg, depTup, val)
+    else:
+      let thisDep = options.babelData["reverseDeps"][depTup.name]
+      if thisDep.isNil: continue
+      options.remove(pkg, depTup, thisDep)
 
   writeFile(options.getBabelDir() / "babeldata.json", pretty(options.babelData))
 
@@ -523,7 +532,7 @@ proc install(packages: seq[tuple[name: string, verRange: PVersionRange]],
     
     # Install each package.
     for pv in packages:
-      if pv.name.startsWith(peg" @'://' "):
+      if pv.name.isURL:
         let meth = checkUrlType(pv.name)
         let downloadDir = downloadPkg(pv.name, pv.verRange, meth)
         result = installFromDir(downloadDir, false, options, pv.name)

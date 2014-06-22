@@ -1,7 +1,7 @@
 # Copyright (C) Dominik Picheta. All rights reserved.
 # BSD License. Look at license.txt for more info.
 
-import parseutils, os, osproc, strutils, tables
+import parseutils, os, osproc, strutils, tables, pegs
 
 import packageinfo, version, tools
 
@@ -128,6 +128,9 @@ proc checkUrlType*(url: string): TDownloadMethod =
     return TDownloadMethod.Hg
   else:
     raise newException(EBabel, "Unable to identify url.")
+
+proc isURL*(name: string): bool =
+  name.startsWith(peg" @'://' ")
 
 proc doDownload*(url: string, downloadDir: string, verRange: PVersionRange,
                  downMethod: TDownloadMethod) =
