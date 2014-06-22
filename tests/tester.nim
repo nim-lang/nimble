@@ -15,16 +15,19 @@ template cd*(dir: string, body: stmt) =
   setCurrentDir(lastDir)
 
 test "can install packagebin2":
-  let (outp, exitCode) = execCmdEx(path & " install -y https://github.com/babel-test/packagebin2.git")
+  let (outp, exitCode) = execCmdEx(path &
+      " install -y https://github.com/babel-test/packagebin2.git")
   check exitCode == QuitSuccess
 
 test "can reject same version dependencies":
-  let (outp, exitCode) = execCmdEx(path & " install -y https://github.com/babel-test/packagebin.git")
+  let (outp, exitCode) = execCmdEx(path &
+      " install -y https://github.com/babel-test/packagebin.git")
   #echo outp
   # TODO: outp is not in the correct order.
   let ls = outp.strip.splitLines()
   check exitCode != QuitSuccess
-  check ls[ls.len-1] == "Error: unhandled exception: Cannot satisfy the dependency on PackageA 0.2.0 and PackageA 0.5.0 [EBabel]"
+  check ls[ls.len-1] == "Error: unhandled exception: Cannot satisfy the " &
+      "dependency on PackageA 0.2.0 and PackageA 0.5.0 [EBabel]"
 
 test "can update":
   let (outp, exitCode) = execCmdEx(path & " update")
@@ -41,3 +44,14 @@ test "issue #27":
 
   cd "issue27":
     check execCmdEx("../" & path & " install -y").exitCode == QuitSuccess
+
+test "can uninstall":
+  let (outp, exitCode) = execCmdEx(path & " uninstall -y issue27b")
+  let ls = outp.strip.splitLines()
+  check exitCode != QuitSuccess
+  check ls[ls.len-1] == "Error: unhandled exception: Cannot uninstall issue27b" &
+      " because issue27a (0.1.0) depends on it [EBabel]"
+
+  check execCmdEx(path & " uninstall -y issue27").exitCode == QuitSuccess
+  check execCmdEx(path & " uninstall -y issue27a").exitCode == QuitSuccess
+  check execCmdEx(path & " uninstall -y issue27b").exitCode == QuitSuccess
