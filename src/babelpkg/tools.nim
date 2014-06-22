@@ -2,7 +2,7 @@
 # BSD License. Look at license.txt for more info.
 #
 # Various miscellaneous utility functions reside here.
-import osproc, pegs, strutils, os, parseurl, sets
+import osproc, pegs, strutils, os, parseurl, sets, json
 import version, packageinfo
 
 type
@@ -95,3 +95,13 @@ proc getDownloadDirName*(url: string, verRange: PVersionRange): string =
 proc incl*(s: var TSet[string], v: seq[string] | TSet[string]) =
   for i in v:
     s.incl i
+
+proc contains*(j: PJsonNode, elem: PJsonNode): bool =
+  for i in j:
+    if i == elem:
+      return true
+
+proc contains*(j: PJsonNode, elem: tuple[key: string, val: PJsonNode]): bool =
+  for key, val in pairs(j):
+    if key == elem.key and val == elem.val:
+      return true

@@ -4,6 +4,8 @@
 import httpclient, parseopt, os, strutils, osproc, pegs, tables, parseutils,
        strtabs, json, algorithm, sets
 
+from sequtils import toSeq
+
 import babelpkg/packageinfo, babelpkg/version, babelpkg/tools, babelpkg/download,
        babelpkg/config
 
@@ -16,19 +18,21 @@ type
     queryVersions: bool
     action: TAction
     config: TConfig
+    babelData: PJsonNode ## Babeldata.json
 
   TActionType = enum
     ActionNil, ActionUpdate, ActionInstall, ActionSearch, ActionList,
-    ActionBuild, ActionPath
+    ActionBuild, ActionPath, ActionUninstall
 
   TAction = object
     case typ: TActionType
     of ActionNil, ActionList, ActionBuild: nil
     of ActionUpdate:
       optionalURL: string # Overrides default package list.
-    of ActionInstall, ActionPath:
+    of ActionInstall, ActionPath, ActionUninstall:
       optionalName: seq[string] # \
       # When this is @[], installs package from current dir.
+      packages: seq[TPkgTuple] # Optional only for ActionInstall.
     of ActionSearch:
       search: seq[string] # Search string.
 
@@ -41,6 +45,7 @@ Usage: babel COMMAND [opts]
 
 Commands:
   install      [pkgname, ...]     Installs a list of packages.
+  uninstall    [pkgname, ...]     Uninstalls a list of packages.
   build                           Builds a package.
   update       [url]              Updates package list. A package list URL can 
                                   be optionally specified.
@@ -86,9 +91,14 @@ proc parseCmdLine(): TOptions =
     of cmdArgument:
       if result.action.typ == ActionNil:
         case key
-        of "install":
-          result.action.typ = ActionInstall
+        of "install", "path":
+          case key
+          of "install":
+            result.action.typ = ActionInstall
+          of "path":
+            result.action.typ = ActionPath
           result.action.optionalName = @[]
+          result.action.packages = @[]
         of "build":
           result.action.typ = ActionBuild
         of "update":
@@ -99,16 +109,25 @@ proc parseCmdLine(): TOptions =
           result.action.search = @[]
         of "list":
           result.action.typ = ActionList
-        of "path":
-          result.action.typ = ActionPath
+        of "uninstall", "remove", "delete", "del", "rm":
+          result.action.typ = ActionUninstall
+          result.action.packages = @[]
           result.action.optionalName = @[]
         else: writeHelp()
       else:
         case result.action.typ
         of ActionNil:
           assert false
-        of ActionInstall, ActionPath:
+        of ActionInstall, ActionPath, ActionUninstall:
           result.action.optionalName.add(key)
+
+          # Parse pkg@verRange
+          if '@' in key:
+            let i = find(key, '@')
+            let pkgTup = (key[0 .. i-1], key[i+1 .. -1].parseVersionRange())
+            result.action.packages.add(pkgTup)
+          else:
+            result.action.packages.add((key, PVersionRange(kind: verAny)))
         of ActionUpdate:
           result.action.optionalURL = key
         of ActionSearch:
@@ -125,6 +144,13 @@ proc parseCmdLine(): TOptions =
     of cmdEnd: assert(false) # cannot happen
   if result.action.typ == ActionNil:
     writeHelp()
+
+  # Load babeldata.json
+  let babeldataFilename = result.getBabelDir() / "babeldata.json"
+  if fileExists(babeldataFilename):
+    result.babelData = parseFile(babeldataFilename)
+  else:
+    result.babelData = %{"reverseDeps": newJObject()}
 
 proc prompt(options: TOptions, question: string): bool =
   ## Asks an interactive question and returns the result.
@@ -262,6 +288,36 @@ proc copyFilesRec(origDir, currentDir, dest: string,
   result.incl copyFileD(pkgInfo.mypath,
             changeRoot(pkgInfo.mypath.splitFile.dir, dest, pkgInfo.mypath))
 
+proc addRevDep(options: TOptions, dep: tuple[name, version: string],
+               pkg: TPackageInfo) =
+  let depNameVer = dep.name & '-' & dep.version
+  if not options.babelData["reverseDeps"].hasKey(dep.name):
+    options.babelData["reverseDeps"][dep.name] = newJObject()
+  if not options.babelData["reverseDeps"][dep.name].hasKey(dep.version):
+    options.babelData["reverseDeps"][dep.name][dep.version] = newJArray()
+  let revDep = %{ "name": %pkg.name, "version": %pkg.version}
+  let thisDep = options.babelData["reverseDeps"][dep.name][dep.version]
+  if revDep notin thisDep:
+    thisDep.add revDep
+
+  writeFile(options.getBabelDir() / "babeldata.json", pretty(options.babelData))
+
+proc removeRevDep(options: TOptions, pkg: TPackageInfo) =
+  ## Removes ``pkg`` from the reverse dependencies of every package.
+  for depTup in pkg.requires:
+    let thisDep = options.babelData["reverseDeps"][depTup.name]
+    if thisDep.isNil: continue
+    for ver, val in thisDep:
+      if ver.newVersion in depTup.ver:
+        var newVal = newJArray()
+        for revDep in val:
+          if not (revDep["name"].str == pkg.name and
+                  revDep["version"].str == pkg.version):
+            newVal.add revDep
+        options.babelData["reverseDeps"][depTup.name][ver] = newVal
+
+  writeFile(options.getBabelDir() / "babeldata.json", pretty(options.babelData))
+
 proc install(packages: seq[tuple[name: string, verRange: PVersionRange]],
              options: TOptions, doPrompt = true): seq[string] {.discardable.}
 proc processDeps(pkginfo: TPackageInfo, options: TOptions): seq[string] =
@@ -282,11 +338,15 @@ proc processDeps(pkginfo: TPackageInfo, options: TOptions): seq[string] =
         echo("None found, installing...")
         let paths = install(@[(dep.name, dep.ver)], options)
         result.add(paths)
+
+        # Look up the pkg info again, for addRevDep.
+        doAssert findPkg(pkgList, dep, pkg)
       else:
         echo("Dependency already satisfied.")
         result.add(pkg.mypath.splitFile.dir)
         # Process the dependencies of this dependency.
         result.add(processDeps(pkg, options))
+      addRevDep(options, (pkg.name, pkg.version), pkginfo)
   
   # Check if two packages of the same name (but different version) are listed
   # in the path.
@@ -326,9 +386,18 @@ proc removePkgDir(dir: string, options: TOptions) =
                          "Meta data does not contain required info.")
     for file in babelmeta["files"]:
       removeFile(dir / file.str)
+
+    removeFile(dir / "babelmeta.json")
+
+    # If there are no files left in the directory, remove the directory.
+    if toSeq(walkDirRec(dir)).len == 0:
+      removeDir(dir)
+    else:
+      echo("WARNING: Cannot completely remove " & dir &
+           ". Files not installed by babel are present.")
   except EOS, EJsonParsingError:
     echo("Error: Unable to read babelmeta.json: ", getCurrentExceptionMsg())
-    if not options.prompt("Would you like to COMPLETELY overwrite ALL files " &
+    if not options.prompt("Would you like to COMPLETELY remove ALL files " &
                           "in " & dir & "?"):
       quit(QuitSuccess)
     removeDir(dir)
@@ -354,7 +423,7 @@ proc installFromDir(dir: string, latest: bool, options: TOptions,
 
   let versionStr = (if latest: "" else: '-' & pkgInfo.version)
   let pkgDestDir = pkgsDir / (pkgInfo.name & versionStr)
-  if existsDir(pkgDestDir):
+  if existsDir(pkgDestDir) and existsFile(pkgDestDir / "babelmeta.json"):
     if not options.prompt(pkgInfo.name & versionStr & " already exists. Overwrite?"):
       quit(QuitSuccess)
     removePkgDir(pkgDestDir, options)
@@ -557,6 +626,56 @@ proc listPaths(options: TOptions) =
   if errors > 0:
     raise newException(EBabel, "At least one of the specified packages was not found")
 
+proc uninstall(options: TOptions) =
+  var pkgsToDelete: seq[TPackageInfo] = @[]
+  # Do some verification.
+  for pkgTup in options.action.packages:
+    echo("Looking for ", pkgTup.name, " (", $pkgTup.ver, ")...")
+    let pkgList = getInstalledPkgs(options.getPkgsDir())
+    var pkg: TPackageInfo
+    if not findPkg(pkglist, pkgTup, pkg):
+      raise newException(EBabel, "Package not found")
+
+    echo("Checking reverse dependencies...")
+    # Check whether any packages depend on the one the user is trying to uninstall
+    let thisDep = options.babelData["reverseDeps"][pkgTup.name]
+    if not thisDep.isNil:
+      for ver, val in thisDep.pairs:
+        if ver.newVersion in pkgTup.ver and val.len != 0:
+          assert val.kind == JArray
+          var reason = ""
+          if val.len == 1:
+            reason = val[0]["name"].str & " (" & val[0]["version"].str &
+                ") depends on it"
+          else:
+            for i in 0 .. <val.len:
+              reason.add val[i]["name"].str & " (" & val[i]["version"].str & ")"
+              if i != <val.len:
+                reason.add ", "
+            reason.add " depend on it"
+
+          raise newException(EBabel, "Cannot uninstall " & pkgTup.name &
+              " because " & reason)
+
+    pkgsToDelete.add pkg
+
+  var pkgNames = ""
+  for i in 0 .. <pkgsToDelete.len:
+    if i != 0: pkgNames.add ", "
+    let pkg = pkgsToDelete[i]
+    pkgNames.add pkg.name & " (" & pkg.version & ")"
+
+  # Let's confirm that the user wants these packages removed.
+  if not options.prompt("The following packages will be removed:\n  " &
+      pkgNames & "\nDo you wish to continue?"):
+    quit(QuitSuccess)
+
+  for pkg in pkgsToDelete:
+    # If we reach this point then the package can be safely removed.
+    removeRevDep(options, pkg)
+    removePkgDir(options.getPkgsDir / (pkg.name & '-' & pkg.version), options)
+    echo("Removed ", pkg.name, " (", $pkg.version, ")")
+
 proc doAction(options: TOptions) =
   if not existsDir(options.getBabelDir()):
     createDir(options.getBabelDir())
@@ -569,13 +688,15 @@ proc doAction(options: TOptions) =
   of ActionInstall:
     var installList: seq[tuple[name: string, verRange: PVersionRange]] = @[]
     for name in options.action.optionalName:
-      if '#' in name:
+      if '#' in name: # TODO: Change this to allow babel install pkg@>0.1
         let i = find(name, '#')
         installList.add((name[0 .. i-1], name[i .. -1].parseVersionRange()))
       else:
         installList.add((name, PVersionRange(kind: verAny)))
       
     install(installList, options)
+  of ActionUninstall:
+    uninstall(options)
   of ActionSearch:
     search(options)
   of ActionList:

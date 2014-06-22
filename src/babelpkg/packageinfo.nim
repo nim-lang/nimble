@@ -3,6 +3,9 @@
 import parsecfg, json, streams, strutils, parseutils, os
 import version, tools
 type
+  ## Tuple containing package name and version range.
+  TPkgTuple* = tuple[name: string, ver: PVersionRange]
+
   TPackageInfo* = object
     mypath*: string ## The path of this .babel file
     name*: string
@@ -16,7 +19,7 @@ type
     installDirs*: seq[string]
     installFiles*: seq[string]
     installExt*: seq[string]
-    requires*: seq[tuple[name: string, ver: PVersionRange]]
+    requires*: seq[TPkgTuple]
     bin*: seq[string]
     srcDir*: string
     backend*: string
@@ -79,7 +82,7 @@ proc validatePackageInfo(pkgInfo: TPackageInfo, path: string) =
           "Version may only consist of numbers and the '.' character " &
           "but found '" & c & "'.")
 
-proc parseRequires(req: string): tuple[name: string, ver: PVersionRange] =
+proc parseRequires(req: string): TPkgTuple =
   try:
     if ' ' in req:
       var i = skipUntil(req, whitespace)
@@ -275,7 +278,7 @@ proc getInstalledPkgs*(libsDir: string): seq[tuple[pkginfo: TPackageInfo, meta: 
         echo("WARNING: No .babel file found for ", path)
 
 proc findPkg*(pkglist: seq[tuple[pkginfo: TPackageInfo, meta: TMetaData]],
-             dep: tuple[name: string, ver: PVersionRange],
+             dep: TPkgTuple,
              r: var TPackageInfo): bool =
   ## Searches ``pkglist`` for a package of which version is within the range
   ## of ``dep.ver``. ``True`` is returned if a package is found. If multiple
