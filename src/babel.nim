@@ -319,7 +319,8 @@ proc removeRevDep(options: TOptions, pkg: TPackageInfo) =
   writeFile(options.getBabelDir() / "babeldata.json", pretty(options.babelData))
 
 proc install(packages: seq[tuple[name: string, verRange: PVersionRange]],
-             options: TOptions, doPrompt = true): seq[string] {.discardable.}
+             options: TOptions,
+             doPrompt = true): tuple[paths: seq[string], pkg: TPackageInfo]
 proc processDeps(pkginfo: TPackageInfo, options: TOptions): seq[string] =
   ## Verifies and installs dependencies.
   ##
@@ -336,11 +337,10 @@ proc processDeps(pkginfo: TPackageInfo, options: TOptions): seq[string] =
       var pkg: TPackageInfo
       if not findPkg(pkglist, dep, pkg):
         echo("None found, installing...")
-        let paths = install(@[(dep.name, dep.ver)], options)
+        let (paths, installedPkg) = install(@[(dep.name, dep.ver)], options)
         result.add(paths)
 
-        # Look up the pkg info again, for addRevDep.
-        doAssert findPkg(pkgList, dep, pkg)
+        pkg = installedPkg # For addRevDep
       else:
         echo("Dependency already satisfied.")
         result.add(pkg.mypath.splitFile.dir)
@@ -403,7 +403,7 @@ proc removePkgDir(dir: string, options: TOptions) =
     removeDir(dir)
 
 proc installFromDir(dir: string, latest: bool, options: TOptions,
-                    url: string): seq[string] =
+                    url: string): tuple[paths: seq[string], pkg: TPackageInfo] =
   ## Returns where package has been installed to, together with paths
   ## to the packages this package depends on.
   ## The return value of this function is used by
@@ -413,13 +413,13 @@ proc installFromDir(dir: string, latest: bool, options: TOptions,
   let binDir = options.getBinDir()
   let pkgsDir = options.getPkgsDir()
   # Dependencies need to be processed before the creation of the pkg dir.
-  let paths = processDeps(pkginfo, options)
+  result.paths = processDeps(pkginfo, options)
 
   echo("Installing ", pkginfo.name, "-", pkginfo.version)
 
   # Build before removing an existing package (if one exists). This way
   # if the build fails then the old package will still be installed.
-  if pkgInfo.bin.len > 0: buildFromDir(pkgInfo, paths)
+  if pkgInfo.bin.len > 0: buildFromDir(pkgInfo, result.paths)
 
   let versionStr = (if latest: "" else: '-' & pkgInfo.version)
   let pkgDestDir = pkgsDir / (pkgInfo.name & versionStr)
@@ -472,8 +472,9 @@ proc installFromDir(dir: string, latest: bool, options: TOptions,
   # Save a babelmeta.json file.
   saveBabelMeta(pkgDestDir, url, filesInstalled)
   
-  result = paths # Return the paths to the dependencies of this package.
-  result.add pkgDestDir
+  # Return the paths to the dependencies of this package.
+  result.paths.add pkgDestDir
+  result.pkg = pkgInfo
 
   echo(pkgInfo.name & " installed successfully.")
 
@@ -507,7 +508,8 @@ proc downloadPkg(pkg: TPackage, verRange: PVersionRange): string =
   result = downloadDir
 
 proc install(packages: seq[tuple[name: string, verRange: PVersionRange]],
-             options: TOptions, doPrompt = true): seq[string] =
+             options: TOptions,
+             doPrompt = true): tuple[paths: seq[string], pkg: TPackageInfo] =
   if packages == @[]:
     result = installFromDir(getCurrentDir(), false, options, "")
   else:
@@ -516,7 +518,6 @@ proc install(packages: seq[tuple[name: string, verRange: PVersionRange]],
       if doPrompt and
           options.prompt("Local packages.json not found, download it from internet?"):
         update(options)
-        install(packages, options, false)
       else:
         quit("Please run babel update.", QuitFailure)
     
@@ -537,7 +538,7 @@ proc install(packages: seq[tuple[name: string, verRange: PVersionRange]],
               options.prompt(pv.name & " not found in local packages.json, " &
                              "check internet for updated packages?"):
             update(options)
-            install(@[pv], options, false)
+            result = install(@[pv], options, false)
           else:
             raise newException(EBabel, "Package not found.")
 
@@ -694,7 +695,7 @@ proc doAction(options: TOptions) =
       else:
         installList.add((name, PVersionRange(kind: verAny)))
       
-    install(installList, options)
+    discard install(installList, options)
   of ActionUninstall:
     uninstall(options)
   of ActionSearch:
