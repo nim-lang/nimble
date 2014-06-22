@@ -288,6 +288,9 @@ proc copyFilesRec(origDir, currentDir, dest: string,
   result.incl copyFileD(pkgInfo.mypath,
             changeRoot(pkgInfo.mypath.splitFile.dir, dest, pkgInfo.mypath))
 
+proc saveBabelData(options: TOptions) =
+  writeFile(options.getBabelDir() / "babeldata.json", pretty(options.babelData))
+
 proc addRevDep(options: TOptions, dep: tuple[name, version: string],
                pkg: TPackageInfo) =
   let depNameVer = dep.name & '-' & dep.version
@@ -299,8 +302,6 @@ proc addRevDep(options: TOptions, dep: tuple[name, version: string],
   let thisDep = options.babelData["reverseDeps"][dep.name][dep.version]
   if revDep notin thisDep:
     thisDep.add revDep
-
-  writeFile(options.getBabelDir() / "babeldata.json", pretty(options.babelData))
 
 proc removeRevDep(options: TOptions, pkg: TPackageInfo) =
   ## Removes ``pkg`` from the reverse dependencies of every package.
@@ -337,7 +338,7 @@ proc removeRevDep(options: TOptions, pkg: TPackageInfo) =
         newData[key] = newVal
   options.babelData["reverseDeps"] = newData
 
-  writeFile(options.getBabelDir() / "babeldata.json", pretty(options.babelData))
+  saveBabelData(options)
 
 proc install(packages: seq[tuple[name: string, verRange: PVersionRange]],
              options: TOptions,
@@ -348,6 +349,7 @@ proc processDeps(pkginfo: TPackageInfo, options: TOptions): seq[string] =
   ## Returns the list of paths to pass to the compiler during build phase.
   result = @[]
   let pkglist = getInstalledPkgs(options.getPkgsDir())
+  var reverseDeps: seq[tuple[name, version: string]] = @[]
   for dep in pkginfo.requires:
     if dep.name == "nimrod":
       let nimVer = getNimrodVersion()
@@ -367,7 +369,7 @@ proc processDeps(pkginfo: TPackageInfo, options: TOptions): seq[string] =
         result.add(pkg.mypath.splitFile.dir)
         # Process the dependencies of this dependency.
         result.add(processDeps(pkg, options))
-      addRevDep(options, (pkg.name, pkg.version), pkginfo)
+      reverseDeps.add((pkg.name, pkg.version))
   
   # Check if two packages of the same name (but different version) are listed
   # in the path.
@@ -379,6 +381,13 @@ proc processDeps(pkginfo: TPackageInfo, options: TOptions): seq[string] =
         "Cannot satisfy the dependency on $1 $2 and $1 $3" %
           [name, version, pkgsInPath[name]])
     pkgsInPath[name] = version
+
+  # We add the reverse deps to the JSON file here because we don't want
+  # them added if the above errorenous condition occurs
+  # (unsatisfiable dependendencies).
+  for i in reverseDeps:
+    addRevDep(options, i, pkginfo)
+  saveBabelData(options)
 
 proc buildFromDir(pkgInfo: TPackageInfo, paths: seq[string]) =
   ## Builds a package as specified by ``pkgInfo``.

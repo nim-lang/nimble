@@ -287,7 +287,8 @@ proc findPkg*(pkglist: seq[tuple[pkginfo: TPackageInfo, meta: TMetaData]],
   ##
   ## **Note**: dep.name here could be a URL, hence the need for pkglist.meta. 
   for pkg in pkglist:
-    if pkg.pkginfo.name != dep.name and pkg.meta.url != dep.name: continue
+    if pkg.pkginfo.name.normalize != dep.name.normalize and
+       pkg.meta.url.normalize != dep.name.normalize: continue
     if withinRange(newVersion(pkg.pkginfo.version), dep.ver):
       if not result or newVersion(r.version) < newVersion(pkg.pkginfo.version):
         r = pkg.pkginfo
@@ -300,7 +301,8 @@ proc findAllPkgs*(pkglist: seq[tuple[pkginfo: TPackageInfo, meta: TMetaData]],
   ## packages if multiple are found.
   result = @[]
   for pkg in pkglist:
-    if pkg.pkginfo.name != dep.name and pkg.meta.url != dep.name: continue
+    if pkg.pkginfo.name.normalize != dep.name.normalize and
+       pkg.meta.url.normalize != dep.name.normalize: continue
     if withinRange(newVersion(pkg.pkginfo.version), dep.ver):
       result.add pkg.pkginfo
 

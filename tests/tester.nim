@@ -58,18 +58,23 @@ test "can uninstall":
 
     check execCmdEx(path & " uninstall -y issue27").exitCode == QuitSuccess
     check execCmdEx(path & " uninstall -y issue27a").exitCode == QuitSuccess
-    check execCmdEx(path & " uninstall -y issue27b").exitCode == QuitSuccess
 
   # Remove Package*
+  check execCmdEx(path & " uninstall -y PackageA@0.5").exitCode == QuitSuccess
+
   let (outp, exitCode) = execCmdEx(path & " uninstall -y PackageA")
   check exitCode != QuitSuccess
   let ls = outp.processOutput()
-  check ls[ls.len-3].startsWith("  Cannot uninstall PackageA ")
   check ls[ls.len-2].startsWith("  Cannot uninstall PackageA ")
   check ls[ls.len-1].startsWith("  Cannot uninstall PackageA ")
   check execCmdEx(path & " uninstall -y PackageBin2").exitCode == QuitSuccess
 
   # Case insensitive
   check execCmdEx(path & " uninstall -y packagea").exitCode == QuitSuccess
-
   check execCmdEx(path & " uninstall -y PackageA").exitCode != QuitSuccess
+
+  # Remove the rest of the installed packages.
+  check execCmdEx(path & " uninstall -y PackageB").exitCode == QuitSuccess
+
+  check execCmdEx(path & " uninstall -y PackageA@0.2 issue27b").exitCode == QuitSuccess
+  check (not dirExists(getHomeDir() / ".babel" / "pkgs" / "PackageA-0.2.0"))
