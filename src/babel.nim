@@ -97,7 +97,6 @@ proc parseCmdLine(): TOptions =
             result.action.typ = ActionInstall
           of "path":
             result.action.typ = ActionPath
-          result.action.optionalName = @[]
           result.action.packages = @[]
         of "build":
           result.action.typ = ActionBuild
@@ -112,15 +111,12 @@ proc parseCmdLine(): TOptions =
         of "uninstall", "remove", "delete", "del", "rm":
           result.action.typ = ActionUninstall
           result.action.packages = @[]
-          result.action.optionalName = @[]
         else: writeHelp()
       else:
         case result.action.typ
         of ActionNil:
           assert false
         of ActionInstall, ActionPath, ActionUninstall:
-          result.action.optionalName.add(key)
-
           # Parse pkg@verRange
           if '@' in key:
             let i = find(key, '@')
@@ -289,6 +285,7 @@ proc copyFilesRec(origDir, currentDir, dest: string,
             changeRoot(pkgInfo.mypath.splitFile.dir, dest, pkgInfo.mypath))
 
 proc saveBabelData(options: TOptions) =
+  # TODO: This file should probably be locked.
   writeFile(options.getBabelDir() / "babeldata.json", pretty(options.babelData))
 
 proc addRevDep(options: TOptions, dep: tuple[name, version: string],
@@ -340,7 +337,7 @@ proc removeRevDep(options: TOptions, pkg: TPackageInfo) =
 
   saveBabelData(options)
 
-proc install(packages: seq[tuple[name: string, verRange: PVersionRange]],
+proc install(packages: seq[TPkgTuple],
              options: TOptions,
              doPrompt = true): tuple[paths: seq[string], pkg: TPackageInfo]
 proc processDeps(pkginfo: TPackageInfo, options: TOptions): seq[string] =
@@ -537,7 +534,7 @@ proc downloadPkg(pkg: TPackage, verRange: PVersionRange): string =
   doDownload(pkg.url, downloadDir, verRange, downMethod)
   result = downloadDir
 
-proc install(packages: seq[tuple[name: string, verRange: PVersionRange]],
+proc install(packages: seq[TPkgTuple],
              options: TOptions,
              doPrompt = true): tuple[paths: seq[string], pkg: TPackageInfo] =
   if packages == @[]:
@@ -555,12 +552,12 @@ proc install(packages: seq[tuple[name: string, verRange: PVersionRange]],
     for pv in packages:
       if pv.name.isURL:
         let meth = checkUrlType(pv.name)
-        let downloadDir = downloadPkg(pv.name, pv.verRange, meth)
+        let downloadDir = downloadPkg(pv.name, pv.ver, meth)
         result = installFromDir(downloadDir, false, options, pv.name)
       else:
         var pkg: TPackage
         if getPackage(pv.name, options.getBabelDir() / "packages.json", pkg):
-          let downloadDir = downloadPkg(pkg, pv.verRange)
+          let downloadDir = downloadPkg(pkg, pv.ver)
           result = installFromDir(downloadDir, false, options, pkg.url)
         else:
           # If package is not found give the user a chance to update package.json
@@ -720,15 +717,7 @@ proc doAction(options: TOptions) =
   of ActionUpdate:
     update(options)
   of ActionInstall:
-    var installList: seq[tuple[name: string, verRange: PVersionRange]] = @[]
-    for name in options.action.optionalName:
-      if '#' in name: # TODO: Change this to allow babel install pkg@>0.1
-        let i = find(name, '#')
-        installList.add((name[0 .. i-1], name[i .. -1].parseVersionRange()))
-      else:
-        installList.add((name, PVersionRange(kind: verAny)))
-      
-    discard install(installList, options)
+    discard install(options.action.packages, options)
   of ActionUninstall:
     uninstall(options)
   of ActionSearch:
