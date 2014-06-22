@@ -325,6 +325,18 @@ proc removeRevDep(options: TOptions, pkg: TPackageInfo) =
       if thisDep.isNil: continue
       options.remove(pkg, depTup, thisDep)
 
+  # Clean up empty objects/arrays
+  var newData = newJObject()
+  for key, val in options.babelData["reverseDeps"]:
+    if val.len != 0:
+      var newVal = newJObject()
+      for ver, elem in val:
+        if elem.len != 0:
+          newVal[ver] = elem
+      if newVal.len != 0:
+        newData[key] = newVal
+  options.babelData["reverseDeps"] = newData
+
   writeFile(options.getBabelDir() / "babeldata.json", pretty(options.babelData))
 
 proc install(packages: seq[tuple[name: string, verRange: PVersionRange]],
@@ -641,33 +653,36 @@ proc uninstall(options: TOptions) =
   # Do some verification.
   for pkgTup in options.action.packages:
     echo("Looking for ", pkgTup.name, " (", $pkgTup.ver, ")...")
-    let pkgList = getInstalledPkgs(options.getPkgsDir())
-    var pkg: TPackageInfo
-    if not findPkg(pkglist, pkgTup, pkg):
+    let installedPkgs = getInstalledPkgs(options.getPkgsDir())
+    var pkgList = findAllPkgs(installedPkgs, pkgTup)
+    if pkgList.len == 0:
       raise newException(EBabel, "Package not found")
 
     echo("Checking reverse dependencies...")
-    # Check whether any packages depend on the one the user is trying to uninstall
-    let thisDep = options.babelData["reverseDeps"][pkgTup.name]
-    if not thisDep.isNil:
-      for ver, val in thisDep.pairs:
-        if ver.newVersion in pkgTup.ver and val.len != 0:
-          assert val.kind == JArray
-          var reason = ""
-          if val.len == 1:
-            reason = val[0]["name"].str & " (" & val[0]["version"].str &
-                ") depends on it"
-          else:
-            for i in 0 .. <val.len:
-              reason.add val[i]["name"].str & " (" & val[i]["version"].str & ")"
-              if i != <val.len:
-                reason.add ", "
-            reason.add " depend on it"
+    var errors: seq[string] = @[]
+    for pkg in pkgList:
+      # Check whether any packages depend on the ones the user is trying to
+      # uninstall.
+      let thisPkgsDep = options.babelData["reverseDeps"]{pkg.name}{pkg.version}
+      if not thisPkgsDep.isNil:
+        var reason = ""
+        if thisPkgsDep.len == 1:
+          reason = thisPkgsDep[0]["name"].str &
+              " (" & thisPkgsDep[0]["version"].str & ") depends on it"
+        else:
+          for i in 0 .. <thisPkgsDep.len:
+            reason.add thisPkgsDep[i]["name"].str &
+                " (" & thisPkgsDep[i]["version"].str & ")"
+            if i != <thisPkgsDep.len:
+              reason.add ", "
+          reason.add " depend on it"
+        errors.add("Cannot uninstall " & pkgTup.name & " (" & pkg.version &
+                   ")" & " because " & reason)
+      else:
+        pkgsToDelete.add pkg
 
-          raise newException(EBabel, "Cannot uninstall " & pkgTup.name &
-              " because " & reason)
-
-    pkgsToDelete.add pkg
+    if pkgsToDelete.len == 0:
+      raise newException(EBabel, "\n  " & errors.join("\n  "))
 
   var pkgNames = ""
   for i in 0 .. <pkgsToDelete.len:

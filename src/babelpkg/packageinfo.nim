@@ -293,6 +293,17 @@ proc findPkg*(pkglist: seq[tuple[pkginfo: TPackageInfo, meta: TMetaData]],
         r = pkg.pkginfo
         result = true
 
+proc findAllPkgs*(pkglist: seq[tuple[pkginfo: TPackageInfo, meta: TMetaData]],
+                  dep: TPkgTuple): seq[TPackageInfo] =
+  ## Searches ``pkglist`` for packages of which version is within the range
+  ## of ``dep.ver``. This is similar to ``findPkg`` but returns multiple
+  ## packages if multiple are found.
+  result = @[]
+  for pkg in pkglist:
+    if pkg.pkginfo.name != dep.name and pkg.meta.url != dep.name: continue
+    if withinRange(newVersion(pkg.pkginfo.version), dep.ver):
+      result.add pkg.pkginfo
+
 proc getRealDir*(pkgInfo: TPackageInfo): string =
   ## Returns the ``pkgInfo.srcDir`` or the .mypath directory if package does
   ## not specify the src dir.
