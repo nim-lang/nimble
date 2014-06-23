@@ -69,6 +69,7 @@ proc copyDirD*(fro, to: string): seq[string] =
   result = @[]
   echo("Copying directory: ", fro, " -> ", to)
   for path in walkDirRec(fro):
+    createDir(changeRoot(fro, to, path.splitFile.dir))
     result.add copyFileD(path, changeRoot(fro, to, path))
 
 proc getDownloadDirName*(url: string, verRange: PVersionRange): string =
