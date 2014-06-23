@@ -103,19 +103,36 @@ Babel will ask you whether you wish it to overwrite your local copy.
 You can force Babel to download the latest commit from the package's repo, for
 example:
 
-    $ babel install nimgame#head
+    $ babel install nimgame@#head
 
 This is of course git specific, for hg use ``tip`` instead of ``head``. A
 branch, tag, or commit hash may also be specified in the place of ``head``.
 
+Instead of specifying a VCS branch you may also specify a version range, for
+example:
+
+    $ babel install nimgame@"> 0.5"
+
+In this case a version which is greater than ``0.5`` will be installed.
+
 If you don't specify a parameter and there is a ``package.babel`` file in your
-current working directory Babel will install the package residing in
+current working directory then Babel will install the package residing in
 the current working directory. This can be useful for developers who are testing
 locally their ``.babel`` files before submitting them to the official package 
 list. See [developers.markdown](developers.markdown) for more info on this.
 
 A URL to a repository can also be specified, Babel will automatically detect
 the type of the repository that the url points to and install it.
+
+### babel uninstall
+
+The ``uninstall`` command will remove an installed package. Attempting to remove
+a package which other packages depend on is disallowed and will result in an
+error. You must currently manually remove the reverse dependencies first.
+
+Similar to the ``install`` command you can specify a version range, for example:
+
+    $ babel uninstall nimgame@0.5
 
 ### babel build
 
