@@ -9,4 +9,4 @@ bin = "babel"
 srcDir = "src"
 
 [Deps]
-Requires: "nimrod >= 0.9.3"
+Requires: "nimrod >= 0.9.5"
