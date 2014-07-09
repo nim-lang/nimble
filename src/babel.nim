@@ -523,6 +523,7 @@ proc getBabelTempDir(): string =
 proc downloadPkg(url: string, verRange: PVersionRange,
                  downMethod: TDownloadMethod): string =
   let downloadDir = (getBabelTempDir() / getDownloadDirName(url, verRange))
+  createDir(downloadDir)
   echo("Downloading ", url, " into ", downloadDir, " using ", downMethod, "...")
   doDownload(url, downloadDir, verRange, downMethod)
   result = downloadDir
@@ -530,6 +531,7 @@ proc downloadPkg(url: string, verRange: PVersionRange,
 proc downloadPkg(pkg: TPackage, verRange: PVersionRange): string =
   let downloadDir = (getBabelTempDir() / getDownloadDirName(pkg, verRange))
   let downMethod = pkg.downloadMethod.getDownloadMethod()
+  createDir(downloadDir)
   echo("Downloading ", pkg.name, " into ", downloadDir, " using ", downMethod, "...")
   doDownload(pkg.url, downloadDir, verRange, downMethod)
   result = downloadDir
