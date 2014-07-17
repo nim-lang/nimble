@@ -10,9 +10,9 @@ package creation.
 
 ## Installation
 
-You will need development version 0.9.5 of the [Nimrod compiler from
-GitHub](https://github.com/Araq/Nimrod). To run babel you will need to have
-installed some of the tools it depends on to check out source code. For
+You will need version 0.9.4 (or better) of the [Nimrod
+compiler](http://nimrod-lang.org/download.html). To run babel you will need to
+have installed some of the tools it depends on to check out source code. For
 instance, if a package is hosted on [Github](https://github.com) you require to
 have [git](http://www.git-scm.com) installed and added to your environment
 ``PATH``. Same goes for [Mercurial](http://mercurial.selenic.com) repositories

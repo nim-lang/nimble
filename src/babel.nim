@@ -6,8 +6,8 @@ import httpclient, parseopt, os, strutils, osproc, pegs, tables, parseutils,
 
 from sequtils import toSeq
 
-import babelpkg/packageinfo, babelpkg/version, babelpkg/tools, babelpkg/download,
-       babelpkg/config
+import babelpkg/packageinfo, babelpkg/version, babelpkg/tools,
+       babelpkg/download, babelpkg/config, babelpkg/compat
 
 when not defined(windows):
   from posix import getpid
