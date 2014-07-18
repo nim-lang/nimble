@@ -8,7 +8,7 @@
 
 import json
 
-when not defined(`json.{}`):
+when not defined(`{}`):
   proc `{}`*(node: PJsonNode, key: string): PJsonNode =
     ## Transverses the node and gets the given value. If any of the
     ## names does not exist, returns nil
@@ -16,7 +16,7 @@ when not defined(`json.{}`):
     if isNil(node): return nil
     result = result[key]
 
-when not defined(`json.{}=`):
+when not defined(`{}=`):
   proc `{}=`*(node: PJsonNode, names: varargs[string], value: PJsonNode) =
     ## Transverses the node and tries to set the value at the given location
     ## to `value` If any of the names are missing, they are added
