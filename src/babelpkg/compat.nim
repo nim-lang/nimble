@@ -8,7 +8,7 @@
 
 import json
 
-when NimrodPatch <= 4 and NimrodMinor == 9:
+when not NimrodPatch >= 5:
   when not defined(`{}`):
     proc `{}`*(node: PJsonNode, key: string): PJsonNode =
       ## Transverses the node and gets the given value. If any of the
