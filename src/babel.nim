@@ -47,7 +47,7 @@ Usage: babel COMMAND [opts]
 
 Commands:
   install      [pkgname, ...]     Installs a list of packages.
-  init         [pkgname, ...]     Initializes a new Babel project
+  init         [pkgname]          Initializes a new Babel project.
   uninstall    [pkgname, ...]     Uninstalls a list of packages.
   build                           Builds a package.
   update       [url]              Updates package list. A package list URL can 
@@ -136,7 +136,7 @@ proc parseCmdLine(): TOptions =
           result.action.search.add(key)
         of ActionInit:
           if result.action.projName != "":
-            quit("ERROR: MORE THAN ONE ARGUMENT FOR PACKAGE NAME.")
+            raise newException(EBabel, "Can only initialize one package at a time.")
           result.action.projName = key
         of ActionList, ActionBuild:
           writeHelp()
@@ -668,7 +668,7 @@ proc listPaths(options: TOptions) =
 
 proc init(options: TOptions) =
   echo("Initializing new Babel project!")
-  var  
+  var
     pkgName, fName: string = ""
     outFile: TFile
 
@@ -676,8 +676,7 @@ proc init(options: TOptions) =
     pkgName = options.action.projName
     fName = pkgName & ".babel"
     if ( existsFile( os.getCurrentDir() / fName ) ):
-      quit("Already have a babel file.")
-
+      raise newException(EBabel, "Already have a babel file.")
   else:
     echo("Enter a project name for this (blank to use working directory), Ctrl-C to abort:")
     pkgName = readline(stdin)
@@ -690,19 +689,19 @@ proc init(options: TOptions) =
   # Now need to write out .babel file with projName and other details
 
   if (not existsFile( os.getCurrentDir() / fName) and open(f=outFile, filename = fName, mode = fmWrite) ):
-    outFile.write("[Package]\n")
-    outFile.write("name          = \"" & pkgName & "\"\n")
-    outFile.write("version       = \"0.01\"\n")
-    outFile.write("author        = \"Anonymous\"\n")
-    outFile.write("description   = \"New Babel project for Nimrod\"\n")
-    outFile.write("license       = \"BSD\"\n")
-    outFile.write("\n")
-    outFile.write("[Deps]\n")
-    outFile.write("Requires: \"nimrod >= 0.9.4\"\n")
+    outFile.writeln("[Package]")
+    outFile.writeln("name          = \"" & pkgName & "\"")
+    outFile.writeln("version       = \"0.01\"")
+    outFile.writeln("author        = \"Anonymous\"")
+    outFile.writeln("description   = \"New Babel project for Nimrod\"")
+    outFile.writeln("license       = \"BSD\"")
+    outFile.writeln("")
+    outFile.writeln("[Deps]")
+    outFile.writeln("Requires: \"nimrod >= 0.9.4\"")
     close(outFile)
 
   else:
-    quit("Unable to open file " & fName & " for writing.  Check if file exists?")
+    raise newException(EBabel, "Unable to open file " & fName & " for writing: " & osErrorMsg())  
 
 proc uninstall(options: TOptions) =
   var pkgsToDelete: seq[TPackageInfo] = @[]
