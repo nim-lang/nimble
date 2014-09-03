@@ -21,8 +21,8 @@ type
     babelData: PJsonNode ## Babeldata.json
 
   TActionType = enum
-    ActionNil, ActionUpdate, ActionInstall, ActionSearch, ActionList,
-    ActionBuild, ActionPath, ActionUninstall
+    ActionNil, ActionUpdate, ActionInit, ActionInstall, ActionSearch,
+    ActionList, ActionBuild, ActionPath, ActionUninstall
 
   TAction = object
     case typ: TActionType
@@ -35,6 +35,8 @@ type
       packages: seq[TPkgTuple] # Optional only for ActionInstall.
     of ActionSearch:
       search: seq[string] # Search string.
+    of ActionInit:
+      projName: string
 
   TForcePrompt = enum
     DontForcePrompt, ForcePromptYes, ForcePromptNo
@@ -45,6 +47,7 @@ Usage: babel COMMAND [opts]
 
 Commands:
   install      [pkgname, ...]     Installs a list of packages.
+  init         [pkgname]          Initializes a new Babel project.
   uninstall    [pkgname, ...]     Uninstalls a list of packages.
   build                           Builds a package.
   update       [url]              Updates package list. A package list URL can 
@@ -100,6 +103,9 @@ proc parseCmdLine(): TOptions =
           result.action.packages = @[]
         of "build":
           result.action.typ = ActionBuild
+        of "init":
+          result.action.typ = ActionInit
+          result.action.projName = ""
         of "update":
           result.action.typ = ActionUpdate
           result.action.optionalURL = ""
@@ -128,6 +134,10 @@ proc parseCmdLine(): TOptions =
           result.action.optionalURL = key
         of ActionSearch:
           result.action.search.add(key)
+        of ActionInit:
+          if result.action.projName != "":
+            raise newException(EBabel, "Can only initialize one package at a time.")
+          result.action.projName = key
         of ActionList, ActionBuild:
           writeHelp()
     of cmdLongOption, cmdShortOption:
@@ -656,6 +666,43 @@ proc listPaths(options: TOptions) =
   if errors > 0:
     raise newException(EBabel, "At least one of the specified packages was not found")
 
+proc init(options: TOptions) =
+  echo("Initializing new Babel project!")
+  var
+    pkgName, fName: string = ""
+    outFile: TFile
+
+  if (options.action.projName != ""):
+    pkgName = options.action.projName
+    fName = pkgName & ".babel"
+    if ( existsFile( os.getCurrentDir() / fName ) ):
+      raise newException(EBabel, "Already have a babel file.")
+  else:
+    echo("Enter a project name for this (blank to use working directory), Ctrl-C to abort:")
+    pkgName = readline(stdin)
+    if (pkgName == ""):
+      pkgName = os.getCurrentDir().splitPath.tail
+    if (pkgName == ""):
+      raise newException(EBabel, "Could not get default file path.")
+    fName = pkgName & ".babel"
+
+  # Now need to write out .babel file with projName and other details
+
+  if (not existsFile( os.getCurrentDir() / fName) and open(f=outFile, filename = fName, mode = fmWrite) ):
+    outFile.writeln("[Package]")
+    outFile.writeln("name          = \"" & pkgName & "\"")
+    outFile.writeln("version       = \"0.01\"")
+    outFile.writeln("author        = \"Anonymous\"")
+    outFile.writeln("description   = \"New Babel project for Nimrod\"")
+    outFile.writeln("license       = \"BSD\"")
+    outFile.writeln("")
+    outFile.writeln("[Deps]")
+    outFile.writeln("Requires: \"nimrod >= 0.9.4\"")
+    close(outFile)
+
+  else:
+    raise newException(EBabel, "Unable to open file " & fName & " for writing: " & osErrorMsg())  
+
 proc uninstall(options: TOptions) =
   var pkgsToDelete: seq[TPackageInfo] = @[]
   # Do some verification.
@@ -730,6 +777,8 @@ proc doAction(options: TOptions) =
     listPaths(options)
   of ActionBuild:
     build(options)
+  of ActionInit:
+    init(options)
   of ActionNil:
     assert false
 
