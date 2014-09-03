@@ -688,7 +688,7 @@ proc init(options: TOptions) =
 
   # Now need to write out .babel file with projName and other details
 
-  if (not existsFile( os.getCurrentDir() / fName) and open(f=outFile, filename = fName, mode = fmWrite) ):
+  if (not existsFile(os.getCurrentDir() / fName) and open(f=outFile, filename = fName, mode = fmWrite)):
     outFile.writeln("[Package]")
     outFile.writeln("name          = \"" & pkgName & "\"")
     outFile.writeln("version       = \"0.01\"")
