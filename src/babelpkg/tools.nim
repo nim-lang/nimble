@@ -31,11 +31,17 @@ template cd*(dir: string, body: stmt) =
   body
   setCurrentDir(lastDir)
 
+proc getNimBin*: string =
+  result = "nim"
+  if findExe("nim") != "": result = "nim"
+  elif findExe("nimrod") != "": result = "nimrod"
+
 proc getNimrodVersion*: TVersion =
-  let vOutput = execProcess("nimrod -v")
+  let nimBin = getNimBin()
+  let vOutput = doCmdEx(nimBin & " -v").output
   var matches: array[0..MaxSubpatterns, string]
   if vOutput.find(peg"'Version'\s{(\d\.)+\d}", matches) == -1:
-    quit("Couldn't find Nimrod version.", QuitFailure)
+    quit("Couldn't find Nim version.", QuitFailure)
   newVersion(matches[0])
 
 proc samePaths*(p1, p2: string): bool =

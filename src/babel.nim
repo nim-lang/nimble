@@ -404,7 +404,7 @@ proc buildFromDir(pkgInfo: TPackageInfo, paths: seq[string]) =
   for bin in pkgInfo.bin:
     echo("Building ", pkginfo.name, "/", bin, " using ", pkgInfo.backend,
          " backend...")
-    doCmd("nimrod $# -d:release --noBabelPath $# \"$#\"" %
+    doCmd(getNimBin() & " $# -d:release --noBabelPath $# \"$#\"" %
           [pkgInfo.backend, args, realDir / bin.changeFileExt("nim")])
 
 proc saveBabelMeta(pkgDestDir, url: string, filesInstalled: TSet[string]) =
