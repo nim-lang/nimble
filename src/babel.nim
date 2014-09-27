@@ -74,7 +74,7 @@ proc writeHelp() =
   quit(QuitSuccess)
 
 proc writeVersion() =
-  echo("babel v$# compiled at $# $#" % [babelVersion, compileDate, compileTime])
+  echo("babel v$# compiled at $# $#" % [babelVersion, CompileDate, CompileTime])
   quit(QuitSuccess)
 
 proc getBabelDir(options: TOptions): string =

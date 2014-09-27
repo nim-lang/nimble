@@ -34,15 +34,15 @@ type
 proc newVersion*(ver: string): TVersion = return TVersion(ver)
 proc newSpecial*(spe: string): TSpecial = return TSpecial(spe)
 
-proc `$`*(ver: TVersion): String {.borrow.}
+proc `$`*(ver: TVersion): string {.borrow.}
 
 proc hash*(ver: TVersion): THash {.borrow.}
 
-proc `$`*(ver: TSpecial): String {.borrow.}
+proc `$`*(ver: TSpecial): string {.borrow.}
 
 proc hash*(ver: TSpecial): THash {.borrow.}
 
-proc `<`*(ver: TVersion, ver2: TVersion): Bool =
+proc `<`*(ver: TVersion, ver2: TVersion): bool =
   var sVer = string(ver).split('.')
   var sVer2 = string(ver2).split('.')
   for i in 0..max(sVer.len, sVer2.len)-1:
@@ -53,13 +53,13 @@ proc `<`*(ver: TVersion, ver2: TVersion): Bool =
     if i < sVer2.len:
       discard parseInt(sVer2[i], sVerI2)
     if sVerI < sVerI2:
-      return True
+      return true
     elif sVerI == sVerI2:
       nil
     else:
-      return False
+      return false
 
-proc `==`*(ver: TVersion, ver2: TVersion): Bool =
+proc `==`*(ver: TVersion, ver2: TVersion): bool =
   var sVer = string(ver).split('.')
   var sVer2 = string(ver2).split('.')
   for i in 0..max(sVer.len, sVer2.len)-1:
@@ -72,15 +72,15 @@ proc `==`*(ver: TVersion, ver2: TVersion): Bool =
     if sVerI == sVerI2:
       result = true
     else:
-      return False
+      return false
 
 proc `==`*(spe: TSpecial, spe2: TSpecial): bool =
   return ($spe).toLower() == ($spe2).toLower()
 
-proc `<=`*(ver: TVersion, ver2: TVersion): Bool =
+proc `<=`*(ver: TVersion, ver2: TVersion): bool =
   return (ver == ver2) or (ver < ver2)
 
-proc withinRange*(ver: TVersion, ran: PVersionRange): Bool =
+proc withinRange*(ver: TVersion, ran: PVersionRange): bool =
   case ran.kind
   of verLater:
     return ver > ran.ver
@@ -93,20 +93,20 @@ proc withinRange*(ver: TVersion, ran: PVersionRange): Bool =
   of verEq:
     return ver == ran.ver
   of verSpecial:
-    return False
+    return false
   of verIntersect:
     return withinRange(ver, ran.verILeft) and withinRange(ver, ran.verIRight)
   of verAny:
-    return True
+    return true
 
-proc withinRange*(spe: TSpecial, ran: PVersionRange): Bool =
+proc withinRange*(spe: TSpecial, ran: PVersionRange): bool =
   case ran.kind
   of verLater, verEarlier, verEqLater, verEqEarlier, verEq, verIntersect:
-    return False
+    return false
   of verSpecial:
     return spe == ran.spe
   of verAny:
-    return True
+    return true
 
 proc contains*(ran: PVersionRange, ver: TVersion): bool =
   return withinRange(ver, ran)
@@ -144,7 +144,7 @@ proc parseVersionRange*(s: string): PVersionRange =
   var i = 0
   var op = ""
   var version = ""
-  while True:
+  while true:
     case s[i]
     of '>', '<', '=':
       op.add(s[i])
@@ -181,7 +181,7 @@ proc parseVersionRange*(s: string): PVersionRange =
       raise newException(EParseVersion, "Unexpected char in version range: " & s[i])
     inc(i)
 
-proc `$`*(verRange: PVersionRange): String =
+proc `$`*(verRange: PVersionRange): string =
   case verRange.kind
   of verLater:
     result = "> "
@@ -219,7 +219,7 @@ proc newVRAny*(): PVersionRange =
   new(result)
   result.kind = verAny
 
-proc newVREarlier*(ver: String): PVersionRange =
+proc newVREarlier*(ver: string): PVersionRange =
   new(result)
   result.kind = verEarlier
   result.ver = newVersion(ver)

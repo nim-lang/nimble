@@ -77,7 +77,7 @@ proc validatePackageInfo(pkgInfo: TPackageInfo, path: string) =
   if pkgInfo.backend notin ["c", "cc", "objc", "cpp", "js"]:
     raise newException(EBabel, "'" & pkgInfo.backend & "' is an invalid backend.")
   for c in pkgInfo.version:
-    if c notin ({'.'} + digits):
+    if c notin ({'.'} + Digits):
       raise newException(EBabel,
           "Version may only consist of numbers and the '.' character " &
           "but found '" & c & "'.")
@@ -85,7 +85,7 @@ proc validatePackageInfo(pkgInfo: TPackageInfo, path: string) =
 proc parseRequires(req: string): TPkgTuple =
   try:
     if ' ' in req:
-      var i = skipUntil(req, whitespace)
+      var i = skipUntil(req, Whitespace)
       result.name = req[0 .. i].strip
       result.ver = parseVersionRange(req[i .. -1])
     elif '#' in req:

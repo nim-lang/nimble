@@ -102,7 +102,7 @@ proc getVersionList*(tags: seq[string]): TTable[TVersion, string] =
   result = initTable[TVersion, string]()
   for tag in tags:
     if tag != "":
-      let i = skipUntil(tag, digits) # skip any chars before the version
+      let i = skipUntil(tag, Digits) # skip any chars before the version
       # TODO: Better checking, tags can have any names. Add warnings and such.
       result[newVersion(tag[i .. -1])] = tag
 
