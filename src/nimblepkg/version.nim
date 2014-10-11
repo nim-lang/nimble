@@ -279,6 +279,5 @@ when isMainModule:
   var sp = parseVersionRange("#ab26sgdt362")
   doAssert newSpecial("ab26sgdt362") in sp
   doAssert newSpecial("ab26saggdt362") notin sp
-  
 
   echo("Everything works!")

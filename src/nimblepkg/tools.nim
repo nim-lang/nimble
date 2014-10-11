@@ -6,21 +6,21 @@ import osproc, pegs, strutils, os, parseurl, sets, json
 import version, packageinfo
 
 type
-  EBabel* = object of EBase
+  ENimble* = object of EBase
 
 proc doCmd*(cmd: string) =
   let bin = cmd.split(' ')[0]
   if findExe(bin) == "":
-    raise newException(EBabel, "'" & bin & "' not in PATH.")
+    raise newException(ENimble, "'" & bin & "' not in PATH.")
 
   let exitCode = execCmd(cmd)
   if exitCode != QuitSuccess:
-    raise newException(EBabel, "Execution failed with exit code " & $exitCode)
+    raise newException(ENimble, "Execution failed with exit code " & $exitCode)
 
 proc doCmdEx*(cmd: string): tuple[output: TaintedString, exitCode: int] =
   let bin = cmd.split(' ')[0]
   if findExe(bin) == "":
-    raise newException(EBabel, "'" & bin & "' not in PATH.")
+    raise newException(ENimble, "'" & bin & "' not in PATH.")
   return execCmdEx(cmd)
 
 template cd*(dir: string, body: stmt) =

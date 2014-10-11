@@ -7,7 +7,7 @@ type
   TPkgTuple* = tuple[name: string, ver: PVersionRange]
 
   TPackageInfo* = object
-    mypath*: string ## The path of this .babel file
+    mypath*: string ## The path of this .nimble file
     name*: string
     version*: string
     author*: string
@@ -60,25 +60,25 @@ proc initPackageInfo(): TPackageInfo =
 
 proc validatePackageInfo(pkgInfo: TPackageInfo, path: string) =
   if pkgInfo.name == "":
-    raise newException(EBabel, "Incorrect .babel file: " & path &
+    raise newException(ENimble, "Incorrect .nimble file: " & path &
                        " does not contain a name field.")
   if pkgInfo.version == "":
-    raise newException(EBabel, "Incorrect .babel file: " & path &
+    raise newException(ENimble, "Incorrect .nimble file: " & path &
                        " does not contain a version field.")
   if pkgInfo.author == "":
-    raise newException(EBabel, "Incorrect .babel file: " & path &
+    raise newException(ENimble, "Incorrect .nimble file: " & path &
                        " does not contain an author field.")
   if pkgInfo.description == "":
-    raise newException(EBabel, "Incorrect .babel file: " & path &
+    raise newException(ENimble, "Incorrect .nimble file: " & path &
                        " does not contain a description field.")
   if pkgInfo.license == "":
-    raise newException(EBabel, "Incorrect .babel file: " & path &
+    raise newException(ENimble, "Incorrect .nimble file: " & path &
                        " does not contain a license field.")
   if pkgInfo.backend notin ["c", "cc", "objc", "cpp", "js"]:
-    raise newException(EBabel, "'" & pkgInfo.backend & "' is an invalid backend.")
+    raise newException(ENimble, "'" & pkgInfo.backend & "' is an invalid backend.")
   for c in pkgInfo.version:
     if c notin ({'.'} + Digits):
-      raise newException(EBabel,
+      raise newException(ENimble,
           "Version may only consist of numbers and the '.' character " &
           "but found '" & c & "'.")
 
@@ -96,7 +96,7 @@ proc parseRequires(req: string): TPkgTuple =
       result.name = req.strip
       result.ver = PVersionRange(kind: verAny)
   except EParseVersion:
-    raise newException(EBabel, "Unable to parse dependency version range: " &
+    raise newException(ENimble, "Unable to parse dependency version range: " &
                                getCurrentExceptionMsg())
 
 proc multiSplit(s: string): seq[string] =
@@ -160,18 +160,18 @@ proc readPackageInfo*(path: string): TPackageInfo =
             case result.backend.normalize
             of "javascript": result.backend = "js"
           else:
-            raise newException(EBabel, "Invalid field: " & ev.key)
+            raise newException(ENimble, "Invalid field: " & ev.key)
         of "deps", "dependencies":
           case ev.key.normalize
           of "requires":
             for v in ev.value.multiSplit:
               result.requires.add(parseRequires(v.strip))
           else:
-            raise newException(EBabel, "Invalid field: " & ev.key)
-        else: raise newException(EBabel, "Invalid section: " & currentSection)
-      of cfgOption: raise newException(EBabel, "Invalid package info, should not contain --" & ev.value)
+            raise newException(ENimble, "Invalid field: " & ev.key)
+        else: raise newException(ENimble, "Invalid section: " & currentSection)
+      of cfgOption: raise newException(ENimble, "Invalid package info, should not contain --" & ev.value)
       of cfgError:
-        raise newException(EBabel, "Error parsing .babel file: " & ev.msg)
+        raise newException(ENimble, "Error parsing .nimble file: " & ev.msg)
     close(p)
   else:
     raise newException(EInvalidValue, "Cannot open package info: " & path)
@@ -187,7 +187,7 @@ proc optionalField(obj: PJsonNode, name: string, default = ""): string =
     if obj[name].kind == JString:
       return obj[name].str
     else:
-      raise newException(EBabel, "Corrupted packages.json file. " & name & " field is of unexpected type.")
+      raise newException(ENimble, "Corrupted packages.json file. " & name & " field is of unexpected type.")
   else: return default
 
 proc requiredField(obj: PJsonNode, name: string): string =
@@ -196,7 +196,7 @@ proc requiredField(obj: PJsonNode, name: string): string =
   ## Aborts execution if the field does not exist or is of invalid json type.
   result = optionalField(obj, name, nil)
   if result == nil:
-    raise newException(EBabel, 
+    raise newException(ENimble, 
         "Package in packages.json file does not contain a " & name & " field.")
 
 proc fromJson(obj: PJSonNode): TPackage =
@@ -216,14 +216,18 @@ proc fromJson(obj: PJSonNode): TPackage =
   result.web = obj.optionalField("web")
 
 proc readMetadata*(path: string): TMetadata =
-  ## Reads the metadata present in ``~/.babel/pkgs/pkg-0.1/babelmeta.json``
-  let bmeta = path / "babelmeta.json"
+  ## Reads the metadata present in ``~/.nimble/pkgs/pkg-0.1/nimblemeta.json``
+  var bmeta = path / "nimblemeta.json"
+  if not existsFile(bmeta):
+    bmeta = path / "babelmeta.json"
+    if existsFile(bmeta):
+      echo("WARNING: using deprecated babelmeta.json file in " & path)
   if not existsFile(bmeta):
     result.url = ""
-    echo("WARNING: No babelmeta.json file found in " & path)
+    echo("WARNING: No nimblemeta.json file found in " & path)
     return
     # TODO: Make this an error.
-  let cont = readFile(path / "babelmeta.json")
+  let cont = readFile(bmeta)
   let jsonmeta = parseJson(cont)
   result.url = jsonmeta["url"].str
 
@@ -247,35 +251,35 @@ proc getPackageList*(packagesPath: string): seq[TPackage] =
     let pkg: TPackage = p.fromJson()
     result.add(pkg)
 
-proc findBabelFile*(dir: string): string =
+proc findNimbleFile*(dir: string): string =
   result = ""
   for kind, path in walkDir(dir):
-    if kind == pcFile and path.splitFile.ext == ".babel":
+    if kind == pcFile and path.splitFile.ext in [".babel", ".nimble"]:
       if result != "":
-        raise newException(EBabel, "Only one .babel file should be present in " & dir)
+        raise newException(ENimble, "Only one .nimble file should be present in " & dir)
       result = path
 
 proc getPkgInfo*(dir: string): TPackageInfo =
-  ## Find the .babel file in ``dir`` and parses it, returning a TPackageInfo.
-  let babelFile = findBabelFile(dir)
-  if babelFile == "":
-    raise newException(EBabel, "Specified directory does not contain a .babel file.")
-  result = readPackageInfo(babelFile)
+  ## Find the .nimble file in ``dir`` and parses it, returning a TPackageInfo.
+  let nimbleFile = findNimbleFile(dir)
+  if nimbleFile == "":
+    raise newException(ENimble, "Specified directory does not contain a .nimble file.")
+  result = readPackageInfo(nimbleFile)
 
 proc getInstalledPkgs*(libsDir: string): seq[tuple[pkginfo: TPackageInfo, meta: TMetaData]] =
   ## Gets a list of installed packages.
   ##
-  ## ``libsDir`` is in most cases: ~/.babel/pkgs/
+  ## ``libsDir`` is in most cases: ~/.nimble/pkgs/
   result = @[]
   for kind, path in walkDir(libsDir):
     if kind == pcDir:
-      let babelFile = findBabelFile(path)
-      if babelFile != "":
+      let nimbleFile = findNimbleFile(path)
+      if nimbleFile != "":
         let meta = readMetadata(path)
-        result.add((readPackageInfo(babelFile), meta))
+        result.add((readPackageInfo(nimbleFile), meta))
       else:
         # TODO: Abstract logging.
-        echo("WARNING: No .babel file found for ", path)
+        echo("WARNING: No .nimble file found for ", path)
 
 proc findPkg*(pkglist: seq[tuple[pkginfo: TPackageInfo, meta: TMetaData]],
              dep: TPkgTuple,
@@ -315,7 +319,7 @@ proc getRealDir*(pkgInfo: TPackageInfo): string =
     result = pkgInfo.mypath.splitFile.dir
 
 proc getNameVersion*(pkgpath: string): tuple[name, version: string] =
-  ## Splits ``pkgpath`` in the format ``/home/user/.babel/pkgs/package-0.1``
+  ## Splits ``pkgpath`` in the format ``/home/user/.nimble/pkgs/package-0.1``
   ## into ``(packagea, 0.1)``
   result.name = ""
   result.version = ""
@@ -347,5 +351,5 @@ proc getDownloadDirName*(pkg: TPackage, verRange: PVersionRange): string =
     result.add verSimple
 
 when isMainModule:
-  doAssert getNameVersion("/home/user/.babel/libs/packagea-0.1") == ("packagea", "0.1")
-  doAssert getNameVersion("/home/user/.babel/libs/package-a-0.1") == ("package-a", "0.1")
+  doAssert getNameVersion("/home/user/.nimble/libs/packagea-0.1") == ("packagea", "0.1")
+  doAssert getNameVersion("/home/user/.nimble/libs/package-a-0.1") == ("package-a", "0.1")

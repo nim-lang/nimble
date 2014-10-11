@@ -111,7 +111,7 @@ proc getDownloadMethod*(meth: string): TDownloadMethod =
   of "git": return TDownloadMethod.Git
   of "hg", "mercurial": return TDownloadMethod.Hg
   else:
-    raise newException(EBabel, "Invalid download method: " & meth)
+    raise newException(ENimble, "Invalid download method: " & meth)
 
 proc getHeadName*(meth: TDownloadMethod): string =
   ## Returns the name of the download method specific head. i.e. for git
@@ -127,7 +127,7 @@ proc checkUrlType*(url: string): TDownloadMethod =
   elif doCmdEx("hg identify " & url).exitCode == QuitSuccess:
     return TDownloadMethod.Hg
   else:
-    raise newException(EBabel, "Unable to identify url.")
+    raise newException(ENimble, "Unable to identify url.")
 
 proc isURL*(name: string): bool =
   name.startsWith(peg" @'://' ")
@@ -143,7 +143,7 @@ proc doDownload*(url: string, downloadDir: string, verRange: PVersionRange,
     
     # If no tagged versions satisfy our range latest.tag will be "".
     # We still clone in that scenario because we want to try HEAD in that case.
-    # https://github.com/nimrod-code/babel/issues/22
+    # https://github.com/nimrod-code/nimble/issues/22
     meth
 
   proc verifyClone() =
@@ -151,7 +151,7 @@ proc doDownload*(url: string, downloadDir: string, verRange: PVersionRange,
     ## version range.
     let pkginfo = getPkgInfo(downloadDir)
     if pkginfo.version.newVersion notin verRange:
-      raise newException(EBabel,
+      raise newException(ENimble,
         "Downloaded package's version does not satisfy requested version " &
         "range: wanted $1 got $2." %
         [$verRange, $pkginfo.version])

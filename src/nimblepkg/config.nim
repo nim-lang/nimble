@@ -6,16 +6,23 @@ import tools
 
 type
   TConfig* = object
-    babelDir*: string
+    nimbleDir*: string
 
 proc initConfig(): TConfig =
-  result.babelDir = getHomeDir() / ".babel"
+  result.nimbleDir = getHomeDir() / ".nimble"
 
 proc parseConfig*(): TConfig =
   result = initConfig()
-  let confFile = getConfigDir() / "babel" / "babel.ini"
+  var confFile = getConfigDir() / "nimble" / "nimble.ini"
 
   var f = newFileStream(confFile, fmRead)
+  if f == nil:
+    # Try the old deprecated babel.ini
+    confFile = getConfigDir() / "babel" / "babel.ini"
+    f = newFileStream(confFile, fmRead)
+    if f != nil:
+      echo("[Warning] Using deprecated config file at ", confFile)
+  
   if f != nil:
     echo("Reading from config file at ", confFile)
     var p: TCfgParser
@@ -28,11 +35,11 @@ proc parseConfig*(): TConfig =
       of cfgSectionStart: discard
       of cfgKeyValuePair, cfgOption:
         case e.key.normalize
-        of "babeldir":
-          result.babelDir = e.value
+        of "nimbledir":
+          result.nimbleDir = e.value
         else:
-          raise newException(EBabel, "Unable to parse config file:" &
+          raise newException(ENimble, "Unable to parse config file:" &
                                      " Unknown key: " & e.key)
       of cfgError:
-        raise newException(EBabel, "Unable to parse config file: " & e.msg)
+        raise newException(ENimble, "Unable to parse config file: " & e.msg)
     close(p)

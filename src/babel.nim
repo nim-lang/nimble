@@ -6,8 +6,8 @@ import httpclient, parseopt, os, strutils, osproc, pegs, tables, parseutils,
 
 from sequtils import toSeq
 
-import babelpkg/packageinfo, babelpkg/version, babelpkg/tools,
-       babelpkg/download, babelpkg/config, babelpkg/compat
+import nimblepkg/packageinfo, nimblepkg/version, nimblepkg/tools,
+       nimblepkg/download, nimblepkg/config, nimblepkg/compat
 
 when not defined(windows):
   from posix import getpid
@@ -18,7 +18,7 @@ type
     queryVersions: bool
     action: TAction
     config: TConfig
-    babelData: PJsonNode ## Babeldata.json
+    nimbleData: PJsonNode ## Nimbledata.json
 
   TActionType = enum
     ActionNil, ActionUpdate, ActionInit, ActionInstall, ActionSearch,
@@ -43,11 +43,11 @@ type
 
 const
   help = """
-Usage: babel COMMAND [opts]
+Usage: nimble COMMAND [opts]
 
 Commands:
   install      [pkgname, ...]     Installs a list of packages.
-  init         [pkgname]          Initializes a new Babel project.
+  init         [pkgname]          Initializes a new Nimble project.
   uninstall    [pkgname, ...]     Uninstalls a list of packages.
   build                           Builds a package.
   update       [url]              Updates package list. A package list URL can 
@@ -66,7 +66,7 @@ Options:
       --ver                       Query remote server for package version 
                                   information when searching or listing packages
 """
-  babelVersion = "0.4.0"
+  nimbleVersion = "0.4.0"
   defaultPackageURL = "https://github.com/nimrod-code/packages/raw/master/packages.json"
 
 proc writeHelp() =
@@ -74,17 +74,51 @@ proc writeHelp() =
   quit(QuitSuccess)
 
 proc writeVersion() =
-  echo("babel v$# compiled at $# $#" % [babelVersion, CompileDate, CompileTime])
+  echo("nimble v$# compiled at $# $#" % [nimbleVersion, CompileDate, CompileTime])
   quit(QuitSuccess)
 
-proc getBabelDir(options: TOptions): string =
-  options.config.babelDir
+proc getNimbleDir(options: TOptions): string =
+  options.config.nimbleDir
 
 proc getPkgsDir(options: TOptions): string =
-  options.config.babelDir / "pkgs"
+  options.config.nimbleDir / "pkgs"
 
 proc getBinDir(options: TOptions): string =
-  options.config.babelDir / "bin"
+  options.config.nimbleDir / "bin"
+
+proc prompt(options: TOptions, question: string): bool =
+  ## Asks an interactive question and returns the result.
+  ##
+  ## The proc will return immediately without asking the user if the global
+  ## forcePrompts has a value different than DontForcePrompt.
+  case options.forcePrompts
+  of ForcePromptYes:
+    echo(question & " -> [forced yes]")
+    return true
+  of ForcePromptNo:
+    echo(question & " -> [forced no]")
+    return false
+  of DontForcePrompt:
+    echo(question & " [y/N]")
+    let yn = stdin.readLine()
+    case yn.normalize
+    of "y", "yes":
+      return true
+    of "n", "no":
+      return false
+    else:
+      return false
+
+proc renameBabelToNimble(options: TOptions) {.deprecated.} =
+  let babelDir = getHomeDir() / ".babel"
+  let nimbleDir = getHomeDir() / ".nimble"
+  if dirExists(babelDir):
+    if options.prompt("Found deprecated babel package directory, would you like to rename it to nimble?"):
+      copyDir(babelDir, nimbleDir)
+      removeDir(babelDir)
+      
+      copyFile(nimbleDir / "babeldata.json", nimbleDir / "nimbledata.json")
+      removeFile(nimbleDir / "babeldata.json")
 
 proc parseCmdLine(): TOptions =
   result.action.typ = ActionNil
@@ -136,7 +170,7 @@ proc parseCmdLine(): TOptions =
           result.action.search.add(key)
         of ActionInit:
           if result.action.projName != "":
-            raise newException(EBabel, "Can only initialize one package at a time.")
+            raise newException(ENimble, "Can only initialize one package at a time.")
           result.action.projName = key
         of ActionList, ActionBuild:
           writeHelp()
@@ -151,35 +185,15 @@ proc parseCmdLine(): TOptions =
   if result.action.typ == ActionNil:
     writeHelp()
 
-  # Load babeldata.json
-  let babeldataFilename = result.getBabelDir() / "babeldata.json"
-  if fileExists(babeldataFilename):
-    result.babelData = parseFile(babeldataFilename)
-  else:
-    result.babelData = %{"reverseDeps": newJObject()}
+  # Rename deprecated babel dir.
+  renameBabelToNimble(result)
 
-proc prompt(options: TOptions, question: string): bool =
-  ## Asks an interactive question and returns the result.
-  ##
-  ## The proc will return immediately without asking the user if the global
-  ## forcePrompts has a value different than DontForcePrompt.
-  case options.forcePrompts
-  of ForcePromptYes:
-    echo(question & " -> [forced yes]")
-    return true
-  of ForcePromptNo:
-    echo(question & " -> [forced no]")
-    return false
-  of DontForcePrompt:
-    echo(question & " [y/N]")
-    let yn = stdin.readLine()
-    case yn.normalize
-    of "y", "yes":
-      return true
-    of "n", "no":
-      return false
-    else:
-      return false
+  # Load nimbledata.json
+  let nimbledataFilename = result.getNimbleDir() / "nimbledata.json"
+  if fileExists(nimbledataFilename):
+    result.nimbleData = parseFile(nimbledataFilename)
+  else:
+    result.nimbleData = %{"reverseDeps": newJObject()}
 
 proc update(options: TOptions) =
   ## Downloads the package list from the specified URL.
@@ -192,7 +206,7 @@ proc update(options: TOptions) =
     else:
       defaultPackageURL
   echo("Downloading package list from " & url)
-  downloadFile(url, options.getBabelDir() / "packages.json")
+  downloadFile(url, options.getNimbleDir() / "packages.json")
   echo("Done.")
 
 proc checkInstallFile(pkgInfo: TPackageInfo,
@@ -201,8 +215,8 @@ proc checkInstallFile(pkgInfo: TPackageInfo,
   ## ``True`` means file should be skipped.
 
   for ignoreFile in pkgInfo.skipFiles:
-    if ignoreFile.endswith("babel"):
-      raise newException(EBabel, ignoreFile & " must be installed.")
+    if ignoreFile.endswith("nimble"):
+      raise newException(ENimble, ignoreFile & " must be installed.")
     if samePaths(file, origDir / ignoreFile):
       result = true
       break
@@ -244,7 +258,7 @@ proc copyWithExt(origDir, currentDir, dest: string,
 
 proc copyFilesRec(origDir, currentDir, dest: string,
                   options: TOptions, pkgInfo: TPackageInfo): TSet[string] =
-  ## Copies all the required files, skips files specified in the .babel file
+  ## Copies all the required files, skips files specified in the .nimble file
   ## (TPackageInfo).
   ## Returns a list of filepaths to files which have been installed.
   result = initSet[string]()
@@ -294,19 +308,19 @@ proc copyFilesRec(origDir, currentDir, dest: string,
   result.incl copyFileD(pkgInfo.mypath,
             changeRoot(pkgInfo.mypath.splitFile.dir, dest, pkgInfo.mypath))
 
-proc saveBabelData(options: TOptions) =
+proc saveNimbleData(options: TOptions) =
   # TODO: This file should probably be locked.
-  writeFile(options.getBabelDir() / "babeldata.json", pretty(options.babelData))
+  writeFile(options.getNimbleDir() / "nimbledata.json", pretty(options.nimbleData))
 
 proc addRevDep(options: TOptions, dep: tuple[name, version: string],
                pkg: TPackageInfo) =
   let depNameVer = dep.name & '-' & dep.version
-  if not options.babelData["reverseDeps"].hasKey(dep.name):
-    options.babelData["reverseDeps"][dep.name] = newJObject()
-  if not options.babelData["reverseDeps"][dep.name].hasKey(dep.version):
-    options.babelData["reverseDeps"][dep.name][dep.version] = newJArray()
+  if not options.nimbleData["reverseDeps"].hasKey(dep.name):
+    options.nimbleData["reverseDeps"][dep.name] = newJObject()
+  if not options.nimbleData["reverseDeps"][dep.name].hasKey(dep.version):
+    options.nimbleData["reverseDeps"][dep.name][dep.version] = newJArray()
   let revDep = %{ "name": %pkg.name, "version": %pkg.version}
-  let thisDep = options.babelData["reverseDeps"][dep.name][dep.version]
+  let thisDep = options.nimbleData["reverseDeps"][dep.name][dep.version]
   if revDep notin thisDep:
     thisDep.add revDep
 
@@ -326,16 +340,16 @@ proc removeRevDep(options: TOptions, pkg: TPackageInfo) =
   for depTup in pkg.requires:
     if depTup.name.isURL():
       # We sadly must go through everything in this case...
-      for key, val in options.babelData["reverseDeps"]:
+      for key, val in options.nimbleData["reverseDeps"]:
         options.remove(pkg, depTup, val)
     else:
-      let thisDep = options.babelData["reverseDeps"][depTup.name]
+      let thisDep = options.nimbleData["reverseDeps"][depTup.name]
       if thisDep.isNil: continue
       options.remove(pkg, depTup, thisDep)
 
   # Clean up empty objects/arrays
   var newData = newJObject()
-  for key, val in options.babelData["reverseDeps"]:
+  for key, val in options.nimbleData["reverseDeps"]:
     if val.len != 0:
       var newVal = newJObject()
       for ver, elem in val:
@@ -343,9 +357,9 @@ proc removeRevDep(options: TOptions, pkg: TPackageInfo) =
           newVal[ver] = elem
       if newVal.len != 0:
         newData[key] = newVal
-  options.babelData["reverseDeps"] = newData
+  options.nimbleData["reverseDeps"] = newData
 
-  saveBabelData(options)
+  saveNimbleData(options)
 
 proc install(packages: seq[TPkgTuple],
              options: TOptions,
@@ -384,7 +398,7 @@ proc processDeps(pkginfo: TPackageInfo, options: TOptions): seq[string] =
   for p in result:
     let (name, version) = getNameVersion(p)
     if pkgsInPath.hasKey(name) and pkgsInPath[name] != version:
-      raise newException(EBabel,
+      raise newException(ENimble,
         "Cannot satisfy the dependency on $1 $2 and $1 $3" %
           [name, version, pkgsInPath[name]])
     pkgsInPath[name] = version
@@ -394,7 +408,7 @@ proc processDeps(pkginfo: TPackageInfo, options: TOptions): seq[string] =
   # (unsatisfiable dependendencies).
   for i in reverseDeps:
     addRevDep(options, i, pkginfo)
-  saveBabelData(options)
+  saveNimbleData(options)
 
 proc buildFromDir(pkgInfo: TPackageInfo, paths: seq[string]) =
   ## Builds a package as specified by ``pkgInfo``.
@@ -404,36 +418,36 @@ proc buildFromDir(pkgInfo: TPackageInfo, paths: seq[string]) =
   for bin in pkgInfo.bin:
     echo("Building ", pkginfo.name, "/", bin, " using ", pkgInfo.backend,
          " backend...")
-    doCmd(getNimBin() & " $# -d:release --noBabelPath $# \"$#\"" %
+    doCmd(getNimBin() & " $# -d:release --noNimblePath $# \"$#\"" %
           [pkgInfo.backend, args, realDir / bin.changeFileExt("nim")])
 
-proc saveBabelMeta(pkgDestDir, url: string, filesInstalled: TSet[string]) =
-  var babelmeta = %{"url": %url}
-  babelmeta["files"] = newJArray()
+proc saveNimbleMeta(pkgDestDir, url: string, filesInstalled: TSet[string]) =
+  var nimblemeta = %{"url": %url}
+  nimblemeta["files"] = newJArray()
   for file in filesInstalled:
-    babelmeta["files"].add(%changeRoot(pkgDestDir, "", file))
-  writeFile(pkgDestDir / "babelmeta.json", $babelmeta)
+    nimblemeta["files"].add(%changeRoot(pkgDestDir, "", file))
+  writeFile(pkgDestDir / "nimblemeta.json", $nimblemeta)
 
 proc removePkgDir(dir: string, options: TOptions) =
   ## Removes files belonging to the package in ``dir``.
   try:
-    var babelmeta = parseFile(dir / "babelmeta.json")
-    if not babelmeta.hasKey("files"):
+    var nimblemeta = parseFile(dir / "nimblemeta.json")
+    if not nimblemeta.hasKey("files"):
       raise newException(EJsonParsingError,
                          "Meta data does not contain required info.")
-    for file in babelmeta["files"]:
+    for file in nimblemeta["files"]:
       removeFile(dir / file.str)
 
-    removeFile(dir / "babelmeta.json")
+    removeFile(dir / "nimblemeta.json")
 
     # If there are no files left in the directory, remove the directory.
     if toSeq(walkDirRec(dir)).len == 0:
       removeDir(dir)
     else:
       echo("WARNING: Cannot completely remove " & dir &
-           ". Files not installed by babel are present.")
+           ". Files not installed by nimble are present.")
   except EOS, EJsonParsingError:
-    echo("Error: Unable to read babelmeta.json: ", getCurrentExceptionMsg())
+    echo("Error: Unable to read nimblemeta.json: ", getCurrentExceptionMsg())
     if not options.prompt("Would you like to COMPLETELY remove ALL files " &
                           "in " & dir & "?"):
       quit(QuitSuccess)
@@ -460,7 +474,7 @@ proc installFromDir(dir: string, latest: bool, options: TOptions,
 
   let versionStr = (if latest: "" else: '-' & pkgInfo.version)
   let pkgDestDir = pkgsDir / (pkgInfo.name & versionStr)
-  if existsDir(pkgDestDir) and existsFile(pkgDestDir / "babelmeta.json"):
+  if existsDir(pkgDestDir) and existsFile(pkgDestDir / "nimblemeta.json"):
     if not options.prompt(pkgInfo.name & versionStr & " already exists. Overwrite?"):
       quit(QuitSuccess)
     removePkgDir(pkgDestDir, options)
@@ -482,7 +496,7 @@ proc installFromDir(dir: string, latest: bool, options: TOptions,
     filesInstalled = copyFilesRec(realDir, realDir, pkgDestDir, options,
                                   pkgInfo)
     # Set file permissions to +x for all binaries built,
-    # and symlink them on *nix OS' to $babelDir/bin/
+    # and symlink them on *nix OS' to $nimbleDir/bin/
     for bin in pkgInfo.bin:
       if not existsFile(pkgDestDir / bin):
         filesInstalled.incl copyFileD(realDir / bin, pkgDestDir / bin)
@@ -506,8 +520,8 @@ proc installFromDir(dir: string, latest: bool, options: TOptions,
     filesInstalled = copyFilesRec(realDir, realDir, pkgDestDir, options,
                                   pkgInfo)
   
-  # Save a babelmeta.json file.
-  saveBabelMeta(pkgDestDir, url, filesInstalled)
+  # Save a nimblemeta.json file.
+  saveNimbleMeta(pkgDestDir, url, filesInstalled)
   
   # Return the paths to the dependencies of this package.
   result.paths.add pkgDestDir
@@ -515,14 +529,14 @@ proc installFromDir(dir: string, latest: bool, options: TOptions,
 
   echo(pkgInfo.name & " installed successfully.")
 
-proc getBabelTempDir(): string =
+proc getNimbleTempDir(): string =
   ## Returns a path to a temporary directory.
   ##
   ## The returned path will be the same for the duration of the process but
   ## different for different runs of it. You have to make sure to create it
-  ## first. In release builds the directory will be removed when babel finishes
+  ## first. In release builds the directory will be removed when nimble finishes
   ## its work.
-  result = getTempDir() / "babel_"
+  result = getTempDir() / "nimble_"
   when defined(windows):
     proc GetCurrentProcessId(): int32 {.stdcall, dynlib: "kernel32",
                                         importc: "GetCurrentProcessId".}
@@ -532,14 +546,14 @@ proc getBabelTempDir(): string =
 
 proc downloadPkg(url: string, verRange: PVersionRange,
                  downMethod: TDownloadMethod): string =
-  let downloadDir = (getBabelTempDir() / getDownloadDirName(url, verRange))
+  let downloadDir = (getNimbleTempDir() / getDownloadDirName(url, verRange))
   createDir(downloadDir)
   echo("Downloading ", url, " into ", downloadDir, " using ", downMethod, "...")
   doDownload(url, downloadDir, verRange, downMethod)
   result = downloadDir
 
 proc downloadPkg(pkg: TPackage, verRange: PVersionRange): string =
-  let downloadDir = (getBabelTempDir() / getDownloadDirName(pkg, verRange))
+  let downloadDir = (getNimbleTempDir() / getDownloadDirName(pkg, verRange))
   let downMethod = pkg.downloadMethod.getDownloadMethod()
   createDir(downloadDir)
   echo("Downloading ", pkg.name, " into ", downloadDir, " using ", downMethod, "...")
@@ -553,12 +567,12 @@ proc install(packages: seq[TPkgTuple],
     result = installFromDir(getCurrentDir(), false, options, "")
   else:
     # If packages.json is not present ask the user if they want to download it.
-    if not existsFile(options.getBabelDir / "packages.json"):
+    if not existsFile(options.getNimbleDir / "packages.json"):
       if doPrompt and
           options.prompt("Local packages.json not found, download it from internet?"):
         update(options)
       else:
-        quit("Please run babel update.", QuitFailure)
+        quit("Please run nimble update.", QuitFailure)
     
     # Install each package.
     for pv in packages:
@@ -568,7 +582,7 @@ proc install(packages: seq[TPkgTuple],
         result = installFromDir(downloadDir, false, options, pv.name)
       else:
         var pkg: TPackage
-        if getPackage(pv.name, options.getBabelDir() / "packages.json", pkg):
+        if getPackage(pv.name, options.getNimbleDir() / "packages.json", pkg):
           let downloadDir = downloadPkg(pkg, pv.ver)
           result = installFromDir(downloadDir, false, options, pkg.url)
         else:
@@ -579,7 +593,7 @@ proc install(packages: seq[TPkgTuple],
             update(options)
             result = install(@[pv], options, false)
           else:
-            raise newException(EBabel, "Package not found.")
+            raise newException(ENimble, "Package not found.")
 
 proc build(options: TOptions) =
   var pkgInfo = getPkgInfo(getCurrentDir())
@@ -592,10 +606,10 @@ proc search(options: TOptions) =
   ## Searches are done in a case insensitive way making all strings lower case.
   assert options.action.typ == ActionSearch
   if options.action.search == @[]:
-    raise newException(EBabel, "Please specify a search string.")
-  if not existsFile(options.getBabelDir() / "packages.json"):
-    raise newException(EBabel, "Please run babel update.")
-  let pkgList = getPackageList(options.getBabelDir() / "packages.json")
+    raise newException(ENimble, "Please specify a search string.")
+  if not existsFile(options.getNimbleDir() / "packages.json"):
+    raise newException(ENimble, "Please run nimble update.")
+  let pkgList = getPackageList(options.getNimbleDir() / "packages.json")
   var found = false
   template onFound: stmt =
     echoPackage(pkg)
@@ -619,9 +633,9 @@ proc search(options: TOptions) =
     echo("No package found.")
 
 proc list(options: TOptions) =
-  if not existsFile(options.getBabelDir() / "packages.json"):
-    raise newException(EBabel, "Please run babel update.")
-  let pkgList = getPackageList(options.getBabelDir() / "packages.json")
+  if not existsFile(options.getNimbleDir() / "packages.json"):
+    raise newException(ENimble, "Please run nimble update.")
+  let pkgList = getPackageList(options.getNimbleDir() / "packages.json")
   for pkg in pkgList:
     echoPackage(pkg)
     if options.queryVersions:
@@ -647,15 +661,15 @@ proc listPaths(options: TOptions) =
       if kind != pcDir or not path.startsWith(options.getPkgsDir / name):
         continue
 
-      let babelFile = path / name.addFileExt("babel")
-      if existsFile(babelFile):
+      let nimbleFile = path / name.addFileExt("nimble")
+      if existsFile(nimbleFile):
         var pkgInfo = getPkgInfo(path)
         var v: VersionAndPath
         v.version = newVersion(pkgInfo.version)
         v.path = options.getPkgsDir / (pkgInfo.name & '-' & pkgInfo.version)
         installed.add(v)
       else:
-        echo "Warning: No .babel file found for ", path
+        echo "Warning: No .nimble file found for ", path
 
     if installed.len > 0:
       sort(installed, system.cmp[VersionAndPath], Descending)
@@ -664,36 +678,36 @@ proc listPaths(options: TOptions) =
       echo "Warning: Package '" & name & "' not installed"
       errors += 1
   if errors > 0:
-    raise newException(EBabel, "At least one of the specified packages was not found")
+    raise newException(ENimble, "At least one of the specified packages was not found")
 
 proc init(options: TOptions) =
-  echo("Initializing new Babel project!")
+  echo("Initializing new Nimble project!")
   var
     pkgName, fName: string = ""
     outFile: TFile
 
   if (options.action.projName != ""):
     pkgName = options.action.projName
-    fName = pkgName & ".babel"
+    fName = pkgName & ".nimble"
     if ( existsFile( os.getCurrentDir() / fName ) ):
-      raise newException(EBabel, "Already have a babel file.")
+      raise newException(ENimble, "Already have a nimble file.")
   else:
     echo("Enter a project name for this (blank to use working directory), Ctrl-C to abort:")
     pkgName = readline(stdin)
     if (pkgName == ""):
       pkgName = os.getCurrentDir().splitPath.tail
     if (pkgName == ""):
-      raise newException(EBabel, "Could not get default file path.")
-    fName = pkgName & ".babel"
+      raise newException(ENimble, "Could not get default file path.")
+    fName = pkgName & ".nimble"
 
-  # Now need to write out .babel file with projName and other details
+  # Now need to write out .nimble file with projName and other details
 
   if (not existsFile(os.getCurrentDir() / fName) and open(f=outFile, filename = fName, mode = fmWrite)):
     outFile.writeln("[Package]")
     outFile.writeln("name          = \"" & pkgName & "\"")
     outFile.writeln("version       = \"0.01\"")
     outFile.writeln("author        = \"Anonymous\"")
-    outFile.writeln("description   = \"New Babel project for Nimrod\"")
+    outFile.writeln("description   = \"New Nimble project for Nimrod\"")
     outFile.writeln("license       = \"BSD\"")
     outFile.writeln("")
     outFile.writeln("[Deps]")
@@ -701,7 +715,7 @@ proc init(options: TOptions) =
     close(outFile)
 
   else:
-    raise newException(EBabel, "Unable to open file " & fName & " for writing: " & osErrorMsg())  
+    raise newException(ENimble, "Unable to open file " & fName & " for writing: " & osErrorMsg())  
 
 proc uninstall(options: TOptions) =
   var pkgsToDelete: seq[TPackageInfo] = @[]
@@ -711,14 +725,14 @@ proc uninstall(options: TOptions) =
     let installedPkgs = getInstalledPkgs(options.getPkgsDir())
     var pkgList = findAllPkgs(installedPkgs, pkgTup)
     if pkgList.len == 0:
-      raise newException(EBabel, "Package not found")
+      raise newException(ENimble, "Package not found")
 
     echo("Checking reverse dependencies...")
     var errors: seq[string] = @[]
     for pkg in pkgList:
       # Check whether any packages depend on the ones the user is trying to
       # uninstall.
-      let thisPkgsDep = options.babelData["reverseDeps"]{pkg.name}{pkg.version}
+      let thisPkgsDep = options.nimbleData["reverseDeps"]{pkg.name}{pkg.version}
       if not thisPkgsDep.isNil:
         var reason = ""
         if thisPkgsDep.len == 1:
@@ -737,7 +751,7 @@ proc uninstall(options: TOptions) =
         pkgsToDelete.add pkg
 
     if pkgsToDelete.len == 0:
-      raise newException(EBabel, "\n  " & errors.join("\n  "))
+      raise newException(ENimble, "\n  " & errors.join("\n  "))
 
   var pkgNames = ""
   for i in 0 .. <pkgsToDelete.len:
@@ -757,8 +771,8 @@ proc uninstall(options: TOptions) =
     echo("Removed ", pkg.name, " (", $pkg.version, ")")
 
 proc doAction(options: TOptions) =
-  if not existsDir(options.getBabelDir()):
-    createDir(options.getBabelDir())
+  if not existsDir(options.getNimbleDir()):
+    createDir(options.getNimbleDir())
   if not existsDir(options.getPkgsDir):
     createDir(options.getPkgsDir)
 
@@ -783,12 +797,14 @@ proc doAction(options: TOptions) =
     assert false
 
 when isMainModule:
+  # TODO: Check for .babel dir and rename everything to nimble.
+  
   when defined(release):
     try:
       parseCmdLine().doAction()
-    except EBabel:
+    except ENimble:
       quit("FAILURE: " & getCurrentExceptionMsg())
     finally:
-      removeDir(getBabelTempDir())
+      removeDir(getNimbleTempDir())
   else:
     parseCmdLine().doAction()
