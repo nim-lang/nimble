@@ -1,11 +1,11 @@
 [Package]
-name          = "babel"
+name          = "nimble"
 version       = "0.4.0"
 author        = "Dominik Picheta"
-description   = "Nimrod package manager."
+description   = "Nim package manager."
 license       = "BSD"
 
-bin = "babel"
+bin = "nimble"
 srcDir = "src"
 
 [Deps]
