@@ -5,4 +5,5 @@ nimcache/
 
 # Absolute paths
 /src/babel
+/src/nimble
 /tests/tester

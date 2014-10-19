@@ -2,14 +2,17 @@
 # BSD License. Look at license.txt for more info.
 import parsecfg, streams, strutils, os
 
-import tools
+import tools, version
 
 type
   TConfig* = object
     nimbleDir*: string
 
 proc initConfig(): TConfig =
-  result.nimbleDir = getHomeDir() / ".nimble"
+  if getNimrodVersion() > newVersion("0.9.6"):
+    result.nimbleDir = getHomeDir() / ".nimble"
+  else:
+    result.nimbleDir = getHomeDir() / ".babel"
 
 proc parseConfig*(): TConfig =
   result = initConfig()

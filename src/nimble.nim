@@ -185,8 +185,10 @@ proc parseCmdLine(): TOptions =
   if result.action.typ == ActionNil:
     writeHelp()
 
-  # Rename deprecated babel dir.
-  renameBabelToNimble(result)
+  # TODO: Remove this after a couple of versions.
+  if getNimrodVersion() > newVersion("0.9.6"):
+    # Rename deprecated babel dir.
+    renameBabelToNimble(result)
 
   # Load nimbledata.json
   let nimbledataFilename = result.getNimbleDir() / "nimbledata.json"
@@ -418,7 +420,7 @@ proc buildFromDir(pkgInfo: TPackageInfo, paths: seq[string]) =
   for bin in pkgInfo.bin:
     echo("Building ", pkginfo.name, "/", bin, " using ", pkgInfo.backend,
          " backend...")
-    doCmd(getNimBin() & " $# -d:release --noNimblePath $# \"$#\"" %
+    doCmd(getNimBin() & " $# -d:release --noBabelPath $# \"$#\"" %
           [pkgInfo.backend, args, realDir / bin.changeFileExt("nim")])
 
 proc saveNimbleMeta(pkgDestDir, url: string, filesInstalled: TSet[string]) =
@@ -797,8 +799,6 @@ proc doAction(options: TOptions) =
     assert false
 
 when isMainModule:
-  # TODO: Check for .babel dir and rename everything to nimble.
-  
   when defined(release):
     try:
       parseCmdLine().doAction()
