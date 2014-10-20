@@ -117,7 +117,7 @@ proc renameBabelToNimble(options: TOptions) {.deprecated.} =
       copyDir(babelDir, nimbleDir)
       removeDir(babelDir)
       
-      copyFile(nimbleDir / "babeldata.json", nimbleDir / "nimbledata.json")
+      copyFile(babelDir / "babeldata.json", nimbleDir / "nimbledata.json")
       removeFile(nimbleDir / "babeldata.json")
 
 proc parseCmdLine(): TOptions =
