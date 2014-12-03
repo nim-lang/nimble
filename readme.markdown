@@ -10,7 +10,8 @@ package creation.
 
 ## Installation
 
-You will need version 0.9.4 (or better) of the [Nimrod
+You will need version 0.9.6 or better (OSX users **have** to use the developer
+version 0.10.1 or better) of the [Nimrod
 compiler](http://nimrod-lang.org/download.html). To run nimble you will need to
 have installed some of the tools it depends on to check out source code. For
 instance, if a package is hosted on [Github](https://github.com) you require to
