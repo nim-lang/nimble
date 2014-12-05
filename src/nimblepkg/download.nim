@@ -42,21 +42,28 @@ proc doPull(meth: TDownloadMethod, downloadDir: string) =
       doCmd("hg pull")
 
 proc doClone(meth: TDownloadMethod, url, downloadDir: string, branch = "", tip = true) =
-  let branchArg = if branch == "": "" else: "-b " & branch & " "
   case meth
   of TDownloadMethod.Git:
-    let depthArg = if tip: "--depth 1 " else: ""
-    # TODO: Get rid of the annoying 'detached HEAD' message somehow?
-    doCmd("git clone --recursive " & depthArg & branchArg & url &
-          " " & downloadDir)
+    let
+      depthArg = if tip: "--depth 1 " else: ""
+      branchArg = if branch == "": "-b origin/master" else: "-b " & branch & " "
+      branch = if branch == "": "master" else: branch
     # Some git versions (e.g. 1.7.9.5) don't check out the correct branch/tag
-    # directly during clone, so we enter the download directory and forecefully
-    # check it out just in case.
-    cd downloadDir:
-      doCmd("git checkout --force " & branch)
+    # directly during clone, so we enter the download directory and manually
+    # initi the git repo issuing several commands in sequence. Recipe taken
+    # from http://stackoverflow.com/a/3489576/172690.
+    downloadDir.createDir
+    downloadDir.cd:
+      doCmd("git init")
+      doCmd("git remote add origin " & url)
+      doCmd("git fetch origin " & depthArg & branch)
+      doCmd("git reset --hard FETCH_HEAD")
+      doCmd("git checkout --force " & branchArg)
       doCmd("git submodule update --init --recursive")
   of TDownloadMethod.Hg:
-    let tipArg = if tip: "-r tip " else: ""
+    let
+      tipArg = if tip: "-r tip " else: ""
+      branchArg = if branch == "": "" else: "-b " & branch & " "
     doCmd("hg clone " & tipArg & branchArg & url & " " & downloadDir)
 
 proc getTagsList(dir: string, meth: TDownloadMethod): seq[string] =
