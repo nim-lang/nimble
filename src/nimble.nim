@@ -655,8 +655,10 @@ proc listPaths(options: TOptions) =
   ## but at the end quits with a non zero exit error.
   ##
   ## On success the proc returns normally.
+  assert options.action.typ == ActionPath
+  assert(not options.action.packages.isNil)
   var errors = 0
-  for name in options.action.optionalName:
+  for name, version in options.action.packages.items:
     var installed: seq[VersionAndPath] = @[]
     # There may be several, list all available ones and sort by version.
     for kind, path in walkDir(options.getPkgsDir):
