@@ -663,8 +663,11 @@ proc listPaths(options: TOptions) =
       if kind != pcDir or not path.startsWith(options.getPkgsDir / name):
         continue
 
-      let nimbleFile = path / name.addFileExt("nimble")
-      if existsFile(nimbleFile):
+      let
+        babelFile = path / name.addFileExt("babel")
+        nimbleFile = path / name.addFileExt("nimble")
+        hasSpec = nimbleFile.existsFile or babelFile.existsFile
+      if hasSpec:
         var pkgInfo = getPkgInfo(path)
         var v: VersionAndPath
         v.version = newVersion(pkgInfo.version)
