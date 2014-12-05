@@ -49,6 +49,12 @@ proc doClone(meth: TDownloadMethod, url, downloadDir: string, branch = "", tip =
     # TODO: Get rid of the annoying 'detached HEAD' message somehow?
     doCmd("git clone --recursive " & depthArg & branchArg & url &
           " " & downloadDir)
+    # Some git versions (e.g. 1.7.9.5) don't check out the correct branch/tag
+    # directly during clone, so we enter the download directory and forecefully
+    # check it out just in case.
+    cd downloadDir:
+      doCmd("git checkout --force " & branch)
+      doCmd("git submodule update --init --recursive")
   of TDownloadMethod.Hg:
     let tipArg = if tip: "-r tip " else: ""
     doCmd("hg clone " & tipArg & branchArg & url & " " & downloadDir)
