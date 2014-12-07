@@ -50,12 +50,12 @@ Commands:
   init         [pkgname]          Initializes a new Nimble project.
   uninstall    [pkgname, ...]     Uninstalls a list of packages.
   build                           Builds a package.
-  update       [url]              Updates package list. A package list URL can 
+  update       [url]              Updates package list. A package list URL can
                                   be optionally specified.
-  search       [--ver] pkg/tag    Searches for a specified package. Search is 
+  search       [--ver] pkg/tag    Searches for a specified package. Search is
                                   performed by tag and by name.
   list         [--ver]            Lists all packages.
-  path         pkgname ...        Shows absolute path to the installed packages 
+  path         pkgname ...        Shows absolute path to the installed packages
                                   specified.
 
 Options:
@@ -63,7 +63,7 @@ Options:
   -v, --version                   Print version information.
   -y, --accept                    Accept all interactive prompts.
   -n, --reject                    Reject all interactive prompts.
-      --ver                       Query remote server for package version 
+      --ver                       Query remote server for package version
                                   information when searching or listing packages
 """
   nimbleVersion = "0.4.0"
@@ -116,7 +116,7 @@ proc renameBabelToNimble(options: TOptions) {.deprecated.} =
     if options.prompt("Found deprecated babel package directory, would you like to rename it to nimble?"):
       copyDir(babelDir, nimbleDir)
       removeDir(babelDir)
-      
+
       copyFile(babelDir / "babeldata.json", nimbleDir / "nimbledata.json")
       removeFile(nimbleDir / "babeldata.json")
 
@@ -294,11 +294,11 @@ proc copyFilesRec(origDir, currentDir, dest: string,
     for kind, file in walkDir(currentDir):
       if kind == pcDir:
         let skip = pkgInfo.checkInstallDir(origDir, file)
-        
+
         if skip: continue
         # Create the dir.
         createDir(changeRoot(origDir, dest, file))
-        
+
         result.incl copyFilesRec(origDir, file, dest, options, pkgInfo)
       else:
         let skip = pkgInfo.checkInstallFile(origDir, file)
@@ -393,7 +393,7 @@ proc processDeps(pkginfo: TPackageInfo, options: TOptions): seq[string] =
         # Process the dependencies of this dependency.
         result.add(processDeps(pkg, options))
       reverseDeps.add((pkg.name, pkg.version))
-  
+
   # Check if two packages of the same name (but different version) are listed
   # in the path.
   var pkgsInPath: PStringTable = newStringTable(modeCaseSensitive)
@@ -490,7 +490,7 @@ proc installFromDir(dir: string, latest: bool, options: TOptions,
 
   ## Will contain a list of files which have been installed.
   var filesInstalled: TSet[string]
-  
+
   createDir(pkgDestDir)
   if pkgInfo.bin.len > 0:
     createDir(binDir)
@@ -502,7 +502,7 @@ proc installFromDir(dir: string, latest: bool, options: TOptions,
     for bin in pkgInfo.bin:
       if not existsFile(pkgDestDir / bin):
         filesInstalled.incl copyFileD(realDir / bin, pkgDestDir / bin)
-      
+
       let currentPerms = getFilePermissions(pkgDestDir / bin)
       setFilePermissions(pkgDestDir / bin, currentPerms + {fpUserExec})
       let cleanBin = bin.extractFilename
@@ -511,7 +511,7 @@ proc installFromDir(dir: string, latest: bool, options: TOptions,
         # some other package's binary!
         if existsFile(binDir / bin): removeFile(binDir / cleanBin)
         echo("Creating symlink: ", pkgDestDir / bin, " -> ", binDir / cleanBin)
-        doCmd("ln -s \"" & pkgDestDir / bin & "\" " & binDir / cleanBin)
+        createSymlink(pkgDestDir / bin, binDir / cleanBin)
       elif defined(windows):
         let dest = binDir / cleanBin.changeFileExt("bat")
         echo("Creating stub: ", pkgDestDir / bin, " -> ", dest)
@@ -521,10 +521,10 @@ proc installFromDir(dir: string, latest: bool, options: TOptions,
   else:
     filesInstalled = copyFilesRec(realDir, realDir, pkgDestDir, options,
                                   pkgInfo)
-  
+
   # Save a nimblemeta.json file.
   saveNimbleMeta(pkgDestDir, url, filesInstalled)
-  
+
   # Return the paths to the dependencies of this package.
   result.paths.add pkgDestDir
   result.pkg = pkgInfo
@@ -575,7 +575,7 @@ proc install(packages: seq[TPkgTuple],
         update(options)
       else:
         quit("Please run nimble update.", QuitFailure)
-    
+
     # Install each package.
     for pv in packages:
       if pv.name.isURL:
@@ -620,7 +620,7 @@ proc search(options: TOptions) =
     echo(" ")
     found = true
     break
-  
+
   for pkg in pkgList:
     for word in options.action.search:
       # Search by name.
@@ -722,7 +722,7 @@ proc init(options: TOptions) =
     close(outFile)
 
   else:
-    raise newException(ENimble, "Unable to open file " & fName & " for writing: " & osErrorMsg())  
+    raise newException(ENimble, "Unable to open file " & fName & " for writing: " & osErrorMsg())
 
 proc uninstall(options: TOptions) =
   var pkgsToDelete: seq[TPackageInfo] = @[]
