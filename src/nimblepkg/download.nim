@@ -175,11 +175,13 @@ proc doDownload*(url: string, downloadDir: string, verRange: PVersionRange,
     if verRange.spe == newSpecial(getHeadName(downMethod)):
       doClone(downMethod, url, downloadDir) # Grab HEAD.
     else:
-      # We don't know if we got a commit hash or a branch here, and
-      # we can't clone a specific commit (with depth 1) according to:
-      # http://stackoverflow.com/a/7198956/492186
-      doClone(downMethod, url, downloadDir, tip = false)
-      doCheckout(downMethod, downloadDir, $verRange.spe)
+      # Mercurial requies a clone and checkout. The git clone operation is
+      # already fragmented into multiple steps so we just call doClone().
+      if downMethod == TDownloadMethod.Git:
+        doClone(downMethod, url, downloadDir, $verRange.spe)
+      else:
+        doClone(downMethod, url, downloadDir, tip = false)
+        doCheckout(downMethod, downloadDir, $verRange.spe)
   else:
     case downMethod
     of TDownloadMethod.Git:
