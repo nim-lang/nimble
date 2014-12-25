@@ -488,6 +488,10 @@ proc installFromDir(dir: string, latest: bool, options: TOptions,
     for bin in pkgInfo.bin:
       # TODO: Check that this binary belongs to the package being installed.
       when defined(windows):
+        removeFile(binDir / bin.changeFileExt("cmd"))
+        removeFile(binDir / bin.changeFileExt(""))
+        # TODO: Remove this later.
+        # Remove .bat file too from previous installs.
         removeFile(binDir / bin.changeFileExt("bat"))
       else:
         removeFile(binDir / bin)
@@ -517,13 +521,14 @@ proc installFromDir(dir: string, latest: bool, options: TOptions,
         echo("Creating symlink: ", pkgDestDir / bin, " -> ", binDir / cleanBin)
         createSymlink(pkgDestDir / bin, binDir / cleanBin)
       elif defined(windows):
-        let dest = binDir / cleanBin.changeFileExt("bat")
+        let dest = binDir / cleanBin.changeFileExt("cmd")
         echo("Creating stub: ", pkgDestDir / bin, " -> ", dest)
         var contents = ""
         if options.config.chcp:
           contents.add "chcp 65001\n"
         contents.add "\"" & pkgDestDir / bin & "\" %*\n"
         writeFile(dest, contents)
+        writeFile(dest.changeFileExt(""), contents) # For Git bash.
       else:
         {.error: "Sorry, your platform is not supported.".}
   else:
