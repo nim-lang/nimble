@@ -7,12 +7,15 @@ import tools, version
 type
   TConfig* = object
     nimbleDir*: string
+    chcp*: bool # Whether to change the code page in .cmd files on Win.
 
 proc initConfig(): TConfig =
   if getNimrodVersion() > newVersion("0.9.6"):
     result.nimbleDir = getHomeDir() / ".nimble"
   else:
     result.nimbleDir = getHomeDir() / ".babel"
+
+  result.chcp = true
 
 proc parseConfig*(): TConfig =
   result = initConfig()
@@ -42,6 +45,8 @@ proc parseConfig*(): TConfig =
           # Ensure we don't restore the deprecated nimble dir.
           if e.value != getHomeDir() / ".babel":
             result.nimbleDir = e.value
+        of "chcp":
+          result.chcp = parseBool(e.value)
         else:
           raise newException(ENimble, "Unable to parse config file:" &
                                      " Unknown key: " & e.key)

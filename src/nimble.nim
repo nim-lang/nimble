@@ -519,7 +519,11 @@ proc installFromDir(dir: string, latest: bool, options: TOptions,
       elif defined(windows):
         let dest = binDir / cleanBin.changeFileExt("bat")
         echo("Creating stub: ", pkgDestDir / bin, " -> ", dest)
-        writeFile(dest, "\"" & pkgDestDir / bin & "\" %*\n")
+        var contents = ""
+        if options.config.chcp:
+          contents.add "chcp 65001\n"
+        contents.add "\"" & pkgDestDir / bin & "\" %*\n"
+        writeFile(dest, contents)
       else:
         {.error: "Sorry, your platform is not supported.".}
   else:
