@@ -193,7 +193,11 @@ proc parseCmdLine(): TOptions =
   # Load nimbledata.json
   let nimbledataFilename = result.getNimbleDir() / "nimbledata.json"
   if fileExists(nimbledataFilename):
-    result.nimbleData = parseFile(nimbledataFilename)
+    try:
+      result.nimbleData = parseFile(nimbledataFilename)
+    except:
+      raise newException(ENimble, "Couldn't parse nimbledata.json file " &
+          "located at " & nimbledataFilename)
   else:
     result.nimbleData = %{"reverseDeps": newJObject()}
 
