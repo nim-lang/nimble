@@ -26,7 +26,7 @@ On Unix operating systems Nimble can be compiled and installed with two simple
 commands. After successfully grabbing the latest Nimrod compiler simply execute
 the following commands to clone nimble, compile it and then install it.
 
-    git clone https://github.com/nimrod-code/nimble.git
+    git clone https://github.com/nim-lang/nimble.git
     cd nimble
     nimrod c -r src/nimble install
     
@@ -36,15 +36,36 @@ executing ``nimble install nimble``.
 
 ### Windows
 
-On Windows installing Nimble is slightly more complex:
+You can install via a pre-built installation archive which is
+available on the [releases](https://github.com/nim-lang/nimble/releases) page
+or from source.
 
-    git clone https://github.com/nimrod-code/nimble.git
+#### Using the pre-built archives
+
+Download the latest release archive from the
+[releases](https://github.com/nim-lang/nimble/releases) page. These archives
+will have a filename of the form ``nimble-x_win32`` where ``x`` is the
+current version.
+
+Once you download that archive unzip it and execute the ``install.bat`` file.
+One important thing to note is that this installation requires you have
+the Nim compiler in your PATH. Once the installation completes you should
+add ``C:\Users\YourName\.nimble\bin`` to your PATH.
+
+#### From source
+
+On Windows installing Nimble from source is slightly more complex:
+
+    git clone https://github.com/nim-lang/nimble.git
     cd nimble
     nimrod c src\nimble
     cp src\nimble.exe src\nimble1.exe
     src\nimble1.exe install
 
-This is required because Windows will lock the process which is being run.
+This is required because Windows will lock the process which is being run and
+during installation Nimble will recompile itself.
+Once the installation completes you should
+add ``C:\Users\YourName\.nimble\bin`` to your PATH.
 
 ## Nimble's folder structure and packages
 
@@ -211,12 +232,16 @@ You can currently configure the following in this file:
 
 * ``nimbleDir`` - The directory which nimble uses for package installation.
   **Default:** ``~/.nimble/``
+* ``chcp`` - Whether to change the current code page when executing Nim
+  application packages. If ``true`` this will add ``chcp 65001`` to the
+  .cmd stubs generated in ``~/.nimble/bin/``.
+  **Default:** ``true``
 
 ## Packages
 
 Nimble works on git repositories as its primary source of packages. Its list of
 packages is stored in a JSON file which is freely accessible in the
-[nimrod-code/packages repository](https://github.com/nimrod-code/packages).
+[nimrod-code/packages repository](https://github.com/nim-lang/packages).
 This JSON file provides nimble with the required Git URL to clone the package
 and install it. Installation and build instructions are contained inside a
 ini-style file with the ``.nimble`` file extension. The nimble file shares the
@@ -230,12 +255,12 @@ Nimble packages please read the [developers.markdown file](developers.markdown)
 for detailed information.
 
 If you have any questions about the project you can ask me directly on github,
-ask on the nimrod [forum](http://forum.nimrod-code.org), or ask on Freenode in
-the #nimrod channel.
+ask on the Nim [forum](http://forum.nim-lang.org), or ask on Freenode in
+the #nim channel.
 
 ## About
 
 Nimble has been written by [Dominik Picheta](http://picheta.me/) with help from
 a number of
-[contributors](https://github.com/nimrod-code/nimble/graphs/contributors).
+[contributors](https://github.com/nim-lang/nimble/graphs/contributors).
 It is licensed under the BSD license (Look at license.txt for more info).
