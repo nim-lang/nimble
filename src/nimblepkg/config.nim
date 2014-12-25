@@ -39,7 +39,9 @@ proc parseConfig*(): TConfig =
       of cfgKeyValuePair, cfgOption:
         case e.key.normalize
         of "nimbledir":
-          result.nimbleDir = e.value
+          # Ensure we don't restore the deprecated nimble dir.
+          if e.value != getHomeDir() / ".babel":
+            result.nimbleDir = e.value
         else:
           raise newException(ENimble, "Unable to parse config file:" &
                                      " Unknown key: " & e.key)
