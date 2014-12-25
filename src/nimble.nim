@@ -65,6 +65,9 @@ Options:
   -n, --reject                    Reject all interactive prompts.
       --ver                       Query remote server for package version
                                   information when searching or listing packages
+
+For more information read the Github readme:
+  https://github.com/nim-lang/nimble#readme
 """
   nimbleVersion = "0.4.0"
   defaultPackageURL = "https://github.com/nimrod-code/packages/raw/master/packages.json"
