@@ -69,7 +69,7 @@ Options:
 For more information read the Github readme:
   https://github.com/nim-lang/nimble#readme
 """
-  nimbleVersion = "0.4.0"
+  nimbleVersion = "0.5.0"
   defaultPackageURL = "https://github.com/nimrod-code/packages/raw/master/packages.json"
 
 proc writeHelp() =
