@@ -1,7 +1,7 @@
 # Nimble
 
-Nimble is a *beta*-grade *package manager* for the [Nimrod programming
-language](http://nimrod-lang.org).
+Nimble is a *beta*-grade *package manager* for the [Nim programming
+language](http://nim-lang.org).
 
 **Note:** This readme explains how to install and use nimble. It does not
 explain how to create nimble packages. Take a look at the
@@ -11,8 +11,8 @@ package creation.
 ## Installation
 
 You will need version 0.9.6 or better (OSX users **have** to use the developer
-version 0.10.1 or better) of the [Nimrod
-compiler](http://nimrod-lang.org/download.html). To run nimble you will need to
+version 0.10.1 or better) of the [Nim
+compiler](http://nim-lang.org/download.html). To run nimble you will need to
 have installed some of the tools it depends on to check out source code. For
 instance, if a package is hosted on [Github](https://github.com) you require to
 have [git](http://www.git-scm.com) installed and added to your environment
@@ -23,12 +23,12 @@ DLLs](https://www.openssl.org) for secure network connections.
 ### Unix
 
 On Unix operating systems Nimble can be compiled and installed with two simple
-commands. After successfully grabbing the latest Nimrod compiler simply execute
+commands. After successfully grabbing the latest Nim compiler simply execute
 the following commands to clone nimble, compile it and then install it.
 
     git clone https://github.com/nim-lang/nimble.git
     cd nimble
-    nimrod c -r src/nimble install
+    nim c -r src/nimble install
     
 After these steps nimble should be compiled and installed. You should then add
 ``~/.nimble/bin`` to your ``$PATH``. Updating nimble can then be done by
@@ -58,7 +58,7 @@ On Windows installing Nimble from source is slightly more complex:
 
     git clone https://github.com/nim-lang/nimble.git
     cd nimble
-    nimrod c src\nimble
+    nim c src\nimble
     cp src\nimble.exe src\nimble1.exe
     src\nimble1.exe install
 
@@ -72,7 +72,7 @@ add ``C:\Users\YourName\.nimble\bin`` to your PATH.
 Nimble stores everything that has been installed in ``~/.nimble`` on Unix systems
 and in your ``$home/.nimble`` on Windows. Libraries are stored in
 ``$nimbleDir/pkgs``, and binaries are stored in ``$nimbleDir/bin``. Most Nimble
-packages will provide ``.nim`` files and some documentation. The Nimrod
+packages will provide ``.nim`` files and some documentation. The Nim
 compiler is aware of Nimble and will automatically find the modules so you can
 ``import modulename`` and have that working without additional setup.
 
@@ -187,7 +187,7 @@ substrings). Example:
     extmath:
       url:         git://github.com/achesak/extmath.nim (git)
       tags:        library, math, trigonometry
-      description: Nimrod math library
+      description: Nim math library
       license:     MIT
 
 Searches are case insensitive.
@@ -226,7 +226,7 @@ At startup Nimble will attempt to read ``$AppDir/nimble/nimble.ini``,
 where ``$AppDir`` is ``~/.config/`` on Linux and
 ``C:\Users\<YourUser>\AppData\Roaming\`` on Windows.
 
-The format of this file corresponds to the ini format with some Nimrod
+The format of this file corresponds to the ini format with some Nim
 enhancements. For example:
 
 ```ini
@@ -246,7 +246,7 @@ You can currently configure the following in this file:
 
 Nimble works on git repositories as its primary source of packages. Its list of
 packages is stored in a JSON file which is freely accessible in the
-[nimrod-code/packages repository](https://github.com/nim-lang/packages).
+[nim-lang/packages repository](https://github.com/nim-lang/packages).
 This JSON file provides nimble with the required Git URL to clone the package
 and install it. Installation and build instructions are contained inside a
 ini-style file with the ``.nimble`` file extension. The nimble file shares the
