@@ -531,7 +531,10 @@ proc installFromDir(dir: string, latest: bool, options: TOptions,
           contents.add "chcp 65001\n"
         contents.add "\"" & pkgDestDir / bin & "\" %*\n"
         writeFile(dest, contents)
-        writeFile(dest.changeFileExt(""), contents) # For Git bash.
+        # For bash on Windows (Cygwin/Git bash).
+        let bashDest = dest.changeFileExt("")
+        echo("Creating Cygwin stub: ", pkgDestDir / bin, " -> ", bashDest)
+        writeFile(bashDest, "\"" & pkgDestDir / bin & "\" \"$@\"\n")
       else:
         {.error: "Sorry, your platform is not supported.".}
   else:
