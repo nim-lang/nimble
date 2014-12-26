@@ -1,6 +1,6 @@
 [Package]
 name          = "nimble"
-version       = "0.5.0"
+version       = "0.6.0"
 author        = "Dominik Picheta"
 description   = "Nim package manager."
 license       = "BSD"
