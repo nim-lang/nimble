@@ -215,6 +215,11 @@ which can be useful to read the bundled documentation. Example:
     $ cd `nimble path argument_parser`
     $ less README.md
 
+### nimble init
+
+The nimble ``init`` command will start a simple wizard which will create
+a quick ``.nimble`` file for your project.
+
 ## Configuration
 
 At startup Nimble will attempt to read ``$AppDir/nimble/nimble.ini``,

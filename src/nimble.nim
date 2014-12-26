@@ -715,7 +715,7 @@ proc init(options: TOptions) =
   if (options.action.projName != ""):
     pkgName = options.action.projName
     fName = pkgName & ".nimble"
-    if ( existsFile( os.getCurrentDir() / fName ) ):
+    if (existsFile(os.getCurrentDir() / fName)):
       raise newException(ENimble, "Already have a nimble file.")
   else:
     echo("Enter a project name for this (blank to use working directory), Ctrl-C to abort:")
@@ -728,7 +728,8 @@ proc init(options: TOptions) =
 
   # Now need to write out .nimble file with projName and other details
 
-  if (not existsFile(os.getCurrentDir() / fName) and open(f=outFile, filename = fName, mode = fmWrite)):
+  if (not existsFile(os.getCurrentDir() / fName) and
+      open(f=outFile, filename = fName, mode = fmWrite)):
     outFile.writeln("[Package]")
     outFile.writeln("name          = \"" & pkgName & "\"")
     outFile.writeln("version       = \"0.1.0\"")
@@ -741,7 +742,8 @@ proc init(options: TOptions) =
     close(outFile)
 
   else:
-    raise newException(ENimble, "Unable to open file " & fName & " for writing: " & osErrorMsg())
+    raise newException(ENimble, "Unable to open file " & fName &
+                       " for writing: " & osErrorMsg())
 
 proc uninstall(options: TOptions) =
   var pkgsToDelete: seq[TPackageInfo] = @[]
