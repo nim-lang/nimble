@@ -8,6 +8,7 @@ type
   TConfig* = object
     nimbleDir*: string
     chcp*: bool # Whether to change the code page in .cmd files on Win.
+    
 
 proc initConfig(): TConfig =
   if getNimrodVersion() > newVersion("0.9.6"):

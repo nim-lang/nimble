@@ -70,7 +70,7 @@ For more information read the Github readme:
   https://github.com/nim-lang/nimble#readme
 """
   nimbleVersion = "0.5.0"
-  defaultPackageURL = "https://github.com/nimrod-code/packages/raw/master/packages.json"
+  defaultPackageURL = "https://github.com/nim-lang/packages/raw/master/packages.json"
 
 proc writeHelp() =
   echo(help)
@@ -381,7 +381,7 @@ proc processDeps(pkginfo: TPackageInfo, options: TOptions): seq[string] =
   let pkglist = getInstalledPkgs(options.getPkgsDir())
   var reverseDeps: seq[tuple[name, version: string]] = @[]
   for dep in pkginfo.requires:
-    if dep.name == "nimrod":
+    if dep.name == "nimrod" or dep.name == "nim":
       let nimVer = getNimrodVersion()
       if not withinRange(nimVer, dep.ver):
         quit("Unsatisfied dependency: " & dep.name & " (" & $dep.ver & ")")
@@ -467,7 +467,7 @@ proc installFromDir(dir: string, latest: bool, options: TOptions,
   ## Returns where package has been installed to, together with paths
   ## to the packages this package depends on.
   ## The return value of this function is used by
-  ## ``processDeps`` to gather a list of paths to pass to the nimrod compiler.
+  ## ``processDeps`` to gather a list of paths to pass to the nim compiler.
   var pkgInfo = getPkgInfo(dir)
   let realDir = pkgInfo.getRealDir()
   let binDir = options.getBinDir()
@@ -728,13 +728,13 @@ proc init(options: TOptions) =
   if (not existsFile(os.getCurrentDir() / fName) and open(f=outFile, filename = fName, mode = fmWrite)):
     outFile.writeln("[Package]")
     outFile.writeln("name          = \"" & pkgName & "\"")
-    outFile.writeln("version       = \"0.01\"")
+    outFile.writeln("version       = \"0.1.0\"")
     outFile.writeln("author        = \"Anonymous\"")
-    outFile.writeln("description   = \"New Nimble project for Nimrod\"")
+    outFile.writeln("description   = \"New Nimble project for Nim\"")
     outFile.writeln("license       = \"BSD\"")
     outFile.writeln("")
     outFile.writeln("[Deps]")
-    outFile.writeln("Requires: \"nimrod >= 0.9.4\"")
+    outFile.writeln("Requires: \"nim >= 0.10.0\"")
     close(outFile)
 
   else:
