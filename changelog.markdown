@@ -8,7 +8,8 @@
   projects. (Thank you
   [@singularperturbation](https://github.com/singularperturbation))
 * Improved cloning of git repositories.
-* Fixes ``path`` command issues (thank you [@gradha](https://github.com/gradha))
+  (Thank you [@gradha](https://github.com/gradha))
+* Fixes ``path`` command issues (Thank you [@gradha](https://github.com/gradha))
 * Fixes problems with symlinking when there is a space in the path.
   (Thank you [@philip-wernersbach](https://github.com/philip-wernersbach))
 * The code page will now be changed when executing Nimble binary packages.
