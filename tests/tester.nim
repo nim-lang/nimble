@@ -54,7 +54,7 @@ test "can uninstall":
     let ls = outp.processOutput()
     check exitCode != QuitSuccess
     check ls[ls.len-1] == "  Cannot uninstall issue27b (0.1.0) because " &
-                          "issue27a (0.1.0) depends on it [Enimble]"
+                          "issue27a (0.1.0) depends on it [ENimble]"
 
     check execCmdEx(path & " uninstall -y issue27").exitCode == QuitSuccess
     check execCmdEx(path & " uninstall -y issue27a").exitCode == QuitSuccess
