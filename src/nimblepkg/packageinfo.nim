@@ -327,7 +327,7 @@ proc getOutputOption*(pkgInfo: TPackageInfo, bin: string): string =
   if pkgInfo.buildDir != "":
     result = " -o:\"" & pkgInfo.mypath.splitFile.dir / pkgInfo.buildDir / bin & "\""
   else:
-    result = ""
+    result = " -o:\"" & pkgInfo.mypath.splitFile.dir / bin & "\""
 
 proc getNameVersion*(pkgpath: string): tuple[name, version: string] =
   ## Splits ``pkgpath`` in the format ``/home/user/.nimble/pkgs/package-0.1``
