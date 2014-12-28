@@ -158,8 +158,12 @@ Similar to the ``install`` command you can specify a version range, for example:
 ### nimble build
 
 The ``build`` command is mostly used by developers who want to test building
-their ``.nimble`` package. The ``install`` command calls ``build`` implicitly,
-so there is rarely any reason to use this command directly.
+their ``.nimble`` package. This command will build the package in debug mode,
+without installing anything. The ``install`` command will build the package
+in release mode instead.
+
+If you are a developer willing to produce new Nimble packages please read the
+[developers.markdown file](developers.markdown) for detailed information.
 
 ### nimble list
 
