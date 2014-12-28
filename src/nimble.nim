@@ -419,17 +419,18 @@ proc processDeps(pkginfo: TPackageInfo, options: TOptions): seq[string] =
     addRevDep(options, i, pkginfo)
   saveNimbleData(options)
 
-proc buildFromDir(pkgInfo: TPackageInfo, paths: seq[string]) =
+proc buildFromDir(pkgInfo: TPackageInfo, paths: seq[string], forRelease: bool) =
   ## Builds a package as specified by ``pkgInfo``.
   let realDir = pkgInfo.getRealDir()
+  let releaseOpt = if forRelease: "-d:release" else: ""
   var args = ""
   for path in paths: args.add("--path:\"" & path & "\" ")
   for bin in pkgInfo.bin:
     let outputOpt = pkgInfo.getOutputOption(bin)
     echo("Building ", pkginfo.name, "/", bin, " using ", pkgInfo.backend,
          " backend...")
-    doCmd(getNimBin() & " $# -d:release --noBabelPath $#$# \"$#\"" %
-          [pkgInfo.backend, args, outputOpt, realDir / bin.changeFileExt("nim")])
+    doCmd(getNimBin() & " $# $# --noBabelPath $# $# \"$#\"" %
+          [pkgInfo.backend, releaseOpt, args, outputOpt, realDir / bin.changeFileExt("nim")])
 
 proc saveNimbleMeta(pkgDestDir, url: string, filesInstalled: TSet[string]) =
   var nimblemeta = %{"url": %url}
@@ -480,7 +481,7 @@ proc installFromDir(dir: string, latest: bool, options: TOptions,
 
   # Build before removing an existing package (if one exists). This way
   # if the build fails then the old package will still be installed.
-  if pkgInfo.bin.len > 0: buildFromDir(pkgInfo, result.paths)
+  if pkgInfo.bin.len > 0: buildFromDir(pkgInfo, result.paths, true)
 
   let versionStr = (if latest: "" else: '-' & pkgInfo.version)
   let pkgDestDir = pkgsDir / (pkgInfo.name & versionStr)
@@ -620,7 +621,7 @@ proc install(packages: seq[TPkgTuple],
 proc build(options: TOptions) =
   var pkgInfo = getPkgInfo(getCurrentDir())
   let paths = processDeps(pkginfo, options)
-  buildFromDir(pkgInfo, paths)
+  buildFromDir(pkgInfo, paths, false)
 
 proc search(options: TOptions) =
   ## Searches for matches in ``options.action.search``.
