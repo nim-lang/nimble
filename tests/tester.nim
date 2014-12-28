@@ -2,10 +2,10 @@
 # BSD License. Look at license.txt for more info.
 import osproc, unittest, strutils, os, sequtils, future
 
-const path = "../src/babel"
+const path = "../src/nimble"
 
-test "can compile babel":
-  check execCmdEx("nimrod c " & path).exitCode == QuitSuccess
+test "can compile nimble":
+  check execCmdEx("nim c " & path).exitCode == QuitSuccess
 
 template cd*(dir: string, body: stmt) =
   ## Sets the current dir to ``dir``, executes ``body`` and restores the
@@ -20,18 +20,18 @@ proc processOutput(output: string): seq[string] =
 
 test "can install packagebin2":
   check execCmdEx(path &
-      " install -y https://github.com/babel-test/packagebin2.git").exitCode ==
+      " install -y https://github.com/nimble-test/packagebin2.git").exitCode ==
       QuitSuccess
 
 test "can reject same version dependencies":
   let (outp, exitCode) = execCmdEx(path &
-      " install -y https://github.com/babel-test/packagebin.git")
+      " install -y https://github.com/nimble-test/packagebin.git")
   #echo outp
   # TODO: outp is not in the correct order.
   let ls = outp.strip.splitLines()
   check exitCode != QuitSuccess
   check ls[ls.len-1] == "Error: unhandled exception: Cannot satisfy the " &
-      "dependency on PackageA 0.2.0 and PackageA 0.5.0 [EBabel]"
+      "dependency on PackageA 0.2.0 and PackageA 0.5.0 [ENimble]"
 
 test "can update":
   check execCmdEx(path & " update").exitCode == QuitSuccess
@@ -54,7 +54,7 @@ test "can uninstall":
     let ls = outp.processOutput()
     check exitCode != QuitSuccess
     check ls[ls.len-1] == "  Cannot uninstall issue27b (0.1.0) because " &
-                          "issue27a (0.1.0) depends on it [EBabel]"
+                          "issue27a (0.1.0) depends on it [Enimble]"
 
     check execCmdEx(path & " uninstall -y issue27").exitCode == QuitSuccess
     check execCmdEx(path & " uninstall -y issue27a").exitCode == QuitSuccess
@@ -77,4 +77,4 @@ test "can uninstall":
   check execCmdEx(path & " uninstall -y PackageB").exitCode == QuitSuccess
 
   check execCmdEx(path & " uninstall -y PackageA@0.2 issue27b").exitCode == QuitSuccess
-  check (not dirExists(getHomeDir() / ".babel" / "pkgs" / "PackageA-0.2.0"))
+  check (not dirExists(getHomeDir() / ".nimble" / "pkgs" / "PackageA-0.2.0"))
