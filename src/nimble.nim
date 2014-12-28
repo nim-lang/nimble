@@ -425,10 +425,11 @@ proc buildFromDir(pkgInfo: TPackageInfo, paths: seq[string]) =
   var args = ""
   for path in paths: args.add("--path:\"" & path & "\" ")
   for bin in pkgInfo.bin:
+    let outputOpt = pkgInfo.getOutputOption(bin)
     echo("Building ", pkginfo.name, "/", bin, " using ", pkgInfo.backend,
          " backend...")
-    doCmd(getNimBin() & " $# -d:release --noBabelPath $# \"$#\"" %
-          [pkgInfo.backend, args, realDir / bin.changeFileExt("nim")])
+    doCmd(getNimBin() & " $# -d:release --noBabelPath $#$# \"$#\"" %
+          [pkgInfo.backend, args, outputOpt, realDir / bin.changeFileExt("nim")])
 
 proc saveNimbleMeta(pkgDestDir, url: string, filesInstalled: TSet[string]) =
   var nimblemeta = %{"url": %url}
