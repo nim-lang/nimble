@@ -2,7 +2,7 @@
 # BSD License. Look at license.txt for more info.
 import parsecfg, streams, strutils, os
 
-import tools, version
+import tools, version, nimbletypes
 
 type
   TConfig* = object
@@ -32,7 +32,7 @@ proc parseConfig*(): TConfig =
   
   if f != nil:
     echo("Reading from config file at ", confFile)
-    var p: TCfgParser
+    var p: CfgParser
     open(p, f, confFile)
     while true:
       var e = next(p)

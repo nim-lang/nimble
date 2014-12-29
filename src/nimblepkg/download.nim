@@ -3,7 +3,7 @@
 
 import parseutils, os, osproc, strutils, tables, pegs
 
-import packageinfo, version, tools
+import packageinfo, version, tools, nimbletypes
 
 type  
   TDownloadMethod* {.pure.} = enum
@@ -98,7 +98,7 @@ proc getTagsListRemote*(url: string, meth: TDownloadMethod): seq[string] =
   of TDownloadMethod.Git:
     var (output, exitCode) = doCmdEx("git ls-remote --tags " & url)
     if exitCode != QuitSuccess:
-      raise newException(EOS, "Unable to query remote tags for " & url &
+      raise newException(OSError, "Unable to query remote tags for " & url &
           ". Git returned: " & output)
     for i in output.splitLines():
       if i == "": continue
@@ -108,9 +108,9 @@ proc getTagsListRemote*(url: string, meth: TDownloadMethod): seq[string] =
     
   of TDownloadMethod.Hg:
     # http://stackoverflow.com/questions/2039150/show-tags-for-remote-hg-repository
-    raise newException(EInvalidValue, "Hg doesn't support remote tag querying.")
+    raise newException(ValueError, "Hg doesn't support remote tag querying.")
   
-proc getVersionList*(tags: seq[string]): TTable[TVersion, string] =
+proc getVersionList*(tags: seq[string]): Table[TVersion, string] =
   # Returns: TTable of version -> git tag name
   result = initTable[TVersion, string]()
   for tag in tags:
@@ -225,7 +225,7 @@ proc echoPackageVersions*(pkg: TPackage) =
         echo("  versions:    " & vstr)
       else:
         echo("  versions:    (No versions tagged in the remote repository)")
-    except EOS:
+    except OSError:
       echo(getCurrentExceptionMsg())
   of TDownloadMethod.Hg:
     echo("  versions:    (Remote tag retrieval not supported by " & pkg.downloadMethod & ")")

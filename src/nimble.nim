@@ -7,7 +7,8 @@ import httpclient, parseopt, os, strutils, osproc, pegs, tables, parseutils,
 from sequtils import toSeq
 
 import nimblepkg/packageinfo, nimblepkg/version, nimblepkg/tools,
-       nimblepkg/download, nimblepkg/config, nimblepkg/compat
+       nimblepkg/download, nimblepkg/config, nimblepkg/compat,
+       nimblepkg/nimbletypes
 
 when not defined(windows):
   from posix import getpid
@@ -18,7 +19,7 @@ type
     queryVersions: bool
     action: TAction
     config: TConfig
-    nimbleData: PJsonNode ## Nimbledata.json
+    nimbleData: JsonNode ## Nimbledata.json
 
   TActionType = enum
     ActionNil, ActionUpdate, ActionInit, ActionInstall, ActionSearch,
@@ -137,6 +138,8 @@ proc parseCmdLine(): TOptions =
             result.action.typ = ActionInstall
           of "path":
             result.action.typ = ActionPath
+          else:
+            discard
           result.action.packages = @[]
         of "build":
           result.action.typ = ActionBuild
@@ -177,6 +180,8 @@ proc parseCmdLine(): TOptions =
           result.action.projName = key
         of ActionList, ActionBuild:
           writeHelp()
+        else:
+          discard
     of cmdLongOption, cmdShortOption:
       case key
       of "help", "h": writeHelp()
@@ -184,6 +189,7 @@ proc parseCmdLine(): TOptions =
       of "accept", "y": result.forcePrompts = ForcePromptYes
       of "reject", "n": result.forcePrompts = ForcePromptNo
       of "ver": result.queryVersions = true
+      else: discard
     of cmdEnd: assert(false) # cannot happen
   if result.action.typ == ActionNil:
     writeHelp()
@@ -266,7 +272,7 @@ proc copyWithExt(origDir, currentDir, dest: string,
           result.add copyFileD(path, changeRoot(origDir, dest, path))
 
 proc copyFilesRec(origDir, currentDir, dest: string,
-                  options: TOptions, pkgInfo: TPackageInfo): TSet[string] =
+                  options: TOptions, pkgInfo: TPackageInfo): HashSet[string] =
   ## Copies all the required files, skips files specified in the .nimble file
   ## (TPackageInfo).
   ## Returns a list of filepaths to files which have been installed.
@@ -323,7 +329,7 @@ proc saveNimbleData(options: TOptions) =
 
 proc addRevDep(options: TOptions, dep: tuple[name, version: string],
                pkg: TPackageInfo) =
-  let depNameVer = dep.name & '-' & dep.version
+  # let depNameVer = dep.name & '-' & dep.version
   if not options.nimbleData["reverseDeps"].hasKey(dep.name):
     options.nimbleData["reverseDeps"][dep.name] = newJObject()
   if not options.nimbleData["reverseDeps"][dep.name].hasKey(dep.version):
@@ -336,7 +342,7 @@ proc addRevDep(options: TOptions, dep: tuple[name, version: string],
 proc removeRevDep(options: TOptions, pkg: TPackageInfo) =
   ## Removes ``pkg`` from the reverse dependencies of every package.
   proc remove(options: TOptions, pkg: TPackageInfo, depTup: TPkgTuple,
-              thisDep: PJsonNode) =
+              thisDep: JsonNode) =
     for ver, val in thisDep:
       if ver.newVersion in depTup.ver:
         var newVal = newJArray()
@@ -403,7 +409,7 @@ proc processDeps(pkginfo: TPackageInfo, options: TOptions): seq[string] =
 
   # Check if two packages of the same name (but different version) are listed
   # in the path.
-  var pkgsInPath: PStringTable = newStringTable(modeCaseSensitive)
+  var pkgsInPath: StringTableRef = newStringTable(modeCaseSensitive)
   for p in result:
     let (name, version) = getNameVersion(p)
     if pkgsInPath.hasKey(name) and pkgsInPath[name] != version:
@@ -430,7 +436,7 @@ proc buildFromDir(pkgInfo: TPackageInfo, paths: seq[string]) =
     doCmd(getNimBin() & " $# -d:release --noBabelPath $# \"$#\"" %
           [pkgInfo.backend, args, realDir / bin.changeFileExt("nim")])
 
-proc saveNimbleMeta(pkgDestDir, url: string, filesInstalled: TSet[string]) =
+proc saveNimbleMeta(pkgDestDir, url: string, filesInstalled: HashSet[string]) =
   var nimblemeta = %{"url": %url}
   nimblemeta["files"] = newJArray()
   for file in filesInstalled:
@@ -442,7 +448,7 @@ proc removePkgDir(dir: string, options: TOptions) =
   try:
     var nimblemeta = parseFile(dir / "nimblemeta.json")
     if not nimblemeta.hasKey("files"):
-      raise newException(EJsonParsingError,
+      raise newException(JsonParsingError,
                          "Meta data does not contain required info.")
     for file in nimblemeta["files"]:
       removeFile(dir / file.str)
@@ -455,7 +461,7 @@ proc removePkgDir(dir: string, options: TOptions) =
     else:
       echo("WARNING: Cannot completely remove " & dir &
            ". Files not installed by nimble are present.")
-  except EOS, EJsonParsingError:
+  except OSError, JsonParsingError:
     echo("Error: Unable to read nimblemeta.json: ", getCurrentExceptionMsg())
     if not options.prompt("Would you like to COMPLETELY remove ALL files " &
                           "in " & dir & "?"):
@@ -500,7 +506,7 @@ proc installFromDir(dir: string, latest: bool, options: TOptions,
         removeFile(binDir / bin)
 
   ## Will contain a list of files which have been installed.
-  var filesInstalled: TSet[string]
+  var filesInstalled: HashSet[string]
 
   createDir(pkgDestDir)
   if pkgInfo.bin.len > 0:
@@ -710,7 +716,7 @@ proc init(options: TOptions) =
   echo("Initializing new Nimble project!")
   var
     pkgName, fName: string = ""
-    outFile: TFile
+    outFile: File
 
   if (options.action.projName != ""):
     pkgName = options.action.projName
@@ -743,7 +749,7 @@ proc init(options: TOptions) =
 
   else:
     raise newException(ENimble, "Unable to open file " & fName &
-                       " for writing: " & osErrorMsg())
+                       " for writing: " & osErrorMsg(osLastError()))
 
 proc uninstall(options: TOptions) =
   var pkgsToDelete: seq[TPackageInfo] = @[]

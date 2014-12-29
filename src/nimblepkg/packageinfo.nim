@@ -1,7 +1,7 @@
 # Copyright (C) Dominik Picheta. All rights reserved.
 # BSD License. Look at license.txt for more info.
 import parsecfg, json, streams, strutils, parseutils, os
-import version, tools
+import version, tools, nimbletypes
 type
   ## Tuple containing package name and version range.
   TPkgTuple* = tuple[name: string, ver: PVersionRange]
@@ -120,7 +120,7 @@ proc readPackageInfo*(path: string): TPackageInfo =
   result.mypath = path
   var fs = newFileStream(path, fmRead)
   if fs != nil:
-    var p: TCfgParser
+    var p: CfgParser
     open(p, fs, path)
     var currentSection = ""
     while true:
@@ -159,6 +159,7 @@ proc readPackageInfo*(path: string): TPackageInfo =
             result.backend = ev.value.toLower()
             case result.backend.normalize
             of "javascript": result.backend = "js"
+            else: discard
           else:
             raise newException(ENimble, "Invalid field: " & ev.key)
         of "deps", "dependencies":
@@ -174,23 +175,23 @@ proc readPackageInfo*(path: string): TPackageInfo =
         raise newException(ENimble, "Error parsing .nimble file: " & ev.msg)
     close(p)
   else:
-    raise newException(EInvalidValue, "Cannot open package info: " & path)
+    raise newException(ValueError, "Cannot open package info: " & path)
   validatePackageInfo(result, path)
 
-proc optionalField(obj: PJsonNode, name: string, default = ""): string =
+proc optionalField(obj: JsonNode, name: string, default = ""): string =
   ## Queries ``obj`` for the optional ``name`` string.
   ##
   ## Returns the value of ``name`` if it is a valid string, or aborts execution
   ## if the field exists but is not of string type. If ``name`` is not present,
   ## returns ``default``.
-  if existsKey(obj, name):
+  if hasKey(obj, name):
     if obj[name].kind == JString:
       return obj[name].str
     else:
       raise newException(ENimble, "Corrupted packages.json file. " & name & " field is of unexpected type.")
   else: return default
 
-proc requiredField(obj: PJsonNode, name: string): string =
+proc requiredField(obj: JsonNode, name: string): string =
   ## Queries ``obj`` for the required ``name`` string.
   ##
   ## Aborts execution if the field does not exist or is of invalid json type.
@@ -199,7 +200,7 @@ proc requiredField(obj: PJsonNode, name: string): string =
     raise newException(ENimble, 
         "Package in packages.json file does not contain a " & name & " field.")
 
-proc fromJson(obj: PJSonNode): TPackage =
+proc fromJson(obj: JSonNode): TPackage =
   ## Constructs a TPackage object from a JSON node.
   ##
   ## Aborts execution if the JSON node doesn't contain the required fields.

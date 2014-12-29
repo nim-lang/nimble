@@ -29,7 +29,7 @@ type
     of verAny:
       nil
 
-  EParseVersion* = object of EInvalidValue
+  EParseVersion* = object of ValueError
 
 proc newVersion*(ver: string): TVersion = return TVersion(ver)
 proc newSpecial*(spe: string): TSpecial = return TSpecial(spe)
@@ -55,7 +55,7 @@ proc `<`*(ver: TVersion, ver2: TVersion): bool =
     if sVerI < sVerI2:
       return true
     elif sVerI == sVerI2:
-      nil
+      discard
     else:
       return false
 
@@ -229,7 +229,7 @@ proc newVREq*(ver: string): PVersionRange =
   result.kind = verEq
   result.ver = newVersion(ver)
 
-proc findLatest*(verRange: PVersionRange, versions: TTable[TVersion, string]): tuple[ver: TVersion, tag: string] =
+proc findLatest*(verRange: PVersionRange, versions: Table[TVersion, string]): tuple[ver: TVersion, tag: string] =
   result = (newVersion(""), "")
   for ver, tag in versions:
     if not withinRange(ver, verRange): continue
