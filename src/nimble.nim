@@ -118,9 +118,9 @@ proc renameBabelToNimble(options: TOptions) {.deprecated.} =
   if dirExists(babelDir):
     if options.prompt("Found deprecated babel package directory, would you like to rename it to nimble?"):
       copyDir(babelDir, nimbleDir)
-      removeDir(babelDir)
-
       copyFile(babelDir / "babeldata.json", nimbleDir / "nimbledata.json")
+
+      removeDir(babelDir)
       removeFile(nimbleDir / "babeldata.json")
 
 proc parseCmdLine(): TOptions =
