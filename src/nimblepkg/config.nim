@@ -5,12 +5,12 @@ import parsecfg, streams, strutils, os
 import tools, version, nimbletypes
 
 type
-  TConfig* = object
+  Config* = object
     nimbleDir*: string
     chcp*: bool # Whether to change the code page in .cmd files on Win.
     
 
-proc initConfig(): TConfig =
+proc initConfig(): Config =
   if getNimrodVersion() > newVersion("0.9.6"):
     result.nimbleDir = getHomeDir() / ".nimble"
   else:
@@ -18,7 +18,7 @@ proc initConfig(): TConfig =
 
   result.chcp = true
 
-proc parseConfig*(): TConfig =
+proc parseConfig*(): Config =
   result = initConfig()
   var confFile = getConfigDir() / "nimble" / "nimble.ini"
 
@@ -49,8 +49,8 @@ proc parseConfig*(): TConfig =
         of "chcp":
           result.chcp = parseBool(e.value)
         else:
-          raise newException(ENimble, "Unable to parse config file:" &
+          raise newException(NimbleError, "Unable to parse config file:" &
                                      " Unknown key: " & e.key)
       of cfgError:
-        raise newException(ENimble, "Unable to parse config file: " & e.msg)
+        raise newException(NimbleError, "Unable to parse config file: " & e.msg)
     close(p)

@@ -8,16 +8,17 @@ import version, packageinfo, nimbletypes
 proc doCmd*(cmd: string) =
   let bin = cmd.split(' ')[0]
   if findExe(bin) == "":
-    raise newException(ENimble, "'" & bin & "' not in PATH.")
+    raise newException(NimbleError, "'" & bin & "' not in PATH.")
 
   let exitCode = execCmd(cmd)
   if exitCode != QuitSuccess:
-    raise newException(ENimble, "Execution failed with exit code " & $exitCode)
+    raise newException(NimbleError,
+        "Execution failed with exit code " & $exitCode)
 
 proc doCmdEx*(cmd: string): tuple[output: TaintedString, exitCode: int] =
   let bin = cmd.split(' ')[0]
   if findExe(bin) == "":
-    raise newException(ENimble, "'" & bin & "' not in PATH.")
+    raise newException(NimbleError, "'" & bin & "' not in PATH.")
   return execCmdEx(cmd)
 
 template cd*(dir: string, body: stmt) =
@@ -33,7 +34,7 @@ proc getNimBin*: string =
   if findExe("nim") != "": result = "nim"
   elif findExe("nimrod") != "": result = "nimrod"
 
-proc getNimrodVersion*: TVersion =
+proc getNimrodVersion*: Version =
   let nimBin = getNimBin()
   let vOutput = doCmdEx(nimBin & " -v").output
   var matches: array[0..MaxSubpatterns, string]
@@ -75,7 +76,7 @@ proc copyDirD*(fro, to: string): seq[string] =
     createDir(changeRoot(fro, to, path.splitFile.dir))
     result.add copyFileD(path, changeRoot(fro, to, path))
 
-proc getDownloadDirName*(uri: string, verRange: PVersionRange): string =
+proc getDownloadDirName*(uri: string, verRange: VersionRangeRef): string =
   ## Creates a directory name based on the specified ``uri`` (url)
   result = ""
   let puri = parseUri(uri)

@@ -31,7 +31,7 @@ test "can reject same version dependencies":
   let ls = outp.strip.splitLines()
   check exitCode != QuitSuccess
   check ls[ls.len-1] == "Error: unhandled exception: Cannot satisfy the " &
-      "dependency on PackageA 0.2.0 and PackageA 0.5.0 [ENimble]"
+      "dependency on PackageA 0.2.0 and PackageA 0.5.0 [NimbleError]"
 
 test "can update":
   check execCmdEx(path & " update").exitCode == QuitSuccess
@@ -54,7 +54,7 @@ test "can uninstall":
     let ls = outp.processOutput()
     check exitCode != QuitSuccess
     check ls[ls.len-1] == "  Cannot uninstall issue27b (0.1.0) because " &
-                          "issue27a (0.1.0) depends on it [ENimble]"
+                          "issue27a (0.1.0) depends on it [NimbleError]"
 
     check execCmdEx(path & " uninstall -y issue27").exitCode == QuitSuccess
     check execCmdEx(path & " uninstall -y issue27a").exitCode == QuitSuccess
@@ -76,5 +76,6 @@ test "can uninstall":
   # Remove the rest of the installed packages.
   check execCmdEx(path & " uninstall -y PackageB").exitCode == QuitSuccess
 
-  check execCmdEx(path & " uninstall -y PackageA@0.2 issue27b").exitCode == QuitSuccess
+  check execCmdEx(path & " uninstall -y PackageA@0.2 issue27b").exitCode ==
+      QuitSuccess
   check (not dirExists(getHomeDir() / ".nimble" / "pkgs" / "PackageA-0.2.0"))

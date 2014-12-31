@@ -4,4 +4,4 @@
 # recursive imports
 
 type
-  ENimble* = object of Exception
+  NimbleError* = object of Exception
