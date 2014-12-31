@@ -1,12 +1,12 @@
 # Copyright (C) Dominik Picheta. All rights reserved.
 # BSD License. Look at license.txt for more info.
 import parsecfg, json, streams, strutils, parseutils, os
-import version, tools
+import version, tools, nimbletypes
 type
   ## Tuple containing package name and version range.
-  TPkgTuple* = tuple[name: string, ver: PVersionRange]
+  PkgTuple* = tuple[name: string, ver: VersionRangeRef]
 
-  TPackageInfo* = object
+  PackageInfo* = object
     mypath*: string ## The path of this .nimble file
     name*: string
     version*: string
@@ -19,12 +19,12 @@ type
     installDirs*: seq[string]
     installFiles*: seq[string]
     installExt*: seq[string]
-    requires*: seq[TPkgTuple]
+    requires*: seq[PkgTuple]
     bin*: seq[string]
     srcDir*: string
     backend*: string
 
-  TPackage* = object
+  Package* = object
     # Required fields in a package.
     name*: string
     url*: string # Download location.
@@ -37,10 +37,10 @@ type
     dvcsTag*: string
     web*: string # Info url for humans.
 
-  TMetadata* = object
+  MetaData* = object
     url*: string
 
-proc initPackageInfo(): TPackageInfo =
+proc initPackageInfo(): PackageInfo =
   result.mypath = ""
   result.name = ""
   result.version = ""
@@ -58,31 +58,32 @@ proc initPackageInfo(): TPackageInfo =
   result.srcDir = ""
   result.backend = "c"
 
-proc validatePackageInfo(pkgInfo: TPackageInfo, path: string) =
+proc validatePackageInfo(pkgInfo: PackageInfo, path: string) =
   if pkgInfo.name == "":
-    raise newException(ENimble, "Incorrect .nimble file: " & path &
+    raise newException(NimbleError, "Incorrect .nimble file: " & path &
                        " does not contain a name field.")
   if pkgInfo.version == "":
-    raise newException(ENimble, "Incorrect .nimble file: " & path &
+    raise newException(NimbleError, "Incorrect .nimble file: " & path &
                        " does not contain a version field.")
   if pkgInfo.author == "":
-    raise newException(ENimble, "Incorrect .nimble file: " & path &
+    raise newException(NimbleError, "Incorrect .nimble file: " & path &
                        " does not contain an author field.")
   if pkgInfo.description == "":
-    raise newException(ENimble, "Incorrect .nimble file: " & path &
+    raise newException(NimbleError, "Incorrect .nimble file: " & path &
                        " does not contain a description field.")
   if pkgInfo.license == "":
-    raise newException(ENimble, "Incorrect .nimble file: " & path &
+    raise newException(NimbleError, "Incorrect .nimble file: " & path &
                        " does not contain a license field.")
   if pkgInfo.backend notin ["c", "cc", "objc", "cpp", "js"]:
-    raise newException(ENimble, "'" & pkgInfo.backend & "' is an invalid backend.")
+    raise newException(NimbleError, "'" & pkgInfo.backend &
+                       "' is an invalid backend.")
   for c in pkgInfo.version:
     if c notin ({'.'} + Digits):
-      raise newException(ENimble,
+      raise newException(NimbleError,
           "Version may only consist of numbers and the '.' character " &
           "but found '" & c & "'.")
 
-proc parseRequires(req: string): TPkgTuple =
+proc parseRequires(req: string): PkgTuple =
   try:
     if ' ' in req:
       var i = skipUntil(req, Whitespace)
@@ -94,10 +95,10 @@ proc parseRequires(req: string): TPkgTuple =
       result.ver = parseVersionRange(req[i .. -1])
     else:
       result.name = req.strip
-      result.ver = PVersionRange(kind: verAny)
-  except EParseVersion:
-    raise newException(ENimble, "Unable to parse dependency version range: " &
-                               getCurrentExceptionMsg())
+      result.ver = VersionRangeRef(kind: verAny)
+  except ParseVersionError:
+    raise newException(NimbleError,
+        "Unable to parse dependency version range: " & getCurrentExceptionMsg())
 
 proc multiSplit(s: string): seq[string] =
   ## Returns ``s`` split by newline and comma characters.
@@ -115,12 +116,12 @@ proc multiSplit(s: string): seq[string] =
   if len(result) < 1:
     return @[s]
 
-proc readPackageInfo*(path: string): TPackageInfo =
+proc readPackageInfo*(path: string): PackageInfo =
   result = initPackageInfo()
   result.mypath = path
   var fs = newFileStream(path, fmRead)
   if fs != nil:
-    var p: TCfgParser
+    var p: CfgParser
     open(p, fs, path)
     var currentSection = ""
     while true:
@@ -159,48 +160,52 @@ proc readPackageInfo*(path: string): TPackageInfo =
             result.backend = ev.value.toLower()
             case result.backend.normalize
             of "javascript": result.backend = "js"
+            else: discard
           else:
-            raise newException(ENimble, "Invalid field: " & ev.key)
+            raise newException(NimbleError, "Invalid field: " & ev.key)
         of "deps", "dependencies":
           case ev.key.normalize
           of "requires":
             for v in ev.value.multiSplit:
               result.requires.add(parseRequires(v.strip))
           else:
-            raise newException(ENimble, "Invalid field: " & ev.key)
-        else: raise newException(ENimble, "Invalid section: " & currentSection)
-      of cfgOption: raise newException(ENimble, "Invalid package info, should not contain --" & ev.value)
+            raise newException(NimbleError, "Invalid field: " & ev.key)
+        else: raise newException(NimbleError,
+              "Invalid section: " & currentSection)
+      of cfgOption: raise newException(NimbleError,
+            "Invalid package info, should not contain --" & ev.value)
       of cfgError:
-        raise newException(ENimble, "Error parsing .nimble file: " & ev.msg)
+        raise newException(NimbleError, "Error parsing .nimble file: " & ev.msg)
     close(p)
   else:
-    raise newException(EInvalidValue, "Cannot open package info: " & path)
+    raise newException(ValueError, "Cannot open package info: " & path)
   validatePackageInfo(result, path)
 
-proc optionalField(obj: PJsonNode, name: string, default = ""): string =
+proc optionalField(obj: JsonNode, name: string, default = ""): string =
   ## Queries ``obj`` for the optional ``name`` string.
   ##
   ## Returns the value of ``name`` if it is a valid string, or aborts execution
   ## if the field exists but is not of string type. If ``name`` is not present,
   ## returns ``default``.
-  if existsKey(obj, name):
+  if hasKey(obj, name):
     if obj[name].kind == JString:
       return obj[name].str
     else:
-      raise newException(ENimble, "Corrupted packages.json file. " & name & " field is of unexpected type.")
+      raise newException(NimbleError, "Corrupted packages.json file. " & name &
+          " field is of unexpected type.")
   else: return default
 
-proc requiredField(obj: PJsonNode, name: string): string =
+proc requiredField(obj: JsonNode, name: string): string =
   ## Queries ``obj`` for the required ``name`` string.
   ##
   ## Aborts execution if the field does not exist or is of invalid json type.
   result = optionalField(obj, name, nil)
   if result == nil:
-    raise newException(ENimble, 
+    raise newException(NimbleError, 
         "Package in packages.json file does not contain a " & name & " field.")
 
-proc fromJson(obj: PJSonNode): TPackage =
-  ## Constructs a TPackage object from a JSON node.
+proc fromJson(obj: JSonNode): Package =
+  ## Constructs a Package object from a JSON node.
   ##
   ## Aborts execution if the JSON node doesn't contain the required fields.
   result.name = obj.requiredField("name")
@@ -215,7 +220,7 @@ proc fromJson(obj: PJSonNode): TPackage =
   result.description = obj.requiredField("description")
   result.web = obj.optionalField("web")
 
-proc readMetadata*(path: string): TMetadata =
+proc readMetaData*(path: string): MetaData =
   ## Reads the metadata present in ``~/.nimble/pkgs/pkg-0.1/nimblemeta.json``
   var bmeta = path / "nimblemeta.json"
   if not existsFile(bmeta):
@@ -231,7 +236,7 @@ proc readMetadata*(path: string): TMetadata =
   let jsonmeta = parseJson(cont)
   result.url = jsonmeta["url"].str
 
-proc getPackage*(pkg: string, packagesPath: string, resPkg: var TPackage): bool =
+proc getPackage*(pkg: string, packagesPath: string, resPkg: var Package): bool =
   ## Searches ``packagesPath`` file saving into ``resPkg`` the found package.
   ##
   ## Pass in ``pkg`` the name of the package you are searching for. As
@@ -243,12 +248,12 @@ proc getPackage*(pkg: string, packagesPath: string, resPkg: var TPackage): bool 
       resPkg = p.fromJson()
       return true
 
-proc getPackageList*(packagesPath: string): seq[TPackage] =
+proc getPackageList*(packagesPath: string): seq[Package] =
   ## Returns the list of packages found at the specified path.
   result = @[]
   let packages = parseFile(packagesPath)
   for p in packages:
-    let pkg: TPackage = p.fromJson()
+    let pkg: Package = p.fromJson()
     result.add(pkg)
 
 proc findNimbleFile*(dir: string): string =
@@ -256,17 +261,20 @@ proc findNimbleFile*(dir: string): string =
   for kind, path in walkDir(dir):
     if kind == pcFile and path.splitFile.ext in [".babel", ".nimble"]:
       if result != "":
-        raise newException(ENimble, "Only one .nimble file should be present in " & dir)
+        raise newException(NimbleError,
+            "Only one .nimble file should be present in " & dir)
       result = path
 
-proc getPkgInfo*(dir: string): TPackageInfo =
-  ## Find the .nimble file in ``dir`` and parses it, returning a TPackageInfo.
+proc getPkgInfo*(dir: string): PackageInfo =
+  ## Find the .nimble file in ``dir`` and parses it, returning a PackageInfo.
   let nimbleFile = findNimbleFile(dir)
   if nimbleFile == "":
-    raise newException(ENimble, "Specified directory does not contain a .nimble file.")
+    raise newException(NimbleError,
+        "Specified directory does not contain a .nimble file.")
   result = readPackageInfo(nimbleFile)
 
-proc getInstalledPkgs*(libsDir: string): seq[tuple[pkginfo: TPackageInfo, meta: TMetaData]] =
+proc getInstalledPkgs*(libsDir: string):
+        seq[tuple[pkginfo: PackageInfo, meta: MetaData]] =
   ## Gets a list of installed packages.
   ##
   ## ``libsDir`` is in most cases: ~/.nimble/pkgs/
@@ -275,15 +283,15 @@ proc getInstalledPkgs*(libsDir: string): seq[tuple[pkginfo: TPackageInfo, meta: 
     if kind == pcDir:
       let nimbleFile = findNimbleFile(path)
       if nimbleFile != "":
-        let meta = readMetadata(path)
+        let meta = readMetaData(path)
         result.add((readPackageInfo(nimbleFile), meta))
       else:
         # TODO: Abstract logging.
         echo("WARNING: No .nimble file found for ", path)
 
-proc findPkg*(pkglist: seq[tuple[pkginfo: TPackageInfo, meta: TMetaData]],
-             dep: TPkgTuple,
-             r: var TPackageInfo): bool =
+proc findPkg*(pkglist: seq[tuple[pkginfo: PackageInfo, meta: MetaData]],
+             dep: PkgTuple,
+             r: var PackageInfo): bool =
   ## Searches ``pkglist`` for a package of which version is within the range
   ## of ``dep.ver``. ``True`` is returned if a package is found. If multiple
   ## packages are found the newest one is returned (the one with the highest
@@ -298,8 +306,8 @@ proc findPkg*(pkglist: seq[tuple[pkginfo: TPackageInfo, meta: TMetaData]],
         r = pkg.pkginfo
         result = true
 
-proc findAllPkgs*(pkglist: seq[tuple[pkginfo: TPackageInfo, meta: TMetaData]],
-                  dep: TPkgTuple): seq[TPackageInfo] =
+proc findAllPkgs*(pkglist: seq[tuple[pkginfo: PackageInfo, meta: MetaData]],
+                  dep: PkgTuple): seq[PackageInfo] =
   ## Searches ``pkglist`` for packages of which version is within the range
   ## of ``dep.ver``. This is similar to ``findPkg`` but returns multiple
   ## packages if multiple are found.
@@ -310,7 +318,7 @@ proc findAllPkgs*(pkglist: seq[tuple[pkginfo: TPackageInfo, meta: TMetaData]],
     if withinRange(newVersion(pkg.pkginfo.version), dep.ver):
       result.add pkg.pkginfo
 
-proc getRealDir*(pkgInfo: TPackageInfo): string =
+proc getRealDir*(pkgInfo: PackageInfo): string =
   ## Returns the ``pkgInfo.srcDir`` or the .mypath directory if package does
   ## not specify the src dir.
   if pkgInfo.srcDir != "":
@@ -334,7 +342,7 @@ proc getNameVersion*(pkgpath: string): tuple[name, version: string] =
       result.version = tail[i+1 .. -1]
       break
 
-proc echoPackage*(pkg: TPackage) =
+proc echoPackage*(pkg: Package) =
   echo(pkg.name & ":")
   echo("  url:         " & pkg.url & " (" & pkg.downloadMethod & ")")
   echo("  tags:        " & pkg.tags.join(", "))
@@ -343,7 +351,7 @@ proc echoPackage*(pkg: TPackage) =
   if pkg.web.len > 0:
     echo("  website:     " & pkg.web)
 
-proc getDownloadDirName*(pkg: TPackage, verRange: PVersionRange): string =
+proc getDownloadDirName*(pkg: Package, verRange: VersionRangeRef): string =
   result = pkg.name
   let verSimple = getSimpleString(verRange)
   if verSimple != "":
@@ -351,5 +359,7 @@ proc getDownloadDirName*(pkg: TPackage, verRange: PVersionRange): string =
     result.add verSimple
 
 when isMainModule:
-  doAssert getNameVersion("/home/user/.nimble/libs/packagea-0.1") == ("packagea", "0.1")
-  doAssert getNameVersion("/home/user/.nimble/libs/package-a-0.1") == ("package-a", "0.1")
+  doAssert getNameVersion("/home/user/.nimble/libs/packagea-0.1") ==
+      ("packagea", "0.1")
+  doAssert getNameVersion("/home/user/.nimble/libs/package-a-0.1") ==
+      ("package-a", "0.1")

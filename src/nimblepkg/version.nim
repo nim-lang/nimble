@@ -4,10 +4,10 @@
 ## Module for handling versions and version ranges such as ``>= 1.0 & <= 1.5``
 import strutils, tables, hashes, parseutils
 type
-  TVersion* = distinct string
-  TSpecial* = distinct string
+  Version* = distinct string
+  Special* = distinct string
 
-  TVersionRangeEnum* = enum
+  VersionRangeEnum* = enum
     verLater, # > V
     verEarlier, # < V
     verEqLater, # >= V -- Equal or later
@@ -17,32 +17,32 @@ type
     verAny, # *
     verSpecial # #head
 
-  PVersionRange* = ref TVersionRange
-  TVersionRange* = object
-    case kind*: TVersionRangeEnum
+  VersionRangeRef* = ref VersionRange
+  VersionRange* = object
+    case kind*: VersionRangeEnum
     of verLater, verEarlier, verEqLater, verEqEarlier, verEq:
-      ver*: TVersion
+      ver*: Version
     of verSpecial:
-      spe*: TSpecial
+      spe*: Special
     of verIntersect:
-      verILeft, verIRight: PVersionRange
+      verILeft, verIRight: VersionRangeRef
     of verAny:
       nil
 
-  EParseVersion* = object of EInvalidValue
+  ParseVersionError* = object of ValueError
 
-proc newVersion*(ver: string): TVersion = return TVersion(ver)
-proc newSpecial*(spe: string): TSpecial = return TSpecial(spe)
+proc newVersion*(ver: string): Version = return Version(ver)
+proc newSpecial*(spe: string): Special = return Special(spe)
 
-proc `$`*(ver: TVersion): string {.borrow.}
+proc `$`*(ver: Version): string {.borrow.}
 
-proc hash*(ver: TVersion): THash {.borrow.}
+proc hash*(ver: Version): THash {.borrow.}
 
-proc `$`*(ver: TSpecial): string {.borrow.}
+proc `$`*(ver: Special): string {.borrow.}
 
-proc hash*(ver: TSpecial): THash {.borrow.}
+proc hash*(ver: Special): THash {.borrow.}
 
-proc `<`*(ver: TVersion, ver2: TVersion): bool =
+proc `<`*(ver: Version, ver2: Version): bool =
   var sVer = string(ver).split('.')
   var sVer2 = string(ver2).split('.')
   for i in 0..max(sVer.len, sVer2.len)-1:
@@ -55,11 +55,11 @@ proc `<`*(ver: TVersion, ver2: TVersion): bool =
     if sVerI < sVerI2:
       return true
     elif sVerI == sVerI2:
-      nil
+      discard
     else:
       return false
 
-proc `==`*(ver: TVersion, ver2: TVersion): bool =
+proc `==`*(ver: Version, ver2: Version): bool =
   var sVer = string(ver).split('.')
   var sVer2 = string(ver2).split('.')
   for i in 0..max(sVer.len, sVer2.len)-1:
@@ -74,13 +74,13 @@ proc `==`*(ver: TVersion, ver2: TVersion): bool =
     else:
       return false
 
-proc `==`*(spe: TSpecial, spe2: TSpecial): bool =
+proc `==`*(spe: Special, spe2: Special): bool =
   return ($spe).toLower() == ($spe2).toLower()
 
-proc `<=`*(ver: TVersion, ver2: TVersion): bool =
+proc `<=`*(ver: Version, ver2: Version): bool =
   return (ver == ver2) or (ver < ver2)
 
-proc withinRange*(ver: TVersion, ran: PVersionRange): bool =
+proc withinRange*(ver: Version, ran: VersionRangeRef): bool =
   case ran.kind
   of verLater:
     return ver > ran.ver
@@ -99,7 +99,7 @@ proc withinRange*(ver: TVersion, ran: PVersionRange): bool =
   of verAny:
     return true
 
-proc withinRange*(spe: TSpecial, ran: PVersionRange): bool =
+proc withinRange*(spe: Special, ran: VersionRangeRef): bool =
   case ran.kind
   of verLater, verEarlier, verEqLater, verEqEarlier, verEq, verIntersect:
     return false
@@ -108,16 +108,17 @@ proc withinRange*(spe: TSpecial, ran: PVersionRange): bool =
   of verAny:
     return true
 
-proc contains*(ran: PVersionRange, ver: TVersion): bool =
+proc contains*(ran: VersionRangeRef, ver: Version): bool =
   return withinRange(ver, ran)
 
-proc contains*(ran: PVersionRange, spe: TSpecial): bool =
+proc contains*(ran: VersionRangeRef, spe: Special): bool =
   return withinRange(spe, ran)
 
-proc makeRange*(version: string, op: string): PVersionRange =
+proc makeRange*(version: string, op: string): VersionRangeRef =
   new(result)
   if version == "":
-    raise newException(EParseVersion, "A version needs to accompany the operator.")
+    raise newException(ParseVersionError,
+        "A version needs to accompany the operator.")
   case op
   of ">":
     result.kind = verLater
@@ -130,15 +131,15 @@ proc makeRange*(version: string, op: string): PVersionRange =
   of "":
     result.kind = verEq
   else:
-    raise newException(EParseVersion, "Invalid operator: " & op)
-  result.ver = TVersion(version)
+    raise newException(ParseVersionError, "Invalid operator: " & op)
+  result.ver = Version(version)
 
-proc parseVersionRange*(s: string): PVersionRange =
+proc parseVersionRange*(s: string): VersionRangeRef =
   # >= 1.5 & <= 1.8
   new(result)
   if s[0] == '#':
     result.kind = verSpecial
-    result.spe = s[1 .. -1].TSpecial
+    result.spe = s[1 .. -1].Special
     return
 
   var i = 0
@@ -159,7 +160,7 @@ proc parseVersionRange*(s: string): PVersionRange =
       # Disallow more than one verIntersect. It's pointless and could lead to
       # major unpredictable mistakes.
       if result.verIRight.kind == verIntersect:
-        raise newException(EParseVersion,
+        raise newException(ParseVersionError,
             "Having more than one `&` in a version range is pointless")
       
       break
@@ -175,13 +176,15 @@ proc parseVersionRange*(s: string): PVersionRange =
       # Make sure '0.9 8.03' is not allowed.
       if version != "" and i < s.len:
         if s[i+1] in {'0'..'9', '.'}:
-          raise newException(EParseVersion, "Whitespace is not allowed in a version literal.")
+          raise newException(ParseVersionError,
+              "Whitespace is not allowed in a version literal.")
 
     else:
-      raise newException(EParseVersion, "Unexpected char in version range: " & s[i])
+      raise newException(ParseVersionError,
+          "Unexpected char in version range: " & s[i])
     inc(i)
 
-proc `$`*(verRange: PVersionRange): string =
+proc `$`*(verRange: VersionRangeRef): string =
   case verRange.kind
   of verLater:
     result = "> "
@@ -202,34 +205,36 @@ proc `$`*(verRange: PVersionRange): string =
 
   result.add(string(verRange.ver))
 
-proc getSimpleString*(verRange: PVersionRange): string =
-  ## Gets a string with no special symbols and spaces. Used for dir name creation
-  ## in tools.nim
+proc getSimpleString*(verRange: VersionRangeRef): string =
+  ## Gets a string with no special symbols and spaces. Used for dir name
+  ## creation in tools.nim
   case verRange.kind
   of verSpecial:
     result = $verRange.spe
   of verLater, verEarlier, verEqLater, verEqEarlier, verEq:
     result = $verRange.ver
   of verIntersect:
-    result = getSimpleString(verRange.verILeft) & "_" & getSimpleString(verRange.verIRight)
+    result = getSimpleString(verRange.verILeft) & "_" &
+        getSimpleString(verRange.verIRight)
   of verAny:
     result = ""
 
-proc newVRAny*(): PVersionRange =
+proc newVRAny*(): VersionRangeRef =
   new(result)
   result.kind = verAny
 
-proc newVREarlier*(ver: string): PVersionRange =
+proc newVREarlier*(ver: string): VersionRangeRef =
   new(result)
   result.kind = verEarlier
   result.ver = newVersion(ver)
 
-proc newVREq*(ver: string): PVersionRange =
+proc newVREq*(ver: string): VersionRangeRef =
   new(result)
   result.kind = verEq
   result.ver = newVersion(ver)
 
-proc findLatest*(verRange: PVersionRange, versions: TTable[TVersion, string]): tuple[ver: TVersion, tag: string] =
+proc findLatest*(verRange: VersionRangeRef,
+        versions: Table[Version, string]): tuple[ver: Version, tag: string] =
   result = (newVersion(""), "")
   for ver, tag in versions:
     if not withinRange(ver, verRange): continue
@@ -263,8 +268,10 @@ when isMainModule:
   doAssert(newVersion("") < newVersion("1.0.0"))
   doAssert(newVersion("") < newVersion("0.1.0"))
 
-  var versions = toTable[TVersion, string]({newVersion("0.1.1"): "v0.1.1", newVersion("0.2.3"): "v0.2.3", newVersion("0.5"): "v0.5"})
-  doAssert findLatest(parseVersionRange(">= 0.1 & <= 0.4"), versions) == (newVersion("0.2.3"), "v0.2.3")
+  var versions = toTable[Version, string]({newVersion("0.1.1"): "v0.1.1",
+      newVersion("0.2.3"): "v0.2.3", newVersion("0.5"): "v0.5"})
+  doAssert findLatest(parseVersionRange(">= 0.1 & <= 0.4"), versions) ==
+      (newVersion("0.2.3"), "v0.2.3")
 
   # TODO: Allow these in later versions?
   #doAssert newVersion("0.1-rc1") < newVersion("0.2")

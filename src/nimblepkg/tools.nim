@@ -2,25 +2,23 @@
 # BSD License. Look at license.txt for more info.
 #
 # Various miscellaneous utility functions reside here.
-import osproc, pegs, strutils, os, parseurl, sets, json
-import version, packageinfo
-
-type
-  ENimble* = object of EBase
+import osproc, pegs, strutils, os, uri, sets, json
+import version, packageinfo, nimbletypes
 
 proc doCmd*(cmd: string) =
   let bin = cmd.split(' ')[0]
   if findExe(bin) == "":
-    raise newException(ENimble, "'" & bin & "' not in PATH.")
+    raise newException(NimbleError, "'" & bin & "' not in PATH.")
 
   let exitCode = execCmd(cmd)
   if exitCode != QuitSuccess:
-    raise newException(ENimble, "Execution failed with exit code " & $exitCode)
+    raise newException(NimbleError,
+        "Execution failed with exit code " & $exitCode)
 
 proc doCmdEx*(cmd: string): tuple[output: TaintedString, exitCode: int] =
   let bin = cmd.split(' ')[0]
   if findExe(bin) == "":
-    raise newException(ENimble, "'" & bin & "' not in PATH.")
+    raise newException(NimbleError, "'" & bin & "' not in PATH.")
   return execCmdEx(cmd)
 
 template cd*(dir: string, body: stmt) =
@@ -36,7 +34,7 @@ proc getNimBin*: string =
   if findExe("nim") != "": result = "nim"
   elif findExe("nimrod") != "": result = "nimrod"
 
-proc getNimrodVersion*: TVersion =
+proc getNimrodVersion*: Version =
   let nimBin = getNimBin()
   let vOutput = doCmdEx(nimBin & " -v").output
   var matches: array[0..MaxSubpatterns, string]
@@ -61,7 +59,7 @@ proc changeRoot*(origRoot, newRoot, path: string): string =
   if path.startsWith(origRoot):
     return newRoot / path[origRoot.len .. -1]
   else:
-    raise newException(EInvalidValue,
+    raise newException(ValueError,
       "Cannot change root of path: Path does not begin with original root.")
 
 proc copyFileD*(fro, to: string): string =
@@ -78,37 +76,37 @@ proc copyDirD*(fro, to: string): seq[string] =
     createDir(changeRoot(fro, to, path.splitFile.dir))
     result.add copyFileD(path, changeRoot(fro, to, path))
 
-proc getDownloadDirName*(url: string, verRange: PVersionRange): string =
-  ## Creates a directory name based on the specified ``url``
+proc getDownloadDirName*(uri: string, verRange: VersionRangeRef): string =
+  ## Creates a directory name based on the specified ``uri`` (url)
   result = ""
-  let purl = parseUrl(url)
-  for i in purl.hostname:
+  let puri = parseUri(uri)
+  for i in puri.hostname:
     case i
     of strutils.Letters, strutils.Digits:
       result.add i
-    else: nil
+    else: discard
   result.add "_"
-  for i in purl.path:
+  for i in puri.path:
     case i
     of strutils.Letters, strutils.Digits:
       result.add i
-    else: nil
+    else: discard
     
   let verSimple = getSimpleString(verRange)
   if verSimple != "":
     result.add "_"
     result.add verSimple
 
-proc incl*(s: var TSet[string], v: seq[string] | TSet[string]) =
+proc incl*(s: var HashSet[string], v: seq[string] | HashSet[string]) =
   for i in v:
     s.incl i
 
-proc contains*(j: PJsonNode, elem: PJsonNode): bool =
+proc contains*(j: JsonNode, elem: JsonNode): bool =
   for i in j:
     if i == elem:
       return true
 
-proc contains*(j: PJsonNode, elem: tuple[key: string, val: PJsonNode]): bool =
+proc contains*(j: JsonNode, elem: tuple[key: string, val: JsonNode]): bool =
   for key, val in pairs(j):
     if key == elem.key and val == elem.val:
       return true
