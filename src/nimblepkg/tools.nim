@@ -9,8 +9,13 @@ proc doCmd*(cmd: string) =
   let bin = cmd.split(' ')[0]
   if findExe(bin) == "":
     raise newException(NimbleError, "'" & bin & "' not in PATH.")
+  
+  # To keep output in sequence
+  stdout.flushFile()
+  stderr.flushFile()
 
   let exitCode = execCmd(cmd)
+
   if exitCode != QuitSuccess:
     raise newException(NimbleError,
         "Execution failed with exit code " & $exitCode)

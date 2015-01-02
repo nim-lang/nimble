@@ -596,9 +596,9 @@ proc downloadPkg(pkg: Package, verRange: VersionRangeRef): string =
 proc install(packages: seq[PkgTuple],
              options: Options,
              doPrompt = true): tuple[paths: seq[string], pkg: PackageInfo] =
-  if packages == @[]:
+ if packages == @[]:
     result = installFromDir(getCurrentDir(), false, options, "")
-  else:
+ else:
     # If packages.json is not present ask the user if they want to download it.
     if not existsFile(options.getNimbleDir / "packages.json"):
       if doPrompt and
