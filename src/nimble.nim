@@ -16,6 +16,7 @@ type
   TOptions = object
     forcePrompts: TForcePrompt
     queryVersions: bool
+    queryInstalled: bool
     action: TAction
     config: TConfig
     nimbleData: PJsonNode ## Nimbledata.json
@@ -55,6 +56,7 @@ Commands:
   search       [--ver] pkg/tag    Searches for a specified package. Search is
                                   performed by tag and by name.
   list         [--ver]            Lists all packages.
+               [-i, --installed]  Lists all installed packages.
   path         pkgname ...        Shows absolute path to the installed packages
                                   specified.
 
@@ -184,6 +186,7 @@ proc parseCmdLine(): TOptions =
       of "accept", "y": result.forcePrompts = ForcePromptYes
       of "reject", "n": result.forcePrompts = ForcePromptNo
       of "ver": result.queryVersions = true
+      of "installed", "i": result.queryInstalled = true
     of cmdEnd: assert(false) # cannot happen
   if result.action.typ == ActionNil:
     writeHelp()
@@ -663,6 +666,20 @@ proc list(options: TOptions) =
       echoPackageVersions(pkg)
     echo(" ")
 
+proc listInstalled(options: TOptions) =
+  var h = initTable[string, seq[string]]()
+  let pkgs = getInstalledPkgs(options.getPkgsDir())
+  for x in pkgs.items():
+    let
+      pName = x.pkginfo.name
+      pVer = x.pkginfo.version
+    if not h.hasKey(pName): h[pName] = @[]
+    var s = h[pName]
+    add(s, pVer)
+    h[pName] = s
+  for k in keys(h):
+    echo k & "  [" & h[k].join(", ") & "]"
+
 type VersionAndPath = tuple[version: TVersion, path: string]
 
 proc listPaths(options: TOptions) =
@@ -814,7 +831,8 @@ proc doAction(options: TOptions) =
   of ActionSearch:
     search(options)
   of ActionList:
-    list(options)
+    if options.queryInstalled: listInstalled(options)
+    else: list(options)
   of ActionPath:
     listPaths(options)
   of ActionBuild:
