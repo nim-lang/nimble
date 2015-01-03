@@ -4,8 +4,6 @@
 import httpclient, parseopt, os, strutils, osproc, pegs, tables, parseutils,
        strtabs, json, algorithm, sets
 
-from terminal import nil
-
 from sequtils import toSeq
 
 import nimblepkg/packageinfo, nimblepkg/version, nimblepkg/tools,
@@ -18,17 +16,18 @@ type
   TOptions = object
     forcePrompts: TForcePrompt
     queryVersions: bool
+    queryInstalled: bool
     action: TAction
     config: TConfig
     nimbleData: PJsonNode ## Nimbledata.json
 
   TActionType = enum
     ActionNil, ActionUpdate, ActionInit, ActionInstall, ActionSearch,
-    ActionList, ActionBuild, ActionPath, ActionUninstall, ActionListInstalled
+    ActionList, ActionBuild, ActionPath, ActionUninstall
 
   TAction = object
     case typ: TActionType
-    of ActionNil, ActionList, ActionBuild, ActionListInstalled: nil
+    of ActionNil, ActionList, ActionBuild: nil
     of ActionUpdate:
       optionalURL: string # Overrides default package list.
     of ActionInstall, ActionPath, ActionUninstall:
@@ -57,7 +56,7 @@ Commands:
   search       [--ver] pkg/tag    Searches for a specified package. Search is
                                   performed by tag and by name.
   list         [--ver]            Lists all packages.
-  installed                       Lists all installed packages and versions.
+               [-i, --installed]  Lists all installed packages.
   path         pkgname ...        Shows absolute path to the installed packages
                                   specified.
 
@@ -154,8 +153,6 @@ proc parseCmdLine(): TOptions =
           result.action.search = @[]
         of "list":
           result.action.typ = ActionList
-        of "installed":
-          result.action.typ = ActionListInstalled
         of "uninstall", "remove", "delete", "del", "rm":
           result.action.typ = ActionUninstall
           result.action.packages = @[]
@@ -180,7 +177,7 @@ proc parseCmdLine(): TOptions =
           if result.action.projName != "":
             raise newException(ENimble, "Can only initialize one package at a time.")
           result.action.projName = key
-        of ActionList, ActionBuild, ActionListInstalled:
+        of ActionList, ActionBuild:
           writeHelp()
     of cmdLongOption, cmdShortOption:
       case key
@@ -189,6 +186,7 @@ proc parseCmdLine(): TOptions =
       of "accept", "y": result.forcePrompts = ForcePromptYes
       of "reject", "n": result.forcePrompts = ForcePromptNo
       of "ver": result.queryVersions = true
+      of "installed", "i": result.queryInstalled = true
     of cmdEnd: assert(false) # cannot happen
   if result.action.typ == ActionNil:
     writeHelp()
@@ -668,28 +666,19 @@ proc list(options: TOptions) =
       echoPackageVersions(pkg)
     echo(" ")
 
-proc c_printf(frmt: cstring) {.importc: "printf", header: "<stdio.h>",
-  varargs.}
-
 proc listInstalled(options: TOptions) =
-  let pkgsDir = options.getNimbleDir() / "pkgs"
-  if not existsDir(pkgsDir):
-    raise newException(ENimble, "Nimble dir not installed.")
   var h = initTable[string, seq[string]]()
-  for kind, path in walkDir(pkgsDir):
-    let (dir, name, ext) = splitFile(path)
-    let r = split(name & ext, '-')
-    if not h.hasKey(r[0]):
-      h[r[0]] = @[]
-    var s = h[r[0]]
-    add(s, r[1])
-    h[r[0]] = s
+  let pkgs = getInstalledPkgs(options.getPkgsDir())
+  for x in pkgs.items():
+    let
+      pName = x.pkginfo.name
+      pVer = x.pkginfo.version
+    if not h.hasKey(pName): h[pName] = @[]
+    var s = h[pName]
+    add(s, pVer)
+    h[pName] = s
   for k in keys(h):
-    terminal.setForegroundColor(terminal.fgGreen)
-    c_printf("%20s", k)
-    terminal.resetAttributes()
-    c_printf(" [%s]\n", h[k].join(", "))
-  terminal.resetAttributes()
+    echo k & "  [" & h[k].join(", ") & "]"
 
 type VersionAndPath = tuple[version: TVersion, path: string]
 
@@ -842,9 +831,8 @@ proc doAction(options: TOptions) =
   of ActionSearch:
     search(options)
   of ActionList:
-    list(options)
-  of ActionListInstalled:
-    listInstalled(options)
+    if options.queryInstalled: listInstalled(options)
+    else: list(options)
   of ActionPath:
     listPaths(options)
   of ActionBuild:
