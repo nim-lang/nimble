@@ -17,15 +17,15 @@ type
     verAny, # *
     verSpecial # #head
 
-  VersionRangeRef* = ref VersionRange
-  VersionRange* = object
+  VersionRange* = ref VersionRangeObj
+  VersionRangeObj = object
     case kind*: VersionRangeEnum
     of verLater, verEarlier, verEqLater, verEqEarlier, verEq:
       ver*: Version
     of verSpecial:
       spe*: Special
     of verIntersect:
-      verILeft, verIRight: VersionRangeRef
+      verILeft, verIRight: VersionRange
     of verAny:
       nil
 
@@ -80,7 +80,7 @@ proc `==`*(spe: Special, spe2: Special): bool =
 proc `<=`*(ver: Version, ver2: Version): bool =
   return (ver == ver2) or (ver < ver2)
 
-proc withinRange*(ver: Version, ran: VersionRangeRef): bool =
+proc withinRange*(ver: Version, ran: VersionRange): bool =
   case ran.kind
   of verLater:
     return ver > ran.ver
@@ -99,7 +99,7 @@ proc withinRange*(ver: Version, ran: VersionRangeRef): bool =
   of verAny:
     return true
 
-proc withinRange*(spe: Special, ran: VersionRangeRef): bool =
+proc withinRange*(spe: Special, ran: VersionRange): bool =
   case ran.kind
   of verLater, verEarlier, verEqLater, verEqEarlier, verEq, verIntersect:
     return false
@@ -108,13 +108,13 @@ proc withinRange*(spe: Special, ran: VersionRangeRef): bool =
   of verAny:
     return true
 
-proc contains*(ran: VersionRangeRef, ver: Version): bool =
+proc contains*(ran: VersionRange, ver: Version): bool =
   return withinRange(ver, ran)
 
-proc contains*(ran: VersionRangeRef, spe: Special): bool =
+proc contains*(ran: VersionRange, spe: Special): bool =
   return withinRange(spe, ran)
 
-proc makeRange*(version: string, op: string): VersionRangeRef =
+proc makeRange*(version: string, op: string): VersionRange =
   new(result)
   if version == "":
     raise newException(ParseVersionError,
@@ -134,7 +134,7 @@ proc makeRange*(version: string, op: string): VersionRangeRef =
     raise newException(ParseVersionError, "Invalid operator: " & op)
   result.ver = Version(version)
 
-proc parseVersionRange*(s: string): VersionRangeRef =
+proc parseVersionRange*(s: string): VersionRange =
   # >= 1.5 & <= 1.8
   new(result)
   if s[0] == '#':
@@ -184,7 +184,7 @@ proc parseVersionRange*(s: string): VersionRangeRef =
           "Unexpected char in version range: " & s[i])
     inc(i)
 
-proc `$`*(verRange: VersionRangeRef): string =
+proc `$`*(verRange: VersionRange): string =
   case verRange.kind
   of verLater:
     result = "> "
@@ -205,7 +205,7 @@ proc `$`*(verRange: VersionRangeRef): string =
 
   result.add(string(verRange.ver))
 
-proc getSimpleString*(verRange: VersionRangeRef): string =
+proc getSimpleString*(verRange: VersionRange): string =
   ## Gets a string with no special symbols and spaces. Used for dir name
   ## creation in tools.nim
   case verRange.kind
@@ -219,21 +219,21 @@ proc getSimpleString*(verRange: VersionRangeRef): string =
   of verAny:
     result = ""
 
-proc newVRAny*(): VersionRangeRef =
+proc newVRAny*(): VersionRange =
   new(result)
   result.kind = verAny
 
-proc newVREarlier*(ver: string): VersionRangeRef =
+proc newVREarlier*(ver: string): VersionRange =
   new(result)
   result.kind = verEarlier
   result.ver = newVersion(ver)
 
-proc newVREq*(ver: string): VersionRangeRef =
+proc newVREq*(ver: string): VersionRange =
   new(result)
   result.kind = verEq
   result.ver = newVersion(ver)
 
-proc findLatest*(verRange: VersionRangeRef,
+proc findLatest*(verRange: VersionRange,
         versions: Table[Version, string]): tuple[ver: Version, tag: string] =
   result = (newVersion(""), "")
   for ver, tag in versions:

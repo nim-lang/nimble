@@ -16,6 +16,7 @@ type
   Options = object
     forcePrompts: ForcePrompt
     queryVersions: bool
+    queryInstalled: bool
     action: Action
     config: Config
     nimbleData: JsonNode ## Nimbledata.json
@@ -37,6 +38,7 @@ type
       search: seq[string] # Search string.
     of actionInit:
       projName: string
+    else:nil
 
   ForcePrompt = enum
     dontForcePrompt, forcePromptYes, forcePromptNo
@@ -55,6 +57,7 @@ Commands:
   search       [--ver] pkg/tag    Searches for a specified package. Search is
                                   performed by tag and by name.
   list         [--ver]            Lists all packages.
+               [-i, --installed]  Lists all installed packages.
   path         pkgname ...        Shows absolute path to the installed packages
                                   specified.
 
@@ -171,7 +174,7 @@ proc parseCmdLine(): Options =
             let pkgTup = (key[0 .. i-1], key[i+1 .. -1].parseVersionRange())
             result.action.packages.add(pkgTup)
           else:
-            result.action.packages.add((key, VersionRangeRef(kind: verAny)))
+            result.action.packages.add((key, VersionRange(kind: verAny)))
         of actionUpdate:
           result.action.optionalURL = key
         of actionSearch:
@@ -192,6 +195,7 @@ proc parseCmdLine(): Options =
       of "accept", "y": result.forcePrompts = forcePromptYes
       of "reject", "n": result.forcePrompts = forcePromptNo
       of "ver": result.queryVersions = true
+      of "installed", "i": result.queryInstalled = true
       else: discard
     of cmdEnd: assert(false) # cannot happen
   if result.action.typ == actionNil:
@@ -576,7 +580,7 @@ proc getNimbleTempDir(): string =
   else:
     result.add($getpid())
 
-proc downloadPkg(url: string, verRange: VersionRangeRef,
+proc downloadPkg(url: string, verRange: VersionRange,
                  downMethod: DownloadMethod): string =
   let downloadDir = (getNimbleTempDir() / getDownloadDirName(url, verRange))
   createDir(downloadDir)
@@ -584,7 +588,7 @@ proc downloadPkg(url: string, verRange: VersionRangeRef,
   doDownload(url, downloadDir, verRange, downMethod)
   result = downloadDir
 
-proc downloadPkg(pkg: Package, verRange: VersionRangeRef): string =
+proc downloadPkg(pkg: Package, verRange: VersionRange): string =
   let downloadDir = (getNimbleTempDir() / getDownloadDirName(pkg, verRange))
   let downMethod = pkg.downloadMethod.getDownloadMethod()
   createDir(downloadDir)
@@ -676,6 +680,20 @@ proc list(options: Options) =
     if options.queryVersions:
       echoPackageVersions(pkg)
     echo(" ")
+
+proc listInstalled(options: Options) =
+  var h = initTable[string, seq[string]]()
+  let pkgs = getInstalledPkgs(options.getPkgsDir())
+  for x in pkgs.items():
+    let
+      pName = x.pkginfo.name
+      pVer = x.pkginfo.version
+    if not h.hasKey(pName): h[pName] = @[]
+    var s = h[pName]
+    add(s, pVer)
+    h[pName] = s
+  for k in keys(h):
+    echo k & "  [" & h[k].join(", ") & "]"
 
 type VersionAndPath = tuple[version: Version, path: string]
 
@@ -830,7 +848,8 @@ proc doAction(options: Options) =
   of actionSearch:
     search(options)
   of actionList:
-    list(options)
+    if options.queryInstalled: listInstalled(options)
+    else: list(options)
   of actionPath:
     listPaths(options)
   of actionBuild:

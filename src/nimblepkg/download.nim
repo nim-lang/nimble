@@ -146,7 +146,7 @@ proc checkUrlType*(url: string): DownloadMethod =
 proc isURL*(name: string): bool =
   name.startsWith(peg" @'://' ")
 
-proc doDownload*(url: string, downloadDir: string, verRange: VersionRangeRef,
+proc doDownload*(url: string, downloadDir: string, verRange: VersionRange,
                  downMethod: DownloadMethod) =
   template getLatestByTag(meth: stmt): stmt {.dirty, immediate.} =
     echo("Found tags...")

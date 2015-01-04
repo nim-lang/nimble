@@ -4,7 +4,7 @@ import parsecfg, json, streams, strutils, parseutils, os
 import version, tools, nimbletypes
 type
   ## Tuple containing package name and version range.
-  PkgTuple* = tuple[name: string, ver: VersionRangeRef]
+  PkgTuple* = tuple[name: string, ver: VersionRange]
 
   PackageInfo* = object
     mypath*: string ## The path of this .nimble file
@@ -95,7 +95,7 @@ proc parseRequires(req: string): PkgTuple =
       result.ver = parseVersionRange(req[i .. -1])
     else:
       result.name = req.strip
-      result.ver = VersionRangeRef(kind: verAny)
+      result.ver = VersionRange(kind: verAny)
   except ParseVersionError:
     raise newException(NimbleError,
         "Unable to parse dependency version range: " & getCurrentExceptionMsg())
@@ -351,7 +351,7 @@ proc echoPackage*(pkg: Package) =
   if pkg.web.len > 0:
     echo("  website:     " & pkg.web)
 
-proc getDownloadDirName*(pkg: Package, verRange: VersionRangeRef): string =
+proc getDownloadDirName*(pkg: Package, verRange: VersionRange): string =
   result = pkg.name
   let verSimple = getSimpleString(verRange)
   if verSimple != "":
