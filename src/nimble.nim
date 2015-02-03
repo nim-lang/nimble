@@ -769,7 +769,7 @@ proc init(options: Options) =
     outFile.writeln("version       = \"0.1.0\"")
     outFile.writeln("author        = \"Anonymous\"")
     outFile.writeln("description   = \"New Nimble project for Nim\"")
-    outFile.writeln("license       = \"BSD\"")
+    outFile.writeln("license       = \"MIT\"")
     outFile.writeln("")
     outFile.writeln("[Deps]")
     outFile.writeln("Requires: \"nim >= 0.10.0\"")
