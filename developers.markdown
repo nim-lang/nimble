@@ -1,8 +1,8 @@
 # Nimble for developers
 
 This file contains information mostly meant for developers willing to produce
-[Nimrod](http://nimrod-lang.org) modules and submit them to the
-[nimrod-code/packages repository](https://github.com/nimrod-code/packages). End
+[Nim](http://nim-lang.org) modules and submit them to the
+[nim-lang/packages repository](https://github.com/nim-lang/packages). End
 user documentation is provided in the [readme.markdown file](readme.markdown).
 
 ## Packages
@@ -25,11 +25,11 @@ description   = "Example .nimble file."
 license       = "MIT"
 
 [Deps]
-Requires: "nimrod >= 0.9.2"
+Requires: "nim >= 0.10.0"
 ```
 
 You may omit the dependencies entirely, but specifying the lowest version
-of the Nimrod compiler required is recommended.
+of the Nim compiler required is recommended.
 
 Nimble currently supports installation of packages from a local directory, a
 git repository and a mercurial repository. The .nimble file must be present in
@@ -116,7 +116,7 @@ The ``requires`` key field is used to specify them. For example:
 
 ```ini
 [Deps]
-Requires: "nimrod >= 0.9.2, jester > 0.1 & <= 0.5"
+Requires: "nim >= 0.10.0, jester > 0.1 & <= 0.5"
 ```
 
 Dependency lists support version ranges. These versions may either be a concrete
@@ -136,15 +136,15 @@ These have to be concrete however. This is done with the ``#`` character,
 for example: ``jester#head``. Which will make your package depend on the
 latest commit of Jester.
 
-### Nimrod compiler
+### Nim compiler
 
-The Nimrod compiler cannot read .nimble files. Its knowledge of Nimble is
+The Nim compiler cannot read .nimble files. Its knowledge of Nimble is
 limited to the ``nimblePaths`` feature which allows it to use packages installed
 in Nimble's package directory when compiling your software. This means that
 it cannot resolve dependencies, and it can only use the latest version of a
 package when compiling.
 
-When Nimble builds your package it actually executes the Nimrod compiler.
+When Nimble builds your package it actually executes the Nim compiler.
 It resolves the dependencies and feeds the path of each package to
 the compiler so that it knows precisely which version to use.
 
@@ -172,7 +172,7 @@ You can force the installation of the HEAD of the repository by specifying
 
 Nimble's packages list is stored on github and everyone is encouraged to add
 their own packages to it! Take a look at
-[nimrod-code/packages](https://github.com/nimrod-code/packages) to learn more.
+[nim-lang/packages](https://github.com/nim-lang/packages) to learn more.
 
 # .nimble reference
 
@@ -226,6 +226,6 @@ their own packages to it! Take a look at
 
 * ``requires`` - Specified a list of package names with an optional version
   range separated by commas.
-  **Example**: ``nimrod >= 0.9.2, jester``; with this value your package will
-  depend on ``nimrod`` version 0.9.2 or greater and on any version of ``jester``.
+  **Example**: ``nim >= 0.10.0, jester``; with this value your package will
+  depend on ``nim`` version 0.10.0 or greater and on any version of ``jester``.
   
