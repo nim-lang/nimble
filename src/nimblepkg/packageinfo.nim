@@ -88,11 +88,11 @@ proc parseRequires(req: string): PkgTuple =
     if ' ' in req:
       var i = skipUntil(req, Whitespace)
       result.name = req[0 .. i].strip
-      result.ver = parseVersionRange(req[i .. -1])
+      result.ver = parseVersionRange(req[i .. ^1])
     elif '#' in req:
       var i = skipUntil(req, {'#'})
       result.name = req[0 .. i-1]
-      result.ver = parseVersionRange(req[i .. -1])
+      result.ver = parseVersionRange(req[i .. ^1])
     else:
       result.name = req.strip
       result.ver = VersionRange(kind: verAny)
@@ -201,7 +201,7 @@ proc requiredField(obj: JsonNode, name: string): string =
   ## Aborts execution if the field does not exist or is of invalid json type.
   result = optionalField(obj, name, nil)
   if result == nil:
-    raise newException(NimbleError, 
+    raise newException(NimbleError,
         "Package in packages.json file does not contain a " & name & " field.")
 
 proc fromJson(obj: JSonNode): Package =
@@ -297,7 +297,7 @@ proc findPkg*(pkglist: seq[tuple[pkginfo: PackageInfo, meta: MetaData]],
   ## packages are found the newest one is returned (the one with the highest
   ## version number)
   ##
-  ## **Note**: dep.name here could be a URL, hence the need for pkglist.meta. 
+  ## **Note**: dep.name here could be a URL, hence the need for pkglist.meta.
   for pkg in pkglist:
     if pkg.pkginfo.name.normalize != dep.name.normalize and
        pkg.meta.url.normalize != dep.name.normalize: continue
@@ -335,11 +335,11 @@ proc getNameVersion*(pkgpath: string): tuple[name, version: string] =
   if '-' notin tail:
     result.name = tail
     return
-  
+
   for i in countdown(tail.len-1, 0):
     if tail[i] == '-':
       result.name = tail[0 .. i-1]
-      result.version = tail[i+1 .. -1]
+      result.version = tail[i+1 .. ^1]
       break
 
 proc echoPackage*(pkg: Package) =
