@@ -104,7 +104,7 @@ proc getTagsListRemote*(url: string, meth: DownloadMethod): seq[string] =
     for i in output.splitLines():
       if i == "": continue
       let start = i.find("refs/tags/")+"refs/tags/".len
-      let tag = i[start .. -1]
+      let tag = i[start .. ^1]
       if not tag.endswith("^{}"): result.add(tag)
     
   of DownloadMethod.hg:
@@ -118,7 +118,7 @@ proc getVersionList*(tags: seq[string]): Table[Version, string] =
     if tag != "":
       let i = skipUntil(tag, Digits) # skip any chars before the version
       # TODO: Better checking, tags can have any names. Add warnings and such.
-      result[newVersion(tag[i .. -1])] = tag
+      result[newVersion(tag[i .. ^1])] = tag
 
 proc getDownloadMethod*(meth: string): DownloadMethod =
   case meth

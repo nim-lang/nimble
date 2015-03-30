@@ -139,7 +139,7 @@ proc parseVersionRange*(s: string): VersionRange =
   new(result)
   if s[0] == '#':
     result.kind = verSpecial
-    result.spe = s[1 .. -1].Special
+    result.spe = s[1 .. ^1].Special
     return
 
   var i = 0

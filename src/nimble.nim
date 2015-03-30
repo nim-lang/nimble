@@ -171,7 +171,7 @@ proc parseCmdLine(): Options =
           # Parse pkg@verRange
           if '@' in key:
             let i = find(key, '@')
-            let pkgTup = (key[0 .. i-1], key[i+1 .. -1].parseVersionRange())
+            let pkgTup = (key[0 .. i-1], key[i+1 .. ^1].parseVersionRange())
             result.action.packages.add(pkgTup)
           else:
             result.action.packages.add((key, VersionRange(kind: verAny)))

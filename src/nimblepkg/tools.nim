@@ -62,7 +62,7 @@ proc changeRoot*(origRoot, newRoot, path: string): string =
   ## path:     /home/dom/bar/blah/2/foo.txt
   ## Return value -> /home/test/bar/blah/2/foo.txt
   if path.startsWith(origRoot):
-    return newRoot / path[origRoot.len .. -1]
+    return newRoot / path[origRoot.len .. ^1]
   else:
     raise newException(ValueError,
       "Cannot change root of path: Path does not begin with original root.")
