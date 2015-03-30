@@ -9,7 +9,7 @@ proc doCmd*(cmd: string) =
   let bin = cmd.split(' ')[0]
   if findExe(bin) == "":
     raise newException(NimbleError, "'" & bin & "' not in PATH.")
-  
+
   # To keep output in sequence
   stdout.flushFile()
   stderr.flushFile()
@@ -53,7 +53,7 @@ proc samePaths*(p1, p2: string): bool =
   var cp2 = if not p2.endsWith("/"): p2 & "/" else: p2
   cp1 = cp1.replace('/', DirSep).replace('\\', DirSep)
   cp2 = cp2.replace('/', DirSep).replace('\\', DirSep)
-  
+
   return cmpPaths(cp1, cp2) == 0
 
 proc changeRoot*(origRoot, newRoot, path: string): string =
@@ -62,7 +62,7 @@ proc changeRoot*(origRoot, newRoot, path: string): string =
   ## path:     /home/dom/bar/blah/2/foo.txt
   ## Return value -> /home/test/bar/blah/2/foo.txt
   if path.startsWith(origRoot):
-    return newRoot / path[origRoot.len .. -1]
+    return newRoot / path[origRoot.len .. ^1]
   else:
     raise newException(ValueError,
       "Cannot change root of path: Path does not begin with original root.")
@@ -96,7 +96,7 @@ proc getDownloadDirName*(uri: string, verRange: VersionRange): string =
     of strutils.Letters, strutils.Digits:
       result.add i
     else: discard
-    
+
   let verSimple = getSimpleString(verRange)
   if verSimple != "":
     result.add "_"
