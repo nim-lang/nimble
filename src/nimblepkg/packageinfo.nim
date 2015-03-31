@@ -88,11 +88,11 @@ proc parseRequires(req: string): PkgTuple =
     if ' ' in req:
       var i = skipUntil(req, Whitespace)
       result.name = req[0 .. i].strip
-      result.ver = parseVersionRange(req[i .. ^1])
+      result.ver = parseVersionRange(req[i .. req.len-1])
     elif '#' in req:
       var i = skipUntil(req, {'#'})
       result.name = req[0 .. i-1]
-      result.ver = parseVersionRange(req[i .. ^1])
+      result.ver = parseVersionRange(req[i .. req.len-1])
     else:
       result.name = req.strip
       result.ver = VersionRange(kind: verAny)
@@ -339,7 +339,7 @@ proc getNameVersion*(pkgpath: string): tuple[name, version: string] =
   for i in countdown(tail.len-1, 0):
     if tail[i] == '-':
       result.name = tail[0 .. i-1]
-      result.version = tail[i+1 .. ^1]
+      result.version = tail[i+1 .. tail.len-1]
       break
 
 proc echoPackage*(pkg: Package) =
