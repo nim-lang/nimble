@@ -29,7 +29,7 @@ the following commands to clone nimble, compile it and then install it.
     git clone https://github.com/nim-lang/nimble.git
     cd nimble
     nim c -r src/nimble install
-    
+
 After these steps nimble should be compiled and installed. You should then add
 ``~/.nimble/bin`` to your ``$PATH``. Updating nimble can then be done by
 executing ``nimble install nimble``.
@@ -118,7 +118,7 @@ Example:
 Nimble always fetches and installs the latest version of a package. Note that
 latest version is defined as the latest tagged version in the git (or hg)
 repository, if the package has no tagged versions then the latest commit in the
-remote repository will be installed. If you already have that version installed 
+remote repository will be installed. If you already have that version installed
 Nimble will ask you whether you wish it to overwrite your local copy.
 
 You can force Nimble to download the latest commit from the package's repo, for
@@ -139,7 +139,7 @@ In this case a version which is greater than ``0.5`` will be installed.
 If you don't specify a parameter and there is a ``package.nimble`` file in your
 current working directory then Nimble will install the package residing in
 the current working directory. This can be useful for developers who are testing
-locally their ``.nimble`` files before submitting them to the official package 
+locally their ``.nimble`` files before submitting them to the official package
 list. See [developers.markdown](developers.markdown) for more info on this.
 
 A URL to a repository can also be specified, Nimble will automatically detect
@@ -160,6 +160,16 @@ Similar to the ``install`` command you can specify a version range, for example:
 The ``build`` command is mostly used by developers who want to test building
 their ``.nimble`` package. The ``install`` command calls ``build`` implicitly,
 so there is rarely any reason to use this command directly.
+
+### nimble c
+
+The ``c`` (or ``compile``, ``js``, ``cc``, ``cpp``) command can be used by
+developers to compile individual modules inside their package. All options
+passed to Nimble will also be passed to the Nim compiler during compilation.
+
+Nimble will use the backend specified in the package's ``.nimble`` file if
+the command ``c`` or ``compile`` is specified. The more specific ``js``, ``cc``,
+``cpp`` can be used to override that.
 
 ### nimble list
 
@@ -183,7 +193,7 @@ substrings). Example:
       tags:        library, opengl, math, game
       description: OpenGL math library
       license:     CC0
-     
+
     extmath:
       url:         git://github.com/achesak/extmath.nim (git)
       tags:        library, math, trigonometry

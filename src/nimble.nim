@@ -23,7 +23,7 @@ type
 
   ActionType = enum
     actionNil, actionUpdate, actionInit, actionInstall, actionSearch,
-    actionList, actionBuild, actionPath, actionUninstall
+    actionList, actionBuild, actionPath, actionUninstall, actionCompile
 
   Action = object
     case typ: ActionType
@@ -38,7 +38,11 @@ type
       search: seq[string] # Search string.
     of actionInit:
       projName: string
-    else:nil
+    of actionCompile:
+      file: string
+      backend: string
+      compileOptions: seq[string]
+    else: nil
 
   ForcePrompt = enum
     dontForcePrompt, forcePromptYes, forcePromptNo
@@ -52,6 +56,8 @@ Commands:
   init         [pkgname]          Initializes a new Nimble project.
   uninstall    [pkgname, ...]     Uninstalls a list of packages.
   build                           Builds a package.
+  c, cc, js    [opts, ...] f.nim  Builds a file inside a package. Passes options
+                                  to the Nim compiler.
   update       [url]              Updates package list. A package list URL can
                                   be optionally specified.
   search       [--ver] pkg/tag    Searches for a specified package. Search is
@@ -148,6 +154,12 @@ proc parseCmdLine(): Options =
           result.action.packages = @[]
         of "build":
           result.action.typ = actionBuild
+        of "c", "compile", "js", "cpp", "cc":
+          result.action.typ = actionCompile
+          result.action.compileOptions = @[]
+          result.action.file = ""
+          if key == "c" or key == "compile": result.action.backend = ""
+          else: result.action.backend = key
         of "init":
           result.action.typ = actionInit
           result.action.projName = ""
@@ -185,19 +197,28 @@ proc parseCmdLine(): Options =
             raise newException(NimbleError,
                 "Can only initialize one package at a time.")
           result.action.projName = key
+        of actionCompile:
+          result.action.file = key
         of actionList, actionBuild:
           writeHelp()
         else:
           discard
     of cmdLongOption, cmdShortOption:
-      case key
-      of "help", "h": writeHelp()
-      of "version", "v": writeVersion()
-      of "accept", "y": result.forcePrompts = forcePromptYes
-      of "reject", "n": result.forcePrompts = forcePromptNo
-      of "ver": result.queryVersions = true
-      of "installed", "i": result.queryInstalled = true
-      else: discard
+      case result.action.typ
+      of actionCompile:
+        if val == "":
+          result.action.compileOptions.add("--" & key)
+        else:
+          result.action.compileOptions.add("--" & key & ":" & val)
+      else:
+        case key
+        of "help", "h": writeHelp()
+        of "version", "v": writeVersion()
+        of "accept", "y": result.forcePrompts = forcePromptYes
+        of "reject", "n": result.forcePrompts = forcePromptNo
+        of "ver": result.queryVersions = true
+        of "installed", "i": result.queryInstalled = true
+        else: discard
     of cmdEnd: assert(false) # cannot happen
   if result.action.typ == actionNil:
     writeHelp()
@@ -640,6 +661,31 @@ proc build(options: Options) =
   let paths = processDeps(pkginfo, options)
   buildFromDir(pkgInfo, paths)
 
+proc compile(options: Options) =
+  var pkgInfo = getPkgInfo(getCurrentDir())
+  let paths = processDeps(pkginfo, options)
+  let realDir = pkgInfo.getRealDir()
+
+  var args = ""
+  for path in paths: args.add("--path:\"" & path & "\" ")
+  for option in options.action.compileOptions:
+    args.add(option & " ")
+
+  let bin = options.action.file
+  let backend =
+    if options.action.backend.len > 0:
+      options.action.backend
+    else:
+      pkgInfo.backend
+
+  if bin == "":
+    raise newException(NimbleError, "You need to specify a file to compile.")
+
+  echo("Compiling ", bin, " (", pkgInfo.name, ") using ", backend,
+       " backend...")
+  doCmd(getNimBin() & " $# --noBabelPath $# \"$#\"" %
+        [backend, args, bin])
+
 proc search(options: Options) =
   ## Searches for matches in ``options.action.search``.
   ##
@@ -855,6 +901,8 @@ proc doAction(options: Options) =
     listPaths(options)
   of actionBuild:
     build(options)
+  of actionCompile:
+    compile(options)
   of actionInit:
     init(options)
   of actionNil:
