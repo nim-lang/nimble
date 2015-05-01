@@ -80,7 +80,7 @@ For more information read the Github readme:
 """
   nimbleVersion = "0.6.0"
   defaultPackageURL =
-      "https://github.com/nim-lang/packages/raw/master/packages.json"
+      "https://raw.githubusercontent.com/nim-lang/packages/master/packages.json"
 
 proc writeHelp() =
   echo(help)
