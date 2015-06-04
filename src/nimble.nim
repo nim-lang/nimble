@@ -464,7 +464,7 @@ proc buildFromDir(pkgInfo: PackageInfo, paths: seq[string], forRelease: bool) =
   var args = ""
   for path in paths: args.add("--path:\"" & path & "\" ")
   for bin in pkgInfo.bin:
-    let outputOpt = pkgInfo.getOutputOption(bin)
+    let outputOpt = "-o:\"" & pkgInfo.getOutputDir(bin) & "\""
     echo("Building ", pkginfo.name, "/", bin, " using ", pkgInfo.backend,
          " backend...")
     doCmd(getNimBin() & " $# $# --noBabelPath $# $# \"$#\"" %
@@ -553,7 +553,8 @@ proc installFromDir(dir: string, latest: bool, options: Options,
     # and symlink them on *nix OS' to $nimbleDir/bin/
     for bin in pkgInfo.bin:
       if not existsFile(pkgDestDir / bin):
-        filesInstalled.incl copyFileD(realDir / bin, pkgDestDir / bin)
+        filesInstalled.incl copyFileD(pkgInfo.getOutputDir(bin),
+            pkgDestDir / bin)
 
       let currentPerms = getFilePermissions(pkgDestDir / bin)
       setFilePermissions(pkgDestDir / bin, currentPerms + {fpUserExec})

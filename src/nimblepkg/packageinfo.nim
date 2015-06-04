@@ -329,13 +329,12 @@ proc getRealDir*(pkgInfo: PackageInfo): string =
   else:
     result = pkgInfo.mypath.splitFile.dir
 
-proc getOutputOption*(pkgInfo: PackageInfo, bin: string): string =
-  ## Returns an output option for the nim compiler if a build directory
-  ## has been set.
+proc getOutputDir*(pkgInfo: PackageInfo, bin: string): string =
+  ## Returns a binary output dir for the package.
   if pkgInfo.binDir != "":
-    result = " -o:\"" & pkgInfo.mypath.splitFile.dir / pkgInfo.binDir / bin & "\""
+    result = pkgInfo.mypath.splitFile.dir / pkgInfo.binDir / bin
   else:
-    result = " -o:\"" & pkgInfo.mypath.splitFile.dir / bin & "\""
+    result = pkgInfo.mypath.splitFile.dir / bin
 
 proc getNameVersion*(pkgpath: string): tuple[name, version: string] =
   ## Splits ``pkgpath`` in the format ``/home/user/.nimble/pkgs/package-0.1``
