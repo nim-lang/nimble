@@ -74,6 +74,7 @@ Options:
   -n, --reject                    Reject all interactive prompts.
       --ver                       Query remote server for package version
                                   information when searching or listing packages
+      --nimbledir dirname         Set the Nimble directory.
 
 For more information read the Github readme:
   https://github.com/nim-lang/nimble#readme
@@ -217,6 +218,7 @@ proc parseCmdLine(): Options =
         of "accept", "y": result.forcePrompts = forcePromptYes
         of "reject", "n": result.forcePrompts = forcePromptNo
         of "ver": result.queryVersions = true
+        of "nimbleDir": result.config.nimbleDir = val # overrides option from file
         of "installed", "i": result.queryInstalled = true
         else: discard
     of cmdEnd: assert(false) # cannot happen
