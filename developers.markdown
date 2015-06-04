@@ -212,7 +212,7 @@ their own packages to it! Take a look at
 * ``srcDir`` - Specifies the directory which contains the .nim source files.
   **Default**: The directory in which the .nimble file resides; i.e. root dir of
   the package.
-* ``buildDir`` - Specifies the directory where ``nimble build`` will output
+* ``binDir`` - Specifies the directory where ``nimble build`` will output
   binaries.
   **Default**: The directory in which the .nimble file resides; i.e.
   root dir of the package.

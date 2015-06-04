@@ -21,7 +21,7 @@ type
     installExt*: seq[string]
     requires*: seq[PkgTuple]
     bin*: seq[string]
-    buildDir*: string
+    binDir*: string
     srcDir*: string
     backend*: string
 
@@ -57,7 +57,7 @@ proc initPackageInfo(): PackageInfo =
   result.requires = @[]
   result.bin = @[]
   result.srcDir = ""
-  result.buildDir = ""
+  result.binDir = ""
   result.backend = "c"
 
 proc validatePackageInfo(pkgInfo: PackageInfo, path: string) =
@@ -143,7 +143,7 @@ proc readPackageInfo*(path: string): PackageInfo =
           of "description": result.description = ev.value
           of "license": result.license = ev.value
           of "srcdir": result.srcDir = ev.value
-          of "builddir": result.buildDir = ev.value
+          of "bindir": result.binDir = ev.value
           of "skipdirs":
             result.skipDirs.add(ev.value.multiSplit)
           of "skipfiles":
@@ -204,7 +204,7 @@ proc requiredField(obj: JsonNode, name: string): string =
   ## Aborts execution if the field does not exist or is of invalid json type.
   result = optionalField(obj, name, nil)
   if result == nil:
-    raise newException(NimbleError, 
+    raise newException(NimbleError,
         "Package in packages.json file does not contain a " & name & " field.")
 
 proc fromJson(obj: JSonNode): Package =
@@ -300,7 +300,7 @@ proc findPkg*(pkglist: seq[tuple[pkginfo: PackageInfo, meta: MetaData]],
   ## packages are found the newest one is returned (the one with the highest
   ## version number)
   ##
-  ## **Note**: dep.name here could be a URL, hence the need for pkglist.meta. 
+  ## **Note**: dep.name here could be a URL, hence the need for pkglist.meta.
   for pkg in pkglist:
     if pkg.pkginfo.name.normalize != dep.name.normalize and
        pkg.meta.url.normalize != dep.name.normalize: continue
@@ -332,8 +332,8 @@ proc getRealDir*(pkgInfo: PackageInfo): string =
 proc getOutputOption*(pkgInfo: TPackageInfo, bin: string): string =
   ## Returns an output option for the nim compiler if a build directory
   ## has been set.
-  if pkgInfo.buildDir != "":
-    result = " -o:\"" & pkgInfo.mypath.splitFile.dir / pkgInfo.buildDir / bin & "\""
+  if pkgInfo.binDir != "":
+    result = " -o:\"" & pkgInfo.mypath.splitFile.dir / pkgInfo.binDir / bin & "\""
   else:
     result = " -o:\"" & pkgInfo.mypath.splitFile.dir / bin & "\""
 
@@ -346,7 +346,7 @@ proc getNameVersion*(pkgpath: string): tuple[name, version: string] =
   if '-' notin tail:
     result.name = tail
     return
-  
+
   for i in countdown(tail.len-1, 0):
     if tail[i] == '-':
       result.name = tail[0 .. i-1]
