@@ -80,6 +80,17 @@ proc `==`*(spe: Special, spe2: Special): bool =
 proc `<=`*(ver: Version, ver2: Version): bool =
   return (ver == ver2) or (ver < ver2)
 
+proc `==`*(range1: VersionRange, range2: VersionRange): bool =
+  if range1.kind != range2.kind : return false
+  result = case range1.kind
+  of verLater, verEarlier, verEqLater, verEqEarlier, verEq:
+    range1.ver == range2.ver
+  of verSpecial:
+    range1.spe == range2.spe
+  of verIntersect:
+    range1.verILeft == range2.verILeft and range1.verIRight == range2.verIRight
+  of verAny: true
+
 proc withinRange*(ver: Version, ran: VersionRange): bool =
   case ran.kind
   of verLater:
@@ -152,7 +163,7 @@ proc parseVersionRange*(s: string): VersionRange =
     of '&':
       result.kind = verIntersect
       result.verILeft = makeRange(version, op)
-      
+
       # Parse everything after &
       # Recursion <3
       result.verIRight = parseVersionRange(substr(s, i + 1))
@@ -162,7 +173,7 @@ proc parseVersionRange*(s: string): VersionRange =
       if result.verIRight.kind == verIntersect:
         raise newException(ParseVersionError,
             "Having more than one `&` in a version range is pointless")
-      
+
       break
 
     of '0'..'9', '.':
@@ -171,7 +182,7 @@ proc parseVersionRange*(s: string): VersionRange =
     of '\0':
       result = makeRange(version, op)
       break
-    
+
     of ' ':
       # Make sure '0.9 8.03' is not allowed.
       if version != "" and i < s.len:
@@ -282,7 +293,7 @@ when isMainModule:
   doAssert newSpecial("ab26saggdt362") == newSpecial("ab26saggdt362")
   doAssert newSpecial("head") == newSpecial("HEAD")
   doAssert newSpecial("head") == newSpecial("head")
-  
+
   var sp = parseVersionRange("#ab26sgdt362")
   doAssert newSpecial("ab26sgdt362") in sp
   doAssert newSpecial("ab26saggdt362") notin sp

@@ -667,7 +667,8 @@ proc install(packages: seq[PkgTuple],
       except BuildFailed:
         # The package failed to build.
         # Check if we tried building a tagged version of the package.
-        if pv.ver.kind != verSpecial:
+        let headVer = parseVersionRange("#" & getHeadName(meth))
+        if pv.ver.kind != verSpecial and downloadVersion != headVer:
           # If we tried building a tagged version of the package then
           # ask the user whether they want to try building #head.
           let promptResult = doPrompt and
@@ -675,8 +676,8 @@ proc install(packages: seq[PkgTuple],
                   " like to try installing '$1@#head' (latest unstable)?") %
                   [pv.name, $downloadVersion])
           if promptResult:
-            let verRange = parseVersionRange("#" & getHeadName(meth))
-            result = install(@[(pv.name, verRange)], options, doPrompt)
+
+            result = install(@[(pv.name, headVer)], options, doPrompt)
           else:
             raise newException(BuildFailed,
               "Aborting installation due to build failure")
