@@ -467,8 +467,13 @@ proc buildFromDir(pkgInfo: PackageInfo, paths: seq[string], forRelease: bool) =
     let outputOpt = "-o:\"" & pkgInfo.getOutputDir(bin) & "\""
     echo("Building ", pkginfo.name, "/", bin, " using ", pkgInfo.backend,
          " backend...")
-    doCmd(getNimBin() & " $# $# --noBabelPath $# $# \"$#\"" %
-          [pkgInfo.backend, releaseOpt, args, outputOpt, realDir / bin.changeFileExt("nim")])
+    try:
+      doCmd(getNimBin() & " $# $# --noBabelPath $# $# \"$#\"" %
+            [pkgInfo.backend, releaseOpt, args, outputOpt,
+             realDir / bin.changeFileExt("nim")])
+    except NimbleError:
+      raise newException(BuildFailed, "Build failed for package: " &
+                         pkgInfo.name)
 
 proc saveNimbleMeta(pkgDestDir, url: string, filesInstalled: HashSet[string]) =
   var nimblemeta = %{"url": %url}
@@ -608,28 +613,42 @@ proc getNimbleTempDir(): string =
     result.add($getpid())
 
 proc downloadPkg(url: string, verRange: VersionRange,
-                 downMethod: DownloadMethod): string =
+                 downMethod: DownloadMethod): (string, VersionRange) =
+  ## Downloads the repository as specified by ``url`` and ``verRange`` using
+  ## the download method specified.
+  ##
+  ## Returns the directory where it was downloaded and the concrete version
+  ## which was downloaded.
   let downloadDir = (getNimbleTempDir() / getDownloadDirName(url, verRange))
   createDir(downloadDir)
   echo("Downloading ", url, " into ", downloadDir, " using ", downMethod, "...")
-  doDownload(url, downloadDir, verRange, downMethod)
-  result = downloadDir
+  result = (downloadDir, doDownload(url, downloadDir, verRange, downMethod))
 
-proc downloadPkg(pkg: Package, verRange: VersionRange): string =
-  let downloadDir = (getNimbleTempDir() / getDownloadDirName(pkg, verRange))
-  let downMethod = pkg.downloadMethod.getDownloadMethod()
-  createDir(downloadDir)
-  echo("Downloading ", pkg.name, " into ", downloadDir, " using ", downMethod,
-      "...")
-  doDownload(pkg.url, downloadDir, verRange, downMethod)
-  result = downloadDir
+proc getDownloadInfo*(pv: PkgTuple, options: Options,
+                      doPrompt: bool): (DownloadMethod, string) =
+  if pv.name.isURL:
+    return (checkUrlType(pv.name), pv.name)
+  else:
+    var pkg: Package
+    if getPackage(pv.name, options.getNimbleDir() / "packages.json", pkg):
+      return (pkg.downloadMethod.getDownloadMethod(), pkg.url)
+    else:
+      # If package is not found give the user a chance to update
+      # package.json
+      if doPrompt and
+          options.prompt(pv.name & " not found in local packages.json, " &
+                         "check internet for updated packages?"):
+        update(options)
+        return getDownloadInfo(pv, options, doPrompt)
+      else:
+        raise newException(NimbleError, "Package not found.")
 
 proc install(packages: seq[PkgTuple],
              options: Options,
              doPrompt = true): tuple[paths: seq[string], pkg: PackageInfo] =
- if packages == @[]:
+  if packages == @[]:
     result = installFromDir(getCurrentDir(), false, options, "")
- else:
+  else:
     # If packages.json is not present ask the user if they want to download it.
     if not existsFile(options.getNimbleDir / "packages.json"):
       if doPrompt and
@@ -641,25 +660,28 @@ proc install(packages: seq[PkgTuple],
 
     # Install each package.
     for pv in packages:
-      if pv.name.isURL:
-        let meth = checkUrlType(pv.name)
-        let downloadDir = downloadPkg(pv.name, pv.ver, meth)
-        result = installFromDir(downloadDir, false, options, pv.name)
-      else:
-        var pkg: Package
-        if getPackage(pv.name, options.getNimbleDir() / "packages.json", pkg):
-          let downloadDir = downloadPkg(pkg, pv.ver)
-          result = installFromDir(downloadDir, false, options, pkg.url)
-        else:
-          # If package is not found give the user a chance to update
-          # package.json
-          if doPrompt and
-              options.prompt(pv.name & " not found in local packages.json, " &
-                             "check internet for updated packages?"):
-            update(options)
-            result = install(@[pv], options, false)
+      let (meth, url) = getDownloadInfo(pv, options, doPrompt)
+      let (downloadDir, downloadVersion) = downloadPkg(url, pv.ver, meth)
+      try:
+        result = installFromDir(downloadDir, false, options, url)
+      except BuildFailed:
+        # The package failed to build.
+        # Check if we tried building a tagged version of the package.
+        if pv.ver.kind != verSpecial:
+          # If we tried building a tagged version of the package then
+          # ask the user whether they want to try building #head.
+          let promptResult = doPrompt and
+              options.prompt(("Build failed for '$1@$2', would you" &
+                  " like to try installing '$1@#head' (latest unstable)?") %
+                  [pv.name, $downloadVersion])
+          if promptResult:
+            let verRange = parseVersionRange("#" & getHeadName(meth))
+            result = install(@[(pv.name, verRange)], options, doPrompt)
           else:
-            raise newException(NimbleError, "Package not found.")
+            raise newException(BuildFailed,
+              "Aborting installation due to build failure")
+        else:
+          raise
 
 proc build(options: Options) =
   var pkgInfo = getPkgInfo(getCurrentDir())

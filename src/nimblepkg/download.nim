@@ -5,7 +5,7 @@ import parseutils, os, osproc, strutils, tables, pegs
 
 import packageinfo, version, tools, nimbletypes
 
-type  
+type
   DownloadMethod* {.pure.} = enum
     git = "git", hg = "hg"
 
@@ -106,11 +106,11 @@ proc getTagsListRemote*(url: string, meth: DownloadMethod): seq[string] =
       let start = i.find("refs/tags/")+"refs/tags/".len
       let tag = i[start .. i.len-1]
       if not tag.endswith("^{}"): result.add(tag)
-    
+
   of DownloadMethod.hg:
     # http://stackoverflow.com/questions/2039150/show-tags-for-remote-hg-repository
     raise newException(ValueError, "Hg doesn't support remote tag querying.")
-  
+
 proc getVersionList*(tags: seq[string]): Table[Version, string] =
   # Returns: TTable of version -> git tag name
   result = initTable[Version, string]()
@@ -147,18 +147,23 @@ proc isURL*(name: string): bool =
   name.startsWith(peg" @'://' ")
 
 proc doDownload*(url: string, downloadDir: string, verRange: VersionRange,
-                 downMethod: DownloadMethod) =
+                 downMethod: DownloadMethod): VersionRange =
+  ## Downloads the repository specified by ``url`` using the specified download
+  ## method.
+  ##
+  ## Returns the version of the repository which has been downloaded.
   template getLatestByTag(meth: stmt): stmt {.dirty, immediate.} =
     echo("Found tags...")
     # Find latest version that fits our ``verRange``.
     var latest = findLatest(verRange, versions)
     ## Note: HEAD is not used when verRange.kind is verAny. This is
     ## intended behaviour, the latest tagged version will be used in this case.
-    
+
     # If no tagged versions satisfy our range latest.tag will be "".
     # We still clone in that scenario because we want to try HEAD in that case.
     # https://github.com/nimrod-code/nimble/issues/22
     meth
+    result = parseVersionRange($latest.ver)
 
   proc verifyClone() =
     ## Makes sure that the downloaded package's version satisfies the requested
@@ -169,7 +174,7 @@ proc doDownload*(url: string, downloadDir: string, verRange: VersionRange,
         "Downloaded package's version does not satisfy requested version " &
         "range: wanted $1 got $2." %
         [$verRange, $pkginfo.version])
-  
+
   removeDir(downloadDir)
   if verRange.kind == verSpecial:
     # We want a specific commit/branch/tag here.
@@ -183,6 +188,7 @@ proc doDownload*(url: string, downloadDir: string, verRange: VersionRange,
       else:
         doClone(downMethod, url, downloadDir, tip = false)
         doCheckout(downMethod, downloadDir, $verRange.spe)
+    result = verRange
   else:
     case downMethod
     of DownloadMethod.git:
@@ -196,17 +202,19 @@ proc doDownload*(url: string, downloadDir: string, verRange: VersionRange,
       else:
         # If no commits have been tagged on the repo we just clone HEAD.
         doClone(downMethod, url, downloadDir) # Grab HEAD.
-      
+        result = parseVersionRange("#head")
+
       verifyClone()
     of DownloadMethod.hg:
       doClone(downMethod, url, downloadDir)
+      result = parseVersionRange("#tip")
       let versions = getTagsList(downloadDir, downMethod).getVersionList()
-    
+
       if versions.len > 0:
         getLatestByTag:
           echo("Switching to latest tagged version: ", latest.tag)
           doCheckout(downMethod, downloadDir, latest.tag)
-      
+
       verifyClone()
 
 proc echoPackageVersions*(pkg: Package) =

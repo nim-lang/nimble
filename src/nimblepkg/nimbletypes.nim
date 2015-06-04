@@ -5,3 +5,4 @@
 
 type
   NimbleError* = object of Exception
+  BuildFailed* = object of NimbleError
