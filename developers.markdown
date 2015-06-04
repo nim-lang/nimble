@@ -211,7 +211,11 @@ their own packages to it! Take a look at
   Separated by commas.
 * ``srcDir`` - Specifies the directory which contains the .nim source files.
   **Default**: The directory in which the .nimble file resides; i.e. root dir of
-  package.
+  the package.
+* ``buildDir`` - Specifies the directory where ``nimble build`` will output
+  binaries.
+  **Default**: The directory in which the .nimble file resides; i.e.
+  root dir of the package.
 * ``bin`` - A list of files which should be built separated by commas with
   no file extension required. This option turns your package into a *binary
   package*, nimble will build the files specified and install them appropriately.
@@ -228,4 +232,5 @@ their own packages to it! Take a look at
   range separated by commas.
   **Example**: ``nim >= 0.10.0, jester``; with this value your package will
   depend on ``nim`` version 0.10.0 or greater and on any version of ``jester``.
-  
+
+
