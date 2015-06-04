@@ -21,6 +21,7 @@ type
     installExt*: seq[string]
     requires*: seq[PkgTuple]
     bin*: seq[string]
+    buildDir*: string
     srcDir*: string
     backend*: string
 
@@ -56,6 +57,7 @@ proc initPackageInfo(): PackageInfo =
   result.requires = @[]
   result.bin = @[]
   result.srcDir = ""
+  result.buildDir = ""
   result.backend = "c"
 
 proc validatePackageInfo(pkgInfo: PackageInfo, path: string) =
@@ -141,6 +143,7 @@ proc readPackageInfo*(path: string): PackageInfo =
           of "description": result.description = ev.value
           of "license": result.license = ev.value
           of "srcdir": result.srcDir = ev.value
+          of "builddir": result.buildDir = ev.value
           of "skipdirs":
             result.skipDirs.add(ev.value.multiSplit)
           of "skipfiles":
@@ -325,6 +328,14 @@ proc getRealDir*(pkgInfo: PackageInfo): string =
     result = pkgInfo.mypath.splitFile.dir / pkgInfo.srcDir
   else:
     result = pkgInfo.mypath.splitFile.dir
+
+proc getOutputOption*(pkgInfo: TPackageInfo, bin: string): string =
+  ## Returns an output option for the nim compiler if a build directory
+  ## has been set.
+  if pkgInfo.buildDir != "":
+    result = " -o:\"" & pkgInfo.mypath.splitFile.dir / pkgInfo.buildDir / bin & "\""
+  else:
+    result = " -o:\"" & pkgInfo.mypath.splitFile.dir / bin & "\""
 
 proc getNameVersion*(pkgpath: string): tuple[name, version: string] =
   ## Splits ``pkgpath`` in the format ``/home/user/.nimble/pkgs/package-0.1``
