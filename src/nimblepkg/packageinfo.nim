@@ -329,7 +329,7 @@ proc getRealDir*(pkgInfo: PackageInfo): string =
   else:
     result = pkgInfo.mypath.splitFile.dir
 
-proc getOutputOption*(pkgInfo: TPackageInfo, bin: string): string =
+proc getOutputOption*(pkgInfo: PackageInfo, bin: string): string =
   ## Returns an output option for the nim compiler if a build directory
   ## has been set.
   if pkgInfo.binDir != "":
