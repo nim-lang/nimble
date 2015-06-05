@@ -855,6 +855,10 @@ proc init(options: Options) =
                        " for writing: " & osErrorMsg(osLastError()))
 
 proc uninstall(options: Options) =
+  if options.action.packages.len == 0:
+    raise newException(NimbleError,
+        "Please specify the package(s) to uninstall.")
+
   var pkgsToDelete: seq[PackageInfo] = @[]
   # Do some verification.
   for pkgTup in options.action.packages:
