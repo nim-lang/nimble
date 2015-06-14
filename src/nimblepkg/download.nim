@@ -163,7 +163,11 @@ proc doDownload*(url: string, downloadDir: string, verRange: VersionRange,
     # We still clone in that scenario because we want to try HEAD in that case.
     # https://github.com/nimrod-code/nimble/issues/22
     meth
-    result = parseVersionRange($latest.ver)
+    if $latest.ver != "":
+      result = parseVersionRange($latest.ver)
+    else:
+      # Result should already be set to #head here.
+      assert(not result.isNil)
 
   proc verifyClone() =
     ## Makes sure that the downloaded package's version satisfies the requested
@@ -194,6 +198,7 @@ proc doDownload*(url: string, downloadDir: string, verRange: VersionRange,
     of DownloadMethod.git:
       # For Git we have to query the repo remotely for its tags. This is
       # necessary as cloning with a --depth of 1 removes all tag info.
+      result = parseVersionRange("#head")
       let versions = getTagsListRemote(url, downMethod).getVersionList()
       if versions.len > 0:
         getLatestByTag:
@@ -202,7 +207,6 @@ proc doDownload*(url: string, downloadDir: string, verRange: VersionRange,
       else:
         # If no commits have been tagged on the repo we just clone HEAD.
         doClone(downMethod, url, downloadDir) # Grab HEAD.
-        result = parseVersionRange("#head")
 
       verifyClone()
     of DownloadMethod.hg:
