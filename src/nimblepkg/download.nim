@@ -31,7 +31,7 @@ proc doCheckout(meth: DownloadMethod, downloadDir, branch: string) =
 proc doPull(meth: DownloadMethod, downloadDir: string) =
   case meth
   of DownloadMethod.git:
-    doCheckout(meth, downloadDir, "master")
+    doCheckout(meth, downloadDir, "")
     cd downloadDir:
       doCmd("git pull")
       if existsFile(".gitmodules"):
@@ -47,20 +47,9 @@ proc doClone(meth: DownloadMethod, url, downloadDir: string, branch = "",
   of DownloadMethod.git:
     let
       depthArg = if tip: "--depth 1 " else: ""
-      branchArg = if branch == "": "-b origin/master" else: "-b " & branch & " "
-      branch = if branch == "": "master" else: branch
-    # Some git versions (e.g. 1.7.9.5) don't check out the correct branch/tag
-    # directly during clone, so we enter the download directory and manually
-    # initi the git repo issuing several commands in sequence. Recipe taken
-    # from http://stackoverflow.com/a/3489576/172690.
-    downloadDir.createDir
-    downloadDir.cd:
-      doCmd("git init")
-      doCmd("git remote add origin " & url)
-      doCmd("git fetch origin " & depthArg & branch)
-      doCmd("git reset --hard FETCH_HEAD")
-      doCmd("git checkout --force " & branchArg)
-      doCmd("git submodule update --init --recursive")
+      branchArg = if branch == "": "" else: "-b " & branch & " "
+    doCmd("git clone --recursive " & depthArg & branchArg & url &
+          " " & downloadDir)
   of DownloadMethod.hg:
     let
       tipArg = if tip: "-r tip " else: ""
