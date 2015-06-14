@@ -1,4 +1,4 @@
-# Nimble for developers
+# How to Create and Publish Packages
 
 This file contains information mostly meant for developers willing to produce
 [Nim](http://nim-lang.org) modules and submit them to the
