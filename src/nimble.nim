@@ -79,7 +79,7 @@ Options:
 For more information read the Github readme:
   https://github.com/nim-lang/nimble#readme
 """
-  nimbleVersion = "0.6.0"
+  nimbleVersion = "0.6.2"
   defaultPackageURL =
       "https://github.com/nim-lang/packages/raw/master/packages.json"
 
