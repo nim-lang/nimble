@@ -4,7 +4,7 @@
 import httpclient, parseopt, os, strutils, osproc, pegs, tables, parseutils,
        strtabs, json, algorithm, sets
 
-from sequtils import toSeq
+from sequtils import toSeq, concat
 
 import nimblepkg/packageinfo, nimblepkg/version, nimblepkg/tools,
        nimblepkg/download, nimblepkg/config, nimblepkg/nimbletypes
@@ -46,6 +46,12 @@ type
 
   ForcePrompt = enum
     dontForcePrompt, forcePromptYes, forcePromptNo
+
+type
+  ConfigField = tuple
+    name: string
+    value: string
+    desc: string
 
 const
   help = """
@@ -816,35 +822,53 @@ proc listPaths(options: Options) =
 
 proc init(options: Options) =
   echo("Initializing new Nimble project!")
+
   var
-    pkgName, fName: string = ""
+    fname: string = ""
     outFile: File
+    frmtQuestion: string = "$desc: [default: $value]"
+    pkgName: ConfigField = (name: "name",
+                            value: "test",
+                            desc: "Enter a project name for this (blank to use working directory), Ctrl-C to abort:")
+    fields: seq[ConfigField] = @[(name: "version", value: "0.1.0",
+                                  desc: "Enter a version number"),
+                                 (name: "author", value: "Anonymous",
+                                  desc: "Enter author name"),
+                                 (name: "description", value: "New Nimble project for Nim",
+                                  desc: "Enter a description"),
+                                 (name: "license", value: "MIT",
+                                  desc: "Enter a license name")]
 
   if (options.action.projName != ""):
-    pkgName = options.action.projName
-    fName = pkgName & ".nimble"
+    pkgName.value = options.action.projName
+    fName = pkgName.value & ".nimble"
     if (existsFile(os.getCurrentDir() / fName)):
       raise newException(NimbleError, "Already have a nimble file.")
   else:
-    echo("Enter a project name for this (blank to use working directory), " &
-        "Ctrl-C to abort:")
-    pkgName = readline(stdin)
-    if (pkgName == ""):
-      pkgName = os.getCurrentDir().splitPath.tail
-    if (pkgName == ""):
+    echo(pkgName.desc)
+    pkgName.value = stdin.readLine()
+    if (pkgName.value == ""):
+      pkgName.value = os.getCurrentDir().splitPath.tail
+    if (pkgName.value == ""):
       raise newException(NimbleError, "Could not get default file path.")
-    fName = pkgName & ".nimble"
+    fName = pkgName.value & ".nimble"
+
+  # Iterate on each config field to ask for a value
+  for field in mitems(fields):
+    echo(frmtQuestion % ["desc", field.desc, "value", field.value])
+    var readValue = stdin.readLine()
+    if (readValue != ""):
+      field.value = readValue
 
   # Now need to write out .nimble file with projName and other details
 
   if (not existsFile(os.getCurrentDir() / fName) and
       open(f=outFile, filename = fName, mode = fmWrite)):
     outFile.writeln("[Package]")
-    outFile.writeln("name          = \"" & pkgName & "\"")
-    outFile.writeln("version       = \"0.1.0\"")
-    outFile.writeln("author        = \"Anonymous\"")
-    outFile.writeln("description   = \"New Nimble project for Nim\"")
-    outFile.writeln("license       = \"MIT\"")
+
+    for field in concat(@[pkgName], fields):
+      outFile.writeln("$1 = \"$2\"" % [field.name, field.value])
+
     outFile.writeln("")
     outFile.writeln("[Deps]")
     outFile.writeln("Requires: \"nim >= 0.10.0\"")
