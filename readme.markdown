@@ -236,9 +236,9 @@ a quick ``.nimble`` file for your project.
 
 ## Configuration
 
-At startup Nimble will attempt to read ``$AppDir/nimble/nimble.ini``,
-where ``$AppDir`` is ``~/.config/`` on Linux and
-``C:\Users\<YourUser>\AppData\Roaming\`` on Windows.
+At startup Nimble will attempt to read ``~/.config/nimble/nimble.ini`` on Linux
+(on Windows it will attempt to read
+``C:\Users\<YourUser>\AppData\Roaming\nimble\nimble.ini``).
 
 The format of this file corresponds to the ini format with some Nim
 enhancements. For example:
