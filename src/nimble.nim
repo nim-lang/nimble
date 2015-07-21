@@ -573,9 +573,9 @@ proc installFromDir(dir: string, latest: bool, options: Options,
       elif defined(windows):
         let dest = binDir / cleanBin.changeFileExt("cmd")
         echo("Creating stub: ", pkgDestDir / bin, " -> ", dest)
-        var contents = ""
+        var contents = "@"
         if options.config.chcp:
-          contents.add "chcp 65001\n"
+          contents.add "chcp 65001 > nul && "
         contents.add "\"" & pkgDestDir / bin & "\" %*\n"
         writeFile(dest, contents)
         # For bash on Windows (Cygwin/Git bash).
