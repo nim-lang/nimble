@@ -11,6 +11,8 @@ import nimblepkg/packageinfo, nimblepkg/version, nimblepkg/tools,
 
 when not defined(windows):
   from posix import getpid
+else:
+  from windows import GetVersionExA, OSVERSIONINFO, WINBOOL, DWORD
 
 type
   Options = object
@@ -571,11 +573,19 @@ proc installFromDir(dir: string, latest: bool, options: Options,
         echo("Creating symlink: ", pkgDestDir / bin, " -> ", binDir / cleanBin)
         createSymlink(pkgDestDir / bin, binDir / cleanBin)
       elif defined(windows):
+        # There is a bug on XP, described here:
+        # http://stackoverflow.com/questions/2182568/batch-script-is-not-executed-if-chcp-was-called
+        # But this workaround brokes code page on newer systems, so we need to detect OS version
+        var osver = OSVERSIONINFO()
+        osver.dwOSVersionInfoSize= cast[DWORD](sizeof(OSVERSIONINFO))
+        if GetVersionExA(addr osver) == WINBOOL(0):
+          quit "Can't detect OS version: GetVersionExA call failed"
+        let fixChcp = osver.dwMajorVersion <= 5
         let dest = binDir / cleanBin.changeFileExt("cmd")
         echo("Creating stub: ", pkgDestDir / bin, " -> ", dest)
         var contents = "@"
         if options.config.chcp:
-          contents.add "chcp 65001 > nul && "
+          if fixChcp: contents.add "chcp 65001 > nul && " else: contents.add "chcp 65001 > nul\n@"
         contents.add "\"" & pkgDestDir / bin & "\" %*\n"
         writeFile(dest, contents)
         # For bash on Windows (Cygwin/Git bash).
