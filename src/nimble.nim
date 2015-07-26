@@ -12,7 +12,20 @@ import nimblepkg/packageinfo, nimblepkg/version, nimblepkg/tools,
 when not defined(windows):
   from posix import getpid
 else:
-  from windows import GetVersionExA, OSVERSIONINFO, WINBOOL, DWORD
+  # This is just for Win XP support.
+  # TODO: Drop XP support?
+  from winlean import WINBOOL, DWORD
+  type
+    OSVERSIONINFO* {.final, pure.} = object
+      dwOSVersionInfoSize*: DWORD
+      dwMajorVersion*: DWORD
+      dwMinorVersion*: DWORD
+      dwBuildNumber*: DWORD
+      dwPlatformId*: DWORD
+      szCSDVersion*: array[0..127, char]
+
+  proc GetVersionExA*(VersionInformation: var OSVERSIONINFO): WINBOOL{.stdcall,
+    dynlib: "kernel32", importc: "GetVersionExA".}
 
 type
   Options = object
@@ -577,15 +590,19 @@ proc installFromDir(dir: string, latest: bool, options: Options,
         # http://stackoverflow.com/questions/2182568/batch-script-is-not-executed-if-chcp-was-called
         # But this workaround brokes code page on newer systems, so we need to detect OS version
         var osver = OSVERSIONINFO()
-        osver.dwOSVersionInfoSize= cast[DWORD](sizeof(OSVERSIONINFO))
-        if GetVersionExA(addr osver) == WINBOOL(0):
-          quit "Can't detect OS version: GetVersionExA call failed"
+        osver.dwOSVersionInfoSize = cast[DWORD](sizeof(OSVERSIONINFO))
+        if GetVersionExA(osver) == WINBOOL(0):
+          raise newException(NimbleError,
+            "Can't detect OS version: GetVersionExA call failed")
         let fixChcp = osver.dwMajorVersion <= 5
+
         let dest = binDir / cleanBin.changeFileExt("cmd")
         echo("Creating stub: ", pkgDestDir / bin, " -> ", dest)
         var contents = "@"
         if options.config.chcp:
-          if fixChcp: contents.add "chcp 65001 > nul && " else: contents.add "chcp 65001 > nul\n@"
+          if fixChcp:
+            contents.add "chcp 65001 > nul && "
+          else: contents.add "chcp 65001 > nul\n@"
         contents.add "\"" & pkgDestDir / bin & "\" %*\n"
         writeFile(dest, contents)
         # For bash on Windows (Cygwin/Git bash).
