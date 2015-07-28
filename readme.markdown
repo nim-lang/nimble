@@ -264,20 +264,7 @@ packages is stored in a JSON file which is freely accessible in the
 This JSON file provides nimble with the required Git URL to clone the package
 and install it. Installation and build instructions are contained inside a
 ini-style file with the ``.nimble`` file extension. The nimble file shares the
-package's name.
-
-### How to Create and Publish Packages
-
-This file contains information mostly meant for developers willing to produce
-[Nim](http://nim-lang.org) modules and submit them to the
-[nim-lang/packages repository](https://github.com/nim-lang/packages). End
-user documentation is provided in the [readme.markdown file](readme.markdown).
-
-#### Packages
-
-A Nimble package is defined by an ini-like formatted file with the ``.nimble``
-extension (this document uses the term ".nimble file" to refer to them). The
-.nimble file should be named after the package it describes, i.e. a package
+package's name, i.e. a package
 named "foobar" should have a corresponding ``foobar.nimble`` file.
 
 These files specify information about the package including its name, author,
@@ -303,7 +290,7 @@ Nimble currently supports installation of packages from a local directory, a
 git repository and a mercurial repository. The .nimble file must be present in
 the root of the directory or repository being installed.
 
-##### Libraries
+### Libraries
 
 Library packages are likely the most popular form of Nimble packages. They are
 meant to be used by other library packages or the ultimate binary packages.
@@ -343,7 +330,7 @@ Directories and files can also be specified on a *whitelist* basis, if you
 specify either of ``InstallDirs``, ``InstallFiles`` or ``InstallExt`` then
 Nimble will **only** install the files specified.
 
-##### Binary packages
+### Binary packages
 
 These are application packages which require building prior to installation.
 A package is automatically a binary package as soon as it sets at least one
@@ -369,7 +356,7 @@ package you should ensure that the dependencies you specified are correct.
 You can do this by running ``nimble build`` or ``nimble install`` in the directory
 of your package.
 
-##### Hybrids
+### Hybrids
 
 One thing to note about library and binary package hybrids is that your binary
 will most likely share the name of the package. This will mean that you will
@@ -377,7 +364,7 @@ not be able to put your .nim files in a ``pkgname`` directory. The current
 convention to get around this problem is to append ``pkg`` to the name as is
 done for nimble.
 
-#### Dependencies
+## Dependencies
 
 Dependencies are specified under the ``[Deps]`` section in a nimble file.
 The ``requires`` key field is used to specify them. For example:
@@ -404,7 +391,7 @@ These have to be concrete however. This is done with the ``#`` character,
 for example: ``jester#head``. Which will make your package depend on the
 latest commit of Jester.
 
-##### Nim compiler
+### Nim compiler
 
 The Nim compiler cannot read .nimble files. Its knowledge of Nimble is
 limited to the ``nimblePaths`` feature which allows it to use packages installed
@@ -420,7 +407,7 @@ This means that you can safely compile using the compiler when developing your
 software, but you should use nimble to build the package before publishing it
 to ensure that the dependencies you specified are correct.
 
-#### Versions
+## Versions
 
 Versions of cloned packages via git or mercurial are determined through the
 repository's *tags*.
@@ -436,17 +423,17 @@ package after checking out the latest version.
 You can force the installation of the HEAD of the repository by specifying
 ``#head`` after the package name in your dependency list.
 
-### Submitting your package to the package list.
+## Submitting your package to the package list.
 
 Nimble's packages list is stored on github and everyone is encouraged to add
 their own packages to it! Take a look at
 [nim-lang/packages](https://github.com/nim-lang/packages) to learn more.
 
-### .nimble reference
+## .nimble reference
 
-#### [Package]
+### [Package]
 
-##### Required
+#### Required
 
 * ``name`` - The name of the package.
 * ``version`` - The *current* version of this package. This should be incremented
@@ -455,7 +442,7 @@ their own packages to it! Take a look at
 * ``description`` - A string describing the package.
 * ``license`` - The name of the license in which this package is licensed under.
 
-##### Optional
+#### Optional
 
 * ``SkipDirs`` - A list of directory names which should be skipped during
   installation, separated by commas.
@@ -492,9 +479,9 @@ their own packages to it! Take a look at
   ``js``.
   **Default**: c
 
-#### [Deps]/[Dependencies]
+### [Deps]/[Dependencies]
 
-##### Optional
+#### Optional
 
 * ``requires`` - Specified a list of package names with an optional version
   range separated by commas.
