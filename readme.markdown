@@ -3,10 +3,9 @@
 Nimble is a *beta*-grade *package manager* for the [Nim programming
 language](http://nim-lang.org).
 
-**Note:** This readme explains how to install and use nimble. It does not
-explain how to create nimble packages. Take a look at the
-[developers.markdown file](developers.markdown) for information regarding
-package creation.
+
+Interested in learning **how to create a package**? Skip directly to that section
+[here](#creating-packages).
 
 ## Installation
 
@@ -256,7 +255,7 @@ You can currently configure the following in this file:
   .cmd stubs generated in ``~/.nimble/bin/``.
   **Default:** ``true``
 
-## Packages
+## Creating Packages
 
 Nimble works on git repositories as its primary source of packages. Its list of
 packages is stored in a JSON file which is freely accessible in the
@@ -364,7 +363,7 @@ not be able to put your .nim files in a ``pkgname`` directory. The current
 convention to get around this problem is to append ``pkg`` to the name as is
 done for nimble.
 
-## Dependencies
+### Dependencies
 
 Dependencies are specified under the ``[Deps]`` section in a nimble file.
 The ``requires`` key field is used to specify them. For example:
@@ -407,7 +406,7 @@ This means that you can safely compile using the compiler when developing your
 software, but you should use nimble to build the package before publishing it
 to ensure that the dependencies you specified are correct.
 
-## Versions
+### Versions
 
 Versions of cloned packages via git or mercurial are determined through the
 repository's *tags*.
