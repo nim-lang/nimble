@@ -3,28 +3,6 @@
 import parsecfg, json, streams, strutils, parseutils, os
 import version, tools, nimbletypes
 type
-  ## Tuple containing package name and version range.
-  PkgTuple* = tuple[name: string, ver: VersionRange]
-
-  PackageInfo* = object
-    mypath*: string ## The path of this .nimble file
-    name*: string
-    version*: string
-    author*: string
-    description*: string
-    license*: string
-    skipDirs*: seq[string]
-    skipFiles*: seq[string]
-    skipExt*: seq[string]
-    installDirs*: seq[string]
-    installFiles*: seq[string]
-    installExt*: seq[string]
-    requires*: seq[PkgTuple]
-    bin*: seq[string]
-    binDir*: string
-    srcDir*: string
-    backend*: string
-
   Package* = object
     # Required fields in a package.
     name*: string

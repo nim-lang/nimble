@@ -3,6 +3,28 @@
 # Various miscellaneous common types reside here, to avoid problems with
 # recursive imports
 
+import version
+
 type
   NimbleError* = object of Exception
   BuildFailed* = object of NimbleError
+
+  PackageInfo* = object
+    mypath*: string ## The path of this .nimble file
+    name*: string
+    version*: string
+    author*: string
+    description*: string
+    license*: string
+    skipDirs*: seq[string]
+    skipFiles*: seq[string]
+    skipExt*: seq[string]
+    installDirs*: seq[string]
+    installFiles*: seq[string]
+    installExt*: seq[string]
+    requires*: seq[PkgTuple]
+    bin*: seq[string]
+    binDir*: string
+    srcDir*: string
+    backend*: string
+

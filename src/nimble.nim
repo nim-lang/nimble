@@ -7,7 +7,8 @@ import httpclient, parseopt, os, strutils, osproc, pegs, tables, parseutils,
 from sequtils import toSeq
 
 import nimblepkg/packageinfo, nimblepkg/version, nimblepkg/tools,
-       nimblepkg/download, nimblepkg/config, nimblepkg/nimbletypes
+       nimblepkg/download, nimblepkg/config, nimblepkg/nimbletypes,
+       nimblepkg/publish
 
 when not defined(windows):
   from posix import getpid
@@ -37,12 +38,13 @@ type
     nimbleData: JsonNode ## Nimbledata.json
 
   ActionType = enum
-    actionNil, actionUpdate, actionInit, actionInstall, actionSearch,
+    actionNil, actionUpdate, actionInit, actionPublish,
+    actionInstall, actionSearch,
     actionList, actionBuild, actionPath, actionUninstall, actionCompile
 
   Action = object
     case typ: ActionType
-    of actionNil, actionList, actionBuild: nil
+    of actionNil, actionList, actionBuild, actionPublish: nil
     of actionUpdate:
       optionalURL: string # Overrides default package list.
     of actionInstall, actionPath, actionUninstall:
@@ -69,6 +71,9 @@ Usage: nimble COMMAND [opts]
 Commands:
   install      [pkgname, ...]     Installs a list of packages.
   init         [pkgname]          Initializes a new Nimble project.
+  publish                         Publishes a package on nim-lang/packages.
+                                  The current working directory needs to be the
+                                  toplevel directory of the Nimble package.
   uninstall    [pkgname, ...]     Uninstalls a list of packages.
   build                           Builds a package.
   c, cc, js    [opts, ...] f.nim  Builds a file inside a package. Passes options
@@ -190,6 +195,8 @@ proc parseCmdLine(): Options =
         of "uninstall", "remove", "delete", "del", "rm":
           result.action.typ = actionUninstall
           result.action.packages = @[]
+        of "publish":
+          result.action.typ = actionPublish
         else: writeHelp()
       else:
         case result.action.typ
@@ -215,7 +222,7 @@ proc parseCmdLine(): Options =
           result.action.projName = key
         of actionCompile:
           result.action.file = key
-        of actionList, actionBuild:
+        of actionList, actionBuild, actionPublish:
           writeHelp()
         else:
           discard
@@ -965,6 +972,9 @@ proc doAction(options: Options) =
     compile(options)
   of actionInit:
     init(options)
+  of actionPublish:
+    var pkgInfo = getPkgInfo(getCurrentDir())
+    publish(pkgInfo)
   of actionNil:
     assert false
 

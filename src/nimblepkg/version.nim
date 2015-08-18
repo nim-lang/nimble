@@ -29,6 +29,9 @@ type
     of verAny:
       nil
 
+  ## Tuple containing package name and version range.
+  PkgTuple* = tuple[name: string, ver: VersionRange]
+
   ParseVersionError* = object of ValueError
 
 proc newVersion*(ver: string): Version = return Version(ver)
