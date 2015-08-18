@@ -102,6 +102,8 @@ proc cleanupWhitespace(s: string): string =
     else:
       result.add s[i]
       inc i
+  if result[^1] != '\L':
+    result.add '\L'
 
 proc editJson(p: PackageInfo; url, tags, downloadMethod: string) =
   var contents = parseFile("packages.json")
