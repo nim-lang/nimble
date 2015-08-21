@@ -126,8 +126,7 @@ proc getPackageOriginUrl(a: Auth): string =
 proc publish*(p: PackageInfo) =
   ## Publishes the package p.
   let auth = getGithubAuth()
-  let parent = os.getCurrentDir().parentDir()
-  var pkgsDir = parent / "nimble-packages-fork"
+  var pkgsDir = getTempDir() / "nimble-packages-fork"
   if not forkExists(auth):
     createFork(auth)
     echo "waiting 10s to let Github create a fork ..."
@@ -136,7 +135,7 @@ proc publish*(p: PackageInfo) =
       pkgsDir = readLineFromStdin("Directory where to clone into: ")
       if pkgsDir.len == 0: userAborted()
     echo "... done; cloning packages into: ", pkgsDir
-    cd parent:
+    cd getTempDir():
       doCmd("git clone https://github.com/" & auth.user & "/packages " & pkgsDir)
       # Use SSH instead of HTTPS so that the user isn't bothered with the
       # password for 'git push':
