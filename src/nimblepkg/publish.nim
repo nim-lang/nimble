@@ -4,7 +4,7 @@
 ## Implements 'nimble publish' to create a pull request against
 ## nim-lang/packages automatically.
 
-import httpclient, base64, strutils, rdstdin, json, os
+import httpclient, base64, strutils, rdstdin, json, os, browsers
 import tools, nimbletypes
 
 type
@@ -16,56 +16,49 @@ type
 proc userAborted() =
   raise newException(NimbleError, "User aborted the process.")
 
-proc getGithubAuth(): Auth =
-  var user = ""
-  let (output, exitCode) = doCmdEx("git config user.name")
-  if exitCode == 0:
-    user = output.string.strip
-  if user.len == 0:
-    user = readLineFromStdin("Github user name: ")
-    if user.len == 0: userAborted()
-  let pw = readPasswordFromStdin("Github password for " & user & ": ")
-  if pw.len == 0: userAborted()
-  result.user = user
-  result.pw = pw
-  result.token = encode(user & ':' & pw)
+proc createHeaders(a: Auth): string =
+  (("Authorization: token $1\c\L" % a.token) &
+          "Content-Type: application/x-www-form-urlencoded\c\L" &
+          "Accept: */*\c\L")
 
-proc searchFork(j: JsonNode): bool =
-  # Searches for: "fork":true recursively.
-  case j.kind
-  of JObject:
-    for k, v in items(j.fields):
-      if k == "fork" and v.kind == JBool: return v.bval
-    for k, v in items(j.fields):
-      if searchFork(v): return true
-  of JArray:
-    for x in j.elems:
-      if searchFork(x): return true
-  else: discard
+proc getGithubAuth(): Auth =
+  echo("Please create a new personal access token on Github in order to " &
+      "allow Nimble to fork the packages repository.")
+  sleep(5000)
+  echo("Your default browser should open with the following URL: " &
+      "https://github.com/settings/tokens/new")
+  sleep(3000)
+  openDefaultBrowser("https://github.com/settings/tokens/new")
+  result.token = readLineFromStdin("Personal access token: ").strip()
+  let resp = getContent("https://api.github.com/user",
+        extraHeaders=createHeaders(result)).parseJson()
+
+  result.user = resp["login"].str
+  echo("Successfully verified as ", result.user)
+
+proc isCorrectFork(j: JsonNode): bool =
+  # Check whether this is a fork of the nimble packages repo.
+  result = false
+  if j{"fork"}.getBVal():
+    result = j{"parent"}{"full_name"}.getStr() == "nim-lang/packages"
 
 proc forkExists(a: Auth): bool =
   try:
     let x = getContent("https://api.github.com/repos/" & a.user & "/packages",
-        extraHeaders=("Authorization: Basic $1\c\L" % a.token) &
-          "Content-Type: application/x-www-form-urlencoded\c\L" &
-          "Accept: */*\c\L")
+        extraHeaders=createHeaders(a))
     let j = parseJson(x)
-    result = searchFork(j)
+    result = isCorrectFork(j)
   except JsonParsingError, IOError:
     result = false
 
 proc createFork(a: Auth) =
   discard postContent("https://api.github.com/repos/nim-lang/packages/forks",
-      extraHeaders=("Authorization: Basic $1\c\L" % a.token) &
-        "Content-Type: application/x-www-form-urlencoded\c\L" &
-        "Accept: */*\c\L")
+      extraHeaders=createHeaders(a))
 
 proc createPullRequest(a: Auth; packageName: string) =
-  echo "creating PR"
+  echo("Creating PR")
   discard postContent("https://api.github.com/repos/nim-lang/packages/pulls",
-      extraHeaders=("Authorization: Basic $1\c\L" % a.token) &
-        "Content-Type: application/x-www-form-urlencoded\c\L" &
-        "Accept: */*\c\L",
+      extraHeaders=createHeaders(a),
       body="""{"title": "Add package $#", "head": "$#:master",
                "base": "master"}""" % [packageName, a.user])
 
