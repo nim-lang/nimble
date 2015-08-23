@@ -4,7 +4,7 @@
 ## Implements 'nimble publish' to create a pull request against
 ## nim-lang/packages automatically.
 
-import httpclient, base64, strutils, rdstdin, json, os, browsers
+import httpclient, base64, strutils, rdstdin, json, os, browsers, times, uri
 import tools, nimbletypes
 
 type
@@ -55,12 +55,12 @@ proc createFork(a: Auth) =
   discard postContent("https://api.github.com/repos/nim-lang/packages/forks",
       extraHeaders=createHeaders(a))
 
-proc createPullRequest(a: Auth; packageName: string) =
+proc createPullRequest(a: Auth, packageName, branch: string) =
   echo("Creating PR")
   discard postContent("https://api.github.com/repos/nim-lang/packages/pulls",
       extraHeaders=createHeaders(a),
-      body="""{"title": "Add package $#", "head": "$#:master",
-               "base": "master"}""" % [packageName, a.user])
+      body="""{"title": "Add package $1", "head": "$2:$3",
+               "base": "master"}""" % [packageName, a.user, branch])
 
 proc `%`(s: openArray[string]): JsonNode =
   result = newJArray()
@@ -131,26 +131,29 @@ proc publish*(p: PackageInfo) =
     createFork(auth)
     echo "waiting 10s to let Github create a fork ..."
     os.sleep(10_000)
-    if dirExists(pkgsDir):
-      pkgsDir = readLineFromStdin("Directory where to clone into: ")
-      if pkgsDir.len == 0: userAborted()
-    echo "... done; cloning packages into: ", pkgsDir
-    cd getTempDir():
-      doCmd("git clone https://github.com/" & auth.user & "/packages " & pkgsDir)
-      # Use SSH instead of HTTPS so that the user isn't bothered with the
-      # password for 'git push':
-      doCmd("git remote set-url origin git@github.com:$1/packages.git" %
-           auth.user)
-  elif not dirExists(pkgsDir):
-    pkgsDir = readLineFromStdin("According to github, you already forked " &
-                                "nim-lang/packages.\n" &
-                                "Please give the path to it: ")
-    if pkgsDir.len == 0: userAborted()
+
+    echo "... done"
+  if dirExists(pkgsDir):
+    echo("Removing old packages fork git directory.")
+    removeDir(pkgsDir)
+  echo "Cloning packages into: ", pkgsDir
+  doCmd("git clone git@github.com:" & auth.user & "/packages " & pkgsDir)
+  # Make sure to update the clone.
+  echo("Updating the fork...")
+  cd pkgsDir:
+    doCmd("git pull https://github.com/nim-lang/packages.git master")
+    doCmd("git push origin master")
+
   if not dirExists(pkgsDir):
     raise newException(NimbleError,
-         "Cannot find nimble-packages-fork git repository. Stopping.")
+        "Cannot find nimble-packages-fork git repository. Cloning failed.")
+
+  if not fileExists(pkgsDir / "packages.json"):
+    raise newException(NimbleError,
+        "No packages file found in cloned fork.")
 
   # We need to do this **before** the cd:
+  # Determine what type of repo this is.
   var url = ""
   var downloadMethod = ""
   if dirExists(os.getCurrentDir() / ".git"):
@@ -159,8 +162,14 @@ proc publish*(p: PackageInfo) =
       url = output.string.strip
       if url.endsWith(".git"): url.setLen(url.len - 4)
       downloadMethod = "git"
+    let parsed = parseUri(url)
+    if parsed.scheme == "":
+      # Assuming that we got an ssh write/read URL.
+      let sshUrl = parseUri("ssh://" & url)
+      url = "https://github.com/" & sshUrl.port & sshUrl.path
   elif dirExists(os.getCurrentDir() / ".hg"):
     downloadMethod = "hg"
+    # TODO: Retrieve URL from hg.
   else:
     raise newException(NimbleError,
          "No .git nor .hg directory found. Stopping.")
@@ -173,10 +182,12 @@ proc publish*(p: PackageInfo) =
 
   cd pkgsDir:
     editJson(p, url, tags, downloadMethod)
+    let branchName = "add-" & p.name & getTime().getGMTime().format("HHmm")
+    doCmd("git checkout -B " & branchName)
     doCmd("git commit packages.json -m \"Added package " & p.name & "\"")
-    echo pkgsDir, " git push origin master"
-    doCmd("git push " & getPackageOriginUrl(auth) & " master")
-    createPullRequest(auth, p.name)
+    echo("Pushing to remote of fork.")
+    doCmd("git push " & getPackageOriginUrl(auth) & " " & branchName)
+    createPullRequest(auth, p.name, branchName)
   echo "Pull request successful."
 
 when isMainModule:
