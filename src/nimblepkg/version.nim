@@ -33,6 +33,7 @@ type
   PkgTuple* = tuple[name: string, ver: VersionRange]
 
   ParseVersionError* = object of ValueError
+  NimbleError* = object of Exception
 
 proc newVersion*(ver: string): Version = return Version(ver)
 proc newSpecial*(spe: string): Special = return Special(spe)
@@ -197,6 +198,24 @@ proc parseVersionRange*(s: string): VersionRange =
       raise newException(ParseVersionError,
           "Unexpected char in version range: " & s[i])
     inc(i)
+
+
+proc parseRequires*(req: string): PkgTuple =
+  try:
+    if ' ' in req:
+      var i = skipUntil(req, Whitespace)
+      result.name = req[0 .. i].strip
+      result.ver = parseVersionRange(req[i .. req.len-1])
+    elif '#' in req:
+      var i = skipUntil(req, {'#'})
+      result.name = req[0 .. i-1]
+      result.ver = parseVersionRange(req[i .. req.len-1])
+    else:
+      result.name = req.strip
+      result.ver = VersionRange(kind: verAny)
+  except ParseVersionError:
+    raise newException(NimbleError,
+        "Unable to parse dependency version range: " & getCurrentExceptionMsg())
 
 proc `$`*(verRange: VersionRange): string =
   case verRange.kind

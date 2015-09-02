@@ -4,9 +4,9 @@
 # recursive imports
 
 import version
+export version.NimbleError
 
 type
-  NimbleError* = object of Exception
   BuildFailed* = object of NimbleError
 
   PackageInfo* = object
@@ -27,4 +27,3 @@ type
     binDir*: string
     srcDir*: string
     backend*: string
-

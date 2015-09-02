@@ -1,7 +1,11 @@
 # Copyright (C) Dominik Picheta. All rights reserved.
 # BSD License. Look at license.txt for more info.
 import parsecfg, json, streams, strutils, parseutils, os
-import version, tools, nimbletypes
+import version, tools, nimbletypes, nimscriptsupport
+
+const
+  NimsExt* = ".nims"
+
 type
   Package* = object
     # Required fields in a package.
@@ -11,7 +15,7 @@ type
     downloadMethod*: string
     description*: string
     tags*: seq[string] # Even if empty, always a valid non nil seq. \
-    # From here on, optional fields set to the emtpy string if not available.
+    # From here on, optional fields set to the empty string if not available.
     version*: string
     dvcsTag*: string
     web*: string # Info url for humans.
@@ -19,9 +23,12 @@ type
   MetaData* = object
     url*: string
 
-proc initPackageInfo(): PackageInfo =
-  result.mypath = ""
-  result.name = ""
+  NimbleFile* = tuple[isNimScript: bool; file: string]
+
+proc initPackageInfo(path: string): PackageInfo =
+  result.mypath = path
+  # reasonable default:
+  result.name = path.splitFile.name
   result.version = ""
   result.author = ""
   result.description = ""
@@ -63,23 +70,6 @@ proc validatePackageInfo(pkgInfo: PackageInfo, path: string) =
           "Version may only consist of numbers and the '.' character " &
           "but found '" & c & "'.")
 
-proc parseRequires(req: string): PkgTuple =
-  try:
-    if ' ' in req:
-      var i = skipUntil(req, Whitespace)
-      result.name = req[0 .. i].strip
-      result.ver = parseVersionRange(req[i .. req.len-1])
-    elif '#' in req:
-      var i = skipUntil(req, {'#'})
-      result.name = req[0 .. i-1]
-      result.ver = parseVersionRange(req[i .. req.len-1])
-    else:
-      result.name = req.strip
-      result.ver = VersionRange(kind: verAny)
-  except ParseVersionError:
-    raise newException(NimbleError,
-        "Unable to parse dependency version range: " & getCurrentExceptionMsg())
-
 proc multiSplit(s: string): seq[string] =
   ## Returns ``s`` split by newline and comma characters.
   ##
@@ -96,9 +86,7 @@ proc multiSplit(s: string): seq[string] =
   if len(result) < 1:
     return @[s]
 
-proc readPackageInfo*(path: string): PackageInfo =
-  result = initPackageInfo()
-  result.mypath = path
+proc readPackageInfoFromNimble(path: string; result: var PackageInfo) =
   var fs = newFileStream(path, fmRead)
   if fs != nil:
     var p: CfgParser
@@ -160,7 +148,35 @@ proc readPackageInfo*(path: string): PackageInfo =
     close(p)
   else:
     raise newException(ValueError, "Cannot open package info: " & path)
-  validatePackageInfo(result, path)
+
+proc getNameVersion*(pkgpath: string): tuple[name, version: string] =
+  ## Splits ``pkgpath`` in the format ``/home/user/.nimble/pkgs/package-0.1``
+  ## into ``(packagea, 0.1)``
+  result.name = ""
+  result.version = ""
+  let tail = pkgpath.splitPath.tail
+  if '-' notin tail:
+    result.name = tail
+    return
+
+  for i in countdown(tail.len-1, 0):
+    if tail[i] == '-':
+      result.name = tail[0 .. i-1]
+      result.version = tail[i+1 .. tail.len-1]
+      break
+
+proc readPackageInfo*(nf: NimbleFile; onlyMinimalInfo=false): PackageInfo =
+  result = initPackageInfo(nf.file)
+  if nf.isNimScript:
+    if onlyMinimalInfo:
+      let tmp = getNameVersion(nf.file)
+      result.name = tmp.name
+      result.version = tmp.version
+    else:
+      readPackageInfoFromNims(nf.file, result)
+  else:
+    readPackageInfoFromNimble(nf.file, result)
+  validatePackageInfo(result, nf.file)
 
 proc optionalField(obj: JsonNode, name: string, default = ""): string =
   ## Queries ``obj`` for the optional ``name`` string.
@@ -237,21 +253,34 @@ proc getPackageList*(packagesPath: string): seq[Package] =
     let pkg: Package = p.fromJson()
     result.add(pkg)
 
-proc findNimbleFile*(dir: string): string =
-  result = ""
+proc findNimbleFile*(dir: string; error: bool): NimbleFile =
+  result = (false, "")
+  var hits = 0
   for kind, path in walkDir(dir):
-    if kind == pcFile and path.splitFile.ext in [".babel", ".nimble"]:
-      if result != "":
-        raise newException(NimbleError,
-            "Only one .nimble file should be present in " & dir)
-      result = path
+    if kind == pcFile:
+      let ext = path.splitFile.ext
+      case ext
+      of ".babel", ".nimble":
+        result = (false, path)
+        inc hits
+      of NimsExt:
+        result = (true, path)
+        inc hits
+      else: discard
+  if hits >= 2:
+    raise newException(NimbleError,
+        "Only one .nimble file should be present in " & dir)
+  elif hits == 0:
+    if error:
+      raise newException(NimbleError,
+          "Specified directory does not contain a .nimble file.")
+    else:
+      # TODO: Abstract logging.
+      echo("WARNING: No .nimble file found for ", dir)
 
 proc getPkgInfo*(dir: string): PackageInfo =
   ## Find the .nimble file in ``dir`` and parses it, returning a PackageInfo.
-  let nimbleFile = findNimbleFile(dir)
-  if nimbleFile == "":
-    raise newException(NimbleError,
-        "Specified directory does not contain a .nimble file.")
+  let nimbleFile = findNimbleFile(dir, true)
   result = readPackageInfo(nimbleFile)
 
 proc getInstalledPkgs*(libsDir: string):
@@ -262,13 +291,10 @@ proc getInstalledPkgs*(libsDir: string):
   result = @[]
   for kind, path in walkDir(libsDir):
     if kind == pcDir:
-      let nimbleFile = findNimbleFile(path)
-      if nimbleFile != "":
+      let nimbleFile = findNimbleFile(path, false)
+      if nimbleFile.file != "":
         let meta = readMetaData(path)
-        result.add((readPackageInfo(nimbleFile), meta))
-      else:
-        # TODO: Abstract logging.
-        echo("WARNING: No .nimble file found for ", path)
+        result.add((readPackageInfo(nimbleFile, true), meta))
 
 proc findPkg*(pkglist: seq[tuple[pkginfo: PackageInfo, meta: MetaData]],
              dep: PkgTuple,
@@ -280,8 +306,8 @@ proc findPkg*(pkglist: seq[tuple[pkginfo: PackageInfo, meta: MetaData]],
   ##
   ## **Note**: dep.name here could be a URL, hence the need for pkglist.meta.
   for pkg in pkglist:
-    if pkg.pkginfo.name.normalize != dep.name.normalize and
-       pkg.meta.url.normalize != dep.name.normalize: continue
+    if cmpIgnoreStyle(pkg.pkginfo.name, dep.name) != 0 and
+       cmpIgnoreStyle(pkg.meta.url, dep.name) != 0: continue
     if withinRange(newVersion(pkg.pkginfo.version), dep.ver):
       if not result or newVersion(r.version) < newVersion(pkg.pkginfo.version):
         r = pkg.pkginfo
@@ -294,8 +320,8 @@ proc findAllPkgs*(pkglist: seq[tuple[pkginfo: PackageInfo, meta: MetaData]],
   ## packages if multiple are found.
   result = @[]
   for pkg in pkglist:
-    if pkg.pkginfo.name.normalize != dep.name.normalize and
-       pkg.meta.url.normalize != dep.name.normalize: continue
+    if cmpIgnoreStyle(pkg.pkginfo.name, dep.name) != 0 and
+       cmpIgnoreStyle(pkg.meta.url, dep.name) != 0: continue
     if withinRange(newVersion(pkg.pkginfo.version), dep.ver):
       result.add pkg.pkginfo
 
@@ -313,22 +339,6 @@ proc getOutputDir*(pkgInfo: PackageInfo, bin: string): string =
     result = pkgInfo.mypath.splitFile.dir / pkgInfo.binDir / bin
   else:
     result = pkgInfo.mypath.splitFile.dir / bin
-
-proc getNameVersion*(pkgpath: string): tuple[name, version: string] =
-  ## Splits ``pkgpath`` in the format ``/home/user/.nimble/pkgs/package-0.1``
-  ## into ``(packagea, 0.1)``
-  result.name = ""
-  result.version = ""
-  let tail = pkgpath.splitPath.tail
-  if '-' notin tail:
-    result.name = tail
-    return
-
-  for i in countdown(tail.len-1, 0):
-    if tail[i] == '-':
-      result.name = tail[0 .. i-1]
-      result.version = tail[i+1 .. tail.len-1]
-      break
 
 proc echoPackage*(pkg: Package) =
   echo(pkg.name & ":")
