@@ -40,7 +40,7 @@ type
     nimbleData: JsonNode ## Nimbledata.json
 
   ActionType = enum
-    actionNil, actionUpdate, actionInit, actionPublish,
+    actionNil, actionUpdate, actionInit, actionDump, actionPublish,
     actionInstall, actionSearch,
     actionList, actionBuild, actionPath, actionUninstall, actionCompile,
     actionCustom
@@ -56,7 +56,7 @@ type
       packages: seq[PkgTuple] # Optional only for actionInstall.
     of actionSearch:
       search: seq[string] # Search string.
-    of actionInit:
+    of actionInit, actionDump:
       projName: string
     of actionCompile:
       file: string
@@ -89,6 +89,8 @@ Commands:
                [-i, --installed]  Lists all installed packages.
   path         pkgname ...        Shows absolute path to the installed packages
                                   specified.
+  dump         [pkgname]          Outputs Nimble package information for
+                                  external tools.
 
 Options:
   -h, --help                      Print this help message.
@@ -188,6 +190,9 @@ proc parseCmdLine(): Options =
         of "init":
           result.action.typ = actionInit
           result.action.projName = ""
+        of "dump":
+          result.action.typ = actionDump
+          result.action.projName = ""
         of "update":
           result.action.typ = actionUpdate
           result.action.optionalURL = ""
@@ -220,14 +225,14 @@ proc parseCmdLine(): Options =
           result.action.optionalURL = key
         of actionSearch:
           result.action.search.add(key)
-        of actionInit:
+        of actionInit, actionDump:
           if result.action.projName != "":
             raise newException(NimbleError,
                 "Can only initialize one package at a time.")
           result.action.projName = key
         of actionCompile:
           result.action.file = key
-        of actionList, actionBuild:
+        of actionList, actionBuild, actionPublish:
           writeHelp()
         else:
           discard
@@ -863,6 +868,33 @@ proc guessAuthor(): string =
       return output.string.strip
   return "Anonymous"
 
+proc join(x: seq[PkgTuple]; y: string): string =
+  result = x[0][0] & " " & $x[0][1]
+  for i in 1 ..< x.len:
+    result.add y
+    result.add x[i][0] & " " & $x[i][1]
+
+proc dump(opt: Options) =
+  let proj = addFileExt(opt.action.projName, NimsExt)
+  let p = if fileExists(proj): readPackageInfo((true, proj))
+          else: getPkgInfo(os.getCurrentDir())
+  echo "name: ", p.name.escape
+  echo "version: ", p.version.escape
+  echo "author: ", p.author.escape
+  echo "desc: ", p.description.escape
+  echo "license: ", p.license.escape
+  echo "skipDirs: ", p.skipDirs.join(", ").escape
+  echo "skipFiles: ", p.skipFiles.join(", ").escape
+  echo "skipExt: ", p.skipExt.join(", ").escape
+  echo "installDirs: ", p.installDirs.join(", ").escape
+  echo "installFiles: ", p.installFiles.join(", ").escape
+  echo "installExt: ", p.installExt.join(", ").escape
+  echo "requires: ", p.requires.join(", ").escape
+  echo "bin: ", p.bin.join(", ").escape
+  echo "binDir: ", p.binDir.escape
+  echo "srcDir: ", p.srcDir.escape
+  echo "backend: ", p.backend.escape
+
 proc init(opt: Options) =
   echo("Initializing new Nimble project!")
   var
@@ -992,6 +1024,8 @@ proc doAction(opt: Options) =
   of "publish":
     var pkgInfo = getPkgInfo(getCurrentDir())
     publish(pkgInfo)
+  of "dump":
+    dump(opt)
   of "nop": discard
   else:
     raise newException(NimbleError, "Unknown command: " & getCommand())
