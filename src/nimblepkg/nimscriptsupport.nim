@@ -24,7 +24,7 @@ proc isStrLit(n: PNode): bool = n.kind in {nkStrLit..nkTripleStrLit}
 proc getGlobal(ident: string): string =
   let n = vm.globalCtx.getGlobalValue(getSysSym ident)
   if n.isStrLit:
-    result = n.strVal
+    result = if n.strVal.isNil: "" else: n.strVal
   else:
     raiseVariableError(ident, "string")
 
@@ -34,7 +34,7 @@ proc getGlobalAsSeq(ident: string): seq[string] =
   if n.kind == nkBracket:
     for x in n:
       if x.isStrLit:
-        result.add n.strVal
+        result.add x.strVal
       else:
         raiseVariableError(ident, "seq[string]")
   else:
@@ -54,6 +54,7 @@ proc extractRequires(result: var seq[PkgTuple]) =
     raiseVariableError("requiresData", "seq[(string, VersionReq)]")
 
 proc readPackageInfoFromNims*(scriptName: string; result: var PackageInfo) =
+  setDefaultLibpath()
   passes.gIncludeFile = includeModule
   passes.gImportModule = importModule
   initDefines()
@@ -103,7 +104,9 @@ proc readPackageInfoFromNims*(scriptName: string; result: var PackageInfo) =
     result.bin.add(i.addFileExt(ExeExt))
 
   let backend = getGlobal("backend")
-  if cmpIgnoreStyle(backend, "javascript") == 0:
+  if backend.len == 0:
+    result.backend = "c"
+  elif cmpIgnoreStyle(backend, "javascript") == 0:
     result.backend = "js"
   else:
     result.backend = backend.toLower()
