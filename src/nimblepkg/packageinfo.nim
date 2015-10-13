@@ -2,6 +2,10 @@
 # BSD License. Look at license.txt for more info.
 import parsecfg, json, streams, strutils, parseutils, os
 import version, tools, nimbletypes
+
+when not declared(system.map):
+  from sequtils import map
+
 type
   Package* = object
     # Required fields in a package.
