@@ -924,12 +924,12 @@ proc init(options: Options) =
 
 version       = "1.0.0"
 author        = $1
-description   = ""
+description   = "New Nimble project for Nim"
 license       = "MIT"
 
 # Dependencies
 
-requires "nim >= "0.11.2"
+requires "nim >= 0.11.2"
 """ % guessAuthor().escape()
     close(outFile)
   else:
