@@ -161,6 +161,61 @@ proc renameBabelToNimble(options: Options) {.deprecated.} =
       removeDir(babelDir)
       removeFile(nimbleDir / "babeldata.json")
 
+proc parseActionType(action: string): ActionType =
+  case action.normalize()
+  of "install", "path":
+    case action.normalize()
+    of "install":
+      result = actionInstall
+    of "path":
+      result = actionPath
+    else:
+      discard
+  of "build":
+    result = actionBuild
+  of "c", "compile", "js", "cpp", "cc":
+    result = actionCompile
+  of "init":
+    result = actionInit
+  of "dump":
+    result = actionDump
+  of "update":
+    result = actionUpdate
+  of "search":
+    result = actionSearch
+  of "list":
+    result = actionList
+  of "uninstall", "remove", "delete", "del", "rm":
+    result = actionUninstall
+  of "publish":
+    result = actionPublish
+  else:
+    result = actionCustom
+
+proc initAction(options: var Options, key: string) =
+  ## Intialises `options.actions` fields based on `options.actions.typ` and
+  ## `key`.
+  let keyNorm = key.normalize()
+  case options.action.typ
+  of actionInstall, actionPath:
+    options.action.packages = @[]
+  of actionCompile:
+    options.action.compileOptions = @[]
+    options.action.file = ""
+    if keyNorm == "c" or keyNorm == "compile": options.action.backend = ""
+    else: options.action.backend = keyNorm
+  of actionInit:
+    options.action.projName = ""
+  of actionDump:
+    options.action.projName = ""
+  of actionUpdate:
+    options.action.optionalURL = ""
+  of actionSearch:
+    options.action.search = @[]
+  of actionUninstall:
+    options.action.packages = @[]
+  of actionBuild, actionPublish, actionCustom, actionList, actionNil: discard
+
 proc parseCmdLine(): Options =
   result.action.typ = actionNil
   result.config = parseConfig()
@@ -169,45 +224,8 @@ proc parseCmdLine(): Options =
     of cmdArgument:
       if result.action.typ == actionNil:
         compiler_options.command = key
-        case key.normalize()
-        of "install", "path":
-          case key.normalize()
-          of "install":
-            result.action.typ = actionInstall
-          of "path":
-            result.action.typ = actionPath
-          else:
-            discard
-          result.action.packages = @[]
-        of "build":
-          result.action.typ = actionBuild
-        of "c", "compile", "js", "cpp", "cc":
-          result.action.typ = actionCompile
-          result.action.compileOptions = @[]
-          result.action.file = ""
-          if key == "c" or key == "compile": result.action.backend = ""
-          else: result.action.backend = key
-        of "init":
-          result.action.typ = actionInit
-          result.action.projName = ""
-        of "dump":
-          result.action.typ = actionDump
-          result.action.projName = ""
-        of "update":
-          result.action.typ = actionUpdate
-          result.action.optionalURL = ""
-        of "search":
-          result.action.typ = actionSearch
-          result.action.search = @[]
-        of "list":
-          result.action.typ = actionList
-        of "uninstall", "remove", "delete", "del", "rm":
-          result.action.typ = actionUninstall
-          result.action.packages = @[]
-        of "publish":
-          result.action.typ = actionPublish
-        else:
-          result.action.typ = actionCustom
+        result.action.typ = parseActionType(key)
+        initAction(result, key)
       else:
         case result.action.typ
         of actionNil:
@@ -993,42 +1011,44 @@ proc uninstall(options: Options) =
     removePkgDir(options.getPkgsDir / (pkg.name & '-' & pkg.version), options)
     echo("Removed ", pkg.name, " (", $pkg.version, ")")
 
-proc getCommand: string = compiler_options.command
-
 proc doAction(options: Options) =
   if not existsDir(options.getNimbleDir()):
     createDir(options.getNimbleDir())
   if not existsDir(options.getPkgsDir):
     createDir(options.getPkgsDir)
 
-  case getCommand().normalize
-  of "udpate":
+  # The nimscript file may use `setCommand` to set the command so we need to
+  # re-read it from the compiler.
+  # TODO: It doesn't appear that this actually happens, can we just remove this?
+  var command = compiler_options.command.parseActionType()
+
+  case command
+  of actionUpdate:
     update(options)
-  of "install":
+  of actionInstall:
     discard install(options.action.packages, options)
-  of "uninstall", "remove", "delete", "del", "rm":
+  of actionUninstall:
     uninstall(options)
-  of "search":
+  of actionSearch:
     search(options)
-  of "list":
+  of actionList:
     if options.queryInstalled: listInstalled(options)
     else: list(options)
-  of "path":
+  of actionPath:
     listPaths(options)
-  of "build":
+  of actionBuild:
     build(options)
-  of "c", "compile", "js", "cpp", "cc":
+  of actionCompile:
     compile(options)
-  of "init":
+  of actionInit:
     init(options)
-  of "publish":
+  of actionPublish:
     var pkgInfo = getPkgInfo(getCurrentDir())
     publish(pkgInfo)
-  of "dump":
+  of actionDump:
     dump(options)
-  of "nop": discard
-  else:
-    raise newException(NimbleError, "Unknown command: " & getCommand())
+  of actionNil, actionCustom:
+    assert false
 
 when isMainModule:
   when defined(release):
