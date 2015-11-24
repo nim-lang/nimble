@@ -9,7 +9,7 @@ proc doCmd*(cmd: string) =
   let bin = cmd.split(' ')[0]
   if findExe(bin) == "":
     raise newException(NimbleError, "'" & bin & "' not in PATH.")
-  
+
   # To keep output in sequence
   stdout.flushFile()
   stderr.flushFile()
@@ -36,8 +36,8 @@ template cd*(dir: string, body: stmt) =
 
 proc getNimBin*: string =
   result = "nim"
-  if findExe("nim") != "": result = "nim"
-  elif findExe("nimrod") != "": result = "nimrod"
+  if findExe("nim") != "": result = findExe("nim")
+  elif findExe("nimrod") != "": result = findExe("nimrod")
 
 proc getNimrodVersion*: Version =
   let nimBin = getNimBin()
@@ -53,7 +53,7 @@ proc samePaths*(p1, p2: string): bool =
   var cp2 = if not p2.endsWith("/"): p2 & "/" else: p2
   cp1 = cp1.replace('/', DirSep).replace('\\', DirSep)
   cp2 = cp2.replace('/', DirSep).replace('\\', DirSep)
-  
+
   return cmpPaths(cp1, cp2) == 0
 
 proc changeRoot*(origRoot, newRoot, path: string): string =
@@ -96,7 +96,7 @@ proc getDownloadDirName*(uri: string, verRange: VersionRange): string =
     of strutils.Letters, strutils.Digits:
       result.add i
     else: discard
-    
+
   let verSimple = getSimpleString(verRange)
   if verSimple != "":
     result.add "_"
