@@ -57,9 +57,9 @@ On Windows installing Nimble from source is slightly more complex:
 
     git clone https://github.com/nim-lang/nimble.git
     cd nimble
-    nim c src\nimble
-    cp src\nimble.exe src\nimble1.exe
-    src\nimble1.exe install
+    nim c src/nimble
+    cp src/nimble.exe src/nimble1.exe
+    src/nimble1.exe install
 
 This is required because Windows will lock the process which is being run and
 during installation Nimble will recompile itself.
