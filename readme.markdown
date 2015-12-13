@@ -139,7 +139,7 @@ If you don't specify a parameter and there is a ``package.nimble`` file in your
 current working directory then Nimble will install the package residing in
 the current working directory. This can be useful for developers who are testing
 locally their ``.nimble`` files before submitting them to the official package
-list. See [developers.markdown](developers.markdown) for more info on this.
+list. See the [Creating Packages](#creating-packages) section for more info on this.
 
 A URL to a repository can also be specified, Nimble will automatically detect
 the type of the repository that the url points to and install it.
@@ -160,9 +160,6 @@ The ``build`` command is mostly used by developers who want to test building
 their ``.nimble`` package. This command will build the package in debug mode,
 without installing anything. The ``install`` command will build the package
 in release mode instead.
-
-If you are a developer willing to produce new Nimble packages please read the
-[developers.markdown file](developers.markdown) for detailed information.
 
 ### nimble c
 
