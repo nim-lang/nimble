@@ -78,8 +78,8 @@ Commands:
   build                           Builds a package.
   c, cc, js    [opts, ...] f.nim  Builds a file inside a package. Passes options
                                   to the Nim compiler.
-  update       [url]              Updates package list. A package list URL can
-                                  be optionally specified.
+  refresh      [url]              Refreshes the package list. A package list URL
+                                  can be optionally specified.
   search       [--ver] pkg/tag    Searches for a specified package. Search is
                                   performed by tag and by name.
   list         [--ver]            Lists all packages.
@@ -184,7 +184,7 @@ proc parseCmdLine(): Options =
         of "init":
           result.action.typ = actionInit
           result.action.projName = ""
-        of "update":
+        of "update", "refresh":
           result.action.typ = actionUpdate
           result.action.optionalURL = ""
         of "search":
