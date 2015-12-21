@@ -1021,34 +1021,40 @@ proc doAction(options: Options) =
   # re-read it from the compiler.
   # TODO: It doesn't appear that this actually happens, can we just remove this?
   var command = compiler_options.command.parseActionType()
-
-  case command
-  of actionUpdate:
-    update(options)
-  of actionInstall:
-    discard install(options.action.packages, options)
-  of actionUninstall:
-    uninstall(options)
-  of actionSearch:
-    search(options)
-  of actionList:
-    if options.queryInstalled: listInstalled(options)
-    else: list(options)
-  of actionPath:
-    listPaths(options)
-  of actionBuild:
-    build(options)
-  of actionCompile:
-    compile(options)
-  of actionInit:
-    init(options)
-  of actionPublish:
-    var pkgInfo = getPkgInfo(getCurrentDir())
-    publish(pkgInfo)
-  of actionDump:
-    dump(options)
-  of actionNil, actionCustom:
-    assert false
+  var doLoop = true
+  while doLoop:
+    doLoop = false
+    let cmd = compiler_options.command.normalize
+    case command
+    of actionUpdate:
+      update(options)
+    of actionInstall:
+      discard install(options.action.packages, options)
+    of actionUninstall:
+      uninstall(options)
+    of actionSearch:
+      search(options)
+    of actionList:
+      if options.queryInstalled: listInstalled(options)
+      else: list(options)
+    of actionPath:
+      listPaths(options)
+    of actionBuild:
+      build(options)
+    of actionCompile:
+      compile(options)
+    of actionInit:
+      init(options)
+    of actionPublish:
+      var pkgInfo = getPkgInfo(getCurrentDir())
+      publish(pkgInfo)
+    of actionDump:
+      dump(options)
+    of actionNil: discard "assuming nimscript 'nop' command here"
+    of actionCustom:
+      # calls Nimscript as a side effect :-/
+      discard getPkgInfo(getCurrentDir())
+      doLoop = cmd != compiler_options.command.normalize
 
 when isMainModule:
   when defined(release):
