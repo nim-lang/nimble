@@ -163,3 +163,11 @@ proc setNimScriptCommand*(command: string) =
 proc hasTaskRequestedCommand*(): bool =
   ## Determines whether the last executed task used ``setCommand``
   return getNimScriptCommand() != internalCmd
+
+proc listTasks*(scriptName: string) =
+  setNimScriptCommand("help")
+
+  execScript(scriptName)
+  # TODO: Make the 'task' template generate explicit data structure containing
+  # all the task names + descriptions.
+  cleanup()

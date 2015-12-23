@@ -43,11 +43,11 @@ type
     actionNil, actionUpdate, actionInit, actionDump, actionPublish,
     actionInstall, actionSearch,
     actionList, actionBuild, actionPath, actionUninstall, actionCompile,
-    actionCustom
+    actionCustom, actionTasks
 
   Action = object
     case typ: ActionType
-    of actionNil, actionList, actionBuild, actionPublish: nil
+    of actionNil, actionList, actionBuild, actionPublish, actionTasks: nil
     of actionUpdate:
       optionalURL: string # Overrides default package list.
     of actionInstall, actionPath, actionUninstall:
@@ -87,6 +87,8 @@ Commands:
                                   performed by tag and by name.
   list         [--ver]            Lists all packages.
                [-i, --installed]  Lists all installed packages.
+  tasks                           Lists the tasks specified in the Nimble
+                                  package's Nimble file.
   path         pkgname ...        Shows absolute path to the installed packages
                                   specified.
   dump         [pkgname]          Outputs Nimble package information for
@@ -189,6 +191,8 @@ proc parseActionType(action: string): ActionType =
     result = actionUninstall
   of "publish":
     result = actionPublish
+  of "tasks":
+    result = actionTasks
   else:
     result = actionCustom
 
@@ -214,7 +218,8 @@ proc initAction(options: var Options, key: string) =
     options.action.search = @[]
   of actionUninstall:
     options.action.packages = @[]
-  of actionBuild, actionPublish, actionCustom, actionList, actionNil: discard
+  of actionBuild, actionPublish, actionCustom, actionList, actionTasks,
+     actionNil: discard
 
 proc parseCmdLine(): Options =
   result.action.typ = actionNil
@@ -1011,6 +1016,12 @@ proc uninstall(options: Options) =
     removePkgDir(options.getPkgsDir / (pkg.name & '-' & pkg.version), options)
     echo("Removed ", pkg.name, " (", $pkg.version, ")")
 
+proc listTasks(options: Options) =
+  let (isNimScript, nimbleFile) = findNimbleFile(getCurrentDir(), true)
+  if not isNimScript:
+    echo("No tasks defined (Found Nimble file, but no NimScript file)")
+  nimscriptsupport.listTasks(nimbleFile)
+
 proc doAction(options: Options) =
   if not existsDir(options.getNimbleDir()):
     createDir(options.getNimbleDir())
@@ -1019,7 +1030,9 @@ proc doAction(options: Options) =
 
   var command = getNimScriptCommand().parseActionType()
   # The loop is necessary to support tasks using `setCommand`.
-  while true:
+  var moreCommands = true
+  while moreCommands:
+    moreCommands = false
     case command
     of actionUpdate:
       update(options)
@@ -1045,6 +1058,8 @@ proc doAction(options: Options) =
       publish(pkgInfo)
     of actionDump:
       dump(options)
+    of actionTasks:
+      listTasks(options)
     of actionNil:
       assert false
     of actionCustom:
@@ -1060,7 +1075,7 @@ proc doAction(options: Options) =
         echo("WARNING: Using `setCommand 'nop'` is not necessary.")
         break
       command = getNimScriptCommand().parseActionType()
-      if not hasTaskRequestedCommand(): break
+      moreCommands = hasTaskRequestedCommand()
 
 when isMainModule:
   when defined(release):
