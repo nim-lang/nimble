@@ -1,0 +1,40 @@
+# vim: filetype=sh
+
+_nimble()
+{
+    local cur=${COMP_WORDS[COMP_CWORD]}
+    local prev=${COMP_WORDS[COMP_CWORD-1]}
+    COMPREPLY=()
+    _init_completion || return
+
+    case "$prev" in
+    init|update|refresh|publish|search|build)
+        # no needed or available completion
+        ;;
+    c|cc|js)
+        _filedir '@(nim)'
+        ;;
+    install)
+        COMPREPLY=( $( nimble list 2> /dev/null | grep "^$cur" | grep -v '^ ' | tr -d ':') )
+        ;;
+    path|uninstall)
+        COMPREPLY=( $( nimble list -i 2> /dev/null | cut -d' ' -f1 | grep "^$cur" ) )
+        ;;
+    list)
+        COMPREPLY=( $( compgen -W '--ver -i --installed' -- $cur ) )
+        ;;
+    *)
+        # no $prev: suggest commands or flags
+        if [[ "$cur" == -* ]]; then
+            kw="-h -v -y -n --reject --version --accept --ver --help"
+        else
+            kw="install init publish uninstall build c cc js refresh search list path"
+        fi
+        COMPREPLY=( $( compgen -W "${kw}" -- $cur ) )
+        ;;
+    esac;
+
+    return 0
+}
+
+complete -F _nimble nimble
