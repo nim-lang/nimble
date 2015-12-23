@@ -86,6 +86,8 @@ proc cleanup() =
   # ensure everything can be called again:
   resetAllModulesHard()
   clearPasses()
+  msgs.gErrorMax = 1
+  msgs.writeLnHook = nil
   vm.globalCtx = nil
   initDefines()
 

@@ -151,6 +151,18 @@ proc prompt(options: Options, question: string): bool =
     else:
       return false
 
+proc promptCustom(question, default: string): string =
+  if default == "":
+    stdout.write(question, ": ")
+    let user = stdin.readLine()
+    if user.len == 0: return promptCustom(question, default)
+    else: return user
+  else:
+    stdout.write(question, " [", default, "]: ")
+    let user = stdin.readLine()
+    if user == "": return default
+    else: return user
+
 proc renameBabelToNimble(options: Options) {.deprecated.} =
   let babelDir = getHomeDir() / ".babel"
   let nimbleDir = getHomeDir() / ".nimble"
@@ -884,13 +896,6 @@ proc listPaths(options: Options) =
     raise newException(NimbleError,
         "At least one of the specified packages was not found")
 
-proc guessAuthor(): string =
-  if dirExists(os.getCurrentDir() / ".git"):
-    let (output, exitCode) = doCmdEx("git config user.name")
-    if exitCode == 0:
-      return output.string.strip
-  return "Anonymous"
-
 proc join(x: seq[PkgTuple]; y: string): string =
   if x.len == 0: return ""
   result = x[0][0] & " " & $x[0][1]
@@ -899,7 +904,7 @@ proc join(x: seq[PkgTuple]; y: string): string =
     result.add x[i][0] & " " & $x[i][1]
 
 proc dump(options: Options) =
-  let proj = addFileExt(options.action.projName, NimsExt)
+  let proj = addFileExt(options.action.projName, "nimble")
   let p = if fileExists(proj): readPackageInfo(proj)
           else: getPkgInfo(os.getCurrentDir())
   echo "name: ", p.name.escape
@@ -920,44 +925,76 @@ proc dump(options: Options) =
   echo "backend: ", p.backend.escape
 
 proc init(options: Options) =
-  echo("Initializing new Nimble project!")
-  var
-    pkgName, fName: string = ""
-    outFile: File
+  var nimbleFile: string = ""
 
+  echo("In order to initialise a new Nimble package, I will need to ask you\n" &
+       "some questions. Default values are shown in square brackets, press\n" &
+       "enter to use them.")
+
+  # Ask for package name.
   if options.action.projName != "":
-    pkgName = options.action.projName
-    fName = pkgName & NimsExt
-    if (existsFile(os.getCurrentDir() / fName)):
-      raise newException(NimbleError, "Already have a nimscript file.")
+    let pkgName = options.action.projName
+    nimbleFile = pkgName.changeFileExt("nimble")
   else:
-    echo("Enter a project name for this (blank to use working directory), " &
-        "Ctrl-C to abort:")
-    pkgName = readline(stdin)
-    if pkgName == "":
-      pkgName = os.getCurrentDir().splitPath.tail
-    if pkgName == "":
-      raise newException(NimbleError, "Could not get default file path.")
-    fName = pkgName & NimsExt
+    var pkgName = os.getCurrentDir().splitPath.tail.toValidPackageName()
+    pkgName = promptCustom("Enter package name", pkgName)
+    nimbleFile = pkgName.changeFileExt("nimble")
 
-  # Now need to write out .nimble file with projName and other details
+  validatePackageName(nimbleFile.changeFileExt(""))
 
-  if (not existsFile(os.getCurrentDir() / fName) and
-      open(f=outFile, filename = fName, mode = fmWrite)):
+  if existsFile(os.getCurrentDir() / nimbleFile):
+    raise newException(NimbleError, "Nimble file already exists.")
+
+  # Ask for package version.
+  let pkgVersion = promptCustom("Enter intial version of package", "0.1.0")
+  validateVersion(pkgVersion)
+
+  # Ask for package author
+  var defaultAuthor = "Anonymous"
+  if findExe("git") != "":
+    let (name, exitCode) = doCmdEx("git config --global user.name")
+    if exitCode == QuitSuccess and name.len > 0:
+      defaultAuthor = name.strip()
+  elif defaultAuthor == "Anonymous" and findExe("hg") != "":
+    let (name, exitCode) = doCmdEx("hg config ui.username")
+    if exitCode == QuitSuccess and name.len > 0:
+      defaultAuthor = name.strip()
+  let pkgAuthor = promptCustom("Enter your name", defaultAuthor)
+
+  # Ask for description
+  let pkgDesc = promptCustom("Enter package description", "")
+
+  # Ask for license
+  # TODO: Provide selection of licenses, or select random default license.
+  let pkgLicense = promptCustom("Enter package license", "MIT")
+
+  # Ask for Nim dependency
+  let nimDepDef = getNimrodVersion()
+  let pkgNimDep = promptCustom("Enter lowest supported Nim version", $nimDepDef)
+  validateVersion(pkgNimDep)
+
+  # Now generate the .nimble file.
+  if existsFile(os.getCurrentDir() / nimbleFile):
+    raise newException(NimbleError,
+        "Looks like a Nimble file has already been created.")
+
+  var outFile: File
+  if open(f = outFile, filename = nimbleFile, mode = fmWrite):
     outFile.writeLine """# Package
 
-version       = "1.0.0"
-author        = $1
-description   = "New Nimble project for Nim"
-license       = "MIT"
+version       = $#
+author        = $#
+description   = $#
+license       = $#
 
 # Dependencies
 
-requires "nim >= 0.11.2"
-""" % guessAuthor().escape()
+requires "nim >= $#"
+""" % [pkgVersion.escape(), pkgAuthor.escape(), pkgDesc.escape(),
+       pkgLicense.escape(), pkgNimDep]
     close(outFile)
   else:
-    raise newException(NimbleError, "Unable to open file " & fName &
+    raise newException(NimbleError, "Unable to open file " & nimbleFile &
                        " for writing: " & osErrorMsg(osLastError()))
 
 proc uninstall(options: Options) =

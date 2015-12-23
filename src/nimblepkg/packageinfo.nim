@@ -6,9 +6,6 @@ import version, tools, nimbletypes, nimscriptsupport
 when not declared(system.map):
   from sequtils import map
 
-const
-  NimsExt* = ".nims"
-
 type
   Package* = object
     # Required fields in a package.
@@ -48,6 +45,47 @@ proc initPackageInfo(path: string): PackageInfo =
   result.binDir = ""
   result.backend = "c"
 
+proc validatePackageName*(name: string) =
+  ## Raises an error if specified package name contains invalid characters.
+  ##
+  ## A valid package name is one which is a valid nim module name. So only
+  ## underscores, letters and numbers allowed.
+  if name.len == 0: return
+
+  if name[0] in {'0'..'9'}:
+    raise newException(NimbleError,
+        "Invalid package name: cannot beging with " & name[0])
+
+  var prevWasUnderscore = false
+  for c in name:
+    case c
+    of '_':
+      if prevWasUnderscore:
+        raise newException(NimbleError,
+            "Invalid package name: cannot contain \"__\"")
+      prevWasUnderscore = true
+    of AllChars - IdentChars:
+      raise newException(NimbleError,
+          "Invalid package name: cannot contain '$1'" % $c)
+    else:
+      prevWasUnderscore = false
+
+proc toValidPackageName*(name: string): string =
+  result = ""
+  for c in name:
+    case c
+    of '_', '-':
+      if result[^1] != '_': result.add('_')
+    of AllChars - IdentChars - {'-'}: discard
+    else: result.add(c)
+
+proc validateVersion*(ver: string) =
+  for c in ver:
+    if c notin ({'.'} + Digits):
+      raise newException(NimbleError,
+          "Version may only consist of numbers and the '.' character " &
+          "but found '" & c & "'.")
+
 proc validatePackageInfo(pkgInfo: PackageInfo, path: string) =
   if pkgInfo.name == "":
     raise newException(NimbleError, "Incorrect .nimble file: " & path &
@@ -67,11 +105,7 @@ proc validatePackageInfo(pkgInfo: PackageInfo, path: string) =
   if pkgInfo.backend notin ["c", "cc", "objc", "cpp", "js"]:
     raise newException(NimbleError, "'" & pkgInfo.backend &
                        "' is an invalid backend.")
-  for c in pkgInfo.version:
-    if c notin ({'.'} + Digits):
-      raise newException(NimbleError,
-          "Version may only consist of numbers and the '.' character " &
-          "but found '" & c & "'.")
+  validateVersion(pkgInfo.version)
 
   if not pkgInfo.isNimScript:
     # TODO: Turn this into a warning.
@@ -395,3 +429,16 @@ when isMainModule:
       ("packagea", "0.1")
   doAssert getNameVersion("/home/user/.nimble/libs/package-a-0.1") ==
       ("package-a", "0.1")
+
+  validatePackageName("foo_bar")
+  validatePackageName("f_oo_b_a_r")
+  try:
+    validatePackageName("foo__bar")
+    assert false
+  except NimbleError:
+    assert true
+
+  doAssert toValidPackageName("foo__bar") == "foo_bar"
+  doAssert toValidPackageName("jhbasdh!£$@%#^_&*_()qwe") == "jhbasdh_qwe"
+
+  echo("All tests passed!")
