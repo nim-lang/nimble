@@ -10,7 +10,7 @@ import nimblepkg/packageinfo, nimblepkg/version, nimblepkg/tools,
        nimblepkg/download, nimblepkg/config, nimblepkg/nimbletypes,
        nimblepkg/publish
 
-import compiler/options as compiler_options
+import nimblepkg/nimscriptsupport
 
 when not defined(windows):
   from posix import getpid
@@ -223,7 +223,7 @@ proc parseCmdLine(): Options =
     case kind
     of cmdArgument:
       if result.action.typ == actionNil:
-        compiler_options.command = key
+        setNimScriptCommand(key)
         result.action.typ = parseActionType(key)
         initAction(result, key)
       else:
@@ -1017,14 +1017,9 @@ proc doAction(options: Options) =
   if not existsDir(options.getPkgsDir):
     createDir(options.getPkgsDir)
 
-  # The nimscript file may use `setCommand` to set the command so we need to
-  # re-read it from the compiler.
-  # TODO: It doesn't appear that this actually happens, can we just remove this?
-  var command = compiler_options.command.parseActionType()
-  var doLoop = true
-  while doLoop:
-    doLoop = false
-    let cmd = compiler_options.command.normalize
+  var command = getNimScriptCommand().parseActionType()
+  # The loop is necessary to support tasks using `setCommand`.
+  while true:
     case command
     of actionUpdate:
       update(options)
@@ -1050,11 +1045,22 @@ proc doAction(options: Options) =
       publish(pkgInfo)
     of actionDump:
       dump(options)
-    of actionNil: discard "assuming nimscript 'nop' command here"
+    of actionNil:
+      assert false
     of actionCustom:
-      # calls Nimscript as a side effect :-/
-      discard getPkgInfo(getCurrentDir())
-      doLoop = cmd != compiler_options.command.normalize
+      # Custom command. Attempt to call a NimScript task.
+      let (isNimScript, nimbleFile) = findNimbleFile(getCurrentDir(), true)
+      if not isNimScript:
+        writeHelp()
+      let oldCmd = getNimScriptCommand()
+      if not execTask(nimbleFile, oldCmd):
+        echo("FAILURE: Could not find task ", oldCmd, " in ", nimbleFile)
+        writeHelp()
+      if getNimScriptCommand().normalize == "nop":
+        echo("WARNING: Using `setCommand 'nop'` is not necessary.")
+        break
+      command = getNimScriptCommand().parseActionType()
+      if not hasTaskRequestedCommand(): break
 
 when isMainModule:
   when defined(release):

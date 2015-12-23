@@ -11,9 +11,14 @@ import
   compiler/msgs, compiler/magicsys, compiler/lists
 
 from compiler/scriptconfig import setupVM
+from compiler/idents import getIdent
+from compiler/astalgo import strTableGet, `$`
 
 import nimbletypes, version
 import os, strutils
+
+const
+  internalCmd = "NimbleInternal"
 
 proc raiseVariableError(ident, typ: string) {.noinline.} =
   raise newException(NimbleError,
@@ -53,7 +58,10 @@ proc extractRequires(result: var seq[PkgTuple]) =
   else:
     raiseVariableError("requiresData", "seq[(string, VersionReq)]")
 
-proc readPackageInfoFromNims*(scriptName: string; result: var PackageInfo) =
+proc execScript(scriptName: string) =
+  ## Executes the specified script.
+  ##
+  ## No clean up is performed and must be done manually!
   setDefaultLibpath()
   passes.gIncludeFile = includeModule
   passes.gImportModule = importModule
@@ -74,6 +82,21 @@ proc readPackageInfoFromNims*(scriptName: string; result: var PackageInfo) =
   compileSystemModule()
   processModule(m, llStreamOpen(scriptName, fmRead), nil)
 
+proc cleanup() =
+  # ensure everything can be called again:
+  resetAllModulesHard()
+  clearPasses()
+  vm.globalCtx = nil
+  initDefines()
+
+proc readPackageInfoFromNims*(scriptName: string; result: var PackageInfo) =
+  ## Executes the `scriptName` nimscript file. Reads the package information
+  ## that it populates.
+
+  # Execute the nimscript file.
+  execScript(scriptName)
+
+  # Extract all the necessary fields populated by the nimscript file.
   template trivialField(field) =
     result.field = getGlobal(astToStr field)
 
@@ -111,7 +134,32 @@ proc readPackageInfoFromNims*(scriptName: string; result: var PackageInfo) =
   else:
     result.backend = backend.toLower()
 
-  # ensure everything can be called again:
-  resetAllModulesHard()
-  vm.globalCtx = nil
-  initDefines()
+  cleanup()
+
+proc execTask*(scriptName, taskName: string): bool =
+  ## Executes the specified task in the specified script.
+  ##
+  ## `scriptName` should be a filename pointing to the nimscript file.
+  result = true
+  options.command = internalCmd
+  echo("Executing task ", taskName, " in ", scriptName)
+
+  execScript(scriptName)
+  # Explicitly execute the task procedure, instead of relying on hack.
+  assert vm.globalCtx.module.kind == skModule
+  let prc = vm.globalCtx.module.tab.strTableGet(getIdent(taskName & "Task"))
+  if prc.isNil:
+    # Procedure not defined in the NimScript module.
+    return false
+  discard vm.globalCtx.execProc(prc, [])
+  cleanup()
+
+proc getNimScriptCommand*(): string =
+  options.command
+
+proc setNimScriptCommand*(command: string) =
+  options.command = command
+
+proc hasTaskRequestedCommand*(): bool =
+  ## Determines whether the last executed task used ``setCommand``
+  return getNimScriptCommand() != internalCmd
