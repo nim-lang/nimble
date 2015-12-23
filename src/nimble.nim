@@ -892,6 +892,7 @@ proc guessAuthor(): string =
   return "Anonymous"
 
 proc join(x: seq[PkgTuple]; y: string): string =
+  if x.len == 0: return ""
   result = x[0][0] & " " & $x[0][1]
   for i in 1 ..< x.len:
     result.add y
@@ -899,7 +900,7 @@ proc join(x: seq[PkgTuple]; y: string): string =
 
 proc dump(options: Options) =
   let proj = addFileExt(options.action.projName, NimsExt)
-  let p = if fileExists(proj): readPackageInfo((true, proj))
+  let p = if fileExists(proj): readPackageInfo(proj)
           else: getPkgInfo(os.getCurrentDir())
   echo "name: ", p.name.escape
   echo "version: ", p.version.escape
@@ -1017,9 +1018,7 @@ proc uninstall(options: Options) =
     echo("Removed ", pkg.name, " (", $pkg.version, ")")
 
 proc listTasks(options: Options) =
-  let (isNimScript, nimbleFile) = findNimbleFile(getCurrentDir(), true)
-  if not isNimScript:
-    echo("No tasks defined (Found Nimble file, but no NimScript file)")
+  let nimbleFile = findNimbleFile(getCurrentDir(), true)
   nimscriptsupport.listTasks(nimbleFile)
 
 proc doAction(options: Options) =
@@ -1064,8 +1063,8 @@ proc doAction(options: Options) =
       assert false
     of actionCustom:
       # Custom command. Attempt to call a NimScript task.
-      let (isNimScript, nimbleFile) = findNimbleFile(getCurrentDir(), true)
-      if not isNimScript:
+      let nimbleFile = findNimbleFile(getCurrentDir(), true)
+      if not nimbleFile.isNimScript():
         writeHelp()
       let oldCmd = getNimScriptCommand()
       if not execTask(nimbleFile, oldCmd):

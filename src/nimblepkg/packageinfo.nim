@@ -26,7 +26,7 @@ type
   MetaData* = object
     url*: string
 
-  NimbleFile* = tuple[isNimScript: bool; file: string]
+  NimbleFile* = string
 
 proc initPackageInfo(path: string): PackageInfo =
   result.mypath = path
@@ -72,6 +72,12 @@ proc validatePackageInfo(pkgInfo: PackageInfo, path: string) =
       raise newException(NimbleError,
           "Version may only consist of numbers and the '.' character " &
           "but found '" & c & "'.")
+
+  if not pkgInfo.isNimScript:
+    # TODO: Turn this into a warning.
+    # TODO: Add a URL explaining more.
+    echo("NOTE: The .nimble file for this project could make use of " &
+         "additional features, if converted into the new NimScript format.")
 
 proc multiSplit(s: string): seq[string] =
   ## Returns ``s`` split by newline and comma characters.
@@ -169,17 +175,42 @@ proc getNameVersion*(pkgpath: string): tuple[name, version: string] =
       break
 
 proc readPackageInfo*(nf: NimbleFile; onlyMinimalInfo=false): PackageInfo =
-  result = initPackageInfo(nf.file)
-  if nf.isNimScript:
+  ## Reads package info from the specifed Nimble file.
+  ##
+  ## Attempts to read it using the "old" Nimble ini format first, if that
+  ## fails attempts to evaluate it as a nimscript file.
+  ##
+  ## If both fail then returns an error.
+  result = initPackageInfo(nf)
+
+  var success = false
+  var iniError: ref NimbleError
+  # Attempt ini-format first.
+  try:
+    readPackageInfoFromNimble(nf, result)
+    success = true
+    result.isNimScript = false
+  except NimbleError:
+    iniError = (ref NimbleError)(getCurrentException())
+
+  if not success:
     if onlyMinimalInfo:
-      let tmp = getNameVersion(nf.file)
+      let tmp = getNameVersion(nf)
       result.name = tmp.name
       result.version = tmp.version
     else:
-      readPackageInfoFromNims(nf.file, result)
-  else:
-    readPackageInfoFromNimble(nf.file, result)
-  validatePackageInfo(result, nf.file)
+      try:
+        readPackageInfoFromNims(nf, result)
+        result.isNimScript = true
+      except NimbleError:
+        let msg = "Could not read package info file in " & nf & ";\n" &
+                  "  Reading as ini file failed with: \n" &
+                  "    " & iniError.msg & ".\n" &
+                  "  Evaluating as NimScript file failed with: \n" &
+                  "    " & getCurrentExceptionMsg() & "."
+        raise newException(NimbleError, msg)
+
+  validatePackageInfo(result, nf)
 
 proc optionalField(obj: JsonNode, name: string, default = ""): string =
   ## Queries ``obj`` for the optional ``name`` string.
@@ -257,17 +288,14 @@ proc getPackageList*(packagesPath: string): seq[Package] =
     result.add(pkg)
 
 proc findNimbleFile*(dir: string; error: bool): NimbleFile =
-  result = (false, "")
+  result = ""
   var hits = 0
   for kind, path in walkDir(dir):
     if kind == pcFile:
       let ext = path.splitFile.ext
       case ext
       of ".babel", ".nimble":
-        result = (false, path)
-        inc hits
-      of NimsExt:
-        result = (true, path)
+        result = path
         inc hits
       else: discard
   if hits >= 2:
@@ -295,7 +323,7 @@ proc getInstalledPkgs*(libsDir: string):
   for kind, path in walkDir(libsDir):
     if kind == pcDir:
       let nimbleFile = findNimbleFile(path, false)
-      if nimbleFile.file != "":
+      if nimbleFile != "":
         let meta = readMetaData(path)
         result.add((readPackageInfo(nimbleFile, true), meta))
 
@@ -358,6 +386,9 @@ proc getDownloadDirName*(pkg: Package, verRange: VersionRange): string =
   if verSimple != "":
     result.add "_"
     result.add verSimple
+
+proc isNimScript*(nf: NimbleFile): bool =
+  readPackageInfo(nf).isNimScript
 
 when isMainModule:
   doAssert getNameVersion("/home/user/.nimble/libs/packagea-0.1") ==

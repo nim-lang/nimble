@@ -93,6 +93,16 @@ proc readPackageInfoFromNims*(scriptName: string; result: var PackageInfo) =
   ## Executes the `scriptName` nimscript file. Reads the package information
   ## that it populates.
 
+  # Setup custom error handling.
+  msgs.gErrorMax = high(int)
+  var previousMsg = ""
+  msgs.writeLnHook =
+    proc (output: string) =
+      # The error counter is incremented after the writeLnHook is invoked.
+      if msgs.gErrorCounter > 0:
+        raise newException(NimbleError, previousMsg)
+      previousMsg = output
+
   # Execute the nimscript file.
   execScript(scriptName)
 

@@ -11,6 +11,7 @@ type
 
   PackageInfo* = object
     mypath*: string ## The path of this .nimble file
+    isNimScript*: bool ## Determines if this pkg info was read from a nims file
     name*: string
     version*: string
     author*: string
