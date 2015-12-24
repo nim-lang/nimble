@@ -230,6 +230,28 @@ which can be useful to read the bundled documentation. Example:
 The nimble ``init`` command will start a simple wizard which will create
 a quick ``.nimble`` file for your project.
 
+As of version 0.7.0, the ``.nimble`` file that this command creates will
+use the new NimScript format.
+Check out the [Creating Packages](#creating-packages) section for more info.
+
+### nimble publish
+
+Publishes your Nimble package to the official Nimble package repository.
+
+**Note:** Requires a valid Github account.
+
+### nimble tasks
+
+For a nimble package in the current working directory, list the tasks which that
+package defines. This is only supported for packages utilising the new
+nimscript .nimble files.
+
+### nimble dump
+
+Outputs information about the package in the current working directory in
+an ini-compatible format. Useful for tools wishing to read metadata about
+Nimble packages who do not want to use the NimScript evaluator.
+
 ## Configuration
 
 At startup Nimble will attempt to read ``~/.config/nimble/nimble.ini`` on Linux
@@ -265,7 +287,17 @@ named "foobar" should have a corresponding ``foobar.nimble`` file.
 
 These files specify information about the package including its name, author,
 license, dependencies and more. Without one Nimble is not able to install
-a package. A bare minimum .nimble file follows:
+a package.
+
+A .nimble file can be created easily using Nimble's ``init`` command. This
+command will ask you a bunch of questions about your package, then generate a
+.nimble file for you.
+
+**Note:** As of version 0.7.0, the ``init`` command generates .nimble files
+using the new NimScript format. Take a look at the next section for more
+information.
+
+A bare minimum .nimble file follows:
 
 ```ini
 [Package]
@@ -285,6 +317,62 @@ of the Nim compiler required is recommended.
 Nimble currently supports installation of packages from a local directory, a
 git repository and a mercurial repository. The .nimble file must be present in
 the root of the directory or repository being installed.
+
+### The new NimScript format
+
+**Warning:** This features is still very experimental. You are encouraged to
+try it, but be aware that it may change significantly in the future or
+may even be removed completely!
+
+Version 0.7.0 of Nimble introduces support for evaluating .nimble files
+as Nim code. This means that you can define metadata about your package
+using the Nim programming language.
+
+Because of Nim's flexibility the definitions remain declarative. With the added
+ability of using the Nim language to enrich your package specification.
+For example, you can define dependencies for specific platforms using Nim's
+``when`` statement.
+
+The ini example above looks like this in the NimScript format:
+
+```nim
+# Package
+
+version     = "0.1.0"
+author      = "Your Name"
+description = "Example .nimble file."
+license     = "MIT"
+
+# Deps
+
+requires "nim >= 0.10.0"
+```
+
+The format is indeed very similar to the ini format. Another great feature
+is the ability to define custom Nimble package-specific commands. These are
+defined in the .nimble files of course.
+
+```nim
+task hello, "This is a hello task":
+  echo("Hello World!")
+```
+
+You can then execute ``nimble hello``, which will result in the following
+output:
+
+```
+Executing task hello in /Users/user/projects/pkg/pkg.nimble
+Hello World!
+```
+
+You can place any Nim code inside these tasks. As long as that code does not
+access the FFI. The ``nimscript``
+[module](http://nim-lang.org/docs/nimscript.html) in Nim's standard library defines
+additional functionality such as the ability to execute external processes
+which makes this feature very powerful.
+
+You can also check what tasks are supported by the package in the current
+directory by using the ``tasks`` command.
 
 ### Libraries
 
@@ -431,7 +519,7 @@ their own packages to it! Take a look at
 
 #### Required
 
-* ``name`` - The name of the package.
+* ``name`` - The name of the package. *(This is not required in the new NimScript format)*
 * ``version`` - The *current* version of this package. This should be incremented
   **after** tagging the current version using ``git tag`` or ``hg tag``.
 * ``author`` - The name of the author of this package.

@@ -10,6 +10,8 @@ import nimblepkg/packageinfo, nimblepkg/version, nimblepkg/tools,
        nimblepkg/download, nimblepkg/config, nimblepkg/nimbletypes,
        nimblepkg/publish
 
+import nimblepkg/nimscriptsupport
+
 when not defined(windows):
   from posix import getpid
 else:
@@ -38,13 +40,14 @@ type
     nimbleData: JsonNode ## Nimbledata.json
 
   ActionType = enum
-    actionNil, actionUpdate, actionInit, actionPublish,
+    actionNil, actionUpdate, actionInit, actionDump, actionPublish,
     actionInstall, actionSearch,
-    actionList, actionBuild, actionPath, actionUninstall, actionCompile
+    actionList, actionBuild, actionPath, actionUninstall, actionCompile,
+    actionCustom, actionTasks
 
   Action = object
     case typ: ActionType
-    of actionNil, actionList, actionBuild, actionPublish: nil
+    of actionNil, actionList, actionBuild, actionPublish, actionTasks: nil
     of actionUpdate:
       optionalURL: string # Overrides default package list.
     of actionInstall, actionPath, actionUninstall:
@@ -53,7 +56,7 @@ type
       packages: seq[PkgTuple] # Optional only for actionInstall.
     of actionSearch:
       search: seq[string] # Search string.
-    of actionInit:
+    of actionInit, actionDump:
       projName: string
     of actionCompile:
       file: string
@@ -84,8 +87,12 @@ Commands:
                                   performed by tag and by name.
   list         [--ver]            Lists all packages.
                [-i, --installed]  Lists all installed packages.
+  tasks                           Lists the tasks specified in the Nimble
+                                  package's Nimble file.
   path         pkgname ...        Shows absolute path to the installed packages
                                   specified.
+  dump         [pkgname]          Outputs Nimble package information for
+                                  external tools.
 
 Options:
   -h, --help                      Print this help message.
@@ -99,7 +106,7 @@ Options:
 For more information read the Github readme:
   https://github.com/nim-lang/nimble#readme
 """
-  nimbleVersion = "0.6.2"
+  nimbleVersion = "0.7.0"
   defaultPackageURL =
       "https://github.com/nim-lang/packages/raw/master/packages.json"
 
@@ -144,6 +151,18 @@ proc prompt(options: Options, question: string): bool =
     else:
       return false
 
+proc promptCustom(question, default: string): string =
+  if default == "":
+    stdout.write(question, ": ")
+    let user = stdin.readLine()
+    if user.len == 0: return promptCustom(question, default)
+    else: return user
+  else:
+    stdout.write(question, " [", default, "]: ")
+    let user = stdin.readLine()
+    if user == "": return default
+    else: return user
+
 proc renameBabelToNimble(options: Options) {.deprecated.} =
   let babelDir = getHomeDir() / ".babel"
   let nimbleDir = getHomeDir() / ".nimble"
@@ -156,6 +175,64 @@ proc renameBabelToNimble(options: Options) {.deprecated.} =
       removeDir(babelDir)
       removeFile(nimbleDir / "babeldata.json")
 
+proc parseActionType(action: string): ActionType =
+  case action.normalize()
+  of "install", "path":
+    case action.normalize()
+    of "install":
+      result = actionInstall
+    of "path":
+      result = actionPath
+    else:
+      discard
+  of "build":
+    result = actionBuild
+  of "c", "compile", "js", "cpp", "cc":
+    result = actionCompile
+  of "init":
+    result = actionInit
+  of "dump":
+    result = actionDump
+  of "update", "refresh":
+    result = actionUpdate
+  of "search":
+    result = actionSearch
+  of "list":
+    result = actionList
+  of "uninstall", "remove", "delete", "del", "rm":
+    result = actionUninstall
+  of "publish":
+    result = actionPublish
+  of "tasks":
+    result = actionTasks
+  else:
+    result = actionCustom
+
+proc initAction(options: var Options, key: string) =
+  ## Intialises `options.actions` fields based on `options.actions.typ` and
+  ## `key`.
+  let keyNorm = key.normalize()
+  case options.action.typ
+  of actionInstall, actionPath:
+    options.action.packages = @[]
+  of actionCompile:
+    options.action.compileOptions = @[]
+    options.action.file = ""
+    if keyNorm == "c" or keyNorm == "compile": options.action.backend = ""
+    else: options.action.backend = keyNorm
+  of actionInit:
+    options.action.projName = ""
+  of actionDump:
+    options.action.projName = ""
+  of actionUpdate:
+    options.action.optionalURL = ""
+  of actionSearch:
+    options.action.search = @[]
+  of actionUninstall:
+    options.action.packages = @[]
+  of actionBuild, actionPublish, actionCustom, actionList, actionTasks,
+     actionNil: discard
+
 proc parseCmdLine(): Options =
   result.action.typ = actionNil
   result.config = parseConfig()
@@ -163,41 +240,9 @@ proc parseCmdLine(): Options =
     case kind
     of cmdArgument:
       if result.action.typ == actionNil:
-        case key
-        of "install", "path":
-          case key
-          of "install":
-            result.action.typ = actionInstall
-          of "path":
-            result.action.typ = actionPath
-          else:
-            discard
-          result.action.packages = @[]
-        of "build":
-          result.action.typ = actionBuild
-        of "c", "compile", "js", "cpp", "cc":
-          result.action.typ = actionCompile
-          result.action.compileOptions = @[]
-          result.action.file = ""
-          if key == "c" or key == "compile": result.action.backend = ""
-          else: result.action.backend = key
-        of "init":
-          result.action.typ = actionInit
-          result.action.projName = ""
-        of "update", "refresh":
-          result.action.typ = actionUpdate
-          result.action.optionalURL = ""
-        of "search":
-          result.action.typ = actionSearch
-          result.action.search = @[]
-        of "list":
-          result.action.typ = actionList
-        of "uninstall", "remove", "delete", "del", "rm":
-          result.action.typ = actionUninstall
-          result.action.packages = @[]
-        of "publish":
-          result.action.typ = actionPublish
-        else: writeHelp()
+        setNimScriptCommand(key)
+        result.action.typ = parseActionType(key)
+        initAction(result, key)
       else:
         case result.action.typ
         of actionNil:
@@ -215,7 +260,7 @@ proc parseCmdLine(): Options =
           result.action.optionalURL = key
         of actionSearch:
           result.action.search.add(key)
-        of actionInit:
+        of actionInit, actionDump:
           if result.action.projName != "":
             raise newException(NimbleError,
                 "Can only initialize one package at a time.")
@@ -721,11 +766,13 @@ proc install(packages: seq[PkgTuple],
 
 proc build(options: Options) =
   var pkgInfo = getPkgInfo(getCurrentDir())
+  nimScriptHint(pkgInfo)
   let paths = processDeps(pkginfo, options)
   buildFromDir(pkgInfo, paths, false)
 
 proc compile(options: Options) =
   var pkgInfo = getPkgInfo(getCurrentDir())
+  nimScriptHint(pkgInfo)
   let paths = processDeps(pkginfo, options)
   let realDir = pkgInfo.getRealDir()
 
@@ -827,9 +874,11 @@ proc listPaths(options: Options) =
         continue
 
       let
+        nimScriptFile = path / name.addFileExt("nims")
         babelFile = path / name.addFileExt("babel")
         nimbleFile = path / name.addFileExt("nimble")
-        hasSpec = nimbleFile.existsFile or babelFile.existsFile
+        hasSpec = nimScriptFile.existsFile or
+                  nimbleFile.existsFile or babelFile.existsFile
       if hasSpec:
         var pkgInfo = getPkgInfo(path)
         var v: VersionAndPath
@@ -849,44 +898,105 @@ proc listPaths(options: Options) =
     raise newException(NimbleError,
         "At least one of the specified packages was not found")
 
+proc join(x: seq[PkgTuple]; y: string): string =
+  if x.len == 0: return ""
+  result = x[0][0] & " " & $x[0][1]
+  for i in 1 ..< x.len:
+    result.add y
+    result.add x[i][0] & " " & $x[i][1]
+
+proc dump(options: Options) =
+  let proj = addFileExt(options.action.projName, "nimble")
+  let p = if fileExists(proj): readPackageInfo(proj)
+          else: getPkgInfo(os.getCurrentDir())
+  echo "name: ", p.name.escape
+  echo "version: ", p.version.escape
+  echo "author: ", p.author.escape
+  echo "desc: ", p.description.escape
+  echo "license: ", p.license.escape
+  echo "skipDirs: ", p.skipDirs.join(", ").escape
+  echo "skipFiles: ", p.skipFiles.join(", ").escape
+  echo "skipExt: ", p.skipExt.join(", ").escape
+  echo "installDirs: ", p.installDirs.join(", ").escape
+  echo "installFiles: ", p.installFiles.join(", ").escape
+  echo "installExt: ", p.installExt.join(", ").escape
+  echo "requires: ", p.requires.join(", ").escape
+  echo "bin: ", p.bin.join(", ").escape
+  echo "binDir: ", p.binDir.escape
+  echo "srcDir: ", p.srcDir.escape
+  echo "backend: ", p.backend.escape
+
 proc init(options: Options) =
-  echo("Initializing new Nimble project!")
-  var
-    pkgName, fName: string = ""
-    outFile: File
+  var nimbleFile: string = ""
 
-  if (options.action.projName != ""):
-    pkgName = options.action.projName
-    fName = pkgName & ".nimble"
-    if (existsFile(os.getCurrentDir() / fName)):
-      raise newException(NimbleError, "Already have a nimble file.")
+  echo("In order to initialise a new Nimble package, I will need to ask you\n" &
+       "some questions. Default values are shown in square brackets, press\n" &
+       "enter to use them.")
+
+  # Ask for package name.
+  if options.action.projName != "":
+    let pkgName = options.action.projName
+    nimbleFile = pkgName.changeFileExt("nimble")
   else:
-    echo("Enter a project name for this (blank to use working directory), " &
-        "Ctrl-C to abort:")
-    pkgName = readline(stdin)
-    if (pkgName == ""):
-      pkgName = os.getCurrentDir().splitPath.tail
-    if (pkgName == ""):
-      raise newException(NimbleError, "Could not get default file path.")
-    fName = pkgName & ".nimble"
+    var pkgName = os.getCurrentDir().splitPath.tail.toValidPackageName()
+    pkgName = promptCustom("Enter package name", pkgName)
+    nimbleFile = pkgName.changeFileExt("nimble")
 
-  # Now need to write out .nimble file with projName and other details
+  validatePackageName(nimbleFile.changeFileExt(""))
 
-  if (not existsFile(os.getCurrentDir() / fName) and
-      open(f=outFile, filename = fName, mode = fmWrite)):
-    outFile.writeln("[Package]")
-    outFile.writeln("name          = \"" & pkgName & "\"")
-    outFile.writeln("version       = \"0.1.0\"")
-    outFile.writeln("author        = \"Anonymous\"")
-    outFile.writeln("description   = \"New Nimble project for Nim\"")
-    outFile.writeln("license       = \"MIT\"")
-    outFile.writeln("")
-    outFile.writeln("[Deps]")
-    outFile.writeln("Requires: \"nim >= 0.10.0\"")
+  if existsFile(os.getCurrentDir() / nimbleFile):
+    raise newException(NimbleError, "Nimble file already exists.")
+
+  # Ask for package version.
+  let pkgVersion = promptCustom("Enter intial version of package", "0.1.0")
+  validateVersion(pkgVersion)
+
+  # Ask for package author
+  var defaultAuthor = "Anonymous"
+  if findExe("git") != "":
+    let (name, exitCode) = doCmdEx("git config --global user.name")
+    if exitCode == QuitSuccess and name.len > 0:
+      defaultAuthor = name.strip()
+  elif defaultAuthor == "Anonymous" and findExe("hg") != "":
+    let (name, exitCode) = doCmdEx("hg config ui.username")
+    if exitCode == QuitSuccess and name.len > 0:
+      defaultAuthor = name.strip()
+  let pkgAuthor = promptCustom("Enter your name", defaultAuthor)
+
+  # Ask for description
+  let pkgDesc = promptCustom("Enter package description", "")
+
+  # Ask for license
+  # TODO: Provide selection of licenses, or select random default license.
+  let pkgLicense = promptCustom("Enter package license", "MIT")
+
+  # Ask for Nim dependency
+  let nimDepDef = getNimrodVersion()
+  let pkgNimDep = promptCustom("Enter lowest supported Nim version", $nimDepDef)
+  validateVersion(pkgNimDep)
+
+  # Now generate the .nimble file.
+  if existsFile(os.getCurrentDir() / nimbleFile):
+    raise newException(NimbleError,
+        "Looks like a Nimble file has already been created.")
+
+  var outFile: File
+  if open(f = outFile, filename = nimbleFile, mode = fmWrite):
+    outFile.writeLine """# Package
+
+version       = $#
+author        = $#
+description   = $#
+license       = $#
+
+# Dependencies
+
+requires "nim >= $#"
+""" % [pkgVersion.escape(), pkgAuthor.escape(), pkgDesc.escape(),
+       pkgLicense.escape(), pkgNimDep]
     close(outFile)
-
   else:
-    raise newException(NimbleError, "Unable to open file " & fName &
+    raise newException(NimbleError, "Unable to open file " & nimbleFile &
                        " for writing: " & osErrorMsg(osLastError()))
 
 proc uninstall(options: Options) =
@@ -946,37 +1056,67 @@ proc uninstall(options: Options) =
     removePkgDir(options.getPkgsDir / (pkg.name & '-' & pkg.version), options)
     echo("Removed ", pkg.name, " (", $pkg.version, ")")
 
+proc listTasks(options: Options) =
+  let nimbleFile = findNimbleFile(getCurrentDir(), true)
+  nimscriptsupport.listTasks(nimbleFile)
+
 proc doAction(options: Options) =
   if not existsDir(options.getNimbleDir()):
     createDir(options.getNimbleDir())
   if not existsDir(options.getPkgsDir):
     createDir(options.getPkgsDir)
 
-  case options.action.typ
-  of actionUpdate:
-    update(options)
-  of actionInstall:
-    discard install(options.action.packages, options)
-  of actionUninstall:
-    uninstall(options)
-  of actionSearch:
-    search(options)
-  of actionList:
-    if options.queryInstalled: listInstalled(options)
-    else: list(options)
-  of actionPath:
-    listPaths(options)
-  of actionBuild:
-    build(options)
-  of actionCompile:
-    compile(options)
-  of actionInit:
-    init(options)
-  of actionPublish:
-    var pkgInfo = getPkgInfo(getCurrentDir())
-    publish(pkgInfo)
-  of actionNil:
-    assert false
+  var command = getNimScriptCommand().parseActionType()
+  # The loop is necessary to support tasks using `setCommand`.
+  var moreCommands = true
+  while moreCommands:
+    moreCommands = false
+    case command
+    of actionUpdate:
+      update(options)
+    of actionInstall:
+      let (_, pkgInfo) = install(options.action.packages, options)
+      if options.action.packages.len == 0:
+        nimScriptHint(pkgInfo)
+    of actionUninstall:
+      uninstall(options)
+    of actionSearch:
+      search(options)
+    of actionList:
+      if options.queryInstalled: listInstalled(options)
+      else: list(options)
+    of actionPath:
+      listPaths(options)
+    of actionBuild:
+      build(options)
+    of actionCompile:
+      compile(options)
+    of actionInit:
+      init(options)
+    of actionPublish:
+      var pkgInfo = getPkgInfo(getCurrentDir())
+      publish(pkgInfo)
+    of actionDump:
+      dump(options)
+    of actionTasks:
+      listTasks(options)
+    of actionNil:
+      assert false
+    of actionCustom:
+      # Custom command. Attempt to call a NimScript task.
+      let nimbleFile = findNimbleFile(getCurrentDir(), true)
+      let oldCmd = getNimScriptCommand()
+      if not nimbleFile.isNimScript():
+        writeHelp()
+
+      if not execTask(nimbleFile, oldCmd):
+        echo("FAILURE: Could not find task ", oldCmd, " in ", nimbleFile)
+        writeHelp()
+      if getNimScriptCommand().normalize == "nop":
+        echo("WARNING: Using `setCommand 'nop'` is not necessary.")
+        break
+      command = getNimScriptCommand().parseActionType()
+      moreCommands = hasTaskRequestedCommand()
 
 when isMainModule:
   when defined(release):

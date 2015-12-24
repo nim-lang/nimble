@@ -4,13 +4,15 @@
 # recursive imports
 
 import version
+export version.NimbleError
 
 type
-  NimbleError* = object of Exception
   BuildFailed* = object of NimbleError
 
   PackageInfo* = object
     mypath*: string ## The path of this .nimble file
+    isNimScript*: bool ## Determines if this pkg info was read from a nims file
+    isMinimal*: bool
     name*: string
     version*: string
     author*: string
@@ -27,4 +29,3 @@ type
     binDir*: string
     srcDir*: string
     backend*: string
-

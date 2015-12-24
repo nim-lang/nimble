@@ -18,6 +18,23 @@ template cd*(dir: string, body: stmt) =
 proc processOutput(output: string): seq[string] =
   output.strip.splitLines().filter((x: string) => (x.len > 0))
 
+test "can install nimscript package":
+  cd "nimscript":
+    check execCmdEx("../" & path & " install -y").exitCode == QuitSuccess
+
+test "can execute nimscript tasks":
+  cd "nimscript":
+    let (output, exitCode) = execCmdEx("../" & path & " test")
+    let lines = output.strip.splitLines()
+    check exitCode == QuitSuccess
+    check lines[^1] == "10"
+
+test "can list nimscript tasks":
+  cd "nimscript":
+    let (output, exitCode) = execCmdEx("../" & path & " tasks")
+    check output.strip == "test                 test description"
+    check exitCode == QuitSuccess
+
 test "can install packagebin2":
   check execCmdEx(path &
       " install -y https://github.com/nimble-test/packagebin2.git").exitCode ==
@@ -47,6 +64,11 @@ test "issue #27":
 
   cd "issue27":
     check execCmdEx("../" & path & " install -y").exitCode == QuitSuccess
+
+test "can list":
+  check execCmdEx(path & " list").exitCode == QuitSuccess
+
+  check execCmdEx(path & " list -i").exitCode == QuitSuccess
 
 test "can uninstall":
   block:
@@ -80,3 +102,5 @@ test "can uninstall":
   check execCmdEx(path & " uninstall -y PackageA@0.2 issue27b").exitCode ==
       QuitSuccess
   check (not dirExists(getHomeDir() / ".nimble" / "pkgs" / "PackageA-0.2.0"))
+
+  check execCmdEx(path & " uninstall -y nimscript").exitCode == QuitSuccess
