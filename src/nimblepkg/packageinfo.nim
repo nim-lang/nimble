@@ -54,7 +54,7 @@ proc validatePackageName*(name: string) =
 
   if name[0] in {'0'..'9'}:
     raise newException(NimbleError,
-        "Invalid package name: cannot beging with " & name[0])
+        "Invalid package name: cannot begin with " & name[0])
 
   var prevWasUnderscore = false
   for c in name:
@@ -90,6 +90,11 @@ proc validatePackageInfo(pkgInfo: PackageInfo, path: string) =
   if pkgInfo.name == "":
     raise newException(NimbleError, "Incorrect .nimble file: " & path &
                        " does not contain a name field.")
+
+  if pkgInfo.name.normalize != path.splitFile.name.normalize:
+    raise newException(NimbleError,
+        "The .nimble file name must match name specified inside it.")
+
   if pkgInfo.version == "":
     raise newException(NimbleError, "Incorrect .nimble file: " & path &
                        " does not contain a version field.")
@@ -230,6 +235,8 @@ proc readPackageInfo*(nf: NimbleFile; onlyMinimalInfo=false): PackageInfo =
   ## When ``onlyMinimalInfo`` is true, only the `name` and `version` fields are
   ## populated. The isNimScript field can also be relied on.
   result = initPackageInfo(nf)
+
+  validatePackageName(nf.splitFile.name)
 
   var success = false
   var iniError: ref NimbleError

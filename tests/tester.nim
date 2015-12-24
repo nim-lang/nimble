@@ -65,6 +65,19 @@ test "issue #27":
   cd "issue27":
     check execCmdEx("../" & path & " install -y").exitCode == QuitSuccess
 
+test "issue #126":
+  cd "issue126/a":
+    let (output, exitCode) = execCmdEx("../../" & path & " install")
+    let lines = output.strip.splitLines()
+    check exitCode != QuitSuccess
+    check "Invalid package name: cannot contain '-'" in lines[^1]
+
+  cd "issue126/b":
+    let (output1, exitCode1) = execCmdEx("../../" & path & " install")
+    let lines1 = output1.strip.splitLines()
+    check exitCode1 != QuitSuccess
+    check "The .nimble file name must match name specified inside it." in lines1[^1]
+
 test "can list":
   check execCmdEx(path & " list").exitCode == QuitSuccess
 
