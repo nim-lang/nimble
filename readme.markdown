@@ -233,7 +233,8 @@ which can be useful to read the bundled documentation. Example:
 The nimble ``init`` command will start a simple wizard which will create
 a quick ``.nimble`` file for your project.
 
-As of version 0.7.0, this ``.nimble`` file will use the new NimScript format.
+As of version 0.7.0, the ``.nimble`` file that this command creates will
+use the new NimScript format.
 Check out the [Creating Packages](#creating-packages) section for more info.
 
 ### nimble publish
@@ -244,7 +245,7 @@ Publishes your Nimble package to the official Nimble package repository.
 
 ### nimble tasks
 
-For a nimble package in current working directory, list the tasks which that
+For a nimble package in the current working directory, list the tasks which that
 package defines. This is only supported for packages utilising the new
 nimscript .nimble files.
 
@@ -372,6 +373,9 @@ access the FFI. The ``nimscript``
 [module](http://nim-lang.org/docs/nimscript.html) in Nim's standard library defines
 additional functionality such as the ability to execute external processes
 which makes this feature very powerful.
+
+You can also check what tasks are supported by the package in the current
+directory by using the ``tasks`` command.
 
 ### Libraries
 
@@ -518,7 +522,7 @@ their own packages to it! Take a look at
 
 #### Required
 
-* ``name`` - The name of the package.
+* ``name`` - The name of the package. *(This is not required in the new NimScript format)*
 * ``version`` - The *current* version of this package. This should be incremented
   **after** tagging the current version using ``git tag`` or ``hg tag``.
 * ``author`` - The name of the author of this package.
