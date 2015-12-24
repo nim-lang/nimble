@@ -84,18 +84,18 @@ work properly and you won't be able to run them.
 Once you have Nimble installed on your system you can run the ``nimble`` command
 to obtain a list of available commands.
 
-### nimble update
+### nimble refresh
 
-The ``update`` command is used to fetch and update the list of Nimble packages
+The ``refresh`` command is used to fetch and update the list of Nimble packages
 (see below). There is no automatic update mechanism, so you need to run this
 yourself if you need to *refresh* your local list of known available Nimble
 packages.  Example:
 
-    $ nimble update
+    $ nimble refresh
     Downloading package list from https://.../packages.json
     Done.
 
-Some commands may remind you to run ``nimble update`` or will run it for you if
+Some commands may remind you to run ``nimble refresh`` or will run it for you if
 they fail.
 
 You can also optionally supply this command with a URL if you would like to use
