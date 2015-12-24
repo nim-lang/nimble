@@ -25,6 +25,9 @@ type
 
   NimbleFile* = string
 
+  ValidationError* = object of NimbleError
+    warnInstalled*: bool # Determines whether to show a warning for installed pkgs
+
 proc initPackageInfo(path: string): PackageInfo =
   result.mypath = path
   # reasonable default:
@@ -45,6 +48,10 @@ proc initPackageInfo(path: string): PackageInfo =
   result.binDir = ""
   result.backend = "c"
 
+proc newValidationError(msg: string, warnInstalled: bool): ref ValidationError =
+  result = newException(ValidationError, msg)
+  result.warnInstalled = warnInstalled
+
 proc validatePackageName*(name: string) =
   ## Raises an error if specified package name contains invalid characters.
   ##
@@ -53,20 +60,22 @@ proc validatePackageName*(name: string) =
   if name.len == 0: return
 
   if name[0] in {'0'..'9'}:
-    raise newException(NimbleError,
-        "Invalid package name: cannot begin with " & name[0])
+    raise newValidationError(name &
+        "\"$1\" is an invalid package name: cannot begin with $2" %
+        [name, $name[0]], true)
 
   var prevWasUnderscore = false
   for c in name:
     case c
     of '_':
       if prevWasUnderscore:
-        raise newException(NimbleError,
-            "Invalid package name: cannot contain \"__\"")
+        raise newValidationError(
+            "$1 is an invalid package name: cannot contain \"__\"" % name, true)
       prevWasUnderscore = true
     of AllChars - IdentChars:
-      raise newException(NimbleError,
-          "Invalid package name: cannot contain '$1'" % $c)
+      raise newValidationError(
+          "$1 is an invalid package name: cannot contain '$2'" % [name, $c],
+          true)
     else:
       prevWasUnderscore = false
 
@@ -82,36 +91,36 @@ proc toValidPackageName*(name: string): string =
 proc validateVersion*(ver: string) =
   for c in ver:
     if c notin ({'.'} + Digits):
-      raise newException(NimbleError,
+      raise newValidationError(
           "Version may only consist of numbers and the '.' character " &
-          "but found '" & c & "'.")
+          "but found '" & c & "'.", false)
 
 proc validatePackageInfo(pkgInfo: PackageInfo, path: string) =
   if pkgInfo.name == "":
-    raise newException(NimbleError, "Incorrect .nimble file: " & path &
-                       " does not contain a name field.")
+    raise newValidationError("Incorrect .nimble file: " & path &
+        " does not contain a name field.", false)
 
   if pkgInfo.name.normalize != path.splitFile.name.normalize:
-    raise newException(NimbleError,
-        "The .nimble file name must match name specified inside it.")
+    raise newValidationError(
+        "The .nimble file name must match name specified inside it.", false)
 
   if pkgInfo.version == "":
-    raise newException(NimbleError, "Incorrect .nimble file: " & path &
-                       " does not contain a version field.")
+    raise newValidationError("Incorrect .nimble file: " & path &
+        " does not contain a version field.", false)
 
   if not pkgInfo.isMinimal:
     if pkgInfo.author == "":
-      raise newException(NimbleError, "Incorrect .nimble file: " & path &
-                         " does not contain an author field.")
+      raise newValidationError("Incorrect .nimble file: " & path &
+          " does not contain an author field.", false)
     if pkgInfo.description == "":
-      raise newException(NimbleError, "Incorrect .nimble file: " & path &
-                         " does not contain a description field.")
+      raise newValidationError("Incorrect .nimble file: " & path &
+          " does not contain a description field.", false)
     if pkgInfo.license == "":
-      raise newException(NimbleError, "Incorrect .nimble file: " & path &
-                         " does not contain a license field.")
+      raise newValidationError("Incorrect .nimble file: " & path &
+          " does not contain a license field.", false)
     if pkgInfo.backend notin ["c", "cc", "objc", "cpp", "js"]:
-      raise newException(NimbleError, "'" & pkgInfo.backend &
-                         "' is an invalid backend.")
+      raise newValidationError("'" & pkgInfo.backend &
+          "' is an invalid backend.", false)
 
   validateVersion(pkgInfo.version)
 
@@ -225,7 +234,7 @@ proc getNameVersion*(pkgpath: string): tuple[name, version: string] =
       break
 
 proc readPackageInfo*(nf: NimbleFile; onlyMinimalInfo=false): PackageInfo =
-  ## Reads package info from the specifed Nimble file.
+  ## Reads package info from the specified Nimble file.
   ##
   ## Attempts to read it using the "old" Nimble ini format first, if that
   ## fails attempts to evaluate it as a nimscript file.
@@ -382,7 +391,23 @@ proc getInstalledPkgs*(libsDir: string):
       let nimbleFile = findNimbleFile(path, false)
       if nimbleFile != "":
         let meta = readMetaData(path)
-        result.add((readPackageInfo(nimbleFile, true), meta))
+        try:
+          result.add((readPackageInfo(nimbleFile, true), meta))
+        except ValidationError:
+          let exc = (ref ValidationError)(getCurrentException())
+          if exc.warnInstalled:
+            echo("WARNING: Unable to read package info for " & path & "\n" &
+                "  Package did not pass validation: " & exc.msg)
+          else:
+            exc.msg = "Unable to read package info for " & path & "\n" &
+                "  Package did not pass validation: " & exc.msg
+            raise exc
+        except:
+          let exc = getCurrentException()
+          exc.msg = "Unable to read package info for " & path & "\n" &
+              "  Error: " & exc.msg
+          raise exc
+
 
 proc findPkg*(pkglist: seq[tuple[pkginfo: PackageInfo, meta: MetaData]],
              dep: PkgTuple,
