@@ -93,20 +93,24 @@ proc validatePackageInfo(pkgInfo: PackageInfo, path: string) =
   if pkgInfo.version == "":
     raise newException(NimbleError, "Incorrect .nimble file: " & path &
                        " does not contain a version field.")
-  if pkgInfo.author == "":
-    raise newException(NimbleError, "Incorrect .nimble file: " & path &
-                       " does not contain an author field.")
-  if pkgInfo.description == "":
-    raise newException(NimbleError, "Incorrect .nimble file: " & path &
-                       " does not contain a description field.")
-  if pkgInfo.license == "":
-    raise newException(NimbleError, "Incorrect .nimble file: " & path &
-                       " does not contain a license field.")
-  if pkgInfo.backend notin ["c", "cc", "objc", "cpp", "js"]:
-    raise newException(NimbleError, "'" & pkgInfo.backend &
-                       "' is an invalid backend.")
+
+  if not pkgInfo.isMinimal:
+    if pkgInfo.author == "":
+      raise newException(NimbleError, "Incorrect .nimble file: " & path &
+                         " does not contain an author field.")
+    if pkgInfo.description == "":
+      raise newException(NimbleError, "Incorrect .nimble file: " & path &
+                         " does not contain a description field.")
+    if pkgInfo.license == "":
+      raise newException(NimbleError, "Incorrect .nimble file: " & path &
+                         " does not contain a license field.")
+    if pkgInfo.backend notin ["c", "cc", "objc", "cpp", "js"]:
+      raise newException(NimbleError, "'" & pkgInfo.backend &
+                         "' is an invalid backend.")
+
   validateVersion(pkgInfo.version)
 
+proc nimScriptHint*(pkgInfo: PackageInfo) =
   if not pkgInfo.isNimScript:
     # TODO: Turn this into a warning.
     # TODO: Add a URL explaining more.
@@ -195,6 +199,13 @@ proc readPackageInfoFromNimble(path: string; result: var PackageInfo) =
 proc getNameVersion*(pkgpath: string): tuple[name, version: string] =
   ## Splits ``pkgpath`` in the format ``/home/user/.nimble/pkgs/package-0.1``
   ## into ``(packagea, 0.1)``
+  ##
+  ## Also works for file paths like:
+  ##   ``/home/user/.nimble/pkgs/package-0.1/package.nimble``
+
+  if pkgPath.splitFile.ext == ".nimble":
+    return getNameVersion(pkgPath.splitPath.head)
+
   result.name = ""
   result.version = ""
   let tail = pkgpath.splitPath.tail
@@ -215,6 +226,9 @@ proc readPackageInfo*(nf: NimbleFile; onlyMinimalInfo=false): PackageInfo =
   ## fails attempts to evaluate it as a nimscript file.
   ##
   ## If both fail then returns an error.
+  ##
+  ## When ``onlyMinimalInfo`` is true, only the `name` and `version` fields are
+  ## populated. The isNimScript field can also be relied on.
   result = initPackageInfo(nf)
 
   var success = false
@@ -232,6 +246,8 @@ proc readPackageInfo*(nf: NimbleFile; onlyMinimalInfo=false): PackageInfo =
       let tmp = getNameVersion(nf)
       result.name = tmp.name
       result.version = tmp.version
+      result.isNimScript = true
+      result.isMinimal = true
     else:
       try:
         readPackageInfoFromNims(nf, result)
@@ -428,6 +444,8 @@ when isMainModule:
   doAssert getNameVersion("/home/user/.nimble/libs/packagea-0.1") ==
       ("packagea", "0.1")
   doAssert getNameVersion("/home/user/.nimble/libs/package-a-0.1") ==
+      ("package-a", "0.1")
+  doAssert getNameVersion("/home/user/.nimble/libs/package-a-0.1/package.nimble") ==
       ("package-a", "0.1")
 
   validatePackageName("foo_bar")

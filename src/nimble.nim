@@ -766,11 +766,13 @@ proc install(packages: seq[PkgTuple],
 
 proc build(options: Options) =
   var pkgInfo = getPkgInfo(getCurrentDir())
+  nimScriptHint(pkgInfo)
   let paths = processDeps(pkginfo, options)
   buildFromDir(pkgInfo, paths, false)
 
 proc compile(options: Options) =
   var pkgInfo = getPkgInfo(getCurrentDir())
+  nimScriptHint(pkgInfo)
   let paths = processDeps(pkginfo, options)
   let realDir = pkgInfo.getRealDir()
 
@@ -1073,7 +1075,9 @@ proc doAction(options: Options) =
     of actionUpdate:
       update(options)
     of actionInstall:
-      discard install(options.action.packages, options)
+      let (_, pkgInfo) = install(options.action.packages, options)
+      if options.action.packages.len == 0:
+        nimScriptHint(pkgInfo)
     of actionUninstall:
       uninstall(options)
     of actionSearch:
