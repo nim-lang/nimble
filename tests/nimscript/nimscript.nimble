@@ -13,6 +13,3 @@ requires "nim >= 0.12.1"
 
 task test, "test description":
   echo(5+5)
-
-task example, "Build and run examples for current platform":
-    setCommand "c"

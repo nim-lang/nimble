@@ -102,7 +102,7 @@ proc validatePackageInfo(pkgInfo: PackageInfo, path: string) =
 
   if pkgInfo.name.normalize != path.splitFile.name.normalize:
     raise newValidationError(
-        "The .nimble file name must match name specified inside it.", false)
+        "The .nimble file name must match name specified inside " & path, false)
 
   if pkgInfo.version == "":
     raise newValidationError("Incorrect .nimble file: " & path &
