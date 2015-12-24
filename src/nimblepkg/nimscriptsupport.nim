@@ -12,7 +12,7 @@ import
 
 from compiler/scriptconfig import setupVM
 from compiler/idents import getIdent
-from compiler/astalgo import strTableGet, `$`
+from compiler/astalgo import strTableGet
 
 import nimbletypes, version
 import os, strutils
