@@ -1105,9 +1105,10 @@ proc doAction(options: Options) =
     of actionCustom:
       # Custom command. Attempt to call a NimScript task.
       let nimbleFile = findNimbleFile(getCurrentDir(), true)
+      let oldCmd = getNimScriptCommand()
       if not nimbleFile.isNimScript():
         writeHelp()
-      let oldCmd = getNimScriptCommand()
+
       if not execTask(nimbleFile, oldCmd):
         echo("FAILURE: Could not find task ", oldCmd, " in ", nimbleFile)
         writeHelp()
