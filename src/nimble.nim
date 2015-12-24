@@ -527,6 +527,10 @@ proc processDeps(pkginfo: PackageInfo, options: Options): seq[string] =
 
 proc buildFromDir(pkgInfo: PackageInfo, paths: seq[string], forRelease: bool) =
   ## Builds a package as specified by ``pkgInfo``.
+  if pkgInfo.bin.len == 0:
+    raise newException(NimbleError,
+        "Nothing to build. Did you specify a module to build using the" &
+        " `bin` key in your .nimble file?")
   let realDir = pkgInfo.getRealDir()
   let releaseOpt = if forRelease: "-d:release" else: ""
   var args = ""

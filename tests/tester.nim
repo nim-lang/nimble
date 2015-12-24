@@ -78,6 +78,13 @@ test "issue #126":
     check exitCode1 != QuitSuccess
     check "The .nimble file name must match name specified inside it." in lines1[^1]
 
+test "issue #108":
+  cd "issue108":
+    let (output, exitCode) = execCmdEx("../" & path & " build")
+    let lines = output.strip.splitLines()
+    check exitCode != QuitSuccess
+    check "Nothing to build" in lines[^1]
+
 test "can list":
   check execCmdEx(path & " list").exitCode == QuitSuccess
 
