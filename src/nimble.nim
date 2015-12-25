@@ -813,59 +813,63 @@ proc doAction(options: Options) =
   if not existsDir(options.getPkgsDir):
     createDir(options.getPkgsDir)
 
-  var command = getNimScriptCommand().parseActionType()
-  # The loop is necessary to support tasks using `setCommand`.
-  var moreCommands = true
-  while moreCommands:
-    moreCommands = false
-    case command
-    of actionUpdate:
-      update(options)
-    of actionInstall:
-      let (_, pkgInfo) = install(options.action.packages, options)
-      if options.action.packages.len == 0:
-        nimScriptHint(pkgInfo)
-    of actionUninstall:
-      uninstall(options)
-    of actionSearch:
-      search(options)
-    of actionList:
-      if options.queryInstalled: listInstalled(options)
-      else: list(options)
-    of actionPath:
-      listPaths(options)
-    of actionBuild:
-      build(options)
-    of actionCompile:
-      compile(options)
-    of actionInit:
-      init(options)
-    of actionPublish:
-      var pkgInfo = getPkgInfo(getCurrentDir())
-      publish(pkgInfo)
-    of actionDump:
-      dump(options)
-    of actionTasks:
-      listTasks(options)
-    of actionVersion:
-      writeVersion()
-    of actionNil:
-      assert false
-    of actionCustom:
-      # Custom command. Attempt to call a NimScript task.
-      let nimbleFile = findNimbleFile(getCurrentDir(), true)
-      let oldCmd = getNimScriptCommand()
-      if not nimbleFile.isNimScript():
-        writeHelp()
+  case options.action.typ
+  of actionUpdate:
+    update(options)
+  of actionInstall:
+    let (_, pkgInfo) = install(options.action.packages, options)
+    if options.action.packages.len == 0:
+      nimScriptHint(pkgInfo)
+  of actionUninstall:
+    uninstall(options)
+  of actionSearch:
+    search(options)
+  of actionList:
+    if options.queryInstalled: listInstalled(options)
+    else: list(options)
+  of actionPath:
+    listPaths(options)
+  of actionBuild:
+    build(options)
+  of actionCompile:
+    compile(options)
+  of actionInit:
+    init(options)
+  of actionPublish:
+    var pkgInfo = getPkgInfo(getCurrentDir())
+    publish(pkgInfo)
+  of actionDump:
+    dump(options)
+  of actionTasks:
+    listTasks(options)
+  of actionVersion:
+    writeVersion()
+  of actionNil:
+    assert false
+  of actionCustom:
+    # Custom command. Attempt to call a NimScript task.
+    let nimbleFile = findNimbleFile(getCurrentDir(), true)
+    if not nimbleFile.isNimScript():
+      writeHelp()
 
-      if not execTask(nimbleFile, oldCmd):
-        echo("FAILURE: Could not find task ", oldCmd, " in ", nimbleFile)
-        writeHelp()
-      if getNimScriptCommand().normalize == "nop":
-        echo("WARNING: Using `setCommand 'nop'` is not necessary.")
-        break
-      command = getNimScriptCommand().parseActionType()
-      moreCommands = hasTaskRequestedCommand()
+    let execResult = execTask(nimbleFile, options.action.command)
+    if not execResult.success:
+      echo("FAILURE: Could not find task ", options.action.command, " in ",
+           nimbleFile)
+      writeHelp()
+    if execResult.command.normalize == "nop":
+      echo("WARNING: Using `setCommand 'nop'` is not necessary.")
+      return
+    if execResult.hasTaskRequestedCommand():
+      var newOptions = initOptions()
+      newOptions.config = options.config
+      newOptions.nimbleData = options.nimbleData
+      parseCommand(execResult.command, newOptions)
+      for arg in execResult.arguments:
+        parseArgument(arg, newOptions)
+      for flag, val in execResult.flags:
+        parseFlag(flag, val, newOptions)
+      doAction(newOptions)
 
 when isMainModule:
   when defined(release):

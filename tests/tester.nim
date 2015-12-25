@@ -29,10 +29,25 @@ test "can execute nimscript tasks":
     check exitCode == QuitSuccess
     check lines[^1] == "10"
 
+test "can use nimscript's setCommand":
+  cd "nimscript":
+    let (output, exitCode) = execCmdEx("../" & path & " cTest")
+    let lines = output.strip.splitLines()
+    check exitCode == QuitSuccess
+    check "Hint: operation successful".normalize in lines[^1].normalize
+
+test "can use nimscript's setCommand with flags":
+  cd "nimscript":
+    let (output, exitCode) = execCmdEx("../" & path & " cr")
+    let lines = output.strip.splitLines()
+    check exitCode == QuitSuccess
+    check "Hint: operation successful".normalize in lines[^2].normalize
+    check "Hello World".normalize in lines[^1].normalize
+
 test "can list nimscript tasks":
   cd "nimscript":
     let (output, exitCode) = execCmdEx("../" & path & " tasks")
-    check output.strip == "test                 test description"
+    check "test                 test description".normalize in output.normalize
     check exitCode == QuitSuccess
 
 test "can install packagebin2":

@@ -470,7 +470,7 @@ proc getDownloadDirName*(pkg: Package, verRange: VersionRange): string =
     result.add verSimple
 
 proc isNimScript*(nf: NimbleFile): bool =
-  readPackageInfo(nf).isNimScript
+  result = readPackageInfo(nf).isNimScript
 
 when isMainModule:
   doAssert getNameVersion("/home/user/.nimble/libs/packagea-0.1") ==

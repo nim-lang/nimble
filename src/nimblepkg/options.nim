@@ -1,7 +1,7 @@
 # Copyright (C) Dominik Picheta. All rights reserved.
 # BSD License. Look at license.txt for more info.
 
-import json, strutils, os, parseopt
+import json, strutils, os, parseopt, strtabs
 
 import nimblepkg/config, nimblepkg/version, nimblepkg/nimscriptsupport,
        nimblepkg/tools
@@ -39,7 +39,10 @@ type
       file*: string
       backend*: string
       compileOptions*: seq[string]
-    else: nil
+    of actionCustom:
+      command*: string
+      arguments*: seq[string]
+      flags*: StringTableRef
 
   ForcePrompt* = enum
     dontForcePrompt, forcePromptYes, forcePromptNo
@@ -144,7 +147,11 @@ proc initAction*(options: var Options, key: string) =
     options.action.search = @[]
   of actionUninstall:
     options.action.packages = @[]
-  of actionBuild, actionPublish, actionCustom, actionList, actionTasks,
+  of actionCustom:
+    options.action.command = key
+    options.action.arguments = @[]
+    options.action.flags = newStringTable()
+  of actionBuild, actionPublish, actionList, actionTasks,
      actionNil, actionVersion: discard
 
 proc prompt*(options: Options, question: string): bool =
@@ -192,7 +199,6 @@ proc getBinDir*(options: Options): string =
   options.config.nimbleDir / "bin"
 
 proc parseCommand*(key: string, result: var Options) =
-  setNimScriptCommand(key)
   result.action.typ = parseActionType(key)
   initAction(result, key)
 
@@ -222,6 +228,8 @@ proc parseArgument*(key: string, result: var Options) =
     result.action.file = key
   of actionList, actionBuild, actionPublish:
     writeHelp()
+  of actionCustom:
+    result.action.arguments.add(key)
   else:
     discard
 
@@ -232,7 +240,10 @@ proc parseFlag*(flag, val: string, result: var Options) =
       result.action.compileOptions.add("--" & flag)
     else:
       result.action.compileOptions.add("--" & flag & ":" & val)
+  of actionCustom:
+    result.action.flags[flag] = val
   else:
+    # TODO: These should not be global.
     case flag.normalize()
     of "help", "h": writeHelp()
     of "version", "v":
@@ -246,9 +257,26 @@ proc parseFlag*(flag, val: string, result: var Options) =
     else:
       raise newException(NimbleError, "Unknown option: --" & flag)
 
-proc parseCmdLine*(): Options =
+proc initOptions*(): Options =
   result.action.typ = actionNil
+
+proc parseMisc(): Options =
+  result = initOptions()
   result.config = parseConfig()
+
+  # Load nimbledata.json
+  let nimbledataFilename = result.getNimbleDir() / "nimbledata.json"
+  if fileExists(nimbledataFilename):
+    try:
+      result.nimbleData = parseFile(nimbledataFilename)
+    except:
+      raise newException(NimbleError, "Couldn't parse nimbledata.json file " &
+          "located at " & nimbledataFilename)
+  else:
+    result.nimbleData = %{"reverseDeps": newJObject()}
+
+proc parseCmdLine*(): Options =
+  result = parseMisc()
   for kind, key, val in getOpt():
     case kind
     of cmdArgument:
@@ -267,13 +295,3 @@ proc parseCmdLine*(): Options =
     # Rename deprecated babel dir.
     renameBabelToNimble(result)
 
-  # Load nimbledata.json
-  let nimbledataFilename = result.getNimbleDir() / "nimbledata.json"
-  if fileExists(nimbledataFilename):
-    try:
-      result.nimbleData = parseFile(nimbledataFilename)
-    except:
-      raise newException(NimbleError, "Couldn't parse nimbledata.json file " &
-          "located at " & nimbledataFilename)
-  else:
-    result.nimbleData = %{"reverseDeps": newJObject()}
