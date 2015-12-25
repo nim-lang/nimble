@@ -8,7 +8,7 @@ from sequtils import toSeq
 
 import nimblepkg/packageinfo, nimblepkg/version, nimblepkg/tools,
        nimblepkg/download, nimblepkg/config, nimblepkg/nimbletypes,
-       nimblepkg/publish
+       nimblepkg/publish, nimblepkg/options
 
 import nimblepkg/nimscriptsupport
 
@@ -30,126 +30,15 @@ else:
   proc GetVersionExA*(VersionInformation: var OSVERSIONINFO): WINBOOL{.stdcall,
     dynlib: "kernel32", importc: "GetVersionExA".}
 
-type
-  Options = object
-    forcePrompts: ForcePrompt
-    queryVersions: bool
-    queryInstalled: bool
-    action: Action
-    config: Config
-    nimbleData: JsonNode ## Nimbledata.json
-
-  ActionType = enum
-    actionNil, actionUpdate, actionInit, actionDump, actionPublish,
-    actionInstall, actionSearch,
-    actionList, actionBuild, actionPath, actionUninstall, actionCompile,
-    actionCustom, actionTasks
-
-  Action = object
-    case typ: ActionType
-    of actionNil, actionList, actionBuild, actionPublish, actionTasks: nil
-    of actionUpdate:
-      optionalURL: string # Overrides default package list.
-    of actionInstall, actionPath, actionUninstall:
-      optionalName: seq[string] # \
-      # When this is @[], installs package from current dir.
-      packages: seq[PkgTuple] # Optional only for actionInstall.
-    of actionSearch:
-      search: seq[string] # Search string.
-    of actionInit, actionDump:
-      projName: string
-    of actionCompile:
-      file: string
-      backend: string
-      compileOptions: seq[string]
-    else: nil
-
-  ForcePrompt = enum
-    dontForcePrompt, forcePromptYes, forcePromptNo
-
 const
-  help = """
-Usage: nimble COMMAND [opts]
-
-Commands:
-  install      [pkgname, ...]     Installs a list of packages.
-  init         [pkgname]          Initializes a new Nimble project.
-  publish                         Publishes a package on nim-lang/packages.
-                                  The current working directory needs to be the
-                                  toplevel directory of the Nimble package.
-  uninstall    [pkgname, ...]     Uninstalls a list of packages.
-  build                           Builds a package.
-  c, cc, js    [opts, ...] f.nim  Builds a file inside a package. Passes options
-                                  to the Nim compiler.
-  refresh      [url]              Refreshes the package list. A package list URL
-                                  can be optionally specified.
-  search       [--ver] pkg/tag    Searches for a specified package. Search is
-                                  performed by tag and by name.
-  list         [--ver]            Lists all packages.
-               [-i, --installed]  Lists all installed packages.
-  tasks                           Lists the tasks specified in the Nimble
-                                  package's Nimble file.
-  path         pkgname ...        Shows absolute path to the installed packages
-                                  specified.
-  dump         [pkgname]          Outputs Nimble package information for
-                                  external tools.
-
-Options:
-  -h, --help                      Print this help message.
-  -v, --version                   Print version information.
-  -y, --accept                    Accept all interactive prompts.
-  -n, --reject                    Reject all interactive prompts.
-      --ver                       Query remote server for package version
-                                  information when searching or listing packages
-      --nimbleDir dirname         Set the Nimble directory.
-
-For more information read the Github readme:
-  https://github.com/nim-lang/nimble#readme
-"""
   nimbleVersion = "0.7.0"
   defaultPackageURL =
       "https://github.com/nim-lang/packages/raw/master/packages.json"
-
-proc writeHelp() =
-  echo(help)
-  quit(QuitSuccess)
 
 proc writeVersion() =
   echo("nimble v$# compiled at $# $#" %
       [nimbleVersion, CompileDate, CompileTime])
   quit(QuitSuccess)
-
-proc getNimbleDir(options: Options): string =
-  options.config.nimbleDir
-
-proc getPkgsDir(options: Options): string =
-  options.config.nimbleDir / "pkgs"
-
-proc getBinDir(options: Options): string =
-  options.config.nimbleDir / "bin"
-
-proc prompt(options: Options, question: string): bool =
-  ## Asks an interactive question and returns the result.
-  ##
-  ## The proc will return immediately without asking the user if the global
-  ## forcePrompts has a value different than dontForcePrompt.
-  case options.forcePrompts
-  of forcePromptYes:
-    echo(question & " -> [forced yes]")
-    return true
-  of forcePromptNo:
-    echo(question & " -> [forced no]")
-    return false
-  of dontForcePrompt:
-    echo(question & " [y/N]")
-    let yn = stdin.readLine()
-    case yn.normalize
-    of "y", "yes":
-      return true
-    of "n", "no":
-      return false
-    else:
-      return false
 
 proc promptCustom(question, default: string): string =
   if default == "":
@@ -162,152 +51,6 @@ proc promptCustom(question, default: string): string =
     let user = stdin.readLine()
     if user == "": return default
     else: return user
-
-proc renameBabelToNimble(options: Options) {.deprecated.} =
-  let babelDir = getHomeDir() / ".babel"
-  let nimbleDir = getHomeDir() / ".nimble"
-  if dirExists(babelDir):
-    if options.prompt("Found deprecated babel package directory, would you " &
-        "like to rename it to nimble?"):
-      copyDir(babelDir, nimbleDir)
-      copyFile(babelDir / "babeldata.json", nimbleDir / "nimbledata.json")
-
-      removeDir(babelDir)
-      removeFile(nimbleDir / "babeldata.json")
-
-proc parseActionType(action: string): ActionType =
-  case action.normalize()
-  of "install", "path":
-    case action.normalize()
-    of "install":
-      result = actionInstall
-    of "path":
-      result = actionPath
-    else:
-      discard
-  of "build":
-    result = actionBuild
-  of "c", "compile", "js", "cpp", "cc":
-    result = actionCompile
-  of "init":
-    result = actionInit
-  of "dump":
-    result = actionDump
-  of "update", "refresh":
-    result = actionUpdate
-  of "search":
-    result = actionSearch
-  of "list":
-    result = actionList
-  of "uninstall", "remove", "delete", "del", "rm":
-    result = actionUninstall
-  of "publish":
-    result = actionPublish
-  of "tasks":
-    result = actionTasks
-  else:
-    result = actionCustom
-
-proc initAction(options: var Options, key: string) =
-  ## Intialises `options.actions` fields based on `options.actions.typ` and
-  ## `key`.
-  let keyNorm = key.normalize()
-  case options.action.typ
-  of actionInstall, actionPath:
-    options.action.packages = @[]
-  of actionCompile:
-    options.action.compileOptions = @[]
-    options.action.file = ""
-    if keyNorm == "c" or keyNorm == "compile": options.action.backend = ""
-    else: options.action.backend = keyNorm
-  of actionInit:
-    options.action.projName = ""
-  of actionDump:
-    options.action.projName = ""
-  of actionUpdate:
-    options.action.optionalURL = ""
-  of actionSearch:
-    options.action.search = @[]
-  of actionUninstall:
-    options.action.packages = @[]
-  of actionBuild, actionPublish, actionCustom, actionList, actionTasks,
-     actionNil: discard
-
-proc parseCmdLine(): Options =
-  result.action.typ = actionNil
-  result.config = parseConfig()
-  for kind, key, val in getOpt():
-    case kind
-    of cmdArgument:
-      if result.action.typ == actionNil:
-        setNimScriptCommand(key)
-        result.action.typ = parseActionType(key)
-        initAction(result, key)
-      else:
-        case result.action.typ
-        of actionNil:
-          assert false
-        of actionInstall, actionPath, actionUninstall:
-          # Parse pkg@verRange
-          if '@' in key:
-            let i = find(key, '@')
-            let pkgTup = (key[0 .. i-1],
-              key[i+1 .. key.len-1].parseVersionRange())
-            result.action.packages.add(pkgTup)
-          else:
-            result.action.packages.add((key, VersionRange(kind: verAny)))
-        of actionUpdate:
-          result.action.optionalURL = key
-        of actionSearch:
-          result.action.search.add(key)
-        of actionInit, actionDump:
-          if result.action.projName != "":
-            raise newException(NimbleError,
-                "Can only initialize one package at a time.")
-          result.action.projName = key
-        of actionCompile:
-          result.action.file = key
-        of actionList, actionBuild, actionPublish:
-          writeHelp()
-        else:
-          discard
-    of cmdLongOption, cmdShortOption:
-      case result.action.typ
-      of actionCompile:
-        if val == "":
-          result.action.compileOptions.add("--" & key)
-        else:
-          result.action.compileOptions.add("--" & key & ":" & val)
-      else:
-        case key.normalize()
-        of "help", "h": writeHelp()
-        of "version", "v": writeVersion()
-        of "accept", "y": result.forcePrompts = forcePromptYes
-        of "reject", "n": result.forcePrompts = forcePromptNo
-        of "ver": result.queryVersions = true
-        of "nimbledir": result.config.nimbleDir = val # overrides option from file
-        of "installed", "i": result.queryInstalled = true
-        else:
-          raise newException(NimbleError, "Unknown option: --" & key)
-    of cmdEnd: assert(false) # cannot happen
-  if result.action.typ == actionNil:
-    writeHelp()
-
-  # TODO: Remove this after a couple of versions.
-  if getNimrodVersion() > newVersion("0.9.6"):
-    # Rename deprecated babel dir.
-    renameBabelToNimble(result)
-
-  # Load nimbledata.json
-  let nimbledataFilename = result.getNimbleDir() / "nimbledata.json"
-  if fileExists(nimbledataFilename):
-    try:
-      result.nimbleData = parseFile(nimbledataFilename)
-    except:
-      raise newException(NimbleError, "Couldn't parse nimbledata.json file " &
-          "located at " & nimbledataFilename)
-  else:
-    result.nimbleData = %{"reverseDeps": newJObject()}
 
 proc update(options: Options) =
   ## Downloads the package list from the specified URL.
@@ -1104,6 +847,8 @@ proc doAction(options: Options) =
       dump(options)
     of actionTasks:
       listTasks(options)
+    of actionVersion:
+      writeVersion()
     of actionNil:
       assert false
     of actionCustom:
