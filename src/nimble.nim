@@ -4,7 +4,7 @@
 import httpclient, parseopt, os, strutils, osproc, pegs, tables, parseutils,
        strtabs, json, algorithm, sets
 
-from sequtils import toSeq
+from sequtils import toSeq, concat
 
 import nimblepkg/packageinfo, nimblepkg/version, nimblepkg/tools,
        nimblepkg/download, nimblepkg/config, nimblepkg/nimbletypes,
@@ -46,6 +46,7 @@ type
     actionCustom, actionTasks
 
   Action = object
+    putLocal: bool
     case typ: ActionType
     of actionNil, actionList, actionBuild, actionPublish, actionTasks: nil
     of actionUpdate:
@@ -122,11 +123,17 @@ proc writeVersion() =
 proc getNimbleDir(options: Options): string =
   options.config.nimbleDir
 
-proc getPkgsDir(options: Options): string =
-  options.config.nimbleDir / "pkgs"
+proc getPkgsDir(options: Options, localPath = false): string =
+  if localPath or options.action.putLocal:
+    "." / "pkgs"
+  else:
+    options.config.nimbleDir / "pkgs"
 
-proc getBinDir(options: Options): string =
-  options.config.nimbleDir / "bin"
+proc getBinDir(options: Options, localPath = false): string =
+  if localPath or options.action.putLocal:
+    "." / "bin"
+  else:
+    options.config.nimbleDir / "bin"
 
 proc prompt(options: Options, question: string): bool =
   ## Asks an interactive question and returns the result.
@@ -249,6 +256,9 @@ proc parseCmdLine(): Options =
           assert false
         of actionInstall, actionPath, actionUninstall:
           # Parse pkg@verRange
+          if key == "local":
+            result.action.putLocal = true
+            continue
           if '@' in key:
             let i = find(key, '@')
             let pkgTup = (key[0 .. i-1],
@@ -485,6 +495,8 @@ proc processDeps(pkginfo: PackageInfo, options: Options): seq[string] =
   ## Returns the list of paths to pass to the compiler during build phase.
   result = @[]
   let pkglist = getInstalledPkgs(options.getPkgsDir())
+  # Append local paths
+
   var reverseDeps: seq[tuple[name, version: string]] = @[]
   for dep in pkginfo.requires:
     if dep.name == "nimrod" or dep.name == "nim":
@@ -1012,7 +1024,9 @@ proc uninstall(options: Options) =
   # Do some verification.
   for pkgTup in options.action.packages:
     echo("Looking for ", pkgTup.name, " (", $pkgTup.ver, ")...")
-    let installedPkgs = getInstalledPkgs(options.getPkgsDir())
+    let globalPkgs = getInstalledPkgs(options.getPkgsDir())
+    let localPkgs = getInstalledPkgs(options.getPkgsDir(localPath = true))
+    let installedPkgs = concat(globalPkgs, localPkgs)
     var pkgList = findAllPkgs(installedPkgs, pkgTup)
     if pkgList.len == 0:
       raise newException(NimbleError, "Package not found")
@@ -1057,7 +1071,7 @@ proc uninstall(options: Options) =
   for pkg in pkgsToDelete:
     # If we reach this point then the package can be safely removed.
     removeRevDep(options, pkg)
-    removePkgDir(options.getPkgsDir / (pkg.name & '-' & pkg.version), options)
+    removePkgDir(parentDir(pkg.mypath), options)
     echo("Removed ", pkg.name, " (", $pkg.version, ")")
 
 proc listTasks(options: Options) =
