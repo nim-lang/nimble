@@ -191,6 +191,61 @@ proc getPkgsDir*(options: Options): string =
 proc getBinDir*(options: Options): string =
   options.config.nimbleDir / "bin"
 
+proc parseCommand*(key: string, result: var Options) =
+  setNimScriptCommand(key)
+  result.action.typ = parseActionType(key)
+  initAction(result, key)
+
+proc parseArgument*(key: string, result: var Options) =
+  case result.action.typ
+  of actionNil:
+    assert false
+  of actionInstall, actionPath, actionUninstall:
+    # Parse pkg@verRange
+    if '@' in key:
+      let i = find(key, '@')
+      let pkgTup = (key[0 .. i-1],
+        key[i+1 .. key.len-1].parseVersionRange())
+      result.action.packages.add(pkgTup)
+    else:
+      result.action.packages.add((key, VersionRange(kind: verAny)))
+  of actionUpdate:
+    result.action.optionalURL = key
+  of actionSearch:
+    result.action.search.add(key)
+  of actionInit, actionDump:
+    if result.action.projName != "":
+      raise newException(NimbleError,
+          "Can only initialize one package at a time.")
+    result.action.projName = key
+  of actionCompile:
+    result.action.file = key
+  of actionList, actionBuild, actionPublish:
+    writeHelp()
+  else:
+    discard
+
+proc parseFlag*(flag, val: string, result: var Options) =
+  case result.action.typ
+  of actionCompile:
+    if val == "":
+      result.action.compileOptions.add("--" & flag)
+    else:
+      result.action.compileOptions.add("--" & flag & ":" & val)
+  else:
+    case flag.normalize()
+    of "help", "h": writeHelp()
+    of "version", "v":
+      assert result.action.typ == actionNil
+      result.action.typ = actionVersion
+    of "accept", "y": result.forcePrompts = forcePromptYes
+    of "reject", "n": result.forcePrompts = forcePromptNo
+    of "ver": result.queryVersions = true
+    of "nimbledir": result.config.nimbleDir = val # overrides option from file
+    of "installed", "i": result.queryInstalled = true
+    else:
+      raise newException(NimbleError, "Unknown option: --" & flag)
+
 proc parseCmdLine*(): Options =
   result.action.typ = actionNil
   result.config = parseConfig()
@@ -198,57 +253,11 @@ proc parseCmdLine*(): Options =
     case kind
     of cmdArgument:
       if result.action.typ == actionNil:
-        setNimScriptCommand(key)
-        result.action.typ = parseActionType(key)
-        initAction(result, key)
+        parseCommand(key, result)
       else:
-        case result.action.typ
-        of actionNil:
-          assert false
-        of actionInstall, actionPath, actionUninstall:
-          # Parse pkg@verRange
-          if '@' in key:
-            let i = find(key, '@')
-            let pkgTup = (key[0 .. i-1],
-              key[i+1 .. key.len-1].parseVersionRange())
-            result.action.packages.add(pkgTup)
-          else:
-            result.action.packages.add((key, VersionRange(kind: verAny)))
-        of actionUpdate:
-          result.action.optionalURL = key
-        of actionSearch:
-          result.action.search.add(key)
-        of actionInit, actionDump:
-          if result.action.projName != "":
-            raise newException(NimbleError,
-                "Can only initialize one package at a time.")
-          result.action.projName = key
-        of actionCompile:
-          result.action.file = key
-        of actionList, actionBuild, actionPublish:
-          writeHelp()
-        else:
-          discard
+        parseArgument(key, result)
     of cmdLongOption, cmdShortOption:
-      case result.action.typ
-      of actionCompile:
-        if val == "":
-          result.action.compileOptions.add("--" & key)
-        else:
-          result.action.compileOptions.add("--" & key & ":" & val)
-      else:
-        case key.normalize()
-        of "help", "h": writeHelp()
-        of "version", "v":
-          assert result.action.typ == actionNil
-          result.action.typ = actionVersion
-        of "accept", "y": result.forcePrompts = forcePromptYes
-        of "reject", "n": result.forcePrompts = forcePromptNo
-        of "ver": result.queryVersions = true
-        of "nimbledir": result.config.nimbleDir = val # overrides option from file
-        of "installed", "i": result.queryInstalled = true
-        else:
-          raise newException(NimbleError, "Unknown option: --" & key)
+      parseFlag(key, val, result)
     of cmdEnd: assert(false) # cannot happen
   if result.action.typ == actionNil:
     writeHelp()
