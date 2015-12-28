@@ -8,7 +8,7 @@ from sequtils import toSeq
 
 import nimblepkg/packageinfo, nimblepkg/version, nimblepkg/tools,
        nimblepkg/download, nimblepkg/config, nimblepkg/nimbletypes,
-       nimblepkg/publish, nimblepkg/options
+       nimblepkg/publish, nimblepkg/options, nimblepkg/packageparser
 
 import nimblepkg/nimscriptsupport
 
@@ -227,7 +227,7 @@ proc processDeps(pkginfo: PackageInfo, options: Options): seq[string] =
   ##
   ## Returns the list of paths to pass to the compiler during build phase.
   result = @[]
-  let pkglist = getInstalledPkgs(options.getPkgsDir())
+  let pkglist = getInstalledPkgs(options.getPkgsDir(), options)
   var reverseDeps: seq[tuple[name, version: string]] = @[]
   for dep in pkginfo.requires:
     if dep.name == "nimrod" or dep.name == "nim":
@@ -328,7 +328,7 @@ proc installFromDir(dir: string, latest: bool, options: Options,
   ## to the packages this package depends on.
   ## The return value of this function is used by
   ## ``processDeps`` to gather a list of paths to pass to the nim compiler.
-  var pkgInfo = getPkgInfo(dir)
+  var pkgInfo = getPkgInfo(dir, options)
   let realDir = pkgInfo.getRealDir()
   let binDir = options.getBinDir()
   let pkgsDir = options.getPkgsDir()
@@ -440,7 +440,8 @@ proc getNimbleTempDir(): string =
     result.add($getpid())
 
 proc downloadPkg(url: string, verRange: VersionRange,
-                 downMethod: DownloadMethod): (string, VersionRange) =
+                 downMethod: DownloadMethod,
+                 options: Options): (string, VersionRange) =
   ## Downloads the repository as specified by ``url`` and ``verRange`` using
   ## the download method specified.
   ##
@@ -449,7 +450,10 @@ proc downloadPkg(url: string, verRange: VersionRange,
   let downloadDir = (getNimbleTempDir() / getDownloadDirName(url, verRange))
   createDir(downloadDir)
   echo("Downloading ", url, " into ", downloadDir, " using ", downMethod, "...")
-  result = (downloadDir, doDownload(url, downloadDir, verRange, downMethod))
+  result = (
+    downloadDir,
+    doDownload(url, downloadDir, verRange, downMethod, options)
+  )
 
 proc getDownloadInfo*(pv: PkgTuple, options: Options,
                       doPrompt: bool): (DownloadMethod, string) =
@@ -488,7 +492,8 @@ proc install(packages: seq[PkgTuple],
     # Install each package.
     for pv in packages:
       let (meth, url) = getDownloadInfo(pv, options, doPrompt)
-      let (downloadDir, downloadVersion) = downloadPkg(url, pv.ver, meth)
+      let (downloadDir, downloadVersion) =
+          downloadPkg(url, pv.ver, meth, options)
       try:
         result = installFromDir(downloadDir, false, options, url)
       except BuildFailed:
@@ -512,13 +517,13 @@ proc install(packages: seq[PkgTuple],
           raise
 
 proc build(options: Options) =
-  var pkgInfo = getPkgInfo(getCurrentDir())
+  var pkgInfo = getPkgInfo(getCurrentDir(), options)
   nimScriptHint(pkgInfo)
   let paths = processDeps(pkginfo, options)
   buildFromDir(pkgInfo, paths, false)
 
 proc compile(options: Options) =
-  var pkgInfo = getPkgInfo(getCurrentDir())
+  var pkgInfo = getPkgInfo(getCurrentDir(), options)
   nimScriptHint(pkgInfo)
   let paths = processDeps(pkginfo, options)
   let realDir = pkgInfo.getRealDir()
@@ -587,7 +592,7 @@ proc list(options: Options) =
 
 proc listInstalled(options: Options) =
   var h = initTable[string, seq[string]]()
-  let pkgs = getInstalledPkgs(options.getPkgsDir())
+  let pkgs = getInstalledPkgs(options.getPkgsDir(), options)
   for x in pkgs.items():
     let
       pName = x.pkginfo.name
@@ -627,7 +632,7 @@ proc listPaths(options: Options) =
         hasSpec = nimScriptFile.existsFile or
                   nimbleFile.existsFile or babelFile.existsFile
       if hasSpec:
-        var pkgInfo = getPkgInfo(path)
+        var pkgInfo = getPkgInfo(path, options)
         var v: VersionAndPath
         v.version = newVersion(pkgInfo.version)
         v.path = options.getPkgsDir / (pkgInfo.name & '-' & pkgInfo.version)
@@ -654,8 +659,8 @@ proc join(x: seq[PkgTuple]; y: string): string =
 
 proc dump(options: Options) =
   let proj = addFileExt(options.action.projName, "nimble")
-  let p = if fileExists(proj): readPackageInfo(proj)
-          else: getPkgInfo(os.getCurrentDir())
+  let p = if fileExists(proj): readPackageInfo(proj, options)
+          else: getPkgInfo(os.getCurrentDir(), options)
   echo "name: ", p.name.escape
   echo "version: ", p.version.escape
   echo "author: ", p.author.escape
@@ -755,7 +760,7 @@ proc uninstall(options: Options) =
   # Do some verification.
   for pkgTup in options.action.packages:
     echo("Looking for ", pkgTup.name, " (", $pkgTup.ver, ")...")
-    let installedPkgs = getInstalledPkgs(options.getPkgsDir())
+    let installedPkgs = getInstalledPkgs(options.getPkgsDir(), options)
     var pkgList = findAllPkgs(installedPkgs, pkgTup)
     if pkgList.len == 0:
       raise newException(NimbleError, "Package not found")
@@ -805,7 +810,7 @@ proc uninstall(options: Options) =
 
 proc listTasks(options: Options) =
   let nimbleFile = findNimbleFile(getCurrentDir(), true)
-  nimscriptsupport.listTasks(nimbleFile)
+  nimscriptsupport.listTasks(nimbleFile, options)
 
 proc doAction(options: Options) =
   if not existsDir(options.getNimbleDir()):
@@ -836,7 +841,7 @@ proc doAction(options: Options) =
   of actionInit:
     init(options)
   of actionPublish:
-    var pkgInfo = getPkgInfo(getCurrentDir())
+    var pkgInfo = getPkgInfo(getCurrentDir(), options)
     publish(pkgInfo)
   of actionDump:
     dump(options)
@@ -849,10 +854,11 @@ proc doAction(options: Options) =
   of actionCustom:
     # Custom command. Attempt to call a NimScript task.
     let nimbleFile = findNimbleFile(getCurrentDir(), true)
-    if not nimbleFile.isNimScript():
+    ## TODO: Optimise this, there are two calls to readPackageInfo here.
+    if not nimbleFile.isNimScript(options):
       writeHelp()
 
-    let execResult = execTask(nimbleFile, options.action.command)
+    let execResult = execTask(nimbleFile, options.action.command, options)
     if not execResult.success:
       echo("FAILURE: Could not find task ", options.action.command, " in ",
            nimbleFile)

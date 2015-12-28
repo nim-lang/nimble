@@ -3,7 +3,7 @@
 
 import parseutils, os, osproc, strutils, tables, pegs
 
-import packageinfo, version, tools, nimbletypes
+import packageinfo, packageparser, version, tools, nimbletypes, options
 
 type
   DownloadMethod* {.pure.} = enum
@@ -136,7 +136,7 @@ proc isURL*(name: string): bool =
   name.startsWith(peg" @'://' ")
 
 proc doDownload*(url: string, downloadDir: string, verRange: VersionRange,
-                 downMethod: DownloadMethod): VersionRange =
+                 downMethod: DownloadMethod, options: Options): VersionRange =
   ## Downloads the repository specified by ``url`` using the specified download
   ## method.
   ##
@@ -161,7 +161,7 @@ proc doDownload*(url: string, downloadDir: string, verRange: VersionRange,
   proc verifyClone() =
     ## Makes sure that the downloaded package's version satisfies the requested
     ## version range.
-    let pkginfo = getPkgInfo(downloadDir)
+    let pkginfo = getPkgInfo(downloadDir, options)
     if pkginfo.version.newVersion notin verRange:
       raise newException(NimbleError,
         "Downloaded package's version does not satisfy requested version " &

@@ -20,3 +20,6 @@ task c_test, "Testing `setCommand \"c\", \"nimscript.nim\"`":
 task cr, "Testing `nimble c -r nimscript.nim` via setCommand":
   --r
   setCommand "c", "nimscript.nim"
+
+task api, "Testing nimscriptapi module functionality":
+  echo(getPkgDir())

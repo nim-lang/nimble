@@ -6,15 +6,16 @@
 
 import
   compiler/ast, compiler/modules, compiler/passes, compiler/passaux,
-  compiler/condsyms, compiler/options, compiler/sem, compiler/semdata,
+  compiler/condsyms, compiler/sem, compiler/semdata,
   compiler/llstream, compiler/vm, compiler/vmdef, compiler/commands,
   compiler/msgs, compiler/magicsys, compiler/lists
 
 from compiler/scriptconfig import setupVM
 from compiler/idents import getIdent
 from compiler/astalgo import strTableGet
+import compiler/options as compiler_options
 
-import nimbletypes, version
+import nimbletypes, version, options, packageinfo
 import os, strutils, strtabs, times, osproc
 
 type
@@ -33,27 +34,27 @@ proc raiseVariableError(ident, typ: string) {.noinline.} =
 
 proc isStrLit(n: PNode): bool = n.kind in {nkStrLit..nkTripleStrLit}
 
-proc getGlobal(ident: string): string =
-  let n = vm.globalCtx.getGlobalValue(getSysSym ident)
+proc getGlobal(ident: PSym): string =
+  let n = vm.globalCtx.getGlobalValue(ident)
   if n.isStrLit:
     result = if n.strVal.isNil: "" else: n.strVal
   else:
-    raiseVariableError(ident, "string")
+    raiseVariableError(ident.name.s, "string")
 
-proc getGlobalAsSeq(ident: string): seq[string] =
-  let n = vm.globalCtx.getGlobalValue(getSysSym ident)
+proc getGlobalAsSeq(ident: PSym): seq[string] =
+  let n = vm.globalCtx.getGlobalValue(ident)
   result = @[]
   if n.kind == nkBracket:
     for x in n:
       if x.isStrLit:
         result.add x.strVal
       else:
-        raiseVariableError(ident, "seq[string]")
+        raiseVariableError(ident.name.s, "seq[string]")
   else:
-    raiseVariableError(ident, "seq[string]")
+    raiseVariableError(ident.name.s, "seq[string]")
 
-proc extractRequires(result: var seq[PkgTuple]) =
-  let n = vm.globalCtx.getGlobalValue(getSysSym "requiresData")
+proc extractRequires(ident: PSym, result: var seq[PkgTuple]) =
+  let n = vm.globalCtx.getGlobalValue(ident)
   if n.kind == nkBracket:
     for x in n:
       if x.kind == nkPar and x.len == 2 and x[0].isStrLit and x[1].isStrLit:
@@ -140,13 +141,13 @@ proc setupVM(module: PSym; scriptName: string,
   cbconf thisDir:
     setResult(a, vthisDir)
   cbconf put:
-    options.setConfigVar(getString(a, 0), getString(a, 1))
+    compiler_options.setConfigVar(getString(a, 0), getString(a, 1))
   cbconf get:
-    setResult(a, options.getConfigVar(a.getString 0))
+    setResult(a, compiler_options.getConfigVar(a.getString 0))
   cbconf exists:
-    setResult(a, options.existsConfigVar(a.getString 0))
+    setResult(a, compiler_options.existsConfigVar(a.getString 0))
   cbconf nimcacheDir:
-    setResult(a, options.getNimcacheDir())
+    setResult(a, compiler_options.getNimcacheDir())
   cbconf paramStr:
     setResult(a, os.paramStr(int a.getInt 0))
   cbconf paramCount:
@@ -156,7 +157,7 @@ proc setupVM(module: PSym; scriptName: string,
   cbconf cmpIgnoreCase:
     setResult(a, strutils.cmpIgnoreCase(a.getString 0, a.getString 1))
   cbconf setCommand:
-    options.command = a.getString 0
+    compiler_options.command = a.getString 0
     let arg = a.getString 1
     if arg.len > 0:
       gProjectName = arg
@@ -165,15 +166,40 @@ proc setupVM(module: PSym; scriptName: string,
       except OSError:
         gProjectFull = gProjectName
   cbconf getCommand:
-    setResult(a, options.command)
+    setResult(a, compiler_options.command)
   cbconf switch:
     if not flags.isNil:
       flags[a.getString 0] = a.getString 1
 
-proc execScript(scriptName: string, flags: StringTableRef) =
+proc findNimscriptApi(options: Options): string =
+  ## Returns the directory containing ``nimscriptapi.nim``
+  var inPath = false
+  let pkgs = getInstalledPkgsMin(options.getPkgsDir(), options)
+  var pkg: PackageInfo
+  if pkgs.findPkg(("nimble", newVRAny()), pkg):
+    let pkgDir = pkg.getRealDir()
+    if fileExists(pkgDir / "nimblepkg" / "nimscriptapi.nim"):
+      result = pkgDir
+      inPath = true
+  if not inPath:
+    # Try finding it in exe's path
+    if fileExists(getAppDir() / "nimblepkg" / "nimscriptapi.nim"):
+      result = getAppDir()
+      inPath = true
+  if not inPath:
+    raise newException(NimbleError, "Cannot find nimscriptapi.nim")
+
+proc execScript(scriptName: string, flags: StringTableRef, options: Options) =
   ## Executes the specified script.
   ##
   ## No clean up is performed and must be done manually!
+  if "nimblepkg/nimscriptapi" notin compiler_options.implicitIncludes:
+    compiler_options.implicitIncludes.add("nimblepkg/nimscriptapi")
+
+  # Ensure that "nimblepkg/nimscriptapi" is in the PATH.
+  let nimscriptApiPath = findNimscriptApi(options)
+  appendStr(searchPaths, nimscriptApiPath)
+
   setDefaultLibpath()
   passes.gIncludeFile = includeModule
   passes.gImportModule = importModule
@@ -185,19 +211,28 @@ proc execScript(scriptName: string, flags: StringTableRef) =
   registerPass(semPass)
   registerPass(evalPass)
 
-  appendStr(searchPaths, options.libpath)
+  appendStr(searchPaths, compiler_options.libpath)
 
   var m = makeModule(scriptName)
   incl(m.flags, sfMainModule)
   vm.globalCtx = setupVM(m, scriptName, flags)
+
+  # Setup builtins defined in nimscriptapi.nim
+  template cbApi(name, body) {.dirty.} =
+    vm.globalCtx.registerCallback "stdlib.system." & astToStr(name),
+      proc (a: VmArgs) =
+        body
+  # TODO: This doesn't work.
+  cbApi getPkgDir:
+    setResult(a, "FOOBAR")
 
   compileSystemModule()
   processModule(m, llStreamOpen(scriptName, fmRead), nil)
 
 proc cleanup() =
   # ensure everything can be called again:
-  options.gProjectName = ""
-  options.command = ""
+  compiler_options.gProjectName = ""
+  compiler_options.command = ""
   resetAllModulesHard()
   clearPasses()
   msgs.gErrorMax = 1
@@ -205,7 +240,8 @@ proc cleanup() =
   vm.globalCtx = nil
   initDefines()
 
-proc readPackageInfoFromNims*(scriptName: string; result: var PackageInfo) =
+proc readPackageInfoFromNims*(scriptName: string, options: Options,
+    result: var PackageInfo) =
   ## Executes the `scriptName` nimscript file. Reads the package information
   ## that it populates.
 
@@ -217,20 +253,35 @@ proc readPackageInfoFromNims*(scriptName: string; result: var PackageInfo) =
       # The error counter is incremented after the writeLnHook is invoked.
       if msgs.gErrorCounter > 0:
         raise newException(NimbleError, previousMsg)
+      elif previousMsg.len > 0:
+        echo(previousMsg)
+      if output.normalize.startsWith("error"):
+        raise newException(NimbleError, output)
       previousMsg = output
 
+  compiler_options.command = internalCmd
+
   # Execute the nimscript file.
-  execScript(scriptName, nil)
+  execScript(scriptName, nil, options)
 
   # Extract all the necessary fields populated by the nimscript file.
+  proc getSym(thisModule: PSym, ident: string): PSym =
+    thisModule.tab.strTableGet(getIdent(ident))
+
   template trivialField(field) =
-    result.field = getGlobal(astToStr field)
+    result.field = getGlobal(getSym(thisModule, astToStr field))
 
   template trivialFieldSeq(field) =
-    result.field.add getGlobalAsSeq(astToStr field)
+    result.field.add getGlobalAsSeq(getSym(thisModule, astToStr field))
+
+  # Grab the module Sym for .nimble file (nimscriptapi is included in it).
+  let idx = fileInfoIdx(scriptName)
+  let thisModule = getModule(idx)
+  assert(not thisModule.isNil)
+  assert thisModule.kind == skModule
 
   # keep reasonable default:
-  let name = getGlobal"packageName"
+  let name = getGlobal(thisModule.tab.strTableGet(getIdent"packageName"))
   if name.len > 0: result.name = name
 
   trivialField version
@@ -246,13 +297,13 @@ proc readPackageInfoFromNims*(scriptName: string; result: var PackageInfo) =
   trivialFieldSeq installFiles
   trivialFieldSeq installExt
 
-  extractRequires result.requires
+  extractRequires(getSym(thisModule, "requiresData"), result.requires)
 
-  let binSeq = getGlobalAsSeq("bin")
+  let binSeq = getGlobalAsSeq(getSym(thisModule, "bin"))
   for i in binSeq:
     result.bin.add(i.addFileExt(ExeExt))
 
-  let backend = getGlobal("backend")
+  let backend = getGlobal(getSym(thisModule, "backend"))
   if backend.len == 0:
     result.backend = "c"
   elif cmpIgnoreStyle(backend, "javascript") == 0:
@@ -262,19 +313,22 @@ proc readPackageInfoFromNims*(scriptName: string; result: var PackageInfo) =
 
   cleanup()
 
-proc execTask*(scriptName, taskName: string): ExecutionResult =
+proc execTask*(scriptName, taskName: string,
+    options: Options): ExecutionResult =
   ## Executes the specified task in the specified script.
   ##
   ## `scriptName` should be a filename pointing to the nimscript file.
   result.success = true
   result.flags = newStringTable()
-  options.command = internalCmd
+  compiler_options.command = internalCmd
   echo("Executing task ", taskName, " in ", scriptName)
 
-  execScript(scriptName, result.flags)
+  execScript(scriptName, result.flags, options)
   # Explicitly execute the task procedure, instead of relying on hack.
-  assert vm.globalCtx.module.kind == skModule
-  let prc = vm.globalCtx.module.tab.strTableGet(getIdent(taskName & "Task"))
+  let idx = fileInfoIdx(scriptName)
+  let thisModule = getModule(idx)
+  assert thisModule.kind == skModule
+  let prc = thisModule.tab.strTableGet(getIdent(taskName & "Task"))
   if prc.isNil:
     # Procedure not defined in the NimScript module.
     result.success = false
@@ -282,27 +336,27 @@ proc execTask*(scriptName, taskName: string): ExecutionResult =
   discard vm.globalCtx.execProc(prc, [])
 
   # Read the command, arguments and flags set by the executed task.
-  result.command = options.command
+  result.command = compiler_options.command
   result.arguments = @[]
-  for arg in options.gProjectName.split():
+  for arg in compiler_options.gProjectName.split():
     result.arguments.add(arg)
 
   cleanup()
 
 proc getNimScriptCommand(): string =
-  options.command
+  compiler_options.command
 
 proc setNimScriptCommand(command: string) =
-  options.command = command
+  compiler_options.command = command
 
 proc hasTaskRequestedCommand*(execResult: ExecutionResult): bool =
   ## Determines whether the last executed task used ``setCommand``
   return execResult.command != internalCmd
 
-proc listTasks*(scriptName: string) =
+proc listTasks*(scriptName: string, options: Options) =
   setNimScriptCommand("help")
 
-  execScript(scriptName, nil)
+  execScript(scriptName, nil, options)
   # TODO: Make the 'task' template generate explicit data structure containing
   # all the task names + descriptions.
   cleanup()

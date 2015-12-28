@@ -3,7 +3,7 @@
 
 import json, strutils, os, parseopt, strtabs
 
-import nimblepkg/config, nimblepkg/version, nimblepkg/nimscriptsupport,
+import nimblepkg/config, nimblepkg/version,
        nimblepkg/tools
 
 type
