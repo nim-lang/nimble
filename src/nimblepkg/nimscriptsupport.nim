@@ -264,6 +264,10 @@ proc readPackageInfoFromNims*(scriptName: string, options: Options,
   # Execute the nimscript file.
   execScript(scriptName, nil, options)
 
+  # Check whether an error has occurred.
+  if msgs.gErrorCounter > 0:
+    raise newException(NimbleError, previousMsg)
+
   # Extract all the necessary fields populated by the nimscript file.
   proc getSym(thisModule: PSym, ident: string): PSym =
     thisModule.tab.strTableGet(getIdent(ident))
