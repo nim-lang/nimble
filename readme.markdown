@@ -443,8 +443,12 @@ of your package.
 ### Hybrids
 
 One thing to note about library and binary package hybrids is that your binary
-will most likely share the name of the package. This will mean that you will
-not be able to put your .nim files in a ``pkgname`` directory. The current
+may share the name of the package. This will mean that you will
+not be able to put your .nim files in a ``pkgname`` directory. The reason you
+will not be able to do this is because binaries on some operating systems
+do not have an extension so they will clash with a directory of the same name.
+
+The current
 convention to get around this problem is to append ``pkg`` to the name as is
 done for nimble.
 
