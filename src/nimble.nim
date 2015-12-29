@@ -32,8 +32,6 @@ else:
 
 const
   nimbleVersion = "0.7.0"
-  defaultPackageURL =
-      "https://github.com/nim-lang/packages/raw/master/packages.json"
 
 proc writeVersion() =
   echo("nimble v$# compiled at $# $#" %
@@ -55,16 +53,40 @@ proc promptCustom(question, default: string): string =
 proc update(options: Options) =
   ## Downloads the package list from the specified URL.
   ##
-  ## If the download is successful, the global didUpdatePackages is set to
-  ## true. Otherwise an exception is raised on error.
-  let url =
-    if options.action.typ == actionUpdate and options.action.optionalURL != "":
+  ## If the download is not successful, an exception is raised.
+  let parameter =
+    if options.action.typ == actionUpdate:
       options.action.optionalURL
     else:
-      defaultPackageURL
-  echo("Downloading package list from " & url)
-  downloadFile(url, options.getNimbleDir() / "packages.json")
-  echo("Done.")
+      ""
+
+  proc downloadList(list: PackageList, options: Options) =
+    echo("Downloading \"", list.name, "\" package list")
+    for i in 0 .. <list.urls.len:
+      let url = list.urls[i]
+      echo("Trying ", url, "...")
+      let tempPath = options.getNimbleDir() / "packages_temp.json"
+      try:
+        downloadFile(url, tempPath)
+      except:
+        if i == <list.urls.len:
+          raise
+        echo("Could not download: ", getCurrentExceptionMsg())
+        continue
+      if not validatePackagesList(tempPath):
+        echo("Downloaded packages.json file is invalid, discarding.")
+        continue
+      copyFile(tempPath,
+          options.getNimbleDir() / "packages_$1.json" % list.name.toLower())
+      echo("Done.")
+      break
+
+  if parameter.isUrl:
+    downloadList(PackageList(name: "commandline", urls: @[parameter]), options)
+  else:
+    # Try each package list in config
+    for name, list in options.config.packageLists:
+      downloadList(list, options)
 
 proc checkInstallFile(pkgInfo: PackageInfo,
                       origDir, file: string): bool =
@@ -461,13 +483,13 @@ proc getDownloadInfo*(pv: PkgTuple, options: Options,
     return (checkUrlType(pv.name), pv.name)
   else:
     var pkg: Package
-    if getPackage(pv.name, options.getNimbleDir() / "packages.json", pkg):
+    if getPackage(pv.name, options, pkg):
       return (pkg.downloadMethod.getDownloadMethod(), pkg.url)
     else:
       # If package is not found give the user a chance to update
       # package.json
       if doPrompt and
-          options.prompt(pv.name & " not found in local packages.json, " &
+          options.prompt(pv.name & " not found in any local packages.json, " &
                          "check internet for updated packages?"):
         update(options)
         return getDownloadInfo(pv, options, doPrompt)
@@ -481,13 +503,13 @@ proc install(packages: seq[PkgTuple],
     result = installFromDir(getCurrentDir(), false, options, "")
   else:
     # If packages.json is not present ask the user if they want to download it.
-    if not existsFile(options.getNimbleDir / "packages.json"):
+    if needsRefresh(options):
       if doPrompt and
-          options.prompt("Local packages.json not found, download it from " &
+          options.prompt("No local packages.json found, download it from " &
               "internet?"):
         update(options)
       else:
-        quit("Please run nimble update.", QuitFailure)
+        quit("Please run nimble refresh.", QuitFailure)
 
     # Install each package.
     for pv in packages:
@@ -555,9 +577,9 @@ proc search(options: Options) =
   assert options.action.typ == actionSearch
   if options.action.search == @[]:
     raise newException(NimbleError, "Please specify a search string.")
-  if not existsFile(options.getNimbleDir() / "packages.json"):
-    raise newException(NimbleError, "Please run nimble update.")
-  let pkgList = getPackageList(options.getNimbleDir() / "packages.json")
+  if needsRefresh(options):
+    raise newException(NimbleError, "Please run nimble refresh.")
+  let pkgList = getPackageList(options)
   var found = false
   template onFound: stmt =
     echoPackage(pkg)
@@ -581,9 +603,9 @@ proc search(options: Options) =
     echo("No package found.")
 
 proc list(options: Options) =
-  if not existsFile(options.getNimbleDir() / "packages.json"):
-    raise newException(NimbleError, "Please run nimble update.")
-  let pkgList = getPackageList(options.getNimbleDir() / "packages.json")
+  if needsRefresh(options):
+    raise newException(NimbleError, "Please run nimble refresh.")
+  let pkgList = getPackageList(options)
   for pkg in pkgList:
     echoPackage(pkg)
     if options.queryVersions:

@@ -18,6 +18,38 @@ template cd*(dir: string, body: stmt) =
 proc processOutput(output: string): seq[string] =
   output.strip.splitLines().filter((x: string) => (x.len > 0))
 
+test "can refresh with default urls":
+  check execCmdEx(path & " refresh").exitCode == QuitSuccess
+
+test "can refresh with custom urls":
+  # Backup current config
+  let configFile = getConfigDir() / "nimble" / "nimble.ini"
+  let configBakFile = getConfigDir() / "nimble" / "nimble.ini.bak"
+  if fileExists(configFile):
+    moveFile(configFile, configBakFile)
+  writeFile(configFile, """
+    [PackageList]
+    name = "official"
+    url = "http://google.com"
+    url = "http://google.com/404"
+    url = "http://irclogs.nim-lang.org/packages.json"
+    url = "http://nim-lang.org/nimble/packages.json"
+  """.unindent)
+
+  let (output, exitCode) = execCmdEx(path & " refresh")
+  let lines = output.strip.splitLines()
+  check exitCode == QuitSuccess
+  check "reading from config file" in lines[0].normalize
+  check "downloading \"official\" package list" in lines[1].normalize
+  check "trying http://google.com" in lines[2].normalize
+  check "packages.json file is invalid" in lines[3].normalize
+  check "404 not found" in lines[5].normalize
+  check "done" in lines[^1].normalize
+
+  # Restore config
+  if fileExists(configBakFile):
+    moveFile(configBakFile, configFile)
+
 test "can install nimscript package":
   cd "nimscript":
     check execCmdEx("../" & path & " install -y").exitCode == QuitSuccess

@@ -1,6 +1,6 @@
 # Copyright (C) Dominik Picheta. All rights reserved.
 # BSD License. Look at license.txt for more info.
-import parsecfg, streams, strutils, os
+import parsecfg, streams, strutils, os, tables
 
 import tools, version, nimbletypes
 
@@ -8,7 +8,11 @@ type
   Config* = object
     nimbleDir*: string
     chcp*: bool # Whether to change the code page in .cmd files on Win.
-    
+    packageLists*: Table[string, PackageList] ## URLs to packages.json files
+
+  PackageList* = object
+    name*: string
+    urls*: seq[string]
 
 proc initConfig(): Config =
   if getNimrodVersion() > newVersion("0.9.6"):
@@ -17,6 +21,22 @@ proc initConfig(): Config =
     result.nimbleDir = getHomeDir() / ".babel"
 
   result.chcp = true
+
+  result.packageLists = initTable[string, PackageList]()
+  let defaultPkgList = PackageList(name: "Official", urls: @[
+    "http://irclogs.nim-lang.org/packages.json",
+    "http://nim-lang.org/nimble/packages.json",
+    "https://github.com/nim-lang/packages/raw/master/packages.json"
+  ])
+  result.packageLists["official"] = defaultPkgList
+
+proc initPackageList(): PackageList =
+  result.name = ""
+  result.urls = @[]
+
+proc addCurrentPkgList(config: var Config, currentPackageList: PackageList) =
+  if currentPackageList.name.len > 0:
+    config.packageLists[currentPackageList.name.normalize] = currentPackageList
 
 proc parseConfig*(): Config =
   result = initConfig()
@@ -34,12 +54,23 @@ proc parseConfig*(): Config =
     echo("Reading from config file at ", confFile)
     var p: CfgParser
     open(p, f, confFile)
+    var currentSection = ""
+    var currentPackageList = initPackageList()
     while true:
       var e = next(p)
       case e.kind
       of cfgEof:
+        addCurrentPkgList(result, currentPackageList)
         break
-      of cfgSectionStart: discard
+      of cfgSectionStart:
+        addCurrentPkgList(result, currentPackageList)
+        currentSection = e.section
+        case currentSection.normalize
+        of "packagelist":
+          currentPackageList = initPackageList()
+        else:
+          raise newException(NimbleError, "Unable to parse config file:" &
+                             " Unknown section: " & e.key)
       of cfgKeyValuePair, cfgOption:
         case e.key.normalize
         of "nimbledir":
@@ -48,6 +79,16 @@ proc parseConfig*(): Config =
             result.nimbleDir = e.value
         of "chcp":
           result.chcp = parseBool(e.value)
+        of "name":
+          case currentSection.normalize
+          of "packagelist":
+            currentPackageList.name = e.value
+          else: assert false
+        of "url":
+          case currentSection.normalize
+          of "packagelist":
+            currentPackageList.urls.add(e.value)
+          else: assert false
         else:
           raise newException(NimbleError, "Unable to parse config file:" &
                                      " Unknown key: " & e.key)

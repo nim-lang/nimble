@@ -1,6 +1,6 @@
 # Copyright (C) Dominik Picheta. All rights reserved.
 # BSD License. Look at license.txt for more info.
-import parsecfg, json, streams, strutils, parseutils, os
+import parsecfg, json, streams, strutils, parseutils, os, sets, tables
 import version, tools, nimbletypes, options
 
 type
@@ -127,25 +127,35 @@ proc readMetaData*(path: string): MetaData =
   let jsonmeta = parseJson(cont)
   result.url = jsonmeta["url"].str
 
-proc getPackage*(pkg: string, packagesPath: string, resPkg: var Package): bool =
-  ## Searches ``packagesPath`` file saving into ``resPkg`` the found package.
+proc getPackage*(pkg: string, options: Options,
+    resPkg: var Package): bool =
+  ## Searches any packages.json files defined in ``options.config.packageLists``
+  ## Saves the found package into ``resPkg``.
   ##
   ## Pass in ``pkg`` the name of the package you are searching for. As
   ## convenience the proc returns a boolean specifying if the ``resPkg`` was
   ## successfully filled with good data.
-  let packages = parseFile(packagesPath)
-  for p in packages:
-    if p["name"].str == pkg:
-      resPkg = p.fromJson()
-      return true
+  for name, list in options.config.packageLists:
+    echo("Searching in \"", name, "\" package list...")
+    let packages = parseFile(options.getNimbleDir() /
+        "packages_" & name.toLower() & ".json")
+    for p in packages:
+      if p["name"].str == pkg:
+        resPkg = p.fromJson()
+        return true
 
-proc getPackageList*(packagesPath: string): seq[Package] =
-  ## Returns the list of packages found at the specified path.
+proc getPackageList*(options: Options): seq[Package] =
+  ## Returns the list of packages found in the downloaded packages.json files.
   result = @[]
-  let packages = parseFile(packagesPath)
-  for p in packages:
-    let pkg: Package = p.fromJson()
-    result.add(pkg)
+  var namesAdded = initSet[string]()
+  for name, list in options.config.packageLists:
+    let packages = parseFile(options.getNimbleDir() /
+        "packages_" & name.toLower() & ".json")
+    for p in packages:
+      let pkg: Package = p.fromJson()
+      if pkg.name notin namesAdded:
+        result.add(pkg)
+        namesAdded.incl(pkg.name)
 
 proc findNimbleFile*(dir: string; error: bool): string =
   result = ""
@@ -249,6 +259,27 @@ proc getDownloadDirName*(pkg: Package, verRange: VersionRange): string =
   if verSimple != "":
     result.add "_"
     result.add verSimple
+
+proc needsRefresh*(options: Options): bool =
+  ## Determines whether a ``nimble refresh`` is needed.
+  ##
+  ## In the future this will check a stored time stamp to determine how long
+  ## ago the package list was refreshed.
+  result = true
+  for name, list in options.config.packageLists:
+    if fileExists(options.getNimbleDir() / "packages_" & name & ".json"):
+      result = false
+
+proc validatePackagesList*(path: string): bool =
+  ## Determines whether package list at ``path`` is valid.
+  try:
+    let pkgList = parseFile(path)
+    if pkgList.kind == JArray:
+      if pkgList.len == 0:
+        echo("WARNING: ", path, " contains no packages.")
+      return true
+  except ValueError, JsonParsingError:
+    return false
 
 when isMainModule:
   doAssert getNameVersion("/home/user/.nimble/libs/packagea-0.1") ==
