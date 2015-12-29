@@ -214,6 +214,7 @@ proc addRevDep(options: Options, dep: tuple[name, version: string],
 
 proc removeRevDep(options: Options, pkg: PackageInfo) =
   ## Removes ``pkg`` from the reverse dependencies of every package.
+  assert(not pkg.isMinimal)
   proc remove(options: Options, pkg: PackageInfo, depTup: PkgTuple,
               thisDep: JsonNode) =
     for ver, val in thisDep:
@@ -294,9 +295,9 @@ proc processDeps(pkginfo: PackageInfo, options: Options): seq[string] =
   # We add the reverse deps to the JSON file here because we don't want
   # them added if the above errorenous condition occurs
   # (unsatisfiable dependendencies).
+  # N.B. NimbleData is saved in installFromDir.
   for i in reverseDeps:
     addRevDep(options, i, pkginfo)
-  saveNimbleData(options)
 
 proc buildFromDir(pkgInfo: PackageInfo, paths: seq[string], forRelease: bool) =
   ## Builds a package as specified by ``pkgInfo``.
@@ -447,6 +448,10 @@ proc installFromDir(dir: string, latest: bool, options: Options,
 
   # Save a nimblemeta.json file.
   saveNimbleMeta(pkgDestDir, url, filesInstalled)
+
+  # Save the nimble data (which might now contain reverse deps added in
+  # processDeps).
+  saveNimbleData(options)
 
   # Return the paths to the dependencies of this package.
   result.paths.add pkgDestDir
@@ -839,7 +844,11 @@ proc uninstall(options: Options) =
 
   for pkg in pkgsToDelete:
     # If we reach this point then the package can be safely removed.
-    removeRevDep(options, pkg)
+
+    # removeRevDep needs the package dependency info, so we can't just pass
+    # a minimal pkg info.
+    let pkgFull = readPackageInfo(pkg.mypath, options, false)
+    removeRevDep(options, pkgFull)
     removePkgDir(options.getPkgsDir / (pkg.name & '-' & pkg.version), options)
     echo("Removed ", pkg.name, " (", $pkg.version, ")")
 

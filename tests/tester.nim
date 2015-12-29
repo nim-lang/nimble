@@ -18,6 +18,33 @@ template cd*(dir: string, body: stmt) =
 proc processOutput(output: string): seq[string] =
   output.strip.splitLines().filter((x: string) => (x.len > 0))
 
+proc inLines(lines: seq[string], line: string): bool =
+  for i in lines:
+    if line.normalize in i.normalize: return true
+
+test "issue 113 (uninstallation problems)":
+  cd "issue113/c":
+    check execCmdEx("../../" & path & " install -y").exitCode == QuitSuccess
+  cd "issue113/b":
+    check execCmdEx("../../" & path & " install -y").exitCode == QuitSuccess
+  cd "issue113/a":
+    check execCmdEx("../../" & path & " install -y").exitCode == QuitSuccess
+
+  # Try to remove c.
+  let (output, exitCode) = execCmdEx(path & " remove -y c")
+  let lines = output.strip.splitLines()
+  check exitCode != QuitSuccess
+  check "cannot uninstall c (0.1.0) because b (0.1.0) depends on it" in
+      lines[^1].normalize
+
+  check execCmdEx(path & " remove -y a").exitCode == QuitSuccess
+  check execCmdEx(path & " remove -y b").exitCode == QuitSuccess
+
+  cd "issue113/buildfail":
+    check execCmdEx("../../" & path & " install -y").exitCode != QuitSuccess
+
+  check execCmdEx(path & " remove -y c").exitCode == QuitSuccess
+
 test "can refresh with default urls":
   check execCmdEx(path & " refresh").exitCode == QuitSuccess
 
@@ -39,12 +66,12 @@ test "can refresh with custom urls":
   let (output, exitCode) = execCmdEx(path & " refresh")
   let lines = output.strip.splitLines()
   check exitCode == QuitSuccess
-  check "reading from config file" in lines[0].normalize
-  check "downloading \"official\" package list" in lines[1].normalize
-  check "trying http://google.com" in lines[2].normalize
-  check "packages.json file is invalid" in lines[3].normalize
-  check "404 not found" in lines[5].normalize
-  check "done" in lines[^1].normalize
+  check inLines(lines, "reading from config file")
+  check inLines(lines, "downloading \"official\" package list")
+  check inLines(lines, "trying http://google.com")
+  check inLines(lines, "packages.json file is invalid")
+  check inLines(lines, "404 not found")
+  check inLines(lines, "done")
 
   # Restore config
   if fileExists(configBakFile):
@@ -114,16 +141,16 @@ test "issue #27":
 
 test "issue #126":
   cd "issue126/a":
-    let (output, exitCode) = execCmdEx("../../" & path & " install")
+    let (output, exitCode) = execCmdEx("../../" & path & " install -y")
     let lines = output.strip.splitLines()
-    check exitCode != QuitSuccess
-    check "issue-126 is an invalid package name: cannot contain '-'" in lines[^1]
+    check exitCode != QuitSuccess # TODO
+    check inLines(lines, "issue-126 is an invalid package name: cannot contain '-'")
 
   cd "issue126/b":
-    let (output1, exitCode1) = execCmdEx("../../" & path & " install")
+    let (output1, exitCode1) = execCmdEx("../../" & path & " install -y")
     let lines1 = output1.strip.splitLines()
-    check exitCode1 != QuitSuccess
-    check "The .nimble file name must match name specified inside".normalize in lines1[^1].normalize
+    check exitCode1 == QuitSuccess
+    check inLines(lines1, "The .nimble file name must match name specified inside")
 
 test "issue #108":
   cd "issue108":
