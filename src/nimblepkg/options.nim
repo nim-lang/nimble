@@ -298,20 +298,26 @@ proc parseCmdLine*(): Options =
 
 proc getProxy*(options: Options): Proxy =
   ## Returns ``nil`` if no proxy is specified.
-  var url = initUri()
+  var url = ""
   if ($options.config.httpProxy).len > 0:
-    url = options.config.httpProxy
+    url = $options.config.httpProxy
   else:
     try:
       if existsEnv("http_proxy"):
-        parseUri(getEnv("http_proxy"), url)
+        url = getEnv("http_proxy")
       elif existsEnv("https_proxy"):
-        parseUri(getEnv("https_proxy"), url)
+        url = getEnv("https_proxy")
     except ValueError:
       echo("WARNING: Unable to parse proxy from environment: ",
           getCurrentExceptionMsg())
 
-  if ($url).len > 0:
-    return newProxy($url, url.username & ":" & url.password)
+  if url.len > 0:
+    var parsed = parseUri(url)
+    if parsed.scheme.len == 0 or parsed.hostname.len == 0:
+      parsed = parseUri("http://" & url)
+    let auth =
+      if parsed.username.len > 0: parsed.username & ":" & parsed.password
+      else: ""
+    return newProxy($parsed, auth)
   else:
     return nil
