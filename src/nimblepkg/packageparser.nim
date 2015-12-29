@@ -20,6 +20,13 @@ proc newValidationError(msg: string, warnInstalled: bool): ref ValidationError =
   result = newException(ValidationError, msg)
   result.warnInstalled = warnInstalled
 
+proc raiseNewValidationError(msg: string, warnInstalled: bool) =
+  if warnInstalled:
+    # TODO: We warn everywhere for now. Raise the error in the next version.
+    echo("WARNING: ", msg, ". Will be an error in next version!")
+  else:
+    raiseNewValidationError(msg, warnInstalled)
+
 proc validatePackageName*(name: string) =
   ## Raises an error if specified package name contains invalid characters.
   ##
@@ -28,7 +35,7 @@ proc validatePackageName*(name: string) =
   if name.len == 0: return
 
   if name[0] in {'0'..'9'}:
-    raise newValidationError(name &
+    raiseNewValidationError(name &
         "\"$1\" is an invalid package name: cannot begin with $2" %
         [name, $name[0]], true)
 
@@ -37,11 +44,11 @@ proc validatePackageName*(name: string) =
     case c
     of '_':
       if prevWasUnderscore:
-        raise newValidationError(
+        raiseNewValidationError(
             "$1 is an invalid package name: cannot contain \"__\"" % name, true)
       prevWasUnderscore = true
     of AllChars - IdentChars:
-      raise newValidationError(
+      raiseNewValidationError(
           "$1 is an invalid package name: cannot contain '$2'" % [name, $c],
           true)
     else:
@@ -50,35 +57,35 @@ proc validatePackageName*(name: string) =
 proc validateVersion*(ver: string) =
   for c in ver:
     if c notin ({'.'} + Digits):
-      raise newValidationError(
+      raiseNewValidationError(
           "Version may only consist of numbers and the '.' character " &
           "but found '" & c & "'.", false)
 
 proc validatePackageInfo(pkgInfo: PackageInfo, path: string) =
   if pkgInfo.name == "":
-    raise newValidationError("Incorrect .nimble file: " & path &
+    raiseNewValidationError("Incorrect .nimble file: " & path &
         " does not contain a name field.", false)
 
   if pkgInfo.name.normalize != path.splitFile.name.normalize:
-    raise newValidationError(
+    raiseNewValidationError(
         "The .nimble file name must match name specified inside " & path, true)
 
   if pkgInfo.version == "":
-    raise newValidationError("Incorrect .nimble file: " & path &
+    raiseNewValidationError("Incorrect .nimble file: " & path &
         " does not contain a version field.", false)
 
   if not pkgInfo.isMinimal:
     if pkgInfo.author == "":
-      raise newValidationError("Incorrect .nimble file: " & path &
+      raiseNewValidationError("Incorrect .nimble file: " & path &
           " does not contain an author field.", false)
     if pkgInfo.description == "":
-      raise newValidationError("Incorrect .nimble file: " & path &
+      raiseNewValidationError("Incorrect .nimble file: " & path &
           " does not contain a description field.", false)
     if pkgInfo.license == "":
-      raise newValidationError("Incorrect .nimble file: " & path &
+      raiseNewValidationError("Incorrect .nimble file: " & path &
           " does not contain a license field.", false)
     if pkgInfo.backend notin ["c", "cc", "objc", "cpp", "js"]:
-      raise newValidationError("'" & pkgInfo.backend &
+      raiseNewValidationError("'" & pkgInfo.backend &
           "' is an invalid backend.", false)
 
   validateVersion(pkgInfo.version)
