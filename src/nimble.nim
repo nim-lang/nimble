@@ -2,7 +2,7 @@
 # BSD License. Look at license.txt for more info.
 
 import httpclient, parseopt, os, strutils, osproc, pegs, tables, parseutils,
-       strtabs, json, algorithm, sets
+       strtabs, json, algorithm, sets, uri
 
 from sequtils import toSeq
 
@@ -66,8 +66,16 @@ proc update(options: Options) =
       let url = list.urls[i]
       echo("Trying ", url, "...")
       let tempPath = options.getNimbleDir() / "packages_temp.json"
+
+      # Grab the proxy
+      let proxy = getProxy(options)
+      if not proxy.isNil:
+        var maskedUrl = proxy.url
+        if maskedUrl.password.len > 0: maskedUrl.password = "***"
+        echo("Using proxy ", maskedUrl)
+
       try:
-        downloadFile(url, tempPath)
+        downloadFile(url, tempPath, proxy = getProxy(options))
       except:
         if i == <list.urls.len:
           raise

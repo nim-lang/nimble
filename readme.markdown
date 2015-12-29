@@ -306,6 +306,10 @@ You can currently configure the following in this file:
 * ``cloneUsingHttps`` - Whether to replace any ``git://`` inside URLs with
   ``https://``.
   **Default: true**
+* ``httpProxy`` - The URL of the proxy to use when downloading package listings.
+  Nimble will also attempt to read the ``http_proxy`` and ``https_proxy``
+  environment variables.
+  **Default: ""**
 
 ## Creating Packages
 

@@ -1,7 +1,8 @@
 # Copyright (C) Dominik Picheta. All rights reserved.
 # BSD License. Look at license.txt for more info.
 
-import json, strutils, os, parseopt, strtabs
+import json, strutils, os, parseopt, strtabs, uri
+from httpclient import Proxy, newProxy
 
 import nimblepkg/config, nimblepkg/version,
        nimblepkg/tools
@@ -295,3 +296,22 @@ proc parseCmdLine*(): Options =
     # Rename deprecated babel dir.
     renameBabelToNimble(result)
 
+proc getProxy*(options: Options): Proxy =
+  ## Returns ``nil`` if no proxy is specified.
+  var url = initUri()
+  if ($options.config.httpProxy).len > 0:
+    url = options.config.httpProxy
+  else:
+    try:
+      if existsEnv("http_proxy"):
+        parseUri(getEnv("http_proxy"), url)
+      elif existsEnv("https_proxy"):
+        parseUri(getEnv("https_proxy"), url)
+    except ValueError:
+      echo("WARNING: Unable to parse proxy from environment: ",
+          getCurrentExceptionMsg())
+
+  if ($url).len > 0:
+    return newProxy($url, url.username & ":" & url.password)
+  else:
+    return nil

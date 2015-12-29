@@ -1,6 +1,6 @@
 # Copyright (C) Dominik Picheta. All rights reserved.
 # BSD License. Look at license.txt for more info.
-import parsecfg, streams, strutils, os, tables
+import parsecfg, streams, strutils, os, tables, Uri
 
 import tools, version, nimbletypes
 
@@ -10,6 +10,7 @@ type
     chcp*: bool # Whether to change the code page in .cmd files on Win.
     packageLists*: Table[string, PackageList] ## URLs to packages.json files
     cloneUsingHttps*: bool # Whether to replace git:// for https://
+    httpProxy*: Uri # Proxy for package list downloads.
 
   PackageList* = object
     name*: string
@@ -20,6 +21,8 @@ proc initConfig(): Config =
     result.nimbleDir = getHomeDir() / ".nimble"
   else:
     result.nimbleDir = getHomeDir() / ".babel"
+
+  result.httpProxy = initUri()
 
   result.chcp = true
   result.cloneUsingHttps = true
@@ -83,6 +86,8 @@ proc parseConfig*(): Config =
           result.chcp = parseBool(e.value)
         of "cloneusinghttps":
           result.cloneUsingHttps = parseBool(e.value)
+        of "httpproxy":
+          result.httpProxy = parseUri(e.value)
         of "name":
           case currentSection.normalize
           of "packagelist":
