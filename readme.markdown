@@ -28,6 +28,11 @@ have [git](http://www.git-scm.com) installed and added to your environment
 on [Bitbucket](https://bitbucket.org). Nimble packages are typically hosted in
 Git repositories so you may be able to get away without installing Mercurial.
 
+**Warning:** Ensure that you have a fairly recent version of Git installed.
+If the version is less recent than 1.9.0 then Nimble may have trouble using it.
+See [this issue](https://github.com/nim-lang/nimble/issues/105) for more
+info.
+
 The following sections give platform-specific instructions on how to
 compile and install Nimble.
 
