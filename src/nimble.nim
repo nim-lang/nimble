@@ -471,10 +471,15 @@ proc downloadPkg(url: string, verRange: VersionRange,
   ## which was downloaded.
   let downloadDir = (getNimbleTempDir() / getDownloadDirName(url, verRange))
   createDir(downloadDir)
-  echo("Downloading ", url, " into ", downloadDir, " using ", downMethod, "...")
+  let modUrl =
+    if url.startsWith("git://") and options.config.cloneUsingHttps:
+      "https://" & url[6 .. ^1]
+    else: url
+  echo("Downloading ", modUrl, " into ", downloadDir, " using ",
+      downMethod, "...")
   result = (
     downloadDir,
-    doDownload(url, downloadDir, verRange, downMethod, options)
+    doDownload(modUrl, downloadDir, verRange, downMethod, options)
   )
 
 proc getDownloadInfo*(pv: PkgTuple, options: Options,

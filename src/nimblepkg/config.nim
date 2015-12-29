@@ -9,6 +9,7 @@ type
     nimbleDir*: string
     chcp*: bool # Whether to change the code page in .cmd files on Win.
     packageLists*: Table[string, PackageList] ## URLs to packages.json files
+    cloneUsingHttps*: bool # Whether to replace git:// for https://
 
   PackageList* = object
     name*: string
@@ -21,6 +22,7 @@ proc initConfig(): Config =
     result.nimbleDir = getHomeDir() / ".babel"
 
   result.chcp = true
+  result.cloneUsingHttps = true
 
   result.packageLists = initTable[string, PackageList]()
   let defaultPkgList = PackageList(name: "Official", urls: @[
@@ -79,6 +81,8 @@ proc parseConfig*(): Config =
             result.nimbleDir = e.value
         of "chcp":
           result.chcp = parseBool(e.value)
+        of "cloneusinghttps":
+          result.cloneUsingHttps = parseBool(e.value)
         of "name":
           case currentSection.normalize
           of "packagelist":

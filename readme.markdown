@@ -303,6 +303,9 @@ You can currently configure the following in this file:
   a ``[PackageList]`` section named "official". Multiple URLs can be specified
   under each section, Nimble will try each in succession if
   downloading from the first fails.
+* ``cloneUsingHttps`` - Whether to replace any ``git://`` inside URLs with
+  ``https://``.
+  **Default: true**
 
 ## Creating Packages
 
