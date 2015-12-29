@@ -9,19 +9,32 @@ Interested in learning **how to create a package**? Skip directly to that sectio
 
 ## Installation
 
-You will need version 0.9.6 or better (OSX users **have** to use the developer
-version 0.10.1 or better) of the [Nim
-compiler](http://nim-lang.org/download.html). To run nimble you will need to
-have installed some of the tools it depends on to check out source code. For
+The latest version of Nimble (in the master branch) is primarily tested with
+the latest version of the Nim compiler (in the devel branch). You can be sure
+that Nimble will compile with that version of the compiler.
+Unfortunately, it is likely that you have the latest *release* of Nim
+installed, 0.12.0 at the time of writing. You can try to compile Nimble using
+it but the compilation may fail. If you do not wish to upgrade your Nim
+compiler, you can try to compile the latest release of Nimble instead. The
+releases are available on
+[this](https://github.com/nim-lang/nimble/releases) page.
+
+Nimble has some runtime dependencies on external tools, these tools are
+used to download Nimble packages.
+For
 instance, if a package is hosted on [Github](https://github.com) you require to
 have [git](http://www.git-scm.com) installed and added to your environment
 ``PATH``. Same goes for [Mercurial](http://mercurial.selenic.com) repositories
-on [Bitbucket](https://bitbucket.org). On Windows you will also need [OpenSSL
-DLLs](https://www.openssl.org) for secure network connections.
+on [Bitbucket](https://bitbucket.org). Nimble packages are typically hosted in
+Git repositories so you may be able to get away without installing Mercurial.
+
+The following sections give platform-specific instructions on how to
+compile and install Nimble.
 
 ### Unix
 
-On Unix operating systems Nimble can be compiled and installed with two simple
+On Unix-like operating systems Nimble can be compiled and installed with two
+simple
 commands. After successfully grabbing the latest Nim compiler simply execute
 the following commands to clone nimble, compile it and then install it.
 
@@ -29,15 +42,17 @@ the following commands to clone nimble, compile it and then install it.
     cd nimble
     nim c -r src/nimble install
 
-After these steps nimble should be compiled and installed. You should then add
+After these steps are completed successfully, nimble will be installed
+in ``~/.nimble/bin``. You must then add
 ``~/.nimble/bin`` to your ``$PATH``. Updating nimble can then be done by
 executing ``nimble install nimble``.
 
 ### Windows
 
-You can install via a pre-built installation archive which is
-available on the [releases](https://github.com/nim-lang/nimble/releases) page
-or from source.
+You can install Nimble via a pre-built installation archive which is
+available on the [releases](https://github.com/nim-lang/nimble/releases) page.
+Alternatively, you can also install Nimble from source, but the instructions
+for doing so are a bit different on Windows.
 
 #### Using the pre-built archives
 
@@ -61,8 +76,8 @@ On Windows installing Nimble from source is slightly more complex:
     cp src/nimble.exe src/nimble1.exe
     src/nimble1.exe install
 
-This is required because Windows will lock the process which is being run and
-during installation Nimble will recompile itself.
+This is required because Windows will lock the process which is being run, but
+during installation Nimble recompiles itself causing an error.
 Once the installation completes you should
 add ``C:\Users\YourName\.nimble\bin`` to your PATH.
 
