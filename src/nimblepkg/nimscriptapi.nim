@@ -24,6 +24,17 @@ proc requires*(deps: varargs[string]) =
   ## package.
   for d in deps: requiresData.add(d)
 
+template before*(action: untyped, body: untyped): untyped =
+  ## Defines a block of code which is evaluated before ``action`` is executed.
+  proc `action Before`*(): bool =
+    result = false
+    body
+
+template after*(action: untyped, body: untyped): untyped =
+  ## Defines a block of code which is evaluated after ``action`` is executed.
+  proc `action After`*(): bool =
+    body
+
 template builtin = discard
 
 proc getPkgDir*(): string =

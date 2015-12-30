@@ -29,8 +29,6 @@ type
     of actionUpdate:
       optionalURL*: string # Overrides default package list.
     of actionInstall, actionPath, actionUninstall:
-      optionalName*: seq[string] # \
-      # When this is @[], installs package from current dir.
       packages*: seq[PkgTuple] # Optional only for actionInstall.
     of actionSearch:
       search*: seq[string] # Search string.

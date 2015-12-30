@@ -856,12 +856,23 @@ proc listTasks(options: Options) =
   let nimbleFile = findNimbleFile(getCurrentDir(), true)
   nimscriptsupport.listTasks(nimbleFile, options)
 
+proc execHook(options: Options, before: bool): bool =
+  ## Returns whether to continue.
+  result = true
+  let nimbleFile = findNimbleFile(getCurrentDir(), true)
+  # TODO: Optimise this, there are two (three?) calls to readPackageInfo.
+  if nimbleFile.isNimScript(options):
+    let actionName = ($options.action.typ)[6 .. ^1]
+    let res = execHook(nimbleFile, actionName, before, options)
+    result = res.retVal
+
 proc doAction(options: Options) =
   if not existsDir(options.getNimbleDir()):
     createDir(options.getNimbleDir())
   if not existsDir(options.getPkgsDir):
     createDir(options.getPkgsDir)
 
+  if not execHook(options, true): return
   case options.action.typ
   of actionUpdate:
     update(options)
@@ -898,7 +909,6 @@ proc doAction(options: Options) =
   of actionCustom:
     # Custom command. Attempt to call a NimScript task.
     let nimbleFile = findNimbleFile(getCurrentDir(), true)
-    ## TODO: Optimise this, there are two calls to readPackageInfo here.
     if not nimbleFile.isNimScript(options):
       writeHelp()
 
@@ -910,6 +920,8 @@ proc doAction(options: Options) =
     if execResult.command.normalize == "nop":
       echo("WARNING: Using `setCommand 'nop'` is not necessary.")
       return
+    if not execHook(options, false):
+      return
     if execResult.hasTaskRequestedCommand():
       var newOptions = initOptions()
       newOptions.config = options.config
@@ -920,6 +932,9 @@ proc doAction(options: Options) =
       for flag, val in execResult.flags:
         parseFlag(flag, val, newOptions)
       doAction(newOptions)
+
+  if options.action.typ != actionCustom:
+    discard execHook(options, false)
 
 when isMainModule:
   when defined(release):

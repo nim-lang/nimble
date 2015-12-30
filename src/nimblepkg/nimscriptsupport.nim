@@ -12,18 +12,21 @@ import
 
 from compiler/scriptconfig import setupVM
 from compiler/idents import getIdent
-from compiler/astalgo import strTableGet
+from compiler/astalgo import strTableGet, `$`
 import compiler/options as compiler_options
+
+import compiler/renderer
 
 import nimbletypes, version, options, packageinfo
 import os, strutils, strtabs, times, osproc
 
 type
-  ExecutionResult* = object
+  ExecutionResult*[T] = object
     success*: bool
     command*: string
     arguments*: seq[string]
     flags*: StringTableRef
+    retVal*: T
 
 const
   internalCmd = "NimbleInternal"
@@ -174,18 +177,20 @@ proc setupVM(module: PSym; scriptName: string,
 proc findNimscriptApi(options: Options): string =
   ## Returns the directory containing ``nimscriptapi.nim``
   var inPath = false
-  let pkgs = getInstalledPkgsMin(options.getPkgsDir(), options)
-  var pkg: PackageInfo
-  if pkgs.findPkg(("nimble", newVRAny()), pkg):
-    let pkgDir = pkg.getRealDir()
-    if fileExists(pkgDir / "nimblepkg" / "nimscriptapi.nim"):
-      result = pkgDir
-      inPath = true
+  # Try finding it in exe's path
+  if fileExists(getAppDir() / "nimblepkg" / "nimscriptapi.nim"):
+    result = getAppDir()
+    inPath = true
+
   if not inPath:
-    # Try finding it in exe's path
-    if fileExists(getAppDir() / "nimblepkg" / "nimscriptapi.nim"):
-      result = getAppDir()
-      inPath = true
+    let pkgs = getInstalledPkgsMin(options.getPkgsDir(), options)
+    var pkg: PackageInfo
+    if pkgs.findPkg(("nimble", newVRAny()), pkg):
+      let pkgDir = pkg.getRealDir()
+      if fileExists(pkgDir / "nimblepkg" / "nimscriptapi.nim"):
+        result = pkgDir
+        inPath = true
+
   if not inPath:
     raise newException(NimbleError, "Cannot find nimscriptapi.nim")
 
@@ -195,6 +200,8 @@ proc execScript(scriptName: string, flags: StringTableRef, options: Options) =
   ## No clean up is performed and must be done manually!
   if "nimblepkg/nimscriptapi" notin compiler_options.implicitIncludes:
     compiler_options.implicitIncludes.add("nimblepkg/nimscriptapi")
+
+  let pkgName = scriptName.splitFile.name
 
   # Ensure that "nimblepkg/nimscriptapi" is in the PATH.
   let nimscriptApiPath = findNimscriptApi(options)
@@ -219,10 +226,10 @@ proc execScript(scriptName: string, flags: StringTableRef, options: Options) =
 
   # Setup builtins defined in nimscriptapi.nim
   template cbApi(name, body) {.dirty.} =
-    vm.globalCtx.registerCallback "stdlib.system." & astToStr(name),
+    vm.globalCtx.registerCallback pkgName & "." & astToStr(name),
       proc (a: VmArgs) =
         body
-  # TODO: This doesn't work.
+
   cbApi getPkgDir:
     setResult(a, "FOOBAR")
 
@@ -318,7 +325,7 @@ proc readPackageInfoFromNims*(scriptName: string, options: Options,
   cleanup()
 
 proc execTask*(scriptName, taskName: string,
-    options: Options): ExecutionResult =
+    options: Options): ExecutionResult[void] =
   ## Executes the specified task in the specified script.
   ##
   ## `scriptName` should be a filename pointing to the nimscript file.
@@ -338,6 +345,44 @@ proc execTask*(scriptName, taskName: string,
     result.success = false
     return
   discard vm.globalCtx.execProc(prc, [])
+
+  # Read the command, arguments and flags set by the executed task.
+  result.command = compiler_options.command
+  result.arguments = @[]
+  for arg in compiler_options.gProjectName.split():
+    result.arguments.add(arg)
+
+  cleanup()
+
+proc execHook*(scriptName, actionName: string, before: bool,
+    options: Options): ExecutionResult[bool] =
+  ## Executes the specified action's hook. Depending on ``before``, either
+  ## the "before" or the "after" hook.
+  ##
+  ## `scriptName` should be a filename pointing to the nimscript file.
+  result.success = true
+  result.flags = newStringTable()
+  compiler_options.command = internalCmd
+  let hookName =
+    if before: actionName.toLower & "Before"
+    else: actionName.toLower & "After"
+  echo("Attempting to execute hook ", hookName, " in ", scriptName)
+
+  execScript(scriptName, result.flags, options)
+  # Explicitly execute the task procedure, instead of relying on hack.
+  let idx = fileInfoIdx(scriptName)
+  let thisModule = getModule(idx)
+  assert thisModule.kind == skModule
+  let prc = thisModule.tab.strTableGet(getIdent(hookName))
+  if prc.isNil:
+    # Procedure not defined in the NimScript module.
+    result.success = false
+    return
+  let returnVal = vm.globalCtx.execProc(prc, [])
+  case returnVal.kind
+  of nkCharLit..nkUInt64Lit:
+    result.retVal = returnVal.intVal == 1
+  else: assert false
 
   # Read the command, arguments and flags set by the executed task.
   result.command = compiler_options.command
