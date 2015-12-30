@@ -17,6 +17,7 @@ before_script:
 script:
   - cd tests
   - nim c -r tester
+  - cd ..
   - ./src/nimble install -y
 
 notifications:
