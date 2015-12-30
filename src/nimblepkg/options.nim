@@ -1,11 +1,11 @@
 # Copyright (C) Dominik Picheta. All rights reserved.
 # BSD License. Look at license.txt for more info.
 
-import json, strutils, os, parseopt, strtabs, uri
+import json, strutils, os, parseopt, strtabs, uri, tables
 from httpclient import Proxy, newProxy
 
 import nimblepkg/config, nimblepkg/version,
-       nimblepkg/tools
+       nimblepkg/tools, nimblepkg/nimbletypes
 
 type
   Options* = object
@@ -15,6 +15,7 @@ type
     action*: Action
     config*: Config
     nimbleData*: JsonNode ## Nimbledata.json
+    pkgInfoCache*: TableRef[string, PackageInfo]
 
   ActionType* = enum
     actionNil, actionUpdate, actionInit, actionDump, actionPublish,
@@ -258,6 +259,7 @@ proc parseFlag*(flag, val: string, result: var Options) =
 
 proc initOptions*(): Options =
   result.action.typ = actionNil
+  result.pkgInfoCache = newTable[string, PackageInfo]()
 
 proc parseMisc(): Options =
   result = initOptions()

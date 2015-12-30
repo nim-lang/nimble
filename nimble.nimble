@@ -12,13 +12,6 @@ srcDir = "src"
 
 requires "nim >= 0.11.2"
 
-before tasks:
-  echo("About to list tasks!")
-  return true
-
-after tasks:
-  echo("Listed tasks!")
-
 task tests, "Run the Nimble tester!":
   withDir "tests":
     exec "nim c -r tester"

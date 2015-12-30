@@ -3,6 +3,8 @@
 # Various miscellaneous common types reside here, to avoid problems with
 # recursive imports
 
+import sets
+
 import version
 export version.NimbleError
 
@@ -14,6 +16,8 @@ type
     isNimScript*: bool ## Determines if this pkg info was read from a nims file
     isMinimal*: bool
     isInstalled*: bool ## Determines if the pkg this info belongs to is installed
+    postHooks*: HashSet[string] ## Useful to know so that Nimble doesn't execHook unnecessarily
+    preHooks*: HashSet[string]
     name*: string
     version*: string
     author*: string

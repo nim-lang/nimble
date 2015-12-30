@@ -22,6 +22,8 @@ type
 
 proc initPackageInfo*(path: string): PackageInfo =
   result.mypath = path
+  result.preHooks.init()
+  result.postHooks.init()
   # reasonable default:
   result.name = path.splitFile.name
   result.version = ""

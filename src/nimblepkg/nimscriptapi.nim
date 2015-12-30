@@ -27,12 +27,13 @@ proc requires*(deps: varargs[string]) =
 template before*(action: untyped, body: untyped): untyped =
   ## Defines a block of code which is evaluated before ``action`` is executed.
   proc `action Before`*(): bool =
-    result = false
+    result = true
     body
 
 template after*(action: untyped, body: untyped): untyped =
   ## Defines a block of code which is evaluated after ``action`` is executed.
   proc `action After`*(): bool =
+    result = true
     body
 
 template builtin = discard

@@ -860,11 +860,16 @@ proc execHook(options: Options, before: bool): bool =
   ## Returns whether to continue.
   result = true
   let nimbleFile = findNimbleFile(getCurrentDir(), true)
-  # TODO: Optimise this, there are two (three?) calls to readPackageInfo.
-  if nimbleFile.isNimScript(options):
-    let actionName = ($options.action.typ)[6 .. ^1]
+  # PackageInfos are cached so we can read them as many times as we want.
+  let pkgInfo = readPackageInfo(nimbleFile, options)
+  let actionName = ($options.action.typ)[6 .. ^1]
+  let hookExists =
+    if before: actionName.normalize in pkgInfo.preHooks
+    else: actionName.normalize in pkgInfo.postHooks
+  if pkgInfo.isNimScript and hookExists:
     let res = execHook(nimbleFile, actionName, before, options)
-    result = res.retVal
+    if res.success:
+      result = res.retVal
 
 proc doAction(options: Options) =
   if not existsDir(options.getNimbleDir()):

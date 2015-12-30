@@ -1,6 +1,6 @@
 # Copyright (C) Dominik Picheta. All rights reserved.
 # BSD License. Look at license.txt for more info.
-import parsecfg, json, streams, strutils, parseutils, os
+import parsecfg, json, streams, strutils, parseutils, os, tables
 import version, tools, nimbletypes, nimscriptsupport, options, packageinfo
 
 ## Contains procedures for parsing .nimble files. Moved here from ``packageinfo``
@@ -187,6 +187,15 @@ proc readPackageInfo*(nf: NimbleFile, options: Options,
   ##
   ## When ``onlyMinimalInfo`` is true, only the `name` and `version` fields are
   ## populated. The isNimScript field can also be relied on.
+  ##
+  ## This version uses a cache stored in ``options``, so calling it multiple
+  ## times on the same ``nf`` shouldn't require re-evaluation of the Nimble
+  ## file.
+
+  # Check the cache.
+  if options.pkgInfoCache.hasKey(nf):
+    return options.pkgInfoCache[nf]
+
   result = initPackageInfo(nf)
 
   validatePackageName(nf.splitFile.name)
@@ -221,6 +230,7 @@ proc readPackageInfo*(nf: NimbleFile, options: Options,
         raise newException(NimbleError, msg)
 
   validatePackageInfo(result, nf)
+  options.pkgInfoCache[nf] = result
 
 proc getPkgInfo*(dir: string, options: Options): PackageInfo =
   ## Find the .nimble file in ``dir`` and parses it, returning a PackageInfo.

@@ -12,13 +12,11 @@ import
 
 from compiler/scriptconfig import setupVM
 from compiler/idents import getIdent
-from compiler/astalgo import strTableGet, `$`
+from compiler/astalgo import strTableGet
 import compiler/options as compiler_options
 
-import compiler/renderer
-
 import nimbletypes, version, options, packageinfo
-import os, strutils, strtabs, times, osproc
+import os, strutils, strtabs, times, osproc, sets
 
 type
   ExecutionResult*[T] = object
@@ -277,7 +275,9 @@ proc readPackageInfoFromNims*(scriptName: string, options: Options,
 
   # Extract all the necessary fields populated by the nimscript file.
   proc getSym(thisModule: PSym, ident: string): PSym =
-    thisModule.tab.strTableGet(getIdent(ident))
+    result = thisModule.tab.strTableGet(getIdent(ident))
+    if result.isNil:
+      raise newException(NimbleError, "Ident not found: " & ident)
 
   template trivialField(field) =
     result.field = getGlobal(getSym(thisModule, astToStr field))
@@ -321,6 +321,15 @@ proc readPackageInfoFromNims*(scriptName: string, options: Options,
     result.backend = "js"
   else:
     result.backend = backend.toLower()
+
+  # Grab all the global procs
+  for i in thisModule.tab.data:
+    if not i.isNil():
+      let name = i.name.s.normalize()
+      if name.endsWith("before"):
+        result.preHooks.incl(name[0 .. ^7])
+      if name.endsWith("after"):
+        result.postHooks.incl(name[0 .. ^6])
 
   cleanup()
 
@@ -377,6 +386,7 @@ proc execHook*(scriptName, actionName: string, before: bool,
   if prc.isNil:
     # Procedure not defined in the NimScript module.
     result.success = false
+    cleanup()
     return
   let returnVal = vm.globalCtx.execProc(prc, [])
   case returnVal.kind
