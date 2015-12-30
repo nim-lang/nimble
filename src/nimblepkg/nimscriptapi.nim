@@ -39,4 +39,6 @@ template after*(action: untyped, body: untyped): untyped =
 template builtin = discard
 
 proc getPkgDir*(): string =
+  ## Returns the package directory containing the .nimble file currently
+  ## being evaluated.
   builtin

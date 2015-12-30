@@ -230,7 +230,8 @@ proc readPackageInfo*(nf: NimbleFile, options: Options,
         raise newException(NimbleError, msg)
 
   validatePackageInfo(result, nf)
-  options.pkgInfoCache[nf] = result
+  if not result.isMinimal:
+    options.pkgInfoCache[nf] = result
 
 proc getPkgInfo*(dir: string, options: Options): PackageInfo =
   ## Find the .nimble file in ``dir`` and parses it, returning a PackageInfo.

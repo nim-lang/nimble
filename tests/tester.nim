@@ -34,8 +34,7 @@ test "issue 113 (uninstallation problems)":
   let (output, exitCode) = execCmdEx(path & " remove -y c")
   let lines = output.strip.splitLines()
   check exitCode != QuitSuccess
-  check "cannot uninstall c (0.1.0) because b (0.1.0) depends on it" in
-      lines[^1].normalize
+  check inLines(lines, "cannot uninstall c (0.1.0) because b (0.1.0) depends on it")
 
   check execCmdEx(path & " remove -y a").exitCode == QuitSuccess
   check execCmdEx(path & " remove -y b").exitCode == QuitSuccess
@@ -112,6 +111,23 @@ test "can list nimscript tasks":
     let (output, exitCode) = execCmdEx("../" & path & " tasks")
     check "test                 test description".normalize in output.normalize
     check exitCode == QuitSuccess
+
+test "can use pre/post hooks":
+  cd "nimscript":
+    let (output, exitCode) = execCmdEx("../" & path & " hooks")
+    let lines = output.strip.splitLines()
+    check exitCode == QuitSuccess
+    check inLines(lines, "First")
+    check inLines(lines, "middle")
+    check inLines(lines, "last")
+
+test "pre hook can prevent action":
+  cd "nimscript":
+    let (output, exitCode) = execCmdEx("../" & path & " hooks2")
+    let lines = output.strip.splitLines()
+    check exitCode == QuitSuccess
+    check(not inLines(lines, "Shouldn't happen"))
+    check inLines(lines, "Hook prevented further execution")
 
 test "can install packagebin2":
   check execCmdEx(path &

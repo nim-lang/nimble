@@ -229,7 +229,7 @@ proc execScript(scriptName: string, flags: StringTableRef, options: Options) =
         body
 
   cbApi getPkgDir:
-    setResult(a, "FOOBAR")
+    setResult(a, scriptName.splitFile.dir)
 
   compileSystemModule()
   processModule(m, llStreamOpen(scriptName, fmRead), nil)

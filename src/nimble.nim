@@ -859,10 +859,15 @@ proc listTasks(options: Options) =
 proc execHook(options: Options, before: bool): bool =
   ## Returns whether to continue.
   result = true
-  let nimbleFile = findNimbleFile(getCurrentDir(), true)
+  var nimbleFile = ""
+  try:
+    nimbleFile = findNimbleFile(getCurrentDir(), true)
+  except NimbleError: return true
   # PackageInfos are cached so we can read them as many times as we want.
   let pkgInfo = readPackageInfo(nimbleFile, options)
-  let actionName = ($options.action.typ)[6 .. ^1]
+  let actionName =
+    if options.action.typ == actionCustom: options.action.command
+    else: ($options.action.typ)[6 .. ^1]
   let hookExists =
     if before: actionName.normalize in pkgInfo.preHooks
     else: actionName.normalize in pkgInfo.postHooks
@@ -877,7 +882,9 @@ proc doAction(options: Options) =
   if not existsDir(options.getPkgsDir):
     createDir(options.getPkgsDir)
 
-  if not execHook(options, true): return
+  if not execHook(options, true):
+    echo("Pre-hook prevented further execution.")
+    return
   case options.action.typ
   of actionUpdate:
     update(options)

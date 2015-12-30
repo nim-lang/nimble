@@ -23,3 +23,18 @@ task cr, "Testing `nimble c -r nimscript.nim` via setCommand":
 
 task api, "Testing nimscriptapi module functionality":
   echo(getPkgDir())
+
+before hooks:
+  echo("First")
+
+task hooks, "Testing the hooks":
+  echo("Middle")
+
+after hooks:
+  echo("last")
+
+before hooks2:
+  return false
+
+task hooks2, "Testing the hooks again":
+  echo("Shouldn't happen")
