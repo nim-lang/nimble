@@ -1,4 +1,59 @@
-# Babel changelog
+# Nimble changelog
+
+## 0.7.0 - 30/12/2015
+
+This is a major release.
+Significant changes include NimScript support, configurable package list
+URLs, a new ``publish`` command, the removal of the dependency on
+OpenSSL, and proxy support. More detailed list of changes follows:
+
+* Fixed ``chcp`` on Windows XP and Windows Vista
+  (Thank you [@vegansk](https://github.com/vegansk)).
+* Fixed incorrect command line processing
+  (Issue [#151](https://github.com/nim-lang/nimble/issues/151))
+* Merged ``developers.markdown`` back into ``readme.markdown``
+  (Issue [#132](https://github.com/nim-lang/nimble/issues/132))
+* Removed advertising clause from license
+  (Issue [#153](https://github.com/nim-lang/nimble/issues/153))
+* Implemented ``publish`` command
+  (Thank you for taking the initiative [@Araq](https://github.com/Araq))
+* Implemented NimScript support. Nimble now import a portion of the Nim
+  compiler source code for this.
+  (Thank you for taking the initiative [@Araq](https://github.com/Araq))
+* Fixes incorrect logic for finding the Nim executable
+  (Issue [#125](https://github.com/nim-lang/nimble/issues/125)).
+* Renamed the ``update`` command to ``refresh``. **The ``update`` command will
+  mean something else soon!**
+  (Issue [#158](https://github.com/nim-lang/nimble/issues/158))
+* Improvements to the ``init`` command.
+  (Issue [#96](https://github.com/nim-lang/nimble/issues/96))
+* Package names must now officially be valid Nim identifiers. Package's
+  with dashes in particular will become invalid in the next version.
+  Warnings are shown now but the **next version will show an error**.
+  (Issue [#126](https://github.com/nim-lang/nimble/issues/126))
+* Added error message when no build targets are present.
+  (Issue [#108](https://github.com/nim-lang/nimble/issues/108))
+* Implemented configurable package lists. Including fallback URLs
+  (Issue [#75](https://github.com/nim-lang/nimble/issues/75)).
+* Removed the OpenSSL dependency
+  (Commit [ec96ee7](https://github.com/nim-lang/nimble/commit/ec96ee7709f0f8bd323aa1ac5ed4c491c4bf23be))
+* Implemented proxy support. This can be configured using the ``http_proxy``/
+  ``https_proxy`` environment variables or Nimble's configuration
+  (Issue [#86](https://github.com/nim-lang/nimble/issues/86)).
+* Fixed issues with reverse dependency storage
+  (Issue [#113](https://github.com/nim-lang/nimble/issues/113) and
+   [#168](https://github.com/nim-lang/nimble/issues/168)).
+
+----
+
+Full changelog: https://github.com/nim-lang/nimble/compare/v0.6.2...v0.7.0
+
+## 0.6.4 - 30/12/2015
+
+This is a hotfix release fixing compilation with Nim 0.12.0.
+
+See Issue [#180](https://github.com/nim-lang/nimble/issues/180) for more
+info.
 
 ## 0.6.2 - 19/06/2015
 
