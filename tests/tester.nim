@@ -54,6 +54,10 @@ test "can refresh with custom urls":
   let configBakFile = getConfigDir() / "nimble" / "nimble.ini.bak"
   if fileExists(configFile):
     moveFile(configFile, configBakFile)
+
+  # Ensure config dir exists
+  createDir(getConfigDir() / "nimble")
+
   writeFile(configFile, """
     [PackageList]
     name = "official"

@@ -1,4 +1,4 @@
-# Nimble
+# Nimble [![Build Status](https://travis-ci.org/nim-lang/nimble.svg?branch=master)](https://travis-ci.org/nim-lang/nimble)
 
 Nimble is a *beta*-grade *package manager* for the [Nim programming
 language](http://nim-lang.org).

@@ -15,10 +15,9 @@ before_script:
   - export PATH=`pwd`/Nim/bin:$PATH
 
 script:
-  - nim c src/nimble
-  - ./src/nimble install -y
   - cd tests
   - nim c -r tester
+  - ./src/nimble install -y
 
 notifications:
   irc: "chat.freenode.net#nimbuild"
