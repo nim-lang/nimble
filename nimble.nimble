@@ -10,7 +10,7 @@ srcDir = "src"
 
 # Dependencies
 
-requires "nim >= 0.11.2"
+requires "nim >= 0.12.1"
 
 task tests, "Run the Nimble tester!":
   withDir "tests":

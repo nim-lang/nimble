@@ -11,13 +11,15 @@ Interested in learning **how to create a package**? Skip directly to that sectio
 
 The latest version of Nimble (in the master branch) is primarily tested with
 the latest version of the Nim compiler (in the devel branch). You can be sure
-that Nimble will compile with that version of the compiler.
+that Nimble will compile with that version of the compiler (a green travis
+build status is also a good sign that this is the case).
+
+The latest version of Nimble (0.7.0) requires a version of Nim greater than
+0.12.0. The latest version of Nimble which can be compiled using Nim
+0.12.0 is 0.6.4.
 Unfortunately, it is likely that you have the latest *release* of Nim
-installed, 0.12.0 at the time of writing. You can try to compile Nimble using
-it but the compilation may fail. If you do not wish to upgrade your Nim
-compiler, you can try to compile the latest release of Nimble instead. The
-releases are available on
-[this](https://github.com/nim-lang/nimble/releases) page.
+installed, 0.12.0 at the time of writing. So you will need to install
+version 0.6.4 of Nimble.
 
 Nimble has some runtime dependencies on external tools, these tools are
 used to download Nimble packages.
@@ -120,6 +122,9 @@ they fail.
 
 You can also optionally supply this command with a URL if you would like to use
 a third-party package list.
+
+Package lists can be specified in Nimble's config. Take a look at the
+config section below to see how to do this.
 
 ### nimble install
 
@@ -357,7 +362,7 @@ the root of the directory or repository being installed.
 
 ### The new NimScript format
 
-**Warning:** This features is still very experimental. You are encouraged to
+**Warning:** This feature is still very experimental. You are encouraged to
 try it, but be aware that it may change significantly in the future or
 may even be removed completely!
 
@@ -410,6 +415,32 @@ which makes this feature very powerful.
 
 You can also check what tasks are supported by the package in the current
 directory by using the ``tasks`` command.
+
+Nimble provides an API which adds even more functionality. For example,
+you can specify
+pre and post hooks for any Nimble command (including commands that
+you define yourself). To do this you can add something like the following:
+
+```nim
+before hello:
+  echo("About to call hello!")
+```
+
+That will result in the following output when ``nimble hello`` is executed (you
+must also specify the ``task`` shown above).
+
+```
+Executing task hello in /Users/user/projects/pkg/pkg.nimble
+About to call hello!
+Hello World!
+```
+
+Similar to this an ``after`` block is also available for post hooks,
+which are executed after Nimble finished executing a command. You can
+also return ``false`` from these blocks to stop further execution.
+
+The ``nimscriptapi.nim`` module specifies this and includes other definitions
+which are also useful. Take a look at it for more information.
 
 ### Libraries
 
@@ -562,7 +593,7 @@ their own packages to it! Take a look at
 
 * ``name`` - The name of the package. *(This is not required in the new NimScript format)*
 * ``version`` - The *current* version of this package. This should be incremented
-  **after** tagging the current version using ``git tag`` or ``hg tag``.
+  **before** tagging the current version using ``git tag`` or ``hg tag``.
 * ``author`` - The name of the author of this package.
 * ``description`` - A string describing the package.
 * ``license`` - The name of the license in which this package is licensed under.
