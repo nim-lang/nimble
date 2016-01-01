@@ -307,7 +307,7 @@ proc buildFromDir(pkgInfo: PackageInfo, paths: seq[string], forRelease: bool) =
         " `bin` key in your .nimble file?")
   let realDir = pkgInfo.getRealDir()
   let releaseOpt = if forRelease: "-d:release" else: ""
-  var args = ""
+  var args = "--path:\"" & getCurrentDir() & "\" "
   for path in paths: args.add("--path:\"" & path & "\" ")
   for bin in pkgInfo.bin:
     let outputOpt = "-o:\"" & pkgInfo.getOutputDir(bin) & "\""
