@@ -489,7 +489,7 @@ A package is automatically a binary package as soon as it sets at least one
 ``bin`` value, like so:
 
 ```ini
-bin = "main"
+bin = @["main"]
 ```
 
 In this case when ``nimble install`` is invoked, nimble will build the ``main.nim``
