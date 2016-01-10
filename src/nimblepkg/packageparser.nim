@@ -25,7 +25,7 @@ proc raiseNewValidationError(msg: string, warnInstalled: bool) =
     # TODO: We warn everywhere for now. Raise the error in the next version.
     echo("WARNING: ", msg, ". Will be an error in next version!")
   else:
-    raiseNewValidationError(msg, warnInstalled)
+    raise newValidationError(msg, warnInstalled)
 
 proc validatePackageName*(name: string) =
   ## Raises an error if specified package name contains invalid characters.
