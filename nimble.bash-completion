@@ -17,9 +17,12 @@ _nimble()
     install)
         COMPREPLY=( $( nimble list 2> /dev/null | grep "^$cur" | grep -v '^ ' | tr -d ':') )
         ;;
-    path|uninstall)
+    path)
         COMPREPLY=( $( nimble list -i 2> /dev/null | cut -d' ' -f1 | grep "^$cur" ) )
         ;;
+    uninstall)
+        COMPREPLY=( $( nimble list -i 2> /dev/null | awk -F'( |\\[|\\])' '{ f=4; while($f) { l=length($f); if(substr($f, l, l)==",") { $f=substr($f, 0, l-1) }; print $1 "@" $f; f++; }}' | sort -f | grep "^$cur" ) )
+            ;;
     list)
         COMPREPLY=( $( compgen -W '--ver -i --installed' -- $cur ) )
         ;;
