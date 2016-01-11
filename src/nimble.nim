@@ -631,7 +631,7 @@ proc list(options: Options) =
     echo(" ")
 
 proc listInstalled(options: Options) =
-  var h = initTable[string, seq[string]]()
+  var h = initOrderedTable[string, seq[string]]()
   let pkgs = getInstalledPkgs(options.getPkgsDir(), options)
   for x in pkgs.items():
     let
@@ -641,6 +641,8 @@ proc listInstalled(options: Options) =
     var s = h[pName]
     add(s, pVer)
     h[pName] = s
+
+  h.sort(proc (a,b: auto): int = cmpIgnoreCase(a[0],b[0]))
   for k in keys(h):
     echo k & "  [" & h[k].join(", ") & "]"
 

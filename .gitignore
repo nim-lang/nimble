@@ -7,3 +7,8 @@ nimcache/
 /src/babel
 /src/nimble
 /tests/tester
+
+# executables from test and build
+/nimble
+/tests/nimscript/nimscript
+/tests/issue27/issue27
