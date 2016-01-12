@@ -642,7 +642,7 @@ proc listInstalled(options: Options) =
     add(s, pVer)
     h[pName] = s
 
-  h.sort(proc (a,b: auto): int = cmpIgnoreCase(a[0],b[0]))
+  h.sort(proc (a, b: (string, seq[string])): int = cmpIgnoreCase(a[0], b[0]))
   for k in keys(h):
     echo k & "  [" & h[k].join(", ") & "]"
 
