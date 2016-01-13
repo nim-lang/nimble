@@ -5,7 +5,10 @@ _nimble()
     local cur=${COMP_WORDS[COMP_CWORD]}
     local prev=${COMP_WORDS[COMP_CWORD-1]}
     COMPREPLY=()
-    _init_completion || return
+
+    if declare -F _init_completions >/dev/null 2>&1; then
+        _init_completion || return
+    fi
 
     case "$prev" in
     init|update|refresh|publish|search|build)
