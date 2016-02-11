@@ -1,5 +1,12 @@
 # Nimble changelog
 
+## 0.7.2 - 11/02/2016
+
+This is a hotfix release which alleviates problems when building Nimble.
+
+See Issue [#203](https://github.com/nim-lang/nimble/issues/203) for more
+information.
+
 ## 0.7.0 - 30/12/2015
 
 This is a major release.
