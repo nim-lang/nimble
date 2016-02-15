@@ -413,7 +413,7 @@ proc installFromDir(dir: string, latest: bool, options: Options,
       when defined(unix):
         # TODO: Verify that we are removing an old bin of this package, not
         # some other package's binary!
-        if existsFile(binDir / bin): removeFile(binDir / cleanBin)
+        if existsFile(binDir / cleanBin): removeFile(binDir / cleanBin)
         echo("Creating symlink: ", pkgDestDir / bin, " -> ", binDir / cleanBin)
         createSymlink(pkgDestDir / bin, binDir / cleanBin)
       elif defined(windows):

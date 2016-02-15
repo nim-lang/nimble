@@ -179,6 +179,13 @@ test "issue #108":
     check exitCode != QuitSuccess
     check "Nothing to build" in lines[^1]
 
+test "issue #206":
+  cd "issue206":
+    var (output, exitCode) = execCmdEx("../" & path & " install -y")
+    check exitCode == QuitSuccess
+    (output, exitCode) = execCmdEx("../" & path & " install -y")
+    check exitCode == QuitSuccess
+
 test "can list":
   check execCmdEx(path & " list").exitCode == QuitSuccess
 
