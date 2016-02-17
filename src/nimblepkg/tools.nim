@@ -70,7 +70,7 @@ proc changeRoot*(origRoot, newRoot, path: string): string =
 proc copyFileD*(fro, to: string): string =
   ## Returns the destination (``to``).
   echo(fro, " -> ", to)
-  copyFile(fro, to)
+  copyFileWithPermissions(fro, to)
   result = to
 
 proc copyDirD*(fro, to: string): seq[string] =
