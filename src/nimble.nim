@@ -484,10 +484,17 @@ proc downloadPkg(url: string, verRange: VersionRange,
   ## which was downloaded.
   let downloadDir = (getNimbleTempDir() / getDownloadDirName(url, verRange))
   createDir(downloadDir)
-  let modUrl =
+  var modUrl =
     if url.startsWith("git://") and options.config.cloneUsingHttps:
       "https://" & url[6 .. ^1]
     else: url
+
+  # Fixes issue #204
+  # github + https + trailing url slash causes a
+  # checkout/ls-remote to fail with Repository not found
+  if modUrl.contains("github.com") and modUrl.endswith("/"):
+    modUrl = modUrl[0 .. ^2]
+
   echo("Downloading ", modUrl, " into ", downloadDir, " using ",
       downMethod, "...")
   result = (
