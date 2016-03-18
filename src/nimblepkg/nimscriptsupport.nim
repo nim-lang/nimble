@@ -192,7 +192,8 @@ proc findNimscriptApi(options: Options): string =
   if not inPath:
     raise newException(NimbleError, "Cannot find nimscriptapi.nim")
 
-proc execScript(scriptName: string, flags: StringTableRef, options: Options) =
+proc execScript(scriptName: string, flags: StringTableRef, options: Options,
+    packageDependenciesInstalled = true) =
   ## Executes the specified script.
   ##
   ## No clean up is performed and must be done manually!
@@ -213,6 +214,10 @@ proc execScript(scriptName: string, flags: StringTableRef, options: Options) =
   defineSymbol("nimscript")
   defineSymbol("nimconfig")
   defineSymbol("nimble")
+
+  if packageDependenciesInstalled:
+    defineSymbol("nimbleDependenciesInstalled")
+
   registerPass(semPass)
   registerPass(evalPass)
 
@@ -267,7 +272,7 @@ proc readPackageInfoFromNims*(scriptName: string, options: Options,
   compiler_options.command = internalCmd
 
   # Execute the nimscript file.
-  execScript(scriptName, nil, options)
+  execScript(scriptName, nil, options, false)
 
   # Check whether an error has occurred.
   if msgs.gErrorCounter > 0:
