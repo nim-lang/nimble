@@ -232,7 +232,7 @@ proc removeRevDep(options: Options, pkg: PackageInfo) =
       for key, val in options.nimbleData["reverseDeps"]:
         options.remove(pkg, depTup, val)
     else:
-      let thisDep = options.nimbleData["reverseDeps"][depTup.name]
+      let thisDep = options.nimbleData{"reverseDeps", depTup.name}
       if thisDep.isNil: continue
       options.remove(pkg, depTup, thisDep)
 
