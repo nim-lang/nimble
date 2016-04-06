@@ -118,6 +118,7 @@ proc readPackageInfoFromNimble(path: string; result: var PackageInfo) =
   if fs != nil:
     var p: CfgParser
     open(p, fs, path)
+    defer: close(p)
     var currentSection = ""
     while true:
       var ev = next(p)
@@ -172,7 +173,6 @@ proc readPackageInfoFromNimble(path: string; result: var PackageInfo) =
             "Invalid package info, should not contain --" & ev.value)
       of cfgError:
         raise newException(NimbleError, "Error parsing .nimble file: " & ev.msg)
-    close(p)
   else:
     raise newException(ValueError, "Cannot open package info: " & path)
 
