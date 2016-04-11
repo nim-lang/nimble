@@ -142,7 +142,7 @@ proc getPackage*(pkg: string, options: Options,
     let packages = parseFile(options.getNimbleDir() /
         "packages_" & name.toLower() & ".json")
     for p in packages:
-      if p["name"].str == pkg:
+      if normalize(p["name"].str) == normalize(pkg):
         resPkg = p.fromJson()
         return true
 
