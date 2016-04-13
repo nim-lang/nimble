@@ -55,7 +55,7 @@ proc update(options: Options) =
   ##
   ## If the download is not successful, an exception is raised.
   let parameter =
-    if options.action.typ == actionUpdate:
+    if options.action.typ == actionRefresh:
       options.action.optionalURL
     else:
       ""
@@ -895,7 +895,7 @@ proc doAction(options: Options) =
     echo("Pre-hook prevented further execution.")
     return
   case options.action.typ
-  of actionUpdate:
+  of actionRefresh:
     update(options)
   of actionInstall:
     let (_, pkgInfo) = install(options.action.packages, options)
