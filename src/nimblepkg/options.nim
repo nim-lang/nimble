@@ -18,7 +18,7 @@ type
     pkgInfoCache*: TableRef[string, PackageInfo]
 
   ActionType* = enum
-    actionNil, actionUpdate, actionInit, actionDump, actionPublish,
+    actionNil, actionRefresh, actionInit, actionDump, actionPublish,
     actionInstall, actionSearch,
     actionList, actionBuild, actionPath, actionUninstall, actionCompile,
     actionCustom, actionTasks, actionVersion
@@ -27,7 +27,7 @@ type
     case typ*: ActionType
     of actionNil, actionList, actionBuild, actionPublish, actionTasks,
        actionVersion: nil
-    of actionUpdate:
+    of actionRefresh:
       optionalURL*: string # Overrides default package list.
     of actionInstall, actionPath, actionUninstall:
       packages*: seq[PkgTuple] # Optional only for actionInstall.
@@ -111,7 +111,7 @@ proc parseActionType*(action: string): ActionType =
   of "dump":
     result = actionDump
   of "update", "refresh":
-    result = actionUpdate
+    result = actionRefresh
   of "search":
     result = actionSearch
   of "list":
@@ -141,7 +141,7 @@ proc initAction*(options: var Options, key: string) =
     options.action.projName = ""
   of actionDump:
     options.action.projName = ""
-  of actionUpdate:
+  of actionRefresh:
     options.action.optionalURL = ""
   of actionSearch:
     options.action.search = @[]
@@ -215,7 +215,7 @@ proc parseArgument*(key: string, result: var Options) =
       result.action.packages.add(pkgTup)
     else:
       result.action.packages.add((key, VersionRange(kind: verAny)))
-  of actionUpdate:
+  of actionRefresh:
     result.action.optionalURL = key
   of actionSearch:
     result.action.search.add(key)
