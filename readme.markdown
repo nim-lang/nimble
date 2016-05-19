@@ -3,9 +3,49 @@
 Nimble is a *beta*-grade *package manager* for the [Nim programming
 language](http://nim-lang.org).
 
-
 Interested in learning **how to create a package**? Skip directly to that section
 [here](#creating-packages).
+
+## Contents
+
+- [Installation](#installation)
+	- [Unix](#unix)
+	- [Windows](#windows)
+		- [Using the pre-built archives](#using-the-pre-built-archives)
+		- [From source](#from-source)
+- [Nimble's folder structure and packages](#nimbles-folder-structure-and-packages)
+- [Nimble usage](#nimble-usage)
+	- [nimble refresh](#nimble-refresh)
+	- [nimble install](#nimble-install)
+	- [nimble uninstall](#nimble-uninstall)
+	- [nimble build](#nimble-build)
+	- [nimble c](#nimble-c)
+	- [nimble list](#nimble-list)
+	- [nimble search](#nimble-search)
+	- [nimble path](#nimble-path)
+	- [nimble init](#nimble-init)
+	- [nimble publish](#nimble-publish)
+	- [nimble tasks](#nimble-tasks)
+	- [nimble dump](#nimble-dump)
+- [Configuration](#configuration)
+- [Creating Packages](#creating-packages)
+	- [The new NimScript format](#the-new-nimscript-format)
+	- [Libraries](#libraries)
+	- [Binary packages](#binary-packages)
+	- [Hybrids](#hybrids)
+	- [Dependencies](#dependencies)
+	- [Nim compiler](#nim-compiler)
+	- [Versions](#versions)
+- [Submitting your package to the package list.](#submitting-your-package-to-the-package-list)
+- [.nimble reference](#nimble-reference)
+	- [[Package]](#package)
+		- [Required](#required)
+		- [Optional](#optional)
+	- [[Deps]/[Dependencies]](#depsdependencies)
+		- [Optional](#optional)
+- [Troubleshooting](#troubleshooting)
+- [Contribution](#contribution)
+- [About](#about)
 
 ## Installation
 
@@ -647,7 +687,7 @@ their own packages to it! Take a look at
 
 ## Troubleshooting
 
-* "SSL support is not available. Cannot connect over SSL. [HttpRequestError]"
+* ```SSL support is not available. Cannot connect over SSL. [HttpRequestError]```
 
 Make sure that nimble is configured to run with SSL, adding a ```-d:ssl```
 flag to the file ```src/nimble.nim.cfg```.  
