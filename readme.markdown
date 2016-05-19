@@ -4,7 +4,9 @@ Nimble is a *beta*-grade *package manager* for the [Nim programming
 language](http://nim-lang.org).
 
 Interested in learning **how to create a package**? Skip directly to that section
-[here](#creating-packages).<!-- TOC depthFrom:1 depthTo:6 withLinks:1 updateOnSave:1 orderedList:0 -->
+[here](#creating-packages).
+
+## Contents
 
 - [Installation](#installation)
 	- [Unix](#unix)
@@ -44,8 +46,6 @@ Interested in learning **how to create a package**? Skip directly to that sectio
 - [Troubleshooting](#troubleshooting)
 - [Contribution](#contribution)
 - [About](#about)
-
-<!-- /TOC -->
 
 ## Installation
 
