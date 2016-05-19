@@ -4,50 +4,50 @@ Nimble is a *beta*-grade *package manager* for the [Nim programming
 language](http://nim-lang.org).
 
 Interested in learning **how to create a package**? Skip directly to that section
-[here](#creating-packages).
+[here](#creating-packages).<!-- TOC depthFrom:1 depthTo:6 withLinks:1 updateOnSave:1 orderedList:0 -->
 
-## Contents
+- [Installation](#installation)
+	- [Unix](#unix)
+	- [Windows](#windows)
+		- [Using the pre-built archives](#using-the-pre-built-archives)
+		- [From source](#from-source)
+- [Nimble's folder structure and packages](#nimbles-folder-structure-and-packages)
+- [Nimble usage](#nimble-usage)
+	- [nimble refresh](#nimble-refresh)
+	- [nimble install](#nimble-install)
+	- [nimble uninstall](#nimble-uninstall)
+	- [nimble build](#nimble-build)
+	- [nimble c](#nimble-c)
+	- [nimble list](#nimble-list)
+	- [nimble search](#nimble-search)
+	- [nimble path](#nimble-path)
+	- [nimble init](#nimble-init)
+	- [nimble publish](#nimble-publish)
+	- [nimble tasks](#nimble-tasks)
+	- [nimble dump](#nimble-dump)
+- [Configuration](#configuration)
+- [Creating Packages](#creating-packages)
+	- [The new NimScript format](#the-new-nimscript-format)
+	- [Libraries](#libraries)
+	- [Binary packages](#binary-packages)
+	- [Hybrids](#hybrids)
+	- [Dependencies](#dependencies)
+	- [Nim compiler](#nim-compiler)
+	- [Versions](#versions)
+- [Submitting your package to the package list.](#submitting-your-package-to-the-package-list)
+- [.nimble reference](#nimble-reference)
+	- [[Package]](#package)
+		- [Required](#required)
+		- [Optional](#optional)
+	- [[Deps]/[Dependencies]](#depsdependencies)
+		- [Optional](#optional)
+- [Troubleshooting](#troubleshooting)
+- [Contribution](#contribution)
+- [About](#about)
 
-* [Installation](#installation)
-  * [Unix](#installation_unix)
-  * [Windows](#installation_windows)
-    * [Using the pre-built archives](#inst_win_pre)
-    * [From source](#inst_win_source)
-* [Nimble's folder structure and packages](#nimble_struct)
-* [Nimble usage](#nimble_usage)
-  * [refresh](#nimble_refresh_u)
-  * [install](#nimble_install_u)
-  * [uninstall](#nimble_uninstall_u)
-  * [build](#nimble_build_u)
-  * [c](#nimble_c_u)
-  * [list](#nimble_list_u)
-  * [search](#nimble_search_u)
-  * [path](#nimble_path_u)
-  * [init](#nimble_init_u)
-  * [publish](#nimble_publish_u)
-  * [tasks](#nimble_tasks_u)
-  * [dump](#nimble_dump_u)
-* [Configuration](#configuration)
-* [Creating packages](#creating_packages)
-  * [Nimscript format](#nimscript_format)
-  * [Libraries](#libraries)
-  * [Binary packages](#binary_packages)
-  * [Hybrids](#hybrids)
-  * [Dependencies](#dependencies)
-  * [Nim compiler](#nim_compiler)
-  * [Versions](#versions)
-* [Submitting your package to the package list](#submitting)
-* [```.nimble``` reference](#nimble_reference)
-  * [\[Package\]](#package)
-    * [Required](#required)
-    * [Optional](#package_optional)
-  * [\[Dependencies\]](#deps)
-    * [Optional](#deps_optional)
-* [Troubleshooting](#troubleshooting)
-* [Contribution](#contribution)
-* [About](#about)
+<!-- /TOC -->
 
-## <a name="installation"></a>Installation
+## Installation
 
 The latest version of Nimble (in the master branch) is primarily tested with
 the latest version of the Nim compiler (in the devel branch). You can be sure
@@ -78,7 +78,7 @@ info.
 The following sections give platform-specific instructions on how to
 compile and install Nimble.
 
-### <a href="installation_unix"></a>Unix
+### Unix
 
 On Unix-like operating systems Nimble can be compiled and installed with two
 simple
@@ -95,14 +95,14 @@ in ``~/.nimble/bin``. You must then add
 ``~/.nimble/bin`` to your ``$PATH``. Updating nimble can then be done by
 executing ``nimble install nimble``.
 
-### <a href="installation_windows"></a>Windows
+### Windows
 
 You can install Nimble via a pre-built installation archive which is
 available on the [releases](https://github.com/nim-lang/nimble/releases) page.
 Alternatively, you can also install Nimble from source, but the instructions
 for doing so are a bit different on Windows.
 
-#### <a href="inst_win_pre"></a>Using the pre-built archives
+#### Using the pre-built archives
 
 Download the latest release archive from the
 [releases](https://github.com/nim-lang/nimble/releases) page. These archives
@@ -114,7 +114,7 @@ One important thing to note is that this installation requires you have
 the Nim compiler in your PATH. Once the installation completes you should
 add ``C:\Users\YourName\.nimble\bin`` to your PATH.
 
-#### <a href="inst_win_source"></a>From source
+#### From source
 
 On Windows installing Nimble from source is slightly more complex:
 
@@ -129,8 +129,7 @@ during installation Nimble recompiles itself causing an error.
 Once the installation completes you should
 add ``C:\Users\YourName\.nimble\bin`` to your PATH.
 
-## <a href="nimble_struct"></a>Nimble's folder structure
-and packages
+## Nimble's folder structure and packages
 
 Nimble stores everything that has been installed in ``~/.nimble`` on Unix systems
 and in your ``$home/.nimble`` on Windows. Libraries are stored in
@@ -143,12 +142,12 @@ However, some Nimble packages can provide additional tools or commands. If you
 don't add their location (``$nimbleDir/bin``) to your ``$PATH`` they will not
 work properly and you won't be able to run them.
 
-## <a href="nimble_usage"></a>Nimble usage
+## Nimble usage
 
 Once you have Nimble installed on your system you can run the ``nimble`` command
 to obtain a list of available commands.
 
-### <a href="nimble_refresh_u"></a>nimble refresh
+### nimble refresh
 
 The ``refresh`` command is used to fetch and update the list of Nimble packages
 (see below). There is no automatic update mechanism, so you need to run this
@@ -168,7 +167,7 @@ a third-party package list.
 Package lists can be specified in Nimble's config. Take a look at the
 config section below to see how to do this.
 
-### <a href="nimble_install_u"></a>nimble install
+### nimble install
 
 The ``install`` command will download and install a package. You need to pass
 the name of the package (or packages) you want to install. If any of the
@@ -211,7 +210,7 @@ list. See the [Creating Packages](#creating-packages) section for more info on t
 A URL to a repository can also be specified, Nimble will automatically detect
 the type of the repository that the url points to and install it.
 
-### <a href="nimble_uninstall_u"></a>nimble uninstall
+### nimble uninstall
 
 The ``uninstall`` command will remove an installed package. Attempting to remove
 a package which other packages depend on is disallowed and will result in an
@@ -221,14 +220,14 @@ Similar to the ``install`` command you can specify a version range, for example:
 
     $ nimble uninstall nimgame@0.5
 
-### <a href="nimble_build_u"></a>nimble build
+### nimble build
 
 The ``build`` command is mostly used by developers who want to test building
 their ``.nimble`` package. This command will build the package in debug mode,
 without installing anything. The ``install`` command will build the package
 in release mode instead.
 
-### <a href="nimble_c_u"></a>nimble c
+### nimble c
 
 The ``c`` (or ``compile``, ``js``, ``cc``, ``cpp``) command can be used by
 developers to compile individual modules inside their package. All options
@@ -238,7 +237,7 @@ Nimble will use the backend specified in the package's ``.nimble`` file if
 the command ``c`` or ``compile`` is specified. The more specific ``js``, ``cc``,
 ``cpp`` can be used to override that.
 
-### <a href="nimble_list_u"></a>nimble list
+### nimble list
 
 The ``list`` command will display the known list of packages available for
 Nimble. An optional ``--ver`` parameter can be specified to tell Nimble to
@@ -246,7 +245,7 @@ query remote git repositories for the list of versions of the packages and to
 then print the versions. Please note however that this can be slow as each
 package must be queried separately.
 
-### <a href="nimble_search_u"></a>nimble search
+### nimble search
 
 If you don't want to go through the whole output of the ``list`` command you
 can use the ``search`` command specifying as parameters the package name and/or
@@ -274,7 +273,7 @@ query remote git repositories for the list of versions of the packages and to
 then print the versions. Please note however that this can be slow as each
 package must be queried separately.
 
-### <a href="nimble_path_u"></a>nimble path
+### nimble path
 
 The nimble ``path`` command will show the absolute path to the installed
 packages matching the specified parameters. Since there can be many versions of
@@ -292,7 +291,7 @@ which can be useful to read the bundled documentation. Example:
     $ cd `nimble path argument_parser`
     $ less README.md
 
-### <a href="nimble_init_u"></a>nimble init
+### nimble init
 
 The nimble ``init`` command will start a simple wizard which will create
 a quick ``.nimble`` file for your project.
@@ -301,25 +300,25 @@ As of version 0.7.0, the ``.nimble`` file that this command creates will
 use the new NimScript format.
 Check out the [Creating Packages](#creating-packages) section for more info.
 
-### <a href="nimble_publish_u"></a>nimble publish
+### nimble publish
 
 Publishes your Nimble package to the official Nimble package repository.
 
 **Note:** Requires a valid Github account.
 
-### <a href="nimble_tasks_u"></a>nimble tasks
+### nimble tasks
 
 For a nimble package in the current working directory, list the tasks which that
 package defines. This is only supported for packages utilising the new
 nimscript .nimble files.
 
-### <a href="nimble_dump_u"></a>nimble dump
+### nimble dump
 
 Outputs information about the package in the current working directory in
 an ini-compatible format. Useful for tools wishing to read metadata about
 Nimble packages who do not want to use the NimScript evaluator.
 
-## <a href="configuration"></a>Configuration
+## Configuration
 
 At startup Nimble will attempt to read ``~/.config/nimble/nimble.ini`` on Linux
 (on Windows it will attempt to read
@@ -358,7 +357,7 @@ You can currently configure the following in this file:
   environment variables.
   **Default: ""**
 
-## <a href="creating_packages"></a>Creating Packages
+## Creating Packages
 
 Nimble works on git repositories as its primary source of packages. Its list of
 packages is stored in a JSON file which is freely accessible in the
@@ -402,7 +401,7 @@ Nimble currently supports installation of packages from a local directory, a
 git repository and a mercurial repository. The .nimble file must be present in
 the root of the directory or repository being installed.
 
-### <a href="nimscript_format"></a>The new NimScript format
+### The new NimScript format
 
 **Warning:** This feature is still very experimental. You are encouraged to
 try it, but be aware that it may change significantly in the future or
@@ -484,7 +483,7 @@ also return ``false`` from these blocks to stop further execution.
 The ``nimscriptapi.nim`` module specifies this and includes other definitions
 which are also useful. Take a look at it for more information.
 
-### <a href="libraries"></a>Libraries
+### Libraries
 
 Library packages are likely the most popular form of Nimble packages. They are
 meant to be used by other library packages or the ultimate binary packages.
@@ -524,7 +523,7 @@ Directories and files can also be specified on a *whitelist* basis, if you
 specify either of ``InstallDirs``, ``InstallFiles`` or ``InstallExt`` then
 Nimble will **only** install the files specified.
 
-### <a href="binary_packages"></a>Binary packages
+### Binary packages
 
 These are application packages which require building prior to installation.
 A package is automatically a binary package as soon as it sets at least one
@@ -550,7 +549,7 @@ package you should ensure that the dependencies you specified are correct.
 You can do this by running ``nimble build`` or ``nimble install`` in the directory
 of your package.
 
-### <a href="hybrids"></a>Hybrids
+### Hybrids
 
 One thing to note about library and binary package hybrids is that your binary
 may share the name of the package. This will mean that you will
@@ -562,7 +561,7 @@ The current
 convention to get around this problem is to append ``pkg`` to the name as is
 done for nimble.
 
-### <a href="dependencies"></a>Dependencies
+### Dependencies
 
 Dependencies are specified under the ``[Deps]`` section in a nimble file.
 The ``requires`` key field is used to specify them. For example:
@@ -589,7 +588,7 @@ These have to be concrete however. This is done with the ``#`` character,
 for example: ``jester#head``. Which will make your package depend on the
 latest commit of Jester.
 
-### <a href="nim_compiler"></a>Nim compiler
+### Nim compiler
 
 The Nim compiler cannot read .nimble files. Its knowledge of Nimble is
 limited to the ``nimblePaths`` feature which allows it to use packages installed
@@ -605,7 +604,7 @@ This means that you can safely compile using the compiler when developing your
 software, but you should use nimble to build the package before publishing it
 to ensure that the dependencies you specified are correct.
 
-### <a href="versions"></a>Versions
+### Versions
 
 Versions of cloned packages via git or mercurial are determined through the
 repository's *tags*.
@@ -621,17 +620,17 @@ package after checking out the latest version.
 You can force the installation of the HEAD of the repository by specifying
 ``#head`` after the package name in your dependency list.
 
-## <a href="submitting"></a>Submitting your package to the package list
+## Submitting your package to the package list.
 
 Nimble's packages list is stored on github and everyone is encouraged to add
 their own packages to it! Take a look at
 [nim-lang/packages](https://github.com/nim-lang/packages) to learn more.
 
-## <a href="nimble_reference"></a>```.nimble``` reference
+## .nimble reference
 
-### <a href="package"></a>[Package]
+### [Package]
 
-#### <a href="required"></a>Required
+#### Required
 
 * ``name`` - The name of the package. *(This is not required in the new NimScript format)*
 * ``version`` - The *current* version of this package. This should be incremented
@@ -640,7 +639,7 @@ their own packages to it! Take a look at
 * ``description`` - A string describing the package.
 * ``license`` - The name of the license in which this package is licensed under.
 
-#### <a href="package_optional"></a>Optional
+#### Optional
 
 * ``SkipDirs`` - A list of directory names which should be skipped during
   installation, separated by commas.
@@ -677,16 +676,16 @@ their own packages to it! Take a look at
   ``js``.
   **Default**: c
 
-### <a href="deps"></a>[Deps]/[Dependencies]
+### [Deps]/[Dependencies]
 
-#### <a href="deps_optional"></a>Optional
+#### Optional
 
 * ``requires`` - Specified a list of package names with an optional version
   range separated by commas.
   **Example**: ``nim >= 0.10.0, jester``; with this value your package will
   depend on ``nim`` version 0.10.0 or greater and on any version of ``jester``.
 
-## <a href="troubleshooting"></a>Troubleshooting
+## Troubleshooting
 
 * ```SSL support is not available. Cannot connect over SSL. [HttpRequestError]```
 
@@ -695,7 +694,7 @@ flag to the file ```src/nimble.nim.cfg```.
 After that, you can run ```src/nimble install``` and overwrite the existing
 installation.
 
-## <a href="contribution"></a>Contribution
+## Contribution
 
 If you would like to help, feel free to fork and make any additions you see fit
 and then send a pull request.
@@ -704,7 +703,7 @@ If you have any questions about the project you can ask me directly on github,
 ask on the Nim [forum](http://forum.nim-lang.org), or ask on Freenode in
 the #nim channel.
 
-## <a href="about"></a>About
+## About
 
 Nimble has been written by [Dominik Picheta](http://picheta.me/) with help from
 a number of
