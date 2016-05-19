@@ -645,6 +645,15 @@ their own packages to it! Take a look at
   **Example**: ``nim >= 0.10.0, jester``; with this value your package will
   depend on ``nim`` version 0.10.0 or greater and on any version of ``jester``.
 
+## Troubleshooting
+
+* "SSL support is not available. Cannot connect over SSL. [HttpRequestError]"
+
+Make sure that nimble is configured to run with SSL, adding a ```-d:ssl```
+flag to the file ```src/nimble.nim.cfg```.  
+After that, you can run ```src/nimble install``` and overwrite the existing
+installation.
+
 ## Contribution
 
 If you would like to help, feel free to fork and make any additions you see fit
