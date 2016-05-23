@@ -363,101 +363,106 @@ proc installFromDir(dir: string, latest: bool, options: Options,
   let realDir = pkgInfo.getRealDir()
   let binDir = options.getBinDir()
   let pkgsDir = options.getPkgsDir()
+  var deps_options = options
+  deps_options.depsOnly = false
+
   # Dependencies need to be processed before the creation of the pkg dir.
-  result.paths = processDeps(pkginfo, options)
+  result.paths = processDeps(pkginfo, deps_options)
 
-  echo("Installing ", pkginfo.name, "-", pkginfo.version)
+  if not options.depsOnly:
+    echo("Installing ", pkginfo.name, "-", pkginfo.version)
 
-  # Build before removing an existing package (if one exists). This way
-  # if the build fails then the old package will still be installed.
-  if pkgInfo.bin.len > 0: buildFromDir(pkgInfo, result.paths, true)
+    # Build before removing an existing package (if one exists). This way
+    # if the build fails then the old package will still be installed.
+    if pkgInfo.bin.len > 0: buildFromDir(pkgInfo, result.paths, true)
 
-  let versionStr = (if latest: "" else: '-' & pkgInfo.version)
-  let pkgDestDir = pkgsDir / (pkgInfo.name & versionStr)
-  if existsDir(pkgDestDir) and existsFile(pkgDestDir / "nimblemeta.json"):
-    if not options.prompt(pkgInfo.name & versionStr &
-          " already exists. Overwrite?"):
-      quit(QuitSuccess)
-    removePkgDir(pkgDestDir, options)
-    # Remove any symlinked binaries
-    for bin in pkgInfo.bin:
-      # TODO: Check that this binary belongs to the package being installed.
-      when defined(windows):
-        removeFile(binDir / bin.changeFileExt("cmd"))
-        removeFile(binDir / bin.changeFileExt(""))
-        # TODO: Remove this later.
-        # Remove .bat file too from previous installs.
-        removeFile(binDir / bin.changeFileExt("bat"))
-      else:
-        removeFile(binDir / bin)
+    let versionStr = (if latest: "" else: '-' & pkgInfo.version)
+    let pkgDestDir = pkgsDir / (pkgInfo.name & versionStr)
+    if existsDir(pkgDestDir) and existsFile(pkgDestDir / "nimblemeta.json"):
+      if not options.prompt(pkgInfo.name & versionStr &
+            " already exists. Overwrite?"):
+        quit(QuitSuccess)
+      removePkgDir(pkgDestDir, options)
+      # Remove any symlinked binaries
+      for bin in pkgInfo.bin:
+        # TODO: Check that this binary belongs to the package being installed.
+        when defined(windows):
+          removeFile(binDir / bin.changeFileExt("cmd"))
+          removeFile(binDir / bin.changeFileExt(""))
+          # TODO: Remove this later.
+          # Remove .bat file too from previous installs.
+          removeFile(binDir / bin.changeFileExt("bat"))
+        else:
+          removeFile(binDir / bin)
 
-  ## Will contain a list of files which have been installed.
-  var filesInstalled: HashSet[string]
+    ## Will contain a list of files which have been installed.
+    var filesInstalled: HashSet[string]
 
-  createDir(pkgDestDir)
-  if pkgInfo.bin.len > 0:
-    createDir(binDir)
-    # Copy all binaries and files that are not skipped
-    filesInstalled = copyFilesRec(realDir, realDir, pkgDestDir, options,
-                                  pkgInfo)
-    # Set file permissions to +x for all binaries built,
-    # and symlink them on *nix OS' to $nimbleDir/bin/
-    for bin in pkgInfo.bin:
-      if not existsFile(pkgDestDir / bin):
-        filesInstalled.incl copyFileD(pkgInfo.getOutputDir(bin),
-            pkgDestDir / bin)
+    createDir(pkgDestDir)
+    if pkgInfo.bin.len > 0:
+      createDir(binDir)
+      # Copy all binaries and files that are not skipped
+      filesInstalled = copyFilesRec(realDir, realDir, pkgDestDir, options,
+                                    pkgInfo)
+      # Set file permissions to +x for all binaries built,
+      # and symlink them on *nix OS' to $nimbleDir/bin/
+      for bin in pkgInfo.bin:
+        if not existsFile(pkgDestDir / bin):
+          filesInstalled.incl copyFileD(pkgInfo.getOutputDir(bin),
+              pkgDestDir / bin)
 
-      let currentPerms = getFilePermissions(pkgDestDir / bin)
-      setFilePermissions(pkgDestDir / bin, currentPerms + {fpUserExec})
-      let cleanBin = bin.extractFilename
-      when defined(unix):
-        # TODO: Verify that we are removing an old bin of this package, not
-        # some other package's binary!
-        if existsFile(binDir / cleanBin): removeFile(binDir / cleanBin)
-        echo("Creating symlink: ", pkgDestDir / bin, " -> ", binDir / cleanBin)
-        createSymlink(pkgDestDir / bin, binDir / cleanBin)
-      elif defined(windows):
-        # There is a bug on XP, described here:
-        # http://stackoverflow.com/questions/2182568/batch-script-is-not-executed-if-chcp-was-called
-        # But this workaround brokes code page on newer systems, so we need to detect OS version
-        var osver = OSVERSIONINFO()
-        osver.dwOSVersionInfoSize = cast[DWORD](sizeof(OSVERSIONINFO))
-        if GetVersionExA(osver) == WINBOOL(0):
-          raise newException(NimbleError,
-            "Can't detect OS version: GetVersionExA call failed")
-        let fixChcp = osver.dwMajorVersion <= 5
+        let currentPerms = getFilePermissions(pkgDestDir / bin)
+        setFilePermissions(pkgDestDir / bin, currentPerms + {fpUserExec})
+        let cleanBin = bin.extractFilename
+        when defined(unix):
+          # TODO: Verify that we are removing an old bin of this package, not
+          # some other package's binary!
+          if existsFile(binDir / cleanBin): removeFile(binDir / cleanBin)
+          echo("Creating symlink: ", pkgDestDir / bin, " -> ", binDir / cleanBin)
+          createSymlink(pkgDestDir / bin, binDir / cleanBin)
+        elif defined(windows):
+          # There is a bug on XP, described here:
+          # http://stackoverflow.com/questions/2182568/batch-script-is-not-executed-if-chcp-was-called
+          # But this workaround brokes code page on newer systems, so we need to detect OS version
+          var osver = OSVERSIONINFO()
+          osver.dwOSVersionInfoSize = cast[DWORD](sizeof(OSVERSIONINFO))
+          if GetVersionExA(osver) == WINBOOL(0):
+            raise newException(NimbleError,
+              "Can't detect OS version: GetVersionExA call failed")
+          let fixChcp = osver.dwMajorVersion <= 5
 
-        let dest = binDir / cleanBin.changeFileExt("cmd")
-        echo("Creating stub: ", pkgDestDir / bin, " -> ", dest)
-        var contents = "@"
-        if options.config.chcp:
-          if fixChcp:
-            contents.add "chcp 65001 > nul && "
-          else: contents.add "chcp 65001 > nul\n@"
-        contents.add "\"" & pkgDestDir / bin & "\" %*\n"
-        writeFile(dest, contents)
-        # For bash on Windows (Cygwin/Git bash).
-        let bashDest = dest.changeFileExt("")
-        echo("Creating Cygwin stub: ", pkgDestDir / bin, " -> ", bashDest)
-        writeFile(bashDest, "\"$(cygpath '" & pkgDestDir / bin & "')\" \"$@\"\l")
-      else:
-        {.error: "Sorry, your platform is not supported.".}
-  else:
-    filesInstalled = copyFilesRec(realDir, realDir, pkgDestDir, options,
-                                  pkgInfo)
+          let dest = binDir / cleanBin.changeFileExt("cmd")
+          echo("Creating stub: ", pkgDestDir / bin, " -> ", dest)
+          var contents = "@"
+          if options.config.chcp:
+            if fixChcp:
+              contents.add "chcp 65001 > nul && "
+            else: contents.add "chcp 65001 > nul\n@"
+          contents.add "\"" & pkgDestDir / bin & "\" %*\n"
+          writeFile(dest, contents)
+          # For bash on Windows (Cygwin/Git bash).
+          let bashDest = dest.changeFileExt("")
+          echo("Creating Cygwin stub: ", pkgDestDir / bin, " -> ", bashDest)
+          writeFile(bashDest, "\"$(cygpath '" & pkgDestDir / bin & "')\" \"$@\"\l")
+        else:
+          {.error: "Sorry, your platform is not supported.".}
+    else:
+      filesInstalled = copyFilesRec(realDir, realDir, pkgDestDir, options,
+                                    pkgInfo)
 
-  # Save a nimblemeta.json file.
-  saveNimbleMeta(pkgDestDir, url, filesInstalled)
+    # Save a nimblemeta.json file.
+    saveNimbleMeta(pkgDestDir, url, filesInstalled)
 
-  # Save the nimble data (which might now contain reverse deps added in
-  # processDeps).
-  saveNimbleData(options)
+    # Save the nimble data (which might now contain reverse deps added in
+    # processDeps).
+    saveNimbleData(options)
 
-  # Return the paths to the dependencies of this package.
-  result.paths.add pkgDestDir
+    echo(pkgInfo.name & " installed successfully.")
+    # Return the paths to the dependencies of this package.
+    result.paths.add pkgDestDir
+
   result.pkg = pkgInfo
 
-  echo(pkgInfo.name & " installed successfully.")
 
 proc getNimbleTempDir(): string =
   ## Returns a path to a temporary directory.
