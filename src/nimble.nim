@@ -363,8 +363,15 @@ proc installFromDir(dir: string, latest: bool, options: Options,
   let realDir = pkgInfo.getRealDir()
   let binDir = options.getBinDir()
   let pkgsDir = options.getPkgsDir()
+  var deps_options = options
+  deps_options.depsOnly = false
+
   # Dependencies need to be processed before the creation of the pkg dir.
-  result.paths = processDeps(pkginfo, options)
+  result.paths = processDeps(pkginfo, deps_options)
+
+  if options.depsOnly:
+    result.pkg = pkgInfo
+    return result
 
   echo("Installing ", pkginfo.name, "-", pkginfo.version)
 

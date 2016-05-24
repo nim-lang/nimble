@@ -10,6 +10,7 @@ import nimblepkg/config, nimblepkg/version,
 type
   Options* = object
     forcePrompts*: ForcePrompt
+    depsOnly*: bool
     queryVersions*: bool
     queryInstalled*: bool
     action*: Action
@@ -83,6 +84,7 @@ Options:
       --ver                       Query remote server for package version
                                   information when searching or listing packages
       --nimbleDir dirname         Set the Nimble directory.
+  -d  --depsOnly                  Install only dependencies.
 
 For more information read the Github readme:
   https://github.com/nim-lang/nimble#readme
@@ -254,6 +256,7 @@ proc parseFlag*(flag, val: string, result: var Options) =
     of "ver": result.queryVersions = true
     of "nimbledir": result.config.nimbleDir = val # overrides option from file
     of "installed", "i": result.queryInstalled = true
+    of "depsOnly", "d": result.depsOnly = true
     else:
       raise newException(NimbleError, "Unknown option: --" & flag)
 
