@@ -4,8 +4,7 @@
 import json, strutils, os, parseopt, strtabs, uri, tables
 from httpclient import Proxy, newProxy
 
-import nimblepkg/config, nimblepkg/version,
-       nimblepkg/tools, nimblepkg/nimbletypes
+import config, version, tools, nimbletypes
 
 type
   Options* = object
