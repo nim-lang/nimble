@@ -524,7 +524,11 @@ proc getDownloadInfo*(pv: PkgTuple, options: Options,
           options.prompt(pv.name & " not found in any local packages.json, " &
                          "check internet for updated packages?"):
         update(options)
-        return getDownloadInfo(pv, options, doPrompt)
+
+        # Once we've updated, try again, but don't prompt if not found
+        # (as we've already updated and a failure means it really
+        # isn't there)
+        return getDownloadInfo(pv, options, false)
       else:
         raise newException(NimbleError, "Package not found.")
 
