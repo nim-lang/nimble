@@ -1,6 +1,6 @@
 # Package
 
-version       = "0.7.0"
+version       = "0.7.4"
 author        = "Dominik Picheta"
 description   = "Nim package manager."
 license       = "BSD"
@@ -10,7 +10,7 @@ srcDir = "src"
 
 # Dependencies
 
-requires "nim >= 0.12.1"
+requires "nim >= 0.13.0"
 
 task tests, "Run the Nimble tester!":
   withDir "tests":

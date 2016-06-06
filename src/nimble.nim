@@ -31,7 +31,7 @@ else:
     dynlib: "kernel32", importc: "GetVersionExA".}
 
 const
-  nimbleVersion = "0.7.0"
+  nimbleVersion = "0.7.4"
 
 proc writeVersion() =
   echo("nimble v$# compiled at $# $#" %
