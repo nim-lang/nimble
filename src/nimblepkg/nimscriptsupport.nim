@@ -192,12 +192,17 @@ proc findNimscriptApi(options: Options): string =
   if not inPath:
     raise newException(NimbleError, "Cannot find nimscriptapi.nim")
 
+proc getNimPrefixDir(): string = splitPath(findExe("nim")).head.parentDir
+
 proc execScript(scriptName: string, flags: StringTableRef, options: Options) =
   ## Executes the specified script.
   ##
   ## No clean up is performed and must be done manually!
   if "nimblepkg/nimscriptapi" notin compiler_options.implicitIncludes:
     compiler_options.implicitIncludes.add("nimblepkg/nimscriptapi")
+
+  # Ensure the compiler can find its standard library #220.
+  compiler_options.gPrefixDir = getNimPrefixDir()
 
   let pkgName = scriptName.splitFile.name
 
