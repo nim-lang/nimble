@@ -29,9 +29,9 @@ proc initConfig(): Config =
 
   result.packageLists = initTable[string, PackageList]()
   let defaultPkgList = PackageList(name: "Official", urls: @[
+    "https://github.com/nim-lang/packages/raw/master/packages.json",
     "http://irclogs.nim-lang.org/packages.json",
-    "http://nim-lang.org/nimble/packages.json",
-    "https://github.com/nim-lang/packages/raw/master/packages.json"
+    "http://nim-lang.org/nimble/packages.json"
   ])
   result.packageLists["official"] = defaultPkgList
 
@@ -54,7 +54,7 @@ proc parseConfig*(): Config =
     f = newFileStream(confFile, fmRead)
     if f != nil:
       echo("[Warning] Using deprecated config file at ", confFile)
-  
+
   if f != nil:
     echo("Reading from config file at ", confFile)
     var p: CfgParser
