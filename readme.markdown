@@ -54,12 +54,8 @@ the latest version of the Nim compiler (in the devel branch). You can be sure
 that Nimble will compile with that version of the compiler (a green travis
 build status is also a good sign that this is the case).
 
-The latest version of Nimble (0.7.0) requires a version of Nim greater than
-0.12.0. The latest version of Nimble which can be compiled using Nim
-0.12.0 is 0.6.4.
-Unfortunately, it is likely that you have the latest *release* of Nim
-installed, 0.12.0 at the time of writing. So you will need to install
-version 0.6.4 of Nimble.
+The latest version of Nimble (0.7.4) requires a version of Nim greater than
+or equal to 0.13.0. That being said, the latest version of Nim is recommended.
 
 Nimble has some runtime dependencies on external tools, these tools are
 used to download Nimble packages.
@@ -87,8 +83,7 @@ the following commands to clone nimble, compile it and then install it.
 
     git clone https://github.com/nim-lang/nimble.git
     cd nimble
-    git clone -b v0.13.0 --depth 1 https://github.com/nim-lang/nim vendor/nim
-    nim -d:release c -r src/nimble install
+    nim -d:release c -r src/nimble -y install
 
 After these steps are completed successfully, nimble will be installed
 in ``~/.nimble/bin``. You must then add
@@ -690,7 +685,7 @@ their own packages to it! Take a look at
 * ```SSL support is not available. Cannot connect over SSL. [HttpRequestError]```
 
 Make sure that nimble is configured to run with SSL, adding a ```-d:ssl```
-flag to the file ```src/nimble.nim.cfg```.  
+flag to the file ```src/nimble.nim.cfg```.
 After that, you can run ```src/nimble install``` and overwrite the existing
 installation.
 
