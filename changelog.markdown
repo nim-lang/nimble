@@ -1,5 +1,26 @@
 # Nimble changelog
 
+## 0.7.4 - 06/06/2016
+
+This release is mainly a bug fix release. The installation problems
+introduced by v0.7.0 should now be fixed.
+
+* Fixed symlink install issue
+  (Thank you [@yglukhov](https://github.com/yglukhov)).
+* Fixed permission issue when installing packages
+  (Thank you [@SSPkrolik](https://github.com/SSPkrolik)).
+* Work around for issue #204.
+  (Thank you [@Jeff-Ciesielski](https://github.com/Jeff-Ciesielski)).
+* Fixed FD leak.
+  (Thank you [@yglukhov](https://github.com/yglukhov)).
+* Implemented the ``--depsOnly`` option for the ``install`` command.
+* Various fixes to installation/nimscript support problems introduced by
+v0.7.0.
+
+----
+
+Full changelog: https://github.com/nim-lang/nimble/compare/v0.7.2...v0.7.4
+
 ## 0.7.2 - 11/02/2016
 
 This is a hotfix release which alleviates problems when building Nimble.
