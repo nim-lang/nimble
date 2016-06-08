@@ -255,7 +255,7 @@ proc parseFlag*(flag, val: string, result: var Options) =
     of "ver": result.queryVersions = true
     of "nimbledir": result.config.nimbleDir = val # overrides option from file
     of "installed", "i": result.queryInstalled = true
-    of "depsOnly", "d": result.depsOnly = true
+    of "depsonly", "d": result.depsOnly = true
     else:
       raise newException(NimbleError, "Unknown option: --" & flag)
 
