@@ -106,10 +106,11 @@ proc incl*(s: var HashSet[string], v: seq[string] | HashSet[string]) =
   for i in v:
     s.incl i
 
-proc contains*(j: JsonNode, elem: JsonNode): bool =
-  for i in j:
-    if i == elem:
-      return true
+when not declared(json.contains):
+  proc contains*(j: JsonNode, elem: JsonNode): bool =
+    for i in j:
+      if i == elem:
+        return true
 
 proc contains*(j: JsonNode, elem: tuple[key: string, val: JsonNode]): bool =
   for key, val in pairs(j):
