@@ -83,6 +83,7 @@ the following commands to clone nimble, compile it and then install it.
 
     git clone https://github.com/nim-lang/nimble.git
     cd nimble
+    git clone -b v0.14.2 --depth 1 https://github.com/nim-lang/nim vendor/nim
     nim -d:release c -r src/nimble -y install
 
 After these steps are completed successfully, nimble will be installed
