@@ -74,28 +74,21 @@ info.
 The following sections give platform-specific instructions on how to
 compile and install Nimble.
 
-### Unix
+### Source based installation
 
-On Unix-like operating systems Nimble can be compiled and installed with two
-simple
-commands. After successfully grabbing the latest Nim compiler simply execute
-the following commands to clone nimble, compile it and then install it.
+Run this command in your **Nim** directory::
 
-    git clone https://github.com/nim-lang/nimble.git
-    cd nimble
-    nim -d:release c -r src/nimble -y install
+  nim e install_nimble.nims
 
-After these steps are completed successfully, nimble will be installed
-in ``~/.nimble/bin``. You must then add
-``~/.nimble/bin`` to your ``$PATH``. Updating nimble can then be done by
-executing ``nimble install nimble``.
+This assumes that you also used the source based installation and added
+``$nim/bin`` to your ``PATH``. If you create a symlink to ``nim`` instead,
+you also need to create a symlink for ``nimble``.
 
 ### Windows
 
 You can install Nimble via a pre-built installation archive which is
 available on the [releases](https://github.com/nim-lang/nimble/releases) page.
-Alternatively, you can also install Nimble from source, but the instructions
-for doing so are a bit different on Windows.
+Alternatively, you can also install Nimble from source.
 
 #### Using the pre-built archives
 
