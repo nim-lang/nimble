@@ -24,6 +24,11 @@ proc requires*(deps: varargs[string]) =
   ## package.
   for d in deps: requiresData.add(d)
 
+template postinstall*(body: untyped): untyped =
+  ## Defines a block of code which is evaluated after installing.
+  proc `installHook`*() =
+    body
+
 template before*(action: untyped, body: untyped): untyped =
   ## Defines a block of code which is evaluated before ``action`` is executed.
   proc `action Before`*(): bool =

@@ -452,7 +452,9 @@ proc installFromDir(dir: string, latest: bool, options: Options,
   else:
     filesInstalled = copyFilesRec(realDir, realDir, pkgDestDir, options,
                                   pkgInfo)
-
+  # If a post install hook is defined, run it
+  if pkgInfo.postInstallHook.len>0 :
+    discard executePostInstall(pkgInfo.mypath,options)
   # Save a nimblemeta.json file.
   saveNimbleMeta(pkgDestDir, url, filesInstalled)
 
