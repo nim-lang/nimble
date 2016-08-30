@@ -38,3 +38,6 @@ before hooks2:
 
 task hooks2, "Testing the hooks again":
   echo("Shouldn't happen")
+
+postinstall:
+  echo("Postinstall echoing")
