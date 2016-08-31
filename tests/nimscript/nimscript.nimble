@@ -41,3 +41,4 @@ task hooks2, "Testing the hooks again":
 
 postinstall:
   echo("Postinstall echoing")
+  writeFile("postinstalltest.txt","Postinstall dir")
