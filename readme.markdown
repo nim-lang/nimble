@@ -468,6 +468,14 @@ Similar to this an ``after`` block is also available for post hooks,
 which are executed after Nimble finished executing a command. You can
 also return ``false`` from these blocks to stop further execution.
 
+A ``postinstall`` block can be defined. This block will be executed after nimble
+has installed your package. Example:  
+
+```nim
+postinstall:
+  echo("Echo after installing")
+```
+
 The ``nimscriptapi.nim`` module specifies this and includes other definitions
 which are also useful. Take a look at it for more information.
 
