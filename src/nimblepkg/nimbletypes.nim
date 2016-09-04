@@ -34,3 +34,4 @@ type
     binDir*: string
     srcDir*: string
     backend*: string
+    postInstallHook*: string # Execute a single hook after installing 

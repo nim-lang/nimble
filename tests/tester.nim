@@ -84,6 +84,13 @@ test "can install nimscript package":
   cd "nimscript":
     check execCmdEx("../" & path & " install -y").exitCode == QuitSuccess
 
+test "can execute postinstall hook":
+  cd "nimscript":
+    let (output, exitCode) = execCmdEx("../" & path & " install -y")
+    let lines = output.strip.splitLines()
+    check exitCode == QuitSuccess
+    check lines[^2] == "Postinstall echoing"
+
 test "can execute nimscript tasks":
   cd "nimscript":
     let (output, exitCode) = execCmdEx("../" & path & " test")
@@ -103,7 +110,7 @@ test "can use nimscript's setCommand with flags":
     let (output, exitCode) = execCmdEx("../" & path & " cr")
     let lines = output.strip.splitLines()
     check exitCode == QuitSuccess
-    check "Hint: operation successful".normalize in lines[^2].normalize
+    check "Hint: operation successful".normalize in lines[^3].normalize
     check "Hello World".normalize in lines[^1].normalize
 
 test "can list nimscript tasks":

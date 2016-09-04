@@ -335,7 +335,9 @@ proc readPackageInfoFromNims*(scriptName: string, options: Options,
         result.preHooks.incl(name[0 .. ^7])
       if name.endsWith("after"):
         result.postHooks.incl(name[0 .. ^6])
-
+      if name.endsWith("installhook"):
+              result.postInstallHook = "installHook"
+        
   cleanup()
 
 proc execTask*(scriptName, taskName: string,
@@ -404,6 +406,29 @@ proc execHook*(scriptName, actionName: string, before: bool,
   result.arguments = @[]
   for arg in compiler_options.gProjectName.split():
     result.arguments.add(arg)
+
+  cleanup()
+
+proc executePostInstall*(nimbleFile:string,options:Options): bool =
+  ## Executes a post install hook
+  ##
+  ## `scriptName` should be a filename pointing to the nimscript file.
+  result = true
+  compiler_options.command = internalCmd
+  echo("Executing install hook in ", nimbleFile)
+
+  execScript(nimbleFile, newStringTable(), options)
+
+  # Explicitly execute the task procedure, instead of relying on hack.
+  let idx = fileInfoIdx(nimbleFile)
+  let thisModule = getModule(idx)
+  assert thisModule.kind == skModule
+  let prc = thisModule.tab.strTableGet(getIdent("installHook"))
+  if prc.isNil:
+    # Procedure not defined in the NimScript module.
+    result = false
+    return
+  discard vm.globalCtx.execProc(prc,[])
 
   cleanup()
 
