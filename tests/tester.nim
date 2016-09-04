@@ -7,7 +7,7 @@ const path = "../src/nimble"
 test "can compile nimble":
   check execCmdEx("nim c " & path).exitCode == QuitSuccess
 
-template cd*(dir: string, body: stmt) =
+template cd*(dir: string, body: untyped) =
   ## Sets the current dir to ``dir``, executes ``body`` and restores the
   ## previous working dir.
   let lastDir = getCurrentDir()
@@ -103,7 +103,6 @@ test "can use nimscript's setCommand with flags":
     let (output, exitCode) = execCmdEx("../" & path & " cr")
     let lines = output.strip.splitLines()
     check exitCode == QuitSuccess
-    check "Hint: operation successful".normalize in lines[^2].normalize
     check "Hello World".normalize in lines[^1].normalize
 
 test "can list nimscript tasks":
