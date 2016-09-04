@@ -760,7 +760,7 @@ proc init(options: Options) =
     raise newException(NimbleError, "Nimble file already exists.")
 
   # Ask for package version.
-  let pkgVersion = promptCustom("Enter intial version of package", "0.1.0")
+  let pkgVersion = promptCustom("Enter initial version of package", "0.1.0")
   validateVersion(pkgVersion)
 
   # Ask for package author
