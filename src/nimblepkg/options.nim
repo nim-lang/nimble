@@ -191,13 +191,13 @@ proc renameBabelToNimble(options: Options) {.deprecated.} =
       removeFile(nimbleDir / "babeldata.json")
 
 proc getNimbleDir*(options: Options): string =
-  options.config.nimbleDir
+  expandTilde(options.config.nimbleDir)
 
 proc getPkgsDir*(options: Options): string =
-  options.config.nimbleDir / "pkgs"
+  options.getNimbleDir() / "pkgs"
 
 proc getBinDir*(options: Options): string =
-  options.config.nimbleDir / "bin"
+  options.getNimbleDir() / "bin"
 
 proc parseCommand*(key: string, result: var Options) =
   result.action.typ = parseActionType(key)
