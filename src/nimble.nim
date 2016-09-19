@@ -313,6 +313,11 @@ proc buildFromDir(pkgInfo: PackageInfo, paths: seq[string], forRelease: bool) =
     let outputOpt = "-o:\"" & pkgInfo.getOutputDir(bin) & "\""
     echo("Building ", pkginfo.name, "/", bin, " using ", pkgInfo.backend,
          " backend...")
+
+    let outputDir = pkgInfo.getOutputDir("")
+    if not existsDir(outputDir):
+      createDir(outputDir)
+
     try:
       doCmd(getNimBin() & " $# $# --noBabelPath $# $# \"$#\"" %
             [pkgInfo.backend, releaseOpt, args, outputOpt,
