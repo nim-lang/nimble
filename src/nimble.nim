@@ -326,11 +326,14 @@ proc buildFromDir(pkgInfo: PackageInfo, paths: seq[string], forRelease: bool) =
       raise newException(BuildFailed, "Build failed for package: " &
                          pkgInfo.name)
 
-proc saveNimbleMeta(pkgDestDir, url: string, filesInstalled: HashSet[string]) =
+proc saveNimbleMeta(pkgDestDir, url, vcsRevision: string, filesInstalled: HashSet[string]) =
   var nimblemeta = %{"url": %url}
-  nimblemeta["files"] = newJArray()
+  if not vcsRevision.isNil:
+    nimblemeta["vcsRevision"] = %vcsRevision
+  let files = newJArray()
+  nimblemeta["files"] = files
   for file in filesInstalled:
-    nimblemeta["files"].add(%changeRoot(pkgDestDir, "", file))
+    files.add(%changeRoot(pkgDestDir, "", file))
   writeFile(pkgDestDir / "nimblemeta.json", $nimblemeta)
 
 proc removePkgDir(dir: string, options: Options) =
@@ -357,6 +360,23 @@ proc removePkgDir(dir: string, options: Options) =
                           "in " & dir & "?"):
       quit(QuitSuccess)
     removeDir(dir)
+
+proc vcsRevisionInDir(dir: string): string =
+  ## Returns current revision number of HEAD if dir is inside VCS, or nil in
+  ## case of failure.
+  var cmd = ""
+  if dirExists(dir / ".git"):
+    cmd = "git -C " & quoteShell(dir) & " rev-parse HEAD"
+  elif dirExists(dir / ".hg"):
+    cmd = "hg --cwd " & quoteShell(dir) & " id -i"
+
+  if cmd.len > 0:
+    try:
+      let res = doCmdEx(cmd)
+      if res.exitCode == 0:
+        result = string(res.output).strip()
+    except:
+      discard
 
 proc installFromDir(dir: string, latest: bool, options: Options,
                     url: string): tuple[paths: seq[string], pkg: PackageInfo] =
@@ -458,8 +478,10 @@ proc installFromDir(dir: string, latest: bool, options: Options,
     filesInstalled = copyFilesRec(realDir, realDir, pkgDestDir, options,
                                   pkgInfo)
 
+  let vcsRevision = vcsRevisionInDir(realDir)
+
   # Save a nimblemeta.json file.
-  saveNimbleMeta(pkgDestDir, url, filesInstalled)
+  saveNimbleMeta(pkgDestDir, url, vcsRevision, filesInstalled)
 
   # Save the nimble data (which might now contain reverse deps added in
   # processDeps).
