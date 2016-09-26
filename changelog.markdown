@@ -1,5 +1,15 @@
 # Nimble changelog
 
+## 0.7.6 - 26/09/2016
+
+This is a small release designed to coincide with the release of Nim 0.15.0.
+
+* Fixes ``--depsOnly`` flag ([commit](https://github.com/nim-lang/nimble/commit/f6a19b54e47c7c99f2b473fc02915277273f8c41))
+* Fixes compilation on 0.15.0.
+* Fixes #239.
+* Fixes #215.
+* VCS information is now stored in the Nimble package metadata.
+
 ## 0.7.4 - 06/06/2016
 
 This release is mainly a bug fix release. The installation problems
