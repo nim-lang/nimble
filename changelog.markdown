@@ -1,5 +1,10 @@
 # Nimble changelog
 
+## 0.7.8 - 28/09/2016
+
+This is a hotfix release which fixes crashes when Nimble (or Nim) is installed
+to ``C:\Program Files`` or other paths with spaces in them.
+
 ## 0.7.6 - 26/09/2016
 
 This is a small release designed to coincide with the release of Nim 0.15.0.
