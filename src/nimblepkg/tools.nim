@@ -2,11 +2,17 @@
 # BSD License. Look at license.txt for more info.
 #
 # Various miscellaneous utility functions reside here.
-import osproc, pegs, strutils, os, uri, sets, json
+import osproc, pegs, strutils, os, uri, sets, json, parseutils
 import version, packageinfo, nimbletypes
 
+proc extractBin(cmd: string): string =
+  if cmd[0] == '"':
+    return cmd.captureBetween('"')
+  else:
+    return cmd.split(' ')[0]
+
 proc doCmd*(cmd: string) =
-  let bin = cmd.split(' ')[0]
+  let bin = extractBin(cmd)
   if findExe(bin) == "":
     raise newException(NimbleError, "'" & bin & "' not in PATH.")
 
@@ -21,7 +27,7 @@ proc doCmd*(cmd: string) =
         "Execution failed with exit code " & $exitCode)
 
 proc doCmdEx*(cmd: string): tuple[output: TaintedString, exitCode: int] =
-  let bin = cmd.split(' ')[0]
+  let bin = extractBin(cmd)
   if findExe(bin) == "":
     raise newException(NimbleError, "'" & bin & "' not in PATH.")
   return execCmdEx(cmd)
@@ -41,7 +47,7 @@ proc getNimBin*: string =
 
 proc getNimrodVersion*: Version =
   let nimBin = getNimBin()
-  let vOutput = doCmdEx(nimBin & " -v").output
+  let vOutput = doCmdEx('"' & nimBin & "\" -v").output
   var matches: array[0..MaxSubpatterns, string]
   if vOutput.find(peg"'Version'\s{(\d+\.)+\d}", matches) == -1:
     quit("Couldn't find Nim version.", QuitFailure)
