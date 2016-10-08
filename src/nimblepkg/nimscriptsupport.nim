@@ -8,7 +8,7 @@ import
   compiler/ast, compiler/modules, compiler/passes, compiler/passaux,
   compiler/condsyms, compiler/sem, compiler/semdata,
   compiler/llstream, compiler/vm, compiler/vmdef, compiler/commands,
-  compiler/msgs, compiler/magicsys, compiler/lists
+  compiler/msgs, compiler/magicsys, compiler/lists, compiler/nimconf
 
 from compiler/scriptconfig import setupVM
 from compiler/idents import getIdent
@@ -216,10 +216,10 @@ proc execScript(scriptName: string, flags: StringTableRef, options: Options) =
       writeFile(tmpNimscriptApiPath, nimscriptApi)
     appendStr(searchPaths, getTempDir())
 
-  setDefaultLibpath()
+  initDefines()
+  loadConfigs(DefaultConfig)
   passes.gIncludeFile = includeModule
   passes.gImportModule = importModule
-  initDefines()
 
   defineSymbol("nimscript")
   defineSymbol("nimconfig")
