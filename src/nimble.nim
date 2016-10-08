@@ -471,7 +471,7 @@ proc installFromDir(dir: string, latest: bool, options: Options,
         # For bash on Windows (Cygwin/Git bash).
         let bashDest = dest.changeFileExt("")
         echo("Creating Cygwin stub: ", pkgDestDir / bin, " -> ", bashDest)
-        writeFile(bashDest, "\"$(cygpath '" & pkgDestDir / bin & "')\" \"$@\"\l")
+        writeFile(bashDest, "\"" & pkgDestDir / bin & "\" \"$@\"\n")
       else:
         {.error: "Sorry, your platform is not supported.".}
   else:
