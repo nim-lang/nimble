@@ -28,6 +28,7 @@ type
 
 const
   internalCmd = "NimbleInternal"
+  nimscriptApi = staticRead("nimscriptapi.nim")
 
 proc raiseVariableError(ident, typ: string) {.noinline.} =
   raise newException(NimbleError,
@@ -173,24 +174,20 @@ proc setupVM(module: PSym; scriptName: string,
       flags[a.getString 0] = a.getString 1
 
 proc findNimscriptApi(options: Options): string =
-  ## Returns the directory containing ``nimscriptapi.nim``
-  var inPath = false
+  ## Returns the directory containing ``nimscriptapi.nim`` or an empty string
+  ## if it cannot be found.
+  result = ""
   # Try finding it in exe's path
   if fileExists(getAppDir() / "nimblepkg" / "nimscriptapi.nim"):
     result = getAppDir()
-    inPath = true
 
-  if not inPath:
+  if result.len == 0:
     let pkgs = getInstalledPkgsMin(options.getPkgsDir(), options)
     var pkg: PackageInfo
     if pkgs.findPkg(("nimble", newVRAny()), pkg):
       let pkgDir = pkg.getRealDir()
       if fileExists(pkgDir / "nimblepkg" / "nimscriptapi.nim"):
         result = pkgDir
-        inPath = true
-
-  if not inPath:
-    raise newException(NimbleError, "Cannot find nimscriptapi.nim")
 
 proc getNimPrefixDir(): string = splitPath(findExe("nim")).head.parentDir
 
@@ -208,7 +205,16 @@ proc execScript(scriptName: string, flags: StringTableRef, options: Options) =
 
   # Ensure that "nimblepkg/nimscriptapi" is in the PATH.
   let nimscriptApiPath = findNimscriptApi(options)
-  appendStr(searchPaths, nimscriptApiPath)
+  if nimscriptApiPath.len > 0:
+    echo("Using custom nimscriptapi.nim defined in ",
+         nimscriptApiPath / "nimblepkg")
+    appendStr(searchPaths, nimscriptApiPath)
+  else:
+    let tmpNimscriptApiPath = getTempDir() / "nimblepkg" / "nimscriptapi.nim"
+    createDir(tmpNimscriptApiPath.splitFile.dir)
+    if not existsFile(tmpNimscriptApiPath):
+      writeFile(tmpNimscriptApiPath, nimscriptApi)
+    appendStr(searchPaths, getTempDir())
 
   setDefaultLibpath()
   passes.gIncludeFile = includeModule
