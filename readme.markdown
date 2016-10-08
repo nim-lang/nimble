@@ -86,36 +86,7 @@ you also need to create a symlink for ``nimble``.
 
 ### Windows
 
-You can install Nimble via a pre-built installation archive which is
-available on the [releases](https://github.com/nim-lang/nimble/releases) page.
-Alternatively, you can also install Nimble from source.
-
-#### Using the pre-built archives
-
-Download the latest release archive from the
-[releases](https://github.com/nim-lang/nimble/releases) page. These archives
-will have a filename of the form ``nimble-x_win32`` where ``x`` is the
-current version.
-
-Once you download that archive unzip it and execute the ``install.bat`` file.
-One important thing to note is that this installation requires you have
-the Nim compiler in your PATH. Once the installation completes you should
-add ``C:\Users\YourName\.nimble\bin`` to your PATH.
-
-#### From source
-
-On Windows installing Nimble from source is slightly more complex:
-
-    git clone https://github.com/nim-lang/nimble.git
-    cd nimble
-    nim -d:release c src/nimble
-    cp src/nimble.exe src/nimble1.exe
-    src/nimble1.exe install
-
-This is required because Windows will lock the process which is being run, but
-during installation Nimble recompiles itself causing an error.
-Once the installation completes you should
-add ``C:\Users\YourName\.nimble\bin`` to your PATH.
+The Windows installer ships with ``nimble.exe`` out of the box.
 
 ## Nimble's folder structure and packages
 
