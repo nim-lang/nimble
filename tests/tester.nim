@@ -22,6 +22,10 @@ proc inLines(lines: seq[string], line: string): bool =
   for i in lines:
     if line.normalize in i.normalize: return true
 
+test "issue 129 (installing commit hash)":
+  check execCmdEx(path & " install -y \"https://github.com/nimble-test/packagea.git@#1f9cb289c89\"").
+          exitCode == QuitSuccess
+
 test "issue 113 (uninstallation problems)":
   cd "issue113/c":
     check execCmdEx("../../" & path & " install -y").exitCode == QuitSuccess
