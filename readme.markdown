@@ -97,6 +97,10 @@ src/nimble install
 compilation to something else like ``nimble1.exe``, then run
 ``src\nimble1.exe install``.
 
+This will install Nimble to the default Nimble packages location:
+``~/.nimble/pkgs``. The binary will be installed to ``~/.nimble/bin``, so you
+will need to add this directory to your PATH.
+
 ## Nimble's folder structure and packages
 
 Nimble stores everything that has been installed in ``~/.nimble`` on Unix systems
