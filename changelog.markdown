@@ -1,4 +1,26 @@
+
+[comment]: # (Before releasing, make sure to follow the steps in https://github.com/nim-lang/nimble/wiki/Releasing-a-new-version)
+
 # Nimble changelog
+
+## 0.7.10 - 09/10/2016
+
+This release includes multiple bug fixes.
+
+* Reverted patch that breaks binary stubs in Git Bash on Windows.
+* The ``nimscriptapi.nim`` file is now statically compiled into the binary.
+  This should fix the "could not find nimscriptapi.nim" errors. The file can
+  still be overriden by placing a file named ``nimscriptapi.nim`` inside a
+  ``nimblepkg`` directory that is placed alongside the Nimble binary, or
+  by a ``nimscriptapi.nim`` file inside ``~/.nimble/pkgs/nimble-ver/nimblepkg/``.
+  For more information see the
+  [code that looks for this file](https://github.com/nim-lang/nimble/blob/v0.7.10/src/nimblepkg/nimscriptsupport.nim#L176).
+* Nim files can now be imported in .nimble nimscript files. (Issue [#186](https://github.com/nim-lang/nimble/issues/186))
+* Requiring a specific git commit hash no longer fails. (Issue [#129](https://github.com/nim-lang/nimble/issues/129))
+
+----
+
+Full changelog: https://github.com/nim-lang/nimble/compare/v0.7.8...v0.7.10
 
 ## 0.7.8 - 28/09/2016
 

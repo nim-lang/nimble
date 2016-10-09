@@ -1,6 +1,7 @@
+import src/nimblepkg/common
 # Package
 
-version       = "0.7.8"
+version       = nimbleVersion
 author        = "Dominik Picheta"
 description   = "Nim package manager."
 license       = "BSD"

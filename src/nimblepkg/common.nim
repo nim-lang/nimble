@@ -37,4 +37,4 @@ when not defined(nimscript):
       backend*: string
 
 const
-  nimbleVersion* = "0.7.8"
+  nimbleVersion* = "0.7.10"
