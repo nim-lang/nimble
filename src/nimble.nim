@@ -7,7 +7,7 @@ import httpclient, parseopt, os, strutils, osproc, pegs, tables, parseutils,
 from sequtils import toSeq
 
 import nimblepkg/packageinfo, nimblepkg/version, nimblepkg/tools,
-       nimblepkg/download, nimblepkg/config, nimblepkg/nimbletypes,
+       nimblepkg/download, nimblepkg/config, nimblepkg/common,
        nimblepkg/publish, nimblepkg/options, nimblepkg/packageparser
 
 import nimblepkg/nimscriptsupport
@@ -29,9 +29,6 @@ else:
 
   proc GetVersionExA*(VersionInformation: var OSVERSIONINFO): WINBOOL{.stdcall,
     dynlib: "kernel32", importc: "GetVersionExA".}
-
-const
-  nimbleVersion = "0.7.8"
 
 proc writeVersion() =
   echo("nimble v$# compiled at $# $#" %

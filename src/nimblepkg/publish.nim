@@ -5,7 +5,7 @@
 ## nim-lang/packages automatically.
 
 import httpclient, base64, strutils, rdstdin, json, os, browsers, times, uri
-import tools, nimbletypes
+import tools, common
 
 type
   Auth = object

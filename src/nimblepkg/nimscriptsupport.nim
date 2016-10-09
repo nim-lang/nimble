@@ -15,7 +15,7 @@ from compiler/idents import getIdent
 from compiler/astalgo import strTableGet
 import compiler/options as compiler_options
 
-import nimbletypes, version, options, packageinfo
+import common, version, options, packageinfo
 import os, strutils, strtabs, times, osproc, sets
 
 type

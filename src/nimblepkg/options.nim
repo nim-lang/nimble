@@ -4,7 +4,7 @@
 import json, strutils, os, parseopt, strtabs, uri, tables
 from httpclient import Proxy, newProxy
 
-import config, version, tools, nimbletypes
+import config, version, tools, common
 
 type
   Options* = object

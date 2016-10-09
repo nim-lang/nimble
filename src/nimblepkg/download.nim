@@ -3,7 +3,7 @@
 
 import parseutils, os, osproc, strutils, tables, pegs
 
-import packageinfo, packageparser, version, tools, nimbletypes, options
+import packageinfo, packageparser, version, tools, common, options
 
 type
   DownloadMethod* {.pure.} = enum
