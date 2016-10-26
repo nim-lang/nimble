@@ -255,6 +255,7 @@ proc processDeps(pkginfo: PackageInfo, options: Options): seq[string] =
   ##
   ## Returns the list of paths to pass to the compiler during build phase.
   result = @[]
+  assert(not pkginfo.isMinimal, "processDeps needs pkginfo.requires")
   let pkglist = getInstalledPkgs(options.getPkgsDir(), options)
   var reverseDeps: seq[tuple[name, version: string]] = @[]
   for dep in pkginfo.requires:

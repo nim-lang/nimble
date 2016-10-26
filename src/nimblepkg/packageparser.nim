@@ -250,7 +250,7 @@ proc getInstalledPkgs*(libsDir: string, options: Options):
       if nimbleFile != "":
         let meta = readMetaData(path)
         try:
-          var pkg = readPackageInfo(nimbleFile, options, true)
+          var pkg = readPackageInfo(nimbleFile, options, onlyMinimalInfo=false)
           pkg.isInstalled = true
           result.add((pkg, meta))
         except ValidationError:
