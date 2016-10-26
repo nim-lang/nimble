@@ -206,8 +206,7 @@ proc execScript(scriptName: string, flags: StringTableRef, options: Options) =
   # Ensure that "nimblepkg/nimscriptapi" is in the PATH.
   let nimscriptApiPath = findNimscriptApi(options)
   if nimscriptApiPath.len > 0:
-    echo("Using custom nimscriptapi.nim defined in ",
-         nimscriptApiPath / "nimblepkg")
+    # TODO: Once better output is implemented show a message here.
     appendStr(searchPaths, nimscriptApiPath)
   else:
     let tmpNimscriptApiPath = getTempDir() / "nimblepkg" / "nimscriptapi.nim"
