@@ -1,4 +1,10 @@
-import src/nimblepkg/common
+when dirExists("src"):
+  # In the git repository the Nimble sources are in a ``src`` directory.
+  import src/nimblepkg/common
+else:
+  # When the package is installed, the ``src`` directory disappears.
+  import nimblepkg/common
+
 # Package
 
 version       = nimbleVersion
