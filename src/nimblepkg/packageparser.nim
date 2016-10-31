@@ -1,7 +1,7 @@
 # Copyright (C) Dominik Picheta. All rights reserved.
 # BSD License. Look at license.txt for more info.
 import parsecfg, json, streams, strutils, parseutils, os, tables
-import version, tools, nimbletypes, nimscriptsupport, options, packageinfo
+import version, tools, common, nimscriptsupport, options, packageinfo
 
 ## Contains procedures for parsing .nimble files. Moved here from ``packageinfo``
 ## because it depends on ``nimscriptsupport`` (``nimscriptsupport`` also
@@ -250,7 +250,7 @@ proc getInstalledPkgs*(libsDir: string, options: Options):
       if nimbleFile != "":
         let meta = readMetaData(path)
         try:
-          var pkg = readPackageInfo(nimbleFile, options, true)
+          var pkg = readPackageInfo(nimbleFile, options, onlyMinimalInfo=false)
           pkg.isInstalled = true
           result.add((pkg, meta))
         except ValidationError:

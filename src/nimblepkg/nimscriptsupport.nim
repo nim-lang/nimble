@@ -8,13 +8,14 @@ import
   compiler/ast, compiler/modules, compiler/passes, compiler/passaux,
   compiler/condsyms, compiler/sem, compiler/semdata,
   compiler/llstream, compiler/vm, compiler/vmdef, compiler/commands,
-  compiler/msgs, compiler/magicsys, compiler/lists, compiler/idents
+  compiler/msgs, compiler/magicsys, compiler/lists, compiler/idents,
+  compiler/nimconf
 
 from compiler/scriptconfig import setupVM
 from compiler/astalgo import strTableGet
 import compiler/options as compiler_options
 
-import nimbletypes, version, options, packageinfo
+import common, version, options, packageinfo
 import os, strutils, strtabs, times, osproc, sets
 
 type
@@ -27,6 +28,7 @@ type
 
 const
   internalCmd = "NimbleInternal"
+  nimscriptApi = staticRead("nimscriptapi.nim")
 
 proc raiseVariableError(ident, typ: string) {.noinline.} =
   raise newException(NimbleError,
@@ -178,24 +180,20 @@ proc setupVM(module: PSym; scriptName: string,
       flags[a.getString 0] = a.getString 1
 
 proc findNimscriptApi(options: Options): string =
-  ## Returns the directory containing ``nimscriptapi.nim``
-  var inPath = false
+  ## Returns the directory containing ``nimscriptapi.nim`` or an empty string
+  ## if it cannot be found.
+  result = ""
   # Try finding it in exe's path
   if fileExists(getAppDir() / "nimblepkg" / "nimscriptapi.nim"):
     result = getAppDir()
-    inPath = true
 
-  if not inPath:
+  if result.len == 0:
     let pkgs = getInstalledPkgsMin(options.getPkgsDir(), options)
     var pkg: PackageInfo
     if pkgs.findPkg(("nimble", newVRAny()), pkg):
       let pkgDir = pkg.getRealDir()
       if fileExists(pkgDir / "nimblepkg" / "nimscriptapi.nim"):
         result = pkgDir
-        inPath = true
-
-  if not inPath:
-    raise newException(NimbleError, "Cannot find nimscriptapi.nim")
 
 proc getNimPrefixDir(): string = splitPath(findExe("nim")).head.parentDir
 
@@ -213,12 +211,20 @@ proc execScript(scriptName: string, flags: StringTableRef, options: Options) =
 
   # Ensure that "nimblepkg/nimscriptapi" is in the PATH.
   let nimscriptApiPath = findNimscriptApi(options)
-  appendStr(searchPaths, nimscriptApiPath)
+  if nimscriptApiPath.len > 0:
+    # TODO: Once better output is implemented show a message here.
+    appendStr(searchPaths, nimscriptApiPath)
+  else:
+    let tmpNimscriptApiPath = getTempDir() / "nimblepkg" / "nimscriptapi.nim"
+    createDir(tmpNimscriptApiPath.splitFile.dir)
+    if not existsFile(tmpNimscriptApiPath):
+      writeFile(tmpNimscriptApiPath, nimscriptApi)
+    appendStr(searchPaths, getTempDir())
 
-  setDefaultLibpath()
+  initDefines()
+  loadConfigs(DefaultConfig)
   passes.gIncludeFile = includeModule
   passes.gImportModule = importModule
-  initDefines()
 
   defineSymbol("nimscript")
   defineSymbol("nimconfig")

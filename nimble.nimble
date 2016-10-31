@@ -1,6 +1,13 @@
+when dirExists("src"):
+  # In the git repository the Nimble sources are in a ``src`` directory.
+  import src/nimblepkg/common
+else:
+  # When the package is installed, the ``src`` directory disappears.
+  import nimblepkg/common
+
 # Package
 
-version       = "0.7.8"
+version       = nimbleVersion
 author        = "Dominik Picheta"
 description   = "Nim package manager."
 license       = "BSD"

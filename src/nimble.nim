@@ -7,7 +7,7 @@ import httpclient, parseopt, os, strutils, osproc, pegs, tables, parseutils,
 from sequtils import toSeq
 
 import nimblepkg/packageinfo, nimblepkg/version, nimblepkg/tools,
-       nimblepkg/download, nimblepkg/config, nimblepkg/nimbletypes,
+       nimblepkg/download, nimblepkg/config, nimblepkg/common,
        nimblepkg/publish, nimblepkg/options, nimblepkg/packageparser
 
 import nimblepkg/nimscriptsupport
@@ -29,9 +29,6 @@ else:
 
   proc GetVersionExA*(VersionInformation: var OSVERSIONINFO): WINBOOL{.stdcall,
     dynlib: "kernel32", importc: "GetVersionExA".}
-
-const
-  nimbleVersion = "0.7.8"
 
 proc writeVersion() =
   echo("nimble v$# compiled at $# $#" %
@@ -258,6 +255,7 @@ proc processDeps(pkginfo: PackageInfo, options: Options): seq[string] =
   ##
   ## Returns the list of paths to pass to the compiler during build phase.
   result = @[]
+  assert(not pkginfo.isMinimal, "processDeps needs pkginfo.requires")
   let pkglist = getInstalledPkgs(options.getPkgsDir(), options)
   var reverseDeps: seq[tuple[name, version: string]] = @[]
   for dep in pkginfo.requires:
@@ -471,7 +469,7 @@ proc installFromDir(dir: string, latest: bool, options: Options,
         # For bash on Windows (Cygwin/Git bash).
         let bashDest = dest.changeFileExt("")
         echo("Creating Cygwin stub: ", pkgDestDir / bin, " -> ", bashDest)
-        writeFile(bashDest, "\"$(cygpath '" & pkgDestDir / bin & "')\" \"$@\"\l")
+        writeFile(bashDest, "\"" & pkgDestDir / bin & "\" \"$@\"\n")
       else:
         {.error: "Sorry, your platform is not supported.".}
   else:

@@ -8,11 +8,8 @@ Interested in learning **how to create a package**? Skip directly to that sectio
 
 ## Contents
 
+- [Requirements](#requirements)
 - [Installation](#installation)
-	- [Unix](#unix)
-	- [Windows](#windows)
-		- [Using the pre-built archives](#using-the-pre-built-archives)
-		- [From source](#from-source)
 - [Nimble's folder structure and packages](#nimbles-folder-structure-and-packages)
 - [Nimble usage](#nimble-usage)
 	- [nimble refresh](#nimble-refresh)
@@ -47,15 +44,7 @@ Interested in learning **how to create a package**? Skip directly to that sectio
 - [Contribution](#contribution)
 - [About](#about)
 
-## Installation
-
-The latest version of Nimble (in the master branch) is primarily tested with
-the latest version of the Nim compiler (in the devel branch). You can be sure
-that Nimble will compile with that version of the compiler (a green travis
-build status is also a good sign that this is the case).
-
-The latest version of Nimble (0.7.4) requires a version of Nim greater than
-or equal to 0.13.0. That being said, the latest version of Nim is recommended.
+## Requirements
 
 Nimble has some runtime dependencies on external tools, these tools are
 used to download Nimble packages.
@@ -71,51 +60,46 @@ If the version is less recent than 1.9.0 then Nimble may have trouble using it.
 See [this issue](https://github.com/nim-lang/nimble/issues/105) for more
 info.
 
-The following sections give platform-specific instructions on how to
-compile and install Nimble.
+## Installation
 
-### Source based installation
+Nimble is now bundled with [Nim](http://nim-lang.org)
+(since Nim version 0.15.0).
+This means that you should have Nimble installed already, as long as you have
+the latest version of Nim installed as well. Because of this **you likely do
+not need to install Nimble manually**.
 
-Run this command in your **Nim** directory::
+But in case you still want to install Nimble manually, you can follow the
+following instructions.
 
-  nim e install_nimble.nims
+There are two ways to install Nimble manually. The first is using the
+``install_nimble.nims`` script included in the Nim distribution and
+[repository](https://github.com/nim-lang/Nim/blob/devel/install_nimble.nims).
+Simply execute this to install Nimble.
 
-This assumes that you also used the source based installation and added
-``$nim/bin`` to your ``PATH``. If you create a symlink to ``nim`` instead,
-you also need to create a symlink for ``nimble``.
+```
+nim e install_nimble.nims
+```
 
-### Windows
+This will clone the Nimble repository, compile Nimble and copy it into
+Nim's bin directory.
 
-You can install Nimble via a pre-built installation archive which is
-available on the [releases](https://github.com/nim-lang/nimble/releases) page.
-Alternatively, you can also install Nimble from source.
+The second approach is to install Nimble as a Nimble package. You can do this
+by compiling Nimble, then running ``nimble install`` in Nimble's directory.
 
-#### Using the pre-built archives
+```
+git clone https://github.com/nim-lang/nimble.git
+cd nimble
+nim c src/nimble
+src/nimble install
+```
 
-Download the latest release archive from the
-[releases](https://github.com/nim-lang/nimble/releases) page. These archives
-will have a filename of the form ``nimble-x_win32`` where ``x`` is the
-current version.
+**Note for Windows users**: You will need to rename ``nimble.exe`` after
+compilation to something else like ``nimble1.exe``, then run
+``src\nimble1.exe install``.
 
-Once you download that archive unzip it and execute the ``install.bat`` file.
-One important thing to note is that this installation requires you have
-the Nim compiler in your PATH. Once the installation completes you should
-add ``C:\Users\YourName\.nimble\bin`` to your PATH.
-
-#### From source
-
-On Windows installing Nimble from source is slightly more complex:
-
-    git clone https://github.com/nim-lang/nimble.git
-    cd nimble
-    nim -d:release c src/nimble
-    cp src/nimble.exe src/nimble1.exe
-    src/nimble1.exe install
-
-This is required because Windows will lock the process which is being run, but
-during installation Nimble recompiles itself causing an error.
-Once the installation completes you should
-add ``C:\Users\YourName\.nimble\bin`` to your PATH.
+This will install Nimble to the default Nimble packages location:
+``~/.nimble/pkgs``. The binary will be installed to ``~/.nimble/bin``, so you
+will need to add this directory to your PATH.
 
 ## Nimble's folder structure and packages
 

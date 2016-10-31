@@ -3,7 +3,7 @@
 
 import parseutils, os, osproc, strutils, tables, pegs
 
-import packageinfo, packageparser, version, tools, nimbletypes, options
+import packageinfo, packageparser, version, tools, common, options
 
 type
   DownloadMethod* {.pure.} = enum
@@ -174,13 +174,10 @@ proc doDownload*(url: string, downloadDir: string, verRange: VersionRange,
     if verRange.spe == newSpecial(getHeadName(downMethod)):
       doClone(downMethod, url, downloadDir) # Grab HEAD.
     else:
-      # Mercurial requies a clone and checkout. The git clone operation is
-      # already fragmented into multiple steps so we just call doClone().
-      if downMethod == DownloadMethod.git:
-        doClone(downMethod, url, downloadDir, $verRange.spe)
-      else:
-        doClone(downMethod, url, downloadDir, tip = false)
-        doCheckout(downMethod, downloadDir, $verRange.spe)
+      # Grab the full repo.
+      doClone(downMethod, url, downloadDir, tip = false)
+      # Then perform a checkout operation to get the specified branch/commit.
+      doCheckout(downMethod, downloadDir, $verRange.spe)
     result = verRange
   else:
     case downMethod
