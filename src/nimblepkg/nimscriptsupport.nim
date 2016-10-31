@@ -8,10 +8,10 @@ import
   compiler/ast, compiler/modules, compiler/passes, compiler/passaux,
   compiler/condsyms, compiler/sem, compiler/semdata,
   compiler/llstream, compiler/vm, compiler/vmdef, compiler/commands,
-  compiler/msgs, compiler/magicsys, compiler/lists, compiler/nimconf
+  compiler/msgs, compiler/magicsys, compiler/lists, compiler/idents,
+  compiler/nimconf
 
 from compiler/scriptconfig import setupVM
-from compiler/idents import getIdent
 from compiler/astalgo import strTableGet
 import compiler/options as compiler_options
 
@@ -68,6 +68,9 @@ proc extractRequires(ident: PSym, result: var seq[PkgTuple]) =
   else:
     raiseVariableError("requiresData", "seq[(string, VersionReq)]")
 
+when declared(newIdentCache):
+  var identCache = newIdentCache()
+
 proc setupVM(module: PSym; scriptName: string,
     flags: StringTableRef): PEvalContext =
   ## This procedure is exported in the compiler sources, but its implementation
@@ -75,7 +78,10 @@ proc setupVM(module: PSym; scriptName: string,
   ## Specifically, the implementation of ``switch`` is problematic. Sooo
   ## I simply copied it here and edited it :)
 
-  result = newCtx(module)
+  when declared(newIdentCache):
+    result = newCtx(module, identCache)
+  else:
+    result = newCtx(module)
   result.mode = emRepl
   registerAdditionalOps(result)
 
@@ -241,8 +247,12 @@ proc execScript(scriptName: string, flags: StringTableRef, options: Options) =
   cbApi getPkgDir:
     setResult(a, scriptName.splitFile.dir)
 
-  compileSystemModule()
-  processModule(m, llStreamOpen(scriptName, fmRead), nil)
+  when declared(newIdentCache):
+    compileSystemModule(identCache)
+    processModule(m, llStreamOpen(scriptName, fmRead), nil, identCache)
+  else:
+    compileSystemModule()
+    processModule(m, llStreamOpen(scriptName, fmRead), nil)
 
 proc cleanup() =
   # ensure everything can be called again:
