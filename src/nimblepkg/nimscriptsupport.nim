@@ -18,6 +18,9 @@ import compiler/options as compiler_options
 import common, version, options, packageinfo
 import os, strutils, strtabs, times, osproc, sets
 
+when not declared(resetAllModulesHard):
+  import compiler/modulegraphs
+
 type
   ExecutionResult*[T] = object
     success*: bool
@@ -197,8 +200,9 @@ proc findNimscriptApi(options: Options): string =
 
 proc getNimPrefixDir(): string = splitPath(findExe("nim")).head.parentDir
 
-proc execScript(scriptName: string, flags: StringTableRef, options: Options) =
-  ## Executes the specified script.
+proc execScript(scriptName: string, flags: StringTableRef,
+                options: Options): PSym =
+  ## Executes the specified script. Returns the script's module symbol.
   ##
   ## No clean up is performed and must be done manually!
   if "nimblepkg/nimscriptapi" notin compiler_options.implicitIncludes:
@@ -234,9 +238,14 @@ proc execScript(scriptName: string, flags: StringTableRef, options: Options) =
 
   appendStr(searchPaths, compiler_options.libpath)
 
-  var m = makeModule(scriptName)
-  incl(m.flags, sfMainModule)
-  vm.globalCtx = setupVM(m, scriptName, flags)
+  when declared(resetAllModulesHard):
+    result = makeModule(scriptName)
+  else:
+    let graph = newModuleGraph()
+    result = graph.makeModule(scriptName)
+
+  incl(result.flags, sfMainModule)
+  vm.globalCtx = setupVM(result, scriptName, flags)
 
   # Setup builtins defined in nimscriptapi.nim
   template cbApi(name, body) {.dirty.} =
@@ -248,17 +257,18 @@ proc execScript(scriptName: string, flags: StringTableRef, options: Options) =
     setResult(a, scriptName.splitFile.dir)
 
   when declared(newIdentCache):
-    compileSystemModule(identCache)
-    processModule(m, llStreamOpen(scriptName, fmRead), nil, identCache)
+    graph.compileSystemModule(identCache)
+    graph.processModule(result, llStreamOpen(scriptName, fmRead), nil, identCache)
   else:
     compileSystemModule()
-    processModule(m, llStreamOpen(scriptName, fmRead), nil)
+    processModule(result, llStreamOpen(scriptName, fmRead), nil)
 
 proc cleanup() =
   # ensure everything can be called again:
   compiler_options.gProjectName = ""
   compiler_options.command = ""
-  resetAllModulesHard()
+  when declared(resetAllModulesHard):
+    resetAllModulesHard()
   clearPasses()
   msgs.gErrorMax = 1
   msgs.writeLnHook = nil
@@ -287,7 +297,7 @@ proc readPackageInfoFromNims*(scriptName: string, options: Options,
   compiler_options.command = internalCmd
 
   # Execute the nimscript file.
-  execScript(scriptName, nil, options)
+  let thisModule = execScript(scriptName, nil, options)
 
   # Check whether an error has occurred.
   if msgs.gErrorCounter > 0:
@@ -304,12 +314,6 @@ proc readPackageInfoFromNims*(scriptName: string, options: Options,
 
   template trivialFieldSeq(field) =
     result.field.add getGlobalAsSeq(getSym(thisModule, astToStr field))
-
-  # Grab the module Sym for .nimble file (nimscriptapi is included in it).
-  let idx = fileInfoIdx(scriptName)
-  let thisModule = getModule(idx)
-  assert(not thisModule.isNil)
-  assert thisModule.kind == skModule
 
   # keep reasonable default:
   let name = getGlobal(thisModule.tab.strTableGet(getIdent"packageName"))
@@ -363,11 +367,7 @@ proc execTask*(scriptName, taskName: string,
   compiler_options.command = internalCmd
   echo("Executing task ", taskName, " in ", scriptName)
 
-  execScript(scriptName, result.flags, options)
-  # Explicitly execute the task procedure, instead of relying on hack.
-  let idx = fileInfoIdx(scriptName)
-  let thisModule = getModule(idx)
-  assert thisModule.kind == skModule
+  let thisModule = execScript(scriptName, result.flags, options)
   let prc = thisModule.tab.strTableGet(getIdent(taskName & "Task"))
   if prc.isNil:
     # Procedure not defined in the NimScript module.
@@ -397,11 +397,8 @@ proc execHook*(scriptName, actionName: string, before: bool,
     else: actionName.toLower & "After"
   echo("Attempting to execute hook ", hookName, " in ", scriptName)
 
-  execScript(scriptName, result.flags, options)
+  let thisModule = execScript(scriptName, result.flags, options)
   # Explicitly execute the task procedure, instead of relying on hack.
-  let idx = fileInfoIdx(scriptName)
-  let thisModule = getModule(idx)
-  assert thisModule.kind == skModule
   let prc = thisModule.tab.strTableGet(getIdent(hookName))
   if prc.isNil:
     # Procedure not defined in the NimScript module.
@@ -435,7 +432,7 @@ proc hasTaskRequestedCommand*(execResult: ExecutionResult): bool =
 proc listTasks*(scriptName: string, options: Options) =
   setNimScriptCommand("help")
 
-  execScript(scriptName, nil, options)
+  discard execScript(scriptName, nil, options)
   # TODO: Make the 'task' template generate explicit data structure containing
   # all the task names + descriptions.
   cleanup()
