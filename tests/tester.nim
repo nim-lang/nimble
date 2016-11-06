@@ -51,12 +51,19 @@ test "issue 113 (uninstallation problems)":
 test "can refresh with default urls":
   check execCmdEx(path & " refresh").exitCode == QuitSuccess
 
+proc safeMoveFile(src, dest: string) =
+  try:
+    moveFile(src, dest)
+  except OSError:
+    copyFile(src, dest)
+    removeFile(src)
+
 test "can refresh with custom urls":
   # Backup current config
   let configFile = getConfigDir() / "nimble" / "nimble.ini"
   let configBakFile = getConfigDir() / "nimble" / "nimble.ini.bak"
   if fileExists(configFile):
-    moveFile(configFile, configBakFile)
+    safeMoveFile(configFile, configBakFile)
 
   # Ensure config dir exists
   createDir(getConfigDir() / "nimble")
@@ -82,7 +89,7 @@ test "can refresh with custom urls":
 
   # Restore config
   if fileExists(configBakFile):
-    moveFile(configBakFile, configFile)
+    safeMoveFile(configBakFile, configFile)
 
 test "can install nimscript package":
   cd "nimscript":
@@ -225,6 +232,6 @@ test "can uninstall":
 
   check execCmdEx(path & " uninstall -y PackageA@0.2 issue27b").exitCode ==
       QuitSuccess
-  check (not dirExists(getHomeDir() / ".nimble" / "pkgs" / "PackageA-0.2.0"))
+  check(not dirExists(getHomeDir() / ".nimble" / "pkgs" / "PackageA-0.2.0"))
 
   check execCmdEx(path & " uninstall -y nimscript").exitCode == QuitSuccess
