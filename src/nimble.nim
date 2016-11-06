@@ -1,9 +1,11 @@
 # Copyright (C) Dominik Picheta. All rights reserved.
 # BSD License. Look at license.txt for more info.
 
-import httpclient, parseopt, os, strutils, osproc, pegs, tables, parseutils,
+import httpclient, parseopt, os, osproc, pegs, tables, parseutils,
        strtabs, json, algorithm, sets, uri
 
+import strutils except toLower
+from unicode import toLower
 from sequtils import toSeq
 
 import nimblepkg/packageinfo, nimblepkg/version, nimblepkg/tools,
@@ -82,7 +84,7 @@ proc update(options: Options) =
         echo("Downloaded packages.json file is invalid, discarding.")
         continue
       copyFile(tempPath,
-          options.getNimbleDir() / "packages_$1.json" % list.name.toLower())
+          options.getNimbleDir() / "packages_$1.json" % list.name.toLowerAscii())
       echo("Done.")
       break
 
@@ -609,7 +611,6 @@ proc compile(options: Options) =
   var pkgInfo = getPkgInfo(getCurrentDir(), options)
   nimScriptHint(pkgInfo)
   let paths = processDeps(pkginfo, options)
-  let realDir = pkgInfo.getRealDir()
 
   var args = ""
   for path in paths: args.add("--path:\"" & path & "\" ")
@@ -642,23 +643,24 @@ proc search(options: Options) =
     raise newException(NimbleError, "Please run nimble refresh.")
   let pkgList = getPackageList(options)
   var found = false
-  template onFound: stmt =
+  template onFound {.dirty.} =
     echoPackage(pkg)
     if options.queryVersions:
       echoPackageVersions(pkg)
     echo(" ")
     found = true
-    break
+    break forPkg
 
   for pkg in pkgList:
-    for word in options.action.search:
-      # Search by name.
-      if word.toLower() in pkg.name.toLower():
-        onFound()
-      # Search by tag.
-      for tag in pkg.tags:
-        if word.toLower() in tag.toLower():
+    block forPkg:
+      for word in options.action.search:
+        # Search by name.
+        if word.toLower() in pkg.name.toLower():
           onFound()
+        # Search by tag.
+        for tag in pkg.tags:
+          if word.toLower() in tag.toLower():
+            onFound()
 
   if not found:
     echo("No package found.")

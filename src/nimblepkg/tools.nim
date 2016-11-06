@@ -32,7 +32,7 @@ proc doCmdEx*(cmd: string): tuple[output: TaintedString, exitCode: int] =
     raise newException(NimbleError, "'" & bin & "' not in PATH.")
   return execCmdEx(cmd)
 
-template cd*(dir: string, body: stmt) =
+template cd*(dir: string, body: untyped) =
   ## Sets the current dir to ``dir``, executes ``body`` and restores the
   ## previous working dir.
   let lastDir = getCurrentDir()

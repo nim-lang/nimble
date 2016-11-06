@@ -94,10 +94,10 @@ proc setupVM(module: PSym; scriptName: string,
 
   proc listDirs(a: VmArgs, filter: set[PathComponent]) =
     let dir = getString(a, 0)
-    var result: seq[string] = @[]
+    var res: seq[string] = @[]
     for kind, path in walkDir(dir):
-      if kind in filter: result.add path
-    setResult(a, result)
+      if kind in filter: res.add path
+    setResult(a, res)
 
   template cbconf(name, body) {.dirty.} =
     result.registerCallback "stdlib.system." & astToStr(name),
@@ -346,7 +346,7 @@ proc readPackageInfoFromNims*(scriptName: string, options: Options,
   elif cmpIgnoreStyle(backend, "javascript") == 0:
     result.backend = "js"
   else:
-    result.backend = backend.toLower()
+    result.backend = backend.toLowerAscii()
 
   # Grab all the global procs
   for i in thisModule.tab.data:
@@ -395,8 +395,8 @@ proc execHook*(scriptName, actionName: string, before: bool,
   result.flags = newStringTable()
   compiler_options.command = internalCmd
   let hookName =
-    if before: actionName.toLower & "Before"
-    else: actionName.toLower & "After"
+    if before: actionName.toLowerAscii & "Before"
+    else: actionName.toLowerAscii & "After"
   echo("Attempting to execute hook ", hookName, " in ", scriptName)
 
   let thisModule = execScript(scriptName, result.flags, options)

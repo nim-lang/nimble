@@ -293,11 +293,6 @@ proc parseCmdLine*(): Options =
   if result.action.typ == actionNil:
     writeHelp()
 
-  # TODO: Remove this after a couple of versions.
-  if getNimrodVersion() > newVersion("0.9.6"):
-    # Rename deprecated babel dir.
-    renameBabelToNimble(result)
-
 proc getProxy*(options: Options): Proxy =
   ## Returns ``nil`` if no proxy is specified.
   var url = ""

@@ -7,8 +7,7 @@ import version, tools, common, nimscriptsupport, options, packageinfo
 ## because it depends on ``nimscriptsupport`` (``nimscriptsupport`` also
 ## depends on other procedures in ``packageinfo``.
 
-when not declared(system.map):
-  from sequtils import map
+from sequtils import apply
 
 type
   NimbleFile* = string
@@ -105,7 +104,7 @@ proc multiSplit(s: string): seq[string] =
   ## done no entries are found in the list, the proc returns a sequence with
   ## the original string as the only entry.
   result = split(s, {char(0x0A), char(0x0D), ','})
-  map(result, proc(x: var string) = x = x.strip())
+  apply(result, proc(x: var string) = x = x.strip())
   for i in countdown(result.len()-1, 0):
     if len(result[i]) < 1:
       result.del(i)
@@ -154,7 +153,7 @@ proc readPackageInfoFromNimble(path: string; result: var PackageInfo) =
             for i in ev.value.multiSplit:
               result.bin.add(i.addFileExt(ExeExt))
           of "backend":
-            result.backend = ev.value.toLower()
+            result.backend = ev.value.toLowerAscii()
             case result.backend.normalize
             of "javascript": result.backend = "js"
             else: discard

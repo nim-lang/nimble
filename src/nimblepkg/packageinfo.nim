@@ -140,7 +140,7 @@ proc getPackage*(pkg: string, options: Options,
   for name, list in options.config.packageLists:
     echo("Searching in \"", name, "\" package list...")
     let packages = parseFile(options.getNimbleDir() /
-        "packages_" & name.toLower() & ".json")
+        "packages_" & name.toLowerAscii() & ".json")
     for p in packages:
       if normalize(p["name"].str) == normalize(pkg):
         resPkg = p.fromJson()
@@ -152,7 +152,7 @@ proc getPackageList*(options: Options): seq[Package] =
   var namesAdded = initSet[string]()
   for name, list in options.config.packageLists:
     let packages = parseFile(options.getNimbleDir() /
-        "packages_" & name.toLower() & ".json")
+        "packages_" & name.toLowerAscii() & ".json")
     for p in packages:
       let pkg: Package = p.fromJson()
       if pkg.name notin namesAdded:
