@@ -269,6 +269,8 @@ proc cleanup() =
   compiler_options.command = ""
   when declared(resetAllModulesHard):
     resetAllModulesHard()
+  else:
+    resetSystemArtifacts()
   clearPasses()
   msgs.gErrorMax = 1
   msgs.writeLnHook = nil
