@@ -1,4 +1,4 @@
-when dirExists("src"):
+when fileExists("src/nimblepkg/common.nim"):
   # In the git repository the Nimble sources are in a ``src`` directory.
   import src/nimblepkg/common
 else:
