@@ -5,14 +5,16 @@ language: c
 
 install:
   - |
-      git clone https://github.com/nim-lang/Nim.git
-      cd Nim
-      sh bootstrap.sh
+      wget http://nim-lang.org/download/nim-0.15.2.tar.xz
+      tar -xf nim-0.15.2.tar.xz
+      cd nim-0.15.2
+      sh build.sh
       cd ..
+
 before_script:
   - set -e
   - set -x
-  - export PATH=`pwd`/Nim/bin:$PATH
+  - export PATH=`pwd`/nim-0.15.2/bin:$PATH
 
 script:
   - cd tests
