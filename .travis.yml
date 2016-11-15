@@ -8,7 +8,7 @@ install:
       wget http://nim-lang.org/download/nim-0.15.2.tar.xz
       tar -xf nim-0.15.2.tar.xz
       cd nim-0.15.2
-      sh build.sh
+      LDFLAGS=-lrt sh build.sh
       cd ..
 
 before_script:
