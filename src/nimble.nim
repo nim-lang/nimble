@@ -317,7 +317,7 @@ proc buildFromDir(pkgInfo: PackageInfo, paths: seq[string], forRelease: bool) =
       createDir(outputDir)
 
     try:
-      doCmd(getNimBin() & " $# $# --noBabelPath $# $# \"$#\"" %
+      doCmd("\"" & getNimBin() & "\" $# $# --noBabelPath $# $# \"$#\"" %
             [pkgInfo.backend, releaseOpt, args, outputOpt,
              realDir / bin.changeFileExt("nim")])
     except NimbleError:
