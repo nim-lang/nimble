@@ -317,7 +317,7 @@ proc buildFromDir(pkgInfo: PackageInfo, paths: seq[string], forRelease: bool) =
       createDir(outputDir)
 
     try:
-      doCmd(getNimBin() & " $# $# --noBabelPath $# $# \"$#\"" %
+      doCmd("\"" & getNimBin() & "\" $# $# --noBabelPath $# $# \"$#\"" %
             [pkgInfo.backend, releaseOpt, args, outputOpt,
              realDir / bin.changeFileExt("nim")])
     except NimbleError:
@@ -628,7 +628,7 @@ proc compile(options: Options) =
 
   echo("Compiling ", bin, " (", pkgInfo.name, ") using ", backend,
        " backend...")
-  doCmd(getNimBin() & " $# --noBabelPath $# \"$#\"" %
+  doCmd("\"" & getNimBin() & "\" $# --noBabelPath $# \"$#\"" %
         [backend, args, bin])
 
 proc search(options: Options) =
