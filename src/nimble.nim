@@ -628,7 +628,7 @@ proc compile(options: Options) =
 
   echo("Compiling ", bin, " (", pkgInfo.name, ") using ", backend,
        " backend...")
-  doCmd(getNimBin() & " $# --noBabelPath $# \"$#\"" %
+  doCmd("\"" & getNimBin() & "\" $# --noBabelPath $# \"$#\"" %
         [backend, args, bin])
 
 proc search(options: Options) =
