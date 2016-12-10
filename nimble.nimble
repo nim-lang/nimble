@@ -1,4 +1,7 @@
-when fileExists("src/nimblepkg/common.nim"):
+import ospaths
+template thisModuleFile: string = instantiationInfo(fullPaths = true).filename
+
+when fileExists(thisModuleFile.parentDir / "src/nimblepkg/common.nim"):
   # In the git repository the Nimble sources are in a ``src`` directory.
   import src/nimblepkg/common
 else:
