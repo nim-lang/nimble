@@ -40,11 +40,11 @@ proc newSpecial*(spe: string): Special = return Special(spe)
 
 proc `$`*(ver: Version): string {.borrow.}
 
-proc hash*(ver: Version): THash {.borrow.}
+proc hash*(ver: Version): Hash {.borrow.}
 
 proc `$`*(ver: Special): string {.borrow.}
 
-proc hash*(ver: Special): THash {.borrow.}
+proc hash*(ver: Special): Hash {.borrow.}
 
 proc `<`*(ver: Version, ver2: Version): bool =
   var sVer = string(ver).split('.')
@@ -79,7 +79,7 @@ proc `==`*(ver: Version, ver2: Version): bool =
       return false
 
 proc `==`*(spe: Special, spe2: Special): bool =
-  return ($spe).toLower() == ($spe2).toLower()
+  return ($spe).toLowerAscii() == ($spe2).toLowerAscii()
 
 proc `<=`*(ver: Version, ver2: Version): bool =
   return (ver == ver2) or (ver < ver2)

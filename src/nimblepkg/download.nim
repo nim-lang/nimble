@@ -141,7 +141,7 @@ proc doDownload*(url: string, downloadDir: string, verRange: VersionRange,
   ## method.
   ##
   ## Returns the version of the repository which has been downloaded.
-  template getLatestByTag(meth: stmt): stmt {.dirty, immediate.} =
+  template getLatestByTag(meth: untyped) {.dirty.} =
     echo("Found tags...")
     # Find latest version that fits our ``verRange``.
     var latest = findLatest(verRange, versions)
