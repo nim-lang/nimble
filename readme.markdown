@@ -336,11 +336,11 @@ packages is stored in a JSON file which is freely accessible in the
 [nim-lang/packages repository](https://github.com/nim-lang/packages).
 This JSON file provides nimble with the required Git URL to clone the package
 and install it. Installation and build instructions are contained inside a
-ini-style file with the ``.nimble`` file extension. The nimble file shares the
+file with the ``.nimble`` file extension. The nimble file shares the
 package's name, i.e. a package
 named "foobar" should have a corresponding ``foobar.nimble`` file.
 
-These files specify information about the package including its name, author,
+These files specify information about the package including its the author,
 license, dependencies and more. Without one Nimble is not able to install
 a package.
 
@@ -348,49 +348,9 @@ A .nimble file can be created easily using Nimble's ``init`` command. This
 command will ask you a bunch of questions about your package, then generate a
 .nimble file for you.
 
-**Note:** As of version 0.7.0, the ``init`` command generates .nimble files
-using the new NimScript format. Take a look at the next section for more
-information.
-
 A bare minimum .nimble file follows:
 
 ```ini
-[Package]
-name          = "ProjectName"
-version       = "0.1.0"
-author        = "Your Name"
-description   = "Example .nimble file."
-license       = "MIT"
-
-[Deps]
-Requires: "nim >= 0.10.0"
-```
-
-You may omit the dependencies entirely, but specifying the lowest version
-of the Nim compiler required is recommended.
-
-Nimble currently supports installation of packages from a local directory, a
-git repository and a mercurial repository. The .nimble file must be present in
-the root of the directory or repository being installed.
-
-### The new NimScript format
-
-**Warning:** This feature is still very experimental. You are encouraged to
-try it, but be aware that it may change significantly in the future or
-may even be removed completely!
-
-Version 0.7.0 of Nimble introduces support for evaluating .nimble files
-as Nim code. This means that you can define metadata about your package
-using the Nim programming language.
-
-Because of Nim's flexibility the definitions remain declarative. With the added
-ability of using the Nim language to enrich your package specification.
-For example, you can define dependencies for specific platforms using Nim's
-``when`` statement.
-
-The ini example above looks like this in the NimScript format:
-
-```nim
 # Package
 
 version     = "0.1.0"
@@ -403,7 +363,28 @@ license     = "MIT"
 requires "nim >= 0.10.0"
 ```
 
-The format is indeed very similar to the ini format. Another great feature
+You may omit the dependencies entirely, but specifying the lowest version
+of the Nim compiler required is recommended.
+
+You can also specify multiple dependencies like so:
+
+```
+# Deps
+
+requires "nim >= 0.10.0", "foobar >= 0.1.0"
+requires "fizzbuzz >= 1.0"
+
+Nimble currently supports installation of packages from a local directory, a
+git repository and a mercurial repository. The .nimble file must be present in
+the root of the directory or repository being installed.
+
+The .nimble file is very flexible because it is interpreted using NimScript.
+Because of Nim's flexibility the definitions remain declarative. With the added
+ability of using the Nim language to enrich your package specification.
+For example, you can define dependencies for specific platforms using Nim's
+``when`` statement.
+
+Another great feature
 is the ability to define custom Nimble package-specific commands. These are
 defined in the .nimble files of course.
 
