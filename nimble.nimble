@@ -19,6 +19,6 @@ srcDir = "src"
 
 requires "nim >= 0.13.0", "compiler#head"
 
-task tests, "Run the Nimble tester!":
+task test, "Run the Nimble tester!":
   withDir "tests":
     exec "nim c -r tester"

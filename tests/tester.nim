@@ -2,7 +2,14 @@
 # BSD License. Look at license.txt for more info.
 import osproc, streams, unittest, strutils, os, sequtils, future
 
+var rootDir = getCurrentDir().parentDir()
+var nimblePath = rootDir / "src" / "nimble" & ExeExt
+var installDir = rootDir / "tests" / "nimbleDir"
 const path = "../src/nimble"
+
+# Clear nimble dir.
+removeDir(installDir)
+createDir(installDir)
 
 test "can compile nimble":
   check execCmdEx("nim c " & path).exitCode == QuitSuccess
@@ -15,6 +22,14 @@ template cd*(dir: string, body: untyped) =
   body
   setCurrentDir(lastDir)
 
+proc execNimble(args: varargs[string]): tuple[output: string, exitCode: int] =
+  var quotedArgs = @args
+  quotedArgs.insert(nimblePath)
+  quotedArgs.add("--nimbleDir:" & installDir)
+  quotedArgs = quoted_args.map((x: string) => ("\"" & x & "\""))
+
+  result = execCmdEx(quotedArgs.join(" "))
+
 proc processOutput(output: string): seq[string] =
   output.strip.splitLines().filter((x: string) => (x.len > 0))
 
@@ -23,33 +38,34 @@ proc inLines(lines: seq[string], line: string): bool =
     if line.normalize in i.normalize: return true
 
 test "issue 129 (installing commit hash)":
-  check execCmdEx(path & " install -y \"https://github.com/nimble-test/packagea.git@#1f9cb289c89\"").
-          exitCode == QuitSuccess
+  let arguments = @["install", "-y",
+                   "https://github.com/nimble-test/packagea.git@#1f9cb289c89"]
+  check execNimble(arguments).exitCode == QuitSuccess
 
 test "issue 113 (uninstallation problems)":
   cd "issue113/c":
-    check execCmdEx("../../" & path & " install -y").exitCode == QuitSuccess
+    check execNimble(["install", "-y"]).exitCode == QuitSuccess
   cd "issue113/b":
-    check execCmdEx("../../" & path & " install -y").exitCode == QuitSuccess
+    check execNimble(["install", "-y"]).exitCode == QuitSuccess
   cd "issue113/a":
-    check execCmdEx("../../" & path & " install -y").exitCode == QuitSuccess
+    check execNimble(["install", "-y"]).exitCode == QuitSuccess
 
   # Try to remove c.
-  let (output, exitCode) = execCmdEx(path & " remove -y c")
+  let (output, exitCode) = execNimble(["remove", "-y", "c"])
   let lines = output.strip.splitLines()
   check exitCode != QuitSuccess
   check inLines(lines, "cannot uninstall c (0.1.0) because b (0.1.0) depends on it")
 
-  check execCmdEx(path & " remove -y a").exitCode == QuitSuccess
-  check execCmdEx(path & " remove -y b").exitCode == QuitSuccess
+  check execNimble(["remove", "-y", "a"]).exitCode == QuitSuccess
+  check execNimble(["remove", "-y", "b"]).exitCode == QuitSuccess
 
   cd "issue113/buildfail":
-    check execCmdEx("../../" & path & " install -y").exitCode != QuitSuccess
+    check execNimble(["install", "-y"]).exitCode != QuitSuccess
 
-  check execCmdEx(path & " remove -y c").exitCode == QuitSuccess
+  check execNimble(["remove", "-y", "c"]).exitCode == QuitSuccess
 
 test "can refresh with default urls":
-  check execCmdEx(path & " refresh").exitCode == QuitSuccess
+  check execNimble(["refresh"]).exitCode == QuitSuccess
 
 proc safeMoveFile(src, dest: string) =
   try:
@@ -77,7 +93,7 @@ test "can refresh with custom urls":
     url = "http://nim-lang.org/nimble/packages.json"
   """.unindent)
 
-  let (output, exitCode) = execCmdEx(path & " refresh")
+  let (output, exitCode) = execNimble(["refresh"])
   let lines = output.strip.splitLines()
   check exitCode == QuitSuccess
   check inLines(lines, "reading from config file")
@@ -93,38 +109,38 @@ test "can refresh with custom urls":
 
 test "can install nimscript package":
   cd "nimscript":
-    check execCmdEx("../" & path & " install -y").exitCode == QuitSuccess
+    check execNimble(["install", "-y"]).exitCode == QuitSuccess
 
 test "can execute nimscript tasks":
   cd "nimscript":
-    let (output, exitCode) = execCmdEx("../" & path & " test")
+    let (output, exitCode) = execNimble("test")
     let lines = output.strip.splitLines()
     check exitCode == QuitSuccess
     check lines[^1] == "10"
 
 test "can use nimscript's setCommand":
   cd "nimscript":
-    let (output, exitCode) = execCmdEx("../" & path & " cTest")
+    let (output, exitCode) = execNimble("cTest")
     let lines = output.strip.splitLines()
     check exitCode == QuitSuccess
     check "Hint: operation successful".normalize in lines[^1].normalize
 
 test "can use nimscript's setCommand with flags":
   cd "nimscript":
-    let (output, exitCode) = execCmdEx("../" & path & " cr")
+    let (output, exitCode) = execNimble("cr")
     let lines = output.strip.splitLines()
     check exitCode == QuitSuccess
     check "Hello World".normalize in lines[^1].normalize
 
 test "can list nimscript tasks":
   cd "nimscript":
-    let (output, exitCode) = execCmdEx("../" & path & " tasks")
+    let (output, exitCode) = execNimble("tasks")
     check "test                 test description".normalize in output.normalize
     check exitCode == QuitSuccess
 
 test "can use pre/post hooks":
   cd "nimscript":
-    let (output, exitCode) = execCmdEx("../" & path & " hooks")
+    let (output, exitCode) = execNimble("hooks")
     let lines = output.strip.splitLines()
     check exitCode == QuitSuccess
     check inLines(lines, "First")
@@ -133,20 +149,19 @@ test "can use pre/post hooks":
 
 test "pre hook can prevent action":
   cd "nimscript":
-    let (output, exitCode) = execCmdEx("../" & path & " hooks2")
+    let (output, exitCode) = execNimble("hooks2")
     let lines = output.strip.splitLines()
     check exitCode == QuitSuccess
     check(not inLines(lines, "Shouldn't happen"))
     check inLines(lines, "Hook prevented further execution")
 
 test "can install packagebin2":
-  check execCmdEx(path &
-      " install -y https://github.com/nimble-test/packagebin2.git").exitCode ==
-      QuitSuccess
+  let args = ["install", "-y", "https://github.com/nimble-test/packagebin2.git"]
+  check execNimble(args).exitCode == QuitSuccess
 
 test "can reject same version dependencies":
-  let (outp, exitCode) = execCmdEx(path &
-      " install -y https://github.com/nimble-test/packagebin.git")
+  let (outp, exitCode) = execNimble(
+      "install", "-y", "https://github.com/nimble-test/packagebin.git")
   # We look at the error output here to avoid out-of-order problems caused by
   # stderr output being generated and flushed without first flushing stdout
   let ls = outp.strip.splitLines()
@@ -155,83 +170,83 @@ test "can reject same version dependencies":
       "dependency on PackageA 0.2.0 and PackageA 0.5.0 [NimbleError]"
 
 test "can update":
-  check execCmdEx(path & " update").exitCode == QuitSuccess
+  check execNimble("update").exitCode == QuitSuccess
 
 test "issue #27":
   # Install b
   cd "issue27/b":
-    check execCmdEx("../../" & path & " install -y").exitCode == QuitSuccess
+    check execNimble("install", "-y").exitCode == QuitSuccess
 
   # Install a
   cd "issue27/a":
-    check execCmdEx("../../" & path & " install -y").exitCode == QuitSuccess
+    check execNimble("install", "-y").exitCode == QuitSuccess
 
   cd "issue27":
-    check execCmdEx("../" & path & " install -y").exitCode == QuitSuccess
+    check execNimble("install", "-y").exitCode == QuitSuccess
 
 test "issue #126":
   cd "issue126/a":
-    let (output, exitCode) = execCmdEx("../../" & path & " install -y")
+    let (output, exitCode) = execNimble("install", "-y")
     let lines = output.strip.splitLines()
     check exitCode != QuitSuccess # TODO
     check inLines(lines, "issue-126 is an invalid package name: cannot contain '-'")
 
   cd "issue126/b":
-    let (output1, exitCode1) = execCmdEx("../../" & path & " install -y")
+    let (output1, exitCode1) = execNimble("install", "-y")
     let lines1 = output1.strip.splitLines()
     check exitCode1 == QuitSuccess
     check inLines(lines1, "The .nimble file name must match name specified inside")
 
 test "issue #108":
   cd "issue108":
-    let (output, exitCode) = execCmdEx("../" & path & " build")
+    let (output, exitCode) = execNimble("build")
     let lines = output.strip.splitLines()
     check exitCode != QuitSuccess
     check "Nothing to build" in lines[^1]
 
 test "issue #206":
   cd "issue206":
-    var (output, exitCode) = execCmdEx("../" & path & " install -y")
+    var (output, exitCode) = execNimble("install", "-y")
     check exitCode == QuitSuccess
-    (output, exitCode) = execCmdEx("../" & path & " install -y")
+    (output, exitCode) = execNimble("install", "-y")
     check exitCode == QuitSuccess
 
 test "can list":
-  check execCmdEx(path & " list").exitCode == QuitSuccess
+  check execNimble("list").exitCode == QuitSuccess
 
-  check execCmdEx(path & " list -i").exitCode == QuitSuccess
+  check execNimble("list", "-i").exitCode == QuitSuccess
 
 test "can uninstall":
   block:
-    let (outp, exitCode) = execCmdEx(path & " uninstall -y issue27b")
-    # let ls = outp.processOutput()
+    let (outp, exitCode) = execNimble("uninstall", "-y", "issue27b")
+
     let ls = outp.strip.splitLines()
     check exitCode != QuitSuccess
     check ls[ls.len-1] == "  Cannot uninstall issue27b (0.1.0) because " &
                           "issue27a (0.1.0) depends on it [NimbleError]"
 
-    check execCmdEx(path & " uninstall -y issue27").exitCode == QuitSuccess
-    check execCmdEx(path & " uninstall -y issue27a").exitCode == QuitSuccess
+    check execNimble("uninstall", "-y", "issue27").exitCode == QuitSuccess
+    check execNimble("uninstall", "-y", "issue27a").exitCode == QuitSuccess
 
   # Remove Package*
-  check execCmdEx(path & " uninstall -y PackageA@0.5").exitCode == QuitSuccess
+  check execNimble("uninstall", "-y", "PackageA@0.5").exitCode == QuitSuccess
 
-  let (outp, exitCode) = execCmdEx(path & " uninstall -y PackageA")
+  let (outp, exitCode) = execNimble("uninstall", "-y", "PackageA")
   check exitCode != QuitSuccess
   let ls = outp.processOutput()
   check ls[ls.len-2].startsWith("  Cannot uninstall PackageA ")
   check ls[ls.len-1].startsWith("  Cannot uninstall PackageA ")
-  check execCmdEx(path & " uninstall -y PackageBin2").exitCode == QuitSuccess
+  check execNimble("uninstall", "-y", "PackageBin2").exitCode == QuitSuccess
 
   # Case insensitive
-  check execCmdEx(path & " uninstall -y packagea").exitCode == QuitSuccess
-  check execCmdEx(path & " uninstall -y PackageA").exitCode != QuitSuccess
+  check execNimble("uninstall", "-y", "packagea").exitCode == QuitSuccess
+  check execNimble("uninstall", "-y", "PackageA").exitCode != QuitSuccess
 
   # Remove the rest of the installed packages.
-  check execCmdEx(path & " uninstall -y PackageB").exitCode == QuitSuccess
+  check execNimble("uninstall", "-y", "PackageB").exitCode == QuitSuccess
 
-  check execCmdEx(path & " uninstall -y PackageA@0.2 issue27b").exitCode ==
+  check execNimble("uninstall", "-y", "PackageA@0.2", "issue27b").exitCode ==
       QuitSuccess
   check(not dirExists(getHomeDir() / ".nimble" / "pkgs" / "PackageA-0.2.0"))
 
-  check execCmdEx(path & " uninstall -y nimscript").exitCode == QuitSuccess
+  check execNimble("uninstall", "-y", "nimscript").exitCode == QuitSuccess
