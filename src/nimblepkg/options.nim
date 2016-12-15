@@ -263,23 +263,24 @@ proc initOptions*(): Options =
   result.action.typ = actionNil
   result.pkgInfoCache = newTable[string, PackageInfo]()
 
-proc parseMisc(): Options =
-  result = initOptions()
-  result.config = parseConfig()
-
+proc parseMisc(options: var Options) =
   # Load nimbledata.json
-  let nimbledataFilename = result.getNimbleDir() / "nimbledata.json"
+  let nimbledataFilename = options.getNimbleDir() / "nimbledata.json"
+
   if fileExists(nimbledataFilename):
     try:
-      result.nimbleData = parseFile(nimbledataFilename)
+      options.nimbleData = parseFile(nimbledataFilename)
     except:
       raise newException(NimbleError, "Couldn't parse nimbledata.json file " &
           "located at " & nimbledataFilename)
   else:
-    result.nimbleData = %{"reverseDeps": newJObject()}
+    options.nimbleData = %{"reverseDeps": newJObject()}
 
 proc parseCmdLine*(): Options =
-  result = parseMisc()
+  result = initOptions()
+  result.config = parseConfig()
+
+  # Parse command line params.
   for kind, key, val in getOpt():
     case kind
     of cmdArgument:
@@ -290,6 +291,10 @@ proc parseCmdLine*(): Options =
     of cmdLongOption, cmdShortOption:
       parseFlag(key, val, result)
     of cmdEnd: assert(false) # cannot happen
+
+  # Parse other things, for example the nimbledata.json file.
+  parseMisc(result)
+
   if result.action.typ == actionNil:
     writeHelp()
 
