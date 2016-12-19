@@ -16,10 +16,12 @@ import logging, terminal, sets, strutils
 
 type
   CLI* = ref object
+    level: Priority
     warnings: HashSet[(string, string)]
+    suppressionCount: int ## Amount of messages which were not shown.
 
   Priority* = enum
-    HighPriority, MediumPriority, LowPriority
+    LowPriority, MediumPriority, HighPriority
 
   DisplayType* = enum
     Error, Warning, Message, Success
@@ -28,12 +30,14 @@ const
   longestCategory = len("Downloading")
   foregrounds: array[Error .. Success, ForegroundColor] =
     [fgRed, fgYellow, fgCyan, fgGreen]
-  styles: array[HighPriority .. LowPriority, set[Style]] =
-    [{styleBright}, {}, {styleDim}]
+  styles: array[LowPriority .. HighPriority, set[Style]] =
+    [{styleDim}, {}, {styleBright}]
 
 proc newCLI(): CLI =
   result = CLI(
-    warnings: initSet[(string, string)]()
+    level: HighPriority,
+    warnings: initSet[(string, string)](),
+    suppressionCount: 0
   )
 
 var globalCLI = newCLI()
@@ -66,12 +70,26 @@ proc display*(category, msg: string, displayType = Message,
     else:
       globalCLI.warnings.incl(warningPair)
 
+  # Suppress this message if its priority isn't high enough.
+  if priority < globalCLI.level:
+    globalCLI.suppressionCount.inc
+    return
+
   # Display each line in the message.
   var i = 0
   for line in msg.splitLines():
     if len(line) == 0: continue
     displayLine(if i == 0: category else: "...", line, displayType, priority)
     i.inc
+
+proc displayTip*() =
+  ## Called just before Nimble exits. Shows some tips for the user, for example
+  ## the amount of messages that were suppressed and how to show them.
+  if globalCLI.suppressionCount > 0:
+    let msg = "$1 messages have been suppressed, use --verbose to show them." %
+             $globalCLI.suppressionCount
+    display("Tip", msg, Warning, HighPriority)
+
 
 when isMainModule:
   display("Reading", "config file at /Users/dom/.config/nimble/nimble.ini",

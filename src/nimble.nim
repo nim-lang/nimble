@@ -996,12 +996,18 @@ proc doAction(options: Options) =
     discard execHook(options, false)
 
 when isMainModule:
+  let error = ""
   when defined(release):
     try:
       parseCmdLine().doAction()
     except NimbleError:
-      quit("FAILURE: " & getCurrentExceptionMsg())
+      error = getCurrentExceptionMsg()
     finally:
       removeDir(getNimbleTempDir())
   else:
     parseCmdLine().doAction()
+
+  displayTip()
+  if error.len > 0:
+    display("Error", error, Error, HighPriority)
+    quit(1)
