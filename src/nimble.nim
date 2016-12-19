@@ -10,7 +10,8 @@ from sequtils import toSeq
 
 import nimblepkg/packageinfo, nimblepkg/version, nimblepkg/tools,
        nimblepkg/download, nimblepkg/config, nimblepkg/common,
-       nimblepkg/publish, nimblepkg/options, nimblepkg/packageparser
+       nimblepkg/publish, nimblepkg/options, nimblepkg/packageparser,
+       nimblepkg/cli
 
 import nimblepkg/nimscriptsupport
 
@@ -31,11 +32,6 @@ else:
 
   proc GetVersionExA*(VersionInformation: var OSVERSIONINFO): WINBOOL{.stdcall,
     dynlib: "kernel32", importc: "GetVersionExA".}
-
-proc writeVersion() =
-  echo("nimble v$# compiled at $# $#" %
-      [nimbleVersion, CompileDate, CompileTime])
-  quit(QuitSuccess)
 
 proc promptCustom(question, default: string): string =
   if default == "":
@@ -961,8 +957,6 @@ proc doAction(options: Options) =
     dump(options)
   of actionTasks:
     listTasks(options)
-  of actionVersion:
-    writeVersion()
   of actionNil:
     assert false
   of actionCustom:

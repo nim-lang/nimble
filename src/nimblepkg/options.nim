@@ -12,6 +12,7 @@ type
     depsOnly*: bool
     queryVersions*: bool
     queryInstalled*: bool
+    nimbleDir*: string
     action*: Action
     config*: Config
     nimbleData*: JsonNode ## Nimbledata.json
@@ -21,12 +22,11 @@ type
     actionNil, actionRefresh, actionInit, actionDump, actionPublish,
     actionInstall, actionSearch,
     actionList, actionBuild, actionPath, actionUninstall, actionCompile,
-    actionCustom, actionTasks, actionVersion
+    actionCustom, actionTasks
 
   Action* = object
     case typ*: ActionType
-    of actionNil, actionList, actionBuild, actionPublish, actionTasks,
-       actionVersion: nil
+    of actionNil, actionList, actionBuild, actionPublish, actionTasks: nil
     of actionRefresh:
       optionalURL*: string # Overrides default package list.
     of actionInstall, actionPath, actionUninstall:
@@ -93,6 +93,11 @@ proc writeHelp*() =
   echo(help)
   quit(QuitSuccess)
 
+proc writeVersion() =
+  echo("nimble v$# compiled at $# $#" %
+      [nimbleVersion, CompileDate, CompileTime])
+  quit(QuitSuccess)
+
 proc parseActionType*(action: string): ActionType =
   case action.normalize()
   of "install", "path":
@@ -153,7 +158,7 @@ proc initAction*(options: var Options, key: string) =
     options.action.arguments = @[]
     options.action.flags = newStringTable()
   of actionBuild, actionPublish, actionList, actionTasks,
-     actionNil, actionVersion: discard
+     actionNil: discard
 
 proc prompt*(options: Options, question: string): bool =
   ## Asks an interactive question and returns the result.
@@ -191,7 +196,13 @@ proc renameBabelToNimble(options: Options) {.deprecated.} =
       removeFile(nimbleDir / "babeldata.json")
 
 proc getNimbleDir*(options: Options): string =
-  expandTilde(options.config.nimbleDir)
+  result =
+    if options.nimbleDir.len == 0:
+      options.config.nimbleDir
+    else:
+      options.nimbleDir
+
+  return expandTilde(result)
 
 proc getPkgsDir*(options: Options): string =
   options.getNimbleDir() / "pkgs"
@@ -247,13 +258,11 @@ proc parseFlag*(flag, val: string, result: var Options) =
     # TODO: These should not be global.
     case flag.normalize()
     of "help", "h": writeHelp()
-    of "version", "v":
-      assert result.action.typ == actionNil
-      result.action.typ = actionVersion
+    of "version", "v": writeVersion()
     of "accept", "y": result.forcePrompts = forcePromptYes
     of "reject", "n": result.forcePrompts = forcePromptNo
     of "ver": result.queryVersions = true
-    of "nimbledir": result.config.nimbleDir = val # overrides option from file
+    of "nimbledir": result.nimbleDir = val
     of "installed", "i": result.queryInstalled = true
     of "depsonly", "d": result.depsOnly = true
     else:
@@ -262,6 +271,7 @@ proc parseFlag*(flag, val: string, result: var Options) =
 proc initOptions*(): Options =
   result.action.typ = actionNil
   result.pkgInfoCache = newTable[string, PackageInfo]()
+  result.nimbleDir = ""
 
 proc parseMisc(options: var Options) =
   # Load nimbledata.json
@@ -278,9 +288,9 @@ proc parseMisc(options: var Options) =
 
 proc parseCmdLine*(): Options =
   result = initOptions()
-  result.config = parseConfig()
 
-  # Parse command line params.
+  # Parse command line params first. A simple `--version` shouldn't require
+  # a config to be parsed.
   for kind, key, val in getOpt():
     case kind
     of cmdArgument:
@@ -291,6 +301,9 @@ proc parseCmdLine*(): Options =
     of cmdLongOption, cmdShortOption:
       parseFlag(key, val, result)
     of cmdEnd: assert(false) # cannot happen
+
+  # Parse config.
+  result.config = parseConfig()
 
   # Parse other things, for example the nimbledata.json file.
   parseMisc(result)
