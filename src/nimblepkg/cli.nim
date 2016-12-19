@@ -22,12 +22,14 @@ type
     HighPriority, MediumPriority, LowPriority
 
   DisplayType* = enum
-    Error, Warning, Message
+    Error, Warning, Message, Success
 
 const
   longestCategory = len("Downloading")
-  foregrounds: array[Error .. Message, ForegroundColor] = [fgRed, fgYellow, fgCyan]
-  styles: array[HighPriority .. LowPriority, set[Style]] = [{styleBright}, {}, {styleDim}]
+  foregrounds: array[Error .. Success, ForegroundColor] =
+    [fgRed, fgYellow, fgCyan, fgGreen]
+  styles: array[HighPriority .. LowPriority, set[Style]] =
+    [{styleBright}, {}, {styleDim}]
 
 proc newCLI(): CLI =
   result = CLI(

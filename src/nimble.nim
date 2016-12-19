@@ -1,6 +1,8 @@
 # Copyright (C) Dominik Picheta. All rights reserved.
 # BSD License. Look at license.txt for more info.
 
+import system except TResult
+
 import httpclient, parseopt, os, osproc, pegs, tables, parseutils,
        strtabs, json, algorithm, sets, uri
 
@@ -56,10 +58,10 @@ proc update(options: Options) =
       ""
 
   proc downloadList(list: PackageList, options: Options) =
-    echo("Downloading \"", list.name, "\" package list")
+    display("Downloading", list.name & " package list", priority = HighPriority)
     for i in 0 .. <list.urls.len:
       let url = list.urls[i]
-      echo("Trying ", url, "...")
+      display("Trying", url)
       let tempPath = options.getNimbleDir() / "packages_temp.json"
 
       # Grab the proxy
@@ -67,21 +69,25 @@ proc update(options: Options) =
       if not proxy.isNil:
         var maskedUrl = proxy.url
         if maskedUrl.password.len > 0: maskedUrl.password = "***"
-        echo("Using proxy ", maskedUrl)
+        display("Connecting", "to proxy at " & $maskedUrl,
+                priority = LowPriority)
 
       try:
         downloadFile(url, tempPath, proxy = getProxy(options))
       except:
         if i == <list.urls.len:
           raise
-        echo("Could not download: ", getCurrentExceptionMsg())
+        let message = "Could not download: " & getCurrentExceptionMsg()
+        display("Warning", message, Warning)
         continue
+
       if not validatePackagesList(tempPath):
-        echo("Downloaded packages.json file is invalid, discarding.")
+        let message = "Downloaded packages.json file is invalid, discarding."
+        display("Warning", message, Warning)
         continue
       copyFile(tempPath,
           options.getNimbleDir() / "packages_$1.json" % list.name.toLowerAscii())
-      echo("Done.")
+      display("Success", "Package list downloaded.", Success, HighPriority)
       break
 
   if parameter.isUrl:

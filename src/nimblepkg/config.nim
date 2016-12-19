@@ -2,7 +2,7 @@
 # BSD License. Look at license.txt for more info.
 import parsecfg, streams, strutils, os, tables, Uri
 
-import tools, version, common
+import tools, version, common, cli
 
 type
   Config* = object
@@ -50,13 +50,15 @@ proc parseConfig*(): Config =
   var f = newFileStream(confFile, fmRead)
   if f == nil:
     # Try the old deprecated babel.ini
+    # TODO: This can be removed.
     confFile = getConfigDir() / "babel" / "babel.ini"
     f = newFileStream(confFile, fmRead)
     if f != nil:
-      echo("[Warning] Using deprecated config file at ", confFile)
+      display("Warning", "Using deprecated config file at " & confFile,
+              displayType = Warning)
 
   if f != nil:
-    echo("Reading from config file at ", confFile)
+    display("Reading", "config file at " & confFile)
     var p: CfgParser
     open(p, f, confFile)
     var currentSection = ""
