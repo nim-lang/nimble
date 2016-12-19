@@ -90,6 +90,8 @@ proc displayTip*() =
              $globalCLI.suppressionCount
     display("Tip", msg, Warning, HighPriority)
 
+proc setVerbosity*(level: Priority) =
+  globalCLI.level = level
 
 when isMainModule:
   display("Reading", "config file at /Users/dom/.config/nimble/nimble.ini",

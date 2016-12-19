@@ -4,7 +4,7 @@
 import json, strutils, os, parseopt, strtabs, uri, tables
 from httpclient import Proxy, newProxy
 
-import config, version, tools, common
+import config, version, tools, common, cli
 
 type
   Options* = object
@@ -13,6 +13,7 @@ type
     queryVersions*: bool
     queryInstalled*: bool
     nimbleDir*: string
+    verbosity*: cli.Priority
     action*: Action
     config*: Config
     nimbleData*: JsonNode ## Nimbledata.json
@@ -84,6 +85,7 @@ Options:
                                   information when searching or listing packages
       --nimbleDir dirname         Set the Nimble directory.
   -d  --depsOnly                  Install only dependencies.
+      --verbose                   Show all output.
 
 For more information read the Github readme:
   https://github.com/nim-lang/nimble#readme
@@ -265,6 +267,7 @@ proc parseFlag*(flag, val: string, result: var Options) =
     of "nimbledir": result.nimbleDir = val
     of "installed", "i": result.queryInstalled = true
     of "depsonly", "d": result.depsOnly = true
+    of "verbose": result.verbosity = LowPriority
     else:
       raise newException(NimbleError, "Unknown option: --" & flag)
 
@@ -272,6 +275,7 @@ proc initOptions*(): Options =
   result.action.typ = actionNil
   result.pkgInfoCache = newTable[string, PackageInfo]()
   result.nimbleDir = ""
+  result.verbosity = HighPriority
 
 proc parseMisc(options: var Options) =
   # Load nimbledata.json
@@ -301,6 +305,9 @@ proc parseCmdLine*(): Options =
     of cmdLongOption, cmdShortOption:
       parseFlag(key, val, result)
     of cmdEnd: assert(false) # cannot happen
+
+  # Set verbosity level.
+  setVerbosity(result.verbosity)
 
   # Parse config.
   result.config = parseConfig()
