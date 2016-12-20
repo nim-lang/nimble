@@ -55,10 +55,10 @@ proc parseConfig*(): Config =
     f = newFileStream(confFile, fmRead)
     if f != nil:
       display("Warning", "Using deprecated config file at " & confFile,
-              displayType = Warning)
+              Warning, HighPriority)
 
   if f != nil:
-    display("Reading", "config file at " & confFile)
+    display("Reading", "config file at " & confFile, priority = LowPriority)
     var p: CfgParser
     open(p, f, confFile)
     var currentSection = ""

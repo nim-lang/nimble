@@ -239,12 +239,14 @@ proc getInstalledPkgs*(libsDir: string, options: Options):
   ##
   ## ``libsDir`` is in most cases: ~/.nimble/pkgs/
   const
-    readErrorMsg = "Package installation for $1 v$2 is outdated or corrupt."
+    readErrorMsg = "Installed package $1 v$2 is outdated or corrupt."
     validationErrorMsg = readErrorMsg & "\nPackage did not pass validation: $3"
 
   proc createErrorMsg(tmplt, path, msg: string): string =
     let (name, version) = getNameVersion(path)
     return tmplt % [name, version, msg]
+
+  display("Loading", "list of installed packages", priority = HighPriority)
 
   result = @[]
   for kind, path in walkDir(libsDir):
