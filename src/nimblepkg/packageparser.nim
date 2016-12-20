@@ -1,7 +1,7 @@
 # Copyright (C) Dominik Picheta. All rights reserved.
 # BSD License. Look at license.txt for more info.
 import parsecfg, json, streams, strutils, parseutils, os, tables
-import version, tools, common, nimscriptsupport, options, packageinfo
+import version, tools, common, nimscriptsupport, options, packageinfo, cli
 
 ## Contains procedures for parsing .nimble files. Moved here from ``packageinfo``
 ## because it depends on ``nimscriptsupport`` (``nimscriptsupport`` also
@@ -20,11 +20,7 @@ proc newValidationError(msg: string, warnInstalled: bool): ref ValidationError =
   result.warnInstalled = warnInstalled
 
 proc raiseNewValidationError(msg: string, warnInstalled: bool) =
-  if warnInstalled:
-    # TODO: We warn everywhere for now. Raise the error in the next version.
-    echo("WARNING: ", msg, ". Will be an error in next version!")
-  else:
-    raise newValidationError(msg, warnInstalled)
+  raise newValidationError(msg, warnInstalled)
 
 proc validatePackageName*(name: string) =
   ## Raises an error if specified package name contains invalid characters.
@@ -242,6 +238,14 @@ proc getInstalledPkgs*(libsDir: string, options: Options):
   ## Gets a list of installed packages.
   ##
   ## ``libsDir`` is in most cases: ~/.nimble/pkgs/
+  const
+    readErrorMsg = "Package installation for $1 v$2 is outdated or corrupt."
+    validationErrorMsg = readErrorMsg & "\nPackage did not pass validation: $3"
+
+  proc createErrorMsg(tmplt, path, msg: string): string =
+    let (name, version) = getNameVersion(path)
+    return tmplt % [name, version, msg]
+
   result = @[]
   for kind, path in walkDir(libsDir):
     if kind == pcDir:
@@ -254,17 +258,15 @@ proc getInstalledPkgs*(libsDir: string, options: Options):
           result.add((pkg, meta))
         except ValidationError:
           let exc = (ref ValidationError)(getCurrentException())
+          exc.msg = createErrorMsg(validationErrorMsg, path, exc.msg)
           if exc.warnInstalled:
-            echo("WARNING: Unable to read package info for " & path & "\n" &
-                "  Package did not pass validation: " & exc.msg)
+            display("Warning", exc.msg, Warning, HighPriority)
           else:
-            exc.msg = "Unable to read package info for " & path & "\n" &
-                "  Package did not pass validation: " & exc.msg
             raise exc
         except:
           let exc = getCurrentException()
-          exc.msg = "Unable to read package info for " & path & "\n" &
-              "  Error: " & exc.msg
+          let tmplt = readErrorMsg & "\nMore info: $3"
+          exc.msg = createErrorMsg(tmplt, path, exc.msg)
           raise exc
 
 proc isNimScript*(nf: string, options: Options): bool =
