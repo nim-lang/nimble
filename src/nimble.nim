@@ -274,24 +274,30 @@ proc processDeps(pkginfo: PackageInfo, options: Options): seq[string] =
   ## Returns the list of paths to pass to the compiler during build phase.
   result = @[]
   assert(not pkginfo.isMinimal, "processDeps needs pkginfo.requires")
+  display("Verifying",
+          "dependencies for $1 v$2" % [pkginfo.name, pkginfo.version],
+          priority = HighPriority)
+
   let pkglist = getInstalledPkgs(options.getPkgsDir(), options)
   var reverseDeps: seq[tuple[name, version: string]] = @[]
   for dep in pkginfo.requires:
     if dep.name == "nimrod" or dep.name == "nim":
       let nimVer = getNimrodVersion()
       if not withinRange(nimVer, dep.ver):
-        quit("Unsatisfied dependency: " & dep.name & " (" & $dep.ver & ")")
+        let msg = "Unsatisfied dependency: " & dep.name & " (" & $dep.ver & ")"
+        raise newException(NimbleError, msg)
     else:
-      echo("Looking for ", dep.name, " (", $dep.ver, ")...")
+      let depDesc = "$1 ($2)" % [dep.name, $dep.ver]
+      display("Checking", "for $1" % depDesc, priority = MediumPriority)
       var pkg: PackageInfo
       if not findPkg(pkglist, dep, pkg):
-        echo("None found, installing...")
+        display("Installing", depDesc, priority = HighPriority)
         let (paths, installedPkg) = install(@[(dep.name, dep.ver)], options)
         result.add(paths)
 
         pkg = installedPkg # For addRevDep
       else:
-        echo("Dependency already satisfied.")
+        display("Info", "Dependency already satisfied", priority = HighPriority)
         result.add(pkg.mypath.splitFile.dir)
         # Process the dependencies of this dependency.
         result.add(processDeps(pkg, options))

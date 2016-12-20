@@ -3,7 +3,7 @@
 #
 # Various miscellaneous utility functions reside here.
 import osproc, pegs, strutils, os, uri, sets, json, parseutils
-import version, common
+import version, common, cli
 
 proc extractBin(cmd: string): string =
   if cmd[0] == '"':
@@ -75,14 +75,14 @@ proc changeRoot*(origRoot, newRoot, path: string): string =
 
 proc copyFileD*(fro, to: string): string =
   ## Returns the destination (``to``).
-  echo(fro, " -> ", to)
+  display("Copying", "file $# to $#" % [fro, to], priority = LowPriority)
   copyFileWithPermissions(fro, to)
   result = to
 
 proc copyDirD*(fro, to: string): seq[string] =
   ## Returns the filenames of the files in the directory that were copied.
   result = @[]
-  echo("Copying directory: ", fro, " -> ", to)
+  display("Copying", "directory $# to $#" % [fro, to], priority = LowPriority)
   for path in walkDirRec(fro):
     createDir(changeRoot(fro, to, path.splitFile.dir))
     result.add copyFileD(path, changeRoot(fro, to, path))
