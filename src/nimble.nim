@@ -469,12 +469,13 @@ proc installFromDir(dir: string, latest: bool, options: Options,
         # TODO: Verify that we are removing an old bin of this package, not
         # some other package's binary!
         if existsFile(binDir / cleanBin): removeFile(binDir / cleanBin)
-        echo("Creating symlink: ", pkgDestDir / bin, " -> ", binDir / cleanBin)
+        display("Creating", "symlink: $1 -> $2" %
+                [pkgDestDir / bin, binDir / cleanBin], priority = MediumPriority)
         createSymlink(pkgDestDir / bin, binDir / cleanBin)
       elif defined(windows):
         # There is a bug on XP, described here:
         # http://stackoverflow.com/questions/2182568/batch-script-is-not-executed-if-chcp-was-called
-        # But this workaround brokes code page on newer systems, so we need to detect OS version
+        # But this workaround brakes code page on newer systems, so we need to detect OS version
         var osver = OSVERSIONINFO()
         osver.dwOSVersionInfoSize = cast[DWORD](sizeof(OSVERSIONINFO))
         if GetVersionExA(osver) == WINBOOL(0):
@@ -483,7 +484,8 @@ proc installFromDir(dir: string, latest: bool, options: Options,
         let fixChcp = osver.dwMajorVersion <= 5
 
         let dest = binDir / cleanBin.changeFileExt("cmd")
-        echo("Creating stub: ", pkgDestDir / bin, " -> ", dest)
+        display("Creating", "stub: $1 -> $2" % [pkgDestDir / bin, dest],
+                priority = MediumPriority)
         var contents = "@"
         if options.config.chcp:
           if fixChcp:
@@ -493,7 +495,8 @@ proc installFromDir(dir: string, latest: bool, options: Options,
         writeFile(dest, contents)
         # For bash on Windows (Cygwin/Git bash).
         let bashDest = dest.changeFileExt("")
-        echo("Creating Cygwin stub: ", pkgDestDir / bin, " -> ", bashDest)
+        display("Creating", "Cygwin stub: $1 -> $2" %
+                [pkgDestDir / bin, bashDest], priority = MediumPriority)
         writeFile(bashDest, "\"" & pkgDestDir / bin & "\" \"$@\"\n")
       else:
         {.error: "Sorry, your platform is not supported.".}
@@ -514,7 +517,7 @@ proc installFromDir(dir: string, latest: bool, options: Options,
   result.paths.add pkgDestDir
   result.pkg = pkgInfo
 
-  echo(pkgInfo.name & " installed successfully.")
+  display(pkgInfo.name, " installed successfully.", priority = HighPriority)
 
 proc getNimbleTempDir(): string =
   ## Returns a path to a temporary directory.
@@ -552,8 +555,8 @@ proc downloadPkg(url: string, verRange: VersionRange,
   if modUrl.contains("github.com") and modUrl.endswith("/"):
     modUrl = modUrl[0 .. ^2]
 
-  echo("Downloading ", modUrl, " into ", downloadDir, " using ",
-      downMethod, "...")
+  display("Downloading", "$1 using $2" % [modUrl, $downMethod],
+          priority = HighPriority)
   result = (
     downloadDir,
     doDownload(modUrl, downloadDir, verRange, downMethod, options)
@@ -595,7 +598,7 @@ proc install(packages: seq[PkgTuple],
               "internet?"):
         refresh(options)
       else:
-        quit("Please run nimble refresh.", QuitFailure)
+        raise newException(NimbleError, "Please run nimble refresh.")
 
     # Install each package.
     for pv in packages:
@@ -650,8 +653,8 @@ proc compile(options: Options) =
   if bin == "":
     raise newException(NimbleError, "You need to specify a file to compile.")
 
-  echo("Compiling ", bin, " (", pkgInfo.name, ") using ", backend,
-       " backend...")
+  display("Compiling", "$1 ($2) using $3 backend" % [bin, pkgInfo.name, backend],
+          priority = HighPriority)
   doCmd("\"" & getNimBin() & "\" $# --noBabelPath $# \"$#\"" %
         [backend, args, bin])
 
@@ -686,7 +689,7 @@ proc search(options: Options) =
             onFound()
 
   if not found:
-    echo("No package found.")
+    display("Error", "No package found.", Error, HighPriority)
 
 proc list(options: Options) =
   if needsRefresh(options):

@@ -1,7 +1,7 @@
 # Copyright (C) Dominik Picheta. All rights reserved.
 # BSD License. Look at license.txt for more info.
 import parsecfg, json, streams, strutils, parseutils, os, sets, tables
-import version, tools, common, options
+import version, tools, common, options, cli
 
 type
   Package* = object
@@ -138,7 +138,7 @@ proc getPackage*(pkg: string, options: Options,
   ## convenience the proc returns a boolean specifying if the ``resPkg`` was
   ## successfully filled with good data.
   for name, list in options.config.packageLists:
-    echo("Searching in \"", name, "\" package list...")
+    display("Reading", "$1 package list" % name, priority = LowPriority)
     let packages = parseFile(options.getNimbleDir() /
         "packages_" & name.toLowerAscii() & ".json")
     for p in packages:
@@ -178,8 +178,8 @@ proc findNimbleFile*(dir: string; error: bool): string =
       raise newException(NimbleError,
           "Specified directory does not contain a .nimble file.")
     else:
-      # TODO: Abstract logging.
-      echo("WARNING: No .nimble file found for ", dir)
+      display("Warning", "No .nimble file found for " & dir, Warning,
+              HighPriority)
 
 proc getInstalledPkgsMin*(libsDir: string, options: Options):
         seq[tuple[pkginfo: PackageInfo, meta: MetaData]] =
