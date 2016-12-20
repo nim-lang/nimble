@@ -8,7 +8,7 @@ type
   Config* = object
     nimbleDir*: string
     chcp*: bool # Whether to change the code page in .cmd files on Win.
-    packageLists*: Table[string, PackageList] ## URLs to packages.json files
+    packageLists*: Table[string, PackageList] ## Names -> packages.json files
     cloneUsingHttps*: bool # Whether to replace git:// for https://
     httpProxy*: Uri # Proxy for package list downloads.
 

@@ -90,8 +90,16 @@ proc refresh(options: Options) =
       display("Success", "Package list downloaded.", Success, HighPriority)
       break
 
-  if parameter.isUrl:
-    downloadList(PackageList(name: "commandline", urls: @[parameter]), options)
+  if parameter.len > 0:
+    if parameter.isUrl:
+      let cmdLine = PackageList(name: "commandline", urls: @[parameter])
+      downloadList(cmdLine, options)
+    else:
+      if parameter notin options.config.packageLists:
+        let msg = "Package list with the specified name not found."
+        raise newException(NimbleError, msg)
+
+      downloadList(options.config.packageLists[parameter], options)
   else:
     # Try each package list in config
     for name, list in options.config.packageLists:
