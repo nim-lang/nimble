@@ -93,15 +93,15 @@ test "can refresh with custom urls":
     url = "http://nim-lang.org/nimble/packages.json"
   """.unindent)
 
-  let (output, exitCode) = execNimble(["refresh"])
+  let (output, exitCode) = execNimble(["refresh", "--verbose"])
   let lines = output.strip.splitLines()
   check exitCode == QuitSuccess
-  check inLines(lines, "reading from config file")
-  check inLines(lines, "downloading \"official\" package list")
-  check inLines(lines, "trying http://google.com")
+  check inLines(lines, "config file at")
+  check inLines(lines, "official package list")
+  check inLines(lines, "http://google.com")
   check inLines(lines, "packages.json file is invalid")
   check inLines(lines, "404 not found")
-  check inLines(lines, "done")
+  check inLines(lines, "Package list downloaded.")
 
   # Restore config
   if fileExists(configBakFile):
@@ -113,21 +113,21 @@ test "can install nimscript package":
 
 test "can execute nimscript tasks":
   cd "nimscript":
-    let (output, exitCode) = execNimble("test")
+    let (output, exitCode) = execNimble("--verbose", "test")
     let lines = output.strip.splitLines()
     check exitCode == QuitSuccess
     check lines[^1] == "10"
 
 test "can use nimscript's setCommand":
   cd "nimscript":
-    let (output, exitCode) = execNimble("cTest")
+    let (output, exitCode) = execNimble("--verbose", "cTest")
     let lines = output.strip.splitLines()
     check exitCode == QuitSuccess
     check "Hint: operation successful".normalize in lines[^1].normalize
 
 test "can use nimscript's setCommand with flags":
   cd "nimscript":
-    let (output, exitCode) = execNimble("cr")
+    let (output, exitCode) = execNimble("--verbose", "cr")
     let lines = output.strip.splitLines()
     check exitCode == QuitSuccess
     check "Hello World".normalize in lines[^1].normalize
