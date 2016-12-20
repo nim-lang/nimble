@@ -59,6 +59,8 @@ proc refresh(options: Options) =
 
   proc downloadList(list: PackageList, options: Options) =
     display("Downloading", list.name & " package list", priority = HighPriority)
+
+    var lastError = ""
     for i in 0 .. <list.urls.len:
       let url = list.urls[i]
       display("Trying", url)
@@ -75,20 +77,24 @@ proc refresh(options: Options) =
       try:
         downloadFile(url, tempPath, proxy = getProxy(options))
       except:
-        if i == <list.urls.len:
-          raise
         let message = "Could not download: " & getCurrentExceptionMsg()
         display("Warning", message, Warning)
+        lastError = message
         continue
 
       if not validatePackagesList(tempPath):
-        let message = "Downloaded packages.json file is invalid, discarding."
-        display("Warning", message, Warning)
+        lastError = "Downloaded packages.json file is invalid"
+        display("Warning", lastError & ", discarding.", Warning)
         continue
+
       copyFile(tempPath,
           options.getNimbleDir() / "packages_$1.json" % list.name.toLowerAscii())
       display("Success", "Package list downloaded.", Success, HighPriority)
+      lastError = ""
       break
+
+    if lastError.len != 0:
+      raise newException(NimbleError, "Refresh failed\n" & lastError)
 
   if parameter.len > 0:
     if parameter.isUrl:
@@ -1004,7 +1010,7 @@ proc doAction(options: Options) =
     discard execHook(options, false)
 
 when isMainModule:
-  let error = ""
+  var error = ""
   when defined(release):
     try:
       parseCmdLine().doAction()
