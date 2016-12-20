@@ -8,7 +8,7 @@ when not defined(nimscript):
   import sets
 
   import version
-  export version.NimbleError
+  export version.NimbleError # TODO: Surely there is a better way?
 
   type
     BuildFailed* = object of NimbleError
@@ -36,6 +36,9 @@ when not defined(nimscript):
       binDir*: string
       srcDir*: string
       backend*: string
+
+    ## Same as quit(QuitSuccess), but allows cleanup.
+    NimbleQuit* = ref object of Exception
 
 const
   nimbleVersion* = "0.7.11"

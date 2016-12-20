@@ -420,7 +420,8 @@ proc installFromDir(dir: string, latest: bool, options: Options,
     result.pkg = pkgInfo
     return result
 
-  echo("Installing ", pkginfo.name, "-", pkginfo.version)
+  display("Installing", "$1 v$2" % [pkginfo.name, pkginfo.version],
+          priority = HighPriority)
 
   # Build before removing an existing package (if one exists). This way
   # if the build fails then the old package will still be installed.
@@ -431,7 +432,7 @@ proc installFromDir(dir: string, latest: bool, options: Options,
   if existsDir(pkgDestDir) and existsFile(pkgDestDir / "nimblemeta.json"):
     if not options.prompt(pkgInfo.name & versionStr &
           " already exists. Overwrite?"):
-      quit(QuitSuccess)
+      raise NimbleQuit(msg: "")
     removePkgDir(pkgDestDir, options)
     # Remove any symlinked binaries
     for bin in pkgInfo.bin:
@@ -1017,15 +1018,18 @@ proc doAction(options: Options) =
 
 when isMainModule:
   var error = ""
-  when defined(release):
-    try:
-      parseCmdLine().doAction()
-    except NimbleError:
-      error = getCurrentExceptionMsg()
-    finally:
-      removeDir(getNimbleTempDir())
-  else:
+
+  try:
     parseCmdLine().doAction()
+  except NimbleError:
+    error = getCurrentExceptionMsg()
+    when not defined(release):
+      let stackTrace = getStackTrace(getCurrentException())
+      error = stackTrace & "\n\n" & error
+  except NimbleQuit:
+    nil
+  finally:
+    removeDir(getNimbleTempDir())
 
   displayTip()
   if error.len > 0:
