@@ -47,7 +47,7 @@ proc promptCustom(question, default: string): string =
     if user == "": return default
     else: return user
 
-proc update(options: Options) =
+proc refresh(options: Options) =
   ## Downloads the package list from the specified URL.
   ##
   ## If the download is not successful, an exception is raised.
@@ -547,15 +547,15 @@ proc getDownloadInfo*(pv: PkgTuple, options: Options,
     if getPackage(pv.name, options, pkg):
       return (pkg.downloadMethod.getDownloadMethod(), pkg.url)
     else:
-      # If package is not found give the user a chance to update
+      # If package is not found give the user a chance to refresh
       # package.json
       if doPrompt and
           options.prompt(pv.name & " not found in any local packages.json, " &
                          "check internet for updated packages?"):
-        update(options)
+        refresh(options)
 
-        # Once we've updated, try again, but don't prompt if not found
-        # (as we've already updated and a failure means it really
+        # Once we've refreshed, try again, but don't prompt if not found
+        # (as we've already refreshed and a failure means it really
         # isn't there)
         return getDownloadInfo(pv, options, false)
       else:
@@ -572,7 +572,7 @@ proc install(packages: seq[PkgTuple],
       if doPrompt and
           options.prompt("No local packages.json found, download it from " &
               "internet?"):
-        update(options)
+        refresh(options)
       else:
         quit("Please run nimble refresh.", QuitFailure)
 
@@ -936,7 +936,7 @@ proc doAction(options: Options) =
     return
   case options.action.typ
   of actionRefresh:
-    update(options)
+    refresh(options)
   of actionInstall:
     let (_, pkgInfo) = install(options.action.packages, options)
     if options.action.packages.len == 0:
