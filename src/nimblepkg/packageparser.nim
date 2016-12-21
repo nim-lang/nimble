@@ -262,7 +262,7 @@ proc getInstalledPkgs*(libsDir: string, options: Options):
           let exc = (ref ValidationError)(getCurrentException())
           exc.msg = createErrorMsg(validationErrorMsg, path, exc.msg)
           if exc.warnInstalled:
-            display("Warning", exc.msg, Warning, HighPriority)
+            display("Warning:", exc.msg, Warning, HighPriority)
           else:
             raise exc
         except:

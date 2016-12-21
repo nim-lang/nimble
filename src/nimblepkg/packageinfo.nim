@@ -178,7 +178,7 @@ proc findNimbleFile*(dir: string; error: bool): string =
       raise newException(NimbleError,
           "Specified directory does not contain a .nimble file.")
     else:
-      display("Warning", "No .nimble file found for " & dir, Warning,
+      display("Warning:", "No .nimble file found for " & dir, Warning,
               HighPriority)
 
 proc getInstalledPkgsMin*(libsDir: string, options: Options):

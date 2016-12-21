@@ -78,13 +78,13 @@ proc refresh(options: Options) =
         downloadFile(url, tempPath, proxy = getProxy(options))
       except:
         let message = "Could not download: " & getCurrentExceptionMsg()
-        display("Warning", message, Warning)
+        display("Warning:", message, Warning)
         lastError = message
         continue
 
       if not validatePackagesList(tempPath):
         lastError = "Downloaded packages.json file is invalid"
-        display("Warning", lastError & ", discarding.", Warning)
+        display("Warning:", lastError & ", discarding.", Warning)
         continue
 
       copyFile(tempPath,
@@ -1035,7 +1035,7 @@ when isMainModule:
   finally:
     removeDir(getNimbleTempDir())
 
-  displayTip()
   if error.len > 0:
+    displayTip()
     display("Error", error, Error, HighPriority)
     quit(1)
