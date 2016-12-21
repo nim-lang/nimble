@@ -85,7 +85,8 @@ Options:
                                   information when searching or listing packages
       --nimbleDir dirname         Set the Nimble directory.
   -d  --depsOnly                  Install only dependencies.
-      --verbose                   Show all output.
+      --verbose                   Show all non-debug output.
+      --debug                     Show all output including debug messages.
 
 For more information read the Github readme:
   https://github.com/nim-lang/nimble#readme
@@ -268,6 +269,7 @@ proc parseFlag*(flag, val: string, result: var Options) =
     of "installed", "i": result.queryInstalled = true
     of "depsonly", "d": result.depsOnly = true
     of "verbose": result.verbosity = LowPriority
+    of "debug": result.verbosity = DebugPriority
     else:
       raise newException(NimbleError, "Unknown option: --" & flag)
 

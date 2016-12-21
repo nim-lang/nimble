@@ -21,7 +21,7 @@ type
     suppressionCount: int ## Amount of messages which were not shown.
 
   Priority* = enum
-    LowPriority, MediumPriority, HighPriority
+    DebugPriority, LowPriority, MediumPriority, HighPriority
 
   DisplayType* = enum
     Error, Warning, Message, Success
@@ -30,8 +30,8 @@ const
   longestCategory = len("Downloading")
   foregrounds: array[Error .. Success, ForegroundColor] =
     [fgRed, fgYellow, fgCyan, fgGreen]
-  styles: array[LowPriority .. HighPriority, set[Style]] =
-    [{styleDim}, {}, {styleBright}]
+  styles: array[DebugPriority .. HighPriority, set[Style]] =
+    [{styleDim}, {styleDim}, {}, {styleBright}]
 
 proc newCLI(): CLI =
   result = CLI(
@@ -53,7 +53,8 @@ proc displayLine(category, line: string, displayType: DisplayType,
   # line.
   let offset = calculateCategoryOffset(category)
   # Display the category.
-  setForegroundColor(stdout, foregrounds[displayType])
+  if priority != DebugPriority:
+    setForegroundColor(stdout, foregrounds[displayType])
   writeStyled("$1$2 " % [repeatChar(offset), category], styles[priority])
   resetAttributes()
 
@@ -71,8 +72,10 @@ proc display*(category, msg: string, displayType = Message,
       globalCLI.warnings.incl(warningPair)
 
   # Suppress this message if its priority isn't high enough.
+  # TODO: Per-priority suppression counts?
   if priority < globalCLI.level:
-    globalCLI.suppressionCount.inc
+    if priority != DebugPriority:
+      globalCLI.suppressionCount.inc
     return
 
   # Display each line in the message.
@@ -81,6 +84,10 @@ proc display*(category, msg: string, displayType = Message,
     if len(line) == 0: continue
     displayLine(if i == 0: category else: "...", line, displayType, priority)
     i.inc
+
+proc displayDebug*(category, msg: string) =
+  ## Convenience for displaying debug messages.
+  display(category, msg, priority = DebugPriority)
 
 proc displayTip*() =
   ## Called just before Nimble exits. Shows some tips for the user, for example

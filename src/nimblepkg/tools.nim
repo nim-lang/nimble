@@ -20,7 +20,10 @@ proc doCmd*(cmd: string) =
   stdout.flushFile()
   stderr.flushFile()
 
-  let exitCode = execCmd(cmd)
+  displayDebug("Executing", cmd)
+  let (output, exitCode) = execCmdEx(cmd)
+  displayDebug("Finished", "with exit code " & $exitCode)
+  displayDebug("Output", output)
 
   if exitCode != QuitSuccess:
     raise newException(NimbleError,
