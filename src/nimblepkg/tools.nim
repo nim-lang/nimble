@@ -23,6 +23,7 @@ proc doCmd*(cmd: string) =
   displayDebug("Executing", cmd)
   let (output, exitCode) = execCmdEx(cmd)
   displayDebug("Finished", "with exit code " & $exitCode)
+  # TODO: Improve to show output in real-time.
   displayDebug("Output", output)
 
   if exitCode != QuitSuccess:
@@ -53,7 +54,7 @@ proc getNimrodVersion*: Version =
   let vOutput = doCmdEx('"' & nimBin & "\" -v").output
   var matches: array[0..MaxSubpatterns, string]
   if vOutput.find(peg"'Version'\s{(\d+\.)+\d}", matches) == -1:
-    quit("Couldn't find Nim version.", QuitFailure)
+    raise newException(NimbleError, "Couldn't find Nim version.")
   newVersion(matches[0])
 
 proc samePaths*(p1, p2: string): bool =
