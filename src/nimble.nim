@@ -517,7 +517,8 @@ proc installFromDir(dir: string, latest: bool, options: Options,
   result.paths.add pkgDestDir
   result.pkg = pkgInfo
 
-  display(pkgInfo.name, " installed successfully.", priority = HighPriority)
+  display("Success:", pkgInfo.name & " installed successfully.",
+          Success, HighPriority)
 
 proc getNimbleTempDir(): string =
   ## Returns a path to a temporary directory.

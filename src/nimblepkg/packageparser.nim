@@ -246,7 +246,7 @@ proc getInstalledPkgs*(libsDir: string, options: Options):
     let (name, version) = getNameVersion(path)
     return tmplt % [name, version, msg]
 
-  display("Loading", "list of installed packages", priority = HighPriority)
+  display("Loading", "list of installed packages", priority = MediumPriority)
 
   result = @[]
   for kind, path in walkDir(libsDir):

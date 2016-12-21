@@ -95,7 +95,7 @@ proc displayTip*() =
   if globalCLI.suppressionCount > 0:
     let msg = "$1 messages have been suppressed, use --verbose to show them." %
              $globalCLI.suppressionCount
-    display("Tip", msg, Warning, HighPriority)
+    display("Tip:", msg, Warning, HighPriority)
 
 proc setVerbosity*(level: Priority) =
   globalCLI.level = level
