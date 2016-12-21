@@ -45,9 +45,6 @@ type
       arguments*: seq[string]
       flags*: StringTableRef
 
-  ForcePrompt* = enum
-    dontForcePrompt, forcePromptYes, forcePromptNo
-
 
 const
   help* = """
@@ -168,23 +165,7 @@ proc prompt*(options: Options, question: string): bool =
   ##
   ## The proc will return immediately without asking the user if the global
   ## forcePrompts has a value different than dontForcePrompt.
-  case options.forcePrompts
-  of forcePromptYes:
-    echo(question & " -> [forced yes]")
-    return true
-  of forcePromptNo:
-    echo(question & " -> [forced no]")
-    return false
-  of dontForcePrompt:
-    echo(question & " [y/N]")
-    let yn = stdin.readLine()
-    case yn.normalize
-    of "y", "yes":
-      return true
-    of "n", "no":
-      return false
-    else:
-      return false
+  return prompt(options.forcePrompts, question)
 
 proc renameBabelToNimble(options: Options) {.deprecated.} =
   let babelDir = getHomeDir() / ".babel"

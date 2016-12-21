@@ -26,6 +26,9 @@ type
   DisplayType* = enum
     Error, Warning, Message, Success
 
+  ForcePrompt* = enum
+    dontForcePrompt, forcePromptYes, forcePromptNo
+
 const
   longestCategory = len("Downloading")
   foregrounds: array[Error .. Success, ForegroundColor] =
@@ -47,8 +50,8 @@ proc calculateCategoryOffset(category: string): int =
   assert category.len <= longestCategory
   return longestCategory - category.len
 
-proc displayLine(category, line: string, displayType: DisplayType,
-                 priority: Priority) =
+proc displayCategory(category: string, displayType: DisplayType,
+                     priority: Priority) =
   # Calculate how much the `category` must be offset to align along a center
   # line.
   let offset = calculateCategoryOffset(category)
@@ -57,6 +60,10 @@ proc displayLine(category, line: string, displayType: DisplayType,
     setForegroundColor(stdout, foregrounds[displayType])
   writeStyled("$1$2 " % [repeatChar(offset), category], styles[priority])
   resetAttributes()
+
+proc displayLine(category, line: string, displayType: DisplayType,
+                 priority: Priority) =
+  displayCategory(category, displayType, priority)
 
   # Display the message.
   echo(line)
@@ -96,6 +103,26 @@ proc displayTip*() =
     let msg = "$1 messages have been suppressed, use --verbose to show them." %
              $globalCLI.suppressionCount
     display("Tip:", msg, Warning, HighPriority)
+
+proc prompt*(forcePrompts: ForcePrompt, question: string): bool =
+  case forcePrompts
+  of forcePromptYes:
+    display("Prompt:", question & " -> [forced yes]", Warning, HighPriority)
+    return true
+  of forcePromptNo:
+    display("Prompt:", question & " -> [forced no]", Warning, HighPriority)
+    return false
+  of dontForcePrompt:
+    display("Prompt:", question & " [y/N]", Warning, HighPriority)
+    displayCategory("...", Warning, HighPriority)
+    let yn = stdin.readLine()
+    case yn.normalize
+    of "y", "yes":
+      return true
+    of "n", "no":
+      return false
+    else:
+      return false
 
 proc setVerbosity*(level: Priority) =
   globalCLI.level = level
