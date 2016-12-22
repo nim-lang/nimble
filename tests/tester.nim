@@ -202,7 +202,7 @@ test "issue #108":
     let (output, exitCode) = execNimble("build")
     let lines = output.strip.splitLines()
     check exitCode != QuitSuccess
-    check "Nothing to build" in lines[^1]
+    check inLines(lines, "Nothing to build")
 
 test "issue #206":
   cd "issue206":
@@ -234,8 +234,8 @@ test "can uninstall":
   let (outp, exitCode) = execNimble("uninstall", "-y", "PackageA")
   check exitCode != QuitSuccess
   let ls = outp.processOutput()
-  check "Cannot uninstall PackageA (0.2.0)" in ls[ls.len-2]
-  check "Cannot uninstall PackageA (0.6.0)" in ls[ls.len-1]
+  check inLines(ls, "Cannot uninstall PackageA (0.2.0)")
+  check inLines(ls, "Cannot uninstall PackageA (0.6.0)")
   check execNimble("uninstall", "-y", "PackageBin2").exitCode == QuitSuccess
 
   # Case insensitive
