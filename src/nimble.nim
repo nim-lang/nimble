@@ -651,7 +651,6 @@ proc compile(options: Options) =
   for option in options.action.compileOptions:
     args.add(option & " ")
 
-
   let backend =
     if options.action.backend.len > 0:
       options.action.backend
@@ -726,7 +725,7 @@ proc listInstalled(options: Options) =
 type VersionAndPath = tuple[version: Version, path: string]
 
 proc listPaths(options: Options) =
-  ## Loops over installing packages displaying their installed paths.
+  ## Loops over the specified packages displaying their installed paths.
   ##
   ## If there are several packages installed, only the last one (the version
   ## listed in the packages.json) will be displayed. If any package name is not
@@ -736,6 +735,10 @@ proc listPaths(options: Options) =
   ## On success the proc returns normally.
   assert options.action.typ == actionPath
   assert(not options.action.packages.isNil)
+
+  if options.action.packages.len == 0:
+    raise newException(NimbleError, "A package name needs to be specified")
+
   var errors = 0
   for name, version in options.action.packages.items:
     var installed: seq[VersionAndPath] = @[]
@@ -757,13 +760,16 @@ proc listPaths(options: Options) =
         v.path = options.getPkgsDir / (pkgInfo.name & '-' & pkgInfo.version)
         installed.add(v)
       else:
-        echo "Warning: No .nimble file found for ", path
+        display("Warning:", "No .nimble file found for " & path, Warning,
+                MediumPriority)
 
     if installed.len > 0:
       sort(installed, system.cmp[VersionAndPath], Descending)
+      # The output for this command is used by tools so we do not use display().
       echo installed[0].path
     else:
-      echo "Warning: Package '" & name & "' not installed"
+      display("Warning:", "Package '$1' is not installed" % name, Warning,
+              MediumPriority)
       errors += 1
   if errors > 0:
     raise newException(NimbleError,
