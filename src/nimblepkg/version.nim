@@ -34,6 +34,7 @@ type
 
   ParseVersionError* = object of ValueError
   NimbleError* = object of Exception
+    hint*: string
 
 proc newVersion*(ver: string): Version = return Version(ver)
 proc newSpecial*(spe: string): Special = return Special(spe)

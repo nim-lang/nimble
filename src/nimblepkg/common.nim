@@ -40,5 +40,10 @@ when not defined(nimscript):
     ## Same as quit(QuitSuccess), but allows cleanup.
     NimbleQuit* = ref object of Exception
 
+  proc raiseNimbleError*(msg: string, hint = "") =
+    var exc = newException(NimbleError, msg)
+    exc.hint = hint
+    raise exc
+
 const
   nimbleVersion* = "0.7.11"

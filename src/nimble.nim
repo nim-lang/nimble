@@ -998,10 +998,10 @@ proc doAction(options: Options) =
 
     let execResult = execTask(nimbleFile, options.action.command, options)
     if not execResult.success:
-      writeHelp(false)
-
-      raise newException(NimbleError, "Could not find task $1 in $2" %
-                        [options.action.command, nimbleFile])
+      raiseNimbleError(msg = "Could not find task $1 in $2" %
+                             [options.action.command, nimbleFile],
+                       hint = "Run `nimble --help` and/or `nimble tasks` for" &
+                              " a list of possible commands.")
 
     if execResult.command.normalize == "nop":
       display("Warning:", "Using `setCommand 'nop'` is not necessary.", Warning,
@@ -1027,14 +1027,18 @@ proc doAction(options: Options) =
 
 when isMainModule:
   var error = ""
+  var hint = ""
 
   try:
     parseCmdLine().doAction()
   except NimbleError:
-    error = getCurrentExceptionMsg()
+    let err = (ref NimbleError)(getCurrentException())
+    error = err.msg
     when not defined(release):
       let stackTrace = getStackTrace(getCurrentException())
       error = stackTrace & "\n\n" & error
+    if not err.isNil:
+      hint = err.hint
   except NimbleQuit:
     nil
   finally:
@@ -1043,4 +1047,6 @@ when isMainModule:
   if error.len > 0:
     displayTip()
     display("Error:", error, Error, HighPriority)
+    if hint.len > 0:
+      display("Hint:", hint, Warning, HighPriority)
     quit(1)

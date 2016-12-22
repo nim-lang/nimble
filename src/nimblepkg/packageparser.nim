@@ -241,6 +241,8 @@ proc getInstalledPkgs*(libsDir: string, options: Options):
   const
     readErrorMsg = "Installed package $1 v$2 is outdated or corrupt."
     validationErrorMsg = readErrorMsg & "\nPackage did not pass validation: $3"
+    hintMsg = "The corrupted package will need to be removed manually. To fix" &
+              " this error message, remove $1."
 
   proc createErrorMsg(tmplt, path, msg: string): string =
     let (name, version) = getNameVersion(path)
@@ -261,14 +263,16 @@ proc getInstalledPkgs*(libsDir: string, options: Options):
         except ValidationError:
           let exc = (ref ValidationError)(getCurrentException())
           exc.msg = createErrorMsg(validationErrorMsg, path, exc.msg)
+          exc.hint = hintMsg % path
           if exc.warnInstalled:
             display("Warning:", exc.msg, Warning, HighPriority)
           else:
             raise exc
         except:
-          let exc = getCurrentException()
           let tmplt = readErrorMsg & "\nMore info: $3"
-          exc.msg = createErrorMsg(tmplt, path, exc.msg)
+          let msg = createErrorMsg(tmplt, path, getCurrentException().msg)
+          var exc = newException(NimbleError, msg)
+          exc.hint = hintMsg % path
           raise exc
 
 proc isNimScript*(nf: string, options: Options): bool =
