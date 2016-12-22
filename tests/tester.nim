@@ -123,14 +123,14 @@ test "can use nimscript's setCommand":
     let (output, exitCode) = execNimble("--verbose", "cTest")
     let lines = output.strip.splitLines()
     check exitCode == QuitSuccess
-    check "Hint: operation successful".normalize in lines[^1].normalize
+    check "Compilation finished".normalize in lines[^1].normalize
 
 test "can use nimscript's setCommand with flags":
   cd "nimscript":
-    let (output, exitCode) = execNimble("--verbose", "cr")
+    let (output, exitCode) = execNimble("--debug", "cr")
     let lines = output.strip.splitLines()
     check exitCode == QuitSuccess
-    check "Hello World".normalize in lines[^1].normalize
+    check "Hello World".normalize in lines[^2].normalize
 
 test "can list nimscript tasks":
   cd "nimscript":
@@ -166,8 +166,8 @@ test "can reject same version dependencies":
   # stderr output being generated and flushed without first flushing stdout
   let ls = outp.strip.splitLines()
   check exitCode != QuitSuccess
-  check ls[ls.len-1] == "Error: unhandled exception: Cannot satisfy the " &
-      "dependency on PackageA 0.2.0 and PackageA 0.5.0 [NimbleError]"
+  check "Cannot satisfy the dependency on PackageA 0.2.0 and PackageA 0.5.0" in
+        ls[ls.len-1]
 
 test "can update":
   check execNimble("update").exitCode == QuitSuccess
@@ -194,7 +194,7 @@ test "issue #126":
   cd "issue126/b":
     let (output1, exitCode1) = execNimble("install", "-y")
     let lines1 = output1.strip.splitLines()
-    check exitCode1 == QuitSuccess
+    check exitCode1 != QuitSuccess
     check inLines(lines1, "The .nimble file name must match name specified inside")
 
 test "issue #108":
@@ -222,8 +222,8 @@ test "can uninstall":
 
     let ls = outp.strip.splitLines()
     check exitCode != QuitSuccess
-    check ls[ls.len-1] == "  Cannot uninstall issue27b (0.1.0) because " &
-                          "issue27a (0.1.0) depends on it [NimbleError]"
+    check "Cannot uninstall issue27b (0.1.0) because issue27a (0.1.0) depends" &
+          " on it" in ls[ls.len-1]
 
     check execNimble("uninstall", "-y", "issue27").exitCode == QuitSuccess
     check execNimble("uninstall", "-y", "issue27a").exitCode == QuitSuccess
@@ -234,8 +234,8 @@ test "can uninstall":
   let (outp, exitCode) = execNimble("uninstall", "-y", "PackageA")
   check exitCode != QuitSuccess
   let ls = outp.processOutput()
-  check ls[ls.len-2].startsWith("  Cannot uninstall PackageA ")
-  check ls[ls.len-1].startsWith("  Cannot uninstall PackageA ")
+  check "Cannot uninstall PackageA (0.2.0)" in ls[ls.len-2]
+  check "Cannot uninstall PackageA (0.6.0)" in ls[ls.len-1]
   check execNimble("uninstall", "-y", "PackageBin2").exitCode == QuitSuccess
 
   # Case insensitive
