@@ -114,7 +114,7 @@ proc prompt*(forcePrompts: ForcePrompt, question: string): bool =
     return false
   of dontForcePrompt:
     display("Prompt:", question & " [y/N]", Warning, HighPriority)
-    displayCategory("...", Warning, HighPriority)
+    displayCategory("Answer:", Warning, HighPriority)
     let yn = stdin.readLine()
     case yn.normalize
     of "y", "yes":

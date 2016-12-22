@@ -873,13 +873,14 @@ proc uninstall(options: Options) =
   var pkgsToDelete: seq[PackageInfo] = @[]
   # Do some verification.
   for pkgTup in options.action.packages:
-    echo("Looking for ", pkgTup.name, " (", $pkgTup.ver, ")...")
+    display("Looking", "for $1 ($2)" % [pkgTup.name, $pkgTup.ver],
+            priority = HighPriority)
     let installedPkgs = getInstalledPkgs(options.getPkgsDir(), options)
     var pkgList = findAllPkgs(installedPkgs, pkgTup)
     if pkgList.len == 0:
       raise newException(NimbleError, "Package not found")
 
-    echo("Checking reverse dependencies...")
+    display("Checking", "reverse dependencies", priority = HighPriority)
     var errors: seq[string] = @[]
     for pkg in pkgList:
       # Check whether any packages depend on the ones the user is trying to
@@ -888,17 +889,17 @@ proc uninstall(options: Options) =
       if not thisPkgsDep.isNil:
         var reason = ""
         if thisPkgsDep.len == 1:
-          reason = thisPkgsDep[0]["name"].str &
-              " (" & thisPkgsDep[0]["version"].str & ") depends on it"
+          reason = "$1 ($2) depends on it" % [thisPkgsDep[0]["name"].str,
+                   thisPkgsDep[0]["version"].str]
         else:
           for i in 0 .. <thisPkgsDep.len:
-            reason.add thisPkgsDep[i]["name"].str &
-                " (" & thisPkgsDep[i]["version"].str & ")"
+            reason.add("$1 ($2)" % [thisPkgsDep[i]["name"].str,
+                       thisPkgsDep[i]["version"].str])
             if i != <thisPkgsDep.len:
               reason.add ", "
           reason.add " depend on it"
-        errors.add("Cannot uninstall " & pkgTup.name & " (" & pkg.version &
-                   ")" & " because " & reason)
+        errors.add("Cannot uninstall $1 ($2) because $3" % [pkgTup.name,
+                   pkg.version, reason])
       else:
         pkgsToDelete.add pkg
 
@@ -909,12 +910,13 @@ proc uninstall(options: Options) =
   for i in 0 .. <pkgsToDelete.len:
     if i != 0: pkgNames.add ", "
     let pkg = pkgsToDelete[i]
-    pkgNames.add pkg.name & " (" & pkg.version & ")"
+    pkgNames.add("$1 ($2)" % [pkg.name, pkg.version])
 
   # Let's confirm that the user wants these packages removed.
-  if not options.prompt("The following packages will be removed:\n  " &
-      pkgNames & "\nDo you wish to continue?"):
-    quit(QuitSuccess)
+  let msg = ("The following packages will be removed:\n  $1\n" &
+            "Do you wish to continue?") % pkgNames
+  if not options.prompt(msg):
+    raise NimbleQuit(msg: "")
 
   for pkg in pkgsToDelete:
     # If we reach this point then the package can be safely removed.
@@ -924,7 +926,8 @@ proc uninstall(options: Options) =
     let pkgFull = readPackageInfo(pkg.mypath, options, false)
     removeRevDep(options, pkgFull)
     removePkgDir(options.getPkgsDir / (pkg.name & '-' & pkg.version), options)
-    echo("Removed ", pkg.name, " (", $pkg.version, ")")
+    display("Removed", "$1 ($2)" % [pkg.name, $pkg.version], Success,
+            HighPriority)
 
 proc listTasks(options: Options) =
   let nimbleFile = findNimbleFile(getCurrentDir(), true)
@@ -1037,5 +1040,5 @@ when isMainModule:
 
   if error.len > 0:
     displayTip()
-    display("Error", error, Error, HighPriority)
+    display("Error:", error, Error, HighPriority)
     quit(1)
