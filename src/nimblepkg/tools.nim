@@ -28,7 +28,8 @@ proc doCmd*(cmd: string) =
 
   if exitCode != QuitSuccess:
     raise newException(NimbleError,
-        "Execution failed with exit code " & $exitCode)
+        "Execution failed with exit code $1\nCommand: $2\nOutput: $3" %
+        [$exitCode, cmd, output])
 
 proc doCmdEx*(cmd: string): tuple[output: TaintedString, exitCode: int] =
   let bin = extractBin(cmd)

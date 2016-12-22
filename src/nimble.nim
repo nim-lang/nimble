@@ -635,6 +635,13 @@ proc build(options: Options) =
   buildFromDir(pkgInfo, paths, false)
 
 proc compile(options: Options) =
+  let bin = options.action.file
+  if bin == "":
+    raise newException(NimbleError, "You need to specify a file to compile.")
+
+  if not fileExists(bin):
+    raise newException(NimbleError, "Specified file does not exist.")
+
   var pkgInfo = getPkgInfo(getCurrentDir(), options)
   nimScriptHint(pkgInfo)
   let paths = processDeps(pkginfo, options)
@@ -644,20 +651,18 @@ proc compile(options: Options) =
   for option in options.action.compileOptions:
     args.add(option & " ")
 
-  let bin = options.action.file
+
   let backend =
     if options.action.backend.len > 0:
       options.action.backend
     else:
       pkgInfo.backend
 
-  if bin == "":
-    raise newException(NimbleError, "You need to specify a file to compile.")
-
-  display("Compiling", "$1 ($2) using $3 backend" % [bin, pkgInfo.name, backend],
-          priority = HighPriority)
+  display("Compiling", "$1 (from package $2) using $3 backend" %
+          [bin, pkgInfo.name, backend], priority = HighPriority)
   doCmd("\"" & getNimBin() & "\" $# --noBabelPath $# \"$#\"" %
         [backend, args, bin])
+  display("Success:", "Compilation finished", Success, HighPriority)
 
 proc search(options: Options) =
   ## Searches for matches in ``options.action.search``.
