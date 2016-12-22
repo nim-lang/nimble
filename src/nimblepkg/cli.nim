@@ -96,6 +96,10 @@ proc displayDebug*(category, msg: string) =
   ## Convenience for displaying debug messages.
   display(category, msg, priority = DebugPriority)
 
+proc displayDebug*(msg: string) =
+  ## Convenience for displaying debug messages with a default category.
+  displayDebug("Debug:", msg)
+
 proc displayTip*() =
   ## Called just before Nimble exits. Shows some tips for the user, for example
   ## the amount of messages that were suppressed and how to show them.

@@ -52,6 +52,7 @@ Usage: nimble COMMAND [opts]
 
 Commands:
   install      [pkgname, ...]     Installs a list of packages.
+               [-d, --depsOnly]   Install only dependencies.
   init         [pkgname]          Initializes a new Nimble project.
   publish                         Publishes a package on nim-lang/packages.
                                   The current working directory needs to be the
@@ -62,9 +63,11 @@ Commands:
                                   to the Nim compiler.
   refresh      [url]              Refreshes the package list. A package list URL
                                   can be optionally specified.
-  search       [--ver] pkg/tag    Searches for a specified package. Search is
+  search       pkg/tag            Searches for a specified package. Search is
                                   performed by tag and by name.
-  list         [--ver]            Lists all packages.
+               [--ver]            Query remote server for package version.
+  list                            Lists all packages.
+               [--ver]            Query remote server for package version.
                [-i, --installed]  Lists all installed packages.
   tasks                           Lists the tasks specified in the Nimble
                                   package's Nimble file.
@@ -81,7 +84,6 @@ Options:
       --ver                       Query remote server for package version
                                   information when searching or listing packages
       --nimbleDir dirname         Set the Nimble directory.
-  -d  --depsOnly                  Install only dependencies.
       --verbose                   Show all non-debug output.
       --debug                     Show all output including debug messages.
 
@@ -100,14 +102,10 @@ proc writeVersion() =
 
 proc parseActionType*(action: string): ActionType =
   case action.normalize()
-  of "install", "path":
-    case action.normalize()
-    of "install":
-      result = actionInstall
-    of "path":
-      result = actionPath
-    else:
-      discard
+  of "install":
+    result = actionInstall
+  of "path":
+    result = actionPath
   of "build":
     result = actionBuild
   of "c", "compile", "js", "cpp", "cc":
@@ -230,29 +228,47 @@ proc parseArgument*(key: string, result: var Options) =
     discard
 
 proc parseFlag*(flag, val: string, result: var Options) =
-  case result.action.typ
-  of actionCompile:
-    if val == "":
-      result.action.compileOptions.add("--" & flag)
+  var wasFlagHandled = true
+
+  # Global flags.
+  case flag.normalize()
+  of "help", "h": writeHelp()
+  of "version", "v": writeVersion()
+  of "accept", "y": result.forcePrompts = forcePromptYes
+  of "reject", "n": result.forcePrompts = forcePromptNo
+  of "nimbledir": result.nimbleDir = val
+  of "verbose": result.verbosity = LowPriority
+  of "debug": result.verbosity = DebugPriority
+  # Action-specific flags.
+  of "installed", "i":
+    if result.action.typ in [actionSearch, actionList]:
+      result.queryInstalled = true
     else:
-      result.action.compileOptions.add("--" & flag & ":" & val)
-  of actionCustom:
-    result.action.flags[flag] = val
+      wasFlagHandled = false
+  of "depsonly", "d":
+    if result.action.typ == actionInstall:
+      result.depsOnly = true
+    else:
+      wasFlagHandled = false
+  of "ver":
+    if result.action.typ in [actionSearch, actionList]:
+      result.queryVersions = true
+    else:
+      wasFlagHandled = false
   else:
-    # TODO: These should not be global.
-    case flag.normalize()
-    of "help", "h": writeHelp()
-    of "version", "v": writeVersion()
-    of "accept", "y": result.forcePrompts = forcePromptYes
-    of "reject", "n": result.forcePrompts = forcePromptNo
-    of "ver": result.queryVersions = true
-    of "nimbledir": result.nimbleDir = val
-    of "installed", "i": result.queryInstalled = true
-    of "depsonly", "d": result.depsOnly = true
-    of "verbose": result.verbosity = LowPriority
-    of "debug": result.verbosity = DebugPriority
+    case result.action.typ
+    of actionCompile:
+      if val == "":
+        result.action.compileOptions.add("--" & flag)
+      else:
+        result.action.compileOptions.add("--" & flag & ":" & val)
+    of actionCustom:
+      result.action.flags[flag] = val
     else:
-      raise newException(NimbleError, "Unknown option: --" & flag)
+      wasFlagHandled = false
+
+  if not wasFlagHandled:
+    raise newException(NimbleError, "Unknown option: --" & flag)
 
 proc initOptions*(): Options =
   result.action.typ = actionNil
