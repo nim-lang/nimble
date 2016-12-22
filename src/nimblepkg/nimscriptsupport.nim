@@ -15,7 +15,7 @@ from compiler/scriptconfig import setupVM
 from compiler/astalgo import strTableGet
 import compiler/options as compiler_options
 
-import common, version, options, packageinfo
+import common, version, options, packageinfo, cli
 import os, strutils, strtabs, times, osproc, sets
 
 when not declared(resetAllModulesHard):
@@ -291,7 +291,7 @@ proc readPackageInfoFromNims*(scriptName: string, options: Options,
       if msgs.gErrorCounter > 0:
         raise newException(NimbleError, previousMsg)
       elif previousMsg.len > 0:
-        echo(previousMsg)
+        display("Info", previousMsg, priority = HighPriority)
       if output.normalize.startsWith("error"):
         raise newException(NimbleError, output)
       previousMsg = output
@@ -367,7 +367,8 @@ proc execTask*(scriptName, taskName: string,
   result.success = true
   result.flags = newStringTable()
   compiler_options.command = internalCmd
-  echo("Executing task ", taskName, " in ", scriptName)
+  display("Executing",  "task $# in $#" % [taskName, scriptName],
+          priority = HighPriority)
 
   let thisModule = execScript(scriptName, result.flags, options)
   let prc = thisModule.tab.strTableGet(getIdent(taskName & "Task"))
@@ -397,7 +398,8 @@ proc execHook*(scriptName, actionName: string, before: bool,
   let hookName =
     if before: actionName.toLowerAscii & "Before"
     else: actionName.toLowerAscii & "After"
-  echo("Attempting to execute hook ", hookName, " in ", scriptName)
+  display("Attempting", "to execute hook $# in $#" % [hookName, scriptName],
+          priority = MediumPriority)
 
   let thisModule = execScript(scriptName, result.flags, options)
   # Explicitly execute the task procedure, instead of relying on hack.

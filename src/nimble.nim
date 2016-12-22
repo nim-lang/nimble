@@ -321,8 +321,8 @@ proc buildFromDir(pkgInfo: PackageInfo, paths: seq[string], forRelease: bool) =
   for path in paths: args.add("--path:\"" & path & "\" ")
   for bin in pkgInfo.bin:
     let outputOpt = "-o:\"" & pkgInfo.getOutputDir(bin) & "\""
-    echo("Building ", pkginfo.name, "/", bin, " using ", pkgInfo.backend,
-         " backend...")
+    display("Building", "$1/$2 using $3 backend" %
+            [pkginfo.name, bin, pkgInfo.backend], priority = HighPriority)
 
     let outputDir = pkgInfo.getOutputDir("")
     if not existsDir(outputDir):
@@ -362,13 +362,14 @@ proc removePkgDir(dir: string, options: Options) =
     if toSeq(walkDirRec(dir)).len == 0:
       removeDir(dir)
     else:
-      echo("WARNING: Cannot completely remove " & dir &
-           ". Files not installed by nimble are present.")
+      display("Warning:", ("Cannot completely remove $1. Files not installed " &
+              "by nimble are present.") % dir, Warning, HighPriority)
   except OSError, JsonParsingError:
-    echo("Error: Unable to read nimblemeta.json: ", getCurrentExceptionMsg())
+    display("Warning", "Unable to read nimblemeta.json: " &
+            getCurrentExceptionMsg(), Warning, HighPriority)
     if not options.prompt("Would you like to COMPLETELY remove ALL files " &
                           "in " & dir & "?"):
-      quit(QuitSuccess)
+      raise NimbleQuit(msg: "")
     removeDir(dir)
 
 proc vcsRevisionInDir(dir: string): string =
@@ -955,7 +956,8 @@ proc doAction(options: Options) =
     createDir(options.getPkgsDir)
 
   if not execHook(options, true):
-    echo("Pre-hook prevented further execution.")
+    display("Warning", "Pre-hook prevented further execution.", Warning,
+            HighPriority)
     return
   case options.action.typ
   of actionRefresh:
@@ -996,14 +998,19 @@ proc doAction(options: Options) =
 
     let execResult = execTask(nimbleFile, options.action.command, options)
     if not execResult.success:
-      echo("FAILURE: Could not find task ", options.action.command, " in ",
-           nimbleFile)
-      writeHelp()
+      writeHelp(false)
+
+      raise newException(NimbleError, "Could not find task $1 in $2" %
+                        [options.action.command, nimbleFile])
+
     if execResult.command.normalize == "nop":
-      echo("WARNING: Using `setCommand 'nop'` is not necessary.")
+      display("Warning:", "Using `setCommand 'nop'` is not necessary.", Warning,
+              HighPriority)
       return
+
     if not execHook(options, false):
       return
+
     if execResult.hasTaskRequestedCommand():
       var newOptions = initOptions()
       newOptions.config = options.config

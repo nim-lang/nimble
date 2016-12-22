@@ -91,14 +91,15 @@ For more information read the Github readme:
   https://github.com/nim-lang/nimble#readme
 """
 
-proc writeHelp*() =
+proc writeHelp*(quit=true) =
   echo(help)
-  quit(QuitSuccess)
+  if quit:
+    raise NimbleQuit(msg: "")
 
 proc writeVersion() =
   echo("nimble v$# compiled at $# $#" %
       [nimbleVersion, CompileDate, CompileTime])
-  quit(QuitSuccess)
+  raise NimbleQuit(msg: "")
 
 proc parseActionType*(action: string): ActionType =
   case action.normalize()
