@@ -285,7 +285,8 @@ proc processDeps(pkginfo: PackageInfo, options: Options): seq[string] =
 
         pkg = installedPkg # For addRevDep
       else:
-        display("Info", "Dependency already satisfied", priority = HighPriority)
+        display("Info:", "Dependency on $1 already satisfied" % depDesc,
+                priority = HighPriority)
         result.add(pkg.mypath.splitFile.dir)
         # Process the dependencies of this dependency.
         result.add(processDeps(pkg, options))
