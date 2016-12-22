@@ -4,8 +4,9 @@
 ## Implements 'nimble publish' to create a pull request against
 ## nim-lang/packages automatically.
 
+import system except TResult
 import httpclient, base64, strutils, rdstdin, json, os, browsers, times, uri
-import tools, common
+import tools, common, cli
 
 type
   Auth = object
@@ -22,19 +23,20 @@ proc createHeaders(a: Auth): string =
           "Accept: */*\c\L")
 
 proc getGithubAuth(): Auth =
-  echo("Please create a new personal access token on Github in order to " &
-      "allow Nimble to fork the packages repository.")
+  display("Info:", "Please create a new personal access token on Github in" &
+         " order to allow Nimble to fork the packages repository.",
+         priority = HighPriority)
   sleep(5000)
-  echo("Your default browser should open with the following URL: " &
-      "https://github.com/settings/tokens/new")
+  display("Info:", "Your default browser should open with the following URL: " &
+          "https://github.com/settings/tokens/new", priority = HighPriority)
   sleep(3000)
   openDefaultBrowser("https://github.com/settings/tokens/new")
-  result.token = readLineFromStdin("Personal access token: ").strip()
+  result.token = promptCustom("Personal access token?", "").strip()
   let resp = getContent("https://api.github.com/user",
         extraHeaders=createHeaders(result)).parseJson()
 
   result.user = resp["login"].str
-  echo("Successfully verified as ", result.user)
+  display("Success:", "Verified as " & result.user, Success, HighPriority)
 
 proc isCorrectFork(j: JsonNode): bool =
   # Check whether this is a fork of the nimble packages repo.
@@ -56,7 +58,7 @@ proc createFork(a: Auth) =
       extraHeaders=createHeaders(a))
 
 proc createPullRequest(a: Auth, packageName, branch: string) =
-  echo("Creating PR")
+  display("Info", "Creating PR", priority = HighPriority)
   discard postContent("https://api.github.com/repos/nim-lang/packages/pulls",
       extraHeaders=createHeaders(a),
       body="""{"title": "Add package $1", "head": "$2:$3",
@@ -129,17 +131,19 @@ proc publish*(p: PackageInfo) =
   var pkgsDir = getTempDir() / "nimble-packages-fork"
   if not forkExists(auth):
     createFork(auth)
-    echo "waiting 10s to let Github create a fork ..."
+    display("Info:", "Waiting 10s to let Github create a fork",
+            priority = HighPriority)
     os.sleep(10_000)
 
-    echo "... done"
+    display("Info:", "Finished waiting", priority = LowPriority)
   if dirExists(pkgsDir):
-    echo("Removing old packages fork git directory.")
+    display("Removing", "old packages fork git directory.",
+            priority = LowPriority)
     removeDir(pkgsDir)
-  echo "Cloning packages into: ", pkgsDir
+  display("Cloning", "packages into: " & pkgsDir, priority = HighPriority)
   doCmd("git clone git@github.com:" & auth.user & "/packages " & pkgsDir)
   # Make sure to update the clone.
-  echo("Updating the fork...")
+  display("Updating", "the fork", priority = HighPriority)
   cd pkgsDir:
     doCmd("git pull https://github.com/nim-lang/packages.git master")
     doCmd("git push origin master")
@@ -175,20 +179,20 @@ proc publish*(p: PackageInfo) =
          "No .git nor .hg directory found. Stopping.")
 
   if url.len == 0:
-    url = readLineFromStdin("Github URL of " & p.name & ": ")
+    url = promptCustom("Github URL of " & p.name & "?", "")
     if url.len == 0: userAborted()
 
-  let tags = readLineFromStdin("Please enter a whitespace separated list of tags: ")
+  let tags = promptCustom("Whitespace separated list of tags?", "")
 
   cd pkgsDir:
     editJson(p, url, tags, downloadMethod)
     let branchName = "add-" & p.name & getTime().getGMTime().format("HHmm")
     doCmd("git checkout -B " & branchName)
     doCmd("git commit packages.json -m \"Added package " & p.name & "\"")
-    echo("Pushing to remote of fork.")
+    display("Pushing", "to remote of fork.", priority = HighPriority)
     doCmd("git push " & getPackageOriginUrl(auth) & " " & branchName)
     createPullRequest(auth, p.name, branchName)
-  echo "Pull request successful."
+  display("Success:", "Pull request successful.", Success, HighPriority)
 
 when isMainModule:
   import packageinfo

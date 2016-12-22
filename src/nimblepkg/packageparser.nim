@@ -87,10 +87,11 @@ proc validatePackageInfo(pkgInfo: PackageInfo, path: string) =
 
 proc nimScriptHint*(pkgInfo: PackageInfo) =
   if not pkgInfo.isNimScript:
-    # TODO: Turn this into a warning.
-    # TODO: Add a URL explaining more.
-    echo("NOTE: The .nimble file for this project could make use of " &
-         "additional features, if converted into the new NimScript format.")
+    display("Warning:", "The .nimble file for this project could make use of " &
+            "additional features, if converted into the new NimScript format." &
+            "\nFor more details see:" &
+            "https://github.com/nim-lang/nimble#creating-packages",
+            Warning, HighPriority)
 
 proc multiSplit(s: string): seq[string] =
   ## Returns ``s`` split by newline and comma characters.

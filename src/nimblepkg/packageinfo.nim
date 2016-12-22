@@ -117,12 +117,9 @@ proc readMetaData*(path: string): MetaData =
   ## Reads the metadata present in ``~/.nimble/pkgs/pkg-0.1/nimblemeta.json``
   var bmeta = path / "nimblemeta.json"
   if not existsFile(bmeta):
-    bmeta = path / "babelmeta.json"
-    if existsFile(bmeta):
-      echo("WARNING: using deprecated babelmeta.json file in " & path)
-  if not existsFile(bmeta):
     result.url = ""
-    echo("WARNING: No nimblemeta.json file found in " & path)
+    display("Warning:", "No nimblemeta.json file found in " & path,
+            Warning, HighPriority)
     return
     # TODO: Make this an error.
   let cont = readFile(bmeta)
@@ -278,7 +275,8 @@ proc validatePackagesList*(path: string): bool =
     let pkgList = parseFile(path)
     if pkgList.kind == JArray:
       if pkgList.len == 0:
-        echo("WARNING: ", path, " contains no packages.")
+        display("Warning:", path & " contains no packages.", Warning,
+                HighPriority)
       return true
   except ValueError, JsonParsingError:
     return false

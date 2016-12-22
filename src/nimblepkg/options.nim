@@ -330,8 +330,8 @@ proc getProxy*(options: Options): Proxy =
       elif existsEnv("https_proxy"):
         url = getEnv("https_proxy")
     except ValueError:
-      echo("WARNING: Unable to parse proxy from environment: ",
-          getCurrentExceptionMsg())
+      display("Warning:", "Unable to parse proxy from environment: " &
+          getCurrentExceptionMsg(), Warning, HighPriority)
 
   if url.len > 0:
     var parsed = parseUri(url)
