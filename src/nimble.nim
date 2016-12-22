@@ -748,11 +748,9 @@ proc listPaths(options: Options) =
         continue
 
       let
-        nimScriptFile = path / name.addFileExt("nims")
-        babelFile = path / name.addFileExt("babel")
         nimbleFile = path / name.addFileExt("nimble")
-        hasSpec = nimScriptFile.existsFile or
-                  nimbleFile.existsFile or babelFile.existsFile
+        hasSpec = nimbleFile.existsFile
+
       if hasSpec:
         var pkgInfo = getPkgInfo(path, options)
         var v: VersionAndPath
