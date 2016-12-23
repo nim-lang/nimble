@@ -35,6 +35,7 @@ when not defined(nimscript):
       binDir*: string
       srcDir*: string
       backend*: string
+      foreignDeps*: seq[string]
 
 const
   nimbleVersion* = "0.7.11"

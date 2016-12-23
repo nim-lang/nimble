@@ -37,6 +37,7 @@ proc initPackageInfo*(path: string): PackageInfo =
   result.installFiles = @[]
   result.installExt = @[]
   result.requires = @[]
+  result.foreignDeps = @[]
   result.bin = @[]
   result.srcDir = ""
   result.binDir = ""

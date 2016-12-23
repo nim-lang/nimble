@@ -939,6 +939,10 @@ proc doAction(options: Options) =
     let (_, pkgInfo) = install(options.action.packages, options)
     if options.action.packages.len == 0:
       nimScriptHint(pkgInfo)
+    if pkgInfo.foreignDeps.len > 0:
+      echo("To finish the installation, run: ")
+      for i in 0..<pkgInfo.foreignDeps.len:
+        echo(pkgInfo.foreignDeps[i])
   of actionUninstall:
     uninstall(options)
   of actionSearch:

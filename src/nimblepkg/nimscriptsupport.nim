@@ -200,13 +200,21 @@ proc findNimscriptApi(options: Options): string =
 
 proc getNimPrefixDir(): string = splitPath(findExe("nim")).head.parentDir
 
+when declared(ModuleGraph):
+  var graph: ModuleGraph
+
 proc execScript(scriptName: string, flags: StringTableRef,
                 options: Options): PSym =
   ## Executes the specified script. Returns the script's module symbol.
   ##
   ## No clean up is performed and must be done manually!
-  if "nimblepkg/nimscriptapi" notin compiler_options.implicitIncludes:
-    compiler_options.implicitIncludes.add("nimblepkg/nimscriptapi")
+  when declared(resetAllModulesHard):
+    # for compatibility with older Nim versions:
+    if "nimblepkg/nimscriptapi" notin compiler_options.implicitIncludes:
+      compiler_options.implicitIncludes.add("nimblepkg/nimscriptapi")
+  else:
+    if "nimblepkg/nimscriptapi" notin compiler_options.implicitImports:
+      compiler_options.implicitImports.add("nimblepkg/nimscriptapi")
 
   # Ensure the compiler can find its standard library #220.
   compiler_options.gPrefixDir = getNimPrefixDir()
@@ -241,7 +249,7 @@ proc execScript(scriptName: string, flags: StringTableRef,
   when declared(resetAllModulesHard):
     result = makeModule(scriptName)
   else:
-    let graph = newModuleGraph()
+    graph = newModuleGraph()
     result = graph.makeModule(scriptName)
 
   incl(result.flags, sfMainModule)
@@ -301,24 +309,35 @@ proc readPackageInfoFromNims*(scriptName: string, options: Options,
   # Execute the nimscript file.
   let thisModule = execScript(scriptName, nil, options)
 
+  when declared(resetAllModulesHard):
+    let apiModule = thisModule
+  else:
+    var apiModule: PSym
+    for i in 0..<graph.modules.len:
+      if graph.modules[i] != nil and
+          graph.modules[i].name.s == "nimscriptapi":
+        apiModule = graph.modules[i]
+        break
+    doAssert apiModule != nil
+
   # Check whether an error has occurred.
   if msgs.gErrorCounter > 0:
     raise newException(NimbleError, previousMsg)
 
   # Extract all the necessary fields populated by the nimscript file.
-  proc getSym(thisModule: PSym, ident: string): PSym =
-    result = thisModule.tab.strTableGet(getIdent(ident))
+  proc getSym(apiModule: PSym, ident: string): PSym =
+    result = apiModule.tab.strTableGet(getIdent(ident))
     if result.isNil:
       raise newException(NimbleError, "Ident not found: " & ident)
 
   template trivialField(field) =
-    result.field = getGlobal(getSym(thisModule, astToStr field))
+    result.field = getGlobal(getSym(apiModule, astToStr field))
 
   template trivialFieldSeq(field) =
-    result.field.add getGlobalAsSeq(getSym(thisModule, astToStr field))
+    result.field.add getGlobalAsSeq(getSym(apiModule, astToStr field))
 
   # keep reasonable default:
-  let name = getGlobal(thisModule.tab.strTableGet(getIdent"packageName"))
+  let name = getGlobal(apiModule.tab.strTableGet(getIdent"packageName"))
   if name.len > 0: result.name = name
 
   trivialField version
@@ -333,14 +352,15 @@ proc readPackageInfoFromNims*(scriptName: string, options: Options,
   trivialFieldSeq installDirs
   trivialFieldSeq installFiles
   trivialFieldSeq installExt
+  trivialFieldSeq foreignDeps
 
-  extractRequires(getSym(thisModule, "requiresData"), result.requires)
+  extractRequires(getSym(apiModule, "requiresData"), result.requires)
 
-  let binSeq = getGlobalAsSeq(getSym(thisModule, "bin"))
+  let binSeq = getGlobalAsSeq(getSym(apiModule, "bin"))
   for i in binSeq:
     result.bin.add(i.addFileExt(ExeExt))
 
-  let backend = getGlobal(getSym(thisModule, "backend"))
+  let backend = getGlobal(getSym(apiModule, "backend"))
   if backend.len == 0:
     result.backend = "c"
   elif cmpIgnoreStyle(backend, "javascript") == 0:
