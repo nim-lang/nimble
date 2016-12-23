@@ -46,7 +46,7 @@ test "issue 129 (installing commit hash)":
                    "https://github.com/nimble-test/packagea.git@#1f9cb289c89"]
   check execNimble(arguments).exitCode == QuitSuccess
   # Verify that it was installed correctly.
-  check dirExists(installDir / "pkgs" / "packagea-#1f9cb289c89")
+  check dirExists(installDir / "pkgs" / "PackageA-#1f9cb289c89")
   # Remove it so that it doesn't interfere with the uninstall tests.
   check execNimble("uninstall", "-y", "packagea@#1f9cb289c89").exitCode ==
         QuitSuccess
