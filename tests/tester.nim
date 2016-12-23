@@ -3,7 +3,7 @@
 import osproc, streams, unittest, strutils, os, sequtils, future
 
 var rootDir = getCurrentDir().parentDir()
-var nimblePath = rootDir / "src" / "nimble" & ExeExt
+var nimblePath = rootDir / "src" / addFileExt("nimble", ExeExt)
 var installDir = rootDir / "tests" / "nimbleDir"
 const path = "../src/nimble"
 
