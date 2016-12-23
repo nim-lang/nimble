@@ -26,7 +26,6 @@ Interested in learning **how to create a package**? Skip directly to that sectio
 	- [nimble dump](#nimble-dump)
 - [Configuration](#configuration)
 - [Creating Packages](#creating-packages)
-	- [The new NimScript format](#the-new-nimscript-format)
 	- [Libraries](#libraries)
 	- [Binary packages](#binary-packages)
 	- [Hybrids](#hybrids)
