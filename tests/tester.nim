@@ -93,15 +93,15 @@ test "can refresh with custom urls":
     url = "http://nim-lang.org/nimble/packages.json"
   """.unindent)
 
-  let (output, exitCode) = execNimble(["refresh"])
+  let (output, exitCode) = execNimble(["refresh", "--verbose"])
   let lines = output.strip.splitLines()
   check exitCode == QuitSuccess
-  check inLines(lines, "reading from config file")
-  check inLines(lines, "downloading \"official\" package list")
-  check inLines(lines, "trying http://google.com")
+  check inLines(lines, "config file at")
+  check inLines(lines, "official package list")
+  check inLines(lines, "http://google.com")
   check inLines(lines, "packages.json file is invalid")
   check inLines(lines, "404 not found")
-  check inLines(lines, "done")
+  check inLines(lines, "Package list downloaded.")
 
   # Restore config
   if fileExists(configBakFile):
@@ -113,24 +113,24 @@ test "can install nimscript package":
 
 test "can execute nimscript tasks":
   cd "nimscript":
-    let (output, exitCode) = execNimble("test")
+    let (output, exitCode) = execNimble("--verbose", "test")
     let lines = output.strip.splitLines()
     check exitCode == QuitSuccess
     check lines[^1] == "10"
 
 test "can use nimscript's setCommand":
   cd "nimscript":
-    let (output, exitCode) = execNimble("cTest")
+    let (output, exitCode) = execNimble("--verbose", "cTest")
     let lines = output.strip.splitLines()
     check exitCode == QuitSuccess
-    check "Hint: operation successful".normalize in lines[^1].normalize
+    check "Compilation finished".normalize in lines[^1].normalize
 
 test "can use nimscript's setCommand with flags":
   cd "nimscript":
-    let (output, exitCode) = execNimble("cr")
+    let (output, exitCode) = execNimble("--debug", "cr")
     let lines = output.strip.splitLines()
     check exitCode == QuitSuccess
-    check "Hello World".normalize in lines[^1].normalize
+    check "Hello World".normalize in lines[^2].normalize
 
 test "can list nimscript tasks":
   cd "nimscript":
@@ -166,8 +166,8 @@ test "can reject same version dependencies":
   # stderr output being generated and flushed without first flushing stdout
   let ls = outp.strip.splitLines()
   check exitCode != QuitSuccess
-  check ls[ls.len-1] == "Error: unhandled exception: Cannot satisfy the " &
-      "dependency on PackageA 0.2.0 and PackageA 0.5.0 [NimbleError]"
+  check "Cannot satisfy the dependency on PackageA 0.2.0 and PackageA 0.5.0" in
+        ls[ls.len-1]
 
 test "can update":
   check execNimble("update").exitCode == QuitSuccess
@@ -194,7 +194,7 @@ test "issue #126":
   cd "issue126/b":
     let (output1, exitCode1) = execNimble("install", "-y")
     let lines1 = output1.strip.splitLines()
-    check exitCode1 == QuitSuccess
+    check exitCode1 != QuitSuccess
     check inLines(lines1, "The .nimble file name must match name specified inside")
 
 test "issue #108":
@@ -202,7 +202,7 @@ test "issue #108":
     let (output, exitCode) = execNimble("build")
     let lines = output.strip.splitLines()
     check exitCode != QuitSuccess
-    check "Nothing to build" in lines[^1]
+    check inLines(lines, "Nothing to build")
 
 test "issue #206":
   cd "issue206":
@@ -222,8 +222,8 @@ test "can uninstall":
 
     let ls = outp.strip.splitLines()
     check exitCode != QuitSuccess
-    check ls[ls.len-1] == "  Cannot uninstall issue27b (0.1.0) because " &
-                          "issue27a (0.1.0) depends on it [NimbleError]"
+    check "Cannot uninstall issue27b (0.1.0) because issue27a (0.1.0) depends" &
+          " on it" in ls[ls.len-1]
 
     check execNimble("uninstall", "-y", "issue27").exitCode == QuitSuccess
     check execNimble("uninstall", "-y", "issue27a").exitCode == QuitSuccess
@@ -234,8 +234,8 @@ test "can uninstall":
   let (outp, exitCode) = execNimble("uninstall", "-y", "PackageA")
   check exitCode != QuitSuccess
   let ls = outp.processOutput()
-  check ls[ls.len-2].startsWith("  Cannot uninstall PackageA ")
-  check ls[ls.len-1].startsWith("  Cannot uninstall PackageA ")
+  check inLines(ls, "Cannot uninstall PackageA (0.2.0)")
+  check inLines(ls, "Cannot uninstall PackageA (0.6.0)")
   check execNimble("uninstall", "-y", "PackageBin2").exitCode == QuitSuccess
 
   # Case insensitive

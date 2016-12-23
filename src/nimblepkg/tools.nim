@@ -3,7 +3,7 @@
 #
 # Various miscellaneous utility functions reside here.
 import osproc, pegs, strutils, os, uri, sets, json, parseutils
-import version, common
+import version, common, cli
 
 proc extractBin(cmd: string): string =
   if cmd[0] == '"':
@@ -20,11 +20,16 @@ proc doCmd*(cmd: string) =
   stdout.flushFile()
   stderr.flushFile()
 
-  let exitCode = execCmd(cmd)
+  displayDebug("Executing", cmd)
+  let (output, exitCode) = execCmdEx(cmd)
+  displayDebug("Finished", "with exit code " & $exitCode)
+  # TODO: Improve to show output in real-time.
+  displayDebug("Output", output)
 
   if exitCode != QuitSuccess:
     raise newException(NimbleError,
-        "Execution failed with exit code " & $exitCode)
+        "Execution failed with exit code $1\nCommand: $2\nOutput: $3" %
+        [$exitCode, cmd, output])
 
 proc doCmdEx*(cmd: string): tuple[output: TaintedString, exitCode: int] =
   let bin = extractBin(cmd)
@@ -50,7 +55,7 @@ proc getNimrodVersion*: Version =
   let vOutput = doCmdEx('"' & nimBin & "\" -v").output
   var matches: array[0..MaxSubpatterns, string]
   if vOutput.find(peg"'Version'\s{(\d+\.)+\d}", matches) == -1:
-    quit("Couldn't find Nim version.", QuitFailure)
+    raise newException(NimbleError, "Couldn't find Nim version.")
   newVersion(matches[0])
 
 proc samePaths*(p1, p2: string): bool =
@@ -75,14 +80,14 @@ proc changeRoot*(origRoot, newRoot, path: string): string =
 
 proc copyFileD*(fro, to: string): string =
   ## Returns the destination (``to``).
-  echo(fro, " -> ", to)
+  display("Copying", "file $# to $#" % [fro, to], priority = LowPriority)
   copyFileWithPermissions(fro, to)
   result = to
 
 proc copyDirD*(fro, to: string): seq[string] =
   ## Returns the filenames of the files in the directory that were copied.
   result = @[]
-  echo("Copying directory: ", fro, " -> ", to)
+  display("Copying", "directory $# to $#" % [fro, to], priority = LowPriority)
   for path in walkDirRec(fro):
     createDir(changeRoot(fro, to, path.splitFile.dir))
     result.add copyFileD(path, changeRoot(fro, to, path))

@@ -4,7 +4,7 @@
 import json, strutils, os, parseopt, strtabs, uri, tables
 from httpclient import Proxy, newProxy
 
-import config, version, tools, common
+import config, version, tools, common, cli
 
 type
   Options* = object
@@ -12,6 +12,8 @@ type
     depsOnly*: bool
     queryVersions*: bool
     queryInstalled*: bool
+    nimbleDir*: string
+    verbosity*: cli.Priority
     action*: Action
     config*: Config
     nimbleData*: JsonNode ## Nimbledata.json
@@ -21,12 +23,11 @@ type
     actionNil, actionRefresh, actionInit, actionDump, actionPublish,
     actionInstall, actionSearch,
     actionList, actionBuild, actionPath, actionUninstall, actionCompile,
-    actionCustom, actionTasks, actionVersion
+    actionCustom, actionTasks
 
   Action* = object
     case typ*: ActionType
-    of actionNil, actionList, actionBuild, actionPublish, actionTasks,
-       actionVersion: nil
+    of actionNil, actionList, actionBuild, actionPublish, actionTasks: nil
     of actionRefresh:
       optionalURL*: string # Overrides default package list.
     of actionInstall, actionPath, actionUninstall:
@@ -44,9 +45,6 @@ type
       arguments*: seq[string]
       flags*: StringTableRef
 
-  ForcePrompt* = enum
-    dontForcePrompt, forcePromptYes, forcePromptNo
-
 
 const
   help* = """
@@ -54,6 +52,7 @@ Usage: nimble COMMAND [opts]
 
 Commands:
   install      [pkgname, ...]     Installs a list of packages.
+               [-d, --depsOnly]   Install only dependencies.
   init         [pkgname]          Initializes a new Nimble project.
   publish                         Publishes a package on nim-lang/packages.
                                   The current working directory needs to be the
@@ -64,9 +63,11 @@ Commands:
                                   to the Nim compiler.
   refresh      [url]              Refreshes the package list. A package list URL
                                   can be optionally specified.
-  search       [--ver] pkg/tag    Searches for a specified package. Search is
+  search       pkg/tag            Searches for a specified package. Search is
                                   performed by tag and by name.
-  list         [--ver]            Lists all packages.
+               [--ver]            Query remote server for package version.
+  list                            Lists all packages.
+               [--ver]            Query remote server for package version.
                [-i, --installed]  Lists all installed packages.
   tasks                           Lists the tasks specified in the Nimble
                                   package's Nimble file.
@@ -83,26 +84,29 @@ Options:
       --ver                       Query remote server for package version
                                   information when searching or listing packages
       --nimbleDir dirname         Set the Nimble directory.
-  -d  --depsOnly                  Install only dependencies.
+      --verbose                   Show all non-debug output.
+      --debug                     Show all output including debug messages.
 
 For more information read the Github readme:
   https://github.com/nim-lang/nimble#readme
 """
 
-proc writeHelp*() =
+proc writeHelp*(quit=true) =
   echo(help)
-  quit(QuitSuccess)
+  if quit:
+    raise NimbleQuit(msg: "")
+
+proc writeVersion() =
+  echo("nimble v$# compiled at $# $#" %
+      [nimbleVersion, CompileDate, CompileTime])
+  raise NimbleQuit(msg: "")
 
 proc parseActionType*(action: string): ActionType =
   case action.normalize()
-  of "install", "path":
-    case action.normalize()
-    of "install":
-      result = actionInstall
-    of "path":
-      result = actionPath
-    else:
-      discard
+  of "install":
+    result = actionInstall
+  of "path":
+    result = actionPath
   of "build":
     result = actionBuild
   of "c", "compile", "js", "cpp", "cc":
@@ -153,30 +157,14 @@ proc initAction*(options: var Options, key: string) =
     options.action.arguments = @[]
     options.action.flags = newStringTable()
   of actionBuild, actionPublish, actionList, actionTasks,
-     actionNil, actionVersion: discard
+     actionNil: discard
 
 proc prompt*(options: Options, question: string): bool =
   ## Asks an interactive question and returns the result.
   ##
   ## The proc will return immediately without asking the user if the global
   ## forcePrompts has a value different than dontForcePrompt.
-  case options.forcePrompts
-  of forcePromptYes:
-    echo(question & " -> [forced yes]")
-    return true
-  of forcePromptNo:
-    echo(question & " -> [forced no]")
-    return false
-  of dontForcePrompt:
-    echo(question & " [y/N]")
-    let yn = stdin.readLine()
-    case yn.normalize
-    of "y", "yes":
-      return true
-    of "n", "no":
-      return false
-    else:
-      return false
+  return prompt(options.forcePrompts, question)
 
 proc renameBabelToNimble(options: Options) {.deprecated.} =
   let babelDir = getHomeDir() / ".babel"
@@ -191,7 +179,13 @@ proc renameBabelToNimble(options: Options) {.deprecated.} =
       removeFile(nimbleDir / "babeldata.json")
 
 proc getNimbleDir*(options: Options): string =
-  expandTilde(options.config.nimbleDir)
+  result =
+    if options.nimbleDir.len == 0:
+      options.config.nimbleDir
+    else:
+      options.nimbleDir
+
+  return expandTilde(result)
 
 proc getPkgsDir*(options: Options): string =
   options.getNimbleDir() / "pkgs"
@@ -235,33 +229,53 @@ proc parseArgument*(key: string, result: var Options) =
     discard
 
 proc parseFlag*(flag, val: string, result: var Options) =
-  case result.action.typ
-  of actionCompile:
-    if val == "":
-      result.action.compileOptions.add("--" & flag)
+  var wasFlagHandled = true
+
+  # Global flags.
+  case flag.normalize()
+  of "help", "h": writeHelp()
+  of "version", "v": writeVersion()
+  of "accept", "y": result.forcePrompts = forcePromptYes
+  of "reject", "n": result.forcePrompts = forcePromptNo
+  of "nimbledir": result.nimbleDir = val
+  of "verbose": result.verbosity = LowPriority
+  of "debug": result.verbosity = DebugPriority
+  # Action-specific flags.
+  of "installed", "i":
+    if result.action.typ in [actionSearch, actionList]:
+      result.queryInstalled = true
     else:
-      result.action.compileOptions.add("--" & flag & ":" & val)
-  of actionCustom:
-    result.action.flags[flag] = val
+      wasFlagHandled = false
+  of "depsonly", "d":
+    if result.action.typ == actionInstall:
+      result.depsOnly = true
+    else:
+      wasFlagHandled = false
+  of "ver":
+    if result.action.typ in [actionSearch, actionList]:
+      result.queryVersions = true
+    else:
+      wasFlagHandled = false
   else:
-    # TODO: These should not be global.
-    case flag.normalize()
-    of "help", "h": writeHelp()
-    of "version", "v":
-      assert result.action.typ == actionNil
-      result.action.typ = actionVersion
-    of "accept", "y": result.forcePrompts = forcePromptYes
-    of "reject", "n": result.forcePrompts = forcePromptNo
-    of "ver": result.queryVersions = true
-    of "nimbledir": result.config.nimbleDir = val # overrides option from file
-    of "installed", "i": result.queryInstalled = true
-    of "depsonly", "d": result.depsOnly = true
+    case result.action.typ
+    of actionCompile:
+      if val == "":
+        result.action.compileOptions.add("--" & flag)
+      else:
+        result.action.compileOptions.add("--" & flag & ":" & val)
+    of actionCustom:
+      result.action.flags[flag] = val
     else:
-      raise newException(NimbleError, "Unknown option: --" & flag)
+      wasFlagHandled = false
+
+  if not wasFlagHandled:
+    raise newException(NimbleError, "Unknown option: --" & flag)
 
 proc initOptions*(): Options =
   result.action.typ = actionNil
   result.pkgInfoCache = newTable[string, PackageInfo]()
+  result.nimbleDir = ""
+  result.verbosity = HighPriority
 
 proc parseMisc(options: var Options) =
   # Load nimbledata.json
@@ -278,9 +292,9 @@ proc parseMisc(options: var Options) =
 
 proc parseCmdLine*(): Options =
   result = initOptions()
-  result.config = parseConfig()
 
-  # Parse command line params.
+  # Parse command line params first. A simple `--version` shouldn't require
+  # a config to be parsed.
   for kind, key, val in getOpt():
     case kind
     of cmdArgument:
@@ -291,6 +305,12 @@ proc parseCmdLine*(): Options =
     of cmdLongOption, cmdShortOption:
       parseFlag(key, val, result)
     of cmdEnd: assert(false) # cannot happen
+
+  # Set verbosity level.
+  setVerbosity(result.verbosity)
+
+  # Parse config.
+  result.config = parseConfig()
 
   # Parse other things, for example the nimbledata.json file.
   parseMisc(result)
@@ -310,8 +330,8 @@ proc getProxy*(options: Options): Proxy =
       elif existsEnv("https_proxy"):
         url = getEnv("https_proxy")
     except ValueError:
-      echo("WARNING: Unable to parse proxy from environment: ",
-          getCurrentExceptionMsg())
+      display("Warning:", "Unable to parse proxy from environment: " &
+          getCurrentExceptionMsg(), Warning, HighPriority)
 
   if url.len > 0:
     var parsed = parseUri(url)

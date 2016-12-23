@@ -1,3 +1,4 @@
+# Copyright (C) Dominik Picheta. All rights reserved.
 # BSD License. Look at license.txt for more info.
 #
 # Various miscellaneous common types reside here, to avoid problems with
@@ -7,7 +8,7 @@ when not defined(nimscript):
   import sets
 
   import version
-  export version.NimbleError
+  export version.NimbleError # TODO: Surely there is a better way?
 
   type
     BuildFailed* = object of NimbleError
@@ -36,6 +37,14 @@ when not defined(nimscript):
       srcDir*: string
       backend*: string
       foreignDeps*: seq[string]
+
+    ## Same as quit(QuitSuccess), but allows cleanup.
+    NimbleQuit* = ref object of Exception
+
+  proc raiseNimbleError*(msg: string, hint = "") =
+    var exc = newException(NimbleError, msg)
+    exc.hint = hint
+    raise exc
 
 const
   nimbleVersion* = "0.7.11"

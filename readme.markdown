@@ -12,34 +12,36 @@ Interested in learning **how to create a package**? Skip directly to that sectio
 - [Installation](#installation)
 - [Nimble's folder structure and packages](#nimbles-folder-structure-and-packages)
 - [Nimble usage](#nimble-usage)
-	- [nimble refresh](#nimble-refresh)
-	- [nimble install](#nimble-install)
-	- [nimble uninstall](#nimble-uninstall)
-	- [nimble build](#nimble-build)
-	- [nimble c](#nimble-c)
-	- [nimble list](#nimble-list)
-	- [nimble search](#nimble-search)
-	- [nimble path](#nimble-path)
-	- [nimble init](#nimble-init)
-	- [nimble publish](#nimble-publish)
-	- [nimble tasks](#nimble-tasks)
-	- [nimble dump](#nimble-dump)
+  - [nimble refresh](#nimble-refresh)
+  - [nimble install](#nimble-install)
+  - [nimble uninstall](#nimble-uninstall)
+  - [nimble build](#nimble-build)
+  - [nimble c](#nimble-c)
+  - [nimble list](#nimble-list)
+  - [nimble search](#nimble-search)
+  - [nimble path](#nimble-path)
+  - [nimble init](#nimble-init)
+  - [nimble publish](#nimble-publish)
+  - [nimble tasks](#nimble-tasks)
+  - [nimble dump](#nimble-dump)
 - [Configuration](#configuration)
 - [Creating Packages](#creating-packages)
-	- [The new NimScript format](#the-new-nimscript-format)
-	- [Libraries](#libraries)
-	- [Binary packages](#binary-packages)
-	- [Hybrids](#hybrids)
-	- [Dependencies](#dependencies)
-	- [Nim compiler](#nim-compiler)
-	- [Versions](#versions)
-- [Submitting your package to the package list.](#submitting-your-package-to-the-package-list)
+  - [Project structure](#project-structure)
+    - [Tests](#tests)
+  - [Libraries](#libraries)
+  - [Binary packages](#binary-packages)
+  - [Hybrids](#hybrids)
+  - [Dependencies](#dependencies)
+  - [Nim compiler](#nim-compiler)
+  - [Versions](#versions)
+    - [Releasing a new version](#releasing-a-new-version)
+- [Publishing packages](#publishing-packages)
 - [.nimble reference](#nimble-reference)
-	- [[Package]](#package)
-		- [Required](#required)
-		- [Optional](#optional)
-	- [[Deps]/[Dependencies]](#depsdependencies)
-		- [Optional](#optional)
+  - [[Package]](#package)
+    - [Required](#required)
+    - [Optional](#optional)
+  - [[Deps]/[Dependencies]](#depsdependencies)
+    - [Optional](#optional)
 - [Troubleshooting](#troubleshooting)
 - [Contribution](#contribution)
 - [About](#about)
@@ -195,9 +197,10 @@ Similar to the ``install`` command you can specify a version range, for example:
 ### nimble build
 
 The ``build`` command is mostly used by developers who want to test building
-their ``.nimble`` package. This command will build the package in debug mode,
-without installing anything. The ``install`` command will build the package
-in release mode instead.
+their ``.nimble`` package. This command will build the package with default
+flags, i.e. a debug build which includes stack traces but no GDB debug
+information.
+The ``install`` command will build the package in release mode instead.
 
 ### nimble c
 
@@ -373,6 +376,7 @@ You can also specify multiple dependencies like so:
 
 requires "nim >= 0.10.0", "foobar >= 0.1.0"
 requires "fizzbuzz >= 1.0"
+```
 
 Nimble currently supports installation of packages from a local directory, a
 git repository and a mercurial repository. The .nimble file must be present in
@@ -436,12 +440,54 @@ also return ``false`` from these blocks to stop further execution.
 The ``nimscriptapi.nim`` module specifies this and includes other definitions
 which are also useful. Take a look at it for more information.
 
+### Project structure
+
+There is nothing surprising about the recommended project structure. The advice
+resembles that of many other package managers.
+
+| Directory     | Purpose                                |
+| ------------- | -------------------------------------- |
+| ``.``         | Root directory containing .nimble file.|
+| ``./src/``    | Project source code                    |
+| ``./tests/``  | Project test files                     |
+| ``./docs/``   | Project documentation                  |
+
+#### Tests
+
+A common problem that arises with tests is the fact that they need to import
+the associated package. But the package is in the parent directory. This can
+be solved in a few different ways:
+
+* Expect that the package has been installed locally into your
+  ``~/.nimble`` directory.
+* Use a simple path modification to resolve the package properly.
+
+The latter is highly recommended. Reinstalling the package to test an actively
+changing code base is a massive pain.
+
+To modify the path for your tests only, simply add a ``nim.cfg`` file into
+your ``tests`` directory with the following contents:
+
+```
+--path:"../src/"
+```
+
+To make testing even more convenient, you may wish to define a ``test`` task
+in your ``.nimble`` file. Like so:
+
+```nim
+task "test", "Runs the test suite":
+  exec "nim c -r tests/tester"
+```
+
+You can compile and run a single tester application or multiple test files.
+
 ### Libraries
 
 Library packages are likely the most popular form of Nimble packages. They are
-meant to be used by other library packages or the ultimate binary packages.
+meant to be used by other library or binary packages.
 
-When nimble installs a library it will copy all the files in the package
+When nimble installs a library it will copy all of its files
 into ``$nimbleDir/pkgs/pkgname-ver``. It's up to the package creator to make sure
 that the package directory layout is correct, this is so that users of the
 package can correctly import the package.
@@ -483,23 +529,23 @@ A package is automatically a binary package as soon as it sets at least one
 ``bin`` value, like so:
 
 ```ini
-bin = "main" # NimScript config expects a seq instead, e.g. @["main"]
+bin = @["main"]
 ```
 
 In this case when ``nimble install`` is invoked, nimble will build the ``main.nim``
 file, copy it into ``$nimbleDir/pkgs/pkgname-ver/`` and subsequently create a
-symlink to the binary in ``$nimbleDir/bin/``. On Windows a stub .bat file is
+symlink to the binary in ``$nimbleDir/bin/``. On Windows a stub .cmd file is
 created instead.
 
 Other files will be copied in the same way as they are for library packages.
 
-Binary packages should not install .nim files so you should include
+Binary packages should not install .nim files so include
 ``SkipExt = "nim"`` in your .nimble file, unless you intend for your package to
 be a binary/library combo which is fine.
 
-Dependencies are automatically installed before building. Before publishing your
-package you should ensure that the dependencies you specified are correct.
-You can do this by running ``nimble build`` or ``nimble install`` in the directory
+Dependencies are automatically installed before building.
+It's a good idea to test that the dependencies you specified are correct by
+running by running ``nimble build`` or ``nimble install`` in the directory
 of your package.
 
 ### Hybrids
@@ -516,28 +562,28 @@ done for nimble.
 
 ### Dependencies
 
-Dependencies are specified under the ``[Deps]`` section in a nimble file.
-The ``requires`` key field is used to specify them. For example:
+Dependencies are specified using the ``requires`` function. For example:
 
-```ini
-[Deps]
-Requires: "nim >= 0.10.0, jester > 0.1 & <= 0.5"
+```
+# Dependencies
+requires "nim >= 0.10.0", "jester > 0.1 & <= 0.5"
 ```
 
 Dependency lists support version ranges. These versions may either be a concrete
 version like ``0.1``, or they may contain any of the less-than (``<``),
 greater-than (``>``), less-than-or-equal-to (``<=``) and greater-than-or-equal-to
-(``>=``). Two version ranges may be combined using the ``&`` operator for example:
-``> 0.2 & < 1.0`` which will install a package with the version greater than 0.2
+(``>=``) oeprators.
+Two version ranges may be combined using the ``&`` operator, for example
+``> 0.2 & < 1.0``, which will install a package with the version greater than 0.2
 and less than 1.0.
 
 Specifying a concrete version as a dependency is not a good idea because your
 package may end up depending on two different versions of the same package.
-If this happens Nimble will refuse to install the package. Similarly you should
-not specify an upper-bound as this can lead to a similar issue.
+If this happens Nimble will refuse to install the package.
 
 In addition to versions you may also specify git/hg tags, branches and commits.
-These have to be concrete however. This is done with the ``#`` character,
+Although these have to be specific; ranges of commits are not supported.
+This is done with the ``#`` character,
 for example: ``jester#head``. Which will make your package depend on the
 latest commit of Jester.
 
@@ -573,11 +619,43 @@ package after checking out the latest version.
 You can force the installation of the HEAD of the repository by specifying
 ``#head`` after the package name in your dependency list.
 
-## Submitting your package to the package list.
+#### Releasing a new version
 
-Nimble's packages list is stored on github and everyone is encouraged to add
-their own packages to it! Take a look at
-[nim-lang/packages](https://github.com/nim-lang/packages) to learn more.
+Version releases are done by creating a tag in your Git or Mercurial
+repository.
+
+Whenever you want to release a new version, you should remember to first
+increment the version in your ``.nimble`` file and commit your changes. Only
+after that is done should you tag the release.
+
+To summarise, the steps for release are:
+
+* Increment the version in your ``.nimble`` file.
+* Commit your changes.
+* Tag your release, by for example running ``git tag v0.2.0``.
+* Push your tags and commits.
+
+Once the new tag is in the remote repository, Nimble will be able to detect
+the new version.
+
+##<a name="submitting-your-package-to-the-package-list"> Publishing packages
+
+Publishing packages isn't a requirement. But doing so allows people to associate
+a specific name to a URL pointing to your package. This mapping is stored
+in an official packages repository located
+[here](https://github.com/nim-lang/packages).
+
+This repository contains a ``packages.json`` file which lists all the published
+packages. It contains a set of package names with associated metadata. You
+can read more about this metadata in the
+[readme for the packages repository](https://github.com/nim-lang/packages#readme).
+
+To publish your package you need to fork that repository, and add an entry
+into the ``packages.json`` file for your package. Then create a pull request
+with your changes. **You only need to do this
+once**.
+
+Nimble includes a ``publish`` command which does this for you automatically.
 
 ## .nimble reference
 

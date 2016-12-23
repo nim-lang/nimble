@@ -1,6 +1,8 @@
 # Copyright (C) Dominik Picheta. All rights reserved.
 # BSD License. Look at license.txt for more info.
 
+import system except TResult
+
 import httpclient, parseopt, os, osproc, pegs, tables, parseutils,
        strtabs, json, algorithm, sets, uri
 
@@ -10,7 +12,8 @@ from sequtils import toSeq
 
 import nimblepkg/packageinfo, nimblepkg/version, nimblepkg/tools,
        nimblepkg/download, nimblepkg/config, nimblepkg/common,
-       nimblepkg/publish, nimblepkg/options, nimblepkg/packageparser
+       nimblepkg/publish, nimblepkg/options, nimblepkg/packageparser,
+       nimblepkg/cli
 
 import nimblepkg/nimscriptsupport
 
@@ -32,24 +35,7 @@ else:
   proc GetVersionExA*(VersionInformation: var OSVERSIONINFO): WINBOOL{.stdcall,
     dynlib: "kernel32", importc: "GetVersionExA".}
 
-proc writeVersion() =
-  echo("nimble v$# compiled at $# $#" %
-      [nimbleVersion, CompileDate, CompileTime])
-  quit(QuitSuccess)
-
-proc promptCustom(question, default: string): string =
-  if default == "":
-    stdout.write(question, ": ")
-    let user = stdin.readLine()
-    if user.len == 0: return promptCustom(question, default)
-    else: return user
-  else:
-    stdout.write(question, " [", default, "]: ")
-    let user = stdin.readLine()
-    if user == "": return default
-    else: return user
-
-proc update(options: Options) =
+proc refresh(options: Options) =
   ## Downloads the package list from the specified URL.
   ##
   ## If the download is not successful, an exception is raised.
@@ -60,10 +46,12 @@ proc update(options: Options) =
       ""
 
   proc downloadList(list: PackageList, options: Options) =
-    echo("Downloading \"", list.name, "\" package list")
+    display("Downloading", list.name & " package list", priority = HighPriority)
+
+    var lastError = ""
     for i in 0 .. <list.urls.len:
       let url = list.urls[i]
-      echo("Trying ", url, "...")
+      display("Trying", url)
       let tempPath = options.getNimbleDir() / "packages_temp.json"
 
       # Grab the proxy
@@ -71,25 +59,41 @@ proc update(options: Options) =
       if not proxy.isNil:
         var maskedUrl = proxy.url
         if maskedUrl.password.len > 0: maskedUrl.password = "***"
-        echo("Using proxy ", maskedUrl)
+        display("Connecting", "to proxy at " & $maskedUrl,
+                priority = LowPriority)
 
       try:
         downloadFile(url, tempPath, proxy = getProxy(options))
       except:
-        if i == <list.urls.len:
-          raise
-        echo("Could not download: ", getCurrentExceptionMsg())
+        let message = "Could not download: " & getCurrentExceptionMsg()
+        display("Warning:", message, Warning)
+        lastError = message
         continue
+
       if not validatePackagesList(tempPath):
-        echo("Downloaded packages.json file is invalid, discarding.")
+        lastError = "Downloaded packages.json file is invalid"
+        display("Warning:", lastError & ", discarding.", Warning)
         continue
+
       copyFile(tempPath,
           options.getNimbleDir() / "packages_$1.json" % list.name.toLowerAscii())
-      echo("Done.")
+      display("Success", "Package list downloaded.", Success, HighPriority)
+      lastError = ""
       break
 
-  if parameter.isUrl:
-    downloadList(PackageList(name: "commandline", urls: @[parameter]), options)
+    if lastError.len != 0:
+      raise newException(NimbleError, "Refresh failed\n" & lastError)
+
+  if parameter.len > 0:
+    if parameter.isUrl:
+      let cmdLine = PackageList(name: "commandline", urls: @[parameter])
+      downloadList(cmdLine, options)
+    else:
+      if parameter notin options.config.packageLists:
+        let msg = "Package list with the specified name not found."
+        raise newException(NimbleError, msg)
+
+      downloadList(options.config.packageLists[parameter], options)
   else:
     # Try each package list in config
     for name, list in options.config.packageLists:
@@ -258,24 +262,31 @@ proc processDeps(pkginfo: PackageInfo, options: Options): seq[string] =
   ## Returns the list of paths to pass to the compiler during build phase.
   result = @[]
   assert(not pkginfo.isMinimal, "processDeps needs pkginfo.requires")
+  display("Verifying",
+          "dependencies for $1 v$2" % [pkginfo.name, pkginfo.version],
+          priority = HighPriority)
+
   let pkglist = getInstalledPkgs(options.getPkgsDir(), options)
   var reverseDeps: seq[tuple[name, version: string]] = @[]
   for dep in pkginfo.requires:
     if dep.name == "nimrod" or dep.name == "nim":
       let nimVer = getNimrodVersion()
       if not withinRange(nimVer, dep.ver):
-        quit("Unsatisfied dependency: " & dep.name & " (" & $dep.ver & ")")
+        let msg = "Unsatisfied dependency: " & dep.name & " (" & $dep.ver & ")"
+        raise newException(NimbleError, msg)
     else:
-      echo("Looking for ", dep.name, " (", $dep.ver, ")...")
+      let depDesc = "$1 ($2)" % [dep.name, $dep.ver]
+      display("Checking", "for $1" % depDesc, priority = MediumPriority)
       var pkg: PackageInfo
       if not findPkg(pkglist, dep, pkg):
-        echo("None found, installing...")
+        display("Installing", depDesc, priority = HighPriority)
         let (paths, installedPkg) = install(@[(dep.name, dep.ver)], options)
         result.add(paths)
 
         pkg = installedPkg # For addRevDep
       else:
-        echo("Dependency already satisfied.")
+        display("Info:", "Dependency on $1 already satisfied" % depDesc,
+                priority = HighPriority)
         result.add(pkg.mypath.splitFile.dir)
         # Process the dependencies of this dependency.
         result.add(processDeps(pkg, options))
@@ -311,8 +322,8 @@ proc buildFromDir(pkgInfo: PackageInfo, paths: seq[string], forRelease: bool) =
   for path in paths: args.add("--path:\"" & path & "\" ")
   for bin in pkgInfo.bin:
     let outputOpt = "-o:\"" & pkgInfo.getOutputDir(bin) & "\""
-    echo("Building ", pkginfo.name, "/", bin, " using ", pkgInfo.backend,
-         " backend...")
+    display("Building", "$1/$2 using $3 backend" %
+            [pkginfo.name, bin, pkgInfo.backend], priority = HighPriority)
 
     let outputDir = pkgInfo.getOutputDir("")
     if not existsDir(outputDir):
@@ -352,13 +363,14 @@ proc removePkgDir(dir: string, options: Options) =
     if toSeq(walkDirRec(dir)).len == 0:
       removeDir(dir)
     else:
-      echo("WARNING: Cannot completely remove " & dir &
-           ". Files not installed by nimble are present.")
+      display("Warning:", ("Cannot completely remove $1. Files not installed " &
+              "by nimble are present.") % dir, Warning, HighPriority)
   except OSError, JsonParsingError:
-    echo("Error: Unable to read nimblemeta.json: ", getCurrentExceptionMsg())
+    display("Warning", "Unable to read nimblemeta.json: " &
+            getCurrentExceptionMsg(), Warning, HighPriority)
     if not options.prompt("Would you like to COMPLETELY remove ALL files " &
                           "in " & dir & "?"):
-      quit(QuitSuccess)
+      raise NimbleQuit(msg: "")
     removeDir(dir)
 
 proc vcsRevisionInDir(dir: string): string =
@@ -398,7 +410,8 @@ proc installFromDir(dir: string, latest: bool, options: Options,
     result.pkg = pkgInfo
     return result
 
-  echo("Installing ", pkginfo.name, "-", pkginfo.version)
+  display("Installing", "$1 v$2" % [pkginfo.name, pkginfo.version],
+          priority = HighPriority)
 
   # Build before removing an existing package (if one exists). This way
   # if the build fails then the old package will still be installed.
@@ -409,7 +422,7 @@ proc installFromDir(dir: string, latest: bool, options: Options,
   if existsDir(pkgDestDir) and existsFile(pkgDestDir / "nimblemeta.json"):
     if not options.prompt(pkgInfo.name & versionStr &
           " already exists. Overwrite?"):
-      quit(QuitSuccess)
+      raise NimbleQuit(msg: "")
     removePkgDir(pkgDestDir, options)
     # Remove any symlinked binaries
     for bin in pkgInfo.bin:
@@ -446,12 +459,13 @@ proc installFromDir(dir: string, latest: bool, options: Options,
         # TODO: Verify that we are removing an old bin of this package, not
         # some other package's binary!
         if existsFile(binDir / cleanBin): removeFile(binDir / cleanBin)
-        echo("Creating symlink: ", pkgDestDir / bin, " -> ", binDir / cleanBin)
+        display("Creating", "symlink: $1 -> $2" %
+                [pkgDestDir / bin, binDir / cleanBin], priority = MediumPriority)
         createSymlink(pkgDestDir / bin, binDir / cleanBin)
       elif defined(windows):
         # There is a bug on XP, described here:
         # http://stackoverflow.com/questions/2182568/batch-script-is-not-executed-if-chcp-was-called
-        # But this workaround brokes code page on newer systems, so we need to detect OS version
+        # But this workaround brakes code page on newer systems, so we need to detect OS version
         var osver = OSVERSIONINFO()
         osver.dwOSVersionInfoSize = cast[DWORD](sizeof(OSVERSIONINFO))
         if GetVersionExA(osver) == WINBOOL(0):
@@ -460,7 +474,8 @@ proc installFromDir(dir: string, latest: bool, options: Options,
         let fixChcp = osver.dwMajorVersion <= 5
 
         let dest = binDir / cleanBin.changeFileExt("cmd")
-        echo("Creating stub: ", pkgDestDir / bin, " -> ", dest)
+        display("Creating", "stub: $1 -> $2" % [pkgDestDir / bin, dest],
+                priority = MediumPriority)
         var contents = "@"
         if options.config.chcp:
           if fixChcp:
@@ -470,7 +485,8 @@ proc installFromDir(dir: string, latest: bool, options: Options,
         writeFile(dest, contents)
         # For bash on Windows (Cygwin/Git bash).
         let bashDest = dest.changeFileExt("")
-        echo("Creating Cygwin stub: ", pkgDestDir / bin, " -> ", bashDest)
+        display("Creating", "Cygwin stub: $1 -> $2" %
+                [pkgDestDir / bin, bashDest], priority = MediumPriority)
         writeFile(bashDest, "\"" & pkgDestDir / bin & "\" \"$@\"\n")
       else:
         {.error: "Sorry, your platform is not supported.".}
@@ -491,7 +507,8 @@ proc installFromDir(dir: string, latest: bool, options: Options,
   result.paths.add pkgDestDir
   result.pkg = pkgInfo
 
-  echo(pkgInfo.name & " installed successfully.")
+  display("Success:", pkgInfo.name & " installed successfully.",
+          Success, HighPriority)
 
 proc getNimbleTempDir(): string =
   ## Returns a path to a temporary directory.
@@ -529,8 +546,8 @@ proc downloadPkg(url: string, verRange: VersionRange,
   if modUrl.contains("github.com") and modUrl.endswith("/"):
     modUrl = modUrl[0 .. ^2]
 
-  echo("Downloading ", modUrl, " into ", downloadDir, " using ",
-      downMethod, "...")
+  display("Downloading", "$1 using $2" % [modUrl, $downMethod],
+          priority = HighPriority)
   result = (
     downloadDir,
     doDownload(modUrl, downloadDir, verRange, downMethod, options)
@@ -545,15 +562,15 @@ proc getDownloadInfo*(pv: PkgTuple, options: Options,
     if getPackage(pv.name, options, pkg):
       return (pkg.downloadMethod.getDownloadMethod(), pkg.url)
     else:
-      # If package is not found give the user a chance to update
+      # If package is not found give the user a chance to refresh
       # package.json
       if doPrompt and
           options.prompt(pv.name & " not found in any local packages.json, " &
                          "check internet for updated packages?"):
-        update(options)
+        refresh(options)
 
-        # Once we've updated, try again, but don't prompt if not found
-        # (as we've already updated and a failure means it really
+        # Once we've refreshed, try again, but don't prompt if not found
+        # (as we've already refreshed and a failure means it really
         # isn't there)
         return getDownloadInfo(pv, options, false)
       else:
@@ -570,9 +587,9 @@ proc install(packages: seq[PkgTuple],
       if doPrompt and
           options.prompt("No local packages.json found, download it from " &
               "internet?"):
-        update(options)
+        refresh(options)
       else:
-        quit("Please run nimble refresh.", QuitFailure)
+        raise newException(NimbleError, "Please run nimble refresh.")
 
     # Install each package.
     for pv in packages:
@@ -608,6 +625,13 @@ proc build(options: Options) =
   buildFromDir(pkgInfo, paths, false)
 
 proc compile(options: Options) =
+  let bin = options.action.file
+  if bin == "":
+    raise newException(NimbleError, "You need to specify a file to compile.")
+
+  if not fileExists(bin):
+    raise newException(NimbleError, "Specified file does not exist.")
+
   var pkgInfo = getPkgInfo(getCurrentDir(), options)
   nimScriptHint(pkgInfo)
   let paths = processDeps(pkginfo, options)
@@ -617,20 +641,17 @@ proc compile(options: Options) =
   for option in options.action.compileOptions:
     args.add(option & " ")
 
-  let bin = options.action.file
   let backend =
     if options.action.backend.len > 0:
       options.action.backend
     else:
       pkgInfo.backend
 
-  if bin == "":
-    raise newException(NimbleError, "You need to specify a file to compile.")
-
-  echo("Compiling ", bin, " (", pkgInfo.name, ") using ", backend,
-       " backend...")
+  display("Compiling", "$1 (from package $2) using $3 backend" %
+          [bin, pkgInfo.name, backend], priority = HighPriority)
   doCmd("\"" & getNimBin() & "\" $# --noBabelPath $# \"$#\"" %
         [backend, args, bin])
+  display("Success:", "Compilation finished", Success, HighPriority)
 
 proc search(options: Options) =
   ## Searches for matches in ``options.action.search``.
@@ -663,7 +684,7 @@ proc search(options: Options) =
             onFound()
 
   if not found:
-    echo("No package found.")
+    display("Error", "No package found.", Error, HighPriority)
 
 proc list(options: Options) =
   if needsRefresh(options):
@@ -694,7 +715,7 @@ proc listInstalled(options: Options) =
 type VersionAndPath = tuple[version: Version, path: string]
 
 proc listPaths(options: Options) =
-  ## Loops over installing packages displaying their installed paths.
+  ## Loops over the specified packages displaying their installed paths.
   ##
   ## If there are several packages installed, only the last one (the version
   ## listed in the packages.json) will be displayed. If any package name is not
@@ -704,6 +725,10 @@ proc listPaths(options: Options) =
   ## On success the proc returns normally.
   assert options.action.typ == actionPath
   assert(not options.action.packages.isNil)
+
+  if options.action.packages.len == 0:
+    raise newException(NimbleError, "A package name needs to be specified")
+
   var errors = 0
   for name, version in options.action.packages.items:
     var installed: seq[VersionAndPath] = @[]
@@ -713,11 +738,9 @@ proc listPaths(options: Options) =
         continue
 
       let
-        nimScriptFile = path / name.addFileExt("nims")
-        babelFile = path / name.addFileExt("babel")
         nimbleFile = path / name.addFileExt("nimble")
-        hasSpec = nimScriptFile.existsFile or
-                  nimbleFile.existsFile or babelFile.existsFile
+        hasSpec = nimbleFile.existsFile
+
       if hasSpec:
         var pkgInfo = getPkgInfo(path, options)
         var v: VersionAndPath
@@ -725,13 +748,16 @@ proc listPaths(options: Options) =
         v.path = options.getPkgsDir / (pkgInfo.name & '-' & pkgInfo.version)
         installed.add(v)
       else:
-        echo "Warning: No .nimble file found for ", path
+        display("Warning:", "No .nimble file found for " & path, Warning,
+                MediumPriority)
 
     if installed.len > 0:
       sort(installed, system.cmp[VersionAndPath], Descending)
+      # The output for this command is used by tools so we do not use display().
       echo installed[0].path
     else:
-      echo "Warning: Package '" & name & "' not installed"
+      display("Warning:", "Package '$1' is not installed" % name, Warning,
+              MediumPriority)
       errors += 1
   if errors > 0:
     raise newException(NimbleError,
@@ -768,9 +794,10 @@ proc dump(options: Options) =
 proc init(options: Options) =
   var nimbleFile: string = ""
 
-  echo("In order to initialise a new Nimble package, I will need to ask you\n" &
+  display("Info:",
+       "In order to initialise a new Nimble package, I will need to ask you\n" &
        "some questions. Default values are shown in square brackets, press\n" &
-       "enter to use them.")
+       "enter to use them.", priority = HighPriority)
 
   # Ask for package name.
   if options.action.projName != "":
@@ -778,7 +805,7 @@ proc init(options: Options) =
     nimbleFile = pkgName.changeFileExt("nimble")
   else:
     var pkgName = os.getCurrentDir().splitPath.tail.toValidPackageName()
-    pkgName = promptCustom("Enter package name", pkgName)
+    pkgName = promptCustom("Package name?", pkgName)
     nimbleFile = pkgName.changeFileExt("nimble")
 
   validatePackageName(nimbleFile.changeFileExt(""))
@@ -787,7 +814,7 @@ proc init(options: Options) =
     raise newException(NimbleError, "Nimble file already exists.")
 
   # Ask for package version.
-  let pkgVersion = promptCustom("Enter initial version of package", "0.1.0")
+  let pkgVersion = promptCustom("Initial version of package?", "0.1.0")
   validateVersion(pkgVersion)
 
   # Ask for package author
@@ -800,24 +827,19 @@ proc init(options: Options) =
     let (name, exitCode) = doCmdEx("hg config ui.username")
     if exitCode == QuitSuccess and name.len > 0:
       defaultAuthor = name.strip()
-  let pkgAuthor = promptCustom("Enter your name", defaultAuthor)
+  let pkgAuthor = promptCustom("Your name?", defaultAuthor)
 
   # Ask for description
-  let pkgDesc = promptCustom("Enter package description", "")
+  let pkgDesc = promptCustom("Package description?", "")
 
   # Ask for license
   # TODO: Provide selection of licenses, or select random default license.
-  let pkgLicense = promptCustom("Enter package license", "MIT")
+  let pkgLicense = promptCustom("Package license?", "MIT")
 
   # Ask for Nim dependency
   let nimDepDef = getNimrodVersion()
-  let pkgNimDep = promptCustom("Enter lowest supported Nim version", $nimDepDef)
+  let pkgNimDep = promptCustom("Lowest supported Nim version?", $nimDepDef)
   validateVersion(pkgNimDep)
-
-  # Now generate the .nimble file.
-  if existsFile(os.getCurrentDir() / nimbleFile):
-    raise newException(NimbleError,
-        "Looks like a Nimble file has already been created.")
 
   var outFile: File
   if open(f = outFile, filename = nimbleFile, mode = fmWrite):
@@ -838,6 +860,8 @@ requires "nim >= $#"
     raise newException(NimbleError, "Unable to open file " & nimbleFile &
                        " for writing: " & osErrorMsg(osLastError()))
 
+  display("Success:", "Nimble file created successfully", Success, HighPriority)
+
 proc uninstall(options: Options) =
   if options.action.packages.len == 0:
     raise newException(NimbleError,
@@ -846,13 +870,14 @@ proc uninstall(options: Options) =
   var pkgsToDelete: seq[PackageInfo] = @[]
   # Do some verification.
   for pkgTup in options.action.packages:
-    echo("Looking for ", pkgTup.name, " (", $pkgTup.ver, ")...")
+    display("Looking", "for $1 ($2)" % [pkgTup.name, $pkgTup.ver],
+            priority = HighPriority)
     let installedPkgs = getInstalledPkgs(options.getPkgsDir(), options)
     var pkgList = findAllPkgs(installedPkgs, pkgTup)
     if pkgList.len == 0:
       raise newException(NimbleError, "Package not found")
 
-    echo("Checking reverse dependencies...")
+    display("Checking", "reverse dependencies", priority = HighPriority)
     var errors: seq[string] = @[]
     for pkg in pkgList:
       # Check whether any packages depend on the ones the user is trying to
@@ -861,17 +886,17 @@ proc uninstall(options: Options) =
       if not thisPkgsDep.isNil:
         var reason = ""
         if thisPkgsDep.len == 1:
-          reason = thisPkgsDep[0]["name"].str &
-              " (" & thisPkgsDep[0]["version"].str & ") depends on it"
+          reason = "$1 ($2) depends on it" % [thisPkgsDep[0]["name"].str,
+                   thisPkgsDep[0]["version"].str]
         else:
           for i in 0 .. <thisPkgsDep.len:
-            reason.add thisPkgsDep[i]["name"].str &
-                " (" & thisPkgsDep[i]["version"].str & ")"
+            reason.add("$1 ($2)" % [thisPkgsDep[i]["name"].str,
+                       thisPkgsDep[i]["version"].str])
             if i != <thisPkgsDep.len:
               reason.add ", "
           reason.add " depend on it"
-        errors.add("Cannot uninstall " & pkgTup.name & " (" & pkg.version &
-                   ")" & " because " & reason)
+        errors.add("Cannot uninstall $1 ($2) because $3" % [pkgTup.name,
+                   pkg.version, reason])
       else:
         pkgsToDelete.add pkg
 
@@ -882,12 +907,13 @@ proc uninstall(options: Options) =
   for i in 0 .. <pkgsToDelete.len:
     if i != 0: pkgNames.add ", "
     let pkg = pkgsToDelete[i]
-    pkgNames.add pkg.name & " (" & pkg.version & ")"
+    pkgNames.add("$1 ($2)" % [pkg.name, pkg.version])
 
   # Let's confirm that the user wants these packages removed.
-  if not options.prompt("The following packages will be removed:\n  " &
-      pkgNames & "\nDo you wish to continue?"):
-    quit(QuitSuccess)
+  let msg = ("The following packages will be removed:\n  $1\n" &
+            "Do you wish to continue?") % pkgNames
+  if not options.prompt(msg):
+    raise NimbleQuit(msg: "")
 
   for pkg in pkgsToDelete:
     # If we reach this point then the package can be safely removed.
@@ -897,7 +923,8 @@ proc uninstall(options: Options) =
     let pkgFull = readPackageInfo(pkg.mypath, options, false)
     removeRevDep(options, pkgFull)
     removePkgDir(options.getPkgsDir / (pkg.name & '-' & pkg.version), options)
-    echo("Removed ", pkg.name, " (", $pkg.version, ")")
+    display("Removed", "$1 ($2)" % [pkg.name, $pkg.version], Success,
+            HighPriority)
 
 proc listTasks(options: Options) =
   let nimbleFile = findNimbleFile(getCurrentDir(), true)
@@ -930,11 +957,12 @@ proc doAction(options: Options) =
     createDir(options.getPkgsDir)
 
   if not execHook(options, true):
-    echo("Pre-hook prevented further execution.")
+    display("Warning", "Pre-hook prevented further execution.", Warning,
+            HighPriority)
     return
   case options.action.typ
   of actionRefresh:
-    update(options)
+    refresh(options)
   of actionInstall:
     let (_, pkgInfo) = install(options.action.packages, options)
     if options.action.packages.len == 0:
@@ -965,8 +993,6 @@ proc doAction(options: Options) =
     dump(options)
   of actionTasks:
     listTasks(options)
-  of actionVersion:
-    writeVersion()
   of actionNil:
     assert false
   of actionCustom:
@@ -977,14 +1003,19 @@ proc doAction(options: Options) =
 
     let execResult = execTask(nimbleFile, options.action.command, options)
     if not execResult.success:
-      echo("FAILURE: Could not find task ", options.action.command, " in ",
-           nimbleFile)
-      writeHelp()
+      raiseNimbleError(msg = "Could not find task $1 in $2" %
+                             [options.action.command, nimbleFile],
+                       hint = "Run `nimble --help` and/or `nimble tasks` for" &
+                              " a list of possible commands.")
+
     if execResult.command.normalize == "nop":
-      echo("WARNING: Using `setCommand 'nop'` is not necessary.")
+      display("Warning:", "Using `setCommand 'nop'` is not necessary.", Warning,
+              HighPriority)
       return
+
     if not execHook(options, false):
       return
+
     if execResult.hasTaskRequestedCommand():
       var newOptions = initOptions()
       newOptions.config = options.config
@@ -1000,12 +1031,27 @@ proc doAction(options: Options) =
     discard execHook(options, false)
 
 when isMainModule:
-  when defined(release):
-    try:
-      parseCmdLine().doAction()
-    except NimbleError:
-      quit("FAILURE: " & getCurrentExceptionMsg())
-    finally:
-      removeDir(getNimbleTempDir())
-  else:
+  var error = ""
+  var hint = ""
+
+  try:
     parseCmdLine().doAction()
+  except NimbleError:
+    let err = (ref NimbleError)(getCurrentException())
+    error = err.msg
+    when not defined(release):
+      let stackTrace = getStackTrace(getCurrentException())
+      error = stackTrace & "\n\n" & error
+    if not err.isNil:
+      hint = err.hint
+  except NimbleQuit:
+    nil
+  finally:
+    removeDir(getNimbleTempDir())
+
+  if error.len > 0:
+    displayTip()
+    display("Error:", error, Error, HighPriority)
+    if hint.len > 0:
+      display("Hint:", hint, Warning, HighPriority)
+    quit(1)

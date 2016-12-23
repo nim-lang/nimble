@@ -3,7 +3,7 @@
 
 import parseutils, os, osproc, strutils, tables, pegs
 
-import packageinfo, packageparser, version, tools, common, options
+import packageinfo, packageparser, version, tools, common, options, cli
 
 type
   DownloadMethod* {.pure.} = enum
@@ -142,7 +142,6 @@ proc doDownload*(url: string, downloadDir: string, verRange: VersionRange,
   ##
   ## Returns the version of the repository which has been downloaded.
   template getLatestByTag(meth: untyped) {.dirty.} =
-    echo("Found tags...")
     # Find latest version that fits our ``verRange``.
     var latest = findLatest(verRange, versions)
     ## Note: HEAD is not used when verRange.kind is verAny. This is
@@ -150,7 +149,7 @@ proc doDownload*(url: string, downloadDir: string, verRange: VersionRange,
 
     # If no tagged versions satisfy our range latest.tag will be "".
     # We still clone in that scenario because we want to try HEAD in that case.
-    # https://github.com/nimrod-code/nimble/issues/22
+    # https://github.com/nim-lang/nimble/issues/22
     meth
     if $latest.ver != "":
       result = parseVersionRange($latest.ver)
@@ -188,7 +187,8 @@ proc doDownload*(url: string, downloadDir: string, verRange: VersionRange,
       let versions = getTagsListRemote(url, downMethod).getVersionList()
       if versions.len > 0:
         getLatestByTag:
-          echo("Cloning latest tagged version: ", latest.tag)
+          display("Cloning", "latest tagged version: " & latest.tag,
+                  priority = MediumPriority)
           doClone(downMethod, url, downloadDir, latest.tag)
       else:
         # If no commits have been tagged on the repo we just clone HEAD.
@@ -202,7 +202,8 @@ proc doDownload*(url: string, downloadDir: string, verRange: VersionRange,
 
       if versions.len > 0:
         getLatestByTag:
-          echo("Switching to latest tagged version: ", latest.tag)
+          display("Switching", "to latest tagged version: " & latest.tag,
+                  priority = MediumPriority)
           doCheckout(downMethod, downloadDir, latest.tag)
 
       verifyClone()

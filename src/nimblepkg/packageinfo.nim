@@ -1,7 +1,7 @@
 # Copyright (C) Dominik Picheta. All rights reserved.
 # BSD License. Look at license.txt for more info.
 import parsecfg, json, streams, strutils, parseutils, os, sets, tables
-import version, tools, common, options
+import version, tools, common, options, cli
 
 type
   Package* = object
@@ -118,12 +118,9 @@ proc readMetaData*(path: string): MetaData =
   ## Reads the metadata present in ``~/.nimble/pkgs/pkg-0.1/nimblemeta.json``
   var bmeta = path / "nimblemeta.json"
   if not existsFile(bmeta):
-    bmeta = path / "babelmeta.json"
-    if existsFile(bmeta):
-      echo("WARNING: using deprecated babelmeta.json file in " & path)
-  if not existsFile(bmeta):
     result.url = ""
-    echo("WARNING: No nimblemeta.json file found in " & path)
+    display("Warning:", "No nimblemeta.json file found in " & path,
+            Warning, HighPriority)
     return
     # TODO: Make this an error.
   let cont = readFile(bmeta)
@@ -139,7 +136,7 @@ proc getPackage*(pkg: string, options: Options,
   ## convenience the proc returns a boolean specifying if the ``resPkg`` was
   ## successfully filled with good data.
   for name, list in options.config.packageLists:
-    echo("Searching in \"", name, "\" package list...")
+    display("Reading", "$1 package list" % name, priority = LowPriority)
     let packages = parseFile(options.getNimbleDir() /
         "packages_" & name.toLowerAscii() & ".json")
     for p in packages:
@@ -179,8 +176,8 @@ proc findNimbleFile*(dir: string; error: bool): string =
       raise newException(NimbleError,
           "Specified directory does not contain a .nimble file.")
     else:
-      # TODO: Abstract logging.
-      echo("WARNING: No .nimble file found for ", dir)
+      display("Warning:", "No .nimble file found for " & dir, Warning,
+              HighPriority)
 
 proc getInstalledPkgsMin*(libsDir: string, options: Options):
         seq[tuple[pkginfo: PackageInfo, meta: MetaData]] =
@@ -279,7 +276,8 @@ proc validatePackagesList*(path: string): bool =
     let pkgList = parseFile(path)
     if pkgList.kind == JArray:
       if pkgList.len == 0:
-        echo("WARNING: ", path, " contains no packages.")
+        display("Warning:", path & " contains no packages.", Warning,
+                HighPriority)
       return true
   except ValueError, JsonParsingError:
     return false
