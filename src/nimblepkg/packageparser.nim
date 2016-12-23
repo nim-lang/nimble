@@ -193,6 +193,7 @@ proc readPackageInfo*(nf: NimbleFile, options: Options,
     return options.pkgInfoCache[nf]
 
   result = initPackageInfo(nf)
+  let minimalInfo = getNameVersion(nf)
 
   validatePackageName(nf.splitFile.name)
 
@@ -208,9 +209,8 @@ proc readPackageInfo*(nf: NimbleFile, options: Options,
 
   if not success:
     if onlyMinimalInfo:
-      let tmp = getNameVersion(nf)
-      result.name = tmp.name
-      result.version = tmp.version
+      result.name = minimalInfo.name
+      result.version = minimalInfo.version
       result.isNimScript = true
       result.isMinimal = true
     else:
@@ -226,6 +226,14 @@ proc readPackageInfo*(nf: NimbleFile, options: Options,
         raise newException(NimbleError, msg)
 
   validatePackageInfo(result, nf)
+
+  # The package directory name may include a "special" version
+  # (example #head). If so, it is given higher priority and therefore
+  # overwrites the .nimble file's version.
+  let version = parseVersionRange(minimalInfo.version)
+  if version.kind == verSpecial:
+    result.version = minimalInfo.version
+
   if not result.isMinimal:
     options.pkgInfoCache[nf] = result
 
@@ -240,7 +248,7 @@ proc getInstalledPkgs*(libsDir: string, options: Options):
   ##
   ## ``libsDir`` is in most cases: ~/.nimble/pkgs/
   const
-    readErrorMsg = "Installed package $1 v$2 is outdated or corrupt."
+    readErrorMsg = "Installed package '$1@$2' is outdated or corrupt."
     validationErrorMsg = readErrorMsg & "\nPackage did not pass validation: $3"
     hintMsg = "The corrupted package will need to be removed manually. To fix" &
               " this error message, remove $1."
@@ -278,3 +286,14 @@ proc getInstalledPkgs*(libsDir: string, options: Options):
 
 proc isNimScript*(nf: string, options: Options): bool =
   result = readPackageInfo(nf, options).isNimScript
+
+when isMainModule:
+  validatePackageName("foo_bar")
+  validatePackageName("f_oo_b_a_r")
+  try:
+    validatePackageName("foo__bar")
+    assert false
+  except NimbleError:
+    assert true
+
+  echo("Everything passed!")

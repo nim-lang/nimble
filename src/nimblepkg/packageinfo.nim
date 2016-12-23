@@ -4,7 +4,7 @@ import parsecfg, json, streams, strutils, parseutils, os, sets, tables
 import version, tools, common, options, cli
 
 type
-  Package* = object
+  Package* = object ## Definition of package from packages.json.
     # Required fields in a package.
     name*: string
     url*: string # Download location.
@@ -57,7 +57,6 @@ proc getNameVersion*(pkgpath: string): tuple[name, version: string] =
   ##
   ## Also works for file paths like:
   ##   ``/home/user/.nimble/pkgs/package-0.1/package.nimble``
-
   if pkgPath.splitFile.ext == ".nimble" or pkgPath.splitFile.ext == ".babel":
     return getNameVersion(pkgPath.splitPath.head)
 
@@ -288,14 +287,8 @@ when isMainModule:
       ("package-a", "0.1")
   doAssert getNameVersion("/home/user/.nimble/libs/package-a-0.1/package.nimble") ==
       ("package-a", "0.1")
-
-  validatePackageName("foo_bar")
-  validatePackageName("f_oo_b_a_r")
-  try:
-    validatePackageName("foo__bar")
-    assert false
-  except NimbleError:
-    assert true
+  doAssert getNameVersion("/home/user/.nimble/libs/package-#head") ==
+      ("package", "#head")
 
   doAssert toValidPackageName("foo__bar") == "foo_bar"
   doAssert toValidPackageName("jhbasdh!£$@%#^_&*_()qwe") == "jhbasdh_qwe"

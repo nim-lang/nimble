@@ -263,7 +263,7 @@ proc processDeps(pkginfo: PackageInfo, options: Options): seq[string] =
   result = @[]
   assert(not pkginfo.isMinimal, "processDeps needs pkginfo.requires")
   display("Verifying",
-          "dependencies for $1 v$2" % [pkginfo.name, pkginfo.version],
+          "dependencies for $1@$2" % [pkginfo.name, pkginfo.version],
           priority = HighPriority)
 
   let pkglist = getInstalledPkgs(options.getPkgsDir(), options)
@@ -275,7 +275,7 @@ proc processDeps(pkginfo: PackageInfo, options: Options): seq[string] =
         let msg = "Unsatisfied dependency: " & dep.name & " (" & $dep.ver & ")"
         raise newException(NimbleError, msg)
     else:
-      let depDesc = "$1 ($2)" % [dep.name, $dep.ver]
+      let depDesc = "$1@$2" % [dep.name, $dep.ver]
       display("Checking", "for $1" % depDesc, priority = MediumPriority)
       var pkg: PackageInfo
       if not findPkg(pkglist, dep, pkg):
@@ -390,7 +390,7 @@ proc vcsRevisionInDir(dir: string): string =
     except:
       discard
 
-proc installFromDir(dir: string, latest: bool, options: Options,
+proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
                     url: string): tuple[paths: seq[string], pkg: PackageInfo] =
   ## Returns where package has been installed to, together with paths
   ## to the packages this package depends on.
@@ -400,24 +400,29 @@ proc installFromDir(dir: string, latest: bool, options: Options,
   let realDir = pkgInfo.getRealDir()
   let binDir = options.getBinDir()
   let pkgsDir = options.getPkgsDir()
-  var deps_options = options
-  deps_options.depsOnly = false
+  var depsOptions = options
+  depsOptions.depsOnly = false
+
+  # Overwrite the version if the requested version is "#head" or similar.
+  if requestedVer.kind == verSpecial:
+    pkgInfo.version = $requestedVer.spe
 
   # Dependencies need to be processed before the creation of the pkg dir.
-  result.paths = processDeps(pkginfo, deps_options)
+  result.paths = processDeps(pkginfo, depsOptions)
 
   if options.depsOnly:
     result.pkg = pkgInfo
     return result
 
-  display("Installing", "$1 v$2" % [pkginfo.name, pkginfo.version],
+  display("Installing", "$1 $2" % [pkginfo.name, pkginfo.version],
           priority = HighPriority)
 
   # Build before removing an existing package (if one exists). This way
   # if the build fails then the old package will still be installed.
   if pkgInfo.bin.len > 0: buildFromDir(pkgInfo, result.paths, true)
 
-  let versionStr = (if latest: "" else: '-' & pkgInfo.version)
+  let versionStr = '-' & pkgInfo.version
+
   let pkgDestDir = pkgsDir / (pkgInfo.name & versionStr)
   if existsDir(pkgDestDir) and existsFile(pkgDestDir / "nimblemeta.json"):
     if not options.prompt(pkgInfo.name & versionStr &
@@ -527,7 +532,7 @@ proc getNimbleTempDir(): string =
 
 proc downloadPkg(url: string, verRange: VersionRange,
                  downMethod: DownloadMethod,
-                 options: Options): (string, VersionRange) =
+                 options: Options): (string, Version) =
   ## Downloads the repository as specified by ``url`` and ``verRange`` using
   ## the download method specified.
   ##
@@ -580,7 +585,7 @@ proc install(packages: seq[PkgTuple],
              options: Options,
              doPrompt = true): tuple[paths: seq[string], pkg: PackageInfo] =
   if packages == @[]:
-    result = installFromDir(getCurrentDir(), false, options, "")
+    result = installFromDir(getCurrentDir(), newVRAny(), options, "")
   else:
     # If packages.json is not present ask the user if they want to download it.
     if needsRefresh(options):
@@ -597,11 +602,11 @@ proc install(packages: seq[PkgTuple],
       let (downloadDir, downloadVersion) =
           downloadPkg(url, pv.ver, meth, options)
       try:
-        result = installFromDir(downloadDir, false, options, url)
+        result = installFromDir(downloadDir, pv.ver, options, url)
       except BuildFailed:
         # The package failed to build.
         # Check if we tried building a tagged version of the package.
-        let headVer = parseVersionRange("#" & getHeadName(meth))
+        let headVer = getHeadName(meth)
         if pv.ver.kind != verSpecial and downloadVersion != headVer:
           # If we tried building a tagged version of the package then
           # ask the user whether they want to try building #head.
@@ -610,8 +615,8 @@ proc install(packages: seq[PkgTuple],
                   " like to try installing '$1@#head' (latest unstable)?") %
                   [pv.name, $downloadVersion])
           if promptResult:
-
-            result = install(@[(pv.name, headVer)], options, doPrompt)
+            let toInstall = @[(pv.name, headVer.toVersionRange())]
+            result = install(toInstall, options, doPrompt)
           else:
             raise newException(BuildFailed,
               "Aborting installation due to build failure")

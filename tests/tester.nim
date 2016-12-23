@@ -2,6 +2,10 @@
 # BSD License. Look at license.txt for more info.
 import osproc, streams, unittest, strutils, os, sequtils, future
 
+# TODO: Each test should start off with a clean slate. Currently installed
+# packages are shared between each test which causes a multitude of issues
+# and is really fragile.
+
 var rootDir = getCurrentDir().parentDir()
 var nimblePath = rootDir / "src" / "nimble" & ExeExt
 var installDir = rootDir / "tests" / "nimbleDir"
@@ -41,6 +45,11 @@ test "issue 129 (installing commit hash)":
   let arguments = @["install", "-y",
                    "https://github.com/nimble-test/packagea.git@#1f9cb289c89"]
   check execNimble(arguments).exitCode == QuitSuccess
+  # Verify that it was installed correctly.
+  check dirExists(installDir / "pkgs" / "packagea-#1f9cb289c89")
+  # Remove it so that it doesn't interfere with the uninstall tests.
+  check execNimble("uninstall", "-y", "packagea@#1f9cb289c89").exitCode ==
+        QuitSuccess
 
 test "issue 113 (uninstallation problems)":
   cd "issue113/c":
@@ -247,6 +256,6 @@ test "can uninstall":
 
   check execNimble("uninstall", "-y", "PackageA@0.2", "issue27b").exitCode ==
       QuitSuccess
-  check(not dirExists(getHomeDir() / ".nimble" / "pkgs" / "PackageA-0.2.0"))
+  check(not dirExists(installDir / "pkgs" / "PackageA-0.2.0"))
 
   check execNimble("uninstall", "-y", "nimscript").exitCode == QuitSuccess
