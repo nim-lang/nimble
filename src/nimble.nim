@@ -163,7 +163,7 @@ proc copyFilesRec(origDir, currentDir, dest: string,
         if options.prompt("Missing file " & src & ". Continue?"):
           continue
         else:
-          quit(QuitSuccess)
+          raise NimbleQuit(msg: "")
       createDir(dest / file.splitFile.dir)
       result.incl copyFileD(src, dest / file)
 
@@ -174,7 +174,7 @@ proc copyFilesRec(origDir, currentDir, dest: string,
         if options.prompt("Missing directory " & src & ". Continue?"):
           continue
         else:
-          quit(QuitSuccess)
+          raise NimbleQuit(msg: "")
       result.incl copyDirD(origDir / dir, dest / dir)
 
     result.incl copyWithExt(origDir, currentDir, dest, pkgInfo)
@@ -441,15 +441,23 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
       else:
         removeFile(binDir / bin)
 
-  ## Will contain a list of files which have been installed.
-  var filesInstalled: HashSet[string]
 
   createDir(pkgDestDir)
+  # Copy this package's files based on the preferences specified in PkgInfo.
+  var filesInstalled = initSet[string]()
+  for file in getInstallFiles(realDir, pkgInfo, options):
+    createDir(changeRoot(realDir, pkgDestDir, file.splitFile.dir))
+    let dest = changeRoot(realDir, pkgDestDir, file)
+    filesInstalled.incl copyFileD(file, dest)
+
+  # Copy the .nimble file.
+  let dest = changeRoot(pkgInfo.mypath.splitFile.dir, pkgDestDir,
+                        pkgInfo.mypath)
+  filesInstalled.incl copyFileD(pkgInfo.mypath, dest)
+
   if pkgInfo.bin.len > 0:
+    # Make sure ~/.nimble/bin directory is created.
     createDir(binDir)
-    # Copy all binaries and files that are not skipped
-    filesInstalled = copyFilesRec(realDir, realDir, pkgDestDir, options,
-                                  pkgInfo)
     # Set file permissions to +x for all binaries built,
     # and symlink them on *nix OS' to $nimbleDir/bin/
     for bin in pkgInfo.bin:
@@ -495,9 +503,6 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
         writeFile(bashDest, "\"" & pkgDestDir / bin & "\" \"$@\"\n")
       else:
         {.error: "Sorry, your platform is not supported.".}
-  else:
-    filesInstalled = copyFilesRec(realDir, realDir, pkgDestDir, options,
-                                  pkgInfo)
 
   let vcsRevision = vcsRevisionInDir(realDir)
 
@@ -776,9 +781,7 @@ proc join(x: seq[PkgTuple]; y: string): string =
     result.add x[i][0] & " " & $x[i][1]
 
 proc dump(options: Options) =
-  let proj = addFileExt(options.action.projName, "nimble")
-  let p = if fileExists(proj): readPackageInfo(proj, options)
-          else: getPkgInfo(os.getCurrentDir(), options)
+  let p = getPkgInfo(os.getCurrentDir(), options)
   echo "name: ", p.name.escape
   echo "version: ", p.version.escape
   echo "author: ", p.author.escape
@@ -925,7 +928,7 @@ proc uninstall(options: Options) =
 
     # removeRevDep needs the package dependency info, so we can't just pass
     # a minimal pkg info.
-    let pkgFull = readPackageInfo(pkg.mypath, options, false)
+    let pkgFull = getPkgInfo(pkg.mypath.splitFile.dir, options) # TODO: Simplify
     removeRevDep(options, pkgFull)
     removePkgDir(options.getPkgsDir / (pkg.name & '-' & pkg.version), options)
     display("Removed", "$1 ($2)" % [pkg.name, $pkg.version], Success,
@@ -943,7 +946,7 @@ proc execHook(options: Options, before: bool): bool =
     nimbleFile = findNimbleFile(getCurrentDir(), true)
   except NimbleError: return true
   # PackageInfos are cached so we can read them as many times as we want.
-  let pkgInfo = readPackageInfo(nimbleFile, options)
+  let pkgInfo = getPkgInfo(nimbleFile.splitFile.dir, options) # TODO: Simplify
   let actionName =
     if options.action.typ == actionCustom: options.action.command
     else: ($options.action.typ)[6 .. ^1]

@@ -228,8 +228,7 @@ proc findAllPkgs*(pkglist: seq[tuple[pkginfo: PackageInfo, meta: MetaData]],
       result.add pkg.pkginfo
 
 proc getRealDir*(pkgInfo: PackageInfo): string =
-  ## Returns the ``pkgInfo.srcDir`` or the .mypath directory if package does
-  ## not specify the src dir.
+  ## Returns the directory containing the package source files.
   if pkgInfo.srcDir != "" and not pkgInfo.isInstalled:
     result = pkgInfo.mypath.splitFile.dir / pkgInfo.srcDir
   else:
@@ -279,6 +278,104 @@ proc validatePackagesList*(path: string): bool =
       return true
   except ValueError, JsonParsingError:
     return false
+
+proc checkInstallFile(pkgInfo: PackageInfo,
+                      origDir, file: string): bool =
+  ## Checks whether ``file`` should be installed.
+  ## ``True`` means file should be skipped.
+
+  for ignoreFile in pkgInfo.skipFiles:
+    if ignoreFile.endswith("nimble"):
+      raise newException(NimbleError, ignoreFile & " must be installed.")
+    if samePaths(file, origDir / ignoreFile):
+      result = true
+      break
+
+  for ignoreExt in pkgInfo.skipExt:
+    if file.splitFile.ext == ('.' & ignoreExt):
+      result = true
+      break
+
+  if file.splitFile().name[0] == '.': result = true
+
+proc checkInstallDir(pkgInfo: PackageInfo,
+                     origDir, dir: string): bool =
+  ## Determines whether ``dir`` should be installed.
+  ## ``True`` means dir should be skipped.
+  for ignoreDir in pkgInfo.skipDirs:
+    if samePaths(dir, origDir / ignoreDir):
+      result = true
+      break
+
+  let thisDir = splitPath(dir).tail
+  assert thisDir != ""
+  if thisDir[0] == '.': result = true
+  if thisDir == "nimcache": result = true
+
+proc findWithExt(dir: string, pkgInfo: PackageInfo): seq[string] =
+  ## Returns the filenames of the files that should be copied.
+  result = @[]
+  for kind, path in walkDir(dir):
+    if kind == pcDir:
+      result.add findWithExt(path, pkgInfo)
+    else:
+      if path.splitFile.ext[1 .. ^1] in pkgInfo.installExt:
+        result.add path
+
+proc getFilesInDir(dir: string): seq[string] =
+  ## Returns a list of paths to files inside the specified directory and any
+  ## subdirectories that are in it.
+  result = @[]
+  for kind, path in walkDir(dir):
+    if kind == pcDir:
+      result.add getFilesInDir(path)
+    else:
+      result.add path
+
+proc getInstallFiles*(realDir: string, pkgInfo: PackageInfo,
+                      options: Options): seq[string] =
+  ## Returns a list of files within the ``realDir`` that should be installed.
+  result = @[]
+  let whitelistMode =
+          pkgInfo.installDirs.len != 0 or
+          pkgInfo.installFiles.len != 0 or
+          pkgInfo.installExt.len != 0
+  if whitelistMode:
+    for file in pkgInfo.installFiles:
+      let src = realDir / file
+      if not src.existsFile():
+        if options.prompt("Missing file " & src & ". Continue?"):
+          continue
+        else:
+          raise NimbleQuit(msg: "")
+      result.add src
+
+    for dir in pkgInfo.installDirs:
+      # TODO: Allow skipping files inside dirs?
+      let src = realDir / dir
+      if not src.existsDir():
+        if options.prompt("Missing directory " & src & ". Continue?"):
+          continue
+        else:
+          raise NimbleQuit(msg: "")
+
+      result.add getFilesInDir(src)
+
+    result.add findWithExt(realDir, pkgInfo)
+  else:
+    for kind, file in walkDir(realDir):
+      if kind == pcDir:
+        let skip = pkgInfo.checkInstallDir(realDir, file)
+
+        if skip: continue
+
+        result.add getInstallFiles(file, pkgInfo, options)
+      else:
+        let skip = pkgInfo.checkInstallFile(realDir, file)
+
+        if skip: continue
+
+        result.add file
 
 when isMainModule:
   doAssert getNameVersion("/home/user/.nimble/libs/packagea-0.1") ==

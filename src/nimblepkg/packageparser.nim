@@ -14,13 +14,18 @@ type
 
   ValidationError* = object of NimbleError
     warnInstalled*: bool # Determines whether to show a warning for installed pkgs
+    warnAll*: bool
 
-proc newValidationError(msg: string, warnInstalled: bool): ref ValidationError =
+proc newValidationError(msg: string, warnInstalled: bool,
+                        hint: string, warnAll: bool): ref ValidationError =
   result = newException(ValidationError, msg)
   result.warnInstalled = warnInstalled
+  result.warnAll = warnAll
+  result.hint = hint
 
-proc raiseNewValidationError(msg: string, warnInstalled: bool) =
-  raise newValidationError(msg, warnInstalled)
+proc raiseNewValidationError(msg: string, warnInstalled: bool,
+                             hint: string = "", warnAll = false) =
+  raise newValidationError(msg, warnInstalled, hint, warnAll)
 
 proc validatePackageName*(name: string) =
   ## Raises an error if specified package name contains invalid characters.
@@ -49,6 +54,10 @@ proc validatePackageName*(name: string) =
     else:
       prevWasUnderscore = false
 
+  if name.endsWith("pkg"):
+    raiseNewValidationError("\"$1\" is an invalid package name: cannot end" &
+                            " with \"pkg\"" % name, false)
+
 proc validateVersion*(ver: string) =
   for c in ver:
     if c notin ({'.'} + Digits):
@@ -56,7 +65,57 @@ proc validateVersion*(ver: string) =
           "Version may only consist of numbers and the '.' character " &
           "but found '" & c & "'.", false)
 
-proc validatePackageInfo(pkgInfo: PackageInfo, path: string) =
+proc validatePackageStructure(pkgInfo: PackageInfo, options: Options) =
+  ## This ensures that a package's source code does not leak into
+  ## another package's namespace.
+  ## https://github.com/nim-lang/nimble/issues/144
+  let realDir = pkgInfo.getRealDir()
+  for path in getInstallFiles(realDir, pkgInfo, options):
+    # Remove the root to leave only the package subdirectories.
+    # ~/package-0.1/package/utils.nim -> package/utils.nim.
+    var trailPath = changeRoot(realDir, "", path)
+    if trailPath.startsWith(DirSep): trailPath = trailPath[1 .. ^1]
+    let (dir, file, ext) = trailPath.splitFile
+    # We're only interested in nim files, because only they can pollute our
+    # namespace.
+    if ext != (ExtSep & "nim"):
+      continue
+
+    if dir.len == 0:
+      if file != pkgInfo.name:
+        let msg = ("File inside package '$1' is outside of permitted " &
+                   "namespace, should be " &
+                   "named '$2' but was named '$3' instead. This will be an error" &
+                   " in the future.") %
+                   [pkgInfo.name, pkgInfo.name & ext, file & ext]
+        let hint = ("Rename this file to '$1', move it into a '$2' " &
+                "subdirectory, or prevent its installation by adding " &
+                "`skipFiles = @[\"$3\"]` to the .nimble file. See " &
+                "https://github.com/nim-lang/nimble#libraries for more info.") %
+                [pkgInfo.name & ext, pkgInfo.name & DirSep, file & ext]
+        raiseNewValidationError(msg, true, hint, true)
+    else:
+      assert(not pkgInfo.isMinimal)
+      let correctDir =
+        if pkgInfo.name in pkgInfo.bin:
+          pkgInfo.name & "pkg"
+        else:
+          pkgInfo.name
+
+      if not (dir.startsWith(correctDir & DirSep) or dir == correctDir):
+        let msg = ("File '$1' inside package '$2' is outside of the" &
+                " permitted namespace" &
+                ", should be inside a directory named '$3' but is in a" &
+                " directory named '$4' instead. This will be an error in the " &
+                "future.") %
+                [file & ext, pkgInfo.name, correctDir, dir]
+        let hint = ("Rename the directory to '$1' or prevent its " &
+                "installation by adding `skipDirs = @[\"$2\"]` to the " &
+                ".nimble file.") % [correctDir, dir]
+        raiseNewValidationError(msg, true, hint, true)
+
+proc validatePackageInfo(pkgInfo: PackageInfo, options: Options) =
+  let path = pkgInfo.myPath
   if pkgInfo.name == "":
     raiseNewValidationError("Incorrect .nimble file: " & path &
         " does not contain a name field.", false)
@@ -83,7 +142,8 @@ proc validatePackageInfo(pkgInfo: PackageInfo, path: string) =
       raiseNewValidationError("'" & pkgInfo.backend &
           "' is an invalid backend.", false)
 
-  validateVersion(pkgInfo.version)
+  validatePackageStructure(pkginfo, options)
+
 
 proc nimScriptHint*(pkgInfo: PackageInfo) =
   if not pkgInfo.isNimScript:
@@ -172,7 +232,7 @@ proc readPackageInfoFromNimble(path: string; result: var PackageInfo) =
   else:
     raise newException(ValueError, "Cannot open package info: " & path)
 
-proc readPackageInfo*(nf: NimbleFile, options: Options,
+proc readPackageInfo(nf: NimbleFile, options: Options,
     onlyMinimalInfo=false): PackageInfo =
   ## Reads package info from the specified Nimble file.
   ##
@@ -182,7 +242,7 @@ proc readPackageInfo*(nf: NimbleFile, options: Options,
   ## If both fail then returns an error.
   ##
   ## When ``onlyMinimalInfo`` is true, only the `name` and `version` fields are
-  ## populated. The isNimScript field can also be relied on.
+  ## populated. The ``isNimScript`` field can also be relied on.
   ##
   ## This version uses a cache stored in ``options``, so calling it multiple
   ## times on the same ``nf`` shouldn't require re-evaluation of the Nimble
@@ -225,7 +285,8 @@ proc readPackageInfo*(nf: NimbleFile, options: Options,
                   "    " & getCurrentExceptionMsg() & "."
         raise newException(NimbleError, msg)
 
-  validatePackageInfo(result, nf)
+  # Validate version ahead of time, we will be potentially overwriting it soon.
+  validateVersion(result.version)
 
   # The package directory name may include a "special" version
   # (example #head). If so, it is given higher priority and therefore
@@ -237,10 +298,21 @@ proc readPackageInfo*(nf: NimbleFile, options: Options,
   if not result.isMinimal:
     options.pkgInfoCache[nf] = result
 
+  # Validate the rest of the package info last.
+  validatePackageInfo(result, options)
+
 proc getPkgInfo*(dir: string, options: Options): PackageInfo =
   ## Find the .nimble file in ``dir`` and parses it, returning a PackageInfo.
   let nimbleFile = findNimbleFile(dir, true)
-  result = readPackageInfo(nimbleFile, options)
+  try:
+    result = readPackageInfo(nimbleFile, options)
+  except ValidationError:
+    let exc = (ref ValidationError)(getCurrentException())
+    if exc.warnAll:
+      display("Warning:", exc.msg, Warning, HighPriority)
+      display("Hint:", exc.hint, Warning, HighPriority)
+    else:
+      raise
 
 proc getInstalledPkgs*(libsDir: string, options: Options):
         seq[tuple[pkginfo: PackageInfo, meta: MetaData]] =
@@ -265,16 +337,17 @@ proc getInstalledPkgs*(libsDir: string, options: Options):
       let nimbleFile = findNimbleFile(path, false)
       if nimbleFile != "":
         let meta = readMetaData(path)
+        var pkg: PackageInfo
         try:
-          var pkg = readPackageInfo(nimbleFile, options, onlyMinimalInfo=false)
-          pkg.isInstalled = true
-          result.add((pkg, meta))
+          pkg = readPackageInfo(nimbleFile, options, onlyMinimalInfo=false)
         except ValidationError:
           let exc = (ref ValidationError)(getCurrentException())
           exc.msg = createErrorMsg(validationErrorMsg, path, exc.msg)
           exc.hint = hintMsg % path
-          if exc.warnInstalled:
+          if exc.warnInstalled or exc.warnAll:
             display("Warning:", exc.msg, Warning, HighPriority)
+            # Don't show hints here because they are only useful for package
+            # owners.
           else:
             raise exc
         except:
@@ -283,6 +356,9 @@ proc getInstalledPkgs*(libsDir: string, options: Options):
           var exc = newException(NimbleError, msg)
           exc.hint = hintMsg % path
           raise exc
+
+        pkg.isInstalled = true
+        result.add((pkg, meta))
 
 proc isNimScript*(nf: string, options: Options): bool =
   result = readPackageInfo(nf, options).isNimScript
