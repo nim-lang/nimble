@@ -41,6 +41,47 @@ proc inLines(lines: seq[string], line: string): bool =
   for i in lines:
     if line.normalize in i.normalize: return true
 
+test "can validate package structure (#144)":
+  # Clear nimble dir.
+  removeDir(installDir)
+  createDir(installDir)
+
+  # Test that no warnings are produced for correctly structured packages.
+  for package in ["a", "b", "c"]:
+    cd "packageStructure/" & package:
+      let (output, exitCode) = execNimble(["install", "-y"])
+      check exitCode == QuitSuccess
+      let lines = output.strip.splitLines()
+      check(not inLines(lines, "warning"))
+
+  # Test that warnings are produced for the incorrectly structured packages.
+  for package in ["x", "y", "z"]:
+    cd "packageStructure/" & package:
+      let (output, exitCode) = execNimble(["install", "-y"])
+      check exitCode == QuitSuccess
+      let lines = output.strip.splitLines()
+      case package
+      of "x":
+        check inLines(lines, "File 'foobar.nim' inside package 'x' is outside" &
+                             " of the permitted namespace, should be inside a" &
+                             " directory named 'x' but is in a directory named" &
+                             " 'incorrect' instead.")
+      of "y":
+        check inLines(lines, "File 'foobar.nim' inside package 'y' is outside" &
+                             " of the permitted namespace, should be inside a" &
+                             " directory named 'ypkg' but is in a directory" &
+                             " named 'yWrong' instead.")
+      of "z":
+        check inLines(lines, "File inside package 'z' is outside of permitted" &
+                             " namespace, should be named 'z.nim' but was" &
+                             " named 'incorrect.nim' instead.")
+      else:
+        assert false
+
+  # Clear nimble dir.
+  removeDir(installDir)
+  createDir(installDir)
+
 test "issue 129 (installing commit hash)":
   let arguments = @["install", "-y",
                    "https://github.com/nimble-test/packagea.git@#1f9cb289c89"]
