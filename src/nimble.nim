@@ -210,7 +210,7 @@ proc addRevDep(options: Options, dep: tuple[name, version: string],
     options.nimbleData["reverseDeps"][dep.name] = newJObject()
   if not options.nimbleData["reverseDeps"][dep.name].hasKey(dep.version):
     options.nimbleData["reverseDeps"][dep.name][dep.version] = newJArray()
-  let revDep = %{ "name": %pkg.name, "version": %pkg.version}
+  let revDep = %{ "name": %pkg.name, "version": %pkg.specialVersion}
   let thisDep = options.nimbleData["reverseDeps"][dep.name][dep.version]
   if revDep notin thisDep:
     thisDep.add revDep
@@ -225,7 +225,7 @@ proc removeRevDep(options: Options, pkg: PackageInfo) =
         var newVal = newJArray()
         for revDep in val:
           if not (revDep["name"].str == pkg.name and
-                  revDep["version"].str == pkg.version):
+                  revDep["version"].str == pkg.specialVersion):
             newVal.add revDep
         thisDep[ver] = newVal
 
@@ -263,7 +263,7 @@ proc processDeps(pkginfo: PackageInfo, options: Options): seq[string] =
   result = @[]
   assert(not pkginfo.isMinimal, "processDeps needs pkginfo.requires")
   display("Verifying",
-          "dependencies for $1@$2" % [pkginfo.name, pkginfo.version],
+          "dependencies for $1@$2" % [pkginfo.name, pkginfo.specialVersion],
           priority = HighPriority)
 
   let pkglist = getInstalledPkgs(options.getPkgsDir(), options)
@@ -290,7 +290,7 @@ proc processDeps(pkginfo: PackageInfo, options: Options): seq[string] =
         result.add(pkg.mypath.splitFile.dir)
         # Process the dependencies of this dependency.
         result.add(processDeps(pkg, options))
-      reverseDeps.add((pkg.name, pkg.version))
+      reverseDeps.add((pkg.name, pkg.specialVersion))
 
   # Check if two packages of the same name (but different version) are listed
   # in the path.
@@ -298,11 +298,11 @@ proc processDeps(pkginfo: PackageInfo, options: Options): seq[string] =
   for p in result:
     let pkgInfo = getPkgInfo(p, options)
     if pkgsInPath.hasKey(pkgInfo.name) and
-       pkgsInPath[pkgInfo.name] != pkgInfo.version:
+       pkgsInPath[pkgInfo.name] != pkgInfo.specialVersion:
       raise newException(NimbleError,
         "Cannot satisfy the dependency on $1 $2 and $1 $3" %
-          [pkgInfo.name, pkgInfo.version, pkgsInPath[pkgInfo.name]])
-    pkgsInPath[pkgInfo.name] = pkgInfo.version
+          [pkgInfo.name, pkgInfo.specialVersion, pkgsInPath[pkgInfo.name]])
+    pkgsInPath[pkgInfo.name] = pkgInfo.specialVersion
 
   # We add the reverse deps to the JSON file here because we don't want
   # them added if the above errorenous condition occurs
@@ -406,7 +406,7 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
 
   # Overwrite the version if the requested version is "#head" or similar.
   if requestedVer.kind == verSpecial:
-    pkgInfo.version = $requestedVer.spe
+    pkgInfo.specialVersion = $requestedVer.spe
 
   # Dependencies need to be processed before the creation of the pkg dir.
   result.paths = processDeps(pkginfo, depsOptions)
@@ -415,14 +415,14 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
     result.pkg = pkgInfo
     return result
 
-  display("Installing", "$1 $2" % [pkginfo.name, pkginfo.version],
+  display("Installing", "$1@$2" % [pkginfo.name, pkginfo.specialVersion],
           priority = HighPriority)
 
   # Build before removing an existing package (if one exists). This way
   # if the build fails then the old package will still be installed.
   if pkgInfo.bin.len > 0: buildFromDir(pkgInfo, result.paths, true)
 
-  let versionStr = '-' & pkgInfo.version
+  let versionStr = '-' & pkgInfo.specialVersion
 
   let pkgDestDir = pkgsDir / (pkgInfo.name & versionStr)
   if existsDir(pkgDestDir) and existsFile(pkgDestDir / "nimblemeta.json"):
@@ -713,7 +713,7 @@ proc listInstalled(options: Options) =
   for x in pkgs.items():
     let
       pName = x.pkginfo.name
-      pVer = x.pkginfo.version
+      pVer = x.pkginfo.specialVersion
     if not h.hasKey(pName): h[pName] = @[]
     var s = h[pName]
     add(s, pVer)
@@ -755,8 +755,8 @@ proc listPaths(options: Options) =
       if hasSpec:
         var pkgInfo = getPkgInfo(path, options)
         var v: VersionAndPath
-        v.version = newVersion(pkgInfo.version)
-        v.path = options.getPkgsDir / (pkgInfo.name & '-' & pkgInfo.version)
+        v.version = newVersion(pkgInfo.specialVersion)
+        v.path = options.getPkgsDir / (pkgInfo.name & '-' & pkgInfo.specialVersion)
         installed.add(v)
       else:
         display("Warning:", "No .nimble file found for " & path, Warning,
@@ -891,7 +891,7 @@ proc uninstall(options: Options) =
     for pkg in pkgList:
       # Check whether any packages depend on the ones the user is trying to
       # uninstall.
-      let thisPkgsDep = options.nimbleData["reverseDeps"]{pkg.name}{pkg.version}
+      let thisPkgsDep = options.nimbleData["reverseDeps"]{pkg.name}{pkg.specialVersion}
       if not thisPkgsDep.isNil:
         var reason = ""
         if thisPkgsDep.len == 1:
@@ -905,7 +905,7 @@ proc uninstall(options: Options) =
               reason.add ", "
           reason.add " depend on it"
         errors.add("Cannot uninstall $1 ($2) because $3" % [pkgTup.name,
-                   pkg.version, reason])
+                   pkg.specialVersion, reason])
       else:
         pkgsToDelete.add pkg
 
@@ -916,7 +916,7 @@ proc uninstall(options: Options) =
   for i in 0 .. <pkgsToDelete.len:
     if i != 0: pkgNames.add ", "
     let pkg = pkgsToDelete[i]
-    pkgNames.add("$1 ($2)" % [pkg.name, pkg.version])
+    pkgNames.add("$1 ($2)" % [pkg.name, pkg.specialVersion])
 
   # Let's confirm that the user wants these packages removed.
   let msg = ("The following packages will be removed:\n  $1\n" &
@@ -931,8 +931,8 @@ proc uninstall(options: Options) =
     # a minimal pkg info.
     let pkgFull = getPkgInfo(pkg.mypath.splitFile.dir, options) # TODO: Simplify
     removeRevDep(options, pkgFull)
-    removePkgDir(options.getPkgsDir / (pkg.name & '-' & pkg.version), options)
-    display("Removed", "$1 ($2)" % [pkg.name, $pkg.version], Success,
+    removePkgDir(options.getPkgsDir / (pkg.name & '-' & pkg.specialVersion), options)
+    display("Removed", "$1 ($2)" % [pkg.name, $pkg.specialVersion], Success,
             HighPriority)
 
 proc listTasks(options: Options) =

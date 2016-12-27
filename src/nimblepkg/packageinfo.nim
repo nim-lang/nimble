@@ -22,7 +22,7 @@ type
 
 proc initPackageInfo*(path: string): PackageInfo =
   result.myPath = path
-  result.myVersion = ""
+  result.specialVersion = ""
   result.preHooks.init()
   result.postHooks.init()
   # reasonable default:
@@ -195,11 +195,19 @@ proc getInstalledPkgsMin*(libsDir: string, options: Options):
         var pkg = initPackageInfo(nimbleFile)
         pkg.name = name
         pkg.version = version
+        pkg.specialVersion = version
         pkg.isMinimal = true
         pkg.isInstalled = true
         result.add((pkg, meta))
 
-proc findPkg*(pkglist: seq[tuple[pkginfo: PackageInfo, meta: MetaData]],
+proc withinRange*(pkgInfo: PackageInfo, verRange: VersionRange): bool =
+  ## Determines whether the specified package's version is within the
+  ## specified range. The check works with ordinary versions as well as
+  ## special ones.
+  return withinRange(newVersion(pkgInfo.version), verRange) or
+         withinRange(newVersion(pkgInfo.specialVersion), verRange)
+
+proc findPkg*(pkglist: seq[tuple[pkgInfo: PackageInfo, meta: MetaData]],
              dep: PkgTuple,
              r: var PackageInfo): bool =
   ## Searches ``pkglist`` for a package of which version is within the range
@@ -211,22 +219,23 @@ proc findPkg*(pkglist: seq[tuple[pkginfo: PackageInfo, meta: MetaData]],
   for pkg in pkglist:
     if cmpIgnoreStyle(pkg.pkginfo.name, dep.name) != 0 and
        cmpIgnoreStyle(pkg.meta.url, dep.name) != 0: continue
-    if withinRange(newVersion(pkg.pkginfo.myVersion), dep.ver) or
-       withinRange(newVersion(pkg.pkginfo.version), dep.ver):
-      if not result or newVersion(r.version) < newVersion(pkg.pkginfo.myVersion):
+    if withinRange(pkg.pkgInfo, dep.ver):
+      let isNewer = (not r.version.isNil) and
+                    newVersion(r.version) < newVersion(pkg.pkginfo.version)
+      if not result or isNewer:
         r = pkg.pkginfo
         result = true
 
-proc findAllPkgs*(pkglist: seq[tuple[pkginfo: PackageInfo, meta: MetaData]],
+proc findAllPkgs*(pkglist: seq[tuple[pkgInfo: PackageInfo, meta: MetaData]],
                   dep: PkgTuple): seq[PackageInfo] =
   ## Searches ``pkglist`` for packages of which version is within the range
   ## of ``dep.ver``. This is similar to ``findPkg`` but returns multiple
   ## packages if multiple are found.
   result = @[]
   for pkg in pkglist:
-    if cmpIgnoreStyle(pkg.pkginfo.name, dep.name) != 0 and
+    if cmpIgnoreStyle(pkg.pkgInfo.name, dep.name) != 0 and
        cmpIgnoreStyle(pkg.meta.url, dep.name) != 0: continue
-    if withinRange(newVersion(pkg.pkginfo.version), dep.ver):
+    if withinRange(pkg.pkgInfo, dep.ver):
       result.add pkg.pkginfo
 
 proc getRealDir*(pkgInfo: PackageInfo): string =

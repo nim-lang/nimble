@@ -273,6 +273,7 @@ proc readPackageInfo(nf: NimbleFile, options: Options,
     if onlyMinimalInfo:
       result.name = minimalInfo.name
       result.version = minimalInfo.version
+      result.specialVersion = result.version
       result.isNimScript = true
       result.isMinimal = true
     else:
@@ -287,21 +288,18 @@ proc readPackageInfo(nf: NimbleFile, options: Options,
                   "    " & getCurrentExceptionMsg() & "."
         raise newException(NimbleError, msg)
 
-  # Validate version ahead of time, we will be potentially overwriting it soon.
-  result.myVersion = result.version
-  validateVersion(result.version)
-
   # The package directory name may include a "special" version
   # (example #head). If so, it is given higher priority and therefore
   # overwrites the .nimble file's version.
   let version = parseVersionRange(minimalInfo.version)
   if version.kind == verSpecial:
-    result.version = minimalInfo.version
+    result.specialVersion = minimalInfo.version
 
   if not result.isMinimal:
     options.pkgInfoCache[nf] = result
 
   # Validate the rest of the package info last.
+  validateVersion(result.version)
   validatePackageInfo(result, options)
 
 proc getPkgInfoFromFile*(file: NimbleFile, options: Options): PackageInfo =
