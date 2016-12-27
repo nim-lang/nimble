@@ -211,8 +211,9 @@ proc findPkg*(pkglist: seq[tuple[pkginfo: PackageInfo, meta: MetaData]],
   for pkg in pkglist:
     if cmpIgnoreStyle(pkg.pkginfo.name, dep.name) != 0 and
        cmpIgnoreStyle(pkg.meta.url, dep.name) != 0: continue
-    if withinRange(newVersion(pkg.pkginfo.version), dep.ver):
-      if not result or newVersion(r.version) < newVersion(pkg.pkginfo.version):
+    if withinRange(newVersion(pkg.pkginfo.myVersion), dep.ver) or
+       withinRange(newVersion(pkg.pkginfo.version), dep.ver):
+      if not result or newVersion(r.version) < newVersion(pkg.pkginfo.myVersion):
         r = pkg.pkginfo
         result = true
 
