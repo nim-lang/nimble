@@ -51,8 +51,8 @@ test "can build with #head and versioned package (#289)":
 
 test "can validate package structure (#144)":
   # Clear nimble dir.
-  #removeDir(installDir)
-  #createDir(installDir)
+  removeDir(installDir)
+  createDir(installDir)
 
   # Test that no warnings are produced for correctly structured packages.
   for package in ["a", "b", "c"]:
@@ -85,10 +85,6 @@ test "can validate package structure (#144)":
                              " named 'incorrect.nim' instead.")
       else:
         assert false
-
-  # Clear nimble dir.
-  removeDir(installDir)
-  createDir(installDir)
 
 test "issue 129 (installing commit hash)":
   let arguments = @["install", "-y",
