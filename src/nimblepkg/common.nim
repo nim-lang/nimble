@@ -14,14 +14,17 @@ when not defined(nimscript):
     BuildFailed* = object of NimbleError
 
     PackageInfo* = object
-      mypath*: string ## The path of this .nimble file
+      myPath*: string ## The path of this .nimble file
+      ## The version specified in the .nimble file.Assuming info is non-minimal,
+      ## it will always be a non-special version such as '0.1.4'
+      myVersion*: string
       isNimScript*: bool ## Determines if this pkg info was read from a nims file
       isMinimal*: bool
       isInstalled*: bool ## Determines if the pkg this info belongs to is installed
       postHooks*: HashSet[string] ## Useful to know so that Nimble doesn't execHook unnecessarily
       preHooks*: HashSet[string]
       name*: string
-      version*: string
+      version*: string ## Either `myVersion` or a special version such as #head.
       author*: string
       description*: string
       license*: string

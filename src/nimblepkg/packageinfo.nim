@@ -21,7 +21,8 @@ type
     url*: string
 
 proc initPackageInfo*(path: string): PackageInfo =
-  result.mypath = path
+  result.myPath = path
+  result.myVersion = ""
   result.preHooks.init()
   result.postHooks.init()
   # reasonable default:

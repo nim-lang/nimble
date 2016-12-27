@@ -248,6 +248,8 @@ proc readPackageInfo(nf: NimbleFile, options: Options,
   ## times on the same ``nf`` shouldn't require re-evaluation of the Nimble
   ## file.
 
+  assert fileExists(nf)
+
   # Check the cache.
   if options.pkgInfoCache.hasKey(nf):
     return options.pkgInfoCache[nf]
@@ -286,6 +288,7 @@ proc readPackageInfo(nf: NimbleFile, options: Options,
         raise newException(NimbleError, msg)
 
   # Validate version ahead of time, we will be potentially overwriting it soon.
+  result.myVersion = result.version
   validateVersion(result.version)
 
   # The package directory name may include a "special" version
@@ -301,11 +304,11 @@ proc readPackageInfo(nf: NimbleFile, options: Options,
   # Validate the rest of the package info last.
   validatePackageInfo(result, options)
 
-proc getPkgInfo*(dir: string, options: Options): PackageInfo =
-  ## Find the .nimble file in ``dir`` and parses it, returning a PackageInfo.
-  let nimbleFile = findNimbleFile(dir, true)
+proc getPkgInfoFromFile*(file: NimbleFile, options: Options): PackageInfo =
+  ## Reads the specified .nimble file and returns its data as a PackageInfo
+  ## object. Any validation errors are handled and displayed as warnings.
   try:
-    result = readPackageInfo(nimbleFile, options)
+    result = readPackageInfo(file, options)
   except ValidationError:
     let exc = (ref ValidationError)(getCurrentException())
     if exc.warnAll:
@@ -313,6 +316,11 @@ proc getPkgInfo*(dir: string, options: Options): PackageInfo =
       display("Hint:", exc.hint, Warning, HighPriority)
     else:
       raise
+
+proc getPkgInfo*(dir: string, options: Options): PackageInfo =
+  ## Find the .nimble file in ``dir`` and parses it, returning a PackageInfo.
+  let nimbleFile = findNimbleFile(dir, true)
+  getPkgInfoFromFile(nimbleFile, options)
 
 proc getInstalledPkgs*(libsDir: string, options: Options):
         seq[tuple[pkginfo: PackageInfo, meta: MetaData]] =

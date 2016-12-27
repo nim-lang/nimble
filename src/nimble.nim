@@ -296,12 +296,13 @@ proc processDeps(pkginfo: PackageInfo, options: Options): seq[string] =
   # in the path.
   var pkgsInPath: StringTableRef = newStringTable(modeCaseSensitive)
   for p in result:
-    let (name, version) = getNameVersion(p)
-    if pkgsInPath.hasKey(name) and pkgsInPath[name] != version:
+    let pkgInfo = getPkgInfo(p, options)
+    if pkgsInPath.hasKey(pkgInfo.name) and
+       pkgsInPath[pkgInfo.name] != pkgInfo.myVersion:
       raise newException(NimbleError,
         "Cannot satisfy the dependency on $1 $2 and $1 $3" %
-          [name, version, pkgsInPath[name]])
-    pkgsInPath[name] = version
+          [pkgInfo.name, pkgInfo.myVersion, pkgsInPath[pkgInfo.name]])
+    pkgsInPath[pkgInfo.name] = pkgInfo.myVersion
 
   # We add the reverse deps to the JSON file here because we don't want
   # them added if the above errorenous condition occurs

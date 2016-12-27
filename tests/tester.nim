@@ -41,6 +41,14 @@ proc inLines(lines: seq[string], line: string): bool =
   for i in lines:
     if line.normalize in i.normalize: return true
 
+test "can build with #head and versioned package (#289)":
+  # Clear nimble dir.
+  removeDir(installDir)
+  createDir(installDir)
+
+  cd "issue289":
+    check execNimble(["install", "-y"]).exitCode == QuitSuccess
+
 test "can validate package structure (#144)":
   # Clear nimble dir.
   removeDir(installDir)
