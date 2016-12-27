@@ -273,7 +273,6 @@ proc readPackageInfo(nf: NimbleFile, options: Options,
     if onlyMinimalInfo:
       result.name = minimalInfo.name
       result.version = minimalInfo.version
-      result.specialVersion = result.version
       result.isNimScript = true
       result.isMinimal = true
     else:
@@ -287,6 +286,9 @@ proc readPackageInfo(nf: NimbleFile, options: Options,
                   "  Evaluating as NimScript file failed with: \n" &
                   "    " & getCurrentExceptionMsg() & "."
         raise newException(NimbleError, msg)
+
+  # By default specialVersion is the same as version.
+  result.specialVersion = result.version
 
   # The package directory name may include a "special" version
   # (example #head). If so, it is given higher priority and therefore

@@ -298,11 +298,11 @@ proc processDeps(pkginfo: PackageInfo, options: Options): seq[string] =
   for p in result:
     let pkgInfo = getPkgInfo(p, options)
     if pkgsInPath.hasKey(pkgInfo.name) and
-       pkgsInPath[pkgInfo.name] != pkgInfo.specialVersion:
+       pkgsInPath[pkgInfo.name] != pkgInfo.version:
       raise newException(NimbleError,
         "Cannot satisfy the dependency on $1 $2 and $1 $3" %
-          [pkgInfo.name, pkgInfo.specialVersion, pkgsInPath[pkgInfo.name]])
-    pkgsInPath[pkgInfo.name] = pkgInfo.specialVersion
+          [pkgInfo.name, pkgInfo.version, pkgsInPath[pkgInfo.name]])
+    pkgsInPath[pkgInfo.name] = pkgInfo.version
 
   # We add the reverse deps to the JSON file here because we don't want
   # them added if the above errorenous condition occurs
@@ -409,7 +409,7 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
     pkgInfo.specialVersion = $requestedVer.spe
 
   # Dependencies need to be processed before the creation of the pkg dir.
-  result.paths = processDeps(pkginfo, depsOptions)
+  result.paths = processDeps(pkgInfo, depsOptions)
 
   if options.depsOnly:
     result.pkg = pkgInfo
