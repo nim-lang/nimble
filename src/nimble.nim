@@ -763,7 +763,7 @@ proc listPaths(options: Options) =
                 MediumPriority)
 
     if installed.len > 0:
-      sort(installed, system.cmp[VersionAndPath], Descending)
+      sort(installed, cmp[VersionAndPath], Descending)
       # The output for this command is used by tools so we do not use display().
       echo installed[0].path
     else:
