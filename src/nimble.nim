@@ -338,7 +338,15 @@ proc buildFromDir(pkgInfo: PackageInfo, paths: seq[string], forRelease: bool) =
       raise newException(BuildFailed, "Build failed for package: " &
                          pkgInfo.name)
 
-proc saveNimbleMeta(pkgDestDir, url, vcsRevision: string, filesInstalled: HashSet[string]) =
+proc saveNimbleMeta(pkgDestDir, url, vcsRevision: string,
+                    filesInstalled, bins: HashSet[string]) =
+  ## Saves the specified data into a ``nimblemeta.json`` file inside
+  ## ``pkgDestDir``.
+  ##
+  ## filesInstalled - A list of absolute paths to files which have been
+  ##                  installed.
+  ## bins - A list of binary filenames which have been installed for this
+  ##        package.
   var nimblemeta = %{"url": %url}
   if not vcsRevision.isNil:
     nimblemeta["vcsRevision"] = %vcsRevision
@@ -346,6 +354,10 @@ proc saveNimbleMeta(pkgDestDir, url, vcsRevision: string, filesInstalled: HashSe
   nimblemeta["files"] = files
   for file in filesInstalled:
     files.add(%changeRoot(pkgDestDir, "", file))
+  let binaries = newJArray()
+  nimblemeta["binaries"] = binaries
+  for bin in bins:
+    binaries.add(%bin)
   writeFile(pkgDestDir / "nimblemeta.json", $nimblemeta)
 
 proc removePkgDir(dir: string, options: Options) =
@@ -366,6 +378,15 @@ proc removePkgDir(dir: string, options: Options) =
     else:
       display("Warning:", ("Cannot completely remove $1. Files not installed " &
               "by nimble are present.") % dir, Warning, HighPriority)
+
+    # Remove binaries.
+    if nimblemeta.hasKey("binaries"):
+      for binary in nimblemeta["binaries"]:
+        removeFile(options.getBinDir() / binary.str)
+    else:
+      display("Warning:", ("Cannot completely remove $1. Binary symlinks may " &
+                          "have been left over in $2.") %
+                          [dir, options.getBinDir()])
   except OSError, JsonParsingError:
     display("Warning", "Unable to read nimblemeta.json: " &
             getCurrentExceptionMsg(), Warning, HighPriority)
@@ -436,9 +457,6 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
       when defined(windows):
         removeFile(binDir / bin.changeFileExt("cmd"))
         removeFile(binDir / bin.changeFileExt(""))
-        # TODO: Remove this later.
-        # Remove .bat file too from previous installs.
-        removeFile(binDir / bin.changeFileExt("bat"))
       else:
         removeFile(binDir / bin)
 
@@ -456,6 +474,7 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
                         pkgInfo.mypath)
   filesInstalled.incl copyFileD(pkgInfo.mypath, dest)
 
+  var binariesInstalled = initSet[string]()
   if pkgInfo.bin.len > 0:
     # Make sure ~/.nimble/bin directory is created.
     createDir(binDir)
@@ -470,12 +489,10 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
       setFilePermissions(pkgDestDir / bin, currentPerms + {fpUserExec})
       let cleanBin = bin.extractFilename
       when defined(unix):
-        # TODO: Verify that we are removing an old bin of this package, not
-        # some other package's binary!
-        if existsFile(binDir / cleanBin): removeFile(binDir / cleanBin)
         display("Creating", "symlink: $1 -> $2" %
                 [pkgDestDir / bin, binDir / cleanBin], priority = MediumPriority)
         createSymlink(pkgDestDir / bin, binDir / cleanBin)
+        binariesInstalled.incl(cleanBin)
       elif defined(windows):
         # There is a bug on XP, described here:
         # http://stackoverflow.com/questions/2182568/batch-script-is-not-executed-if-chcp-was-called
@@ -487,6 +504,7 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
             "Can't detect OS version: GetVersionExA call failed")
         let fixChcp = osver.dwMajorVersion <= 5
 
+        # Create cmd.exe/powershell stub.
         let dest = binDir / cleanBin.changeFileExt("cmd")
         display("Creating", "stub: $1 -> $2" % [pkgDestDir / bin, dest],
                 priority = MediumPriority)
@@ -497,18 +515,21 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
           else: contents.add "chcp 65001 > nul\n@"
         contents.add "\"" & pkgDestDir / bin & "\" %*\n"
         writeFile(dest, contents)
+        binariesInstalled.incl(dest.extractFilename)
         # For bash on Windows (Cygwin/Git bash).
         let bashDest = dest.changeFileExt("")
         display("Creating", "Cygwin stub: $1 -> $2" %
                 [pkgDestDir / bin, bashDest], priority = MediumPriority)
         writeFile(bashDest, "\"" & pkgDestDir / bin & "\" \"$@\"\n")
+        binariesInstalled.incl(bashDest.extractFilename)
       else:
         {.error: "Sorry, your platform is not supported.".}
 
   let vcsRevision = vcsRevisionInDir(realDir)
 
   # Save a nimblemeta.json file.
-  saveNimbleMeta(pkgDestDir, url, vcsRevision, filesInstalled)
+  saveNimbleMeta(pkgDestDir, url, vcsRevision, filesInstalled,
+                 binariesInstalled)
 
   # Save the nimble data (which might now contain reverse deps added in
   # processDeps).
