@@ -91,8 +91,10 @@ proc getTagsListRemote*(url: string, meth: DownloadMethod): seq[string] =
       raise newException(OSError, "Unable to query remote tags for " & url &
           ". Git returned: " & output)
     for i in output.splitLines():
-      if i == "": continue
-      let start = i.find("refs/tags/")+"refs/tags/".len
+      let refStart = i.find("refs/tags/")
+      # git outputs warnings, empty lines, etc
+      if refStart == -1: continue
+      let start = refStart+"refs/tags/".len
       let tag = i[start .. i.len-1]
       if not tag.endswith("^{}"): result.add(tag)
 
