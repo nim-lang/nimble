@@ -482,8 +482,13 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
     # and symlink them on *nix OS' to $nimbleDir/bin/
     for bin in pkgInfo.bin:
       if not existsFile(pkgDestDir / bin):
-        filesInstalled.incl copyFileD(pkgInfo.getOutputDir(bin),
-            pkgDestDir / bin)
+        display("Warning:", ("Binary '$1' was already installed from source" &
+                            " directory. Will be overwritten.") % bin, Warning,
+                HighPriority)
+
+      # Copy the binary file.
+      filesInstalled.incl copyFileD(pkgInfo.getOutputDir(bin),
+                                    pkgDestDir / bin)
 
       let currentPerms = getFilePermissions(pkgDestDir / bin)
       setFilePermissions(pkgDestDir / bin, currentPerms + {fpUserExec})
