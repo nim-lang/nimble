@@ -74,7 +74,10 @@ Commands:
   path         pkgname ...        Shows absolute path to the installed packages
                                   specified.
   dump         [pkgname]          Outputs Nimble package information for
-                                  external tools.
+                                  external tools. The argument can be a
+                                  .nimble file, a project directory or
+                                  the name of an installed package.
+
 
 Options:
   -h, --help                      Print this help message.

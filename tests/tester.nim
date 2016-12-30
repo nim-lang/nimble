@@ -299,3 +299,31 @@ test "can uninstall":
   check(not dirExists(installDir / "pkgs" / "PackageA-0.2.0"))
 
   check execNimble("uninstall", "-y", "nimscript").exitCode == QuitSuccess
+
+test "can dump for current project":
+  cd "testdump":
+    let (outp, exitCode) = execNimble("dump")
+    check: exitCode == 0
+    check: outp.processOutput.inLines("desc: \"Test package for dump command\"")
+
+test "can dump for project directory":
+  let (outp, exitCode) = execNimble("dump", "testdump")
+  check: exitCode == 0
+  check: outp.processOutput.inLines("desc: \"Test package for dump command\"")
+
+test "can dump for project file":
+  let (outp, exitCode) = execNimble("dump", "testdump" / "testdump.nimble")
+  check: exitCode == 0
+  check: outp.processOutput.inLines("desc: \"Test package for dump command\"")
+
+test "can dump for installed package":
+  cd "testdump":
+    check: execNimble("install", "-y").exitCode == 0
+  defer:
+    discard execNimble("remove", "-y", "testdump")
+
+  # Otherwise we might find subdirectory instead
+  cd "..":
+    let (outp, exitCode) = execNimble("dump", "testdump")
+    check: exitCode == 0
+    check: outp.processOutput.inLines("desc: \"Test package for dump command\"")
