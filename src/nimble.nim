@@ -807,8 +807,30 @@ proc join(x: seq[PkgTuple]; y: string): string =
     result.add y
     result.add x[i][0] & " " & $x[i][1]
 
+proc getPackageByPattern(pattern: string, options: Options): PackageInfo =
+  ## Search for a package file using multiple strategies.
+  if pattern == "":
+    # Not specified - using current directory
+    result = getPkgInfo(os.getCurrentDir(), options)
+  elif pattern.splitFile.ext == ".nimble" and pattern.existsFile:
+    # project file specified
+    result = getPkgInfoFromFile(pattern, options)
+  elif pattern.existsDir:
+    # project directory specified
+    result = getPkgInfo(pattern, options)
+  else:
+    # Last resort - attempt to read as package identifier
+    let packages = getInstalledPkgsMin(options.getPkgsDir(), options)
+    let identTuple = parseRequires(pattern)
+    var skeletonInfo: PackageInfo
+    if not findPkg(packages, identTuple, skeletonInfo):
+      raise newException(NimbleError,
+          "Specified package not found"
+      )
+    result = getPkgInfoFromFile(skeletonInfo.myPath, options)
+
 proc dump(options: Options) =
-  let p = getPkgInfo(os.getCurrentDir(), options)
+  let p = getPackageByPattern(options.action.projName, options)
   echo "name: ", p.name.escape
   echo "version: ", p.version.escape
   echo "author: ", p.author.escape
