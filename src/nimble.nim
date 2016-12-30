@@ -661,10 +661,10 @@ proc build(options: Options) =
   let paths = processDeps(pkginfo, options)
   buildFromDir(pkgInfo, paths, false)
 
-proc compile(options: Options) =
+proc execBackend(options: Options) =
   let bin = options.action.file
   if bin == "":
-    raise newException(NimbleError, "You need to specify a file to compile.")
+    raise newException(NimbleError, "You need to specify a file.")
 
   if not fileExists(bin):
     raise newException(NimbleError, "Specified file does not exist.")
@@ -684,11 +684,15 @@ proc compile(options: Options) =
     else:
       pkgInfo.backend
 
-  display("Compiling", "$1 (from package $2) using $3 backend" %
-          [bin, pkgInfo.name, backend], priority = HighPriority)
-  doCmd("\"" & getNimBin() & "\" $# --noBabelPath $# \"$#\"" %
+  if options.action.typ == actionCompile:
+    display("Compiling", "$1 (from package $2) using $3 backend" %
+            [bin, pkgInfo.name, backend], priority = HighPriority)
+  else:
+    display("Generating", ("documentation for $1 (from package $2) using $3 " &
+            "backend") % [bin, pkgInfo.name, backend], priority = HighPriority)
+  doCmd("\"" & getNimBin() & "\" $# --noNimblePath $# \"$#\"" %
         [backend, args, bin])
-  display("Success:", "Compilation finished", Success, HighPriority)
+  display("Success:", "Execution finished", Success, HighPriority)
 
 proc search(options: Options) =
   ## Searches for matches in ``options.action.search``.
@@ -1035,8 +1039,8 @@ proc doAction(options: Options) =
     listPaths(options)
   of actionBuild:
     build(options)
-  of actionCompile:
-    compile(options)
+  of actionCompile, actionDoc:
+    execBackend(options)
   of actionInit:
     init(options)
   of actionPublish:

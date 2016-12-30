@@ -23,7 +23,7 @@ type
     actionNil, actionRefresh, actionInit, actionDump, actionPublish,
     actionInstall, actionSearch,
     actionList, actionBuild, actionPath, actionUninstall, actionCompile,
-    actionCustom, actionTasks
+    actionDoc, actionCustom, actionTasks
 
   Action* = object
     case typ*: ActionType
@@ -36,7 +36,7 @@ type
       search*: seq[string] # Search string.
     of actionInit, actionDump:
       projName*: string
-    of actionCompile:
+    of actionCompile, actionDoc:
       file*: string
       backend*: string
       compileOptions*: seq[string]
@@ -61,6 +61,8 @@ Commands:
   build                           Builds a package.
   c, cc, js    [opts, ...] f.nim  Builds a file inside a package. Passes options
                                   to the Nim compiler.
+  doc, doc2    [opts, ...] f.nim  Builds documentation for a file inside a
+                                  package. Passes options to the Nim compiler.
   refresh      [url]              Refreshes the package list. A package list URL
                                   can be optionally specified.
   search       pkg/tag            Searches for a specified package. Search is
@@ -114,6 +116,8 @@ proc parseActionType*(action: string): ActionType =
     result = actionBuild
   of "c", "compile", "js", "cpp", "cc":
     result = actionCompile
+  of "doc", "doc2":
+    result = actionDoc
   of "init":
     result = actionInit
   of "dump":
@@ -140,7 +144,7 @@ proc initAction*(options: var Options, key: string) =
   case options.action.typ
   of actionInstall, actionPath:
     options.action.packages = @[]
-  of actionCompile:
+  of actionCompile, actionDoc:
     options.action.compileOptions = @[]
     options.action.file = ""
     if keyNorm == "c" or keyNorm == "compile": options.action.backend = ""
@@ -222,7 +226,7 @@ proc parseArgument*(key: string, result: var Options) =
       raise newException(NimbleError,
           "Can only initialize one package at a time.")
     result.action.projName = key
-  of actionCompile:
+  of actionCompile, actionDoc:
     result.action.file = key
   of actionList, actionBuild, actionPublish:
     writeHelp()
@@ -261,7 +265,7 @@ proc parseFlag*(flag, val: string, result: var Options) =
       wasFlagHandled = false
   else:
     case result.action.typ
-    of actionCompile:
+    of actionCompile, actionDoc:
       if val == "":
         result.action.compileOptions.add("--" & flag)
       else:
