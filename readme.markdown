@@ -464,7 +464,7 @@ To make testing even more convenient, you may wish to define a ``test`` task
 in your ``.nimble`` file. Like so:
 
 ```nim
-task "test", "Runs the test suite":
+task test, "Runs the test suite":
   exec "nim c -r tests/tester"
 ```
 
