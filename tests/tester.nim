@@ -2,6 +2,10 @@
 # BSD License. Look at license.txt for more info.
 import osproc, streams, unittest, strutils, os, sequtils, future
 
+# TODO: Each test should start off with a clean slate. Currently installed
+# packages are shared between each test which causes a multitude of issues
+# and is really fragile.
+
 var rootDir = getCurrentDir().parentDir()
 var nimblePath = rootDir / "src" / addFileExt("nimble", ExeExt)
 var installDir = rootDir / "tests" / "nimbleDir"
@@ -37,10 +41,55 @@ proc inLines(lines: seq[string], line: string): bool =
   for i in lines:
     if line.normalize in i.normalize: return true
 
+test "can build with #head and versioned package (#289)":
+  cd "issue289":
+    check execNimble(["install", "-y"]).exitCode == QuitSuccess
+
+  check execNimble(["uninstall", "issue289", "-y"]).exitCode == QuitSuccess
+  check execNimble(["uninstall", "packagea", "-y"]).exitCode == QuitSuccess
+
+test "can validate package structure (#144)":
+  # Test that no warnings are produced for correctly structured packages.
+  for package in ["a", "b", "c"]:
+    cd "packageStructure/" & package:
+      let (output, exitCode) = execNimble(["install", "-y"])
+      check exitCode == QuitSuccess
+      let lines = output.strip.splitLines()
+      check(not inLines(lines, "warning"))
+
+  # Test that warnings are produced for the incorrectly structured packages.
+  for package in ["x", "y", "z"]:
+    cd "packageStructure/" & package:
+      let (output, exitCode) = execNimble(["install", "-y"])
+      check exitCode == QuitSuccess
+      let lines = output.strip.splitLines()
+      case package
+      of "x":
+        check inLines(lines, "File 'foobar.nim' inside package 'x' is outside" &
+                             " of the permitted namespace, should be inside a" &
+                             " directory named 'x' but is in a directory named" &
+                             " 'incorrect' instead.")
+      of "y":
+        check inLines(lines, "File 'foobar.nim' inside package 'y' is outside" &
+                             " of the permitted namespace, should be inside a" &
+                             " directory named 'ypkg' but is in a directory" &
+                             " named 'yWrong' instead.")
+      of "z":
+        check inLines(lines, "File inside package 'z' is outside of permitted" &
+                             " namespace, should be named 'z.nim' but was" &
+                             " named 'incorrect.nim' instead.")
+      else:
+        assert false
+
 test "issue 129 (installing commit hash)":
   let arguments = @["install", "-y",
                    "https://github.com/nimble-test/packagea.git@#1f9cb289c89"]
   check execNimble(arguments).exitCode == QuitSuccess
+  # Verify that it was installed correctly.
+  check dirExists(installDir / "pkgs" / "PackageA-#1f9cb289c89")
+  # Remove it so that it doesn't interfere with the uninstall tests.
+  check execNimble("uninstall", "-y", "packagea@#1f9cb289c89").exitCode ==
+        QuitSuccess
 
 test "issue 113 (uninstallation problems)":
   cd "issue113/c":
@@ -247,6 +296,34 @@ test "can uninstall":
 
   check execNimble("uninstall", "-y", "PackageA@0.2", "issue27b").exitCode ==
       QuitSuccess
-  check(not dirExists(getHomeDir() / ".nimble" / "pkgs" / "PackageA-0.2.0"))
+  check(not dirExists(installDir / "pkgs" / "PackageA-0.2.0"))
 
   check execNimble("uninstall", "-y", "nimscript").exitCode == QuitSuccess
+
+test "can dump for current project":
+  cd "testdump":
+    let (outp, exitCode) = execNimble("dump")
+    check: exitCode == 0
+    check: outp.processOutput.inLines("desc: \"Test package for dump command\"")
+
+test "can dump for project directory":
+  let (outp, exitCode) = execNimble("dump", "testdump")
+  check: exitCode == 0
+  check: outp.processOutput.inLines("desc: \"Test package for dump command\"")
+
+test "can dump for project file":
+  let (outp, exitCode) = execNimble("dump", "testdump" / "testdump.nimble")
+  check: exitCode == 0
+  check: outp.processOutput.inLines("desc: \"Test package for dump command\"")
+
+test "can dump for installed package":
+  cd "testdump":
+    check: execNimble("install", "-y").exitCode == 0
+  defer:
+    discard execNimble("remove", "-y", "testdump")
+
+  # Otherwise we might find subdirectory instead
+  cd "..":
+    let (outp, exitCode) = execNimble("dump", "testdump")
+    check: exitCode == 0
+    check: outp.processOutput.inLines("desc: \"Test package for dump command\"")

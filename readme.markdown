@@ -10,7 +10,6 @@ Interested in learning **how to create a package**? Skip directly to that sectio
 
 - [Requirements](#requirements)
 - [Installation](#installation)
-- [Nimble's folder structure and packages](#nimbles-folder-structure-and-packages)
 - [Nimble usage](#nimble-usage)
   - [nimble refresh](#nimble-refresh)
   - [nimble install](#nimble-install)
@@ -43,6 +42,8 @@ Interested in learning **how to create a package**? Skip directly to that sectio
   - [[Deps]/[Dependencies]](#depsdependencies)
     - [Optional](#optional)
 - [Troubleshooting](#troubleshooting)
+- [Nimble's folder structure and packages](#nimbles-folder-structure-and-packages)
+- [Repository information](#repository-information)
 - [Contribution](#contribution)
 - [About](#about)
 
@@ -102,19 +103,6 @@ compilation to something else like ``nimble1.exe``, then run
 This will install Nimble to the default Nimble packages location:
 ``~/.nimble/pkgs``. The binary will be installed to ``~/.nimble/bin``, so you
 will need to add this directory to your PATH.
-
-## Nimble's folder structure and packages
-
-Nimble stores everything that has been installed in ``~/.nimble`` on Unix systems
-and in your ``$home/.nimble`` on Windows. Libraries are stored in
-``$nimbleDir/pkgs``, and binaries are stored in ``$nimbleDir/bin``. Most Nimble
-packages will provide ``.nim`` files and some documentation. The Nim
-compiler is aware of Nimble and will automatically find the modules so you can
-``import modulename`` and have that working without additional setup.
-
-However, some Nimble packages can provide additional tools or commands. If you
-don't add their location (``$nimbleDir/bin``) to your ``$PATH`` they will not
-work properly and you won't be able to run them.
 
 ## Nimble usage
 
@@ -517,9 +505,9 @@ structure may be enforced in the future.
 
 All files and folders in the directory of where the .nimble file resides will be
 copied as-is, you can however skip some directories or files by setting
-the ``SkipDirs``, ``SkipFiles`` or ``SkipExt`` options in your .nimble file.
+the ``skipDirs``, ``skipFiles`` or ``skipExt`` options in your .nimble file.
 Directories and files can also be specified on a *whitelist* basis, if you
-specify either of ``InstallDirs``, ``InstallFiles`` or ``InstallExt`` then
+specify either of ``installDirs``, ``installFiles`` or ``installExt`` then
 Nimble will **only** install the files specified.
 
 ### Binary packages
@@ -540,7 +528,7 @@ created instead.
 Other files will be copied in the same way as they are for library packages.
 
 Binary packages should not install .nim files so include
-``SkipExt = "nim"`` in your .nimble file, unless you intend for your package to
+``skipExt = @["nim"]`` in your .nimble file, unless you intend for your package to
 be a binary/library combo which is fine.
 
 Dependencies are automatically installed before building.
@@ -672,25 +660,25 @@ Nimble includes a ``publish`` command which does this for you automatically.
 
 #### Optional
 
-* ``SkipDirs`` - A list of directory names which should be skipped during
+* ``skipDirs`` - A list of directory names which should be skipped during
   installation, separated by commas.
-* ``SkipFiles`` - A list of file names which should be skipped during
+* ``skipFiles`` - A list of file names which should be skipped during
   installation, separated by commas.
-* ``SkipExt`` - A list of file extensions which should be skipped during
+* ``skipExt`` - A list of file extensions which should be skipped during
   installation, the extensions should be specified without a leading ``.`` and
   should be separated by commas.
-* ``InstallDirs`` - A list of directories which should exclusively be installed,
+* ``installDirs`` - A list of directories which should exclusively be installed,
   if this option is specified nothing else will be installed except the dirs
-  listed here, the files listed in ``InstallFiles``, the files which share the
-  extensions listed in ``InstallExt``, the .nimble file and the binary
+  listed here, the files listed in ``installFiles``, the files which share the
+  extensions listed in ``installExt``, the .nimble file and the binary
   (if ``bin`` is specified). Separated by commas.
-* ``InstallFiles`` - A list of files which should be exclusively installed,
-  this complements ``InstallDirs`` and ``InstallExt``. Only the files listed
-  here, directories listed in ``InstallDirs``, files which share the extension
-  listed in ``InstallExt``, the .nimble file and the binary (if ``bin`` is
+* ``installFiles`` - A list of files which should be exclusively installed,
+  this complements ``installDirs`` and ``installExt``. Only the files listed
+  here, directories listed in ``installDirs``, files which share the extension
+  listed in ``installExt``, the .nimble file and the binary (if ``bin`` is
   specified) will be installed. Separated by commas.
-* ``InstallExt`` - A list of file extensions which should be exclusively
-  installed, this complements ``InstallDirs`` and ``InstallFiles``.
+* ``installExt`` - A list of file extensions which should be exclusively
+  installed, this complements ``installDirs`` and ``installFiles``.
   Separated by commas.
 * ``srcDir`` - Specifies the directory which contains the .nim source files.
   **Default**: The directory in which the .nimble file resides; i.e. root dir of
@@ -716,6 +704,19 @@ Nimble includes a ``publish`` command which does this for you automatically.
   **Example**: ``nim >= 0.10.0, jester``; with this value your package will
   depend on ``nim`` version 0.10.0 or greater and on any version of ``jester``.
 
+## Nimble's folder structure and packages
+
+Nimble stores everything that has been installed in ``~/.nimble`` on Unix systems
+and in your ``$home/.nimble`` on Windows. Libraries are stored in
+``$nimbleDir/pkgs``, and binaries are stored in ``$nimbleDir/bin``. Most Nimble
+packages will provide ``.nim`` files and some documentation. The Nim
+compiler is aware of Nimble and will automatically find the modules so you can
+``import modulename`` and have that working without additional setup.
+
+However, some Nimble packages can provide additional tools or commands. If you
+don't add their location (``$nimbleDir/bin``) to your ``$PATH`` they will not
+work properly and you won't be able to run them.
+
 ## Troubleshooting
 
 * ```SSL support is not available. Cannot connect over SSL. [HttpRequestError]```
@@ -724,6 +725,28 @@ Make sure that nimble is configured to run with SSL, adding a ```-d:ssl```
 flag to the file ```src/nimble.nim.cfg```.
 After that, you can run ```src/nimble install``` and overwrite the existing
 installation.
+
+## Repository information
+
+This repository has two main branches: ``master`` and ``stable``.
+
+The ``master`` branch is...
+
+* default
+* bleeding edge
+* tested to compile with the latest Nim version
+
+The ``stable`` branch is...
+
+* installed by ``koch tools``/``koch nimble``
+* relatively stable
+* should compile with Nim HEAD as well as the latest Nim version
+
+Note: The travis build only tests whether Nimble works with the latest Nim
+version.
+
+A new Nim release (via ``koch xz``) will always bundle the latest tagged
+Nimble release.
 
 ## Contribution
 

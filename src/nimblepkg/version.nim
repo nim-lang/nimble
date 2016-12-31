@@ -5,7 +5,6 @@
 import strutils, tables, hashes, parseutils
 type
   Version* = distinct string
-  Special* = distinct string
 
   VersionRangeEnum* = enum
     verLater, # > V
@@ -23,7 +22,7 @@ type
     of verLater, verEarlier, verEqLater, verEqEarlier, verEq:
       ver*: Version
     of verSpecial:
-      spe*: Special
+      spe*: Version
     of verIntersect:
       verILeft, verIRight: VersionRange
     of verAny:
@@ -36,18 +35,25 @@ type
   NimbleError* = object of Exception
     hint*: string
 
-proc newVersion*(ver: string): Version = return Version(ver)
-proc newSpecial*(spe: string): Special = return Special(spe)
+proc newVersion*(ver: string): Version =
+  doAssert(ver[0] in {'#', '\0'} + Digits)
+  return Version(ver)
 
 proc `$`*(ver: Version): string {.borrow.}
 
 proc hash*(ver: Version): Hash {.borrow.}
 
-proc `$`*(ver: Special): string {.borrow.}
+proc isNil*(ver: Version): bool {.borrow.}
 
-proc hash*(ver: Special): Hash {.borrow.}
+proc isSpecial*(ver: Version): bool =
+  return ($ver)[0] == '#'
 
 proc `<`*(ver: Version, ver2: Version): bool =
+  # Handling for special versions such as "#head" or "#branch".
+  if ver.isSpecial or ver2.isSpecial:
+    return false
+
+  # Handling for normal versions such as "0.1.0" or "1.0".
   var sVer = string(ver).split('.')
   var sVer2 = string(ver2).split('.')
   for i in 0..max(sVer.len, sVer2.len)-1:
@@ -65,6 +71,9 @@ proc `<`*(ver: Version, ver2: Version): bool =
       return false
 
 proc `==`*(ver: Version, ver2: Version): bool =
+  if ver.isSpecial or ver2.isSpecial:
+    return ($ver).toLowerAscii() == ($ver2).toLowerAscii()
+
   var sVer = string(ver).split('.')
   var sVer2 = string(ver2).split('.')
   for i in 0..max(sVer.len, sVer2.len)-1:
@@ -78,9 +87,6 @@ proc `==`*(ver: Version, ver2: Version): bool =
       result = true
     else:
       return false
-
-proc `==`*(spe: Special, spe2: Special): bool =
-  return ($spe).toLowerAscii() == ($spe2).toLowerAscii()
 
 proc `<=`*(ver: Version, ver2: Version): bool =
   return (ver == ver2) or (ver < ver2)
@@ -97,38 +103,35 @@ proc `==`*(range1: VersionRange, range2: VersionRange): bool =
   of verAny: true
 
 proc withinRange*(ver: Version, ran: VersionRange): bool =
-  case ran.kind
-  of verLater:
-    return ver > ran.ver
-  of verEarlier:
-    return ver < ran.ver
-  of verEqLater:
-    return ver >= ran.ver
-  of verEqEarlier:
-    return ver <= ran.ver
-  of verEq:
-    return ver == ran.ver
-  of verSpecial:
-    return false
-  of verIntersect:
-    return withinRange(ver, ran.verILeft) and withinRange(ver, ran.verIRight)
-  of verAny:
-    return true
-
-proc withinRange*(spe: Special, ran: VersionRange): bool =
-  case ran.kind
-  of verLater, verEarlier, verEqLater, verEqEarlier, verEq, verIntersect:
-    return false
-  of verSpecial:
-    return spe == ran.spe
-  of verAny:
-    return true
+  if ver.isSpecial:
+    case ran.kind
+    of verLater, verEarlier, verEqLater, verEqEarlier, verEq, verIntersect:
+      return false
+    of verSpecial:
+      return ver == ran.spe
+    of verAny:
+      return true
+  else:
+    case ran.kind
+    of verLater:
+      return ver > ran.ver
+    of verEarlier:
+      return ver < ran.ver
+    of verEqLater:
+      return ver >= ran.ver
+    of verEqEarlier:
+      return ver <= ran.ver
+    of verEq:
+      return ver == ran.ver
+    of verSpecial:
+      return false
+    of verIntersect:
+      return withinRange(ver, ran.verILeft) and withinRange(ver, ran.verIRight)
+    of verAny:
+      return true
 
 proc contains*(ran: VersionRange, ver: Version): bool =
   return withinRange(ver, ran)
-
-proc contains*(ran: VersionRange, spe: Special): bool =
-  return withinRange(spe, ran)
 
 proc makeRange*(version: string, op: string): VersionRange =
   new(result)
@@ -153,9 +156,13 @@ proc makeRange*(version: string, op: string): VersionRange =
 proc parseVersionRange*(s: string): VersionRange =
   # >= 1.5 & <= 1.8
   new(result)
+  if s.len == 0:
+    result.kind = verAny
+    return
+
   if s[0] == '#':
     result.kind = verSpecial
-    result.spe = s[1 .. s.len-1].Special
+    result.spe = s.Version
     return
 
   var i = 0
@@ -200,6 +207,15 @@ proc parseVersionRange*(s: string): VersionRange =
           "Unexpected char in version range: " & s[i])
     inc(i)
 
+proc toVersionRange*(ver: Version): VersionRange =
+  ## Converts a version to either a verEq or verSpecial VersionRange.
+  new(result)
+  if ver.isSpecial:
+    result.kind = verSpecial
+    result.spe = ver
+  else:
+    result.kind = verEq
+    result.ver = ver
 
 proc parseRequires*(req: string): PkgTuple =
   try:
@@ -231,7 +247,7 @@ proc `$`*(verRange: VersionRange): string =
   of verEq:
     result = ""
   of verSpecial:
-    return "#" & $verRange.spe
+    return $verRange.spe
   of verIntersect:
     return $verRange.verILeft & " & " & $verRange.verIRight
   of verAny:
@@ -312,13 +328,26 @@ when isMainModule:
   #doAssert newVersion("0.1-rc1") < newVersion("0.1")
 
   # Special tests
-  doAssert newSpecial("ab26sgdt362") != newSpecial("ab26saggdt362")
-  doAssert newSpecial("ab26saggdt362") == newSpecial("ab26saggdt362")
-  doAssert newSpecial("head") == newSpecial("HEAD")
-  doAssert newSpecial("head") == newSpecial("head")
+  doAssert newVersion("#ab26sgdt362") != newVersion("#qwersaggdt362")
+  doAssert newVersion("#ab26saggdt362") == newVersion("#ab26saggdt362")
+  doAssert newVersion("#head") == newVersion("#HEAD")
+  doAssert newVersion("#head") == newVersion("#head")
 
   var sp = parseVersionRange("#ab26sgdt362")
-  doAssert newSpecial("ab26sgdt362") in sp
-  doAssert newSpecial("ab26saggdt362") notin sp
+  doAssert newVersion("#ab26sgdt362") in sp
+  doAssert newVersion("#ab26saggdt362") notin sp
+
+  doAssert newVersion("#head") in parseVersionRange("#head")
+
+  # TODO: It may be worth changing this in the future, although we can't be
+  # certain that #head is in fact newer than v0.1.0.
+  doAssert(not(newVersion("#head") > newVersion("0.1.0")))
+
+  # An empty version range should give verAny
+  doAssert parseVersionRange("").kind == verAny
+
+  # toVersionRange tests
+  doAssert toVersionRange(newVersion("#head")).kind == verSpecial
+  doAssert toVersionRange(newVersion("0.2.0")).kind == verEq
 
   echo("Everything works!")

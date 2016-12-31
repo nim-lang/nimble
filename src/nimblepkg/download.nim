@@ -91,8 +91,10 @@ proc getTagsListRemote*(url: string, meth: DownloadMethod): seq[string] =
       raise newException(OSError, "Unable to query remote tags for " & url &
           ". Git returned: " & output)
     for i in output.splitLines():
-      if i == "": continue
-      let start = i.find("refs/tags/")+"refs/tags/".len
+      let refStart = i.find("refs/tags/")
+      # git outputs warnings, empty lines, etc
+      if refStart == -1: continue
+      let start = refStart+"refs/tags/".len
       let tag = i[start .. i.len-1]
       if not tag.endswith("^{}"): result.add(tag)
 
@@ -116,12 +118,12 @@ proc getDownloadMethod*(meth: string): DownloadMethod =
   else:
     raise newException(NimbleError, "Invalid download method: " & meth)
 
-proc getHeadName*(meth: DownloadMethod): string =
+proc getHeadName*(meth: DownloadMethod): Version =
   ## Returns the name of the download method specific head. i.e. for git
   ## it's ``head`` for hg it's ``tip``.
   case meth
-  of DownloadMethod.git: "head"
-  of DownloadMethod.hg: "tip"
+  of DownloadMethod.git: newVersion("#head")
+  of DownloadMethod.hg: newVersion("#tip")
 
 proc checkUrlType*(url: string): DownloadMethod =
   ## Determines the download method based on the URL.
@@ -136,7 +138,7 @@ proc isURL*(name: string): bool =
   name.startsWith(peg" @'://' ")
 
 proc doDownload*(url: string, downloadDir: string, verRange: VersionRange,
-                 downMethod: DownloadMethod, options: Options): VersionRange =
+                 downMethod: DownloadMethod, options: Options): Version =
   ## Downloads the repository specified by ``url`` using the specified download
   ## method.
   ##
@@ -152,7 +154,7 @@ proc doDownload*(url: string, downloadDir: string, verRange: VersionRange,
     # https://github.com/nim-lang/nimble/issues/22
     meth
     if $latest.ver != "":
-      result = parseVersionRange($latest.ver)
+      result = latest.ver
     else:
       # Result should already be set to #head here.
       assert(not result.isNil)
@@ -170,20 +172,20 @@ proc doDownload*(url: string, downloadDir: string, verRange: VersionRange,
   removeDir(downloadDir)
   if verRange.kind == verSpecial:
     # We want a specific commit/branch/tag here.
-    if verRange.spe == newSpecial(getHeadName(downMethod)):
+    if verRange.spe == getHeadName(downMethod):
       doClone(downMethod, url, downloadDir) # Grab HEAD.
     else:
       # Grab the full repo.
       doClone(downMethod, url, downloadDir, tip = false)
       # Then perform a checkout operation to get the specified branch/commit.
       doCheckout(downMethod, downloadDir, $verRange.spe)
-    result = verRange
+    result = verRange.spe
   else:
     case downMethod
     of DownloadMethod.git:
       # For Git we have to query the repo remotely for its tags. This is
       # necessary as cloning with a --depth of 1 removes all tag info.
-      result = parseVersionRange("#head")
+      result = getHeadName(downMethod)
       let versions = getTagsListRemote(url, downMethod).getVersionList()
       if versions.len > 0:
         getLatestByTag:
@@ -197,7 +199,7 @@ proc doDownload*(url: string, downloadDir: string, verRange: VersionRange,
       verifyClone()
     of DownloadMethod.hg:
       doClone(downMethod, url, downloadDir)
-      result = parseVersionRange("#tip")
+      result = getHeadName(downMethod)
       let versions = getTagsList(downloadDir, downMethod).getVersionList()
 
       if versions.len > 0:
