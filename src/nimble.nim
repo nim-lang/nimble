@@ -467,6 +467,10 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
       when defined(unix):
         display("Creating", "symlink: $1 -> $2" %
                 [pkgDestDir / bin, binDir / cleanBin], priority = MediumPriority)
+        if existsFile(binDir / cleanBin):
+          display("Warning:", "Symlink already exists in $1. Replacing." % binDir,
+                  Warning, HighPriority)
+          removeFile(binDir / cleanBin)
         createSymlink(pkgDestDir / bin, binDir / cleanBin)
         binariesInstalled.incl(cleanBin)
       elif defined(windows):
