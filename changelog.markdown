@@ -3,6 +3,46 @@
 
 # Nimble changelog
 
+## 0.8.0 - 01/01/2017
+
+This is a large release containing multiple new features and many bug fixes.
+
+* Implemented a completely new output system.
+  * Supports different message types and priorities. Each is differently
+    encoded using a color and a brightness.
+  * The amount of messages shown can be changed by using the new ``--verbose``
+    and ``--debug`` flags, by default only high priority messages are shown.
+  * Duplicate warnings are filtered out to prevent too much noise.
+* Package namespaces are now validated. You will see a warning whenever an
+  incorrectly namespaced package is read by Nimble, this can occur either
+  during installation or when the installed package database is being loaded.
+  The namespacing rules are described in Nimble's
+  [readme](https://github.com/nim-lang/nimble#libraries).
+  **Consider these warnings to be unstable, if you see something that you
+  think is incorrect please report it**.
+* Special version dependencies are now installed into a directory with that
+  special version in its name. For example, ``compiler@#head`` will be installed
+  into ``~/.nimble/pkgs/compiler-#head``. This reduces the amount of redundant
+  installs. See [#88](https://github.com/nim-lang/nimble/issues/88) for
+  more information.
+* Nimble now supports package aliases in the packages.json files.
+* Fixed regression that caused transitive dependencies to not be installed.
+* Fixed problem with ``install`` command when a ``src`` directory is present
+  in the current directory.
+* Improved quoting of process execution arguments.
+* Many improvements to custom ``--nimbleDir`` handling. All commands should now
+  support it correctly.
+* Running ``nimble -v`` will no longer read the Nimble config before displaying
+  the version.
+* Refresh command now supports a package list name as argument.
+* Fixes issues with symlinks not being removed correctly.
+* Changed the way the ``dump`` command locates the .nimble file.
+
+----
+
+Full changelog: https://github.com/nim-lang/nimble/compare/v0.7.10...v0.8.0
+Full list of issues which have been closed: https://github.com/nim-lang/nimble/issues?utf8=%E2%9C%93&q=is%3Aissue+closed%3A%222016-10-09+..+2017-01-01%22+
+
 ## 0.7.10 - 09/10/2016
 
 This release includes multiple bug fixes.
