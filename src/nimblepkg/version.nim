@@ -291,6 +291,9 @@ proc findLatest*(verRange: VersionRange,
     if ver > result.ver:
       result = (ver, tag)
 
+proc `$`*(dep: PkgTuple): string =
+  return dep.name & "@" & $dep.ver
+
 when isMainModule:
   doAssert(newVersion("1.0") < newVersion("1.4"))
   doAssert(newVersion("1.0.1") > newVersion("1.0"))

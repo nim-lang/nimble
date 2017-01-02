@@ -26,6 +26,8 @@ proc getGithubAuth(): Auth =
   display("Info:", "Please create a new personal access token on Github in" &
          " order to allow Nimble to fork the packages repository.",
          priority = HighPriority)
+  display("Hint:", "Make sure to give the access token access to public repos" &
+          " (public_repo scope)!", Warning, HighPriority)
   sleep(5000)
   display("Info:", "Your default browser should open with the following URL: " &
           "https://github.com/settings/tokens/new", priority = HighPriority)
@@ -54,8 +56,12 @@ proc forkExists(a: Auth): bool =
     result = false
 
 proc createFork(a: Auth) =
-  discard postContent("https://api.github.com/repos/nim-lang/packages/forks",
-      extraHeaders=createHeaders(a))
+  try:
+    discard postContent("https://api.github.com/repos/nim-lang/packages/forks",
+        extraHeaders=createHeaders(a))
+  except HttpRequestError:
+    raise newException(NimbleError, "Unable to create fork. Access token" &
+                       " might not have enough permissions.")
 
 proc createPullRequest(a: Auth, packageName, branch: string) =
   display("Info", "Creating PR", priority = HighPriority)

@@ -45,45 +45,6 @@ proc refresh(options: Options) =
     else:
       ""
 
-  proc downloadList(list: PackageList, options: Options) =
-    display("Downloading", list.name & " package list", priority = HighPriority)
-
-    var lastError = ""
-    for i in 0 .. <list.urls.len:
-      let url = list.urls[i]
-      display("Trying", url)
-      let tempPath = options.getNimbleDir() / "packages_temp.json"
-
-      # Grab the proxy
-      let proxy = getProxy(options)
-      if not proxy.isNil:
-        var maskedUrl = proxy.url
-        if maskedUrl.password.len > 0: maskedUrl.password = "***"
-        display("Connecting", "to proxy at " & $maskedUrl,
-                priority = LowPriority)
-
-      try:
-        downloadFile(url, tempPath, proxy = getProxy(options))
-      except:
-        let message = "Could not download: " & getCurrentExceptionMsg()
-        display("Warning:", message, Warning)
-        lastError = message
-        continue
-
-      if not validatePackagesList(tempPath):
-        lastError = "Downloaded packages.json file is invalid"
-        display("Warning:", lastError & ", discarding.", Warning)
-        continue
-
-      copyFile(tempPath,
-          options.getNimbleDir() / "packages_$1.json" % list.name.toLowerAscii())
-      display("Success", "Package list downloaded.", Success, HighPriority)
-      lastError = ""
-      break
-
-    if lastError.len != 0:
-      raise newException(NimbleError, "Refresh failed\n" & lastError)
-
   if parameter.len > 0:
     if parameter.isUrl:
       let cmdLine = PackageList(name: "commandline", urls: @[parameter])
@@ -275,17 +236,27 @@ proc processDeps(pkginfo: PackageInfo, options: Options): seq[string] =
         let msg = "Unsatisfied dependency: " & dep.name & " (" & $dep.ver & ")"
         raise newException(NimbleError, msg)
     else:
-      let depDesc = "$1@$2" % [dep.name, $dep.ver]
-      display("Checking", "for $1" % depDesc, priority = MediumPriority)
+      let resolvedDep = dep.resolveAlias(options)
+      display("Checking", "for $1" % $resolvedDep, priority = MediumPriority)
       var pkg: PackageInfo
-      if not findPkg(pkglist, dep, pkg):
-        display("Installing", depDesc, priority = HighPriority)
-        let (paths, installedPkg) = install(@[(dep.name, dep.ver)], options)
+      var found = findPkg(pkgList, resolvedDep, pkg)
+      # Check if the original name exists.
+      if not found and resolvedDep.name != dep.name:
+        display("Checking", "for $1" % $dep, priority = MediumPriority)
+        found = findPkg(pkgList, dep, pkg)
+        if found:
+          display("Warning:", "Installed package $1 should be renamed to $2" %
+                  [dep.name, resolvedDep.name], Warning, HighPriority)
+
+      if not found:
+        display("Installing", $resolvedDep, priority = HighPriority)
+        let toInstall = @[(resolvedDep.name, resolvedDep.ver)]
+        let (paths, installedPkg) = install(toInstall, options)
         result.add(paths)
 
         pkg = installedPkg # For addRevDep
       else:
-        display("Info:", "Dependency on $1 already satisfied" % depDesc,
+        display("Info:", "Dependency on $1 already satisfied" % $dep,
                 priority = HighPriority)
         result.add(pkg.mypath.splitFile.dir)
         # Process the dependencies of this dependency.
@@ -496,6 +467,10 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
       when defined(unix):
         display("Creating", "symlink: $1 -> $2" %
                 [pkgDestDir / bin, binDir / cleanBin], priority = MediumPriority)
+        if existsFile(binDir / cleanBin):
+          display("Warning:", "Symlink already exists in $1. Replacing." % binDir,
+                  Warning, HighPriority)
+          removeFile(binDir / cleanBin)
         createSymlink(pkgDestDir / bin, binDir / cleanBin)
         binariesInstalled.incl(cleanBin)
       elif defined(windows):
@@ -619,15 +594,6 @@ proc install(packages: seq[PkgTuple],
   if packages == @[]:
     result = installFromDir(getCurrentDir(), newVRAny(), options, "")
   else:
-    # If packages.json is not present ask the user if they want to download it.
-    if needsRefresh(options):
-      if doPrompt and
-          options.prompt("No local packages.json found, download it from " &
-              "internet?"):
-        refresh(options)
-      else:
-        raise newException(NimbleError, "Please run nimble refresh.")
-
     # Install each package.
     for pv in packages:
       let (meth, url) = getDownloadInfo(pv, options, doPrompt)

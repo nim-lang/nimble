@@ -1,7 +1,13 @@
 # Copyright (C) Dominik Picheta. All rights reserved.
 # BSD License. Look at license.txt for more info.
+
+# Stdlib imports
+import system except TResult
 import parsecfg, json, streams, strutils, parseutils, os, sets, tables
-import version, tools, common, options, cli
+import httpclient
+
+# Local imports
+import version, tools, common, options, cli, config
 
 type
   Package* = object ## Definition of package from packages.json.
@@ -16,6 +22,7 @@ type
     version*: string
     dvcsTag*: string
     web*: string # Info url for humans.
+    alias*: string ## A name of another package, that this package aliases.
 
   MetaData* = object
     url*: string
@@ -103,16 +110,20 @@ proc fromJson(obj: JSonNode): Package =
   ##
   ## Aborts execution if the JSON node doesn't contain the required fields.
   result.name = obj.requiredField("name")
-  result.version = obj.optionalField("version")
-  result.url = obj.requiredField("url")
-  result.downloadMethod = obj.requiredField("method")
-  result.dvcsTag = obj.optionalField("dvcs-tag")
-  result.license = obj.requiredField("license")
-  result.tags = @[]
-  for t in obj["tags"]:
-    result.tags.add(t.str)
-  result.description = obj.requiredField("description")
-  result.web = obj.optionalField("web")
+  if obj.hasKey("alias"):
+    result.alias = obj.requiredField("alias")
+  else:
+    result.alias = ""
+    result.version = obj.optionalField("version")
+    result.url = obj.requiredField("url")
+    result.downloadMethod = obj.requiredField("method")
+    result.dvcsTag = obj.optionalField("dvcs-tag")
+    result.license = obj.requiredField("license")
+    result.tags = @[]
+    for t in obj["tags"]:
+      result.tags.add(t.str)
+    result.description = obj.requiredField("description")
+    result.web = obj.optionalField("web")
 
 proc readMetaData*(path: string): MetaData =
   ## Reads the metadata present in ``~/.nimble/pkgs/pkg-0.1/nimblemeta.json``
@@ -127,21 +138,107 @@ proc readMetaData*(path: string): MetaData =
   let jsonmeta = parseJson(cont)
   result.url = jsonmeta["url"].str
 
-proc getPackage*(pkg: string, options: Options,
-    resPkg: var Package): bool =
+proc needsRefresh*(options: Options): bool =
+  ## Determines whether a ``nimble refresh`` is needed.
+  ##
+  ## In the future this will check a stored time stamp to determine how long
+  ## ago the package list was refreshed.
+  result = true
+  for name, list in options.config.packageLists:
+    if fileExists(options.getNimbleDir() / "packages_" & name & ".json"):
+      result = false
+
+proc validatePackagesList(path: string): bool =
+  ## Determines whether package list at ``path`` is valid.
+  try:
+    let pkgList = parseFile(path)
+    if pkgList.kind == JArray:
+      if pkgList.len == 0:
+        display("Warning:", path & " contains no packages.", Warning,
+                HighPriority)
+      return true
+  except ValueError, JsonParsingError:
+    return false
+
+proc downloadList*(list: PackageList, options: Options) =
+  ## Downloads the specified package list and saves it in $nimbleDir.
+  display("Downloading", list.name & " package list", priority = HighPriority)
+
+  var lastError = ""
+  for i in 0 .. <list.urls.len:
+    let url = list.urls[i]
+    display("Trying", url)
+    let tempPath = options.getNimbleDir() / "packages_temp.json"
+
+    # Grab the proxy
+    let proxy = getProxy(options)
+    if not proxy.isNil:
+      var maskedUrl = proxy.url
+      if maskedUrl.password.len > 0: maskedUrl.password = "***"
+      display("Connecting", "to proxy at " & $maskedUrl,
+              priority = LowPriority)
+
+    try:
+      downloadFile(url, tempPath, proxy = getProxy(options))
+    except:
+      let message = "Could not download: " & getCurrentExceptionMsg()
+      display("Warning:", message, Warning)
+      lastError = message
+      continue
+
+    if not validatePackagesList(tempPath):
+      lastError = "Downloaded packages.json file is invalid"
+      display("Warning:", lastError & ", discarding.", Warning)
+      continue
+
+    copyFile(tempPath,
+        options.getNimbleDir() / "packages_$1.json" % list.name.toLowerAscii())
+    display("Success", "Package list downloaded.", Success, HighPriority)
+    lastError = ""
+    break
+
+  if lastError.len != 0:
+    raise newException(NimbleError, "Refresh failed\n" & lastError)
+
+proc readPackageList(name: string, options: Options): JsonNode =
+  # If packages.json is not present ask the user if they want to download it.
+  if needsRefresh(options):
+    if options.prompt("No local packages.json found, download it from " &
+            "internet?"):
+      for name, list in options.config.packageLists:
+        downloadList(list, options)
+    else:
+      raise newException(NimbleError, "Please run nimble refresh.")
+  return parseFile(options.getNimbleDir() / "packages_" &
+                   name.toLowerAscii() & ".json")
+
+proc getPackage*(pkg: string, options: Options, resPkg: var Package): bool
+proc resolveAlias(pkg: Package, options: Options): Package =
+  result = pkg
+  # Resolve alias.
+  if pkg.alias.len > 0:
+    display("Warning:", "The $1 package has been renamed to $2" %
+            [pkg.name, pkg.alias], Warning, HighPriority)
+    if not getPackage(pkg.alias, options, result):
+      raise newException(NimbleError, "Alias for package not found: " &
+                         pkg.alias)
+
+proc getPackage*(pkg: string, options: Options, resPkg: var Package): bool =
   ## Searches any packages.json files defined in ``options.config.packageLists``
   ## Saves the found package into ``resPkg``.
   ##
   ## Pass in ``pkg`` the name of the package you are searching for. As
   ## convenience the proc returns a boolean specifying if the ``resPkg`` was
   ## successfully filled with good data.
+  ##
+  ## Aliases are handled and resolved.
   for name, list in options.config.packageLists:
     display("Reading", "$1 package list" % name, priority = LowPriority)
-    let packages = parseFile(options.getNimbleDir() /
-        "packages_" & name.toLowerAscii() & ".json")
+    let packages = readPackageList(name, options)
     for p in packages:
       if normalize(p["name"].str) == normalize(pkg):
         resPkg = p.fromJson()
+        resPkg = resolveAlias(resPkg, options)
         return true
 
 proc getPackageList*(options: Options): seq[Package] =
@@ -149,8 +246,7 @@ proc getPackageList*(options: Options): seq[Package] =
   result = @[]
   var namesAdded = initSet[string]()
   for name, list in options.config.packageLists:
-    let packages = parseFile(options.getNimbleDir() /
-        "packages_" & name.toLowerAscii() & ".json")
+    let packages = readPackageList(name, options)
     for p in packages:
       let pkg: Package = p.fromJson()
       if pkg.name notin namesAdded:
@@ -208,6 +304,17 @@ proc withinRange*(pkgInfo: PackageInfo, verRange: VersionRange): bool =
   return withinRange(newVersion(pkgInfo.version), verRange) or
          withinRange(newVersion(pkgInfo.specialVersion), verRange)
 
+proc resolveAlias*(dep: PkgTuple, options: Options): PkgTuple =
+  ## Looks up the specified ``dep.name`` in the packages.json files to resolve
+  ## a potential alias into the package's real name.
+  result = dep
+  var pkg: Package
+  # TODO: This needs better caching.
+  if getPackage(dep.name, options, pkg):
+    # The resulting ``pkg`` will contain the resolved name or the original if
+    # no alias is present.
+    result.name = pkg.name
+
 proc findPkg*(pkglist: seq[tuple[pkgInfo: PackageInfo, meta: MetaData]],
              dep: PkgTuple,
              r: var PackageInfo): bool =
@@ -255,12 +362,15 @@ proc getOutputDir*(pkgInfo: PackageInfo, bin: string): string =
 
 proc echoPackage*(pkg: Package) =
   echo(pkg.name & ":")
-  echo("  url:         " & pkg.url & " (" & pkg.downloadMethod & ")")
-  echo("  tags:        " & pkg.tags.join(", "))
-  echo("  description: " & pkg.description)
-  echo("  license:     " & pkg.license)
-  if pkg.web.len > 0:
-    echo("  website:     " & pkg.web)
+  if pkg.alias.len > 0:
+    echo("  Alias for ", pkg.alias)
+  else:
+    echo("  url:         " & pkg.url & " (" & pkg.downloadMethod & ")")
+    echo("  tags:        " & pkg.tags.join(", "))
+    echo("  description: " & pkg.description)
+    echo("  license:     " & pkg.license)
+    if pkg.web.len > 0:
+      echo("  website:     " & pkg.web)
 
 proc getDownloadDirName*(pkg: Package, verRange: VersionRange): string =
   result = pkg.name
@@ -268,28 +378,6 @@ proc getDownloadDirName*(pkg: Package, verRange: VersionRange): string =
   if verSimple != "":
     result.add "_"
     result.add verSimple
-
-proc needsRefresh*(options: Options): bool =
-  ## Determines whether a ``nimble refresh`` is needed.
-  ##
-  ## In the future this will check a stored time stamp to determine how long
-  ## ago the package list was refreshed.
-  result = true
-  for name, list in options.config.packageLists:
-    if fileExists(options.getNimbleDir() / "packages_" & name & ".json"):
-      result = false
-
-proc validatePackagesList*(path: string): bool =
-  ## Determines whether package list at ``path`` is valid.
-  try:
-    let pkgList = parseFile(path)
-    if pkgList.kind == JArray:
-      if pkgList.len == 0:
-        display("Warning:", path & " contains no packages.", Warning,
-                HighPriority)
-      return true
-  except ValueError, JsonParsingError:
-    return false
 
 proc checkInstallFile(pkgInfo: PackageInfo,
                       origDir, file: string): bool =

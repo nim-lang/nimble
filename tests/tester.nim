@@ -172,7 +172,7 @@ test "can use nimscript's setCommand":
     let (output, exitCode) = execNimble("--verbose", "cTest")
     let lines = output.strip.splitLines()
     check exitCode == QuitSuccess
-    check "Compilation finished".normalize in lines[^1].normalize
+    check "Execution finished".normalize in lines[^1].normalize
 
 test "can use nimscript's setCommand with flags":
   cd "nimscript":
