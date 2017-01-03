@@ -22,6 +22,9 @@ var
   foreignDeps*: seq[string] = @[] ## The foreign dependencies. Only
                                   ## exported for 'distros.nim'.
 
+when defined(nimdistros) and defined(nimblesupportsdistros):
+  const nimbledistros = true
+
 proc requires*(deps: varargs[string]) =
   ## Call this to set the list of requirements of your Nimble
   ## package.
