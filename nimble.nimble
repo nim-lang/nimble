@@ -22,7 +22,7 @@ srcDir = "src"
 
 requires "nim >= 0.13.0", "compiler#head"
 
-when defined(nimbledistros):
+when defined(nimdistros):
   import distros
   if detectOs(Ubuntu):
     foreignDep "libssl-dev"
