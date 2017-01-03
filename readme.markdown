@@ -31,6 +31,7 @@ Interested in learning **how to create a package**? Skip directly to that sectio
   - [Binary packages](#binary-packages)
   - [Hybrids](#hybrids)
   - [Dependencies](#dependencies)
+    - [External dependencies](#external-dependencies)
   - [Nim compiler](#nim-compiler)
   - [Versions](#versions)
     - [Releasing a new version](#releasing-a-new-version)
@@ -574,6 +575,44 @@ Although these have to be specific; ranges of commits are not supported.
 This is done with the ``#`` character,
 for example: ``jester#head``. Which will make your package depend on the
 latest commit of Jester.
+
+#### External dependencies
+
+**Warning:** This feature is brand new in Nimble v0.8.0. Breaking changes
+related to it are more likely to be introduced than for any other Nimble
+features.
+
+Starting with Nimble v0.8.0, you can now specify external dependencies. These
+are dependencies which are not managed by Nimble and can only be installed via
+your system's package manager or downloaded manually via the internet.
+
+As an example, to specify a dependency on openssl you may put this in your
+.nimble file:
+
+```nim
+when defined(nimdistros):
+  import distros
+  if detectOs(Ubuntu):
+    foreignDep "libssl-dev"
+  else:
+    foreignDep "openssl"
+```
+
+The ``when`` branch is important to support installation using older versions
+of Nimble.
+
+The [distros module](nim-lang.org/docs/distros.html) in Nim's
+standard library contains a list of all the supported Operating Systems and
+Linux distributions.
+
+With this inside your .nimble file, Nimble will output the following after
+installing your package (on macOS):
+
+```
+  Hint: This package requires some external dependencies.
+  Hint: To install them you may be able to run:
+  Hint:   sudo brew install openssl
+```
 
 ### Nim compiler
 

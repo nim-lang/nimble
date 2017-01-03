@@ -995,9 +995,12 @@ proc doAction(options: Options) =
     if options.action.packages.len == 0:
       nimScriptHint(pkgInfo)
     if pkgInfo.foreignDeps.len > 0:
-      echo("To finish the installation, run: ")
+      display("Hint:", "This package requires some external dependencies.",
+              Warning, HighPriority)
+      display("Hint:", "To install them you may be able to run:",
+              Warning, HighPriority)
       for i in 0..<pkgInfo.foreignDeps.len:
-        echo(pkgInfo.foreignDeps[i])
+        display("Hint:", "  " & pkgInfo.foreignDeps[i], Warning, HighPriority)
   of actionUninstall:
     uninstall(options)
   of actionSearch:
