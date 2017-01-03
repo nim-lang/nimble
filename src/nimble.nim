@@ -227,7 +227,7 @@ proc processDeps(pkginfo: PackageInfo, options: Options): seq[string] =
           "dependencies for $1@$2" % [pkginfo.name, pkginfo.specialVersion],
           priority = HighPriority)
 
-  let pkglist = getInstalledPkgs(options.getPkgsDir(), options)
+  let pkglist = getInstalledPkgsMin(options.getPkgsDir(), options)
   var reverseDeps: seq[tuple[name, version: string]] = @[]
   for dep in pkginfo.requires:
     if dep.name == "nimrod" or dep.name == "nim":
@@ -260,7 +260,7 @@ proc processDeps(pkginfo: PackageInfo, options: Options): seq[string] =
                 priority = HighPriority)
         result.add(pkg.mypath.splitFile.dir)
         # Process the dependencies of this dependency.
-        result.add(processDeps(pkg, options))
+        result.add(processDeps(pkg.toFullInfo(options), options))
       reverseDeps.add((pkg.name, pkg.specialVersion))
 
   # Check if two packages of the same name (but different version) are listed
@@ -947,9 +947,9 @@ proc uninstall(options: Options) =
 
     # removeRevDep needs the package dependency info, so we can't just pass
     # a minimal pkg info.
-    let pkgFull = getPkgInfo(pkg.mypath.splitFile.dir, options) # TODO: Simplify
-    removeRevDep(options, pkgFull)
-    removePkgDir(options.getPkgsDir / (pkg.name & '-' & pkg.specialVersion), options)
+    removeRevDep(options, pkg.toFullInfo(options))
+    removePkgDir(options.getPkgsDir / (pkg.name & '-' & pkg.specialVersion),
+                 options)
     display("Removed", "$1 ($2)" % [pkg.name, $pkg.specialVersion], Success,
             HighPriority)
 
@@ -965,7 +965,7 @@ proc execHook(options: Options, before: bool): bool =
     nimbleFile = findNimbleFile(getCurrentDir(), true)
   except NimbleError: return true
   # PackageInfos are cached so we can read them as many times as we want.
-  let pkgInfo = getPkgInfo(nimbleFile.splitFile.dir, options) # TODO: Simplify
+  let pkgInfo = getPkgInfoFromFile(nimbleFile, options)
   let actionName =
     if options.action.typ == actionCustom: options.action.command
     else: ($options.action.typ)[6 .. ^1]

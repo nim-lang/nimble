@@ -320,7 +320,7 @@ proc getPkgInfoFromFile*(file: NimbleFile, options: Options): PackageInfo =
 proc getPkgInfo*(dir: string, options: Options): PackageInfo =
   ## Find the .nimble file in ``dir`` and parses it, returning a PackageInfo.
   let nimbleFile = findNimbleFile(dir, true)
-  getPkgInfoFromFile(nimbleFile, options)
+  return getPkgInfoFromFile(nimbleFile, options)
 
 proc getInstalledPkgs*(libsDir: string, options: Options):
         seq[tuple[pkginfo: PackageInfo, meta: MetaData]] =
@@ -370,6 +370,10 @@ proc getInstalledPkgs*(libsDir: string, options: Options):
 
 proc isNimScript*(nf: string, options: Options): bool =
   result = readPackageInfo(nf, options).isNimScript
+
+proc toFullInfo*(pkg: PackageInfo, options: Options): PackageInfo =
+  assert(pkg.isMinimal, "Redundant call?")
+  return getPkgInfoFromFile(pkg.mypath, options)
 
 when isMainModule:
   validatePackageName("foo_bar")
