@@ -657,7 +657,7 @@ proc execBackend(options: Options) =
     display("Generating", ("documentation for $1 (from package $2) using $3 " &
             "backend") % [bin, pkgInfo.name, backend], priority = HighPriority)
   doCmd("\"" & getNimBin() & "\" $# --noNimblePath $# \"$#\"" %
-        [backend, args, bin])
+        [backend, args, bin], showOutput = true)
   display("Success:", "Execution finished", Success, HighPriority)
 
 proc search(options: Options) =

@@ -11,7 +11,7 @@ proc extractBin(cmd: string): string =
   else:
     return cmd.split(' ')[0]
 
-proc doCmd*(cmd: string) =
+proc doCmd*(cmd: string, showOutput = false) =
   let bin = extractBin(cmd)
   if findExe(bin) == "":
     raise newException(NimbleError, "'" & bin & "' not in PATH.")
@@ -24,7 +24,10 @@ proc doCmd*(cmd: string) =
   let (output, exitCode) = execCmdEx(cmd)
   displayDebug("Finished", "with exit code " & $exitCode)
   # TODO: Improve to show output in real-time.
-  displayDebug("Output", output)
+  if showOutput:
+    display("Output:", output, priority = HighPriority)
+  else:
+    displayDebug("Output", output)
 
   if exitCode != QuitSuccess:
     raise newException(NimbleError,
