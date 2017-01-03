@@ -241,6 +241,7 @@ proc execScript(scriptName: string, flags: StringTableRef,
   defineSymbol("nimscript")
   defineSymbol("nimconfig")
   defineSymbol("nimble")
+  defineSymbol("nimbledistros")
   registerPass(semPass)
   registerPass(evalPass)
 

@@ -590,7 +590,7 @@ As an example, to specify a dependency on openssl you may put this in your
 .nimble file:
 
 ```nim
-when defined(nimdistros):
+when defined(nimbledistros):
   import distros
   if detectOs(Ubuntu):
     foreignDep "libssl-dev"
