@@ -42,6 +42,10 @@ proc inLines(lines: seq[string], line: string): bool =
   for i in lines:
     if line.normalize in i.normalize: return true
 
+test "can distinguish package reading in nimbleDir vs. other dirs (#304)":
+  cd "issue304" / "package-test":
+    check execNimble("tasks").exitCode == QuitSuccess
+
 test "can build with #head and versioned package (#289)":
   cd "issue289":
     check execNimble(["install", "-y"]).exitCode == QuitSuccess

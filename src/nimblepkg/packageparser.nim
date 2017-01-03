@@ -290,12 +290,14 @@ proc readPackageInfo(nf: NimbleFile, options: Options,
   # By default specialVersion is the same as version.
   result.specialVersion = result.version
 
-  # The package directory name may include a "special" version
-  # (example #head). If so, it is given higher priority and therefore
-  # overwrites the .nimble file's version.
-  let version = parseVersionRange(minimalInfo.version)
-  if version.kind == verSpecial:
-    result.specialVersion = minimalInfo.version
+  # Only attempt to read a special version if `nf` is inside the $nimbleDir.
+  if nf.startsWith(options.getNimbleDir()):
+    # The package directory name may include a "special" version
+    # (example #head). If so, it is given higher priority and therefore
+    # overwrites the .nimble file's version.
+    let version = parseVersionRange(minimalInfo.version)
+    if version.kind == verSpecial:
+      result.specialVersion = minimalInfo.version
 
   if not result.isMinimal:
     options.pkgInfoCache[nf] = result
