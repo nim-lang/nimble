@@ -1,4 +1,4 @@
-import ospaths
+import ospaths, distros
 template thisModuleFile: string = instantiationInfo(fullPaths = true).filename
 
 when fileExists(thisModuleFile.parentDir / "src/nimblepkg/common.nim"):
@@ -21,6 +21,11 @@ srcDir = "src"
 # Dependencies
 
 requires "nim >= 0.13.0", "compiler#head"
+
+if detectOs(Ubuntu):
+  foreignDep "libssl-dev"
+elif detectOs(MacOSX):
+  foreignDep "openssl"
 
 task test, "Run the Nimble tester!":
   withDir "tests":
