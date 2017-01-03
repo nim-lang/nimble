@@ -372,8 +372,10 @@ proc isNimScript*(nf: string, options: Options): bool =
   result = readPackageInfo(nf, options).isNimScript
 
 proc toFullInfo*(pkg: PackageInfo, options: Options): PackageInfo =
-  assert(pkg.isMinimal, "Redundant call?")
-  return getPkgInfoFromFile(pkg.mypath, options)
+  if pkg.isMinimal:
+    return getPkgInfoFromFile(pkg.mypath, options)
+  else:
+    return pkg
 
 when isMainModule:
   validatePackageName("foo_bar")

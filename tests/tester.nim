@@ -33,6 +33,7 @@ proc execNimble(args: varargs[string]): tuple[output: string, exitCode: int] =
   quotedArgs = quoted_args.map((x: string) => ("\"" & x & "\""))
 
   result = execCmdEx(quotedArgs.join(" "))
+  #echo(result.output)
 
 proc processOutput(output: string): seq[string] =
   output.strip.splitLines().filter((x: string) => (x.len > 0))
