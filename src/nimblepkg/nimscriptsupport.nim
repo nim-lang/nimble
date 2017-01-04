@@ -182,22 +182,6 @@ proc setupVM(module: PSym; scriptName: string,
     if not flags.isNil:
       flags[a.getString 0] = a.getString 1
 
-proc findNimscriptApi(options: Options): string =
-  ## Returns the directory containing ``nimscriptapi.nim`` or an empty string
-  ## if it cannot be found.
-  result = ""
-  # Try finding it in exe's path
-  if fileExists(getAppDir() / "nimblepkg" / "nimscriptapi.nim"):
-    result = getAppDir()
-
-  if result.len == 0:
-    let pkgs = getInstalledPkgsMin(options.getPkgsDir(), options)
-    var pkg: PackageInfo
-    if pkgs.findPkg(("nimble", newVRAny()), pkg):
-      let pkgDir = pkg.getRealDir()
-      if fileExists(pkgDir / "nimblepkg" / "nimscriptapi.nim"):
-        result = pkgDir
-
 proc getNimPrefixDir(): string = splitPath(findExe("nim")).head.parentDir
 
 when declared(ModuleGraph):
@@ -222,16 +206,12 @@ proc execScript(scriptName: string, flags: StringTableRef,
   let pkgName = scriptName.splitFile.name
 
   # Ensure that "nimblepkg/nimscriptapi" is in the PATH.
-  let nimscriptApiPath = findNimscriptApi(options)
-  if nimscriptApiPath.len > 0:
-    # TODO: Once better output is implemented show a message here.
-    appendStr(searchPaths, nimscriptApiPath)
-  else:
-    let tmpNimscriptApiPath = getTempDir() / "nimblepkg" / "nimscriptapi.nim"
-    createDir(tmpNimscriptApiPath.splitFile.dir)
-    if not existsFile(tmpNimscriptApiPath):
-      writeFile(tmpNimscriptApiPath, nimscriptApi)
-    appendStr(searchPaths, getTempDir())
+  # TODO: put this in a more isolated directory.
+  let tmpNimscriptApiPath = getTempDir() / "nimblepkg" / "nimscriptapi.nim"
+  createDir(tmpNimscriptApiPath.splitFile.dir)
+  if not existsFile(tmpNimscriptApiPath):
+    writeFile(tmpNimscriptApiPath, nimscriptApi)
+  appendStr(searchPaths, getTempDir())
 
   initDefines()
   loadConfigs(DefaultConfig)
