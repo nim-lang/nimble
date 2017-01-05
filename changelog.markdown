@@ -45,6 +45,7 @@ This is a large release containing multiple new features and many bug fixes.
 ----
 
 Full changelog: https://github.com/nim-lang/nimble/compare/v0.7.10...v0.8.0
+
 Full list of issues which have been closed: https://github.com/nim-lang/nimble/issues?utf8=%E2%9C%93&q=is%3Aissue+closed%3A%222016-10-09+..+2017-01-05%22+
 
 ## 0.7.10 - 09/10/2016
