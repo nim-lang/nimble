@@ -3,7 +3,7 @@
 
 # Nimble changelog
 
-## 0.8.0 - 01/01/2017
+## 0.8.0 - 05/01/2017
 
 This is a large release containing multiple new features and many bug fixes.
 
@@ -25,6 +25,10 @@ This is a large release containing multiple new features and many bug fixes.
   into ``~/.nimble/pkgs/compiler-#head``. This reduces the amount of redundant
   installs. See [#88](https://github.com/nim-lang/nimble/issues/88) for
   more information.
+* External dependencies can now be specified in .nimble files. Nimble doesn't
+  install these, but does instruct the user on how they can be installed.
+  More information about this feature can be found in the
+  [readme](https://github.com/nim-lang/nimble#external-dependencies).
 * Nimble now supports package aliases in the packages.json files.
 * Fixed regression that caused transitive dependencies to not be installed.
 * Fixed problem with ``install`` command when a ``src`` directory is present
@@ -41,7 +45,7 @@ This is a large release containing multiple new features and many bug fixes.
 ----
 
 Full changelog: https://github.com/nim-lang/nimble/compare/v0.7.10...v0.8.0
-Full list of issues which have been closed: https://github.com/nim-lang/nimble/issues?utf8=%E2%9C%93&q=is%3Aissue+closed%3A%222016-10-09+..+2017-01-01%22+
+Full list of issues which have been closed: https://github.com/nim-lang/nimble/issues?utf8=%E2%9C%93&q=is%3Aissue+closed%3A%222016-10-09+..+2017-01-05%22+
 
 ## 0.7.10 - 09/10/2016
 
