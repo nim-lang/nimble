@@ -42,6 +42,12 @@ proc inLines(lines: seq[string], line: string): bool =
   for i in lines:
     if line.normalize in i.normalize: return true
 
+test "picks #head when looking for packages":
+  cd "versionClashes" / "aporiaScenario":
+    check execNimble("install", "-y", "--verbose").exitCode == QuitSuccess
+    check execNimble("remove", "aporiascenario", "-y").exitCode == QuitSuccess
+    check execNimble("remove", "packagea", "-y").exitCode == QuitSuccess
+
 test "can distinguish package reading in nimbleDir vs. other dirs (#304)":
   cd "issue304" / "package-test":
     check execNimble("tasks").exitCode == QuitSuccess

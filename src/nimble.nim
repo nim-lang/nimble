@@ -227,7 +227,7 @@ proc processDeps(pkginfo: PackageInfo, options: Options): seq[string] =
           "dependencies for $1@$2" % [pkginfo.name, pkginfo.specialVersion],
           priority = HighPriority)
 
-  let pkglist = getInstalledPkgsMin(options.getPkgsDir(), options)
+  var pkgList = getInstalledPkgsMin(options.getPkgsDir(), options)
   var reverseDeps: seq[tuple[name, version: string]] = @[]
   for dep in pkginfo.requires:
     if dep.name == "nimrod" or dep.name == "nim":
@@ -255,6 +255,9 @@ proc processDeps(pkginfo: PackageInfo, options: Options): seq[string] =
         result.add(paths)
 
         pkg = installedPkg # For addRevDep
+
+        # This package has been installed so we add it to our pkgList.
+        pkgList.add((pkg, readMetaData(pkg.getRealDir())))
       else:
         display("Info:", "Dependency on $1 already satisfied" % $dep,
                 priority = HighPriority)
@@ -441,9 +444,10 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
     filesInstalled.incl copyFileD(file, dest)
 
   # Copy the .nimble file.
-  let dest = changeRoot(pkgInfo.mypath.splitFile.dir, pkgDestDir,
-                        pkgInfo.mypath)
-  filesInstalled.incl copyFileD(pkgInfo.mypath, dest)
+  let dest = changeRoot(pkgInfo.myPath.splitFile.dir, pkgDestDir,
+                        pkgInfo.myPath)
+  filesInstalled.incl copyFileD(pkgInfo.myPath, dest)
+  pkgInfo.myPath = dest
 
   var binariesInstalled = initSet[string]()
   if pkgInfo.bin.len > 0:
@@ -518,6 +522,7 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
   # Return the paths to the dependencies of this package.
   result.paths.add pkgDestDir
   result.pkg = pkgInfo
+  result.pkg.isInstalled = true
 
   display("Success:", pkgInfo.name & " installed successfully.",
           Success, HighPriority)

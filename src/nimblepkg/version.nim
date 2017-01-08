@@ -51,7 +51,8 @@ proc isSpecial*(ver: Version): bool =
 proc `<`*(ver: Version, ver2: Version): bool =
   # Handling for special versions such as "#head" or "#branch".
   if ver.isSpecial or ver2.isSpecial:
-    return false
+    # TODO: This may need to be reverted. See #311.
+    return ($ver2).normalize == "#head" and ($ver).normalize != "#head"
 
   # Handling for normal versions such as "0.1.0" or "1.0".
   var sVer = string(ver).split('.')
@@ -103,32 +104,23 @@ proc `==`*(range1: VersionRange, range2: VersionRange): bool =
   of verAny: true
 
 proc withinRange*(ver: Version, ran: VersionRange): bool =
-  if ver.isSpecial:
-    case ran.kind
-    of verLater, verEarlier, verEqLater, verEqEarlier, verEq, verIntersect:
-      return false
-    of verSpecial:
-      return ver == ran.spe
-    of verAny:
-      return true
-  else:
-    case ran.kind
-    of verLater:
-      return ver > ran.ver
-    of verEarlier:
-      return ver < ran.ver
-    of verEqLater:
-      return ver >= ran.ver
-    of verEqEarlier:
-      return ver <= ran.ver
-    of verEq:
-      return ver == ran.ver
-    of verSpecial:
-      return false
-    of verIntersect:
-      return withinRange(ver, ran.verILeft) and withinRange(ver, ran.verIRight)
-    of verAny:
-      return true
+  case ran.kind
+  of verLater:
+    return ver > ran.ver
+  of verEarlier:
+    return ver < ran.ver
+  of verEqLater:
+    return ver >= ran.ver
+  of verEqEarlier:
+    return ver <= ran.ver
+  of verEq:
+    return ver == ran.ver
+  of verSpecial:
+    return ver == ran.spe
+  of verIntersect:
+    return withinRange(ver, ran.verILeft) and withinRange(ver, ran.verIRight)
+  of verAny:
+    return true
 
 proc contains*(ran: VersionRange, ver: Version): bool =
   return withinRange(ver, ran)
@@ -342,9 +334,10 @@ when isMainModule:
 
   doAssert newVersion("#head") in parseVersionRange("#head")
 
-  # TODO: It may be worth changing this in the future, although we can't be
-  # certain that #head is in fact newer than v0.1.0.
-  doAssert(not(newVersion("#head") > newVersion("0.1.0")))
+  # We assume that #head > 0.1.0, in practice this shouldn't be a problem.
+  doAssert(newVersion("#head") > newVersion("0.1.0"))
+  doAssert(not(newVersion("#head") > newVersion("#head")))
+  doAssert(withinRange(newVersion("#head"), parseVersionRange(">= 0.5.0")))
 
   # An empty version range should give verAny
   doAssert parseVersionRange("").kind == verAny
