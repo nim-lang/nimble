@@ -3,6 +3,11 @@
 
 # Nimble changelog
 
+## 0.8.2 - 08/01/2017
+
+This is a small bug fix release which resolves problems with the installation
+of Aporia (and likely other Nimble packages).
+
 ## 0.8.0 - 05/01/2017
 
 This is a large release containing multiple new features and many bug fixes.
