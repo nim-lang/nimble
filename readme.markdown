@@ -76,12 +76,12 @@ But in case you still want to install Nimble manually, you can follow the
 following instructions.
 
 There are two ways to install Nimble manually. The first is using the
-``install_nimble.nims`` script included in the Nim distribution and
-[repository](https://github.com/nim-lang/Nim/blob/devel/install_nimble.nims).
-Simply execute this to install Nimble.
+``koch`` tool included in the Nim distribution and
+[repository](https://github.com/nim-lang/Nim/blob/devel/koch.nim).
+Simply execute the following command to compile and install Nimble.
 
 ```
-nim e install_nimble.nims
+./koch nimble
 ```
 
 This will clone the Nimble repository, compile Nimble and copy it into
@@ -764,6 +764,10 @@ Make sure that nimble is configured to run with SSL, adding a ```-d:ssl```
 flag to the file ```src/nimble.nim.cfg```.
 After that, you can run ```src/nimble install``` and overwrite the existing
 installation.
+
+* ``Error: ambiguous identifier: 'version' --use nimscriptapi.version or system.version``
+
+Make sure that you are running at least version 0.16.0 of Nim (or the latest nightly).
 
 ## Repository information
 
