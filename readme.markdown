@@ -441,6 +441,10 @@ resembles that of many other package managers.
 | ``./tests/``  | Project test files                     |
 | ``./docs/``   | Project documentation                  |
 
+**Note:** Nimble will by default look for source files in ``.``, in order to
+use this layout you will need to specify ``srcDir = "src"`` in your .nimble
+file.
+
 #### Tests
 
 A common problem that arises with tests is the fact that they need to import
