@@ -50,4 +50,4 @@ when not defined(nimscript):
     raise exc
 
 const
-  nimbleVersion* = "0.8.2"
+  nimbleVersion* = "0.8.3"
