@@ -209,8 +209,7 @@ proc execScript(scriptName: string, flags: StringTableRef,
   # TODO: put this in a more isolated directory.
   let tmpNimscriptApiPath = getTempDir() / "nimblepkg" / "nimscriptapi.nim"
   createDir(tmpNimscriptApiPath.splitFile.dir)
-  if not existsFile(tmpNimscriptApiPath):
-    writeFile(tmpNimscriptApiPath, nimscriptApi)
+  writeFile(tmpNimscriptApiPath, nimscriptApi)
   appendStr(searchPaths, getTempDir())
 
   initDefines()
