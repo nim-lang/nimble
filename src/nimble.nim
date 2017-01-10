@@ -447,7 +447,6 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
   let dest = changeRoot(pkgInfo.myPath.splitFile.dir, pkgDestDir,
                         pkgInfo.myPath)
   filesInstalled.incl copyFileD(pkgInfo.myPath, dest)
-  pkgInfo.myPath = dest
 
   var binariesInstalled = initSet[string]()
   if pkgInfo.bin.len > 0:
@@ -523,6 +522,7 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
   result.paths.add pkgDestDir
   result.pkg = pkgInfo
   result.pkg.isInstalled = true
+  result.pkg.myPath = dest
 
   display("Success:", pkgInfo.name & " installed successfully.",
           Success, HighPriority)
