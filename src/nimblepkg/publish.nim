@@ -122,7 +122,7 @@ proc editJson(p: PackageInfo; url, tags, downloadMethod: string) =
 proc getPackageOriginUrl(a: Auth): string =
   ## Adds 'user:pw' to the URL so that the user is not asked *again* for it.
   ## We need this for 'git push'.
-  let (output, exitCode) = doCmdEx("git config --get remote.origin.url")
+  let (output, exitCode) = doCmdEx("git ls-remote --get-url")
   result = "origin"
   if exitCode == 0:
     result = output.string.strip
