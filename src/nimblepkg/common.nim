@@ -49,5 +49,17 @@ when not defined(nimscript):
     exc.hint = hint
     raise exc
 
+  proc getOutputInfo*(err: ref NimbleError): (string, string) =
+    var error = ""
+    var hint = ""
+    error = err.msg
+    when not defined(release):
+      let stackTrace = getStackTrace(err)
+      error = stackTrace & "\n\n" & error
+    if not err.isNil:
+      hint = err.hint
+
+    return (error, hint)
+
 const
   nimbleVersion* = "0.8.3"

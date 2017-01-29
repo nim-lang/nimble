@@ -309,8 +309,13 @@ proc buildFromDir(pkgInfo: PackageInfo, paths: seq[string], forRelease: bool) =
             [pkgInfo.backend, releaseOpt, args, outputOpt,
              realDir / bin.changeFileExt("nim")])
     except NimbleError:
-      raise newException(BuildFailed, "Build failed for package: " &
-                         pkgInfo.name)
+      let currentExc = (ref NimbleError)(getCurrentException())
+      let exc = newException(BuildFailed, "Build failed for package: " &
+                             pkgInfo.name)
+      let (error, hint) = getOutputInfo(currentExc)
+      exc.msg.add("\nDetails:\n" & error)
+      exc.hint = hint
+      raise exc
 
 proc saveNimbleMeta(pkgDestDir, url, vcsRevision: string,
                     filesInstalled, bins: HashSet[string]) =
@@ -1072,13 +1077,8 @@ when isMainModule:
   try:
     parseCmdLine().doAction()
   except NimbleError:
-    let err = (ref NimbleError)(getCurrentException())
-    error = err.msg
-    when not defined(release):
-      let stackTrace = getStackTrace(getCurrentException())
-      error = stackTrace & "\n\n" & error
-    if not err.isNil:
-      hint = err.hint
+    let currentExc = (ref NimbleError)(getCurrentException())
+    (error, hint) = getOutputInfo(currentExc)
   except NimbleQuit:
     nil
   finally:
