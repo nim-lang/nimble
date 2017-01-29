@@ -3,6 +3,16 @@
 
 # Nimble changelog
 
+## 0.8.4 - 29/01/2017
+
+Another bug fix release which resolves problems related to stale nimscriptapi
+files in /tmp/, no compilation output when ``nimble build`` fails, and issues
+with the new package validation on Windows.
+
+----
+
+Full changelog: https://github.com/nim-lang/nimble/compare/v0.8.2...v0.8.4
+
 ## 0.8.2 - 08/01/2017
 
 This is a small bug fix release which resolves problems with the installation
