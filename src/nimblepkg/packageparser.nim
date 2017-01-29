@@ -1,13 +1,13 @@
 # Copyright (C) Dominik Picheta. All rights reserved.
 # BSD License. Look at license.txt for more info.
-import parsecfg, json, streams, strutils, parseutils, os, tables
+import parsecfg, json, streams, strutils, parseutils, os, tables, future
+from sequtils import apply, map
+
 import version, tools, common, nimscriptsupport, options, packageinfo, cli
 
 ## Contains procedures for parsing .nimble files. Moved here from ``packageinfo``
 ## because it depends on ``nimscriptsupport`` (``nimscriptsupport`` also
 ## depends on other procedures in ``packageinfo``.
-
-from sequtils import apply
 
 type
   NimbleFile* = string
@@ -96,8 +96,12 @@ proc validatePackageStructure(pkgInfo: PackageInfo, options: Options) =
         raiseNewValidationError(msg, true, hint, true)
     else:
       assert(not pkgInfo.isMinimal)
+      # On Windows `pkgInfo.bin` has a .exe extension, so we need to normalize.
+      let normalizedBinNames = pkgInfo.bin.map(
+        (x) => x.changeFileExt("").toLowerAscii()
+      )
       let correctDir =
-        if pkgInfo.name in pkgInfo.bin:
+        if pkgInfo.name.toLowerAscii() in normalizedBinNames:
           pkgInfo.name & "pkg"
         else:
           pkgInfo.name
