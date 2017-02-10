@@ -21,6 +21,11 @@ task cr, "Testing `nimble c -r nimscript.nim` via setCommand":
   --r
   setCommand "c", "nimscript.nim"
 
+task repeated, "Testing `nimble c nimscript.nim` with repeated flags":
+  --define: foo
+  --define: bar
+  setCommand "c", "nimscript.nim"
+
 task api, "Testing nimscriptapi module functionality":
   echo(getPkgDir())
 
