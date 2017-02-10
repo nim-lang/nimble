@@ -1063,8 +1063,9 @@ proc doAction(options: Options) =
       parseCommand(execResult.command, newOptions)
       for arg in execResult.arguments:
         parseArgument(arg, newOptions)
-      for flag, val in execResult.flags:
-        parseFlag(flag, val, newOptions)
+      for flag, vals in execResult.flags:
+        for val in vals:
+          parseFlag(flag, val, newOptions)
       doAction(newOptions)
 
   if options.action.typ != actionCustom:

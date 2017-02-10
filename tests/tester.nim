@@ -192,6 +192,17 @@ test "can use nimscript's setCommand with flags":
     check exitCode == QuitSuccess
     check "Hello World".normalize in lines[^2].normalize
 
+test "can use nimscript with repeated flags (issue #329)":
+  cd "nimscript":
+    let (output, exitCode) = execNimble("--debug", "repeated")
+    let lines = output.strip.splitLines()
+    check exitCode == QuitSuccess
+    var found = false
+    for line in lines:
+      if line.contains("--define:foo"):
+        found = true
+    check found == true
+
 test "can list nimscript tasks":
   cd "nimscript":
     let (output, exitCode) = execNimble("tasks")

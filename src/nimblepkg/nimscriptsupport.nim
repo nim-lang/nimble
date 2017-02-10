@@ -16,17 +16,18 @@ from compiler/astalgo import strTableGet
 import compiler/options as compiler_options
 
 import common, version, options, packageinfo, cli
-import os, strutils, strtabs, times, osproc, sets
+import os, strutils, strtabs, tables, times, osproc, sets
 
 when not declared(resetAllModulesHard):
   import compiler/modulegraphs
 
 type
+  Flags = TableRef[string, seq[string]]
   ExecutionResult*[T] = object
     success*: bool
     command*: string
     arguments*: seq[string]
-    flags*: StringTableRef
+    flags*: Flags
     retVal*: T
 
 const
@@ -74,8 +75,7 @@ proc extractRequires(ident: PSym, result: var seq[PkgTuple]) =
 when declared(newIdentCache):
   var identCache = newIdentCache()
 
-proc setupVM(module: PSym; scriptName: string,
-    flags: StringTableRef): PEvalContext =
+proc setupVM(module: PSym; scriptName: string, flags: Flags): PEvalContext =
   ## This procedure is exported in the compiler sources, but its implementation
   ## is too Nim-specific to be used by Nimble.
   ## Specifically, the implementation of ``switch`` is problematic. Sooo
@@ -180,15 +180,20 @@ proc setupVM(module: PSym; scriptName: string,
     setResult(a, compiler_options.command)
   cbconf switch:
     if not flags.isNil:
-      flags[a.getString 0] = a.getString 1
+      let
+        key = a.getString 0
+        value = a.getString 1
+      if flags.hasKey(key):
+        flags[key].add(value)
+      else:
+        flags[key] = @[value]
 
 proc getNimPrefixDir(): string = splitPath(findExe("nim")).head.parentDir
 
 when declared(ModuleGraph):
   var graph: ModuleGraph
 
-proc execScript(scriptName: string, flags: StringTableRef,
-                options: Options): PSym =
+proc execScript(scriptName: string, flags: Flags, options: Options): PSym =
   ## Executes the specified script. Returns the script's module symbol.
   ##
   ## No clean up is performed and must be done manually!
@@ -364,7 +369,7 @@ proc execTask*(scriptName, taskName: string,
   ##
   ## `scriptName` should be a filename pointing to the nimscript file.
   result.success = true
-  result.flags = newStringTable()
+  result.flags = newTable[string, seq[string]]()
   compiler_options.command = internalCmd
   display("Executing",  "task $# in $#" % [taskName, scriptName],
           priority = HighPriority)
@@ -392,7 +397,7 @@ proc execHook*(scriptName, actionName: string, before: bool,
   ##
   ## `scriptName` should be a filename pointing to the nimscript file.
   result.success = true
-  result.flags = newStringTable()
+  result.flags = newTable[string, seq[string]]()
   compiler_options.command = internalCmd
   let hookName =
     if before: actionName.toLowerAscii & "Before"
