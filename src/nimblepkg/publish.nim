@@ -6,13 +6,16 @@
 
 import system except TResult
 import httpclient, base64, strutils, rdstdin, json, os, browsers, times, uri
-import tools, common, cli
+import tools, common, cli, config, options
 
 type
   Auth = object
     user: string
     pw: string
     token: string  ## base64 encoding of user:pw
+
+const
+  ApiKeyFile = "api_token"
 
 proc userAborted() =
   raise newException(NimbleError, "User aborted the process.")
@@ -22,18 +25,24 @@ proc createHeaders(a: Auth): string =
           "Content-Type: application/x-www-form-urlencoded\c\L" &
           "Accept: */*\c\L")
 
-proc getGithubAuth(): Auth =
-  display("Info:", "Please create a new personal access token on Github in" &
-         " order to allow Nimble to fork the packages repository.",
-         priority = HighPriority)
-  display("Hint:", "Make sure to give the access token access to public repos" &
-          " (public_repo scope)!", Warning, HighPriority)
-  sleep(5000)
-  display("Info:", "Your default browser should open with the following URL: " &
-          "https://github.com/settings/tokens/new", priority = HighPriority)
-  sleep(3000)
-  openDefaultBrowser("https://github.com/settings/tokens/new")
-  result.token = promptCustom("Personal access token?", "").strip()
+proc getGithubAuth(cfg: Config): Auth =
+
+  try:
+    result.token = readFile(cfg.nimbleDir / ApiKeyFile)
+  except IOError:
+    display("Info:", "Please create a new personal access token on Github in" &
+           " order to allow Nimble to fork the packages repository.",
+           priority = HighPriority)
+    display("Hint:", "Make sure to give the access token access to public repos" &
+            " (public_repo scope)!", Warning, HighPriority)
+    sleep(5000)
+    display("Info:", "Your default browser should open with the following URL: " &
+            "https://github.com/settings/tokens/new", priority = HighPriority)
+    sleep(3000)
+    openDefaultBrowser("https://github.com/settings/tokens/new")
+    result.token = promptCustom("Personal access token?", "").strip()
+    writeFile(cfg.nimbleDir / ApiKeyFile, result.token)
+
   let resp = getContent("https://api.github.com/user",
         extraHeaders=createHeaders(result)).parseJson()
 
@@ -131,9 +140,9 @@ proc getPackageOriginUrl(a: Auth): string =
       result = "https://" & a.user & ':' & a.pw & '@' &
           result["https://".len .. ^1]
 
-proc publish*(p: PackageInfo) =
+proc publish*(p: PackageInfo, o: Options) =
   ## Publishes the package p.
-  let auth = getGithubAuth()
+  let auth = getGithubAuth(o.config)
   var pkgsDir = getTempDir() / "nimble-packages-fork"
   if not forkExists(auth):
     createFork(auth)
