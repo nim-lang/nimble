@@ -15,7 +15,7 @@ type
     token: string  ## base64 encoding of user:pw
 
 const
-  ApiKeyFile = "api_token"
+  ApiKeyFile = "github_api_token"
 
 proc userAborted() =
   raise newException(NimbleError, "User aborted the process.")
