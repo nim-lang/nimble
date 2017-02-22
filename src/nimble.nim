@@ -1028,7 +1028,7 @@ proc doAction(options: Options) =
     init(options)
   of actionPublish:
     var pkgInfo = getPkgInfo(getCurrentDir(), options)
-    publish(pkgInfo)
+    publish(pkgInfo, options)
   of actionDump:
     dump(options)
   of actionTasks:
