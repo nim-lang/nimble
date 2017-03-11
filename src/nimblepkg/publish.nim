@@ -43,6 +43,7 @@ proc requestNewToken(cfg: Config): string =
   display("Info:", "Writing access token to file:" & token_write_path, 
           priority = HighPriority)
   writeFile(token_write_path, token)
+  sleep(3000)
   return token
 
 proc getGithubAuth(cfg: Config): Auth =
