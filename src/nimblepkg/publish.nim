@@ -16,6 +16,7 @@ type
 
 const
   ApiKeyFile = "github_api_token"
+  ApiTokenEnvironmentVariable = "NIMBLE_GITHUB_API_TOKEN"
 
 proc userAborted() =
   raise newException(NimbleError, "User aborted the process.")
@@ -25,23 +26,36 @@ proc createHeaders(a: Auth): string =
           "Content-Type: application/x-www-form-urlencoded\c\L" &
           "Accept: */*\c\L")
 
+proc requestNewToken(cfg: Config): string =
+  display("Info:", "Please create a new personal access token on Github in" &
+          " order to allow Nimble to fork the packages repository.",
+          priority = HighPriority)
+  display("Hint:", "Make sure to give the access token access to public repos" &
+          " (public_repo scope)!", Warning, HighPriority)
+  sleep(5000)
+  display("Info:", "Your default browser should open with the following URL: " &
+          "https://github.com/settings/tokens/new", priority = HighPriority)
+  sleep(3000)
+  openDefaultBrowser("https://github.com/settings/tokens/new")
+  let token = promptCustom("Personal access token?", "").strip()
+  # inform the user that their token will be written to disk
+  let token_write_path = cfg.nimbleDir / ApiKeyFile
+  display("Info:", "Writing access token to file:" & token_write_path, 
+          priority = HighPriority)
+  writeFile(token_write_path, token)
+  return token
+
 proc getGithubAuth(cfg: Config): Auth =
 
-  try:
-    result.token = readFile(cfg.nimbleDir / ApiKeyFile)
-  except IOError:
-    display("Info:", "Please create a new personal access token on Github in" &
-           " order to allow Nimble to fork the packages repository.",
-           priority = HighPriority)
-    display("Hint:", "Make sure to give the access token access to public repos" &
-            " (public_repo scope)!", Warning, HighPriority)
-    sleep(5000)
-    display("Info:", "Your default browser should open with the following URL: " &
-            "https://github.com/settings/tokens/new", priority = HighPriority)
-    sleep(3000)
-    openDefaultBrowser("https://github.com/settings/tokens/new")
-    result.token = promptCustom("Personal access token?", "").strip()
-    writeFile(cfg.nimbleDir / ApiKeyFile, result.token)
+  # always prefer the environment variable to asking for a new one
+  if existsEnv(ApiTokenEnvironmentVariable):
+    result.token = getEnv(ApiTokenEnvironmentVariable)
+  else:
+    # try to read from disk, if it cannot be found write a new one
+    try:
+      result.token = readFile(cfg.nimbleDir / ApiKeyFile)
+    except IOError:
+      result.token = requestNewToken(cfg)
 
   let resp = getContent("https://api.github.com/user",
         extraHeaders=createHeaders(result)).parseJson()
