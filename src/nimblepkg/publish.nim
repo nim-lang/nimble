@@ -39,10 +39,10 @@ proc requestNewToken(cfg: Config): string =
   openDefaultBrowser("https://github.com/settings/tokens/new")
   let token = promptCustom("Personal access token?", "").strip()
   # inform the user that their token will be written to disk
-  let token_write_path = cfg.nimbleDir / ApiKeyFile
-  display("Info:", "Writing access token to file:" & token_write_path, 
+  let tokenWritePath = cfg.nimbleDir / ApiKeyFile
+  display("Info:", "Writing access token to file:" & tokenWritePath, 
           priority = HighPriority)
-  writeFile(token_write_path, token)
+  writeFile(tokenWritePath, token)
   sleep(3000)
   return token
 
@@ -57,9 +57,9 @@ proc getGithubAuth(cfg: Config): Auth =
   else:
     # try to read from disk, if it cannot be found write a new one
     try:
-      let api_token_file_path = cfg.nimbleDir / ApiKeyFile
-      result.token = readFile(api_token_file_path)
-      display("Info:", "Using GitHub API Token in file: " & api_token_file_path,
+      let apiTokenFilePath = cfg.nimbleDir / ApiKeyFile
+      result.token = readFile(apiTokenFilePath)
+      display("Info:", "Using GitHub API Token in file: " & apiTokenFilePath,
               priority = HighPriority)
     except IOError:
       result.token = requestNewToken(cfg)
