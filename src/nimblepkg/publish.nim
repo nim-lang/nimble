@@ -51,6 +51,9 @@ proc getGithubAuth(cfg: Config): Auth =
   # always prefer the environment variable to asking for a new one
   if existsEnv(ApiTokenEnvironmentVariable):
     result.token = getEnv(ApiTokenEnvironmentVariable)
+    display("Info:", "Using the '" & ApiTokenEnvironmentVariable & 
+            "' environment varaible for the GitHub API Token.",
+            priority = HighPriority)
   else:
     # try to read from disk, if it cannot be found write a new one
     try:
