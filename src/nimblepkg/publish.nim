@@ -52,12 +52,15 @@ proc getGithubAuth(cfg: Config): Auth =
   if existsEnv(ApiTokenEnvironmentVariable):
     result.token = getEnv(ApiTokenEnvironmentVariable)
     display("Info:", "Using the '" & ApiTokenEnvironmentVariable & 
-            "' environment varaible for the GitHub API Token.",
+            "' environment variable for the GitHub API Token.",
             priority = HighPriority)
   else:
     # try to read from disk, if it cannot be found write a new one
     try:
-      result.token = readFile(cfg.nimbleDir / ApiKeyFile)
+      let api_token_file_path = cfg.nimbleDir / ApiKeyFile
+      result.token = readFile(api_token_file_path)
+      display("Info:", "Using GitHub API Token in file: " & api_token_file_path,
+              priority = HighPriority)
     except IOError:
       result.token = requestNewToken(cfg)
 
