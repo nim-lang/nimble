@@ -21,18 +21,22 @@ proc doCmd*(cmd: string, showOutput = false) =
   stderr.flushFile()
 
   displayDebug("Executing", cmd)
-  let (output, exitCode) = execCmdEx(cmd)
-  displayDebug("Finished", "with exit code " & $exitCode)
-  # TODO: Improve to show output in real-time.
   if showOutput:
-    display("Output:", output, priority = HighPriority)
+    let exitCode = execCmd(cmd)
+    displayDebug("Finished", "with exit code " & $exitCode)
+    if exitCode != QuitSuccess:
+      raise newException(NimbleError,
+          "Execution failed with exit code $1\nCommand: $2" %
+          [$exitCode, cmd])
   else:
+    let (output, exitCode) = execCmdEx(cmd)
+    displayDebug("Finished", "with exit code " & $exitCode)
     displayDebug("Output", output)
 
-  if exitCode != QuitSuccess:
-    raise newException(NimbleError,
-        "Execution failed with exit code $1\nCommand: $2\nOutput: $3" %
-        [$exitCode, cmd, output])
+    if exitCode != QuitSuccess:
+      raise newException(NimbleError,
+          "Execution failed with exit code $1\nCommand: $2\nOutput: $3" %
+          [$exitCode, cmd, output])
 
 proc doCmdEx*(cmd: string): tuple[output: TaintedString, exitCode: int] =
   let bin = extractBin(cmd)
