@@ -235,11 +235,12 @@ proc parseArgument*(key: string, result: var Options) =
   else:
     discard
 
-proc parseFlag*(flag, val: string, result: var Options) =
+proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
   var wasFlagHandled = true
+  let f = flag.normalize()
 
   # Global flags.
-  case flag.normalize()
+  case f
   of "help", "h": writeHelp()
   of "version", "v": writeVersion()
   of "accept", "y": result.forcePrompts = forcePromptYes
@@ -248,28 +249,28 @@ proc parseFlag*(flag, val: string, result: var Options) =
   of "verbose": result.verbosity = LowPriority
   of "debug": result.verbosity = DebugPriority
   # Action-specific flags.
-  of "installed", "i":
-    if result.action.typ in [actionSearch, actionList]:
-      result.queryInstalled = true
-    else:
-      wasFlagHandled = false
-  of "depsonly", "d":
-    if result.action.typ == actionInstall:
-      result.depsOnly = true
-    else:
-      wasFlagHandled = false
-  of "ver":
-    if result.action.typ in [actionSearch, actionList]:
-      result.queryVersions = true
-    else:
-      wasFlagHandled = false
   else:
     case result.action.typ
-    of actionCompile, actionDoc:
-      if val == "":
-        result.action.compileOptions.add("--" & flag)
+    of actionSearch, actionList:
+      case f
+      of "installed", "i":
+        result.queryInstalled = true
+      of "ver":
+        result.queryVersions = true
       else:
-        result.action.compileOptions.add("--" & flag & ":" & val)
+        wasFlagHandled = false
+    of actionInstall:
+      case f
+      of "depsonly", "d":
+        result.depsOnly = true
+      else:
+        wasFlagHandled = false
+    of actionCompile, actionDoc:
+      let prefix = if kind == cmdShortOption: "-" else: "--"
+      if val == "":
+        result.action.compileOptions.add(prefix & flag)
+      else:
+        result.action.compileOptions.add(prefix & flag & ":" & val)
     of actionCustom:
       result.action.flags[flag] = val
     else:
@@ -310,7 +311,7 @@ proc parseCmdLine*(): Options =
       else:
         parseArgument(key, result)
     of cmdLongOption, cmdShortOption:
-      parseFlag(key, val, result)
+      parseFlag(key, val, result, kind)
     of cmdEnd: assert(false) # cannot happen
 
   # Set verbosity level.
