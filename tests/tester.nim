@@ -188,9 +188,9 @@ test "can use nimscript's setCommand":
 test "can use nimscript's setCommand with flags":
   cd "nimscript":
     let (output, exitCode) = execNimble("--debug", "cr")
-    # let lines = output.strip.splitLines()
+    let lines = output.strip.splitLines()
     check exitCode == QuitSuccess
-    # check "Hello World".normalize in lines[^2].normalize
+    check inLines(lines, "Hello World")
 
 test "can use nimscript with repeated flags (issue #329)":
   cd "nimscript":
