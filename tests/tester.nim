@@ -286,6 +286,10 @@ test "issue #206":
     (output, exitCode) = execNimble("install", "-y")
     check exitCode == QuitSuccess
 
+test "issue #338":
+  cd "issue338":
+    check execNimble("install", "-y").exitCode == QuitSuccess
+
 test "can list":
   check execNimble("list").exitCode == QuitSuccess
 
