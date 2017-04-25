@@ -79,7 +79,14 @@ proc changeRoot*(origRoot, newRoot, path: string): string =
   ## newRoot:  /home/test/
   ## path:     /home/dom/bar/blah/2/foo.txt
   ## Return value -> /home/test/bar/blah/2/foo.txt
-  if path.startsWith(origRoot):
+
+  ## The additional check of `path.samePaths(origRoot)` is necessary to prevent 
+  ## a regression, where by ending the `srcDir` defintion in a nimble file in a 
+  ## trailing separator would cause the `path.startsWith(origRoot)` evaluation to
+  ## fail because of the value of `origRoot` would be longer than `path` due to 
+  ## the trailing separator. This would cause this method to throw during package
+  ## installation.
+  if path.startsWith(origRoot) or path.samePaths(origRoot):
     return newRoot / path[origRoot.len .. path.len-1]
   else:
     raise newException(ValueError,
