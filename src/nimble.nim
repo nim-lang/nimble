@@ -285,15 +285,15 @@ proc processDeps(pkginfo: PackageInfo, options: Options): seq[string] =
   for i in reverseDeps:
     addRevDep(options, i, pkginfo)
 
-proc buildFromDir(pkgInfo: PackageInfo, paths: seq[string], forRelease: bool) =
+proc buildFromDir(pkgInfo: PackageInfo, paths: seq[string], args: var string) =
   ## Builds a package as specified by ``pkgInfo``.
   if pkgInfo.bin.len == 0:
     raise newException(NimbleError,
         "Nothing to build. Did you specify a module to build using the" &
         " `bin` key in your .nimble file?")
   let realDir = pkgInfo.getRealDir()
-  let releaseOpt = if forRelease: "-d:release" else: ""
-  var args = ""
+  let releaseOpt = if "-d:release" in args or "--define:release" in args:
+    "-d:release" else: ""
   for path in paths: args.add("--path:\"" & path & "\" ")
   for bin in pkgInfo.bin:
     let outputOpt = "-o:\"" & pkgInfo.getOutputDir(bin) & "\""
@@ -316,6 +316,10 @@ proc buildFromDir(pkgInfo: PackageInfo, paths: seq[string], forRelease: bool) =
       exc.msg.add("\nDetails:\n" & error)
       exc.hint = hint
       raise exc
+
+proc buildFromDir(pkgInfo: PackageInfo, paths: seq[string], forRelease: bool) =
+  var args = if forRelease: "-d:release" else: ""
+  buildFromDir(pkgInfo, paths, args)
 
 proc saveNimbleMeta(pkgDestDir, url, vcsRevision: string,
                     filesInstalled, bins: HashSet[string]) =
@@ -635,7 +639,8 @@ proc build(options: Options) =
   var pkgInfo = getPkgInfo(getCurrentDir(), options)
   nimScriptHint(pkgInfo)
   let paths = processDeps(pkginfo, options)
-  buildFromDir(pkgInfo, paths, false)
+  var args = join(options.action.compileOptions, " ") & " "
+  buildFromDir(pkgInfo, paths, args)
 
 proc execBackend(options: Options) =
   let bin = options.action.file
