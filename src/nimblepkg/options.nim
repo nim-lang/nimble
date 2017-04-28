@@ -18,6 +18,8 @@ type
     config*: Config
     nimbleData*: JsonNode ## Nimbledata.json
     pkgInfoCache*: TableRef[string, PackageInfo]
+    showHelp*: bool
+    showVersion*: bool
 
   ActionType* = enum
     actionNil, actionRefresh, actionInit, actionDump, actionPublish,
@@ -44,7 +46,6 @@ type
       command*: string
       arguments*: seq[string]
       flags*: StringTableRef
-
 
 const
   help* = """
@@ -88,7 +89,7 @@ Options:
   -n, --reject                    Reject all interactive prompts.
       --ver                       Query remote server for package version
                                   information when searching or listing packages
-      --nimbleDir dirname         Set the Nimble directory.
+      --nimbleDir:dirname         Set the Nimble directory.
       --verbose                   Show all non-debug output.
       --debug                     Show all output including debug messages.
 
@@ -101,7 +102,7 @@ proc writeHelp*(quit=true) =
   if quit:
     raise NimbleQuit(msg: "")
 
-proc writeVersion() =
+proc writeVersion*() =
   echo("nimble v$# compiled at $# $#" %
       [nimbleVersion, CompileDate, CompileTime])
   raise NimbleQuit(msg: "")
@@ -229,7 +230,7 @@ proc parseArgument*(key: string, result: var Options) =
   of actionCompile, actionDoc:
     result.action.file = key
   of actionList, actionBuild, actionPublish:
-    writeHelp()
+    result.showHelp = true
   of actionCustom:
     result.action.arguments.add(key)
   else:
@@ -241,8 +242,8 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
 
   # Global flags.
   case f
-  of "help", "h": writeHelp()
-  of "version", "v": writeVersion()
+  of "help", "h": result.showHelp = true
+  of "version", "v": result.showVersion = true
   of "accept", "y": result.forcePrompts = forcePromptYes
   of "reject", "n": result.forcePrompts = forcePromptNo
   of "nimbledir": result.nimbleDir = val
@@ -323,8 +324,8 @@ proc parseCmdLine*(): Options =
   # Parse other things, for example the nimbledata.json file.
   parseMisc(result)
 
-  if result.action.typ == actionNil:
-    writeHelp()
+  if result.action.typ == actionNil and not result.showVersion:
+    result.showHelp = true
 
 proc getProxy*(options: Options): Proxy =
   ## Returns ``nil`` if no proxy is specified.

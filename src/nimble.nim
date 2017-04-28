@@ -988,6 +988,11 @@ proc execHook(options: Options, before: bool): bool =
       result = res.retVal
 
 proc doAction(options: Options) =
+  if options.showHelp:
+    writeHelp()
+  if options.showVersion:
+    writeVersion()
+
   if not existsDir(options.getNimbleDir()):
     createDir(options.getNimbleDir())
   if not existsDir(options.getPkgsDir):
