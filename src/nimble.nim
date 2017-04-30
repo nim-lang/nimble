@@ -294,7 +294,7 @@ proc buildFromDir(pkgInfo: PackageInfo, paths: seq[string], args: var string) =
   let realDir = pkgInfo.getRealDir()
   let releaseOpt = if "-d:release" in args or "--define:release" in args:
     "-d:release" else: ""
-  for path in paths: args.add("--path:\"" & path & "\" ")
+  for path in paths: args.add(" --path:\"" & path & "\" ")
   for bin in pkgInfo.bin:
     let outputOpt = "-o:\"" & pkgInfo.getOutputDir(bin) & "\""
     display("Building", "$1/$2 using $3 backend" %
@@ -639,7 +639,7 @@ proc build(options: Options) =
   var pkgInfo = getPkgInfo(getCurrentDir(), options)
   nimScriptHint(pkgInfo)
   let paths = processDeps(pkginfo, options)
-  var args = join(options.action.compileOptions, " ") & " "
+  var args = join(options.action.compileOptions, " ")
   buildFromDir(pkgInfo, paths, args)
 
 proc execBackend(options: Options) =
