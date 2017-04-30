@@ -62,4 +62,4 @@ when not defined(nimscript):
     return (error, hint)
 
 const
-  nimbleVersion* = "0.8.4"
+  nimbleVersion* = "0.8.5"
