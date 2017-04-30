@@ -19,6 +19,7 @@ type
     level: Priority
     warnings: HashSet[(string, string)]
     suppressionCount: int ## Amount of messages which were not shown.
+    showColor: bool ## Whether messages should be colored.
 
   Priority* = enum
     DebugPriority, LowPriority, MediumPriority, HighPriority
@@ -40,7 +41,8 @@ proc newCLI(): CLI =
   result = CLI(
     level: HighPriority,
     warnings: initSet[(string, string)](),
-    suppressionCount: 0
+    suppressionCount: 0,
+    showColor: true
   )
 
 var globalCLI = newCLI()
@@ -55,11 +57,16 @@ proc displayCategory(category: string, displayType: DisplayType,
   # Calculate how much the `category` must be offset to align along a center
   # line.
   let offset = calculateCategoryOffset(category)
+
   # Display the category.
-  if priority != DebugPriority:
-    setForegroundColor(stdout, foregrounds[displayType])
-  writeStyled("$1$2 " % [repeatChar(offset), category], styles[priority])
-  resetAttributes()
+  let text = "$1$2 " % [spaces(offset), category]
+  if globalCLI.showColor:
+    if priority != DebugPriority:
+      setForegroundColor(stdout, foregrounds[displayType])
+    writeStyled(text, styles[priority])
+    resetAttributes()
+  else:
+    stdout.write(text)
 
 proc displayLine(category, line: string, displayType: DisplayType,
                  priority: Priority) =
@@ -144,6 +151,9 @@ proc promptCustom*(question, default: string): string =
 
 proc setVerbosity*(level: Priority) =
   globalCLI.level = level
+
+proc setShowColor*(val: bool) =
+  globalCLI.showColor = val
 
 when isMainModule:
   display("Reading", "config file at /Users/dom/.config/nimble/nimble.ini",

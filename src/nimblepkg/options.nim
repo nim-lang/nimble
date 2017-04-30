@@ -20,6 +20,7 @@ type
     pkgInfoCache*: TableRef[string, PackageInfo]
     showHelp*: bool
     showVersion*: bool
+    noColor*: bool
 
   ActionType* = enum
     actionNil, actionRefresh, actionInit, actionDump, actionPublish,
@@ -92,6 +93,7 @@ Options:
       --nimbleDir:dirname         Set the Nimble directory.
       --verbose                   Show all non-debug output.
       --debug                     Show all output including debug messages.
+      --noColor                   Don't colorise output.
 
 For more information read the Github readme:
   https://github.com/nim-lang/nimble#readme
@@ -249,6 +251,7 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
   of "nimbledir": result.nimbleDir = val
   of "verbose": result.verbosity = LowPriority
   of "debug": result.verbosity = DebugPriority
+  of "nocolor": result.noColor = true
   # Action-specific flags.
   else:
     case result.action.typ
@@ -317,6 +320,9 @@ proc parseCmdLine*(): Options =
 
   # Set verbosity level.
   setVerbosity(result.verbosity)
+
+  # Set whether color should be shown.
+  setShowColor(not result.noColor)
 
   # Parse config.
   result.config = parseConfig()
