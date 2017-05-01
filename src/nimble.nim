@@ -292,8 +292,6 @@ proc buildFromDir(pkgInfo: PackageInfo, paths: seq[string], args: var string) =
         "Nothing to build. Did you specify a module to build using the" &
         " `bin` key in your .nimble file?")
   let realDir = pkgInfo.getRealDir()
-  let releaseOpt = if "-d:release" in args or "--define:release" in args:
-    "-d:release" else: ""
   for path in paths: args.add(" --path:\"" & path & "\" ")
   for bin in pkgInfo.bin:
     let outputOpt = "-o:\"" & pkgInfo.getOutputDir(bin) & "\""
@@ -305,8 +303,8 @@ proc buildFromDir(pkgInfo: PackageInfo, paths: seq[string], args: var string) =
       createDir(outputDir)
 
     try:
-      doCmd("\"" & getNimBin() & "\" $# $# --noBabelPath $# $# \"$#\"" %
-            [pkgInfo.backend, releaseOpt, args, outputOpt,
+      doCmd("\"" & getNimBin() & "\" $# --noBabelPath $# $# \"$#\"" %
+            [pkgInfo.backend, args, outputOpt,
              realDir / bin.changeFileExt("nim")])
     except NimbleError:
       let currentExc = (ref NimbleError)(getCurrentException())
