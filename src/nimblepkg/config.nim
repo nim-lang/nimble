@@ -17,10 +17,7 @@ type
     urls*: seq[string]
 
 proc initConfig(): Config =
-  if getNimrodVersion() > newVersion("0.9.6"):
-    result.nimbleDir = getHomeDir() / ".nimble"
-  else:
-    result.nimbleDir = getHomeDir() / ".babel"
+  result.nimbleDir = getHomeDir() / ".nimble"
 
   result.httpProxy = initUri()
 
