@@ -3,6 +3,27 @@
 
 # Nimble changelog
 
+## 0.8.6 - 05/05/2017
+
+Yet another point release which includes various bug fixes and improvements.
+
+* Improves heuristic for finding Nim standard library to support choosenim
+  installations and adds ability to override it via ``NIM_LIB_PREFIX``
+  environment variable.
+* Implement ``--noColor`` option to remove color from the output.
+* Fixes bug when ``srcDir`` contains trailing slash.
+* Fixes failure when ``-d`` flag is passed to ``c`` command.
+* Show raw output for certain commands.
+* GitHub API token can now be specified via the ``NIMBLE_GITHUB_API_TOKEN``
+  environment variable.
+* GitHub API token is now stored in ``~/.nimble/api_token`` so that it
+  doesn't need to be specified each time.
+* Fixes multiple flags not being passed in Nimble task.
+
+----
+
+Full changelog: https://github.com/nim-lang/nimble/compare/v0.8.4...v0.8.6
+
 ## 0.8.4 - 29/01/2017
 
 Another bug fix release which resolves problems related to stale nimscriptapi
