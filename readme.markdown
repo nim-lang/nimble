@@ -773,6 +773,13 @@ installation.
 
 Make sure that you are running at least version 0.16.0 of Nim (or the latest nightly).
 
+* ``Error: cannot open '/home/user/.nimble/lib/system.nim'.``
+
+Nimble cannot find the Nim standard library. This is considered a bug so
+please report it. As a workaround you can set the ``NIM_LIB_PREFIX`` environment
+variable to the directory where ``lib/system.nim`` (and other standard library
+files) are found.
+
 ## Repository information
 
 This repository has two main branches: ``master`` and ``stable``.

@@ -188,7 +188,20 @@ proc setupVM(module: PSym; scriptName: string, flags: Flags): PEvalContext =
       else:
         flags[key] = @[value]
 
-proc getNimPrefixDir(): string = splitPath(findExe("nim")).head.parentDir
+proc getNimPrefixDir(): string =
+  let env = getEnv("NIM_LIB_PREFIX")
+  if env != "":
+    return env
+
+  result = splitPath(findExe("nim")).head.parentDir
+  # The above heuristic doesn't work for 'choosenim' proxies. Thankfully in
+  # that case the `nimble` binary is beside the `nim` binary so things should
+  # just work.
+  if not dirExists(result / "lib"):
+    # By specifying an empty string we instruct the Nim compiler to use
+    # getAppDir().head as the prefix dir. See compiler/options module for
+    # the code responsible for this.
+    result = ""
 
 when declared(ModuleGraph):
   var graph: ModuleGraph
