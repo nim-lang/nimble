@@ -30,7 +30,7 @@ type
 
   Action* = object
     case typ*: ActionType
-    of actionNil, actionList, actionBuild, actionPublish, actionTasks: nil
+    of actionNil, actionList, actionPublish, actionTasks: nil
     of actionRefresh:
       optionalURL*: string # Overrides default package list.
     of actionInstall, actionPath, actionUninstall:
@@ -39,7 +39,7 @@ type
       search*: seq[string] # Search string.
     of actionInit, actionDump:
       projName*: string
-    of actionCompile, actionDoc:
+    of actionCompile, actionDoc, actionBuild:
       file*: string
       backend*: string
       compileOptions*: seq[string]
@@ -147,7 +147,7 @@ proc initAction*(options: var Options, key: string) =
   case options.action.typ
   of actionInstall, actionPath:
     options.action.packages = @[]
-  of actionCompile, actionDoc:
+  of actionCompile, actionDoc, actionBuild:
     options.action.compileOptions = @[]
     options.action.file = ""
     if keyNorm == "c" or keyNorm == "compile": options.action.backend = ""
@@ -166,7 +166,7 @@ proc initAction*(options: var Options, key: string) =
     options.action.command = key
     options.action.arguments = @[]
     options.action.flags = newStringTable()
-  of actionBuild, actionPublish, actionList, actionTasks,
+  of actionPublish, actionList, actionTasks,
      actionNil: discard
 
 proc prompt*(options: Options, question: string): bool =
@@ -269,7 +269,7 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
         result.depsOnly = true
       else:
         wasFlagHandled = false
-    of actionCompile, actionDoc:
+    of actionCompile, actionDoc, actionBuild:
       let prefix = if kind == cmdShortOption: "-" else: "--"
       if val == "":
         result.action.compileOptions.add(prefix & flag)
