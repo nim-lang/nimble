@@ -17,7 +17,7 @@ type
     urls*: seq[string]
 
 proc initConfig(): Config =
-  result.nimbleDir = getHomeDir() / ".nimble"
+  result.nimbleDir = getHomeDir() / ".local" / "share" / "nimble"
 
   result.httpProxy = initUri()
 
