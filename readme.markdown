@@ -565,7 +565,7 @@ requires "nim >= 0.10.0", "jester > 0.1 & <= 0.5"
 Dependency lists support version ranges. These versions may either be a concrete
 version like ``0.1``, or they may contain any of the less-than (``<``),
 greater-than (``>``), less-than-or-equal-to (``<=``) and greater-than-or-equal-to
-(``>=``) oeprators.
+(``>=``) operators.
 Two version ranges may be combined using the ``&`` operator, for example
 ``> 0.2 & < 1.0``, which will install a package with the version greater than 0.2
 and less than 1.0.
