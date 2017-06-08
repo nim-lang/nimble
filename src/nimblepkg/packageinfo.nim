@@ -257,7 +257,7 @@ proc findNimbleFile*(dir: string; error: bool): string =
   result = ""
   var hits = 0
   for kind, path in walkDir(dir):
-    if kind == pcFile:
+    if kind in {pcFile, pcLinkToFile}:
       let ext = path.splitFile.ext
       case ext
       of ".babel", ".nimble":
