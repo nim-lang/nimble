@@ -669,7 +669,7 @@ To summarise, the steps for release are:
 Once the new tag is in the remote repository, Nimble will be able to detect
 the new version.
 
-##<a name="submitting-your-package-to-the-package-list"> Publishing packages
+## Publishing packages
 
 Publishing packages isn't a requirement. But doing so allows people to associate
 a specific name to a URL pointing to your package. This mapping is stored
