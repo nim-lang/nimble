@@ -12,3 +12,11 @@ nimcache/
 /nimble
 /tests/nimscript/nimscript
 /tests/issue27/issue27
+
+# Windows executables
+*.exe
+*.dll
+
+# VCC compiler and linker artifacts
+*.ilk
+*.pdb
