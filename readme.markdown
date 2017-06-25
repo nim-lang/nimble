@@ -297,6 +297,10 @@ nimbleDir = r"C:\Nimble\"
 [PackageList]
 name = "CustomPackages"
 url = "http://mydomain.org/packages.json"
+
+[PackageList]
+name = "Local project packages"
+path = r"C:\Projects\Nim\packages.json"
 ```
 
 You can currently configure the following in this file:
@@ -307,12 +311,13 @@ You can currently configure the following in this file:
   application packages. If ``true`` this will add ``chcp 65001`` to the
   .cmd stubs generated in ``~/.nimble/bin/``.
   **Default:** ``true``
-* ``[PackageList]`` + ``name`` + ``url`` - You can use this section to specify
+* ``[PackageList]`` + ``name`` + (``url``|``path``) - You can use this section to specify
   a new custom package list. Multiple package lists can be specified. Nimble
   defaults to the "Official" package list, you can override it by specifying
   a ``[PackageList]`` section named "official". Multiple URLs can be specified
   under each section, Nimble will try each in succession if
-  downloading from the first fails.
+  downloading from the first fails. Alternately, ``path`` can specify a
+  local file path to copy a package list .json file from.
 * ``cloneUsingHttps`` - Whether to replace any ``git://`` inside URLs with
   ``https://``.
   **Default: true**

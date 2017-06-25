@@ -15,6 +15,7 @@ type
   PackageList* = object
     name*: string
     urls*: seq[string]
+    path*: string
 
 proc initConfig(): Config =
   result.nimbleDir = getHomeDir() / ".nimble"
@@ -35,6 +36,7 @@ proc initConfig(): Config =
 proc initPackageList(): PackageList =
   result.name = ""
   result.urls = @[]
+  result.path = ""
 
 proc addCurrentPkgList(config: var Config, currentPackageList: PackageList) =
   if currentPackageList.name.len > 0:
@@ -53,7 +55,6 @@ proc parseConfig*(): Config =
     if f != nil:
       display("Warning", "Using deprecated config file at " & confFile,
               Warning, HighPriority)
-
   if f != nil:
     display("Reading", "config file at " & confFile, priority = LowPriority)
     var p: CfgParser
@@ -64,6 +65,10 @@ proc parseConfig*(): Config =
       var e = next(p)
       case e.kind
       of cfgEof:
+        if currentPackageList.urls.len == 0 and currentPackageList.path == "":
+          raise newException(NimbleError, "Package list '$1' requires either url or path" % currentPackageList.name)
+        if currentPackageList.urls.len > 0 and currentPackageList.path != "":
+          raise newException(NimbleError, "Attempted to specify `url` and `path` for the same package list '$1'" % currentPackageList.name)
         addCurrentPkgList(result, currentPackageList)
         break
       of cfgSectionStart:
@@ -96,6 +101,14 @@ proc parseConfig*(): Config =
           case currentSection.normalize
           of "packagelist":
             currentPackageList.urls.add(e.value)
+          else: assert false
+        of "path":
+          case currentSection.normalize
+          of "packagelist":
+            if currentPackageList.path.len > 0:
+              raise newException(NimbleError, "Attempted to specify more than one `path` for the same package list.")
+            else:
+              currentPackageList.path = e.value.normalize
           else: assert false
         else:
           raise newException(NimbleError, "Unable to parse config file:" &
