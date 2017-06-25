@@ -105,7 +105,7 @@ proc parseConfig*(): Config =
         of "path":
           case currentSection.normalize
           of "packagelist":
-            if currentPackageList.path.len > 0:
+            if currentPackageList.path != "":
               raise newException(NimbleError, "Attempted to specify more than one `path` for the same package list.")
             else:
               currentPackageList.path = e.value.normalize
