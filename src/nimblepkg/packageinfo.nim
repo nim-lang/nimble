@@ -169,7 +169,6 @@ proc fetchList*(list: PackageList, options: Options) =
     lastError = ""
     copyFromPath = ""
   if list.urls.len > 0:
-    let httpclient = newHttpClient(proxy = getProxy(options))
     for i in 0 .. <list.urls.len:
       let url = list.urls[i]
       display("Trying", url)
@@ -184,7 +183,7 @@ proc fetchList*(list: PackageList, options: Options) =
                 priority = LowPriority)
 
       try:
-        httpclient.downloadFile(url, tempPath)
+        downloadFile(url, tempPath, proxy = proxy)
       except:
         let message = "Could not download: " & getCurrentExceptionMsg()
         display("Warning:", message, Warning)
