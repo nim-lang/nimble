@@ -102,7 +102,7 @@ proc validatePackageStructure(pkgInfo: PackageInfo, options: Options) =
                  "will be an error in the future.") %
                  [pkgInfo.name, pkgInfo.name & ext, file & ext]
           hint = ("If this is the primary source file in the package, " &
-                  "Rename it to '$1'. If it's a source file required by " &
+                  "rename it to '$1'. If it's a source file required by " &
                   "the main module, or if it is one of several " &
                   "modules exposed by '$4', then move it into a '$2' subdirectory. " &
                   "If it's a test file or otherwise not required " &
@@ -118,7 +118,7 @@ proc validatePackageStructure(pkgInfo: PackageInfo, options: Options) =
         let
           msg = ("Package '$2' has an incorrect structure. " &
                  "It should contain a single directory hierarchy " &
-                 "For source files, named '$3', but file '$1' " &
+                 "for source files, named '$3', but file '$1' " &
                  "is in a directory named '$4' instead. " &
                  "This will be an error in the future.") %
               [file & ext, pkgInfo.name, correctDir, dir]

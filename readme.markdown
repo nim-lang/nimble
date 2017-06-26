@@ -429,7 +429,7 @@ which are also useful. Take a look at it for more information.
 
 ### Project structure
 
-A Nimble project includes a *source directory*, containing a at most one
+A Nimble project includes a *source directory*, containing at most one
 primary source file, which shares the same name as the project itself (as well
 as the project's nimble file). In most cases this source directory will also be
 the root directory of the whole project. In all cases, the root directory will
@@ -456,27 +456,6 @@ Here's a sample one-module project directory:
     ├── nim.cfg
     └── tests.nim
 ```
-
-Here's a more complex example:
-
-```
-.                           # Root directory
-├── my_project.nimble       # Nimble file
-├── nim_src                 # Source directory
-│   ├── my_project.nim      # Primary source file
-│   ├── my_project          # Secondary source directory
-│   │   ├── util.nim
-│   │   ├── common.nim
-│   └── tests               # Excluded directory
-│       ├── nim.cfg
-│       └── tests.nim
-├── README.rst
-└── Makefile
-```
-
-In this example, the source directory is specified in the .nimble file
-with `srcDir = "nim_src"`. Inside of `my_project.nim`, the `util` and `common` 
-modules will be imported as `my_project.util` and `my_project.common`.
 
 #### Tests
 
@@ -534,7 +513,7 @@ If your package exposes multiple modules then the modules should be in a
 from other packages which expose modules with the same names. In this case
 the package's modules will be imported with ``import PackageName/module``.
 
-Here's a simple example multi-module library package:
+Here's a simple example multi-module library package called `util`:
 
 ```
 .
@@ -581,6 +560,8 @@ Dependencies are automatically installed before building.
 It's a good idea to test that the dependencies you specified are correct by
 running by running ``nimble build`` or ``nimble install`` in the directory
 of your package.
+
+### Hybrids
 
 One thing to note about binary packages that contain source files aside from
 the one(s) specified in `bin` (or that also expose multiple library modules, as
