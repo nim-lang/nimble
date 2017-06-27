@@ -29,6 +29,7 @@ Interested in learning **how to create a package**? Skip directly to that sectio
     - [Tests](#tests)
   - [Libraries](#libraries)
   - [Binary packages](#binary-packages)
+  - [Hybrids](#hybrids)
   - [Dependencies](#dependencies)
     - [External dependencies](#external-dependencies)
   - [Nim compiler](#nim-compiler)
