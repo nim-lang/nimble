@@ -50,14 +50,13 @@ Interested in learning **how to create a package**? Skip directly to that sectio
 
 ## Requirements
 
-Nimble has some runtime dependencies on external tools, these tools are
-used to download Nimble packages.
-For
-instance, if a package is hosted on [Github](https://github.com) you require to
-have [git](http://www.git-scm.com) installed and added to your environment
-``PATH``. Same goes for [Mercurial](http://mercurial.selenic.com) repositories
-on [Bitbucket](https://bitbucket.org). Nimble packages are typically hosted in
-Git repositories so you may be able to get away without installing Mercurial.
+Nimble has some runtime dependencies on external tools, these tools are used to
+download Nimble packages. For instance, if a package is hosted on
+[Github](https://github.com) you require to have [git](http://www.git-scm.com)
+installed and added to your environment ``PATH``. Same goes for
+[Mercurial](http://mercurial.selenic.com) repositories on
+[Bitbucket](https://bitbucket.org). Nimble packages are typically hosted in Git
+repositories so you may be able to get away without installing Mercurial.
 
 **Warning:** Ensure that you have a fairly recent version of Git installed.
 If the version is less recent than 1.9.0 then Nimble may have trouble using it.
@@ -188,8 +187,8 @@ Similar to the ``install`` command you can specify a version range, for example:
 The ``build`` command is mostly used by developers who want to test building
 their ``.nimble`` package. This command will build the package with default
 flags, i.e. a debug build which includes stack traces but no GDB debug
-information.
-The ``install`` command will build the package in release mode instead.
+information. The ``install`` command will build the package in release mode
+instead.
 
 ### nimble c
 
@@ -431,19 +430,33 @@ which are also useful. Take a look at it for more information.
 
 ### Project structure
 
-There is nothing surprising about the recommended project structure. The advice
-resembles that of many other package managers.
+A Nimble project includes a *source directory*, containing at most one
+primary source file, which shares the same name as the project itself (as well
+as the project's nimble file). In most cases this source directory will also be
+the root directory of the whole project. In all cases, the root directory will
+contain the .nimble file.
 
-| Directory     | Purpose                                |
-| ------------- | -------------------------------------- |
-| ``.``         | Root directory containing .nimble file.|
-| ``./src/``    | Project source code                    |
-| ``./tests/``  | Project test files                     |
-| ``./docs/``   | Project documentation                  |
+If the project includes additional source files, or if there is more than one
+primary (exported) module, they are all included in a single directory
+hierarchy within the source directory. In the case of libraries, this directory
+will have the same name as the project (see below for details).
 
-**Note:** Nimble will by default look for source files in ``.``, in order to
-use this layout you will need to specify ``srcDir = "src"`` in your .nimble
-file.
+The source directory can contain additional files and directories
+not involved in building the project, as long as they are excluded
+in the nimble file.
+
+Here's a sample one-module project directory:
+
+```
+.                       # The root directory of the project, also the source directory
+├── LICENSE
+├── README.md
+├── my_project.nim      # The primary source file
+├── my_project.nimble   # The project nimble file
+└── tests               # Another source directory, excluded in my_project.nimble
+    ├── nim.cfg
+    └── tests.nim
+```
 
 #### Tests
 
@@ -485,23 +498,31 @@ into ``$nimbleDir/pkgs/pkgname-ver``. It's up to the package creator to make sur
 that the package directory layout is correct, this is so that users of the
 package can correctly import the package.
 
-By convention, it is suggested that the layout be as follows. The directory
-layout is determined by the nature of your package, that is, whether your
-package exposes only one module or multiple modules.
+It is suggested that the layout be as follows. The directory layout is
+determined by the nature of your package, that is, whether your package exposes
+only one module or multiple modules.
 
 If your package exposes only a single module, then that module should be
 present in the root directory (the directory with the .nimble file) of your git
-repository, it is recommended that in this case you name that module whatever
-your package's name is. A good example of this is the
-[jester](https://github.com/dom96/jester) package which exposes the ``jester``
-module. In this case the jester package is imported with ``import jester``.
+repository, and should be named whatever your package's name is. A good example
+of this is the [jester](https://github.com/dom96/jester) package which exposes
+the ``jester`` module. In this case the jester package is imported with
+``import jester``.
 
 If your package exposes multiple modules then the modules should be in a
 ``PackageName`` directory. This will allow for a certain measure of isolation
 from other packages which expose modules with the same names. In this case
 the package's modules will be imported with ``import PackageName/module``.
 
-You are free to combine the two approaches described.
+Here's a simple example multi-module library package called `util`:
+
+```
+.
+├── util
+│   ├── useful.nim
+│   └── also_useful.nim
+└── util.nimble
+```
 
 In regards to modules which you do **not** wish to be exposed. You should place
 them in a ``PackageName/private`` directory. Your modules may then import these
@@ -532,9 +553,9 @@ created instead.
 
 Other files will be copied in the same way as they are for library packages.
 
-Binary packages should not install .nim files so include
-``skipExt = @["nim"]`` in your .nimble file, unless you intend for your package to
-be a binary/library combo which is fine.
+Binary packages should not install .nim files so include ``skipExt = @["nim"]``
+in your .nimble file, unless you intend for your package to be a binary/library
+combo.
 
 Dependencies are automatically installed before building.
 It's a good idea to test that the dependencies you specified are correct by
@@ -543,15 +564,18 @@ of your package.
 
 ### Hybrids
 
-One thing to note about library and binary package hybrids is that your binary
-may share the name of the package. This will mean that you will
-not be able to put your .nim files in a ``pkgname`` directory. The reason you
-will not be able to do this is because binaries on some operating systems
-do not have an extension so they will clash with a directory of the same name.
+One thing to note about binary packages that contain source files aside from
+the one(s) specified in `bin` (or that also expose multiple library modules, as
+above) is that a binary may share the name of the package: this will mean
+that you will not be able to put your additional .nim files in a ``pkgname``
+directory. The reason for this is that binaries on some operating systems do
+not have an extension, so they will clash with a directory of the same name.
 
-The current
-convention to get around this problem is to append ``pkg`` to the name as is
-done for nimble.
+If this is the case, you should place your additional .nim files in a directory
+with `pkg` appended after the name of the project. For instance, if you were
+building a binary named `project`, you would put any additional source files in
+a directory called `projectpkg`. From within project.nim you would then import
+those modules namespaced with `projectpkg/`.
 
 ### Dependencies
 

@@ -80,19 +80,19 @@ test "can validate package structure (#144)":
       let lines = output.strip.splitLines()
       case package
       of "x":
-        check inLines(lines, "File 'foobar.nim' inside package 'x' is outside" &
-                             " of the permitted namespace, should be inside a" &
-                             " directory named 'x' but is in a directory named" &
+        check inLines(lines, "Package 'x' has an incorrect structure. It should" &
+                             " contain a single directory hierarchy for source files," &
+                             " named 'x', but file 'foobar.nim' is in a directory named" &
                              " 'incorrect' instead.")
       of "y":
-        check inLines(lines, "File 'foobar.nim' inside package 'y' is outside" &
-                             " of the permitted namespace, should be inside a" &
-                             " directory named 'ypkg' but is in a directory" &
-                             " named 'yWrong' instead.")
+        check inLines(lines, "Package 'y' has an incorrect structure. It should" &
+                             " contain a single directory hierarchy for source files," &
+                             " named 'ypkg', but file 'foobar.nim' is in a directory named" &
+                             " 'yWrong' instead.")
       of "z":
-        check inLines(lines, "File inside package 'z' is outside of permitted" &
-                             " namespace, should be named 'z.nim' but was" &
-                             " named 'incorrect.nim' instead.")
+        check inLines(lines, "Package 'z' has an incorrect structure. The top level" &
+                             " of the package source directory should contain at most one module," &
+                             " named 'z.nim', but a file named 'incorrect.nim' was found.")
       else:
         assert false
 
