@@ -160,45 +160,60 @@ proc validatePackagesList(path: string): bool =
   except ValueError, JsonParsingError:
     return false
 
-proc downloadList*(list: PackageList, options: Options) =
-  ## Downloads the specified package list and saves it in $nimbleDir.
-  display("Downloading", list.name & " package list", priority = HighPriority)
+proc fetchList*(list: PackageList, options: Options) =
+  ## Downloads or copies the specified package list and saves it in $nimbleDir.
+  let verb = if list.urls.len > 0: "Downloading" else: "Copying"
+  display(verb, list.name & " package list", priority = HighPriority)
 
-  var lastError = ""
-  for i in 0 .. <list.urls.len:
-    let url = list.urls[i]
-    display("Trying", url)
-    let tempPath = options.getNimbleDir() / "packages_temp.json"
-
-    # Grab the proxy
-    let proxy = getProxy(options)
-    if not proxy.isNil:
-      var maskedUrl = proxy.url
-      if maskedUrl.password.len > 0: maskedUrl.password = "***"
-      display("Connecting", "to proxy at " & $maskedUrl,
-              priority = LowPriority)
-
-    try:
-      downloadFile(url, tempPath, proxy = getProxy(options))
-    except:
-      let message = "Could not download: " & getCurrentExceptionMsg()
-      display("Warning:", message, Warning)
-      lastError = message
-      continue
-
-    if not validatePackagesList(tempPath):
-      lastError = "Downloaded packages.json file is invalid"
-      display("Warning:", lastError & ", discarding.", Warning)
-      continue
-
-    copyFile(tempPath,
-        options.getNimbleDir() / "packages_$1.json" % list.name.toLowerAscii())
-    display("Success", "Package list downloaded.", Success, HighPriority)
+  var
     lastError = ""
-    break
+    copyFromPath = ""
+  if list.urls.len > 0:
+    for i in 0 .. <list.urls.len:
+      let url = list.urls[i]
+      display("Trying", url)
+      let tempPath = options.getNimbleDir() / "packages_temp.json"
+
+      # Grab the proxy
+      let proxy = getProxy(options)
+      if not proxy.isNil:
+        var maskedUrl = proxy.url
+        if maskedUrl.password.len > 0: maskedUrl.password = "***"
+        display("Connecting", "to proxy at " & $maskedUrl,
+                priority = LowPriority)
+
+      try:
+        downloadFile(url, tempPath, proxy = proxy)
+      except:
+        let message = "Could not download: " & getCurrentExceptionMsg()
+        display("Warning:", message, Warning)
+        lastError = message
+        continue
+
+      if not validatePackagesList(tempPath):
+        lastError = "Downloaded packages.json file is invalid"
+        display("Warning:", lastError & ", discarding.", Warning)
+        continue
+
+      copyFromPath = tempPath
+      display("Success", "Package list downloaded.", Success, HighPriority)
+      lastError = ""
+      break
+
+  elif list.path != "":
+    if not validatePackagesList(list.path):
+      lastError = "Copied packages.json file is invalid"
+      display("Warning:", lastError & ", discarding.", Warning)
+    else:
+      copyFromPath = list.path
+      display("Success", "Package list copied.", Success, HighPriority)
 
   if lastError.len != 0:
     raise newException(NimbleError, "Refresh failed\n" & lastError)
+
+  if copyFromPath.len > 0:
+    copyFile(copyFromPath,
+        options.getNimbleDir() / "packages_$1.json" % list.name.toLowerAscii())
 
 proc readPackageList(name: string, options: Options): JsonNode =
   # If packages.json is not present ask the user if they want to download it.
@@ -206,7 +221,7 @@ proc readPackageList(name: string, options: Options): JsonNode =
     if options.prompt("No local packages.json found, download it from " &
             "internet?"):
       for name, list in options.config.packageLists:
-        downloadList(list, options)
+        fetchList(list, options)
     else:
       raise newException(NimbleError, "Please run nimble refresh.")
   return parseFile(options.getNimbleDir() / "packages_" &

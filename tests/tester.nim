@@ -33,7 +33,6 @@ proc execNimble(args: varargs[string]): tuple[output: string, exitCode: int] =
   quotedArgs = quoted_args.map((x: string) => ("\"" & x & "\""))
 
   result = execCmdEx(quotedArgs.join(" "))
-  #echo(result.output)
 
 proc processOutput(output: string): seq[string] =
   output.strip.splitLines().filter((x: string) => (x.len > 0))
@@ -138,9 +137,9 @@ proc safeMoveFile(src, dest: string) =
     copyFile(src, dest)
     removeFile(src)
 
-test "can refresh with custom urls":
+template testRefresh(body: untyped) =
   # Backup current config
-  let configFile = getConfigDir() / "nimble" / "nimble.ini"
+  let configFile {.inject.} = getConfigDir() / "nimble" / "nimble.ini"
   let configBakFile = getConfigDir() / "nimble" / "nimble.ini.bak"
   if fileExists(configFile):
     safeMoveFile(configFile, configBakFile)
@@ -148,28 +147,72 @@ test "can refresh with custom urls":
   # Ensure config dir exists
   createDir(getConfigDir() / "nimble")
 
-  writeFile(configFile, """
-    [PackageList]
-    name = "official"
-    url = "http://google.com"
-    url = "http://google.com/404"
-    url = "http://irclogs.nim-lang.org/packages.json"
-    url = "http://nim-lang.org/nimble/packages.json"
-  """.unindent)
-
-  let (output, exitCode) = execNimble(["refresh", "--verbose"])
-  let lines = output.strip.splitLines()
-  check exitCode == QuitSuccess
-  check inLines(lines, "config file at")
-  check inLines(lines, "official package list")
-  check inLines(lines, "http://google.com")
-  check inLines(lines, "packages.json file is invalid")
-  check inLines(lines, "404 not found")
-  check inLines(lines, "Package list downloaded.")
+  body
 
   # Restore config
   if fileExists(configBakFile):
     safeMoveFile(configBakFile, configFile)
+
+test "can refresh with custom urls":
+  testRefresh():
+    writeFile(configFile, """
+      [PackageList]
+      name = "official"
+      url = "http://google.com"
+      url = "http://google.com/404"
+      url = "http://irclogs.nim-lang.org/packages.json"
+      url = "http://nim-lang.org/nimble/packages.json"
+    """.unindent)
+
+    let (output, exitCode) = execNimble(["refresh", "--verbose"])
+    let lines = output.strip.splitLines()
+    check exitCode == QuitSuccess
+    check inLines(lines, "config file at")
+    check inLines(lines, "official package list")
+    check inLines(lines, "http://google.com")
+    check inLines(lines, "packages.json file is invalid")
+    check inLines(lines, "404 not found")
+    check inLines(lines, "Package list downloaded.")
+
+test "can refresh with local package list":
+  testRefresh():
+    writeFile(configFile, """
+      [PackageList]
+      name = "local"
+      path = "$1"
+    """.unindent % (getCurrentDir() / "issue368" / "packages.json"))
+    let (output, exitCode) = execNimble(["refresh", "--verbose"])
+    let lines = output.strip.splitLines()
+    check inLines(lines, "config file at")
+    check inLines(lines, "Copying")
+    check inLines(lines, "Package list copied.")
+    check exitCode == QuitSuccess
+
+test "package list source required":
+  testRefresh():
+    writeFile(configFile, """
+      [PackageList]
+      name = "local"
+    """)
+    let (output, exitCode) = execNimble(["refresh", "--verbose"])
+    let lines = output.strip.splitLines()
+    check inLines(lines, "config file at")
+    check inLines(lines, "Package list 'local' requires either url or path")
+    check exitCode == QuitFailure
+
+test "package list can only have one source":
+  testRefresh():
+    writeFile(configFile, """
+      [PackageList]
+      name = "local"
+      path = "$1"
+      url = "http://nim-lang.org/nimble/packages.json"
+    """)
+    let (output, exitCode) = execNimble(["refresh", "--verbose"])
+    let lines = output.strip.splitLines()
+    check inLines(lines, "config file at")
+    check inLines(lines, "Attempted to specify `url` and `path` for the same package list 'local'")
+    check exitCode == QuitFailure
 
 test "can install nimscript package":
   cd "nimscript":
