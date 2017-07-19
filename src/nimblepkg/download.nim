@@ -178,7 +178,8 @@ proc doDownload*(url: string, downloadDir: string, verRange: VersionRange,
       # Grab the full repo.
       doClone(downMethod, url, downloadDir, tip = false)
       # Then perform a checkout operation to get the specified branch/commit.
-      doCheckout(downMethod, downloadDir, $verRange.spe)
+      # `spe` starts with '#', trim it.
+      doCheckout(downMethod, downloadDir, substr($verRange.spe, 1))
     result = verRange.spe
   else:
     case downMethod

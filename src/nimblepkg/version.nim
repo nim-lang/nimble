@@ -36,7 +36,7 @@ type
     hint*: string
 
 proc newVersion*(ver: string): Version =
-  doAssert(ver[0] in {'#', '\0'} + Digits)
+  doAssert(ver[0] in {'#', '\0'} + Digits, "Wrong version: " & ver)
   return Version(ver)
 
 proc `$`*(ver: Version): string {.borrow.}
@@ -196,7 +196,7 @@ proc parseVersionRange*(s: string): VersionRange =
 
     else:
       raise newException(ParseVersionError,
-          "Unexpected char in version range: " & s[i])
+          "Unexpected char in version range '" & s & "': " & s[i])
     inc(i)
 
 proc toVersionRange*(ver: Version): VersionRange =
