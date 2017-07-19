@@ -179,6 +179,7 @@ proc doDownload*(url: string, downloadDir: string, verRange: VersionRange,
       doClone(downMethod, url, downloadDir, tip = false)
       # Then perform a checkout operation to get the specified branch/commit.
       # `spe` starts with '#', trim it.
+      doAssert(($verRange.spe)[0] == '#')
       doCheckout(downMethod, downloadDir, substr($verRange.spe, 1))
     result = verRange.spe
   else:
