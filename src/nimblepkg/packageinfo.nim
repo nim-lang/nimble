@@ -72,15 +72,18 @@ proc getNameVersion*(pkgpath: string): tuple[name, version: string] =
   result.name = ""
   result.version = ""
   let tail = pkgpath.splitPath.tail
-  if '-' notin tail:
+
+  const specialSeparator = "-#"
+  var sepIdx = tail.find(specialSeparator)
+  if sepIdx == -1:
+    sepIdx = tail.rfind('-')
+
+  if sepIdx == -1:
     result.name = tail
     return
 
-  for i in countdown(tail.len-1, 0):
-    if tail[i] == '-':
-      result.name = tail[0 .. i-1]
-      result.version = tail[i+1 .. tail.len-1]
-      break
+  result.name = tail[0 .. sepIdx - 1]
+  result.version = tail.substr(sepIdx + 1)
 
 proc optionalField(obj: JsonNode, name: string, default = ""): string =
   ## Queries ``obj`` for the optional ``name`` string.
@@ -501,6 +504,8 @@ when isMainModule:
       ("package-a", "0.1")
   doAssert getNameVersion("/home/user/.nimble/libs/package-#head") ==
       ("package", "#head")
+  doAssert getNameVersion("/home/user/.nimble/libs/package-#branch-with-dashes") ==
+      ("package", "#branch-with-dashes")
 
   doAssert toValidPackageName("foo__bar") == "foo_bar"
   doAssert toValidPackageName("jhbasdh!£$@%#^_&*_()qwe") == "jhbasdh_qwe"
