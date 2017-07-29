@@ -206,7 +206,7 @@ proc publish*(p: PackageInfo, o: Options) =
     if parsed.scheme == "":
       # Assuming that we got an ssh write/read URL.
       let sshUrl = parseUri("ssh://" & url)
-      url = "https://github.com/" & sshUrl.port & sshUrl.path
+      url = "https://" & sshUrl.hostname & "/" & sshUrl.port & sshUrl.path
   elif dirExists(os.getCurrentDir() / ".hg"):
     downloadMethod = "hg"
     # TODO: Retrieve URL from hg.
