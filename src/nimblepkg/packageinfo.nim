@@ -186,7 +186,8 @@ proc fetchList*(list: PackageList, options: Options) =
                 priority = LowPriority)
 
       try:
-        downloadFile(url, tempPath, proxy = proxy)
+        let client = newHttpClient(proxy = proxy)
+        client.downloadFile(url, tempPath)
       except:
         let message = "Could not download: " & getCurrentExceptionMsg()
         display("Warning:", message, Warning)
