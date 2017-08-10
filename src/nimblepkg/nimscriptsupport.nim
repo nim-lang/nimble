@@ -8,7 +8,7 @@ import
   compiler/ast, compiler/modules, compiler/passes, compiler/passaux,
   compiler/condsyms, compiler/sem, compiler/semdata,
   compiler/llstream, compiler/vm, compiler/vmdef, compiler/commands,
-  compiler/msgs, compiler/magicsys, compiler/lists, compiler/idents,
+  compiler/msgs, compiler/magicsys, compiler/idents,
   compiler/nimconf
 
 from compiler/scriptconfig import setupVM
@@ -228,7 +228,7 @@ proc execScript(scriptName: string, flags: Flags, options: Options): PSym =
   let tmpNimscriptApiPath = getTempDir() / "nimblepkg" / "nimscriptapi.nim"
   createDir(tmpNimscriptApiPath.splitFile.dir)
   writeFile(tmpNimscriptApiPath, nimscriptApi)
-  appendStr(searchPaths, getTempDir())
+  searchPaths.add(getTempDir())
 
   initDefines()
   loadConfigs(DefaultConfig)
@@ -241,7 +241,7 @@ proc execScript(scriptName: string, flags: Flags, options: Options): PSym =
   registerPass(semPass)
   registerPass(evalPass)
 
-  appendStr(searchPaths, compiler_options.libpath)
+  searchPaths.add(compiler_options.libpath)
 
   when declared(resetAllModulesHard):
     result = makeModule(scriptName)

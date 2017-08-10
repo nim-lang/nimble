@@ -13,18 +13,22 @@ type
     user: string
     pw: string
     token: string  ## base64 encoding of user:pw
+    http: HttpClient ## http client for doing API requests
 
 const
   ApiKeyFile = "github_api_token"
   ApiTokenEnvironmentVariable = "NIMBLE_GITHUB_API_TOKEN"
+  ReposUrl = "https://api.github.com/repos/"
 
 proc userAborted() =
   raise newException(NimbleError, "User aborted the process.")
 
-proc createHeaders(a: Auth): string =
-  (("Authorization: token $1\c\L" % a.token) &
-          "Content-Type: application/x-www-form-urlencoded\c\L" &
-          "Accept: */*\c\L")
+proc createHeaders(a: Auth) =
+  a.http.headers = newHttpHeaders({
+    "Authorization": "token $1" % a.token,
+    "Content-Type": "application/x-www-form-urlencoded",
+    "Accept": "*/*"
+  })
 
 proc requestNewToken(cfg: Config): string =
   display("Info:", "Please create a new personal access token on Github in" &
@@ -47,7 +51,7 @@ proc requestNewToken(cfg: Config): string =
   return token
 
 proc getGithubAuth(cfg: Config): Auth =
-
+  result.http = newHttpClient()
   # always prefer the environment variable to asking for a new one
   if existsEnv(ApiTokenEnvironmentVariable):
     result.token = getEnv(ApiTokenEnvironmentVariable)
@@ -63,9 +67,8 @@ proc getGithubAuth(cfg: Config): Auth =
               priority = HighPriority)
     except IOError:
       result.token = requestNewToken(cfg)
-
-  let resp = getContent("https://api.github.com/user",
-        extraHeaders=createHeaders(result)).parseJson()
+  createHeaders(result)
+  let resp = result.http.getContent("https://api.github.com/user").parseJson()
 
   result.user = resp["login"].str
   display("Success:", "Verified as " & result.user, Success, HighPriority)
@@ -78,8 +81,7 @@ proc isCorrectFork(j: JsonNode): bool =
 
 proc forkExists(a: Auth): bool =
   try:
-    let x = getContent("https://api.github.com/repos/" & a.user & "/packages",
-        extraHeaders=createHeaders(a))
+    let x = a.http.getContent(ReposUrl & a.user & "/packages")
     let j = parseJson(x)
     result = isCorrectFork(j)
   except JsonParsingError, IOError:
@@ -87,16 +89,14 @@ proc forkExists(a: Auth): bool =
 
 proc createFork(a: Auth) =
   try:
-    discard postContent("https://api.github.com/repos/nim-lang/packages/forks",
-        extraHeaders=createHeaders(a))
+    discard a.http.postContent(ReposUrl & "nim-lang/packages/forks")
   except HttpRequestError:
     raise newException(NimbleError, "Unable to create fork. Access token" &
                        " might not have enough permissions.")
 
 proc createPullRequest(a: Auth, packageName, branch: string) =
   display("Info", "Creating PR", priority = HighPriority)
-  discard postContent("https://api.github.com/repos/nim-lang/packages/pulls",
-      extraHeaders=createHeaders(a),
+  discard a.http.postContent(ReposUrl & "nim-lang/packages/pulls",
       body="""{"title": "Add package $1", "head": "$2:$3",
                "base": "master"}""" % [packageName, a.user, branch])
 
@@ -139,14 +139,15 @@ proc cleanupWhitespace(s: string): string =
 proc editJson(p: PackageInfo; url, tags, downloadMethod: string) =
   var contents = parseFile("packages.json")
   doAssert contents.kind == JArray
-  contents.add(%{
-    "name": %p.name,
-    "url": %url,
-    "method": %downloadMethod,
-    "tags": %tags.split(),
-    "description": %p.description,
-    "license": %p.license,
-    "web": %url})
+  contents.add(%*{
+    "name": p.name,
+    "url": url,
+    "method": downloadMethod,
+    "tags": tags.split(),
+    "description": p.description,
+    "license": p.license,
+    "web": url
+  })
   writeFile("packages.json", contents.pretty.cleanupWhitespace)
 
 proc getPackageOriginUrl(a: Auth): string =
@@ -229,8 +230,3 @@ proc publish*(p: PackageInfo, o: Options) =
     doCmd("git push " & getPackageOriginUrl(auth) & " " & branchName)
     createPullRequest(auth, p.name, branchName)
   display("Success:", "Pull request successful.", Success, HighPriority)
-
-when isMainModule:
-  import packageinfo
-  var p = getPkgInfo(getCurrentDir())
-  publish(p)

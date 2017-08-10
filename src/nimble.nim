@@ -1089,7 +1089,7 @@ when isMainModule:
     let currentExc = (ref NimbleError)(getCurrentException())
     (error, hint) = getOutputInfo(currentExc)
   except NimbleQuit:
-    nil
+    discard
   finally:
     removeDir(getNimbleTempDir())
 
