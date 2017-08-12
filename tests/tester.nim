@@ -405,3 +405,18 @@ test "can dump for installed package":
     let (outp, exitCode) = execNimble("dump", "testdump")
     check: exitCode == 0
     check: outp.processOutput.inLines("desc: \"Test package for dump command\"")
+
+test "can install diamond deps (#184)":
+  cd "diamond_deps":
+    cd "d":
+      check execNimble("install", "-y").exitCode == 0
+    cd "c":
+      check execNimble("install", "-y").exitCode == 0
+    cd "b":
+      check execNimble("install", "-y").exitCode == 0
+    cd "a":
+      # TODO: This doesn't really test anything. But I couldn't quite
+      # reproduce #184.
+      let (output, exitCode) = execNimble("install", "-y")
+      checkpoint(output)
+      check exitCode == 0
