@@ -634,7 +634,7 @@ proc execBackend(options: Options) =
   var args = ""
   for path in paths: args.add("--path:\"" & path & "\" ")
   for option in options.action.compileOptions:
-    args.add(option & " ")
+    args.add("\"" & option & "\" ")
 
   let backend =
     if options.action.backend.len > 0:

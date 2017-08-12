@@ -453,3 +453,11 @@ suite "can handle two binary versions":
     check exitCode == QuitSuccess
     check output.strip() == "v2"
 
+test "can pass args with spaces to Nim (#351)":
+  cd "binaryPackage/v2":
+    let (output, exitCode) = execCmdEx(nimblePath &
+                                       " c -r" &
+                                       " -d:myVar=\"string with spaces\"" &
+                                       " binaryPackage")
+    checkpoint output
+    check exitCode == QuitSuccess
