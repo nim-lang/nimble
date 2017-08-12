@@ -21,6 +21,7 @@ type
     showHelp*: bool
     showVersion*: bool
     noColor*: bool
+    disableValidation*: bool
 
   ActionType* = enum
     actionNil, actionRefresh, actionInit, actionDump, actionPublish,
@@ -107,6 +108,9 @@ proc writeHelp*(quit=true) =
 proc writeVersion*() =
   echo("nimble v$# compiled at $# $#" %
       [nimbleVersion, CompileDate, CompileTime])
+  const gitVersion = staticExec("git rev-parse HEAD")
+  when gitVersion.len > 0:
+    echo "git hash: ", gitVersion
   raise NimbleQuit(msg: "")
 
 proc parseActionType*(action: string): ActionType =
@@ -252,6 +256,7 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
   of "verbose": result.verbosity = LowPriority
   of "debug": result.verbosity = DebugPriority
   of "nocolor": result.noColor = true
+  of "disablevalidation": result.disableValidation = true
   # Action-specific flags.
   else:
     case result.action.typ
