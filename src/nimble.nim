@@ -285,14 +285,14 @@ proc processDeps(pkginfo: PackageInfo, options: Options): seq[string] =
   for i in reverseDeps:
     addRevDep(options, i, pkginfo)
 
-proc buildFromDir(pkgInfo: PackageInfo, paths: seq[string], args: var string) =
+proc buildFromDir(pkgInfo: PackageInfo, paths: seq[string], args: var seq[string]) =
   ## Builds a package as specified by ``pkgInfo``.
   if pkgInfo.bin.len == 0:
     raise newException(NimbleError,
         "Nothing to build. Did you specify a module to build using the" &
         " `bin` key in your .nimble file?")
   let realDir = pkgInfo.getRealDir()
-  for path in paths: args.add(" --path:\"" & path & "\" ")
+  for path in paths: args.add("--path:\"" & path & "\" ")
   for bin in pkgInfo.bin:
     let outputOpt = "-o:\"" & pkgInfo.getOutputDir(bin) & "\""
     display("Building", "$1/$2 using $3 backend" %
@@ -304,7 +304,7 @@ proc buildFromDir(pkgInfo: PackageInfo, paths: seq[string], args: var string) =
 
     try:
       doCmd("\"" & getNimBin() & "\" $# --noBabelPath $# $# \"$#\"" %
-            [pkgInfo.backend, args, outputOpt,
+            [pkgInfo.backend, join(args, " "), outputOpt,
              realDir / bin.changeFileExt("nim")])
     except NimbleError:
       let currentExc = (ref NimbleError)(getCurrentException())
@@ -316,7 +316,11 @@ proc buildFromDir(pkgInfo: PackageInfo, paths: seq[string], args: var string) =
       raise exc
 
 proc buildFromDir(pkgInfo: PackageInfo, paths: seq[string], forRelease: bool) =
-  var args = if forRelease: "-d:release" else: ""
+  var args: seq[string]
+  if forRelease:
+    args = @["-d:release"]
+  else:
+    args = @[]
   buildFromDir(pkgInfo, paths, args)
 
 proc saveNimbleMeta(pkgDestDir, url, vcsRevision: string,
@@ -637,7 +641,7 @@ proc build(options: Options) =
   var pkgInfo = getPkgInfo(getCurrentDir(), options)
   nimScriptHint(pkgInfo)
   let paths = processDeps(pkginfo, options)
-  var args = join(options.action.compileOptions, " ")
+  var args = options.action.compileOptions
   buildFromDir(pkgInfo, paths, args)
 
 proc execBackend(options: Options) =
