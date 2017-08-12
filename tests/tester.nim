@@ -77,6 +77,7 @@ test "can validate package structure (#144)":
       let (output, exitCode) = execNimble(["install", "-y"])
       check exitCode == QuitSuccess
       let lines = output.strip.splitLines()
+      checkpoint(output)
       case package
       of "x":
         check inLines(lines, "Package 'x' has an incorrect structure. It should" &
@@ -128,7 +129,9 @@ test "issue 113 (uninstallation problems)":
   check execNimble(["remove", "-y", "c"]).exitCode == QuitSuccess
 
 test "can refresh with default urls":
-  check execNimble(["refresh"]).exitCode == QuitSuccess
+  let (output, exitCode) = execNimble(["refresh"])
+  checkpoint(output)
+  check exitCode == QuitSuccess
 
 proc safeMoveFile(src, dest: string) =
   try:
@@ -162,9 +165,11 @@ test "can refresh with custom urls":
       url = "http://google.com/404"
       url = "http://irclogs.nim-lang.org/packages.json"
       url = "http://nim-lang.org/nimble/packages.json"
+      url = "https://github.com/nim-lang/packages/raw/master/packages.json"
     """.unindent)
 
     let (output, exitCode) = execNimble(["refresh", "--verbose"])
+    checkpoint(output)
     let lines = output.strip.splitLines()
     check exitCode == QuitSuccess
     check inLines(lines, "config file at")
