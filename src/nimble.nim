@@ -13,7 +13,7 @@ from sequtils import toSeq
 import nimblepkg/packageinfo, nimblepkg/version, nimblepkg/tools,
        nimblepkg/download, nimblepkg/config, nimblepkg/common,
        nimblepkg/publish, nimblepkg/options, nimblepkg/packageparser,
-       nimblepkg/cli
+       nimblepkg/cli, nimblepkg/packageinstaller
 
 import nimblepkg/nimscriptsupport
 
@@ -364,10 +364,21 @@ proc removePkgDir(dir: string, options: Options) =
       display("Warning:", ("Cannot completely remove $1. Files not installed " &
               "by nimble are present.") % dir, Warning, HighPriority)
 
-    # Remove binaries.
     if nimblemeta.hasKey("binaries"):
+      # Remove binaries.
       for binary in nimblemeta["binaries"]:
         removeFile(options.getBinDir() / binary.str)
+
+      # Search for an older version of the package we are removing.
+      let (pkgName, _) = getNameVersion(dir)
+      let pkgList = getInstalledPkgsMin(options.getPkgsDir(), options)
+      var pkgInfo: PackageInfo
+      if pkgList.findPkg((pkgName, newVRAny()), pkgInfo):
+        pkgInfo = pkgInfo.toFullInfo(options)
+        for bin in pkgInfo.bin:
+          let symlinkDest = pkgInfo.getRealDir() / bin
+          let symlinkFilename = options.getBinDir() / bin.extractFilename
+          discard setupBinSymlink(symlinkDest, symlinkFilename)
     else:
       display("Warning:", ("Cannot completely remove $1. Binary symlinks may " &
                           "have been left over in $2.") %
@@ -477,49 +488,11 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
       filesInstalled.incl copyFileD(pkgInfo.getOutputDir(bin),
                                     pkgDestDir / bin)
 
-      let currentPerms = getFilePermissions(pkgDestDir / bin)
-      setFilePermissions(pkgDestDir / bin, currentPerms + {fpUserExec})
-      let cleanBin = bin.extractFilename
-      when defined(unix):
-        display("Creating", "symlink: $1 -> $2" %
-                [pkgDestDir / bin, binDir / cleanBin], priority = MediumPriority)
-        if existsFile(binDir / cleanBin):
-          display("Warning:", "Symlink already exists in $1. Replacing." % binDir,
-                  Warning, HighPriority)
-          removeFile(binDir / cleanBin)
-        createSymlink(pkgDestDir / bin, binDir / cleanBin)
-        binariesInstalled.incl(cleanBin)
-      elif defined(windows):
-        # There is a bug on XP, described here:
-        # http://stackoverflow.com/questions/2182568/batch-script-is-not-executed-if-chcp-was-called
-        # But this workaround brakes code page on newer systems, so we need to detect OS version
-        var osver = OSVERSIONINFO()
-        osver.dwOSVersionInfoSize = cast[DWORD](sizeof(OSVERSIONINFO))
-        if GetVersionExA(osver) == WINBOOL(0):
-          raise newException(NimbleError,
-            "Can't detect OS version: GetVersionExA call failed")
-        let fixChcp = osver.dwMajorVersion <= 5
-
-        # Create cmd.exe/powershell stub.
-        let dest = binDir / cleanBin.changeFileExt("cmd")
-        display("Creating", "stub: $1 -> $2" % [pkgDestDir / bin, dest],
-                priority = MediumPriority)
-        var contents = "@"
-        if options.config.chcp:
-          if fixChcp:
-            contents.add "chcp 65001 > nul && "
-          else: contents.add "chcp 65001 > nul\n@"
-        contents.add "\"" & pkgDestDir / bin & "\" %*\n"
-        writeFile(dest, contents)
-        binariesInstalled.incl(dest.extractFilename)
-        # For bash on Windows (Cygwin/Git bash).
-        let bashDest = dest.changeFileExt("")
-        display("Creating", "Cygwin stub: $1 -> $2" %
-                [pkgDestDir / bin, bashDest], priority = MediumPriority)
-        writeFile(bashDest, "\"" & pkgDestDir / bin & "\" \"$@\"\n")
-        binariesInstalled.incl(bashDest.extractFilename)
-      else:
-        {.error: "Sorry, your platform is not supported.".}
+      # Set up a symlink.
+      let symlinkDest = pkgDestDir / bin
+      let symlinkFilename = binDir / bin.extractFilename
+      for filename in setupBinSymlink(symlinkDest, symlinkFilename):
+        binariesInstalled.incl(filename)
 
   let vcsRevision = vcsRevisionInDir(realDir)
 

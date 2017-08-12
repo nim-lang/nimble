@@ -43,7 +43,9 @@ proc inLines(lines: seq[string], line: string): bool =
 
 test "picks #head when looking for packages":
   cd "versionClashes" / "aporiaScenario":
-    check execNimble("install", "-y", "--verbose").exitCode == QuitSuccess
+    let (output, exitCode) = execNimble("install", "-y", "--verbose")
+    checkpoint output
+    check exitCode == QuitSuccess
     check execNimble("remove", "aporiascenario", "-y").exitCode == QuitSuccess
     check execNimble("remove", "packagea", "-y").exitCode == QuitSuccess
 
@@ -420,3 +422,34 @@ test "can install diamond deps (#184)":
       let (output, exitCode) = execNimble("install", "-y")
       checkpoint(output)
       check exitCode == 0
+
+suite "can handle two binary versions":
+  setup:
+    cd "binaryPackage/v1":
+      check execNimble("install", "-y").exitCode == QuitSuccess
+
+    cd "binaryPackage/v2":
+      check execNimble("install", "-y").exitCode == QuitSuccess
+
+  test "can execute v2":
+    let (output, exitCode) =
+      execCmdEx(installDir / "bin" / "binaryPackage".addFileExt(ExeExt))
+    check exitCode == QuitSuccess
+    check output.strip() == "v2"
+
+  test "can update symlink to earlier version after removal":
+    check execNimble("remove", "binaryPackage@2.0", "-y").exitCode==QuitSuccess
+
+    let (output, exitCode) =
+      execCmdEx(installDir / "bin" / "binaryPackage".addFileExt(ExeExt))
+    check exitCode == QuitSuccess
+    check output.strip() == "v1"
+
+  test "can keep symlink version after earlier version removal":
+    check execNimble("remove", "binaryPackage@1.0", "-y").exitCode==QuitSuccess
+
+    let (output, exitCode) =
+      execCmdEx(installDir / "bin" / "binaryPackage".addFileExt(ExeExt))
+    check exitCode == QuitSuccess
+    check output.strip() == "v2"
+

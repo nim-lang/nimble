@@ -300,7 +300,7 @@ proc getInstalledPkgsMin*(libsDir: string, options: Options):
   ## minimal. This has the advantage that it does not depend on the
   ## ``packageparser`` module, and so can be used by ``nimscriptsupport``.
   ##
-  ## ``libsDir`` is in most cases: ~/.nimble/pkgs/
+  ## ``libsDir`` is in most cases: ~/.nimble/pkgs/ (options.getPkgsDir)
   result = @[]
   for kind, path in walkDir(libsDir):
     if kind == pcDir:
