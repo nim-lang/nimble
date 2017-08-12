@@ -431,30 +431,30 @@ proc checkInstallDir(pkgInfo: PackageInfo,
   if thisDir[0] == '.': result = true
   if thisDir == "nimcache": result = true
 
-proc forEachFileWithExt(dir: string, pkgInfo: PackageInfo,
-    action: proc(f: string): bool): bool =
-  ## Runs `action` for each filename of the files that should be copied.
-  ## Stops if `action` returns `true`.
+proc iterFilesWithExt(dir: string, pkgInfo: PackageInfo,
+                      action: proc (f: string)) =
+  ## Runs `action` for each filename of the files that have a whitelisted
+  ## file extension.
   for kind, path in walkDir(dir):
     if kind == pcDir:
-      if forEachFileWithExt(path, pkgInfo, action): return true
+      iterFilesWithExt(path, pkgInfo, action)
     else:
       if path.splitFile.ext[1 .. ^1] in pkgInfo.installExt:
-        if action(path): return true
+        action(path)
 
-proc forEachFileInDir(dir: string, action: proc(f: string): bool): bool =
+proc iterFilesInDir(dir: string, action: proc (f: string)) =
   ## Runs `action` for each file in ``dir`` and any
-  ## subdirectories that are in it. Stops if `action` returns `true`.
+  ## subdirectories that are in it.
   for kind, path in walkDir(dir):
     if kind == pcDir:
-      if forEachFileInDir(path, action): return true
+      iterFilesInDir(path, action)
     else:
-      if action(path): return true
+      action(path)
 
-proc forEachInstallFile*(realDir: string, pkgInfo: PackageInfo,
-                      options: Options, action: proc(f: string): bool): bool =
-  ## Runs `action` for each file within the ``realDir`` that should be installed.
-  ## Stops if `action` returns `true`.
+proc iterInstallFiles*(realDir: string, pkgInfo: PackageInfo,
+                       options: Options, action: proc (f: string)) =
+  ## Runs `action` for each file within the ``realDir`` that should be
+  ## installed.
   let whitelistMode =
           pkgInfo.installDirs.len != 0 or
           pkgInfo.installFiles.len != 0 or
@@ -467,7 +467,8 @@ proc forEachInstallFile*(realDir: string, pkgInfo: PackageInfo,
           continue
         else:
           raise NimbleQuit(msg: "")
-      if action(src): return true
+
+      action(src)
 
     for dir in pkgInfo.installDirs:
       # TODO: Allow skipping files inside dirs?
@@ -478,9 +479,9 @@ proc forEachInstallFile*(realDir: string, pkgInfo: PackageInfo,
         else:
           raise NimbleQuit(msg: "")
 
-      if forEachFileInDir(src, action): return true
+      iterFilesInDir(src, action)
 
-    if forEachFileWithExt(realDir, pkgInfo, action): return true
+    iterFilesWithExt(realDir, pkgInfo, action)
   else:
     for kind, file in walkDir(realDir):
       if kind == pcDir:
@@ -488,13 +489,13 @@ proc forEachInstallFile*(realDir: string, pkgInfo: PackageInfo,
 
         if skip: continue
 
-        if forEachInstallFile(file, pkgInfo, options, action): return true
+        iterInstallFiles(file, pkgInfo, options, action)
       else:
         let skip = pkgInfo.checkInstallFile(realDir, file)
 
         if skip: continue
 
-        if action(file): return true
+        action(file)
 
 when isMainModule:
   doAssert getNameVersion("/home/user/.nimble/libs/packagea-0.1") ==

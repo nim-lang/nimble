@@ -449,10 +449,12 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
   createDir(pkgDestDir)
   # Copy this package's files based on the preferences specified in PkgInfo.
   var filesInstalled = initSet[string]()
-  discard forEachInstallFile(realDir, pkgInfo, options) do(file: string) -> bool:
-    createDir(changeRoot(realDir, pkgDestDir, file.splitFile.dir))
-    let dest = changeRoot(realDir, pkgDestDir, file)
-    filesInstalled.incl copyFileD(file, dest)
+  iterInstallFiles(realDir, pkgInfo, options,
+    proc (file: string) =
+      createDir(changeRoot(realDir, pkgDestDir, file.splitFile.dir))
+      let dest = changeRoot(realDir, pkgDestDir, file)
+      filesInstalled.incl copyFileD(file, dest)
+  )
 
   # Copy the .nimble file.
   let dest = changeRoot(pkgInfo.myPath.splitFile.dir, pkgDestDir,
