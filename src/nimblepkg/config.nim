@@ -108,7 +108,7 @@ proc parseConfig*(): Config =
             if currentPackageList.path != "":
               raise newException(NimbleError, "Attempted to specify more than one `path` for the same package list.")
             else:
-              currentPackageList.path = e.value.normalize
+              currentPackageList.path = e.value
           else: assert false
         else:
           raise newException(NimbleError, "Unable to parse config file:" &
