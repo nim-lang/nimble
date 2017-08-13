@@ -3,9 +3,26 @@
 import os, strutils
 
 # Local imports
-import cli
+import cli, common, options
 
-proc setupBinSymlink*(symlinkDest, symlinkFilename: string): seq[string] =
+when defined(windows):
+  # This is just for Win XP support.
+  # TODO: Drop XP support?
+  from winlean import WINBOOL, DWORD
+  type
+    OSVERSIONINFO* {.final, pure.} = object
+      dwOSVersionInfoSize*: DWORD
+      dwMajorVersion*: DWORD
+      dwMinorVersion*: DWORD
+      dwBuildNumber*: DWORD
+      dwPlatformId*: DWORD
+      szCSDVersion*: array[0..127, char]
+
+  proc GetVersionExA*(VersionInformation: var OSVERSIONINFO): WINBOOL{.stdcall,
+    dynlib: "kernel32", importc: "GetVersionExA".}
+
+proc setupBinSymlink*(symlinkDest, symlinkFilename: string,
+                      options: Options): seq[string] =
   result = @[]
   let currentPerms = getFilePermissions(symlinkDest)
   setFilePermissions(symlinkDest, currentPerms + {fpUserExec})

@@ -17,24 +17,6 @@ import nimblepkg/packageinfo, nimblepkg/version, nimblepkg/tools,
 
 import nimblepkg/nimscriptsupport
 
-when not defined(windows):
-  from posix import getpid
-else:
-  # This is just for Win XP support.
-  # TODO: Drop XP support?
-  from winlean import WINBOOL, DWORD
-  type
-    OSVERSIONINFO* {.final, pure.} = object
-      dwOSVersionInfoSize*: DWORD
-      dwMajorVersion*: DWORD
-      dwMinorVersion*: DWORD
-      dwBuildNumber*: DWORD
-      dwPlatformId*: DWORD
-      szCSDVersion*: array[0..127, char]
-
-  proc GetVersionExA*(VersionInformation: var OSVERSIONINFO): WINBOOL{.stdcall,
-    dynlib: "kernel32", importc: "GetVersionExA".}
-
 proc refresh(options: Options) =
   ## Downloads the package list from the specified URL.
   ##
@@ -378,7 +360,7 @@ proc removePkgDir(dir: string, options: Options) =
         for bin in pkgInfo.bin:
           let symlinkDest = pkgInfo.getRealDir() / bin
           let symlinkFilename = options.getBinDir() / bin.extractFilename
-          discard setupBinSymlink(symlinkDest, symlinkFilename)
+          discard setupBinSymlink(symlinkDest, symlinkFilename, options)
     else:
       display("Warning:", ("Cannot completely remove $1. Binary symlinks may " &
                           "have been left over in $2.") %
@@ -491,7 +473,7 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
       # Set up a symlink.
       let symlinkDest = pkgDestDir / bin
       let symlinkFilename = binDir / bin.extractFilename
-      for filename in setupBinSymlink(symlinkDest, symlinkFilename):
+      for filename in setupBinSymlink(symlinkDest, symlinkFilename, options):
         binariesInstalled.incl(filename)
 
   let vcsRevision = vcsRevisionInDir(realDir)
