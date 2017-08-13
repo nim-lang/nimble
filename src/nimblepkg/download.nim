@@ -212,6 +212,42 @@ proc doDownload*(url: string, downloadDir: string, verRange: VersionRange,
 
       verifyClone()
 
+proc downloadPkg*(url: string, verRange: VersionRange,
+                 downMethod: DownloadMethod,
+                 options: Options,
+                 downloadPath = ""): (string, Version) =
+  ## Downloads the repository as specified by ``url`` and ``verRange`` using
+  ## the download method specified.
+  ##
+  ## If `downloadPath` isn't specified a location in /tmp/ will be used.
+  ##
+  ## Returns the directory where it was downloaded and the concrete version
+  ## which was downloaded.
+  let downloadDir =
+    if downloadPath == "":
+      (getNimbleTempDir() / getDownloadDirName(url, verRange))
+    else:
+      downloadPath
+
+  createDir(downloadDir)
+  var modUrl =
+    if url.startsWith("git://") and options.config.cloneUsingHttps:
+      "https://" & url[6 .. ^1]
+    else: url
+
+  # Fixes issue #204
+  # github + https + trailing url slash causes a
+  # checkout/ls-remote to fail with Repository not found
+  if modUrl.contains("github.com") and modUrl.endswith("/"):
+    modUrl = modUrl[0 .. ^2]
+
+  display("Downloading", "$1 using $2" % [modUrl, $downMethod],
+          priority = HighPriority)
+  result = (
+    downloadDir,
+    doDownload(modUrl, downloadDir, verRange, downMethod, options)
+  )
+
 proc echoPackageVersions*(pkg: Package) =
   let downMethod = pkg.downloadMethod.getDownloadMethod()
   case downMethod

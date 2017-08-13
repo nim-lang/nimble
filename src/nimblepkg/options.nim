@@ -27,15 +27,16 @@ type
     actionNil, actionRefresh, actionInit, actionDump, actionPublish,
     actionInstall, actionSearch,
     actionList, actionBuild, actionPath, actionUninstall, actionCompile,
-    actionDoc, actionCustom, actionTasks
+    actionDoc, actionCustom, actionTasks, actionDevelop
 
   Action* = object
     case typ*: ActionType
     of actionNil, actionList, actionPublish, actionTasks: nil
     of actionRefresh:
       optionalURL*: string # Overrides default package list.
-    of actionInstall, actionPath, actionUninstall:
-      packages*: seq[PkgTuple] # Optional only for actionInstall.
+    of actionInstall, actionPath, actionUninstall, actionDevelop:
+      packages*: seq[PkgTuple] # Optional only for actionInstall
+                               # and actionDevelop.
     of actionSearch:
       search*: seq[string] # Search string.
     of actionInit, actionDump:
@@ -56,6 +57,9 @@ Usage: nimble COMMAND [opts]
 Commands:
   install      [pkgname, ...]     Installs a list of packages.
                [-d, --depsOnly]   Install only dependencies.
+  develop      [pkgname, ...]     Clones a list of packages for development.
+                                  Symlinks the cloned packages or any package
+                                  in the current working directory.
   init         [pkgname]          Initializes a new Nimble project.
   publish                         Publishes a package on nim-lang/packages.
                                   The current working directory needs to be the
@@ -141,6 +145,8 @@ proc parseActionType*(action: string): ActionType =
     result = actionPublish
   of "tasks":
     result = actionTasks
+  of "develop":
+    result = actionDevelop
   else:
     result = actionCustom
 
@@ -149,7 +155,7 @@ proc initAction*(options: var Options, key: string) =
   ## `key`.
   let keyNorm = key.normalize()
   case options.action.typ
-  of actionInstall, actionPath:
+  of actionInstall, actionPath, actionDevelop, actionUninstall:
     options.action.packages = @[]
   of actionCompile, actionDoc, actionBuild:
     options.action.compileOptions = @[]
@@ -164,8 +170,6 @@ proc initAction*(options: var Options, key: string) =
     options.action.optionalURL = ""
   of actionSearch:
     options.action.search = @[]
-  of actionUninstall:
-    options.action.packages = @[]
   of actionCustom:
     options.action.command = key
     options.action.arguments = @[]

@@ -306,7 +306,8 @@ proc buildFromDir(pkgInfo: PackageInfo, paths: seq[string], forRelease: bool) =
   buildFromDir(pkgInfo, paths, args)
 
 proc saveNimbleMeta(pkgDestDir, url, vcsRevision: string,
-                    filesInstalled, bins: HashSet[string]) =
+                    filesInstalled, bins: HashSet[string],
+                    isLink: bool = false) =
   ## Saves the specified data into a ``nimblemeta.json`` file inside
   ## ``pkgDestDir``.
   ##
@@ -314,6 +315,9 @@ proc saveNimbleMeta(pkgDestDir, url, vcsRevision: string,
   ##                  installed.
   ## bins - A list of binary filenames which have been installed for this
   ##        package.
+  ##
+  ## isLink - Determines whether the installed package is a .nimble-link.
+  # TODO: Move to packageinstaller.nim
   var nimblemeta = %{"url": %url}
   if not vcsRevision.isNil:
     nimblemeta["vcsRevision"] = %vcsRevision
@@ -325,7 +329,19 @@ proc saveNimbleMeta(pkgDestDir, url, vcsRevision: string,
   nimblemeta["binaries"] = binaries
   for bin in bins:
     binaries.add(%bin)
+  nimblemeta["isLink"] = %isLink
   writeFile(pkgDestDir / "nimblemeta.json", $nimblemeta)
+
+proc saveNimbleMeta(pkgDestDir, pkgDir, vcsRevision: string) =
+  ## Overload of saveNimbleMeta for linked (.nimble-link) packages.
+  ##
+  ## pkgDestDir - The directory where the package has been installed.
+  ##              For example: ~/.nimble/pkgs/jester-#head/
+  ##
+  ## pkgDir - The directory where the original package files are.
+  ##          For example: ~/projects/jester/
+  saveNimbleMeta(pkgDestDir, "file://" & pkgDir, vcsRevision,
+                 initSet[string](), initSet[string](), true)
 
 proc removePkgDir(dir: string, options: Options) =
   ## Removes files belonging to the package in ``dir``.
@@ -399,7 +415,6 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
   var pkgInfo = getPkgInfo(dir, options)
   let realDir = pkgInfo.getRealDir()
   let binDir = options.getBinDir()
-  let pkgsDir = options.getPkgsDir()
   var depsOptions = options
   depsOptions.depsOnly = false
 
@@ -421,12 +436,11 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
   # if the build fails then the old package will still be installed.
   if pkgInfo.bin.len > 0: buildFromDir(pkgInfo, result.paths, true)
 
-  let versionStr = '-' & pkgInfo.specialVersion
-
-  let pkgDestDir = pkgsDir / (pkgInfo.name & versionStr)
+  let pkgDestDir = pkgInfo.getPkgDest(options)
   if existsDir(pkgDestDir) and existsFile(pkgDestDir / "nimblemeta.json"):
-    if not options.prompt(pkgInfo.name & versionStr &
-          " already exists. Overwrite?"):
+    let msg = "$1@$2 already exists. Overwrite?" %
+              [pkgInfo.name, pkgInfo.specialVersion]
+    if not options.prompt(msg):
       raise NimbleQuit(msg: "")
     removePkgDir(pkgDestDir, options)
     # Remove any symlinked binaries
@@ -494,49 +508,6 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
 
   display("Success:", pkgInfo.name & " installed successfully.",
           Success, HighPriority)
-
-proc getNimbleTempDir(): string =
-  ## Returns a path to a temporary directory.
-  ##
-  ## The returned path will be the same for the duration of the process but
-  ## different for different runs of it. You have to make sure to create it
-  ## first. In release builds the directory will be removed when nimble finishes
-  ## its work.
-  result = getTempDir() / "nimble_"
-  when defined(windows):
-    proc GetCurrentProcessId(): int32 {.stdcall, dynlib: "kernel32",
-                                        importc: "GetCurrentProcessId".}
-    result.add($GetCurrentProcessId())
-  else:
-    result.add($getpid())
-
-proc downloadPkg(url: string, verRange: VersionRange,
-                 downMethod: DownloadMethod,
-                 options: Options): (string, Version) =
-  ## Downloads the repository as specified by ``url`` and ``verRange`` using
-  ## the download method specified.
-  ##
-  ## Returns the directory where it was downloaded and the concrete version
-  ## which was downloaded.
-  let downloadDir = (getNimbleTempDir() / getDownloadDirName(url, verRange))
-  createDir(downloadDir)
-  var modUrl =
-    if url.startsWith("git://") and options.config.cloneUsingHttps:
-      "https://" & url[6 .. ^1]
-    else: url
-
-  # Fixes issue #204
-  # github + https + trailing url slash causes a
-  # checkout/ls-remote to fail with Repository not found
-  if modUrl.contains("github.com") and modUrl.endswith("/"):
-    modUrl = modUrl[0 .. ^2]
-
-  display("Downloading", "$1 using $2" % [modUrl, $downMethod],
-          priority = HighPriority)
-  result = (
-    downloadDir,
-    doDownload(modUrl, downloadDir, verRange, downMethod, options)
-  )
 
 proc getDownloadInfo*(pv: PkgTuple, options: Options,
                       doPrompt: bool): (DownloadMethod, string) =
@@ -931,6 +902,70 @@ proc listTasks(options: Options) =
   let nimbleFile = findNimbleFile(getCurrentDir(), true)
   nimscriptsupport.listTasks(nimbleFile, options)
 
+proc developFromDir(dir: string, options: Options) =
+  if options.depsOnly:
+    raiseNimbleError("Cannot develop dependencies only.")
+
+  var pkgInfo = getPkgInfo(dir, options)
+  if pkgInfo.bin.len > 0:
+    if "nim" in pkgInfo.skipExt:
+      raiseNimbleError("Cannot develop packages that are binaries only.")
+
+    display("Warning:", "This package's binaries will not be compiled " &
+            "nor symlinked for development.", Warning, HighPriority)
+
+  # Overwrite the version to #head always.
+  pkgInfo.specialVersion = "#head"
+
+  # Dependencies need to be processed before the creation of the pkg dir.
+  discard processDeps(pkgInfo, options)
+
+  # This is similar to the code in `installFromDir`, except that we
+  # *consciously* not worry about the package's binaries.
+  let pkgDestDir = pkgInfo.getPkgDest(options)
+  if existsDir(pkgDestDir) and existsFile(pkgDestDir / "nimblemeta.json"):
+    let msg = "$1@$2 already exists. Overwrite?" %
+              [pkgInfo.name, pkgInfo.specialVersion]
+    if not options.prompt(msg):
+      raise NimbleQuit(msg: "")
+    removePkgDir(pkgDestDir, options)
+
+  createDir(pkgDestDir)
+  # The .nimble-link file contains the path to the real .nimble file,
+  # and a secondary path to the source directory of the package.
+  # The secondary path is necessary so that the package's .nimble file doesn't
+  # need to be read. This will mean that users will need to re-run
+  # `nimble develop` if they change their `srcDir` but I think it's a worthy
+  # compromise.
+  let contents = pkgInfo.myPath & "\n" & pkgInfo.getRealDir()
+  writeFile(pkgDestDir / pkgInfo.name.addFileExt("nimble-link"), contents)
+
+  # TODO: Handle dependencies of the package we are developing (they need to be
+  # installed).
+
+  # Save a nimblemeta.json file.
+  saveNimbleMeta(pkgDestDir, "file://" & dir, vcsRevisionInDir(dir))
+
+  # Save the nimble data (which might now contain reverse deps added in
+  # processDeps).
+  saveNimbleData(options)
+
+proc develop(options: Options) =
+  if options.action.packages == @[]:
+    developFromDir(getCurrentDir(), options)
+  else:
+    # Install each package.
+    for pv in options.action.packages:
+      let downloadDir = getCurrentDir() / pv.name
+      if dirExists(downloadDir):
+        let msg = "Cannot clone into '$1': directory exists." % downloadDir
+        let hint = "Remove the directory, or run this command somewhere else."
+        raiseNimbleError(msg, hint)
+
+      let (meth, url) = getDownloadInfo(pv, options, true)
+      discard downloadPkg(url, pv.ver, meth, options, downloadDir)
+      developFromDir(downloadDir, options)
+
 proc execHook(options: Options, before: bool): bool =
   ## Returns whether to continue.
   result = true
@@ -1002,6 +1037,8 @@ proc doAction(options: Options) =
     dump(options)
   of actionTasks:
     listTasks(options)
+  of actionDevelop:
+    develop(options)
   of actionNil:
     assert false
   of actionCustom:

@@ -497,6 +497,11 @@ proc iterInstallFiles*(realDir: string, pkgInfo: PackageInfo,
 
         action(file)
 
+proc getPkgDest*(pkgInfo: PackageInfo, options: Options): string =
+  let versionStr = '-' & pkgInfo.specialVersion
+  let pkgDestDir = options.getPkgsDir() / (pkgInfo.name & versionStr)
+  return pkgDestDir
+
 when isMainModule:
   doAssert getNameVersion("/home/user/.nimble/libs/packagea-0.1") ==
       ("packagea", "0.1")

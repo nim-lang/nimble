@@ -461,3 +461,40 @@ test "can pass args with spaces to Nim (#351)":
                                        " binaryPackage")
     checkpoint output
     check exitCode == QuitSuccess
+
+suite "develop feature":
+  test "can reject binary packages":
+    cd "develop/binary":
+      let (output, exitCode) = execNimble("develop")
+      checkpoint output
+      check output.processOutput.inLines("cannot develop packages")
+      check exitCode == QuitFailure
+
+  test "can develop hybrid":
+    cd "develop/hybrid":
+      let (output, exitCode) = execNimble("develop")
+      checkpoint output
+      check output.processOutput.inLines("will not be compiled")
+      check exitCode == QuitSuccess
+
+      let path = installDir / "pkgs" / "hybrid-#head" / "hybrid.nimble-link"
+      check fileExists(path)
+      let split = readFile(path).splitLines()
+      check split.len == 2
+      check split[0].endsWith("develop/hybrid/hybrid.nimble")
+      check split[1].endsWith("develop/hybrid")
+
+  test "can develop with srcDir":
+    cd "develop/srcdirtest":
+      let (output, exitCode) = execNimble("develop")
+      checkpoint output
+      check(not output.processOutput.inLines("will not be compiled"))
+      check exitCode == QuitSuccess
+
+      let path = installDir / "pkgs" / "srcdirtest-#head" /
+                 "srcdirtest.nimble-link"
+      check fileExists(path)
+      let split = readFile(path).splitLines()
+      check split.len == 2
+      check split[0].endsWith("develop/srcdirtest/srcdirtest.nimble")
+      check split[1].endsWith("develop/srcdirtest/src")

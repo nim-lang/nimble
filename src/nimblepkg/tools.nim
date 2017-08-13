@@ -141,3 +141,20 @@ proc contains*(j: JsonNode, elem: tuple[key: string, val: JsonNode]): bool =
   for key, val in pairs(j):
     if key == elem.key and val == elem.val:
       return true
+
+when not defined(windows):
+  from posix import getpid
+proc getNimbleTempDir*(): string =
+  ## Returns a path to a temporary directory.
+  ##
+  ## The returned path will be the same for the duration of the process but
+  ## different for different runs of it. You have to make sure to create it
+  ## first. In release builds the directory will be removed when nimble finishes
+  ## its work.
+  result = getTempDir() / "nimble_"
+  when defined(windows):
+    proc GetCurrentProcessId(): int32 {.stdcall, dynlib: "kernel32",
+                                        importc: "GetCurrentProcessId".}
+    result.add($GetCurrentProcessId())
+  else:
+    result.add($getpid())
