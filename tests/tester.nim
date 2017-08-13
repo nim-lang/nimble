@@ -18,6 +18,9 @@ createDir(installDir)
 test "can compile nimble":
   check execCmdEx("nim c " & path).exitCode == QuitSuccess
 
+test "can compile with --os:windows":
+  check execCmdEx("nim check --os:windows " & path).exitCode == QuitSuccess
+
 template cd*(dir: string, body: untyped) =
   ## Sets the current dir to ``dir``, executes ``body`` and restores the
   ## previous working dir.
