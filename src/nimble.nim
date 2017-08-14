@@ -305,44 +305,6 @@ proc buildFromDir(pkgInfo: PackageInfo, paths: seq[string], forRelease: bool) =
     args = @[]
   buildFromDir(pkgInfo, paths, args)
 
-proc saveNimbleMeta(pkgDestDir, url, vcsRevision: string,
-                    filesInstalled, bins: HashSet[string],
-                    isLink: bool = false) =
-  ## Saves the specified data into a ``nimblemeta.json`` file inside
-  ## ``pkgDestDir``.
-  ##
-  ## filesInstalled - A list of absolute paths to files which have been
-  ##                  installed.
-  ## bins - A list of binary filenames which have been installed for this
-  ##        package.
-  ##
-  ## isLink - Determines whether the installed package is a .nimble-link.
-  # TODO: Move to packageinstaller.nim
-  var nimblemeta = %{"url": %url}
-  if not vcsRevision.isNil:
-    nimblemeta["vcsRevision"] = %vcsRevision
-  let files = newJArray()
-  nimblemeta["files"] = files
-  for file in filesInstalled:
-    files.add(%changeRoot(pkgDestDir, "", file))
-  let binaries = newJArray()
-  nimblemeta["binaries"] = binaries
-  for bin in bins:
-    binaries.add(%bin)
-  nimblemeta["isLink"] = %isLink
-  writeFile(pkgDestDir / "nimblemeta.json", $nimblemeta)
-
-proc saveNimbleMeta(pkgDestDir, pkgDir, vcsRevision: string) =
-  ## Overload of saveNimbleMeta for linked (.nimble-link) packages.
-  ##
-  ## pkgDestDir - The directory where the package has been installed.
-  ##              For example: ~/.nimble/pkgs/jester-#head/
-  ##
-  ## pkgDir - The directory where the original package files are.
-  ##          For example: ~/projects/jester/
-  saveNimbleMeta(pkgDestDir, "file://" & pkgDir, vcsRevision,
-                 initSet[string](), initSet[string](), true)
-
 proc removePkgDir(dir: string, options: Options) =
   ## Removes files belonging to the package in ``dir``.
   try:
@@ -939,9 +901,6 @@ proc developFromDir(dir: string, options: Options) =
   # compromise.
   let contents = pkgInfo.myPath & "\n" & pkgInfo.getRealDir()
   writeFile(pkgDestDir / pkgInfo.name.addFileExt("nimble-link"), contents)
-
-  # TODO: Handle dependencies of the package we are developing (they need to be
-  # installed).
 
   # Save a nimblemeta.json file.
   saveNimbleMeta(pkgDestDir, "file://" & dir, vcsRevisionInDir(dir))
