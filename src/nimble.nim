@@ -4,7 +4,7 @@
 import system except TResult
 
 import httpclient, parseopt, os, osproc, pegs, tables, parseutils,
-       strtabs, json, algorithm, sets, uri
+       strtabs, json, algorithm, sets, uri, future, sequtils
 
 import strutils except toLower
 from unicode import toLower
@@ -198,11 +198,12 @@ proc removeRevDep(options: Options, pkg: PackageInfo) =
 
 proc install(packages: seq[PkgTuple],
              options: Options,
-             doPrompt = true): tuple[paths: seq[string], pkg: PackageInfo]
-proc processDeps(pkginfo: PackageInfo, options: Options): seq[string] =
+             doPrompt = true): tuple[deps: seq[PackageInfo], pkg: PackageInfo]
+proc processDeps(pkginfo: PackageInfo, options: Options): seq[PackageInfo] =
   ## Verifies and installs dependencies.
   ##
-  ## Returns the list of paths to pass to the compiler during build phase.
+  ## Returns the list of PackageInfo (for paths) to pass to the compiler
+  ## during build phase.
   result = @[]
   assert(not pkginfo.isMinimal, "processDeps needs pkginfo.requires")
   display("Verifying",
@@ -233,8 +234,8 @@ proc processDeps(pkginfo: PackageInfo, options: Options): seq[string] =
       if not found:
         display("Installing", $resolvedDep, priority = HighPriority)
         let toInstall = @[(resolvedDep.name, resolvedDep.ver)]
-        let (paths, installedPkg) = install(toInstall, options)
-        result.add(paths)
+        let (pkgs, installedPkg) = install(toInstall, options)
+        result.add(pkgs)
 
         pkg = installedPkg # For addRevDep
 
@@ -243,7 +244,12 @@ proc processDeps(pkginfo: PackageInfo, options: Options): seq[string] =
       else:
         display("Info:", "Dependency on $1 already satisfied" % $dep,
                 priority = HighPriority)
-        result.add(pkg.mypath.splitFile.dir)
+        if pkg.isLinked:
+          # TODO (#393): This can be optimised since the .nimble-link files have
+          # a secondary line that specifies the srcDir.
+          pkg = pkg.toFullInfo(options)
+
+        result.add(pkg)
         # Process the dependencies of this dependency.
         result.add(processDeps(pkg.toFullInfo(options), options))
       reverseDeps.add((pkg.name, pkg.specialVersion))
@@ -251,8 +257,7 @@ proc processDeps(pkginfo: PackageInfo, options: Options): seq[string] =
   # Check if two packages of the same name (but different version) are listed
   # in the path.
   var pkgsInPath: StringTableRef = newStringTable(modeCaseSensitive)
-  for p in result:
-    let pkgInfo = getPkgInfo(p, options)
+  for pkgInfo in result:
     if pkgsInPath.hasKey(pkgInfo.name) and
        pkgsInPath[pkgInfo.name] != pkgInfo.version:
       raise newException(NimbleError,
@@ -267,7 +272,8 @@ proc processDeps(pkginfo: PackageInfo, options: Options): seq[string] =
   for i in reverseDeps:
     addRevDep(options, i, pkginfo)
 
-proc buildFromDir(pkgInfo: PackageInfo, paths: seq[string], args: var seq[string]) =
+proc buildFromDir(pkgInfo: PackageInfo, paths: seq[string],
+                  args: var seq[string]) =
   ## Builds a package as specified by ``pkgInfo``.
   if pkgInfo.bin.len == 0:
     raise newException(NimbleError,
@@ -369,7 +375,10 @@ proc vcsRevisionInDir(dir: string): string =
       discard
 
 proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
-                    url: string): tuple[paths: seq[string], pkg: PackageInfo] =
+                    url: string): tuple[
+                      deps: seq[PackageInfo],
+                      pkg: PackageInfo
+                    ] =
   ## Returns where package has been installed to, together with paths
   ## to the packages this package depends on.
   ## The return value of this function is used by
@@ -385,7 +394,7 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
     pkgInfo.specialVersion = $requestedVer.spe
 
   # Dependencies need to be processed before the creation of the pkg dir.
-  result.paths = processDeps(pkgInfo, depsOptions)
+  result.deps = processDeps(pkgInfo, depsOptions)
 
   if options.depsOnly:
     result.pkg = pkgInfo
@@ -396,7 +405,9 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
 
   # Build before removing an existing package (if one exists). This way
   # if the build fails then the old package will still be installed.
-  if pkgInfo.bin.len > 0: buildFromDir(pkgInfo, result.paths, true)
+  if pkgInfo.bin.len > 0:
+    let paths = result.deps.map(dep => dep.getRealDir())
+    buildFromDir(pkgInfo, paths, true)
 
   let pkgDestDir = pkgInfo.getPkgDest(options)
   if existsDir(pkgDestDir) and existsFile(pkgDestDir / "nimblemeta.json"):
@@ -462,8 +473,8 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
   # processDeps).
   saveNimbleData(options)
 
-  # Return the paths to the dependencies of this package.
-  result.paths.add pkgDestDir
+  # Return the dependencies of this package (mainly for paths).
+  result.deps.add pkgInfo
   result.pkg = pkgInfo
   result.pkg.isInstalled = true
   result.pkg.myPath = dest
@@ -496,7 +507,7 @@ proc getDownloadInfo*(pv: PkgTuple, options: Options,
 
 proc install(packages: seq[PkgTuple],
              options: Options,
-             doPrompt = true): tuple[paths: seq[string], pkg: PackageInfo] =
+             doPrompt = true): tuple[deps: seq[PackageInfo], pkg: PackageInfo] =
   if packages == @[]:
     result = installFromDir(getCurrentDir(), newVRAny(), options, "")
   else:
@@ -530,7 +541,8 @@ proc install(packages: seq[PkgTuple],
 proc build(options: Options) =
   var pkgInfo = getPkgInfo(getCurrentDir(), options)
   nimScriptHint(pkgInfo)
-  let paths = processDeps(pkginfo, options)
+  let deps = processDeps(pkginfo, options)
+  let paths = deps.map(dep => dep.getRealDir())
   var args = options.action.compileOptions
   buildFromDir(pkgInfo, paths, args)
 
@@ -544,10 +556,10 @@ proc execBackend(options: Options) =
 
   var pkgInfo = getPkgInfo(getCurrentDir(), options)
   nimScriptHint(pkgInfo)
-  let paths = processDeps(pkginfo, options)
+  let deps = processDeps(pkginfo, options)
 
   var args = ""
-  for path in paths: args.add("--path:\"" & path & "\" ")
+  for dep in deps: args.add("--path:\"" & dep.getRealDir() & "\" ")
   for option in options.action.compileOptions:
     args.add("\"" & option & "\" ")
 

@@ -66,7 +66,7 @@ proc getNameVersion*(pkgpath: string): tuple[name, version: string] =
   ##
   ## Also works for file paths like:
   ##   ``/home/user/.nimble/pkgs/package-0.1/package.nimble``
-  if pkgPath.splitFile.ext == ".nimble" or pkgPath.splitFile.ext == ".babel":
+  if pkgPath.splitFile.ext in [".nimble", ".nimble-link", ".babel"]:
     return getNameVersion(pkgPath.splitPath.head)
 
   result.name = ""
@@ -281,7 +281,7 @@ proc findNimbleFile*(dir: string; error: bool): string =
     if kind in {pcFile, pcLinkToFile}:
       let ext = path.splitFile.ext
       case ext
-      of ".babel", ".nimble":
+      of ".babel", ".nimble", ".nimble-link":
         result = path
         inc hits
       else: discard
@@ -293,8 +293,16 @@ proc findNimbleFile*(dir: string; error: bool): string =
       raise newException(NimbleError,
           "Specified directory does not contain a .nimble file.")
     else:
-      display("Warning:", "No .nimble file found for " & dir, Warning,
-              HighPriority)
+      display("Warning:", "No .nimble or .nimble-link file found for " &
+              dir, Warning, HighPriority)
+
+  if result.splitFile.ext == ".nimble-link":
+    # Return the path of the real .nimble file.
+    let lines = readFile(result).splitLines()
+    result = lines[0]
+    if not fileExists(result):
+      raiseNimbleError("The .nimble-link file is pointing to a missing" &
+                       " file: " & result)
 
 proc getInstalledPkgsMin*(libsDir: string, options: Options):
         seq[tuple[pkginfo: PackageInfo, meta: MetaData]] =
@@ -309,13 +317,15 @@ proc getInstalledPkgsMin*(libsDir: string, options: Options):
       let nimbleFile = findNimbleFile(path, false)
       if nimbleFile != "":
         let meta = readMetaData(path)
-        let (name, version) = getNameVersion(nimbleFile)
+        let (name, version) = getNameVersion(path)
         var pkg = initPackageInfo(nimbleFile)
         pkg.name = name
         pkg.version = version
         pkg.specialVersion = version
         pkg.isMinimal = true
         pkg.isInstalled = true
+        pkg.isLinked =
+          cmpPaths(nimbleFile.splitFile().dir, path) != 0
         result.add((pkg, meta))
 
 proc withinRange*(pkgInfo: PackageInfo, verRange: VersionRange): bool =
@@ -369,7 +379,7 @@ proc findAllPkgs*(pkglist: seq[tuple[pkgInfo: PackageInfo, meta: MetaData]],
 
 proc getRealDir*(pkgInfo: PackageInfo): string =
   ## Returns the directory containing the package source files.
-  if pkgInfo.srcDir != "" and not pkgInfo.isInstalled:
+  if pkgInfo.srcDir != "" and (not pkgInfo.isInstalled or pkgInfo.isLinked):
     result = pkgInfo.mypath.splitFile.dir / pkgInfo.srcDir
   else:
     result = pkgInfo.mypath.splitFile.dir
@@ -515,6 +525,8 @@ when isMainModule:
       ("package", "#head")
   doAssert getNameVersion("/home/user/.nimble/libs/package-#branch-with-dashes") ==
       ("package", "#branch-with-dashes")
+  # readPackageInfo (and possibly more) depends on this not raising.
+  doAssert getNameVersion("/home/user/.nimble/libs/package") == ("package", "")
 
   doAssert toValidPackageName("foo__bar") == "foo_bar"
   doAssert toValidPackageName("jhbasdh!£$@%#^_&*_()qwe") == "jhbasdh_qwe"

@@ -18,6 +18,7 @@ when not defined(nimscript):
       isNimScript*: bool ## Determines if this pkg info was read from a nims file
       isMinimal*: bool
       isInstalled*: bool ## Determines if the pkg this info belongs to is installed
+      isLinked*: bool ## Determines if the pkg this info belongs to has been linked via `develop`
       postHooks*: HashSet[string] ## Useful to know so that Nimble doesn't execHook unnecessarily
       preHooks*: HashSet[string]
       name*: string

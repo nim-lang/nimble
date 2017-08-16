@@ -292,6 +292,11 @@ proc readPackageInfo(nf: NimbleFile, options: Options,
       result.version = minimalInfo.version
       result.isNimScript = true
       result.isMinimal = true
+
+      # It's possible this proc will receive a .nimble-link file eventually,
+      # I added this assert to hopefully make this error clear for everyone.
+      let msg = "No version detected. Received nimble-link?"
+      assert result.version.len > 0, msg
     else:
       try:
         readPackageInfoFromNims(nf, options, result)
@@ -386,6 +391,8 @@ proc getInstalledPkgs*(libsDir: string, options: Options):
           raise exc
 
         pkg.isInstalled = true
+        pkg.isLinked =
+          cmpPaths(nimbleFile.splitFile().dir, path) != 0
         result.add((pkg, meta))
 
 proc isNimScript*(nf: string, options: Options): bool =
@@ -393,7 +400,9 @@ proc isNimScript*(nf: string, options: Options): bool =
 
 proc toFullInfo*(pkg: PackageInfo, options: Options): PackageInfo =
   if pkg.isMinimal:
-    return getPkgInfoFromFile(pkg.mypath, options)
+    result = getPkgInfoFromFile(pkg.mypath, options)
+    result.isInstalled = pkg.isInstalled
+    result.isLinked = pkg.isLinked
   else:
     return pkg
 

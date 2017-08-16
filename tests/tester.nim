@@ -24,10 +24,11 @@ test "can compile with --os:windows":
 template cd*(dir: string, body: untyped) =
   ## Sets the current dir to ``dir``, executes ``body`` and restores the
   ## previous working dir.
-  let lastDir = getCurrentDir()
-  setCurrentDir(dir)
-  body
-  setCurrentDir(lastDir)
+  block:
+    let lastDir = getCurrentDir()
+    setCurrentDir(dir)
+    body
+    setCurrentDir(lastDir)
 
 proc execNimble(args: varargs[string]): tuple[output: string, exitCode: int] =
   var quotedArgs = @args
@@ -501,3 +502,9 @@ suite "develop feature":
       check split.len == 2
       check split[0].endsWith("develop/srcdirtest/srcdirtest.nimble")
       check split[1].endsWith("develop/srcdirtest/src")
+
+    cd "develop/dependent":
+      let (output, exitCode) = execNimble("c", "-r", "src/dependent")
+      checkpoint output
+      check(output.processOutput.inLines("hello"))
+      check exitCode == QuitSuccess
