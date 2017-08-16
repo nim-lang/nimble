@@ -227,7 +227,9 @@ proc readPackageList(name: string, options: Options): JsonNode =
       for name, list in options.config.packageLists:
         fetchList(list, options)
     else:
-      raise newException(NimbleError, "Please run nimble refresh.")
+      # The user might not need a package list for now. So let's try
+      # going further.
+      return newJArray()
   return parseFile(options.getNimbleDir() / "packages_" &
                    name.toLowerAscii() & ".json")
 
