@@ -504,7 +504,7 @@ suite "develop feature":
       check split[1].endsWith("develop/srcdirtest/src")
 
     cd "develop/dependent":
-      let (output, exitCode) = execNimble("c", "-r", "src/dependent")
+      let (output, exitCode) = execNimble("c", "-r", "src/dependent.nim")
       checkpoint output
       check(output.processOutput.inLines("hello"))
       check exitCode == QuitSuccess
