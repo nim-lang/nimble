@@ -172,6 +172,26 @@ list. See the [Creating Packages](#creating-packages) section for more info on t
 A URL to a repository can also be specified, Nimble will automatically detect
 the type of the repository that the url points to and install it.
 
+### nimble develop
+
+The ``develop`` command allows you to link an existing copy of a package into
+your installation directory. This is so that when developing a package you
+don't need to keep reinstalling it for every single change.
+
+    $ cd ~/projects/jester
+    $ nimble develop
+
+Any packages depending on ``jester`` will now use the code in
+``~/projects/jester``.
+
+If you specify a package name to this command, Nimble will clone it into the
+current working directory.
+
+    $ nimble develop jester
+
+The ``jester`` package will be cloned into ``./jester`` and it will be linked
+to your installation directory.
+
 ### nimble uninstall
 
 The ``uninstall`` command will remove an installed package. Attempting to remove
