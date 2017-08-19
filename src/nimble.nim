@@ -625,7 +625,7 @@ proc list(options: Options) =
 
 proc listInstalled(options: Options) =
   var h = initOrderedTable[string, seq[string]]()
-  let pkgs = getInstalledPkgs(options.getPkgsDir(), options)
+  let pkgs = getInstalledPkgsMin(options.getPkgsDir(), options)
   for x in pkgs.items():
     let
       pName = x.pkginfo.name
