@@ -518,3 +518,11 @@ suite "develop feature":
     checkpoint(output)
     check exitCode == QuitSuccess
     check(not output.processOutput.inLines("warning"))
+
+  test "can git clone for develop":
+    let cloneDir = installDir / "developTmp"
+    createDir(cloneDir)
+    cd cloneDir:
+      let url = "https://github.com/nimble-test/packagea.git"
+      let (output, exitCode) = execNimble("develop", "-y", url)
+      check exitCode == QuitSuccess

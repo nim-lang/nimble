@@ -219,7 +219,7 @@ proc parseArgument*(key: string, result: var Options) =
   case result.action.typ
   of actionNil:
     assert false
-  of actionInstall, actionPath, actionUninstall:
+  of actionInstall, actionPath, actionDevelop, actionUninstall:
     # Parse pkg@verRange
     if '@' in key:
       let i = find(key, '@')

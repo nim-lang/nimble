@@ -926,13 +926,21 @@ proc developFromDir(dir: string, options: Options) =
   # processDeps).
   saveNimbleData(options)
 
+  display("Success:", (pkgInfo.name & " linked successfully to '$1'.") %
+          dir, Success, HighPriority)
+
 proc develop(options: Options) =
   if options.action.packages == @[]:
     developFromDir(getCurrentDir(), options)
   else:
     # Install each package.
     for pv in options.action.packages:
-      let downloadDir = getCurrentDir() / pv.name
+      let name =
+        if isURL(pv.name):
+          parseUri(pv.name).path
+        else:
+          pv.name
+      let downloadDir = getCurrentDir() / name
       if dirExists(downloadDir):
         let msg = "Cannot clone into '$1': directory exists." % downloadDir
         let hint = "Remove the directory, or run this command somewhere else."
