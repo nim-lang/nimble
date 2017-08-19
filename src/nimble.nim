@@ -336,6 +336,7 @@ proc removePkgDir(dir: string, options: Options) =
         removeFile(options.getBinDir() / binary.str)
 
       # Search for an older version of the package we are removing.
+      # So that we can reinstate its symlink.
       let (pkgName, _) = getNameVersion(dir)
       let pkgList = getInstalledPkgsMin(options.getPkgsDir(), options)
       var pkgInfo: PackageInfo
@@ -818,7 +819,7 @@ proc uninstall(options: Options) =
   for pkgTup in options.action.packages:
     display("Looking", "for $1 ($2)" % [pkgTup.name, $pkgTup.ver],
             priority = HighPriority)
-    let installedPkgs = getInstalledPkgs(options.getPkgsDir(), options)
+    let installedPkgs = getInstalledPkgsMin(options.getPkgsDir(), options)
     var pkgList = findAllPkgs(installedPkgs, pkgTup)
     if pkgList.len == 0:
       raise newException(NimbleError, "Package not found")
@@ -912,10 +913,12 @@ proc developFromDir(dir: string, options: Options) =
   # `nimble develop` if they change their `srcDir` but I think it's a worthy
   # compromise.
   let contents = pkgInfo.myPath & "\n" & pkgInfo.getRealDir()
-  writeFile(pkgDestDir / pkgInfo.name.addFileExt("nimble-link"), contents)
+  let nimbleLinkPath = pkgDestDir / pkgInfo.name.addFileExt("nimble-link")
+  writeFile(nimbleLinkPath, contents)
 
   # Save a nimblemeta.json file.
-  saveNimbleMeta(pkgDestDir, "file://" & dir, vcsRevisionInDir(dir))
+  saveNimbleMeta(pkgDestDir, "file://" & dir, vcsRevisionInDir(dir),
+                 nimbleLinkPath)
 
   # Save the nimble data (which might now contain reverse deps added in
   # processDeps).

@@ -94,7 +94,7 @@ proc saveNimbleMeta*(pkgDestDir, url, vcsRevision: string,
   nimblemeta["isLink"] = %isLink
   writeFile(pkgDestDir / "nimblemeta.json", $nimblemeta)
 
-proc saveNimbleMeta*(pkgDestDir, pkgDir, vcsRevision: string) =
+proc saveNimbleMeta*(pkgDestDir, pkgDir, vcsRevision, nimbleLinkPath: string) =
   ## Overload of saveNimbleMeta for linked (.nimble-link) packages.
   ##
   ## pkgDestDir - The directory where the package has been installed.
@@ -103,4 +103,4 @@ proc saveNimbleMeta*(pkgDestDir, pkgDir, vcsRevision: string) =
   ## pkgDir - The directory where the original package files are.
   ##          For example: ~/projects/jester/
   saveNimbleMeta(pkgDestDir, "file://" & pkgDir, vcsRevision,
-                 initSet[string](), initSet[string](), true)
+                 toSet[string]([nimbleLinkPath]), initSet[string](), true)

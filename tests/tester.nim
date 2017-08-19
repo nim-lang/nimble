@@ -508,3 +508,13 @@ suite "develop feature":
       checkpoint output
       check(output.processOutput.inLines("hello"))
       check exitCode == QuitSuccess
+
+  test "can uninstall linked package":
+    cd "develop/srcdirtest":
+      let (_, exitCode) = execNimble("develop", "-y")
+      check exitCode == QuitSuccess
+
+    let (output, exitCode) = execNimble("uninstall", "-y", "srcdirtest")
+    checkpoint(output)
+    check exitCode == QuitSuccess
+    check(not output.processOutput.inLines("warning"))
