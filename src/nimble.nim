@@ -650,6 +650,7 @@ proc listPaths(options: Options) =
   ## but at the end quits with a non zero exit error.
   ##
   ## On success the proc returns normally.
+  cli.setSuppressMessages(true)
   assert options.action.typ == actionPath
   assert(not options.action.packages.isNil)
 
@@ -720,6 +721,7 @@ proc getPackageByPattern(pattern: string, options: Options): PackageInfo =
     result = getPkgInfoFromFile(skeletonInfo.myPath, options)
 
 proc dump(options: Options) =
+  cli.setSuppressMessages(true)
   let p = getPackageByPattern(options.action.projName, options)
   echo "name: ", p.name.escape
   echo "version: ", p.version.escape

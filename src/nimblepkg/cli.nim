@@ -20,6 +20,10 @@ type
     warnings: HashSet[(string, string)]
     suppressionCount: int ## Amount of messages which were not shown.
     showColor: bool ## Whether messages should be colored.
+    suppressMessages: bool ## Whether Warning, Message and Success messages
+                           ## should be suppressed, useful for
+                           ## commands like `dump` whose output should be
+                           ## machine readable.
 
   Priority* = enum
     DebugPriority, LowPriority, MediumPriority, HighPriority
@@ -42,7 +46,8 @@ proc newCLI(): CLI =
     level: HighPriority,
     warnings: initSet[(string, string)](),
     suppressionCount: 0,
-    showColor: true
+    showColor: true,
+    suppressMessages: false
   )
 
 var globalCLI = newCLI()
@@ -77,6 +82,13 @@ proc displayLine(category, line: string, displayType: DisplayType,
 
 proc display*(category, msg: string, displayType = Message,
               priority = MediumPriority) =
+
+  # Don't print any Warning, Message or Success messages when suppression of
+  # warnings is enabled. That is, unless the user asked for --verbose output.
+  if globalCLI.suppressMessages and displayType >= Warning and
+     globalCLI.level == HighPriority:
+    return
+
   # Multiple warnings containing the same messages should not be shown.
   let warningPair = (category, msg)
   if displayType == Warning:
@@ -154,6 +166,9 @@ proc setVerbosity*(level: Priority) =
 
 proc setShowColor*(val: bool) =
   globalCLI.showColor = val
+
+proc setSuppressMessages*(val: bool) =
+  globalCLI.suppressMessages = val
 
 when isMainModule:
   display("Reading", "config file at /Users/dom/.config/nimble/nimble.ini",
