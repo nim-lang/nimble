@@ -860,6 +860,21 @@ If you have any questions about the project you can ask me directly on github,
 ask on the Nim [forum](http://forum.nim-lang.org), or ask on Freenode in
 the #nim channel.
 
+## Implementation details
+
+### .nimble-link
+
+These files are created by Nimble when using the ``develop`` command. They
+are very simple and contain two lines.
+
+**The first line:** Always a path to the `.nimble` file.
+**The second line:** Always a path to the Nimble package's source code. Usually
+``$pkgDir/src``, depending on what ``srcDir`` is set to.
+
+The paths written by Nimble are **always** absolute. But Nimble (and the
+Nim compiler) also supports relative paths, which will be read relative to
+the `.nimble-link` file.
+
 ## About
 
 Nimble has been written by [Dominik Picheta](http://picheta.me/) with help from
