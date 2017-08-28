@@ -868,6 +868,7 @@ These files are created by Nimble when using the ``develop`` command. They
 are very simple and contain two lines.
 
 **The first line:** Always a path to the `.nimble` file.
+
 **The second line:** Always a path to the Nimble package's source code. Usually
 ``$pkgDir/src``, depending on what ``srcDir`` is set to.
 
