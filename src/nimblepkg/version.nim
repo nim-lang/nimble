@@ -35,24 +35,30 @@ type
   NimbleError* = object of Exception
     hint*: string
 
-proc newVersion*(ver: string): Version =
-  doAssert(ver[0] in {'#', '\0'} + Digits, "Wrong version: " & ver)
-  return Version(ver)
-
 proc `$`*(ver: Version): string {.borrow.}
 
 proc hash*(ver: Version): Hash {.borrow.}
 
 proc isNil*(ver: Version): bool {.borrow.}
 
+proc newVersion*(ver: string): Version =
+  doAssert(ver.len == 0 or ver[0] in {'#', '\0'} + Digits,
+           "Wrong version: " & ver)
+  return Version(ver)
+
 proc isSpecial*(ver: Version): bool =
-  return ($ver)[0] == '#'
+  return ($ver).len > 0 and ($ver)[0] == '#'
 
 proc `<`*(ver: Version, ver2: Version): bool =
   # Handling for special versions such as "#head" or "#branch".
   if ver.isSpecial or ver2.isSpecial:
     # TODO: This may need to be reverted. See #311.
-    return ($ver2).normalize == "#head" and ($ver).normalize != "#head"
+    if ver2.isSpecial and ($ver2).normalize == "#head":
+      return ($ver).normalize != "#head"
+
+    if not ver2.isSpecial:
+      # `#aa111 < 1.1`
+      return ($ver).normalize != "#head"
 
   # Handling for normal versions such as "0.1.0" or "1.0".
   var sVer = string(ver).split('.')
@@ -338,6 +344,10 @@ when isMainModule:
   doAssert(newVersion("#head") > newVersion("0.1.0"))
   doAssert(not(newVersion("#head") > newVersion("#head")))
   doAssert(withinRange(newVersion("#head"), parseVersionRange(">= 0.5.0")))
+  doAssert newVersion("#a111") < newVersion("#head")
+  # We assume that all other special versions are not higher than a normal
+  # version.
+  doAssert newVersion("#a111") < newVersion("1.1")
 
   # An empty version range should give verAny
   doAssert parseVersionRange("").kind == verAny
