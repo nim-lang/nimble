@@ -13,7 +13,7 @@ from sequtils import toSeq
 import nimblepkg/packageinfo, nimblepkg/version, nimblepkg/tools,
        nimblepkg/download, nimblepkg/config, nimblepkg/common,
        nimblepkg/publish, nimblepkg/options, nimblepkg/packageparser,
-       nimblepkg/cli, nimblepkg/packageinstaller
+       nimblepkg/cli, nimblepkg/packageinstaller, nimblepkg/reversedeps
 
 import nimblepkg/nimscriptsupport
 
@@ -141,61 +141,6 @@ proc copyFilesRec(origDir, currentDir, dest: string,
   result.incl copyFileD(pkgInfo.mypath,
             changeRoot(pkgInfo.mypath.splitFile.dir, dest, pkgInfo.mypath))
 
-proc saveNimbleData(options: Options) =
-  # TODO: This file should probably be locked.
-  writeFile(options.getNimbleDir() / "nimbledata.json",
-          pretty(options.nimbleData))
-
-proc addRevDep(options: Options, dep: tuple[name, version: string],
-               pkg: PackageInfo) =
-  # let depNameVer = dep.name & '-' & dep.version
-  if not options.nimbleData["reverseDeps"].hasKey(dep.name):
-    options.nimbleData["reverseDeps"][dep.name] = newJObject()
-  if not options.nimbleData["reverseDeps"][dep.name].hasKey(dep.version):
-    options.nimbleData["reverseDeps"][dep.name][dep.version] = newJArray()
-  let revDep = %{ "name": %pkg.name, "version": %pkg.specialVersion}
-  let thisDep = options.nimbleData["reverseDeps"][dep.name][dep.version]
-  if revDep notin thisDep:
-    thisDep.add revDep
-
-proc removeRevDep(options: Options, pkg: PackageInfo) =
-  ## Removes ``pkg`` from the reverse dependencies of every package.
-  assert(not pkg.isMinimal)
-  proc remove(options: Options, pkg: PackageInfo, depTup: PkgTuple,
-              thisDep: JsonNode) =
-    for ver, val in thisDep:
-      if ver.newVersion in depTup.ver:
-        var newVal = newJArray()
-        for revDep in val:
-          if not (revDep["name"].str == pkg.name and
-                  revDep["version"].str == pkg.specialVersion):
-            newVal.add revDep
-        thisDep[ver] = newVal
-
-  for depTup in pkg.requires:
-    if depTup.name.isURL():
-      # We sadly must go through everything in this case...
-      for key, val in options.nimbleData["reverseDeps"]:
-        options.remove(pkg, depTup, val)
-    else:
-      let thisDep = options.nimbleData{"reverseDeps", depTup.name}
-      if thisDep.isNil: continue
-      options.remove(pkg, depTup, thisDep)
-
-  # Clean up empty objects/arrays
-  var newData = newJObject()
-  for key, val in options.nimbleData["reverseDeps"]:
-    if val.len != 0:
-      var newVal = newJObject()
-      for ver, elem in val:
-        if elem.len != 0:
-          newVal[ver] = elem
-      if newVal.len != 0:
-        newData[key] = newVal
-  options.nimbleData["reverseDeps"] = newData
-
-  saveNimbleData(options)
-
 proc install(packages: seq[PkgTuple],
              options: Options,
              doPrompt = true): tuple[deps: seq[PackageInfo], pkg: PackageInfo]
@@ -270,7 +215,7 @@ proc processDeps(pkginfo: PackageInfo, options: Options): seq[PackageInfo] =
   # (unsatisfiable dependendencies).
   # N.B. NimbleData is saved in installFromDir.
   for i in reverseDeps:
-    addRevDep(options, i, pkginfo)
+    addRevDep(options.nimbleData, i, pkginfo)
 
 proc buildFromDir(pkgInfo: PackageInfo, paths: seq[string],
                   args: var seq[string]) =
@@ -416,6 +361,11 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
               [pkgInfo.name, pkgInfo.specialVersion]
     if not options.prompt(msg):
       raise NimbleQuit(msg: "")
+
+    # Remove reverse deps.
+    let pkgInfo = getPkgInfo(pkgDestDir, options)
+    options.nimbleData.removeRevDep(pkgInfo)
+
     removePkgDir(pkgDestDir, options)
     # Remove any symlinked binaries
     for bin in pkgInfo.bin:
@@ -425,7 +375,6 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
         removeFile(binDir / bin.changeFileExt(""))
       else:
         removeFile(binDir / bin)
-
 
   createDir(pkgDestDir)
   # Copy this package's files based on the preferences specified in PkgInfo.
@@ -831,21 +780,20 @@ proc uninstall(options: Options) =
     for pkg in pkgList:
       # Check whether any packages depend on the ones the user is trying to
       # uninstall.
-      let thisPkgsDep = options.nimbleData["reverseDeps"]{pkg.name}{pkg.specialVersion}
-      if not thisPkgsDep.isNil:
-        var reason = ""
-        if thisPkgsDep.len == 1:
-          reason = "$1 ($2) depends on it" % [thisPkgsDep[0]["name"].str,
-                   thisPkgsDep[0]["version"].str]
-        else:
-          for i in 0 .. <thisPkgsDep.len:
-            reason.add("$1 ($2)" % [thisPkgsDep[i]["name"].str,
-                       thisPkgsDep[i]["version"].str])
-            if i != <thisPkgsDep.len:
-              reason.add ", "
-          reason.add " depend on it"
-        errors.add("Cannot uninstall $1 ($2) because $3" % [pkgTup.name,
-                   pkg.specialVersion, reason])
+      let revDeps = getRevDeps(options, pkg)
+      var reason = ""
+      if revDeps.len == 1:
+        reason = "$1 ($2) depends on it" % [revDeps[0].name, $revDeps[0].ver]
+      else:
+        for i in 0 .. <revDeps.len:
+          reason.add("$1 ($2)" % [revDeps[i].name, $revDeps[i].ver])
+          if i != <revDeps.len:
+            reason.add ", "
+        reason.add " depend on it"
+
+      if revDeps.len > 0:
+        errors.add("Cannot uninstall $1 ($2) because $3" %
+                   [pkgTup.name, pkg.specialVersion, reason])
       else:
         pkgsToDelete.add pkg
 
@@ -869,11 +817,13 @@ proc uninstall(options: Options) =
 
     # removeRevDep needs the package dependency info, so we can't just pass
     # a minimal pkg info.
-    removeRevDep(options, pkg.toFullInfo(options))
+    removeRevDep(options.nimbleData, pkg.toFullInfo(options))
     removePkgDir(options.getPkgsDir / (pkg.name & '-' & pkg.specialVersion),
                  options)
     display("Removed", "$1 ($2)" % [pkg.name, $pkg.specialVersion], Success,
             HighPriority)
+
+  saveNimbleData(options)
 
 proc listTasks(options: Options) =
   let nimbleFile = findNimbleFile(getCurrentDir(), true)

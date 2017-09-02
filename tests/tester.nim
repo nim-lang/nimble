@@ -38,6 +38,15 @@ proc execNimble(args: varargs[string]): tuple[output: string, exitCode: int] =
 
   result = execCmdEx(quotedArgs.join(" "))
 
+proc execNimbleYes(args: varargs[string]): tuple[output: string, exitCode: int]=
+  # issue #6314
+  execNimble(@args & "-y")
+
+template verify(res: (string, int)) =
+  let r = res
+  checkpoint r[0]
+  check r[1] == QuitSuccess
+
 proc processOutput(output: string): seq[string] =
   output.strip.splitLines().filter((x: string) => (x.len > 0))
 
@@ -465,6 +474,29 @@ test "can pass args with spaces to Nim (#351)":
                                        " binaryPackage")
     checkpoint output
     check exitCode == QuitSuccess
+
+suite "reverse dependencies":
+  test "basic test":
+    cd "revdep/mydep":
+      verify execNimbleYes("install")
+
+    cd "revdep/pkgWithDep":
+      verify execNimbleYes("install")
+
+    verify execNimbleYes("remove", "pkgA")
+    verify execNimbleYes("remove", "mydep")
+
+  test "issue #373":
+    cd "revdep/mydep":
+      verify execNimbleYes("install")
+
+    cd "revdep/pkgWithDep":
+      verify execNimbleYes("install")
+
+    cd "revdep/pkgNoDep":
+      verify execNimbleYes("install")
+
+    verify execNimbleYes("remove", "mydep")
 
 suite "develop feature":
   test "can reject binary packages":
