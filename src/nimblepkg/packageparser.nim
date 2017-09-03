@@ -268,7 +268,6 @@ proc readPackageInfo(nf: NimbleFile, options: Options,
   assert fileExists(nf)
 
   # Check the cache.
-  echo(nf, options.pkgInfoCache.hasKey(nf))
   if options.pkgInfoCache.hasKey(nf):
     return options.pkgInfoCache[nf]
 
