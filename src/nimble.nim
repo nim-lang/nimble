@@ -227,6 +227,7 @@ proc buildFromDir(pkgInfo: PackageInfo, paths: seq[string],
         " `bin` key in your .nimble file?")
   let realDir = pkgInfo.getRealDir()
   for path in paths: args.add("--path:\"" & path & "\" ")
+  args.add("--path:\"" & pkgInfo.getRealDir() & "\" ")
   for bin in pkgInfo.bin:
     let outputOpt = "-o:\"" & pkgInfo.getOutputDir(bin) & "\""
     display("Building", "$1/$2 using $3 backend" %

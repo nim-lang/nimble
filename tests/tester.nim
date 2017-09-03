@@ -354,6 +354,10 @@ test "issue #338":
   cd "issue338":
     check execNimble("install", "-y").exitCode == QuitSuccess
 
+test "issue #400 (Mixed (lib/bin) package: binary fails to see lib files)":
+  cd "issue400":
+    check execNimble("install", "-y").exitCode == QuitSuccess
+
 test "can list":
   check execNimble("list").exitCode == QuitSuccess
 
