@@ -557,22 +557,29 @@ suite "develop feature":
     createDir(cloneDir)
     cd cloneDir:
       let url = "https://github.com/nimble-test/packagea.git"
-      let (output, exitCode) = execNimble("develop", "-y", url)
+      let (_, exitCode) = execNimble("develop", "-y", url)
       check exitCode == QuitSuccess
 
-test "Runs passing unit tests":
-  cd "testsPass":
-    let (outp, exitCode) = execNimble("test")
-    check: exitCode == QuitSuccess
-    check: outp.processOutput.inLines("First test")
-    check: outp.processOutput.inLines("Second test")
-    check: outp.processOutput.inLines("Third test")
-    check: outp.processOutput.inLines("Executing my func")
+suite "test command":
+  test "Runs passing unit tests":
+    cd "testCommand/testsPass":
+      let (outp, exitCode) = execNimble("test")
+      check exitCode == QuitSuccess
+      check outp.processOutput.inLines("First test")
+      check outp.processOutput.inLines("Second test")
+      check outp.processOutput.inLines("Third test")
+      check outp.processOutput.inLines("Executing my func")
 
-test "Runs failing unit tests":
-  cd "testsFail":
-    let (outp, exitCode) = execNimble("test")
-    check: exitCode == QuitFailure
-    check: outp.processOutput.inLines("First test")
-    check: outp.processOutput.inLines("Failing Second test")
-    check: not outp.processOutput.inLines("Third test")
+  test "Runs failing unit tests":
+    cd "testCommand/testsFail":
+      let (outp, exitCode) = execNimble("test")
+      check exitCode == QuitFailure
+      check outp.processOutput.inLines("First test")
+      check outp.processOutput.inLines("Failing Second test")
+      check(not outp.processOutput.inLines("Third test"))
+
+  test "test command can be overriden":
+    cd "testCommand/testOverride":
+      let (outp, exitCode) = execNimble("test")
+      check exitCode == QuitSuccess
+      check outp.processOutput.inLines("overriden")

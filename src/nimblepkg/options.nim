@@ -27,7 +27,7 @@ type
     actionNil, actionRefresh, actionInit, actionDump, actionPublish,
     actionInstall, actionSearch,
     actionList, actionBuild, actionPath, actionUninstall, actionCompile,
-    actionDoc, actionCustom, actionTasks, actionDevelop, actionTest
+    actionDoc, actionCustom, actionTasks, actionDevelop
 
   Action* = object
     case typ*: ActionType
@@ -41,7 +41,7 @@ type
       search*: seq[string] # Search string.
     of actionInit, actionDump:
       projName*: string
-    of actionCompile, actionDoc, actionBuild, actionTest:
+    of actionCompile, actionDoc, actionBuild:
       file*: string
       backend*: string
       compileOptions*: seq[string]
@@ -126,8 +126,6 @@ proc parseActionType*(action: string): ActionType =
     result = actionPath
   of "build":
     result = actionBuild
-  of "test":
-    result = actionTest
   of "c", "compile", "js", "cpp", "cc":
     result = actionCompile
   of "doc", "doc2":
@@ -160,7 +158,7 @@ proc initAction*(options: var Options, key: string) =
   case options.action.typ
   of actionInstall, actionPath, actionDevelop, actionUninstall:
     options.action.packages = @[]
-  of actionCompile, actionDoc, actionBuild, actionTest:
+  of actionCompile, actionDoc, actionBuild:
     options.action.compileOptions = @[]
     options.action.file = ""
     if keyNorm == "c" or keyNorm == "compile": options.action.backend = ""
@@ -242,7 +240,7 @@ proc parseArgument*(key: string, result: var Options) =
     result.action.projName = key
   of actionCompile, actionDoc:
     result.action.file = key
-  of actionList, actionBuild, actionTest, actionPublish:
+  of actionList, actionBuild, actionPublish:
     result.showHelp = true
   of actionCustom:
     result.action.arguments.add(key)
@@ -281,7 +279,7 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
         result.depsOnly = true
       else:
         wasFlagHandled = false
-    of actionCompile, actionDoc, actionBuild, actionTest:
+    of actionCompile, actionDoc, actionBuild:
       let prefix = if kind == cmdShortOption: "-" else: "--"
       if val == "":
         result.action.compileOptions.add(prefix & flag)
@@ -370,3 +368,10 @@ proc getProxy*(options: Options): Proxy =
     return newProxy($parsed, auth)
   else:
     return nil
+
+proc briefClone*(options: Options): Options =
+  ## Clones the few important fields and creates a new Options object.
+  var newOptions = initOptions()
+  newOptions.config = options.config
+  newOptions.nimbleData = options.nimbleData
+  return newOptions

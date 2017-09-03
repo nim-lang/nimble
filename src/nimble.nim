@@ -13,7 +13,8 @@ from sequtils import toSeq
 import nimblepkg/packageinfo, nimblepkg/version, nimblepkg/tools,
        nimblepkg/download, nimblepkg/config, nimblepkg/common,
        nimblepkg/publish, nimblepkg/options, nimblepkg/packageparser,
-       nimblepkg/cli, nimblepkg/packageinstaller, nimblepkg/reversedeps
+       nimblepkg/cli, nimblepkg/packageinstaller, nimblepkg/reversedeps,
+       nimblepkg/nimscriptexecutor
 
 import nimblepkg/nimscriptsupport
 
@@ -529,28 +530,6 @@ proc execBackend(options: Options) =
         [backend, args, bin], showOutput = true)
   display("Success:", "Execution finished", Success, HighPriority)
 
-proc tempOutArg(file: string): string =
-  ## Returns the `--out` argument to pass to the compiler, using a temp file
-  let (_, name, _) = splitFile(file)
-  let dir = getNimbleTempDir() / "tests"
-  createDir(dir)
-  result = "--out:" & (dir / name)
-
-proc test(options: Options) =
-  ## Executes all tests
-  var files = toSeq(walkDir(getCurrentDir() / "tests"))
-  files.sort do (a, b: auto) -> int:
-    result = cmp(a.path, b.path)
-
-  for file in files:
-    if file.path.endsWith(".nim") and file.kind in { pcFile, pcLinkToFile }:
-      var optsCopy = options
-      optsCopy.action.file = file.path
-      optsCopy.action.backend = "c -r"
-      optsCopy.action.compileOptions.add("--path:.")
-      optsCopy.action.compileOptions.add(file.path.tempOutArg)
-      execBackend(optsCopy)
-
 proc search(options: Options) =
   ## Searches for matches in ``options.action.search``.
   ##
@@ -922,25 +901,23 @@ proc develop(options: Options) =
       discard downloadPkg(url, pv.ver, meth, options, downloadDir)
       developFromDir(downloadDir, options)
 
-proc execHook(options: Options, before: bool): bool =
-  ## Returns whether to continue.
-  result = true
-  var nimbleFile = ""
-  try:
-    nimbleFile = findNimbleFile(getCurrentDir(), true)
-  except NimbleError: return true
-  # PackageInfos are cached so we can read them as many times as we want.
-  let pkgInfo = getPkgInfoFromFile(nimbleFile, options)
-  let actionName =
-    if options.action.typ == actionCustom: options.action.command
-    else: ($options.action.typ)[6 .. ^1]
-  let hookExists =
-    if before: actionName.normalize in pkgInfo.preHooks
-    else: actionName.normalize in pkgInfo.postHooks
-  if pkgInfo.isNimScript and hookExists:
-    let res = execHook(nimbleFile, actionName, before, options)
-    if res.success:
-      result = res.retVal
+proc test(options: Options) =
+  ## Executes all tests.
+  var files = toSeq(walkDir(getCurrentDir() / "tests"))
+  files.sort((a, b) => cmp(a.path, b.path))
+
+  for file in files:
+    if file.path.endsWith(".nim") and file.kind in {pcFile, pcLinkToFile}:
+      var optsCopy = options.briefClone()
+      optsCopy.action.typ = actionCompile
+      optsCopy.action.file = file.path
+      optsCopy.action.backend = "c"
+      optsCopy.action.compileOptions = @[]
+      optsCopy.action.compileOptions.add("-r")
+      optsCopy.action.compileOptions.add("--path:.")
+      execBackend(optsCopy)
+
+  display("Success:", "All tests passed", Success, HighPriority)
 
 proc doAction(options: Options) =
   if options.showHelp:
@@ -982,8 +959,6 @@ proc doAction(options: Options) =
     listPaths(options)
   of actionBuild:
     build(options)
-  of actionTest:
-    test(options)
   of actionCompile, actionDoc:
     execBackend(options)
   of actionInit:
@@ -1000,37 +975,19 @@ proc doAction(options: Options) =
   of actionNil:
     assert false
   of actionCustom:
-    # Custom command. Attempt to call a NimScript task.
-    let nimbleFile = findNimbleFile(getCurrentDir(), true)
-    if not nimbleFile.isNimScript(options):
-      writeHelp()
+    let isPreDefined = options.action.command.normalize == "test"
 
-    let execResult = execTask(nimbleFile, options.action.command, options)
-    if not execResult.success:
-      raiseNimbleError(msg = "Could not find task $1 in $2" %
-                             [options.action.command, nimbleFile],
-                       hint = "Run `nimble --help` and/or `nimble tasks` for" &
-                              " a list of possible commands.")
-
-    if execResult.command.normalize == "nop":
-      display("Warning:", "Using `setCommand 'nop'` is not necessary.", Warning,
-              HighPriority)
-      return
-
-    if not execHook(options, false):
-      return
-
-    if execResult.hasTaskRequestedCommand():
-      var newOptions = initOptions()
-      newOptions.config = options.config
-      newOptions.nimbleData = options.nimbleData
-      parseCommand(execResult.command, newOptions)
-      for arg in execResult.arguments:
-        parseArgument(arg, newOptions)
-      for flag, vals in execResult.flags:
-        for val in vals:
-          parseFlag(flag, val, newOptions)
-      doAction(newOptions)
+    var execResult: ExecutionResult[void]
+    if execCustom(options, execResult, failFast=not isPreDefined):
+      if execResult.hasTaskRequestedCommand():
+        doAction(execResult.getOptionsForCommand(options))
+    else:
+      # If there is no task defined for the `test` task, we run the pre-defined
+      # fallback logic.
+      if isPreDefined:
+        test(options)
+        # Run the post hook for `test` in case it exists.
+        discard execHook(options, false)
 
   if options.action.typ != actionCustom:
     discard execHook(options, false)

@@ -454,6 +454,6 @@ proc listTasks*(scriptName: string, options: Options) =
   setNimScriptCommand("help")
 
   discard execScript(scriptName, nil, options)
-  # TODO: Make the 'task' template generate explicit data structure containing
-  # all the task names + descriptions.
+  # TODO (#402): Make the 'task' template generate explicit data structure
+  # containing all the task names + descriptions.
   cleanup()
