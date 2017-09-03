@@ -11,7 +11,7 @@ bin = @["nimscript"]
 
 requires "nim >= 0.12.1"
 
-task test, "test description":
+task work, "test description":
   echo(5+5)
 
 task c_test, "Testing `setCommand \"c\", \"nimscript.nim\"`":

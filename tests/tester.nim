@@ -37,6 +37,7 @@ proc execNimble(args: varargs[string]): tuple[output: string, exitCode: int] =
   quotedArgs = quoted_args.map((x: string) => ("\"" & x & "\""))
 
   result = execCmdEx(quotedArgs.join(" "))
+  checkpoint(result.output)
 
 proc execNimbleYes(args: varargs[string]): tuple[output: string, exitCode: int]=
   # issue #6314
@@ -240,7 +241,7 @@ test "can install nimscript package":
 
 test "can execute nimscript tasks":
   cd "nimscript":
-    let (output, exitCode) = execNimble("--verbose", "test")
+    let (output, exitCode) = execNimble("--verbose", "work")
     let lines = output.strip.splitLines()
     check exitCode == QuitSuccess
     check lines[^1] == "10"
@@ -273,7 +274,7 @@ test "can use nimscript with repeated flags (issue #329)":
 test "can list nimscript tasks":
   cd "nimscript":
     let (output, exitCode) = execNimble("tasks")
-    check "test                 test description".normalize in output.normalize
+    check "work                 test description".normalize in output.normalize
     check exitCode == QuitSuccess
 
 test "can use pre/post hooks":
@@ -558,3 +559,20 @@ suite "develop feature":
       let url = "https://github.com/nimble-test/packagea.git"
       let (output, exitCode) = execNimble("develop", "-y", url)
       check exitCode == QuitSuccess
+
+test "Runs passing unit tests":
+  cd "testsPass":
+    let (outp, exitCode) = execNimble("test")
+    check: exitCode == QuitSuccess
+    check: outp.processOutput.inLines("First test")
+    check: outp.processOutput.inLines("Second test")
+    check: outp.processOutput.inLines("Third test")
+    check: outp.processOutput.inLines("Executing my func")
+
+test "Runs failing unit tests":
+  cd "testsFail":
+    let (outp, exitCode) = execNimble("test")
+    check: exitCode == QuitFailure
+    check: outp.processOutput.inLines("First test")
+    check: outp.processOutput.inLines("Failing Second test")
+    check: not outp.processOutput.inLines("Third test")

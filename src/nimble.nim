@@ -529,6 +529,28 @@ proc execBackend(options: Options) =
         [backend, args, bin], showOutput = true)
   display("Success:", "Execution finished", Success, HighPriority)
 
+proc tempOutArg(file: string): string =
+  ## Returns the `--out` argument to pass to the compiler, using a temp file
+  let (_, name, _) = splitFile(file)
+  let dir = getNimbleTempDir() / "tests"
+  createDir(dir)
+  result = "--out:" & (dir / name)
+
+proc test(options: Options) =
+  ## Executes all tests
+  var files = toSeq(walkDir(getCurrentDir() / "tests"))
+  files.sort do (a, b: auto) -> int:
+    result = cmp(a.path, b.path)
+
+  for file in files:
+    if file.path.endsWith(".nim") and file.kind in { pcFile, pcLinkToFile }:
+      var optsCopy = options
+      optsCopy.action.file = file.path
+      optsCopy.action.backend = "c -r"
+      optsCopy.action.compileOptions.add("--path:.")
+      optsCopy.action.compileOptions.add(file.path.tempOutArg)
+      execBackend(optsCopy)
+
 proc search(options: Options) =
   ## Searches for matches in ``options.action.search``.
   ##
@@ -960,6 +982,8 @@ proc doAction(options: Options) =
     listPaths(options)
   of actionBuild:
     build(options)
+  of actionTest:
+    test(options)
   of actionCompile, actionDoc:
     execBackend(options)
   of actionInit:

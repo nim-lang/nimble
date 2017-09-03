@@ -27,7 +27,7 @@ type
     actionNil, actionRefresh, actionInit, actionDump, actionPublish,
     actionInstall, actionSearch,
     actionList, actionBuild, actionPath, actionUninstall, actionCompile,
-    actionDoc, actionCustom, actionTasks, actionDevelop
+    actionDoc, actionCustom, actionTasks, actionDevelop, actionTest
 
   Action* = object
     case typ*: ActionType
@@ -41,7 +41,7 @@ type
       search*: seq[string] # Search string.
     of actionInit, actionDump:
       projName*: string
-    of actionCompile, actionDoc, actionBuild:
+    of actionCompile, actionDoc, actionBuild, actionTest:
       file*: string
       backend*: string
       compileOptions*: seq[string]
@@ -68,6 +68,7 @@ Commands:
   build                           Builds a package.
   c, cc, js    [opts, ...] f.nim  Builds a file inside a package. Passes options
                                   to the Nim compiler.
+  test                            Compiles and executes tests
   doc, doc2    [opts, ...] f.nim  Builds documentation for a file inside a
                                   package. Passes options to the Nim compiler.
   refresh      [url]              Refreshes the package list. A package list URL
@@ -125,6 +126,8 @@ proc parseActionType*(action: string): ActionType =
     result = actionPath
   of "build":
     result = actionBuild
+  of "test":
+    result = actionTest
   of "c", "compile", "js", "cpp", "cc":
     result = actionCompile
   of "doc", "doc2":
@@ -157,7 +160,7 @@ proc initAction*(options: var Options, key: string) =
   case options.action.typ
   of actionInstall, actionPath, actionDevelop, actionUninstall:
     options.action.packages = @[]
-  of actionCompile, actionDoc, actionBuild:
+  of actionCompile, actionDoc, actionBuild, actionTest:
     options.action.compileOptions = @[]
     options.action.file = ""
     if keyNorm == "c" or keyNorm == "compile": options.action.backend = ""
@@ -239,7 +242,7 @@ proc parseArgument*(key: string, result: var Options) =
     result.action.projName = key
   of actionCompile, actionDoc:
     result.action.file = key
-  of actionList, actionBuild, actionPublish:
+  of actionList, actionBuild, actionTest, actionPublish:
     result.showHelp = true
   of actionCustom:
     result.action.arguments.add(key)
@@ -278,7 +281,7 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
         result.depsOnly = true
       else:
         wasFlagHandled = false
-    of actionCompile, actionDoc, actionBuild:
+    of actionCompile, actionDoc, actionBuild, actionTest:
       let prefix = if kind == cmdShortOption: "-" else: "--"
       if val == "":
         result.action.compileOptions.add(prefix & flag)
