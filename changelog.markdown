@@ -3,6 +3,36 @@
 
 # Nimble changelog
 
+## 0.8.8 - 03/09/2017
+
+This is a relatively big release containing 57 commits, with multiple new
+features and many bug fixes.
+
+* **Implemented the `develop` command.** See
+  [readme](https://github.com/nim-lang/nimble#nimble-develop) for details.
+* **Implemented a default `test` task** for packages that don't define it.
+* **Lowered the memory consumption** in cases where a package contained many files.
+* Nimble now accepts .nimble symlinks.
+* Locally stored package list files can now be specified in the Nimble config.
+* Fixed branch checkout and handling of branch names with dashes.
+* Improved URL detection in ``publish`` feature.
+* Fixed many issues related to binary management. Packages are now resymlinked
+  when an newer version is removed.
+  ([#331](https://github.com/nim-lang/nimble/issues/331))
+* Fixed issues with CLI arg passing to the Nim compiler.
+  ([#351](https://github.com/nim-lang/nimble/issues/351))
+* Improved performance of ``list -i`` command.
+* Fixed issue where warnings weren't suppressed for some commands.
+  ([#290](https://github.com/nim-lang/nimble/issues/290))
+* Special versions other than `#head` are no longer considered to be newest.
+* Improves the reverse dependency lookup by cross checking it with the
+  installed list of packages.
+  ([#287](https://github.com/nim-lang/nimble/issues/287))
+
+----
+
+Full changelog: https://github.com/nim-lang/nimble/compare/v0.8.6...v0.8.8
+
 ## 0.8.6 - 05/05/2017
 
 Yet another point release which includes various bug fixes and improvements.
