@@ -848,8 +848,7 @@ The ``stable`` branch is...
 Note: The travis build only tests whether Nimble works with the latest Nim
 version.
 
-A new Nim release (via ``koch xz``) will always bundle the latest tagged
-Nimble release.
+A new Nim release (via ``koch xz``) will always bundle the ``stable`` branch.
 
 ## Contribution
 
