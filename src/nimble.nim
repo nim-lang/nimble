@@ -615,15 +615,23 @@ proc listPaths(options: Options) =
       if kind != pcDir or not path.startsWith(options.getPkgsDir / name):
         continue
 
-      let
-        nimbleFile = path / name.addFileExt("nimble")
-        hasSpec = nimbleFile.existsFile
+      var nimbleFile = path / name.addFileExt("nimble")
+      var nimbleLinkTargetPath: string
+      if not nimbleFile.existsFile:
+        let nimbleLinkFile = path / name.addFileExt("nimble-link")
+        if fileExists(nimbleLinkFile):
+          let lns = readFile(nimbleLinkFile).splitLines()
+          nimbleFile = lns[0]
+          nimbleLinkTargetPath = lns[1]
 
-      if hasSpec:
+      if nimbleFile.existsFile:
         var pkgInfo = getPkgInfo(path, options)
         var v: VersionAndPath
         v.version = newVersion(pkgInfo.specialVersion)
-        v.path = options.getPkgsDir / (pkgInfo.name & '-' & pkgInfo.specialVersion)
+        if nimbleLinkTargetPath.len == 0:
+          v.path = options.getPkgsDir / (pkgInfo.name & '-' & pkgInfo.specialVersion)
+        else:
+          v.path = nimbleLinkTargetPath
         installed.add(v)
       else:
         display("Warning:", "No .nimble file found for " & path, Warning,
