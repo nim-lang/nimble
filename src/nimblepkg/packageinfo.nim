@@ -27,6 +27,10 @@ type
   MetaData* = object
     url*: string
 
+  NimbleLink* = object
+    nimbleFilePath*: string
+    packageDir*: string
+
 proc initPackageInfo*(path: string): PackageInfo =
   result.myPath = path
   result.specialVersion = ""
@@ -140,6 +144,15 @@ proc readMetaData*(path: string): MetaData =
   let cont = readFile(bmeta)
   let jsonmeta = parseJson(cont)
   result.url = jsonmeta["url"].str
+
+proc readNimbleLink*(nimbleLinkPath: string): NimbleLink =
+  let s = readFile(nimbleLinkPath).splitLines()
+  result.nimbleFilePath = s[0]
+  result.packageDir = s[1]
+
+proc writeNimbleLink*(nimbleLinkPath: string, contents: NimbleLink) =
+  let c = contents.nimbleFilePath & "\n" & contents.packageDir
+  writeFile(nimbleLinkPath, c)
 
 proc needsRefresh*(options: Options): bool =
   ## Determines whether a ``nimble refresh`` is needed.
@@ -298,8 +311,7 @@ proc findNimbleFile*(dir: string; error: bool): string =
 
   if result.splitFile.ext == ".nimble-link":
     # Return the path of the real .nimble file.
-    let lines = readFile(result).splitLines()
-    result = lines[0]
+    result = readNimbleLink(result).nimbleFilePath
     if not fileExists(result):
       raiseNimbleError("The .nimble-link file is pointing to a missing" &
                        " file: " & result)

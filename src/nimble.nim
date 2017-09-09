@@ -620,9 +620,9 @@ proc listPaths(options: Options) =
       if not nimbleFile.existsFile:
         let nimbleLinkFile = path / name.addFileExt("nimble-link")
         if fileExists(nimbleLinkFile):
-          let lns = readFile(nimbleLinkFile).splitLines()
-          nimbleFile = lns[0]
-          nimbleLinkTargetPath = lns[1]
+          let lnk = readNimbleLink(nimbleLinkFile)
+          nimbleFile = lnk.nimbleFilePath
+          nimbleLinkTargetPath = lnk.packageDir
 
       if nimbleFile.existsFile:
         var pkgInfo = getPkgInfo(path, options)
@@ -873,9 +873,9 @@ proc developFromDir(dir: string, options: Options) =
   # need to be read. This will mean that users will need to re-run
   # `nimble develop` if they change their `srcDir` but I think it's a worthy
   # compromise.
-  let contents = pkgInfo.myPath & "\n" & pkgInfo.getRealDir()
   let nimbleLinkPath = pkgDestDir / pkgInfo.name.addFileExt("nimble-link")
-  writeFile(nimbleLinkPath, contents)
+  writeNimbleLink(nimbleLinkPath,
+    NimbleLink(nimbleFilePath: pkgInfo.myPath, packageDir: pkgInfo.getRealDir()))
 
   # Save a nimblemeta.json file.
   saveNimbleMeta(pkgDestDir, "file://" & dir, vcsRevisionInDir(dir),
