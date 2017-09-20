@@ -630,9 +630,13 @@ proc listPaths(options: Options) =
         v.version = newVersion(pkgInfo.specialVersion)
         if nimbleLinkTargetPath.len == 0:
           v.path = options.getPkgsDir / (pkgInfo.name & '-' & pkgInfo.specialVersion)
+          installed.add(v)
         else:
+          # If we have a nimble-developed package, this is really the path we're
+          # looking for.
           v.path = nimbleLinkTargetPath
-        installed.add(v)
+          installed = @[v]
+          break
       else:
         display("Warning:", "No .nimble file found for " & path, Warning,
                 MediumPriority)
