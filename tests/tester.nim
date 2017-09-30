@@ -560,6 +560,17 @@ suite "develop feature":
       let (_, exitCode) = execNimble("develop", "-y", url)
       check exitCode == QuitSuccess
 
+  test "nimble path points to develop":
+    cd "develop/srcdirtest":
+      var (output, exitCode) = execNimble("develop")
+      checkpoint output
+      check exitCode == QuitSuccess
+
+      (output, exitCode) = execNimble("path", "srcdirtest")
+      checkpoint output
+      check exitCode == QuitSuccess
+      check output.strip() == getCurrentDir() / "src"
+
 suite "test command":
   test "Runs passing unit tests":
     cd "testCommand/testsPass":

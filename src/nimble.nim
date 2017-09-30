@@ -615,16 +615,28 @@ proc listPaths(options: Options) =
       if kind != pcDir or not path.startsWith(options.getPkgsDir / name):
         continue
 
-      let
-        nimbleFile = path / name.addFileExt("nimble")
-        hasSpec = nimbleFile.existsFile
+      var nimbleFile = path / name.addFileExt("nimble")
+      var nimbleLinkTargetPath: string
+      if not nimbleFile.existsFile:
+        let nimbleLinkFile = path / name.addFileExt("nimble-link")
+        if fileExists(nimbleLinkFile):
+          let lnk = readNimbleLink(nimbleLinkFile)
+          nimbleFile = lnk.nimbleFilePath
+          nimbleLinkTargetPath = lnk.packageDir
 
-      if hasSpec:
+      if nimbleFile.existsFile:
         var pkgInfo = getPkgInfo(path, options)
         var v: VersionAndPath
         v.version = newVersion(pkgInfo.specialVersion)
-        v.path = options.getPkgsDir / (pkgInfo.name & '-' & pkgInfo.specialVersion)
-        installed.add(v)
+        if nimbleLinkTargetPath.len == 0:
+          v.path = options.getPkgsDir / (pkgInfo.name & '-' & pkgInfo.specialVersion)
+          installed.add(v)
+        else:
+          # If we have a nimble-developed package, this is really the path we're
+          # looking for.
+          v.path = nimbleLinkTargetPath
+          installed = @[v]
+          break
       else:
         display("Warning:", "No .nimble file found for " & path, Warning,
                 MediumPriority)
@@ -865,9 +877,9 @@ proc developFromDir(dir: string, options: Options) =
   # need to be read. This will mean that users will need to re-run
   # `nimble develop` if they change their `srcDir` but I think it's a worthy
   # compromise.
-  let contents = pkgInfo.myPath & "\n" & pkgInfo.getRealDir()
   let nimbleLinkPath = pkgDestDir / pkgInfo.name.addFileExt("nimble-link")
-  writeFile(nimbleLinkPath, contents)
+  writeNimbleLink(nimbleLinkPath,
+    NimbleLink(nimbleFilePath: pkgInfo.myPath, packageDir: pkgInfo.getRealDir()))
 
   # Save a nimblemeta.json file.
   saveNimbleMeta(pkgDestDir, "file://" & dir, vcsRevisionInDir(dir),
