@@ -113,9 +113,12 @@ proc writeHelp*(quit=true) =
 proc writeVersion*() =
   echo("nimble v$# compiled at $# $#" %
       [nimbleVersion, CompileDate, CompileTime])
-  const gitVersion = staticExec("git rev-parse HEAD")
-  when gitVersion.len > 0:
-    echo "git hash: ", gitVersion
+  const execResult = gorgeEx("git rev-parse HEAD")
+  when execResult[0].len > 0 and execResult[1] == QuitSuccess:
+    echo "git hash: ", execResult[0]
+  else:
+    {.warning: "Couldn't determine GIT hash: " & execResult[0].}
+    echo "git hash: couldn't determine git hash"
   raise NimbleQuit(msg: "")
 
 proc parseActionType*(action: string): ActionType =
