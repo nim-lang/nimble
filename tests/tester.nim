@@ -15,8 +15,8 @@ const path = "../src/nimble"
 removeDir(installDir)
 createDir(installDir)
 
-test "can compile nimble":
-  check execCmdEx("nim c " & path).exitCode == QuitSuccess
+# Always recompile.
+doAssert execCmdEx("nim c " & path).exitCode == QuitSuccess
 
 test "can compile with --os:windows":
   check execCmdEx("nim check --os:windows " & path).exitCode == QuitSuccess

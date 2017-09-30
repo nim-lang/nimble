@@ -615,28 +615,13 @@ proc listPaths(options: Options) =
       if kind != pcDir or not path.startsWith(options.getPkgsDir / name):
         continue
 
-      var nimbleFile = path / name.addFileExt("nimble")
-      var nimbleLinkTargetPath: string
-      if not nimbleFile.existsFile:
-        let nimbleLinkFile = path / name.addFileExt("nimble-link")
-        if fileExists(nimbleLinkFile):
-          let lnk = readNimbleLink(nimbleLinkFile)
-          nimbleFile = lnk.nimbleFilePath
-          nimbleLinkTargetPath = lnk.packageDir
-
+      var nimbleFile = findNimbleFile(path, false)
       if nimbleFile.existsFile:
         var pkgInfo = getPkgInfo(path, options)
         var v: VersionAndPath
         v.version = newVersion(pkgInfo.specialVersion)
-        if nimbleLinkTargetPath.len == 0:
-          v.path = options.getPkgsDir / (pkgInfo.name & '-' & pkgInfo.specialVersion)
-          installed.add(v)
-        else:
-          # If we have a nimble-developed package, this is really the path we're
-          # looking for.
-          v.path = nimbleLinkTargetPath
-          installed = @[v]
-          break
+        v.path = pkgInfo.getRealDir()
+        installed = @[v]
       else:
         display("Warning:", "No .nimble file found for " & path, Warning,
                 MediumPriority)
@@ -878,8 +863,11 @@ proc developFromDir(dir: string, options: Options) =
   # `nimble develop` if they change their `srcDir` but I think it's a worthy
   # compromise.
   let nimbleLinkPath = pkgDestDir / pkgInfo.name.addFileExt("nimble-link")
-  writeNimbleLink(nimbleLinkPath,
-    NimbleLink(nimbleFilePath: pkgInfo.myPath, packageDir: pkgInfo.getRealDir()))
+  let nimbleLink = NimbleLink(
+    nimbleFilePath: pkgInfo.myPath,
+    packageDir: pkgInfo.getRealDir()
+  )
+  writeNimbleLink(nimbleLinkPath, nimbleLink)
 
   # Save a nimblemeta.json file.
   saveNimbleMeta(pkgDestDir, "file://" & dir, vcsRevisionInDir(dir),
