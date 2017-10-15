@@ -329,6 +329,16 @@ proc readPackageInfo(nf: NimbleFile, options: Options,
     validateVersion(result.version)
     validatePackageInfo(result, options)
 
+proc validate*(file: NimbleFile, options: Options,
+               error: var ValidationError, pkgInfo: var PackageInfo): bool =
+  try:
+    pkgInfo = readPackageInfo(file, options)
+  except ValidationError as exc:
+    error = exc[]
+    return false
+
+  return true
+
 proc getPkgInfoFromFile*(file: NimbleFile, options: Options): PackageInfo =
   ## Reads the specified .nimble file and returns its data as a PackageInfo
   ## object. Any validation errors are handled and displayed as warnings.

@@ -129,6 +129,20 @@ a third-party package list.
 Package lists can be specified in Nimble's config. Take a look at the
 config section below to see how to do this.
 
+### nimble check
+
+The ``check`` command will read your package's .nimble file. It will then
+verify that the package's structure is valid.
+
+Example:
+
+    $ nimble check
+        Error: Package 'x' has an incorrect structure. It should contain a single directory hierarchy for source files, named 'x', but file 'foobar.nim' is in a directory named 'incorrect' instead. This will be an error in the future.
+         Hint: If 'incorrect' contains source files for building 'x', rename it to 'x'. Otherwise, prevent its installation by adding `skipDirs = @["incorrect"]` to the .nimble file.
+      Failure: Validation failed
+
+
+
 ### nimble install
 
 The ``install`` command will download and install a package. You need to pass

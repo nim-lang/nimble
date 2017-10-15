@@ -919,6 +919,25 @@ proc test(options: Options) =
 
   display("Success:", "All tests passed", Success, HighPriority)
 
+proc check(options: Options) =
+  ## Validates a package a in the current working directory.
+  let nimbleFile = findNimbleFile(getCurrentDir(), true)
+  var error: ValidationError
+  var pkgInfo: PackageInfo
+  var validationResult = false
+  try:
+    validationResult = validate(nimbleFile, options, error, pkgInfo)
+  except:
+    raiseNimbleError("Could not validate package:\n" & getCurrentExceptionMsg())
+
+  if validationResult:
+    display("Success:", pkgInfo.name & " is valid!", Success, HighPriority)
+  else:
+    display("Error:", error.msg, Error, HighPriority)
+    display("Hint:", error.hint, Warning, HighPriority)
+    display("Failure:", "Validation failed", Error, HighPriority)
+    quit(QuitFailure)
+
 proc doAction(options: Options) =
   if options.showHelp:
     writeHelp()
@@ -972,6 +991,8 @@ proc doAction(options: Options) =
     listTasks(options)
   of actionDevelop:
     develop(options)
+  of actionCheck:
+    check(options)
   of actionNil:
     assert false
   of actionCustom:

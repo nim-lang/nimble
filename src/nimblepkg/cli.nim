@@ -82,7 +82,6 @@ proc displayLine(category, line: string, displayType: DisplayType,
 
 proc display*(category, msg: string, displayType = Message,
               priority = MediumPriority) =
-
   # Don't print any Warning, Message or Success messages when suppression of
   # warnings is enabled. That is, unless the user asked for --verbose output.
   if globalCLI.suppressMessages and displayType >= Warning and

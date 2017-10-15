@@ -27,11 +27,11 @@ type
     actionNil, actionRefresh, actionInit, actionDump, actionPublish,
     actionInstall, actionSearch,
     actionList, actionBuild, actionPath, actionUninstall, actionCompile,
-    actionDoc, actionCustom, actionTasks, actionDevelop
+    actionDoc, actionCustom, actionTasks, actionDevelop, actionCheck
 
   Action* = object
     case typ*: ActionType
-    of actionNil, actionList, actionPublish, actionTasks: nil
+    of actionNil, actionList, actionPublish, actionTasks, actionCheck: nil
     of actionRefresh:
       optionalURL*: string # Overrides default package list.
     of actionInstall, actionPath, actionUninstall, actionDevelop:
@@ -60,6 +60,8 @@ Commands:
   develop      [pkgname, ...]     Clones a list of packages for development.
                                   Symlinks the cloned packages or any package
                                   in the current working directory.
+  check                           Verifies the validity of a package in the
+                                  current working directory.
   init         [pkgname]          Initializes a new Nimble project.
   publish                         Publishes a package on nim-lang/packages.
                                   The current working directory needs to be the
@@ -104,6 +106,8 @@ Options:
 For more information read the Github readme:
   https://github.com/nim-lang/nimble#readme
 """
+
+const noHookActions* = {actionCheck}
 
 proc writeHelp*(quit=true) =
   echo(help)
@@ -151,6 +155,8 @@ proc parseActionType*(action: string): ActionType =
     result = actionTasks
   of "develop":
     result = actionDevelop
+  of "check":
+    result = actionCheck
   else:
     result = actionCustom
 
@@ -178,7 +184,7 @@ proc initAction*(options: var Options, key: string) =
     options.action.command = key
     options.action.arguments = @[]
     options.action.flags = newStringTable()
-  of actionPublish, actionList, actionTasks,
+  of actionPublish, actionList, actionTasks, actionCheck,
      actionNil: discard
 
 proc prompt*(options: Options, question: string): bool =

@@ -8,6 +8,11 @@ import packageparser, common, packageinfo, options, nimscriptsupport, cli
 proc execHook*(options: Options, before: bool): bool =
   ## Returns whether to continue.
   result = true
+
+  # For certain commands hooks should not be evaluated.
+  if options.action.typ in noHookActions:
+    return
+
   var nimbleFile = ""
   try:
     nimbleFile = findNimbleFile(getCurrentDir(), true)
