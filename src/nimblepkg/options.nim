@@ -305,7 +305,7 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
 proc initOptions*(): Options =
   result.action.typ = actionNil
   result.pkgInfoCache = newTable[string, PackageInfo]()
-  result.nimbleDir = ""
+  result.nimbleDir = getEnv("NIMBLE_DIR")
   result.verbosity = HighPriority
 
 proc parseMisc(options: var Options) =
