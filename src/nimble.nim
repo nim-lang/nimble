@@ -498,12 +498,15 @@ proc build(options: Options) =
   buildFromDir(pkgInfo, paths, args)
 
 proc execBackend(options: Options) =
-  let bin = options.action.file
+  let
+    bin = options.action.file
+    binDotNim = bin.addFileExt("nim")
   if bin == "":
     raise newException(NimbleError, "You need to specify a file.")
 
-  if not fileExists(bin):
-    raise newException(NimbleError, "Specified file does not exist.")
+  if not (fileExists(bin) or fileExists(binDotNim)):
+    raise newException(NimbleError,
+      "Specified file, " & bin & " or " & binDotNim & ", does not exist.")
 
   var pkgInfo = getPkgInfo(getCurrentDir(), options)
   nimScriptHint(pkgInfo)
