@@ -185,7 +185,7 @@ proc fetchList*(list: PackageList, options: Options) =
     lastError = ""
     copyFromPath = ""
   if list.urls.len > 0:
-    for i in 0 .. <list.urls.len:
+    for i in 0 ..< list.urls.len:
       let url = list.urls[i]
       display("Trying", url)
       let tempPath = options.getNimbleDir() / "packages_temp.json"
