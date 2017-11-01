@@ -786,9 +786,9 @@ proc uninstall(options: Options) =
       if revDeps.len == 1:
         reason = "$1 ($2) depends on it" % [revDeps[0].name, $revDeps[0].ver]
       else:
-        for i in 0 .. <revDeps.len:
+        for i in 0 ..< revDeps.len:
           reason.add("$1 ($2)" % [revDeps[i].name, $revDeps[i].ver])
-          if i != <revDeps.len:
+          if i != revDeps.len-1:
             reason.add ", "
         reason.add " depend on it"
 
@@ -802,7 +802,7 @@ proc uninstall(options: Options) =
       raise newException(NimbleError, "\n  " & errors.join("\n  "))
 
   var pkgNames = ""
-  for i in 0 .. <pkgsToDelete.len:
+  for i in 0 ..< pkgsToDelete.len:
     if i != 0: pkgNames.add ", "
     let pkg = pkgsToDelete[i]
     pkgNames.add("$1 ($2)" % [pkg.name, pkg.specialVersion])
