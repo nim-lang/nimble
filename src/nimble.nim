@@ -18,7 +18,7 @@ import nimblepkg/packageinfo, nimblepkg/version, nimblepkg/tools,
 
 import nimblepkg/nimscriptsupport
 
-proc refresh(options: Options) =
+proc refresh*(options: Options) =
   ## Downloads the package list from the specified URL.
   ##
   ## If the download is not successful, an exception is raised.
@@ -142,7 +142,7 @@ proc copyFilesRec(origDir, currentDir, dest: string,
   result.incl copyFileD(pkgInfo.mypath,
             changeRoot(pkgInfo.mypath.splitFile.dir, dest, pkgInfo.mypath))
 
-proc install(packages: seq[PkgTuple],
+proc install*(packages: seq[PkgTuple],
              options: Options,
              doPrompt = true): tuple[deps: seq[PackageInfo], pkg: PackageInfo]
 proc processDeps(pkginfo: PackageInfo, options: Options): seq[PackageInfo] =
@@ -456,7 +456,7 @@ proc getDownloadInfo*(pv: PkgTuple, options: Options,
       else:
         raise newException(NimbleError, "Package not found.")
 
-proc install(packages: seq[PkgTuple],
+proc install*(packages: seq[PkgTuple],
              options: Options,
              doPrompt = true): tuple[deps: seq[PackageInfo], pkg: PackageInfo] =
   if packages == @[]:
@@ -489,7 +489,7 @@ proc install(packages: seq[PkgTuple],
         else:
           raise
 
-proc build(options: Options) =
+proc build*(options: Options) =
   var pkgInfo = getPkgInfo(getCurrentDir(), options)
   nimScriptHint(pkgInfo)
   let deps = processDeps(pkginfo, options)
@@ -533,7 +533,7 @@ proc execBackend(options: Options) =
         [backend, args, bin], showOutput = true)
   display("Success:", "Execution finished", Success, HighPriority)
 
-proc search(options: Options) =
+proc search*(options: Options) =
   ## Searches for matches in ``options.action.search``.
   ##
   ## Searches are done in a case insensitive way making all strings lower case.
@@ -566,7 +566,7 @@ proc search(options: Options) =
   if not found:
     display("Error", "No package found.", Error, HighPriority)
 
-proc list(options: Options) =
+proc list*(options: Options) =
   if needsRefresh(options):
     raise newException(NimbleError, "Please run nimble refresh.")
   let pkgList = getPackageList(options)
@@ -576,7 +576,7 @@ proc list(options: Options) =
       echoPackageVersions(pkg)
     echo(" ")
 
-proc listInstalled(options: Options) =
+proc listInstalled*(options: Options) =
   var h = initOrderedTable[string, seq[string]]()
   let pkgs = getInstalledPkgsMin(options.getPkgsDir(), options)
   for x in pkgs.items():
@@ -670,7 +670,7 @@ proc getPackageByPattern(pattern: string, options: Options): PackageInfo =
       )
     result = getPkgInfoFromFile(skeletonInfo.myPath, options)
 
-proc dump(options: Options) =
+proc dump*(options: Options) =
   cli.setSuppressMessages(true)
   let p = getPackageByPattern(options.action.projName, options)
   echo "name: ", p.name.escape
@@ -690,7 +690,7 @@ proc dump(options: Options) =
   echo "srcDir: ", p.srcDir.escape
   echo "backend: ", p.backend.escape
 
-proc init(options: Options) =
+proc init*(options: Options) =
   var nimbleFile: string = ""
 
   display("Info:",
@@ -761,7 +761,7 @@ requires "nim >= $#"
 
   display("Success:", "Nimble file created successfully", Success, HighPriority)
 
-proc uninstall(options: Options) =
+proc uninstall*(options: Options) =
   if options.action.packages.len == 0:
     raise newException(NimbleError,
         "Please specify the package(s) to uninstall.")
@@ -826,7 +826,7 @@ proc uninstall(options: Options) =
 
   saveNimbleData(options)
 
-proc listTasks(options: Options) =
+proc listTasks*(options: Options) =
   let nimbleFile = findNimbleFile(getCurrentDir(), true)
   nimscriptsupport.listTasks(nimbleFile, options)
 
@@ -883,7 +883,7 @@ proc developFromDir(dir: string, options: Options) =
   display("Success:", (pkgInfo.name & " linked successfully to '$1'.") %
           dir, Success, HighPriority)
 
-proc develop(options: Options) =
+proc develop*(options: Options) =
   if options.action.packages == @[]:
     developFromDir(getCurrentDir(), options)
   else:
@@ -904,7 +904,7 @@ proc develop(options: Options) =
       discard downloadPkg(url, pv.ver, meth, options, downloadDir)
       developFromDir(downloadDir, options)
 
-proc test(options: Options) =
+proc test*(options: Options) =
   ## Executes all tests.
   var files = toSeq(walkDir(getCurrentDir() / "tests"))
   files.sort((a, b) => cmp(a.path, b.path))
@@ -922,7 +922,7 @@ proc test(options: Options) =
 
   display("Success:", "All tests passed", Success, HighPriority)
 
-proc check(options: Options) =
+proc check*(options: Options) =
   ## Validates a package a in the current working directory.
   let nimbleFile = findNimbleFile(getCurrentDir(), true)
   var error: ValidationError
