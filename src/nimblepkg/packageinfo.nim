@@ -510,13 +510,13 @@ proc iterInstallFiles*(realDir: string, pkgInfo: PackageInfo,
     for kind, file in walkDir(realDir):
       if kind == pcDir:
         let skip = pkgInfo.checkInstallDir(realDir, file)
-
         if skip: continue
+        # we also have to stop recursing if we reach an in-place nimbleDir
+        if file == options.getNimbleDir().expandFilename(): continue
 
         iterInstallFiles(file, pkgInfo, options, action)
       else:
         let skip = pkgInfo.checkInstallFile(realDir, file)
-
         if skip: continue
 
         action(file)
