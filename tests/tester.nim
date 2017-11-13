@@ -358,6 +358,10 @@ test "issue #428":
   cd "issue428":
     # Note: Can't use execNimble because it patches nimbleDir
     check execCmdEx(nimblePath & " -y --nimbleDir=./nimbleDir install").exitCode == QuitSuccess
+    discard execShellCmd("pwd")
+    discard execShellCmd("ls -l")
+    discard execShellCmd("ls -l nimbleDir")
+    discard execShellCmd("ls -l ..")
     check dirExists("nimbleDir/pkgs/dummy-0.1.0")
 
 test "can list":
