@@ -358,6 +358,7 @@ test "issue #428":
   cd "issue428":
     # Note: Can't use execNimble because it patches nimbleDir
     check execCmdEx(nimblePath & " -y --nimbleDir=./nimbleDir install").exitCode == QuitSuccess
+    discard execShellCmd(nimblePath & " -y --nimbleDir=./nimbleDir install")
     discard execShellCmd("pwd")
     discard execShellCmd("ls -l nimbleDir")
     discard execShellCmd("ls -l nimbleDir/pkgs")
