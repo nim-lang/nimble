@@ -693,27 +693,27 @@ proc dump(options: Options) =
 proc init(options: Options) =
   var nimbleFile: string = ""
 
-  display("Info:",
+  if options.showPrompt:
+    display("Info:",
        "In order to initialise a new Nimble package, I will need to ask you\n" &
        "some questions. Default values are shown in square brackets, press\n" &
        "enter to use them.", priority = HighPriority)
 
   # Ask for package name.
-  if options.action.projName != "":
-    let pkgName = options.action.projName
-    nimbleFile = pkgName.changeFileExt("nimble")
-  else:
-    var pkgName = os.getCurrentDir().splitPath.tail.toValidPackageName()
-    pkgName = promptCustom("Package name?", pkgName)
-    nimbleFile = pkgName.changeFileExt("nimble")
-
-  validatePackageName(nimbleFile.changeFileExt(""))
+  let pkgName = hideablePrompt(options.showPrompt, "Package name?",
+    if options.action.projName != "":
+      options.action.projName
+    else:
+      os.getCurrentDir().splitPath.tail.toValidPackageName())
+  nimbleFile = pkgName.changeFileExt("nimble")
+  validatePackageName(pkgName)
 
   if existsFile(os.getCurrentDir() / nimbleFile):
     raise newException(NimbleError, "Nimble file already exists.")
 
   # Ask for package version.
-  let pkgVersion = promptCustom("Initial version of package?", "0.1.0")
+  let pkgVersion = hideablePrompt(options.showPrompt,
+    "Initial version of package?", "0.1.0")
   validateVersion(pkgVersion)
 
   # Ask for package author
@@ -726,40 +726,73 @@ proc init(options: Options) =
     let (name, exitCode) = doCmdEx("hg config ui.username")
     if exitCode == QuitSuccess and name.len > 0:
       defaultAuthor = name.strip()
-  let pkgAuthor = promptCustom("Your name?", defaultAuthor)
+  let pkgAuthor = hideablePrompt(options.showPrompt, "Your name?",
+    defaultAuthor)
 
   # Ask for description
-  let pkgDesc = promptCustom("Package description?", "")
+  let pkgDesc = hideablePrompt(options.showPrompt, "Package description?", "",
+    "The awesome $# Nimble package" % [pkgName])
 
   # Ask for license
   # TODO: Provide selection of licenses, or select random default license.
-  let pkgLicense = promptCustom("Package license?", "MIT")
+  let pkgLicense = hideablePrompt(options.showPrompt, "Package license?", "MIT")
 
   # Ask for Nim dependency
   let nimDepDef = getNimrodVersion()
-  let pkgNimDep = promptCustom("Lowest supported Nim version?", $nimDepDef)
+  let pkgNimDep = hideablePrompt(options.showPrompt,
+    "Lowest supported Nim version?", $nimDepDef)
   validateVersion(pkgNimDep)
 
-  var outFile: File
-  if open(f = outFile, filename = nimbleFile, mode = fmWrite):
-    outFile.writeLine """# Package
+  const srcDir = "src"
+
+  # Create directory structure
+  os.createDir(srcDir / pkgName)
+  os.createDir("tests")
+
+  display("Package:", "$# created successfully" % [srcDir.escape()], Success)
+  display("Package:", "$# created successfully" % [escape(srcDir / pkgName)],
+    Success)
+  display("Package:", "$# created successfully" % ["tests".escape()], Success)
+
+  # Private function to write simple contents to a file
+  proc writeContents(filename, contents: string) =
+    var outFile: File
+    if open(f = outFile, filename = filename, mode = fmWrite):
+      outFile.writeline contents
+      close(outFile)
+      display("Package:", "$# written successfully" % [filename.escape()],
+        Success)
+    else:
+      raise newException(NimbleError, "Unable to open file " & filename &
+                         " for writing: " & osErrorMsg(osLastError()))
+
+  # Write nimble file
+  writeContents(nimbleFile, """# Package
 
 version       = $#
 author        = $#
 description   = $#
 license       = $#
+srcDir        = $#
 
 # Dependencies
 
 requires "nim >= $#"
 """ % [pkgVersion.escape(), pkgAuthor.escape(), pkgDesc.escape(),
-       pkgLicense.escape(), pkgNimDep]
-    close(outFile)
-  else:
-    raise newException(NimbleError, "Unable to open file " & nimbleFile &
-                       " for writing: " & osErrorMsg(osLastError()))
+       pkgLicense.escape(), srcDir.escape(), pkgNimDep])
 
-  display("Success:", "Nimble file created successfully", Success, HighPriority)
+  # Write source file
+  writeContents(srcDir / pkgName.changeFileExt("nim"), "echo \"Hello, Nim!\"")
+
+  # Write the test file
+  writeContents("tests" / "tester.nim", "doAssert(2 == 2)")
+
+  # Write the test config
+  writeContents("tests" / "tester.nims",
+    """switch("path", "$projectPath/../src")""")
+
+  display("Success:", "Nimble package created successfully", Success,
+    HighPriority)
 
 proc uninstall(options: Options) =
   if options.action.packages.len == 0:
