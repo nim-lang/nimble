@@ -698,6 +698,10 @@ proc init(options: Options) =
        "In order to initialise a new Nimble package, I will need to ask you\n" &
        "some questions. Default values are shown in square brackets, press\n" &
        "enter to use them.", priority = HighPriority)
+  else:
+    # NOTE: This message will probably needs to be removed in a future version.
+    display("Hint:", "Nimble no longer prompts by default. See --help for info",
+      priority = HighPriority)
 
   # Ask for package name.
   let pkgName = hideablePrompt(options.showPrompt, "Package name?",
