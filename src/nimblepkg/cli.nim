@@ -160,6 +160,15 @@ proc promptCustom*(question, default: string): string =
     if user == "": return default
     else: return user
 
+proc hideablePrompt*(show: bool, question, default: string;
+  alternate: string = ""): string =
+  return if show:
+      promptCustom(question, default)
+    elif not isNilOrEmpty(alternate):
+      alternate
+    else:
+      default
+
 proc setVerbosity*(level: Priority) =
   globalCLI.level = level
 
