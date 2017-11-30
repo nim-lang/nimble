@@ -290,11 +290,14 @@ which can be useful to read the bundled documentation. Example:
 
 ### nimble init
 
-The nimble ``init`` command will start a simple wizard which will create
-a quick ``.nimble`` file for your project.
+The nimble ``init`` command will quickly create a ready to use nimble package.
 
 As of version 0.7.0, the ``.nimble`` file that this command creates will
 use the new NimScript format.
+
+Also, version 0.8.9 nimble and later no longer prompts the user for information
+by default.
+
 Check out the [Creating Packages](#creating-packages) section for more info.
 
 ### nimble publish
@@ -374,9 +377,12 @@ These files specify information about the package including its author,
 license, dependencies and more. Without one, Nimble is not able to install
 a package.
 
-A .nimble file can be created easily using Nimble's ``init`` command. This
-command will ask you a bunch of questions about your package, then generate a
-.nimble file for you.
+In order to easily create a valid Nimble package you can use use Nimble's
+``init`` command. This command will generate a package for you with a
+``.nimble`` file, along with a nice initial package structure. If you would like
+more control over the process you can provide the ``--prompt`` flag and nimble
+will ask you questions about your package and proceed to create your new
+package.
 
 A bare minimum .nimble file follows:
 

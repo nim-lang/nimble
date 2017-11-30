@@ -20,6 +20,7 @@ type
     pkgInfoCache*: TableRef[string, PackageInfo]
     showHelp*: bool
     showVersion*: bool
+    showPrompt*: bool
     noColor*: bool
     disableValidation*: bool
 
@@ -62,7 +63,8 @@ Commands:
                                   in the current working directory.
   check                           Verifies the validity of a package in the
                                   current working directory.
-  init         [pkgname]          Initializes a new Nimble project.
+  init         [pkgname]          Initializes a new Nimble project. To restore
+                                  old behavior use --prompt.
   publish                         Publishes a package on nim-lang/packages.
                                   The current working directory needs to be the
                                   toplevel directory of the Nimble package.
@@ -102,6 +104,8 @@ Options:
       --verbose                   Show all non-debug output.
       --debug                     Show all output including debug messages.
       --noColor                   Don't colorise output.
+      --prompt:on|off             Show or hide prompts when initializing a
+                                  package. --prompt is the same as --prompt:on.
 
 For more information read the Github readme:
   https://github.com/nim-lang/nimble#readme
@@ -174,6 +178,7 @@ proc initAction*(options: var Options, key: string) =
     else: options.action.backend = keyNorm
   of actionInit:
     options.action.projName = ""
+    options.showPrompt = false
   of actionDump:
     options.action.projName = ""
   of actionRefresh:
@@ -280,6 +285,19 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
         result.queryInstalled = true
       of "ver":
         result.queryVersions = true
+      else:
+        wasFlagHandled = false
+    of actionInit:
+      case f
+      of "prompt":
+        case val
+        of "on":
+          result.showPrompt = true
+        of "off":
+          result.showPrompt = false
+        of nil, "":
+          result.showPrompt = true
+        else: discard
       else:
         wasFlagHandled = false
     of actionInstall:
