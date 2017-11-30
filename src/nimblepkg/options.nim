@@ -20,6 +20,7 @@ type
     pkgInfoCache*: TableRef[string, PackageInfo]
     showHelp*: bool
     showVersion*: bool
+    showPrompt*: bool
     noColor*: bool
     disableValidation*: bool
 
@@ -174,6 +175,7 @@ proc initAction*(options: var Options, key: string) =
     else: options.action.backend = keyNorm
   of actionInit:
     options.action.projName = ""
+    options.showPrompt = false
   of actionDump:
     options.action.projName = ""
   of actionRefresh:
@@ -280,6 +282,19 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
         result.queryInstalled = true
       of "ver":
         result.queryVersions = true
+      else:
+        wasFlagHandled = false
+    of actionInit:
+      case f
+      of "prompt":
+        case val
+        of "on":
+          result.showPrompt = true
+        of "off":
+          result.showPrompt = false
+        of nil, "":
+          result.showPrompt = true
+        else: discard
       else:
         wasFlagHandled = false
     of actionInstall:
