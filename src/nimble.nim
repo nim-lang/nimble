@@ -693,10 +693,11 @@ proc dump(options: Options) =
 proc init(options: Options) =
   var nimbleFile: string = ""
 
-  display("Info:",
-       "In order to initialise a new Nimble package, I will need to ask you\n" &
-       "some questions. Default values are shown in square brackets, press\n" &
-       "enter to use them.", priority = HighPriority)
+  if options.forcePrompts != forcePromptYes:
+    display("Info:",
+         "In order to initialise a new Nimble package, I will need to ask you\n" &
+         "some questions. Default values are shown in square brackets, press\n" &
+         "enter to use them.", priority = HighPriority)
 
   # Ask for package name.
   if options.action.projName != "":
@@ -704,7 +705,7 @@ proc init(options: Options) =
     nimbleFile = pkgName.changeFileExt("nimble")
   else:
     var pkgName = os.getCurrentDir().splitPath.tail.toValidPackageName()
-    pkgName = promptCustom("Package name?", pkgName)
+    pkgName = promptCustom(options, "Package name?", pkgName)
     nimbleFile = pkgName.changeFileExt("nimble")
 
   validatePackageName(nimbleFile.changeFileExt(""))
@@ -713,7 +714,7 @@ proc init(options: Options) =
     raise newException(NimbleError, "Nimble file already exists.")
 
   # Ask for package version.
-  let pkgVersion = promptCustom("Initial version of package?", "0.1.0")
+  let pkgVersion = promptCustom(options, "Initial version of package?", "0.1.0")
   validateVersion(pkgVersion)
 
   # Ask for package author
@@ -726,18 +727,20 @@ proc init(options: Options) =
     let (name, exitCode) = doCmdEx("hg config ui.username")
     if exitCode == QuitSuccess and name.len > 0:
       defaultAuthor = name.strip()
-  let pkgAuthor = promptCustom("Your name?", defaultAuthor)
+  let pkgAuthor = promptCustom(options, "Your name?", defaultAuthor)
 
   # Ask for description
-  let pkgDesc = promptCustom("Package description?", "")
+  let pkgDesc = promptCustom(options, "Package description?",
+    "A new awesome nimble package")
 
   # Ask for license
   # TODO: Provide selection of licenses, or select random default license.
-  let pkgLicense = promptCustom("Package license?", "MIT")
+  let pkgLicense = promptCustom(options, "Package license?", "MIT")
 
   # Ask for Nim dependency
   let nimDepDef = getNimrodVersion()
-  let pkgNimDep = promptCustom("Lowest supported Nim version?", $nimDepDef)
+  let pkgNimDep = promptCustom(options, "Lowest supported Nim version?",
+    $nimDepDef)
   validateVersion(pkgNimDep)
 
   var outFile: File

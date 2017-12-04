@@ -194,6 +194,16 @@ proc prompt*(options: Options, question: string): bool =
   ## forcePrompts has a value different than dontForcePrompt.
   return prompt(options.forcePrompts, question)
 
+proc promptCustom*(options: Options, question, default: string): string =
+  ## Asks an interactive question and returns the result.
+  ##
+  ## The proc will return "default" without asking the user if the global
+  ## forcePrompts is forcePromptYes.
+  result = if options.forcePrompts == forcePromptYes:
+      default
+    else:
+      promptCustom(question, default)
+
 proc renameBabelToNimble(options: Options) {.deprecated.} =
   let babelDir = getHomeDir() / ".babel"
   let nimbleDir = getHomeDir() / ".nimble"
