@@ -146,19 +146,25 @@ proc prompt*(forcePrompts: ForcePrompt, question: string): bool =
     else:
       return false
 
-proc promptCustom*(question, default: string): string =
-  if default == "":
-    display("Prompt:", question, Warning, HighPriority)
-    displayCategory("Answer:", Warning, HighPriority)
-    let user = stdin.readLine()
-    if user.len == 0: return promptCustom(question, default)
-    else: return user
+proc promptCustom*(question, default: string, forcePrompts = dontForcePrompt): string =
+  case forcePrompts:
+  of forcePromptYes:
+    display("Prompt: ", question & " -> [forced " & default & "]", Warning,
+      HighPriority)
+    return default
   else:
-    display("Prompt:", question & " [" & default & "]", Warning, HighPriority)
-    displayCategory("Answer:", Warning, HighPriority)
-    let user = stdin.readLine()
-    if user == "": return default
-    else: return user
+    if default == "":
+      display("Prompt:", question, Warning, HighPriority)
+      displayCategory("Answer:", Warning, HighPriority)
+      let user = stdin.readLine()
+      if user.len == 0: return promptCustom(question, default)
+      else: return user
+    else:
+      display("Prompt:", question & " [" & default & "]", Warning, HighPriority)
+      displayCategory("Answer:", Warning, HighPriority)
+      let user = stdin.readLine()
+      if user == "": return default
+      else: return user
 
 proc setVerbosity*(level: Priority) =
   globalCLI.level = level

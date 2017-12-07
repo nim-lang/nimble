@@ -199,10 +199,7 @@ proc promptCustom*(options: Options, question, default: string): string =
   ##
   ## The proc will return "default" without asking the user if the global
   ## forcePrompts is forcePromptYes.
-  result = if options.forcePrompts == forcePromptYes:
-      default
-    else:
-      promptCustom(question, default)
+  return promptCustom(question, default, options.forcePrompts)
 
 proc renameBabelToNimble(options: Options) {.deprecated.} =
   let babelDir = getHomeDir() / ".babel"
