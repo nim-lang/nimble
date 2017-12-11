@@ -734,10 +734,11 @@ proc init(options: Options) =
     "A new awesome nimble package")
 
   # Ask for license
-  let pkgLicense = options.promptList("Package License?", @[
+  let pkgLicense = options.promptList("Package License?", [
     "MIT",
     "BSD2",
     "GPL3",
+    "LGPL3",
     "Apache2",
   ])
 
