@@ -714,21 +714,27 @@ proc init(options: Options) =
   display("Using", "$# for new package name" % [pkgName.escape()],
     priority = HighPriority)
 
+  # Ask for package author
+  proc getAuthor(): string =
+    if findExe("git") != "":
+      let (name, exitCode) = doCmdEx("git config --global user.name")
+      if exitCode == QuitSuccess and name.len > 0:
+        result = name.strip()
+        display("Using", "$# for new package author" % [result.escape()],
+          priority = HighPriority)
+    elif findExe("hg") != "":
+      let (name, exitCode) = doCmdEx("hg config ui.username")
+      if exitCode == QuitSuccess and name.len > 0:
+        result = name.strip()
+        display("Using", "$# for new package author" % [result.escape()],
+          priority = HighPriority)
+    else:
+      result = promptCustom(options, "Your name?", "Anonymous")
+  let pkgAuthor = getAuthor()
+
   # Ask for package version.
   let pkgVersion = promptCustom(options, "Initial version of package?", "0.1.0")
   validateVersion(pkgVersion)
-
-  # Ask for package author
-  var defaultAuthor = "Anonymous"
-  if findExe("git") != "":
-    let (name, exitCode) = doCmdEx("git config --global user.name")
-    if exitCode == QuitSuccess and name.len > 0:
-      defaultAuthor = name.strip()
-  elif defaultAuthor == "Anonymous" and findExe("hg") != "":
-    let (name, exitCode) = doCmdEx("hg config ui.username")
-    if exitCode == QuitSuccess and name.len > 0:
-      defaultAuthor = name.strip()
-  let pkgAuthor = promptCustom(options, "Your name?", defaultAuthor)
 
   # Ask for description
   let pkgDesc = promptCustom(options, "Package description?",
