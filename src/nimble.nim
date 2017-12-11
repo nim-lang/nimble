@@ -734,8 +734,12 @@ proc init(options: Options) =
     "A new awesome nimble package")
 
   # Ask for license
-  # TODO: Provide selection of licenses, or select random default license.
-  let pkgLicense = promptCustom(options, "Package license?", "MIT")
+  let pkgLicense = options.promptList("Package License?", @[
+    "MIT",
+    "BSD2",
+    "GPL3",
+    "Apache2",
+  ])
 
   # Ask for Nim dependency
   let nimDepDef = getNimrodVersion()

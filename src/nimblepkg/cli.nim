@@ -166,6 +166,21 @@ proc promptCustom*(question, default: string, forcePrompts = dontForcePrompt): s
       if user == "": return default
       else: return user
 
+proc promptList*(forcePrompts: ForcePrompt, question: string, args: openarray[string]): string =
+  case forcePrompts:
+  of forcePromptYes:
+    result = args[0]
+    display("Prompt: ", question & " -> [forced " & result & "]", Warning,
+      HighPriority)
+  else:
+    display("Prompt:", question & " [" & join(args, "/") & "]", Warning, HighPriority)
+    displayCategory("Answer:", Warning, HighPriority)
+    result = stdin.readLine()
+    for arg in args:
+      if result.cmpIgnoreCase(result) == 0:
+        return arg
+    return promptList(forcePrompts, question, args)
+
 proc setVerbosity*(level: Priority) =
   globalCLI.level = level
 
