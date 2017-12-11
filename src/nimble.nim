@@ -695,9 +695,9 @@ proc init(options: Options) =
 
   if options.forcePrompts != forcePromptYes:
     display("Info:",
-         "In order to initialise a new Nimble package, I will need to ask you\n" &
-         "some questions. Default values are shown in square brackets, press\n" &
-         "enter to use them.", priority = HighPriority)
+      "In order to initialise a new Nimble package, I will need to ask you\n" &
+      "some questions. Default values are shown in square brackets, press\n" &
+      "enter to use them.", priority = HighPriority)
 
   # Ask for package name.
   let pkgName = if options.action.projName != "":
