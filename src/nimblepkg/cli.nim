@@ -149,7 +149,7 @@ proc prompt*(forcePrompts: ForcePrompt, question: string): bool =
 proc promptCustom*(question, default: string, forcePrompts = dontForcePrompt): string =
   case forcePrompts:
   of forcePromptYes:
-    display("Prompt: ", question & " -> [forced " & default & "]", Warning,
+    display("Prompt:", question & " -> [forced " & default & "]", Warning,
       HighPriority)
     return default
   else:
@@ -170,7 +170,7 @@ proc promptList*(forcePrompts: ForcePrompt, question: string, args: openarray[st
   case forcePrompts:
   of forcePromptYes:
     result = args[0]
-    display("Prompt: ", question & " -> [forced " & result & "]", Warning,
+    display("Prompt:", question & " -> [forced " & result & "]", Warning,
       HighPriority)
   else:
     display("Prompt:", question & " [" & join(args, "/") & "]", Warning, HighPriority)
