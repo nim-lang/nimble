@@ -177,7 +177,7 @@ proc promptList*(forcePrompts: ForcePrompt, question: string, args: openarray[st
     displayCategory("Answer:", Warning, HighPriority)
     result = stdin.readLine()
     for arg in args:
-      if result.cmpIgnoreCase(result) == 0:
+      if arg.cmpIgnoreCase(result) == 0:
         return arg
     return promptList(forcePrompts, question, args)
 
