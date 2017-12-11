@@ -700,18 +700,19 @@ proc init(options: Options) =
          "enter to use them.", priority = HighPriority)
 
   # Ask for package name.
-  if options.action.projName != "":
-    let pkgName = options.action.projName
-    nimbleFile = pkgName.changeFileExt("nimble")
-  else:
-    var pkgName = os.getCurrentDir().splitPath.tail.toValidPackageName()
-    pkgName = promptCustom(options, "Package name?", pkgName)
-    nimbleFile = pkgName.changeFileExt("nimble")
+  let pkgName = if options.action.projName != "":
+      options.action.projName
+    else:
+      os.getCurrentDir().splitPath.tail.toValidPackageName()
 
+  nimbleFile = pkgName.changeFileExt("nimble")
   validatePackageName(nimbleFile.changeFileExt(""))
 
   if existsFile(os.getCurrentDir() / nimbleFile):
     raise newException(NimbleError, "Nimble file already exists.")
+
+  display("Using", "$# for new package name" % [pkgName.escape()],
+    priority = HighPriority)
 
   # Ask for package version.
   let pkgVersion = promptCustom(options, "Initial version of package?", "0.1.0")
