@@ -808,7 +808,11 @@ requires "nim >= $#"
 """ % [pkgVersion.escape(), pkgAuthor.escape(), pkgDesc.escape(),
        pkgLicense.escape(), pkgSrcDir.escape(), pkgNimDep]
 
-  display("Success:", "Nimble file created successfully", Success, HighPriority)
+  display("Success:", "Nimble file created successfully", Success,
+    MediumPriority)
+
+  display("Success:", "Package $# created successfully" % [pkgName], Success,
+    HighPriority)
 
 proc uninstall(options: Options) =
   if options.action.packages.len == 0:
