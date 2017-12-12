@@ -755,9 +755,8 @@ proc init(options: Options) =
     $nimDepDef)
   validateVersion(pkgNimDep)
 
-  var outFile: File
-  if open(f = outFile, filename = nimbleFile, mode = fmWrite):
-    outFile.writeLine """# Package
+  # Write the nimble file
+  nimbleFile.writeContents """# Package
 
 version       = $#
 author        = $#
@@ -769,10 +768,6 @@ license       = $#
 requires "nim >= $#"
 """ % [pkgVersion.escape(), pkgAuthor.escape(), pkgDesc.escape(),
        pkgLicense.escape(), pkgNimDep]
-    close(outFile)
-  else:
-    raise newException(NimbleError, "Unable to open file " & nimbleFile &
-                       " for writing: " & osErrorMsg(osLastError()))
 
   display("Success:", "Nimble file created successfully", Success, HighPriority)
 

@@ -80,10 +80,10 @@ proc changeRoot*(origRoot, newRoot, path: string): string =
   ## path:     /home/dom/bar/blah/2/foo.txt
   ## Return value -> /home/test/bar/blah/2/foo.txt
 
-  ## The additional check of `path.samePaths(origRoot)` is necessary to prevent 
-  ## a regression, where by ending the `srcDir` defintion in a nimble file in a 
+  ## The additional check of `path.samePaths(origRoot)` is necessary to prevent
+  ## a regression, where by ending the `srcDir` defintion in a nimble file in a
   ## trailing separator would cause the `path.startsWith(origRoot)` evaluation to
-  ## fail because of the value of `origRoot` would be longer than `path` due to 
+  ## fail because of the value of `origRoot` would be longer than `path` due to
   ## the trailing separator. This would cause this method to throw during package
   ## installation.
   if path.startsWith(origRoot) or path.samePaths(origRoot):
@@ -97,6 +97,16 @@ proc copyFileD*(fro, to: string): string =
   display("Copying", "file $# to $#" % [fro, to], priority = LowPriority)
   copyFileWithPermissions(fro, to)
   result = to
+
+proc writeContents*(filename, contents: string) =
+  ## Simlar to os.writeFile but throws a NimbleError
+  var outFile: File
+  if open(f = outFile, filename = filename, mode = fmWrite):
+    outFile.writeLine contents
+    close(outFile)
+  else:
+    raise newException(NimbleError, "Unable to open file " & filename &
+                       " for writing: " & osErrorMsg(osLastError()))
 
 proc copyDirD*(fro, to: string): seq[string] =
   ## Returns the filenames of the files in the directory that were copied.
