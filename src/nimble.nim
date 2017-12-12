@@ -732,6 +732,11 @@ proc init(options: Options) =
       result = promptCustom(options, "Your name?", "Anonymous")
   let pkgAuthor = getAuthor()
 
+  # Declare the src/ directory
+  let pkgSrcDir = "src"
+  display("Using", "$# for new package source directory" % [pkgSrcDir.escape()],
+    priority = HighPriority)
+
   # Ask for package version.
   let pkgVersion = promptCustom(options, "Initial version of package?", "0.1.0")
   validateVersion(pkgVersion)
@@ -755,6 +760,12 @@ proc init(options: Options) =
     $nimDepDef)
   validateVersion(pkgNimDep)
 
+  # Create package directory structure
+  os.createDir(pkgSrcDir)
+
+  display("Success:", "Source directory created successfully", Success,
+    MediumPriority)
+
   # Write the nimble file
   nimbleFile.writeContents """# Package
 
@@ -762,12 +773,13 @@ version       = $#
 author        = $#
 description   = $#
 license       = $#
+srcDir        = $#
 
 # Dependencies
 
 requires "nim >= $#"
 """ % [pkgVersion.escape(), pkgAuthor.escape(), pkgDesc.escape(),
-       pkgLicense.escape(), pkgNimDep]
+       pkgLicense.escape(), pkgSrcDir.escape(), pkgNimDep]
 
   display("Success:", "Nimble file created successfully", Success, HighPriority)
 
