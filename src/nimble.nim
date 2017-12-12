@@ -760,10 +760,17 @@ proc init(options: Options) =
     $nimDepDef)
   validateVersion(pkgNimDep)
 
-  # Create package directory structure
+  # Create source directory
   os.createDir(pkgSrcDir)
 
   display("Success:", "Source directory created successfully", Success,
+    MediumPriority)
+
+  # Create initial source file
+  cd pkgSrcDir:
+    pkgName.changeFileExt("nim").writeContents "echo \"Hello, World!\"\n"
+
+  display("Success:", "Created initial source file successfully", Success,
     MediumPriority)
 
   # Write the nimble file
