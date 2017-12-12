@@ -760,6 +760,8 @@ proc init(options: Options) =
     $nimDepDef)
   validateVersion(pkgNimDep)
 
+  let pkgTestDir = "tests"
+
   # Create source directory
   os.createDir(pkgSrcDir)
 
@@ -770,8 +772,26 @@ proc init(options: Options) =
   cd pkgSrcDir:
     pkgName.changeFileExt("nim").writeContents "echo \"Hello, World!\"\n"
 
-  display("Success:", "Created initial source file successfully", Success,
+    display("Success:", "Created initial source file successfully", Success,
+      MediumPriority)
+
+  # Create test directory
+  os.createDir(pkgTestDir)
+
+  display("Success:", "Test directory created successfully", Success,
     MediumPriority)
+
+  cd pkgTestDir:
+    "tester.nims".writeContents("""switch("path", "$$projectDir/../$#")""" %
+      [pkgSrcDir])
+
+    display("Success:", "Test config file created successfully", Success,
+      MediumPriority)
+
+    "tester.nim".writeContents("doAssert(1 + 1 == 2)\n")
+
+    display("Success:", "Test file created successfully", Success,
+      MediumPriority)
 
   # Write the nimble file
   nimbleFile.writeContents """# Package
