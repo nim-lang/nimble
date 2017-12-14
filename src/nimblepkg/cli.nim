@@ -146,7 +146,7 @@ proc prompt*(forcePrompts: ForcePrompt, question: string): bool =
     else:
       return false
 
-proc promptCustom*(question, default: string, forcePrompts = dontForcePrompt): string =
+proc promptCustom*(forcePrompts: ForcePrompt, question, default: string): string =
   case forcePrompts:
   of forcePromptYes:
     display("Prompt:", question & " -> [forced " & default & "]", Warning,
@@ -157,7 +157,7 @@ proc promptCustom*(question, default: string, forcePrompts = dontForcePrompt): s
       display("Prompt:", question, Warning, HighPriority)
       displayCategory("Answer:", Warning, HighPriority)
       let user = stdin.readLine()
-      if user.len == 0: return promptCustom(question, default)
+      if user.len == 0: return promptCustom(forcePrompts, question, default)
       else: return user
     else:
       display("Prompt:", question & " [" & default & "]", Warning, HighPriority)
@@ -165,6 +165,9 @@ proc promptCustom*(question, default: string, forcePrompts = dontForcePrompt): s
       let user = stdin.readLine()
       if user == "": return default
       else: return user
+
+proc promptCustom*(question, default: string): string =
+  return promptCustom(dontForcePrompt, question, default)
 
 proc promptList*(forcePrompts: ForcePrompt, question: string, args: openarray[string]): string =
   case forcePrompts:

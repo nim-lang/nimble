@@ -199,7 +199,7 @@ proc promptCustom*(options: Options, question, default: string): string =
   ##
   ## The proc will return "default" without asking the user if the global
   ## forcePrompts is forcePromptYes.
-  return promptCustom(question, default, options.forcePrompts)
+  return promptCustom(options.forcePrompts, question, default)
 
 proc promptList*(options: Options, question: string, args: openarray[string]): string =
   ## Asks an interactive question and returns the result.
