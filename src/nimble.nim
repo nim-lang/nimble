@@ -700,7 +700,8 @@ proc init(options: Options) =
       "enter to use them.", priority = HighPriority)
 
   # Ask for package name.
-  let pkgName = if options.action.projName != "":
+  let pkgName =
+    if options.action.projName != "":
       options.action.projName
     else:
       os.getCurrentDir().splitPath.tail.toValidPackageName()
@@ -737,6 +738,12 @@ proc init(options: Options) =
   display("Using", "$# for new package source directory" % [pkgSrcDir.escape()],
     priority = HighPriority)
 
+  # Determine the type of package
+  let pkgType = promptList(options, "Package type?", [
+    "lib",
+    "bin",
+  ])
+
   # Ask for package version.
   let pkgVersion = promptCustom(options, "Initial version of package?", "0.1.0")
   validateVersion(pkgVersion)
@@ -749,8 +756,8 @@ proc init(options: Options) =
   let pkgLicense = options.promptList("Package License?", [
     "MIT",
     "BSD2",
-    "GPL3",
-    "LGPL3",
+    "GPLv3",
+    "LGPLv3",
     "Apache2",
   ])
 
@@ -770,10 +777,20 @@ proc init(options: Options) =
 
   # Create initial source file
   cd pkgSrcDir:
-    pkgName.changeFileExt("nim").writeContents "echo \"Hello, World!\"\n"
-
-    display("Success:", "Created initial source file successfully", Success,
-      MediumPriority)
+    let pkgFile = pkgName.changeFileExt("nim")
+    try:
+      if pkgType == "bin":
+        pkgFile.writeFile "# Hello Nim!\necho \"Hello, World!\"\n"
+      else:
+        pkgFile.writeFile """# $#
+# Copyright $#
+# $#
+""" % [pkgName, pkgAuthor, pkgDesc]
+      display("Success:", "Created initial source file successfully", Success,
+        MediumPriority)
+    except:
+      raise newException(NimbleError, "Unable to open file " & pkgFile &
+                         " for writing: " & osErrorMsg(osLastError()))
 
   # Create test directory
   os.createDir(pkgTestDir)
@@ -782,19 +799,26 @@ proc init(options: Options) =
     MediumPriority)
 
   cd pkgTestDir:
-    "tester.nims".writeContents("""switch("path", "$$projectDir/../$#")""" %
-      [pkgSrcDir])
-
-    display("Success:", "Test config file created successfully", Success,
-      MediumPriority)
-
-    "tester.nim".writeContents("doAssert(1 + 1 == 2)\n")
-
-    display("Success:", "Test file created successfully", Success,
-      MediumPriority)
+    try:
+      "test1.nims".writeFile("""switch("path", "$$projectDir/../$#")""" %
+        [pkgSrcDir])
+      display("Success:", "Test config file created successfully", Success,
+        MediumPriority)
+    except:
+      raise newException(NimbleError, "Unable to open file " & "test1.nims" &
+                         " for writing: " & osErrorMsg(osLastError()))
+    try:
+      "test1.nim".writeFile("doAssert(1 + 1 == 2)\n")
+      display("Success:", "Test file created successfully", Success,
+        MediumPriority)
+    except:
+      raise newException(NimbleError, "Unable to open file " & "test1.nim" &
+                         " for writing: " & osErrorMsg(osLastError()))
 
   # Write the nimble file
-  nimbleFile.writeContents """# Package
+  try:
+    if pkgType == "lib":
+      nimbleFile.writeFile """# Package
 
 version       = $#
 author        = $#
@@ -807,6 +831,24 @@ srcDir        = $#
 requires "nim >= $#"
 """ % [pkgVersion.escape(), pkgAuthor.escape(), pkgDesc.escape(),
        pkgLicense.escape(), pkgSrcDir.escape(), pkgNimDep]
+    else:
+      nimbleFile.writeFile """# Package
+
+version       = $#
+author        = $#
+description   = $#
+license       = $#
+srcDir        = $#
+bin           = @[$#]
+
+# Dependencies
+
+requires "nim >= $#"
+""" % [pkgVersion.escape(), pkgAuthor.escape(), pkgDesc.escape(),
+       pkgLicense.escape(), pkgSrcDir.escape(), pkgName.escape(), pkgNimDep]
+  except:
+    raise newException(NimbleError, "Unable to open file " & "test1.nim" &
+                       " for writing: " & osErrorMsg(osLastError()))
 
   display("Success:", "Nimble file created successfully", Success,
     MediumPriority)

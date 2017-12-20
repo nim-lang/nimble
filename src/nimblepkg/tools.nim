@@ -98,16 +98,6 @@ proc copyFileD*(fro, to: string): string =
   copyFileWithPermissions(fro, to)
   result = to
 
-proc writeContents*(filename, contents: string) =
-  ## Simlar to os.writeFile but throws a NimbleError
-  var outFile: File
-  if open(f = outFile, filename = filename, mode = fmWrite):
-    outFile.writeLine contents
-    close(outFile)
-  else:
-    raise newException(NimbleError, "Unable to open file " & filename &
-                       " for writing: " & osErrorMsg(osLastError()))
-
 proc copyDirD*(fro, to: string): seq[string] =
   ## Returns the filenames of the files in the directory that were copied.
   result = @[]
