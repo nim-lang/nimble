@@ -693,73 +693,168 @@ proc dump(options: Options) =
 proc init(options: Options) =
   var nimbleFile: string = ""
 
-  display("Info:",
-       "In order to initialise a new Nimble package, I will need to ask you\n" &
-       "some questions. Default values are shown in square brackets, press\n" &
-       "enter to use them.", priority = HighPriority)
+  if options.forcePrompts != forcePromptYes:
+    display("Info:",
+      "In order to initialise a new Nimble package, I will need to ask you\n" &
+      "some questions. Default values are shown in square brackets, press\n" &
+      "enter to use them.", priority = HighPriority)
 
   # Ask for package name.
-  if options.action.projName != "":
-    let pkgName = options.action.projName
-    nimbleFile = pkgName.changeFileExt("nimble")
-  else:
-    var pkgName = os.getCurrentDir().splitPath.tail.toValidPackageName()
-    pkgName = promptCustom("Package name?", pkgName)
-    nimbleFile = pkgName.changeFileExt("nimble")
+  let pkgName =
+    if options.action.projName != "":
+      options.action.projName
+    else:
+      os.getCurrentDir().splitPath.tail.toValidPackageName()
 
+  nimbleFile = pkgName.changeFileExt("nimble")
   validatePackageName(nimbleFile.changeFileExt(""))
 
   if existsFile(os.getCurrentDir() / nimbleFile):
     raise newException(NimbleError, "Nimble file already exists.")
 
-  # Ask for package version.
-  let pkgVersion = promptCustom("Initial version of package?", "0.1.0")
-  validateVersion(pkgVersion)
+  display("Using", "$# for new package name" % [pkgName.escape()],
+    priority = HighPriority)
 
   # Ask for package author
-  var defaultAuthor = "Anonymous"
-  if findExe("git") != "":
-    let (name, exitCode) = doCmdEx("git config --global user.name")
-    if exitCode == QuitSuccess and name.len > 0:
-      defaultAuthor = name.strip()
-  elif defaultAuthor == "Anonymous" and findExe("hg") != "":
-    let (name, exitCode) = doCmdEx("hg config ui.username")
-    if exitCode == QuitSuccess and name.len > 0:
-      defaultAuthor = name.strip()
-  let pkgAuthor = promptCustom("Your name?", defaultAuthor)
+  proc getAuthor(): string =
+    if findExe("git") != "":
+      let (name, exitCode) = doCmdEx("git config --global user.name")
+      if exitCode == QuitSuccess and name.len > 0:
+        result = name.strip()
+        display("Using", "$# for new package author" % [result.escape()],
+          priority = HighPriority)
+    elif findExe("hg") != "":
+      let (name, exitCode) = doCmdEx("hg config ui.username")
+      if exitCode == QuitSuccess and name.len > 0:
+        result = name.strip()
+        display("Using", "$# for new package author" % [result.escape()],
+          priority = HighPriority)
+    else:
+      result = promptCustom(options, "Your name?", "Anonymous")
+  let pkgAuthor = getAuthor()
+
+  # Declare the src/ directory
+  let pkgSrcDir = "src"
+  display("Using", "$# for new package source directory" % [pkgSrcDir.escape()],
+    priority = HighPriority)
+
+  # Determine the type of package
+  let pkgType = promptList(options, "Package type?", [
+    "lib",
+    "bin",
+  ])
+
+  # Ask for package version.
+  let pkgVersion = promptCustom(options, "Initial version of package?", "0.1.0")
+  validateVersion(pkgVersion)
 
   # Ask for description
-  let pkgDesc = promptCustom("Package description?", "")
+  let pkgDesc = promptCustom(options, "Package description?",
+    "A new awesome nimble package")
 
   # Ask for license
-  # TODO: Provide selection of licenses, or select random default license.
-  let pkgLicense = promptCustom("Package license?", "MIT")
+  let pkgLicense = options.promptList("Package License?", [
+    "MIT",
+    "BSD2",
+    "GPLv3",
+    "LGPLv3",
+    "Apache2",
+  ])
 
   # Ask for Nim dependency
   let nimDepDef = getNimrodVersion()
-  let pkgNimDep = promptCustom("Lowest supported Nim version?", $nimDepDef)
+  let pkgNimDep = promptCustom(options, "Lowest supported Nim version?",
+    $nimDepDef)
   validateVersion(pkgNimDep)
 
-  var outFile: File
-  if open(f = outFile, filename = nimbleFile, mode = fmWrite):
-    outFile.writeLine """# Package
+  let pkgTestDir = "tests"
+
+  # Create source directory
+  os.createDir(pkgSrcDir)
+
+  display("Success:", "Source directory created successfully", Success,
+    MediumPriority)
+
+  # Create initial source file
+  cd pkgSrcDir:
+    let pkgFile = pkgName.changeFileExt("nim")
+    try:
+      if pkgType == "bin":
+        pkgFile.writeFile "# Hello Nim!\necho \"Hello, World!\"\n"
+      else:
+        pkgFile.writeFile """# $#
+# Copyright $#
+# $#
+""" % [pkgName, pkgAuthor, pkgDesc]
+      display("Success:", "Created initial source file successfully", Success,
+        MediumPriority)
+    except:
+      raise newException(NimbleError, "Unable to open file " & pkgFile &
+                         " for writing: " & osErrorMsg(osLastError()))
+
+  # Create test directory
+  os.createDir(pkgTestDir)
+
+  display("Success:", "Test directory created successfully", Success,
+    MediumPriority)
+
+  cd pkgTestDir:
+    try:
+      "test1.nims".writeFile("""switch("path", "$$projectDir/../$#")""" %
+        [pkgSrcDir])
+      display("Success:", "Test config file created successfully", Success,
+        MediumPriority)
+    except:
+      raise newException(NimbleError, "Unable to open file " & "test1.nims" &
+                         " for writing: " & osErrorMsg(osLastError()))
+    try:
+      "test1.nim".writeFile("doAssert(1 + 1 == 2)\n")
+      display("Success:", "Test file created successfully", Success,
+        MediumPriority)
+    except:
+      raise newException(NimbleError, "Unable to open file " & "test1.nim" &
+                         " for writing: " & osErrorMsg(osLastError()))
+
+  # Write the nimble file
+  try:
+    if pkgType == "lib":
+      nimbleFile.writeFile """# Package
 
 version       = $#
 author        = $#
 description   = $#
 license       = $#
+srcDir        = $#
 
 # Dependencies
 
 requires "nim >= $#"
 """ % [pkgVersion.escape(), pkgAuthor.escape(), pkgDesc.escape(),
-       pkgLicense.escape(), pkgNimDep]
-    close(outFile)
-  else:
-    raise newException(NimbleError, "Unable to open file " & nimbleFile &
+       pkgLicense.escape(), pkgSrcDir.escape(), pkgNimDep]
+    else:
+      nimbleFile.writeFile """# Package
+
+version       = $#
+author        = $#
+description   = $#
+license       = $#
+srcDir        = $#
+bin           = @[$#]
+
+# Dependencies
+
+requires "nim >= $#"
+""" % [pkgVersion.escape(), pkgAuthor.escape(), pkgDesc.escape(),
+       pkgLicense.escape(), pkgSrcDir.escape(), pkgName.escape(), pkgNimDep]
+  except:
+    raise newException(NimbleError, "Unable to open file " & "test1.nim" &
                        " for writing: " & osErrorMsg(osLastError()))
 
-  display("Success:", "Nimble file created successfully", Success, HighPriority)
+  display("Success:", "Nimble file created successfully", Success,
+    MediumPriority)
+
+  display("Success:", "Package $# created successfully" % [pkgName], Success,
+    HighPriority)
 
 proc uninstall(options: Options) =
   if options.action.packages.len == 0:

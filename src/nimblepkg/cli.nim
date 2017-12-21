@@ -146,19 +146,43 @@ proc prompt*(forcePrompts: ForcePrompt, question: string): bool =
     else:
       return false
 
-proc promptCustom*(question, default: string): string =
-  if default == "":
-    display("Prompt:", question, Warning, HighPriority)
-    displayCategory("Answer:", Warning, HighPriority)
-    let user = stdin.readLine()
-    if user.len == 0: return promptCustom(question, default)
-    else: return user
+proc promptCustom*(forcePrompts: ForcePrompt, question, default: string): string =
+  case forcePrompts:
+  of forcePromptYes:
+    display("Prompt:", question & " -> [forced " & default & "]", Warning,
+      HighPriority)
+    return default
   else:
-    display("Prompt:", question & " [" & default & "]", Warning, HighPriority)
+    if default == "":
+      display("Prompt:", question, Warning, HighPriority)
+      displayCategory("Answer:", Warning, HighPriority)
+      let user = stdin.readLine()
+      if user.len == 0: return promptCustom(forcePrompts, question, default)
+      else: return user
+    else:
+      display("Prompt:", question & " [" & default & "]", Warning, HighPriority)
+      displayCategory("Answer:", Warning, HighPriority)
+      let user = stdin.readLine()
+      if user == "": return default
+      else: return user
+
+proc promptCustom*(question, default: string): string =
+  return promptCustom(dontForcePrompt, question, default)
+
+proc promptList*(forcePrompts: ForcePrompt, question: string, args: openarray[string]): string =
+  case forcePrompts:
+  of forcePromptYes:
+    result = args[0]
+    display("Prompt:", question & " -> [forced " & result & "]", Warning,
+      HighPriority)
+  else:
+    display("Prompt:", question & " [" & join(args, "/") & "]", Warning, HighPriority)
     displayCategory("Answer:", Warning, HighPriority)
-    let user = stdin.readLine()
-    if user == "": return default
-    else: return user
+    result = stdin.readLine()
+    for arg in args:
+      if arg.cmpIgnoreCase(result) == 0:
+        return arg
+    return promptList(forcePrompts, question, args)
 
 proc setVerbosity*(level: Priority) =
   globalCLI.level = level
