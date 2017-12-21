@@ -319,7 +319,7 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
 proc initOptions*(): Options =
   result.action.typ = actionNil
   result.pkgInfoCache = newTable[string, PackageInfo]()
-  result.nimbleDir = ""
+  result.nimbleDir = getEnv("NIMBLE_DIR")
   result.verbosity = HighPriority
 
 proc parseMisc(options: var Options) =
@@ -365,6 +365,11 @@ proc parseCmdLine*(): Options =
 
   if result.action.typ == actionNil and not result.showVersion:
     result.showHelp = true
+
+  # Inform user that we use their environment variables.
+  if result.getNimbleDir == getEnv("NIMBLE_DIR"):
+    display("Info:", "Using the 'NIMBLE_DIR' environment variable.",
+            priority = HighPriority)
 
 proc getProxy*(options: Options): Proxy =
   ## Returns ``nil`` if no proxy is specified.
