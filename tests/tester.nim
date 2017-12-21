@@ -354,6 +354,13 @@ test "issue #338":
   cd "issue338":
     check execNimble("install", "-y").exitCode == QuitSuccess
 
+test "issue #428":
+  cd "issue428":
+    # Note: Can't use execNimble because it patches nimbleDir
+    check execCmdEx(nimblePath & " -y --nimbleDir=./nimbleDir install").exitCode == QuitSuccess
+    check dirExists("nimbleDir/pkgs/dummy-0.1.0")
+    check(not dirExists("nimbleDir/pkgs/dummy-0.1.0/nimbleDir"))
+
 test "can list":
   check execNimble("list").exitCode == QuitSuccess
 
