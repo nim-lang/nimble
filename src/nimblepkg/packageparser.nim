@@ -131,7 +131,7 @@ proc validatePackageStructure(pkgInfo: PackageInfo, options: Options) =
 
   iterInstallFiles(realDir, pkgInfo, options, onFile)
 
-proc validatePackageInfo(pkgInfo: PackageInfo, options: Options) =
+proc validatePackageInfo*(pkgInfo: PackageInfo, options: Options) =
   let path = pkgInfo.myPath
   if pkgInfo.name == "":
     raiseNewValidationError("Incorrect .nimble file: " & path &
