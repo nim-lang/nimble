@@ -352,6 +352,11 @@ proc parseCmdLine*(): Options =
   if result.action.typ == actionNil and not result.showVersion:
     result.showHelp = true
 
+  # Inform user that we use their environment variables.
+  if result.getNimbleDir == getEnv("NIMBLE_DIR"):
+    display("Info:", "Using the 'NIMBLE_DIR' environment variable.",
+            priority = HighPriority)
+
 proc getProxy*(options: Options): Proxy =
   ## Returns ``nil`` if no proxy is specified.
   var url = ""
