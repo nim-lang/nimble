@@ -177,7 +177,8 @@ proc promptCustom*(question, default: string): string =
 
 proc getKey(): Key =
   ## Needed in order to allow arrow key control for Windows. It also makes it
-  ## easier to determine which keys are pressed on POSIX systems.
+  ## easier to determine which keys are pressed on POSIX systems. This is based
+  ## of terminal.getch for the standard library.
   when defined(windows):
     let fd = getStdHandle(STD_INPUT_HANDLE)
     var keyEvent = KEY_EVENT_RECORD()
