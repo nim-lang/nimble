@@ -15,7 +15,7 @@
 import logging, terminal, sets, strutils, os
 
 when defined(windows):
-  import winlead
+  import winlean
 
 type
   CLI* = ref object
@@ -185,7 +185,7 @@ proc getKey(): Key =
     var numRead: cint
     while true:
       # Block until character is entered
-      doAssert(waitForSingleObject(fd, INFINITE) == WAIT_BOJECT_0)
+      doAssert(waitForSingleObject(fd, INFINITE) == WAIT_OBJECT_0)
       doAssert(readConsoleInput(fd, addr(keyEvent), 1, addr(numRead)) != 0)
       if numRead == 0 or keyEvent.eventType != 1 or keyEvent.bKeyDown == 0:
         continue
