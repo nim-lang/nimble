@@ -213,9 +213,9 @@ proc getKey(): Key =
     else: discard
     result = getKey()
 
-proc promptListInteractive(question: string, args: openarray[string]) : string =
+proc promptListInteractive(question: string, args: openarray[string]): string =
   display("Prompt:", question, Warning, HighPriority)
-  display("Select", "With up/down arrow keys, 'Enter' when done", Warning,
+  display("Select", "With up/down arrow keys, 'Enter' when done", Message,
     HighPriority)
   displayCategory("Choices:", Warning, HighPriority)
   var
