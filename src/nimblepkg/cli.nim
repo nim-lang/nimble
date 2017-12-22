@@ -12,7 +12,10 @@
 #   - Bright for HighPriority.
 #   - Normal for MediumPriority.
 
-import logging, terminal, sets, strutils
+import logging, terminal, sets, strutils, os
+
+when defined(windows):
+  import winlead
 
 type
   CLI* = ref object
@@ -33,6 +36,9 @@ type
 
   ForcePrompt* = enum
     dontForcePrompt, forcePromptYes, forcePromptNo
+
+  Key = enum
+    kNone, kArrowUp, kArrowDown, kEnter
 
 const
   longestCategory = len("Downloading")
@@ -169,6 +175,112 @@ proc promptCustom*(forcePrompts: ForcePrompt, question, default: string): string
 proc promptCustom*(question, default: string): string =
   return promptCustom(dontForcePrompt, question, default)
 
+proc getKey(): Key =
+  ## Needed in order to allow arrow key control for Windows. It also makes it
+  ## easier to determine which keys are pressed on POSIX systems.
+  when defined(windows):
+    let fd = getStdHandle(STD_INPUT_HANDLE)
+    var keyEvent = KEY_EVENT_RECORD()
+    var numRead: cint
+    while true:
+      # Block until character is entered
+      doAssert(waitForSingleObject(fd, INFINITE) == WAIT_BOJECT_0)
+      doAssert(readConsoleInput(fd, addr(keyEvent), 1, addr(numRead)) != 0)
+      if numRead == 0 or keyEvent.eventType != 1 or keyEvent.bKeyDown == 0:
+        continue
+      case keyEvent.wVirtualKeyCode:
+      of 0x26:
+        return kArrowUp
+      of 0x28:
+        return kArrowDown
+      of 0x0D:
+        return kEnter
+      else:
+        continue
+  else:
+    case getch()
+    of '\r':
+      return kEnter
+    of '\27':
+      if getch() == '[':
+        case getch():
+        of 'A':
+          return kArrowUp
+        of 'B':
+          return kArrowDown
+        else: discard
+    else: discard
+    result = getKey()
+
+proc promptListInteractive(question: string, args: openarray[string]) : string =
+  display("Prompt:", question, Warning, HighPriority)
+  display("Select", "With up/down arrow keys, 'Enter' when done", Warning,
+    HighPriority)
+  displayCategory("Choices:", Warning, HighPriority)
+  var
+    current = 0
+    selected = false
+  # Incase the cursor is at the bottom of the terminal
+  for arg in args:
+    stdout.write "\n"
+  # Reset the cursor to the start of the selection prompt
+  cursorUp(stdout, args.len)
+  cursorForward(stdout, longestCategory)
+  hideCursor(stdout)
+
+  # The selection loop
+  while not selected:
+    # Loop through the options
+    for i, arg in args:
+      # Check if the option is the current
+      if i == current:
+        setForegroundColor(fgWhite)
+        writeStyled(" " & arg, {styleBright})
+      else:
+        setForegroundColor(fgWhite)
+        writeStyled(" " & arg, {styleDim})
+      # Move the cursor back to the start
+      for s in 0..<(arg.len + 1):
+        cursorBackward(stdout)
+      # Move down for the next item
+      cursorDown(stdout)
+    # Move the cursor back up to the start of the selection prompt
+    for i in 0..<(args.len()):
+      cursorUp(stdout)
+    resetAttributes(stdout)
+
+    # Begin key input
+    var key: Key
+    while key == kNone:
+      key = getKey()
+    case key:
+    of kArrowUp:
+      current = if current - 1 < 0: args.len - 1 else: current - 1
+    of kArrowDown:
+      current = (current + 1) mod args.len
+    of kEnter:
+      selected = true
+    else: assert(false)
+  # Erase all lines of the selection
+  for i in 0..<args.len:
+    eraseLine(stdout)
+    cursorDown(stdout)
+  # Move the cursor back up to the initial selection line
+  for i in 0..<args.len():
+    cursorUp(stdout)
+  showCursor(stdout)
+  display("Answer:", args[current], Warning,HighPriority)
+  return args[current]
+
+proc promptListFallback(question: string, args: openarray[string]): string =
+  display("Prompt:", question & " [" & join(args, "/") & "]", Warning,
+    HighPriority)
+  displayCategory("Answer:", Warning, HighPriority)
+  result = stdin.readLine()
+  for arg in args:
+    if arg.cmpIgnoreCase(result) == 0:
+      return arg
+
 proc promptList*(forcePrompts: ForcePrompt, question: string, args: openarray[string]): string =
   case forcePrompts:
   of forcePromptYes:
@@ -176,13 +288,10 @@ proc promptList*(forcePrompts: ForcePrompt, question: string, args: openarray[st
     display("Prompt:", question & " -> [forced " & result & "]", Warning,
       HighPriority)
   else:
-    display("Prompt:", question & " [" & join(args, "/") & "]", Warning, HighPriority)
-    displayCategory("Answer:", Warning, HighPriority)
-    result = stdin.readLine()
-    for arg in args:
-      if arg.cmpIgnoreCase(result) == 0:
-        return arg
-    return promptList(forcePrompts, question, args)
+    if isatty(stdout):
+      return promptListInteractive(question, args)
+    else:
+      return promptListFallback(question, args)
 
 proc setVerbosity*(level: Priority) =
   globalCLI.level = level
