@@ -16,6 +16,31 @@ type
     warnInstalled*: bool # Determines whether to show a warning for installed pkgs
     warnAll*: bool
 
+const reservedNames = [
+  "CON",
+  "PRN",
+  "AUX",
+  "NUL",
+  "COM1",
+  "COM2",
+  "COM3",
+  "COM4",
+  "COM5",
+  "COM6",
+  "COM7",
+  "COM8",
+  "COM9",
+  "LPT1",
+  "LPT2",
+  "LPT3",
+  "LPT4",
+  "LPT5",
+  "LPT6",
+  "LPT7",
+  "LPT8",
+  "LPT9",
+]
+
 proc newValidationError(msg: string, warnInstalled: bool,
                         hint: string, warnAll: bool): ref ValidationError =
   result = newException(ValidationError, msg)
@@ -57,6 +82,9 @@ proc validatePackageName*(name: string) =
   if name.endsWith("pkg"):
     raiseNewValidationError("\"$1\" is an invalid package name: cannot end" &
                             " with \"pkg\"" % name, false)
+  if name.toUpperAscii() in reservedNames:
+    raiseNewValidationError(
+      "\"$1\" is an invalid package name: reserved name" % name, false)
 
 proc validateVersion*(ver: string) =
   for c in ver:
