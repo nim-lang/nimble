@@ -76,7 +76,7 @@ proc getGithubAuth(cfg: Config): Auth =
 proc isCorrectFork(j: JsonNode): bool =
   # Check whether this is a fork of the nimble packages repo.
   result = false
-  if j{"fork"}.getBVal():
+  if j{"fork"}.getBool():
     result = j{"parent"}{"full_name"}.getStr() == "nim-lang/packages"
 
 proc forkExists(a: Auth): bool =
