@@ -354,6 +354,46 @@ test "issue #338":
   cd "issue338":
     check execNimble("install", "-y").exitCode == QuitSuccess
 
+test "issue #349":
+  let reservedNames = [
+    "CON",
+    "PRN",
+    "AUX",
+    "NUL",
+    "COM1",
+    "COM2",
+    "COM3",
+    "COM4",
+    "COM5",
+    "COM6",
+    "COM7",
+    "COM8",
+    "COM9",
+    "LPT1",
+    "LPT2",
+    "LPT3",
+    "LPT4",
+    "LPT5",
+    "LPT6",
+    "LPT7",
+    "LPT8",
+    "LPT9",
+  ]
+
+  proc checkName(name: string) =
+    let (outp, code) = execNimble("init", "-y", name)
+    let msg = outp.strip.splitLines()
+    check code == QuitFailure
+    check inLines(msg,
+      "\"$1\" is an invalid package name: reserved name" % name)
+    removeFile(name.changeFileExt("nimble"))
+    removeDir("src")
+    removeDir("tests")
+
+  for reserved in reservedNames:
+    checkName(reserved.toUpperAscii())
+    checkName(reserved.toLowerAscii())
+
 test "issue #428":
   cd "issue428":
     # Note: Can't use execNimble because it patches nimbleDir
