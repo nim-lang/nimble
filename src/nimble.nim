@@ -729,7 +729,7 @@ proc init(options: Options) =
         result = name.strip()
         display("Using", "$# for new package author" % [result.escape()],
           priority = HighPriority)
-    else:
+    if result.len == 0:
       result = promptCustom(options, "Your name?", "Anonymous")
   let pkgAuthor = getAuthor()
 
