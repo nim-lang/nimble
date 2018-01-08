@@ -468,7 +468,17 @@ proc install(packages: seq[PkgTuple],
       let (downloadDir, downloadVersion) =
           downloadPkg(url, pv.ver, meth, options)
       try:
+        # Run pre-install hook in download directory now that package is downloaded
+        cd downloadDir:
+          if not execHook(options, true):
+            raise newException(NimbleError, "Pre-hook prevented further execution.")
+
         result = installFromDir(downloadDir, pv.ver, options, url)
+
+        # Run post-install hook in installed directory now that package is installed
+        # Standard hooks run in current directory so it won't detect this new package
+        cd result.pkg.myPath.parentDir():
+          discard execHook(options, false)
       except BuildFailed:
         # The package failed to build.
         # Check if we tried building a tagged version of the package.
