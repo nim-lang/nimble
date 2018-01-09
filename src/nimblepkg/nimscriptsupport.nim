@@ -191,10 +191,18 @@ proc setupVM(module: PSym; scriptName: string, flags: Flags): PEvalContext =
 proc isValidLibPath(lib: string): bool =
   return fileExists(lib / "system.nim")
 
-proc getNimPrefixDir: string =
+proc getNimPrefixDir(options: Options): string =
   let env = getEnv("NIM_LIB_PREFIX")
   if env != "":
+    let msg = "Using env var NIM_LIB_PREFIX: " & env
+    display("Warning:", msg, Warning, HighPriority)
     return env
+
+  if options.config.nimLibPrefix != "":
+    result = options.config.nimLibPrefix
+    let msg = "Using Nim stdlib prefix from Nimble config file: " & result
+    display("Warning:", msg, Warning, HighPriority)
+    return
 
   result = splitPath(findExe("nim")).head.parentDir
   # The above heuristic doesn't work for 'choosenim' proxies. Thankfully in
@@ -222,10 +230,14 @@ proc execScript(scriptName: string, flags: Flags, options: Options): PSym =
       compiler_options.implicitImports.add("nimblepkg/nimscriptapi")
 
   # Ensure the compiler can find its standard library #220.
-  compiler_options.gPrefixDir = getNimPrefixDir()
+  compiler_options.gPrefixDir = getNimPrefixDir(options)
+  display("Setting", "Nim stdlib prefix to " & compiler_options.gPrefixDir,
+          priority=LowPriority)
 
   # Verify that lib path points to existing stdlib.
   compiler_options.setDefaultLibpath()
+  display("Setting", "Nim stdlib path to " & compiler_options.libpath,
+          priority=LowPriority)
   if not isValidLibPath(compiler_options.libpath):
     let msg = "Nimble cannot find Nim's standard library.\nLast try in:\n  - $1" %
               compiler_options.libpath

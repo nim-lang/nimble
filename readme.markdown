@@ -358,6 +358,9 @@ You can currently configure the following in this file:
   Nimble will also attempt to read the ``http_proxy`` and ``https_proxy``
   environment variables.
   **Default: ""**
+* ``nimLibPrefix`` - Specifies the Nim standard library prefix to help Nimble
+  find the Nim standard library.
+  **Default: ""**
 
 ## Creating Packages
 
@@ -841,7 +844,8 @@ Make sure that you are running at least version 0.16.0 of Nim (or the latest nig
 Nimble cannot find the Nim standard library. This is considered a bug so
 please report it. As a workaround you can set the ``NIM_LIB_PREFIX`` environment
 variable to the directory where ``lib/system.nim`` (and other standard library
-files) are found.
+files) are found. Alternatively you can also configure this in Nimble's
+config file.
 
 ## Repository information
 

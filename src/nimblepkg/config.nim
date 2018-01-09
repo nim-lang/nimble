@@ -11,6 +11,7 @@ type
     packageLists*: Table[string, PackageList] ## Names -> packages.json files
     cloneUsingHttps*: bool # Whether to replace git:// for https://
     httpProxy*: Uri # Proxy for package list downloads.
+    nimLibPrefix*: string # Nim stdlib prefix.
 
   PackageList* = object
     name*: string
@@ -32,6 +33,8 @@ proc initConfig(): Config =
     "http://nim-lang.org/nimble/packages.json"
   ])
   result.packageLists["official"] = defaultPkgList
+
+  result.nimLibPrefix = ""
 
 proc initPackageList(): PackageList =
   result.name = ""
@@ -110,6 +113,8 @@ proc parseConfig*(): Config =
             else:
               currentPackageList.path = e.value
           else: assert false
+        of "nimlibprefix":
+          result.nimLibPrefix = e.value
         else:
           raise newException(NimbleError, "Unable to parse config file:" &
                                      " Unknown key: " & e.key)
