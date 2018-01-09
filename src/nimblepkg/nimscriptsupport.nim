@@ -313,7 +313,7 @@ proc readPackageInfoFromNims*(scriptName: string, options: Options,
       if msgs.gErrorCounter > 0:
         raise newException(NimbleError, previousMsg)
       elif previousMsg.len > 0:
-        display("Info", previousMsg, priority = HighPriority)
+        display("Info", previousMsg, priority = MediumPriority)
       if output.normalize.startsWith("error"):
         raise newException(NimbleError, output)
       previousMsg = output
