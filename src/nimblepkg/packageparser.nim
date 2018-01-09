@@ -329,12 +329,14 @@ proc readPackageInfo(nf: NimbleFile, options: Options,
       try:
         readPackageInfoFromNims(nf, options, result)
         result.isNimScript = true
-      except NimbleError:
+      except NimbleError as exc:
+        if exc.hint.len > 0:
+          raise
         let msg = "Could not read package info file in " & nf & ";\n" &
                   "  Reading as ini file failed with: \n" &
                   "    " & iniError.msg & ".\n" &
                   "  Evaluating as NimScript file failed with: \n" &
-                  "    " & getCurrentExceptionMsg() & "."
+                  "    " & exc.msg & "."
         raise newException(NimbleError, msg)
 
   # By default specialVersion is the same as version.

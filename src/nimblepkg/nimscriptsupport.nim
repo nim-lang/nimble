@@ -188,7 +188,10 @@ proc setupVM(module: PSym; scriptName: string, flags: Flags): PEvalContext =
       else:
         flags[key] = @[value]
 
-proc getNimPrefixDir(): string =
+proc isValidLibPath(lib: string): bool =
+  return fileExists(lib / "system.nim")
+
+proc getNimPrefixDir: string =
   let env = getEnv("NIM_LIB_PREFIX")
   if env != "":
     return env
@@ -220,6 +223,19 @@ proc execScript(scriptName: string, flags: Flags, options: Options): PSym =
 
   # Ensure the compiler can find its standard library #220.
   compiler_options.gPrefixDir = getNimPrefixDir()
+
+  # Verify that lib path points to existing stdlib.
+  compiler_options.setDefaultLibpath()
+  if not isValidLibPath(compiler_options.libpath):
+    let msg = "Nimble cannot find Nim's standard library.\nLast try in:\n  - $1" %
+              compiler_options.libpath
+    let hint = "Nimble does its best to find Nim's standard library, " &
+               "sometimes this fails. You can set the environment variable " &
+               "NIM_LIB_PREFIX to where Nim's `lib` directory is located as " &
+               "a workaround. " &
+               "See https://github.com/nim-lang/nimble#troubleshooting for " &
+               "more info."
+    raiseNimbleError(msg, hint)
 
   let pkgName = scriptName.splitFile.name
 
