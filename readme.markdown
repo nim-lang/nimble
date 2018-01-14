@@ -472,32 +472,62 @@ which are also useful. Take a look at it for more information.
 
 ### Project structure
 
-A Nimble project includes a *source directory*, containing at most one
-primary source file, which shares the same name as the project itself (as well
-as the project's .nimble file). In most cases this source directory will also be
-the root directory of the whole project. In all cases, the root directory will
-contain the .nimble file.
-
-If the project includes additional source files, or if there is more than one
-primary (exported) module, they are all included in a single directory
-hierarchy within the source directory. In the case of libraries, this directory
-will have the same name as the project (see below for details).
-
-The source directory can contain additional files and directories
-not involved in building the project, as long as they are excluded
-in the .nimble file.
-
-Here's a sample one-module project directory:
+For a package named "foobar", the recommended project structure is the following:
 
 ```
-.                       # The root directory of the project, also the source directory
+.                   # The root directory of the project
 ├── LICENSE
 ├── README.md
-├── my_project.nim      # The primary source file
-├── my_project.nimble   # The project .nimble file
-└── tests               # Another source directory, excluded in my_project.nimble
+├── foobar.nimble   # The project .nimble file
+└── src
+    └── foobar.nim  # Imported via `import foobar`
+└── tests           # Contains the tests
     ├── nim.cfg
-    └── tests.nim
+    ├── tfoo1.nim   # First test
+    └── tfoo2.nim   # Second test
+
+```
+
+Note that the .nimble file needs to be in the project's root directory. This
+directory structure will be created if you run ``nimble init`` inside a
+``foobar`` directory.
+
+**Warning:** When source files are placed in a ``src`` directory, the
+.nimble file must contain a ``srcDir = "src"`` directive. The ``nimble init``
+command takes care of that for you.
+
+When introducing more modules into your package, you should place them in a
+separate directory named ``foobar`` (i.e. your package's name). For example:
+
+```
+.                   # The root directory of the project
+├── ...
+├── foobar.nimble   # The project .nimble file
+├── src
+│   ├── foobar
+│   │   ├── utils.nim   # Imported via `import foobar/utils`
+│   │   └── common.nim  # Imported via `import foobar/common`
+│   └── foobar.nim      # Imported via `import foobar`
+└── ...
+```
+
+#### Private modules
+
+You may wish to hide certain modules in your package from the users. Create a
+``private`` directory for that purpose. For example:
+
+```
+.                   # The root directory of the project
+├── ...
+├── foobar.nimble   # The project .nimble file
+├── src
+│   ├── foobar
+│   │   ├── private
+│   │   │   └── hidden.nim  # Imported via `import foobar/private/hidden`
+│   │   ├── utils.nim       # Imported via `import foobar/utils`
+│   │   └── common.nim      # Imported via `import foobar/common`
+│   └── foobar.nim          # Imported via `import foobar`
+└── ...
 ```
 
 #### Tests
@@ -520,15 +550,19 @@ your ``tests`` directory with the following contents:
 --path:"../src/"
 ```
 
-To make testing even more convenient, you may wish to define a ``test`` task
-in your ``.nimble`` file. Like so:
+Nimble offers a pre-defined ``test`` task which compiles and runs all files
+in the ``tests`` directory beginning with 't' in their filename.
+
+You may wish to override this ``test`` task in your ``.nimble`` file. This
+is particularly useful when you have a single test suite program. Just add
+the following to your ``.nimble`` file to override the default ``test`` task.
 
 ```nim
 task test, "Runs the test suite":
   exec "nim c -r tests/tester"
 ```
 
-You can compile and run a single tester application or multiple test files.
+Running ``nimble test`` will now use the ``test`` task you have defined.
 
 ### Libraries
 
@@ -556,14 +590,14 @@ If your package exposes multiple modules then the modules should be in a
 from other packages which expose modules with the same names. In this case
 the package's modules will be imported with ``import PackageName/module``.
 
-Here's a simple example multi-module library package called `util`:
+Here's a simple example multi-module library package called `kool`:
 
 ```
 .
-├── util
+├── kool
 │   ├── useful.nim
 │   └── also_useful.nim
-└── util.nimble
+└── kool.nimble
 ```
 
 In regards to modules which you do **not** wish to be exposed. You should place
