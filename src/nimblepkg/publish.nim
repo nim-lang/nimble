@@ -11,8 +11,7 @@ import tools, common, cli, config, options
 type
   Auth = object
     user: string
-    pw: string
-    token: string  ## base64 encoding of user:pw
+    token: string  ## Github access token
     http: HttpClient ## http client for doing API requests
 
 const
@@ -50,8 +49,9 @@ proc requestNewToken(cfg: Config): string =
   sleep(3000)
   return token
 
-proc getGithubAuth(cfg: Config): Auth =
-  result.http = newHttpClient()
+proc getGithubAuth(o: Options): Auth =
+  let cfg = o.config
+  result.http = newHttpClient(proxy = getProxy(o))
   # always prefer the environment variable to asking for a new one
   if existsEnv(ApiTokenEnvironmentVariable):
     result.token = getEnv(ApiTokenEnvironmentVariable)
@@ -151,7 +151,7 @@ proc editJson(p: PackageInfo; url, tags, downloadMethod: string) =
   writeFile("packages.json", contents.pretty.cleanupWhitespace)
 
 proc getPackageOriginUrl(a: Auth): string =
-  ## Adds 'user:pw' to the URL so that the user is not asked *again* for it.
+  ## Adds 'user' to the URL so that the user is not asked *again* for it.
   ## We need this for 'git push'.
   let (output, exitCode) = doCmdEx("git ls-remote --get-url")
   result = "origin"
@@ -159,12 +159,12 @@ proc getPackageOriginUrl(a: Auth): string =
     result = output.string.strip
     if result.endsWith(".git"): result.setLen(result.len - 4)
     if result.startsWith("https://"):
-      result = "https://" & a.user & ':' & a.pw & '@' &
+      result = "https://" & a.user & '@' &
           result["https://".len .. ^1]
 
 proc publish*(p: PackageInfo, o: Options) =
   ## Publishes the package p.
-  let auth = getGithubAuth(o.config)
+  let auth = getGithubAuth(o)
   var pkgsDir = getTempDir() / "nimble-packages-fork"
   if not forkExists(auth):
     createFork(auth)
@@ -178,7 +178,7 @@ proc publish*(p: PackageInfo, o: Options) =
             priority = LowPriority)
     removeDir(pkgsDir)
   display("Cloning", "packages into: " & pkgsDir, priority = HighPriority)
-  doCmd("git clone git@github.com:" & auth.user & "/packages " & pkgsDir)
+  doCmd("git clone https://github.com/" & auth.user & "/packages " & pkgsDir)
   # Make sure to update the clone.
   display("Updating", "the fork", priority = HighPriority)
   cd pkgsDir:
