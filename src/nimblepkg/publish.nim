@@ -150,18 +150,6 @@ proc editJson(p: PackageInfo; url, tags, downloadMethod: string) =
   })
   writeFile("packages.json", contents.pretty.cleanupWhitespace)
 
-proc getPackageOriginUrl(a: Auth): string =
-  ## Adds 'user' to the URL so that the user is not asked *again* for it.
-  ## We need this for 'git push'.
-  let (output, exitCode) = doCmdEx("git ls-remote --get-url")
-  result = "origin"
-  if exitCode == 0:
-    result = output.string.strip
-    if result.endsWith(".git"): result.setLen(result.len - 4)
-    if result.startsWith("https://"):
-      result = "https://" & a.user & '@' &
-          result["https://".len .. ^1]
-
 proc publish*(p: PackageInfo, o: Options) =
   ## Publishes the package p.
   let auth = getGithubAuth(o)
@@ -177,13 +165,17 @@ proc publish*(p: PackageInfo, o: Options) =
     display("Removing", "old packages fork git directory.",
             priority = LowPriority)
     removeDir(pkgsDir)
-  display("Cloning", "packages into: " & pkgsDir, priority = HighPriority)
-  doCmd("git clone https://github.com/" & auth.user & "/packages " & pkgsDir)
-  # Make sure to update the clone.
-  display("Updating", "the fork", priority = HighPriority)
+  createDir(pkgsDir)
   cd pkgsDir:
+    # Avoid git clone to prevent token from being stored in repo
+    # https://github.com/blog/1270-easier-builds-and-deployments-using-git-over-https-and-oauth
+    display("Copying", "packages fork into: " & pkgsDir, priority = HighPriority)
+    doCmd("git init")
+    doCmd("git pull https://github.com/" & auth.user & "/packages")
+    # Make sure to update the fork
+    display("Updating", "the fork", priority = HighPriority)
     doCmd("git pull https://github.com/nim-lang/packages.git master")
-    doCmd("git push origin master")
+    doCmd("git push https://" & auth.token & "@github.com/" & auth.user & "/packages master")
 
   if not dirExists(pkgsDir):
     raise newException(NimbleError,
@@ -227,6 +219,6 @@ proc publish*(p: PackageInfo, o: Options) =
     doCmd("git checkout -B " & branchName)
     doCmd("git commit packages.json -m \"Added package " & p.name & "\"")
     display("Pushing", "to remote of fork.", priority = HighPriority)
-    doCmd("git push " & getPackageOriginUrl(auth) & " " & branchName)
+    doCmd("git push https://" & auth.token & "@github.com/" & auth.user & "/packages " & branchName)
     createPullRequest(auth, p.name, branchName)
   display("Success:", "Pull request successful.", Success, HighPriority)
