@@ -463,7 +463,8 @@ proc iterFilesWithExt(dir: string, pkgInfo: PackageInfo,
     if kind == pcDir:
       iterFilesWithExt(path, pkgInfo, action)
     else:
-      if path.splitFile.ext[1 .. ^1] in pkgInfo.installExt:
+      var ext = path.splitFile.ext
+      if ext.len > 1 and ext[1 .. ^1] in pkgInfo.installExt:
         action(path)
 
 proc iterFilesInDir(dir: string, action: proc (f: string)) =
