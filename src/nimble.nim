@@ -625,7 +625,7 @@ proc listPaths(options: Options) =
     var installed: seq[VersionAndPath] = @[]
     # There may be several, list all available ones and sort by version.
     for kind, path in walkDir(options.getPkgsDir):
-      if kind != pcDir or not path.startsWith(options.getPkgsDir / name):
+      if kind != pcDir or not path.startsWith(options.getPkgsDir / name & "-"):
         continue
 
       var nimbleFile = findNimbleFile(path, false)
@@ -634,7 +634,7 @@ proc listPaths(options: Options) =
         var v: VersionAndPath
         v.version = newVersion(pkgInfo.specialVersion)
         v.path = pkgInfo.getRealDir()
-        installed = @[v]
+        installed.add(v)
       else:
         display("Warning:", "No .nimble file found for " & path, Warning,
                 MediumPriority)
