@@ -221,11 +221,17 @@ proc renameBabelToNimble(options: Options) {.deprecated.} =
       removeFile(nimbleDir / "babeldata.json")
 
 proc getNimbleDir*(options: Options): string =
-  result =
-    if options.nimbleDir.len == 0:
-      options.config.nimbleDir
-    else:
-      options.nimbleDir
+  result = options.config.nimbleDir
+  if options.nimbleDir.len != 0:
+    # --nimbleDir:<dir> takes priority...
+    result = options.nimbleDir
+  else:
+    # ...followed by the environment variable.
+    let env = getEnv("NIMBLE_DIR")
+    if env.len != 0:
+      display("Warning:", "Using the environment variable: NIMBLE_DIR='" &
+                        env & "'", Warning)
+      result = env
 
   return expandTilde(result)
 
@@ -319,7 +325,7 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
 proc initOptions*(): Options =
   result.action.typ = actionNil
   result.pkgInfoCache = newTable[string, PackageInfo]()
-  result.nimbleDir = getEnv("NIMBLE_DIR")
+  result.nimbleDir = ""
   result.verbosity = HighPriority
 
 proc parseMisc(options: var Options) =
@@ -365,11 +371,6 @@ proc parseCmdLine*(): Options =
 
   if result.action.typ == actionNil and not result.showVersion:
     result.showHelp = true
-
-  # Inform user that we use their environment variables.
-  if result.getNimbleDir == getEnv("NIMBLE_DIR"):
-    display("Info:", "Using the 'NIMBLE_DIR' environment variable.",
-            priority = HighPriority)
 
 proc getProxy*(options: Options): Proxy =
   ## Returns ``nil`` if no proxy is specified.
