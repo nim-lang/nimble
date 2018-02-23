@@ -183,8 +183,17 @@ the current working directory. This can be useful for developers who are testing
 locally their ``.nimble`` files before submitting them to the official package
 list. See the [Creating Packages](#creating-packages) section for more info on this.
 
-A URL to a repository can also be specified, Nimble will automatically detect
-the type of the repository that the url points to and install it.
+#### Package URLs
+
+A valid URL to a Git or Merurial repository can also be specified, Nimble will
+automatically detect the type of the repository that the url points to and
+install it.
+
+For repositories containing the Nimble package in a subdirectory, you can
+instruct Nimble about the location of your package using the ``?subdir=<path>``
+query parameter. For example:
+
+    $ nimble install https://github.com/nimble-test/multi?subdir=alpha
 
 ### nimble develop
 
@@ -205,6 +214,9 @@ current working directory.
 
 The ``jester`` package will be cloned into ``./jester`` and it will be linked
 to your installation directory.
+
+Just as with the ``install`` command, a package URL may also be specified
+instead of a name.
 
 ### nimble uninstall
 

@@ -680,3 +680,8 @@ suite "multi":
   test "can install package from git subdir":
     let args = ["install", "-y", "https://github.com/nimble-test/multi?subdir=alpha"]
     check execNimble(args).exitCode == QuitSuccess
+
+  test "can develop package from git subdir":
+    removeDir("nimble-test/multi")
+    let args = ["develop", "-y", "https://github.com/nimble-test/multi?subdir=beta"]
+    check execNimble(args).exitCode == QuitSuccess

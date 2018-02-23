@@ -1012,7 +1012,7 @@ proc develop(options: Options) =
       let (meth, url, metadata) = getDownloadInfo(pv, options, true)
       let subdir = metadata.getOrDefault("subdir")
       discard downloadPkg(url, pv.ver, meth, subdir, options, downloadDir)
-      developFromDir(downloadDir, options)
+      developFromDir(downloadDir / subdir, options)
 
 proc test(options: Options) =
   ## Executes all tests.
