@@ -434,13 +434,16 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
           Success, HighPriority)
 
 proc getDownloadInfo*(pv: PkgTuple, options: Options,
-                      doPrompt: bool): (DownloadMethod, string) =
+                      doPrompt: bool): (DownloadMethod, string,
+                                        Table[string, string]) =
   if pv.name.isURL:
-    return (checkUrlType(pv.name), pv.name)
+    let (url, metadata) = getUrlData(pv.name)
+    return (checkUrlType(url), url, metadata)
   else:
     var pkg: Package
     if getPackage(pv.name, options, pkg):
-      return (pkg.downloadMethod.getDownloadMethod(), pkg.url)
+      let (url, metadata) = getUrlData(pkg.url)
+      return (pkg.downloadMethod.getDownloadMethod(), url, metadata)
     else:
       # If package is not found give the user a chance to refresh
       # package.json
@@ -464,9 +467,10 @@ proc install(packages: seq[PkgTuple],
   else:
     # Install each package.
     for pv in packages:
-      let (meth, url) = getDownloadInfo(pv, options, doPrompt)
+      let (meth, url, metadata) = getDownloadInfo(pv, options, doPrompt)
+      let subdir = metadata.getOrDefault("subdir")
       let (downloadDir, downloadVersion) =
-          downloadPkg(url, pv.ver, meth, options)
+          downloadPkg(url, pv.ver, meth, subdir, options)
       try:
         # Run pre-install hook in download directory now that package is downloaded
         cd downloadDir:
@@ -1005,8 +1009,9 @@ proc develop(options: Options) =
         let hint = "Remove the directory, or run this command somewhere else."
         raiseNimbleError(msg, hint)
 
-      let (meth, url) = getDownloadInfo(pv, options, true)
-      discard downloadPkg(url, pv.ver, meth, options, downloadDir)
+      let (meth, url, metadata) = getDownloadInfo(pv, options, true)
+      let subdir = metadata.getOrDefault("subdir")
+      discard downloadPkg(url, pv.ver, meth, subdir, options, downloadDir)
       developFromDir(downloadDir, options)
 
 proc test(options: Options) =

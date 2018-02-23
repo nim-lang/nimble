@@ -1,7 +1,7 @@
 # Copyright (C) Dominik Picheta. All rights reserved.
 # BSD License. Look at license.txt for more info.
 
-import parseutils, os, osproc, strutils, tables, pegs
+import parseutils, os, osproc, strutils, tables, pegs, uri
 
 import packageinfo, packageparser, version, tools, common, options, cli
 
@@ -132,13 +132,24 @@ proc checkUrlType*(url: string): DownloadMethod =
   elif doCmdEx("hg identify " & url).exitCode == QuitSuccess:
     return DownloadMethod.hg
   else:
-    raise newException(NimbleError, "Unable to identify url.")
+    raise newException(NimbleError, "Unable to identify url: " & url)
+
+proc getUrlData*(url: string): (string, Table[string, string]) =
+  var uri = parseUri(url)
+  # TODO: use uri.parseQuery once it lands... this code is quick and dirty.
+  var subdir = ""
+  if uri.query.startsWith("subdir="):
+    subdir = uri.query[7 .. ^1]
+
+  uri.query = ""
+  return ($uri, {"subdir": subdir}.toTable())
 
 proc isURL*(name: string): bool =
   name.startsWith(peg" @'://' ")
 
-proc doDownload*(url: string, downloadDir: string, verRange: VersionRange,
-                 downMethod: DownloadMethod, options: Options): Version =
+proc doDownload(url: string, downloadDir: string, verRange: VersionRange,
+                 downMethod: DownloadMethod,
+                 options: Options): Version =
   ## Downloads the repository specified by ``url`` using the specified download
   ## method.
   ##
@@ -158,16 +169,6 @@ proc doDownload*(url: string, downloadDir: string, verRange: VersionRange,
     else:
       # Result should already be set to #head here.
       assert(not result.isNil)
-
-  proc verifyClone() =
-    ## Makes sure that the downloaded package's version satisfies the requested
-    ## version range.
-    let pkginfo = getPkgInfo(downloadDir, options)
-    if pkginfo.version.newVersion notin verRange:
-      raise newException(NimbleError,
-        "Downloaded package's version does not satisfy requested version " &
-        "range: wanted $1 got $2." %
-        [$verRange, $pkginfo.version])
 
   removeDir(downloadDir)
   if verRange.kind == verSpecial:
@@ -197,8 +198,6 @@ proc doDownload*(url: string, downloadDir: string, verRange: VersionRange,
       else:
         # If no commits have been tagged on the repo we just clone HEAD.
         doClone(downMethod, url, downloadDir) # Grab HEAD.
-
-      verifyClone()
     of DownloadMethod.hg:
       doClone(downMethod, url, downloadDir)
       result = getHeadName(downMethod)
@@ -210,10 +209,9 @@ proc doDownload*(url: string, downloadDir: string, verRange: VersionRange,
                   priority = MediumPriority)
           doCheckout(downMethod, downloadDir, latest.tag)
 
-      verifyClone()
-
 proc downloadPkg*(url: string, verRange: VersionRange,
                  downMethod: DownloadMethod,
+                 subdir: string,
                  options: Options,
                  downloadPath = ""): (string, Version) =
   ## Downloads the repository as specified by ``url`` and ``verRange`` using
@@ -221,8 +219,8 @@ proc downloadPkg*(url: string, verRange: VersionRange,
   ##
   ## If `downloadPath` isn't specified a location in /tmp/ will be used.
   ##
-  ## Returns the directory where it was downloaded and the concrete version
-  ## which was downloaded.
+  ## Returns the directory where it was downloaded (subdir is appended) and
+  ## the concrete version  which was downloaded.
   let downloadDir =
     if downloadPath == "":
       (getNimbleTempDir() / getDownloadDirName(url, verRange))
@@ -241,12 +239,27 @@ proc downloadPkg*(url: string, verRange: VersionRange,
   if modUrl.contains("github.com") and modUrl.endswith("/"):
     modUrl = modUrl[0 .. ^2]
 
-  display("Downloading", "$1 using $2" % [modUrl, $downMethod],
-          priority = HighPriority)
+  if subdir.len > 0:
+    display("Downloading", "$1 using $2 (subdir is '$3')" %
+                           [modUrl, $downMethod, subdir],
+            priority = HighPriority)
+  else:
+    display("Downloading", "$1 using $2" % [modUrl, $downMethod],
+            priority = HighPriority)
   result = (
-    downloadDir,
+    downloadDir / subdir,
     doDownload(modUrl, downloadDir, verRange, downMethod, options)
   )
+
+  if verRange.kind != verSpecial:
+    ## Makes sure that the downloaded package's version satisfies the requested
+    ## version range.
+    let pkginfo = getPkgInfo(result[0], options)
+    if pkginfo.version.newVersion notin verRange:
+      raise newException(NimbleError,
+        "Downloaded package's version does not satisfy requested version " &
+        "range: wanted $1 got $2." %
+        [$verRange, $pkginfo.version])
 
 proc echoPackageVersions*(pkg: Package) =
   let downMethod = pkg.downloadMethod.getDownloadMethod()

@@ -675,3 +675,8 @@ suite "check command":
       check outp.processOutput.inLines("failure")
       check outp.processOutput.inLines("validation failed")
       check outp.processOutput.inLines("package 'x' has an incorrect structure")
+
+suite "multi":
+  test "can install package from git subdir":
+    let args = ["install", "-y", "https://github.com/nimble-test/multi?subdir=alpha"]
+    check execNimble(args).exitCode == QuitSuccess
