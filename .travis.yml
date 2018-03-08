@@ -6,16 +6,16 @@ language: c
 
 install:
   - |
-      wget https://nim-lang.org/download/nim-0.17.0.tar.xz
-      tar -xf nim-0.17.0.tar.xz
-      cd nim-0.17.0
+      wget https://nim-lang.org/download/nim-0.17.2.tar.xz
+      tar -xf nim-0.17.2.tar.xz
+      cd nim-0.17.2
       sh build.sh
       cd ..
 
 before_script:
   - set -e
   - set -x
-  - export PATH=`pwd`/nim-0.17.0/bin:$PATH
+  - export PATH=`pwd`/nim-0.17.2/bin:$PATH
 
 script:
   - cd tests

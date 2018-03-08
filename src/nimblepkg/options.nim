@@ -221,11 +221,17 @@ proc renameBabelToNimble(options: Options) {.deprecated.} =
       removeFile(nimbleDir / "babeldata.json")
 
 proc getNimbleDir*(options: Options): string =
-  result =
-    if options.nimbleDir.len == 0:
-      options.config.nimbleDir
-    else:
-      options.nimbleDir
+  result = options.config.nimbleDir
+  if options.nimbleDir.len != 0:
+    # --nimbleDir:<dir> takes priority...
+    result = options.nimbleDir
+  else:
+    # ...followed by the environment variable.
+    let env = getEnv("NIMBLE_DIR")
+    if env.len != 0:
+      display("Warning:", "Using the environment variable: NIMBLE_DIR='" &
+                        env & "'", Warning)
+      result = env
 
   return expandTilde(result)
 
@@ -247,9 +253,10 @@ proc parseArgument*(key: string, result: var Options) =
     # Parse pkg@verRange
     if '@' in key:
       let i = find(key, '@')
-      let pkgTup = (key[0 .. i-1],
-        key[i+1 .. key.len-1].parseVersionRange())
-      result.action.packages.add(pkgTup)
+      let (pkgName, pkgVer) = (key[0 .. i-1], key[i+1 .. key.len-1])
+      if pkgVer.len == 0:
+        raise newException(NimbleError, "Version range expected after '@'.")
+      result.action.packages.add((pkgName, pkgVer.parseVersionRange()))
     else:
       result.action.packages.add((key, VersionRange(kind: verAny)))
   of actionRefresh:
@@ -319,7 +326,7 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
 proc initOptions*(): Options =
   result.action.typ = actionNil
   result.pkgInfoCache = newTable[string, PackageInfo]()
-  result.nimbleDir = getEnv("NIMBLE_DIR")
+  result.nimbleDir = ""
   result.verbosity = HighPriority
 
 proc parseMisc(options: var Options) =
@@ -365,11 +372,6 @@ proc parseCmdLine*(): Options =
 
   if result.action.typ == actionNil and not result.showVersion:
     result.showHelp = true
-
-  # Inform user that we use their environment variables.
-  if result.getNimbleDir == getEnv("NIMBLE_DIR"):
-    display("Info:", "Using the 'NIMBLE_DIR' environment variable.",
-            priority = HighPriority)
 
 proc getProxy*(options: Options): Proxy =
   ## Returns ``nil`` if no proxy is specified.

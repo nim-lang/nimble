@@ -3,6 +3,38 @@
 
 # Nimble changelog
 
+## 0.8.10 - 23/02/2018
+
+The first release of 2018! Another fairly big release containing 40 commits.
+This release fixes many
+issues, with most being fixed by our brilliant contributors. Thanks a lot
+everyone!
+
+One big new feature is the new support for multiple Nimble packages in a single
+Git/Hg repository. You can now specify ``?subdir=<dir>`` at the end of your
+repo's URL and Nimble will know to look in ``<dir>`` for your package.
+
+* **Implemented support for multi-package repos.** See
+  [#421](https://github.com/nim-lang/nimble/issues/421) for the relevant issue.
+* **Better error message when the user has an outdated stdlib version that confuses Nimble**
+* **The validity of a Nimble package can now be checked using the new ``check`` command**
+* Nimble no longer silently ignores an erroneous '@' in for example
+  ``nimble install compiler@``.
+* Issues with the ``nimble path`` command have been fixed.
+* The ``nimble publish`` command has been improved and stabilised.
+* Messages for the ``NIM_LIB_PREFIX`` env var have been improved.
+* ``before install`` is now called when packages are installed by their name.
+  See [#280](https://github.com/nim-lang/nimble/issues/280).
+* Fixed issue with ``nimble init``. See [#446](https://github.com/nim-lang/nimble/issues/446).
+* Nimble now rejects [reserved names on Windows](https://github.com/nim-lang/nimble/commit/74856a87084b73451254555b2c20ad932cf84270).
+* The ``NIMBLE_DIR`` environment variable is now supported, in addition to the
+  command line flag and config setting.
+* The ``init`` command has been improved significantly.
+
+----
+
+Full changelog: https://github.com/nim-lang/nimble/compare/v0.8.8...v0.8.10
+
 ## 0.8.8 - 03/09/2017
 
 This is a relatively big release containing 57 commits, with multiple new

@@ -183,8 +183,17 @@ the current working directory. This can be useful for developers who are testing
 locally their ``.nimble`` files before submitting them to the official package
 list. See the [Creating Packages](#creating-packages) section for more info on this.
 
-A URL to a repository can also be specified, Nimble will automatically detect
-the type of the repository that the url points to and install it.
+#### Package URLs
+
+A valid URL to a Git or Merurial repository can also be specified, Nimble will
+automatically detect the type of the repository that the url points to and
+install it.
+
+For repositories containing the Nimble package in a subdirectory, you can
+instruct Nimble about the location of your package using the ``?subdir=<path>``
+query parameter. For example:
+
+    $ nimble install https://github.com/nimble-test/multi?subdir=alpha
 
 ### nimble develop
 
@@ -205,6 +214,9 @@ current working directory.
 
 The ``jester`` package will be cloned into ``./jester`` and it will be linked
 to your installation directory.
+
+Just as with the ``install`` command, a package URL may also be specified
+instead of a name.
 
 ### nimble uninstall
 
@@ -868,6 +880,10 @@ Make sure that Nimble is configured to run with SSL, adding a ```-d:ssl```
 flag to the file ```src/nimble.nim.cfg```.
 After that, you can run ```src/nimble install``` and overwrite the existing
 installation.
+
+* ``Could not download: error:14077410:SSL routines:SSL23_GET_SERVER_HELLO:sslv3 alert handshake failure``
+
+If you are on macOS, you need to set and export the ```DYLD_LIBRARY_PATH``` environment variable to the directory where your OpenSSL libraries are. For example, if you use OpenSSL, you have to set ```export DYLD_LIBRARY_PATH=/usr/local/opt/openssl/lib``` in your ```$HOME/.bashrc``` file.
 
 * ``Error: ambiguous identifier: 'version' --use nimscriptapi.version or system.version``
 

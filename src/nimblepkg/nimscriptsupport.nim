@@ -16,7 +16,7 @@ from compiler/astalgo import strTableGet
 import compiler/options as compiler_options
 
 import common, version, options, packageinfo, cli
-import os, strutils, strtabs, tables, times, osproc, sets
+import os, strutils, strtabs, tables, times, osproc, sets, pegs
 
 when not declared(resetAllModulesHard):
   import compiler/modulegraphs
@@ -214,6 +214,33 @@ proc getNimPrefixDir(options: Options): string =
     # the code responsible for this.
     result = ""
 
+proc getLibVersion(lib: string): Version =
+  ## This is quite a hacky procedure, but there is no other way to extract
+  ## this out of the ``system`` module. We could evaluate it, but that would
+  ## cause an error if the stdlib is out of date. The purpose of this
+  ## proc is to give a nice error message to the user instead of a confusing
+  ## Nim compile error.
+  let systemPath = lib / "system.nim"
+  if not fileExists(systemPath):
+    raiseNimbleError("system module not found in stdlib path: " & lib)
+
+  let systemFile = readFile(systemPath)
+  let majorPeg = peg"'NimMajor' @ '=' \s* {\d*}"
+  let minorPeg = peg"'NimMinor' @ '=' \s* {\d*}"
+  let patchPeg = peg"'NimPatch' @ '=' \s* {\d*}"
+
+  var majorMatches: array[1, string]
+  let major = find(systemFile, majorPeg, majorMatches)
+  var minorMatches: array[1, string]
+  let minor = find(systemFile, minorPeg, minorMatches)
+  var patchMatches: array[1, string]
+  let patch = find(systemFile, patchPeg, patchMatches)
+
+  if major != -1 and minor != -1 and patch != -1:
+    return newVersion(majorMatches[0] & "." & minorMatches[0] & "." & patchMatches[0])
+  else:
+    return system.NimVersion.newVersion()
+
 when declared(ModuleGraph):
   var graph: ModuleGraph
 
@@ -245,6 +272,22 @@ proc execScript(scriptName: string, flags: Flags, options: Options): PSym =
                "sometimes this fails. You can set the environment variable " &
                "NIM_LIB_PREFIX to where Nim's `lib` directory is located as " &
                "a workaround. " &
+               "See https://github.com/nim-lang/nimble#troubleshooting for " &
+               "more info."
+    raiseNimbleError(msg, hint)
+
+  # Verify that the stdlib that was found isn't older than the stdlib that Nimble
+  # was compiled with.
+  let libVersion = getLibVersion(compiler_options.libpath)
+  if NimVersion.newVersion() > libVersion:
+    let msg = ("Nimble cannot use an older stdlib than the one it was compiled " &
+               "with.\n  Stdlib in '$#' has version: $#.\n  Nimble needs at least: $#.") %
+              [compiler_options.libpath, $libVersion, NimVersion]
+    let hint = "You may be running a newer version of Nimble than you intended " &
+               "to. Run an older version of Nimble that is compatible with " &
+               "the stdlib that Nimble is attempting to use or set the environment variable " &
+               "NIM_LIB_PREFIX to where a different stdlib's `lib` directory is located as " &
+               "a workaround." &
                "See https://github.com/nim-lang/nimble#troubleshooting for " &
                "more info."
     raiseNimbleError(msg, hint)

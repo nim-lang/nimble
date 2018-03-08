@@ -304,7 +304,7 @@ proc findNimbleFile*(dir: string; error: bool): string =
   elif hits == 0:
     if error:
       raise newException(NimbleError,
-          "Specified directory does not contain a .nimble file.")
+          "Specified directory ($1) does not contain a .nimble file." % dir)
     else:
       display("Warning:", "No .nimble or .nimble-link file found for " &
               dir, Warning, HighPriority)
@@ -463,7 +463,7 @@ proc iterFilesWithExt(dir: string, pkgInfo: PackageInfo,
     if kind == pcDir:
       iterFilesWithExt(path, pkgInfo, action)
     else:
-      if path.splitFile.ext[1 .. ^1] in pkgInfo.installExt:
+      if path.splitFile.ext.substr(1) in pkgInfo.installExt:
         action(path)
 
 proc iterFilesInDir(dir: string, action: proc (f: string)) =
