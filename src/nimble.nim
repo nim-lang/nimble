@@ -347,6 +347,11 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
     result.pkg = pkgInfo
     return result
 
+  # Run pre-install hook in download directory now that package is downloaded
+  cd dir:
+    if not execHook(options, true):
+      raise newException(NimbleError, "Pre-hook prevented further execution.")
+
   display("Installing", "$1@$2" % [pkginfo.name, pkginfo.specialVersion],
           priority = HighPriority)
 
@@ -472,11 +477,6 @@ proc install(packages: seq[PkgTuple],
       let (downloadDir, downloadVersion) =
           downloadPkg(url, pv.ver, meth, subdir, options)
       try:
-        # Run pre-install hook in download directory now that package is downloaded
-        cd downloadDir:
-          if not execHook(options, true):
-            raise newException(NimbleError, "Pre-hook prevented further execution.")
-
         result = installFromDir(downloadDir, pv.ver, options, url)
 
         # Run post-install hook in installed directory now that package is installed
