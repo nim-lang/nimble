@@ -348,6 +348,7 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
     return result
 
   # Run pre-install hook in download directory now that package is downloaded
+  # and all dependencies have been installed
   cd dir:
     if not execHook(options, true):
       raise newException(NimbleError, "Pre-hook prevented further execution.")
@@ -438,6 +439,10 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
   display("Success:", pkgInfo.name & " installed successfully.",
           Success, HighPriority)
 
+  # Run post-install hook in installed directory now that package is installed
+  cd result.pkg.myPath.parentDir():
+    discard execHook(options, false)
+
 proc getDownloadInfo*(pv: PkgTuple, options: Options,
                       doPrompt: bool): (DownloadMethod, string,
                                         Table[string, string]) =
@@ -478,11 +483,6 @@ proc install(packages: seq[PkgTuple],
           downloadPkg(url, pv.ver, meth, subdir, options)
       try:
         result = installFromDir(downloadDir, pv.ver, options, url)
-
-        # Run post-install hook in installed directory now that package is installed
-        # Standard hooks run in current directory so it won't detect this new package
-        cd result.pkg.myPath.parentDir():
-          discard execHook(options, false)
       except BuildFailed:
         # The package failed to build.
         # Check if we tried building a tagged version of the package.
@@ -1062,10 +1062,13 @@ proc doAction(options: Options) =
   if not existsDir(options.getPkgsDir):
     createDir(options.getPkgsDir)
 
-  if not execHook(options, true):
-    display("Warning", "Pre-hook prevented further execution.", Warning,
-            HighPriority)
-    return
+  if options.action.typ != actionInstall:
+    # Run all pre hooks except for install since that is handled after package
+    # is downloaded and dependencies installed
+    if not execHook(options, true):
+      display("Warning", "Pre-hook prevented further execution.", Warning,
+              HighPriority)
+      return
   case options.action.typ
   of actionRefresh:
     refresh(options)
@@ -1123,7 +1126,8 @@ proc doAction(options: Options) =
         # Run the post hook for `test` in case it exists.
         discard execHook(options, false)
 
-  if options.action.typ != actionCustom:
+  if not (options.action.typ in [actionCustom, actionInstall]):
+    # Skip post hooks for custom and install since those are handled elsewhere
     discard execHook(options, false)
 
 when isMainModule:
