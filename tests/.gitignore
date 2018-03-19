@@ -1,0 +1,15 @@
+/binaryPackage/v1/binaryPackage
+/binaryPackage/v2/binaryPackage
+/develop/dependent/src/dependent
+/issue206/issue/issue206bin
+/issue289/issue289
+/issue428/nimbleDir/
+/nimbleDir/
+/packageStructure/c/c
+/packageStructure/y/y
+/testCommand/testOverride/myTester
+/testCommand/testsFail/tests/a
+/testCommand/testsFail/tests/b
+/testCommand/testsPass/tests/one
+/testCommand/testsPass/tests/three
+/testCommand/testsPass/tests/two
