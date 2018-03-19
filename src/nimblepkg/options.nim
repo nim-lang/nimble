@@ -27,11 +27,11 @@ type
     actionNil, actionRefresh, actionInit, actionDump, actionPublish,
     actionInstall, actionSearch,
     actionList, actionBuild, actionPath, actionUninstall, actionCompile,
-    actionDoc, actionCustom, actionTasks, actionDevelop
+    actionDoc, actionCustom, actionTasks, actionDevelop, actionCheck
 
   Action* = object
     case typ*: ActionType
-    of actionNil, actionList, actionPublish, actionTasks: nil
+    of actionNil, actionList, actionPublish, actionTasks, actionCheck: nil
     of actionRefresh:
       optionalURL*: string # Overrides default package list.
     of actionInstall, actionPath, actionUninstall, actionDevelop:
@@ -60,6 +60,8 @@ Commands:
   develop      [pkgname, ...]     Clones a list of packages for development.
                                   Symlinks the cloned packages or any package
                                   in the current working directory.
+  check                           Verifies the validity of a package in the
+                                  current working directory.
   init         [pkgname]          Initializes a new Nimble project.
   publish                         Publishes a package on nim-lang/packages.
                                   The current working directory needs to be the
@@ -105,6 +107,8 @@ For more information read the Github readme:
   https://github.com/nim-lang/nimble#readme
 """
 
+const noHookActions* = {actionCheck}
+
 proc writeHelp*(quit=true) =
   echo(help)
   if quit:
@@ -113,9 +117,12 @@ proc writeHelp*(quit=true) =
 proc writeVersion*() =
   echo("nimble v$# compiled at $# $#" %
       [nimbleVersion, CompileDate, CompileTime])
-  const gitVersion = staticExec("git rev-parse HEAD")
-  when gitVersion.len > 0:
-    echo "git hash: ", gitVersion
+  const execResult = gorgeEx("git rev-parse HEAD")
+  when execResult[0].len > 0 and execResult[1] == QuitSuccess:
+    echo "git hash: ", execResult[0]
+  else:
+    {.warning: "Couldn't determine GIT hash: " & execResult[0].}
+    echo "git hash: couldn't determine git hash"
   raise NimbleQuit(msg: "")
 
 proc parseActionType*(action: string): ActionType =
@@ -148,6 +155,8 @@ proc parseActionType*(action: string): ActionType =
     result = actionTasks
   of "develop":
     result = actionDevelop
+  of "check":
+    result = actionCheck
   else:
     result = actionCustom
 
@@ -175,7 +184,7 @@ proc initAction*(options: var Options, key: string) =
     options.action.command = key
     options.action.arguments = @[]
     options.action.flags = newStringTable()
-  of actionPublish, actionList, actionTasks,
+  of actionPublish, actionList, actionTasks, actionCheck,
      actionNil: discard
 
 proc prompt*(options: Options, question: string): bool =
@@ -184,6 +193,20 @@ proc prompt*(options: Options, question: string): bool =
   ## The proc will return immediately without asking the user if the global
   ## forcePrompts has a value different than dontForcePrompt.
   return prompt(options.forcePrompts, question)
+
+proc promptCustom*(options: Options, question, default: string): string =
+  ## Asks an interactive question and returns the result.
+  ##
+  ## The proc will return "default" without asking the user if the global
+  ## forcePrompts is forcePromptYes.
+  return promptCustom(options.forcePrompts, question, default)
+
+proc promptList*(options: Options, question: string, args: openarray[string]): string =
+  ## Asks an interactive question and returns the result.
+  ##
+  ## The proc will return one of the provided args. If not prompting the first
+  ## options is selected.
+  return promptList(options.forcePrompts, question, args)
 
 proc renameBabelToNimble(options: Options) {.deprecated.} =
   let babelDir = getHomeDir() / ".babel"
@@ -198,11 +221,17 @@ proc renameBabelToNimble(options: Options) {.deprecated.} =
       removeFile(nimbleDir / "babeldata.json")
 
 proc getNimbleDir*(options: Options): string =
-  result =
-    if options.nimbleDir.len == 0:
-      options.config.nimbleDir
-    else:
-      options.nimbleDir
+  result = options.config.nimbleDir
+  if options.nimbleDir.len != 0:
+    # --nimbleDir:<dir> takes priority...
+    result = options.nimbleDir
+  else:
+    # ...followed by the environment variable.
+    let env = getEnv("NIMBLE_DIR")
+    if env.len != 0:
+      display("Warning:", "Using the environment variable: NIMBLE_DIR='" &
+                        env & "'", Warning)
+      result = env
 
   return expandTilde(result)
 
@@ -224,9 +253,10 @@ proc parseArgument*(key: string, result: var Options) =
     # Parse pkg@verRange
     if '@' in key:
       let i = find(key, '@')
-      let pkgTup = (key[0 .. i-1],
-        key[i+1 .. key.len-1].parseVersionRange())
-      result.action.packages.add(pkgTup)
+      let (pkgName, pkgVer) = (key[0 .. i-1], key[i+1 .. key.len-1])
+      if pkgVer.len == 0:
+        raise newException(NimbleError, "Version range expected after '@'.")
+      result.action.packages.add((pkgName, pkgVer.parseVersionRange()))
     else:
       result.action.packages.add((key, VersionRange(kind: verAny)))
   of actionRefresh:

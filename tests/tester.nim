@@ -15,8 +15,8 @@ const path = "../src/nimble"
 removeDir(installDir)
 createDir(installDir)
 
-test "can compile nimble":
-  check execCmdEx("nim c " & path).exitCode == QuitSuccess
+# Always recompile.
+doAssert execCmdEx("nim c " & path).exitCode == QuitSuccess
 
 test "can compile with --os:windows":
   check execCmdEx("nim check --os:windows " & path).exitCode == QuitSuccess
@@ -354,6 +354,53 @@ test "issue #338":
   cd "issue338":
     check execNimble("install", "-y").exitCode == QuitSuccess
 
+test "issue #349":
+  let reservedNames = [
+    "CON",
+    "PRN",
+    "AUX",
+    "NUL",
+    "COM1",
+    "COM2",
+    "COM3",
+    "COM4",
+    "COM5",
+    "COM6",
+    "COM7",
+    "COM8",
+    "COM9",
+    "LPT1",
+    "LPT2",
+    "LPT3",
+    "LPT4",
+    "LPT5",
+    "LPT6",
+    "LPT7",
+    "LPT8",
+    "LPT9",
+  ]
+
+  proc checkName(name: string) =
+    let (outp, code) = execNimble("init", "-y", name)
+    let msg = outp.strip.splitLines()
+    check code == QuitFailure
+    check inLines(msg,
+      "\"$1\" is an invalid package name: reserved name" % name)
+    removeFile(name.changeFileExt("nimble"))
+    removeDir("src")
+    removeDir("tests")
+
+  for reserved in reservedNames:
+    checkName(reserved.toUpperAscii())
+    checkName(reserved.toLowerAscii())
+
+test "issue #428":
+  cd "issue428":
+    # Note: Can't use execNimble because it patches nimbleDir
+    check execCmdEx(nimblePath & " -y --nimbleDir=./nimbleDir install").exitCode == QuitSuccess
+    check dirExists("nimbleDir/pkgs/dummy-0.1.0")
+    check(not dirExists("nimbleDir/pkgs/dummy-0.1.0/nimbleDir"))
+
 test "can list":
   check execNimble("list").exitCode == QuitSuccess
 
@@ -560,6 +607,17 @@ suite "develop feature":
       let (_, exitCode) = execNimble("develop", "-y", url)
       check exitCode == QuitSuccess
 
+  test "nimble path points to develop":
+    cd "develop/srcdirtest":
+      var (output, exitCode) = execNimble("develop")
+      checkpoint output
+      check exitCode == QuitSuccess
+
+      (output, exitCode) = execNimble("path", "srcdirtest")
+      checkpoint output
+      check exitCode == QuitSuccess
+      check output.strip() == getCurrentDir() / "src"
+
 suite "test command":
   test "Runs passing unit tests":
     cd "testCommand/testsPass":
@@ -583,3 +641,47 @@ suite "test command":
       let (outp, exitCode) = execNimble("test")
       check exitCode == QuitSuccess
       check outp.processOutput.inLines("overriden")
+
+suite "check command":
+  test "can succeed package":
+    cd "binaryPackage/v1":
+      let (outp, exitCode) = execNimble("check")
+      check exitCode == QuitSuccess
+      check outp.processOutput.inLines("success")
+      check outp.processOutput.inLines("binaryPackage is valid")
+
+    cd "packageStructure/a":
+      let (outp, exitCode) = execNimble("check")
+      check exitCode == QuitSuccess
+      check outp.processOutput.inLines("success")
+      check outp.processOutput.inLines("a is valid")
+
+    cd "packageStructure/b":
+      let (outp, exitCode) = execNimble("check")
+      check exitCode == QuitSuccess
+      check outp.processOutput.inLines("success")
+      check outp.processOutput.inLines("b is valid")
+
+    cd "packageStructure/c":
+      let (outp, exitCode) = execNimble("check")
+      check exitCode == QuitSuccess
+      check outp.processOutput.inLines("success")
+      check outp.processOutput.inLines("c is valid")
+
+  test "can fail package":
+    cd "packageStructure/x":
+      let (outp, exitCode) = execNimble("check")
+      check exitCode == QuitFailure
+      check outp.processOutput.inLines("failure")
+      check outp.processOutput.inLines("validation failed")
+      check outp.processOutput.inLines("package 'x' has an incorrect structure")
+
+suite "multi":
+  test "can install package from git subdir":
+    let args = ["install", "-y", "https://github.com/nimble-test/multi?subdir=alpha"]
+    check execNimble(args).exitCode == QuitSuccess
+
+  test "can develop package from git subdir":
+    removeDir("nimble-test/multi")
+    let args = ["develop", "-y", "https://github.com/nimble-test/multi?subdir=beta"]
+    check execNimble(args).exitCode == QuitSuccess

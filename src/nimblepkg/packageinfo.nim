@@ -27,6 +27,10 @@ type
   MetaData* = object
     url*: string
 
+  NimbleLink* = object
+    nimbleFilePath*: string
+    packageDir*: string
+
 proc initPackageInfo*(path: string): PackageInfo =
   result.myPath = path
   result.specialVersion = ""
@@ -141,6 +145,15 @@ proc readMetaData*(path: string): MetaData =
   let jsonmeta = parseJson(cont)
   result.url = jsonmeta["url"].str
 
+proc readNimbleLink*(nimbleLinkPath: string): NimbleLink =
+  let s = readFile(nimbleLinkPath).splitLines()
+  result.nimbleFilePath = s[0]
+  result.packageDir = s[1]
+
+proc writeNimbleLink*(nimbleLinkPath: string, contents: NimbleLink) =
+  let c = contents.nimbleFilePath & "\n" & contents.packageDir
+  writeFile(nimbleLinkPath, c)
+
 proc needsRefresh*(options: Options): bool =
   ## Determines whether a ``nimble refresh`` is needed.
   ##
@@ -172,7 +185,7 @@ proc fetchList*(list: PackageList, options: Options) =
     lastError = ""
     copyFromPath = ""
   if list.urls.len > 0:
-    for i in 0 .. <list.urls.len:
+    for i in 0 ..< list.urls.len:
       let url = list.urls[i]
       display("Trying", url)
       let tempPath = options.getNimbleDir() / "packages_temp.json"
@@ -291,15 +304,14 @@ proc findNimbleFile*(dir: string; error: bool): string =
   elif hits == 0:
     if error:
       raise newException(NimbleError,
-          "Specified directory does not contain a .nimble file.")
+          "Specified directory ($1) does not contain a .nimble file." % dir)
     else:
       display("Warning:", "No .nimble or .nimble-link file found for " &
               dir, Warning, HighPriority)
 
   if result.splitFile.ext == ".nimble-link":
     # Return the path of the real .nimble file.
-    let lines = readFile(result).splitLines()
-    result = lines[0]
+    result = readNimbleLink(result).nimbleFilePath
     if not fileExists(result):
       raiseNimbleError("The .nimble-link file is pointing to a missing" &
                        " file: " & result)
@@ -451,7 +463,7 @@ proc iterFilesWithExt(dir: string, pkgInfo: PackageInfo,
     if kind == pcDir:
       iterFilesWithExt(path, pkgInfo, action)
     else:
-      if path.splitFile.ext[1 .. ^1] in pkgInfo.installExt:
+      if path.splitFile.ext.substr(1) in pkgInfo.installExt:
         action(path)
 
 proc iterFilesInDir(dir: string, action: proc (f: string)) =
@@ -498,13 +510,13 @@ proc iterInstallFiles*(realDir: string, pkgInfo: PackageInfo,
     for kind, file in walkDir(realDir):
       if kind == pcDir:
         let skip = pkgInfo.checkInstallDir(realDir, file)
-
         if skip: continue
+        # we also have to stop recursing if we reach an in-place nimbleDir
+        if file == options.getNimbleDir().expandFilename(): continue
 
         iterInstallFiles(file, pkgInfo, options, action)
       else:
         let skip = pkgInfo.checkInstallFile(realDir, file)
-
         if skip: continue
 
         action(file)

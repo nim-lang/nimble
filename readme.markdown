@@ -1,7 +1,7 @@
 # Nimble [![Build Status](https://travis-ci.org/nim-lang/nimble.svg?branch=master)](https://travis-ci.org/nim-lang/nimble)
 
 Nimble is a *beta*-grade *package manager* for the [Nim programming
-language](http://nim-lang.org).
+language](https://nim-lang.org).
 
 Interested in learning **how to create a package**? Skip directly to that section
 [here](#creating-packages).
@@ -52,20 +52,20 @@ Interested in learning **how to create a package**? Skip directly to that sectio
 
 Nimble has some runtime dependencies on external tools, these tools are used to
 download Nimble packages. For instance, if a package is hosted on
-[Github](https://github.com) you require to have [git](http://www.git-scm.com)
+[GitHub](https://github.com), you need to have [git](https://www.git-scm.com)
 installed and added to your environment ``PATH``. Same goes for
 [Mercurial](http://mercurial.selenic.com) repositories on
 [Bitbucket](https://bitbucket.org). Nimble packages are typically hosted in Git
 repositories so you may be able to get away without installing Mercurial.
 
 **Warning:** Ensure that you have a fairly recent version of Git installed.
-If the version is less recent than 1.9.0 then Nimble may have trouble using it.
+If the version is older than 1.9.0, then Nimble may have trouble using it.
 See [this issue](https://github.com/nim-lang/nimble/issues/105) for more
-info.
+information.
 
 ## Installation
 
-Nimble is now bundled with [Nim](http://nim-lang.org)
+Nimble is now bundled with [Nim](https://nim-lang.org)
 (since Nim version 0.15.0).
 This means that you should have Nimble installed already, as long as you have
 the latest version of Nim installed as well. Because of this **you likely do
@@ -129,6 +129,20 @@ a third-party package list.
 Package lists can be specified in Nimble's config. Take a look at the
 config section below to see how to do this.
 
+### nimble check
+
+The ``check`` command will read your package's .nimble file. It will then
+verify that the package's structure is valid.
+
+Example:
+
+    $ nimble check
+        Error: Package 'x' has an incorrect structure. It should contain a single directory hierarchy for source files, named 'x', but file 'foobar.nim' is in a directory named 'incorrect' instead. This will be an error in the future.
+         Hint: If 'incorrect' contains source files for building 'x', rename it to 'x'. Otherwise, prevent its installation by adding `skipDirs = @["incorrect"]` to the .nimble file.
+      Failure: Validation failed
+
+
+
 ### nimble install
 
 The ``install`` command will download and install a package. You need to pass
@@ -143,9 +157,9 @@ Example:
     nake installed successfully
 
 Nimble always fetches and installs the latest version of a package. Note that
-latest version is defined as the latest tagged version in the git (or hg)
+latest version is defined as the latest tagged version in the Git (or Mercurial)
 repository, if the package has no tagged versions then the latest commit in the
-remote repository will be installed. If you already have that version installed
+remote repository will be installed. If you already have that version installed,
 Nimble will ask you whether you wish it to overwrite your local copy.
 
 You can force Nimble to download the latest commit from the package's repo, for
@@ -153,10 +167,10 @@ example:
 
     $ nimble install nimgame@#head
 
-This is of course git specific, for hg use ``tip`` instead of ``head``. A
+This is of course Git-specific, for Mercurial, use ``tip`` instead of ``head``. A
 branch, tag, or commit hash may also be specified in the place of ``head``.
 
-Instead of specifying a VCS branch you may also specify a version range, for
+Instead of specifying a VCS branch, you may also specify a version range, for
 example:
 
     $ nimble install nimgame@"> 0.5"
@@ -169,8 +183,17 @@ the current working directory. This can be useful for developers who are testing
 locally their ``.nimble`` files before submitting them to the official package
 list. See the [Creating Packages](#creating-packages) section for more info on this.
 
-A URL to a repository can also be specified, Nimble will automatically detect
-the type of the repository that the url points to and install it.
+#### Package URLs
+
+A valid URL to a Git or Merurial repository can also be specified, Nimble will
+automatically detect the type of the repository that the url points to and
+install it.
+
+For repositories containing the Nimble package in a subdirectory, you can
+instruct Nimble about the location of your package using the ``?subdir=<path>``
+query parameter. For example:
+
+    $ nimble install https://github.com/nimble-test/multi?subdir=alpha
 
 ### nimble develop
 
@@ -191,6 +214,9 @@ current working directory.
 
 The ``jester`` package will be cloned into ``./jester`` and it will be linked
 to your installation directory.
+
+Just as with the ``install`` command, a package URL may also be specified
+instead of a name.
 
 ### nimble uninstall
 
@@ -224,7 +250,7 @@ the command ``c`` or ``compile`` is specified. The more specific ``js``, ``cc``,
 
 The ``list`` command will display the known list of packages available for
 Nimble. An optional ``--ver`` parameter can be specified to tell Nimble to
-query remote git repositories for the list of versions of the packages and to
+query remote Git repositories for the list of versions of the packages and to
 then print the versions. Please note however that this can be slow as each
 package must be queried separately.
 
@@ -252,8 +278,8 @@ substrings). Example:
 Searches are case insensitive.
 
 An optional ``--ver`` parameter can be specified to tell Nimble to
-query remote git repositories for the list of versions of the packages and to
-then print the versions. Please note however that this can be slow as each
+query remote Git repositories for the list of versions of the packages and
+then print the versions. However, please note that this can be slow as each
 package must be queried separately.
 
 ### nimble path
@@ -287,11 +313,11 @@ Check out the [Creating Packages](#creating-packages) section for more info.
 
 Publishes your Nimble package to the official Nimble package repository.
 
-**Note:** Requires a valid Github account.
+**Note:** Requires a valid GitHub account.
 
 ### nimble tasks
 
-For a nimble package in the current working directory, list the tasks which that
+For a Nimble package in the current working directory, list the tasks which that
 package defines. This is only supported for packages utilising the new
 nimscript .nimble files.
 
@@ -324,7 +350,7 @@ path = r"C:\Projects\Nim\packages.json"
 
 You can currently configure the following in this file:
 
-* ``nimbleDir`` - The directory which nimble uses for package installation.
+* ``nimbleDir`` - The directory which Nimble uses for package installation.
   **Default:** ``~/.nimble/``
 * ``chcp`` - Whether to change the current code page when executing Nim
   application packages. If ``true`` this will add ``chcp 65001`` to the
@@ -344,20 +370,23 @@ You can currently configure the following in this file:
   Nimble will also attempt to read the ``http_proxy`` and ``https_proxy``
   environment variables.
   **Default: ""**
+* ``nimLibPrefix`` - Specifies the Nim standard library prefix to help Nimble
+  find the Nim standard library.
+  **Default: ""**
 
 ## Creating Packages
 
-Nimble works on git repositories as its primary source of packages. Its list of
+Nimble works on Git repositories as its primary source of packages. Its list of
 packages is stored in a JSON file which is freely accessible in the
 [nim-lang/packages repository](https://github.com/nim-lang/packages).
-This JSON file provides nimble with the required Git URL to clone the package
+This JSON file provides Nimble with the required Git URL to clone the package
 and install it. Installation and build instructions are contained inside a
-file with the ``.nimble`` file extension. The nimble file shares the
+file with the ``.nimble`` file extension. The Nimble file shares the
 package's name, i.e. a package
 named "foobar" should have a corresponding ``foobar.nimble`` file.
 
-These files specify information about the package including its the author,
-license, dependencies and more. Without one Nimble is not able to install
+These files specify information about the package including its author,
+license, dependencies and more. Without one, Nimble is not able to install
 a package.
 
 A .nimble file can be created easily using Nimble's ``init`` command. This
@@ -392,7 +421,7 @@ requires "fizzbuzz >= 1.0"
 ```
 
 Nimble currently supports installation of packages from a local directory, a
-git repository and a mercurial repository. The .nimble file must be present in
+Git repository and a mercurial repository. The .nimble file must be present in
 the root of the directory or repository being installed.
 
 The .nimble file is very flexible because it is interpreted using NimScript.
@@ -420,7 +449,7 @@ Hello World!
 
 You can place any Nim code inside these tasks. As long as that code does not
 access the FFI. The ``nimscript``
-[module](http://nim-lang.org/docs/nimscript.html) in Nim's standard library defines
+[module](https://nim-lang.org/docs/nimscript.html) in Nim's standard library defines
 additional functionality such as the ability to execute external processes
 which makes this feature very powerful.
 
@@ -455,32 +484,62 @@ which are also useful. Take a look at it for more information.
 
 ### Project structure
 
-A Nimble project includes a *source directory*, containing at most one
-primary source file, which shares the same name as the project itself (as well
-as the project's nimble file). In most cases this source directory will also be
-the root directory of the whole project. In all cases, the root directory will
-contain the .nimble file.
-
-If the project includes additional source files, or if there is more than one
-primary (exported) module, they are all included in a single directory
-hierarchy within the source directory. In the case of libraries, this directory
-will have the same name as the project (see below for details).
-
-The source directory can contain additional files and directories
-not involved in building the project, as long as they are excluded
-in the nimble file.
-
-Here's a sample one-module project directory:
+For a package named "foobar", the recommended project structure is the following:
 
 ```
-.                       # The root directory of the project, also the source directory
+.                   # The root directory of the project
 ├── LICENSE
 ├── README.md
-├── my_project.nim      # The primary source file
-├── my_project.nimble   # The project nimble file
-└── tests               # Another source directory, excluded in my_project.nimble
+├── foobar.nimble   # The project .nimble file
+└── src
+    └── foobar.nim  # Imported via `import foobar`
+└── tests           # Contains the tests
     ├── nim.cfg
-    └── tests.nim
+    ├── tfoo1.nim   # First test
+    └── tfoo2.nim   # Second test
+
+```
+
+Note that the .nimble file needs to be in the project's root directory. This
+directory structure will be created if you run ``nimble init`` inside a
+``foobar`` directory.
+
+**Warning:** When source files are placed in a ``src`` directory, the
+.nimble file must contain a ``srcDir = "src"`` directive. The ``nimble init``
+command takes care of that for you.
+
+When introducing more modules into your package, you should place them in a
+separate directory named ``foobar`` (i.e. your package's name). For example:
+
+```
+.                   # The root directory of the project
+├── ...
+├── foobar.nimble   # The project .nimble file
+├── src
+│   ├── foobar
+│   │   ├── utils.nim   # Imported via `import foobar/utils`
+│   │   └── common.nim  # Imported via `import foobar/common`
+│   └── foobar.nim      # Imported via `import foobar`
+└── ...
+```
+
+#### Private modules
+
+You may wish to hide certain modules in your package from the users. Create a
+``private`` directory for that purpose. For example:
+
+```
+.                   # The root directory of the project
+├── ...
+├── foobar.nimble   # The project .nimble file
+├── src
+│   ├── foobar
+│   │   ├── private
+│   │   │   └── hidden.nim  # Imported via `import foobar/private/hidden`
+│   │   ├── utils.nim       # Imported via `import foobar/utils`
+│   │   └── common.nim      # Imported via `import foobar/common`
+│   └── foobar.nim          # Imported via `import foobar`
+└── ...
 ```
 
 #### Tests
@@ -503,22 +562,26 @@ your ``tests`` directory with the following contents:
 --path:"../src/"
 ```
 
-To make testing even more convenient, you may wish to define a ``test`` task
-in your ``.nimble`` file. Like so:
+Nimble offers a pre-defined ``test`` task which compiles and runs all files
+in the ``tests`` directory beginning with 't' in their filename.
+
+You may wish to override this ``test`` task in your ``.nimble`` file. This
+is particularly useful when you have a single test suite program. Just add
+the following to your ``.nimble`` file to override the default ``test`` task.
 
 ```nim
 task test, "Runs the test suite":
   exec "nim c -r tests/tester"
 ```
 
-You can compile and run a single tester application or multiple test files.
+Running ``nimble test`` will now use the ``test`` task you have defined.
 
 ### Libraries
 
 Library packages are likely the most popular form of Nimble packages. They are
 meant to be used by other library or binary packages.
 
-When nimble installs a library it will copy all of its files
+When Nimble installs a library, it will copy all of its files
 into ``$nimbleDir/pkgs/pkgname-ver``. It's up to the package creator to make sure
 that the package directory layout is correct, this is so that users of the
 package can correctly import the package.
@@ -528,7 +591,7 @@ determined by the nature of your package, that is, whether your package exposes
 only one module or multiple modules.
 
 If your package exposes only a single module, then that module should be
-present in the root directory (the directory with the .nimble file) of your git
+present in the root directory (the directory with the .nimble file) of your Git
 repository, and should be named whatever your package's name is. A good example
 of this is the [jester](https://github.com/dom96/jester) package which exposes
 the ``jester`` module. In this case the jester package is imported with
@@ -539,14 +602,14 @@ If your package exposes multiple modules then the modules should be in a
 from other packages which expose modules with the same names. In this case
 the package's modules will be imported with ``import PackageName/module``.
 
-Here's a simple example multi-module library package called `util`:
+Here's a simple example multi-module library package called `kool`:
 
 ```
 .
-├── util
+├── kool
 │   ├── useful.nim
 │   └── also_useful.nim
-└── util.nimble
+└── kool.nimble
 ```
 
 In regards to modules which you do **not** wish to be exposed. You should place
@@ -571,7 +634,7 @@ A package is automatically a binary package as soon as it sets at least one
 bin = @["main"]
 ```
 
-In this case when ``nimble install`` is invoked, nimble will build the ``main.nim``
+In this case when ``nimble install`` is invoked, Nimble will build the ``main.nim``
 file, copy it into ``$nimbleDir/pkgs/pkgname-ver/`` and subsequently create a
 symlink to the binary in ``$nimbleDir/bin/``. On Windows a stub .cmd file is
 created instead.
@@ -621,9 +684,9 @@ and less than 1.0.
 
 Specifying a concrete version as a dependency is not a good idea because your
 package may end up depending on two different versions of the same package.
-If this happens Nimble will refuse to install the package.
+If this happens, Nimble will refuse to install the package.
 
-In addition to versions you may also specify git/hg tags, branches and commits.
+In addition to versions you may also specify Git/Mercurial tags, branches and commits.
 Although these have to be specific; ranges of commits are not supported.
 This is done with the ``#`` character,
 for example: ``jester#head``. Which will make your package depend on the
@@ -654,7 +717,7 @@ when defined(nimdistros):
 The ``when`` branch is important to support installation using older versions
 of Nimble.
 
-The [distros module](nim-lang.org/docs/distros.html) in Nim's
+The [distros module](https://nim-lang.org/docs/distros.html) in Nim's
 standard library contains a list of all the supported Operating Systems and
 Linux distributions.
 
@@ -680,18 +743,18 @@ It resolves the dependencies and feeds the path of each package to
 the compiler so that it knows precisely which version to use.
 
 This means that you can safely compile using the compiler when developing your
-software, but you should use nimble to build the package before publishing it
+software, but you should use Nimble to build the package before publishing it
 to ensure that the dependencies you specified are correct.
 
 ### Versions
 
-Versions of cloned packages via git or mercurial are determined through the
+Versions of cloned packages via Git or Mercurial are determined through the
 repository's *tags*.
 
 When installing a package which needs to be downloaded, after the download is
-complete and if the package is distributed through a VCS, nimble will check the
-cloned repository's tags list. If no tags exist, nimble will simply install the
-HEAD (or tip in mercurial) of the repository. If tags exist, nimble will attempt
+complete and if the package is distributed through a VCS, Nimble will check the
+cloned repository's tags list. If no tags exist, Nimble will simply install the
+HEAD (or tip in Mercurial) of the repository. If tags exist, Nimble will attempt
 to look for tags which resemble versions (e.g. v0.1) and will then find the
 latest version out of the available tags, once it does so it will install the
 package after checking out the latest version.
@@ -781,7 +844,7 @@ Nimble includes a ``publish`` command which does this for you automatically.
   root dir of the package.
 * ``bin`` - A list of files which should be built separated by commas with
   no file extension required. This option turns your package into a *binary
-  package*, nimble will build the files specified and install them appropriately.
+  package*, Nimble will build the files specified and install them appropriately.
 * ``backend`` - Specifies the backend which will be used to build the files
   listed in ``bin``. Possible values include: ``c``, ``cc``, ``cpp``, ``objc``,
   ``js``.
@@ -813,10 +876,14 @@ work properly and you won't be able to run them.
 
 * ```SSL support is not available. Cannot connect over SSL. [HttpRequestError]```
 
-Make sure that nimble is configured to run with SSL, adding a ```-d:ssl```
+Make sure that Nimble is configured to run with SSL, adding a ```-d:ssl```
 flag to the file ```src/nimble.nim.cfg```.
 After that, you can run ```src/nimble install``` and overwrite the existing
 installation.
+
+* ``Could not download: error:14077410:SSL routines:SSL23_GET_SERVER_HELLO:sslv3 alert handshake failure``
+
+If you are on macOS, you need to set and export the ```DYLD_LIBRARY_PATH``` environment variable to the directory where your OpenSSL libraries are. For example, if you use OpenSSL, you have to set ```export DYLD_LIBRARY_PATH=/usr/local/opt/openssl/lib``` in your ```$HOME/.bashrc``` file.
 
 * ``Error: ambiguous identifier: 'version' --use nimscriptapi.version or system.version``
 
@@ -827,7 +894,8 @@ Make sure that you are running at least version 0.16.0 of Nim (or the latest nig
 Nimble cannot find the Nim standard library. This is considered a bug so
 please report it. As a workaround you can set the ``NIM_LIB_PREFIX`` environment
 variable to the directory where ``lib/system.nim`` (and other standard library
-files) are found.
+files) are found. Alternatively you can also configure this in Nimble's
+config file.
 
 ## Repository information
 
@@ -855,8 +923,8 @@ A new Nim release (via ``koch xz``) will always bundle the ``stable`` branch.
 If you would like to help, feel free to fork and make any additions you see fit
 and then send a pull request.
 
-If you have any questions about the project you can ask me directly on github,
-ask on the Nim [forum](http://forum.nim-lang.org), or ask on Freenode in
+If you have any questions about the project, you can ask me directly on GitHub,
+ask on the Nim [forum](https://forum.nim-lang.org), or ask on Freenode in
 the #nim channel.
 
 ## Implementation details
@@ -877,7 +945,8 @@ the `.nimble-link` file.
 
 ## About
 
-Nimble has been written by [Dominik Picheta](http://picheta.me/) with help from
+Nimble has been written by [Dominik Picheta](https://picheta.me/) with help from
 a number of
 [contributors](https://github.com/nim-lang/nimble/graphs/contributors).
-It is licensed under the BSD license (Look at license.txt for more info).
+It is licensed under the 3-clause BSD license, see [license.txt](license.txt)
+for more information.

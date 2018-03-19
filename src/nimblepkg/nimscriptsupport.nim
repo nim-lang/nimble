@@ -16,7 +16,7 @@ from compiler/astalgo import strTableGet
 import compiler/options as compiler_options
 
 import common, version, options, packageinfo, cli
-import os, strutils, strtabs, tables, times, osproc, sets
+import os, strutils, strtabs, tables, times, osproc, sets, pegs
 
 when not declared(resetAllModulesHard):
   import compiler/modulegraphs
@@ -188,10 +188,21 @@ proc setupVM(module: PSym; scriptName: string, flags: Flags): PEvalContext =
       else:
         flags[key] = @[value]
 
-proc getNimPrefixDir(): string =
+proc isValidLibPath(lib: string): bool =
+  return fileExists(lib / "system.nim")
+
+proc getNimPrefixDir(options: Options): string =
   let env = getEnv("NIM_LIB_PREFIX")
   if env != "":
+    let msg = "Using env var NIM_LIB_PREFIX: " & env
+    display("Warning:", msg, Warning, HighPriority)
     return env
+
+  if options.config.nimLibPrefix != "":
+    result = options.config.nimLibPrefix
+    let msg = "Using Nim stdlib prefix from Nimble config file: " & result
+    display("Warning:", msg, Warning, HighPriority)
+    return
 
   result = splitPath(findExe("nim")).head.parentDir
   # The above heuristic doesn't work for 'choosenim' proxies. Thankfully in
@@ -202,6 +213,33 @@ proc getNimPrefixDir(): string =
     # getAppDir().head as the prefix dir. See compiler/options module for
     # the code responsible for this.
     result = ""
+
+proc getLibVersion(lib: string): Version =
+  ## This is quite a hacky procedure, but there is no other way to extract
+  ## this out of the ``system`` module. We could evaluate it, but that would
+  ## cause an error if the stdlib is out of date. The purpose of this
+  ## proc is to give a nice error message to the user instead of a confusing
+  ## Nim compile error.
+  let systemPath = lib / "system.nim"
+  if not fileExists(systemPath):
+    raiseNimbleError("system module not found in stdlib path: " & lib)
+
+  let systemFile = readFile(systemPath)
+  let majorPeg = peg"'NimMajor' @ '=' \s* {\d*}"
+  let minorPeg = peg"'NimMinor' @ '=' \s* {\d*}"
+  let patchPeg = peg"'NimPatch' @ '=' \s* {\d*}"
+
+  var majorMatches: array[1, string]
+  let major = find(systemFile, majorPeg, majorMatches)
+  var minorMatches: array[1, string]
+  let minor = find(systemFile, minorPeg, minorMatches)
+  var patchMatches: array[1, string]
+  let patch = find(systemFile, patchPeg, patchMatches)
+
+  if major != -1 and minor != -1 and patch != -1:
+    return newVersion(majorMatches[0] & "." & minorMatches[0] & "." & patchMatches[0])
+  else:
+    return system.NimVersion.newVersion()
 
 when declared(ModuleGraph):
   var graph: ModuleGraph
@@ -219,16 +257,50 @@ proc execScript(scriptName: string, flags: Flags, options: Options): PSym =
       compiler_options.implicitImports.add("nimblepkg/nimscriptapi")
 
   # Ensure the compiler can find its standard library #220.
-  compiler_options.gPrefixDir = getNimPrefixDir()
+  compiler_options.gPrefixDir = getNimPrefixDir(options)
+  display("Setting", "Nim stdlib prefix to " & compiler_options.gPrefixDir,
+          priority=LowPriority)
+
+  # Verify that lib path points to existing stdlib.
+  compiler_options.setDefaultLibpath()
+  display("Setting", "Nim stdlib path to " & compiler_options.libpath,
+          priority=LowPriority)
+  if not isValidLibPath(compiler_options.libpath):
+    let msg = "Nimble cannot find Nim's standard library.\nLast try in:\n  - $1" %
+              compiler_options.libpath
+    let hint = "Nimble does its best to find Nim's standard library, " &
+               "sometimes this fails. You can set the environment variable " &
+               "NIM_LIB_PREFIX to where Nim's `lib` directory is located as " &
+               "a workaround. " &
+               "See https://github.com/nim-lang/nimble#troubleshooting for " &
+               "more info."
+    raiseNimbleError(msg, hint)
+
+  # Verify that the stdlib that was found isn't older than the stdlib that Nimble
+  # was compiled with.
+  let libVersion = getLibVersion(compiler_options.libpath)
+  if NimVersion.newVersion() > libVersion:
+    let msg = ("Nimble cannot use an older stdlib than the one it was compiled " &
+               "with.\n  Stdlib in '$#' has version: $#.\n  Nimble needs at least: $#.") %
+              [compiler_options.libpath, $libVersion, NimVersion]
+    let hint = "You may be running a newer version of Nimble than you intended " &
+               "to. Run an older version of Nimble that is compatible with " &
+               "the stdlib that Nimble is attempting to use or set the environment variable " &
+               "NIM_LIB_PREFIX to where a different stdlib's `lib` directory is located as " &
+               "a workaround." &
+               "See https://github.com/nim-lang/nimble#troubleshooting for " &
+               "more info."
+    raiseNimbleError(msg, hint)
 
   let pkgName = scriptName.splitFile.name
 
   # Ensure that "nimblepkg/nimscriptapi" is in the PATH.
-  # TODO: put this in a more isolated directory.
-  let tmpNimscriptApiPath = getTempDir() / "nimblepkg" / "nimscriptapi.nim"
-  createDir(tmpNimscriptApiPath.splitFile.dir)
-  writeFile(tmpNimscriptApiPath, nimscriptApi)
-  searchPaths.add(getTempDir())
+  block:
+    let t = options.getNimbleDir / "nimblecache"
+    let tmpNimscriptApiPath = t / "nimblepkg" / "nimscriptapi.nim"
+    createDir(tmpNimscriptApiPath.splitFile.dir)
+    writeFile(tmpNimscriptApiPath, nimscriptApi)
+    searchPaths.add(t)
 
   initDefines()
   loadConfigs(DefaultConfig)
@@ -296,7 +368,7 @@ proc readPackageInfoFromNims*(scriptName: string, options: Options,
       if msgs.gErrorCounter > 0:
         raise newException(NimbleError, previousMsg)
       elif previousMsg.len > 0:
-        display("Info", previousMsg, priority = HighPriority)
+        display("Info", previousMsg, priority = MediumPriority)
       if output.normalize.startsWith("error"):
         raise newException(NimbleError, output)
       previousMsg = output
