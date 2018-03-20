@@ -724,7 +724,7 @@ proc init(options: Options) =
   validatePackageName(nimbleFile.changeFileExt(""))
 
   if existsFile(os.getCurrentDir() / nimbleFile):
-    raise newException(NimbleError, "Nimble file already exists.")
+    raise newException(NimbleError, ".nimble file already exists.")
 
   display("Using", "$# for new package name" % [pkgName.escape()],
     priority = HighPriority)
