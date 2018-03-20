@@ -758,6 +758,10 @@ proc init(options: Options) =
     "bin",
   ])
 
+  var binPath = ""
+  if pkgType == "bin":
+    binPath = promptCustom(options, "Path of bin directory?", "bin")
+
   # Ask for package version.
   let pkgVersion = promptCustom(options, "Initial version of package?", "0.1.0")
   validateVersion(pkgVersion)
@@ -854,12 +858,13 @@ description   = $#
 license       = $#
 srcDir        = $#
 bin           = @[$#]
+binDir        = "$#"
 
 # Dependencies
 
 requires "nim >= $#"
 """ % [pkgVersion.escape(), pkgAuthor.escape(), pkgDesc.escape(),
-       pkgLicense.escape(), pkgSrcDir.escape(), pkgName.escape(), pkgNimDep]
+       pkgLicense.escape(), pkgSrcDir.escape(), pkgName.escape(), binPath, pkgNimDep]
   except:
     raise newException(NimbleError, "Unable to open file " & "test1.nim" &
                        " for writing: " & osErrorMsg(osLastError()))
