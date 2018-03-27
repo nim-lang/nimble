@@ -1,7 +1,7 @@
 # Copyright (C) Dominik Picheta. All rights reserved.
 # BSD License. Look at license.txt for more info.
 
-import json, strutils, os, parseopt, strtabs, uri, tables
+import json, strutils, os, parseopt, strtabs, uri, tables, terminal
 from httpclient import Proxy, newProxy
 
 import config, version, tools, common, cli
@@ -328,6 +328,7 @@ proc initOptions*(): Options =
   result.pkgInfoCache = newTable[string, PackageInfo]()
   result.nimbleDir = ""
   result.verbosity = HighPriority
+  result.noColor = not isatty(stdout)
 
 proc parseMisc(options: var Options) =
   # Load nimbledata.json
