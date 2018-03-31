@@ -303,7 +303,7 @@ which can be useful to read the bundled documentation. Example:
 ### nimble init
 
 The nimble ``init`` command will start a simple wizard which will create
-a quick ``.nimble`` file for your project.
+a quick ``.nimble`` file for your project in the current directory.
 
 As of version 0.7.0, the ``.nimble`` file that this command creates will
 use the new NimScript format.
@@ -391,7 +391,7 @@ a package.
 
 A .nimble file can be created easily using Nimble's ``init`` command. This
 command will ask you a bunch of questions about your package, then generate a
-.nimble file for you.
+.nimble file for you in the current directory.
 
 A bare minimum .nimble file follows:
 
