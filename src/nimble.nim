@@ -723,8 +723,10 @@ proc init(options: Options) =
   nimbleFile = pkgName.changeFileExt("nimble")
   validatePackageName(nimbleFile.changeFileExt(""))
 
-  if existsFile(os.getCurrentDir() / nimbleFile):
-    raise newException(NimbleError, "Nimble file already exists.")
+  let nimbleFilePath = os.getCurrentDir() / nimbleFile
+  if existsFile(nimbleFilePath):
+    let errMsg = "Nimble file already exists: $#" % nimbleFilePath
+    raise newException(NimbleError, errMsg)
 
   display("Using", "$# for new package name" % [pkgName.escape()],
     priority = HighPriority)

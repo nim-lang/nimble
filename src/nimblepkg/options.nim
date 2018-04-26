@@ -1,7 +1,7 @@
 # Copyright (C) Dominik Picheta. All rights reserved.
 # BSD License. Look at license.txt for more info.
 
-import json, strutils, os, parseopt, strtabs, uri, tables
+import json, strutils, os, parseopt, strtabs, uri, tables, terminal
 from httpclient import Proxy, newProxy
 
 import config, version, tools, common, cli
@@ -62,7 +62,8 @@ Commands:
                                   in the current working directory.
   check                           Verifies the validity of a package in the
                                   current working directory.
-  init         [pkgname]          Initializes a new Nimble project.
+  init         [pkgname]          Initializes a new Nimble project in the
+                                  current directory.
   publish                         Publishes a package on nim-lang/packages.
                                   The current working directory needs to be the
                                   toplevel directory of the Nimble package.
@@ -328,6 +329,7 @@ proc initOptions*(): Options =
   result.pkgInfoCache = newTable[string, PackageInfo]()
   result.nimbleDir = ""
   result.verbosity = HighPriority
+  result.noColor = not isatty(stdout)
 
 proc parseMisc(options: var Options) =
   # Load nimbledata.json
