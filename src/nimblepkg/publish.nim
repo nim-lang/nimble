@@ -221,4 +221,4 @@ proc publish*(p: PackageInfo, o: Options) =
     display("Pushing", "to remote of fork.", priority = HighPriority)
     doCmd("git push https://" & auth.token & "@github.com/" & auth.user & "/packages " & branchName)
     createPullRequest(auth, p.name, branchName)
-  display("Success:", "Pull request successful.", Success, HighPriority)
+  display("Success:", "Pull request successful, check at " & "https://github.com/nim-lang/packages/pulls" , Success, HighPriority)
