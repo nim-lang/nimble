@@ -94,13 +94,13 @@ proc createFork(a: Auth) =
     raise newException(NimbleError, "Unable to create fork. Access token" &
                        " might not have enough permissions.")
 
-proc createPullRequest(a: Auth, packageName, branch: string): string=
+proc createPullRequest(a: Auth, packageName, branch: string): string =
   display("Info", "Creating PR", priority = HighPriority)
   var body = a.http.postContent(ReposUrl & "nim-lang/packages/pulls",
       body="""{"title": "Add package $1", "head": "$2:$3",
                "base": "master"}""" % [packageName, a.user, branch])
   var pr = parseJson(body)
-  return pr["html_url"].getStr()
+  return pr{"html_url"}.getStr()
 
 proc `%`(s: openArray[string]): JsonNode =
   result = newJArray()
