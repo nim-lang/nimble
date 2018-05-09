@@ -37,9 +37,6 @@ type
   ForcePrompt* = enum
     dontForcePrompt, forcePromptYes, forcePromptNo
 
-  Key = enum
-    kNone, kArrowUp, kArrowDown, kEnter
-
 const
   longestCategory = len("Downloading")
   foregrounds: array[Error .. Success, ForegroundColor] =
@@ -175,47 +172,9 @@ proc promptCustom*(forcePrompts: ForcePrompt, question, default: string): string
 proc promptCustom*(question, default: string): string =
   return promptCustom(dontForcePrompt, question, default)
 
-proc getKey(): Key =
-  ## Needed in order to allow arrow key control for Windows. It also makes it
-  ## easier to determine which keys are pressed on POSIX systems. This is based
-  ## of terminal.getch for the standard library.
-  when defined(windows):
-    let fd = getStdHandle(STD_INPUT_HANDLE)
-    var keyEvent = KEY_EVENT_RECORD()
-    var numRead: cint
-    while true:
-      # Block until character is entered
-      doAssert(waitForSingleObject(fd, INFINITE) == WAIT_OBJECT_0)
-      doAssert(readConsoleInput(fd, addr(keyEvent), 1, addr(numRead)) != 0)
-      if numRead == 0 or keyEvent.eventType != 1 or keyEvent.bKeyDown == 0:
-        continue
-      case keyEvent.wVirtualKeyCode:
-      of 0x26:
-        return kArrowUp
-      of 0x28:
-        return kArrowDown
-      of 0x0D:
-        return kEnter
-      else:
-        continue
-  else:
-    case getch()
-    of '\r':
-      return kEnter
-    of '\27':
-      if getch() == '[':
-        case getch():
-        of 'A':
-          return kArrowUp
-        of 'B':
-          return kArrowDown
-        else: discard
-    else: discard
-    result = getKey()
-
 proc promptListInteractive(question: string, args: openarray[string]): string =
   display("Prompt:", question, Warning, HighPriority)
-  display("Select", "With up/down arrow keys, 'Enter' when done", Message,
+  display("Select", "Cycle with 'Tab', 'Enter' when done", Message,
     HighPriority)
   displayCategory("Choices:", Warning, HighPriority)
   var
@@ -251,17 +210,16 @@ proc promptListInteractive(question: string, args: openarray[string]): string =
     resetAttributes(stdout)
 
     # Begin key input
-    var key: Key
-    while key == kNone:
-      key = getKey()
-    case key:
-    of kArrowUp:
-      current = if current - 1 < 0: args.len - 1 else: current - 1
-    of kArrowDown:
-      current = (current + 1) mod args.len
-    of kEnter:
-      selected = true
-    else: assert(false)
+    while true:
+      case getch():
+      of '\t':
+        current = (current + 1) mod args.len
+        break
+      of '\r':
+        selected = true
+        break
+      else: discard
+
   # Erase all lines of the selection
   for i in 0..<args.len:
     eraseLine(stdout)
