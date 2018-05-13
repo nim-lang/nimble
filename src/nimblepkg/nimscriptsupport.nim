@@ -275,6 +275,8 @@ proc execScript(scriptName: string, flags: Flags, options: Options): PSym =
   ## Executes the specified script. Returns the script's module symbol.
   ##
   ## No clean up is performed and must be done manually!
+  graph = newModuleGraph()
+
   let conf = graph.config
   when declared(NimCompilerApiVersion):
     if "nimblepkg/nimscriptapi" notin conf.implicitImports:
@@ -379,7 +381,6 @@ proc execScript(scriptName: string, flags: Flags, options: Options): PSym =
   when declared(resetAllModulesHard):
     result = makeModule(scriptName)
   else:
-    graph = newModuleGraph()
     result = graph.makeModule(scriptName)
 
   incl(result.flags, sfMainModule)
