@@ -269,7 +269,7 @@ proc getLibVersion(lib: string): Version =
     return system.NimVersion.newVersion()
 
 when declared(ModuleGraph):
-  var graph: ModuleGraph
+  var graph = newModuleGraph()
 
 proc execScript(scriptName: string, flags: Flags, options: Options): PSym =
   ## Executes the specified script. Returns the script's module symbol.

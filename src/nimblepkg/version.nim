@@ -166,7 +166,7 @@ proc parseVersionRange*(s: string): VersionRange =
   var i = 0
   var op = ""
   var version = ""
-  while true:
+  while i < s.len:
     case s[i]
     of '>', '<', '=':
       op.add(s[i])
@@ -189,10 +189,6 @@ proc parseVersionRange*(s: string): VersionRange =
     of '0'..'9', '.':
       version.add(s[i])
 
-    of '\0':
-      result = makeRange(version, op)
-      break
-
     of ' ':
       # Make sure '0.9 8.03' is not allowed.
       if version != "" and i < s.len:
@@ -204,6 +200,7 @@ proc parseVersionRange*(s: string): VersionRange =
       raise newException(ParseVersionError,
           "Unexpected char in version range '" & s & "': " & s[i])
     inc(i)
+  result = makeRange(version, op)
 
 proc toVersionRange*(ver: Version): VersionRange =
   ## Converts a version to either a verEq or verSpecial VersionRange.
