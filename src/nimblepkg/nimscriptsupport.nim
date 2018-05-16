@@ -275,7 +275,7 @@ proc execScript(scriptName: string, flags: Flags, options: Options): PSym =
   ## Executes the specified script. Returns the script's module symbol.
   ##
   ## No clean up is performed and must be done manually!
-  graph = newModuleGraph()
+  graph = newModuleGraph(graph.config)
 
   let conf = graph.config
   when declared(NimCompilerApiVersion):
