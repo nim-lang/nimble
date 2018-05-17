@@ -34,7 +34,7 @@ proc execNimble(args: varargs[string]): tuple[output: string, exitCode: int] =
   var quotedArgs = @args
   quotedArgs.insert(nimblePath)
   quotedArgs.add("--nimbleDir:" & installDir)
-  quotedArgs = quoted_args.map((x: string) => ("\"" & x & "\""))
+  quotedArgs = quotedArgs.map((x: string) => ("\"" & x & "\""))
 
   result = execCmdEx(quotedArgs.join(" "))
   checkpoint(result.output)
