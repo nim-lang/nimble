@@ -388,7 +388,7 @@ proc execScript(scriptName: string, flags: Flags, options: Options): PSym =
 
   # Setup builtins defined in nimscriptapi.nim
   template cbApi(name, body) {.dirty.} =
-    vm.globalCtx.registerCallback pkgName & "." & astToStr(name),
+    vm.globalCtx.registerCallback "nimscriptapi." & astToStr(name),
       proc (a: VmArgs) =
         body
 
