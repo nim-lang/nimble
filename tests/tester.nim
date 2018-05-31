@@ -294,6 +294,13 @@ test "pre hook can prevent action":
     check(not inLines(lines, "Shouldn't happen"))
     check inLines(lines, "Hook prevented further execution")
 
+test "nimble script api":
+  cd "nimscript":
+    let (output, exitCode) = execNimble("api")
+    let lines = output.strip.splitLines()
+    check exitCode == QuitSuccess
+    check inLines(lines, "PKG_DIR: " & getCurrentDir())
+
 test "can install packagebin2":
   let args = ["install", "-y", "https://github.com/nimble-test/packagebin2.git"]
   check execNimble(args).exitCode == QuitSuccess
