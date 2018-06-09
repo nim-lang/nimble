@@ -40,8 +40,13 @@ proc raiseVariableError(ident, typ: string) {.noinline.} =
 
 proc isStrLit(n: PNode): bool = n.kind in {nkStrLit..nkTripleStrLit}
 
+when declared(NimCompilerApiVersion):
+  const finalApi = NimCompilerApiVersion >= 2
+else:
+  const finalApi = false
+
 proc getGlobal(g: ModuleGraph; ident: PSym): string =
-  when declared(NimCompilerApiVersion) and NimCompilerApiVersion >= 2:
+  when finalApi:
     let n = vm.getGlobalValue(PCtx g.vm, ident)
   else:
     let n = vm.globalCtx.getGlobalValue(ident)
@@ -51,7 +56,7 @@ proc getGlobal(g: ModuleGraph; ident: PSym): string =
     raiseVariableError(ident.name.s, "string")
 
 proc getGlobalAsSeq(g: ModuleGraph; ident: PSym): seq[string] =
-  when declared(NimCompilerApiVersion) and NimCompilerApiVersion >= 2:
+  when finalApi:
     let n = vm.getGlobalValue(PCtx g.vm, ident)
   else:
     let n = vm.globalCtx.getGlobalValue(ident)
@@ -66,7 +71,7 @@ proc getGlobalAsSeq(g: ModuleGraph; ident: PSym): seq[string] =
     raiseVariableError(ident.name.s, "seq[string]")
 
 proc extractRequires(g: ModuleGraph; ident: PSym, result: var seq[PkgTuple]) =
-  when declared(NimCompilerApiVersion) and NimCompilerApiVersion >= 2:
+  when finalApi:
     let n = vm.getGlobalValue(PCtx g.vm, ident)
   else:
     let n = vm.globalCtx.getGlobalValue(ident)
@@ -277,7 +282,7 @@ proc getLibVersion(lib: string): Version =
   else:
     return system.NimVersion.newVersion()
 
-when declared(NimCompilerApiVersion) and NimCompilerApiVersion >= 2:
+when finalApi:
   var graph = newModuleGraph(identCache, newConfigRef())
 
 elif declared(ModuleGraph):
@@ -287,7 +292,7 @@ proc execScript(scriptName: string, flags: Flags, options: Options): PSym =
   ## Executes the specified script. Returns the script's module symbol.
   ##
   ## No clean up is performed and must be done manually!
-  when declared(NimCompilerApiVersion) and NimCompilerApiVersion >= 2:
+  when finalApi:
     graph = newModuleGraph(graph.cache, graph.config)
   else:
     graph = newModuleGraph(graph.config)
@@ -406,7 +411,7 @@ proc execScript(scriptName: string, flags: Flags, options: Options): PSym =
     result = graph.makeModule(scriptName)
 
   incl(result.flags, sfMainModule)
-  when declared(NimCompilerApiVersion) and NimCompilerApiVersion >= 2:
+  when finalApi:
     graph.vm = setupVM(graph, result, scriptName, flags)
 
     # Setup builtins defined in nimscriptapi.nim
@@ -427,7 +432,7 @@ proc execScript(scriptName: string, flags: Flags, options: Options): PSym =
   cbApi getPkgDir:
     setResult(a, scriptName.splitFile.dir)
 
-  when declared(NimCompilerApiVersion) and NimCompilerApiVersion >= 2:
+  when finalApi:
     graph.compileSystemModule()
     graph.processModule(result, llStreamOpen(scriptName, fmRead))
   elif declared(newIdentCache):
@@ -452,7 +457,7 @@ proc cleanup() =
     resetAllModulesHard()
   else:
     resetSystemArtifacts()
-  when declared(NimCompilerApiVersion) and NimCompilerApiVersion >= 2:
+  when finalApi:
     clearPasses(graph)
   else:
     clearPasses()
@@ -499,7 +504,7 @@ proc readPackageInfoFromNims*(scriptName: string, options: Options,
       raise newException(NimbleError, output)
     previousMsg = output
 
-  when declared(NimCompilerApiVersion) and NimCompilerApiVersion >= 2:
+  when finalApi:
     conf.writelnHook = writelnHook
   else:
     msgs.writeLnHook = writelnHook
@@ -608,7 +613,7 @@ proc execTask*(scriptName, taskName: string,
     # Procedure not defined in the NimScript module.
     result.success = false
     return
-  when declared(NimCompilerApiVersion) and NimCompilerApiVersion >= 2:
+  when finalApi:
     discard vm.execProc(PCtx(graph.vm), prc, [])
   else:
     discard vm.globalCtx.execProc(prc, [])
@@ -646,7 +651,7 @@ proc execHook*(scriptName, actionName: string, before: bool,
     result.success = false
     cleanup()
     return
-  when declared(NimCompilerApiVersion) and NimCompilerApiVersion >= 2:
+  when finalApi:
     let returnVal = vm.execProc(PCtx(graph.vm), prc, [])
   else:
     let returnVal = vm.globalCtx.execProc(prc, [])
