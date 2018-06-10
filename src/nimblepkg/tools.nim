@@ -87,7 +87,7 @@ proc changeRoot*(origRoot, newRoot, path: string): string =
   ## the trailing separator. This would cause this method to throw during package
   ## installation.
   if path.startsWith(origRoot) or path.samePaths(origRoot):
-    return newRoot / path[origRoot.len .. path.len-1]
+    return newRoot / path.substr(origRoot.len, path.len-1)
   else:
     raise newException(ValueError,
       "Cannot change root of path: Path does not begin with original root.")

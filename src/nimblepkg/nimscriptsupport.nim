@@ -40,15 +40,26 @@ proc raiseVariableError(ident, typ: string) {.noinline.} =
 
 proc isStrLit(n: PNode): bool = n.kind in {nkStrLit..nkTripleStrLit}
 
-proc getGlobal(ident: PSym): string =
-  let n = vm.globalCtx.getGlobalValue(ident)
+when declared(NimCompilerApiVersion):
+  const finalApi = NimCompilerApiVersion >= 2
+else:
+  const finalApi = false
+
+proc getGlobal(g: ModuleGraph; ident: PSym): string =
+  when finalApi:
+    let n = vm.getGlobalValue(PCtx g.vm, ident)
+  else:
+    let n = vm.globalCtx.getGlobalValue(ident)
   if n.isStrLit:
     result = if n.strVal.isNil: "" else: n.strVal
   else:
     raiseVariableError(ident.name.s, "string")
 
-proc getGlobalAsSeq(ident: PSym): seq[string] =
-  let n = vm.globalCtx.getGlobalValue(ident)
+proc getGlobalAsSeq(g: ModuleGraph; ident: PSym): seq[string] =
+  when finalApi:
+    let n = vm.getGlobalValue(PCtx g.vm, ident)
+  else:
+    let n = vm.globalCtx.getGlobalValue(ident)
   result = @[]
   if n.kind == nkBracket:
     for x in n:
@@ -59,8 +70,11 @@ proc getGlobalAsSeq(ident: PSym): seq[string] =
   else:
     raiseVariableError(ident.name.s, "seq[string]")
 
-proc extractRequires(ident: PSym, result: var seq[PkgTuple]) =
-  let n = vm.globalCtx.getGlobalValue(ident)
+proc extractRequires(g: ModuleGraph; ident: PSym, result: var seq[PkgTuple]) =
+  when finalApi:
+    let n = vm.getGlobalValue(PCtx g.vm, ident)
+  else:
+    let n = vm.globalCtx.getGlobalValue(ident)
   if n.kind == nkBracket:
     for x in n:
       if x.kind == nkPar and x.len == 2 and x[0].isStrLit and x[1].isStrLit:
@@ -268,14 +282,20 @@ proc getLibVersion(lib: string): Version =
   else:
     return system.NimVersion.newVersion()
 
-when declared(ModuleGraph):
+when finalApi:
+  var graph = newModuleGraph(identCache, newConfigRef())
+
+elif declared(ModuleGraph):
   var graph = newModuleGraph()
 
 proc execScript(scriptName: string, flags: Flags, options: Options): PSym =
   ## Executes the specified script. Returns the script's module symbol.
   ##
   ## No clean up is performed and must be done manually!
-  graph = newModuleGraph(graph.config)
+  when finalApi:
+    graph = newModuleGraph(graph.cache, graph.config)
+  else:
+    graph = newModuleGraph(graph.config)
 
   let conf = graph.config
   when declared(NimCompilerApiVersion):
@@ -353,15 +373,22 @@ proc execScript(scriptName: string, flags: Flags, options: Options): PSym =
 
   when declared(NimCompilerApiVersion):
     initDefines(conf.symbols)
-    loadConfigs(DefaultConfig, conf)
-    passes.gIncludeFile = includeModule
-    passes.gImportModule = importModule
+    when NimCompilerApiVersion >= 2:
+      loadConfigs(DefaultConfig, graph.cache, conf)
+    else:
+      loadConfigs(DefaultConfig, conf)
+      passes.gIncludeFile = includeModule
+      passes.gImportModule = importModule
 
     defineSymbol(conf.symbols, "nimscript")
     defineSymbol(conf.symbols, "nimconfig")
     defineSymbol(conf.symbols, "nimble")
-    registerPass(semPass)
-    registerPass(evalPass)
+    when NimCompilerApiVersion >= 2:
+      registerPass(graph, semPass)
+      registerPass(graph, evalPass)
+    else:
+      registerPass(semPass)
+      registerPass(evalPass)
 
     conf.searchPaths.add(conf.libpath)
   else:
@@ -384,18 +411,31 @@ proc execScript(scriptName: string, flags: Flags, options: Options): PSym =
     result = graph.makeModule(scriptName)
 
   incl(result.flags, sfMainModule)
-  vm.globalCtx = setupVM(graph, result, scriptName, flags)
+  when finalApi:
+    graph.vm = setupVM(graph, result, scriptName, flags)
 
-  # Setup builtins defined in nimscriptapi.nim
-  template cbApi(name, body) {.dirty.} =
-    vm.globalCtx.registerCallback "nimscriptapi." & astToStr(name),
-      proc (a: VmArgs) =
-        body
+    # Setup builtins defined in nimscriptapi.nim
+    template cbApi(name, body) {.dirty.} =
+      PCtx(graph.vm).registerCallback "nimscriptapi." & astToStr(name),
+        proc (a: VmArgs) =
+          body
+
+  else:
+    vm.globalCtx = setupVM(graph, result, scriptName, flags)
+
+    # Setup builtins defined in nimscriptapi.nim
+    template cbApi(name, body) {.dirty.} =
+      vm.globalCtx.registerCallback "nimscriptapi." & astToStr(name),
+        proc (a: VmArgs) =
+          body
 
   cbApi getPkgDir:
     setResult(a, scriptName.splitFile.dir)
 
-  when declared(newIdentCache):
+  when finalApi:
+    graph.compileSystemModule()
+    graph.processModule(result, llStreamOpen(scriptName, fmRead))
+  elif declared(newIdentCache):
     graph.compileSystemModule(identCache)
     graph.processModule(result, llStreamOpen(scriptName, fmRead), nil, identCache)
   else:
@@ -417,11 +457,18 @@ proc cleanup() =
     resetAllModulesHard()
   else:
     resetSystemArtifacts()
-  clearPasses()
+  when finalApi:
+    clearPasses(graph)
+  else:
+    clearPasses()
   when declared(NimCompilerApiVersion):
     conf.errorMax = 1
-    msgs.writeLnHook = nil
-    vm.globalCtx = nil
+    when NimCompilerApiVersion >= 2:
+      conf.writeLnHook = nil
+      graph.vm = nil
+    else:
+      msgs.writeLnHook = nil
+      vm.globalCtx = nil
     initDefines(conf.symbols)
   else:
     msgs.gErrorMax = 1
@@ -446,16 +493,21 @@ proc readPackageInfoFromNims*(scriptName: string, options: Options,
     else: msgs.gErrorCounter
 
   var previousMsg = ""
-  msgs.writeLnHook =
-    proc (output: string) =
-      # The error counter is incremented after the writeLnHook is invoked.
-      if errCounter() > 0:
-        raise newException(NimbleError, previousMsg)
-      elif previousMsg.len > 0:
-        display("Info", previousMsg, priority = MediumPriority)
-      if output.normalize.startsWith("error"):
-        raise newException(NimbleError, output)
-      previousMsg = output
+
+  proc writelnHook(output: string) =
+    # The error counter is incremented after the writeLnHook is invoked.
+    if errCounter() > 0:
+      raise newException(NimbleError, previousMsg)
+    elif previousMsg.len > 0:
+      display("Info", previousMsg, priority = MediumPriority)
+    if output.normalize.startsWith("error"):
+      raise newException(NimbleError, output)
+    previousMsg = output
+
+  when finalApi:
+    conf.writelnHook = writelnHook
+  else:
+    msgs.writeLnHook = writelnHook
 
   when declared(NimCompilerApiVersion):
     conf.command = internalCmd
@@ -482,18 +534,18 @@ proc readPackageInfoFromNims*(scriptName: string, options: Options,
 
   # Extract all the necessary fields populated by the nimscript file.
   proc getSym(apiModule: PSym, ident: string): PSym =
-    result = apiModule.tab.strTableGet(getIdent(ident))
+    result = apiModule.tab.strTableGet(getIdent(identCache, ident))
     if result.isNil:
       raise newException(NimbleError, "Ident not found: " & ident)
 
   template trivialField(field) =
-    result.field = getGlobal(getSym(apiModule, astToStr field))
+    result.field = getGlobal(graph, getSym(apiModule, astToStr field))
 
   template trivialFieldSeq(field) =
-    result.field.add getGlobalAsSeq(getSym(apiModule, astToStr field))
+    result.field.add getGlobalAsSeq(graph, getSym(apiModule, astToStr field))
 
   # keep reasonable default:
-  let name = getGlobal(apiModule.tab.strTableGet(getIdent"packageName"))
+  let name = getGlobal(graph, apiModule.tab.strTableGet(getIdent(identCache, "packageName")))
   if name.len > 0: result.name = name
 
   trivialField version
@@ -510,13 +562,13 @@ proc readPackageInfoFromNims*(scriptName: string, options: Options,
   trivialFieldSeq installExt
   trivialFieldSeq foreignDeps
 
-  extractRequires(getSym(apiModule, "requiresData"), result.requires)
+  extractRequires(graph, getSym(apiModule, "requiresData"), result.requires)
 
-  let binSeq = getGlobalAsSeq(getSym(apiModule, "bin"))
+  let binSeq = getGlobalAsSeq(graph, getSym(apiModule, "bin"))
   for i in binSeq:
     result.bin.add(i.addFileExt(ExeExt))
 
-  let backend = getGlobal(getSym(apiModule, "backend"))
+  let backend = getGlobal(graph, getSym(apiModule, "backend"))
   if backend.len == 0:
     result.backend = "c"
   elif cmpIgnoreStyle(backend, "javascript") == 0:
@@ -556,12 +608,15 @@ proc execTask*(scriptName, taskName: string,
           priority = HighPriority)
 
   let thisModule = execScript(scriptName, result.flags, options)
-  let prc = thisModule.tab.strTableGet(getIdent(taskName & "Task"))
+  let prc = thisModule.tab.strTableGet(getIdent(identCache, taskName & "Task"))
   if prc.isNil:
     # Procedure not defined in the NimScript module.
     result.success = false
     return
-  discard vm.globalCtx.execProc(prc, [])
+  when finalApi:
+    discard vm.execProc(PCtx(graph.vm), prc, [])
+  else:
+    discard vm.globalCtx.execProc(prc, [])
 
   # Read the command, arguments and flags set by the executed task.
   result.command = nimCommand()
@@ -590,13 +645,16 @@ proc execHook*(scriptName, actionName: string, before: bool,
 
   let thisModule = execScript(scriptName, result.flags, options)
   # Explicitly execute the task procedure, instead of relying on hack.
-  let prc = thisModule.tab.strTableGet(getIdent(hookName))
+  let prc = thisModule.tab.strTableGet(getIdent(identCache, hookName))
   if prc.isNil:
     # Procedure not defined in the NimScript module.
     result.success = false
     cleanup()
     return
-  let returnVal = vm.globalCtx.execProc(prc, [])
+  when finalApi:
+    let returnVal = vm.execProc(PCtx(graph.vm), prc, [])
+  else:
+    let returnVal = vm.globalCtx.execProc(prc, [])
   case returnVal.kind
   of nkCharLit..nkUInt64Lit:
     result.retVal = returnVal.intVal == 1
