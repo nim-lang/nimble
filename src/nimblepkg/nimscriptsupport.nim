@@ -612,6 +612,7 @@ proc execTask*(scriptName, taskName: string,
   if prc.isNil:
     # Procedure not defined in the NimScript module.
     result.success = false
+    cleanup()
     return
   when finalApi:
     discard vm.execProc(PCtx(graph.vm), prc, [])
