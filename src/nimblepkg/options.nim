@@ -386,6 +386,10 @@ proc getProxy*(options: Options): Proxy =
         url = getEnv("http_proxy")
       elif existsEnv("https_proxy"):
         url = getEnv("https_proxy")
+      elif existsEnv("HTTP_PROXY"):
+        url = getEnv("HTTP_PROXY")
+      elif existsEnv("HTTPS_PROXY"):
+        url = getEnv("HTTPS_PROXY")
     except ValueError:
       display("Warning:", "Unable to parse proxy from environment: " &
           getCurrentExceptionMsg(), Warning, HighPriority)
