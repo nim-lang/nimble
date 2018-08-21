@@ -107,8 +107,8 @@ proc requiredField(obj: JsonNode, name: string): string =
   ## Queries ``obj`` for the required ``name`` string.
   ##
   ## Aborts execution if the field does not exist or is of invalid json type.
-  result = optionalField(obj, name, nil)
-  if result == nil:
+  result = optionalField(obj, name)
+  if result.len == 0:
     raise newException(NimbleError,
         "Package in packages.json file does not contain a " & name & " field.")
 
