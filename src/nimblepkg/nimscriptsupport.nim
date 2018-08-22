@@ -362,7 +362,7 @@ proc execScript(scriptName: string, flags: Flags, options: Options): PSym =
 
   # Ensure that "nimblepkg/nimscriptapi" is in the PATH.
   block:
-    let t = options.getNimbleDir / "nimblecache"
+    let t = getTempDir() / "nimblecache"
     let tmpNimscriptApiPath = t / "nimblepkg" / "nimscriptapi.nim"
     createDir(tmpNimscriptApiPath.splitFile.dir)
     writeFile(tmpNimscriptApiPath, nimscriptApi)

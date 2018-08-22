@@ -43,3 +43,9 @@ before hooks2:
 
 task hooks2, "Testing the hooks again":
   echo("Shouldn't happen")
+
+before install:
+  echo("Before PkgDir: ", getPkgDir())
+
+after install:
+  echo("After PkgDir: ", getPkgDir())

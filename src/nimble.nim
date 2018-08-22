@@ -330,6 +330,13 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
   ## to the packages this package depends on.
   ## The return value of this function is used by
   ## ``processDeps`` to gather a list of paths to pass to the nim compiler.
+
+  # Handle pre-`install` hook.
+  if not options.depsOnly:
+    cd dir: # Make sure `execHook` executes the correct .nimble file.
+      if not execHook(options, true):
+        raise newException(NimbleError, "Pre-hook prevented further execution.")
+
   var pkgInfo = getPkgInfo(dir, options)
   let realDir = pkgInfo.getRealDir()
   let binDir = options.getBinDir()
@@ -433,6 +440,12 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
   display("Success:", pkgInfo.name & " installed successfully.",
           Success, HighPriority)
 
+  # Run post-install hook now that package is installed. The `execHook` proc
+  # executes the hook defined in the CWD, so we set it to where the package
+  # has been installed.
+  cd dest.splitFile.dir:
+    discard execHook(options, false)
+
 proc getDownloadInfo*(pv: PkgTuple, options: Options,
                       doPrompt: bool): (DownloadMethod, string,
                                         Table[string, string]) =
@@ -472,17 +485,7 @@ proc install(packages: seq[PkgTuple],
       let (downloadDir, downloadVersion) =
           downloadPkg(url, pv.ver, meth, subdir, options)
       try:
-        # Run pre-install hook in download directory now that package is downloaded
-        cd downloadDir:
-          if not execHook(options, true):
-            raise newException(NimbleError, "Pre-hook prevented further execution.")
-
         result = installFromDir(downloadDir, pv.ver, options, url)
-
-        # Run post-install hook in installed directory now that package is installed
-        # Standard hooks run in current directory so it won't detect this new package
-        cd result.pkg.myPath.parentDir():
-          discard execHook(options, false)
       except BuildFailed:
         # The package failed to build.
         # Check if we tried building a tagged version of the package.
@@ -945,6 +948,10 @@ proc developFromDir(dir: string, options: Options) =
   if options.depsOnly:
     raiseNimbleError("Cannot develop dependencies only.")
 
+  cd dir: # Make sure `execHook` executes the correct .nimble file.
+    if not execHook(options, true):
+      raise newException(NimbleError, "Pre-hook prevented further execution.")
+
   var pkgInfo = getPkgInfo(dir, options)
   if pkgInfo.bin.len > 0:
     if "nim" in pkgInfo.skipExt:
@@ -993,6 +1000,10 @@ proc developFromDir(dir: string, options: Options) =
 
   display("Success:", (pkgInfo.name & " linked successfully to '$1'.") %
           dir, Success, HighPriority)
+
+  # Execute the post-develop hook.
+  cd dir:
+    discard execHook(options, false)
 
 proc develop(options: Options) =
   if options.action.packages == @[]:
@@ -1064,10 +1075,6 @@ proc doAction(options: Options) =
   if not existsDir(options.getPkgsDir):
     createDir(options.getPkgsDir)
 
-  if not execHook(options, true):
-    display("Warning", "Pre-hook prevented further execution.", Warning,
-            HighPriority)
-    return
   case options.action.typ
   of actionRefresh:
     refresh(options)
@@ -1111,6 +1118,10 @@ proc doAction(options: Options) =
   of actionNil:
     assert false
   of actionCustom:
+    if not execHook(options, true):
+      display("Warning", "Pre-hook prevented further execution.", Warning,
+              HighPriority)
+      return
     let isPreDefined = options.action.command.normalize == "test"
 
     var execResult: ExecutionResult[void]
@@ -1124,9 +1135,6 @@ proc doAction(options: Options) =
         test(options)
         # Run the post hook for `test` in case it exists.
         discard execHook(options, false)
-
-  if options.action.typ != actionCustom:
-    discard execHook(options, false)
 
 when isMainModule:
   var error = ""

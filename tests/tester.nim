@@ -36,7 +36,10 @@ proc execNimble(args: varargs[string]): tuple[output: string, exitCode: int] =
   quotedArgs.add("--nimbleDir:" & installDir)
   quotedArgs = quotedArgs.map((x: string) => ("\"" & x & "\""))
 
-  result = execCmdEx(quotedArgs.join(" "))
+  let path = getCurrentDir().parentDir() / "src"
+
+  let cmd = "PATH=" & path & ":$PATH " & quotedArgs.join(" ")
+  result = execCmdEx(cmd)
   checkpoint(result.output)
 
 proc execNimbleYes(args: varargs[string]): tuple[output: string, exitCode: int]=
@@ -235,71 +238,82 @@ test "package list can only have one source":
     check inLines(lines, "Attempted to specify `url` and `path` for the same package list 'local'")
     check exitCode == QuitFailure
 
-test "can install nimscript package":
-  cd "nimscript":
-    check execNimble(["install", "-y"]).exitCode == QuitSuccess
+suite "nimscript":
+  test "can install nimscript package":
+    cd "nimscript":
+      check execNimble(["install", "-y"]).exitCode == QuitSuccess
 
-test "can execute nimscript tasks":
-  cd "nimscript":
-    let (output, exitCode) = execNimble("--verbose", "work")
-    let lines = output.strip.splitLines()
-    check exitCode == QuitSuccess
-    check lines[^1] == "10"
+  test "before/after install pkg dirs are correct":
+    cd "nimscript":
+      let (output, exitCode) = execNimble(["install", "-y"])
+      check exitCode == QuitSuccess
+      let lines = output.strip.splitLines()
+      check lines[0].startsWith("Before PkgDir:")
+      check lines[0].endsWith("tests/nimscript")
+      check lines[^1].startsWith("After PkgDir:")
+      check lines[^1].endsWith("tests/nimbleDir/pkgs/nimscript-0.1.0")
 
-test "can use nimscript's setCommand":
-  cd "nimscript":
-    let (output, exitCode) = execNimble("--verbose", "cTest")
-    let lines = output.strip.splitLines()
-    check exitCode == QuitSuccess
-    check "Execution finished".normalize in lines[^1].normalize
+  test "can execute nimscript tasks":
+    cd "nimscript":
+      let (output, exitCode) = execNimble("--verbose", "work")
+      let lines = output.strip.splitLines()
+      check exitCode == QuitSuccess
+      check lines[^1] == "10"
 
-test "can use nimscript's setCommand with flags":
-  cd "nimscript":
-    let (output, exitCode) = execNimble("--debug", "cr")
-    let lines = output.strip.splitLines()
-    check exitCode == QuitSuccess
-    check inLines(lines, "Hello World")
+  test "can use nimscript's setCommand":
+    cd "nimscript":
+      let (output, exitCode) = execNimble("--verbose", "cTest")
+      let lines = output.strip.splitLines()
+      check exitCode == QuitSuccess
+      check "Execution finished".normalize in lines[^1].normalize
 
-test "can use nimscript with repeated flags (issue #329)":
-  cd "nimscript":
-    let (output, exitCode) = execNimble("--debug", "repeated")
-    let lines = output.strip.splitLines()
-    check exitCode == QuitSuccess
-    var found = false
-    for line in lines:
-      if line.contains("--define:foo"):
-        found = true
-    check found == true
+  test "can use nimscript's setCommand with flags":
+    cd "nimscript":
+      let (output, exitCode) = execNimble("--debug", "cr")
+      let lines = output.strip.splitLines()
+      check exitCode == QuitSuccess
+      check inLines(lines, "Hello World")
 
-test "can list nimscript tasks":
-  cd "nimscript":
-    let (output, exitCode) = execNimble("tasks")
-    check "work                 test description".normalize in output.normalize
-    check exitCode == QuitSuccess
+  test "can use nimscript with repeated flags (issue #329)":
+    cd "nimscript":
+      let (output, exitCode) = execNimble("--debug", "repeated")
+      let lines = output.strip.splitLines()
+      check exitCode == QuitSuccess
+      var found = false
+      for line in lines:
+        if line.contains("--define:foo"):
+          found = true
+      check found == true
 
-test "can use pre/post hooks":
-  cd "nimscript":
-    let (output, exitCode) = execNimble("hooks")
-    let lines = output.strip.splitLines()
-    check exitCode == QuitSuccess
-    check inLines(lines, "First")
-    check inLines(lines, "middle")
-    check inLines(lines, "last")
+  test "can list nimscript tasks":
+    cd "nimscript":
+      let (output, exitCode) = execNimble("tasks")
+      check "work                 test description".normalize in output.normalize
+      check exitCode == QuitSuccess
 
-test "pre hook can prevent action":
-  cd "nimscript":
-    let (output, exitCode) = execNimble("hooks2")
-    let lines = output.strip.splitLines()
-    check exitCode == QuitSuccess
-    check(not inLines(lines, "Shouldn't happen"))
-    check inLines(lines, "Hook prevented further execution")
+  test "can use pre/post hooks":
+    cd "nimscript":
+      let (output, exitCode) = execNimble("hooks")
+      let lines = output.strip.splitLines()
+      check exitCode == QuitSuccess
+      check inLines(lines, "First")
+      check inLines(lines, "middle")
+      check inLines(lines, "last")
 
-test "nimble script api":
-  cd "nimscript":
-    let (output, exitCode) = execNimble("api")
-    let lines = output.strip.splitLines()
-    check exitCode == QuitSuccess
-    check inLines(lines, "PKG_DIR: " & getCurrentDir())
+  test "pre hook can prevent action":
+    cd "nimscript":
+      let (output, exitCode) = execNimble("hooks2")
+      let lines = output.strip.splitLines()
+      check exitCode == QuitSuccess
+      check(not inLines(lines, "Shouldn't happen"))
+      check inLines(lines, "Hook prevented further execution")
+
+  test "nimble script api":
+    cd "nimscript":
+      let (output, exitCode) = execNimble("api")
+      let lines = output.strip.splitLines()
+      check exitCode == QuitSuccess
+      check inLines(lines, "PKG_DIR: " & getCurrentDir())
 
 test "can install packagebin2":
   let args = ["install", "-y", "https://github.com/nimble-test/packagebin2.git"]
@@ -490,6 +504,9 @@ test "can install diamond deps (#184)":
       let (output, exitCode) = execNimble("install", "-y")
       checkpoint(output)
       check exitCode == 0
+
+test "issues #280 and #524":
+  check execNimble("install", "-y", "https://github.com/nimble-test/issue280and524.git").exitCode == 0
 
 suite "can handle two binary versions":
   setup:
