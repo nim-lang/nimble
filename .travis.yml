@@ -15,7 +15,7 @@ install:
 before_script:
   - set -e
   - set -x
-  - export PATH=`pwd`/nim-0.18.0/bin:$PATH
+  - export PATH=`pwd`/nim-0.18.0/bin:$HOME/.nimble/bin:$PATH
 
 script:
   - cd tests
