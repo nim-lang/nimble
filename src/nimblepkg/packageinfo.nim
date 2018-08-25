@@ -316,6 +316,18 @@ proc findNimbleFile*(dir: string; error: bool): string =
       raiseNimbleError("The .nimble-link file is pointing to a missing" &
                        " file: " & result)
 
+proc getLinkedSrcDir(pathToLink,linkedFileDir: string): string =
+  ## Cheap and dirty get of linked package's srcDir.
+  result = ""
+  let nlPath = pathToLink.addFileExt(".nimble-link")
+  if fileExists(nlPath):
+    let nimbleLinkPath = readNimbleLink(nlPath).packageDir
+    let sResult = nimbleLinkPath.split(linkedFileDir)
+    if sResult.len == 2 and sResult[1] != "":
+      var srcDir = sResult[1]
+      srcDir.removePrefix(DirSep)
+      result = srcDir.strip()
+
 proc getInstalledPkgsMin*(libsDir: string, options: Options):
         seq[tuple[pkginfo: PackageInfo, meta: MetaData]] =
   ## Gets a list of installed packages. The resulting package info is
@@ -331,13 +343,16 @@ proc getInstalledPkgsMin*(libsDir: string, options: Options):
         let meta = readMetaData(path)
         let (name, version) = getNameVersion(path)
         var pkg = initPackageInfo(nimbleFile)
+        let nimbleFileDir = nimbleFile.splitFile().dir
         pkg.name = name
         pkg.version = version
         pkg.specialVersion = version
         pkg.isMinimal = true
         pkg.isInstalled = true
         pkg.isLinked =
-          cmpPaths(nimbleFile.splitFile().dir, path) != 0
+          cmpPaths(nimbleFileDir, path) != 0
+        if pkg.isLinked:
+          pkg.srcDir = getLinkedSrcDir(joinPath(path,pkg.name), nimbleFileDir)
         result.add((pkg, meta))
 
 proc withinRange*(pkgInfo: PackageInfo, verRange: VersionRange): bool =

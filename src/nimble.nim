@@ -628,23 +628,19 @@ proc listPaths(options: Options) =
     raise newException(NimbleError, "A package name needs to be specified")
 
   var errors = 0
+  let pkgs = getInstalledPkgsMin(options.getPkgsDir(), options)
   for name, version in options.action.packages.items:
     var installed: seq[VersionAndPath] = @[]
     # There may be several, list all available ones and sort by version.
-    for kind, path in walkDir(options.getPkgsDir):
-      if kind != pcDir or not path.startsWith(options.getPkgsDir / name & "-"):
-        continue
-
-      var nimbleFile = findNimbleFile(path, false)
-      if nimbleFile.existsFile:
-        var pkgInfo = getPkgInfo(path, options)
+    for x in pkgs.items():
+      let
+        pName = x.pkginfo.name
+        pVer = x.pkginfo.specialVersion
+      if name == pName:
         var v: VersionAndPath
-        v.version = newVersion(pkgInfo.specialVersion)
-        v.path = pkgInfo.getRealDir()
+        v.version = newVersion(pVer)
+        v.path = x.pkginfo.getRealDir()
         installed.add(v)
-      else:
-        display("Warning:", "No .nimble file found for " & path, Warning,
-                MediumPriority)
 
     if installed.len > 0:
       sort(installed, cmp[VersionAndPath], Descending)
