@@ -4,18 +4,22 @@ dist: trusty
 
 language: c
 
+cache:
+  directories:
+    - "$HOME/.nimble"
+    - "$HOME/.choosenim"
+
 install:
+  - export CHOOSENIM_CHOOSE_VERSION="#7bb93c730ea87f"
   - |
-      wget https://nim-lang.org/download/nim-0.18.0.tar.xz
-      tar -xf nim-0.18.0.tar.xz
-      cd nim-0.18.0
-      sh build.sh
-      cd ..
+      curl https://nim-lang.org/choosenim/init.sh -sSf > init.sh
+      sh init.sh -y
 
 before_script:
   - set -e
   - set -x
-  - export PATH=`pwd`/nim-0.18.0/bin:$HOME/.nimble/bin:$PATH
+  - export CHOOSENIM_NO_ANALYTICS=1
+  - export PATH=$HOME/.nimble/bin:$PATH
 
 script:
   - cd tests

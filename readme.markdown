@@ -905,7 +905,7 @@ The ``master`` branch is...
 
 * default
 * bleeding edge
-* tested to compile with the latest Nim version
+* tested to compile with a pinned (close to HEAD) commit of Nim
 
 The ``stable`` branch is...
 
