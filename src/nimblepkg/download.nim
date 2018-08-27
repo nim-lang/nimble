@@ -166,9 +166,6 @@ proc doDownload(url: string, downloadDir: string, verRange: VersionRange,
     meth
     if $latest.ver != "":
       result = latest.ver
-    else:
-      # Result should already be set to #head here.
-      assert(not result.isNil)
 
   removeDir(downloadDir)
   if verRange.kind == verSpecial:

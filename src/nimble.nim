@@ -622,7 +622,6 @@ proc listPaths(options: Options) =
   ## On success the proc returns normally.
   cli.setSuppressMessages(true)
   assert options.action.typ == actionPath
-  assert(not options.action.packages.isNil)
 
   if options.action.packages.len == 0:
     raise newException(NimbleError, "A package name needs to be specified")

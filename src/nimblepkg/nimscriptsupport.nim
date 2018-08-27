@@ -51,7 +51,7 @@ proc getGlobal(g: ModuleGraph; ident: PSym): string =
   else:
     let n = vm.globalCtx.getGlobalValue(ident)
   if n.isStrLit:
-    result = if n.strVal.isNil: "" else: n.strVal
+    result = n.strVal
   else:
     raiseVariableError(ident.name.s, "string")
 

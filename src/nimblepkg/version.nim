@@ -39,8 +39,6 @@ proc `$`*(ver: Version): string {.borrow.}
 
 proc hash*(ver: Version): Hash {.borrow.}
 
-proc isNil*(ver: Version): bool {.borrow.}
-
 proc newVersion*(ver: string): Version =
   doAssert(ver.len == 0 or ver[0] in {'#', '\0'} + Digits,
            "Wrong version: " & ver)

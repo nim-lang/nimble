@@ -371,8 +371,7 @@ proc findPkg*(pkglist: seq[tuple[pkgInfo: PackageInfo, meta: MetaData]],
     if cmpIgnoreStyle(pkg.pkginfo.name, dep.name) != 0 and
        cmpIgnoreStyle(pkg.meta.url, dep.name) != 0: continue
     if withinRange(pkg.pkgInfo, dep.ver):
-      let isNewer = (not r.version.isNil) and
-                    newVersion(r.version) < newVersion(pkg.pkginfo.version)
+      let isNewer = newVersion(r.version) < newVersion(pkg.pkginfo.version)
       if not result or isNewer:
         r = pkg.pkginfo
         result = true
