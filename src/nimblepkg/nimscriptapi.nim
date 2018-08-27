@@ -27,6 +27,26 @@ proc requires*(deps: varargs[string]) =
   ## package.
   for d in deps: requiresData.add(d)
 
+# TODO: New release of Nim will move this `task` template under a
+# `when not defined(nimble)`. This will allow us to override it in the future.
+when not declared(task):
+  template task*(name: untyped; description: string; body: untyped): untyped =
+    ## Defines a task. Hidden tasks are supported via an empty description.
+    ## Example:
+    ##
+    ## .. code-block:: nim
+    ##  task build, "default build is via the C backend":
+    ##    setCommand "c"
+    proc `name Task`*() = body
+
+    let cmd = getCommand()
+    if cmd.len == 0 or cmd ==? "help":
+      setCommand "help"
+      writeTask(astToStr(name), description)
+    elif cmd ==? astToStr(name):
+      setCommand "nop"
+    `name Task`()
+
 template before*(action: untyped, body: untyped): untyped =
   ## Defines a block of code which is evaluated before ``action`` is executed.
   proc `action Before`*(): bool =
