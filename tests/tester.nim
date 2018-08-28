@@ -52,7 +52,12 @@ template verify(res: (string, int)) =
   check r[1] == QuitSuccess
 
 proc processOutput(output: string): seq[string] =
-  output.strip.splitLines().filter((x: string) => (x.len > 0))
+  output.strip.splitLines().filter(
+    (x: string) => (
+      x.len > 0 and
+      "Using env var NIM_LIB_PREFIX" notin x
+    )
+  )
 
 proc inLines(lines: seq[string], line: string): bool =
   for i in lines:
@@ -87,7 +92,7 @@ test "can validate package structure (#144)":
     cd "packageStructure/" & package:
       let (output, exitCode) = execNimble(["install", "-y"])
       check exitCode == QuitSuccess
-      let lines = output.strip.splitLines()
+      let lines = output.strip.processOutput()
       check(not inLines(lines, "warning"))
 
   # Test that warnings are produced for the incorrectly structured packages.
@@ -95,7 +100,7 @@ test "can validate package structure (#144)":
     cd "packageStructure/" & package:
       let (output, exitCode) = execNimble(["install", "-y"])
       check exitCode == QuitSuccess
-      let lines = output.strip.splitLines()
+      let lines = output.strip.processOutput()
       checkpoint(output)
       case package
       of "x":
@@ -135,7 +140,7 @@ test "issue 113 (uninstallation problems)":
 
   # Try to remove c.
   let (output, exitCode) = execNimble(["remove", "-y", "c"])
-  let lines = output.strip.splitLines()
+  let lines = output.strip.processOutput()
   check exitCode != QuitSuccess
   check inLines(lines, "cannot uninstall c (0.1.0) because b (0.1.0) depends on it")
 
@@ -189,7 +194,7 @@ test "can refresh with custom urls":
 
     let (output, exitCode) = execNimble(["refresh", "--verbose"])
     checkpoint(output)
-    let lines = output.strip.splitLines()
+    let lines = output.strip.processOutput()
     check exitCode == QuitSuccess
     check inLines(lines, "config file at")
     check inLines(lines, "official package list")
@@ -206,7 +211,7 @@ test "can refresh with local package list":
       path = "$1"
     """.unindent % (getCurrentDir() / "issue368" / "packages.json"))
     let (output, exitCode) = execNimble(["refresh", "--verbose"])
-    let lines = output.strip.splitLines()
+    let lines = output.strip.processOutput()
     check inLines(lines, "config file at")
     check inLines(lines, "Copying")
     check inLines(lines, "Package list copied.")
@@ -219,7 +224,7 @@ test "package list source required":
       name = "local"
     """)
     let (output, exitCode) = execNimble(["refresh", "--verbose"])
-    let lines = output.strip.splitLines()
+    let lines = output.strip.processOutput()
     check inLines(lines, "config file at")
     check inLines(lines, "Package list 'local' requires either url or path")
     check exitCode == QuitFailure
@@ -233,7 +238,7 @@ test "package list can only have one source":
       url = "http://nim-lang.org/nimble/packages.json"
     """)
     let (output, exitCode) = execNimble(["refresh", "--verbose"])
-    let lines = output.strip.splitLines()
+    let lines = output.strip.processOutput()
     check inLines(lines, "config file at")
     check inLines(lines, "Attempted to specify `url` and `path` for the same package list 'local'")
     check exitCode == QuitFailure
@@ -247,7 +252,7 @@ suite "nimscript":
     cd "nimscript":
       let (output, exitCode) = execNimble(["install", "-y"])
       check exitCode == QuitSuccess
-      let lines = output.strip.splitLines()
+      let lines = output.strip.processOutput()
       check lines[0].startsWith("Before PkgDir:")
       check lines[0].endsWith("tests/nimscript")
       check lines[^1].startsWith("After PkgDir:")
@@ -256,28 +261,28 @@ suite "nimscript":
   test "can execute nimscript tasks":
     cd "nimscript":
       let (output, exitCode) = execNimble("--verbose", "work")
-      let lines = output.strip.splitLines()
+      let lines = output.strip.processOutput()
       check exitCode == QuitSuccess
       check lines[^1] == "10"
 
   test "can use nimscript's setCommand":
     cd "nimscript":
       let (output, exitCode) = execNimble("--verbose", "cTest")
-      let lines = output.strip.splitLines()
+      let lines = output.strip.processOutput()
       check exitCode == QuitSuccess
       check "Execution finished".normalize in lines[^1].normalize
 
   test "can use nimscript's setCommand with flags":
     cd "nimscript":
       let (output, exitCode) = execNimble("--debug", "cr")
-      let lines = output.strip.splitLines()
+      let lines = output.strip.processOutput()
       check exitCode == QuitSuccess
       check inLines(lines, "Hello World")
 
   test "can use nimscript with repeated flags (issue #329)":
     cd "nimscript":
       let (output, exitCode) = execNimble("--debug", "repeated")
-      let lines = output.strip.splitLines()
+      let lines = output.strip.processOutput()
       check exitCode == QuitSuccess
       var found = false
       for line in lines:
@@ -294,7 +299,7 @@ suite "nimscript":
   test "can use pre/post hooks":
     cd "nimscript":
       let (output, exitCode) = execNimble("hooks")
-      let lines = output.strip.splitLines()
+      let lines = output.strip.processOutput()
       check exitCode == QuitSuccess
       check inLines(lines, "First")
       check inLines(lines, "middle")
@@ -303,7 +308,7 @@ suite "nimscript":
   test "pre hook can prevent action":
     cd "nimscript":
       let (output, exitCode) = execNimble("hooks2")
-      let lines = output.strip.splitLines()
+      let lines = output.strip.processOutput()
       check exitCode == QuitSuccess
       check(not inLines(lines, "Shouldn't happen"))
       check inLines(lines, "Hook prevented further execution")
@@ -311,7 +316,7 @@ suite "nimscript":
   test "nimble script api":
     cd "nimscript":
       let (output, exitCode) = execNimble("api")
-      let lines = output.strip.splitLines()
+      let lines = output.strip.processOutput()
       check exitCode == QuitSuccess
       check inLines(lines, "PKG_DIR: " & getCurrentDir())
 
@@ -324,7 +329,7 @@ test "can reject same version dependencies":
       "install", "-y", "https://github.com/nimble-test/packagebin.git")
   # We look at the error output here to avoid out-of-order problems caused by
   # stderr output being generated and flushed without first flushing stdout
-  let ls = outp.strip.splitLines()
+  let ls = outp.strip.processOutput()
   check exitCode != QuitSuccess
   check "Cannot satisfy the dependency on PackageA 0.2.0 and PackageA 0.5.0" in
         ls[ls.len-1]
@@ -347,20 +352,20 @@ test "issue #27":
 test "issue #126":
   cd "issue126/a":
     let (output, exitCode) = execNimble("install", "-y")
-    let lines = output.strip.splitLines()
+    let lines = output.strip.processOutput()
     check exitCode != QuitSuccess # TODO
     check inLines(lines, "issue-126 is an invalid package name: cannot contain '-'")
 
   cd "issue126/b":
     let (output1, exitCode1) = execNimble("install", "-y")
-    let lines1 = output1.strip.splitLines()
+    let lines1 = output1.strip.processOutput()
     check exitCode1 != QuitSuccess
     check inLines(lines1, "The .nimble file name must match name specified inside")
 
 test "issue #108":
   cd "issue108":
     let (output, exitCode) = execNimble("build")
-    let lines = output.strip.splitLines()
+    let lines = output.strip.processOutput()
     check exitCode != QuitSuccess
     check inLines(lines, "Nothing to build")
 
@@ -403,7 +408,7 @@ test "issue #349":
 
   proc checkName(name: string) =
     let (outp, code) = execNimble("init", "-y", name)
-    let msg = outp.strip.splitLines()
+    let msg = outp.strip.processOutput()
     check code == QuitFailure
     check inLines(msg,
       "\"$1\" is an invalid package name: reserved name" % name)
@@ -431,7 +436,7 @@ test "can uninstall":
   block:
     let (outp, exitCode) = execNimble("uninstall", "-y", "issue27b")
 
-    let ls = outp.strip.splitLines()
+    let ls = outp.strip.processOutput()
     check exitCode != QuitSuccess
     check "Cannot uninstall issue27b (0.1.0) because issue27a (0.1.0) depends" &
           " on it" in ls[ls.len-1]
@@ -587,7 +592,7 @@ suite "develop feature":
 
       let path = installDir / "pkgs" / "hybrid-#head" / "hybrid.nimble-link"
       check fileExists(path)
-      let split = readFile(path).splitLines()
+      let split = readFile(path).processOutput()
       check split.len == 2
       check split[0].endsWith("develop/hybrid/hybrid.nimble")
       check split[1].endsWith("develop/hybrid")
@@ -602,7 +607,7 @@ suite "develop feature":
       let path = installDir / "pkgs" / "srcdirtest-#head" /
                  "srcdirtest.nimble-link"
       check fileExists(path)
-      let split = readFile(path).splitLines()
+      let split = readFile(path).processOutput()
       check split.len == 2
       check split[0].endsWith("develop/srcdirtest/srcdirtest.nimble")
       check split[1].endsWith("develop/srcdirtest/src")
