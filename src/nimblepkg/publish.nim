@@ -7,6 +7,7 @@
 import system except TResult
 import httpclient, base64, strutils, rdstdin, json, os, browsers, times, uri
 import tools, common, cli, config, options
+import sets
 
 type
   Auth = object
@@ -138,21 +139,47 @@ proc cleanupWhitespace(s: string): string =
   if result[^1] != '\L':
     result.add '\L'
 
-proc editJson(p: PackageInfo; url, tags, downloadMethod: string) =
+proc checkNameExisted(pnode: JsonNode,pkg:var PackageInfo):bool =
+  var pname:string
+  var similarNames = initSet[string]()
+  for pdata in pnode:
+    pname = pdata["name"].str
+    if pkg.name.len != pname.len and pkg.name in pname:
+      similarNames.incl(pname)
+    if pkg.name == pname:
+        result = true
+  if result == true:
+    let andOthers = if similarNames.len > 0: "\nand other existed similar named packages" else: ""
+    var names:string = ""
+    for x in similarNames:
+      names.add(x & ",")
+    var newName = promptCustom("package name:" & pkg.name & " already existed,would you like to make a new name?" & andOthers, names[0..^2])
+    if newName.len == 0: 
+      userAborted()
+    else:
+      if newName != pkg.name and newName in similarNames == false:
+        pkg.name = newName
+        result = false
+        # automaticlly rename project file names?
+    
+
+proc editJson(p: var PackageInfo; url, tags, downloadMethod: string) =
   var contents = parseFile("packages.json")
   doAssert contents.kind == JArray
-  contents.add(%*{
-    "name": p.name,
-    "url": url,
-    "method": downloadMethod,
-    "tags": tags.split(),
-    "description": p.description,
-    "license": p.license,
-    "web": url
-  })
-  writeFile("packages.json", contents.pretty.cleanupWhitespace)
+  while not checkNameExisted(contents,p):
+    contents.add(%*{
+      "name": p.name,
+      "url": url,
+      "method": downloadMethod,
+      "tags": tags.split(),
+      "description": p.description,
+      "license": p.license,
+      "web": url
+    })
+    writeFile("packages.json", contents.pretty.cleanupWhitespace)
+    break;
 
-proc publish*(p: PackageInfo, o: Options) =
+proc publish*(p: var PackageInfo, o: Options) =
   ## Publishes the package p.
   let auth = getGithubAuth(o)
   var pkgsDir = getTempDir() / "nimble-packages-fork"
@@ -224,3 +251,13 @@ proc publish*(p: PackageInfo, o: Options) =
     doCmd("git push https://" & auth.token & "@github.com/" & auth.user & "/packages " & branchName)
     let prUrl = createPullRequest(auth, p.name, branchName)
   display("Success:", "Pull request successful, check at " & prUrl , Success, HighPriority)
+
+when isMainModule:
+  var dumpy:PackageInfo = PackageInfo(
+    isMinimal: false,
+    name: "chipmunk"
+  )
+  
+  while not checkNameExisted(parseFile("packages.json"),dumpy):
+    echo dumpy.name
+    break;
