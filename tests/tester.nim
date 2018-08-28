@@ -293,7 +293,8 @@ suite "nimscript":
   test "can list nimscript tasks":
     cd "nimscript":
       let (output, exitCode) = execNimble("tasks")
-      check "work                 test description".normalize in output.normalize
+      check "work".normalize in output.normalize
+      check "test description".normalize in output.normalize
       check exitCode == QuitSuccess
 
   test "can use pre/post hooks":

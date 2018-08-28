@@ -40,12 +40,12 @@ when not declared(task):
     proc `name Task`*() = body
 
     let cmd = getCommand()
-    if cmd.len == 0 or cmd ==? "help":
+    if cmd.len == 0 or cmd == "help":
       setCommand "help"
-      writeTask(astToStr(name), description)
-    elif cmd ==? astToStr(name):
+      echo(astToStr(name), "        ", description)
+    elif cmd == astToStr(name):
       setCommand "nop"
-    `name Task`()
+      `name Task`()
 
 template before*(action: untyped, body: untyped): untyped =
   ## Defines a block of code which is evaluated before ``action`` is executed.
