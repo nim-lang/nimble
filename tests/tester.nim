@@ -715,3 +715,24 @@ suite "multi":
     removeDir("nimble-test/multi")
     let args = ["develop", "-y", "https://github.com/nimble-test/multi?subdir=beta"]
     check execNimble(args).exitCode == QuitSuccess
+
+suite "Module tests":
+  test "version":
+    cd "..":
+      check execCmdEx("nim c -r src/nimblepkg/version").exitCode == QuitSuccess
+
+  test "reversedeps":
+    cd "..":
+      check execCmdEx("nim c -r src/nimblepkg/reversedeps").exitCode == QuitSuccess
+
+  test "packageparser":
+    cd "..":
+      check execCmdEx("nim c -r src/nimblepkg/packageparser").exitCode == QuitSuccess
+
+  test "packageinfo":
+    cd "..":
+      check execCmdEx("nim c -r src/nimblepkg/packageinfo").exitCode == QuitSuccess
+
+  test "cli":
+    cd "..":
+      check execCmdEx("nim c -r src/nimblepkg/cli").exitCode == QuitSuccess
