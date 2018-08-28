@@ -11,6 +11,7 @@ cache:
 
 install:
   - export CHOOSENIM_CHOOSE_VERSION="#7bb93c730ea87f"
+  - export NIM_LIB_PREFIX="$HOME/.choosenim/toolchains/nim-"$CHOOSENIM_CHOOSE_VERSION
   - |
       curl https://nim-lang.org/choosenim/init.sh -sSf > init.sh
       sh init.sh -y
