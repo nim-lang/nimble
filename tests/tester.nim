@@ -595,8 +595,8 @@ suite "develop feature":
       check fileExists(path)
       let split = readFile(path).processOutput()
       check split.len == 2
-      check split[0].endsWith("develop/hybrid/hybrid.nimble")
-      check split[1].endsWith("develop/hybrid")
+      check split[0].endsWith("develop" / "hybrid" / "hybrid.nimble")
+      check split[1].endsWith("develop" / "hybrid")
 
   test "can develop with srcDir":
     cd "develop/srcdirtest":
@@ -610,11 +610,11 @@ suite "develop feature":
       check fileExists(path)
       let split = readFile(path).processOutput()
       check split.len == 2
-      check split[0].endsWith("develop/srcdirtest/srcdirtest.nimble")
-      check split[1].endsWith("develop/srcdirtest/src")
+      check split[0].endsWith("develop" / "srcdirtest" / "srcdirtest.nimble")
+      check split[1].endsWith("develop" / "srcdirtest" / "src")
 
     cd "develop/dependent":
-      let (output, exitCode) = execNimble("c", "-r", "src/dependent.nim")
+      let (output, exitCode) = execNimble("c", "-r", "src" / "dependent.nim")
       checkpoint output
       check(output.processOutput.inLines("hello"))
       check exitCode == QuitSuccess
@@ -644,9 +644,19 @@ suite "develop feature":
       check exitCode == QuitSuccess
 
       (output, exitCode) = execNimble("path", "srcdirtest")
+
       checkpoint output
       check exitCode == QuitSuccess
       check output.strip() == getCurrentDir() / "src"
+
+suite "path command":
+  test "can get correct path for srcDir (#531)":
+    check execNimble("uninstall", "srcdirtest", "-y").exitCode == QuitSuccess
+    cd "develop/srcdirtest":
+      let (output, exitCode) = execNimble("install", "-y")
+      check exitCode == QuitSuccess
+    let (output, exitCode) = execNimble("path", "srcdirtest")
+    check output.strip() == installDir / "pkgs" / "srcdirtest-1.0"
 
 suite "test command":
   test "Runs passing unit tests":

@@ -336,8 +336,17 @@ proc getInstalledPkgsMin*(libsDir: string, options: Options):
         pkg.specialVersion = version
         pkg.isMinimal = true
         pkg.isInstalled = true
-        pkg.isLinked =
-          cmpPaths(nimbleFile.splitFile().dir, path) != 0
+        let nimbleFileDir = nimbleFile.splitFile().dir
+        pkg.isLinked = cmpPaths(nimbleFileDir, path) != 0
+
+        # Read the package's 'srcDir' (this is stored in the .nimble-link so
+        # we can easily grab it)
+        if pkg.isLinked:
+          let nimbleLinkPath = path / name.addFileExt("nimble-link")
+          let realSrcPath = readNimbleLink(nimbleLinkPath).packageDir
+          assert realSrcPath.startsWith(nimbleFileDir)
+          pkg.srcDir = realSrcPath.replace(nimbleFileDir)
+          pkg.srcDir.removePrefix(DirSep)
         result.add((pkg, meta))
 
 proc withinRange*(pkgInfo: PackageInfo, verRange: VersionRange): bool =
