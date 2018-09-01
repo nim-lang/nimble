@@ -311,10 +311,14 @@ proc findNimbleFile*(dir: string; error: bool): string =
 
   if result.splitFile.ext == ".nimble-link":
     # Return the path of the real .nimble file.
+    let nimbleLinkPath = result
     result = readNimbleLink(result).nimbleFilePath
     if not fileExists(result):
-      raiseNimbleError("The .nimble-link file is pointing to a missing" &
-                       " file: " & result)
+      let msg = "The .nimble-link file is pointing to a missing file: " & result
+      let hintMsg =
+        "Remove '$1' or restore the file it points to." % nimbleLinkPath
+      display("Warning:", msg, Warning, HighPriority)
+      display("Hint:", hintMsg, Warning, HighPriority)
 
 proc getInstalledPkgsMin*(libsDir: string, options: Options):
         seq[tuple[pkginfo: PackageInfo, meta: MetaData]] =
