@@ -757,7 +757,9 @@ proc init(options: Options) =
     priority = HighPriority)
 
   # Determine the type of package
-  let pkgType = promptList(options, "Package type?", [
+  let pkgType = promptList(options, """Package type?
+Library packages provide functionality for other packages.
+Binary packages produce executables.""", [
     "lib",
     "bin",
   ])
