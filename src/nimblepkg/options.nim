@@ -22,6 +22,8 @@ type
     showVersion*: bool
     noColor*: bool
     disableValidation*: bool
+    ## Whether packages' repos should always be downloaded with their history.
+    forceFullClone*: bool
 
   ActionType* = enum
     actionNil, actionRefresh, actionInit, actionDump, actionPublish,

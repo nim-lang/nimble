@@ -42,17 +42,17 @@ proc doPull(meth: DownloadMethod, downloadDir: string) =
       doCmd("hg pull")
 
 proc doClone(meth: DownloadMethod, url, downloadDir: string, branch = "",
-            tip = true) =
+             onlyTip = true) =
   case meth
   of DownloadMethod.git:
     let
-      depthArg = if tip: "--depth 1 " else: ""
+      depthArg = if onlyTip: "--depth 1 " else: ""
       branchArg = if branch == "": "" else: "-b " & branch & " "
     doCmd("git clone --recursive " & depthArg & branchArg & url &
           " " & downloadDir)
   of DownloadMethod.hg:
     let
-      tipArg = if tip: "-r tip " else: ""
+      tipArg = if onlyTip: "-r tip " else: ""
       branchArg = if branch == "": "" else: "-b " & branch & " "
     doCmd("hg clone " & tipArg & branchArg & url & " " & downloadDir)
 
@@ -171,10 +171,11 @@ proc doDownload(url: string, downloadDir: string, verRange: VersionRange,
   if verRange.kind == verSpecial:
     # We want a specific commit/branch/tag here.
     if verRange.spe == getHeadName(downMethod):
-      doClone(downMethod, url, downloadDir) # Grab HEAD.
+       # Grab HEAD.
+      doClone(downMethod, url, downloadDir, onlyTip = not options.forceFullClone)
     else:
       # Grab the full repo.
-      doClone(downMethod, url, downloadDir, tip = false)
+      doClone(downMethod, url, downloadDir, onlyTip = false)
       # Then perform a checkout operation to get the specified branch/commit.
       # `spe` starts with '#', trim it.
       doAssert(($verRange.spe)[0] == '#')
@@ -191,12 +192,13 @@ proc doDownload(url: string, downloadDir: string, verRange: VersionRange,
         getLatestByTag:
           display("Cloning", "latest tagged version: " & latest.tag,
                   priority = MediumPriority)
-          doClone(downMethod, url, downloadDir, latest.tag)
+          doClone(downMethod, url, downloadDir, latest.tag,
+                  onlyTip = not options.forceFullClone)
       else:
         # If no commits have been tagged on the repo we just clone HEAD.
         doClone(downMethod, url, downloadDir) # Grab HEAD.
     of DownloadMethod.hg:
-      doClone(downMethod, url, downloadDir)
+      doClone(downMethod, url, downloadDir, onlyTip = not options.forceFullClone)
       result = getHeadName(downMethod)
       let versions = getTagsList(downloadDir, downMethod).getVersionList()
 
