@@ -316,7 +316,7 @@ proc findNimbleFile*(dir: string; error: bool): string =
     if not fileExists(result):
       let msg = "The .nimble-link file is pointing to a missing file: " & result
       let hintMsg =
-        "Remove '$1' or restore the file it points to." % nimbleLinkPath
+        "Remove '$1' or restore the file it points to." % dir
       display("Warning:", msg, Warning, HighPriority)
       display("Hint:", hintMsg, Warning, HighPriority)
 
