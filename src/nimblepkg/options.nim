@@ -65,7 +65,8 @@ Commands:
   check                           Verifies the validity of a package in the
                                   current working directory.
   init         [pkgname]          Initializes a new Nimble project in the
-                                  current directory.
+                                  current directory or if a name is provided a
+                                  new directory of the same name.
   publish                         Publishes a package on nim-lang/packages.
                                   The current working directory needs to be the
                                   toplevel directory of the Nimble package.
