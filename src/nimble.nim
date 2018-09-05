@@ -698,25 +698,31 @@ proc dump(options: Options) =
   echo "backend: ", p.backend.escape
 
 proc init(options: Options) =
-  var nimbleFile: string = ""
-
   if options.forcePrompts != forcePromptYes:
     display("Info:",
       "In order to initialise a new Nimble package, I will need to ask you\n" &
       "some questions. Default values are shown in square brackets, press\n" &
       "enter to use them.", priority = HighPriority)
 
-  # Ask for package name.
+  # Determine the package name.
   let pkgName =
     if options.action.projName != "":
       options.action.projName
     else:
       os.getCurrentDir().splitPath.tail.toValidPackageName()
 
-  nimbleFile = pkgName.changeFileExt("nimble")
-  validatePackageName(nimbleFile.changeFileExt(""))
+  # Validate the package name.
+  validatePackageName(pkgName)
 
-  let nimbleFilePath = os.getCurrentDir() / nimbleFile
+  # Determine the package root.
+  let pkgRoot = if pkgName == os.getCurrentDir().splitPath.tail:
+      os.getCurrentDir()
+    else:
+      os.getCurrentDir() / pkgName
+
+  let nimbleFile = (pkgRoot / pkgName).changeFileExt("nimble")
+
+  let nimbleFilePath = pkgRoot / nimbleFile
   if existsFile(nimbleFilePath):
     let errMsg = "Nimble file already exists: $#" % nimbleFilePath
     raise newException(NimbleError, errMsg)
@@ -781,13 +787,13 @@ Binary packages produce executables.""", [
   let pkgTestDir = "tests"
 
   # Create source directory
-  os.createDir(pkgSrcDir)
+  os.createDir(pkgRoot / pkgSrcDir)
 
   display("Success:", "Source directory created successfully", Success,
     MediumPriority)
 
   # Create initial source file
-  cd pkgSrcDir:
+  cd pkgRoot / pkgSrcDir:
     let pkgFile = pkgName.changeFileExt("nim")
     try:
       if pkgType == "bin":
@@ -804,12 +810,12 @@ Binary packages produce executables.""", [
                          " for writing: " & osErrorMsg(osLastError()))
 
   # Create test directory
-  os.createDir(pkgTestDir)
+  os.createDir(pkgRoot / pkgTestDir)
 
   display("Success:", "Test directory created successfully", Success,
     MediumPriority)
 
-  cd pkgTestDir:
+  cd pkgRoot / pkgTestDir:
     try:
       "test1.nims".writeFile("""switch("path", "$$projectDir/../$#")""" %
         [pkgSrcDir])
