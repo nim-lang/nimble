@@ -45,6 +45,9 @@ when declared(NimCompilerApiVersion):
 else:
   const finalApi = false
 
+when NimCompilerApiVersion >= 3:
+  import compiler / pathutils
+
 proc getGlobal(g: ModuleGraph; ident: PSym): string =
   when finalApi:
     let n = vm.getGlobalValue(PCtx g.vm, ident)
@@ -201,10 +204,17 @@ proc setupVM(graph: ModuleGraph; module: PSym; scriptName: string, flags: Flags)
       let arg = a.getString 1
       if arg.len > 0:
         conf.projectName = arg
-        try:
-          conf.projectFull = canonicalizePath(conf, conf.projectPath / conf.projectName)
-        except OSError:
-          conf.projectFull = conf.projectName
+        when NimCompilerApiVersion >= 3:
+          try:
+            conf.projectFull = canonicalizePath(conf,
+                conf.projectPath / RelativeFile(conf.projectName))
+          except OSError:
+            conf.projectFull = AbsoluteFile conf.projectName
+        else:
+          try:
+            conf.projectFull = canonicalizePath(conf, conf.projectPath / conf.projectName)
+          except OSError:
+            conf.projectFull = conf.projectName
     else:
       compiler_options.command = a.getString 0
       let arg = a.getString 1
@@ -311,11 +321,19 @@ proc execScript(scriptName: string, flags: Flags, options: Options): PSym =
 
   # Ensure the compiler can find its standard library #220.
   when declared(NimCompilerApiVersion):
-    conf.prefixDir = getNimPrefixDir(options)
-    display("Setting", "Nim stdlib prefix to " & conf.prefixDir,
-            priority=LowPriority)
+    when NimCompilerApiVersion >= 3:
+      conf.prefixDir = AbsoluteDir getNimPrefixDir(options)
+      display("Setting", "Nim stdlib prefix to " & conf.prefixDir.string,
+              priority=LowPriority)
 
-    template myLibPath(): untyped = conf.libpath
+      template myLibPath(): untyped = conf.libpath.string
+
+    else:
+      conf.prefixDir = getNimPrefixDir(options)
+      display("Setting", "Nim stdlib prefix to " & conf.prefixDir,
+              priority=LowPriority)
+
+      template myLibPath(): untyped = conf.libpath
 
     # Verify that lib path points to existing stdlib.
     setDefaultLibpath(conf)
@@ -367,7 +385,10 @@ proc execScript(scriptName: string, flags: Flags, options: Options): PSym =
     createDir(tmpNimscriptApiPath.splitFile.dir)
     writeFile(tmpNimscriptApiPath, nimscriptApi)
     when declared(NimCompilerApiVersion):
-      conf.searchPaths.add(t)
+      when NimCompilerApiVersion >= 3:
+        conf.searchPaths.add(AbsoluteDir t)
+      else:
+        conf.searchPaths.add(t)
     else:
       searchPaths.add(t)
 
@@ -434,7 +455,10 @@ proc execScript(scriptName: string, flags: Flags, options: Options): PSym =
 
   when finalApi:
     graph.compileSystemModule()
-    graph.processModule(result, llStreamOpen(scriptName, fmRead))
+    when NimCompilerApiVersion >= 3:
+      graph.processModule(result, llStreamOpen(AbsoluteFile scriptName, fmRead))
+    else:
+      graph.processModule(result, llStreamOpen(scriptName, fmRead))
   elif declared(newIdentCache):
     graph.compileSystemModule(identCache)
     graph.processModule(result, llStreamOpen(scriptName, fmRead), nil, identCache)
