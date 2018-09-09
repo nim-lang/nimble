@@ -698,15 +698,6 @@ proc dump(options: Options) =
   echo "backend: ", p.backend.escape
 
 proc init(options: Options) =
-  if options.forcePrompts != forcePromptYes:
-    display(
-      "Info:",
-      "Package initialisation requires info which could not be inferred.\n" &
-      "Default values are shown in square brackets, press\n" &
-      "enter to use them.",
-      priority = HighPriority
-    )
-
   # Determine the package name.
   let pkgName =
     if options.action.projName != "":
@@ -726,11 +717,18 @@ proc init(options: Options) =
 
   let nimbleFile = (pkgRoot / pkgName).changeFileExt("nimble")
 
-  let nimbleFilePath = pkgRoot / nimbleFile
-  if existsFile(nimbleFilePath):
-    let errMsg = "Nimble file already exists: $#" % nimbleFilePath
+  if existsFile(nimbleFile):
+    let errMsg = "Nimble file already exists: $#" % nimbleFile
     raise newException(NimbleError, errMsg)
 
+  if options.forcePrompts != forcePromptYes:
+    display(
+      "Info:",
+      "Package initialisation requires info which could not be inferred.\n" &
+      "Default values are shown in square brackets, press\n" &
+      "enter to use them.",
+      priority = HighPriority
+    )
   display("Using", "$# for new package name" % [pkgName.escape()],
     priority = HighPriority)
 
