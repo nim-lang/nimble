@@ -92,7 +92,7 @@ test "can build with #head and versioned package (#289)":
 
 test "can validate package structure (#144)":
   # Test that no warnings are produced for correctly structured packages.
-  for package in ["a", "b", "c", "validBinary"]:
+  for package in ["a", "b", "c", "validBinary", "softened"]:
     cd "packageStructure/" & package:
       let (output, exitCode) = execNimble(["install", "-y"])
       check exitCode == QuitSuccess

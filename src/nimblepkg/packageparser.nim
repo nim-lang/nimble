@@ -286,6 +286,16 @@ proc inferInstallRules(pkgInfo: var PackageInfo, options: Options) =
   if installInstructions == 0 and pkgInfo.bin.len > 0:
     pkgInfo.skipExt.add("nim")
 
+  # When a package doesn't specify a `srcDir` it's fair to assume that
+  # the .nim files are in the root of the package. So we can explicitly select
+  # them and prevent the installation of anything else. The user can always
+  # override this with `installFiles`.
+  if pkgInfo.srcDir == "":
+    if dirExists(pkgInfo.getRealDir() / pkgInfo.name):
+      pkgInfo.installDirs.add(pkgInfo.name)
+    if fileExists(pkgInfo.getRealDir() / pkgInfo.name.addFileExt("nim")):
+      pkgInfo.installFiles.add(pkgInfo.name.addFileExt("nim"))
+
 proc readPackageInfo(nf: NimbleFile, options: Options,
     onlyMinimalInfo=false): PackageInfo =
   ## Reads package info from the specified Nimble file.
@@ -360,11 +370,11 @@ proc readPackageInfo(nf: NimbleFile, options: Options,
     if version.kind == verSpecial:
       result.specialVersion = minimalInfo.version
 
-  if not result.isMinimal:
-    options.pkgInfoCache[nf] = result
-
   # Apply rules to infer which files should/shouldn't be installed. See #469.
   inferInstallRules(result, options)
+
+  if not result.isMinimal:
+    options.pkgInfoCache[nf] = result
 
   # Validate the rest of the package info last.
   if not options.disableValidation:
