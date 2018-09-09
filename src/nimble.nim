@@ -699,10 +699,13 @@ proc dump(options: Options) =
 
 proc init(options: Options) =
   if options.forcePrompts != forcePromptYes:
-    display("Info:",
-      "In order to initialise a new Nimble package, I will need to ask you\n" &
-      "some questions. Default values are shown in square brackets, press\n" &
-      "enter to use them.", priority = HighPriority)
+    display(
+      "Info:",
+      "Package initialisation requires info which could not be inferred.\n" &
+      "Default values are shown in square brackets, press\n" &
+      "enter to use them.",
+      priority = HighPriority
+    )
 
   # Determine the package name.
   let pkgName =
@@ -715,7 +718,8 @@ proc init(options: Options) =
   validatePackageName(pkgName)
 
   # Determine the package root.
-  let pkgRoot = if pkgName == os.getCurrentDir().splitPath.tail:
+  let pkgRoot =
+    if pkgName == os.getCurrentDir().splitPath.tail:
       os.getCurrentDir()
     else:
       os.getCurrentDir() / pkgName
@@ -754,12 +758,16 @@ proc init(options: Options) =
     priority = HighPriority)
 
   # Determine the type of package
-  let pkgType = promptList(options, """Package type?
-Library packages provide functionality for other packages.
-Binary packages produce executables.""", [
-    "lib",
-    "bin",
-  ])
+  let pkgType = promptList(
+    options,
+    """Package type?
+Library - provides functionality for other packages.
+Binary  - produces an executable for the end-user.
+Hybrid  - combination of library and binary
+
+For more information see https://goo.gl/cm2RX5""",
+    ["library", "binary", "hybrid"]
+  )
 
   # Ask for package version.
   let pkgVersion = promptCustom(options, "Initial version of package?", "0.1.0")
@@ -770,13 +778,32 @@ Binary packages produce executables.""", [
     "A new awesome nimble package")
 
   # Ask for license
-  let pkgLicense = options.promptList("Package License?", [
+  # License list is based on:
+  # https://www.blackducksoftware.com/top-open-source-licenses
+  var pkgLicense = options.promptList(
+    """Package License?
+This should ideally be a valid SPDX identifier. See https://spdx.org/licenses/.
+""", [
     "MIT",
-    "BSD2",
-    "GPLv3",
-    "LGPLv3",
-    "Apache2",
+    "GPL-2.0",
+    "Apache-2.0",
+    "ISC",
+    "GPL-3.0",
+    "BSD-3-Clause",
+    "LGPL-2.1",
+    "LGPL-3.0",
+    "EPL-2.0",
+    # This is what npm calls "UNLICENSED" (which is too similar to "Unlicense")
+    "Proprietary",
+    "Other"
   ])
+
+  if pkgLicense.toLower == "other":
+    pkgLicense = promptCustom(options,
+      """Package license?
+Please specify a valid SPDX identifier.""",
+      "MIT"
+    )
 
   # Ask for Nim dependency
   let nimDepDef = getNimrodVersion()
@@ -864,8 +891,11 @@ requires "nim >= $#"
 """ % [pkgVersion.escape(), pkgAuthor.escape(), pkgDesc.escape(),
        pkgLicense.escape(), pkgSrcDir.escape(), pkgName.escape(), pkgNimDep]
   except:
-    raise newException(NimbleError, "Unable to open file " & "test1.nim" &
-                       " for writing: " & osErrorMsg(osLastError()))
+    raise newException(
+      NimbleError,
+      "Unable to open file " & nimbleFile & " for writing: " &
+          osErrorMsg(osLastError())
+    )
 
   display("Success:", "Nimble file created successfully", Success,
     MediumPriority)
