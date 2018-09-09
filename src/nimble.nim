@@ -14,7 +14,7 @@ import nimblepkg/packageinfo, nimblepkg/version, nimblepkg/tools,
        nimblepkg/download, nimblepkg/config, nimblepkg/common,
        nimblepkg/publish, nimblepkg/options, nimblepkg/packageparser,
        nimblepkg/cli, nimblepkg/packageinstaller, nimblepkg/reversedeps,
-       nimblepkg/nimscriptexecutor
+       nimblepkg/nimscriptexecutor, nimblepkg/init
 
 import nimblepkg/nimscriptsupport
 
@@ -809,94 +809,19 @@ Please specify a valid SPDX identifier.""",
     $nimDepDef)
   validateVersion(pkgNimDep)
 
-  let pkgTestDir = "tests"
-
-  # Create source directory
-  os.createDir(pkgRoot / pkgSrcDir)
-
-  display("Success:", "Source directory created successfully", Success,
-    MediumPriority)
-
-  # Create initial source file
-  cd pkgRoot / pkgSrcDir:
-    let pkgFile = pkgName.changeFileExt("nim")
-    try:
-      if pkgType == "bin":
-        pkgFile.writeFile "# Hello Nim!\necho \"Hello, World!\"\n"
-      else:
-        pkgFile.writeFile """# $#
-# Copyright $#
-# $#
-""" % [pkgName, pkgAuthor, pkgDesc]
-      display("Success:", "Created initial source file successfully", Success,
-        MediumPriority)
-    except:
-      raise newException(NimbleError, "Unable to open file " & pkgFile &
-                         " for writing: " & osErrorMsg(osLastError()))
-
-  # Create test directory
-  os.createDir(pkgRoot / pkgTestDir)
-
-  display("Success:", "Test directory created successfully", Success,
-    MediumPriority)
-
-  cd pkgRoot / pkgTestDir:
-    try:
-      "test1.nims".writeFile("""switch("path", "$$projectDir/../$#")""" %
-        [pkgSrcDir])
-      display("Success:", "Test config file created successfully", Success,
-        MediumPriority)
-    except:
-      raise newException(NimbleError, "Unable to open file " & "test1.nims" &
-                         " for writing: " & osErrorMsg(osLastError()))
-    try:
-      "test1.nim".writeFile("doAssert(1 + 1 == 2)\n")
-      display("Success:", "Test file created successfully", Success,
-        MediumPriority)
-    except:
-      raise newException(NimbleError, "Unable to open file " & "test1.nim" &
-                         " for writing: " & osErrorMsg(osLastError()))
-
-  # Write the nimble file
-  try:
-    if pkgType == "lib":
-      nimbleFile.writeFile """# Package
-
-version       = $#
-author        = $#
-description   = $#
-license       = $#
-srcDir        = $#
-
-# Dependencies
-
-requires "nim >= $#"
-""" % [pkgVersion.escape(), pkgAuthor.escape(), pkgDesc.escape(),
-       pkgLicense.escape(), pkgSrcDir.escape(), pkgNimDep]
-    else:
-      nimbleFile.writeFile """# Package
-
-version       = $#
-author        = $#
-description   = $#
-license       = $#
-srcDir        = $#
-bin           = @[$#]
-
-# Dependencies
-
-requires "nim >= $#"
-""" % [pkgVersion.escape(), pkgAuthor.escape(), pkgDesc.escape(),
-       pkgLicense.escape(), pkgSrcDir.escape(), pkgName.escape(), pkgNimDep]
-  except:
-    raise newException(
-      NimbleError,
-      "Unable to open file " & nimbleFile & " for writing: " &
-          osErrorMsg(osLastError())
-    )
-
-  display("Success:", "Nimble file created successfully", Success,
-    MediumPriority)
+  createPkgStructure(
+    (
+      pkgName,
+      pkgVersion,
+      pkgAuthor,
+      pkgDesc,
+      pkgLicense,
+      pkgSrcDir,
+      pkgNimDep,
+      pkgType
+    ),
+    pkgRoot
+  )
 
   display("Success:", "Package $# created successfully" % [pkgName], Success,
     HighPriority)
