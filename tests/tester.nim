@@ -38,7 +38,11 @@ proc execNimble(args: varargs[string]): tuple[output: string, exitCode: int] =
 
   let path = getCurrentDir().parentDir() / "src"
 
-  let cmd = "DYLD_LIBRARY_PATH=/usr/local/opt/openssl@1.1/lib PATH=" & path & ":$PATH " & quotedArgs.join(" ")
+  var cmd = "PATH=" & path & ":$PATH " & quotedArgs.join(" ")
+  when defined(macosx):
+    # TODO: Yeah, this is really specific to my machine but for my own sanity...
+    cmd = "DYLD_LIBRARY_PATH=/usr/local/opt/openssl@1.1/lib " & cmd
+
   result = execCmdEx(cmd)
   checkpoint(result.output)
 
@@ -688,6 +692,12 @@ suite "test command":
       check exitCode == QuitSuccess
       check(not outp.processOutput.inLines("Should be ignored"))
       check outp.processOutput.inLines("First test")
+
+  test "CWD is root of package":
+    cd "testCommand/testsCWD":
+      let (outp, exitCode) = execNimble("test")
+      check exitCode == QuitSuccess
+      check outp.processOutput.inLines(getCurrentDir())
 
 suite "check command":
   test "can succeed package":
