@@ -277,6 +277,15 @@ proc readPackageInfoFromNimble(path: string; result: var PackageInfo) =
   else:
     raise newException(ValueError, "Cannot open package info: " & path)
 
+proc inferInstallRules(pkgInfo: var PackageInfo, options: Options) =
+  # Binary packages shouldn't install .nim files by default.
+  # (As long as the package info doesn't explicitly specify what should be
+  # installed.)
+  let installInstructions =
+    pkgInfo.installDirs.len + pkgInfo.installExt.len + pkgInfo.installFiles.len
+  if installInstructions == 0 and pkgInfo.bin.len > 0:
+    pkgInfo.skipExt.add("nim")
+
 proc readPackageInfo(nf: NimbleFile, options: Options,
     onlyMinimalInfo=false): PackageInfo =
   ## Reads package info from the specified Nimble file.
@@ -353,6 +362,9 @@ proc readPackageInfo(nf: NimbleFile, options: Options,
 
   if not result.isMinimal:
     options.pkgInfoCache[nf] = result
+
+  # Apply rules to infer which files should/shouldn't be installed. See #469.
+  inferInstallRules(result, options)
 
   # Validate the rest of the package info last.
   if not options.disableValidation:
