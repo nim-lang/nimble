@@ -988,12 +988,14 @@ proc develop(options: Options) =
       developFromDir(downloadDir / subdir, options)
 
 proc test(options: Options) =
-  ## Executes all tests.
+  ## Executes all tests starting with 't' in the ``tests`` directory.
+  ## Subdirectories are not walked.
   var files = toSeq(walkDir(getCurrentDir() / "tests"))
   files.sort((a, b) => cmp(a.path, b.path))
 
   for file in files:
-    if file.path.endsWith(".nim") and file.kind in {pcFile, pcLinkToFile}:
+    let (_, name, ext) = file.path.splitFile()
+    if ext == ".nim" and name[0] == 't' and file.kind in {pcFile, pcLinkToFile}:
       var optsCopy = options.briefClone()
       optsCopy.action.typ = actionCompile
       optsCopy.action.file = file.path

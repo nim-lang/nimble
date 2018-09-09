@@ -38,7 +38,7 @@ proc execNimble(args: varargs[string]): tuple[output: string, exitCode: int] =
 
   let path = getCurrentDir().parentDir() / "src"
 
-  let cmd = "PATH=" & path & ":$PATH " & quotedArgs.join(" ")
+  let cmd = "DYLD_LIBRARY_PATH=/usr/local/opt/openssl@1.1/lib PATH=" & path & ":$PATH " & quotedArgs.join(" ")
   result = execCmdEx(cmd)
   checkpoint(result.output)
 
@@ -681,6 +681,13 @@ suite "test command":
       let (outp, exitCode) = execNimble("test")
       check exitCode == QuitSuccess
       check outp.processOutput.inLines("overriden")
+
+  test "certain files are ignored":
+    cd "testCommand/testsIgnore":
+      let (outp, exitCode) = execNimble("test")
+      check exitCode == QuitSuccess
+      check(not outp.processOutput.inLines("Should be ignored"))
+      check outp.processOutput.inLines("First test")
 
 suite "check command":
   test "can succeed package":
