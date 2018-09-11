@@ -1110,7 +1110,10 @@ when isMainModule:
   except NimbleQuit:
     discard
   finally:
-    removeDir(getNimbleTempDir())
+    try:
+      removeDir(getNimbleTempDir())
+    except OSerror:
+      discard "failing to remove the nimble temp dir is not critical"
 
   if error.len > 0:
     displayTip()
