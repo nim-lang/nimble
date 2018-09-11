@@ -1110,7 +1110,11 @@ when isMainModule:
   except NimbleQuit:
     discard
   finally:
-    removeDir(getNimbleTempDir())
+    try:
+      removeDir(getNimbleTempDir())
+    except OSError:
+      let msg = "Couldn't remove Nimble's temp dir"
+      display("Warning:", msg, Warning, MediumPriority)
 
   if error.len > 0:
     displayTip()
