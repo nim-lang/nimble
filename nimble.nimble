@@ -17,6 +17,7 @@ license       = "BSD"
 
 bin = @["nimble"]
 srcDir = "src"
+installExt = @["nim"]
 
 # Dependencies
 
