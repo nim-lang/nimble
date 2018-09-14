@@ -22,6 +22,8 @@ type
     showVersion*: bool
     noColor*: bool
     disableValidation*: bool
+    ## Whether packages' repos should always be downloaded with their history.
+    forceFullClone*: bool
 
   ActionType* = enum
     actionNil, actionRefresh, actionInit, actionDump, actionPublish,
@@ -63,7 +65,8 @@ Commands:
   check                           Verifies the validity of a package in the
                                   current working directory.
   init         [pkgname]          Initializes a new Nimble project in the
-                                  current directory.
+                                  current directory or if a name is provided a
+                                  new directory of the same name.
   publish                         Publishes a package on nim-lang/packages.
                                   The current working directory needs to be the
                                   toplevel directory of the Nimble package.
@@ -386,6 +389,10 @@ proc getProxy*(options: Options): Proxy =
         url = getEnv("http_proxy")
       elif existsEnv("https_proxy"):
         url = getEnv("https_proxy")
+      elif existsEnv("HTTP_PROXY"):
+        url = getEnv("HTTP_PROXY")
+      elif existsEnv("HTTPS_PROXY"):
+        url = getEnv("HTTPS_PROXY")
     except ValueError:
       display("Warning:", "Unable to parse proxy from environment: " &
           getCurrentExceptionMsg(), Warning, HighPriority)

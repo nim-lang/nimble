@@ -81,7 +81,7 @@ proc saveNimbleMeta*(pkgDestDir, url, vcsRevision: string,
   ##
   ## isLink - Determines whether the installed package is a .nimble-link.
   var nimblemeta = %{"url": %url}
-  if not vcsRevision.isNil:
+  if vcsRevision.len > 0:
     nimblemeta["vcsRevision"] = %vcsRevision
   let files = newJArray()
   nimblemeta["files"] = files

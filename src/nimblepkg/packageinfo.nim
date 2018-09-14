@@ -107,8 +107,8 @@ proc requiredField(obj: JsonNode, name: string): string =
   ## Queries ``obj`` for the required ``name`` string.
   ##
   ## Aborts execution if the field does not exist or is of invalid json type.
-  result = optionalField(obj, name, nil)
-  if result == nil:
+  result = optionalField(obj, name)
+  if result.len == 0:
     raise newException(NimbleError,
         "Package in packages.json file does not contain a " & name & " field.")
 
@@ -311,10 +311,14 @@ proc findNimbleFile*(dir: string; error: bool): string =
 
   if result.splitFile.ext == ".nimble-link":
     # Return the path of the real .nimble file.
+    let nimbleLinkPath = result
     result = readNimbleLink(result).nimbleFilePath
     if not fileExists(result):
-      raiseNimbleError("The .nimble-link file is pointing to a missing" &
-                       " file: " & result)
+      let msg = "The .nimble-link file is pointing to a missing file: " & result
+      let hintMsg =
+        "Remove '$1' or restore the file it points to." % dir
+      display("Warning:", msg, Warning, HighPriority)
+      display("Hint:", hintMsg, Warning, HighPriority)
 
 proc getInstalledPkgsMin*(libsDir: string, options: Options):
         seq[tuple[pkginfo: PackageInfo, meta: MetaData]] =
@@ -336,8 +340,17 @@ proc getInstalledPkgsMin*(libsDir: string, options: Options):
         pkg.specialVersion = version
         pkg.isMinimal = true
         pkg.isInstalled = true
-        pkg.isLinked =
-          cmpPaths(nimbleFile.splitFile().dir, path) != 0
+        let nimbleFileDir = nimbleFile.splitFile().dir
+        pkg.isLinked = cmpPaths(nimbleFileDir, path) != 0
+
+        # Read the package's 'srcDir' (this is stored in the .nimble-link so
+        # we can easily grab it)
+        if pkg.isLinked:
+          let nimbleLinkPath = path / name.addFileExt("nimble-link")
+          let realSrcPath = readNimbleLink(nimbleLinkPath).packageDir
+          assert realSrcPath.startsWith(nimbleFileDir)
+          pkg.srcDir = realSrcPath.replace(nimbleFileDir)
+          pkg.srcDir.removePrefix(DirSep)
         result.add((pkg, meta))
 
 proc withinRange*(pkgInfo: PackageInfo, verRange: VersionRange): bool =
@@ -371,8 +384,7 @@ proc findPkg*(pkglist: seq[tuple[pkgInfo: PackageInfo, meta: MetaData]],
     if cmpIgnoreStyle(pkg.pkginfo.name, dep.name) != 0 and
        cmpIgnoreStyle(pkg.meta.url, dep.name) != 0: continue
     if withinRange(pkg.pkgInfo, dep.ver):
-      let isNewer = (not r.version.isNil) and
-                    newVersion(r.version) < newVersion(pkg.pkginfo.version)
+      let isNewer = newVersion(r.version) < newVersion(pkg.pkginfo.version)
       if not result or isNewer:
         r = pkg.pkginfo
         result = true

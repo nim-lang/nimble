@@ -9,7 +9,7 @@ import
   compiler/condsyms, compiler/sem, compiler/semdata,
   compiler/llstream, compiler/vm, compiler/vmdef, compiler/commands,
   compiler/msgs, compiler/magicsys, compiler/idents,
-  compiler/nimconf
+  compiler/nimconf, compiler/nversion
 
 from compiler/scriptconfig import setupVM
 from compiler/astalgo import strTableGet
@@ -40,15 +40,29 @@ proc raiseVariableError(ident, typ: string) {.noinline.} =
 
 proc isStrLit(n: PNode): bool = n.kind in {nkStrLit..nkTripleStrLit}
 
-proc getGlobal(ident: PSym): string =
-  let n = vm.globalCtx.getGlobalValue(ident)
+when declared(NimCompilerApiVersion):
+  const finalApi = NimCompilerApiVersion >= 2
+else:
+  const finalApi = false
+
+when NimCompilerApiVersion >= 3:
+  import compiler / pathutils
+
+proc getGlobal(g: ModuleGraph; ident: PSym): string =
+  when finalApi:
+    let n = vm.getGlobalValue(PCtx g.vm, ident)
+  else:
+    let n = vm.globalCtx.getGlobalValue(ident)
   if n.isStrLit:
-    result = if n.strVal.isNil: "" else: n.strVal
+    result = n.strVal
   else:
     raiseVariableError(ident.name.s, "string")
 
-proc getGlobalAsSeq(ident: PSym): seq[string] =
-  let n = vm.globalCtx.getGlobalValue(ident)
+proc getGlobalAsSeq(g: ModuleGraph; ident: PSym): seq[string] =
+  when finalApi:
+    let n = vm.getGlobalValue(PCtx g.vm, ident)
+  else:
+    let n = vm.globalCtx.getGlobalValue(ident)
   result = @[]
   if n.kind == nkBracket:
     for x in n:
@@ -59,8 +73,11 @@ proc getGlobalAsSeq(ident: PSym): seq[string] =
   else:
     raiseVariableError(ident.name.s, "seq[string]")
 
-proc extractRequires(ident: PSym, result: var seq[PkgTuple]) =
-  let n = vm.globalCtx.getGlobalValue(ident)
+proc extractRequires(g: ModuleGraph; ident: PSym, result: var seq[PkgTuple]) =
+  when finalApi:
+    let n = vm.getGlobalValue(PCtx g.vm, ident)
+  else:
+    let n = vm.globalCtx.getGlobalValue(ident)
   if n.kind == nkBracket:
     for x in n:
       if x.kind == nkPar and x.len == 2 and x[0].isStrLit and x[1].isStrLit:
@@ -75,13 +92,14 @@ proc extractRequires(ident: PSym, result: var seq[PkgTuple]) =
 when declared(newIdentCache):
   var identCache = newIdentCache()
 
-proc setupVM(module: PSym; scriptName: string, flags: Flags): PEvalContext =
+proc setupVM(graph: ModuleGraph; module: PSym; scriptName: string, flags: Flags): PEvalContext =
   ## This procedure is exported in the compiler sources, but its implementation
   ## is too Nim-specific to be used by Nimble.
   ## Specifically, the implementation of ``switch`` is problematic. Sooo
   ## I simply copied it here and edited it :)
-
-  when declared(newIdentCache):
+  when declared(NimCompilerApiVersion):
+    result = newCtx(module, identCache, graph)
+  elif declared(newIdentCache):
     result = newCtx(module, identCache)
   else:
     result = newCtx(module)
@@ -89,6 +107,7 @@ proc setupVM(module: PSym; scriptName: string, flags: Flags): PEvalContext =
   registerAdditionalOps(result)
 
   # captured vars:
+  let conf = graph.config
   var errorMsg: string
   var vthisDir = scriptName.splitFile.dir
 
@@ -152,13 +171,25 @@ proc setupVM(module: PSym; scriptName: string, flags: Flags): PEvalContext =
   cbconf thisDir:
     setResult(a, vthisDir)
   cbconf put:
-    compiler_options.setConfigVar(getString(a, 0), getString(a, 1))
+    when declared(NimCompilerApiVersion):
+      compiler_options.setConfigVar(conf, getString(a, 0), getString(a, 1))
+    else:
+      compiler_options.setConfigVar(getString(a, 0), getString(a, 1))
   cbconf get:
-    setResult(a, compiler_options.getConfigVar(a.getString 0))
+    when declared(NimCompilerApiVersion):
+      setResult(a, compiler_options.getConfigVar(conf, a.getString 0))
+    else:
+      setResult(a, compiler_options.getConfigVar(a.getString 0))
   cbconf exists:
-    setResult(a, compiler_options.existsConfigVar(a.getString 0))
+    when declared(NimCompilerApiVersion):
+      setResult(a, compiler_options.existsConfigVar(conf, a.getString 0))
+    else:
+      setResult(a, compiler_options.existsConfigVar(a.getString 0))
   cbconf nimcacheDir:
-    setResult(a, compiler_options.getNimcacheDir())
+    when declared(NimCompilerApiVersion):
+      setResult(a, compiler_options.getNimcacheDir(conf))
+    else:
+      setResult(a, compiler_options.getNimcacheDir())
   cbconf paramStr:
     setResult(a, os.paramStr(int a.getInt 0))
   cbconf paramCount:
@@ -168,16 +199,36 @@ proc setupVM(module: PSym; scriptName: string, flags: Flags): PEvalContext =
   cbconf cmpIgnoreCase:
     setResult(a, strutils.cmpIgnoreCase(a.getString 0, a.getString 1))
   cbconf setCommand:
-    compiler_options.command = a.getString 0
-    let arg = a.getString 1
-    if arg.len > 0:
-      gProjectName = arg
-      try:
-        gProjectFull = canonicalizePath(gProjectPath / gProjectName)
-      except OSError:
-        gProjectFull = gProjectName
+    when declared(NimCompilerApiVersion):
+      conf.command = a.getString 0
+      let arg = a.getString 1
+      if arg.len > 0:
+        conf.projectName = arg
+        when NimCompilerApiVersion >= 3:
+          try:
+            conf.projectFull = canonicalizePath(conf,
+                conf.projectPath / RelativeFile(conf.projectName))
+          except OSError:
+            conf.projectFull = AbsoluteFile conf.projectName
+        else:
+          try:
+            conf.projectFull = canonicalizePath(conf, conf.projectPath / conf.projectName)
+          except OSError:
+            conf.projectFull = conf.projectName
+    else:
+      compiler_options.command = a.getString 0
+      let arg = a.getString 1
+      if arg.len > 0:
+        gProjectName = arg
+        try:
+          gProjectFull = canonicalizePath(gProjectPath / gProjectName)
+        except OSError:
+          gProjectFull = gProjectName
   cbconf getCommand:
-    setResult(a, compiler_options.command)
+    when declared(NimCompilerApiVersion):
+      setResult(a, conf.command)
+    else:
+      setResult(a, compiler_options.command)
   cbconf switch:
     if not flags.isNil:
       let
@@ -241,14 +292,26 @@ proc getLibVersion(lib: string): Version =
   else:
     return system.NimVersion.newVersion()
 
-when declared(ModuleGraph):
-  var graph: ModuleGraph
+when finalApi:
+  var graph = newModuleGraph(identCache, newConfigRef())
+
+elif declared(ModuleGraph):
+  var graph = newModuleGraph()
 
 proc execScript(scriptName: string, flags: Flags, options: Options): PSym =
   ## Executes the specified script. Returns the script's module symbol.
   ##
   ## No clean up is performed and must be done manually!
-  when declared(resetAllModulesHard):
+  when finalApi:
+    graph = newModuleGraph(graph.cache, graph.config)
+  else:
+    graph = newModuleGraph(graph.config)
+
+  let conf = graph.config
+  when declared(NimCompilerApiVersion):
+    if "nimblepkg/nimscriptapi" notin conf.implicitImports:
+      conf.implicitImports.add("nimblepkg/nimscriptapi")
+  elif declared(resetAllModulesHard):
     # for compatibility with older Nim versions:
     if "nimblepkg/nimscriptapi" notin compiler_options.implicitIncludes:
       compiler_options.implicitIncludes.add("nimblepkg/nimscriptapi")
@@ -257,17 +320,38 @@ proc execScript(scriptName: string, flags: Flags, options: Options): PSym =
       compiler_options.implicitImports.add("nimblepkg/nimscriptapi")
 
   # Ensure the compiler can find its standard library #220.
-  compiler_options.gPrefixDir = getNimPrefixDir(options)
-  display("Setting", "Nim stdlib prefix to " & compiler_options.gPrefixDir,
-          priority=LowPriority)
+  when declared(NimCompilerApiVersion):
+    when NimCompilerApiVersion >= 3:
+      conf.prefixDir = AbsoluteDir getNimPrefixDir(options)
+      display("Setting", "Nim stdlib prefix to " & conf.prefixDir.string,
+              priority=LowPriority)
 
-  # Verify that lib path points to existing stdlib.
-  compiler_options.setDefaultLibpath()
-  display("Setting", "Nim stdlib path to " & compiler_options.libpath,
+      template myLibPath(): untyped = conf.libpath.string
+
+    else:
+      conf.prefixDir = getNimPrefixDir(options)
+      display("Setting", "Nim stdlib prefix to " & conf.prefixDir,
+              priority=LowPriority)
+
+      template myLibPath(): untyped = conf.libpath
+
+    # Verify that lib path points to existing stdlib.
+    setDefaultLibpath(conf)
+  else:
+    compiler_options.gPrefixDir = getNimPrefixDir(options)
+    display("Setting", "Nim stdlib prefix to " & compiler_options.gPrefixDir,
+            priority=LowPriority)
+
+    template myLibPath(): untyped = compiler_options.libpath
+
+    # Verify that lib path points to existing stdlib.
+    compiler_options.setDefaultLibpath()
+
+  display("Setting", "Nim stdlib path to " & myLibPath(),
           priority=LowPriority)
-  if not isValidLibPath(compiler_options.libpath):
+  if not isValidLibPath(myLibPath()):
     let msg = "Nimble cannot find Nim's standard library.\nLast try in:\n  - $1" %
-              compiler_options.libpath
+                myLibPath()
     let hint = "Nimble does its best to find Nim's standard library, " &
                "sometimes this fails. You can set the environment variable " &
                "NIM_LIB_PREFIX to where Nim's `lib` directory is located as " &
@@ -278,11 +362,11 @@ proc execScript(scriptName: string, flags: Flags, options: Options): PSym =
 
   # Verify that the stdlib that was found isn't older than the stdlib that Nimble
   # was compiled with.
-  let libVersion = getLibVersion(compiler_options.libpath)
+  let libVersion = getLibVersion(myLibPath())
   if NimVersion.newVersion() > libVersion:
     let msg = ("Nimble cannot use an older stdlib than the one it was compiled " &
                "with.\n  Stdlib in '$#' has version: $#.\n  Nimble needs at least: $#.") %
-              [compiler_options.libpath, $libVersion, NimVersion]
+              [myLibPath(), $libVersion, NimVersion]
     let hint = "You may be running a newer version of Nimble than you intended " &
                "to. Run an older version of Nimble that is compatible with " &
                "the stdlib that Nimble is attempting to use or set the environment variable " &
@@ -296,44 +380,86 @@ proc execScript(scriptName: string, flags: Flags, options: Options): PSym =
 
   # Ensure that "nimblepkg/nimscriptapi" is in the PATH.
   block:
-    let t = options.getNimbleDir / "nimblecache"
+    let t = getTempDir() / "nimblecache"
     let tmpNimscriptApiPath = t / "nimblepkg" / "nimscriptapi.nim"
     createDir(tmpNimscriptApiPath.splitFile.dir)
     writeFile(tmpNimscriptApiPath, nimscriptApi)
-    searchPaths.add(t)
+    when declared(NimCompilerApiVersion):
+      when NimCompilerApiVersion >= 3:
+        conf.searchPaths.add(AbsoluteDir t)
+      else:
+        conf.searchPaths.add(t)
+    else:
+      searchPaths.add(t)
 
-  initDefines()
-  loadConfigs(DefaultConfig)
-  passes.gIncludeFile = includeModule
-  passes.gImportModule = importModule
+  when declared(NimCompilerApiVersion):
+    initDefines(conf.symbols)
+    when NimCompilerApiVersion >= 2:
+      loadConfigs(DefaultConfig, graph.cache, conf)
+    else:
+      loadConfigs(DefaultConfig, conf)
+      passes.gIncludeFile = includeModule
+      passes.gImportModule = importModule
 
-  defineSymbol("nimscript")
-  defineSymbol("nimconfig")
-  defineSymbol("nimble")
-  registerPass(semPass)
-  registerPass(evalPass)
+    defineSymbol(conf.symbols, "nimscript")
+    defineSymbol(conf.symbols, "nimconfig")
+    defineSymbol(conf.symbols, "nimble")
+    when NimCompilerApiVersion >= 2:
+      registerPass(graph, semPass)
+      registerPass(graph, evalPass)
+    else:
+      registerPass(semPass)
+      registerPass(evalPass)
 
-  searchPaths.add(compiler_options.libpath)
+    conf.searchPaths.add(conf.libpath)
+  else:
+    initDefines()
+    loadConfigs(DefaultConfig)
+    passes.gIncludeFile = includeModule
+    passes.gImportModule = importModule
+
+    defineSymbol("nimscript")
+    defineSymbol("nimconfig")
+    defineSymbol("nimble")
+    registerPass(semPass)
+    registerPass(evalPass)
+
+    searchPaths.add(compiler_options.libpath)
 
   when declared(resetAllModulesHard):
     result = makeModule(scriptName)
   else:
-    graph = newModuleGraph()
     result = graph.makeModule(scriptName)
 
   incl(result.flags, sfMainModule)
-  vm.globalCtx = setupVM(result, scriptName, flags)
+  when finalApi:
+    graph.vm = setupVM(graph, result, scriptName, flags)
 
-  # Setup builtins defined in nimscriptapi.nim
-  template cbApi(name, body) {.dirty.} =
-    vm.globalCtx.registerCallback pkgName & "." & astToStr(name),
-      proc (a: VmArgs) =
-        body
+    # Setup builtins defined in nimscriptapi.nim
+    template cbApi(name, body) {.dirty.} =
+      PCtx(graph.vm).registerCallback "nimscriptapi." & astToStr(name),
+        proc (a: VmArgs) =
+          body
+
+  else:
+    vm.globalCtx = setupVM(graph, result, scriptName, flags)
+
+    # Setup builtins defined in nimscriptapi.nim
+    template cbApi(name, body) {.dirty.} =
+      vm.globalCtx.registerCallback "nimscriptapi." & astToStr(name),
+        proc (a: VmArgs) =
+          body
 
   cbApi getPkgDir:
     setResult(a, scriptName.splitFile.dir)
 
-  when declared(newIdentCache):
+  when finalApi:
+    graph.compileSystemModule()
+    when NimCompilerApiVersion >= 3:
+      graph.processModule(result, llStreamOpen(AbsoluteFile scriptName, fmRead))
+    else:
+      graph.processModule(result, llStreamOpen(scriptName, fmRead))
+  elif declared(newIdentCache):
     graph.compileSystemModule(identCache)
     graph.processModule(result, llStreamOpen(scriptName, fmRead), nil, identCache)
   else:
@@ -342,17 +468,37 @@ proc execScript(scriptName: string, flags: Flags, options: Options): PSym =
 
 proc cleanup() =
   # ensure everything can be called again:
-  compiler_options.gProjectName = ""
-  compiler_options.command = ""
-  when declared(resetAllModulesHard):
+  when declared(NimCompilerApiVersion):
+    let conf = graph.config
+    conf.projectName = ""
+    conf.command = ""
+  else:
+    compiler_options.gProjectName = ""
+    compiler_options.command = ""
+  when declared(NimCompilerApiVersion):
+    resetSystemArtifacts(graph)
+  elif declared(resetAllModulesHard):
     resetAllModulesHard()
   else:
     resetSystemArtifacts()
-  clearPasses()
-  msgs.gErrorMax = 1
-  msgs.writeLnHook = nil
-  vm.globalCtx = nil
-  initDefines()
+  when finalApi:
+    clearPasses(graph)
+  else:
+    clearPasses()
+  when declared(NimCompilerApiVersion):
+    conf.errorMax = 1
+    when NimCompilerApiVersion >= 2:
+      conf.writeLnHook = nil
+      graph.vm = nil
+    else:
+      msgs.writeLnHook = nil
+      vm.globalCtx = nil
+    initDefines(conf.symbols)
+  else:
+    msgs.gErrorMax = 1
+    msgs.writeLnHook = nil
+    vm.globalCtx = nil
+    initDefines()
 
 proc readPackageInfoFromNims*(scriptName: string, options: Options,
     result: var PackageInfo) =
@@ -360,20 +506,37 @@ proc readPackageInfoFromNims*(scriptName: string, options: Options,
   ## that it populates.
 
   # Setup custom error handling.
-  msgs.gErrorMax = high(int)
-  var previousMsg = ""
-  msgs.writeLnHook =
-    proc (output: string) =
-      # The error counter is incremented after the writeLnHook is invoked.
-      if msgs.gErrorCounter > 0:
-        raise newException(NimbleError, previousMsg)
-      elif previousMsg.len > 0:
-        display("Info", previousMsg, priority = MediumPriority)
-      if output.normalize.startsWith("error"):
-        raise newException(NimbleError, output)
-      previousMsg = output
+  when declared(NimCompilerApiVersion):
+    let conf = graph.config
+    conf.errorMax = high(int)
+  else:
+    msgs.gErrorMax = high(int)
 
-  compiler_options.command = internalCmd
+  template errCounter(): int =
+    when declared(NimCompilerApiVersion): conf.errorCounter
+    else: msgs.gErrorCounter
+
+  var previousMsg = ""
+
+  proc writelnHook(output: string) =
+    # The error counter is incremented after the writeLnHook is invoked.
+    if errCounter() > 0:
+      raise newException(NimbleError, previousMsg)
+    elif previousMsg.len > 0:
+      display("Info", previousMsg, priority = MediumPriority)
+    if output.normalize.startsWith("error"):
+      raise newException(NimbleError, output)
+    previousMsg = output
+
+  when finalApi:
+    conf.writelnHook = writelnHook
+  else:
+    msgs.writeLnHook = writelnHook
+
+  when declared(NimCompilerApiVersion):
+    conf.command = internalCmd
+  else:
+    compiler_options.command = internalCmd
 
   # Execute the nimscript file.
   let thisModule = execScript(scriptName, nil, options)
@@ -390,23 +553,23 @@ proc readPackageInfoFromNims*(scriptName: string, options: Options,
     doAssert apiModule != nil
 
   # Check whether an error has occurred.
-  if msgs.gErrorCounter > 0:
+  if errCounter() > 0:
     raise newException(NimbleError, previousMsg)
 
   # Extract all the necessary fields populated by the nimscript file.
   proc getSym(apiModule: PSym, ident: string): PSym =
-    result = apiModule.tab.strTableGet(getIdent(ident))
+    result = apiModule.tab.strTableGet(getIdent(identCache, ident))
     if result.isNil:
       raise newException(NimbleError, "Ident not found: " & ident)
 
   template trivialField(field) =
-    result.field = getGlobal(getSym(apiModule, astToStr field))
+    result.field = getGlobal(graph, getSym(apiModule, astToStr field))
 
   template trivialFieldSeq(field) =
-    result.field.add getGlobalAsSeq(getSym(apiModule, astToStr field))
+    result.field.add getGlobalAsSeq(graph, getSym(apiModule, astToStr field))
 
   # keep reasonable default:
-  let name = getGlobal(apiModule.tab.strTableGet(getIdent"packageName"))
+  let name = getGlobal(graph, apiModule.tab.strTableGet(getIdent(identCache, "packageName")))
   if name.len > 0: result.name = name
 
   trivialField version
@@ -423,13 +586,13 @@ proc readPackageInfoFromNims*(scriptName: string, options: Options,
   trivialFieldSeq installExt
   trivialFieldSeq foreignDeps
 
-  extractRequires(getSym(apiModule, "requiresData"), result.requires)
+  extractRequires(graph, getSym(apiModule, "requiresData"), result.requires)
 
-  let binSeq = getGlobalAsSeq(getSym(apiModule, "bin"))
+  let binSeq = getGlobalAsSeq(graph, getSym(apiModule, "bin"))
   for i in binSeq:
     result.bin.add(i.addFileExt(ExeExt))
 
-  let backend = getGlobal(getSym(apiModule, "backend"))
+  let backend = getGlobal(graph, getSym(apiModule, "backend"))
   if backend.len == 0:
     result.backend = "c"
   elif cmpIgnoreStyle(backend, "javascript") == 0:
@@ -448,6 +611,13 @@ proc readPackageInfoFromNims*(scriptName: string, options: Options,
 
   cleanup()
 
+when declared(NimCompilerApiVersion):
+  template nimCommand(): untyped = conf.command
+  template nimProjectName(): untyped = conf.projectName
+else:
+  template nimCommand(): untyped = compiler_options.command
+  template nimProjectName(): untyped = compiler_options.gProjectName
+
 proc execTask*(scriptName, taskName: string,
     options: Options): ExecutionResult[void] =
   ## Executes the specified task in the specified script.
@@ -455,22 +625,28 @@ proc execTask*(scriptName, taskName: string,
   ## `scriptName` should be a filename pointing to the nimscript file.
   result.success = true
   result.flags = newTable[string, seq[string]]()
-  compiler_options.command = internalCmd
+  when declared(NimCompilerApiVersion):
+    let conf = graph.config
+  nimCommand() = internalCmd
   display("Executing",  "task $# in $#" % [taskName, scriptName],
           priority = HighPriority)
 
   let thisModule = execScript(scriptName, result.flags, options)
-  let prc = thisModule.tab.strTableGet(getIdent(taskName & "Task"))
+  let prc = thisModule.tab.strTableGet(getIdent(identCache, taskName & "Task"))
   if prc.isNil:
     # Procedure not defined in the NimScript module.
     result.success = false
+    cleanup()
     return
-  discard vm.globalCtx.execProc(prc, [])
+  when finalApi:
+    discard vm.execProc(PCtx(graph.vm), prc, [])
+  else:
+    discard vm.globalCtx.execProc(prc, [])
 
   # Read the command, arguments and flags set by the executed task.
-  result.command = compiler_options.command
+  result.command = nimCommand()
   result.arguments = @[]
-  for arg in compiler_options.gProjectName.split():
+  for arg in nimProjectName().split():
     result.arguments.add(arg)
 
   cleanup()
@@ -481,9 +657,11 @@ proc execHook*(scriptName, actionName: string, before: bool,
   ## the "before" or the "after" hook.
   ##
   ## `scriptName` should be a filename pointing to the nimscript file.
+  when declared(NimCompilerApiVersion):
+    let conf = graph.config
   result.success = true
   result.flags = newTable[string, seq[string]]()
-  compiler_options.command = internalCmd
+  nimCommand() = internalCmd
   let hookName =
     if before: actionName.toLowerAscii & "Before"
     else: actionName.toLowerAscii & "After"
@@ -492,31 +670,38 @@ proc execHook*(scriptName, actionName: string, before: bool,
 
   let thisModule = execScript(scriptName, result.flags, options)
   # Explicitly execute the task procedure, instead of relying on hack.
-  let prc = thisModule.tab.strTableGet(getIdent(hookName))
+  let prc = thisModule.tab.strTableGet(getIdent(identCache, hookName))
   if prc.isNil:
     # Procedure not defined in the NimScript module.
     result.success = false
     cleanup()
     return
-  let returnVal = vm.globalCtx.execProc(prc, [])
+  when finalApi:
+    let returnVal = vm.execProc(PCtx(graph.vm), prc, [])
+  else:
+    let returnVal = vm.globalCtx.execProc(prc, [])
   case returnVal.kind
   of nkCharLit..nkUInt64Lit:
     result.retVal = returnVal.intVal == 1
   else: assert false
 
   # Read the command, arguments and flags set by the executed task.
-  result.command = compiler_options.command
+  result.command = nimCommand()
   result.arguments = @[]
-  for arg in compiler_options.gProjectName.split():
+  for arg in nimProjectName().split():
     result.arguments.add(arg)
 
   cleanup()
 
 proc getNimScriptCommand(): string =
-  compiler_options.command
+  when declared(NimCompilerApiVersion):
+    let conf = graph.config
+  nimCommand()
 
 proc setNimScriptCommand(command: string) =
-  compiler_options.command = command
+  when declared(NimCompilerApiVersion):
+    let conf = graph.config
+  nimCommand() = command
 
 proc hasTaskRequestedCommand*(execResult: ExecutionResult): bool =
   ## Determines whether the last executed task used ``setCommand``

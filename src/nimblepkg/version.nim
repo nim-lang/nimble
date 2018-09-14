@@ -39,8 +39,6 @@ proc `$`*(ver: Version): string {.borrow.}
 
 proc hash*(ver: Version): Hash {.borrow.}
 
-proc isNil*(ver: Version): bool {.borrow.}
-
 proc newVersion*(ver: string): Version =
   doAssert(ver.len == 0 or ver[0] in {'#', '\0'} + Digits,
            "Wrong version: " & ver)
@@ -166,7 +164,7 @@ proc parseVersionRange*(s: string): VersionRange =
   var i = 0
   var op = ""
   var version = ""
-  while true:
+  while i < s.len:
     case s[i]
     of '>', '<', '=':
       op.add(s[i])
@@ -184,14 +182,10 @@ proc parseVersionRange*(s: string): VersionRange =
         raise newException(ParseVersionError,
             "Having more than one `&` in a version range is pointless")
 
-      break
+      return
 
     of '0'..'9', '.':
       version.add(s[i])
-
-    of '\0':
-      result = makeRange(version, op)
-      break
 
     of ' ':
       # Make sure '0.9 8.03' is not allowed.
@@ -204,6 +198,7 @@ proc parseVersionRange*(s: string): VersionRange =
       raise newException(ParseVersionError,
           "Unexpected char in version range '" & s & "': " & s[i])
     inc(i)
+  result = makeRange(version, op)
 
 proc toVersionRange*(ver: Version): VersionRange =
   ## Converts a version to either a verEq or verSpecial VersionRange.
@@ -296,16 +291,16 @@ when isMainModule:
   doAssert(newVersion("1.0") < newVersion("1.4"))
   doAssert(newVersion("1.0.1") > newVersion("1.0"))
   doAssert(newVersion("1.0.6") <= newVersion("1.0.6"))
-  #doAssert(not withinRange(newVersion("0.1.0"), parseVersionRange("> 0.1")))
+  doAssert(not withinRange(newVersion("0.1.0"), parseVersionRange("> 0.1")))
   doAssert(not (newVersion("0.1.0") < newVersion("0.1")))
   doAssert(not (newVersion("0.1.0") > newVersion("0.1")))
   doAssert(newVersion("0.1.0") < newVersion("0.1.0.0.1"))
   doAssert(newVersion("0.1.0") <= newVersion("0.1"))
 
   var inter1 = parseVersionRange(">= 1.0 & <= 1.5")
+  doAssert inter1.kind == verIntersect
   var inter2 = parseVersionRange("1.0")
   doAssert(inter2.kind == verEq)
-  #echo(parseVersionRange(">= 0.8 0.9"))
 
   doAssert(not withinRange(newVersion("1.5.1"), inter1))
   doAssert(withinRange(newVersion("1.0.2.3.4.5.6.7.8.9.10.11.12"), inter1))
@@ -355,5 +350,8 @@ when isMainModule:
   # toVersionRange tests
   doAssert toVersionRange(newVersion("#head")).kind == verSpecial
   doAssert toVersionRange(newVersion("0.2.0")).kind == verEq
+
+  # Something raised on IRC
+  doAssert newVersion("1") == newVersion("1.0")
 
   echo("Everything works!")

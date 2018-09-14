@@ -313,7 +313,7 @@ Check out the [Creating Packages](#creating-packages) section for more info.
 
 Publishes your Nimble package to the official Nimble package repository.
 
-**Note:** Requires a valid GitHub account.
+**Note:** Requires a valid GitHub account with an SSH key attached to it. To upload your public key onto your GitHub account, follow [this link](https://github.com/settings/keys).
 
 ### nimble tasks
 
@@ -905,7 +905,7 @@ The ``master`` branch is...
 
 * default
 * bleeding edge
-* tested to compile with the latest Nim version
+* tested to compile with a pinned (close to HEAD) commit of Nim
 
 The ``stable`` branch is...
 

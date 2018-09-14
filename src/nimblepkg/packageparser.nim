@@ -277,6 +277,25 @@ proc readPackageInfoFromNimble(path: string; result: var PackageInfo) =
   else:
     raise newException(ValueError, "Cannot open package info: " & path)
 
+proc inferInstallRules(pkgInfo: var PackageInfo, options: Options) =
+  # Binary packages shouldn't install .nim files by default.
+  # (As long as the package info doesn't explicitly specify what should be
+  # installed.)
+  let installInstructions =
+    pkgInfo.installDirs.len + pkgInfo.installExt.len + pkgInfo.installFiles.len
+  if installInstructions == 0 and pkgInfo.bin.len > 0:
+    pkgInfo.skipExt.add("nim")
+
+  # When a package doesn't specify a `srcDir` it's fair to assume that
+  # the .nim files are in the root of the package. So we can explicitly select
+  # them and prevent the installation of anything else. The user can always
+  # override this with `installFiles`.
+  if pkgInfo.srcDir == "":
+    if dirExists(pkgInfo.getRealDir() / pkgInfo.name):
+      pkgInfo.installDirs.add(pkgInfo.name)
+    if fileExists(pkgInfo.getRealDir() / pkgInfo.name.addFileExt("nim")):
+      pkgInfo.installFiles.add(pkgInfo.name.addFileExt("nim"))
+
 proc readPackageInfo(nf: NimbleFile, options: Options,
     onlyMinimalInfo=false): PackageInfo =
   ## Reads package info from the specified Nimble file.
@@ -350,6 +369,9 @@ proc readPackageInfo(nf: NimbleFile, options: Options,
     let version = parseVersionRange(minimalInfo.version)
     if version.kind == verSpecial:
       result.specialVersion = minimalInfo.version
+
+  # Apply rules to infer which files should/shouldn't be installed. See #469.
+  inferInstallRules(result, options)
 
   if not result.isMinimal:
     options.pkgInfoCache[nf] = result

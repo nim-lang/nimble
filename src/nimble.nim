@@ -14,7 +14,7 @@ import nimblepkg/packageinfo, nimblepkg/version, nimblepkg/tools,
        nimblepkg/download, nimblepkg/config, nimblepkg/common,
        nimblepkg/publish, nimblepkg/options, nimblepkg/packageparser,
        nimblepkg/cli, nimblepkg/packageinstaller, nimblepkg/reversedeps,
-       nimblepkg/nimscriptexecutor
+       nimblepkg/nimscriptexecutor, nimblepkg/init
 
 import nimblepkg/nimscriptsupport
 
@@ -190,11 +190,6 @@ proc processDeps(pkginfo: PackageInfo, options: Options): seq[PackageInfo] =
       else:
         display("Info:", "Dependency on $1 already satisfied" % $dep,
                 priority = HighPriority)
-        if pkg.isLinked:
-          # TODO (#393): This can be optimised since the .nimble-link files have
-          # a secondary line that specifies the srcDir.
-          pkg = pkg.toFullInfo(options)
-
         result.add(pkg)
         # Process the dependencies of this dependency.
         result.add(processDeps(pkg.toFullInfo(options), options))
@@ -330,6 +325,13 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
   ## to the packages this package depends on.
   ## The return value of this function is used by
   ## ``processDeps`` to gather a list of paths to pass to the nim compiler.
+
+  # Handle pre-`install` hook.
+  if not options.depsOnly:
+    cd dir: # Make sure `execHook` executes the correct .nimble file.
+      if not execHook(options, true):
+        raise newException(NimbleError, "Pre-hook prevented further execution.")
+
   var pkgInfo = getPkgInfo(dir, options)
   let realDir = pkgInfo.getRealDir()
   let binDir = options.getBinDir()
@@ -433,6 +435,12 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
   display("Success:", pkgInfo.name & " installed successfully.",
           Success, HighPriority)
 
+  # Run post-install hook now that package is installed. The `execHook` proc
+  # executes the hook defined in the CWD, so we set it to where the package
+  # has been installed.
+  cd dest.splitFile.dir:
+    discard execHook(options, false)
+
 proc getDownloadInfo*(pv: PkgTuple, options: Options,
                       doPrompt: bool): (DownloadMethod, string,
                                         Table[string, string]) =
@@ -472,17 +480,7 @@ proc install(packages: seq[PkgTuple],
       let (downloadDir, downloadVersion) =
           downloadPkg(url, pv.ver, meth, subdir, options)
       try:
-        # Run pre-install hook in download directory now that package is downloaded
-        cd downloadDir:
-          if not execHook(options, true):
-            raise newException(NimbleError, "Pre-hook prevented further execution.")
-
         result = installFromDir(downloadDir, pv.ver, options, url)
-
-        # Run post-install hook in installed directory now that package is installed
-        # Standard hooks run in current directory so it won't detect this new package
-        cd result.pkg.myPath.parentDir():
-          discard execHook(options, false)
       except BuildFailed:
         # The package failed to build.
         # Check if we tried building a tagged version of the package.
@@ -619,29 +617,24 @@ proc listPaths(options: Options) =
   ## On success the proc returns normally.
   cli.setSuppressMessages(true)
   assert options.action.typ == actionPath
-  assert(not options.action.packages.isNil)
 
   if options.action.packages.len == 0:
     raise newException(NimbleError, "A package name needs to be specified")
 
   var errors = 0
+  let pkgs = getInstalledPkgsMin(options.getPkgsDir(), options)
   for name, version in options.action.packages.items:
     var installed: seq[VersionAndPath] = @[]
     # There may be several, list all available ones and sort by version.
-    for kind, path in walkDir(options.getPkgsDir):
-      if kind != pcDir or not path.startsWith(options.getPkgsDir / name & "-"):
-        continue
-
-      var nimbleFile = findNimbleFile(path, false)
-      if nimbleFile.existsFile:
-        var pkgInfo = getPkgInfo(path, options)
+    for x in pkgs.items():
+      let
+        pName = x.pkginfo.name
+        pVer = x.pkginfo.specialVersion
+      if name == pName:
         var v: VersionAndPath
-        v.version = newVersion(pkgInfo.specialVersion)
-        v.path = pkgInfo.getRealDir()
+        v.version = newVersion(pVer)
+        v.path = x.pkginfo.getRealDir()
         installed.add(v)
-      else:
-        display("Warning:", "No .nimble file found for " & path, Warning,
-                MediumPriority)
 
     if installed.len > 0:
       sort(installed, cmp[VersionAndPath], Descending)
@@ -705,29 +698,37 @@ proc dump(options: Options) =
   echo "backend: ", p.backend.escape
 
 proc init(options: Options) =
-  var nimbleFile: string = ""
-
-  if options.forcePrompts != forcePromptYes:
-    display("Info:",
-      "In order to initialise a new Nimble package, I will need to ask you\n" &
-      "some questions. Default values are shown in square brackets, press\n" &
-      "enter to use them.", priority = HighPriority)
-
-  # Ask for package name.
+  # Determine the package name.
   let pkgName =
     if options.action.projName != "":
       options.action.projName
     else:
       os.getCurrentDir().splitPath.tail.toValidPackageName()
 
-  nimbleFile = pkgName.changeFileExt("nimble")
-  validatePackageName(nimbleFile.changeFileExt(""))
+  # Validate the package name.
+  validatePackageName(pkgName)
 
-  let nimbleFilePath = os.getCurrentDir() / nimbleFile
-  if existsFile(nimbleFilePath):
-    let errMsg = "Nimble file already exists: $#" % nimbleFilePath
+  # Determine the package root.
+  let pkgRoot =
+    if pkgName == os.getCurrentDir().splitPath.tail:
+      os.getCurrentDir()
+    else:
+      os.getCurrentDir() / pkgName
+
+  let nimbleFile = (pkgRoot / pkgName).changeFileExt("nimble")
+
+  if existsFile(nimbleFile):
+    let errMsg = "Nimble file already exists: $#" % nimbleFile
     raise newException(NimbleError, errMsg)
 
+  if options.forcePrompts != forcePromptYes:
+    display(
+      "Info:",
+      "Package initialisation requires info which could not be inferred.\n" &
+      "Default values are shown in square brackets, press\n" &
+      "enter to use them.",
+      priority = HighPriority
+    )
   display("Using", "$# for new package name" % [pkgName.escape()],
     priority = HighPriority)
 
@@ -755,10 +756,16 @@ proc init(options: Options) =
     priority = HighPriority)
 
   # Determine the type of package
-  let pkgType = promptList(options, "Package type?", [
-    "lib",
-    "bin",
-  ])
+  let pkgType = promptList(
+    options,
+    """Package type?
+Library - provides functionality for other packages.
+Binary  - produces an executable for the end-user.
+Hybrid  - combination of library and binary
+
+For more information see https://goo.gl/cm2RX5""",
+    ["library", "binary", "hybrid"]
+  )
 
   # Ask for package version.
   let pkgVersion = promptCustom(options, "Initial version of package?", "0.1.0")
@@ -769,13 +776,32 @@ proc init(options: Options) =
     "A new awesome nimble package")
 
   # Ask for license
-  let pkgLicense = options.promptList("Package License?", [
+  # License list is based on:
+  # https://www.blackducksoftware.com/top-open-source-licenses
+  var pkgLicense = options.promptList(
+    """Package License?
+This should ideally be a valid SPDX identifier. See https://spdx.org/licenses/.
+""", [
     "MIT",
-    "BSD2",
-    "GPLv3",
-    "LGPLv3",
-    "Apache2",
+    "GPL-2.0",
+    "Apache-2.0",
+    "ISC",
+    "GPL-3.0",
+    "BSD-3-Clause",
+    "LGPL-2.1",
+    "LGPL-3.0",
+    "EPL-2.0",
+    # This is what npm calls "UNLICENSED" (which is too similar to "Unlicense")
+    "Proprietary",
+    "Other"
   ])
+
+  if pkgLicense.toLower == "other":
+    pkgLicense = promptCustom(options,
+      """Package license?
+Please specify a valid SPDX identifier.""",
+      "MIT"
+    )
 
   # Ask for Nim dependency
   let nimDepDef = getNimrodVersion()
@@ -783,91 +809,19 @@ proc init(options: Options) =
     $nimDepDef)
   validateVersion(pkgNimDep)
 
-  let pkgTestDir = "tests"
-
-  # Create source directory
-  os.createDir(pkgSrcDir)
-
-  display("Success:", "Source directory created successfully", Success,
-    MediumPriority)
-
-  # Create initial source file
-  cd pkgSrcDir:
-    let pkgFile = pkgName.changeFileExt("nim")
-    try:
-      if pkgType == "bin":
-        pkgFile.writeFile "# Hello Nim!\necho \"Hello, World!\"\n"
-      else:
-        pkgFile.writeFile """# $#
-# Copyright $#
-# $#
-""" % [pkgName, pkgAuthor, pkgDesc]
-      display("Success:", "Created initial source file successfully", Success,
-        MediumPriority)
-    except:
-      raise newException(NimbleError, "Unable to open file " & pkgFile &
-                         " for writing: " & osErrorMsg(osLastError()))
-
-  # Create test directory
-  os.createDir(pkgTestDir)
-
-  display("Success:", "Test directory created successfully", Success,
-    MediumPriority)
-
-  cd pkgTestDir:
-    try:
-      "test1.nims".writeFile("""switch("path", "$$projectDir/../$#")""" %
-        [pkgSrcDir])
-      display("Success:", "Test config file created successfully", Success,
-        MediumPriority)
-    except:
-      raise newException(NimbleError, "Unable to open file " & "test1.nims" &
-                         " for writing: " & osErrorMsg(osLastError()))
-    try:
-      "test1.nim".writeFile("doAssert(1 + 1 == 2)\n")
-      display("Success:", "Test file created successfully", Success,
-        MediumPriority)
-    except:
-      raise newException(NimbleError, "Unable to open file " & "test1.nim" &
-                         " for writing: " & osErrorMsg(osLastError()))
-
-  # Write the nimble file
-  try:
-    if pkgType == "lib":
-      nimbleFile.writeFile """# Package
-
-version       = $#
-author        = $#
-description   = $#
-license       = $#
-srcDir        = $#
-
-# Dependencies
-
-requires "nim >= $#"
-""" % [pkgVersion.escape(), pkgAuthor.escape(), pkgDesc.escape(),
-       pkgLicense.escape(), pkgSrcDir.escape(), pkgNimDep]
-    else:
-      nimbleFile.writeFile """# Package
-
-version       = $#
-author        = $#
-description   = $#
-license       = $#
-srcDir        = $#
-bin           = @[$#]
-
-# Dependencies
-
-requires "nim >= $#"
-""" % [pkgVersion.escape(), pkgAuthor.escape(), pkgDesc.escape(),
-       pkgLicense.escape(), pkgSrcDir.escape(), pkgName.escape(), pkgNimDep]
-  except:
-    raise newException(NimbleError, "Unable to open file " & "test1.nim" &
-                       " for writing: " & osErrorMsg(osLastError()))
-
-  display("Success:", "Nimble file created successfully", Success,
-    MediumPriority)
+  createPkgStructure(
+    (
+      pkgName,
+      pkgVersion,
+      pkgAuthor,
+      pkgDesc,
+      pkgLicense,
+      pkgSrcDir,
+      pkgNimDep,
+      pkgType
+    ),
+    pkgRoot
+  )
 
   display("Success:", "Package $# created successfully" % [pkgName], Success,
     HighPriority)
@@ -945,6 +899,10 @@ proc developFromDir(dir: string, options: Options) =
   if options.depsOnly:
     raiseNimbleError("Cannot develop dependencies only.")
 
+  cd dir: # Make sure `execHook` executes the correct .nimble file.
+    if not execHook(options, true):
+      raise newException(NimbleError, "Pre-hook prevented further execution.")
+
   var pkgInfo = getPkgInfo(dir, options)
   if pkgInfo.bin.len > 0:
     if "nim" in pkgInfo.skipExt:
@@ -994,6 +952,10 @@ proc developFromDir(dir: string, options: Options) =
   display("Success:", (pkgInfo.name & " linked successfully to '$1'.") %
           dir, Success, HighPriority)
 
+  # Execute the post-develop hook.
+  cd dir:
+    discard execHook(options, false)
+
 proc develop(options: Options) =
   if options.action.packages == @[]:
     developFromDir(getCurrentDir(), options)
@@ -1013,16 +975,27 @@ proc develop(options: Options) =
 
       let (meth, url, metadata) = getDownloadInfo(pv, options, true)
       let subdir = metadata.getOrDefault("subdir")
-      discard downloadPkg(url, pv.ver, meth, subdir, options, downloadDir)
+
+      # Download the HEAD and make sure the full history is downloaded.
+      let ver =
+        if pv.ver.kind == verAny:
+          parseVersionRange("#head")
+        else:
+          pv.ver
+      var options = options
+      options.forceFullClone = true
+      discard downloadPkg(url, ver, meth, subdir, options, downloadDir)
       developFromDir(downloadDir / subdir, options)
 
 proc test(options: Options) =
-  ## Executes all tests.
+  ## Executes all tests starting with 't' in the ``tests`` directory.
+  ## Subdirectories are not walked.
   var files = toSeq(walkDir(getCurrentDir() / "tests"))
   files.sort((a, b) => cmp(a.path, b.path))
 
   for file in files:
-    if file.path.endsWith(".nim") and file.kind in {pcFile, pcLinkToFile}:
+    let (_, name, ext) = file.path.splitFile()
+    if ext == ".nim" and name[0] == 't' and file.kind in {pcFile, pcLinkToFile}:
       var optsCopy = options.briefClone()
       optsCopy.action.typ = actionCompile
       optsCopy.action.file = file.path
@@ -1064,10 +1037,6 @@ proc doAction(options: Options) =
   if not existsDir(options.getPkgsDir):
     createDir(options.getPkgsDir)
 
-  if not execHook(options, true):
-    display("Warning", "Pre-hook prevented further execution.", Warning,
-            HighPriority)
-    return
   case options.action.typ
   of actionRefresh:
     refresh(options)
@@ -1111,6 +1080,10 @@ proc doAction(options: Options) =
   of actionNil:
     assert false
   of actionCustom:
+    if not execHook(options, true):
+      display("Warning", "Pre-hook prevented further execution.", Warning,
+              HighPriority)
+      return
     let isPreDefined = options.action.command.normalize == "test"
 
     var execResult: ExecutionResult[void]
@@ -1125,9 +1098,6 @@ proc doAction(options: Options) =
         # Run the post hook for `test` in case it exists.
         discard execHook(options, false)
 
-  if options.action.typ != actionCustom:
-    discard execHook(options, false)
-
 when isMainModule:
   var error = ""
   var hint = ""
@@ -1140,7 +1110,11 @@ when isMainModule:
   except NimbleQuit:
     discard
   finally:
-    removeDir(getNimbleTempDir())
+    try:
+      removeDir(getNimbleTempDir())
+    except OSError:
+      let msg = "Couldn't remove Nimble's temp dir"
+      display("Warning:", msg, Warning, MediumPriority)
 
   if error.len > 0:
     displayTip()

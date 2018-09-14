@@ -94,11 +94,13 @@ proc createFork(a: Auth) =
     raise newException(NimbleError, "Unable to create fork. Access token" &
                        " might not have enough permissions.")
 
-proc createPullRequest(a: Auth, packageName, branch: string) =
+proc createPullRequest(a: Auth, packageName, branch: string): string =
   display("Info", "Creating PR", priority = HighPriority)
-  discard a.http.postContent(ReposUrl & "nim-lang/packages/pulls",
+  var body = a.http.postContent(ReposUrl & "nim-lang/packages/pulls",
       body="""{"title": "Add package $1", "head": "$2:$3",
                "base": "master"}""" % [packageName, a.user, branch])
+  var pr = parseJson(body)
+  return pr{"html_url"}.getStr()
 
 proc `%`(s: openArray[string]): JsonNode =
   result = newJArray()
@@ -220,5 +222,5 @@ proc publish*(p: PackageInfo, o: Options) =
     doCmd("git commit packages.json -m \"Added package " & p.name & "\"")
     display("Pushing", "to remote of fork.", priority = HighPriority)
     doCmd("git push https://" & auth.token & "@github.com/" & auth.user & "/packages " & branchName)
-    createPullRequest(auth, p.name, branchName)
-  display("Success:", "Pull request successful.", Success, HighPriority)
+    let prUrl = createPullRequest(auth, p.name, branchName)
+  display("Success:", "Pull request successful, check at " & prUrl , Success, HighPriority)

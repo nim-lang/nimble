@@ -6,6 +6,7 @@ description   = "hybrid"
 license       = "MIT"
 
 bin = @["hybrid"]
+installExt = @["nim"]
 
 # Dependencies
 

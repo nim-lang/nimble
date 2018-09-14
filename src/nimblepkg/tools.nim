@@ -87,7 +87,7 @@ proc changeRoot*(origRoot, newRoot, path: string): string =
   ## the trailing separator. This would cause this method to throw during package
   ## installation.
   if path.startsWith(origRoot) or path.samePaths(origRoot):
-    return newRoot / path[origRoot.len .. path.len-1]
+    return newRoot / path.substr(origRoot.len, path.len-1)
   else:
     raise newException(ValueError,
       "Cannot change root of path: Path does not begin with original root.")
@@ -105,6 +105,10 @@ proc copyDirD*(fro, to: string): seq[string] =
   for path in walkDirRec(fro):
     createDir(changeRoot(fro, to, path.splitFile.dir))
     result.add copyFileD(path, changeRoot(fro, to, path))
+
+proc createDirD*(dir: string) =
+  display("Creating", "directory $#" % dir, priority = LowPriority)
+  createDir(dir)
 
 proc getDownloadDirName*(uri: string, verRange: VersionRange): string =
   ## Creates a directory name based on the specified ``uri`` (url)
