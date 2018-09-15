@@ -42,11 +42,11 @@ proc isStrLit(n: PNode): bool = n.kind in {nkStrLit..nkTripleStrLit}
 
 when declared(NimCompilerApiVersion):
   const finalApi = NimCompilerApiVersion >= 2
+
+  when NimCompilerApiVersion >= 3:
+    import compiler / pathutils
 else:
   const finalApi = false
-
-when NimCompilerApiVersion >= 3:
-  import compiler / pathutils
 
 proc getGlobal(g: ModuleGraph; ident: PSym): string =
   when finalApi:
