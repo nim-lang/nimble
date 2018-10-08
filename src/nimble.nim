@@ -942,8 +942,7 @@ proc developFromDir(dir: string, options: Options) =
   writeNimbleLink(nimbleLinkPath, nimbleLink)
 
   # Save a nimblemeta.json file.
-  saveNimbleMeta(pkgDestDir, "file://" & dir, vcsRevisionInDir(dir),
-                 nimbleLinkPath)
+  saveNimbleMeta(pkgDestDir, dir, vcsRevisionInDir(dir), nimbleLinkPath)
 
   # Save the nimble data (which might now contain reverse deps added in
   # processDeps).
