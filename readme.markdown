@@ -733,7 +733,7 @@ installing your package (on macOS):
 ### Nim compiler
 
 The Nim compiler cannot read .nimble files. Its knowledge of Nimble is
-limited to the ``nimblePaths`` feature which allows it to use packages installed
+limited to the ``NimblePath`` feature which allows it to use packages installed
 in Nimble's package directory when compiling your software. This means that
 it cannot resolve dependencies, and it can only use the latest version of a
 package when compiling.
@@ -745,6 +745,23 @@ the compiler so that it knows precisely which version to use.
 This means that you can safely compile using the compiler when developing your
 software, but you should use Nimble to build the package before publishing it
 to ensure that the dependencies you specified are correct.
+
+To compile code that uses nimble managed packages with `nim`,you need
+to specify `--NimblePath:PATH` option. For example, if your `nimble` directory
+is located at `/some/custom/path/nimble`, this should work:
+
+```
+nim c --nimblepath:/some/custom/path/nimble/pkgs main.nim
+``` 
+
+Some code editors rely on `nim check` to check for errors under the hood (e.g. VScode),
+and the editor extension may not allow user to pass custom option to `nim check`, which
+will cause `nim check` to scream `Error: cannot open file:<the_package>`. In this case,
+you will have to use [Nim compiler's configuration files](https://nim-lang.org/docs/nimc.html#compiler-usage-configuration-files). Simply add the line:
+```
+nimblePath = "/some/custom/path/nimble/pkgs"
+```
+to the `nim.cfg` located in any directory listed in the [documentation](https://nim-lang.org/docs/nimc.html#compiler-usage-configuration-files) should resolve the problem.
 
 ### Versions
 
