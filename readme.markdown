@@ -746,16 +746,20 @@ This means that you can safely compile using the compiler when developing your
 software, but you should use Nimble to build the package before publishing it
 to ensure that the dependencies you specified are correct.
 
-To compile code that uses nimble managed packages with `nim`,you need
-to specify `--NimblePath:PATH` option. For example, if your `nimble` directory
-is located at `/some/custom/path/nimble`, this should work:
+### Compile with `nim` after changing the nimble directory
+
+`nim` has been preconfigured to look at the default nimble directory while compiling,
+so no extra step is required to use nimble managed packages in your code. 
+However, if you are using custom `nimbleDir`, you need to specify 
+`--NimblePath:PATH` option (`nimblepath` is case insensitive). For example,
+if your `nimble` directory is located at `/some/custom/path/nimble`, this should work:
 
 ```
 nim c --nimblepath:/some/custom/path/nimble/pkgs main.nim
 ``` 
 
-Some code editors rely on `nim check` to check for errors under the hood (e.g. VScode),
-and the editor extension may not allow user to pass custom option to `nim check`, which
+Some code editors rely on `nim check` to check for errors under the hood (e.g. VScode), 
+and the editor extension may not allow users to pass custom option to `nim check`, which
 will cause `nim check` to scream `Error: cannot open file:<the_package>`. In this case,
 you will have to use [Nim compiler's configuration files](https://nim-lang.org/docs/nimc.html#compiler-usage-configuration-files). Simply add the line:
 ```
