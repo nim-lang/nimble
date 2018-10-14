@@ -212,18 +212,6 @@ proc promptList*(options: Options, question: string, args: openarray[string]): s
   ## options is selected.
   return promptList(options.forcePrompts, question, args)
 
-proc renameBabelToNimble(options: Options) {.deprecated.} =
-  let babelDir = getHomeDir() / ".babel"
-  let nimbleDir = getHomeDir() / ".nimble"
-  if dirExists(babelDir):
-    if options.prompt("Found deprecated babel package directory, would you " &
-        "like to rename it to nimble?"):
-      copyDir(babelDir, nimbleDir)
-      copyFile(babelDir / "babeldata.json", nimbleDir / "nimbledata.json")
-
-      removeDir(babelDir)
-      removeFile(nimbleDir / "babeldata.json")
-
 proc getNimbleDir*(options: Options): string =
   result = options.config.nimbleDir
   if options.nimbleDir.len != 0:

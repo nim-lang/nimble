@@ -1,6 +1,6 @@
 # Copyright (C) Dominik Picheta. All rights reserved.
 # BSD License. Look at license.txt for more info.
-import parsecfg, json, streams, strutils, parseutils, os, tables, future
+import parsecfg, json, streams, strutils, parseutils, os, tables, sugar
 from sequtils import apply, map
 
 import version, tools, common, nimscriptsupport, options, packageinfo, cli

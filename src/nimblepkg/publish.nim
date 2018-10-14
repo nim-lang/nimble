@@ -76,7 +76,7 @@ proc getGithubAuth(o: Options): Auth =
 proc isCorrectFork(j: JsonNode): bool =
   # Check whether this is a fork of the nimble packages repo.
   result = false
-  if j{"fork"}.getBVal():
+  if j{"fork"}.getBool():
     result = j{"parent"}{"full_name"}.getStr() == "nim-lang/packages"
 
 proc forkExists(a: Auth): bool =
@@ -217,7 +217,7 @@ proc publish*(p: PackageInfo, o: Options) =
 
   cd pkgsDir:
     editJson(p, url, tags, downloadMethod)
-    let branchName = "add-" & p.name & getTime().getGMTime().format("HHmm")
+    let branchName = "add-" & p.name & getTime().utc.format("HHmm")
     doCmd("git checkout -B " & branchName)
     doCmd("git commit packages.json -m \"Added package " & p.name & "\"")
     display("Pushing", "to remote of fork.", priority = HighPriority)

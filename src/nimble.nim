@@ -4,7 +4,7 @@
 import system except TResult
 
 import httpclient, parseopt, os, osproc, pegs, tables, parseutils,
-       strtabs, json, algorithm, sets, uri, future, sequtils
+       strtabs, json, algorithm, sets, uri, sugar, sequtils
 
 import strutils except toLower
 from unicode import toLower
