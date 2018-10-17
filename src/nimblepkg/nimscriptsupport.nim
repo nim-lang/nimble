@@ -42,11 +42,11 @@ proc isStrLit(n: PNode): bool = n.kind in {nkStrLit..nkTripleStrLit}
 
 when declared(NimCompilerApiVersion):
   const finalApi = NimCompilerApiVersion >= 2
+
+  when NimCompilerApiVersion >= 3:
+    import compiler / pathutils
 else:
   const finalApi = false
-
-when NimCompilerApiVersion >= 3:
-  import compiler / pathutils
 
 proc getGlobal(g: ModuleGraph; ident: PSym): string =
   when finalApi:
@@ -154,7 +154,7 @@ proc setupVM(graph: ModuleGraph; module: PSym; scriptName: string, flags: Flags)
   cbos copyFile:
     os.copyFile(getString(a, 0), getString(a, 1))
   cbos getLastModificationTime:
-    setResult(a, toSeconds(getLastModificationTime(getString(a, 0))))
+    setResult(a, toUnix(getLastModificationTime(getString(a, 0))))
 
   cbos rawExec:
     setResult(a, osproc.execCmd getString(a, 0))

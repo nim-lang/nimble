@@ -1,6 +1,6 @@
 # Copyright (C) Dominik Picheta. All rights reserved.
 # BSD License. Look at license.txt for more info.
-import osproc, streams, unittest, strutils, os, sequtils, future
+import osproc, streams, unittest, strutils, os, sequtils, sugar
 
 # TODO: Each test should start off with a clean slate. Currently installed
 # packages are shared between each test which causes a multitude of issues
