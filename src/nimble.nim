@@ -993,7 +993,7 @@ proc test(options: Options) =
   files.sort((a, b) => cmp(a.path, b.path))
 
   for file in files:
-    let (dir, name, ext) = file.path.splitFile()
+    let (_, name, ext) = file.path.splitFile()
     if ext == ".nim" and name[0] == 't' and file.kind in {pcFile, pcLinkToFile}:
       var optsCopy = options.briefClone()
       optsCopy.action.typ = actionCompile
@@ -1003,7 +1003,7 @@ proc test(options: Options) =
       optsCopy.action.compileOptions.add("-r")
       optsCopy.action.compileOptions.add("--path:.")
       let
-        binFileName = joinPath(dir, name) & (if defined(windows): ".exe" else: "")
+        binFileName = file.path.changeFileExt(ExeExt)
         existsBefore = existsFile(binFileName)
 
       execBackend(optsCopy)
