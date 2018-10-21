@@ -253,6 +253,9 @@ proc buildFromDir(pkgInfo: PackageInfo, paths: seq[string], forRelease: bool) =
   buildFromDir(pkgInfo, paths, args)
 
 proc removePkgDir(dir: string, options: Options) =
+  cd dir: # Make sure `execHook` executes the correct .nimble file.
+    if not execHook(options, true):
+      raise newException(NimbleError, "Pre-hook prevented further execution.")
   ## Removes files belonging to the package in ``dir``.
   try:
     var nimblemeta = parseFile(dir / "nimblemeta.json")
@@ -263,6 +266,7 @@ proc removePkgDir(dir: string, options: Options) =
       removeFile(dir / file.str)
 
     removeFile(dir / "nimblemeta.json")
+    discard execHook(options, false)
 
     # If there are no files left in the directory, remove the directory.
     if toSeq(walkDirRec(dir)).len == 0:
