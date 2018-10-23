@@ -4,7 +4,7 @@
 import system except TResult
 
 import httpclient, parseopt, os, osproc, pegs, tables, parseutils,
-       strtabs, json, algorithm, sets, uri, future, sequtils
+       strtabs, json, algorithm, sets, uri, sugar, sequtils
 
 import strutils except toLower
 from unicode import toLower
@@ -942,8 +942,7 @@ proc developFromDir(dir: string, options: Options) =
   writeNimbleLink(nimbleLinkPath, nimbleLink)
 
   # Save a nimblemeta.json file.
-  saveNimbleMeta(pkgDestDir, "file://" & dir, vcsRevisionInDir(dir),
-                 nimbleLinkPath)
+  saveNimbleMeta(pkgDestDir, dir, vcsRevisionInDir(dir), nimbleLinkPath)
 
   # Save the nimble data (which might now contain reverse deps added in
   # processDeps).
@@ -1003,7 +1002,17 @@ proc test(options: Options) =
       optsCopy.action.compileOptions = @[]
       optsCopy.action.compileOptions.add("-r")
       optsCopy.action.compileOptions.add("--path:.")
+      let
+        binFileName = file.path.changeFileExt(ExeExt)
+        existsBefore = existsFile(binFileName)
+
       execBackend(optsCopy)
+      
+      let
+        existsAfter = existsFile(binFileName)
+        canRemove = not existsBefore and existsAfter
+      if canRemove:
+        removeFile(binFileName)
 
   display("Success:", "All tests passed", Success, HighPriority)
 

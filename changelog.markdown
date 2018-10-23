@@ -3,6 +3,43 @@
 
 # Nimble changelog
 
+## 0.9.0 - 19/09/2018
+
+This is a major new release which contains at least one breaking change.
+Unfortunately even though it was planned, support for lock files did not
+make it into this release. The release does
+however contain a large number of fixes spread across 57 commits.
+
+The breaking change in this release is to do with the handling of binary
+package. **Any package that specifies a ``bin`` value in it's .nimble file**
+**will no longer install any Nim source code files**, in other words it's not
+going to be a hybrid package by default. This means that so called "hybrid
+packages" now need to specify ``installExt = @["nim"]`` in their metadata,
+otherwise they will become binary packages only.
+
+- **Breaking:** hybrid packages require ``installExt = @["nim"]``
+  ([Commit](https://github.com/nim-lang/nimble/commit/09091792615eacd503e87ca70252c572a4bde2b5))
+- **The ``init`` command can now show a list of choices for information such as**
+  **the license.**
+- **The ``init`` command now creates correct project structures for all package**
+  **types.**
+- **Fatal errors are no longer created when the path inside a .nimble-link file**
+  **doesn't exist.**
+- **The ``develop`` command now always clones HEAD and grabs the full repo history.**
+- **The default ``test`` task no longer executes all tests (only those starting with 't').**
+- Colour is no longer used when `isatty` is false.
+- ``publish`` now shows the URL of the created PR.
+- The ``getPkgDir`` procedure has been fixed in the Nimble file API.
+- Improved handling of proxy environment variables.
+- Codebase has been improved not to rely on `nil` in strings and seqs.
+- The handling of pre- and post-hooks has been improved significantly.
+- Fixed the ``path`` command for packages with a ``srcDir`` and optimised the
+  package look-up.
+
+----
+
+Full changelog: https://github.com/nim-lang/nimble/compare/v0.8.10...v0.9.0
+
 ## 0.8.10 - 23/02/2018
 
 The first release of 2018! Another fairly big release containing 40 commits.
