@@ -43,6 +43,8 @@ const
     [fgRed, fgYellow, fgCyan, fgGreen]
   styles: array[DebugPriority .. HighPriority, set[Style]] =
     [{styleDim}, {styleDim}, {}, {styleBright}]
+  arrowL = when defined(windows): "> " else: "▸ " ## CLI Arrow indicator Left.
+  arrowR = when defined(windows): " <" else: " ◂" ## CLI Arrow indicator Right.
 
 proc newCLI(): CLI =
   result = CLI(
@@ -192,15 +194,15 @@ proc promptListInteractive(question: string, args: openarray[string]): string =
   while not selected:
     # Loop through the options
     for i, arg in args:
+      setBackgroundColor(bgBlack) # We dont known theme of terminal, use Black.
+      setForegroundColor(fgWhite)
       # Check if the option is the current
       if i == current:
-        setForegroundColor(fgWhite)
-        writeStyled(" " & arg, {styleBright})
+        writeStyled(arrowL & arg & arrowR, {styleBright, styleUnderscore, styleReverse})
       else:
-        setForegroundColor(fgWhite)
-        writeStyled(" " & arg, {styleDim})
+        writeStyled("  " & arg & "  ", {styleDim})
       # Move the cursor back to the start
-      for s in 0..<(arg.len + 1):
+      for s in 0..<(arg.len + 4):
         cursorBackward(stdout)
       # Move down for the next item
       cursorDown(stdout)
