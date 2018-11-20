@@ -43,8 +43,7 @@ const
     [fgRed, fgYellow, fgCyan, fgGreen]
   styles: array[DebugPriority .. HighPriority, set[Style]] =
     [{styleDim}, {styleDim}, {}, {styleBright}]
-  arrowL = when defined(windows): "> " else: "▸ " ## CLI Arrow indicator Left.
-  arrowR = when defined(windows): " <" else: " ◂" ## CLI Arrow indicator Right.
+
 
 proc newCLI(): CLI =
   result = CLI(
@@ -198,7 +197,7 @@ proc promptListInteractive(question: string, args: openarray[string]): string =
       setForegroundColor(fgWhite)
       # Check if the option is the current
       if i == current:
-        writeStyled(arrowL & arg & arrowR, {styleBright, styleUnderscore, styleReverse})
+        writeStyled("> " & arg & " <", {styleBright})
       else:
         writeStyled("  " & arg & "  ", {styleDim})
       # Move the cursor back to the start
