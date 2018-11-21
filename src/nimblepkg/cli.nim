@@ -191,10 +191,9 @@ proc promptListInteractive(question: string, args: openarray[string]): string =
 
   # The selection loop
   while not selected:
+    setForegroundColor(fgDefault)
     # Loop through the options
     for i, arg in args:
-      setBackgroundColor(bgBlack) # We dont known theme of terminal, use Black.
-      setForegroundColor(fgWhite)
       # Check if the option is the current
       if i == current:
         writeStyled("> " & arg & " <", {styleBright})
