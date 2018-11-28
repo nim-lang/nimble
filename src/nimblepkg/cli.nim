@@ -13,6 +13,7 @@
 #   - Normal for MediumPriority.
 
 import logging, terminal, sets, strutils, os
+import ./version
 
 when defined(windows):
   import winlean
@@ -220,7 +221,7 @@ proc promptListInteractive(question: string, args: openarray[string]): string =
         break
       of '\3':
         showCursor(stdout)
-        quit(1)
+        raise newException(NimbleError, "Keyboard interrupt")
       else: discard
 
   # Erase all lines of the selection
