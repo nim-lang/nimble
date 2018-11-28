@@ -218,6 +218,9 @@ proc promptListInteractive(question: string, args: openarray[string]): string =
       of '\r':
         selected = true
         break
+      of '\3':
+        showCursor(stdout)
+        quit(1)
       else: discard
 
   # Erase all lines of the selection
