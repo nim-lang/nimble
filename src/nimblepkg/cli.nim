@@ -13,7 +13,7 @@
 #   - Normal for MediumPriority.
 
 import logging, terminal, sets, strutils, os
-import ./version
+import ./common
 
 when defined(windows):
   import winlean
