@@ -733,7 +733,7 @@ installing your package (on macOS):
 ### Nim compiler
 
 The Nim compiler cannot read .nimble files. Its knowledge of Nimble is
-limited to the ``NimblePath`` feature which allows it to use packages installed
+limited to the ``nimblePath`` feature which allows it to use packages installed
 in Nimble's package directory when compiling your software. This means that
 it cannot resolve dependencies, and it can only use the latest version of a
 package when compiling.
