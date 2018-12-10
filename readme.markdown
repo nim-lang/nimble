@@ -748,14 +748,14 @@ to ensure that the dependencies you specified are correct.
 
 ### Compile with `nim` after changing the nimble directory
 
-`nim` has been preconfigured to look at the default nimble directory while compiling,
+The Nim compiler been preconfigured to look at the default nimble directory while compiling,
 so no extra step is required to use nimble managed packages in your code. 
-However, if you are using custom `nimbleDir`, you need to specify 
-`--NimblePath:PATH` option (`nimblepath` is case insensitive). For example,
+However, if you are using a custom `nimbleDir`, you need to specify 
+`--nimblePath:PATH` option. For example,
 if your `nimble` directory is located at `/some/custom/path/nimble`, this should work:
 
 ```
-nim c --nimblepath:/some/custom/path/nimble/pkgs main.nim
+nim c --nimblePath:/some/custom/path/nimble/pkgs main.nim
 ``` 
 
 Some code editors rely on `nim check` to check for errors under the hood (e.g. VScode), 
