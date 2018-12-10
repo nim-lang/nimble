@@ -748,9 +748,9 @@ to ensure that the dependencies you specified are correct.
 
 ### Compile with `nim` after changing the nimble directory
 
-The Nim compiler been preconfigured to look at the default nimble directory while compiling,
+The Nim compiler has been preconfigured to look at the default nimble directory while compiling,
 so no extra step is required to use nimble managed packages in your code. 
-However, if you are using a custom `nimbleDir`, you need to specify 
+However, if you are using a custom `nimbleDir`, you need to specify the 
 `--nimblePath:PATH` option. For example,
 if your `nimble` directory is located at `/some/custom/path/nimble`, this should work:
 
@@ -765,7 +765,7 @@ you will have to use [Nim compiler's configuration files](https://nim-lang.org/d
 ```
 nimblePath = "/some/custom/path/nimble/pkgs"
 ```
-to the `nim.cfg` located in any directory listed in the [documentation](https://nim-lang.org/docs/nimc.html#compiler-usage-configuration-files) should resolve the problem.
+to the `nim.cfg` located in any directory listed in the [documentation](https://nim-lang.org/docs/nimc.html#compiler-usage-configuration-files), this should resolve the problem.
 
 ### Versions
 
