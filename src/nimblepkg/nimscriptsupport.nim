@@ -155,6 +155,8 @@ proc setupVM(graph: ModuleGraph; module: PSym; scriptName: string, flags: Flags)
     os.copyFile(getString(a, 0), getString(a, 1))
   cbos getLastModificationTime:
     setResult(a, toUnix(getLastModificationTime(getString(a, 0))))
+  cbos findExe:
+    setResult(a, os.findExe(getString(a, 0)))
 
   cbos rawExec:
     setResult(a, osproc.execCmd getString(a, 0))
