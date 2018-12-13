@@ -13,6 +13,7 @@
 #   - Normal for MediumPriority.
 
 import logging, terminal, sets, strutils, os
+import ./common
 
 when defined(windows):
   import winlean
@@ -43,6 +44,7 @@ const
     [fgRed, fgYellow, fgCyan, fgGreen]
   styles: array[DebugPriority .. HighPriority, set[Style]] =
     [{styleDim}, {styleDim}, {}, {styleBright}]
+
 
 proc newCLI(): CLI =
   result = CLI(
@@ -190,17 +192,16 @@ proc promptListInteractive(question: string, args: openarray[string]): string =
 
   # The selection loop
   while not selected:
+    setForegroundColor(fgDefault)
     # Loop through the options
     for i, arg in args:
       # Check if the option is the current
       if i == current:
-        setForegroundColor(fgWhite)
-        writeStyled(" " & arg, {styleBright})
+        writeStyled("> " & arg & " <", {styleBright})
       else:
-        setForegroundColor(fgWhite)
-        writeStyled(" " & arg, {styleDim})
+        writeStyled("  " & arg & "  ", {styleDim})
       # Move the cursor back to the start
-      for s in 0..<(arg.len + 1):
+      for s in 0..<(arg.len + 4):
         cursorBackward(stdout)
       # Move down for the next item
       cursorDown(stdout)
@@ -218,6 +219,9 @@ proc promptListInteractive(question: string, args: openarray[string]): string =
       of '\r':
         selected = true
         break
+      of '\3':
+        showCursor(stdout)
+        raise newException(NimbleError, "Keyboard interrupt")
       else: discard
 
   # Erase all lines of the selection

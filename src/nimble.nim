@@ -1002,7 +1002,17 @@ proc test(options: Options) =
       optsCopy.action.compileOptions = @[]
       optsCopy.action.compileOptions.add("-r")
       optsCopy.action.compileOptions.add("--path:.")
+      let
+        binFileName = file.path.changeFileExt(ExeExt)
+        existsBefore = existsFile(binFileName)
+
       execBackend(optsCopy)
+      
+      let
+        existsAfter = existsFile(binFileName)
+        canRemove = not existsBefore and existsAfter
+      if canRemove:
+        removeFile(binFileName)
 
   display("Success:", "All tests passed", Success, HighPriority)
 
