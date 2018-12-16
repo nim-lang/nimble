@@ -27,6 +27,7 @@ task repeated, "Testing `nimble c nimscript.nim` with repeated flags":
   setCommand "c", "nimscript.nim"
 
 task api, "Testing nimscriptapi module functionality":
+  doAssert(findExe("nim").len != 0)
   echo("PKG_DIR: ", getPkgDir())
 
 before hooks:
