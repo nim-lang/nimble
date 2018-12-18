@@ -647,7 +647,7 @@ combo.
 
 Dependencies are automatically installed before building.
 It's a good idea to test that the dependencies you specified are correct by
-running by running ``nimble build`` or ``nimble install`` in the directory
+running ``nimble build`` or ``nimble install`` in the directory
 of your package.
 
 ### Hybrids
