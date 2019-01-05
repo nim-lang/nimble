@@ -76,6 +76,24 @@ proc getRevDeps*(options: Options, pkg: PackageInfo): seq[PkgTuple] =
 
       result.add(pkgTup)
 
+proc contains(pkgs: seq[PackageInfo], pkg: PackageInfo): bool =
+  for lpkg in pkgs:
+    if lpkg.name == pkg.name and lpkg.myPath == pkg.myPath:
+      return true
+
+proc getAllRevDeps*(options: Options, pkg: PackageInfo, result: var seq[PackageInfo]) =
+  if pkg in result:
+    return
+
+  let installedPkgs = getInstalledPkgsMin(options.getPkgsDir(), options)
+  for rdepTup in getRevDeps(options, pkg):
+    for rdepInfo in findAllPkgs(installedPkgs, rdepTup):
+      if rdepInfo in result:
+        continue
+
+      getAllRevDeps(options, rdepInfo, result)
+  result.add pkg
+
 when isMainModule:
   var nimbleData = %{"reverseDeps": newJObject()}
 
