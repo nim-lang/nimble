@@ -76,11 +76,6 @@ proc getRevDeps*(options: Options, pkg: PackageInfo): seq[PkgTuple] =
 
       result.add(pkgTup)
 
-proc contains(pkgs: seq[PackageInfo], pkg: PackageInfo): bool =
-  for lpkg in pkgs:
-    if lpkg.name == pkg.name and lpkg.myPath == pkg.myPath:
-      return true
-
 proc getAllRevDeps*(options: Options, pkg: PackageInfo, result: var seq[PackageInfo]) =
   if pkg in result:
     return

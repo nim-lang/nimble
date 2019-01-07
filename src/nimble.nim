@@ -846,7 +846,7 @@ proc uninstall(options: Options) =
     for pkg in pkgList:
       # Check whether any packages depend on the ones the user is trying to
       # uninstall.
-      if options.revDeps:
+      if options.uninstallRevDeps:
         getAllRevDeps(options, pkg, pkgsToDelete)
       else:
         let revDeps = getRevDeps(options, pkg)

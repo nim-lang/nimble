@@ -10,7 +10,7 @@ type
   Options* = object
     forcePrompts*: ForcePrompt
     depsOnly*: bool
-    revDeps*: bool
+    uninstallRevDeps*: bool
     queryVersions*: bool
     queryInstalled*: bool
     nimbleDir*: string
@@ -72,7 +72,7 @@ Commands:
                                   The current working directory needs to be the
                                   toplevel directory of the Nimble package.
   uninstall    [pkgname, ...]     Uninstalls a list of packages.
-               [-d, --deps]       Uninstall package(s) that depend on selection.
+               [-i, --inclDeps]   Uninstall package and dependent package(s).
   build                           Builds a package.
   c, cc, js    [opts, ...] f.nim  Builds a file inside a package. Passes options
                                   to the Nim compiler.
@@ -305,8 +305,8 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
         wasFlagHandled = false
     of actionUninstall:
       case f
-      of "deps", "d":
-        result.revDeps = true
+      of "incldeps", "i":
+        result.uninstallRevDeps = true
       else:
         wasFlagHandled = false
     of actionCompile, actionDoc, actionBuild:

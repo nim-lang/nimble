@@ -222,7 +222,7 @@ instead of a name.
 
 The ``uninstall`` command will remove an installed package. Attempting to remove
 a package which other packages depend on will result in an error. You can use the
-``--deps`` or ``-d`` flag to remove all reverse dependencies along with the package.
+``--inclDeps`` or ``-i`` flag to remove all dependent packages along with the package.
 
 Similar to the ``install`` command you can specify a version range, for example:
 
