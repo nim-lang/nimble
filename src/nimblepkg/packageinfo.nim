@@ -538,6 +538,10 @@ proc getPkgDest*(pkgInfo: PackageInfo, options: Options): string =
   let pkgDestDir = options.getPkgsDir() / (pkgInfo.name & versionStr)
   return pkgDestDir
 
+proc `==`*(pkg1: PackageInfo, pkg2: PackageInfo): bool =
+  if pkg1.name == pkg2.name and pkg1.myPath == pkg2.myPath:
+    return true
+
 when isMainModule:
   doAssert getNameVersion("/home/user/.nimble/libs/packagea-0.1") ==
       ("packagea", "0.1")

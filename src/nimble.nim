@@ -846,22 +846,25 @@ proc uninstall(options: Options) =
     for pkg in pkgList:
       # Check whether any packages depend on the ones the user is trying to
       # uninstall.
-      let revDeps = getRevDeps(options, pkg)
-      var reason = ""
-      if revDeps.len == 1:
-        reason = "$1 ($2) depends on it" % [revDeps[0].name, $revDeps[0].ver]
+      if options.uninstallRevDeps:
+        getAllRevDeps(options, pkg, pkgsToDelete)
       else:
-        for i in 0 ..< revDeps.len:
-          reason.add("$1 ($2)" % [revDeps[i].name, $revDeps[i].ver])
-          if i != revDeps.len-1:
-            reason.add ", "
-        reason.add " depend on it"
+        let revDeps = getRevDeps(options, pkg)
+        var reason = ""
+        if revDeps.len == 1:
+          reason = "$1 ($2) depends on it" % [revDeps[0].name, $revDeps[0].ver]
+        else:
+          for i in 0 ..< revDeps.len:
+            reason.add("$1 ($2)" % [revDeps[i].name, $revDeps[i].ver])
+            if i != revDeps.len-1:
+              reason.add ", "
+          reason.add " depend on it"
 
-      if revDeps.len > 0:
-        errors.add("Cannot uninstall $1 ($2) because $3" %
-                   [pkgTup.name, pkg.specialVersion, reason])
-      else:
-        pkgsToDelete.add pkg
+        if revDeps.len > 0:
+          errors.add("Cannot uninstall $1 ($2) because $3" %
+                     [pkgTup.name, pkg.specialVersion, reason])
+        else:
+          pkgsToDelete.add pkg
 
     if pkgsToDelete.len == 0:
       raise newException(NimbleError, "\n  " & errors.join("\n  "))
@@ -1007,7 +1010,7 @@ proc test(options: Options) =
         existsBefore = existsFile(binFileName)
 
       execBackend(optsCopy)
-      
+
       let
         existsAfter = existsFile(binFileName)
         canRemove = not existsBefore and existsAfter
