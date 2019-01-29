@@ -727,7 +727,7 @@ installing your package (on macOS):
 ```
   Hint: This package requires some external dependencies.
   Hint: To install them you may be able to run:
-  Hint:   sudo brew install openssl
+  Hint:   brew install openssl
 ```
 
 ### Nim compiler
