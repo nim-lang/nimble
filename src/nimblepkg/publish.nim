@@ -62,7 +62,7 @@ proc getGithubAuth(o: Options): Auth =
     # try to read from disk, if it cannot be found write a new one
     try:
       let apiTokenFilePath = cfg.nimbleDir / ApiKeyFile
-      result.token = readFile(apiTokenFilePath)
+      result.token = readFile(apiTokenFilePath).strip()
       display("Info:", "Using GitHub API Token in file: " & apiTokenFilePath,
               priority = HighPriority)
     except IOError:
