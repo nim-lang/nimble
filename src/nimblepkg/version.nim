@@ -189,7 +189,7 @@ proc parseVersionRange*(s: string): VersionRange =
 
     of ' ':
       # Make sure '0.9 8.03' is not allowed.
-      if version != "" and i < s.len:
+      if version != "" and i < s.len - 1:
         if s[i+1] in {'0'..'9', '.'}:
           raise newException(ParseVersionError,
               "Whitespace is not allowed in a version literal.")
