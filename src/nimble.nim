@@ -1016,6 +1016,11 @@ proc test(options: Options) =
   ## Executes all tests starting with 't' in the ``tests`` directory.
   ## Subdirectories are not walked.
   var files = toSeq(walkDir(getCurrentDir() / "tests"))
+
+  if files.len < 1:
+    display("Warning:", "No tests found!", Warning, HighPriority)
+    return
+
   files.sort((a, b) => cmp(a.path, b.path))
 
   for file in files:
