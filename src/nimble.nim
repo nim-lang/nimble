@@ -223,6 +223,11 @@ proc buildFromDir(pkgInfo: PackageInfo, paths: seq[string],
         "Nothing to build. Did you specify a module to build using the" &
         " `bin` key in your .nimble file?")
   let realDir = pkgInfo.getRealDir()
+
+  cd realDir:
+    if not execHook(options, true):
+      raise newException(NimbleError, "Pre-hook prevented further execution.")
+
   for path in paths: args.add("--path:\"" & path & "\" ")
   for bin in pkgInfo.bin:
     let outputOpt = "-o:\"" & pkgInfo.getOutputDir(bin) & "\""
@@ -245,6 +250,9 @@ proc buildFromDir(pkgInfo: PackageInfo, paths: seq[string],
       exc.msg.add("\nDetails:\n" & error)
       exc.hint = hint
       raise exc
+
+  cd realDir:
+    discard execHook(options, false)
 
 proc buildFromDir(pkgInfo: PackageInfo, paths: seq[string], forRelease: bool,
                   options: Options) =
@@ -360,7 +368,7 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
   # if the build fails then the old package will still be installed.
   if pkgInfo.bin.len > 0:
     let paths = result.deps.map(dep => dep.getRealDir())
-    let optsCopy = options.briefClone()
+    var optsCopy = options.briefClone()
     optsCopy.action.typ = actionBuild
     buildFromDir(pkgInfo, paths, true, optsCopy)
 
