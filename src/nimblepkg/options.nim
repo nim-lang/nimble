@@ -409,5 +409,7 @@ proc briefClone*(options: Options): Options =
   var newOptions = initOptions()
   newOptions.config = options.config
   newOptions.nimbleData = options.nimbleData
+  newOptions.nimbleDir = options.nimbleDir
+  newOptions.forcePrompts = options.forcePrompts
   newOptions.pkgInfoCache = options.pkgInfoCache
   return newOptions
