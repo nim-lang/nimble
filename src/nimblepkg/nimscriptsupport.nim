@@ -310,6 +310,7 @@ proc execScript(scriptName: string, flags: Flags, options: Options): PSym =
     graph = newModuleGraph(graph.config)
 
   let conf = graph.config
+  conf.searchPaths = @[]
   when declared(NimCompilerApiVersion):
     if "nimblepkg/nimscriptapi" notin conf.implicitImports:
       conf.implicitImports.add("nimblepkg/nimscriptapi")
@@ -381,11 +382,20 @@ proc execScript(scriptName: string, flags: Flags, options: Options): PSym =
   let pkgName = scriptName.splitFile.name
 
   # Ensure that "nimblepkg/nimscriptapi" is in the PATH.
+  var issue620 = false
   block:
+    echo(scriptName.splitFile.dir / "nimblepkg" / "nimscriptapi.nim")
+    if existsFile(scriptName.splitFile.dir / "nimblepkg" / "nimscriptapi.nim"):
+      # TODO: hacky workaround for #620.
+      issue620 = true
+      conf.disableNimblePath()
+      break
+
     let t = getTempDir() / "nimblecache"
     let tmpNimscriptApiPath = t / "nimblepkg" / "nimscriptapi.nim"
     createDir(tmpNimscriptApiPath.splitFile.dir)
     writeFile(tmpNimscriptApiPath, nimscriptApi)
+    echo("before ", conf.searchPaths)
     when declared(NimCompilerApiVersion):
       when NimCompilerApiVersion >= 3:
         conf.searchPaths.add(AbsoluteDir t)
@@ -393,6 +403,7 @@ proc execScript(scriptName: string, flags: Flags, options: Options): PSym =
         conf.searchPaths.add(t)
     else:
       searchPaths.add(t)
+    echo("after ", conf.searchPaths)
 
   when declared(NimCompilerApiVersion):
     initDefines(conf.symbols)
@@ -427,6 +438,8 @@ proc execScript(scriptName: string, flags: Flags, options: Options): PSym =
     registerPass(evalPass)
 
     searchPaths.add(compiler_options.libpath)
+
+  echo("after2 ", conf.searchPaths)
 
   when declared(resetAllModulesHard):
     result = makeModule(scriptName)

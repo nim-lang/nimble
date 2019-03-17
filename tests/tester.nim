@@ -67,6 +67,15 @@ proc inLines(lines: seq[string], line: string): bool =
   for i in lines:
     if line.normalize in i.normalize: return true
 
+suite "Issue 620":
+  test "install nimble":
+    cd "..":
+      check execNimble(["install", "-y"]).exitCode == QuitSuccess
+
+  test "nimble check the installed nimble file":
+    cd execNimble(["path", "nimble"]).output:
+      check execNimble(["check"]).exitCode == QuitSuccess
+
 test "picks #head when looking for packages":
   cd "versionClashes" / "aporiaScenario":
     let (output, exitCode) = execNimble("install", "-y", "--verbose")
