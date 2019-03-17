@@ -214,9 +214,7 @@ proc processDeps(pkginfo: PackageInfo, options: Options): seq[PackageInfo] =
     addRevDep(options.nimbleData, i, pkginfo)
 
 proc buildFromDir(pkgInfo: PackageInfo, paths: seq[string],
-                  args: var seq[string], options: Options) =
-  doAssert(options.action.typ == actionBuild)
-
+                  args: var seq[string]) =
   ## Builds a package as specified by ``pkgInfo``.
   if pkgInfo.bin.len == 0:
     raise newException(NimbleError,
@@ -246,14 +244,13 @@ proc buildFromDir(pkgInfo: PackageInfo, paths: seq[string],
       exc.hint = hint
       raise exc
 
-proc buildFromDir(pkgInfo: PackageInfo, paths: seq[string], forRelease: bool,
-                  options: Options) =
+proc buildFromDir(pkgInfo: PackageInfo, paths: seq[string], forRelease: bool) =
   var args: seq[string]
   if forRelease:
     args = @["-d:release"]
   else:
     args = @[]
-  buildFromDir(pkgInfo, paths, args, options)
+  buildFromDir(pkgInfo, paths, args)
 
 proc removePkgDir(dir: string, options: Options) =
   ## Removes files belonging to the package in ``dir``.
@@ -328,7 +325,6 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
   ## to the packages this package depends on.
   ## The return value of this function is used by
   ## ``processDeps`` to gather a list of paths to pass to the nim compiler.
-  doAssert(options.action.typ == actionInstall)
 
   # Handle pre-`install` hook.
   if not options.depsOnly:
@@ -360,9 +356,7 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
   # if the build fails then the old package will still be installed.
   if pkgInfo.bin.len > 0:
     let paths = result.deps.map(dep => dep.getRealDir())
-    let optsCopy = options.briefClone()
-    optsCopy.action.typ = actionBuild
-    buildFromDir(pkgInfo, paths, true, optsCopy)
+    buildFromDir(pkgInfo, paths, true)
 
   let pkgDestDir = pkgInfo.getPkgDest(options)
   if existsDir(pkgDestDir) and existsFile(pkgDestDir / "nimblemeta.json"):
@@ -476,14 +470,8 @@ proc getDownloadInfo*(pv: PkgTuple, options: Options,
 proc install(packages: seq[PkgTuple],
              options: Options,
              doPrompt = true): tuple[deps: seq[PackageInfo], pkg: PackageInfo] =
-  var optsCopy = options.briefClone()
-  optsCopy.action.typ = actionInstall
-  # Pass an empty seq here because we're executing `install` inside the package
-  # directory
-  optsCopy.action.packages = @[]
-
   if packages == @[]:
-    result = installFromDir(getCurrentDir(), newVRAny(), optsCopy, "")
+    result = installFromDir(getCurrentDir(), newVRAny(), options, "")
   else:
     # Install each package.
     for pv in packages:
@@ -492,7 +480,7 @@ proc install(packages: seq[PkgTuple],
       let (downloadDir, downloadVersion) =
           downloadPkg(url, pv.ver, meth, subdir, options)
       try:
-        result = installFromDir(downloadDir, pv.ver, optsCopy, url)
+        result = installFromDir(downloadDir, pv.ver, options, url)
       except BuildFailed:
         # The package failed to build.
         # Check if we tried building a tagged version of the package.
@@ -519,7 +507,7 @@ proc build(options: Options) =
   let deps = processDeps(pkginfo, options)
   let paths = deps.map(dep => dep.getRealDir())
   var args = options.action.compileOptions
-  buildFromDir(pkgInfo, paths, args, options)
+  buildFromDir(pkgInfo, paths, args)
 
 proc execBackend(options: Options) =
   let
@@ -561,8 +549,7 @@ proc search(options: Options) =
   ## Searches for matches in ``options.action.search``.
   ##
   ## Searches are done in a case insensitive way making all strings lower case.
-  doAssert(options.action.typ == actionSearch)
-
+  assert options.action.typ == actionSearch
   if options.action.search == @[]:
     raise newException(NimbleError, "Please specify a search string.")
   if needsRefresh(options):
@@ -912,8 +899,6 @@ proc listTasks(options: Options) =
   nimscriptsupport.listTasks(nimbleFile, options)
 
 proc developFromDir(dir: string, options: Options) =
-  doAssert(options.action.typ == actionDevelop)
-
   if options.depsOnly:
     raiseNimbleError("Cannot develop dependencies only.")
 
