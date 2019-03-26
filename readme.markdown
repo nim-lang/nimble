@@ -86,23 +86,6 @@ Simply execute the following command to compile and install Nimble.
 This will clone the Nimble repository, compile Nimble and copy it into
 Nim's bin directory.
 
-The second approach is to install Nimble as a Nimble package. You can do this
-by compiling Nimble, then running ``nimble install`` in Nimble's directory.
-
-```
-git clone https://github.com/nim-lang/nimble.git
-cd nimble
-nim c src/nimble
-src/nimble install
-```
-
-**Note for Windows users**: You will need to rename ``nimble.exe`` after
-compilation to something else like ``nimble1.exe``, then run
-``src\nimble1.exe install``.
-
-This will install Nimble to the default Nimble packages location:
-``~/.nimble/pkgs``. The binary will be installed to ``~/.nimble/bin``, so you
-will need to add this directory to your PATH.
 
 ## Nimble usage
 
