@@ -62,6 +62,7 @@ proc parseConfig*(): Config =
     display("Reading", "config file at " & confFile, priority = LowPriority)
     var p: CfgParser
     open(p, f, confFile)
+    p.commentSeparato = "#;"
     var currentSection = ""
     var currentPackageList = initPackageList()
     while true:
@@ -75,7 +76,7 @@ proc parseConfig*(): Config =
             raise newException(NimbleError, "Attempted to specify `url` and `path` for the same package list '$1'" % currentPackageList.name)
           addCurrentPkgList(result, currentPackageList)
         break
-      of cfgSectionStart:
+      of cfgSectionPair:
         addCurrentPkgList(result, currentPackageList)
         currentSection = e.section
         case currentSection.normalize
@@ -88,23 +89,23 @@ proc parseConfig*(): Config =
         case e.key.normalize
         of "nimbledir":
           # Ensure we don't restore the deprecated nimble dir.
-          if e.value != getHomeDir() / ".babel":
-            result.nimbleDir = e.value
+          if e.keyVal.value != getHomeDir() / ".babel":
+            result.nimbleDir = e.keyVal.value
         of "chcp":
-          result.chcp = parseBool(e.value)
+          result.chcp = parseBool(e.keyVal.value)
         of "cloneusinghttps":
-          result.cloneUsingHttps = parseBool(e.value)
+          result.cloneUsingHttps = parseBool(e.keyVal.value)
         of "httpproxy":
-          result.httpProxy = parseUri(e.value)
+          result.httpProxy = parseUri(e.keyVal.value)
         of "name":
           case currentSection.normalize
           of "packagelist":
-            currentPackageList.name = e.value
+            currentPackageList.name = e.keyVal.value
           else: assert false
         of "url":
           case currentSection.normalize
           of "packagelist":
-            currentPackageList.urls.add(e.value)
+            currentPackageList.urls.add(e.keyVal.value)
           else: assert false
         of "path":
           case currentSection.normalize
@@ -112,10 +113,10 @@ proc parseConfig*(): Config =
             if currentPackageList.path != "":
               raise newException(NimbleError, "Attempted to specify more than one `path` for the same package list.")
             else:
-              currentPackageList.path = e.value
+              currentPackageList.path = e.keyVal.value
           else: assert false
         of "nimlibprefix":
-          result.nimLibPrefix = e.value
+          result.nimLibPrefix = e.keyVal.value
         else:
           raise newException(NimbleError, "Unable to parse config file:" &
                                      " Unknown key: " & e.key)
