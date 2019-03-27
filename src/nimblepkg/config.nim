@@ -68,11 +68,12 @@ proc parseConfig*(): Config =
       var e = next(p)
       case e.kind
       of cfgEof:
-        if currentPackageList.urls.len == 0 and currentPackageList.path == "":
-          raise newException(NimbleError, "Package list '$1' requires either url or path" % currentPackageList.name)
-        if currentPackageList.urls.len > 0 and currentPackageList.path != "":
-          raise newException(NimbleError, "Attempted to specify `url` and `path` for the same package list '$1'" % currentPackageList.name)
-        addCurrentPkgList(result, currentPackageList)
+        if currentSection.len > 0:
+          if currentPackageList.urls.len == 0 and currentPackageList.path == "":
+            raise newException(NimbleError, "Package list '$1' requires either url or path" % currentPackageList.name)
+          if currentPackageList.urls.len > 0 and currentPackageList.path != "":
+            raise newException(NimbleError, "Attempted to specify `url` and `path` for the same package list '$1'" % currentPackageList.name)
+          addCurrentPkgList(result, currentPackageList)
         break
       of cfgSectionStart:
         addCurrentPkgList(result, currentPackageList)

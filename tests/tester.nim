@@ -568,6 +568,27 @@ suite "reverse dependencies":
     verify execNimbleYes("remove", "pkgA")
     verify execNimbleYes("remove", "mydep")
 
+  test "revdep fail test":
+    cd "revdep/mydep":
+      verify execNimbleYes("install")
+
+    cd "revdep/pkgWithDep":
+      verify execNimbleYes("install")
+
+    let (output, exitCode) = execNimble("uninstall", "mydep")
+    checkpoint output
+    check output.processOutput.inLines("cannot uninstall mydep")
+    check exitCode == QuitFailure
+
+  test "revdep -i test":
+    cd "revdep/mydep":
+      verify execNimbleYes("install")
+
+    cd "revdep/pkgWithDep":
+      verify execNimbleYes("install")
+
+    verify execNimbleYes("remove", "mydep", "-i")
+
   test "issue #373":
     cd "revdep/mydep":
       verify execNimbleYes("install")

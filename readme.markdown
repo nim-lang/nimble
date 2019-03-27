@@ -86,23 +86,6 @@ Simply execute the following command to compile and install Nimble.
 This will clone the Nimble repository, compile Nimble and copy it into
 Nim's bin directory.
 
-The second approach is to install Nimble as a Nimble package. You can do this
-by compiling Nimble, then running ``nimble install`` in Nimble's directory.
-
-```
-git clone https://github.com/nim-lang/nimble.git
-cd nimble
-nim c src/nimble
-src/nimble install
-```
-
-**Note for Windows users**: You will need to rename ``nimble.exe`` after
-compilation to something else like ``nimble1.exe``, then run
-``src\nimble1.exe install``.
-
-This will install Nimble to the default Nimble packages location:
-``~/.nimble/pkgs``. The binary will be installed to ``~/.nimble/bin``, so you
-will need to add this directory to your PATH.
 
 ## Nimble usage
 
@@ -221,8 +204,8 @@ instead of a name.
 ### nimble uninstall
 
 The ``uninstall`` command will remove an installed package. Attempting to remove
-a package which other packages depend on is disallowed and will result in an
-error. You must currently manually remove the reverse dependencies first.
+a package which other packages depend on will result in an error. You can use the
+``--inclDeps`` or ``-i`` flag to remove all dependent packages along with the package.
 
 Similar to the ``install`` command you can specify a version range, for example:
 
@@ -647,7 +630,7 @@ combo.
 
 Dependencies are automatically installed before building.
 It's a good idea to test that the dependencies you specified are correct by
-running by running ``nimble build`` or ``nimble install`` in the directory
+running ``nimble build`` or ``nimble install`` in the directory
 of your package.
 
 ### Hybrids
@@ -727,7 +710,7 @@ installing your package (on macOS):
 ```
   Hint: This package requires some external dependencies.
   Hint: To install them you may be able to run:
-  Hint:   sudo brew install openssl
+  Hint:   brew install openssl
 ```
 
 ### Nim compiler
@@ -749,16 +732,16 @@ to ensure that the dependencies you specified are correct.
 ### Compile with `nim` after changing the nimble directory
 
 The Nim compiler has been preconfigured to look at the default nimble directory while compiling,
-so no extra step is required to use nimble managed packages in your code. 
-However, if you are using a custom `nimbleDir`, you need to specify the 
+so no extra step is required to use nimble managed packages in your code.
+However, if you are using a custom `nimbleDir`, you need to specify the
 `--nimblePath:PATH` option. For example,
 if your `nimble` directory is located at `/some/custom/path/nimble`, this should work:
 
 ```
 nim c --nimblePath:/some/custom/path/nimble/pkgs main.nim
-``` 
+```
 
-Some code editors rely on `nim check` to check for errors under the hood (e.g. VScode), 
+Some code editors rely on `nim check` to check for errors under the hood (e.g. VScode),
 and the editor extension may not allow users to pass custom option to `nim check`, which
 will cause `nim check` to scream `Error: cannot open file:<the_package>`. In this case,
 you will have to use [Nim compiler's configuration files](https://nim-lang.org/docs/nimc.html#compiler-usage-configuration-files). Simply add the line:
