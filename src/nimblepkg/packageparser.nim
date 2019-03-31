@@ -259,6 +259,8 @@ proc readPackageInfoFromNimble(path: string; result: var PackageInfo) =
             case result.backend.normalize
             of "javascript": result.backend = "js"
             else: discard
+          of "":
+            discard
           else:
             raise newException(NimbleError, "Invalid field: " & ev.key)
         of "deps", "dependencies":
@@ -266,6 +268,43 @@ proc readPackageInfoFromNimble(path: string; result: var PackageInfo) =
           of "requires":
             for v in ev.value.multiSplit:
               result.requires.add(parseRequires(v.strip))
+          of "": discard     
+          else:
+            raise newException(NimbleError, "Invalid field: " & ev.key)
+        of "":
+          case ev.key.normalize
+          of "name": result.name = ev.value
+          of "version": result.version = ev.value
+          of "author": result.author = ev.value
+          of "description": result.description = ev.value
+          of "license": result.license = ev.value
+          of "srcdir": result.srcDir = ev.value
+          of "bindir": result.binDir = ev.value
+          of "skipdirs":
+            result.skipDirs.add(ev.value.multiSplit)
+          of "skipfiles":
+            result.skipFiles.add(ev.value.multiSplit)
+          of "skipext":
+            result.skipExt.add(ev.value.multiSplit)
+          of "installdirs":
+            result.installDirs.add(ev.value.multiSplit)
+          of "installfiles":
+            result.installFiles.add(ev.value.multiSplit)
+          of "installext":
+            result.installExt.add(ev.value.multiSplit)
+          of "bin":
+            for i in ev.value.multiSplit:
+              result.bin.add(i.addFileExt(ExeExt))
+          of "backend":
+            result.backend = ev.value.toLowerAscii()
+            case result.backend.normalize
+            of "javascript": result.backend = "js"
+            else: discard
+          of "requires":
+            for v in ev.value.multiSplit:
+              result.requires.add(parseRequires(v.strip))
+          of "":
+            discard
           else:
             raise newException(NimbleError, "Invalid field: " & ev.key)
         else: raise newException(NimbleError,
