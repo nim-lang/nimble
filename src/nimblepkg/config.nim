@@ -68,12 +68,11 @@ proc parseConfig*(): Config =
       var e = next(p)
       case e.kind
       of cfgEof:
-        if currentSection.len > 0:
-          if currentPackageList.urls.len == 0 and currentPackageList.path == "":
-            raise newException(NimbleError, "Package list '$1' requires either url or path" % currentPackageList.name)
-          if currentPackageList.urls.len > 0 and currentPackageList.path != "":
-            raise newException(NimbleError, "Attempted to specify `url` and `path` for the same package list '$1'" % currentPackageList.name)
-          addCurrentPkgList(result, currentPackageList)
+        if currentPackageList.urls.len == 0 and currentPackageList.path == "":
+          raise newException(NimbleError, "Package list '$1' requires either url or path" % currentPackageList.name)
+        if currentPackageList.urls.len > 0 and currentPackageList.path != "":
+          raise newException(NimbleError, "Attempted to specify `url` and `path` for the same package list '$1'" % currentPackageList.name)
+        addCurrentPkgList(result, currentPackageList)
         break
       of cfgSectionStart:
         addCurrentPkgList(result, currentPackageList)
@@ -81,6 +80,7 @@ proc parseConfig*(): Config =
         case currentSection.normalize
         of "packagelist":
           currentPackageList = initPackageList()
+        of "": discard
         else:
           raise newException(NimbleError, "Unable to parse config file:" &
                              " Unknown section: " & e.key)
@@ -116,6 +116,7 @@ proc parseConfig*(): Config =
           else: assert false
         of "nimlibprefix":
           result.nimLibPrefix = e.value
+        of "": discard
         else:
           raise newException(NimbleError, "Unable to parse config file:" &
                                      " Unknown key: " & e.key)
