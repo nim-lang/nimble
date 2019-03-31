@@ -259,6 +259,10 @@ proc readPackageInfoFromNimble(path: string; result: var PackageInfo) =
             case result.backend.normalize
             of "javascript": result.backend = "js"
             else: discard
+          of "": # The next version of the `parsecfg` module will support 
+                 # empty rows and comments, resulting in a situation where
+                 # values are empty.
+            discard     
           else:
             raise newException(NimbleError, "Invalid field: " & ev.key)
         of "deps", "dependencies":
@@ -266,6 +270,10 @@ proc readPackageInfoFromNimble(path: string; result: var PackageInfo) =
           of "requires":
             for v in ev.value.multiSplit:
               result.requires.add(parseRequires(v.strip))
+          of "": # The next version of the `parsecfg` module will support 
+                 # empty rows and comments, resulting in a situation where
+                 # values are empty.
+            discard     
           else:
             raise newException(NimbleError, "Invalid field: " & ev.key)
         else: raise newException(NimbleError,
