@@ -259,6 +259,7 @@ proc readPackageInfoFromNimble(path: string; result: var PackageInfo) =
             case result.backend.normalize
             of "javascript": result.backend = "js"
             else: discard
+          of "": discard     
           else:
             raise newException(NimbleError, "Invalid field: " & ev.key)
         of "deps", "dependencies":
@@ -266,8 +267,10 @@ proc readPackageInfoFromNimble(path: string; result: var PackageInfo) =
           of "requires":
             for v in ev.value.multiSplit:
               result.requires.add(parseRequires(v.strip))
+          of "": discard     
           else:
             raise newException(NimbleError, "Invalid field: " & ev.key)
+        of "": discard
         else: raise newException(NimbleError,
               "Invalid section: " & currentSection)
       of cfgOption: raise newException(NimbleError,
