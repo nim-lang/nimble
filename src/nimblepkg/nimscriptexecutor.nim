@@ -3,7 +3,7 @@
 
 import os, tables, strutils, sets
 
-import packageparser, common, packageinfo, options, nimscriptsupport, cli
+import packageparser, common, packageinfo, options, nimscriptwrapper, cli
 
 proc execHook*(options: Options, before: bool): bool =
   ## Returns whether to continue.
@@ -27,8 +27,6 @@ proc execHook*(options: Options, before: bool): bool =
     else: actionName.normalize in pkgInfo.postHooks
   if pkgInfo.isNimScript and hookExists:
     let res = execHook(nimbleFile, actionName, before, options)
-    if res.success:
-      result = res.retVal
 
 proc execCustom*(options: Options,
                  execResult: var ExecutionResult[void],

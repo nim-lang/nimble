@@ -3,10 +3,10 @@
 import parsecfg, json, streams, strutils, parseutils, os, tables, sugar
 from sequtils import apply, map
 
-import version, tools, common, nimscriptsupport, options, packageinfo, cli
+import version, tools, common, nimscriptwrapper, options, packageinfo, cli
 
 ## Contains procedures for parsing .nimble files. Moved here from ``packageinfo``
-## because it depends on ``nimscriptsupport`` (``nimscriptsupport`` also
+## because it depends on ``nimscriptwrapper`` (``nimscriptwrapper`` also
 ## depends on other procedures in ``packageinfo``.
 
 type
@@ -276,6 +276,14 @@ proc readPackageInfoFromNimble(path: string; result: var PackageInfo) =
         raise newException(NimbleError, "Error parsing .nimble file: " & ev.msg)
   else:
     raise newException(ValueError, "Cannot open package info: " & path)
+
+proc readPackageInfoFromNims(scriptName: string, options: Options,
+    result: var PackageInfo) =
+  let
+    (nimsFile, iniFile) = setupNimscript(scriptName, options)
+
+  if iniFile.fileExists():
+    readPackageInfoFromNimble(iniFile, result)
 
 proc inferInstallRules(pkgInfo: var PackageInfo, options: Options) =
   # Binary packages shouldn't install .nim files by default.
