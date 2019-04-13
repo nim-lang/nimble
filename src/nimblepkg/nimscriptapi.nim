@@ -28,6 +28,7 @@ var
   startCommand = "e"
   endCommand = startCommand
   endProject = ""
+  retVal = true
 
 proc requires*(deps: varargs[string]) =
   ## Call this to set the list of requirements of your Nimble
@@ -92,11 +93,9 @@ proc onExit() =
       output &= "\"command\": \"" & endCommand & "\", "
     if endProject.len != 0:
       output &= "\"project\": \"" & endProject & "\", "
+    output &= "\"retVal\": " & $retVal
 
-    if output.len != 0:
-      echo "{" & output[0 .. ^3] & "}"
-    else:
-      echo "{}"
+    echo "{" & output & "}"
 
 # TODO: New release of Nim will move this `task` template under a
 # `when not defined(nimble)`. This will allow us to override it in the future.
@@ -117,21 +116,23 @@ template task*(name: untyped; description: string; body: untyped): untyped =
 
 template before*(action: untyped, body: untyped): untyped =
   ## Defines a block of code which is evaluated before ``action`` is executed.
-  proc `action Before`*() =
+  proc `action Before`*(): bool =
+    result = true
     body
 
   let params = getParams()
   if astToStr(action) & "Before" in params:
-    `action Before`()
+    retVal = `action Before`()
 
 template after*(action: untyped, body: untyped): untyped =
   ## Defines a block of code which is evaluated after ``action`` is executed.
-  proc `action After`*() =
+  proc `action After`*(): bool =
+    result = true
     body
 
   let params = getParams()
   if astToStr(action) & "After" in params:
-    `action After`()
+    retVal = `action After`()
 
 template builtin = discard
 

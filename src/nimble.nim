@@ -1103,7 +1103,7 @@ proc doAction(options: Options) =
       return
     let isPreDefined = options.action.command.normalize == "test"
 
-    var execResult: ExecutionResult[void]
+    var execResult: ExecutionResult[bool]
     if execCustom(options, execResult, failFast=not isPreDefined):
       if execResult.hasTaskRequestedCommand():
         doAction(execResult.getOptionsForCommand(options))

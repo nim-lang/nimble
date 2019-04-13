@@ -27,9 +27,11 @@ proc execHook*(options: Options, before: bool): bool =
     else: actionName.normalize in pkgInfo.postHooks
   if pkgInfo.isNimScript and hookExists:
     let res = execHook(nimbleFile, actionName, before, options)
+    if res.success:
+      result = res.retVal
 
 proc execCustom*(options: Options,
-                 execResult: var ExecutionResult[void],
+                 execResult: var ExecutionResult[bool],
                  failFast = true): bool =
   ## Executes the custom command using the nimscript backend.
   ##

@@ -49,7 +49,7 @@ proc setupNimscript*(scriptName: string, options: Options): tuple[nimsFile, iniF
     else:
       raise newException(NimbleError, "printPkgInfo() failed")
 
-proc execScript*(scriptName, actionName: string, options: Options): ExecutionResult[void] =
+proc execScript*(scriptName, actionName: string, options: Options): ExecutionResult[bool] =
   let
     (nimsFile, iniFile) = setupNimscript(scriptName, options)
 
@@ -71,13 +71,15 @@ proc execScript*(scriptName, actionName: string, options: Options): ExecutionRes
     result.command = $j["command"]
   if "project" in j:
     result.arguments.add $j["project"]
+  if "retVal" in j:
+    result.retVal = j["retVal"].getBool()
   result.flags = newTable[string, seq[string]]()
 
   if lines.len > 1:
     stdout.writeLine lines[0 .. ^2].join("\n")
 
 proc execTask*(scriptName, taskName: string,
-    options: Options): ExecutionResult[void] =
+    options: Options): ExecutionResult[bool] =
   ## Executes the specified task in the specified script.
   ##
   ## `scriptName` should be a filename pointing to the nimscript file.
@@ -87,7 +89,7 @@ proc execTask*(scriptName, taskName: string,
   result = execScript(scriptName, taskName, options)
 
 proc execHook*(scriptName, actionName: string, before: bool,
-    options: Options): ExecutionResult[void] =
+    options: Options): ExecutionResult[bool] =
   ## Executes the specified action's hook. Depending on ``before``, either
   ## the "before" or the "after" hook.
   ##
