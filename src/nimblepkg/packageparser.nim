@@ -1,6 +1,6 @@
 # Copyright (C) Dominik Picheta. All rights reserved.
 # BSD License. Look at license.txt for more info.
-import parsecfg, json, streams, strutils, parseutils, os, tables, sugar
+import parsecfg, json, sets, streams, strutils, parseutils, os, tables, sugar
 from sequtils import apply, map
 
 import version, tools, common, nimscriptwrapper, options, packageinfo, cli
@@ -259,6 +259,12 @@ proc readPackageInfoFromNimble(path: string; result: var PackageInfo) =
             case result.backend.normalize
             of "javascript": result.backend = "js"
             else: discard
+          of "beforehooks":
+            for i in ev.value.multiSplit:
+              result.preHooks.incl(i.normalize)
+          of "afterhooks":
+            for i in ev.value.multiSplit:
+              result.postHooks.incl(i.normalize)
           else:
             raise newException(NimbleError, "Invalid field: " & ev.key)
         of "deps", "dependencies":

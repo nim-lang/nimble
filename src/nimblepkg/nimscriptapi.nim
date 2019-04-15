@@ -25,6 +25,9 @@ var
   foreignDeps*: seq[string] = @[] ## The foreign dependencies. Only
                                   ## exported for 'distros.nim'.
 
+  beforeHooks: seq[string] = @[]
+  afterHooks: seq[string] = @[]
+
   startCommand = "e"
   endCommand = startCommand
   endProject = ""
@@ -56,6 +59,9 @@ template printSeqIfLen(varName) =
     iniOut &= astToStr(varName) & ": \"" & varName.join(", ") & "\"\n"
 
 proc printPkgInfo() =
+  if backend.len == 0:
+    backend = "c"
+
   var
     iniOut = "[Package]\n"
   printIfLen packageName
@@ -74,6 +80,8 @@ proc printPkgInfo() =
   printSeqIfLen installFiles
   printSeqIfLen installExt
   printSeqIfLen bin
+  printSeqIfLen beforeHooks
+  printSeqIfLen afterHooks
 
   if requiresData.len != 0:
     iniOut &= "\n[Deps]\n"
@@ -120,6 +128,8 @@ template before*(action: untyped, body: untyped): untyped =
     result = true
     body
 
+  beforeHooks.add astToStr(action)
+
   let params = getParams()
   if astToStr(action) & "Before" in params:
     retVal = `action Before`()
@@ -129,6 +139,8 @@ template after*(action: untyped, body: untyped): untyped =
   proc `action After`*(): bool =
     result = true
     body
+
+  afterHooks.add astToStr(action)
 
   let params = getParams()
   if astToStr(action) & "After" in params:
