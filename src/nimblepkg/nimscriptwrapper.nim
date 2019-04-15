@@ -31,16 +31,21 @@ proc setupNimscript*(scriptName: string, options: Options): tuple[nimsFile, iniF
     cacheDir = getTempDir() / "nimblecache"
     shash = $scriptName.hash().abs()
     prjCacheDir = cacheDir / scriptName.splitFile().name & "_" & shash
+    nimsCacheFile = prjCacheDir / scriptName.extractFilename().changeFileExt ".nims"
 
   result.nimsFile = scriptName.parentDir() / scriptName.splitFile().name & "_" & shash & ".nims"
   result.iniFile = prjCacheDir / scriptName.extractFilename().changeFileExt ".ini"
 
-  if not prjCacheDir.dirExists() or not result.nimsFile.fileExists() or not result.iniFile.fileExists() or
-    scriptName.getLastModificationTime() > result.nimsFile.getLastModificationTime():
+  if not prjCacheDir.dirExists() or not nimsCacheFile.fileExists() or not result.iniFile.fileExists() or
+    scriptName.getLastModificationTime() > nimsCacheFile.getLastModificationTime():
     createDir(prjCacheDir)
-    writeFile(result.nimsFile, nimscriptApi & scriptName.readFile() & "\nonExit()\n")
+    writeFile(nimsCacheFile, nimscriptApi & scriptName.readFile() & "\nonExit()\n")
     discard tryRemoveFile(result.iniFile)
 
+  if not result.nimsFile.fileExists():
+    nimsCacheFile.copyFile(result.nimsFile)
+
+  if not result.iniFile.fileExists():
     let
       (output, exitCode) = result.nimsFile.execNimscript("printPkgInfo", options)
 
@@ -77,6 +82,8 @@ proc execScript*(scriptName, actionName: string, options: Options): ExecutionRes
 
   if lines.len > 1:
     stdout.writeLine lines[0 .. ^2].join("\n")
+
+  nimsFile.removeFile()
 
 proc execTask*(scriptName, taskName: string,
     options: Options): ExecutionResult[bool] =
