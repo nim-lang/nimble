@@ -80,7 +80,8 @@ proc printPkgInfo() =
 
   var
     iniOut = "[Package]\n"
-  printIfLen packageName
+  if packageName.len != 0:
+    iniOut &= "name: \"" & packageName & "\"\n"
   printIfLen version
   printIfLen author
   printIfLen description
