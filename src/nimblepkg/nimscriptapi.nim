@@ -32,6 +32,7 @@ var
 
   command = "e"
   project = ""
+  success = false
   retVal = true
 
 proc requires*(deps: varargs[string]) =
@@ -112,6 +113,7 @@ proc onExit() =
   else:
     var
       output = ""
+    output &= "\"success\": " & $success & ", "
     output &= "\"command\": \"" & command & "\", "
     if project.len != 0:
       output &= "\"project\": \"" & project & "\", "
@@ -140,8 +142,10 @@ template task*(name: untyped; description: string; body: untyped): untyped =
   proc `name Task`*() = body
 
   if commandLineParams.len == 0 or "help" in commandLineParams:
+    success = true
     echo(astToStr(name), "        ", description)
   elif astToStr(name).normalize in commandLineParams:
+    success = true
     `name Task`()
 
 template before*(action: untyped, body: untyped): untyped =
@@ -153,6 +157,7 @@ template before*(action: untyped, body: untyped): untyped =
   beforeHooks.add astToStr(action)
 
   if (astToStr(action) & "Before").normalize in commandLineParams:
+    success = true
     retVal = `action Before`()
 
 template after*(action: untyped, body: untyped): untyped =
@@ -164,6 +169,7 @@ template after*(action: untyped, body: untyped): untyped =
   afterHooks.add astToStr(action)
 
   if (astToStr(action) & "After").normalize in commandLineParams:
+    success = true
     retVal = `action After`()
 
 proc getPkgDir(): string =

@@ -75,8 +75,9 @@ proc execScript*(scriptName, actionName: string, options: Options): ExecutionRes
       else:
         parseJson("{}")
 
-  result.success = true
   result.flags = newTable[string, seq[string]]()
+  if "success" in j:
+    result.success = j["success"].getBool()
   if "command" in j:
     result.command = j["command"].getStr()
   else:
