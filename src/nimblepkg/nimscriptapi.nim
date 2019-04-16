@@ -146,9 +146,7 @@ template after*(action: untyped, body: untyped): untyped =
   if astToStr(action) & "After" in params:
     retVal = `action After`()
 
-template builtin = discard
-
-proc getPkgDir*(): string =
+proc getPkgDir(): string =
   ## Returns the package directory containing the .nimble file currently
   ## being evaluated.
-  builtin
+  result = currentSourcePath.rsplit(seps={'/', '\\', ':'}, maxsplit=1)[0]

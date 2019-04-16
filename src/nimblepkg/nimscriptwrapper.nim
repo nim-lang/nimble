@@ -52,7 +52,7 @@ proc setupNimscript*(scriptName: string, options: Options): tuple[nimsFile, iniF
     if exitCode == 0 and output.len != 0:
       result.iniFile.writeFile(output)
     else:
-      raise newException(NimbleError, "printPkgInfo() failed")
+      raise newException(NimbleError, output & "\nprintPkgInfo() failed")
 
 proc execScript*(scriptName, actionName: string, options: Options): ExecutionResult[bool] =
   let
