@@ -19,6 +19,7 @@ type
 const
   internalCmd = "e"
   nimscriptApi = staticRead("nimscriptapi.nim")
+  nimscriptHash = $nimscriptApi.hash().abs()
 
 proc execNimscript(nimsFile, actionName: string, options: Options): tuple[output: string, exitCode: int] =
   let
@@ -29,7 +30,7 @@ proc execNimscript(nimsFile, actionName: string, options: Options): tuple[output
 proc setupNimscript*(scriptName: string, options: Options): tuple[nimsFile, iniFile: string] =
   let
     cacheDir = getTempDir() / "nimblecache"
-    shash = $scriptName.hash().abs()
+    shash = $(scriptName & nimscriptHash).hash().abs()
     prjCacheDir = cacheDir / scriptName.splitFile().name & "_" & shash
     nimsCacheFile = prjCacheDir / scriptName.extractFilename().changeFileExt ".nims"
 
@@ -74,6 +75,8 @@ proc execScript*(scriptName, actionName: string, options: Options): ExecutionRes
   result.success = true
   if "command" in j:
     result.command = $j["command"]
+  else:
+    result.command = internalCmd
   if "project" in j:
     result.arguments.add $j["project"]
   if "retVal" in j:

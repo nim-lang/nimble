@@ -27,6 +27,7 @@ var
 
   beforeHooks: seq[string] = @[]
   afterHooks: seq[string] = @[]
+  commandLineParams: seq[string] = @[]
 
   startCommand = "e"
   endCommand = startCommand
@@ -38,9 +39,9 @@ proc requires*(deps: varargs[string]) =
   ## package.
   for d in deps: requiresData.add(d)
 
-proc getParams(): seq[string] =
+proc getParams() =
   for i in 4 .. paramCount():
-    result.add paramStr(i)
+    commandLineParams.add paramStr(i)
 
 proc getCommand(): string =
   return endCommand
@@ -90,9 +91,7 @@ proc printPkgInfo() =
   echo iniOut
 
 proc onExit() =
-  let
-    params = getParams()
-  if "printPkgInfo" in params:
+  if "printPkgInfo" in commandLineParams:
     printPkgInfo()
   else:
     var
@@ -116,10 +115,9 @@ template task*(name: untyped; description: string; body: untyped): untyped =
   ##    setCommand "c"
   proc `name Task`*() = body
 
-  let params = getParams()
-  if params.len == 0 or "help" in params:
+  if commandLineParams.len == 0 or "help" in commandLineParams:
     echo(astToStr(name), "        ", description)
-  elif astToStr(name) in params:
+  elif astToStr(name) in commandLineParams:
     `name Task`()
 
 template before*(action: untyped, body: untyped): untyped =
@@ -130,8 +128,7 @@ template before*(action: untyped, body: untyped): untyped =
 
   beforeHooks.add astToStr(action)
 
-  let params = getParams()
-  if astToStr(action) & "Before" in params:
+  if astToStr(action) & "Before" in commandLineParams:
     retVal = `action Before`()
 
 template after*(action: untyped, body: untyped): untyped =
@@ -142,11 +139,12 @@ template after*(action: untyped, body: untyped): untyped =
 
   afterHooks.add astToStr(action)
 
-  let params = getParams()
-  if astToStr(action) & "After" in params:
+  if astToStr(action) & "After" in commandLineParams:
     retVal = `action After`()
 
 proc getPkgDir(): string =
   ## Returns the package directory containing the .nimble file currently
   ## being evaluated.
   result = currentSourcePath.rsplit(seps={'/', '\\', ':'}, maxsplit=1)[0]
+
+getParams()
