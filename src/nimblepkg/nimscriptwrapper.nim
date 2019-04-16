@@ -61,6 +61,9 @@ proc execScript*(scriptName, actionName: string, options: Options): ExecutionRes
 
     (output, exitCode) = nimsFile.execNimscript(actionName, options)
 
+  defer:
+    nimsFile.removeFile()
+
   if exitCode != 0:
     raise newException(NimbleError, output)
 
@@ -73,20 +76,23 @@ proc execScript*(scriptName, actionName: string, options: Options): ExecutionRes
         parseJson("{}")
 
   result.success = true
+  result.flags = newTable[string, seq[string]]()
   if "command" in j:
     result.command = j["command"].getStr()
   else:
     result.command = internalCmd
   if "project" in j:
     result.arguments.add j["project"].getStr()
+  if "flags" in j:
+    for flag, vals in j["flags"].pairs:
+      result.flags[flag] = @[]
+      for val in vals.items():
+        result.flags[flag].add val.getStr()
   if "retVal" in j:
     result.retVal = j["retVal"].getBool()
-  result.flags = newTable[string, seq[string]]()
 
   if lines.len > 1:
     stdout.writeLine lines[0 .. ^2].join("\n")
-
-  nimsFile.removeFile()
 
 proc execTask*(scriptName, taskName: string,
     options: Options): ExecutionResult[bool] =

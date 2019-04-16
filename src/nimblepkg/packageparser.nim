@@ -288,10 +288,11 @@ proc readPackageInfoFromNims(scriptName: string, options: Options,
   let
     (nimsFile, iniFile) = setupNimscript(scriptName, options)
 
+  defer:
+    nimsFile.removeFile()
+
   if iniFile.fileExists():
     readPackageInfoFromNimble(iniFile, result)
-
-  nimsFile.removeFile()
 
 proc inferInstallRules(pkgInfo: var PackageInfo, options: Options) =
   # Binary packages shouldn't install .nim files by default.

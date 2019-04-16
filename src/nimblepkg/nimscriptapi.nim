@@ -3,8 +3,8 @@
 
 ## This module is implicitly imported in NimScript .nimble files.
 
-import system except getCommand, setCommand
-import strformat, strutils
+import system except getCommand, setCommand, switch, `--`
+import strformat, strutils, tables
 
 var
   packageName* = ""    ## Set this to the package name. It
@@ -28,6 +28,7 @@ var
   beforeHooks: seq[string] = @[]
   afterHooks: seq[string] = @[]
   commandLineParams: seq[string] = @[]
+  flags: TableRef[string, seq[string]]
 
   command = "e"
   project = ""
@@ -49,6 +50,21 @@ proc setCommand(cmd: string, prj = "") =
   command = cmd
   if prj.len != 0:
     project = prj
+
+proc switch(key: string, value="") =
+  if flags.isNil:
+    flags = newTable[string, seq[string]]()
+
+  if flags.hasKey(key):
+    flags[key].add(value)
+  else:
+    flags[key] = @[value]
+
+template `--`(key, val: untyped) =
+  switch(astToStr(key), strip astToStr(val))
+
+template `--`(key: untyped) =
+  switch(astToStr(key), "")
 
 template printIfLen(varName) =
   if varName.len != 0:
@@ -98,6 +114,15 @@ proc onExit() =
     output &= "\"command\": \"" & command & "\", "
     if project.len != 0:
       output &= "\"project\": \"" & project & "\", "
+    if not flags.isNil and flags.len != 0:
+      output &= "\"flags\": {"
+      for key, val in flags.pairs:
+        output &= "\"" & key & "\": ["
+        for v in val:
+          output &= "\"" & v & "\", "
+        output = output[0 .. ^3] & "], "
+      output = output[0 .. ^3] & "}, "
+
     output &= "\"retVal\": " & $retVal
 
     echo "{" & output & "}"
