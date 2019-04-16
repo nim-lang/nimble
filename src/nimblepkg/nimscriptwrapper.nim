@@ -74,11 +74,11 @@ proc execScript*(scriptName, actionName: string, options: Options): ExecutionRes
 
   result.success = true
   if "command" in j:
-    result.command = $j["command"]
+    result.command = j["command"].getStr()
   else:
     result.command = internalCmd
   if "project" in j:
-    result.arguments.add $j["project"]
+    result.arguments.add j["project"].getStr()
   if "retVal" in j:
     result.retVal = j["retVal"].getBool()
   result.flags = newTable[string, seq[string]]()

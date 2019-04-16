@@ -29,9 +29,8 @@ var
   afterHooks: seq[string] = @[]
   commandLineParams: seq[string] = @[]
 
-  startCommand = "e"
-  endCommand = startCommand
-  endProject = ""
+  command = "e"
+  project = ""
   retVal = true
 
 proc requires*(deps: varargs[string]) =
@@ -41,15 +40,15 @@ proc requires*(deps: varargs[string]) =
 
 proc getParams() =
   for i in 4 .. paramCount():
-    commandLineParams.add paramStr(i)
+    commandLineParams.add paramStr(i).normalize
 
 proc getCommand(): string =
-  return endCommand
+  return command
 
-proc setCommand(cmd: string, project = "") =
-  endCommand = cmd
-  if project.len != 0:
-    endProject = project
+proc setCommand(cmd: string, prj = "") =
+  command = cmd
+  if prj.len != 0:
+    project = prj
 
 template printIfLen(varName) =
   if varName.len != 0:
@@ -91,15 +90,14 @@ proc printPkgInfo() =
   echo iniOut
 
 proc onExit() =
-  if "printPkgInfo" in commandLineParams:
+  if "printPkgInfo".normalize in commandLineParams:
     printPkgInfo()
   else:
     var
       output = ""
-    if endCommand != startCommand:
-      output &= "\"command\": \"" & endCommand & "\", "
-    if endProject.len != 0:
-      output &= "\"project\": \"" & endProject & "\", "
+    output &= "\"command\": \"" & command & "\", "
+    if project.len != 0:
+      output &= "\"project\": \"" & project & "\", "
     output &= "\"retVal\": " & $retVal
 
     echo "{" & output & "}"
@@ -117,7 +115,7 @@ template task*(name: untyped; description: string; body: untyped): untyped =
 
   if commandLineParams.len == 0 or "help" in commandLineParams:
     echo(astToStr(name), "        ", description)
-  elif astToStr(name) in commandLineParams:
+  elif astToStr(name).normalize in commandLineParams:
     `name Task`()
 
 template before*(action: untyped, body: untyped): untyped =
@@ -128,7 +126,7 @@ template before*(action: untyped, body: untyped): untyped =
 
   beforeHooks.add astToStr(action)
 
-  if astToStr(action) & "Before" in commandLineParams:
+  if (astToStr(action) & "Before").normalize in commandLineParams:
     retVal = `action Before`()
 
 template after*(action: untyped, body: untyped): untyped =
@@ -139,7 +137,7 @@ template after*(action: untyped, body: untyped): untyped =
 
   afterHooks.add astToStr(action)
 
-  if astToStr(action) & "After" in commandLineParams:
+  if (astToStr(action) & "After").normalize in commandLineParams:
     retVal = `action After`()
 
 proc getPkgDir(): string =
