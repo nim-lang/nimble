@@ -22,14 +22,13 @@ const
   nimscriptHash = $nimscriptApi.hash().abs()
 
 proc execNimscript(nimsFile, actionName: string, options: Options, live = true): tuple[output: string, exitCode: int] =
-  if live:
-    let
-      cmd = "nim"
-      args = @["e", "--hints:off", "--verbosity:0", nimsFile, actionName]
+  var
+    cmd = ("nim e --hints:off --verbosity:0 " & nimsFile.quoteShell & " " & actionName).strip()
 
+  if live:
     var
       line: string
-      p = startProcess(cmd, args=args, options={poUsePath, poEchoCmd})
+      p = startProcess("nim", args=cmd.parseCmdLine()[1 .. ^1], options={poUsePath})
       sout = p.outputStream()
 
     try:
@@ -39,19 +38,18 @@ proc execNimscript(nimsFile, actionName: string, options: Options, live = true):
         else:
           break
 
-        echo line
+        if line.len > 1 and line[0] == '{' and line[^1] == '}':
+          result.output = line
+        else:
+          echo line
     except IOError, OSError:
       discard
 
     sout.close()
 
-    result.output = line
     result.exitCode = p.waitForExit()
   else:
-    let
-      cmd = "nim e --hints:off --verbosity:0 " & nimsFile.quoteShell & " " & actionName
-
-    result = execCmdEx(cmd, options = {poUsePath, poEchoCmd})
+    result = execCmdEx(cmd, options = {poUsePath})
 
 proc setupNimscript*(scriptName: string, options: Options): tuple[nimsFile, iniFile: string] =
   let
