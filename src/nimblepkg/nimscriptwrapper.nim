@@ -5,7 +5,7 @@
 ## scripting language.
 
 import common, version, options, packageinfo, cli
-import hashes, json, os, strutils, strtabs, tables, times, osproc, sets, pegs
+import hashes, json, os, streams, strutils, strtabs, tables, times, osproc, sets, pegs
 
 type
   Flags = TableRef[string, seq[string]]
@@ -21,11 +21,37 @@ const
   nimscriptApi = staticRead("nimscriptapi.nim")
   nimscriptHash = $nimscriptApi.hash().abs()
 
-proc execNimscript(nimsFile, actionName: string, options: Options): tuple[output: string, exitCode: int] =
-  let
-    cmd = "nim e --verbosity:0 " & nimsFile.quoteShell & " " & actionName
+proc execNimscript(nimsFile, actionName: string, options: Options, live = true): tuple[output: string, exitCode: int] =
+  if live:
+    let
+      cmd = "nim"
+      args = @["e", "--hints:off", "--verbosity:0", nimsFile, actionName]
 
-  result = execCmdEx(cmd)
+    var
+      line: string
+      p = startProcess(cmd, args=args, options={poUsePath, poEchoCmd})
+      sout = p.outputStream()
+
+    try:
+      while true:
+        if p.running():
+          line = sout.readLine()
+        else:
+          break
+
+        echo line
+    except IOError, OSError:
+      discard
+
+    sout.close()
+
+    result.output = line
+    result.exitCode = p.waitForExit()
+  else:
+    let
+      cmd = "nim e --hints:off --verbosity:0 " & nimsFile.quoteShell & " " & actionName
+
+    result = execCmdEx(cmd, options = {poUsePath, poEchoCmd})
 
 proc setupNimscript*(scriptName: string, options: Options): tuple[nimsFile, iniFile: string] =
   let
@@ -48,7 +74,7 @@ proc setupNimscript*(scriptName: string, options: Options): tuple[nimsFile, iniF
 
   if not result.iniFile.fileExists():
     let
-      (output, exitCode) = result.nimsFile.execNimscript("printPkgInfo", options)
+      (output, exitCode) = result.nimsFile.execNimscript("printPkgInfo", options, live=false)
 
     if exitCode == 0 and output.len != 0:
       result.iniFile.writeFile(output)
@@ -68,10 +94,9 @@ proc execScript*(scriptName, actionName: string, options: Options): ExecutionRes
     raise newException(NimbleError, output)
 
   let
-    lines = output.strip().splitLines()
     j =
-      if lines.len != 0:
-        parseJson(lines[^1])
+      if output.len != 0:
+        parseJson(output)
       else:
         parseJson("{}")
 
@@ -91,9 +116,6 @@ proc execScript*(scriptName, actionName: string, options: Options): ExecutionRes
         result.flags[flag].add val.getStr()
   if "retVal" in j:
     result.retVal = j["retVal"].getBool()
-
-  if lines.len > 1:
-    stdout.writeLine lines[0 .. ^2].join("\n")
 
 proc execTask*(scriptName, taskName: string,
     options: Options): ExecutionResult[bool] =
