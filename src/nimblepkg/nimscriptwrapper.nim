@@ -26,28 +26,12 @@ proc execNimscript(nimsFile, actionName: string, options: Options, live = true):
     cmd = ("nim e --hints:off --verbosity:0 " & nimsFile.quoteShell & " " & actionName).strip()
 
   if live:
-    var
-      line: string
-      p = startProcess("nim", args=cmd.parseCmdLine()[1 .. ^1], options={poUsePath})
-      sout = p.outputStream()
-
-    try:
-      while true:
-        if p.running():
-          line = sout.readLine()
-        else:
-          break
-
-        if line.len > 1 and line[0] == '{' and line[^1] == '}':
-          result.output = line
-        else:
-          echo line
-    except IOError, OSError:
-      discard
-
-    sout.close()
-
-    result.exitCode = p.waitForExit()
+    result.exitCode = execCmd(cmd)
+    let
+      outFile = nimsFile & ".out"
+    if outFile.fileExists():
+      result.output = outFile.readFile()
+      discard outFile.tryRemoveFile()
   else:
     result = execCmdEx(cmd, options = {poUsePath})
 

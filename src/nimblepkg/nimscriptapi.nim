@@ -129,7 +129,7 @@ proc onExit() =
 
     output &= "\"retVal\": " & $retVal
 
-    echo "{" & output & "}"
+    writeFile(currentSourcePath & ".out", "{" & output & "}")
 
 # TODO: New release of Nim will move this `task` template under a
 # `when not defined(nimble)`. This will allow us to override it in the future.
