@@ -1,18 +1,6 @@
-import strutils
-
-const
-  parentDir = currentSourcePath.rsplit(seps={'/', '\\', ':'}, maxsplit=1)[0]
-
-when fileExists(parentDir & "/src/nimblepkg/common.nim"):
-  # In the git repository the Nimble sources are in a ``src`` directory.
-  import src/nimblepkg/common
-else:
-  # When the package is installed, the ``src`` directory disappears.
-  import nimblepkg/common
-
 # Package
 
-version       = nimbleVersion
+version       = "0.9.0"
 author        = "Dominik Picheta"
 description   = "Nim package manager."
 license       = "BSD"

@@ -5,7 +5,8 @@
 ## scripting language.
 
 import common, version, options, packageinfo, cli
-import hashes, json, os, streams, strutils, strtabs, tables, times, osproc, sets, pegs
+import hashes, json, os, streams, strutils, strtabs,
+  tables, times, osproc, sets, pegs
 
 type
   Flags = TableRef[string, seq[string]]
@@ -21,9 +22,11 @@ const
   nimscriptApi = staticRead("nimscriptapi.nim")
   nimscriptHash = $nimscriptApi.hash().abs()
 
-proc execNimscript(nimsFile, actionName: string, options: Options, live = true): tuple[output: string, exitCode: int] =
+proc execNimscript(nimsFile, actionName: string, options: Options,
+  live = true): tuple[output: string, exitCode: int] =
   var
-    cmd = ("nim e --hints:off --verbosity:0 " & nimsFile.quoteShell & " " & actionName).strip()
+    cmd = ("nim e --hints:off --verbosity:0 " &
+      nimsFile.quoteShell & " " & actionName).strip()
 
   if live:
     result.exitCode = execCmd(cmd)
@@ -35,20 +38,29 @@ proc execNimscript(nimsFile, actionName: string, options: Options, live = true):
   else:
     result = execCmdEx(cmd, options = {poUsePath})
 
-proc setupNimscript*(scriptName: string, options: Options): tuple[nimsFile, iniFile: string] =
+proc setupNimscript*(scriptName: string, options: Options):
+  tuple[nimsFile, iniFile: string] =
   let
     cacheDir = getTempDir() / "nimblecache"
     shash = $(scriptName & nimscriptHash).hash().abs()
     prjCacheDir = cacheDir / scriptName.splitFile().name & "_" & shash
-    nimsCacheFile = prjCacheDir / scriptName.extractFilename().changeFileExt ".nims"
+    nimsCacheFile =
+      prjCacheDir / scriptName.extractFilename().changeFileExt ".nims"
 
-  result.nimsFile = scriptName.parentDir() / scriptName.splitFile().name & "_" & shash & ".nims"
-  result.iniFile = prjCacheDir / scriptName.extractFilename().changeFileExt ".ini"
+  result.nimsFile = scriptName.parentDir() / scriptName.splitFile().name &
+    "_" & shash & ".nims"
+  result.iniFile =
+    prjCacheDir / scriptName.extractFilename().changeFileExt ".ini"
 
-  if not prjCacheDir.dirExists() or not nimsCacheFile.fileExists() or not result.iniFile.fileExists() or
-    scriptName.getLastModificationTime() > nimsCacheFile.getLastModificationTime():
+  let isScriptResultCached =
+    prjCacheDir.dirExists() and nimsCacheFile.fileExists() and
+    result.iniFile.fileExists() and
+    scriptName.getLastModificationTime() < nimsCacheFile.getLastModificationTime()
+
+  if not isScriptResultCached:
     createDir(prjCacheDir)
-    writeFile(nimsCacheFile, nimscriptApi & scriptName.readFile() & "\nonExit()\n")
+    writeFile(nimsCacheFile,
+      nimscriptApi & scriptName.readFile() & "\nonExit()\n")
     discard tryRemoveFile(result.iniFile)
 
   if not result.nimsFile.fileExists():
@@ -56,14 +68,16 @@ proc setupNimscript*(scriptName: string, options: Options): tuple[nimsFile, iniF
 
   if not result.iniFile.fileExists():
     let
-      (output, exitCode) = result.nimsFile.execNimscript("printPkgInfo", options, live=false)
+      (output, exitCode) =
+        result.nimsFile.execNimscript("printPkgInfo", options, live=false)
 
     if exitCode == 0 and output.len != 0:
       result.iniFile.writeFile(output)
     else:
       raise newException(NimbleError, output & "\nprintPkgInfo() failed")
 
-proc execScript*(scriptName, actionName: string, options: Options): ExecutionResult[bool] =
+proc execScript*(scriptName, actionName: string, options: Options):
+  ExecutionResult[bool] =
   let
     (nimsFile, iniFile) = setupNimscript(scriptName, options)
 
@@ -83,12 +97,8 @@ proc execScript*(scriptName, actionName: string, options: Options): ExecutionRes
         parseJson("{}")
 
   result.flags = newTable[string, seq[string]]()
-  if "success" in j:
-    result.success = j["success"].getBool()
-  if "command" in j:
-    result.command = j["command"].getStr()
-  else:
-    result.command = internalCmd
+  result.success = j{"success"}.getBool()
+  result.command = j{"command"}.getStr()
   if "project" in j:
     result.arguments.add j["project"].getStr()
   if "flags" in j:
@@ -96,8 +106,7 @@ proc execScript*(scriptName, actionName: string, options: Options): ExecutionRes
       result.flags[flag] = @[]
       for val in vals.items():
         result.flags[flag].add val.getStr()
-  if "retVal" in j:
-    result.retVal = j["retVal"].getBool()
+  result.retVal = j{"retVal"}.getBool()
 
 proc execTask*(scriptName, taskName: string,
     options: Options): ExecutionResult[bool] =

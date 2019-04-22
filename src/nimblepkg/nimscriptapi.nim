@@ -42,8 +42,7 @@ proc requires*(deps: varargs[string]) =
 
 proc getParams() =
   for i in 5 .. paramCount():
-    if paramStr(i).len != 0:
-      commandLineParams.add paramStr(i).normalize
+    commandLineParams.add paramStr(i).normalize
 
 proc getCommand(): string =
   return command
