@@ -20,13 +20,12 @@ type
 const
   internalCmd = "e"
   nimscriptApi = staticRead("nimscriptapi.nim")
-  nimscriptHash = $nimscriptApi.hash().abs()
 
 proc execNimscript(nimsFile, actionName: string, options: Options,
   live = true): tuple[output: string, exitCode: int] =
   var
-    cmd = ("nim e --hints:off --verbosity:0 " &
-      nimsFile.quoteShell & " " & actionName).strip()
+    cmd = ("nim e --hints:off --verbosity:0 -p:" & (getTempDir() / "nimblecache").quoteShell &
+      " " & nimsFile.quoteShell & " " & actionName).strip()
 
   if live:
     result.exitCode = execCmd(cmd)
@@ -42,7 +41,8 @@ proc setupNimscript*(scriptName: string, options: Options):
   tuple[nimsFile, iniFile: string] =
   let
     cacheDir = getTempDir() / "nimblecache"
-    shash = $(scriptName & nimscriptHash).hash().abs()
+    nimscriptApiFile = cacheDir / "nimscriptapi.nim"
+    shash = $scriptName.hash().abs()
     prjCacheDir = cacheDir / scriptName.splitFile().name & "_" & shash
     nimsCacheFile =
       prjCacheDir / scriptName.extractFilename().changeFileExt ".nims"
@@ -52,18 +52,37 @@ proc setupNimscript*(scriptName: string, options: Options):
   result.iniFile =
     prjCacheDir / scriptName.extractFilename().changeFileExt ".ini"
 
-  let isScriptResultCached =
-    prjCacheDir.dirExists() and nimsCacheFile.fileExists() and
-    result.iniFile.fileExists() and
-    scriptName.getLastModificationTime() < nimsCacheFile.getLastModificationTime()
+  let
+    isNimscriptApiCached =
+      nimscriptApiFile.fileExists() and nimscriptApiFile.getLastModificationTime() > 
+      getAppFilename().getLastModificationTime()
+    
+    isScriptResultCached =
+      prjCacheDir.dirExists() and nimsCacheFile.fileExists() and
+      result.iniFile.fileExists() and
+      scriptName.getLastModificationTime() < nimsCacheFile.getLastModificationTime()
+
+    isScriptResultCopied =
+      isScriptResultCached and result.nimsFile.fileExists() and
+      result.nimsFile.getLastModificationTime() >=
+      nimsCacheFile.getLastModificationTime()
+
+  if not isNimscriptApiCached:
+    createDir(cacheDir)
+    writeFile(nimscriptApiFile, nimscriptApi)
 
   if not isScriptResultCached:
     createDir(prjCacheDir)
-    writeFile(nimsCacheFile,
-      nimscriptApi & scriptName.readFile() & "\nonExit()\n")
+    writeFile(nimsCacheFile, """
+import system except getCommand, setCommand, switch, `--`,
+  packageName, version, author, description, license, srcDir, binDir, backend,
+  skipDirs, skipFiles, skipExt, installDirs, installFiles, installExt, bin, foreignDeps,
+  requires, task, packageName
+""" &
+      "import nimscriptapi, strutils\n" & scriptName.readFile() & "\nonExit()\n")
     discard tryRemoveFile(result.iniFile)
 
-  if not result.nimsFile.fileExists():
+  if not isScriptResultCopied:
     nimsCacheFile.copyFile(result.nimsFile)
 
   if not result.iniFile.fileExists():

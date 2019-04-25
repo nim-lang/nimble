@@ -41,18 +41,21 @@ proc requires*(deps: varargs[string]) =
   for d in deps: requiresData.add(d)
 
 proc getParams() =
-  for i in 5 .. paramCount():
-    commandLineParams.add paramStr(i).normalize
+  for i in 2 .. paramCount():
+    let
+      param = paramStr(i)
+    if param[0] != '-' and param != projectPath():
+      commandLineParams.add paramStr(i).normalize
 
-proc getCommand(): string =
+proc getCommand*(): string =
   return command
 
-proc setCommand(cmd: string, prj = "") =
+proc setCommand*(cmd: string, prj = "") =
   command = cmd
   if prj.len != 0:
     project = prj
 
-proc switch(key: string, value="") =
+proc switch*(key: string, value="") =
   if flags.isNil:
     flags = newTable[string, seq[string]]()
 
@@ -61,10 +64,10 @@ proc switch(key: string, value="") =
   else:
     flags[key] = @[value]
 
-template `--`(key, val: untyped) =
+template `--`*(key, val: untyped) =
   switch(astToStr(key), strip astToStr(val))
 
-template `--`(key: untyped) =
+template `--`*(key: untyped) =
   switch(astToStr(key), "")
 
 template printIfLen(varName) =
@@ -107,7 +110,7 @@ proc printPkgInfo() =
 
   echo iniOut
 
-proc onExit() =
+proc onExit*() =
   if "printPkgInfo".normalize in commandLineParams:
     printPkgInfo()
   else:
@@ -128,7 +131,7 @@ proc onExit() =
 
     output &= "\"retVal\": " & $retVal
 
-    writeFile(currentSourcePath & ".out", "{" & output & "}")
+    writeFile(projectPath() & ".out", "{" & output & "}")
 
 # TODO: New release of Nim will move this `task` template under a
 # `when not defined(nimble)`. This will allow us to override it in the future.
@@ -172,9 +175,9 @@ template after*(action: untyped, body: untyped): untyped =
     success = true
     retVal = `action After`()
 
-proc getPkgDir(): string =
+proc getPkgDir*(): string =
   ## Returns the package directory containing the .nimble file currently
   ## being evaluated.
-  result = currentSourcePath.rsplit(seps={'/', '\\', ':'}, maxsplit=1)[0]
+  result = projectPath().rsplit(seps={'/', '\\', ':'}, maxsplit=1)[0]
 
 getParams()
