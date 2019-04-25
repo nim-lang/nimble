@@ -286,10 +286,7 @@ proc readPackageInfoFromNimble(path: string; result: var PackageInfo) =
 proc readPackageInfoFromNims(scriptName: string, options: Options,
     result: var PackageInfo) =
   let
-    (nimsFile, iniFile) = setupNimscript(scriptName, options)
-
-  defer:
-    nimsFile.removeFile()
+    iniFile = getIniFile(scriptName, options)
 
   if iniFile.fileExists():
     readPackageInfoFromNimble(iniFile, result)
