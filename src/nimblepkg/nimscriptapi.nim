@@ -34,6 +34,7 @@ var
   project = ""
   success = false
   retVal = true
+  projectFile = ""
 
 proc requires*(deps: varargs[string]) =
   ## Call this to set the list of requirements of your Nimble
@@ -44,7 +45,9 @@ proc getParams() =
   for i in 2 .. paramCount():
     let
       param = paramStr(i)
-    if param[0] != '-' and param != projectPath():
+    if param.fileExists():
+      projectFile = param
+    elif param[0] != '-':
       commandLineParams.add paramStr(i).normalize
 
 proc getCommand*(): string =
@@ -131,7 +134,7 @@ proc onExit*() =
 
     output &= "\"retVal\": " & $retVal
 
-    writeFile(projectPath() & ".out", "{" & output & "}")
+    writeFile(projectFile & ".out", "{" & output & "}")
 
 # TODO: New release of Nim will move this `task` template under a
 # `when not defined(nimble)`. This will allow us to override it in the future.
@@ -178,6 +181,6 @@ template after*(action: untyped, body: untyped): untyped =
 proc getPkgDir*(): string =
   ## Returns the package directory containing the .nimble file currently
   ## being evaluated.
-  result = projectPath().rsplit(seps={'/', '\\', ':'}, maxsplit=1)[0]
+  result = projectFile.rsplit(seps={'/', '\\', ':'}, maxsplit=1)[0]
 
 getParams()
