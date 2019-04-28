@@ -992,7 +992,9 @@ proc develop(options: Options) =
 proc test(options: Options) =
   ## Executes all tests starting with 't' in the ``tests`` directory.
   ## Subdirectories are not walked.
-  var files = toSeq(walkDir(getCurrentDir() / "tests"))
+  var
+    files = toSeq(walkDir(getCurrentDir() / "tests"))
+    tests, failures: int
 
   if files.len < 1:
     display("Warning:", "No tests found!", Warning, HighPriority)
@@ -1015,10 +1017,11 @@ proc test(options: Options) =
         existsBefore = existsFile(binFileName)
 
       if options.continueTestsOnFailure:
+        inc tests
         try:
           execBackend(optsCopy)
         except NimbleError:
-          discard
+          inc failures
       else:
         execBackend(optsCopy)
 
@@ -1028,7 +1031,11 @@ proc test(options: Options) =
       if canRemove:
         removeFile(binFileName)
 
-  display("Success:", "All tests passed", Success, HighPriority)
+  if failures == 0:
+    display("Success:", "All tests passed", Success, HighPriority)
+  else:
+    let error = "Only " & $(tests - failures) & "/" & $tests & " tests passed"
+    display("Error:", error, Error, HighPriority)
 
 proc check(options: Options) =
   ## Validates a package a in the current working directory.
