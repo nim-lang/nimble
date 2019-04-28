@@ -677,9 +677,15 @@ proc getPackageByPattern(pattern: string, options: Options): PackageInfo =
       )
     result = getPkgInfoFromFile(skeletonInfo.myPath, options)
 
+proc projName(options: Options): string =
+  if options.action.projName != "":
+    options.action.projName
+  else:
+    os.getCurrentDir().splitPath.tail.toValidPackageName()
+
 proc dump(options: Options) =
   cli.setSuppressMessages(true)
-  let p = getPackageByPattern(options.action.projName, options)
+  let p = getPackageByPattern(projName(options), options)
   echo "name: ", p.name.escape
   echo "version: ", p.version.escape
   echo "author: ", p.author.escape
@@ -699,11 +705,7 @@ proc dump(options: Options) =
 
 proc init(options: Options) =
   # Determine the package name.
-  let pkgName =
-    if options.action.projName != "":
-      options.action.projName
-    else:
-      os.getCurrentDir().splitPath.tail.toValidPackageName()
+  let pkgName = projName(options)
 
   # Validate the package name.
   validatePackageName(pkgName)
