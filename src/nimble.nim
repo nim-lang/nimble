@@ -1014,7 +1014,13 @@ proc test(options: Options) =
         binFileName = file.path.changeFileExt(ExeExt)
         existsBefore = existsFile(binFileName)
 
-      execBackend(optsCopy)
+      if options.continueTestsOnFailure:
+        try:
+          execBackend(optsCopy)
+        except NimbleError:
+          discard
+      else:
+        execBackend(optsCopy)
 
       let
         existsAfter = existsFile(binFileName)
