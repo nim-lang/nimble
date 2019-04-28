@@ -65,7 +65,6 @@ proc setupNimscript(scriptName: string, options: Options) =
     cacheDir = getTempDir() / "nimblecache"
     nimscriptApiFile = cacheDir / "nimscriptapi.nim"
     nimsFile = getNimsFile(scriptName, options)
-    iniFile = nimsFile.changeFileExt(".ini")
 
   let
     isNimscriptApiCached =
@@ -89,14 +88,19 @@ import system except getCommand, setCommand, switch, `--`,
   requires, task, packageName
 """ &
       "import nimscriptapi, strutils\n" & scriptName.readFile() & "\nonExit()\n")
-    discard tryRemoveFile(iniFile)
 
 proc getIniFile*(scriptName: string, options: Options): string =
   let
     nimsFile = getNimsFile(scriptName, options)
 
   result = nimsFile.changeFileExt(".ini")
-  if not result.fileExists():
+
+  let
+    isIniResultCached =
+      result.fileExists() and result.getLastModificationTime() >
+      scriptName.getLastModificationTime()
+
+  if not isIniResultCached:
     setupNimscript(scriptName, options)
     let
       (output, exitCode) =

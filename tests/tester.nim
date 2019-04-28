@@ -71,6 +71,17 @@ proc inLines(lines: seq[string], line: string): bool =
   for i in lines:
     if line.normalize in i.normalize: return true
 
+test "caching works":
+  cd "caching":
+    var (output, exitCode) = execNimble("dump")
+    check output.contains("0.1.0")
+    let
+      nfile = "caching.nimble"
+    writeFile(nfile, readFile(nfile).replace("0.1.0", "0.2.0"))
+    (output, exitCode) = execNimble("dump")
+    check output.contains("0.2.0")
+    writeFile(nfile, readFile(nfile).replace("0.2.0", "0.1.0"))
+
 test "picks #head when looking for packages":
   cd "versionClashes" / "aporiaScenario":
     let (output, exitCode) = execNimble("install", "-y", "--verbose")
