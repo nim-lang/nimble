@@ -1,24 +1,24 @@
 os:
   - linux
-dist: trusty
+  - osx
 
 language: c
 
+env:
+  - BRANCH=0.19.4
+  - BRANCH=#4f9366975441be889a8cd4fbfb4e41f6830dc542
+
 cache:
   directories:
-    - "$HOME/.nimble"
-    - "$HOME/.choosenim"
+    - "$HOME/.choosenim/toolchains/nim-0.19.4"
 
 install:
-  - export CHOOSENIM_CHOOSE_VERSION="#7bb93c730ea87f"
-  - export NIM_LIB_PREFIX="$HOME/.choosenim/toolchains/nim-"$CHOOSENIM_CHOOSE_VERSION
+  - export CHOOSENIM_CHOOSE_VERSION=$BRANCH
   - |
       curl https://nim-lang.org/choosenim/init.sh -sSf > init.sh
       sh init.sh -y
 
 before_script:
-  - set -e
-  - set -x
   - export CHOOSENIM_NO_ANALYTICS=1
   - export PATH=$HOME/.nimble/bin:$PATH
 

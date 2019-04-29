@@ -36,9 +36,13 @@ proc execNimble(args: varargs[string]): tuple[output: string, exitCode: int] =
   quotedArgs.add("--nimbleDir:" & installDir)
   quotedArgs = quotedArgs.map((x: string) => ("\"" & x & "\""))
 
-  let path = getCurrentDir().parentDir() / "src"
+  let path {.used.} = getCurrentDir().parentDir() / "src"
 
-  var cmd = "PATH=" & path & ":$PATH " & quotedArgs.join(" ")
+  var cmd =
+    when not defined(windows):
+      "PATH=" & path & ":$PATH " & quotedArgs.join(" ")
+    else:
+      quotedArgs.join(" ")
   when defined(macosx):
     # TODO: Yeah, this is really specific to my machine but for my own sanity...
     cmd = "DYLD_LIBRARY_PATH=/usr/local/opt/openssl@1.1/lib " & cmd
@@ -66,6 +70,17 @@ proc processOutput(output: string): seq[string] =
 proc inLines(lines: seq[string], line: string): bool =
   for i in lines:
     if line.normalize in i.normalize: return true
+
+test "caching works":
+  cd "caching":
+    var (output, exitCode) = execNimble("dump")
+    check output.contains("0.1.0")
+    let
+      nfile = "caching.nimble"
+    writeFile(nfile, readFile(nfile).replace("0.1.0", "0.2.0"))
+    (output, exitCode) = execNimble("dump")
+    check output.contains("0.2.0")
+    writeFile(nfile, readFile(nfile).replace("0.2.0", "0.1.0"))
 
 test "picks #head when looking for packages":
   cd "versionClashes" / "aporiaScenario":
@@ -213,7 +228,7 @@ test "can refresh with local package list":
       [PackageList]
       name = "local"
       path = "$1"
-    """.unindent % (getCurrentDir() / "issue368" / "packages.json"))
+    """.unindent % (getCurrentDir() / "issue368" / "packages.json").replace("\\", "\\\\"))
     let (output, exitCode) = execNimble(["refresh", "--verbose"])
     let lines = output.strip.processOutput()
     check inLines(lines, "config file at")
@@ -258,9 +273,9 @@ suite "nimscript":
       check exitCode == QuitSuccess
       let lines = output.strip.processOutput()
       check lines[0].startsWith("Before PkgDir:")
-      check lines[0].endsWith("tests/nimscript")
+      check lines[0].endsWith("tests" / "nimscript")
       check lines[^1].startsWith("After PkgDir:")
-      check lines[^1].endsWith("tests/nimbleDir/pkgs/nimscript-0.1.0")
+      check lines[^1].endsWith("tests" / "nimbleDir" / "pkgs" / "nimscript-0.1.0")
 
   test "can execute nimscript tasks":
     cd "nimscript":
@@ -412,6 +427,9 @@ test "issue #349":
   ]
 
   proc checkName(name: string) =
+    when defined(windows):
+      if name.toLowerAscii() in @["con", "nul"]:
+        return
     let (outp, code) = execNimble("init", "-y", name)
     let msg = outp.strip.processOutput()
     check code == QuitFailure
@@ -526,9 +544,15 @@ suite "can handle two binary versions":
     cd "binaryPackage/v2":
       check execNimble("install", "-y").exitCode == QuitSuccess
 
+  var
+    cmd = installDir / "bin" / "binaryPackage"
+
+  when defined(windows):
+    cmd = "cmd /c " & cmd & ".cmd"
+
   test "can execute v2":
     let (output, exitCode) =
-      execCmdEx(installDir / "bin" / "binaryPackage".addFileExt(ExeExt))
+      execCmdEx(cmd)
     check exitCode == QuitSuccess
     check output.strip() == "v2"
 
@@ -536,7 +560,7 @@ suite "can handle two binary versions":
     check execNimble("remove", "binaryPackage@2.0", "-y").exitCode==QuitSuccess
 
     let (output, exitCode) =
-      execCmdEx(installDir / "bin" / "binaryPackage".addFileExt(ExeExt))
+      execCmdEx(cmd)
     check exitCode == QuitSuccess
     check output.strip() == "v1"
 
@@ -544,7 +568,7 @@ suite "can handle two binary versions":
     check execNimble("remove", "binaryPackage@1.0", "-y").exitCode==QuitSuccess
 
     let (output, exitCode) =
-      execCmdEx(installDir / "bin" / "binaryPackage".addFileExt(ExeExt))
+      execCmdEx(cmd)
     check exitCode == QuitSuccess
     check output.strip() == "v2"
 
@@ -678,9 +702,9 @@ suite "path command":
   test "can get correct path for srcDir (#531)":
     check execNimble("uninstall", "srcdirtest", "-y").exitCode == QuitSuccess
     cd "develop/srcdirtest":
-      let (output, exitCode) = execNimble("install", "-y")
+      let (_, exitCode) = execNimble("install", "-y")
       check exitCode == QuitSuccess
-    let (output, exitCode) = execNimble("path", "srcdirtest")
+    let (output, _) = execNimble("path", "srcdirtest")
     check output.strip() == installDir / "pkgs" / "srcdirtest-1.0"
 
 suite "test command":

@@ -324,7 +324,7 @@ proc getInstalledPkgsMin*(libsDir: string, options: Options):
         seq[tuple[pkginfo: PackageInfo, meta: MetaData]] =
   ## Gets a list of installed packages. The resulting package info is
   ## minimal. This has the advantage that it does not depend on the
-  ## ``packageparser`` module, and so can be used by ``nimscriptsupport``.
+  ## ``packageparser`` module, and so can be used by ``nimscriptwrapper``.
   ##
   ## ``libsDir`` is in most cases: ~/.nimble/pkgs/ (options.getPkgsDir)
   result = @[]

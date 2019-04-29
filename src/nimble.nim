@@ -16,7 +16,7 @@ import nimblepkg/packageinfo, nimblepkg/version, nimblepkg/tools,
        nimblepkg/cli, nimblepkg/packageinstaller, nimblepkg/reversedeps,
        nimblepkg/nimscriptexecutor, nimblepkg/init
 
-import nimblepkg/nimscriptsupport
+import nimblepkg/nimscriptwrapper
 
 proc refresh(options: Options) =
   ## Downloads the package list from the specified URL.
@@ -896,7 +896,7 @@ proc uninstall(options: Options) =
 
 proc listTasks(options: Options) =
   let nimbleFile = findNimbleFile(getCurrentDir(), true)
-  nimscriptsupport.listTasks(nimbleFile, options)
+  nimscriptwrapper.listTasks(nimbleFile, options)
 
 proc developFromDir(dir: string, options: Options) =
   if options.depsOnly:
@@ -1103,7 +1103,7 @@ proc doAction(options: Options) =
       return
     let isPreDefined = options.action.command.normalize == "test"
 
-    var execResult: ExecutionResult[void]
+    var execResult: ExecutionResult[bool]
     if execCustom(options, execResult, failFast=not isPreDefined):
       if execResult.hasTaskRequestedCommand():
         doAction(execResult.getOptionsForCommand(options))

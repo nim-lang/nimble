@@ -3,7 +3,7 @@
 
 import os, tables, strutils, sets
 
-import packageparser, common, packageinfo, options, nimscriptsupport, cli
+import packageparser, common, packageinfo, options, nimscriptwrapper, cli
 
 proc execHook*(options: Options, before: bool): bool =
   ## Returns whether to continue.
@@ -31,7 +31,7 @@ proc execHook*(options: Options, before: bool): bool =
       result = res.retVal
 
 proc execCustom*(options: Options,
-                 execResult: var ExecutionResult[void],
+                 execResult: var ExecutionResult[bool],
                  failFast = true): bool =
   ## Executes the custom command using the nimscript backend.
   ##
