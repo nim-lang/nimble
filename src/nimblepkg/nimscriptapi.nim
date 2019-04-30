@@ -75,7 +75,7 @@ template `--`*(key: untyped) =
 
 template printIfLen(varName) =
   if varName.len != 0:
-    iniOut &= astToStr(varName) & ": \"" & varName & "\"\n"
+    iniOut &= astToStr(varName) & ": \"\"\"" & varName & "\"\"\"\n"
 
 template printSeqIfLen(varName) =
   if varName.len != 0:
@@ -128,7 +128,10 @@ proc onExit*() =
       for key, val in flags.pairs:
         output &= "\"" & key & "\": ["
         for v in val:
-          output &= "\"" & v & "\", "
+          try:
+            output &= v.unescape.escape & ", "
+          except ValueError:
+            output &= v.escape & ", "
         output = output[0 .. ^3] & "], "
       output = output[0 .. ^3] & "}, "
 
