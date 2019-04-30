@@ -57,22 +57,19 @@ proc getNimsFile(scriptName: string, options: Options): string =
     cacheDir = getTempDir() / "nimblecache"
     shash = $scriptName.parentDir().hash().abs()
     prjCacheDir = cacheDir / scriptName.splitFile().name & "_" & shash
+    nimscriptApiFile = cacheDir / "nimscriptapi.nim"
 
   result = prjCacheDir / scriptName.extractFilename().changeFileExt ".nims"
 
-proc setupNimscript(scriptName: string, options: Options) =
   let
-    cacheDir = getTempDir() / "nimblecache"
-    nimscriptApiFile = cacheDir / "nimscriptapi.nim"
-    nimsFile = getNimsFile(scriptName, options)
+    iniFile = result.changeFileExt(".ini")
 
-  let
     isNimscriptApiCached =
       nimscriptApiFile.fileExists() and nimscriptApiFile.getLastModificationTime() > 
       getAppFilename().getLastModificationTime()
     
     isScriptResultCached =
-      nimsFile.fileExists() and nimsFile.getLastModificationTime() >
+      isNimscriptApiCached and result.fileExists() and result.getLastModificationTime() >
       scriptName.getLastModificationTime()
 
   if not isNimscriptApiCached:
@@ -80,14 +77,15 @@ proc setupNimscript(scriptName: string, options: Options) =
     writeFile(nimscriptApiFile, nimscriptApi)
 
   if not isScriptResultCached:
-    createDir(nimsFile.parentDir())
-    writeFile(nimsFile, """
+    createDir(result.parentDir())
+    writeFile(result, """
 import system except getCommand, setCommand, switch, `--`,
   packageName, version, author, description, license, srcDir, binDir, backend,
   skipDirs, skipFiles, skipExt, installDirs, installFiles, installExt, bin, foreignDeps,
   requires, task, packageName
 """ &
       "import nimscriptapi, strutils\n" & scriptName.readFile() & "\nonExit()\n")
+    discard tryRemoveFile(iniFile)
 
 proc getIniFile*(scriptName: string, options: Options): string =
   let
@@ -101,7 +99,6 @@ proc getIniFile*(scriptName: string, options: Options): string =
       scriptName.getLastModificationTime()
 
   if not isIniResultCached:
-    setupNimscript(scriptName, options)
     let
       (output, exitCode) =
         execNimscript(nimsFile, scriptName.parentDir(), "printPkgInfo", options, live=false)
@@ -115,9 +112,6 @@ proc execScript(scriptName, actionName: string, options: Options):
   ExecutionResult[bool] =
   let
     nimsFile = getNimsFile(scriptName, options)
-
-  if not nimsFile.fileExists():
-    setupNimScript(scriptName, options)
 
   let
     (output, exitCode) = execNimscript(nimsFile, scriptName.parentDir(), actionName, options)

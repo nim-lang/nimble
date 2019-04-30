@@ -2,7 +2,9 @@
 
 version       = "0.1.0"
 author        = "Dominik Picheta"
-description   = "Test package"
+description   = """Test package
+with multi-line description
+"""
 license       = "BSD"
 
 bin = @["nimscript"]
@@ -24,6 +26,8 @@ task cr, "Testing `nimble c -r nimscript.nim` via setCommand":
 task repeated, "Testing `nimble c nimscript.nim` with repeated flags":
   --define: foo
   --define: bar
+  --define: "quoted"
+  --define: "quoted\\\"with\\\"quotes"
   setCommand "c", "nimscript.nim"
 
 task api, "Testing nimscriptapi module functionality":
