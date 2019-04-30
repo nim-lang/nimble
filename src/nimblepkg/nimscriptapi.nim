@@ -128,10 +128,9 @@ proc onExit*() =
       for key, val in flags.pairs:
         output &= "\"" & key & "\": ["
         for v in val:
-          try:
-            output &= v.unescape.escape & ", "
-          except ValueError:
-            output &= v.escape & ", "
+          let v = if v.len > 0 and v[0] == '"': strutils.unescape(v)
+                  else: v
+          output &= v.escape & ", "
         output = output[0 .. ^3] & "], "
       output = output[0 .. ^3] & "}, "
 
