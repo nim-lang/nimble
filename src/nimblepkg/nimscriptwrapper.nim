@@ -50,7 +50,7 @@ proc execNimscript(nimsFile, projectDir, actionName: string, options: Options,
       result.output = outFile.readFile()
       discard outFile.tryRemoveFile()
   else:
-    result = execCmdEx(cmd, options = {poUsePath})
+    result = execCmdEx(cmd, options = {poUsePath, poStdErrToStdOut})
 
 proc getNimsFile(scriptName: string, options: Options): string =
   let
