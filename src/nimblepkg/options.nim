@@ -30,7 +30,8 @@ type
     actionNil, actionRefresh, actionInit, actionDump, actionPublish,
     actionInstall, actionSearch,
     actionList, actionBuild, actionPath, actionUninstall, actionCompile,
-    actionDoc, actionCustom, actionTasks, actionDevelop, actionCheck
+    actionDoc, actionCustom, actionTasks, actionDevelop, actionCheck,
+    actionExample
 
   Action* = object
     case typ*: ActionType
@@ -52,6 +53,10 @@ type
       command*: string
       arguments*: seq[string]
       flags*: StringTableRef
+    of actionExample:
+      package*: string
+      example*: string
+      ver*:Version
 
 const
   help* = """
@@ -95,6 +100,9 @@ Commands:
                                   external tools. The argument can be a
                                   .nimble file, a project directory or
                                   the name of an installed package.
+  example       [pkgname,         Copies from packages examples/[examplename] 
+                opt version,      directory to the current working directory.
+                examplename]      (Overwrites existing files if exists.)
 
 
 Options:
@@ -163,6 +171,8 @@ proc parseActionType*(action: string): ActionType =
     result = actionDevelop
   of "check":
     result = actionCheck
+  of "example":
+    result = actionExample
   else:
     result = actionCustom
 
@@ -191,7 +201,7 @@ proc initAction*(options: var Options, key: string) =
     options.action.arguments = @[]
     options.action.flags = newStringTable()
   of actionPublish, actionList, actionTasks, actionCheck,
-     actionNil: discard
+     actionNil, actionExample: discard
 
 proc prompt*(options: Options, question: string): bool =
   ## Asks an interactive question and returns the result.
@@ -268,8 +278,15 @@ proc parseArgument*(key: string, result: var Options) =
     result.showHelp = true
   of actionCustom:
     result.action.arguments.add(key)
-  else:
-    discard
+  of actionExample:
+    if result.action.package == "":
+      result.action.package = key
+    elif result.action.example == "":
+      result.action.example = key
+    else:
+      result.action.ver = Version(result.action.example)
+      result.action.example = key
+  of actionTasks, actionCheck: discard
 
 proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
   var wasFlagHandled = true
