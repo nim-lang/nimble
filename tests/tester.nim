@@ -82,6 +82,10 @@ test "caching works":
     check output.contains("0.2.0")
     writeFile(nfile, readFile(nfile).replace("0.2.0", "0.1.0"))
 
+test "recursion works":
+  cd "recursive":
+    check execNimble("recurse").exitCode == QuitSuccess
+
 test "picks #head when looking for packages":
   cd "versionClashes" / "aporiaScenario":
     let (output, exitCode) = execNimble("install", "-y", "--verbose")
