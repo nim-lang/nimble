@@ -36,7 +36,9 @@ proc execNimscript(nimsFile, projectDir, actionName: string, options: Options,
     nimsFile.copyFile(nimsFileCopied)
 
   defer:
-    nimsFileCopied.removeFile()
+    # Only if copied in this invocation, allows recursive calls of nimble
+    if not isScriptResultCopied:
+      nimsFileCopied.removeFile()
 
   let
     cmd = ("nim e --hints:off --verbosity:0 -p:" & (getTempDir() / "nimblecache").quoteShell &
