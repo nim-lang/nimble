@@ -23,7 +23,7 @@ Interested in learning **how to create a package**? Skip directly to that sectio
   - [nimble publish](#nimble-publish)
   - [nimble tasks](#nimble-tasks)
   - [nimble dump](#nimble-dump)
-  - [nimble example](#nimble-example)
+  - [nimble example](#nimble-sample)
 - [Configuration](#configuration)
 - [Creating Packages](#creating-packages)
   - [Project structure](#project-structure)
@@ -311,15 +311,15 @@ Outputs information about the package in the current working directory in
 an ini-compatible format. Useful for tools wishing to read metadata about
 Nimble packages who do not want to use the NimScript evaluator.
 
-### nimble example
+### nimble sample
 
-The ``example`` command copies from the packages examples directory to the
+The ``sample`` command copies from the packages samples directory to the
 working directory. (It does not creates new directory, and it overwrites 
 existing files)
 
-    $ nimble example [pkgname]
-    $ nimble example [pkgname] [examplename]
-    $ nimble example [pkgname] [pkgversion] [examplename]
+    myproject$ nimble sample [pkgname]
+    myproject$ nimble sample [pkgname] [samplename]
+    myproject$ nimble sample [pkgname] [pkgversion] [samplename]
 
 
 ## Configuration
@@ -492,7 +492,7 @@ For a package named "foobar", the recommended project structure is the following
     ├── nim.cfg
     ├── tfoo1.nim   # First test
     └── tfoo2.nim   # Second test
-└── examples
+└── samples
     ├── demo1       # Demo application
     ├── simpleapp   # Application template
     └── foo

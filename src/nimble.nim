@@ -1044,11 +1044,11 @@ proc check(options: Options) =
     quit(QuitFailure)
 
 
-proc example(options: Options) =
-  ## ~ copies example files to current directory - does not creates new subdirectory.
-  ##   (copyDir nimblepath/pkgs/pkg/examples/arg to current directory.)
-  ## ~ finds `arg` in subdirectories. "nimble example pkgname sub"
-  ## ~ looks for pkg version if requested. "nimble example pkgname '0.26.2' demo1"
+proc sample(options: Options) =
+  ## ~ copies sample files to current directory - does not creates new subdirectory.
+  ##   (copyDir nimblepath/pkgs/pkg/samples/arg to current directory.)
+  ## ~ finds `arg` in subdirectories. "nimble sample pkgname sub"
+  ## ~ looks for pkg version if requested. "nimble sample pkgname '0.26.2' demo1"
   ## ~ copies the first match found
   ## ~ overwrites existing files without question
 
@@ -1059,40 +1059,39 @@ proc example(options: Options) =
     if pkg.name == options.action.package and
       (withinRange(pkg, version) or pkg.version == "#head"): #"#head" == develop 
         var (dir, name, ext) = splitFile(pkg.myPath)
-        let examplesDir = dir & DirSep & "examples"
+        let examplesDir = dir & DirSep & "samples"
         if not dirExists(examplesDir):
-          display("Problem:", pkg.name & " has no examples.", 
+          display("Problem:", pkg.name & " has no samples.", 
               priority = HighPriority)
-          raise NimbleQuit(msg: pkg.name & " has no examples.")
-        #select example:
+          raise NimbleQuit(msg: pkg.name & " has no samples.")
+        #select sample:
         var 
-          choosedExample: string #this path will be copied
+          selectedSample: string #this path will be copied
           allExamples: seq[string]
-        if options.action.example == "": #example name not given as arg
+        if options.action.sample == "": #sample name not given as arg
           for path in walkDirRec(examplesDir, 
                 yieldFilter = {pcDir}, followFilter = {pcDir}, relative = true):
             allExamples.add(path)
           if len(allExamples) == 0:
-            display("Problem:", pkg.name & " has no examples.", 
+            display("Problem:", pkg.name & " has no samples.", 
                 priority = HighPriority)
-            raise NimbleQuit(msg: pkg.name & " has no examples.")
-          choosedExample = promptList(dontForcePrompt, 
-                question = "Wich example you want to copy?", args = allExamples)
-        else: #example name given as arg
-          if dirExists(examplesDir & DirSep & options.action.example):
-            choosedExample = options.action.example
+            raise NimbleQuit(msg: pkg.name & " has no samples.")
+          selectedSample = promptList(dontForcePrompt, 
+                question = "Wich sample you want to copy?", args = allExamples)
+        else: #sample name given as arg
+          if dirExists(examplesDir & DirSep & options.action.sample):
+            selectedSample = options.action.sample
           else: #search in subdirectories:
             for path in walkDirRec(examplesDir, yieldFilter = {pcDir}, followFilter = {pcDir}, relative = true):
-              if splitPath(path).tail == options.action.example:
-                choosedExample = path
+              if splitPath(path).tail == options.action.sample:
+                selectedSample = path
 
-        if choosedExample == "":#final check
-          display("Problem:", pkg.name & " " & options.action.example & " example not found.", 
+        if selectedSample == "":#final check
+          display("Problem:", pkg.name & " " & options.action.sample & " sample not found.", 
               priority = HighPriority)
-          raise NimbleQuit(msg: pkg.name & options.action.example & " example not found.")
-        #echo ">>>",examplesDir & DirSep & choosedExample
-        copyDir(examplesDir & DirSep & choosedExample, getCurrentDir() )
-        display("Info:", choosedExample & " copied to " & getCurrentDir() , priority = MediumPriority)
+          raise NimbleQuit(msg: pkg.name & options.action.sample & " sample not found.")
+        copyDir(examplesDir & DirSep & selectedSample, getCurrentDir() )
+        display("Info:", selectedSample & " copied to " & getCurrentDir() , priority = MediumPriority)
 
 proc doAction(options: Options) =
   if options.showHelp:
@@ -1145,8 +1144,8 @@ proc doAction(options: Options) =
     develop(options)
   of actionCheck:
     check(options)
-  of actionExample:
-    example(options)
+  of actionSample:
+    sample(options)
   of actionNil:
     assert false
   of actionCustom:
