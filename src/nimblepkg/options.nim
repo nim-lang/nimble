@@ -281,11 +281,14 @@ proc parseArgument*(key: string, result: var Options) =
   of actionSample:
     if result.action.package == "":
       result.action.package = key
-    elif result.action.sample == "":
-      result.action.sample = key
-    else:
+    elif result.action.sample == "" and 
+      (not ('.' in key)) and (key != "#head"):
+        result.action.sample = key
+    elif (not ('.' in key)) and (key != "#head"):
       result.action.ver = Version(result.action.sample)
       result.action.sample = key
+    else:
+      result.action.ver =  Version(key)
   of actionTasks, actionCheck: discard
 
 proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
