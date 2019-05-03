@@ -23,7 +23,7 @@ Interested in learning **how to create a package**? Skip directly to that sectio
   - [nimble publish](#nimble-publish)
   - [nimble tasks](#nimble-tasks)
   - [nimble dump](#nimble-dump)
-  - [nimble example](#nimble-sample)
+  - [nimble sample](#nimble-sample)
 - [Configuration](#configuration)
 - [Creating Packages](#creating-packages)
   - [Project structure](#project-structure)
