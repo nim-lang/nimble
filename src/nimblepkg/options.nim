@@ -289,14 +289,10 @@ proc parseArgument*(key: string, result: var Options) =
         result.action.package = pkgName
         result.action.ver = pkgVer.parseVersionRange()
       else:
-        #result.action.packages.add((key, VersionRange(kind: verAny))) 
         result.action.package = key
         result.action.ver = VersionRange(kind: verAny)
-    else: # result.action.examples == "":
+    else: 
         result.action.examples = key
-    #[ elif (not ('.' in key)) and (key != "#head"):
-      result.action.ver = Version(result.action.examples)
-      result.action.examples = key ]#
 
   of actionTasks, actionCheck: discard
 
