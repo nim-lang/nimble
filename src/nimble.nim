@@ -1060,7 +1060,6 @@ proc examples(options: Options) =
         pkgExists = true
         var (dir, name, ext) = splitFile(pkg.myPath)
         let examplesDir = dir & DirSep & "examples"
-        echo examplesDir
         if not dirExists(examplesDir):
           raiseNimbleError(pkg.name & " has no examples.")
 
