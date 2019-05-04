@@ -1044,54 +1044,66 @@ proc check(options: Options) =
     quit(QuitFailure)
 
 
-proc sample(options: Options) =
-  ## ~ copies sample files to current directory - does not creates new subdirectory.
-  ##   (copyDir nimblepath/pkgs/pkg/samples/arg to current directory.)
-  ## ~ finds `arg` in subdirectories. "nimble sample pkgname sub"
-  ## ~ looks for pkg version if requested. "nimble sample pkgname '0.26.2' demo1"
-  ## ~ copies the first match found
-  ## ~ overwrites existing files without question
+proc examples(options: Options) =
+  ## Copies example files to current directory - does not creates new subdirectory.
+  ##   (copyDir nimblepath/pkgs/pkg/examples/arg to current directory.)
+  ## Finds `arg` in subdirectories. "nimble examples pkgname arg"
+  ## Looks for pkg version if requested. "nimble examples pkgname '0.26.2' demo1".
+  ## Copies the first match found.
+  ## Confirms overwriting existing files.
 
   let installedPkgs = getInstalledPkgsMin(options.getPkgsDir(), options)
-  var version = toVersionRange(options.action.ver)
-
+  var pkgExists = false
   for (pkg,meta) in installedPkgs: # pkg exists?
     if pkg.name == options.action.package and
-      (withinRange(pkg, version) or pkg.version == "#head"): #"#head" == develop 
+      (withinRange(pkg, options.action.ver) or pkg.version == "#head"): #"#head" == develop
+        pkgExists = true
         var (dir, name, ext) = splitFile(pkg.myPath)
-        let examplesDir = dir & DirSep & "samples"
+        let examplesDir = dir & DirSep & "examples"
+        echo examplesDir
         if not dirExists(examplesDir):
-          display("Problem:", pkg.name & " has no samples.", 
-              priority = HighPriority)
-          raise NimbleQuit(msg: pkg.name & " has no samples.")
-        #select sample:
+          raiseNimbleError(pkg.name & " has no examples.")
+
+        # select example:
         var 
-          selectedSample: string #this path will be copied
+          selectedExample: string # this path will be copied
           allExamples: seq[string]
-        if options.action.sample == "": #sample name not given as arg
+        if options.action.examples == "": # examples name not given as arg
           for path in walkDirRec(examplesDir, 
                 yieldFilter = {pcDir}, followFilter = {pcDir}, relative = true):
             allExamples.add(path)
           if len(allExamples) == 0:
-            display("Problem:", pkg.name & " has no samples.", 
-                priority = HighPriority)
-            raise NimbleQuit(msg: pkg.name & " has no samples.")
-          selectedSample = promptList(dontForcePrompt, 
-                question = "Wich sample you want to copy?", args = allExamples)
-        else: #sample name given as arg
-          if dirExists(examplesDir & DirSep & options.action.sample):
-            selectedSample = options.action.sample
-          else: #search in subdirectories:
-            for path in walkDirRec(examplesDir, yieldFilter = {pcDir}, followFilter = {pcDir}, relative = true):
-              if splitPath(path).tail == options.action.sample:
-                selectedSample = path
+            raiseNimbleError(pkg.name & " has no examples.")
+          selectedExample = promptList(dontForcePrompt, # interactive pkg select
+                question = "Wich examples you want to copy?", args = allExamples)
+        else: # examples name given as arg
+          if dirExists(examplesDir & DirSep & options.action.examples):
+            selectedExample = options.action.examples
+          else: # search in subdirectories (eg: iot/basic/blink):
+            for path in walkDirRec(examplesDir, 
+                        yieldFilter = {pcDir}, followFilter = {pcDir}, relative = true):
+              if splitPath(path).tail == options.action.examples:
+                selectedExample = path
+        if selectedExample == "":# final check
+          raiseNimbleError(pkg.name & " " & options.action.examples & " examples not found.")
 
-        if selectedSample == "":#final check
-          display("Problem:", pkg.name & " " & options.action.sample & " sample not found.", 
-              priority = HighPriority)
-          raise NimbleQuit(msg: pkg.name & options.action.sample & " sample not found.")
-        copyDir(examplesDir & DirSep & selectedSample, getCurrentDir() )
-        display("Info:", selectedSample & " copied to " & getCurrentDir() , priority = MediumPriority)
+        # overwrite check:
+        let dest = getCurrentDir()
+        for path in walkDirRec(examplesDir & DirSep & selectedExample, 
+                yieldFilter = {pcFile}, followFilter = {pcDir}, relative = true):
+          echo path
+          if fileExists(dest & DirSep & path):
+            if not prompt(dontForcePrompt, "File exists: " & dest & DirSep & path & 
+                "!\nOverwrite ALL existing files? Are you sure?"):
+              raiseNimbleError("User abort.")
+            else:
+              break # == overwrite files
+
+        copyDir(examplesDir & DirSep & selectedExample, getCurrentDir() )
+        display("Info:", selectedExample & " copied to " & getCurrentDir() , priority = HighPriority)
+  if not pkgExists:
+    raiseNimbleError(options.action.package & " not found or has no examples.")
+
 
 proc doAction(options: Options) =
   if options.showHelp:
@@ -1144,8 +1156,8 @@ proc doAction(options: Options) =
     develop(options)
   of actionCheck:
     check(options)
-  of actionSample:
-    sample(options)
+  of actionExamples:
+    examples(options)
   of actionNil:
     assert false
   of actionCustom:

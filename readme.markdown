@@ -23,7 +23,7 @@ Interested in learning **how to create a package**? Skip directly to that sectio
   - [nimble publish](#nimble-publish)
   - [nimble tasks](#nimble-tasks)
   - [nimble dump](#nimble-dump)
-  - [nimble sample](#nimble-sample)
+  - [nimble examples](#nimble-examples)
 - [Configuration](#configuration)
 - [Creating Packages](#creating-packages)
   - [Project structure](#project-structure)
@@ -311,15 +311,14 @@ Outputs information about the package in the current working directory in
 an ini-compatible format. Useful for tools wishing to read metadata about
 Nimble packages who do not want to use the NimScript evaluator.
 
-### nimble sample
+### nimble examples
 
-The ``sample`` command copies from the packages samples directory to the
-working directory. (It does not creates new directory, and it overwrites 
-existing files)
+The ``examples`` command copies from the packages samples directory to the
+working directory. So you may distribute boilerplates, demos with your package.
 
-    myproject$ nimble sample [pkgname]
-    myproject$ nimble sample [pkgname] [samplename]
-    myproject$ nimble sample [pkgname] [pkgversion] [samplename]
+    myproject$ nimble examples [pkgname]
+    myproject$ nimble examples [pkgname] [samplename]
+    myproject$ nimble examples [pkgname@pkgversion] [samplename]
 
 
 ## Configuration
