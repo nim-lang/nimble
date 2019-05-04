@@ -491,11 +491,14 @@ For a package named "foobar", the recommended project structure is the following
     ├── nim.cfg
     ├── tfoo1.nim   # First test
     └── tfoo2.nim   # Second test
-└── samples
+└── examples
     ├── demo1       # Demo application
+        └── demo.nim
     ├── simpleapp   # Application template
+        └── main.nim
     └── foo
         └── subfoo  # can be nested
+            └── foobar.nim
 
 ```
 
