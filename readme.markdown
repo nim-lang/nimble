@@ -479,7 +479,6 @@ which are also useful. Take a look at it for more information.
 ### Project structure
 
 For a package named "foobar", the recommended project structure is the following:
-
 ```
 .                   # The root directory of the project
 ├── LICENSE
@@ -487,20 +486,10 @@ For a package named "foobar", the recommended project structure is the following
 ├── foobar.nimble   # The project .nimble file
 └── src
     └── foobar.nim  # Imported via `import foobar`
-    └── examples    # Folder for Examples/Templates
-        ├── demo1         # Demo application
-        |   └── demo.nim
-        ├── simpleapp     # Application template
-        |   └── main.nim
-        |   └── ...
-        └── foo
-            └── subfoo    # can be nested
-                └── foobar.nim
 └── tests           # Contains the tests
     ├── nim.cfg
     ├── tfoo1.nim   # First test
     └── tfoo2.nim   # Second test
-
 
 ```
 
@@ -579,6 +568,36 @@ task test, "Runs the test suite":
 ```
 
 Running ``nimble test`` will now use the ``test`` task you have defined.
+
+### Examples
+
+You may wish to include boilerplates or demos with your package,
+for this purpose, create an `examples` subdirectory, where your main file is.
+(eg: src/examples)
+
+```
+.                   # The root directory of the project
+├── LICENSE
+├── README.md
+├── foobar.nimble   # The project .nimble file
+└── src
+    └── foobar.nim  # Imported via `import foobar`
+    └── examples    # Folder for Examples/Templates
+        ├── demo1         # Demo application
+        |   └── demo.nim
+        ├── simpleapp     # Application template
+        |   └── main.nim
+        |   └── ...
+        └── foo_bar
+            └── subfoo    # can be nested
+                └── foobar.nim
+└── tests           # Contains the tests
+    ├── nim.cfg
+    ├── tfoo1.nim   # First test
+    └── tfoo2.nim   # Second test
+
+
+```
 
 ### Libraries
 
