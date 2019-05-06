@@ -100,9 +100,9 @@ Commands:
                                   external tools. The argument can be a
                                   .nimble file, a project directory or
                                   the name of an installed package.
-  examples     [pkgname           Copies from package examples/[examplename] 
-                opt @version,     directory to the current working directory.
-                examplename]      (Overwrites existing files if exists.)
+  examples     [pkgname,          Copies from package examples/[examplename] 
+                examplename]      directory to the current working directory.
+                      
 
 
 Options:

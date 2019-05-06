@@ -808,3 +808,71 @@ suite "Module tests":
   test "cli":
     cd "..":
       check execCmdEx("nim c -r src/nimblepkg/cli").exitCode == QuitSuccess
+
+
+suite "examples":
+  test "get example1 to currentDir":
+    cd "examplestest":
+      check execNimble(["install", "-y"]).exitCode == QuitSuccess
+      createDir("testproject")
+      cd "testproject":
+        check execNimble(["examples", "examplestest", "example1"]).exitCode == QuitSuccess
+        check fileExists("example1.nim")
+
+      removeDir("testproject")
+      check execNimble(["uninstall", "examplestest", "-y"]).exitCode == QuitSuccess
+  
+  test "interactive example select w forcePromptYes (subtest)":
+    # full interactive test not implemented, using `-y`
+    cd "examplestest":
+      check execNimble(["install", "-y"]).exitCode == QuitSuccess
+      createDir("testproject")
+      cd "testproject":
+        check execNimble(["examples", "-y", "examplestest"]).exitCode == QuitSuccess
+        check fileExists("subtest.nim")
+
+      removeDir("testproject")
+      check execNimble(["uninstall", "examplestest", "-y"]).exitCode == QuitSuccess
+     
+  test "overwrite check, w forcePromptYes":# assert QuitSuccess on 2nd attempt
+    cd "examplestest":
+      check execNimble(["install", "-y"]).exitCode == QuitSuccess
+      createDir("testproject")
+      cd "testproject":
+        check execNimble(["examples", "-y", "examplestest"]).exitCode == QuitSuccess
+        check fileExists("subtest.nim")
+        check execNimble(["examples", "-y", "examplestest"]).exitCode == QuitSuccess
+
+      removeDir("testproject")
+      check execNimble(["uninstall", "examplestest", "-y"]).exitCode == QuitSuccess
+
+  test "overwrite check, wo forcePromptYes - check QuitFailure": # assert QuitFailure on 2nd attempt
+    cd "examplestest":
+      check execNimble(["install", "-y"]).exitCode == QuitSuccess
+      createDir("testproject")
+      cd "testproject":
+        check execNimble(["examples", "examplestest", "demo"]).exitCode == QuitSuccess
+        check fileExists("demo.nim")
+        check execNimble(["examples", "examplestest", "demo"]).exitCode == QuitFailure
+
+      removeDir("testproject")
+      check execNimble(["uninstall", "examplestest", "-y"]).exitCode == QuitSuccess
+      
+
+  test "exampletest2 - no srcDir":
+    cd "examplestest2":
+      check execNimble(["install", "-y"]).exitCode == QuitSuccess
+      createDir("testproject")
+      cd "testproject":
+        debugEcho "\tget example1"
+        check execNimble(["examples", "examplestest2", "example1"]).exitCode == QuitSuccess
+        check fileExists("example1.nim")
+        debugEcho "\tget example1 again - check for fail"
+        check execNimble(["examples", "examplestest2", "example1"]).exitCode == QuitFailure
+        debugEcho "\tget example1 again w `-y` - check for success"
+        check execNimble(["examples", "examplestest2", "example1", "-y"]).exitCode == QuitSuccess
+
+      removeDir("testproject")
+      check execNimble(["uninstall", "examplestest2", "-y"]).exitCode == QuitSuccess
+      
+    debugEcho getCurrentDir()

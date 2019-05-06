@@ -1056,13 +1056,20 @@ proc examples(options: Options) =
   var pkgExists = false
   for (pkg,meta) in installedPkgs: # pkg exists?
     if pkg.name == options.action.package and
-      (withinRange(pkg, options.action.ver) or pkg.version == "#head"): #"#head" == develop
+          (withinRange(pkg, options.action.ver) or 
+            pkg.version == "#head"): # "#head" == develop
         pkgExists = true
         var (dir, name, ext) = splitFile(pkg.myPath)
-        let examplesDir = dir & DirSep & "examples"
-        if not dirExists(examplesDir):
+        var examplesDir: string
+        if dirExists(dir & DirSep & pkg.name & DirSep & "examples"):
+           # srcDir NOT given in .nimble file
+          examplesDir = dir & DirSep & pkg.name & DirSep & "examples"
+        elif dirExists(dir & DirSep & "examples"):
+           # srcDir given in .nimble file
+          examplesDir = dir & DirSep & "examples"
+        else:#if not dirExists(examplesDir):
+          echo dir & DirSep & pkg.name & DirSep & "examples"
           raiseNimbleError(pkg.name & " has no examples.")
-
         # select example:
         var 
           selectedExample: string # this path will be copied
@@ -1070,36 +1077,42 @@ proc examples(options: Options) =
         if options.action.examples == "": # examples name not given as arg
           for path in walkDirRec(examplesDir, 
                 yieldFilter = {pcDir}, followFilter = {pcDir}, relative = true):
-            allExamples.add(path)
+            if not ('_' in  splitPath(path).head): 
+              allExamples.add(path) # don't follow '_'-ed folders - more pretty
           if len(allExamples) == 0:
             raiseNimbleError(pkg.name & " has no examples.")
-          selectedExample = promptList(dontForcePrompt, # interactive pkg select
-                question = "Wich examples you want to copy?", args = allExamples)
+          # interactive pkg select
+          selectedExample = promptList(options.forcePrompts,
+                question = "Wich example do you want to copy?", args = allExamples)
         else: # examples name given as arg
           if dirExists(examplesDir & DirSep & options.action.examples):
             selectedExample = options.action.examples
           else: # search in subdirectories (eg: iot/basic/blink):
             for path in walkDirRec(examplesDir, 
-                        yieldFilter = {pcDir}, followFilter = {pcDir}, relative = true):
+                yieldFilter = {pcDir}, followFilter = {pcDir}, relative = true):
               if splitPath(path).tail == options.action.examples:
                 selectedExample = path
-        if selectedExample == "":# final check
-          raiseNimbleError(pkg.name & " " & options.action.examples & " examples not found.")
+        if selectedExample == "": # final check
+          raiseNimbleError(pkg.name & " " & options.action.examples & " not found.")
 
         # overwrite check:
         let dest = getCurrentDir()
         for path in walkDirRec(examplesDir & DirSep & selectedExample, 
                 yieldFilter = {pcFile}, followFilter = {pcDir}, relative = true):
-          echo path
           if fileExists(dest & DirSep & path):
-            if not prompt(dontForcePrompt, "File exists: " & dest & DirSep & path & 
+            # short opt `-y` will force overwrite (can't test it otherwise)
+            if not prompt(options.forcePrompts,
+                "File exists: " & dest & DirSep & path &
                 "!\nOverwrite ALL existing files? Are you sure?"):
               raiseNimbleError("User abort.")
             else:
+              display("Warning:", "overwriting files!" , priority = HighPriority)
               break # == overwrite files
 
         copyDir(examplesDir & DirSep & selectedExample, getCurrentDir() )
-        display("Info:", selectedExample & " copied to " & getCurrentDir() , priority = HighPriority)
+        display("Info:", 
+            selectedExample & " copied to " & getCurrentDir() , 
+            priority = HighPriority)
   if not pkgExists:
     raiseNimbleError(options.action.package & " not found or has no examples.")
 

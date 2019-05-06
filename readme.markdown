@@ -313,7 +313,7 @@ Nimble packages who do not want to use the NimScript evaluator.
 
 ### nimble examples
 
-The ``examples`` command copies from the packages samples directory to the
+The ``examples`` command copies from the packages examples directory to the
 working directory. So you may distribute boilerplates, demos with your package.
 
     myproject$ nimble examples [pkgname]
@@ -487,18 +487,20 @@ For a package named "foobar", the recommended project structure is the following
 ├── foobar.nimble   # The project .nimble file
 └── src
     └── foobar.nim  # Imported via `import foobar`
+    └── examples    # Folder for Examples/Templates
+        ├── demo1         # Demo application
+        |   └── demo.nim
+        ├── simpleapp     # Application template
+        |   └── main.nim
+        |   └── ...
+        └── foo
+            └── subfoo    # can be nested
+                └── foobar.nim
 └── tests           # Contains the tests
     ├── nim.cfg
     ├── tfoo1.nim   # First test
     └── tfoo2.nim   # Second test
-└── examples
-    ├── demo1       # Demo application
-        └── demo.nim
-    ├── simpleapp   # Application template
-        └── main.nim
-    └── foo
-        └── subfoo  # can be nested
-            └── foobar.nim
+
 
 ```
 
