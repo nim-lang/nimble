@@ -315,11 +315,16 @@ Nimble packages who do not want to use the NimScript evaluator.
 
 The ``examples`` command copies from the packages examples directory to the
 working directory. So you may distribute boilerplates, demos with your package.
-
-    myproject$ nimble examples [pkgname]
+```
     myproject$ nimble examples [pkgname] [samplename]
     myproject$ nimble examples [pkgname@pkgversion] [samplename]
-
+```
+The interactive version loads folder tree from examples folder to choose from.
+You can hide subdirectories from the list, if you place ``_`` in the parents 
+name (eg: chapter_1)
+```
+    myproject$ nimble examples [pkgname]
+```
 
 ## Configuration
 
@@ -588,14 +593,9 @@ for this purpose, create an `examples` subdirectory, where your main file is.
         ├── simpleapp     # Application template
         |   └── main.nim
         |   └── ...
-        └── foo_bar
+        └── foobar
             └── subfoo    # can be nested
                 └── foobar.nim
-└── tests           # Contains the tests
-    ├── nim.cfg
-    ├── tfoo1.nim   # First test
-    └── tfoo2.nim   # Second test
-
 
 ```
 
