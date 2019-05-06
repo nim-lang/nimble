@@ -319,7 +319,7 @@ working directory. So you may distribute boilerplates, demos with your package.
     myproject$ nimble examples [pkgname] [samplename]
     myproject$ nimble examples [pkgname@pkgversion] [samplename]
 ```
-The interactive version loads folder tree from examples folder to choose from.
+The interactive version loads the folder tree from examples folder to choose from.  
 You can hide subdirectories from the list, if you place ``_`` in the parents 
 name (eg: chapter_1)
 ```
