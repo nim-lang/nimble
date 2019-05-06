@@ -23,6 +23,7 @@ type
     showVersion*: bool
     noColor*: bool
     disableValidation*: bool
+    continueTestsOnFailure*: bool
     ## Whether packages' repos should always be downloaded with their history.
     forceFullClone*: bool
 
@@ -77,6 +78,7 @@ Commands:
   c, cc, js    [opts, ...] f.nim  Builds a file inside a package. Passes options
                                   to the Nim compiler.
   test                            Compiles and executes tests
+               [-c, --continue]   Don't stop execution on a failed test.
   doc, doc2    [opts, ...] f.nim  Builds documentation for a file inside a
                                   package. Passes options to the Nim compiler.
   refresh      [url]              Refreshes the package list. A package list URL
@@ -316,6 +318,9 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
       else:
         result.action.compileOptions.add(prefix & flag & ":" & val)
     of actionCustom:
+      if result.action.command.normalize == "test":
+        if f == "continue" or f == "c":
+          result.continueTestsOnFailure = true
       result.action.flags[flag] = val
     else:
       wasFlagHandled = false
