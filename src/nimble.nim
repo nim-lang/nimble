@@ -1067,8 +1067,14 @@ proc examples(options: Options) =
         elif dirExists(dir & DirSep & "examples"):
            # srcDir given in .nimble file
           examplesDir = dir & DirSep & "examples"
+        elif pkg.srcDir != "" and 
+            dirExists(dir & DirSep & pkg.srcDir & DirSep & "examples"):
+          # patch for `develop` pkg with srcDir
+          examplesDir = dir & DirSep & pkg.srcDir & DirSep & "examples"
         else:#if not dirExists(examplesDir):
-          echo dir & DirSep & pkg.name & DirSep & "examples"
+          debugEcho pkg
+          debugEcho dir & DirSep & "examples"
+          debugEcho dir & DirSep & pkg.name & DirSep & "examples"
           raiseNimbleError(pkg.name & " has no examples.")
         # select example:
         var 

@@ -876,3 +876,40 @@ suite "examples":
       check execNimble(["uninstall", "examplestest2", "-y"]).exitCode == QuitSuccess
       
     debugEcho getCurrentDir()
+
+
+  test "exampletest/ - develop -ed pkg w srcDir":
+    cd "examplestest":
+      check execNimble(["develop", "-y"]).exitCode == QuitSuccess
+      createDir("testproject")
+      cd "testproject":
+        debugEcho "\tget example1"
+        check execNimble(["examples", "examplestest", "example1"]).exitCode == QuitSuccess
+        check fileExists("example1.nim")
+        debugEcho "\tget example1 again - check for fail"
+        check execNimble(["examples", "examplestest", "example1"]).exitCode == QuitFailure
+        debugEcho "\tget example1 again w `-y` - check for success"
+        check execNimble(["examples", "examplestest", "example1", "-y"]).exitCode == QuitSuccess
+
+      removeDir("testproject")
+      check execNimble(["uninstall", "examplestest", "-y"]).exitCode == QuitSuccess
+      
+    debugEcho getCurrentDir()
+
+  test "exampletest2/ - develop -ed pkg wo srcDir":
+    cd "examplestest2":
+      check execNimble(["develop", "-y"]).exitCode == QuitSuccess
+      createDir("testproject")
+      cd "testproject":
+        debugEcho "\tget example1"
+        check execNimble(["examples", "examplestest2", "example1"]).exitCode == QuitSuccess
+        check fileExists("example1.nim")
+        debugEcho "\tget example1 again - check for fail"
+        check execNimble(["examples", "examplestest2", "example1"]).exitCode == QuitFailure
+        debugEcho "\tget example1 again w `-y` - check for success"
+        check execNimble(["examples", "examplestest2", "example1", "-y"]).exitCode == QuitSuccess
+
+      removeDir("testproject")
+      check execNimble(["uninstall", "examplestest2", "-y"]).exitCode == QuitSuccess
+      
+    debugEcho getCurrentDir()
