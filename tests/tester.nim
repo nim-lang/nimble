@@ -913,3 +913,25 @@ suite "examples":
       check execNimble(["uninstall", "examplestest2", "-y"]).exitCode == QuitSuccess
       
     debugEcho getCurrentDir()
+    
+
+
+  test "examplestestbin - binary, no srcDir":
+    cd "examplestestbin":
+      check execNimble(["install", "-y"]).exitCode == QuitSuccess
+      sleep(200)
+      createDir("testproject")
+      cd "testproject":
+        debugEcho "\tget example1"
+        check execNimble(["examples", "examplestestbin", "example1"]).exitCode == QuitSuccess
+        check fileExists("example1.nim")
+        debugEcho "\tget example1 again - check for fail"
+        check execNimble(["examples", "examplestestbin", "example1"]).exitCode == QuitFailure
+        debugEcho "\tget example1 again w `-y` - check for success"
+        check execNimble(["examples", "examplestestbin", "example1", "-y"]).exitCode == QuitSuccess
+
+      removeDir("testproject")
+      check execNimble(["uninstall", "examplestestbin", "-y"]).exitCode == QuitSuccess
+      
+    debugEcho getCurrentDir()
+    
