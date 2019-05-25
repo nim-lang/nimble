@@ -15,7 +15,7 @@ from compiler/scriptconfig import setupVM
 from compiler/astalgo import strTableGet
 import compiler/options as compiler_options
 
-import common, version, options, packageinfo, cli
+import common, version, options, packageinfo, cli, tools
 import os, strutils, strtabs, tables, times, osproc, sets, pegs
 
 when not declared(resetAllModulesHard):
@@ -382,7 +382,7 @@ proc execScript(scriptName: string, flags: Flags, options: Options): PSym =
 
   # Ensure that "nimblepkg/nimscriptapi" is in the PATH.
   block:
-    let t = getTempDir() / "nimblecache"
+    let t = getNimbleUserTempDir() / "nimblecache"
     let tmpNimscriptApiPath = t / "nimblepkg" / "nimscriptapi.nim"
     createDir(tmpNimscriptApiPath.splitFile.dir)
     writeFile(tmpNimscriptApiPath, nimscriptApi)

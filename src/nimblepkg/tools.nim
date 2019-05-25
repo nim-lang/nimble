@@ -162,3 +162,17 @@ proc getNimbleTempDir*(): string =
     result.add($GetCurrentProcessId())
   else:
     result.add($getpid())
+
+proc getNimbleUserTempDir*(): string =
+  ## Returns a path to a temporary directory.
+  ##
+  ## The returned path will be the same for the duration of the process but
+  ## different for different runs of it. You have to make sure to create it
+  ## first. In release builds the directory will be removed when nimble finishes
+  ## its work.
+  var tmpdir: string
+  if existsEnv("TMPDIR") and existsEnv("USER"):
+    tmpdir = joinPath(getEnv("TMPDIR"), getEnv("USER"))
+  else:
+    tmpdir = getTempDir()
+  return tmpdir
