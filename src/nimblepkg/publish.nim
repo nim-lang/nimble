@@ -155,7 +155,7 @@ proc editJson(p: PackageInfo; url, tags, downloadMethod: string) =
 proc publish*(p: PackageInfo, o: Options) =
   ## Publishes the package p.
   let auth = getGithubAuth(o)
-  var pkgsDir = getTempDir() / "nimble-packages-fork"
+  var pkgsDir = getNimbleUserTempDir() / "nimble-packages-fork"
   if not forkExists(auth):
     createFork(auth)
     display("Info:", "Waiting 10s to let Github create a fork",
