@@ -3,6 +3,39 @@
 
 # Nimble changelog
 
+## 0.10.0 - 27/05/2019
+
+Nimble now uses the Nim compiler directly via `nim e` to execute nimble
+scripts rather than embedding the Nim VM. This has multiple benefits:
+- Evolve independently from Nim enabling new versions of Nimble to work
+  with multiple versions of Nim.
+- Inherit all nimscript enhancements and bug fixes rather than having to
+  duplicate functionality.
+- Fast build time and smaller binary.
+- No dependency on the compiler package which could cause dependency issues
+  when nimble is used as a package.
+
+Several other features and fixes have been implemented to improve general
+development and test workflows.
+- `nimble test` now sports a `-continue` or `-c` flag that allows tests
+  to continue on failure, removes all created test binaries on completion
+  and warns if no tests found.
+- The `--inclDeps` or `-i` flag enables `nimble uninstall` to remove all
+  dependent packages during uninstall.
+- Added documentation on the usage of a custom `nimbleDir`.
+- Package type interactive prompt is more readable.
+- Save temporary files in a per-user temp dir to enable Nimble on multi-user
+  systems.
+- CTRL-C is now handled correctly in interactive prompts.
+- Fixed issue where empty package list led to error.
+- Fixed issue where file:// was prepended incorrectly.
+- Fixed miscellaneous issues in version parsing, Github auth and briefClone.
+- Miscellaneous cleanup of deprecated procs.
+
+----
+
+Full changelog: https://github.com/nim-lang/nimble/compare/v0.9.0...v0.10.0
+
 ## 0.9.0 - 19/09/2018
 
 This is a major new release which contains at least one breaking change.
