@@ -24,6 +24,8 @@ development and test workflows:-
   dependent packages during uninstall.
 - Added documentation on the usage of a custom `nimbleDir`
 - Package type interactive prompt is more readable
+- Save temporary files in a per-user temp dir to enable Nimble on multi-user
+  systems
 - CTRL-C is now handled correctly in interactive prompts
 - Fixed issue where empty package list led to error
 - Fixed issue where file:// was prepended incorrectly
