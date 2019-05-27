@@ -32,6 +32,10 @@ development and test workflows.
 - Fixed miscellaneous issues in version parsing, Github auth and briefClone.
 - Miscellaneous cleanup of deprecated procs.
 
+----
+
+Full changelog: https://github.com/nim-lang/nimble/compare/v0.9.0...v0.10.0
+
 ## 0.9.0 - 19/09/2018
 
 This is a major new release which contains at least one breaking change.
