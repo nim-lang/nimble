@@ -35,6 +35,7 @@ var
   success = false
   retVal = true
   projectFile = ""
+  outFile = ""
 
 proc requires*(deps: varargs[string]) =
   ## Call this to set the list of requirements of your Nimble
@@ -42,13 +43,18 @@ proc requires*(deps: varargs[string]) =
   for d in deps: requiresData.add(d)
 
 proc getParams() =
+  # Called by nimscriptwrapper.nim:execNimscript()
+  #   nim e --flags /full/path/to/file.nims /full/path/to/file.out action
   for i in 2 .. paramCount():
     let
       param = paramStr(i)
-    if param.fileExists():
-      projectFile = param
-    elif param[0] != '-':
-      commandLineParams.add paramStr(i).normalize
+    if param[0] != '-':
+      if projectFile.len == 0:
+        projectFile = param
+      elif outFile.len == 0:
+        outFile = param
+      else:
+        commandLineParams.add param.normalize
 
 proc getCommand*(): string =
   return command
@@ -136,7 +142,8 @@ proc onExit*() =
 
     output &= "\"retVal\": " & $retVal
 
-    writeFile(projectFile & ".out", "{" & output & "}")
+    if outFile.len != 0:
+      writeFile(outFile, "{" & output & "}")
 
 # TODO: New release of Nim will move this `task` template under a
 # `when not defined(nimble)`. This will allow us to override it in the future.
