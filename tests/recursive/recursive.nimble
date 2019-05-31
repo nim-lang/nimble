@@ -11,11 +11,11 @@ requires "nim >= 0.12.1"
 
 task recurse, "Level 1":
   echo 1
-  exec "nimble recurse2"
+  exec "../../src/nimble recurse2"
 
 task recurse2, "Level 2":
   echo 2
-  exec "nimble recurse3"
+  exec "../../src/nimble recurse3"
 
 task recurse3, "Level 3":
   echo 3
