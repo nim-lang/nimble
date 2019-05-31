@@ -4,7 +4,7 @@
 ## Implements the new configuration system for Nimble. Uses Nim as a
 ## scripting language.
 
-import common, version, options, packageinfo, cli
+import common, version, options, packageinfo, cli, tools
 import hashes, json, os, streams, strutils, strtabs,
   tables, times, osproc, sets, pegs
 
@@ -26,6 +26,7 @@ proc execNimscript(nimsFile, projectDir, actionName: string, options: Options,
   let
     shash = $projectDir.hash().abs()
     nimsFileCopied = projectDir / nimsFile.splitFile().name & "_" & shash & ".nims"
+    outFile = getNimbleTempDir() & ".out"
 
   let
     isScriptResultCopied =
@@ -42,12 +43,12 @@ proc execNimscript(nimsFile, projectDir, actionName: string, options: Options,
 
   let
     cmd = ("nim e --hints:off --verbosity:0 -p:" & (getTempDir() / "nimblecache").quoteShell &
-      " " & nimsFileCopied.quoteShell & " " & actionName).strip()
+      " " & nimsFileCopied.quoteShell & " " & outFile.quoteShell & " " & actionName).strip()
+
+  displayDebug("Executing " & cmd)
 
   if live:
     result.exitCode = execCmd(cmd)
-    let
-      outFile = nimsFileCopied & ".out"
     if outFile.fileExists():
       result.output = outFile.readFile()
       discard outFile.tryRemoveFile()
