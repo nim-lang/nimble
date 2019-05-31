@@ -71,7 +71,7 @@ proc inLines(lines: seq[string], line: string): bool =
   for i in lines:
     if line.normalize in i.normalize: return true
 
-test "caching works":
+test "caching of nims and ini detects changes":
   cd "caching":
     var (output, exitCode) = execNimble("dump")
     check output.contains("0.1.0")
@@ -82,7 +82,7 @@ test "caching works":
     check output.contains("0.2.0")
     writeFile(nfile, readFile(nfile).replace("0.2.0", "0.1.0"))
 
-test "recursion works":
+test "tasks can be called recursively":
   cd "recursive":
     check execNimble("recurse").exitCode == QuitSuccess
 
