@@ -1015,7 +1015,7 @@ proc test(options: Options) =
     let (_, name, ext) = file.path.splitFile()
     if ext == ".nim" and name[0] == 't' and file.kind in {pcFile, pcLinkToFile}:
       var optsCopy = options.briefClone()
-      optsCopy.action.typ = actionCompile
+      optsCopy.action = Action(typ: actionCompile)
       optsCopy.action.file = file.path
       optsCopy.action.backend = "c"
       optsCopy.action.compileOptions = @[]
