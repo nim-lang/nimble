@@ -24,8 +24,7 @@ const
 proc execNimscript(nimsFile, projectDir, actionName: string, options: Options,
   live = true): tuple[output: string, exitCode: int] =
   let
-    shash = $projectDir.hash().abs()
-    nimsFileCopied = projectDir / nimsFile.splitFile().name & "_" & shash & ".nims"
+    nimsFileCopied = projectDir / nimsFile.splitFile().name & "_" & getProcessId() & ".nims"
     outFile = getNimbleTempDir() & ".out"
 
   let
