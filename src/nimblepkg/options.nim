@@ -238,7 +238,7 @@ proc getBinDir*(options: Options): string =
   options.getNimbleDir() / "bin"
 
 proc parseCommand*(key: string, result: var Options) =
-  result.action.typ = parseActionType(key)
+  result.action = Action(typ: parseActionType(key))
   initAction(result, key)
 
 proc parseArgument*(key: string, result: var Options) =
@@ -329,7 +329,7 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
     raise newException(NimbleError, "Unknown option: --" & flag)
 
 proc initOptions*(): Options =
-  result.action.typ = actionNil
+  result.action = Action(typ: actionNil)
   result.pkgInfoCache = newTable[string, PackageInfo]()
   result.nimbleDir = ""
   result.verbosity = HighPriority

@@ -130,34 +130,32 @@ proc contains*(ran: VersionRange, ver: Version): bool =
   return withinRange(ver, ran)
 
 proc makeRange*(version: string, op: string): VersionRange =
-  new(result)
   if version == "":
     raise newException(ParseVersionError,
         "A version needs to accompany the operator.")
   case op
   of ">":
-    result.kind = verLater
+    result = VersionRange(kind: verLater)
   of "<":
-    result.kind = verEarlier
+    result = VersionRange(kind: verEarlier)
   of ">=":
-    result.kind = verEqLater
+    result = VersionRange(kind: verEqLater)
   of "<=":
-    result.kind = verEqEarlier
+    result = VersionRange(kind: verEqEarlier)
   of "":
-    result.kind = verEq
+    result = VersionRange(kind: verEq)
   else:
     raise newException(ParseVersionError, "Invalid operator: " & op)
   result.ver = Version(version)
 
 proc parseVersionRange*(s: string): VersionRange =
   # >= 1.5 & <= 1.8
-  new(result)
   if s.len == 0:
-    result.kind = verAny
+    result = VersionRange(kind: verAny)
     return
 
   if s[0] == '#':
-    result.kind = verSpecial
+    result = VersionRange(kind: verSpecial)
     result.spe = s.Version
     return
 
@@ -169,7 +167,7 @@ proc parseVersionRange*(s: string): VersionRange =
     of '>', '<', '=':
       op.add(s[i])
     of '&':
-      result.kind = verIntersect
+      result = VersionRange(kind: verIntersect)
       result.verILeft = makeRange(version, op)
 
       # Parse everything after &
@@ -204,10 +202,10 @@ proc toVersionRange*(ver: Version): VersionRange =
   ## Converts a version to either a verEq or verSpecial VersionRange.
   new(result)
   if ver.isSpecial:
-    result.kind = verSpecial
+    result = VersionRange(kind: verSpecial)
     result.spe = ver
   else:
-    result.kind = verEq
+    result = VersionRange(kind: verEq)
     result.ver = ver
 
 proc parseRequires*(req: string): PkgTuple =
@@ -263,17 +261,14 @@ proc getSimpleString*(verRange: VersionRange): string =
     result = ""
 
 proc newVRAny*(): VersionRange =
-  new(result)
-  result.kind = verAny
+  result = VersionRange(kind: verAny)
 
 proc newVREarlier*(ver: string): VersionRange =
-  new(result)
-  result.kind = verEarlier
+  result = VersionRange(kind: verEarlier)
   result.ver = newVersion(ver)
 
 proc newVREq*(ver: string): VersionRange =
-  new(result)
-  result.kind = verEq
+  result = VersionRange(kind: verEq)
   result.ver = newVersion(ver)
 
 proc findLatest*(verRange: VersionRange,
