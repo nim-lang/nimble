@@ -119,7 +119,12 @@ proc execScript(scriptName, actionName: string, options: Options):
     (output, exitCode) = execNimscript(nimsFile, scriptName.parentDir(), actionName, options)
 
   if exitCode != 0:
-    raise newException(NimbleError, output)
+    let errMsg =
+      if output.len != 0:
+        output
+      else:
+        "Exception raised during nimble script execution"
+    raise newException(NimbleError, errMsg)
 
   let
     j =
