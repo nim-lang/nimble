@@ -585,6 +585,12 @@ test "can pass args with spaces to Nim (#351)":
     checkpoint output
     check exitCode == QuitSuccess
 
+test "error if `bin` is a source file (#597)":
+  cd "issue597":
+    var (output, exitCode) = execNimble("build")
+    check exitCode != QuitSuccess
+    check output.contains("entry should not be a source file: test.nim")
+
 suite "reverse dependencies":
   test "basic test":
     cd "revdep/mydep":

@@ -253,6 +253,8 @@ proc readPackageInfoFromNimble(path: string; result: var PackageInfo) =
             result.installExt.add(ev.value.multiSplit)
           of "bin":
             for i in ev.value.multiSplit:
+              if i.splitFile().ext == ".nim":
+                raise newException(NimbleError, "`bin` entry should not be a source file: " & i)
               result.bin.add(i.addFileExt(ExeExt))
           of "backend":
             result.backend = ev.value.toLowerAscii()
