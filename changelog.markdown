@@ -3,6 +3,24 @@
 
 # Nimble changelog
 
+## 0.10.2 - 03/06/2019
+
+This is a small release which avoids object variant changes that are now
+treated as runtime errors (Nim #1286). It also adds support for `backend`
+selection during `nimble init`.
+
+Multiple bug fixes are also included:
+- Fixed an issue where failing tasks were not returning a non-zero return
+  value (#655).
+- Error out if `bin` is a Nim source file (#597).
+- Fixed an issue where nimble task would not run if file of same name exists.
+- Fixed an issue that prevented multiple instances of nimble from running on
+  the same package.
+
+----
+
+Full changelog: https://github.com/nim-lang/nimble/compare/v0.10.0...v0.10.2
+
 ## 0.10.0 - 27/05/2019
 
 Nimble now uses the Nim compiler directly via `nim e` to execute nimble
