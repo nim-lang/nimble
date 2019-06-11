@@ -81,20 +81,19 @@ template `--`*(key: untyped) =
 
 template printIfLen(varName) =
   if varName.len != 0:
-    iniOut &= astToStr(varName) & ": \"\"\"" & varName & "\"\"\"\n"
+    result &= astToStr(varName) & ": \"\"\"" & varName & "\"\"\"\n"
 
 template printSeqIfLen(varName) =
   if varName.len != 0:
-    iniOut &= astToStr(varName) & ": \"" & varName.join(", ") & "\"\n"
+    result &= astToStr(varName) & ": \"" & varName.join(", ") & "\"\n"
 
-proc printPkgInfo() =
+proc printPkgInfo(): string =
   if backend.len == 0:
     backend = "c"
 
-  var
-    iniOut = "[Package]\n"
+  result = "[Package]\n"
   if packageName.len != 0:
-    iniOut &= "name: \"" & packageName & "\"\n"
+    result &= "name: \"" & packageName & "\"\n"
   printIfLen version
   printIfLen author
   printIfLen description
@@ -114,14 +113,13 @@ proc printPkgInfo() =
   printSeqIfLen afterHooks
 
   if requiresData.len != 0:
-    iniOut &= "\n[Deps]\n"
-    iniOut &= &"requires: \"{requiresData.join(\", \")}\"\n"
-
-  echo iniOut
+    result &= "\n[Deps]\n"
+    result &= &"requires: \"{requiresData.join(\", \")}\"\n"
 
 proc onExit*() =
   if "printPkgInfo".normalize in commandLineParams:
-    printPkgInfo()
+    if outFile.len != 0:
+      writeFile(outFile, printPkgInfo())
   else:
     var
       output = ""
