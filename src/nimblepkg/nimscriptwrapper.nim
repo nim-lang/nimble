@@ -21,8 +21,8 @@ const
   internalCmd = "e"
   nimscriptApi = staticRead("nimscriptapi.nim")
 
-proc execNimscript(nimsFile, projectDir, actionName: string, options: Options,
-  live = true): tuple[output: string, exitCode: int] =
+proc execNimscript(nimsFile, projectDir, actionName: string, options: Options):
+  tuple[output: string, exitCode: int] =
   let
     nimsFileCopied = projectDir / nimsFile.splitFile().name & "_" & getProcessId() & ".nims"
     outFile = getNimbleTempDir() & ".out"
@@ -46,13 +46,10 @@ proc execNimscript(nimsFile, projectDir, actionName: string, options: Options,
 
   displayDebug("Executing " & cmd)
 
-  if live:
-    result.exitCode = execCmd(cmd)
-    if outFile.fileExists():
-      result.output = outFile.readFile()
-      discard outFile.tryRemoveFile()
-  else:
-    result = execCmdEx(cmd, options = {poUsePath, poStdErrToStdOut})
+  result.exitCode = execCmd(cmd)
+  if outFile.fileExists():
+    result.output = outFile.readFile()
+    discard outFile.tryRemoveFile()
 
 proc getNimsFile(scriptName: string, options: Options): string =
   let
@@ -103,7 +100,7 @@ proc getIniFile*(scriptName: string, options: Options): string =
   if not isIniResultCached:
     let
       (output, exitCode) =
-        execNimscript(nimsFile, scriptName.parentDir(), "printPkgInfo", options, live=false)
+        execNimscript(nimsFile, scriptName.parentDir(), "printPkgInfo", options)
 
     if exitCode == 0 and output.len != 0:
       result.writeFile(output)
