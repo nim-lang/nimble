@@ -401,6 +401,7 @@ You can also specify multiple dependencies like so:
 
 requires "nim >= 0.10.0", "foobar >= 0.1.0"
 requires "fizzbuzz >= 1.0"
+requires "https://github.com/user/pkg#5a54b5e"
 ```
 
 Nimble currently supports installation of packages from a local directory, a
