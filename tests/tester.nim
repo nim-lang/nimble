@@ -818,3 +818,12 @@ suite "Module tests":
   test "cli":
     cd "..":
       check execCmdEx("nim c -r src/nimblepkg/cli").exitCode == QuitSuccess
+
+test "init does not overwrite existing files (#581)":
+  createDir("issue581/src")
+  cd "issue581":
+    const Src = "echo \"OK\""
+    writeFile("src/issue581.nim", Src)
+    check execNimbleYes("init").exitCode == QuitSuccess
+    check readFile("src/issue581.nim") == Src
+  removeDir("issue581")
