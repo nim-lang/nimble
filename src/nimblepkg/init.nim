@@ -19,7 +19,7 @@ proc writeExampleIfNonExistent(file: string, content: string) =
     writeFile(file, content)
   else:
     display("Info:", "File " & file & " already exists, did not write " &
-            "example code", Message, LowPriority)
+            "example code", priority = HighPriority)
 
 proc createPkgStructure*(info: PkgInitInfo, pkgRoot: string) =
   # Create source directory
