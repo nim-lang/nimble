@@ -14,9 +14,12 @@ type
     pkgNimDep: string
     pkgType: string
 
-proc writeFileIfNonExistent(file: string, content: string) =
+proc writeExampleIfNonExistent(file: string, content: string) =
   if not existsFile(file):
     writeFile(file, content)
+  else:
+    display("Info:", "File " & file & " already exists, did not write " &
+            "example code", Message, LowPriority)
 
 proc createPkgStructure*(info: PkgInitInfo, pkgRoot: string) =
   # Create source directory
@@ -27,7 +30,7 @@ proc createPkgStructure*(info: PkgInitInfo, pkgRoot: string) =
   case info.pkgType
   of "binary":
     let mainFile = pkgRoot / info.pkgSrcDir / info.pkgName.changeFileExt("nim")
-    writeFileIfNonExistent(mainFile,
+    writeExampleIfNonExistent(mainFile,
 """
 # This is just an example to get you started. A typical binary package
 # uses this file as the main entry point of the application.
@@ -39,7 +42,7 @@ when isMainModule:
     nimbleFileOptions.add("bin           = @[\"$1\"]\n" % info.pkgName)
   of "library":
     let mainFile = pkgRoot / info.pkgSrcDir / info.pkgName.changeFileExt("nim")
-    writeFileIfNonExistent(mainFile,
+    writeExampleIfNonExistent(mainFile,
 """
 # This is just an example to get you started. A typical library package
 # exports the main API in this file. Note that you cannot rename this file
@@ -54,7 +57,7 @@ proc add*(x, y: int): int =
     createDirD(pkgRoot / info.pkgSrcDir / info.pkgName)
     let submodule = pkgRoot / info.pkgSrcDir / info.pkgName /
         "submodule".addFileExt("nim")
-    writeFileIfNonExistent(submodule,
+    writeExampleIfNonExistent(submodule,
 """
 # This is just an example to get you started. Users of your library will
 # import this file by writing ``import $1/submodule``. Feel free to rename or
@@ -72,7 +75,7 @@ proc initSubmodule*(): Submodule =
     )
   of "hybrid":
     let mainFile = pkgRoot / info.pkgSrcDir / info.pkgName.changeFileExt("nim")
-    writeFileIfNonExistent(mainFile,
+    writeExampleIfNonExistent(mainFile,
 """
 # This is just an example to get you started. A typical hybrid package
 # uses this file as the main entry point of the application.
@@ -87,7 +90,7 @@ when isMainModule:
     let pkgSubDir = pkgRoot / info.pkgSrcDir / info.pkgName & "pkg"
     createDirD(pkgSubDir)
     let submodule = pkgSubDir / "submodule".addFileExt("nim")
-    writeFileIfNonExistent(submodule,
+    writeExampleIfNonExistent(submodule,
 """
 # This is just an example to get you started. Users of your hybrid library will
 # import this file by writing ``import $1pkg/submodule``. Feel free to rename or
@@ -116,7 +119,7 @@ proc getWelcomeMessage*(): string = "Hello, World!"
     )
 
     if info.pkgType == "library":
-      writeFileIfNonExistent(pkgTestPath / "test1".addFileExt("nim"),
+      writeExampleIfNonExistent(pkgTestPath / "test1".addFileExt("nim"),
 """
 # This is just an example to get you started. You may wish to put all of your
 # tests into a single file, or separate them into multiple `test1`, `test2`
@@ -133,7 +136,7 @@ test "can add":
 """ % info.pkgName
       )
     else:
-      writeFileIfNonExistent(pkgTestPath / "test1".addFileExt("nim"),
+      writeExampleIfNonExistent(pkgTestPath / "test1".addFileExt("nim"),
 """
 # This is just an example to get you started. You may wish to put all of your
 # tests into a single file, or separate them into multiple `test1`, `test2`
