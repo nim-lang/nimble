@@ -142,10 +142,10 @@ proc copyFilesRec(origDir, currentDir, dest: string,
   result.incl copyFileD(pkgInfo.mypath,
             changeRoot(pkgInfo.mypath.splitFile.dir, dest, pkgInfo.mypath))
 
-proc install(packages: seq[PkgTuple],
-             options: Options,
-             doPrompt = true): tuple[deps: seq[PackageInfo], pkg: PackageInfo]
-proc processDeps(pkginfo: PackageInfo, options: Options): seq[PackageInfo] =
+proc install(packages: seq[PkgTuple], options: Options,
+             doPrompt = true): PackageDepsInfo
+
+proc processDeps(pkginfo: PackageInfo, options: Options): PackageInfoList =
   ## Verifies and installs dependencies.
   ##
   ## Returns the list of PackageInfo (for paths) to pass to the compiler
@@ -317,10 +317,7 @@ proc vcsRevisionInDir(dir: string): string =
       discard
 
 proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
-                    url: string): tuple[
-                      deps: seq[PackageInfo],
-                      pkg: PackageInfo
-                    ] =
+                    url: string): PackageDepsInfo =
   ## Returns where package has been installed to, together with paths
   ## to the packages this package depends on.
   ## The return value of this function is used by
@@ -469,7 +466,7 @@ proc getDownloadInfo*(pv: PkgTuple, options: Options,
 
 proc install(packages: seq[PkgTuple],
              options: Options,
-             doPrompt = true): tuple[deps: seq[PackageInfo], pkg: PackageInfo] =
+             doPrompt = true): PackageDepsInfo =
   if packages == @[]:
     result = installFromDir(getCurrentDir(), newVRAny(), options, "")
   else:
@@ -842,6 +839,7 @@ proc uninstall(options: Options) =
 
   var pkgsToDelete: HashSet[PackageInfo]
   pkgsToDelete.init()
+
   # Do some verification.
   for pkgTup in options.action.packages:
     display("Looking", "for $1 ($2)" % [pkgTup.name, $pkgTup.ver],

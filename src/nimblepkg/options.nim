@@ -4,7 +4,7 @@
 import json, strutils, os, parseopt, strtabs, uri, tables, terminal
 from httpclient import Proxy, newProxy
 
-import config, version, tools, common, cli
+import config, version, tools, common, cli, packageinfo
 
 type
   Options* = object

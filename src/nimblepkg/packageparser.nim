@@ -3,7 +3,7 @@
 import parsecfg, json, sets, streams, strutils, parseutils, os, tables, sugar
 from sequtils import apply, map
 
-import version, tools, common, nimscriptwrapper, options, packageinfo, cli
+import packageinfo, version, tools, common, nimscriptwrapper, options, cli
 
 ## Contains procedures for parsing .nimble files. Moved here from ``packageinfo``
 ## because it depends on ``nimscriptwrapper`` (``nimscriptwrapper`` also
@@ -425,8 +425,7 @@ proc getPkgInfo*(dir: string, options: Options): PackageInfo =
   let nimbleFile = findNimbleFile(dir, true)
   return getPkgInfoFromFile(nimbleFile, options)
 
-proc getInstalledPkgs*(libsDir: string, options: Options):
-        seq[tuple[pkginfo: PackageInfo, meta: MetaData]] =
+proc getInstalledPkgs*(libsDir: string, options: Options): PackageFullInfoList =
   ## Gets a list of installed packages.
   ##
   ## ``libsDir`` is in most cases: ~/.nimble/pkgs/

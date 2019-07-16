@@ -7,7 +7,7 @@ import hashes, parsecfg, json, streams, strutils, parseutils, os, sets, tables
 import httpclient
 
 # Local imports
-import version, tools, common, options, cli, config
+import version, tools, common, cli, config
 
 type
   Package* = object ## Definition of package from packages.json.
@@ -24,12 +24,50 @@ type
     web*: string # Info url for humans.
     alias*: string ## A name of another package, that this package aliases.
 
+  PackageInfo* = object
+    myPath*: string ## The path of this .nimble file
+    isNimScript*: bool ## Determines if this pkg info was read from a nims file
+    isMinimal*: bool
+    isInstalled*: bool ## Determines if the pkg this info belongs to is installed
+    isLinked*: bool ## Determines if the pkg this info belongs to has been linked via `develop`
+    postHooks*: HashSet[string] ## Useful to know so that Nimble doesn't execHook unnecessarily
+    preHooks*: HashSet[string]
+    name*: string
+    ## The version specified in the .nimble file.Assuming info is non-minimal,
+    ## it will always be a non-special version such as '0.1.4'
+    version*: string
+    specialVersion*: string ## Either `myVersion` or a special version such as #head.
+    author*: string
+    description*: string
+    license*: string
+    skipDirs*: seq[string]
+    skipFiles*: seq[string]
+    skipExt*: seq[string]
+    installDirs*: seq[string]
+    installFiles*: seq[string]
+    installExt*: seq[string]
+    requires*: seq[PkgTuple]
+    bin*: seq[string]
+    binDir*: string
+    srcDir*: string
+    backend*: string
+    foreignDeps*: seq[string]
+
+  PackageInfoList* = seq[PackageInfo]
+
   MetaData* = object
     url*: string
+
+  PackageFullInfo* = tuple[pkginfo: PackageInfo, meta: MetaData]
+  PackageFullInfoList* = seq[PackageFullInfo]
+
+  PackageDepsInfo* = tuple[deps: PackageInfoList, pkg: PackageInfo]
 
   NimbleLink* = object
     nimbleFilePath*: string
     packageDir*: string
+
+import options
 
 proc initPackageInfo*(path: string): PackageInfo =
   result.myPath = path
@@ -321,7 +359,7 @@ proc findNimbleFile*(dir: string; error: bool): string =
       display("Hint:", hintMsg, Warning, HighPriority)
 
 proc getInstalledPkgsMin*(libsDir: string, options: Options):
-        seq[tuple[pkginfo: PackageInfo, meta: MetaData]] =
+    PackageFullInfoList =
   ## Gets a list of installed packages. The resulting package info is
   ## minimal. This has the advantage that it does not depend on the
   ## ``packageparser`` module, and so can be used by ``nimscriptwrapper``.
@@ -371,9 +409,8 @@ proc resolveAlias*(dep: PkgTuple, options: Options): PkgTuple =
     # no alias is present.
     result.name = pkg.name
 
-proc findPkg*(pkglist: seq[tuple[pkgInfo: PackageInfo, meta: MetaData]],
-             dep: PkgTuple,
-             r: var PackageInfo): bool =
+proc findPkg*(pkglist: PackageFullInfoList, dep: PkgTuple,
+              r: var PackageInfo): bool =
   ## Searches ``pkglist`` for a package of which version is within the range
   ## of ``dep.ver``. ``True`` is returned if a package is found. If multiple
   ## packages are found the newest one is returned (the one with the highest
@@ -389,8 +426,8 @@ proc findPkg*(pkglist: seq[tuple[pkgInfo: PackageInfo, meta: MetaData]],
         r = pkg.pkginfo
         result = true
 
-proc findAllPkgs*(pkglist: seq[tuple[pkgInfo: PackageInfo, meta: MetaData]],
-                  dep: PkgTuple): seq[PackageInfo] =
+proc findAllPkgs*(pkglist: PackageFullInfoList,
+                  dep: PkgTuple): PackageInfoList =
   ## Searches ``pkglist`` for packages of which version is within the range
   ## of ``dep.ver``. This is similar to ``findPkg`` but returns multiple
   ## packages if multiple are found.

@@ -3,7 +3,7 @@
 
 import os, json, sets
 
-import options, common, version, download, packageinfo
+import packageinfo, options, common, version, download
 
 proc saveNimbleData*(options: Options) =
   # TODO: This file should probably be locked.
