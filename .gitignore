@@ -20,3 +20,6 @@ nimcache/
 # VCC compiler and linker artifacts
 *.ilk
 *.pdb
+
+# IDE metadata folders
+.vscode
