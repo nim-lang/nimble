@@ -24,6 +24,7 @@ proc doCheckout(meth: DownloadMethod, downloadDir, branch: string) =
       # clone has happened. Like in the case of git on Windows where it
       # messes up the damn line endings.
       doCmd("git checkout --force " & branch)
+      doCmd("git submodule update --recursive")
   of DownloadMethod.hg:
     cd downloadDir:
       doCmd("hg checkout " & branch)
