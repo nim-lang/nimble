@@ -156,7 +156,8 @@ proc processDeps(pkginfo: PackageInfo, options: Options): PackageInfoList =
           "dependencies for $1@$2" % [pkginfo.name, pkginfo.specialVersion],
           priority = HighPriority)
 
-  var pkgList = getInstalledPkgsMin(options.getPkgsDir(), options)
+  var pkgList {.global.}: PackageFullInfoList = @[]
+  once: pkgList = getInstalledPkgsMin(options.getPkgsDir(), options)
   var reverseDeps: seq[tuple[name, version: string]] = @[]
   for dep in pkginfo.requires:
     if dep.name == "nimrod" or dep.name == "nim":
