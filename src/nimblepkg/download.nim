@@ -7,7 +7,7 @@ import packageinfo, packageparser, version, tools, common, options, cli
 
 type
   DownloadMethod* {.pure.} = enum
-    git = "git", hg = "hg"
+    git = "git", hg = "hg", local = "local"
 
 proc getSpecificDir(meth: DownloadMethod): string =
   case meth
@@ -15,6 +15,8 @@ proc getSpecificDir(meth: DownloadMethod): string =
     ".git"
   of DownloadMethod.hg:
     ".hg"
+  of DownloadMethod.local:
+    ""
 
 proc doCheckout(meth: DownloadMethod, downloadDir, branch: string) =
   case meth
@@ -28,6 +30,8 @@ proc doCheckout(meth: DownloadMethod, downloadDir, branch: string) =
   of DownloadMethod.hg:
     cd downloadDir:
       doCmd("hg checkout " & branch)
+  of DownloadMethod.local:
+    raise newException(ValueError, "Nothing to checkout for a local package.")
 
 proc doPull(meth: DownloadMethod, downloadDir: string) =
   case meth
@@ -41,6 +45,8 @@ proc doPull(meth: DownloadMethod, downloadDir: string) =
     doCheckout(meth, downloadDir, "default")
     cd downloadDir:
       doCmd("hg pull")
+  of DownloadMethod.local:
+    raise newException(ValueError, "Nothing to pull for a local package.")
 
 proc doClone(meth: DownloadMethod, url, downloadDir: string, branch = "",
              onlyTip = true) =
@@ -56,15 +62,19 @@ proc doClone(meth: DownloadMethod, url, downloadDir: string, branch = "",
       tipArg = if onlyTip: "-r tip " else: ""
       branchArg = if branch == "": "" else: "-b " & branch & " "
     doCmd("hg clone " & tipArg & branchArg & url & " " & downloadDir)
+  of DownloadMethod.local:
+    raise newException(ValueError, "Nothing to clone for a local package.")
 
 proc getTagsList(dir: string, meth: DownloadMethod): seq[string] =
   cd dir:
-    var output = execProcess("git tag")
+    var output = ""
     case meth
     of DownloadMethod.git:
       output = execProcess("git tag")
     of DownloadMethod.hg:
       output = execProcess("hg tags")
+    of DownloadMethod.local:
+      discard
   if output.len > 0:
     case meth
     of DownloadMethod.git:
@@ -80,6 +90,8 @@ proc getTagsList(dir: string, meth: DownloadMethod): seq[string] =
         discard parseUntil(i, tag, ' ')
         if tag != "tip":
           result.add(tag)
+    of DownloadMethod.local:
+      discard
   else:
     result = @[]
 
@@ -102,6 +114,8 @@ proc getTagsListRemote*(url: string, meth: DownloadMethod): seq[string] =
   of DownloadMethod.hg:
     # http://stackoverflow.com/questions/2039150/show-tags-for-remote-hg-repository
     raise newException(ValueError, "Hg doesn't support remote tag querying.")
+  of DownloadMethod.local:
+    raise newException(ValueError, "No remote tags fir a local package.")
 
 proc getVersionList*(tags: seq[string]): Table[Version, string] =
   # Returns: TTable of version -> git tag name
@@ -116,6 +130,7 @@ proc getDownloadMethod*(meth: string): DownloadMethod =
   case meth
   of "git": return DownloadMethod.git
   of "hg", "mercurial": return DownloadMethod.hg
+  of "local": return DownloadMethod.local
   else:
     raise newException(NimbleError, "Invalid download method: " & meth)
 
@@ -125,6 +140,7 @@ proc getHeadName*(meth: DownloadMethod): Version =
   case meth
   of DownloadMethod.git: newVersion("#head")
   of DownloadMethod.hg: newVersion("#tip")
+  of DownloadMethod.local: newVersion("#")
 
 proc checkUrlType*(url: string): DownloadMethod =
   ## Determines the download method based on the URL.
@@ -133,7 +149,10 @@ proc checkUrlType*(url: string): DownloadMethod =
   elif doCmdEx("hg identify " & url).exitCode == QuitSuccess:
     return DownloadMethod.hg
   else:
-    raise newException(NimbleError, "Unable to identify url: " & url)
+    if existsDir(url):
+      return DownloadMethod.local
+    else:
+      raise newException(NimbleError, "Unable to identify url: " & url)
 
 proc getUrlData*(url: string): (string, Table[string, string]) =
   var uri = parseUri(url)
@@ -168,6 +187,7 @@ proc doDownload(url: string, downloadDir: string, verRange: VersionRange,
     if $latest.ver != "":
       result = latest.ver
 
+  assert(downMethod != DownloadMethod.local, "Cannot download a local package.")
   removeDir(downloadDir)
   if verRange.kind == verSpecial:
     # We want a specific commit/branch/tag here.
@@ -208,6 +228,8 @@ proc doDownload(url: string, downloadDir: string, verRange: VersionRange,
           display("Switching", "to latest tagged version: " & latest.tag,
                   priority = MediumPriority)
           doCheckout(downMethod, downloadDir, latest.tag)
+    of DownloadMethod.local:
+      raise newException(ValueError, "Cannot download a local package.")
 
 proc downloadPkg*(url: string, verRange: VersionRange,
                  downMethod: DownloadMethod,
@@ -246,10 +268,12 @@ proc downloadPkg*(url: string, verRange: VersionRange,
   else:
     display("Downloading", "$1 using $2" % [modUrl, $downMethod],
             priority = HighPriority)
-  result = (
-    downloadDir / subdir,
-    doDownload(modUrl, downloadDir, verRange, downMethod, options)
-  )
+
+  if downMethod != DownloadMethod.local:
+    result = (downloadDir / subdir,
+              doDownload(modUrl, downloadDir, verRange, downMethod, options))
+  else:
+    result = (url, Version("#"))
 
   if verRange.kind != verSpecial:
     ## Makes sure that the downloaded package's version satisfies the requested
@@ -280,6 +304,6 @@ proc echoPackageVersions*(pkg: Package) =
         echo("  versions:    (No versions tagged in the remote repository)")
     except OSError:
       echo(getCurrentExceptionMsg())
-  of DownloadMethod.hg:
+  of DownloadMethod.hg, DownloadMethod.local:
     echo("  versions:    (Remote tag retrieval not supported by " &
         pkg.downloadMethod & ")")
