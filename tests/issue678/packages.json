@@ -1,0 +1,27 @@
+[
+  {
+    "name": "issue678_dependency_1",
+    "url": "dependency_1/",
+    "method": "local",
+    "tags": [ "test" ], 
+    "description":
+      "Both first and second level dependency of the issue678 package.",
+    "license": "MIT"
+  },
+  {
+    "name": "issue678_dependency_2",
+    "url": "dependency_2/",
+    "method": "local",
+    "tags": [ "test" ],
+    "description": "First level dependency of the issue678 package.",
+    "license": "MIT"
+  },
+  {
+    "name": "issue678",
+    "url": "main_package/",
+    "method": "local",
+    "tags": [ "test" ],
+    "description": "First level dependency of the issue678 package.",
+    "license": "MIT"
+  }
+]
