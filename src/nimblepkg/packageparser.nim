@@ -425,7 +425,7 @@ proc getPkgInfo*(dir: string, options: Options): PackageInfo =
   let nimbleFile = findNimbleFile(dir, true)
   return getPkgInfoFromFile(nimbleFile, options)
 
-proc getInstalledPkgs*(libsDir: string, options: Options): PackageFullInfoList =
+proc getInstalledPkgs*(libsDir: string, options: Options): seq[PackageFullInfo] =
   ## Gets a list of installed packages.
   ##
   ## ``libsDir`` is in most cases: ~/.nimble/pkgs/

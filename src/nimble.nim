@@ -145,7 +145,7 @@ proc copyFilesRec(origDir, currentDir, dest: string,
 proc install(packages: seq[PkgTuple], options: Options,
              doPrompt = true): PackageDepsInfo
 
-proc processDeps(pkginfo: PackageInfo, options: Options): PackageInfoList =
+proc processDeps(pkginfo: PackageInfo, options: Options): seq[PackageInfo] =
   ## Verifies and installs dependencies.
   ##
   ## Returns the list of PackageInfo (for paths) to pass to the compiler
@@ -156,7 +156,7 @@ proc processDeps(pkginfo: PackageInfo, options: Options): PackageInfoList =
           "dependencies for $1@$2" % [pkginfo.name, pkginfo.specialVersion],
           priority = HighPriority)
 
-  var pkgList {.global.}: PackageFullInfoList = @[]
+  var pkgList {.global.}: seq[PackageFullInfo] = @[]
   once: pkgList = getInstalledPkgsMin(options.getPkgsDir(), options)
   var reverseDeps: seq[tuple[name, version: string]] = @[]
   for dep in pkginfo.requires:

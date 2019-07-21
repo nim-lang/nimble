@@ -53,15 +53,11 @@ type
     backend*: string
     foreignDeps*: seq[string]
 
-  PackageInfoList* = seq[PackageInfo]
-
   MetaData* = object
     url*: string
 
   PackageFullInfo* = tuple[pkginfo: PackageInfo, meta: MetaData]
-  PackageFullInfoList* = seq[PackageFullInfo]
-
-  PackageDepsInfo* = tuple[deps: PackageInfoList, pkg: PackageInfo]
+  PackageDepsInfo* = tuple[deps: seq[PackageInfo], pkg: PackageInfo]
 
   NimbleLink* = object
     nimbleFilePath*: string
@@ -359,7 +355,7 @@ proc findNimbleFile*(dir: string; error: bool): string =
       display("Hint:", hintMsg, Warning, HighPriority)
 
 proc getInstalledPkgsMin*(libsDir: string, options: Options):
-    PackageFullInfoList =
+    seq[PackageFullInfo] =
   ## Gets a list of installed packages. The resulting package info is
   ## minimal. This has the advantage that it does not depend on the
   ## ``packageparser`` module, and so can be used by ``nimscriptwrapper``.
@@ -409,7 +405,7 @@ proc resolveAlias*(dep: PkgTuple, options: Options): PkgTuple =
     # no alias is present.
     result.name = pkg.name
 
-proc findPkg*(pkglist: PackageFullInfoList, dep: PkgTuple,
+proc findPkg*(pkglist: seq[PackageFullInfo], dep: PkgTuple,
               r: var PackageInfo): bool =
   ## Searches ``pkglist`` for a package of which version is within the range
   ## of ``dep.ver``. ``True`` is returned if a package is found. If multiple
@@ -426,8 +422,8 @@ proc findPkg*(pkglist: PackageFullInfoList, dep: PkgTuple,
         r = pkg.pkginfo
         result = true
 
-proc findAllPkgs*(pkglist: PackageFullInfoList,
-                  dep: PkgTuple): PackageInfoList =
+proc findAllPkgs*(pkglist: seq[PackageFullInfo],
+                  dep: PkgTuple): seq[PackageInfo] =
   ## Searches ``pkglist`` for packages of which version is within the range
   ## of ``dep.ver``. This is similar to ``findPkg`` but returns multiple
   ## packages if multiple are found.
