@@ -213,13 +213,13 @@ proc processDeps(pkginfo: PackageInfo, options: Options): seq[PackageInfo] =
   for i in reverseDeps:
     addRevDep(options.nimbleData, i, pkginfo)
 
-proc buildFromDir(pkgInfo: PackageInfo, paths: seq[string],
-                  args: var seq[string]) =
+proc buildFromDir(pkgInfo: PackageInfo, paths, args: seq[string]) =
   ## Builds a package as specified by ``pkgInfo``.
   if pkgInfo.bin.len == 0:
     raise newException(NimbleError,
         "Nothing to build. Did you specify a module to build using the" &
         " `bin` key in your .nimble file?")
+  var args = args
   let realDir = pkgInfo.getRealDir()
   for path in paths: args.add("--path:\"" & path & "\" ")
   for bin in pkgInfo.bin:
@@ -243,14 +243,6 @@ proc buildFromDir(pkgInfo: PackageInfo, paths: seq[string],
       exc.msg.add("\nDetails:\n" & error)
       exc.hint = hint
       raise exc
-
-proc buildFromDir(pkgInfo: PackageInfo, paths: seq[string], forRelease: bool) =
-  var args: seq[string]
-  if forRelease:
-    args = @["-d:release"]
-  else:
-    args = @[]
-  buildFromDir(pkgInfo, paths, args)
 
 proc removePkgDir(dir: string, options: Options) =
   ## Removes files belonging to the package in ``dir``.
@@ -356,7 +348,7 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
   # if the build fails then the old package will still be installed.
   if pkgInfo.bin.len > 0:
     let paths = result.deps.map(dep => dep.getRealDir())
-    buildFromDir(pkgInfo, paths, true)
+    buildFromDir(pkgInfo, paths, options.action.passNimFlags & "-d:release")
 
   let pkgDestDir = pkgInfo.getPkgDest(options)
   if existsDir(pkgDestDir) and existsFile(pkgDestDir / "nimblemeta.json"):
