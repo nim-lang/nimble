@@ -41,6 +41,7 @@ type
     of actionInstall, actionPath, actionUninstall, actionDevelop:
       packages*: seq[PkgTuple] # Optional only for actionInstall
                                # and actionDevelop.
+      passNimFlags*: seq[string]
     of actionSearch:
       search*: seq[string] # Search string.
     of actionInit, actionDump:
@@ -61,6 +62,7 @@ Usage: nimble COMMAND [opts]
 Commands:
   install      [pkgname, ...]     Installs a list of packages.
                [-d, --depsOnly]   Install only dependencies.
+               [-p, --passNim]    Forward specified flag to compiler.
   develop      [pkgname, ...]     Clones a list of packages for development.
                                   Symlinks the cloned packages or any package
                                   in the current working directory.
@@ -175,6 +177,7 @@ proc initAction*(options: var Options, key: string) =
   case options.action.typ
   of actionInstall, actionPath, actionDevelop, actionUninstall:
     options.action.packages = @[]
+    options.action.passNimFlags = @[]
   of actionCompile, actionDoc, actionBuild:
     options.action.compileOptions = @[]
     options.action.file = ""
@@ -303,6 +306,8 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
       case f
       of "depsonly", "d":
         result.depsOnly = true
+      of "passnim", "p":
+        result.action.passNimFlags.add(val)
       else:
         wasFlagHandled = false
     of actionUninstall:
