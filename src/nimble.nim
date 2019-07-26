@@ -857,7 +857,14 @@ proc uninstall(options: Options) =
       if options.uninstallRevDeps:
         getAllRevDeps(options, pkg, pkgsToDelete)
       else:
-        let revDeps = getRevDeps(options, pkg)
+        let
+          # Pkgs already processed for removal
+          namesOfPkgsToDelete = pkgsToDelete.mapIt(it.name)
+            
+          # revDeps which haven't already been processed for removal
+          revDeps = getRevDeps(options, pkg).filterIt(
+            it.name notin namesOfPkgsToDelete)
+
         var reason = ""
         if revDeps.len == 1:
           reason = "$1 ($2) depends on it" % [revDeps[0].name, $revDeps[0].ver]
