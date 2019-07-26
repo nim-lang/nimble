@@ -851,7 +851,6 @@ proc uninstall(options: Options) =
       raise newException(NimbleError, "Package not found")
 
     display("Checking", "reverse dependencies", priority = HighPriority)
-    var errors: seq[string] = @[]
     for pkg in pkgList:
       # Check whether any packages depend on the ones the user is trying to
       # uninstall.
@@ -870,13 +869,14 @@ proc uninstall(options: Options) =
           reason.add " depend on it"
 
         if revDeps.len > 0:
-          errors.add("Cannot uninstall $1 ($2) because $3" %
-                     [pkgTup.name, pkg.specialVersion, reason])
+          display("Unable", "to uninstall $1 ($2) because $3" %
+                  [pkgTup.name, pkg.specialVersion, reason], Warning, HighPriority)
         else:
           pkgsToDelete.add pkg
 
-    if pkgsToDelete.len == 0:
-      raise newException(NimbleError, "\n  " & errors.join("\n  "))
+  if pkgsToDelete.len == 0:
+    display("Failed", "uninstall - no packages selected", Error, HighPriority)
+    return
 
   var pkgNames = ""
   for i in 0 ..< pkgsToDelete.len:
