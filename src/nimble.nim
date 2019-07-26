@@ -876,7 +876,7 @@ proc uninstall(options: Options) =
           reason.add " depend on it"
 
         if revDeps.len > 0:
-          display("Unable", "to uninstall $1 ($2) because $3" %
+          display("Cannot", "uninstall $1 ($2) because $3" %
                   [pkgTup.name, pkg.specialVersion, reason], Warning, HighPriority)
         else:
           pkgsToDelete.add pkg
