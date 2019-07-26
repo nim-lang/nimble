@@ -6,13 +6,13 @@ language: c
 
 env:
   - BRANCH=0.19.6
-  - BRANCH=0.20.0
-  - BRANCH=#ced0527ae334439a10e1719d1eccb727c19dc781
+  - BRANCH=0.20.2
+  - BRANCH=#29b5c48edf90b6f8a8a55e39bc6091dc4c483736
 
 cache:
   directories:
     - "$HOME/.choosenim/toolchains/nim-0.19.6"
-    - "$HOME/.choosenim/toolchains/nim-0.20.0"
+    - "$HOME/.choosenim/toolchains/nim-0.20.2"
 
 install:
   - export CHOOSENIM_CHOOSE_VERSION=$BRANCH

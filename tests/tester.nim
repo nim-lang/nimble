@@ -836,7 +836,7 @@ test "remove skips packages with revDeps (#504)":
 
   (output, exitCode) = execNimble("uninstall", "nimfp", "nimboost", "-y")
   lines = output.strip.processOutput()
-  check not inLines(lines, "Cannot uninstall nimboost")
+  check (not inLines(lines, "Cannot uninstall nimboost"))
 
   check execNimble("path", "nimboost").exitCode != QuitSuccess
   check execNimble("path", "nimfp").exitCode != QuitSuccess
