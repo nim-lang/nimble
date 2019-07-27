@@ -465,8 +465,7 @@ test "can uninstall":
 
     let ls = outp.strip.processOutput()
     check exitCode != QuitSuccess
-    check "Cannot uninstall issue27b (0.1.0) because issue27a (0.1.0) depends" &
-          " on it" in ls[ls.len-1]
+    check inLines(ls, "Cannot uninstall issue27b (0.1.0) because issue27a (0.1.0) depends")
 
     check execNimble("uninstall", "-y", "issue27").exitCode == QuitSuccess
     check execNimble("uninstall", "-y", "issue27a").exitCode == QuitSuccess
@@ -827,3 +826,17 @@ test "init does not overwrite existing files (#581)":
     check execNimbleYes("init").exitCode == QuitSuccess
     check readFile("src/issue581.nim") == Src
   removeDir("issue581")
+
+test "remove skips packages with revDeps (#504)":
+  check execNimble("install", "nimboost@0.5.5", "nimfp@0.4.4", "-y").exitCode == QuitSuccess
+
+  var (output, exitCode) = execNimble("uninstall", "nimboost", "nimfp", "-n")
+  var lines = output.strip.processOutput()
+  check inLines(lines, "Cannot uninstall nimboost")
+
+  (output, exitCode) = execNimble("uninstall", "nimfp", "nimboost", "-y")
+  lines = output.strip.processOutput()
+  check (not inLines(lines, "Cannot uninstall nimboost"))
+
+  check execNimble("path", "nimboost").exitCode != QuitSuccess
+  check execNimble("path", "nimfp").exitCode != QuitSuccess

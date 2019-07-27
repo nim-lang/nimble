@@ -840,7 +840,8 @@ proc uninstall(options: Options) =
     raise newException(NimbleError,
         "Please specify the package(s) to uninstall.")
 
-  var pkgsToDelete: seq[PackageInfo] = @[]
+  var pkgsToDelete: HashSet[PackageInfo]
+  pkgsToDelete.init()
   # Do some verification.
   for pkgTup in options.action.packages:
     display("Looking", "for $1 ($2)" % [pkgTup.name, $pkgTup.ver],
@@ -851,37 +852,33 @@ proc uninstall(options: Options) =
       raise newException(NimbleError, "Package not found")
 
     display("Checking", "reverse dependencies", priority = HighPriority)
-    var errors: seq[string] = @[]
     for pkg in pkgList:
       # Check whether any packages depend on the ones the user is trying to
       # uninstall.
       if options.uninstallRevDeps:
         getAllRevDeps(options, pkg, pkgsToDelete)
       else:
-        let revDeps = getRevDeps(options, pkg)
+        let
+          revDeps = getRevDeps(options, pkg)
         var reason = ""
-        if revDeps.len == 1:
-          reason = "$1 ($2) depends on it" % [revDeps[0].name, $revDeps[0].ver]
-        else:
-          for i in 0 ..< revDeps.len:
-            reason.add("$1 ($2)" % [revDeps[i].name, $revDeps[i].ver])
-            if i != revDeps.len-1:
-              reason.add ", "
-          reason.add " depend on it"
+        for revDep in revDeps:
+          if reason.len != 0: reason.add ", "
+          reason.add("$1 ($2)" % [revDep.name, revDep.version])
+        if reason.len != 0:
+          reason &= " depend" & (if revDeps.len == 1: "s" else: "") & " on it"
 
-        if revDeps.len > 0:
-          errors.add("Cannot uninstall $1 ($2) because $3" %
-                     [pkgTup.name, pkg.specialVersion, reason])
+        if len(revDeps - pkgsToDelete) > 0:
+          display("Cannot", "uninstall $1 ($2) because $3" %
+                  [pkgTup.name, pkg.specialVersion, reason], Warning, HighPriority)
         else:
-          pkgsToDelete.add pkg
+          pkgsToDelete.incl pkg
 
-    if pkgsToDelete.len == 0:
-      raise newException(NimbleError, "\n  " & errors.join("\n  "))
+  if pkgsToDelete.len == 0:
+    raise newException(NimbleError, "Failed uninstall - no packages selected")
 
   var pkgNames = ""
-  for i in 0 ..< pkgsToDelete.len:
-    if i != 0: pkgNames.add ", "
-    let pkg = pkgsToDelete[i]
+  for pkg in pkgsToDelete.items:
+    if pkgNames.len != 0: pkgNames.add ", "
     pkgNames.add("$1 ($2)" % [pkg.name, pkg.specialVersion])
 
   # Let's confirm that the user wants these packages removed.

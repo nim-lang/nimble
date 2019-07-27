@@ -1,7 +1,7 @@
 # Copyright (C) Dominik Picheta. All rights reserved.
 # BSD License. Look at license.txt for more info.
 
-import os, json
+import os, json, sets
 
 import options, common, version, download, packageinfo
 
@@ -58,7 +58,7 @@ proc removeRevDep*(nimbleData: JsonNode, pkg: PackageInfo) =
         newData[key] = newVal
   nimbleData["reverseDeps"] = newData
 
-proc getRevDeps*(options: Options, pkg: PackageInfo): seq[PkgTuple] =
+proc getRevDepTups*(options: Options, pkg: PackageInfo): seq[PkgTuple] =
   ## Returns a list of *currently installed* reverse dependencies for `pkg`.
   result = @[]
   let thisPkgsDep =
@@ -76,18 +76,25 @@ proc getRevDeps*(options: Options, pkg: PackageInfo): seq[PkgTuple] =
 
       result.add(pkgTup)
 
-proc getAllRevDeps*(options: Options, pkg: PackageInfo, result: var seq[PackageInfo]) =
+proc getRevDeps*(options: Options, pkg: PackageInfo): HashSet[PackageInfo] =
+  result.init()
+  let installedPkgs = getInstalledPkgsMin(options.getPkgsDir(), options)
+  for rdepTup in getRevDepTups(options, pkg):
+    for rdepInfo in findAllPkgs(installedPkgs, rdepTup):
+      result.incl rdepInfo
+
+proc getAllRevDeps*(options: Options, pkg: PackageInfo, result: var HashSet[PackageInfo]) =
   if pkg in result:
     return
 
   let installedPkgs = getInstalledPkgsMin(options.getPkgsDir(), options)
-  for rdepTup in getRevDeps(options, pkg):
+  for rdepTup in getRevDepTups(options, pkg):
     for rdepInfo in findAllPkgs(installedPkgs, rdepTup):
       if rdepInfo in result:
         continue
 
       getAllRevDeps(options, rdepInfo, result)
-  result.add pkg
+  result.incl pkg
 
 when isMainModule:
   var nimbleData = %{"reverseDeps": newJObject()}
