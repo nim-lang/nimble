@@ -840,3 +840,7 @@ test "remove skips packages with revDeps (#504)":
 
   check execNimble("path", "nimboost").exitCode != QuitSuccess
   check execNimble("path", "nimfp").exitCode != QuitSuccess
+
+test "pass options to the compiler with `nimble install`":
+  cd "passNimFlags":
+    check execNimble("install", "--passNim:-d:passNimIsWorking").exitCode == QuitSuccess
