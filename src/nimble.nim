@@ -724,20 +724,20 @@ proc init(options: Options) =
   display("Using", "$# for new package name" % [pkgName.escape()],
     priority = HighPriority)
 
-  # Ask for package author
+  # Determine author by running an external command
+  proc getAuthorWithCmd(cmd: string): string =
+    let (name, exitCode) = doCmdEx(cmd)
+    if exitCode == QuitSuccess and name.len > 0:
+      result = name.strip()
+      display("Using", "$# for new package author" % [result],
+        priority = HighPriority)
+
+  # Determine package author via git/hg or asking
   proc getAuthor(): string =
     if findExe("git") != "":
-      let (name, exitCode) = doCmdEx("git config --global user.name")
-      if exitCode == QuitSuccess and name.len > 0:
-        result = name.strip()
-        display("Using", "$# for new package author" % [result.escape()],
-          priority = HighPriority)
+      result = getAuthorWithCmd("git config --global user.name")
     elif findExe("hg") != "":
-      let (name, exitCode) = doCmdEx("hg config ui.username")
-      if exitCode == QuitSuccess and name.len > 0:
-        result = name.strip()
-        display("Using", "$# for new package author" % [result.escape()],
-          priority = HighPriority)
+      result = getAuthorWithCmd("hg config ui.username")
     if result.len == 0:
       result = promptCustom(options, "Your name?", "Anonymous")
   let pkgAuthor = getAuthor()

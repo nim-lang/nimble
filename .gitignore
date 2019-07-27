@@ -12,6 +12,14 @@ nimcache/
 /nimble
 /tests/nimscript/nimscript
 /tests/issue27/issue27
+src/nimblepkg/cli
+src/nimblepkg/packageinfo
+src/nimblepkg/packageparser
+src/nimblepkg/reversedeps
+src/nimblepkg/version
+tests/nimble-test/
+tests/packageStructure/validBinary/y
+tests/testCommand/testsFail/tests/t2
 
 # Windows executables
 *.exe
@@ -20,3 +28,4 @@ nimcache/
 # VCC compiler and linker artifacts
 *.ilk
 *.pdb
+
