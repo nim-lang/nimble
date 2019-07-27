@@ -175,7 +175,7 @@ $#
 
 requires "nim >= $#"
 """ % [
-      info.pkgVersion.escape(), info.pkgAuthor, info.pkgDesc.escape(),
+      info.pkgVersion.escape(), info.pkgAuthor, info.pkgDesc,
       info.pkgLicense.escape(), info.pkgSrcDir.escape(), nimbleFileOptions,
       pkgBackend, info.pkgNimDep
     ]
