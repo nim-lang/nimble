@@ -3,7 +3,7 @@
 
 # Stdlib imports
 import system except TResult
-import parsecfg, json, streams, strutils, parseutils, os, sets, tables
+import hashes, parsecfg, json, streams, strutils, parseutils, os, sets, tables
 import httpclient
 
 # Local imports
@@ -541,6 +541,11 @@ proc getPkgDest*(pkgInfo: PackageInfo, options: Options): string =
 proc `==`*(pkg1: PackageInfo, pkg2: PackageInfo): bool =
   if pkg1.name == pkg2.name and pkg1.myPath == pkg2.myPath:
     return true
+
+proc hash*(x: PackageInfo): Hash =
+  var h: Hash = 0
+  h = h !& hash(x.myPath)
+  result = !$h
 
 when isMainModule:
   doAssert getNameVersion("/home/user/.nimble/libs/packagea-0.1") ==

@@ -828,7 +828,7 @@ test "init does not overwrite existing files (#581)":
   removeDir("issue581")
 
 test "remove skips packages with revDeps (#504)":
-  check execNimble("install", "nimboost", "nimfp", "-y").exitCode == QuitSuccess
+  check execNimble("install", "nimboost@0.5.5", "nimfp@0.4.4", "-y").exitCode == QuitSuccess
 
   var (output, exitCode) = execNimble("uninstall", "nimboost", "nimfp", "-n")
   var lines = output.strip.processOutput()
