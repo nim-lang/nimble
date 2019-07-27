@@ -29,3 +29,12 @@ tests/testCommand/testsFail/tests/t2
 *.ilk
 *.pdb
 
+# Editors and IDEs project files and folders
+.vscode
+
+# VCS artifacts
+*.orig
+
+# Test procedure artifacts
+tests/nimble-test/
+nimble_*.nims
