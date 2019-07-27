@@ -844,3 +844,19 @@ test "remove skips packages with revDeps (#504)":
 test "pass options to the compiler with `nimble install`":
   cd "passNimFlags":
     check execNimble("install", "--passNim:-d:passNimIsWorking").exitCode == QuitSuccess
+
+test "do not install single dependency multiple times (#678)":
+  # for the test to be correct, the tested package and its dependencies must not
+  # exist in the local cache
+  removeDir("nimbleDir")
+  cd "issue678":
+    testRefresh():
+      writeFile(configFile, """
+        [PackageList]
+        name = "local"
+        path = "$1"
+      """.unindent % (getCurrentDir() / "packages.json").replace("\\", "\\\\"))
+      check execNimble(["refresh"]).exitCode == QuitSuccess
+      let (output, exitCode) = execNimble("install", "-y")
+      check exitCode == QuitSuccess
+      check output.find("issue678_dependency_1@0.1.0 already exists") == -1
