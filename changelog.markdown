@@ -3,6 +3,8 @@
 
 # Nimble changelog
 
+- Fixed multiple downloads and installs of the same package (#678).
+
 ## 0.10.2 - 03/06/2019
 
 This is a small release which avoids object variant changes that are now
