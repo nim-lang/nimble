@@ -237,6 +237,14 @@ query remote Git repositories for the list of versions of the packages and to
 then print the versions. Please note however that this can be slow as each
 package must be queried separately.
 
+You can use the option ``--full`` to display extended information about the
+packages (see ``search`` command for output example). Missing optional
+information is not printed.
+
+Also, the ``--mat=M`` option can be added to list only the packages who
+have a maturity metric superior to ``M``, where ``M`` is a float value in the
+range 0.0 (missing information) to 4.0 (mature project).
+
 ### nimble search
 
 If you don't want to go through the whole output of the ``list`` command you
@@ -251,12 +259,14 @@ substrings). Example:
       tags:        library, opengl, math, game
       description: OpenGL math library
       license:     CC0
+      website:     https://bitbucket.org/BitPuffin/linagl
 
     extmath:
       url:         git://github.com/achesak/extmath.nim (git)
       tags:        library, math, trigonometry
       description: Nim math library
       license:     MIT
+      website:     https://github.com/achesak/extmath.nim
 
 Searches are case insensitive.
 
@@ -264,6 +274,26 @@ An optional ``--ver`` parameter can be specified to tell Nimble to
 query remote Git repositories for the list of versions of the packages and
 then print the versions. However, please note that this can be slow as each
 package must be queried separately.
+
+The optional ``--full`` parameter will do a full search in the extended
+description, categories and maturity rating and will print a detailed package
+description. Missing optional information is not printed.
+
+    $ nimble search extmath --full
+    extmath:
+      url:         https://github.com/achesak/extmath.nim (git)
+      tags:        library, math, trigonometry
+      description: Nim math library
+      license:     MIT
+      website:     https://github.com/achesak/extmath.nim
+      categories:  Maths
+      maturity:    1.3 out of 4
+      fullDesc:    extmath.nim is a math library for the Nim programming language.
+                   It contains functions for basic math, trigonometry, and geometry,
+                   as well as quite a few constants.
+
+Like for the ``list`` command, the ``--mat=M`` option can be used to search
+only for the packages whose maturity level is superior to ``M``.
 
 ### nimble path
 

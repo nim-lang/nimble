@@ -95,7 +95,7 @@ proc copyFilesRec(origDir, currentDir, dest: string,
   ## Copies all the required files, skips files specified in the .nimble file
   ## (PackageInfo).
   ## Returns a list of filepaths to files which have been installed.
-  result = initSet[string]()
+  result = initHashSet[string]()
   let whitelistMode =
           pkgInfo.installDirs.len != 0 or
           pkgInfo.installFiles.len != 0 or
@@ -374,7 +374,7 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
 
   createDir(pkgDestDir)
   # Copy this package's files based on the preferences specified in PkgInfo.
-  var filesInstalled = initSet[string]()
+  var filesInstalled = initHashSet[string]()
   iterInstallFiles(realDir, pkgInfo, options,
     proc (file: string) =
       createDir(changeRoot(realDir, pkgDestDir, file.splitFile.dir))
@@ -387,7 +387,7 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
                         pkgInfo.myPath)
   filesInstalled.incl copyFileD(pkgInfo.myPath, dest)
 
-  var binariesInstalled = initSet[string]()
+  var binariesInstalled = initHashSet[string]()
   if pkgInfo.bin.len > 0:
     # Make sure ~/.nimble/bin directory is created.
     createDir(binDir)
@@ -550,12 +550,18 @@ proc search(options: Options) =
   let pkgList = getPackageList(options)
   var found = false
   template onFound {.dirty.} =
-    echoPackage(pkg)
-    if options.queryVersions:
-      echoPackageVersions(pkg)
-    echo(" ")
-    found = true
-    break forPkg
+    # Print result only we search with a package maturity level or
+    # we don't consider maturity.
+    if (options.maturity > 0.0 and pkg.overallQuality >= options.maturity) or
+        options.maturity == 0.0:
+      echoPackage(pkg)
+      if options.queryVersions:
+        echoPackageVersions(pkg)
+      if options.showDetails:
+        echoPackageDetails(pkg)
+      echo(" ")
+      found = true
+      break forPkg
 
   for pkg in pkgList:
     block forPkg:
@@ -567,6 +573,15 @@ proc search(options: Options) =
         for tag in pkg.tags:
           if word.toLower() in tag.toLower():
             onFound()
+        # Full search
+        if options.showDetails:
+          # Search into extended description.
+          if word.toLower() in pkg.extendedDescription.toLower():
+            onFound()
+          # Search by category.
+          for category in pkg.categories:
+            if word.toLower() in category.toLower():
+              onFound()
 
   if not found:
     display("Error", "No package found.", Error, HighPriority)
@@ -576,10 +591,14 @@ proc list(options: Options) =
     raise newException(NimbleError, "Please run nimble refresh.")
   let pkgList = getPackageList(options)
   for pkg in pkgList:
-    echoPackage(pkg)
-    if options.queryVersions:
-      echoPackageVersions(pkg)
-    echo(" ")
+    if (options.maturity > 0.0 and pkg.overallQuality >= options.maturity) or
+        options.maturity == 0.0:
+      echoPackage(pkg)
+      if options.queryVersions:
+        echoPackageVersions(pkg)
+      if options.showDetails:
+        echoPackageDetails(pkg)
+      echo(" ")
 
 proc listInstalled(options: Options) =
   var h = initOrderedTable[string, seq[string]]()

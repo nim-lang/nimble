@@ -23,6 +23,16 @@ type
     dvcsTag*: string
     web*: string # Info url for humans.
     alias*: string ## A name of another package, that this package aliases.
+    # New fields added by new version
+    extendedDescription*: string
+    codeQuality: int
+    docQuality: int
+    projectQuality: int
+    overallQuality*: float
+    categories*: seq[string]
+    logo*: string # Project or company logo
+    screenshots*: seq[string] # Urls to screenshots
+
 
   MetaData* = object
     url*: string
@@ -112,6 +122,26 @@ proc requiredField(obj: JsonNode, name: string): string =
     raise newException(NimbleError,
         "Package in packages.json file does not contain a " & name & " field.")
 
+proc optionalIntField(obj: JsonNode, name: string, default = 0): int =
+  ## Queries ``obj`` for the optional ``name`` integer value.
+  ##
+  ## Returns the value of ``name`` if it is a valid integer, or aborts execution
+  ## if the field exists but is not of int type. If ``name`` is not present,
+  ## returns ``default``.
+  if hasKey(obj, name):
+    if obj[name].kind == JInt:
+      return int(obj[name].num)
+    else:
+      raise newException(NimbleError, "Corrupted packages.json file. " & name &
+        " field is of unexpected type.")
+  else: return default
+
+proc calculateQuality(codeQuality, docQuality, projectQuality: int = 0): float =
+  ## Calculates the overall package quality/maturity based on individual
+  ## indicators on code, documentation and project.
+  ## Currently averages all values.
+  result = (codeQuality + docQuality + projectQuality) / 3
+
 proc fromJson(obj: JSonNode): Package =
   ## Constructs a Package object from a JSON node.
   ##
@@ -131,6 +161,20 @@ proc fromJson(obj: JSonNode): Package =
       result.tags.add(t.str)
     result.description = obj.requiredField("description")
     result.web = obj.optionalField("web")
+    result.extendedDescription = obj.optionalField("extended-description")
+    result.categories = @[]
+    if obj.hasKey("categories"):
+      for c in obj["categories"]:
+        result.categories.add(c.str)
+    result.codeQuality = obj.optionalIntField("code-quality")
+    result.docQuality = obj.optionalIntField("doc-quality")
+    result.projectQuality = obj.optionalIntField("project-quality")
+    result.overallQuality = calculateQuality(result.codeQuality, result.docQuality, result.projectQuality)
+    result.logo = obj.optionalField("logo")
+    result.screenshots = @[]
+    if obj.hasKey("screenshots"):
+      for s in obj["screenshots"]:
+        result.screenshots.add(s.str)
 
 proc readMetaData*(path: string): MetaData =
   ## Reads the metadata present in ``~/.nimble/pkgs/pkg-0.1/nimblemeta.json``
@@ -278,7 +322,7 @@ proc getPackage*(pkg: string, options: Options, resPkg: var Package): bool =
 proc getPackageList*(options: Options): seq[Package] =
   ## Returns the list of packages found in the downloaded packages.json files.
   result = @[]
-  var namesAdded = initSet[string]()
+  var namesAdded = initHashSet[string]()
   for name, list in options.config.packageLists:
     let packages = readPackageList(name, options)
     for p in packages:
@@ -426,6 +470,19 @@ proc echoPackage*(pkg: Package) =
     echo("  license:     " & pkg.license)
     if pkg.web.len > 0:
       echo("  website:     " & pkg.web)
+
+proc echoPackageDetails*(pkg: Package) =
+  ## Prints more information about a package, when ``--full`` option
+  ## is specified. Metadata is printed only when it exists.
+  ## We don't print technical information like logo or screenshots URLs.
+  if pkg.categories.len > 0:
+    echo("  categories:  " & pkg.categories.join(", "))
+  if pkg.overallQuality > 0.0:
+    echo("  maturity:    " & pkg.overallQuality.formatFloat(ffDecimal, 1) & " out of 4")
+  else:
+    echo("  maturity:    Not rated yet")
+  if pkg.extendedDescription.len > 0:
+    echo("  fullDesc:    " & pkg.extendedDescription)
 
 proc getDownloadDirName*(pkg: Package, verRange: VersionRange): string =
   result = pkg.name

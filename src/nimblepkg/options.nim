@@ -26,6 +26,10 @@ type
     continueTestsOnFailure*: bool
     ## Whether packages' repos should always be downloaded with their history.
     forceFullClone*: bool
+    # Show extended information
+    showDetails*: bool
+    # Minimum maturity level of package
+    maturity*: float
 
   ActionType* = enum
     actionNil, actionRefresh, actionInit, actionDump, actionPublish,
@@ -88,9 +92,15 @@ Commands:
   search       pkg/tag            Searches for a specified package. Search is
                                   performed by tag and by name.
                [--ver]            Query remote server for package version.
+               [--full]           Searches on categories and extended description
+                                  and prints more package information.
+               [--mat=<M>]        Considers only packages with a maturity level
+                                  over M. Maturity is a float in the range [0.0; 4.0].
   list                            Lists all packages.
                [--ver]            Query remote server for package version.
                [-i, --installed]  Lists all installed packages.
+               [--mat=<M>]        Considers only packages with a maturity level
+                                  over N.M. Maturity is a float in the range [0.0; 4.0].
   tasks                           Lists the tasks specified in the Nimble
                                   package's Nimble file.
   path         pkgname ...        Shows absolute path to the installed packages
@@ -300,6 +310,13 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
         result.queryInstalled = true
       of "ver":
         result.queryVersions = true
+      of "full":
+        result.showDetails = true
+      of "mat":
+        try:
+          result.maturity = parseFloat(val)
+        except ValueError:
+          raise newException(NimbleError, "Package maturity '" & val & "' must be a float.")
       else:
         wasFlagHandled = false
     of actionInstall:
