@@ -2,8 +2,10 @@
 # BSD License. Look at license.txt for more info.
 
 import parseutils, os, osproc, strutils, tables, pegs, uri
-
 import packageinfo, packageparser, version, tools, common, options, cli
+from sequtils import toSeq
+
+import ./semver
 
 type
   DownloadMethod* {.pure.} = enum
@@ -268,14 +270,8 @@ proc echoPackageVersions*(pkg: Package) =
     try:
       let versions = getTagsListRemote(pkg.url, downMethod).getVersionList()
       if versions.len > 0:
-        var vstr = ""
-        var i = 0
-        for v in values(versions):
-          if i != 0:
-            vstr.add(", ")
-          vstr.add(v)
-          i.inc
-        echo("  versions:    " & vstr)
+        let sortedVersions = sortVersionDesc(toSeq(values(versions)))
+        echo("  versions:    " & join(sortedVersions, ", "))
       else:
         echo("  versions:    (No versions tagged in the remote repository)")
     except OSError:
