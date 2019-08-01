@@ -24,7 +24,7 @@ type
     web*: string # Info url for humans.
     alias*: string ## A name of another package, that this package aliases.
     # New fields added by new version
-    extendedDescription*: string
+    longDescription*: string
     codeQuality: int
     docQuality: int
     projectQuality: int
@@ -161,7 +161,7 @@ proc fromJson(obj: JSonNode): Package =
       result.tags.add(t.str)
     result.description = obj.requiredField("description")
     result.web = obj.optionalField("web")
-    result.extendedDescription = obj.optionalField("extended-description")
+    result.longDescription = obj.optionalField("long-description")
     result.categories = @[]
     if obj.hasKey("categories"):
       for c in obj["categories"]:
@@ -481,8 +481,8 @@ proc echoPackageDetails*(pkg: Package) =
     echo("  maturity:    " & pkg.overallQuality.formatFloat(ffDecimal, 1) & " out of 4")
   else:
     echo("  maturity:    Not rated yet")
-  if pkg.extendedDescription.len > 0:
-    echo("  fullDesc:    " & pkg.extendedDescription)
+  if pkg.longDescription.len > 0:
+    echo("  longDesc:    " & pkg.longDescription)
 
 proc getDownloadDirName*(pkg: Package, verRange: VersionRange): string =
   result = pkg.name

@@ -576,7 +576,7 @@ proc search(options: Options) =
         # Full search
         if options.showDetails:
           # Search into extended description.
-          if word.toLower() in pkg.extendedDescription.toLower():
+          if word.toLower() in pkg.longDescription.toLower():
             onFound()
           # Search by category.
           for category in pkg.categories:

@@ -288,7 +288,7 @@ description. Missing optional information is not printed.
       website:     https://github.com/achesak/extmath.nim
       categories:  Maths
       maturity:    1.3 out of 4
-      fullDesc:    extmath.nim is a math library for the Nim programming language.
+      longDesc:    extmath.nim is a math library for the Nim programming language.
                    It contains functions for basic math, trigonometry, and geometry,
                    as well as quite a few constants.
 
