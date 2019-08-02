@@ -138,7 +138,9 @@ proc cleanupWhitespace(s: string): string =
   if result[^1] != '\L':
     result.add '\L'
 
-proc editJson(p: PackageInfo; url, tags, downloadMethod: string) =
+proc editJson(p: PackageInfo; url, tags, downloadMethod, longDescription: string,
+              codeQuality, docQuality, projectQuality: int, categories, logo,
+              screenshots: string) =
   var contents = parseFile("packages.json")
   doAssert contents.kind == JArray
   contents.add(%*{
@@ -148,7 +150,14 @@ proc editJson(p: PackageInfo; url, tags, downloadMethod: string) =
     "tags": tags.split(),
     "description": p.description,
     "license": p.license,
-    "web": url
+    "web": url,
+    "long-description": longDescription,
+    "code-quality": codeQuality,
+    "doc-quality": docQuality,
+    "project-quality": projectQuality,
+    "categories": categories,
+    "logo": logo,
+    "screenshots": screenshots.split()
   })
   writeFile("packages.json", contents.pretty.cleanupWhitespace)
 
@@ -213,10 +222,31 @@ proc publish*(p: PackageInfo, o: Options) =
     url = promptCustom("Github URL of " & p.name & "?", "")
     if url.len == 0: userAborted()
 
-  let tags = promptCustom("Whitespace separated list of tags?", "")
+  let tags: string = promptCustom("Whitespace separated list of tags?", "")
+
+  let longDescription: string = promptCustomML("Long description?", "")
+  let codeQuality: int = promptCustomInt("Code maturity?", 1, 4, 0)
+  let docQuality: int = promptCustomInt("Documentation maturity?", 1, 4, 0)
+  let projectQuality: int = promptCustomInt("Project maturity?", 1, 4, 0)
+
+  const listCategories = [
+    "*Dead*", "Algorithms", "Audio", "Cloud", "Database",
+    "Data science", "Development", "Education", "FFI", "Finance",
+    "Games", "GUI", "Hardware", "Image", "JS",
+    "Language", "Maths", "Miscelaneous", "Network", "Reporting",
+    "Science", "System", "Tools", "Video", "Web"
+    ]
+  
+  let categories = promptList(dontForcePrompt, "Select all categories that apply",
+                              listCategories, multi=true)
+
+  let logo = promptCustom("Logo of " & p.name & "?", "")
+  let screenshots = promptCustom("Whitespace separated list of Screenshots URLs?", "")
 
   cd pkgsDir:
-    editJson(p, url, tags, downloadMethod)
+    editJson(p, url, tags, downloadMethod, longDescription,
+             codeQuality, docQuality, projectQuality, categories,
+             logo, screenshots)
     let branchName = "add-" & p.name & getTime().utc.format("HHmm")
     doCmd("git checkout -B " & branchName)
     doCmd("git commit packages.json -m \"Added package " & p.name & "\"")

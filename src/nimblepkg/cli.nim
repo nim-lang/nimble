@@ -12,7 +12,7 @@
 #   - Bright for HighPriority.
 #   - Normal for MediumPriority.
 
-import logging, terminal, sets, strutils, os
+import logging, terminal, sets, strutils, os, algorithm
 import ./common
 
 when defined(windows):
@@ -174,14 +174,43 @@ proc promptCustom*(forcePrompts: ForcePrompt, question, default: string): string
 proc promptCustom*(question, default: string): string =
   return promptCustom(dontForcePrompt, question, default)
 
-proc promptListInteractive(question: string, args: openarray[string]): string =
+proc promptCustomML*(question, default: string): string =
+  ## Allow input of multiple lines.
+  ## End input with single character '.' or '^Z'.
+  display("Prompt:", question & " [" & default & "]", Warning, HighPriority)
+  display("Input", "Terminate input with a single '.'", Message, HighPriority)
+  displayCategory("Answer:", Warning, HighPriority)
+  var completed = false
+  while not completed:
+    let line = stdin.readLine()
+    if line == ".":
+      completed = true
+    else:
+      result &= line & "\n"
+  result = result[0 .. ^1]
+
+proc promptCustomInt*(question: string, default: int=0, minValue, maxValue: int): int =
+  ## Prompts the user for an integer value in the range `minValue` .. `maxValue`.
+  ## If an invalid value is provided, `default` value is used.
+  let r = promptCustom(question, $default)
+  try:
+    result = parseInt(r)
+    if not (minValue <= result and result <= maxValue):
+      result = promptCustomInt(question, default, minValue, maxValue)
+  except ValueError:
+    result = default
+
+proc promptListInteractive(question: string, args: openarray[string], multi: bool=false): string =
+  ## Selects from a list of values. When `multi` is true, multiple
+  ## selection is enabled and results are returned separated by '\t'.
   display("Prompt:", question, Warning, HighPriority)
-  display("Select", "Cycle with 'Tab', 'Enter' when done", Message,
+  display("Select", "Cycle with 'Tab', 'Enter' to select, 'Esc' when done", Message,
     HighPriority)
   displayCategory("Choices:", Warning, HighPriority)
   var
     current = 0
-    selected = false
+    selected = newSeq[bool](args.len)
+    completed = false
   # Incase the cursor is at the bottom of the terminal
   for arg in args:
     stdout.write "\n"
@@ -191,13 +220,15 @@ proc promptListInteractive(question: string, args: openarray[string]): string =
   hideCursor(stdout)
 
   # The selection loop
-  while not selected:
+  while not completed:
     setForegroundColor(fgDefault)
     # Loop through the options
     for i, arg in args:
       # Check if the option is the current
       if i == current:
         writeStyled("> " & arg & " <", {styleBright})
+      elif selected[i]:
+        writeStyled(" [" & arg & "] ", {styleReverse})
       else:
         writeStyled("  " & arg & "  ", {styleDim})
       # Move the cursor back to the start
@@ -217,8 +248,14 @@ proc promptListInteractive(question: string, args: openarray[string]): string =
         current = (current + 1) mod args.len
         break
       of '\r':
-        selected = true
+        if multi:
+          selected[current] = not selected[current]
+        else:
+          fill(selected, false)
+          selected[current] = true
         break
+      of '\e':
+        completed = true
       of '\3':
         showCursor(stdout)
         raise newException(NimbleError, "Keyboard interrupt")
@@ -232,19 +269,32 @@ proc promptListInteractive(question: string, args: openarray[string]): string =
   for i in 0..<args.len():
     cursorUp(stdout)
   showCursor(stdout)
-  display("Answer:", args[current], Warning,HighPriority)
-  return args[current]
 
-proc promptListFallback(question: string, args: openarray[string]): string =
+  result = ""
+  for i, e in args.pairs:
+    if selected[i]:
+      result &= e & "\t"
+  if result.len > 0:
+    result = result[0 .. ^1]
+  display("Answer:", result, Warning, HighPriority)
+  return result
+
+proc promptListFallback(question: string, args: openarray[string], multi: bool=false): string =
+  ## Fallback selection in a list of values. If `multi`-selection is enabled,
+  ## multiple values are returned separated by '\t'.
   display("Prompt:", question & " [" & join(args, "/") & "]", Warning,
     HighPriority)
   displayCategory("Answer:", Warning, HighPriority)
-  result = stdin.readLine()
-  for arg in args:
-    if arg.cmpIgnoreCase(result) == 0:
-      return arg
+  let res = stdin.readLine()
+  result = ""
+  for r in res.split():
+    for arg in args:
+      if arg.cmpIgnoreCase(r) == 0:
+        result &= arg & "\t"
+  if result.len > 0:
+    result = result[0 .. ^1]
 
-proc promptList*(forcePrompts: ForcePrompt, question: string, args: openarray[string]): string =
+proc promptList*(forcePrompts: ForcePrompt, question: string, args: openarray[string], multi: bool=false): string =
   case forcePrompts:
   of forcePromptYes:
     result = args[0]
@@ -252,9 +302,9 @@ proc promptList*(forcePrompts: ForcePrompt, question: string, args: openarray[st
       HighPriority)
   else:
     if isatty(stdout):
-      return promptListInteractive(question, args)
+      return promptListInteractive(question, args, multi)
     else:
-      return promptListFallback(question, args)
+      return promptListFallback(question, args, multi)
 
 proc setVerbosity*(level: Priority) =
   globalCLI.level = level
