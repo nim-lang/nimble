@@ -786,6 +786,23 @@ To summarise, the steps for release are:
 Once the new tag is in the remote repository, Nimble will be able to detect
 the new version.
 
+##### Version Numbering
+
+If you follow semantic versioning with your version numbers in the
+format of `v<major>.<minor>.<patch>` then they will be sorted
+correctly for users when they look at the metadata for your package.
+The following version numbers are all supported:
+
+``` text
+v1.2.3
+v1
+v1.2
+v1.2.3-zuzu
+```
+
+If you don't follow this pattern, your version numbers will still
+display but they may not be sorted correctly.
+
 ## Publishing packages
 
 Publishing packages isn't a requirement. But doing so allows people to associate
