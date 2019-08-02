@@ -92,15 +92,16 @@ Commands:
   search       pkg/tag            Searches for a specified package. Search is
                                   performed by tag and by name.
                [--ver]            Query remote server for package version.
-               [--full]           Searches on categories and extended description
+               [--full]           Searches on categories and long description
                                   and prints more package information.
                [--mat=<M>]        Considers only packages with a maturity level
                                   over M. Maturity is a float in the range [0.0; 4.0].
   list                            Lists all packages.
                [--ver]            Query remote server for package version.
                [-i, --installed]  Lists all installed packages.
+               [--full]           Prints more information
                [--mat=<M>]        Considers only packages with a maturity level
-                                  over N.M. Maturity is a float in the range [0.0; 4.0].
+                                  over M. Maturity is a float in the range [0.0; 4.0].
   tasks                           Lists the tasks specified in the Nimble
                                   package's Nimble file.
   path         pkgname ...        Shows absolute path to the installed packages
