@@ -12,7 +12,7 @@
 #   - Bright for HighPriority.
 #   - Normal for MediumPriority.
 
-import logging, terminal, sets, strutils, os, algorithm
+import logging, terminal, sets, strutils, os, algorithm, sequtils
 import ./common
 
 when defined(windows):
@@ -185,6 +185,9 @@ proc promptCustomML*(question, default: string): string =
     let line = stdin.readLine()
     if line == ".":
       completed = true
+    elif line == "":
+      # Remove empty lines
+      discard
     else:
       result &= line & "\n"
   result = result[0 .. ^2]
@@ -203,15 +206,21 @@ proc promptCustomInt*(question: string, default: int=0, minValue, maxValue: int)
 proc promptListInteractive(question: string, args: openarray[string], multi: bool=false): string =
   ## Selects from a list of values. When `multi` is true, multiple
   ## selection is enabled and results are returned separated by '\t'.
+  ## If the user has made no selection before quitting, the current item
+  ## is selected and returned to prevent empty result.
   display("Prompt:", question, Warning, HighPriority)
-  display("Select", "Cycle with 'Tab', 'Enter' to select, 'Esc' when done", Message,
+  if multi:
+    display("Select", "Cycle with 'Tab', 'S' to select, 'Enter' when done",
+    Message, HighPriority)
+  else:
+    display("Select", "Cycle with 'Tab', 'Enter' to select", Message,
     HighPriority)
   displayCategory("Choices:", Warning, HighPriority)
   var
     current = 0
     selected = newSeq[bool](args.len)
     completed = false
-  # Incase the cursor is at the bottom of the terminal
+  # In case the cursor is at the bottom of the terminal
   for arg in args:
     stdout.write "\n"
   # Reset the cursor to the start of the selection prompt
@@ -247,15 +256,18 @@ proc promptListInteractive(question: string, args: openarray[string], multi: boo
       of '\t':
         current = (current + 1) mod args.len
         break
-      of '\r':
+      of 'S','s':
         if multi:
           selected[current] = not selected[current]
         else:
           fill(selected, false)
           selected[current] = true
         break
-      of '\e':
+      of '\r':
+        if not selected.anyIt(it == true):
+          selected[current] = true
         completed = true
+        break
       of '\3':
         showCursor(stdout)
         raise newException(NimbleError, "Keyboard interrupt")
