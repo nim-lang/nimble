@@ -187,7 +187,7 @@ proc promptCustomML*(question, default: string): string =
       completed = true
     else:
       result &= line & "\n"
-  result = result[0 .. ^1]
+  result = result[0 .. ^2]
 
 proc promptCustomInt*(question: string, default: int=0, minValue, maxValue: int): int =
   ## Prompts the user for an integer value in the range `minValue` .. `maxValue`.
@@ -275,7 +275,7 @@ proc promptListInteractive(question: string, args: openarray[string], multi: boo
     if selected[i]:
       result &= e & "\t"
   if result.len > 0:
-    result = result[0 .. ^1]
+    result = result[0 .. ^2]
   display("Answer:", result, Warning, HighPriority)
   return result
 
@@ -292,7 +292,7 @@ proc promptListFallback(question: string, args: openarray[string], multi: bool=f
       if arg.cmpIgnoreCase(r) == 0:
         result &= arg & "\t"
   if result.len > 0:
-    result = result[0 .. ^1]
+    result = result[0 .. ^2]
 
 proc promptList*(forcePrompts: ForcePrompt, question: string, args: openarray[string], multi: bool=false): string =
   case forcePrompts:
