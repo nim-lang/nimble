@@ -5,8 +5,8 @@
 ## nim-lang/packages automatically.
 
 import system except TResult
-import httpclient, base64, strutils, rdstdin, json, os, browsers, times, uri
-import tools, common, cli, config, options
+import httpclient, strutils, json, os, browsers, times, uri
+import version, tools, common, cli, config, options
 
 type
   Auth = object

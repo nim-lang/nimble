@@ -8,7 +8,6 @@ when not defined(nimscript):
   import sets
 
   import version
-  export version.NimbleError # TODO: Surely there is a better way?
 
   type
     BuildFailed* = object of NimbleError

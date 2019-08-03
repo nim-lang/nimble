@@ -3,7 +3,7 @@
 #
 # Various miscellaneous utility functions reside here.
 import osproc, pegs, strutils, os, uri, sets, json, parseutils
-import version, common, cli
+import version, cli
 
 proc extractBin(cmd: string): string =
   if cmd[0] == '"':

@@ -3,7 +3,7 @@
 import os, strutils, sets, json
 
 # Local imports
-import cli, common, options, tools
+import version, cli, options, tools
 
 when defined(windows):
   # This is just for Win XP support.

@@ -5,18 +5,15 @@
 ## scripting language.
 
 import
-  compiler/ast, compiler/modules, compiler/passes, compiler/passaux,
-  compiler/condsyms, compiler/sem, compiler/semdata,
-  compiler/llstream, compiler/vm, compiler/vmdef, compiler/commands,
-  compiler/msgs, compiler/magicsys, compiler/idents,
+  compiler/ast, compiler/modules, compiler/passes, compiler/condsyms,
+  compiler/sem, compiler/llstream, compiler/vm, compiler/vmdef, compiler/idents,
   compiler/nimconf, compiler/nversion
 
-from compiler/scriptconfig import setupVM
 from compiler/astalgo import strTableGet
 import compiler/options as compiler_options
 
-import common, version, options, packageinfo, cli, tools
-import os, strutils, strtabs, tables, times, osproc, sets, pegs
+import common, version, options, cli, tools
+import os, strutils, tables, times, osproc, sets, pegs
 
 when not declared(resetAllModulesHard):
   import compiler/modulegraphs

@@ -2,7 +2,7 @@
 # BSD License. Look at license.txt for more info.
 import parsecfg, streams, strutils, os, tables, Uri
 
-import tools, version, common, cli
+import version, cli
 
 type
   Config* = object

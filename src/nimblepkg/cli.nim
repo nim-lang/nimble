@@ -12,11 +12,8 @@
 #   - Bright for HighPriority.
 #   - Normal for MediumPriority.
 
-import logging, terminal, sets, strutils, os
-import ./common
-
-when defined(windows):
-  import winlean
+import terminal, sets, strutils
+import version
 
 type
   CLI* = ref object
