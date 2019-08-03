@@ -161,14 +161,14 @@ proc fromJson(obj: JSonNode): Package =
       result.tags.add(t.str)
     result.description = obj.requiredField("description")
     result.web = obj.optionalField("web")
-    result.longDescription = obj.optionalField("long-description")
+    result.longDescription = obj.optionalField("long_description")
     result.categories = @[]
     if obj.hasKey("categories"):
       for c in obj["categories"]:
         result.categories.add(c.str)
-    result.codeQuality = obj.optionalIntField("code-quality")
-    result.docQuality = obj.optionalIntField("doc-quality")
-    result.projectQuality = obj.optionalIntField("project-quality")
+    result.codeQuality = obj.optionalIntField("code_quality")
+    result.docQuality = obj.optionalIntField("doc_quality")
+    result.projectQuality = obj.optionalIntField("project_quality")
     result.overallQuality = calculateQuality(result.codeQuality, result.docQuality, result.projectQuality)
     result.logo = obj.optionalField("logo")
     result.screenshots = @[]
