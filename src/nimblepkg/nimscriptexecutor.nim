@@ -1,9 +1,10 @@
 # Copyright (C) Dominik Picheta. All rights reserved.
 # BSD License. Look at license.txt for more info.
 
-import os, tables, strutils, sets
+import os, strutils, sets
 
-import packageparser, common, packageinfo, options, nimscriptwrapper, cli
+import packageparser, common, packageinfo, options, nimscriptwrapper, cli,
+       version
 
 proc execHook*(options: Options, before: bool): bool =
   ## Returns whether to continue.

@@ -3,8 +3,7 @@
 
 # Stdlib imports
 import system except TResult
-import hashes, parsecfg, json, streams, strutils, parseutils, os, sets, tables
-import httpclient
+import hashes, json, strutils, os, sets, tables, httpclient
 
 # Local imports
 import version, tools, common, options, cli, config
