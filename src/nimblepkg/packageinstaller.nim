@@ -103,4 +103,4 @@ proc saveNimbleMeta*(pkgDestDir, pkgDir, vcsRevision, nimbleLinkPath: string) =
   ## pkgDir - The directory where the original package files are.
   ##          For example: ~/projects/jester/
   saveNimbleMeta(pkgDestDir, "file://" & pkgDir, vcsRevision,
-                 toHashSet[string]([nimbleLinkPath]), initHashSet[string](), true)
+                 toSet[string]([nimbleLinkPath]), initSet[string](), true)

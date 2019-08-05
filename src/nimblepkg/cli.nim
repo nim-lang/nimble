@@ -49,7 +49,7 @@ const
 proc newCLI(): CLI =
   result = CLI(
     level: HighPriority,
-    warnings: initHashSet[(string, string)](),
+    warnings: initSet[(string, string)](),
     suppressionCount: 0,
     showColor: true,
     suppressMessages: false
