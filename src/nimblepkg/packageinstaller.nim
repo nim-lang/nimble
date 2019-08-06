@@ -5,6 +5,9 @@ import os, strutils, sets, json
 # Local imports
 import version, cli, options, tools
 
+when not declared(initHashSet) or not declared(toHashSet):
+  import common
+
 when defined(windows):
   # This is just for Win XP support.
   # TODO: Drop XP support?
@@ -103,4 +106,4 @@ proc saveNimbleMeta*(pkgDestDir, pkgDir, vcsRevision, nimbleLinkPath: string) =
   ## pkgDir - The directory where the original package files are.
   ##          For example: ~/projects/jester/
   saveNimbleMeta(pkgDestDir, "file://" & pkgDir, vcsRevision,
-                 toSet[string]([nimbleLinkPath]), initSet[string](), true)
+                 toHashSet[string]([nimbleLinkPath]), initHashSet[string](), true)

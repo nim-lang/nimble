@@ -15,6 +15,9 @@
 import terminal, sets, strutils
 import version
 
+when not declared(initHashSet):
+  import common
+
 type
   CLI* = ref object
     level: Priority
@@ -46,7 +49,7 @@ const
 proc newCLI(): CLI =
   result = CLI(
     level: HighPriority,
-    warnings: initSet[(string, string)](),
+    warnings: initHashSet[(string, string)](),
     suppressionCount: 0,
     showColor: true,
     suppressMessages: false

@@ -277,7 +277,7 @@ proc getPackage*(pkg: string, options: Options, resPkg: var Package): bool =
 proc getPackageList*(options: Options): seq[Package] =
   ## Returns the list of packages found in the downloaded packages.json files.
   result = @[]
-  var namesAdded = initSet[string]()
+  var namesAdded = initHashSet[string]()
   for name, list in options.config.packageLists:
     let packages = readPackageList(name, options)
     for p in packages:

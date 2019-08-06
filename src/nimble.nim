@@ -94,7 +94,7 @@ proc copyFilesRec(origDir, currentDir, dest: string,
   ## Copies all the required files, skips files specified in the .nimble file
   ## (PackageInfo).
   ## Returns a list of filepaths to files which have been installed.
-  result = initSet[string]()
+  result = initHashSet[string]()
   let whitelistMode =
           pkgInfo.installDirs.len != 0 or
           pkgInfo.installFiles.len != 0 or
@@ -373,7 +373,7 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
 
   createDir(pkgDestDir)
   # Copy this package's files based on the preferences specified in PkgInfo.
-  var filesInstalled = initSet[string]()
+  var filesInstalled = initHashSet[string]()
   iterInstallFiles(realDir, pkgInfo, options,
     proc (file: string) =
       createDir(changeRoot(realDir, pkgDestDir, file.splitFile.dir))
@@ -386,7 +386,7 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
                         pkgInfo.myPath)
   filesInstalled.incl copyFileD(pkgInfo.myPath, dest)
 
-  var binariesInstalled = initSet[string]()
+  var binariesInstalled = initHashSet[string]()
   if pkgInfo.bin.len > 0:
     # Make sure ~/.nimble/bin directory is created.
     createDir(binDir)
