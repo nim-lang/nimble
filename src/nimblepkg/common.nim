@@ -63,3 +63,15 @@ when not defined(nimscript):
 
 const
   nimbleVersion* = "0.10.2"
+
+when not declared(initHashSet):
+  import sets
+
+  template initHashSet*[A](initialSize = 64): HashSet[A] =
+    initSet[A](initialSize)
+
+when not declared(toHashSet):
+  import sets
+
+  template toHashSet*[A](keys: openArray[A]): HashSet[A] =
+    toSet(keys)
