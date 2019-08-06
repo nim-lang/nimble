@@ -6,6 +6,9 @@
 import system except getCommand, setCommand, switch, `--`
 import strformat, strutils, tables
 
+when not defined(nimscript):
+  import os
+
 var
   packageName* = ""    ## Set this to the package name. It
                        ## is usually not required to do that, nims' filename is
