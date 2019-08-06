@@ -310,7 +310,6 @@ proc findNimbleFile*(dir: string; error: bool): string =
 
   if result.splitFile.ext == ".nimble-link":
     # Return the path of the real .nimble file.
-    let nimbleLinkPath = result
     result = readNimbleLink(result).nimbleFilePath
     if not fileExists(result):
       let msg = "The .nimble-link file is pointing to a missing file: " & result

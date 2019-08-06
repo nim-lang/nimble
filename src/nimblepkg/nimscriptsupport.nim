@@ -375,8 +375,6 @@ proc execScript(scriptName: string, flags: Flags, options: Options): PSym =
                "more info."
     raiseNimbleError(msg, hint)
 
-  let pkgName = scriptName.splitFile.name
-
   # Ensure that "nimblepkg/nimscriptapi" is in the PATH.
   block:
     let t = getNimbleUserTempDir() / "nimblecache"
@@ -691,11 +689,6 @@ proc execHook*(scriptName, actionName: string, before: bool,
     result.arguments.add(arg)
 
   cleanup()
-
-proc getNimScriptCommand(): string =
-  when declared(NimCompilerApiVersion):
-    let conf = graph.config
-  nimCommand()
 
 proc setNimScriptCommand(command: string) =
   when declared(NimCompilerApiVersion):
