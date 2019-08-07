@@ -1,6 +1,6 @@
 # Copyright (C) Dominik Picheta. All rights reserved.
 # BSD License. Look at license.txt for more info.
-import osproc, unittest, strutils, os, sequtils, sugar
+import osproc, unittest, strutils, os, sequtils, sugar, strformat
 
 # TODO: Each test should start off with a clean slate. Currently installed
 # packages are shared between each test which causes a multitude of issues
@@ -10,6 +10,7 @@ var rootDir = getCurrentDir().parentDir()
 var nimblePath = rootDir / "src" / addFileExt("nimble", ExeExt)
 var installDir = rootDir / "tests" / "nimbleDir"
 const path = "../src/nimble"
+const stringNotFound = -1
 
 # Clear nimble dir.
 removeDir(installDir)
@@ -863,9 +864,43 @@ test "do not install single dependency multiple times (#678)":
       check execNimble(["refresh"]).exitCode == QuitSuccess
       let (output, exitCode) = execNimble("install", "-y")
       check exitCode == QuitSuccess
-      check output.find("issue678_dependency_1@0.1.0 already exists") == -1
+      let index = output.find("issue678_dependency_1@0.1.0 already exists")
+      check index == stringNotFound
 
 test "Passing command line arguments to a task (#633)":
   cd "issue633":
     var (output, exitCode) = execNimble("testTask --testTask")
+    check exitCode == QuitSuccess
     check output.contains("Got it")
+
+test "compilation without warnings":
+  const buildDir = "./buildDir/"
+  const filesToBuild = [
+    "../src/nimble.nim",
+    "../src/nimblepkg/nimscriptapi.nim",
+    "./tester.nim",
+    ]
+
+  proc execBuild(fileName: string): tuple[output: string, exitCode: int] =
+    result = execCmdEx(fmt"nim c -o:{buildDir} {fileName}")
+
+  proc checkOutput(output: string): uint =
+    const warningsToCheck = [
+      "[UnusedImport]",
+      "[Deprecated]",
+      "[XDeclaredButNotUsed]",
+      ]
+
+    for line in output.splitLines():
+      for warning in warningsToCheck:
+        if line.find(warning) != stringNotFound:
+          once: checkpoint("Detected warnings:")
+          checkpoint(line)
+          inc(result)
+
+  var linesWithWarningsCount: uint = 0
+  for file in filesToBuild:
+    let (output, exitCode) = execBuild(file)
+    check exitCode == QuitSuccess
+    linesWithWarningsCount += checkOutput(output)
+  check linesWithWarningsCount == 0
