@@ -3,7 +3,10 @@
 import os, strutils, sets, json
 
 # Local imports
-import version, cli, options, tools
+import cli, options, tools
+
+when defined(windows):
+  import version
 
 when not declared(initHashSet) or not declared(toHashSet):
   import common
