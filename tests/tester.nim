@@ -882,7 +882,8 @@ test "compilation without warnings":
     ]
 
   proc execBuild(fileName: string): tuple[output: string, exitCode: int] =
-    result = execCmdEx(fmt"nim c -o:{buildDir} {fileName}")
+    result = execCmdEx(
+      fmt"nim c -o:{buildDir/fileName.splitFile.name} {fileName}")
 
   proc checkOutput(output: string): uint =
     const warningsToCheck = [
@@ -897,6 +898,8 @@ test "compilation without warnings":
           once: checkpoint("Detected warnings:")
           checkpoint(line)
           inc(result)
+
+  removeDir(buildDir)
 
   var linesWithWarningsCount: uint = 0
   for file in filesToBuild:
