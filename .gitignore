@@ -37,4 +37,5 @@ tests/testCommand/testsFail/tests/t2
 
 # Test procedure artifacts
 tests/nimble-test/
+tests/buildDir/
 nimble_*.nims
