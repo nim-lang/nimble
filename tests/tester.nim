@@ -72,6 +72,12 @@ proc inLines(lines: seq[string], line: string): bool =
   for i in lines:
     if line.normalize in i.normalize: return true
 
+proc hasLineStartingWith(lines: seq[string], prefix: string): bool =
+  for line in lines:
+    if line.strip(trailing = false).startsWith(prefix):
+      return true
+  return false
+
 test "caching of nims and ini detects changes":
   cd "caching":
     var (output, exitCode) = execNimble("dump")
@@ -117,7 +123,7 @@ test "can validate package structure (#144)":
       let (output, exitCode) = execNimble(["install", "-y"])
       check exitCode == QuitSuccess
       let lines = output.strip.processOutput()
-      check(not inLines(lines, "warning"))
+      check(not lines.hasLineStartingWith("Warning:"))
 
   # Test that warnings are produced for the incorrectly structured packages.
   for package in ["x", "y", "z"]:
@@ -128,19 +134,22 @@ test "can validate package structure (#144)":
       checkpoint(output)
       case package
       of "x":
-        check inLines(lines, "Package 'x' has an incorrect structure. It should" &
-                             " contain a single directory hierarchy for source files," &
-                             " named 'x', but file 'foobar.nim' is in a directory named" &
-                             " 'incorrect' instead.")
+        check lines.hasLineStartingWith(
+          "Warning: Package 'x' has an incorrect structure. It should" &
+          " contain a single directory hierarchy for source files," &
+          " named 'x', but file 'foobar.nim' is in a directory named" &
+          " 'incorrect' instead.")
       of "y":
-        check inLines(lines, "Package 'y' has an incorrect structure. It should" &
-                             " contain a single directory hierarchy for source files," &
-                             " named 'ypkg', but file 'foobar.nim' is in a directory named" &
-                             " 'yWrong' instead.")
+        check lines.hasLineStartingWith(
+          "Warning: Package 'y' has an incorrect structure. It should" &
+          " contain a single directory hierarchy for source files," &
+          " named 'ypkg', but file 'foobar.nim' is in a directory named" &
+          " 'yWrong' instead.")
       of "z":
-        check inLines(lines, "Package 'z' has an incorrect structure. The top level" &
-                             " of the package source directory should contain at most one module," &
-                             " named 'z.nim', but a file named 'incorrect.nim' was found.")
+        check lines.hasLineStartingWith(
+          "Warning: Package 'z' has an incorrect structure. The top level" &
+          " of the package source directory should contain at most one module," &
+          " named 'z.nim', but a file named 'incorrect.nim' was found.")
       else:
         assert false
 
