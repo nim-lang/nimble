@@ -1,6 +1,6 @@
 # Copyright (C) Dominik Picheta. All rights reserved.
 # BSD License. Look at license.txt for more info.
-import parsecfg, streams, strutils, os, tables, Uri
+import parsecfg, streams, strutils, os, tables, uri
 
 import version, cli
 
