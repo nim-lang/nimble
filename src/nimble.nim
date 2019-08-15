@@ -46,7 +46,7 @@ proc refresh(options: Options) =
 
 proc install(packages: seq[PkgTuple],
              options: Options,
-             doPrompt = true): tuple[deps: seq[PackageInfo], pkg: PackageInfo]
+             doPrompt = true): PackageDependenciesInfo
 proc processDeps(pkginfo: PackageInfo, options: Options): seq[PackageInfo] =
   ## Verifies and installs dependencies.
   ##
@@ -58,9 +58,9 @@ proc processDeps(pkginfo: PackageInfo, options: Options): seq[PackageInfo] =
           "dependencies for $1@$2" % [pkginfo.name, pkginfo.specialVersion],
           priority = HighPriority)
 
-  var pkgList {.global.}: seq[tuple[pkginfo: PackageInfo, meta: MetaData]] = @[]
+  var pkgList {.global.}: seq[PackageInfoAndMetaData] = @[]
   once: pkgList = getInstalledPkgsMin(options.getPkgsDir(), options)
-  var reverseDeps: seq[tuple[name, version: string]] = @[]
+  var reverseDeps: seq[PackageReverseDependency] = @[]
   for dep in pkginfo.requires:
     if dep.name == "nimrod" or dep.name == "nim":
       let nimVer = getNimrodVersion(options)
@@ -259,10 +259,7 @@ proc vcsRevisionInDir(dir: string): string =
       discard
 
 proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
-                    url: string): tuple[
-                      deps: seq[PackageInfo],
-                      pkg: PackageInfo
-                    ] =
+                    url: string): PackageDependenciesInfo =
   ## Returns where package has been installed to, together with paths
   ## to the packages this package depends on.
   ## The return value of this function is used by
@@ -428,7 +425,7 @@ proc getDownloadInfo*(pv: PkgTuple, options: Options,
 
 proc install(packages: seq[PkgTuple],
              options: Options,
-             doPrompt = true): tuple[deps: seq[PackageInfo], pkg: PackageInfo] =
+             doPrompt = true): PackageDependenciesInfo =
   if packages == @[]:
     result = installFromDir(getCurrentDir(), newVRAny(), options, "")
   else:

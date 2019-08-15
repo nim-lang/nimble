@@ -31,6 +31,10 @@ type
     nimbleFilePath*: string
     packageDir*: string
 
+  PackageReverseDependency* = tuple[name, version: string]
+  PackageDependenciesInfo* = tuple[deps: seq[PackageInfo], pkg: PackageInfo]
+  PackageInfoAndMetaData* = tuple[pkginfo: PackageInfo, meta: MetaData]
+
 proc initPackageInfo*(path: string): PackageInfo =
   result.myPath = path
   result.specialVersion = ""
@@ -65,7 +69,7 @@ proc toValidPackageName*(name: string): string =
     of AllChars - IdentChars - {'-'}: discard
     else: result.add(c)
 
-proc getNameVersion*(pkgpath: string): tuple[name, version: string] =
+proc getNameVersion*(pkgpath: string): PackageReverseDependency =
   ## Splits ``pkgpath`` in the format ``/home/user/.nimble/pkgs/package-0.1``
   ## into ``(packagea, 0.1)``
   ##
@@ -334,7 +338,7 @@ proc findNimbleFile*(dir: string; error: bool): string =
       display("Hint:", hintMsg, Warning, HighPriority)
 
 proc getInstalledPkgsMin*(libsDir: string, options: Options):
-        seq[tuple[pkginfo: PackageInfo, meta: MetaData]] =
+        seq[PackageInfoAndMetaData] =
   ## Gets a list of installed packages. The resulting package info is
   ## minimal. This has the advantage that it does not depend on the
   ## ``packageparser`` module, and so can be used by ``nimscriptwrapper``.
@@ -384,7 +388,7 @@ proc resolveAlias*(dep: PkgTuple, options: Options): PkgTuple =
     # no alias is present.
     result.name = pkg.name
 
-proc findPkg*(pkglist: seq[tuple[pkgInfo: PackageInfo, meta: MetaData]],
+proc findPkg*(pkglist: seq[PackageInfoAndMetaData],
              dep: PkgTuple,
              r: var PackageInfo): bool =
   ## Searches ``pkglist`` for a package of which version is within the range
@@ -402,7 +406,7 @@ proc findPkg*(pkglist: seq[tuple[pkgInfo: PackageInfo, meta: MetaData]],
         r = pkg.pkginfo
         result = true
 
-proc findAllPkgs*(pkglist: seq[tuple[pkgInfo: PackageInfo, meta: MetaData]],
+proc findAllPkgs*(pkglist: seq[PackageInfoAndMetaData],
                   dep: PkgTuple): seq[PackageInfo] =
   ## Searches ``pkglist`` for packages of which version is within the range
   ## of ``dep.ver``. This is similar to ``findPkg`` but returns multiple

@@ -46,6 +46,8 @@ when not defined(nimscript):
     ## Same as quit(QuitSuccess), but allows cleanup.
     NimbleQuit* = ref object of CatchableError
 
+    ProcessOutput* = tuple[output: string, exitCode: int]
+
   proc raiseNimbleError*(msg: string, hint = "") =
     var exc = newException(NimbleError, msg)
     exc.hint = hint

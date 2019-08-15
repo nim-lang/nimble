@@ -443,7 +443,7 @@ proc getPkgInfo*(dir: string, options: Options): PackageInfo =
   return getPkgInfoFromFile(nimbleFile, options)
 
 proc getInstalledPkgs*(libsDir: string, options: Options):
-        seq[tuple[pkginfo: PackageInfo, meta: MetaData]] =
+        seq[PackageInfoAndMetaData] =
   ## Gets a list of installed packages.
   ##
   ## ``libsDir`` is in most cases: ~/.nimble/pkgs/

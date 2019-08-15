@@ -10,7 +10,7 @@ proc saveNimbleData*(options: Options) =
   writeFile(options.getNimbleDir() / "nimbledata.json",
             pretty(options.nimbleData))
 
-proc addRevDep*(nimbleData: JsonNode, dep: tuple[name, version: string],
+proc addRevDep*(nimbleData: JsonNode, dep: PackageReverseDependency,
                 pkg: PackageInfo) =
   # Add a record which specifies that `pkg` has a dependency on `dep`, i.e.
   # the reverse dependency of `dep` is `pkg`.

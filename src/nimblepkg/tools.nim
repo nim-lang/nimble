@@ -3,7 +3,7 @@
 #
 # Various miscellaneous utility functions reside here.
 import osproc, pegs, strutils, os, uri, sets, json, parseutils
-import version, cli, options
+import common, version, cli, options
 from net import SslCVerifyMode, newContext, SslContext
 
 proc extractBin(cmd: string): string =
@@ -41,8 +41,7 @@ proc doCmd*(cmd: string) =
         "Execution failed with exit code $1\nCommand: $2\nOutput: $3" %
         [$exitCode, cmd, output])
 
-{.warning[Deprecated]: off.}
-proc doCmdEx*(cmd: string): tuple[output: TaintedString, exitCode: int] =
+proc doCmdEx*(cmd: string): ProcessOutput =
   let bin = extractBin(cmd)
   if findExe(bin) == "":
     raise newException(NimbleError, "'" & bin & "' not in PATH.")

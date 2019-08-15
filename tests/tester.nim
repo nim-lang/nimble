@@ -1,6 +1,8 @@
 # Copyright (C) Dominik Picheta. All rights reserved.
 # BSD License. Look at license.txt for more info.
+
 import osproc, unittest, strutils, os, sequtils, sugar, strformat
+import nimblepkg/common
 
 # TODO: Each test should start off with a clean slate. Currently installed
 # packages are shared between each test which causes a multitude of issues
@@ -28,7 +30,7 @@ template cd*(dir: string, body: untyped) =
     body
     setCurrentDir(lastDir)
 
-proc execNimble(args: varargs[string]): tuple[output: string, exitCode: int] =
+proc execNimble(args: varargs[string]): ProcessOutput =
   var quotedArgs = @args
   quotedArgs.insert("--nimbleDir:" & installDir)
   quotedArgs.insert(nimblePath)
@@ -49,7 +51,7 @@ proc execNimble(args: varargs[string]): tuple[output: string, exitCode: int] =
   checkpoint(cmd)
   checkpoint(result.output)
 
-proc execNimbleYes(args: varargs[string]): tuple[output: string, exitCode: int]=
+proc execNimbleYes(args: varargs[string]): ProcessOutput =
   # issue #6314
   execNimble(@args & "-y")
 
@@ -288,7 +290,7 @@ suite "nimscript":
     cd "invalidPackage":
       let (output, exitCode) = execNimble("check")
       let lines = output.strip.processOutput()
-      check(lines[^2].contains("undeclared identifier: 'thisFieldDoesNotExist'"))
+      check lines.inLines("undeclared identifier: 'thisFieldDoesNotExist'")
       check exitCode == QuitFailure
 
   test "can accept short flags (#329)":
@@ -815,7 +817,6 @@ suite "nimble run":
       check exitCode == QuitSuccess
       check output.contains("tests$1run$1$2 --test" %
                             [$DirSep, "run".changeFileExt(ExeExt)])
-      echo output
       check output.contains("""Testing `nimble run`: @["--test"]""")
 
   test "Nimble options before --":
@@ -829,7 +830,6 @@ suite "nimble run":
       check exitCode == QuitSuccess
       check output.contains("tests$1run$1$2 --test" %
                             [$DirSep, "run".changeFileExt(ExeExt)])
-      echo output
       check output.contains("""Testing `nimble run`: @["--test"]""")
 
   test "Compilation flags before run command":
