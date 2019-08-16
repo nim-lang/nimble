@@ -3,9 +3,8 @@
 
 import parseutils, os, osproc, strutils, tables, pegs, uri
 import packageinfo, packageparser, version, tools, common, options, cli
+from algorithm import SortOrder
 from sequtils import toSeq
-
-import ./semver
 
 type
   DownloadMethod* {.pure.} = enum
@@ -105,14 +104,16 @@ proc getTagsListRemote*(url: string, meth: DownloadMethod): seq[string] =
     # http://stackoverflow.com/questions/2039150/show-tags-for-remote-hg-repository
     raise newException(ValueError, "Hg doesn't support remote tag querying.")
 
-proc getVersionList*(tags: seq[string]): Table[Version, string] =
-  # Returns: TTable of version -> git tag name
-  result = initTable[Version, string]()
+proc getVersionList*(tags: seq[string]): OrderedTable[Version, string] =
+  ## Return an ordered table of Version -> git tag label.  Ordering is
+  ## in descending order with the most recent version first.
+  result = initOrderedTable[Version, string]()
   for tag in tags:
     if tag != "":
       let i = skipUntil(tag, Digits) # skip any chars before the version
       # TODO: Better checking, tags can have any names. Add warnings and such.
       result[newVersion(tag[i .. tag.len-1])] = tag
+  sort(result, cmp, SortOrder.Descending)
 
 proc getDownloadMethod*(meth: string): DownloadMethod =
   case meth
@@ -270,7 +271,7 @@ proc echoPackageVersions*(pkg: Package) =
     try:
       let versions = getTagsListRemote(pkg.url, downMethod).getVersionList()
       if versions.len > 0:
-        let sortedVersions = sortVersionDesc(toSeq(values(versions)))
+        let sortedVersions = toSeq(values(versions))
         echo("  versions:    " & join(sortedVersions, ", "))
       else:
         echo("  versions:    (No versions tagged in the remote repository)")
@@ -279,3 +280,19 @@ proc echoPackageVersions*(pkg: Package) =
   of DownloadMethod.hg:
     echo("  versions:    (Remote tag retrieval not supported by " &
         pkg.downloadMethod & ")")
+
+when isMainModule:
+  # Test version sorting
+  block:
+    let data = @["v9.0.0-taeyeon", "v9.0.1-jessica", "v9.2.0-sunny",
+                 "v9.4.0-tiffany", "v9.4.2-hyoyeon"]
+    let expected = toOrderedTable[Version, string]({
+      newVersion("9.4.2-hyoyeon"): "v9.4.2-hyoyeon",
+      newVersion("9.4.0-tiffany"): "v9.4.0-tiffany",
+      newVersion("9.2.0-sunny"): "v9.2.0-sunny",
+      newVersion("9.0.1-jessica"): "v9.0.1-jessica",
+      newVersion("9.0.0-taeyeon"): "v9.0.0-taeyeon"
+    })
+    doAssert expected == getVersionList(data)
+
+  echo("Everything works!")
