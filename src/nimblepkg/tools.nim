@@ -2,7 +2,7 @@
 # BSD License. Look at license.txt for more info.
 #
 # Various miscellaneous utility functions reside here.
-import osproc, pegs, strutils, os, uri, sets, json, parseutils
+import osproc, pegs, strutils, os, uri, sets, json, parseutils, strformat
 import common, version, cli, options
 from net import SslCVerifyMode, newContext, SslContext
 
@@ -46,6 +46,14 @@ proc doCmdEx*(cmd: string): ProcessOutput =
   if findExe(bin) == "":
     raise newException(NimbleError, "'" & bin & "' not in PATH.")
   return execCmdEx(cmd)
+
+proc tryDoCmdEx*(cmd: string): TaintedString =
+  let (output, exitCode) = doCmdEx(cmd)
+  if exitCode != QuitSuccess:
+    raise newException(
+      NimbleError,
+      fmt"Execution of '{cmd}' failed with an exit code {exitCode}")
+  return output
 
 template cd*(dir: string, body: untyped) =
   ## Sets the current dir to ``dir``, executes ``body`` and restores the
