@@ -788,20 +788,16 @@ the new version.
 
 ##### Git Version Tagging
 
-If you follow semantic versioning with your git version tags in the
-format of `v<major>.<minor>.<patch>` then they will be sorted
-correctly for users when they look at the metadata for your package.
-The following version tag names are all supported:
+Use dot separated numbers to represent the release version in the git
+tag label.  Nimble will parse these git tag labels to know which
+versions of a package are published.
 
 ``` text
-v1.2.3
-v1
-v1.2
-v1.2.3-zuzu
+v0.2.0        # 0.2.0
+v1            # 1
+v1.2.3-zuzu   # 1.2.3
+foo-1.2.3.4   # 1.2.3.4
 ```
-
-If you don't follow this pattern, your versions will still display but
-they may not be sorted correctly.
 
 ## Publishing packages
 
