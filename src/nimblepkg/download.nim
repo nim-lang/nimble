@@ -3,8 +3,8 @@
 
 import parseutils, os, osproc, strutils, tables, pegs, uri
 import packageinfo, packageparser, version, tools, common, options, cli
-from algorithm import SortOrder, sort
-from sequtils import toSeq, filter, map
+from algorithm import SortOrder, sorted
+from sequtils import toSeq, filterIt, map
 
 type
   DownloadMethod* {.pure.} = enum
@@ -107,20 +107,18 @@ proc getTagsListRemote*(url: string, meth: DownloadMethod): seq[string] =
 proc getVersionList*(tags: seq[string]): OrderedTable[Version, string] =
   ## Return an ordered table of Version -> git tag label.  Ordering is
   ## in descending order with the most recent version first.
-  var taggedVers: seq[tuple[ver: Version, tag: string]] =
-    map(filter(tags, proc(s: string): bool = s != ""),
-        proc(s: string): tuple[ver: Version, tag: string] =
-          # skip any chars before the version
-          let i = skipUntil(s, Digits)
-          # TODO: Better checking, tags can have any
-          # names. Add warnings and such.
-          result = (newVersion(s[i .. s.len-1]), s))
-
-  sort(taggedVers, proc(a, b: (Version, string)): int = cmp(a[0], b[0]),
-       SortOrder.Descending)
-  result = initOrderedTable[Version, string]()
-  for x in taggedVers:
-    result[x.ver] = x.tag
+  let taggedVers: seq[tuple[ver: Version, tag: string]] =
+    tags
+      .filterIt(it != "")
+      .map(proc(s: string): tuple[ver: Version, tag: string] =
+        # skip any chars before the version
+        let i = skipUntil(s, Digits)
+        # TODO: Better checking, tags can have any
+        # names. Add warnings and such.
+        result = (newVersion(s[i .. s.len-1]), s))
+      .sorted(proc(a, b: (Version, string)): int = cmp(a[0], b[0]),
+              SortOrder.Descending)
+  result = toOrderedTable[Version, string](taggedVers)
 
 proc getDownloadMethod*(meth: string): DownloadMethod =
   case meth
