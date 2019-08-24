@@ -818,6 +818,10 @@ suite "Module tests":
     cd "..":
       check execCmdEx("nim c -r src/nimblepkg/cli").exitCode == QuitSuccess
 
+  test "download":
+    cd "..":
+      check execCmdEx("nim c -r src/nimblepkg/download").exitCode == QuitSuccess
+
 test "init does not overwrite existing files (#581)":
   createDir("issue581/src")
   cd "issue581":

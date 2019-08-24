@@ -786,6 +786,19 @@ To summarise, the steps for release are:
 Once the new tag is in the remote repository, Nimble will be able to detect
 the new version.
 
+##### Git Version Tagging
+
+Use dot separated numbers to represent the release version in the git
+tag label.  Nimble will parse these git tag labels to know which
+versions of a package are published.
+
+``` text
+v0.2.0        # 0.2.0
+v1            # 1
+v1.2.3-zuzu   # 1.2.3
+foo-1.2.3.4   # 1.2.3.4
+```
+
 ## Publishing packages
 
 Publishing packages isn't a requirement. But doing so allows people to associate
