@@ -10,6 +10,13 @@ type
   DownloadMethod* {.pure.} = enum
     git = "git", hg = "hg"
 
+proc getSpecificDir(meth: DownloadMethod): string {.used.} =
+  case meth
+  of DownloadMethod.git:
+    ".git"
+  of DownloadMethod.hg:
+    ".hg"
+
 proc doCheckout(meth: DownloadMethod, downloadDir, branch: string) =
   case meth
   of DownloadMethod.git:
@@ -22,6 +29,19 @@ proc doCheckout(meth: DownloadMethod, downloadDir, branch: string) =
   of DownloadMethod.hg:
     cd downloadDir:
       doCmd("hg checkout " & branch)
+
+proc doPull(meth: DownloadMethod, downloadDir: string) {.used.} =
+  case meth
+  of DownloadMethod.git:
+    doCheckout(meth, downloadDir, "")
+    cd downloadDir:
+      doCmd("git pull")
+      if existsFile(".gitmodules"):
+        doCmd("git submodule update")
+  of DownloadMethod.hg:
+    doCheckout(meth, downloadDir, "default")
+    cd downloadDir:
+      doCmd("hg pull")
 
 proc doClone(meth: DownloadMethod, url, downloadDir: string, branch = "",
              onlyTip = true) =
