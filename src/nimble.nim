@@ -581,12 +581,20 @@ proc search(options: Options) =
   if needsRefresh(options):
     raise newException(NimbleError, "Please run nimble refresh.")
   let pkgList = getPackageList(options)
-  var found = false
+  var
+    found = false
+    jsonOutput =  newJArray()
   template onFound {.dirty.} =
-    echoPackage(pkg)
-    if pkg.alias.len == 0 and options.queryVersions:
-      echoPackageVersions(pkg)
-    echo(" ")
+    if options.jsonOutput:
+      let info = pkg.toJson
+      if pkg.alias.len == 0 and options.queryVersions:
+        info["versions"] = packageVersionsJson(pkg)
+      jsonOutput.add info
+    else:
+      echoPackage(pkg)
+      if pkg.alias.len == 0 and options.queryVersions:
+        echoPackageVersions(pkg)
+      echo(" ")
     found = true
     break forPkg
 
@@ -603,16 +611,33 @@ proc search(options: Options) =
 
   if not found:
     display("Error", "No package found.", Error, HighPriority)
+  elif options.jsonOutput:
+    echo jsonOutput
+
+proc echoList(pkgList: seq[Package], queryVersions: bool) =
+  for pkg in pkgList:
+    echoPackage(pkg)
+    if pkg.alias.len == 0 and queryVersions:
+      echoPackageVersions(pkg)
+    echo(" ")
+
+proc jsonList(pkgList: seq[Package], queryVersions: bool) =
+  let output = newJArray()
+  for i, pkg in pkgList:
+    let info = pkg.toJson
+    if queryVersions:
+      info["versions"] = packageVersionsJson(pkg)
+    output.add info
+  echo output
 
 proc list(options: Options) =
   if needsRefresh(options):
     raise newException(NimbleError, "Please run nimble refresh.")
   let pkgList = getPackageList(options)
-  for pkg in pkgList:
-    echoPackage(pkg)
-    if pkg.alias.len == 0 and options.queryVersions:
-      echoPackageVersions(pkg)
-    echo(" ")
+  if options.jsonOutput:
+    jsonList(pkgList, options.queryVersions)
+  else:
+    echoList(pkgList, options.queryVersions)
 
 proc listInstalled(options: Options) =
   var h = initOrderedTable[string, seq[string]]()

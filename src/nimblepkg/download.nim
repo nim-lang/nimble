@@ -1,7 +1,8 @@
 # Copyright (C) Dominik Picheta. All rights reserved.
 # BSD License. Look at license.txt for more info.
 
-import parseutils, os, osproc, strutils, tables, pegs, uri
+import parseutils, os, osproc, strutils, tables, pegs, uri, json
+
 import packageinfo, packageparser, version, tools, common, options, cli
 from algorithm import SortOrder, sorted
 from sequtils import toSeq, filterIt, map
@@ -285,6 +286,20 @@ proc echoPackageVersions*(pkg: Package) =
   of DownloadMethod.hg:
     echo("  versions:    (Remote tag retrieval not supported by " &
         pkg.downloadMethod & ")")
+
+proc packageVersionsJson*(pkg: Package): JsonNode =
+  result = newJArray()
+  let downMethod = pkg.downloadMethod.getDownloadMethod()
+  try:
+    case downMethod
+    of DownloadMethod.git:
+      let versions = getTagsListRemote(pkg.url, downMethod).getVersionList()
+      for v in values(versions):
+        result.add %v
+    of DownloadMethod.hg:
+      discard
+  except:
+    result = %* { "exception": getCurrentExceptionMsg() }
 
 when isMainModule:
   # Test version sorting

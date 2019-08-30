@@ -425,6 +425,18 @@ proc echoPackage*(pkg: Package) =
     if pkg.web.len > 0:
       echo("  website:     " & pkg.web)
 
+func toJson*(pkg: Package, queryVersions = false): JsonNode =
+  result = %*{
+    "name": %pkg.name,
+    "url": %pkg.url,
+    "method": %pkg.downloadMethod,
+    "tags": %pkg.tags,
+    "description": %pkg.description,
+    "license": %pkg.license,
+  }
+  if pkg.web.len > 0:
+    result["web"] = %pkg.web
+
 proc getDownloadDirName*(pkg: Package, verRange: VersionRange): string =
   result = pkg.name
   let verSimple = getSimpleString(verRange)

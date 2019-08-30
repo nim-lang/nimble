@@ -15,6 +15,7 @@ type
     uninstallRevDeps*: bool
     queryVersions*: bool
     queryInstalled*: bool
+    jsonOutput*:bool
     nimbleDir*: string
     verbosity*: cli.Priority
     action*: Action
@@ -101,8 +102,10 @@ Commands:
                                   can be optionally specified.
   search       pkg/tag            Searches for a specified package. Search is
                                   performed by tag and by name.
+               [--json]           Format output as JSON.
                [--ver]            Query remote server for package version.
   list                            Lists all packages.
+               [--json]           Format output as JSON.
                [--ver]            Query remote server for package version.
                [-i, --installed]  Lists all installed packages.
   tasks                           Lists the tasks specified in the Nimble
@@ -120,6 +123,8 @@ Options:
   -v, --version                   Print version information.
   -y, --accept                    Accept all interactive prompts.
   -n, --reject                    Reject all interactive prompts.
+      --json                      Produce JSON formatted output when
+                                  searching or listing packages
       --ver                       Query remote server for package version
                                   information when searching or listing packages
       --nimbleDir:dirname         Set the Nimble directory.
@@ -339,6 +344,8 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
       result.queryInstalled = true
     of "ver":
       result.queryVersions = true
+    of "json":
+      result.jsonOutput = true
     else:
       wasFlagHandled = false
   of actionInstall:
