@@ -1,8 +1,10 @@
 # Copyright (C) Dominik Picheta. All rights reserved.
 # BSD License. Look at license.txt for more info.
+import osproc, unittest, strutils, os, sequtils, sugar, json, std/sha1,
+       strformat
 
-import osproc, unittest, strutils, os, sequtils, sugar, strformat
-import nimblepkg/common
+from nimblepkg/common import ProcessOutput
+from nimblepkg/options import parseNimbleData
 
 # TODO: Each test should start off with a clean slate. Currently installed
 # packages are shared between each test which causes a multitude of issues
@@ -12,6 +14,8 @@ let rootDir = getCurrentDir().parentDir()
 let nimblePath = rootDir / "src" / addFileExt("nimble", ExeExt)
 let installDir = rootDir / "tests" / "nimbleDir"
 let buildTests = rootDir / "buildTests"
+let pkgsDir = installDir / "pkgs"
+
 const path = "../src/nimble"
 const stringNotFound = -1
 
@@ -86,6 +90,21 @@ proc hasLineStartingWith(lines: seq[string], prefix: string): bool =
     if line.strip(trailing = false).startsWith(prefix):
       return true
   return false
+
+proc getPackageDir*(pkgCacheDir, pkgDirPrefix: string): string =
+  for kind, dir in walkDir(pkgCacheDir):
+    if kind != pcDir or not dir.startsWith(pkgCacheDir / pkgDirPrefix):
+      continue
+    let pkgChecksumStartIndex = dir.rfind('-')
+    if pkgChecksumStartIndex == -1:
+      continue
+    let pkgChecksum = dir[pkgChecksumStartIndex + 1 .. ^1]
+    if pkgChecksum.isValidSha1Hash():
+      return dir
+  return ""
+
+proc packageDirExists(pkgCacheDir, pkgDirPrefix: string): bool =
+  getPackageDir(pkgCacheDir, pkgDirPrefix).len > 0
 
 proc safeMoveFile(src, dest: string) =
   try:
@@ -210,7 +229,8 @@ suite "nimscript":
         if lines[3].startsWith("Before PkgDir:"):
           check line.endsWith("tests" / "nimscript")
       check lines[^1].startsWith("After PkgDir:")
-      check lines[^1].endsWith("tests" / "nimbleDir" / "pkgs" / "nimscript-0.1.0")
+      let packageDir = getPackageDir(pkgsDir, "nimscript-0.1.0")
+      check lines[^1].endsWith(packageDir)
 
   test "before/after on build":
     cd "nimscript":
@@ -356,7 +376,7 @@ suite "uninstall":
 
     check execNimbleYes("uninstall", "PackageA@0.2", "issue27b").exitCode ==
         QuitSuccess
-    check(not dirExists(installDir / "pkgs" / "PackageA-0.2.0"))
+    check(not dirExists(pkgsDir / "PackageA-0.2.0"))
 
 suite "nimble dump":
   beforeSuite()
@@ -526,6 +546,20 @@ suite "reverse dependencies":
     check execNimble("path", "nimboost").exitCode != QuitSuccess
     check execNimble("path", "nimfp").exitCode != QuitSuccess
 
+  test "old format conversion":
+    const oldNimbleDataFileName =
+      "./revdep/nimbleData/old_nimble_data.json".normalizedPath
+    const newNimbleDataFileName =
+      "./revdep/nimbleData/new_nimble_data.json".normalizedPath
+
+    doAssert fileExists(oldNimbleDataFileName)
+    doAssert fileExists(newNimbleDataFileName)
+
+    let oldNimbleData = parseNimbleData(oldNimbleDataFileName)
+    let newNimbleData = parseNimbleData(newNimbleDataFileName)
+
+    doAssert oldNimbleData == newNimbleData
+
 suite "develop feature":
   beforeSuite()
 
@@ -543,7 +577,8 @@ suite "develop feature":
       check output.processOutput.inLines("will not be compiled")
       check exitCode == QuitSuccess
 
-      let path = installDir / "pkgs" / "hybrid-#head" / "hybrid.nimble-link"
+      let packageDir = getPackageDir(pkgsDir, "hybrid-#head")
+      let path = packageDir / "hybrid.nimble-link"
       check fileExists(path)
       let split = readFile(path).processOutput()
       check split.len == 2
@@ -557,8 +592,8 @@ suite "develop feature":
       check(not output.processOutput.inLines("will not be compiled"))
       check exitCode == QuitSuccess
 
-      let path = installDir / "pkgs" / "srcdirtest-#head" /
-                 "srcdirtest.nimble-link"
+      let packageDir = getPackageDir(pkgsDir, "srcdirtest-#head")
+      let path = packageDir / "srcdirtest.nimble-link"
       check fileExists(path)
       let split = readFile(path).processOutput()
       check split.len == 2
@@ -607,7 +642,8 @@ suite "develop feature":
       let (_, exitCode) = execNimbleYes("install")
       check exitCode == QuitSuccess
     let (output, _) = execNimble("path", "srcdirtest")
-    check output.strip() == installDir / "pkgs" / "srcdirtest-1.0"
+    let packageDir = getPackageDir(pkgsDir, "srcdirtest-1.0")
+    check output.strip() == packageDir 
 
 suite "test command":
   beforeSuite()
@@ -733,6 +769,10 @@ suite "Module tests":
   test "download":
     cd "..":
       check execCmdEx("nim c -r src/nimblepkg/download").exitCode == QuitSuccess
+
+  test "jsonhelpers":
+    cd "..":
+      check execCmdEx("nim c -r src/nimblepkg/jsonhelpers").exitCode == QuitSuccess
 
 suite "nimble run":
   beforeSuite()
@@ -996,6 +1036,7 @@ suite "misc tests":
         "[UnusedImport]",
         "[Deprecated]",
         "[XDeclaredButNotUsed]",
+        "[Spacing]",
         ]
 
       for line in output.splitLines():
@@ -1034,16 +1075,20 @@ suite "issues":
       check output.contains("before test")
       check output.contains("after test")
 
-  # When building, any newly installed packages should be referenced via the path that they get permanently installed at.
   test "issue 799":
+    # When building, any newly installed packages should be referenced via the
+    # path that they get permanently installed at.
+    removeDir installDir
     cd "issue799":
       let (build_output, build_code) = execNimbleYes("--verbose", "build")
       check build_code == 0
       var build_results = processOutput(build_output)
       build_results.keepItIf(unindent(it).startsWith("Executing"))
+
       for build_line in build_results:
         if build_line.contains("issue799"):
-          let pkg_installed_path = "--path:" & (installDir / "pkgs" / "nimble-#head").quoteShell
+          let nimble_install_dir = getPackageDir(pkgsDir, "nimble-#head")
+          let pkg_installed_path = "--path:'" & nimble_install_dir & "'"
           check build_line.contains(pkg_installed_path)
 
   test "issue 793":
@@ -1149,8 +1194,10 @@ suite "issues":
       # Install v1 and check
       (output, exitCode) = execNimbleYes(["install", "--verbose"])
       check exitCode == QuitSuccess
-      check output.contains "binname-0.1.0" / "binname".addFileExt(ext)
-      check output.contains "binname-0.1.0" / "binname-2"
+      check output.contains getPackageDir(pkgsDir, "binname-0.1.0") /
+                            "binname".addFileExt(ext)
+      check output.contains getPackageDir(pkgsDir, "binname-0.1.0") /
+                            "binname-2"
 
       (output, exitCode) = execBin("binname")
       check exitCode == QuitSuccess
@@ -1163,8 +1210,10 @@ suite "issues":
       # Install v2 and check
       var (output, exitCode) = execNimbleYes(["install", "--verbose"])
       check exitCode == QuitSuccess
-      check output.contains "binname-0.2.0" / "binname".addFileExt(ext)
-      check output.contains "binname-0.2.0" / "binname-2"
+      check output.contains getPackageDir(pkgsDir, "binname-0.2.0") /
+                            "binname".addFileExt(ext)
+      check output.contains getPackageDir(pkgsDir, "binname-0.2.0") /
+                            "binname-2"
 
       (output, exitCode) = execBin("binname")
       check exitCode == QuitSuccess
@@ -1336,7 +1385,7 @@ suite "issues":
                     "https://github.com/nimble-test/packagea.git@#1f9cb289c89"]
     check execNimbleYes(arguments).exitCode == QuitSuccess
     # Verify that it was installed correctly.
-    check dirExists(installDir / "pkgs" / "PackageA-#1f9cb289c89")
+    check packageDirExists(pkgsDir, "PackageA-#1f9cb289c89")
     # Remove it so that it doesn't interfere with the uninstall tests.
     check execNimbleYes("uninstall", "packagea@#1f9cb289c89").exitCode ==
           QuitSuccess
@@ -1355,6 +1404,8 @@ suite "issues":
       check inLines(lines1, "The .nimble file name must match name specified inside")
 
   test "issue 113 (uninstallation problems)":
+    removeDir(installDir)
+
     cd "issue113/c":
       check execNimbleYes("install").exitCode == QuitSuccess
     cd "issue113/b":

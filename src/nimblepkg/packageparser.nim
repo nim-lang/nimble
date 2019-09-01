@@ -349,7 +349,6 @@ proc readPackageInfo(result: var PackageInfo, nf: NimbleFile, options: Options,
     return
 
   result = initPackageInfo(nf)
-  let minimalInfo = getNameVersion(nf)
 
   validatePackageName(nf.splitFile.name)
 
@@ -365,8 +364,6 @@ proc readPackageInfo(result: var PackageInfo, nf: NimbleFile, options: Options,
 
   if not success:
     if onlyMinimalInfo:
-      result.name = minimalInfo.name
-      result.version = minimalInfo.version
       result.isNimScript = true
       result.isMinimal = true
 
@@ -396,9 +393,9 @@ proc readPackageInfo(result: var PackageInfo, nf: NimbleFile, options: Options,
     # The package directory name may include a "special" version
     # (example #head). If so, it is given higher priority and therefore
     # overwrites the .nimble file's version.
-    let version = parseVersionRange(minimalInfo.version)
+    let version = parseVersionRange(result.version)
     if version.kind == verSpecial:
-      result.specialVersion = minimalInfo.version
+      result.specialVersion = result.version
 
   # Apply rules to infer which files should/shouldn't be installed. See #469.
   inferInstallRules(result, options)
@@ -440,7 +437,7 @@ proc getPkgInfoFromFile*(file: NimbleFile, options: Options): PackageInfo =
 proc getPkgInfo*(dir: string, options: Options): PackageInfo =
   ## Find the .nimble file in ``dir`` and parses it, returning a PackageInfo.
   let nimbleFile = findNimbleFile(dir, true)
-  return getPkgInfoFromFile(nimbleFile, options)
+  result = getPkgInfoFromFile(nimbleFile, options)
 
 proc getInstalledPkgs*(libsDir: string, options: Options):
         seq[PackageInfoAndMetaData] =
@@ -454,8 +451,10 @@ proc getInstalledPkgs*(libsDir: string, options: Options):
               " this error message, remove $1."
 
   proc createErrorMsg(tmplt, path, msg: string): string =
-    let (name, version) = getNameVersion(path)
-    return tmplt % [name, version, msg]
+    let (name, version, checksum) = getNameVersionChecksum(path)
+    let fullVersion = if checksum.len > 0: version & '-' & checksum
+                      else: version
+    return tmplt % [name, fullVersion, msg]
 
   display("Loading", "list of installed packages", priority = MediumPriority)
 

@@ -47,7 +47,7 @@ proc doCmdEx*(cmd: string): ProcessOutput =
     raise newException(NimbleError, "'" & bin & "' not in PATH.")
   return execCmdEx(cmd)
 
-proc tryDoCmdEx*(cmd: string): TaintedString =
+proc tryDoCmdEx*(cmd: string): string =
   let (output, exitCode) = doCmdEx(cmd)
   if exitCode != QuitSuccess:
     raise newException(

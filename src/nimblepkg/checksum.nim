@@ -21,9 +21,9 @@ proc getPackageFileListWithoutScm(): seq[string] =
     result.add(file)
 
 proc getPackageFileList(): seq[string] =
-  if existsDir(".git"):
+  if dirExists(".git"):
     result = getPackageFileListFromGit()
-  elif existsDir(".hg"):
+  elif dirExists(".hg"):
     result = getPackageFileListFromMercurial()
   else:
     result = getPackageFileListWithoutScm()
@@ -36,7 +36,7 @@ proc updateSha1Checksum(checksum: var Sha1State, fileName: string) =
   const bufferSize = 8192
   var buffer = newString(bufferSize)
   while true:
-    var bytesRead = readChars(file, buffer, 0, bufferSize)
+    var bytesRead = readChars(file, buffer)
     if bytesRead == 0: break
     checksum.update(buffer[0..<bytesRead])
 

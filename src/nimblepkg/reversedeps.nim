@@ -3,72 +3,78 @@
 
 import os, json, sets
 
-import options, common, version, download, packageinfo
+import options, common, version, download, packageinfo, jsonhelpers
 
 proc saveNimbleData*(options: Options) =
   # TODO: This file should probably be locked.
-  writeFile(options.getNimbleDir() / "nimbledata.json",
+  writeFile(options.getNimbleDir() / nimbleDataFile.name,
             pretty(options.nimbleData))
 
-proc addRevDep*(nimbleData: JsonNode, dep: PackageReverseDependency,
+proc addRevDep*(nimbleData: JsonNode, dep: PackageBasicInfo,
                 pkg: PackageInfo) =
   # Add a record which specifies that `pkg` has a dependency on `dep`, i.e.
   # the reverse dependency of `dep` is `pkg`.
-  if not nimbleData["reverseDeps"].hasKey(dep.name):
-    nimbleData["reverseDeps"][dep.name] = newJObject()
-  if not nimbleData["reverseDeps"][dep.name].hasKey(dep.version):
-    nimbleData["reverseDeps"][dep.name][dep.version] = newJArray()
-  let revDep = %{ "name": %pkg.name, "version": %pkg.specialVersion}
-  let thisDep = nimbleData["reverseDeps"][dep.name][dep.version]
-  if revDep notin thisDep:
-    thisDep.add revDep
+
+  let dependencies = nimbleData.addIfNotExist(
+    $ndjkRevDep,
+    dep.name,
+    dep.version,
+    dep.checksum,
+    newJArray(),
+    )
+
+  let dependency = %{
+    $ndjkRevDepName: %pkg.name,
+    $ndjkRevDepVersion: %pkg.specialVersion,
+    $ndjkRevDepChecksum: %pkg.checksum,
+    }
+
+  if dependency notin dependencies:
+    dependencies.add(dependency)
 
 proc removeRevDep*(nimbleData: JsonNode, pkg: PackageInfo) =
   ## Removes ``pkg`` from the reverse dependencies of every package.
   assert(not pkg.isMinimal)
+
   proc remove(pkg: PackageInfo, depTup: PkgTuple, thisDep: JsonNode) =
-    for ver, val in thisDep:
-      if ver.newVersion in depTup.ver:
-        var newVal = newJArray()
-        for revDep in val:
-          if not (revDep["name"].str == pkg.name and
-                  revDep["version"].str == pkg.specialVersion):
-            newVal.add revDep
-        thisDep[ver] = newVal
+    for version, revDepsForVersion in thisDep:
+      if version.newVersion in depTup.ver:
+        for checksum, revDepsForChecksum in revDepsForVersion:
+          var newVal = newJArray()
+          for rd in revDepsForChecksum:
+            # if the reverse dependency is different than the package which we
+            # currently deleting, it will be kept.
+            if rd[$ndjkRevDepName].str != pkg.name or
+               rd[$ndjkRevDepVersion].str != pkg.specialVersion or
+               rd[$ndjkRevDepChecksum].str != pkg.checksum:
+              newVal.add rd
+            revDepsForVersion[checksum] = newVal
+
+  let reverseDependencies = nimbleData[$ndjkRevDep]
 
   for depTup in pkg.requires:
     if depTup.name.isURL():
       # We sadly must go through everything in this case...
-      for key, val in nimbleData["reverseDeps"]:
+      for key, val in reverseDependencies:
         remove(pkg, depTup, val)
     else:
-      let thisDep = nimbleData{"reverseDeps", depTup.name}
+      let thisDep = nimbleData{$ndjkRevDep, depTup.name}
       if thisDep.isNil: continue
       remove(pkg, depTup, thisDep)
 
-  # Clean up empty objects/arrays
-  var newData = newJObject()
-  for key, val in nimbleData["reverseDeps"]:
-    if val.len != 0:
-      var newVal = newJObject()
-      for ver, elem in val:
-        if elem.len != 0:
-          newVal[ver] = elem
-      if newVal.len != 0:
-        newData[key] = newVal
-  nimbleData["reverseDeps"] = newData
+  nimbleData[$ndjkRevDep] = cleanUpEmptyObjects(reverseDependencies)
 
 proc getRevDepTups*(options: Options, pkg: PackageInfo): seq[PkgTuple] =
   ## Returns a list of *currently installed* reverse dependencies for `pkg`.
   result = @[]
-  let thisPkgsDep =
-    options.nimbleData["reverseDeps"]{pkg.name}{pkg.specialVersion}
+  let thisPkgsDep = options.nimbleData[$ndjkRevDep]{
+    pkg.name}{pkg.specialVersion}{pkg.checksum}
   if not thisPkgsDep.isNil:
     let pkgList = getInstalledPkgsMin(options.getPkgsDir(), options)
     for pkg in thisPkgsDep:
       let pkgTup = (
-        name: pkg["name"].getStr(),
-        ver: parseVersionRange(pkg["version"].getStr())
+        name: pkg[$ndjkRevDepName].getStr(),
+        ver: parseVersionRange(pkg[$ndjkRevDepVersion].getStr())
       )
       var pkgInfo: PackageInfo
       if not findPkg(pkgList, pkgTup, pkgInfo):
@@ -83,7 +89,8 @@ proc getRevDeps*(options: Options, pkg: PackageInfo): HashSet[PackageInfo] =
     for rdepInfo in findAllPkgs(installedPkgs, rdepTup):
       result.incl rdepInfo
 
-proc getAllRevDeps*(options: Options, pkg: PackageInfo, result: var HashSet[PackageInfo]) =
+proc getAllRevDeps*(options: Options, pkg: PackageInfo,
+                    result: var HashSet[PackageInfo]) =
   if pkg in result:
     return
 
@@ -97,7 +104,8 @@ proc getAllRevDeps*(options: Options, pkg: PackageInfo, result: var HashSet[Pack
   result.incl pkg
 
 when isMainModule:
-  var nimbleData = %{"reverseDeps": newJObject()}
+
+  import unittest
 
   let nimforum1 = PackageInfo(
     isMinimal: false,
@@ -105,31 +113,155 @@ when isMainModule:
     specialVersion: "0.1.0",
     requires: @[("jester", parseVersionRange("0.1.0")),
                 ("captcha", parseVersionRange("1.0.0")),
-                ("auth", parseVersionRange("#head"))]
-  )
-  let nimforum2 = PackageInfo(isMinimal: false, name: "nimforum", specialVersion: "0.2.0")
-  let play = PackageInfo(isMinimal: false, name: "play", specialVersion: "#head")
+                ("auth", parseVersionRange("#head"))],
+    checksum: "46A96C3F2B0ECB3D3F7BD71E12200ED401E9B9F2",
+    )
 
-  nimbleData.addRevDep(("jester", "0.1.0"), nimforum1)
-  nimbleData.addRevDep(("jester", "0.1.0"), play)
-  nimbleData.addRevDep(("captcha", "1.0.0"), nimforum1)
-  nimbleData.addRevDep(("auth", "#head"), nimforum1)
-  nimbleData.addRevDep(("captcha", "1.0.0"), nimforum2)
-  nimbleData.addRevDep(("auth", "#head"), nimforum2)
+  let nimforum2 = PackageInfo(
+    isMinimal: false,
+    name: "nimforum",
+    specialVersion: "0.2.0",
+    checksum: "B60044137CEA185F287346EBEAB6B3E0895BDA4D",
+    )
 
-  doAssert nimbleData["reverseDeps"]["jester"]["0.1.0"].len == 2
-  doAssert nimbleData["reverseDeps"]["captcha"]["1.0.0"].len == 2
-  doAssert nimbleData["reverseDeps"]["auth"]["#head"].len == 2
+  let play = PackageInfo(
+    isMinimal: false,
+    name: "play",
+    specialVersion: "#head",
+    checksum: "8A54CCA572977ED0CC73B9BF783E9DFA6B6F2BF9"
+    )
 
-  block:
+  proc setupNimbleData(): JsonNode =
+    result = newNimbleDataNode()
+
+    result.addRevDep(
+      ("jester", "0.1.0", "1B629F98B23614DF292F176A1681FA439DCC05E2"),
+      nimforum1)
+
+    result.addRevDep(("jester", "0.1.0", ""), play)
+
+    result.addRevDep(
+      ("captcha", "1.0.0", "CE128561B06DD106A83638AD415A2A52548F388E"),
+      nimforum1)
+
+    result.addRevDep(
+      ("auth", "#head", "C81545DF8A559E3DA7D38D125E0EAF2B4478CD01"),
+      nimforum1)
+
+    result.addRevDep(
+      ("captcha", "1.0.0", "CE128561B06DD106A83638AD415A2A52548F388E"),
+      nimforum2)
+
+    result.addRevDep(
+      ("auth", "#head", "C81545DF8A559E3DA7D38D125E0EAF2B4478CD01"),
+      nimforum2)
+
+  proc testAddRevDep() =
+
+    let expectedResult = """{
+        "version": "0.1.0",
+        "reverseDeps": {
+          "jester": {
+            "0.1.0": {
+              "1B629F98B23614DF292F176A1681FA439DCC05E2": [
+                {
+                  "name": "nimforum",
+                  "version": "0.1.0",
+                  "checksum": "46A96C3F2B0ECB3D3F7BD71E12200ED401E9B9F2"
+                }
+              ],
+              "": [
+                {
+                  "name": "play",
+                  "version": "#head",
+                  "checksum": "8A54CCA572977ED0CC73B9BF783E9DFA6B6F2BF9"
+                }
+              ]
+            }
+          },
+          "captcha": {
+            "1.0.0": {
+              "CE128561B06DD106A83638AD415A2A52548F388E": [
+                {
+                  "name": "nimforum",
+                  "version": "0.1.0",
+                  "checksum": "46A96C3F2B0ECB3D3F7BD71E12200ED401E9B9F2"
+                },
+                {
+                  "name": "nimforum",
+                  "version": "0.2.0",
+                  "checksum": "B60044137CEA185F287346EBEAB6B3E0895BDA4D"
+                }
+              ]
+            }
+          },
+          "auth": {
+            "#head": {
+              "C81545DF8A559E3DA7D38D125E0EAF2B4478CD01": [
+                {
+                  "name": "nimforum",
+                  "version": "0.1.0",
+                  "checksum": "46A96C3F2B0ECB3D3F7BD71E12200ED401E9B9F2"
+                },
+                {
+                  "name": "nimforum",
+                  "version": "0.2.0",
+                  "checksum": "B60044137CEA185F287346EBEAB6B3E0895BDA4D"
+                }
+              ]
+            }
+          }
+        }
+      }""".parseJson()
+
+    let nimbleData = setupNimbleData()
+    check nimbleData == expectedResult
+
+  proc testRemoveRevDep() =
+
+    let expectedResult = """{
+        "version": "0.1.0",
+        "reverseDeps": {
+          "jester": {
+            "0.1.0": {
+              "": [
+                {
+                  "name": "play",
+                  "version": "#head",
+                  "checksum": "8A54CCA572977ED0CC73B9BF783E9DFA6B6F2BF9"
+                }
+              ]
+            }
+          },
+          "captcha": {
+            "1.0.0": {
+              "CE128561B06DD106A83638AD415A2A52548F388E": [
+                {
+                  "name": "nimforum",
+                  "version": "0.2.0",
+                  "checksum": "B60044137CEA185F287346EBEAB6B3E0895BDA4D"
+                }
+              ]
+            }
+          },
+          "auth": {
+            "#head": {
+              "C81545DF8A559E3DA7D38D125E0EAF2B4478CD01": [
+                {
+                  "name": "nimforum",
+                  "version": "0.2.0",
+                  "checksum": "B60044137CEA185F287346EBEAB6B3E0895BDA4D"
+                }
+              ]
+            }
+          }
+        }
+      }""".parseJson()
+
+    let nimbleData = setupNimbleData()
     nimbleData.removeRevDep(nimforum1)
-    let jester = nimbleData["reverseDeps"]["jester"]["0.1.0"][0]
-    doAssert jester["name"].getStr() == play.name
-    doAssert jester["version"].getStr() == play.specialVersion
+    check nimbleData == expectedResult
 
-    let captcha = nimbleData["reverseDeps"]["captcha"]["1.0.0"][0]
-    doAssert captcha["name"].getStr() == nimforum2.name
-    doAssert captcha["version"].getStr() == nimforum2.specialVersion
-
-  echo("Everything works!")
-
+  testAddRevDep()
+  testRemoveRevDep()
+  reportUnitTestSuccess()

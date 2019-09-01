@@ -60,7 +60,7 @@ proc processDeps(pkginfo: PackageInfo, options: Options): seq[PackageInfo] =
 
   var pkgList {.global.}: seq[PackageInfoAndMetaData] = @[]
   once: pkgList = getInstalledPkgsMin(options.getPkgsDir(), options)
-  var reverseDeps: seq[PackageReverseDependency] = @[]
+  var reverseDeps: seq[PackageBasicInfo] = @[]
   for dep in pkginfo.requires:
     if dep.name == "nimrod" or dep.name == "nim":
       let nimVer = getNimrodVersion(options)
@@ -96,7 +96,7 @@ proc processDeps(pkginfo: PackageInfo, options: Options): seq[PackageInfo] =
         result.add(pkg)
         # Process the dependencies of this dependency.
         result.add(processDeps(pkg.toFullInfo(options), options))
-      reverseDeps.add((pkg.name, pkg.specialVersion))
+      reverseDeps.add((pkg.name, pkg.specialVersion, pkg.checksum))
 
   # Check if two packages of the same name (but different version) are listed
   # in the path.
@@ -220,7 +220,7 @@ proc removePkgDir(dir: string, options: Options) =
 
       # Search for an older version of the package we are removing.
       # So that we can reinstate its symlink.
-      let (pkgName, _) = getNameVersion(dir)
+      let (pkgName, _, _) = getNameVersionChecksum(dir)
       let pkgList = getInstalledPkgsMin(options.getPkgsDir(), options)
       var pkgInfo: PackageInfo
       if pkgList.findPkg((pkgName, newVRAny()), pkgInfo):
@@ -912,8 +912,7 @@ proc uninstall(options: Options) =
     # removeRevDep needs the package dependency info, so we can't just pass
     # a minimal pkg info.
     removeRevDep(options.nimbleData, pkg.toFullInfo(options))
-    removePkgDir(options.getPkgsDir / (pkg.name & '-' & pkg.specialVersion),
-                 options)
+    removePkgDir(pkg.getPkgDest(options), options)
     display("Removed", "$1 ($2)" % [pkg.name, $pkg.specialVersion], Success,
             HighPriority)
 

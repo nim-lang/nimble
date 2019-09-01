@@ -503,18 +503,24 @@ proc initOptions*(): Options =
     noColor: not isatty(stdout)
   )
 
-proc parseMisc(options: var Options) =
-  # Load nimbledata.json
-  let nimbledataFilename = options.getNimbleDir() / "nimbledata.json"
+proc newNimbleDataNode*(): JsonNode =
+  %{ $ndjkVersion: %nimbleDataFile.version, $ndjkRevDep: newJObject() }
 
-  if fileExists(nimbledataFilename):
-    try:
-      options.nimbleData = parseFile(nimbledataFilename)
-    except:
-      raise newException(NimbleError, "Couldn't parse nimbledata.json file " &
-          "located at " & nimbledataFilename)
+proc convertToTheNewFormat(nimbleData: JsonNode) =
+  nimbleData.add($ndjkVersion, %nimbleDataFile.version)
+  for name, versions in nimbleData[$ndjkRevDep]:
+    for version, dependencies in versions:
+      for dependency in dependencies:
+        dependency.add($ndjkRevDepChecksum, %"")
+      versions[version] = %{ "": dependencies }
+
+proc parseNimbleData*(fileName: string): JsonNode =
+  if fileExists(fileName):
+    result = parseFile(fileName)
+    if not result.hasKey($ndjkVersion):
+      convertToTheNewFormat(result)
   else:
-    options.nimbleData = %{"reverseDeps": newJObject()}
+    result = newNimbleDataNode()
 
 proc handleUnknownFlags(options: var Options) =
   if options.action.typ == actionRun:
@@ -573,8 +579,8 @@ proc parseCmdLine*(): Options =
   # Parse config.
   result.config = parseConfig()
 
-  # Parse other things, for example the nimbledata.json file.
-  parseMisc(result)
+  result.nimbleData = parseNimbleData(
+    result.getNimbleDir() / nimbleDataFile.name)
 
   if result.action.typ == actionNil and not result.showVersion:
     result.showHelp = true

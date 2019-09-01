@@ -6,8 +6,10 @@ import system except TResult
 import hashes, json, strutils, os, sets, tables, httpclient
 from net import SslError
 
+from compiler/nimblecmd import getPathVersionChecksum
+
 # Local imports
-import version, tools, common, options, cli, config
+import version, tools, common, options, cli, config, checksum
 
 type
   Package* = object ## Definition of package from packages.json.
@@ -31,19 +33,33 @@ type
     nimbleFilePath*: string
     packageDir*: string
 
-  PackageReverseDependency* = tuple[name, version: string]
+  PackageBasicInfo* = tuple[name, version, checksum: string]
   PackageDependenciesInfo* = tuple[deps: seq[PackageInfo], pkg: PackageInfo]
   PackageInfoAndMetaData* = tuple[pkginfo: PackageInfo, meta: MetaData]
 
-proc initPackageInfo*(path: string): PackageInfo =
-  result.myPath = path
+proc getNameVersionChecksum*(pkgpath: string): PackageBasicInfo =
+  ## Splits ``pkgpath`` in the format
+  ## ``/home/user/.nimble/pkgs/package-0.1-febadeaea2345e777f0f6f8433f7f0a52edd5d1b``
+  ## into ``("packagea", "0.1", "febadeaea2345e777f0f6f8433f7f0a52edd5d1b")``
+  ##
+  ## Also works for file paths like:
+  ## ``/home/user/.nimble/pkgs/package-0.1-febadeaea2345e777f0f6f8433f7f0a52edd5d1b/package.nimble``
+  if pkgPath.splitFile.ext in [".nimble", ".nimble-link", ".babel"]:
+    return getNameVersionChecksum(pkgPath.splitPath.head)
+  getPathVersionChecksum(pkgpath.splitPath.tail)
+
+proc initPackageInfo*(filePath: string): PackageInfo =
+  let (fileDir, fileName, _) = filePath.splitFile
+  let (_, pkgVersion, pkgChecksum) = filePath.getNameVersionChecksum
+
+  result.myPath = filePath
   result.specialVersion = ""
   result.nimbleTasks.init()
   result.preHooks.init()
   result.postHooks.init()
   # reasonable default:
-  result.name = path.splitFile.name
-  result.version = ""
+  result.name = fileName
+  result.version = pkgVersion
   result.author = ""
   result.description = ""
   result.license = ""
@@ -59,6 +75,9 @@ proc initPackageInfo*(path: string): PackageInfo =
   result.srcDir = ""
   result.binDir = ""
   result.backend = "c"
+  result.checksum =
+    if pkgChecksum.len > 0: pkgChecksum
+    else: calculatePackageSha1Checksum(fileDir)
 
 proc toValidPackageName*(name: string): string =
   result = ""
@@ -68,31 +87,6 @@ proc toValidPackageName*(name: string): string =
       if result[^1] != '_': result.add('_')
     of AllChars - IdentChars - {'-'}: discard
     else: result.add(c)
-
-proc getNameVersion*(pkgpath: string): PackageReverseDependency =
-  ## Splits ``pkgpath`` in the format ``/home/user/.nimble/pkgs/package-0.1``
-  ## into ``(packagea, 0.1)``
-  ##
-  ## Also works for file paths like:
-  ##   ``/home/user/.nimble/pkgs/package-0.1/package.nimble``
-  if pkgPath.splitFile.ext in [".nimble", ".nimble-link", ".babel"]:
-    return getNameVersion(pkgPath.splitPath.head)
-
-  result.name = ""
-  result.version = ""
-  let tail = pkgpath.splitPath.tail
-
-  const specialSeparator = "-#"
-  var sepIdx = tail.find(specialSeparator)
-  if sepIdx == -1:
-    sepIdx = tail.rfind('-')
-
-  if sepIdx == -1:
-    result.name = tail
-    return
-
-  result.name = tail[0 .. sepIdx - 1]
-  result.version = tail.substr(sepIdx + 1)
 
 proc optionalField(obj: JsonNode, name: string, default = ""): string =
   ## Queries ``obj`` for the optional ``name`` string.
@@ -350,11 +344,12 @@ proc getInstalledPkgsMin*(libsDir: string, options: Options):
       let nimbleFile = findNimbleFile(path, false)
       if nimbleFile != "":
         let meta = readMetaData(path)
-        let (name, version) = getNameVersion(path)
+        let (name, version, checksum) = getNameVersionChecksum(path)
         var pkg = initPackageInfo(nimbleFile)
         pkg.name = name
         pkg.version = version
         pkg.specialVersion = version
+        pkg.checksum = checksum
         pkg.isMinimal = true
         pkg.isInstalled = true
         let nimbleFileDir = nimbleFile.splitFile().dir
@@ -553,7 +548,7 @@ proc iterInstallFiles*(realDir: string, pkgInfo: PackageInfo,
         action(file)
 
 proc getPkgDest*(pkgInfo: PackageInfo, options: Options): string =
-  let versionStr = '-' & pkgInfo.specialVersion
+  let versionStr = '-' & pkgInfo.specialVersion & '-' & pkgInfo.checksum
   let pkgDestDir = options.getPkgsDir() / (pkgInfo.name & versionStr)
   return pkgDestDir
 
@@ -567,20 +562,66 @@ proc hash*(x: PackageInfo): Hash =
   result = !$h
 
 when isMainModule:
-  doAssert getNameVersion("/home/user/.nimble/libs/packagea-0.1") ==
-      ("packagea", "0.1")
-  doAssert getNameVersion("/home/user/.nimble/libs/package-a-0.1") ==
-      ("package-a", "0.1")
-  doAssert getNameVersion("/home/user/.nimble/libs/package-a-0.1/package.nimble") ==
-      ("package-a", "0.1")
-  doAssert getNameVersion("/home/user/.nimble/libs/package-#head") ==
-      ("package", "#head")
-  doAssert getNameVersion("/home/user/.nimble/libs/package-#branch-with-dashes") ==
-      ("package", "#branch-with-dashes")
+  import unittest 
+
+  check getNameVersionChecksum(
+    "/home/user/.nimble/libs/packagea-0.1") ==
+    ("packagea", "0.1", "")
+
+  check getNameVersionChecksum(
+    "/home/user/.nimble/libs/package-a-0.1") ==
+    ("package-a", "0.1", "")
+
+  check getNameVersionChecksum(
+    "/home/user/.nimble/libs/package-a-0.1/package.nimble") ==
+    ("package-a", "0.1", "")
+
+  check getNameVersionChecksum(
+    "/home/user/.nimble/libs/package-#head") ==
+    ("package", "#head", "")
+
+  check getNameVersionChecksum(
+    "/home/user/.nimble/libs/package-#branch-with-dashes") ==
+    ("package", "#branch-with-dashes", "")
+
   # readPackageInfo (and possibly more) depends on this not raising.
-  doAssert getNameVersion("/home/user/.nimble/libs/package") == ("package", "")
+  check getNameVersionChecksum(
+    "/home/user/.nimble/libs/package") ==
+    ("package", "", "")
 
-  doAssert toValidPackageName("foo__bar") == "foo_bar"
-  doAssert toValidPackageName("jhbasdh!£$@%#^_&*_()qwe") == "jhbasdh_qwe"
+  # Tests with hash sums in the package directory names
 
-  echo("All tests passed!")
+  check getNameVersionChecksum(
+    "/home/user/.nimble/libs/packagea-0.1-" &
+    "9e6df089c5ee3d912006b2d1c016eb8fa7dcde82") ==
+    ("packagea", "0.1", "9e6df089c5ee3d912006b2d1c016eb8fa7dcde82")
+
+  check getNameVersionChecksum(
+    "/home/user/.nimble/libs/package-a-0.1-" &
+    "2f11b50a3d1933f9f8972bd09bc3325c38bc11d6") ==
+    ("package-a", "0.1", "2f11b50a3d1933f9f8972bd09bc3325c38bc11d6")
+
+  check getNameVersionChecksum(
+    "/home/user/.nimble/libs/package-a-0.1-" &
+    "43e3b1138312656310e93ffcfdd866b2dcce3b35/package.nimble") ==
+    ("package-a", "0.1", "43e3b1138312656310e93ffcfdd866b2dcce3b35")
+
+  check getNameVersionChecksum(
+    "/home/user/.nimble/libs/package-#head-" &
+    "efba335dccf2631d7ac2740109142b92beb3b465") ==
+    ("package", "#head", "efba335dccf2631d7ac2740109142b92beb3b465")
+
+  check getNameVersionChecksum(
+    "/home/user/.nimble/libs/package-#branch-with-dashes-" &
+    "8f995e59d6fc1012b3c1509fcb0ef0a75cb3610c") ==
+    ("package", "#branch-with-dashes", "8f995e59d6fc1012b3c1509fcb0ef0a75cb3610c")
+
+  check getNameVersionChecksum(
+    "/home/user/.nimble/libs/package-" &
+    "b12e18db49fc60df117e5d8a289c4c2050a272dd") ==
+    ("package", "", "b12e18db49fc60df117e5d8a289c4c2050a272dd")
+
+  check toValidPackageName("foo__bar") == "foo_bar"
+  check toValidPackageName("jhbasdh!£$@%#^_&*_()qwe") == "jhbasdh_qwe"
+
+  reportUnitTestSuccess()

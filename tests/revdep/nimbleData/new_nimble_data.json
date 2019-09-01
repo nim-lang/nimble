@@ -1,0 +1,59 @@
+{
+  "version": "0.1.0",
+  "reverseDeps": {
+    "stew": {
+      "0.1.0": {
+        "": [
+          {
+            "name": "faststreams",
+            "version": "0.1.0",
+            "checksum": ""
+          },
+          {
+            "name": "serialization",
+            "version": "0.1.0",
+            "checksum": ""
+          },
+          {
+            "name": "json_serialization",
+            "version": "0.1.0",
+            "checksum": ""
+          }
+        ]
+      }
+    },
+    "faststreams": {
+      "0.1.0": {
+        "": [
+          {
+            "name": "serialization",
+            "version": "0.1.0",
+            "checksum": ""
+          }
+        ]
+      }
+    },
+    "serialization": {
+      "0.1.0": {
+        "": [
+          {
+            "name": "json_serialization",
+            "version": "0.1.0",
+            "checksum": ""
+          }
+        ]
+      }
+    },
+    "json_serialization": {
+      "0.1.0": {
+        "": [
+          {
+            "name": "chronicles",
+            "version": "0.6.0",
+            "checksum": ""
+          }
+        ]
+      }
+    }
+  }
+}
