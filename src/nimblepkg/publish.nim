@@ -240,4 +240,4 @@ proc publish*(p: PackageInfo, o: Options) =
     display("Pushing", "to remote of fork.", priority = HighPriority)
     doCmd("git push https://" & auth.token & "@github.com/" & auth.user & "/packages " & branchName)
     let prUrl = createPullRequest(auth, p.name, branchName)
-  display("Success:", "Pull request successful, check at " & prUrl , Success, HighPriority)
+    display("Success:", "Pull request successful, check at " & prUrl , Success, HighPriority)

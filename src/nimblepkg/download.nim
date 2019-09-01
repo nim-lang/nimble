@@ -59,8 +59,8 @@ proc doClone(meth: DownloadMethod, url, downloadDir: string, branch = "",
     doCmd("hg clone " & tipArg & branchArg & url & " " & downloadDir)
 
 proc getTagsList(dir: string, meth: DownloadMethod): seq[string] =
+  var output: string
   cd dir:
-    var output = execProcess("git tag")
     case meth
     of DownloadMethod.git:
       output = execProcess("git tag")

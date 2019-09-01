@@ -60,8 +60,9 @@ template cd*(dir: string, body: untyped) =
   ## previous working dir.
   let lastDir = getCurrentDir()
   setCurrentDir(dir)
-  body
-  setCurrentDir(lastDir)
+  block:
+    defer: setCurrentDir(lastDir)
+    body
 
 proc getNimrodVersion*(options: Options): Version =
   let vOutput = doCmdEx(getNimBin(options).quoteShell & " -v").output
