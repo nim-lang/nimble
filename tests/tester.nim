@@ -864,3 +864,8 @@ test "do not install single dependency multiple times (#678)":
       let (output, exitCode) = execNimble("install", "-y")
       check exitCode == QuitSuccess
       check output.find("issue678_dependency_1@0.1.0 already exists") == -1
+
+test "Passing command line arguments to a task (#633)":
+  cd "issue633":
+    var (output, exitCode) = execNimble("testTask --testTask")
+    check output.contains("Got it")

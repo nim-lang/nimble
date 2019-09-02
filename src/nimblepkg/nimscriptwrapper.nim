@@ -40,9 +40,17 @@ proc execNimscript(nimsFile, projectDir, actionName: string, options: Options):
     if not isScriptResultCopied:
       nimsFileCopied.removeFile()
 
-  let
+  var
     cmd = ("nim e --hints:off --verbosity:0 -p:" & (getTempDir() / "nimblecache").quoteShell &
       " " & nimsFileCopied.quoteShell & " " & outFile.quoteShell & " " & actionName).strip()
+
+  if options.action.typ == actionCustom and actionName != "printPkgInfo":
+    for i in options.action.arguments:
+      cmd &= " " & i.quoteShell()
+    for key, val in options.action.flags.pairs():
+      cmd &= " $#$#" % [if key.len == 1: "-" else: "--", key]
+      if val.len != 0:
+        cmd &= ":" & val.quoteShell()
 
   displayDebug("Executing " & cmd)
 
