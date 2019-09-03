@@ -551,7 +551,7 @@ proc search(options: Options) =
   var found = false
   template onFound {.dirty.} =
     echoPackage(pkg)
-    if options.queryVersions:
+    if pkg.alias.len == 0 and options.queryVersions:
       echoPackageVersions(pkg)
     echo(" ")
     found = true
@@ -577,7 +577,7 @@ proc list(options: Options) =
   let pkgList = getPackageList(options)
   for pkg in pkgList:
     echoPackage(pkg)
-    if options.queryVersions:
+    if pkg.alias.len == 0 and options.queryVersions:
       echoPackageVersions(pkg)
     echo(" ")
 
