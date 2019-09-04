@@ -212,7 +212,10 @@ proc multiSplit(s: string): seq[string] =
       result.del(i)
   # Huh, nothing to return? Return given input.
   if len(result) < 1:
-    return @[s]
+    if s.strip().len != 0:
+      return @[s]
+    else:
+      return @[]
 
 proc readPackageInfoFromNimble(path: string; result: var PackageInfo) =
   var fs = newFileStream(path, fmRead)
