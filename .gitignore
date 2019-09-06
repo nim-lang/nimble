@@ -6,20 +6,15 @@ nimcache/
 # Absolute paths
 /src/babel
 /src/nimble
-/tests/tester
 
 # executables from test and build
 /nimble
-/tests/nimscript/nimscript
-/tests/issue27/issue27
 src/nimblepkg/cli
 src/nimblepkg/packageinfo
 src/nimblepkg/packageparser
 src/nimblepkg/reversedeps
 src/nimblepkg/version
-tests/nimble-test/
-tests/packageStructure/validBinary/y
-tests/testCommand/testsFail/tests/t2
+src/nimblepkg/download
 
 # Windows executables
 *.exe
@@ -36,6 +31,4 @@ tests/testCommand/testsFail/tests/t2
 *.orig
 
 # Test procedure artifacts
-tests/nimble-test/
-tests/buildDir/
 nimble_*.nims
