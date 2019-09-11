@@ -47,12 +47,12 @@ proc refresh(options: Options) =
 proc install(packages: seq[PkgTuple],
              options: Options,
              doPrompt = true): PackageDependenciesInfo
-proc processDeps(pkginfo: PackageInfo, options: Options): seq[PackageInfo] =
+proc processDeps(pkginfo: PackageInfo, options: Options): HashSet[PackageInfo] =
   ## Verifies and installs dependencies.
   ##
   ## Returns the list of PackageInfo (for paths) to pass to the compiler
   ## during build phase.
-  result = @[]
+
   assert(not pkginfo.isMinimal, "processDeps needs pkginfo.requires")
   display("Verifying",
           "dependencies for $1@$2" % [pkginfo.name, pkginfo.specialVersion],
@@ -294,7 +294,7 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
   # Build before removing an existing package (if one exists). This way
   # if the build fails then the old package will still be installed.
   if pkgInfo.bin.len > 0:
-    let paths = result.deps.map(dep => dep.getRealDir())
+    let paths = result.deps.toSeq.map(dep => dep.getRealDir())
     let flags = if options.action.typ in {actionInstall, actionPath, actionUninstall, actionDevelop}:
                   options.action.passNimFlags
                 else:
@@ -460,7 +460,7 @@ proc install(packages: seq[PkgTuple],
 proc build(options: Options) =
   var pkgInfo = getPkgInfo(getCurrentDir(), options)
   nimScriptHint(pkgInfo)
-  let deps = processDeps(pkginfo, options)
+  let deps = processDeps(pkginfo, options).toSeq
   let paths = deps.map(dep => dep.getRealDir())
   var args = options.getCompilationFlags()
   buildFromDir(pkgInfo, paths, args, options)
@@ -478,7 +478,7 @@ proc execBackend(pkgInfo: PackageInfo, options: Options) =
 
   var pkgInfo = getPkgInfo(getCurrentDir(), options)
   nimScriptHint(pkgInfo)
-  let deps = processDeps(pkginfo, options)
+  let deps = processDeps(pkginfo, options).toSeq
 
   if not execHook(options, options.action.typ, true):
     raise newException(NimbleError, "Pre-hook prevented further execution.")

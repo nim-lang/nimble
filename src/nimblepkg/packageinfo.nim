@@ -34,7 +34,7 @@ type
     packageDir*: string
 
   PackageBasicInfo* = tuple[name, version, checksum: string]
-  PackageDependenciesInfo* = tuple[deps: seq[PackageInfo], pkg: PackageInfo]
+  PackageDependenciesInfo* = tuple[deps: HashSet[PackageInfo], pkg: PackageInfo]
   PackageInfoAndMetaData* = tuple[pkginfo: PackageInfo, meta: MetaData]
 
 proc getNameVersionChecksum*(pkgpath: string): PackageBasicInfo =

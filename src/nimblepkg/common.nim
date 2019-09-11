@@ -79,13 +79,15 @@ proc reportUnitTestSuccess*() =
     stdout.styledWrite(fgGreen, "All tests passed.")
 
 when not declared(initHashSet):
-  import sets
-
   template initHashSet*[A](initialSize = 64): HashSet[A] =
     initSet[A](initialSize)
 
 when not declared(toHashSet):
-  import sets
-
   template toHashSet*[A](keys: openArray[A]): HashSet[A] =
     toSet(keys)
+
+template add*[A](s: HashSet[A], key: A) =
+  s.incl(key)
+
+template add*[A](s: HashSet[A], other: HashSet[A]) =
+  s.incl(other)
