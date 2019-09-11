@@ -3,7 +3,8 @@
 import parsecfg, sets, streams, strutils, os, tables, sugar
 from sequtils import apply, map, toSeq
 
-import version, tools, common, nimscriptwrapper, options, packageinfo, cli
+import version, tools, nimscriptwrapper, options, cli,
+       packageinfo, packageinfotypes
 
 ## Contains procedures for parsing .nimble files. Moved here from ``packageinfo``
 ## because it depends on ``nimscriptwrapper`` (``nimscriptwrapper`` also

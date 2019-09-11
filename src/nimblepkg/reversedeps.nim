@@ -3,7 +3,8 @@
 
 import os, json, sets
 
-import options, common, version, download, packageinfo, jsonhelpers
+import common, options, version, download, jsonhelpers,
+       packageinfotypes, packageinfo
 
 proc saveNimbleData*(options: Options) =
   # TODO: This file should probably be locked.
@@ -74,7 +75,8 @@ proc getRevDepTups*(options: Options, pkg: PackageInfo): seq[PkgTuple] =
     for pkg in thisPkgsDep:
       let pkgTup = (
         name: pkg[$ndjkRevDepName].getStr(),
-        ver: parseVersionRange(pkg[$ndjkRevDepVersion].getStr())
+        ver: parseVersionRange(pkg[$ndjkRevDepVersion].getStr()),
+        vcsRevision: ""
       )
       var pkgInfo: PackageInfo
       if not findPkg(pkgList, pkgTup, pkgInfo):
@@ -111,9 +113,9 @@ when isMainModule:
     isMinimal: false,
     name: "nimforum",
     specialVersion: "0.1.0",
-    requires: @[("jester", parseVersionRange("0.1.0")),
-                ("captcha", parseVersionRange("1.0.0")),
-                ("auth", parseVersionRange("#head"))],
+    requires: @[("jester", parseVersionRange("0.1.0"), ""),
+                ("captcha", parseVersionRange("1.0.0"), ""),
+                ("auth", parseVersionRange("#head"), "")],
     checksum: "46A96C3F2B0ECB3D3F7BD71E12200ED401E9B9F2",
     )
 

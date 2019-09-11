@@ -3,39 +3,67 @@
 
 # Stdlib imports
 import system except TResult
-import hashes, json, strutils, os, sets, tables, httpclient
+import hashes, json, strutils, os, sets, tables, httpclient, sequtils, sugar
 from net import SslError
 
 from compiler/nimblecmd import getPathVersionChecksum
 
 # Local imports
-import version, tools, common, options, cli, config, checksum
+import version, tools, common, options, cli, config, checksum,
+       packageinfotypes
 
 type
-  Package* = object ## Definition of package from packages.json.
-    # Required fields in a package.
-    name*: string
-    url*: string # Download location.
-    license*: string
-    downloadMethod*: string
-    description*: string
-    tags*: seq[string] # Even if empty, always a valid non nil seq. \
-    # From here on, optional fields set to the empty string if not available.
-    version*: string
-    dvcsTag*: string
-    web*: string # Info url for humans.
-    alias*: string ## A name of another package, that this package aliases.
+  LockFileJsonKeys = enum
+    lfjkVersion = "version"
+    lfjkPackages = "packages"
+    lfjkPackageVersion = "version"
+    lfjkPackageVcsRevision = "vcsRevision"
+    lfjkPackageUrl = "url"
+    lfjkPackageDownloadMethod = "downloadMethod"
+    lfjkPackageDependencies = "dependencies"
+    lfjkPackageChecksum = "checksum"
+    lfjkPackageChecksumSha1 = "sha1"
 
-  MetaData* = object
-    url*: string
+const
+  lockFile = (name: "nimble.lockfile", version: "0.1.0")
 
-  NimbleLink* = object
-    nimbleFilePath*: string
-    packageDir*: string
+proc lockFileExists*(dir: string): bool =
+  fileExists(dir / lockFile.name)
 
-  PackageBasicInfo* = tuple[name, version, checksum: string]
-  PackageDependenciesInfo* = tuple[deps: HashSet[PackageInfo], pkg: PackageInfo]
-  PackageInfoAndMetaData* = tuple[pkginfo: PackageInfo, meta: MetaData]
+proc getPackage*(name: string, options: Options): Package
+
+proc writeLockFile*(packages: seq[PackageInfo], options: Options) =
+  let packagesJsonNode = newJObject()
+  for pkgInfo in packages:
+    let pkg = getPackage(pkgInfo.name, options)
+    let packageJsonNode = %{
+        $lfjkPackageVersion: %pkgInfo.version,
+        $lfjkPackageVcsRevision: %pkgInfo.vcsRevision,
+        $lfjkPackageUrl: %pkg.url,
+        $lfjkPackageDownloadMethod: %pkg.downloadMethod,
+        $lfjkPackageDependencies: %pkgInfo.requires.map(
+          pkg => pkg.name).filter(name => name != "nim"),
+        $lfjkPackageChecksum: %{
+          $lfjkPackageChecksumSha1: %pkgInfo.checksum
+          }
+        }
+    packagesJsonNode.add(pkgInfo.name, packageJsonNode)
+
+  let mainJsonNode = %{
+    $lfjkVersion: %lockFile.version,
+    $lfjkPackages: packagesJsonNode
+    }
+
+  writeFile(lockFile.name, mainJsonNode.pretty)
+
+proc readLockFile*(dir: string): LockFileDependencies =
+  let lockFilePath = dir / lockFile.name
+  let json = parseFile(lockFilePath)
+  result = json[$lfjkPackages].to(result.typeof)
+
+proc getLockedDependencies*(dir: string): LockFileDependencies =
+  if lockFileExists(dir):
+    result = readLockFile(dir)
 
 proc getNameVersionChecksum*(pkgpath: string): PackageBasicInfo =
   ## Splits ``pkgpath`` in the format
@@ -47,6 +75,28 @@ proc getNameVersionChecksum*(pkgpath: string): PackageBasicInfo =
   if pkgPath.splitFile.ext in [".nimble", ".nimble-link", ".babel"]:
     return getNameVersionChecksum(pkgPath.splitPath.head)
   getPathVersionChecksum(pkgpath.splitPath.tail)
+
+proc readMetaData*(path: string, silent = false): MetaData =
+  ## Reads the metadata present in ``~/.nimble/pkgs/pkg-0.1/nimblemeta.json``
+  var bmeta = path / packageMetaDataFileName
+  if not fileExists(bmeta) and not silent:
+    result.url = ""
+    display("Warning:", "No nimblemeta.json file found in " & path,
+            Warning, HighPriority)
+    return
+    # TODO: Make this an error.
+  let cont = readFile(bmeta)
+  let jsonmeta = parseJson(cont)
+  result.url = jsonmeta[$pmdjkUrl].str
+  result.vcsRevision = jsonmeta[$pmdjkVcsRevision].str
+
+proc getVcsRevision(dir: string): string =
+  # If the directory is under version control get the revision from it.
+  result = getVcsRevisionFromDir(dir)
+  if result.len > 0: return
+  # Otherwise this probably is directory in the local cache and we try to get it
+  # from the nimble package meta data json file.
+  result = readMetaData(dir, true).vcsRevision
 
 proc initPackageInfo*(filePath: string): PackageInfo =
   let (fileDir, fileName, _) = filePath.splitFile
@@ -75,9 +125,11 @@ proc initPackageInfo*(filePath: string): PackageInfo =
   result.srcDir = ""
   result.binDir = ""
   result.backend = "c"
+  result.lockedDependencies = getLockedDependencies(fileDir)
   result.checksum =
     if pkgChecksum.len > 0: pkgChecksum
     else: calculatePackageSha1Checksum(fileDir)
+  result.vcsRevision = getVcsRevision(fileDir)
 
 proc toValidPackageName*(name: string): string =
   result = ""
@@ -130,19 +182,6 @@ proc fromJson(obj: JSonNode): Package =
       result.tags.add(t.str)
     result.description = obj.requiredField("description")
     result.web = obj.optionalField("web")
-
-proc readMetaData*(path: string): MetaData =
-  ## Reads the metadata present in ``~/.nimble/pkgs/pkg-0.1/nimblemeta.json``
-  var bmeta = path / "nimblemeta.json"
-  if not fileExists(bmeta):
-    result.url = ""
-    display("Warning:", "No nimblemeta.json file found in " & path,
-            Warning, HighPriority)
-    return
-    # TODO: Make this an error.
-  let cont = readFile(bmeta)
-  let jsonmeta = parseJson(cont)
-  result.url = jsonmeta["url"].str
 
 proc readNimbleLink*(nimbleLinkPath: string): NimbleLink =
   let s = readFile(nimbleLinkPath).splitLines()
@@ -287,6 +326,12 @@ proc getPackage*(pkg: string, options: Options, resPkg: var Package): bool =
         resPkg = resolveAlias(resPkg, options)
         return true
 
+proc getPackage*(name: string, options: Options): Package =
+  let success = getPackage(name, options, result)
+  if not success:
+    raise newException(NimbleError,
+      "Cannot find package with name '" & name & "'.")
+
 proc getPackageList*(options: Options): seq[Package] =
   ## Returns the list of packages found in the downloaded packages.json files.
   result = @[]
@@ -331,6 +376,27 @@ proc findNimbleFile*(dir: string; error: bool): string =
       display("Warning:", msg, Warning, HighPriority)
       display("Hint:", hintMsg, Warning, HighPriority)
 
+proc getInstalledPackageMin*(packageDir, nimbleFilePath: string): PackageInfo =
+  let (name, version, checksum) = getNameVersionChecksum(packageDir)
+  result = initPackageInfo(nimbleFilePath)
+  result.name = name
+  result.version = version
+  result.specialVersion = version
+  result.checksum = checksum
+  result.isMinimal = true
+  result.isInstalled = true
+  let nimbleFileDir = nimbleFilePath.splitFile().dir
+  result.isLinked = cmpPaths(nimbleFileDir, packageDir) != 0
+
+  # Read the package's 'srcDir' (this is stored in the .nimble-link so
+  # we can easily grab it)
+  if result.isLinked:
+    let nimbleLinkPath = packageDir / name.addFileExt("nimble-link")
+    let realSrcPath = readNimbleLink(nimbleLinkPath).packageDir
+    assert realSrcPath.startsWith(nimbleFileDir)
+    result.srcDir = realSrcPath.replace(nimbleFileDir)
+    result.srcDir.removePrefix(DirSep)
+
 proc getInstalledPkgsMin*(libsDir: string, options: Options):
         seq[PackageInfoAndMetaData] =
   ## Gets a list of installed packages. The resulting package info is
@@ -344,25 +410,7 @@ proc getInstalledPkgsMin*(libsDir: string, options: Options):
       let nimbleFile = findNimbleFile(path, false)
       if nimbleFile != "":
         let meta = readMetaData(path)
-        let (name, version, checksum) = getNameVersionChecksum(path)
-        var pkg = initPackageInfo(nimbleFile)
-        pkg.name = name
-        pkg.version = version
-        pkg.specialVersion = version
-        pkg.checksum = checksum
-        pkg.isMinimal = true
-        pkg.isInstalled = true
-        let nimbleFileDir = nimbleFile.splitFile().dir
-        pkg.isLinked = cmpPaths(nimbleFileDir, path) != 0
-
-        # Read the package's 'srcDir' (this is stored in the .nimble-link so
-        # we can easily grab it)
-        if pkg.isLinked:
-          let nimbleLinkPath = path / name.addFileExt("nimble-link")
-          let realSrcPath = readNimbleLink(nimbleLinkPath).packageDir
-          assert realSrcPath.startsWith(nimbleFileDir)
-          pkg.srcDir = realSrcPath.replace(nimbleFileDir)
-          pkg.srcDir.removePrefix(DirSep)
+        let pkg = getInstalledPackageMin(path, nimbleFile)
         result.add((pkg, meta))
 
 proc withinRange*(pkgInfo: PackageInfo, verRange: VersionRange): bool =

@@ -3,7 +3,7 @@
 import os, strutils, sets, json
 
 # Local imports
-import cli, options, tools
+import cli, options, tools, common
 
 when defined(windows):
   import version
@@ -88,19 +88,19 @@ proc saveNimbleMeta*(pkgDestDir, url, vcsRevision: string,
   ##        package.
   ##
   ## isLink - Determines whether the installed package is a .nimble-link.
-  var nimblemeta = %{"url": %url}
+  var nimblemeta = %{$pmdjkUrl: %url}
   if vcsRevision.len > 0:
-    nimblemeta["vcsRevision"] = %vcsRevision
+    nimblemeta[$pmdjkVcsRevision] = %vcsRevision
   let files = newJArray()
-  nimblemeta["files"] = files
+  nimblemeta[$pmdjkFiles] = files
   for file in filesInstalled:
     files.add(%changeRoot(pkgDestDir, "", file))
   let binaries = newJArray()
-  nimblemeta["binaries"] = binaries
+  nimblemeta[$pmdjkBinaries] = binaries
   for bin in bins:
     binaries.add(%bin)
-  nimblemeta["isLink"] = %isLink
-  writeFile(pkgDestDir / "nimblemeta.json", $nimblemeta)
+  nimblemeta[$pmdjkIsLink] = %isLink
+  writeFile(pkgDestDir / packageMetaDataFileName, nimblemeta.pretty)
 
 proc saveNimbleMeta*(pkgDestDir, pkgDir, vcsRevision, nimbleLinkPath: string) =
   ## Overload of saveNimbleMeta for linked (.nimble-link) packages.

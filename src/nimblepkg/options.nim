@@ -6,7 +6,7 @@ import sequtils, sugar
 import std/options as std_opt
 from httpclient import Proxy, newProxy
 
-import config, version, common, cli
+import config, version, common, cli, packageinfotypes
 
 const
   nimbledeps* = "nimbledeps"
@@ -47,11 +47,12 @@ type
     actionInstall, actionSearch,
     actionList, actionBuild, actionPath, actionUninstall, actionCompile,
     actionDoc, actionCustom, actionTasks, actionDevelop, actionCheck,
-    actionRun
+    actionLock, actionRun
 
   Action* = object
     case typ*: ActionType
-    of actionNil, actionList, actionPublish, actionTasks, actionCheck: nil
+    of actionNil, actionList, actionPublish, actionTasks, actionCheck,
+       actionLock: nil
     of actionRefresh:
       optionalURL*: string # Overrides default package list.
     of actionInstall, actionPath, actionUninstall, actionDevelop:
@@ -130,6 +131,7 @@ Commands:
                                   .nimble file, a project directory or
                                   the name of an installed package.
                [--ini, --json]    Selects the output format (the default is --ini).
+  lock                            Generates or updates a package lock file.
 
 Nimble Options:
   -h, --help                      Print this help message.
@@ -203,6 +205,8 @@ proc parseActionType*(action: string): ActionType =
     result = actionDevelop
   of "check":
     result = actionCheck
+  of "lock":
+    result = actionLock
   else:
     result = actionCustom
 
@@ -235,7 +239,7 @@ proc initAction*(options: var Options, key: string) =
     options.action.arguments = @[]
     options.action.custCompileFlags = @[]
     options.action.custRunFlags = @[]
-  of actionPublish, actionList, actionTasks, actionCheck, actionRun,
+  of actionPublish, actionList, actionTasks, actionCheck, actionRun, actionLock,
      actionNil: discard
 
 proc prompt*(options: Options, question: string): bool =
@@ -374,9 +378,9 @@ proc parseArgument*(key: string, result: var Options) =
       let (pkgName, pkgVer) = (key[0 .. i-1], key[i+1 .. key.len-1])
       if pkgVer.len == 0:
         raise newException(NimbleError, "Version range expected after '@'.")
-      result.action.packages.add((pkgName, pkgVer.parseVersionRange()))
+      result.action.packages.add((pkgName, pkgVer.parseVersionRange(), ""))
     else:
-      result.action.packages.add((key, VersionRange(kind: verAny)))
+      result.action.packages.add((key, VersionRange(kind: verAny), ""))
   of actionRefresh:
     result.action.optionalURL = key
   of actionSearch:

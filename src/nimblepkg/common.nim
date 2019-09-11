@@ -4,42 +4,11 @@
 # Various miscellaneous common types reside here, to avoid problems with
 # recursive imports
 
-import sets, tables, terminal
+import sets, terminal
 import version
 
 type
   BuildFailed* = object of NimbleError
-
-  PackageInfo* = object
-    myPath*: string ## The path of this .nimble file
-    isNimScript*: bool ## Determines if this pkg info was read from a nims file
-    isMinimal*: bool
-    isInstalled*: bool ## Determines if the pkg this info belongs to is installed
-    isLinked*: bool ## Determines if the pkg this info belongs to has been linked via `develop`
-    nimbleTasks*: HashSet[string] ## All tasks defined in the Nimble file
-    postHooks*: HashSet[string] ## Useful to know so that Nimble doesn't execHook unnecessarily
-    preHooks*: HashSet[string]
-    name*: string
-    ## The version specified in the .nimble file.Assuming info is non-minimal,
-    ## it will always be a non-special version such as '0.1.4'
-    version*: string
-    specialVersion*: string ## Either `myVersion` or a special version such as #head.
-    author*: string
-    description*: string
-    license*: string
-    skipDirs*: seq[string]
-    skipFiles*: seq[string]
-    skipExt*: seq[string]
-    installDirs*: seq[string]
-    installFiles*: seq[string]
-    installExt*: seq[string]
-    requires*: seq[PkgTuple]
-    bin*: Table[string, string]
-    binDir*: string
-    srcDir*: string
-    backend*: string
-    foreignDeps*: seq[string]
-    checksum*: string
 
   ## Same as quit(QuitSuccess), but allows cleanup.
   NimbleQuit* = ref object of CatchableError
@@ -53,9 +22,17 @@ type
     ndjkRevDepVersion = "version"
     ndjkRevDepChecksum = "checksum"
 
+  PackageMetaDataJsonKeys* = enum
+    pmdjkUrl = "url"
+    pmdjkVcsRevision = "vcsRevision"
+    pmdjkFiles = "files"
+    pmdjkBinaries = "binaries"
+    pmdjkIsLink = "isLink"
+
 const
   nimbleVersion* = "0.13.1"
   nimbleDataFile* = (name: "nimbledata.json", version: "0.1.0")
+  packageMetaDataFileName* = "nimblemeta.json"
 
 proc raiseNimbleError*(msg: string, hint = "") =
   var exc = newException(NimbleError, msg)

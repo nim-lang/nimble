@@ -1,8 +1,22 @@
 # Copyright (C) Dominik Picheta. All rights reserved.
 # BSD License. Look at license.txt for more info.
 
-import os, strutils, std/sha1, algorithm
-import tools
+import os, strutils, std/sha1, algorithm, strformat
+import version, tools
+
+type
+  ChecksumError* = object of NimbleError
+
+proc raiseChecksumError*(name, version, vcsRevision,
+                         checksum, expectedChecksum: string) =
+  var error = newException(ChecksumError,
+fmt"""
+Downloaded package checksum does not correspond to that in the lock file:
+  Package:           {name}@v{version}@r{vcsRevision}
+  Checksum:          {checksum}
+  Expected checksum: {expectedChecksum}
+""")
+  raise error
 
 proc extractFileList(consoleOutput: string): seq[string] =
   result = consoleOutput.splitLines()

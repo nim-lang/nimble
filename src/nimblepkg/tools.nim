@@ -116,7 +116,8 @@ proc createDirD*(dir: string) =
   display("Creating", "directory $#" % dir, priority = LowPriority)
   createDir(dir)
 
-proc getDownloadDirName*(uri: string, verRange: VersionRange): string =
+proc getDownloadDirName*(uri: string, verRange: VersionRange,
+                         vcsRevision: string): string =
   ## Creates a directory name based on the specified ``uri`` (url)
   result = ""
   let puri = parseUri(uri)
@@ -136,6 +137,10 @@ proc getDownloadDirName*(uri: string, verRange: VersionRange): string =
   if verSimple != "":
     result.add "_"
     result.add verSimple
+  
+  if vcsRevision.len > 0:
+    result.add "_"
+    result.add vcsRevision
 
 proc incl*(s: var HashSet[string], v: seq[string] | HashSet[string]) =
   for i in v:
@@ -174,6 +179,22 @@ proc getNimbleUserTempDir*(): string =
   else:
     tmpdir = getTempDir()
   return tmpdir
+
+
+proc getVcsRevisionFromDir*(dir: string): string =
+  ## Returns current revision number of HEAD if dir is inside VCS, or nil in
+  ## case of failure.
+
+  template tryToGetRevision(command: string): untyped =
+    try:
+      let (output, exitCode) = doCmdEx(command)
+      if exitCode == QuitSuccess:
+        return string(output).strip()
+    except:
+      discard
+
+  tryToGetRevision("git -C " & quoteShell(dir) & " rev-parse HEAD")
+  tryToGetRevision("hg --cwd " & quoteShell(dir) & " id -i")
 
 proc newSSLContext*(disabled: bool): SslContext =
   var sslVerifyMode = CVerifyPeer

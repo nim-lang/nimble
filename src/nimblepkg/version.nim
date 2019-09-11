@@ -3,6 +3,7 @@
 
 ## Module for handling versions and version ranges such as ``>= 1.0 & <= 1.5``
 import strutils, tables, hashes, parseutils
+
 type
   Version* = distinct string
 
@@ -31,7 +32,7 @@ type
       nil
 
   ## Tuple containing package name and version range.
-  PkgTuple* = tuple[name: string, ver: VersionRange]
+  PkgTuple* = tuple[name: string, ver: VersionRange, vcsRevision: string]
 
   ParseVersionError* = object of ValueError
   NimbleError* = object of CatchableError

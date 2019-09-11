@@ -91,7 +91,7 @@ proc hasLineStartingWith(lines: seq[string], prefix: string): bool =
       return true
   return false
 
-proc getPackageDir*(pkgCacheDir, pkgDirPrefix: string): string =
+proc getPackageDir(pkgCacheDir, pkgDirPrefix: string): string =
   for kind, dir in walkDir(pkgCacheDir):
     if kind != pcDir or not dir.startsWith(pkgCacheDir / pkgDirPrefix):
       continue
@@ -315,7 +315,7 @@ suite "nimscript":
 
   test "can accept short flags (#329)":
     cd "nimscript":
-      check execNimble("c", "-d:release", "nimscript.nim").exitCode == QuitSuccess
+      check execNimble("c", "-d:release", "nimscript.nim").exitCode == QuitSuccess"
 
 suite "uninstall":
   beforeSuite()
@@ -324,6 +324,9 @@ suite "uninstall":
     let args = ["install", "https://github.com/nimble-test/packagebin2.git"]
     check execNimbleYes(args).exitCode == QuitSuccess
 
+  proc cannotSatisfyMsg(v1, v2: string): string =
+     &"Cannot satisfy the dependency on PackageA {v1} and PackageA {v2}"
+
   test "can reject same version dependencies":
     let (outp, exitCode) = execNimbleYes(
         "install", "https://github.com/nimble-test/packagebin.git")
@@ -331,8 +334,8 @@ suite "uninstall":
     # stderr output being generated and flushed without first flushing stdout
     let ls = outp.strip.processOutput()
     check exitCode != QuitSuccess
-    check "Cannot satisfy the dependency on PackageA 0.2.0 and PackageA 0.5.0" in
-          ls[ls.len-1]
+    check ls.inLines(cannotSatisfyMsg("0.2.0", "0.5.0")) or
+          ls.inLines(cannotSatisfyMsg("0.5.0", "0.2.0"))
 
   test "issue #27":
     # Install b
@@ -1242,8 +1245,9 @@ suite "issues":
     cd "issue428":
       # Note: Can't use execNimble because it patches nimbleDir
       check execCmdEx(nimblePath & " -y --nimbleDir=./nimbleDir install").exitCode == QuitSuccess
-      check dirExists("nimbleDir/pkgs/dummy-0.1.0")
-      check(not dirExists("nimbleDir/pkgs/dummy-0.1.0/nimbleDir"))
+      let pkgDir = getPackageDir("nimbleDir/pkgs", "dummy-0.1.0")
+      check pkgDir.dirExists
+      check not (pkgDir / "nimbleDir").dirExists
 
   test "issue 399":
     cd "issue399":

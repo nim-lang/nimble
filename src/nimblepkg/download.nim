@@ -1,8 +1,8 @@
 # Copyright (C) Dominik Picheta. All rights reserved.
 # BSD License. Look at license.txt for more info.
 
-import parseutils, os, osproc, strutils, tables, pegs, uri
-import packageinfo, packageparser, version, tools, common, options, cli
+import parseutils, os, osproc, strutils, tables, pegs, uri, strformat
+import packageinfotypes, packageparser, version, tools, common, options, cli
 from algorithm import SortOrder, sorted
 from sequtils import toSeq, filterIt, map
 
@@ -156,9 +156,24 @@ proc getUrlData*(url: string): (string, Table[string, string]) =
 proc isURL*(name: string): bool =
   name.startsWith(peg" @'://' ")
 
+proc cloneSpecificRevision(downloadMethod: DownloadMethod,
+                           url, downloadDir, vcsRevision: string) =
+  assert vcsRevision.len > 0
+  display("Cloning", "revision: " & vcsRevision, priority = MediumPriority)
+  case downloadMethod
+  of DownloadMethod.git:
+    createDir(downloadDir)
+    cd downloadDir:
+      doCmd("git init")
+      doCmd(fmt"git remote add origin {url}")
+      doCmd(fmt"git fetch --depth 1 origin {vcsRevision}")
+      doCmd("git reset --hard FETCH_HEAD")
+  of DownloadMethod.hg:
+    doCmd(fmt"hg clone {url} -r {vcsRevision}")
+
 proc doDownload(url: string, downloadDir: string, verRange: VersionRange,
-                 downMethod: DownloadMethod,
-                 options: Options): Version =
+                downMethod: DownloadMethod, options: Options,
+                vcsRevision: string): Version =
   ## Downloads the repository specified by ``url`` using the specified download
   ## method.
   ##
@@ -177,7 +192,9 @@ proc doDownload(url: string, downloadDir: string, verRange: VersionRange,
       result = latest.ver
 
   removeDir(downloadDir)
-  if verRange.kind == verSpecial:
+  if vcsRevision.len > 0:
+    cloneSpecificRevision(downMethod, url, downloadDir, vcsRevision)
+  elif verRange.kind == verSpecial:
     # We want a specific commit/branch/tag here.
     if verRange.spe == getHeadName(downMethod):
        # Grab HEAD.
@@ -223,10 +240,10 @@ proc doDownload(url: string, downloadDir: string, verRange: VersionRange,
                   priority = HighPriority)
 
 proc downloadPkg*(url: string, verRange: VersionRange,
-                 downMethod: DownloadMethod,
-                 subdir: string,
-                 options: Options,
-                 downloadPath = ""): (string, Version) =
+                  downMethod: DownloadMethod,
+                  subdir: string,
+                  options: Options,
+                  downloadPath, vcsRevision: string): (string, Version) =
   ## Downloads the repository as specified by ``url`` and ``verRange`` using
   ## the download method specified.
   ##
@@ -234,9 +251,14 @@ proc downloadPkg*(url: string, verRange: VersionRange,
   ##
   ## Returns the directory where it was downloaded (subdir is appended) and
   ## the concrete version  which was downloaded.
+  ##
+  ## ``vcsRevision``
+  ##   If specified this parameter will cause specific VCS revision to be
+  ##   checked out.
+
   let downloadDir =
     if downloadPath == "":
-      (getNimbleTempDir() / getDownloadDirName(url, verRange))
+      (getNimbleTempDir() / getDownloadDirName(url, verRange, vcsRevision))
     else:
       downloadPath
 
@@ -261,7 +283,7 @@ proc downloadPkg*(url: string, verRange: VersionRange,
             priority = HighPriority)
   result = (
     downloadDir / subdir,
-    doDownload(modUrl, downloadDir, verRange, downMethod, options)
+    doDownload(modUrl, downloadDir, verRange, downMethod, options, vcsRevision)
   )
 
   if verRange.kind != verSpecial:

@@ -11,11 +11,12 @@ from unicode import toLower
 from sequtils import toSeq
 from strformat import fmt
 
-import nimblepkg/packageinfo, nimblepkg/version, nimblepkg/tools,
-       nimblepkg/download, nimblepkg/config, nimblepkg/common,
+import nimblepkg/packageinfotypes, nimblepkg/packageinfo, nimblepkg/version,
+       nimblepkg/tools, nimblepkg/download, nimblepkg/config, nimblepkg/common,
        nimblepkg/publish, nimblepkg/options, nimblepkg/packageparser,
        nimblepkg/cli, nimblepkg/packageinstaller, nimblepkg/reversedeps,
-       nimblepkg/nimscriptexecutor, nimblepkg/init
+       nimblepkg/nimscriptexecutor, nimblepkg/init, nimblepkg/tools,
+       nimblepkg/checksum
 
 import nimblepkg/nimscriptwrapper
 
@@ -46,7 +47,8 @@ proc refresh(options: Options) =
 
 proc install(packages: seq[PkgTuple],
              options: Options,
-             doPrompt = true): PackageDependenciesInfo
+             doPrompt, first, fromLockFile: bool): PackageDependenciesInfo
+
 proc processDeps(pkginfo: PackageInfo, options: Options): HashSet[PackageInfo] =
   ## Verifies and installs dependencies.
   ##
@@ -82,8 +84,11 @@ proc processDeps(pkginfo: PackageInfo, options: Options): HashSet[PackageInfo] =
 
       if not found:
         display("Installing", $resolvedDep, priority = HighPriority)
-        let toInstall = @[(resolvedDep.name, resolvedDep.ver)]
-        let (pkgs, installedPkg) = install(toInstall, options)
+        let toInstall = @[(resolvedDep.name, resolvedDep.ver, "")]
+        let (pkgs, installedPkg) = install(toInstall, options,
+                                           doPrompt = false,
+                                           first = false,
+                                           fromLockFile = false)
         result.add(pkgs)
 
         pkg = installedPkg # For addRevDep
@@ -197,14 +202,14 @@ proc buildFromDir(
 proc removePkgDir(dir: string, options: Options) =
   ## Removes files belonging to the package in ``dir``.
   try:
-    var nimblemeta = parseFile(dir / "nimblemeta.json")
-    if not nimblemeta.hasKey("files"):
+    var nimblemeta = parseFile(dir / packageMetaDataFileName)
+    if not nimblemeta.hasKey($pmdjkFiles):
       raise newException(JsonParsingError,
                          "Meta data does not contain required info.")
-    for file in nimblemeta["files"]:
+    for file in nimblemeta[$pmdjkFiles]:
       removeFile(dir / file.str)
 
-    removeFile(dir / "nimblemeta.json")
+    removeFile(dir / packageMetaDataFileName)
 
     # If there are no files left in the directory, remove the directory.
     if toSeq(walkDirRec(dir)).len == 0:
@@ -213,9 +218,9 @@ proc removePkgDir(dir: string, options: Options) =
       display("Warning:", ("Cannot completely remove $1. Files not installed " &
               "by nimble are present.") % dir, Warning, HighPriority)
 
-    if nimblemeta.hasKey("binaries"):
+    if nimblemeta.hasKey($pmdjkBinaries):
       # Remove binaries.
-      for binary in nimblemeta["binaries"]:
+      for binary in nimblemeta[$pmdjkBinaries]:
         removeFile(options.getBinDir() / binary.str)
 
       # Search for an older version of the package we are removing.
@@ -223,7 +228,7 @@ proc removePkgDir(dir: string, options: Options) =
       let (pkgName, _, _) = getNameVersionChecksum(dir)
       let pkgList = getInstalledPkgsMin(options.getPkgsDir(), options)
       var pkgInfo: PackageInfo
-      if pkgList.findPkg((pkgName, newVRAny()), pkgInfo):
+      if pkgList.findPkg((pkgName, newVRAny(), ""), pkgInfo):
         pkgInfo = pkgInfo.toFullInfo(options)
         for bin, src in pkgInfo.bin:
           let symlinkDest = pkgInfo.getOutputDir(bin)
@@ -241,29 +246,28 @@ proc removePkgDir(dir: string, options: Options) =
       raise NimbleQuit(msg: "")
     removeDir(dir)
 
-proc vcsRevisionInDir(dir: string): string =
-  ## Returns current revision number of HEAD if dir is inside VCS, or nil in
-  ## case of failure.
-  var cmd = ""
-  if dirExists(dir / ".git"):
-    cmd = "git -C " & quoteShell(dir) & " rev-parse HEAD"
-  elif dirExists(dir / ".hg"):
-    cmd = "hg --cwd " & quoteShell(dir) & " id -i"
+proc processLockedDependencies(packageInfo: PackageInfo, options: Options):
+  seq[PackageInfo]
 
-  if cmd.len > 0:
-    try:
-      let res = doCmdEx(cmd)
-      if res.exitCode == 0:
-        result = string(res.output).strip()
-    except:
-      discard
+proc processAllDependencies(pkgInfo: PackageInfo, options: Options):
+    seq[PackageInfo] =
+  if pkgInfo.lockedDependencies.len > 0:
+    pkgInfo.processLockedDependencies(options)
+  else:
+    pkgInfo.processDeps(options).toSeq
 
 proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
-                    url: string): PackageDependenciesInfo =
+                    url: string, first: bool, fromLockFile: bool):
+    PackageDependenciesInfo =
   ## Returns where package has been installed to, together with paths
   ## to the packages this package depends on.
   ## The return value of this function is used by
   ## ``processDeps`` to gather a list of paths to pass to the nim compiler.
+  ##
+  ## ``first``
+  ##   True if this is the first level of the indirect recursion.
+  ## ``fromLockFile``
+  ##   True if we are installing dependencies from the lock file.
 
   # Handle pre-`install` hook.
   if not options.depsOnly:
@@ -282,7 +286,10 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
     pkgInfo.specialVersion = $requestedVer.spe
 
   # Dependencies need to be processed before the creation of the pkg dir.
-  result.deps = processDeps(pkgInfo, depsOptions)
+  if first and pkgInfo.lockedDependencies.len > 0:
+    result.deps = processLockedDependencies(pkgInfo, depsOptions).toHashSet
+  elif not fromLockFile:
+    result.deps = processDeps(pkgInfo, depsOptions)
 
   if options.depsOnly:
     result.pkg = pkgInfo
@@ -304,7 +311,7 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
   # Don't copy artifacts if project local deps mode and "installing" the top level package
   if not (options.localdeps and options.isInstallingTopLevel(dir)):
     let pkgDestDir = pkgInfo.getPkgDest(options)
-    if dirExists(pkgDestDir) and fileExists(pkgDestDir / "nimblemeta.json"):
+    if fileExists(pkgDestDir / packageMetaDataFileName):
       let msg = "$1@$2 already exists. Overwrite?" %
                 [pkgInfo.name, pkgInfo.specialVersion]
       if not options.prompt(msg):
@@ -367,7 +374,7 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
         for filename in setupBinSymlink(symlinkDest, symlinkFilename, options):
           binariesInstalled.incl(filename)
 
-    let vcsRevision = vcsRevisionInDir(realDir)
+    let vcsRevision = getVcsRevisionFromDir(dir)
 
     # Save a nimblemeta.json file.
     saveNimbleMeta(pkgDestDir, url, vcsRevision, filesInstalled,
@@ -397,6 +404,54 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
   cd pkgInfo.myPath.splitFile.dir:
     discard execHook(options, actionInstall, false)
 
+proc processLockedDependencies(packageInfo: PackageInfo, options: Options):
+    seq[PackageInfo] =
+  ## ```
+  ## For each dependency in the lock file:
+  ##   Check whether it is already installed and if not:
+  ##     Download it at specific VCS revision.
+  ##     Check whether it has the right checksum and if so:
+  ##       Install it from the download dir.
+  ##       Add record in the reverse dependencies file.
+  ##   Convert its info to PackageInfo and add it to the result.
+  ## ```
+
+  let packagesDir = options.getPkgsDir()
+
+  for name, dep in packageInfo.lockedDependencies:
+    let depDirName = packagesDir / fmt"{name}-{dep.version}-{dep.checksum.sha1}"
+
+    if not depDirName.dirExists:
+      let (url, metadata) = getUrlData(dep.url)
+      let version =  dep.version.parseVersionRange
+      let subdir = metadata.getOrDefault("subdir")
+
+      let (downloadDir, _) = downloadPkg(
+        url, version, dep.downloadMethod.getDownloadMethod, subdir, options,
+        downloadPath = "", dep.vcsRevision)
+
+      let downloadedPackageChecksum = calculatePackageSha1Checksum(downloadDir)
+      if downloadedPackageChecksum != dep.checksum.sha1:
+        raiseChecksumError(name, dep.version, dep.vcsRevision,
+                           downloadedPackageChecksum, dep.checksum.sha1)
+
+      let (_, newlyInstalledPackageInfo) = installFromDir(
+        downloadDir, version, options, url, first = false, fromLockFile = true)
+
+      for depDepName in dep.dependencies:
+        let depDep = packageInfo.lockedDependencies[depDepName]
+        let revDep = (name: depDepName, version: depDep.version,
+                      checksum: depDep.checksum.sha1) 
+        options.nimbleData.addRevDep(revDep, newlyInstalledPackageInfo)
+
+      result.add newlyInstalledPackageInfo
+
+    else:
+      let nimbleFilePath = findNimbleFile(depDirName, false)
+      let packageInfo = getInstalledPackageMin(
+        depDirName, nimbleFilePath).toFullInfo(options)
+      result.add packageInfo
+
 proc getDownloadInfo*(pv: PkgTuple, options: Options,
                       doPrompt: bool): (DownloadMethod, string,
                                         Table[string, string]) =
@@ -425,32 +480,43 @@ proc getDownloadInfo*(pv: PkgTuple, options: Options,
 
 proc install(packages: seq[PkgTuple],
              options: Options,
-             doPrompt = true): PackageDependenciesInfo =
+             doPrompt, first, fromLockFile: bool): PackageDependenciesInfo =
+  ## ``first``
+  ##   True if this is the first level of the indirect recursion.
+  ## ``fromLockFile``
+  ##   True if we are installing dependencies from the lock file.
+
   if packages == @[]:
-    result = installFromDir(getCurrentDir(), newVRAny(), options, "")
+    result = installFromDir(getCurrentDir(), newVRAny(), options, "", first,
+                            fromLockFile)
   else:
     # Install each package.
     for pv in packages:
       let (meth, url, metadata) = getDownloadInfo(pv, options, doPrompt)
       let subdir = metadata.getOrDefault("subdir")
       let (downloadDir, downloadVersion) =
-          downloadPkg(url, pv.ver, meth, subdir, options)
+          downloadPkg(url, pv.ver, meth, subdir, options, downloadPath = "",
+                      vcsRevision = "")
       try:
-        result = installFromDir(downloadDir, pv.ver, options, url)
+        result = installFromDir(downloadDir, pv.ver, options, url, first,
+                                fromLockFile)
       except BuildFailed:
         # The package failed to build.
         # Check if we tried building a tagged version of the package.
         let headVer = getHeadName(meth)
-        if pv.ver.kind != verSpecial and downloadVersion != headVer:
-          # If we tried building a tagged version of the package then
-          # ask the user whether they want to try building #head.
+        if pv.ver.kind != verSpecial and downloadVersion != headVer and
+           not fromLockFile:
+          # If we tried building a tagged version of the package and this is not
+          # fixed in the lock file version then ask the user whether they want
+          # to try building #head.
           let promptResult = doPrompt and
               options.prompt(("Build failed for '$1@$2', would you" &
                   " like to try installing '$1@#head' (latest unstable)?") %
                   [pv.name, $downloadVersion])
           if promptResult:
-            let toInstall = @[(pv.name, headVer.toVersionRange())]
-            result = install(toInstall, options, doPrompt)
+            let toInstall = @[(pv.name, headVer.toVersionRange(), "")]
+            result = install(toInstall, options, doPrompt, first,
+                             fromLockFile = false)
           else:
             raise newException(BuildFailed,
               "Aborting installation due to build failure")
@@ -458,9 +524,10 @@ proc install(packages: seq[PkgTuple],
           raise
 
 proc build(options: Options) =
-  var pkgInfo = getPkgInfo(getCurrentDir(), options)
+  let dir = getCurrentDir()
+  let pkgInfo = getPkgInfo(dir, options)
   nimScriptHint(pkgInfo)
-  let deps = processDeps(pkginfo, options).toSeq
+  let deps = pkgInfo.processAllDependencies(options)
   let paths = deps.map(dep => dep.getRealDir())
   var args = options.getCompilationFlags()
   buildFromDir(pkgInfo, paths, args, options)
@@ -476,10 +543,10 @@ proc execBackend(pkgInfo: PackageInfo, options: Options) =
     raise newException(NimbleError,
       "Specified file, " & bin & " or " & binDotNim & ", does not exist.")
 
-  var pkgInfo = getPkgInfo(getCurrentDir(), options)
+  let dir = getCurrentDir()
+  let pkgInfo = getPkgInfo(dir, options)
   nimScriptHint(pkgInfo)
-  let deps = processDeps(pkginfo, options).toSeq
-
+  let deps = pkgInfo.processAllDependencies(options)
   if not execHook(options, options.action.typ, true):
     raise newException(NimbleError, "Pre-hook prevented further execution.")
 
@@ -592,7 +659,7 @@ proc listPaths(options: Options) =
 
   var errors = 0
   let pkgs = getInstalledPkgsMin(options.getPkgsDir(), options)
-  for name, version in options.action.packages.items:
+  for name, version, _ in options.action.packages.items:
     var installed: seq[VersionAndPath] = @[]
     # There may be several, list all available ones and sort by version.
     for x in pkgs.items():
@@ -663,7 +730,7 @@ proc dump(options: Options) =
         # jsonutils.toJson would work but is only available since 1.3.5, so we
         # do it manually.
         j[key] = newJArray()
-        for (name, ver) in val:
+        for (name, ver, _) in val:
           j[key].add %{
             "name": % name,
             # we serialize both: `ver` may be more convenient for tooling
@@ -954,17 +1021,17 @@ proc developFromDir(dir: string, options: Options) =
     optsCopy.startDir = dir
     optsCopy.nim = options.nim
     cd dir:
-      discard processDeps(pkgInfo, optsCopy)
+      discard pkgInfo.processAllDependencies(optsCopy)
   else:
     # Dependencies need to be processed before the creation of the pkg dir.
-    discard processDeps(pkgInfo, options)
+    discard pkgInfo.processAllDependencies(options)
 
   # Don't link if project local deps mode and "developing" the top level package
   if not (options.localdeps and options.isInstallingTopLevel(dir)):
     # This is similar to the code in `installFromDir`, except that we
     # *consciously* not worry about the package's binaries.
     let pkgDestDir = pkgInfo.getPkgDest(options)
-    if dirExists(pkgDestDir) and fileExists(pkgDestDir / "nimblemeta.json"):
+    if fileExists(pkgDestDir / packageMetaDataFileName):
       let msg = "$1@$2 already exists. Overwrite?" %
                 [pkgInfo.name, pkgInfo.specialVersion]
       if not options.prompt(msg):
@@ -986,7 +1053,7 @@ proc developFromDir(dir: string, options: Options) =
     writeNimbleLink(nimbleLinkPath, nimbleLink)
 
     # Save a nimblemeta.json file.
-    saveNimbleMeta(pkgDestDir, dir, vcsRevisionInDir(dir), nimbleLinkPath)
+    saveNimbleMeta(pkgDestDir, dir, getVcsRevisionFromDir(dir), nimbleLinkPath)
 
     # Save the nimble data (which might now contain reverse deps added in
     # processDeps).
@@ -1029,7 +1096,8 @@ proc develop(options: Options) =
           pv.ver
       var options = options
       options.forceFullClone = true
-      discard downloadPkg(url, ver, meth, subdir, options, downloadDir)
+      discard downloadPkg(url, ver, meth, subdir, options, downloadDir,
+                          vcsRevision = "")
       developFromDir(downloadDir / subdir, options)
 
 proc test(options: Options) =
@@ -1113,6 +1181,13 @@ proc check(options: Options) =
     display("Failure:", "Validation failed", Error, HighPriority)
     quit(QuitFailure)
 
+proc lock(options: Options) =
+  let currentDir = getCurrentDir()
+  let packageInfo = getPkgInfo(currentDir, options)
+  let dependencies = processDeps(packageInfo, options).toSeq.map(
+    pkg => pkg.toFullInfo(options))
+  writeLockFile(dependencies, options)
+
 proc run(options: Options) =
   # Verify parameters.
   var pkgInfo = getPkgInfo(getCurrentDir(), options)
@@ -1152,7 +1227,10 @@ proc doAction(options: var Options) =
   of actionRefresh:
     refresh(options)
   of actionInstall:
-    let (_, pkgInfo) = install(options.action.packages, options)
+    let (_, pkgInfo) = install(options.action.packages, options,
+                               doPrompt = true,
+                               first = true,
+                               fromLockFile = false)
     if options.action.packages.len == 0:
       nimScriptHint(pkgInfo)
     if pkgInfo.foreignDeps.len > 0:
@@ -1191,6 +1269,8 @@ proc doAction(options: var Options) =
     develop(options)
   of actionCheck:
     check(options)
+  of actionLock:
+    lock(options)
   of actionNil:
     assert false
   of actionCustom:

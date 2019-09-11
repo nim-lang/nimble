@@ -13,6 +13,29 @@ nimcache/
 /src/babel
 /src/nimble
 
+# executables from test and build
+/nimble
+src/nimblepkg/checksum
+src/nimblepkg/cli
+src/nimblepkg/common
+src/nimblepkg/config
+src/nimblepkg/download
+src/nimblepkg/init
+src/nimblepkg/jsonhelpers
+src/nimblepkg/lockfile
+src/nimblepkg/nimscriptapi
+src/nimblepkg/nimscriptexecutor
+src/nimblepkg/nimscriptwrapper
+src/nimblepkg/options
+src/nimblepkg/packageinfo
+src/nimblepkg/packageinfotypes
+src/nimblepkg/packageinstaller
+src/nimblepkg/packageparser
+src/nimblepkg/publish
+src/nimblepkg/reversedeps
+src/nimblepkg/tools
+src/nimblepkg/version
+
 # Windows executables
 *.exe
 *.dll
@@ -28,13 +51,5 @@ nimcache/
 *.orig
 
 # Test procedure artifacts
+*.nims
 /buildTests
-
-# executables from test and build (already gitignored but keeping for documentation)
-# /nimble
-# src/nimblepkg/cli
-# src/nimblepkg/packageinfo
-# src/nimblepkg/packageparser
-# src/nimblepkg/reversedeps
-# src/nimblepkg/version
-# src/nimblepkg/download
