@@ -164,8 +164,8 @@ test "correct welcome":
   writeFile(nimbleFile, """# Package
 
 version       = $#
-author        = $#
-description   = $#
+author        = "$#"
+description   = "$#"
 license       = $#
 srcDir        = $#
 $#
@@ -175,7 +175,7 @@ $#
 
 requires "nim >= $#"
 """ % [
-      info.pkgVersion.escape(), info.pkgAuthor, info.pkgDesc,
+      info.pkgVersion.escape(), info.pkgAuthor.replace("\"", "\\\""), info.pkgDesc.replace("\"", "\\\""),
       info.pkgLicense.escape(), info.pkgSrcDir.escape(), nimbleFileOptions,
       pkgBackend, info.pkgNimDep
     ]
