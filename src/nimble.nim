@@ -348,7 +348,11 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
   # if the build fails then the old package will still be installed.
   if pkgInfo.bin.len > 0:
     let paths = result.deps.map(dep => dep.getRealDir())
-    buildFromDir(pkgInfo, paths, options.action.passNimFlags & "-d:release")
+    let flags = if options.action.typ in {actionInstall, actionPath, actionUninstall, actionDevelop}:
+                  options.action.passNimFlags
+                else:
+                  @[]
+    buildFromDir(pkgInfo, paths, flags & "-d:release")
 
   let pkgDestDir = pkgInfo.getPkgDest(options)
   if existsDir(pkgDestDir) and existsFile(pkgDestDir / "nimblemeta.json"):
