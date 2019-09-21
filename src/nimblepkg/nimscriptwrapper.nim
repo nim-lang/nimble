@@ -36,8 +36,8 @@ proc execNimscript(nimsFile, projectDir, actionName: string, options: Options):
 
   defer:
     # Only if copied in this invocation, allows recursive calls of nimble
-    if not isScriptResultCopied:
-      nimsFileCopied.removeFile()
+    if not isScriptResultCopied and options.shouldRemoveTmp(nimsFileCopied):
+        nimsFileCopied.removeFile()
 
   var
     cmd = ("nim e --hints:off --verbosity:0 -p:" & (getTempDir() / "nimblecache").quoteShell &
@@ -56,7 +56,8 @@ proc execNimscript(nimsFile, projectDir, actionName: string, options: Options):
   result.exitCode = execCmd(cmd)
   if outFile.fileExists():
     result.output = outFile.readFile()
-    discard outFile.tryRemoveFile()
+    if options.shouldRemoveTmp(outFile):
+      discard outFile.tryRemoveFile()
 
 proc getNimsFile(scriptName: string, options: Options): string =
   let

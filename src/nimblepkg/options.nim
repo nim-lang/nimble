@@ -425,3 +425,10 @@ proc briefClone*(options: Options): Options =
   newOptions.forcePrompts = options.forcePrompts
   newOptions.pkgInfoCache = options.pkgInfoCache
   return newOptions
+
+proc shouldRemoveTmp*(options: Options, file: string): bool =
+  result = true
+  if options.verbosity <= DebugPriority:
+    let msg = "Not removing temporary path because of debug verbosity: " & file
+    display("Warning:", msg, Warning, MediumPriority)
+    return false

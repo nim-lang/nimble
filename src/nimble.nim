@@ -1040,7 +1040,7 @@ proc test(options: Options) =
     display("Error:", error, Error, HighPriority)
 
 proc check(options: Options) =
-  ## Validates a package a in the current working directory.
+  ## Validates a package in the current working directory.
   let nimbleFile = findNimbleFile(getCurrentDir(), true)
   var error: ValidationError
   var pkgInfo: PackageInfo
@@ -1134,8 +1134,10 @@ when isMainModule:
   var error = ""
   var hint = ""
 
+  var opt: Options
   try:
-    parseCmdLine().doAction()
+    opt = parseCmdLine()
+    opt.doAction()
   except NimbleError:
     let currentExc = (ref NimbleError)(getCurrentException())
     (error, hint) = getOutputInfo(currentExc)
@@ -1143,7 +1145,9 @@ when isMainModule:
     discard
   finally:
     try:
-      removeDir(getNimbleTempDir())
+      let folder = getNimbleTempDir()
+      if opt.shouldRemoveTmp(folder):
+        removeDir(folder)
     except OSError:
       let msg = "Couldn't remove Nimble's temp dir"
       display("Warning:", msg, Warning, MediumPriority)
