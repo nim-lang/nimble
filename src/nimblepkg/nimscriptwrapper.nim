@@ -4,8 +4,9 @@
 ## Implements the new configuration system for Nimble. Uses Nim as a
 ## scripting language.
 
-import version, options, cli, tools
 import hashes, json, os, strutils, tables, times, osproc, strtabs
+
+import version, options, cli, tools
 
 type
   Flags = TableRef[string, seq[string]]
@@ -15,13 +16,23 @@ type
     arguments*: seq[string]
     flags*: Flags
     retVal*: T
+    stdout*: string
 
 const
   internalCmd = "e"
   nimscriptApi = staticRead("nimscriptapi.nim")
+  printPkgInfo = "printPkgInfo"
 
-proc execNimscript(nimsFile, projectDir, actionName: string, options: Options):
-  tuple[output: string, exitCode: int] =
+proc isCustomTask(actionName: string, options: Options): bool =
+  options.action.typ == actionCustom and actionName != printPkgInfo
+
+proc needsLiveOutput(actionName: string, options: Options, isHook: bool): bool =
+  let isCustomTask = isCustomTask(actionName, options)
+  return isCustomTask or isHook or actionName == ""
+
+proc execNimscript(
+  nimsFile, projectDir, actionName: string, options: Options, isHook: bool
+): tuple[output: string, exitCode: int, stdout: string] =
   let
     nimsFileCopied = projectDir / nimsFile.splitFile().name & "_" & getProcessId() & ".nims"
     outFile = getNimbleTempDir() & ".out"
@@ -41,7 +52,7 @@ proc execNimscript(nimsFile, projectDir, actionName: string, options: Options):
 
   var cmd = (
     "nim e $# -p:$# $# $# $#" % [
-      "--hints:off --warning[UnusedImport]:off --verbosity:0",
+      "--hints:off --verbosity:0",
       (getTempDir() / "nimblecache").quoteShell,
       nimsFileCopied.quoteShell,
       outFile.quoteShell,
@@ -49,7 +60,8 @@ proc execNimscript(nimsFile, projectDir, actionName: string, options: Options):
     ]
   ).strip()
 
-  if options.action.typ == actionCustom and actionName != "printPkgInfo":
+  let isCustomTask = isCustomTask(actionName, options)
+  if isCustomTask:
     for i in options.action.arguments:
       cmd &= " " & i.quoteShell()
     for key, val in options.action.flags.pairs():
@@ -59,7 +71,12 @@ proc execNimscript(nimsFile, projectDir, actionName: string, options: Options):
 
   displayDebug("Executing " & cmd)
 
-  result.exitCode = execCmd(cmd)
+  if needsLiveOutput(actionName, options, isHook):
+    result.exitCode = execCmd(cmd)
+  else:
+    # We want to capture any possible errors when parsing a .nimble
+    # file's metadata. See #710.
+    (result.stdout, result.exitCode) = execCmdEx(cmd)
   if outFile.fileExists():
     result.output = outFile.readFile()
     if options.shouldRemoveTmp(outFile):
@@ -112,27 +129,29 @@ proc getIniFile*(scriptName: string, options: Options): string =
       scriptName.getLastModificationTime()
 
   if not isIniResultCached:
-    let
-      (output, exitCode) =
-        execNimscript(nimsFile, scriptName.parentDir(), "printPkgInfo", options)
+    let (output, exitCode, stdout) = execNimscript(
+      nimsFile, scriptName.parentDir(), printPkgInfo, options, isHook=false
+    )
 
     if exitCode == 0 and output.len != 0:
       result.writeFile(output)
     else:
-      raise newException(NimbleError, output & "\nprintPkgInfo() failed")
+      raise newException(NimbleError, stdout & "\nprintPkgInfo() failed")
 
-proc execScript(scriptName, actionName: string, options: Options):
-  ExecutionResult[bool] =
-  let
-    nimsFile = getNimsFile(scriptName, options)
+proc execScript(
+  scriptName, actionName: string, options: Options, isHook: bool
+): ExecutionResult[bool] =
+  let nimsFile = getNimsFile(scriptName, options)
 
-  let
-    (output, exitCode) = execNimscript(nimsFile, scriptName.parentDir(), actionName, options)
+  let (output, exitCode, stdout) =
+    execNimscript(
+      nimsFile, scriptName.parentDir(), actionName, options, isHook
+    )
 
   if exitCode != 0:
     let errMsg =
-      if output.len != 0:
-        output
+      if stdout.len != 0:
+        stdout
       else:
         "Exception raised during nimble script execution"
     raise newException(NimbleError, errMsg)
@@ -164,7 +183,7 @@ proc execTask*(scriptName, taskName: string,
   display("Executing",  "task $# in $#" % [taskName, scriptName],
           priority = HighPriority)
 
-  result = execScript(scriptName, taskName, options)
+  result = execScript(scriptName, taskName, options, isHook=false)
 
 proc execHook*(scriptName, actionName: string, before: bool,
     options: Options): ExecutionResult[bool] =
@@ -178,11 +197,11 @@ proc execHook*(scriptName, actionName: string, before: bool,
   display("Attempting", "to execute hook $# in $#" % [hookName, scriptName],
           priority = MediumPriority)
 
-  result = execScript(scriptName, hookName, options)
+  result = execScript(scriptName, hookName, options, isHook=true)
 
 proc hasTaskRequestedCommand*(execResult: ExecutionResult): bool =
   ## Determines whether the last executed task used ``setCommand``
   return execResult.command != internalCmd
 
 proc listTasks*(scriptName: string, options: Options) =
-  discard execScript(scriptName, "", options)
+  discard execScript(scriptName, "", options, isHook=false)

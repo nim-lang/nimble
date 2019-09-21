@@ -86,6 +86,13 @@ test "depsOnly + flag order test":
   check(not output.contains("Success: packagebin2 installed successfully."))
   check exitCode == QuitSuccess
 
+test "nimscript evaluation error message":
+  cd "invalidPackage":
+    var (output, exitCode) = execNimble("check")
+    let lines = output.strip.processOutput()
+    check(lines[^2].endsWith("Error: undeclared identifier: 'thisFieldDoesNotExist'"))
+    check exitCode == QuitFailure
+
 test "caching of nims and ini detects changes":
   cd "caching":
     var (output, exitCode) = execNimble("dump")
