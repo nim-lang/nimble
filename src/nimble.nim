@@ -1004,6 +1004,8 @@ proc develop(options: Options) =
 proc test(options: Options) =
   ## Executes all tests starting with 't' in the ``tests`` directory.
   ## Subdirectories are not walked.
+  var pkgInfo = getPkgInfo(getCurrentDir(), options)
+
   var
     files = toSeq(walkDir(getCurrentDir() / "tests"))
     tests, failures: int
@@ -1020,7 +1022,7 @@ proc test(options: Options) =
       var optsCopy = options.briefClone()
       optsCopy.action = Action(typ: actionCompile)
       optsCopy.action.file = file.path
-      optsCopy.action.backend = "c"
+      optsCopy.action.backend = pkgInfo.backend
       optsCopy.getCompilationFlags() = @[]
       optsCopy.getCompilationFlags().add("-r")
       optsCopy.getCompilationFlags().add("--path:.")
