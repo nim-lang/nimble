@@ -213,7 +213,10 @@ proc publish*(p: PackageInfo, o: Options) =
     url = promptCustom("Github URL of " & p.name & "?", "")
     if url.len == 0: userAborted()
 
-  let tags = promptCustom("Whitespace separated list of tags?", "")
+  let tags = promptCustom(
+    "Whitespace separated list of tags? (For example: web library wrapper)",
+    ""
+  )
 
   cd pkgsDir:
     editJson(p, url, tags, downloadMethod)
