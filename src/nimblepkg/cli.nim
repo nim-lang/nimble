@@ -62,8 +62,18 @@ proc calculateCategoryOffset(category: string): int =
   assert category.len <= longestCategory
   return longestCategory - category.len
 
+proc isSuppressed(displayType: DisplayType): bool =
+  # Don't print any Warning, Message or Success messages when suppression of
+  # warnings is enabled. That is, unless the user asked for --verbose output.
+  if globalCLI.suppressMessages and displayType >= Warning and
+     globalCLI.level == HighPriority:
+    return true
+
 proc displayCategory(category: string, displayType: DisplayType,
                      priority: Priority) =
+  if isSuppressed(displayType):
+    return
+
   # Calculate how much the `category` must be offset to align along a center
   # line.
   let offset = calculateCategoryOffset(category)
@@ -80,6 +90,9 @@ proc displayCategory(category: string, displayType: DisplayType,
 
 proc displayLine(category, line: string, displayType: DisplayType,
                  priority: Priority) =
+  if isSuppressed(displayType):
+    return
+
   displayCategory(category, displayType, priority)
 
   # Display the message.
@@ -87,12 +100,6 @@ proc displayLine(category, line: string, displayType: DisplayType,
 
 proc display*(category, msg: string, displayType = Message,
               priority = MediumPriority) =
-  # Don't print any Warning, Message or Success messages when suppression of
-  # warnings is enabled. That is, unless the user asked for --verbose output.
-  if globalCLI.suppressMessages and displayType >= Warning and
-     globalCLI.level == HighPriority:
-    return
-
   # Multiple warnings containing the same messages should not be shown.
   let warningPair = (category, msg)
   if displayType == Warning:

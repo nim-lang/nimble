@@ -187,6 +187,7 @@ proc initAction*(options: var Options, key: string) =
     options.action.projName = ""
   of actionDump:
     options.action.projName = ""
+    options.forcePrompts = forcePromptYes
   of actionRefresh:
     options.action.optionalURL = ""
   of actionSearch:
@@ -264,8 +265,9 @@ proc parseArgument*(key: string, result: var Options) =
     result.action.search.add(key)
   of actionInit, actionDump:
     if result.action.projName != "":
-      raise newException(NimbleError,
-          "Can only initialize one package at a time.")
+      raise newException(
+        NimbleError, "Can only perform this action on one package at a time."
+      )
     result.action.projName = key
   of actionCompile, actionDoc:
     result.action.file = key
