@@ -225,6 +225,7 @@ proc buildFromDir(
         " `bin` key in your .nimble file?")
   var args = args
   let realDir = pkgInfo.getRealDir()
+  let nimblePkgVersion = "-d:NimblePkgVersion=" & pkgInfo.version
   for path in paths: args.add("--path:\"" & path & "\" ")
   for bin in pkgInfo.bin:
     # Check if this is the only binary that we want to build.
@@ -242,8 +243,8 @@ proc buildFromDir(
       createDir(outputDir)
 
     try:
-      doCmd("\"" & getNimBin() & "\" $# --noBabelPath $# $# \"$#\"" %
-            [pkgInfo.backend, join(args, " "), outputOpt,
+      doCmd("\"" & getNimBin() & "\" $# --noNimblePath $# $# $# \"$#\"" %
+            [pkgInfo.backend, nimblePkgVersion, join(args, " "), outputOpt,
              realDir / bin.changeFileExt("nim")])
     except NimbleError:
       let currentExc = (ref NimbleError)(getCurrentException())
@@ -530,6 +531,7 @@ proc execBackend(options: Options) =
   nimScriptHint(pkgInfo)
   let deps = processDeps(pkginfo, options)
 
+  let nimblePkgVersion = "-d:NimblePkgVersion=" & pkgInfo.version
   var args = ""
   for dep in deps: args.add("--path:\"" & dep.getRealDir() & "\" ")
   for option in options.getCompilationFlags():
@@ -547,8 +549,8 @@ proc execBackend(options: Options) =
   else:
     display("Generating", ("documentation for $1 (from package $2) using $3 " &
             "backend") % [bin, pkgInfo.name, backend], priority = HighPriority)
-  doCmd("\"" & getNimBin() & "\" $# --noNimblePath $# \"$#\"" %
-        [backend, args, bin], showOutput = true)
+  doCmd("\"" & getNimBin() & "\" $# --noNimblePath $# $# \"$#\"" %
+        [backend, nimblePkgVersion, args, bin], showOutput = true)
   display("Success:", "Execution finished", Success, HighPriority)
 
 proc search(options: Options) =

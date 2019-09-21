@@ -907,6 +907,16 @@ suite "nimble run":
       check output.contains("tests/run/run --debug check")
       check output.contains("""Testing `nimble run`: @["--debug", "check"]""")
 
+test "NimbleVersion is defined":
+  cd "nimbleVersionDefine":
+    var (output, exitCode) = execNimble("c", "-r", "src/nimbleVersionDefine.nim")
+    check output.contains("0.1.0")
+    check exitCode == QuitSuccess
+
+    var (output2, exitCode2) = execNimble("run", "nimbleVersionDefine")
+    check output2.contains("0.1.0")
+    check exitCode2 == QuitSuccess
+
 test "compilation without warnings":
   const buildDir = "./buildDir/"
   const filesToBuild = [
