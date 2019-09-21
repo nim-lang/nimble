@@ -213,7 +213,7 @@ proc processDeps(pkginfo: PackageInfo, options: Options): seq[PackageInfo] =
   for i in reverseDeps:
     addRevDep(options.nimbleData, i, pkginfo)
 
-proc buildFromDir(pkgInfo: PackageInfo, paths, args: seq[string]) =
+proc buildFromDir(pkgInfo: PackageInfo, paths, args: seq[string], options: Options) =
   ## Builds a package as specified by ``pkgInfo``.
   if pkgInfo.bin.len == 0:
     raise newException(NimbleError,
@@ -232,9 +232,11 @@ proc buildFromDir(pkgInfo: PackageInfo, paths, args: seq[string]) =
       createDir(outputDir)
 
     try:
+      discard execHook(options, true)
       doCmd("\"" & getNimBin() & "\" $# --noBabelPath $# $# \"$#\"" %
             [pkgInfo.backend, join(args, " "), outputOpt,
              realDir / bin.changeFileExt("nim")])
+      discard execHook(options, false)
     except NimbleError:
       let currentExc = (ref NimbleError)(getCurrentException())
       let exc = newException(BuildFailed, "Build failed for package: " &
@@ -352,7 +354,7 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
                   options.action.passNimFlags
                 else:
                   @[]
-    buildFromDir(pkgInfo, paths, flags & "-d:release")
+    buildFromDir(pkgInfo, paths, flags & "-d:release", options)
 
   let pkgDestDir = pkgInfo.getPkgDest(options)
   if existsDir(pkgDestDir) and existsFile(pkgDestDir / "nimblemeta.json"):
@@ -503,7 +505,7 @@ proc build(options: Options) =
   let deps = processDeps(pkginfo, options)
   let paths = deps.map(dep => dep.getRealDir())
   var args = options.action.compileOptions
-  buildFromDir(pkgInfo, paths, args)
+  buildFromDir(pkgInfo, paths, args, options)
 
 proc execBackend(options: Options) =
   let
