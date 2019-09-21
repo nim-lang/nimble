@@ -2,6 +2,8 @@
 # BSD License. Look at license.txt for more info.
 
 import json, strutils, os, parseopt, strtabs, uri, tables, terminal
+import sequtils, sugar
+import std/options as std_opt
 from httpclient import Proxy, newProxy
 
 import config, version, common, cli
@@ -26,12 +28,15 @@ type
     continueTestsOnFailure*: bool
     ## Whether packages' repos should always be downloaded with their history.
     forceFullClone*: bool
+    # Temporary storage of flags that have not been captured by any specific Action.
+    unknownFlags*: seq[(CmdLineKind, string, string)]
 
   ActionType* = enum
     actionNil, actionRefresh, actionInit, actionDump, actionPublish,
     actionInstall, actionSearch,
     actionList, actionBuild, actionPath, actionUninstall, actionCompile,
-    actionDoc, actionCustom, actionTasks, actionDevelop, actionCheck
+    actionDoc, actionCustom, actionTasks, actionDevelop, actionCheck,
+    actionRun
 
   Action* = object
     case typ*: ActionType
@@ -49,7 +54,11 @@ type
     of actionCompile, actionDoc, actionBuild:
       file*: string
       backend*: string
-      compileOptions*: seq[string]
+      compileOptions: seq[string]
+    of actionRun:
+      runFile: string
+      compileFlags: seq[string]
+      runFlags*: seq[string]
     of actionCustom:
       command*: string
       arguments*: seq[string]
@@ -76,7 +85,8 @@ Commands:
                                   toplevel directory of the Nimble package.
   uninstall    [pkgname, ...]     Uninstalls a list of packages.
                [-i, --inclDeps]   Uninstall package and dependent package(s).
-  build                           Builds a package.
+  build        [opts, ...]        Builds a package.
+  run          [opts, ...] bin    Builds and runs a package.
   c, cc, js    [opts, ...] f.nim  Builds a file inside a package. Passes options
                                   to the Nim compiler.
   test                            Compiles and executes tests
@@ -143,6 +153,8 @@ proc parseActionType*(action: string): ActionType =
     result = actionPath
   of "build":
     result = actionBuild
+  of "run":
+    result = actionRun
   of "c", "compile", "js", "cpp", "cc":
     result = actionCompile
   of "doc", "doc2":
@@ -196,7 +208,7 @@ proc initAction*(options: var Options, key: string) =
     options.action.command = key
     options.action.arguments = @[]
     options.action.flags = newStringTable()
-  of actionPublish, actionList, actionTasks, actionCheck,
+  of actionPublish, actionList, actionTasks, actionCheck, actionRun,
      actionNil: discard
 
 proc prompt*(options: Options, question: string): bool =
@@ -271,18 +283,37 @@ proc parseArgument*(key: string, result: var Options) =
     result.action.projName = key
   of actionCompile, actionDoc:
     result.action.file = key
-  of actionList, actionBuild, actionPublish:
+  of actionList, actionPublish:
     result.showHelp = true
+  of actionBuild:
+    result.action.file = key
+  of actionRun:
+    if result.action.runFile.len == 0:
+      result.action.runFile = key
+    else:
+      result.action.runFlags.add(key)
   of actionCustom:
     result.action.arguments.add(key)
   else:
     discard
 
+proc getFlagString(kind: CmdLineKind, flag, val: string): string =
+  let prefix =
+    case kind
+    of cmdShortOption: "-"
+    of cmdLongOption: "--"
+    else: ""
+  if val == "":
+    return prefix & flag
+  else:
+    return prefix & flag & ":" & val
+
 proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
-  var wasFlagHandled = true
+
   let f = flag.normalize()
 
   # Global flags.
+  var isGlobalFlag = true
   case f
   of "help", "h": result.showHelp = true
   of "version", "v": result.showVersion = true
@@ -293,54 +324,56 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
   of "debug": result.verbosity = DebugPriority
   of "nocolor": result.noColor = true
   of "disablevalidation": result.disableValidation = true
+  else: isGlobalFlag = false
+
+  var wasFlagHandled = true
   # Action-specific flags.
-  else:
-    case result.action.typ
-    of actionSearch, actionList:
-      case f
-      of "installed", "i":
-        result.queryInstalled = true
-      of "ver":
-        result.queryVersions = true
-      else:
-        wasFlagHandled = false
-    of actionInstall:
-      case f
-      of "depsonly", "d":
-        result.depsOnly = true
-      of "passnim", "p":
-        result.action.passNimFlags.add(val)
-      else:
-        wasFlagHandled = false
-    of actionUninstall:
-      case f
-      of "incldeps", "i":
-        result.uninstallRevDeps = true
-      else:
-        wasFlagHandled = false
-    of actionCompile, actionDoc, actionBuild:
-      let prefix = if kind == cmdShortOption: "-" else: "--"
-      if val == "":
-        result.action.compileOptions.add(prefix & flag)
-      else:
-        result.action.compileOptions.add(prefix & flag & ":" & val)
-    of actionCustom:
-      if result.action.command.normalize == "test":
-        if f == "continue" or f == "c":
-          result.continueTestsOnFailure = true
-      result.action.flags[flag] = val
+  case result.action.typ
+  of actionSearch, actionList:
+    case f
+    of "installed", "i":
+      result.queryInstalled = true
+    of "ver":
+      result.queryVersions = true
     else:
       wasFlagHandled = false
+  of actionInstall:
+    case f
+    of "depsonly", "d":
+      result.depsOnly = true
+    of "passnim", "p":
+      result.action.passNimFlags.add(val)
+    else:
+      wasFlagHandled = false
+  of actionUninstall:
+    case f
+    of "incldeps", "i":
+      result.uninstallRevDeps = true
+    else:
+      wasFlagHandled = false
+  of actionCompile, actionDoc, actionBuild:
+    if not isGlobalFlag:
+      result.action.compileOptions.add(getFlagString(kind, flag, val))
+  of actionRun:
+    result.action.runFlags.add(getFlagString(kind, flag, val))
+  of actionCustom:
+    if result.action.command.normalize == "test":
+      if f == "continue" or f == "c":
+        result.continueTestsOnFailure = true
+    result.action.flags[flag] = val
+  else:
+    wasFlagHandled = false
 
-  if not wasFlagHandled:
-    raise newException(NimbleError, "Unknown option: --" & flag)
+  if not wasFlagHandled and not isGlobalFlag:
+    result.unknownFlags.add((kind, flag, val))
 
-proc initOptions*(): Options =
-  result.action = Action(typ: actionNil)
-  result.pkgInfoCache = newTable[string, PackageInfo]()
-  result.nimbleDir = ""
-  result.verbosity = HighPriority
-  result.noColor = not isatty(stdout)
+proc initOptions(): Options =
+  Options(
+    action: Action(typ: actionNil),
+    pkgInfoCache: newTable[string, PackageInfo](),
+    verbosity: HighPriority,
+    noColor: not isatty(stdout)
+  )
 
 proc parseMisc(options: var Options) =
   # Load nimbledata.json
@@ -354,6 +387,20 @@ proc parseMisc(options: var Options) =
           "located at " & nimbledataFilename)
   else:
     options.nimbleData = %{"reverseDeps": newJObject()}
+
+proc handleUnknownFlags(options: var Options) =
+  if options.action.typ == actionRun:
+    options.action.compileFlags =
+      map(options.unknownFlags, x => getFlagString(x[0], x[1], x[2]))
+    options.unknownFlags = @[]
+
+  # Any unhandled flags?
+  if options.unknownFlags.len > 0:
+    let flag = options.unknownFlags[0]
+    raise newException(
+      NimbleError,
+      "Unknown option: " & getFlagString(flag[0], flag[1], flag[2])
+    )
 
 proc parseCmdLine*(): Options =
   result = initOptions()
@@ -371,6 +418,8 @@ proc parseCmdLine*(): Options =
       parseFlag(key, val, result, kind)
     of cmdEnd: assert(false) # cannot happen
 
+  handleUnknownFlags(result)
+
   # Set verbosity level.
   setVerbosity(result.verbosity)
 
@@ -385,6 +434,11 @@ proc parseCmdLine*(): Options =
 
   if result.action.typ == actionNil and not result.showVersion:
     result.showHelp = true
+
+  if result.action.typ != actionNil and result.showVersion:
+    # We've got another command that should be handled. For example:
+    # nimble run foobar -v
+    result.showVersion = false
 
 proc getProxy*(options: Options): Proxy =
   ## Returns ``nil`` if no proxy is specified.
@@ -432,3 +486,29 @@ proc shouldRemoveTmp*(options: Options, file: string): bool =
     let msg = "Not removing temporary path because of debug verbosity: " & file
     display("Warning:", msg, Warning, MediumPriority)
     return false
+
+proc getCompilationFlags*(options: var Options): var seq[string] =
+  case options.action.typ
+  of actionBuild, actionDoc, actionCompile:
+    return options.action.compileOptions
+  of actionRun:
+    return options.action.compileFlags
+  else:
+    assert false
+
+proc getCompilationFlags*(options: Options): seq[string] =
+  var opt = options
+  return opt.getCompilationFlags()
+
+proc getCompilationBinary*(options: Options): Option[string] =
+  case options.action.typ
+  of actionBuild, actionDoc, actionCompile:
+    let file = options.action.file.changeFileExt("")
+    if file.len > 0:
+      return some(file)
+  of actionRun:
+    let runFile = options.action.runFile.changeFileExt("")
+    if runFile.len > 0:
+      return some(runFile)
+  else:
+    discard

@@ -4,6 +4,7 @@
 import system except TResult
 
 import os, tables, strtabs, json, algorithm, sets, uri, sugar, sequtils
+import std/options as std_opt
 
 import strutils except toLower
 from unicode import toLower
@@ -213,7 +214,10 @@ proc processDeps(pkginfo: PackageInfo, options: Options): seq[PackageInfo] =
   for i in reverseDeps:
     addRevDep(options.nimbleData, i, pkginfo)
 
-proc buildFromDir(pkgInfo: PackageInfo, paths, args: seq[string]) =
+proc buildFromDir(
+  pkgInfo: PackageInfo, paths, args: seq[string],
+  binToBuild: Option[string] = none[string]()
+) =
   ## Builds a package as specified by ``pkgInfo``.
   if pkgInfo.bin.len == 0:
     raise newException(NimbleError,
@@ -223,6 +227,12 @@ proc buildFromDir(pkgInfo: PackageInfo, paths, args: seq[string]) =
   let realDir = pkgInfo.getRealDir()
   for path in paths: args.add("--path:\"" & path & "\" ")
   for bin in pkgInfo.bin:
+    # Check if this is the only binary that we want to build.
+    if binToBuild.isSome() and binToBuild.get() != bin:
+      let binToBuild = binToBuild.get()
+      if bin.extractFilename().changeFileExt("") != binToBuild:
+        continue
+
     let outputOpt = "-o:\"" & pkgInfo.getOutputDir(bin) & "\""
     display("Building", "$1/$2 using $3 backend" %
             [pkginfo.name, bin, pkgInfo.backend], priority = HighPriority)
@@ -502,12 +512,12 @@ proc build(options: Options) =
   nimScriptHint(pkgInfo)
   let deps = processDeps(pkginfo, options)
   let paths = deps.map(dep => dep.getRealDir())
-  var args = options.action.compileOptions
-  buildFromDir(pkgInfo, paths, args)
+  var args = options.getCompilationFlags()
+  buildFromDir(pkgInfo, paths, args, options.getCompilationBinary())
 
 proc execBackend(options: Options) =
   let
-    bin = options.action.file
+    bin = options.getCompilationBinary().get()
     binDotNim = bin.addFileExt("nim")
   if bin == "":
     raise newException(NimbleError, "You need to specify a file.")
@@ -522,7 +532,7 @@ proc execBackend(options: Options) =
 
   var args = ""
   for dep in deps: args.add("--path:\"" & dep.getRealDir() & "\" ")
-  for option in options.action.compileOptions:
+  for option in options.getCompilationFlags():
     args.add("\"" & option & "\" ")
 
   let backend =
@@ -1011,9 +1021,9 @@ proc test(options: Options) =
       optsCopy.action = Action(typ: actionCompile)
       optsCopy.action.file = file.path
       optsCopy.action.backend = "c"
-      optsCopy.action.compileOptions = @[]
-      optsCopy.action.compileOptions.add("-r")
-      optsCopy.action.compileOptions.add("--path:.")
+      optsCopy.getCompilationFlags() = @[]
+      optsCopy.getCompilationFlags().add("-r")
+      optsCopy.getCompilationFlags().add("--path:.")
       let
         binFileName = file.path.changeFileExt(ExeExt)
         existsBefore = existsFile(binFileName)
@@ -1058,6 +1068,28 @@ proc check(options: Options) =
     display("Failure:", "Validation failed", Error, HighPriority)
     quit(QuitFailure)
 
+proc run(options: Options) =
+  # Verify parameters.
+  let binary = options.getCompilationBinary().get()
+  if binary.len == 0:
+    raiseNimbleError("Please specify a binary to run")
+
+  var pkgInfo = getPkgInfo(getCurrentDir(), options)
+  if binary notin pkgInfo.bin:
+    raiseNimbleError(
+      "Binary '$#' is not defined in '$#' package." % [binary, pkgInfo.name]
+    )
+
+  let binaryPath = pkgInfo.getOutputDir(binary)
+
+  # Build the binary.
+  build(options)
+
+  # Now run it.
+  let args = options.action.runFlags.join(" ")
+
+  doCmd("$# $#" % [binaryPath, args], showOutput = true)
+
 proc doAction(options: Options) =
   if options.showHelp:
     writeHelp()
@@ -1094,6 +1126,8 @@ proc doAction(options: Options) =
     listPaths(options)
   of actionBuild:
     build(options)
+  of actionRun:
+    run(options)
   of actionCompile, actionDoc:
     execBackend(options)
   of actionInit:

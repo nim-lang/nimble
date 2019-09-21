@@ -33,8 +33,8 @@ template cd*(dir: string, body: untyped) =
 
 proc execNimble(args: varargs[string]): tuple[output: string, exitCode: int] =
   var quotedArgs = @args
+  quotedArgs.insert("--nimbleDir:" & installDir)
   quotedArgs.insert(nimblePath)
-  quotedArgs.add("--nimbleDir:" & installDir)
   quotedArgs = quotedArgs.map((x: string) => ("\"" & x & "\""))
 
   let path {.used.} = getCurrentDir().parentDir() / "src"
@@ -49,6 +49,7 @@ proc execNimble(args: varargs[string]): tuple[output: string, exitCode: int] =
     cmd = "DYLD_LIBRARY_PATH=/usr/local/opt/openssl@1.1/lib " & cmd
 
   result = execCmdEx(cmd)
+  checkpoint(cmd)
   checkpoint(result.output)
 
 proc execNimbleYes(args: varargs[string]): tuple[output: string, exitCode: int]=
@@ -881,6 +882,30 @@ test "Passing command line arguments to a task (#633)":
     var (output, exitCode) = execNimble("testTask --testTask")
     check exitCode == QuitSuccess
     check output.contains("Got it")
+
+suite "nimble run":
+  test "Invalid binary":
+    cd "run":
+      var (output, exitCode) = execNimble(
+        "--debug", # Flag to enable debug verbosity in Nimble
+        "run", # Run command invokation
+        "blahblah", # The command to run
+      )
+      check exitCode == QuitFailure
+      check output.contains("Binary 'blahblah' is not defined in 'run' package.")
+
+  test "Parameters passed to executable":
+    cd "run":
+      var (output, exitCode) = execNimble(
+        "--debug", # Flag to enable debug verbosity in Nimble
+        "run", # Run command invokation
+        "run", # The command to run
+        "--debug", # First argument passed to the executed command
+        "check" # Second argument passed to the executed command.
+      )
+      check exitCode == QuitSuccess
+      check output.contains("tests/run/run --debug check")
+      check output.contains("""Testing `nimble run`: @["--debug", "check"]""")
 
 test "compilation without warnings":
   const buildDir = "./buildDir/"
