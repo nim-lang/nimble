@@ -79,6 +79,11 @@ proc hasLineStartingWith(lines: seq[string], prefix: string): bool =
       return true
   return false
 
+test "issue 564":
+  cd "issue564":
+    var (output, exitCode) = execNimble("build")
+    check exitCode == QuitSuccess
+
 test "depsOnly + flag order test":
   var (output, exitCode) = execNimble(
     "--depsOnly", "install", "-y", "https://github.com/nimble-test/packagebin2"
