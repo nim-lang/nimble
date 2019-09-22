@@ -487,6 +487,15 @@ proc toFullInfo*(pkg: PackageInfo, options: Options): PackageInfo =
   else:
     return pkg
 
+proc getConcreteVersion*(pkgInfo: PackageInfo, options: Options): string =
+  ## Returns a non-special version from the specified ``pkgInfo``. If the
+  ## ``pkgInfo`` is minimal it looks it up and retrieves the concrete version.
+  result = pkgInfo.version
+  if pkgInfo.isMinimal:
+    let pkgInfo = pkgInfo.toFullInfo(options)
+    result = pkgInfo.version
+  assert(not newVersion(result).isSpecial)
+
 when isMainModule:
   validatePackageName("foo_bar")
   validatePackageName("f_oo_b_a_r")

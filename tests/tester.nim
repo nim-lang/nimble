@@ -79,6 +79,11 @@ proc hasLineStartingWith(lines: seq[string], prefix: string): bool =
       return true
   return false
 
+test "issue 432":
+  cd "issue432":
+    check execNimble("install", "-y", "--depsOnly").exitCode == QuitSuccess
+    check execNimble("install", "-y", "--depsOnly").exitCode == QuitSuccess
+
 test "issue 708":
   cd "issue708":
     # TODO: We need a way to filter out compiler messages from the messages

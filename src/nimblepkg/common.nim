@@ -22,7 +22,8 @@ when not defined(nimscript):
       preHooks*: HashSet[string]
       name*: string
       ## The version specified in the .nimble file.Assuming info is non-minimal,
-      ## it will always be a non-special version such as '0.1.4'
+      ## it will always be a non-special version such as '0.1.4'.
+      ## If in doubt, use `getConcreteVersion` instead.
       version*: string
       specialVersion*: string ## Either `myVersion` or a special version such as #head.
       author*: string

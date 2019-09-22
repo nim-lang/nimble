@@ -205,7 +205,7 @@ proc processDeps(pkginfo: PackageInfo, options: Options): seq[PackageInfo] =
       raise newException(NimbleError,
         "Cannot satisfy the dependency on $1 $2 and $1 $3" %
           [pkgInfo.name, pkgInfo.version, pkgsInPath[pkgInfo.name]])
-    pkgsInPath[pkgInfo.name] = pkgInfo.version
+    pkgsInPath[pkgInfo.name] = pkgInfo.getConcreteVersion(options)
 
   # We add the reverse deps to the JSON file here because we don't want
   # them added if the above errorenous condition occurs
