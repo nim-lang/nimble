@@ -892,7 +892,7 @@ proc uninstall(options: Options) =
           pkgsToDelete.incl pkg
 
   if pkgsToDelete.len == 0:
-    raise newException(NimbleError, "Failed uninstall - no packages selected")
+    raise newException(NimbleError, "Failed uninstall - no packages to delete")
 
   var pkgNames = ""
   for pkg in pkgsToDelete.items:
