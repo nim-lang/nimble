@@ -1112,7 +1112,7 @@ proc run(options: Options) =
 
   doCmd("$# $#" % [binaryPath, args], showOutput = true)
 
-proc doAction(options: Options) =
+proc doAction(options: var Options) =
   if options.showHelp:
     writeHelp()
   if options.showVersion:
@@ -1122,6 +1122,10 @@ proc doAction(options: Options) =
     createDir(options.getNimbleDir())
   if not existsDir(options.getPkgsDir):
     createDir(options.getPkgsDir)
+
+  if options.action.typ in {actionTasks, actionRun, actionBuild, actionCompile}:
+    # Implicitly disable package validation for these commands.
+    options.disableValidation = true
 
   case options.action.typ
   of actionRefresh:
@@ -1177,7 +1181,8 @@ proc doAction(options: Options) =
     var execResult: ExecutionResult[bool]
     if execCustom(options, execResult, failFast=not isPreDefined):
       if execResult.hasTaskRequestedCommand():
-        doAction(execResult.getOptionsForCommand(options))
+        var options = execResult.getOptionsForCommand(options)
+        doAction(options)
     else:
       # If there is no task defined for the `test` task, we run the pre-defined
       # fallback logic.
