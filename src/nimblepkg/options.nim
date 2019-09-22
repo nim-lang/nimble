@@ -520,7 +520,7 @@ proc getCompilationBinary*(options: Options): Option[string] =
     if file.len > 0:
       return some(file)
   of actionRun:
-    let runFile = options.action.runFile.changeFileExt("")
+    let runFile = options.action.runFile.changeFileExt(ExeExt)
     if runFile.len > 0:
       return some(runFile)
   else:
