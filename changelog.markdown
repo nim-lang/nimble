@@ -3,7 +3,33 @@
 
 # Nimble changelog
 
+## 0.11.0 - 22/09/2019
+
+This is a major release containing nearly 60 commits. Most changes are
+bug fixes, but this release also includes a couple new features:
+
+- Binaries can now be built and run using the new ``run`` command.
+- The ``NimblePkgVersion`` is now defined so you can easily get the package
+  version in your source code
+  ([example](https://github.com/nim-lang/nimble/blob/4a2aaa07d/tests/nimbleVersionDefine/src/nimbleVersionDefine.nim)).
+
+Some other highlights:
+
+- Temporary files are now kept when the ``--debug`` flag is used.
+- Fixed dependency resolution issues with "#head" packages (#432 and #672).
+- The `install` command can now take Nim compiler flags via the new
+  ``--passNim`` flag.
+- Command line arguments are now passed properly to tasks (#633).
+- The ``test`` command now respects the specified backend (#631).
+- The ``dump`` command will no longer prompt and now has an implicit ``-y``.
+- Fixed bugs with the new nimscript executor (#665).
 - Fixed multiple downloads and installs of the same package (#678).
+- Nimble init no longer overwrites existing files (#581).
+- Fixed incorrect submodule version being pulled when in a non-master branch (#675).
+
+----
+
+Full changelog: https://github.com/nim-lang/nimble/compare/v0.10.2...v0.11.0
 
 ## 0.10.2 - 03/06/2019
 
