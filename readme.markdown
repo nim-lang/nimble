@@ -15,6 +15,7 @@ Interested in learning **how to create a package**? Skip directly to that sectio
   - [nimble install](#nimble-install)
   - [nimble uninstall](#nimble-uninstall)
   - [nimble build](#nimble-build)
+  - [nimble run](#nimble-run)
   - [nimble c](#nimble-c)
   - [nimble list](#nimble-list)
   - [nimble search](#nimble-search)
@@ -74,10 +75,15 @@ not need to install Nimble manually**.
 But in case you still want to install Nimble manually, you can follow the
 following instructions.
 
-There are two ways to install Nimble manually. The first is using the
-``koch`` tool included in the Nim distribution and
+There are two ways to install Nimble manually. Using ``koch`` and using Nimble
+itself.
+
+### Using koch
+
+The ``koch`` tool is included in the Nim distribution and
 [repository](https://github.com/nim-lang/Nim/blob/devel/koch.nim).
-Simply execute the following command to compile and install Nimble.
+Simply navigate to the location of your Nim installation and execute the
+following command to compile and install Nimble.
 
 ```
 ./koch nimble
@@ -86,6 +92,19 @@ Simply execute the following command to compile and install Nimble.
 This will clone the Nimble repository, compile Nimble and copy it into
 Nim's bin directory.
 
+### Using Nimble
+
+In most cases you will already have Nimble installed, you can install a newer
+version of Nimble by simply running the following command:
+
+```
+nimble install nimble
+```
+
+This will download the latest release of Nimble and install it on your system.
+
+Note that you must have `~/.nimble/bin` in your PATH for this to work, if you're
+using choosenim then you likely already have this set up correctly.
 
 ## Nimble usage
 
@@ -218,6 +237,13 @@ their ``.nimble`` package. This command will build the package with default
 flags, i.e. a debug build which includes stack traces but no GDB debug
 information. The ``install`` command will build the package in release mode
 instead.
+
+### nimble run
+
+The ``run`` command can be used to build and run any binary specified in your
+package's ``bin`` list. You can pass any compilation flags you wish by specifying
+them before the ``run`` command, and you can specify arguments for your binary
+by specifying them after the ``run`` command.
 
 ### nimble c
 
