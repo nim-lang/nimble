@@ -79,6 +79,18 @@ proc hasLineStartingWith(lines: seq[string], prefix: string): bool =
       return true
   return false
 
+test "issues #598":
+  check execNimble(
+    "install", "-y",
+    "https://github.com/nimble-test/packageb@#9f3bd9f7ad7254d156e"
+  ).exitCode == QuitSuccess
+
+  cd "issue598":
+    let (output, exitCode) = execNimble("install", "-n")
+
+
+
+
 test "caching of nims and ini detects changes":
   cd "caching":
     var (output, exitCode) = execNimble("dump")
