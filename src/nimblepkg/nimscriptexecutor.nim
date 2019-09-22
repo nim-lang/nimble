@@ -6,12 +6,12 @@ import os, strutils, sets
 import packageparser, common, packageinfo, options, nimscriptwrapper, cli,
        version
 
-proc execHook*(options: Options, before: bool): bool =
+proc execHook*(options: Options, hookAction: ActionType, before: bool): bool =
   ## Returns whether to continue.
   result = true
 
   # For certain commands hooks should not be evaluated.
-  if options.action.typ in noHookActions:
+  if hookAction in noHookActions:
     return
 
   var nimbleFile = ""
@@ -21,8 +21,8 @@ proc execHook*(options: Options, before: bool): bool =
   # PackageInfos are cached so we can read them as many times as we want.
   let pkgInfo = getPkgInfoFromFile(nimbleFile, options)
   let actionName =
-    if options.action.typ == actionCustom: options.action.command
-    else: ($options.action.typ)[6 .. ^1]
+    if hookAction == actionCustom: options.action.command
+    else: ($hookAction)[6 .. ^1]
   let hookExists =
     if before: actionName.normalize in pkgInfo.preHooks
     else: actionName.normalize in pkgInfo.postHooks
@@ -58,7 +58,7 @@ proc execCustom*(options: Options,
             HighPriority)
     return
 
-  if not execHook(options, false):
+  if not execHook(options, actionCustom, false):
     return
 
   return true
