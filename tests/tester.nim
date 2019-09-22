@@ -79,11 +79,6 @@ proc hasLineStartingWith(lines: seq[string], prefix: string): bool =
       return true
   return false
 
-test "issue 432":
-  cd "issue432":
-    check execNimble("install", "-y", "--depsOnly").exitCode == QuitSuccess
-    check execNimble("install", "-y", "--depsOnly").exitCode == QuitSuccess
-
 test "issue 708":
   cd "issue708":
     # TODO: We need a way to filter out compiler messages from the messages
@@ -959,6 +954,11 @@ test "NimbleVersion is defined":
     var (output2, exitCode2) = execNimble("run", "nimbleVersionDefine")
     check output2.contains("0.1.0")
     check exitCode2 == QuitSuccess
+
+test "issue 432":
+  cd "issue432":
+    check execNimble("install", "-y", "--depsOnly").exitCode == QuitSuccess
+    check execNimble("install", "-y", "--depsOnly").exitCode == QuitSuccess
 
 test "compilation without warnings":
   const buildDir = "./buildDir/"
