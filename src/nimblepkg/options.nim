@@ -85,8 +85,12 @@ Commands:
                                   toplevel directory of the Nimble package.
   uninstall    [pkgname, ...]     Uninstalls a list of packages.
                [-i, --inclDeps]   Uninstall package and dependent package(s).
-  build        [opts, ...]        Builds a package.
+  build        [opts, ...] [bin]  Builds a package.
   run          [opts, ...] bin    Builds and runs a package.
+                                  A binary name needs
+                                  to be specified after any compilation options,
+                                  any flags after the binary name are passed to
+                                  the binary when it is run.
   c, cc, js    [opts, ...] f.nim  Builds a file inside a package. Passes options
                                   to the Nim compiler.
   test                            Compiles and executes tests

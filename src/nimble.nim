@@ -233,6 +233,7 @@ proc buildFromDir(
   var args = args
   let nimblePkgVersion = "-d:NimblePkgVersion=" & pkgInfo.version
   for path in paths: args.add("--path:\"" & path & "\" ")
+  var binariesBuilt = 0
   for bin in pkgInfo.bin:
     # Check if this is the only binary that we want to build.
     if binToBuild.isSome() and binToBuild.get() != bin:
@@ -252,6 +253,7 @@ proc buildFromDir(
       doCmd("\"" & getNimBin() & "\" $# --noNimblePath $# $# $# \"$#\"" %
             [pkgInfo.backend, nimblePkgVersion, join(args, " "), outputOpt,
              realDir / bin.changeFileExt("nim")])
+      binariesBuilt.inc()
     except NimbleError:
       let currentExc = (ref NimbleError)(getCurrentException())
       let exc = newException(BuildFailed, "Build failed for package: " &
@@ -260,6 +262,11 @@ proc buildFromDir(
       exc.msg.add("\nDetails:\n" & error)
       exc.hint = hint
       raise exc
+
+  if binariesBuilt == 0:
+    raiseNimbleError(
+      "No binaries built, did you specify a valid binary name?"
+    )
 
   # Handle post-`build` hook.
   cd realDir: # Make sure `execHook` executes the correct .nimble file.
@@ -1084,7 +1091,7 @@ proc check(options: Options) =
 
 proc run(options: Options) =
   # Verify parameters.
-  let binary = options.getCompilationBinary().get()
+  let binary = options.getCompilationBinary().get("")
   if binary.len == 0:
     raiseNimbleError("Please specify a binary to run")
 
