@@ -390,9 +390,18 @@ proc parseMisc(options: var Options) =
 
 proc handleUnknownFlags(options: var Options) =
   if options.action.typ == actionRun:
+    # ActionRun uses flags that come before the command as compilation flags
+    # and flags that come after as run flags.
     options.action.compileFlags =
       map(options.unknownFlags, x => getFlagString(x[0], x[1], x[2]))
     options.unknownFlags = @[]
+  else:
+    # For everything else, handle the flags that came before the command
+    # normally.
+    let unknownFlags = options.unknownFlags
+    options.unknownFlags = @[]
+    for flag in unknownFlags:
+      parseFlag(flag[1], flag[2], options, flag[0])
 
   # Any unhandled flags?
   if options.unknownFlags.len > 0:

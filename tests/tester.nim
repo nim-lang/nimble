@@ -79,6 +79,13 @@ proc hasLineStartingWith(lines: seq[string], prefix: string): bool =
       return true
   return false
 
+test "depsOnly + flag order test":
+  var (output, exitCode) = execNimble(
+    "--depsOnly", "install", "-y", "https://github.com/nimble-test/packagebin2"
+  )
+  check(not output.contains("Success: packagebin2 installed successfully."))
+  check exitCode == QuitSuccess
+
 test "caching of nims and ini detects changes":
   cd "caching":
     var (output, exitCode) = execNimble("dump")
