@@ -30,6 +30,12 @@ proc needsLiveOutput(actionName: string, options: Options, isHook: bool): bool =
   let isCustomTask = isCustomTask(actionName, options)
   return isCustomTask or isHook or actionName == ""
 
+proc writeExecutionOutput(data: string) =
+  # TODO: in the future we will likely want this to be live, users will
+  # undoubtedly be doing loops and other crazy things in their top-level
+  # Nimble files.
+  display("Info", data)
+
 proc execNimscript(
   nimsFile, projectDir, actionName: string, options: Options, isHook: bool
 ): tuple[output: string, exitCode: int, stdout: string] =
@@ -135,6 +141,7 @@ proc getIniFile*(scriptName: string, options: Options): string =
 
     if exitCode == 0 and output.len != 0:
       result.writeFile(output)
+      stdout.writeExecutionOutput()
     else:
       raise newException(NimbleError, stdout & "\nprintPkgInfo() failed")
 
@@ -174,6 +181,8 @@ proc execScript(
       for val in vals.items():
         result.flags[flag].add val.getStr()
   result.retVal = j{"retVal"}.getBool()
+
+  stdout.writeExecutionOutput()
 
 proc execTask*(scriptName, taskName: string,
     options: Options): ExecutionResult[bool] =

@@ -79,9 +79,19 @@ proc hasLineStartingWith(lines: seq[string], prefix: string): bool =
       return true
   return false
 
+test "issue 708":
+  cd "issue708":
+    # TODO: We need a way to filter out compiler messages from the messages
+    # written by our nimble scripts.
+    var (output, exitCode) = execNimble("install", "-y", "--verbose")
+    check exitCode == QuitSuccess
+    let lines = output.strip.processOutput()
+    check(inLines(lines, "hello"))
+    check(inLines(lines, "hello2"))
+
 test "issue 564":
   cd "issue564":
-    var (output, exitCode) = execNimble("build")
+    var (_, exitCode) = execNimble("build")
     check exitCode == QuitSuccess
 
 test "depsOnly + flag order test":
