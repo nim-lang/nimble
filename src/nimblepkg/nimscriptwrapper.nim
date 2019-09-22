@@ -39,9 +39,15 @@ proc execNimscript(nimsFile, projectDir, actionName: string, options: Options):
     if not isScriptResultCopied and options.shouldRemoveTmp(nimsFileCopied):
         nimsFileCopied.removeFile()
 
-  var
-    cmd = ("nim e --hints:off --verbosity:0 -p:" & (getTempDir() / "nimblecache").quoteShell &
-      " " & nimsFileCopied.quoteShell & " " & outFile.quoteShell & " " & actionName).strip()
+  var cmd = (
+    "nim e $# -p:$# $# $# $#" % [
+      "--hints:off --warning[UnusedImport]:off --verbosity:0",
+      (getTempDir() / "nimblecache").quoteShell,
+      nimsFileCopied.quoteShell,
+      outFile.quoteShell,
+      actionName
+    ]
+  ).strip()
 
   if options.action.typ == actionCustom and actionName != "printPkgInfo":
     for i in options.action.arguments:
