@@ -286,11 +286,20 @@ suite "nimscript":
     cd "nimscript":
       let (output, exitCode) = execNimble(["install", "-y"])
       check exitCode == QuitSuccess
+      check output.contains("Before build")
+      check output.contains("After build")
       let lines = output.strip.processOutput()
       check lines[0].startsWith("Before PkgDir:")
       check lines[0].endsWith("tests" / "nimscript")
       check lines[^1].startsWith("After PkgDir:")
       check lines[^1].endsWith("tests" / "nimbleDir" / "pkgs" / "nimscript-0.1.0")
+
+  test "before/after on build":
+    cd "nimscript":
+      let (output, exitCode) = execNimble(["build"])
+      check exitCode == QuitSuccess
+      check output.contains("Before build")
+      check output.contains("After build")
 
   test "can execute nimscript tasks":
     cd "nimscript":

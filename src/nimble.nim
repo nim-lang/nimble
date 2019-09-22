@@ -216,15 +216,21 @@ proc processDeps(pkginfo: PackageInfo, options: Options): seq[PackageInfo] =
 
 proc buildFromDir(
   pkgInfo: PackageInfo, paths, args: seq[string],
-  binToBuild: Option[string] = none[string]()
+  options: Options
 ) =
   ## Builds a package as specified by ``pkgInfo``.
+  let binToBuild = options.getCompilationBinary()
+  # Handle pre-`build` hook.
+  let realDir = pkgInfo.getRealDir()
+  cd realDir: # Make sure `execHook` executes the correct .nimble file.
+    if not execHook(options, actionBuild, true):
+      raise newException(NimbleError, "Pre-hook prevented further execution.")
+
   if pkgInfo.bin.len == 0:
     raise newException(NimbleError,
         "Nothing to build. Did you specify a module to build using the" &
         " `bin` key in your .nimble file?")
   var args = args
-  let realDir = pkgInfo.getRealDir()
   let nimblePkgVersion = "-d:NimblePkgVersion=" & pkgInfo.version
   for path in paths: args.add("--path:\"" & path & "\" ")
   for bin in pkgInfo.bin:
@@ -254,6 +260,10 @@ proc buildFromDir(
       exc.msg.add("\nDetails:\n" & error)
       exc.hint = hint
       raise exc
+
+  # Handle post-`build` hook.
+  cd realDir: # Make sure `execHook` executes the correct .nimble file.
+    discard execHook(options, actionBuild, false)
 
 proc removePkgDir(dir: string, options: Options) =
   ## Removes files belonging to the package in ``dir``.
@@ -332,7 +342,7 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
   # Handle pre-`install` hook.
   if not options.depsOnly:
     cd dir: # Make sure `execHook` executes the correct .nimble file.
-      if not execHook(options, true):
+      if not execHook(options, actionInstall, true):
         raise newException(NimbleError, "Pre-hook prevented further execution.")
 
   var pkgInfo = getPkgInfo(dir, options)
@@ -363,7 +373,7 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
                   options.action.passNimFlags
                 else:
                   @[]
-    buildFromDir(pkgInfo, paths, flags & "-d:release")
+    buildFromDir(pkgInfo, paths, flags & "-d:release", options)
 
   let pkgDestDir = pkgInfo.getPkgDest(options)
   if existsDir(pkgDestDir) and existsFile(pkgDestDir / "nimblemeta.json"):
@@ -446,7 +456,7 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
   # executes the hook defined in the CWD, so we set it to where the package
   # has been installed.
   cd dest.splitFile.dir:
-    discard execHook(options, false)
+    discard execHook(options, actionInstall, false)
 
 proc getDownloadInfo*(pv: PkgTuple, options: Options,
                       doPrompt: bool): (DownloadMethod, string,
@@ -514,7 +524,7 @@ proc build(options: Options) =
   let deps = processDeps(pkginfo, options)
   let paths = deps.map(dep => dep.getRealDir())
   var args = options.getCompilationFlags()
-  buildFromDir(pkgInfo, paths, args, options.getCompilationBinary())
+  buildFromDir(pkgInfo, paths, args, options)
 
 proc execBackend(options: Options) =
   let
@@ -917,7 +927,7 @@ proc developFromDir(dir: string, options: Options) =
     raiseNimbleError("Cannot develop dependencies only.")
 
   cd dir: # Make sure `execHook` executes the correct .nimble file.
-    if not execHook(options, true):
+    if not execHook(options, actionDevelop, true):
       raise newException(NimbleError, "Pre-hook prevented further execution.")
 
   var pkgInfo = getPkgInfo(dir, options)
@@ -970,7 +980,7 @@ proc developFromDir(dir: string, options: Options) =
 
   # Execute the post-develop hook.
   cd dir:
-    discard execHook(options, false)
+    discard execHook(options, actionDevelop, false)
 
 proc develop(options: Options) =
   if options.action.packages == @[]:
@@ -1150,7 +1160,7 @@ proc doAction(options: Options) =
   of actionNil:
     assert false
   of actionCustom:
-    if not execHook(options, true):
+    if not execHook(options, actionCustom, true):
       display("Warning", "Pre-hook prevented further execution.", Warning,
               HighPriority)
       return
@@ -1166,7 +1176,7 @@ proc doAction(options: Options) =
       if isPreDefined:
         test(options)
         # Run the post hook for `test` in case it exists.
-        discard execHook(options, false)
+        discard execHook(options, actionCustom, false)
 
 when isMainModule:
   var error = ""

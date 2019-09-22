@@ -54,3 +54,9 @@ before install:
 
 after install:
   echo("After PkgDir: ", getPkgDir())
+
+before build:
+  echo("Before build")
+
+after build:
+  echo("After build")
