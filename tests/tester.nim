@@ -480,17 +480,17 @@ test "issue #349":
   ]
 
   proc checkName(name: string) =
-    when defined(windows):
-      if name.toLowerAscii() in @["con", "nul"]:
-        return
     let (outp, code) = execNimble("init", "-y", name)
     let msg = outp.strip.processOutput()
     check code == QuitFailure
     check inLines(msg,
       "\"$1\" is an invalid package name: reserved name" % name)
-    removeFile(name.changeFileExt("nimble"))
-    removeDir("src")
-    removeDir("tests")
+    try:
+      removeFile(name.changeFileExt("nimble"))
+      removeDir("src")
+      removeDir("tests")
+    except OSError:
+      discard
 
   for reserved in reservedNames:
     checkName(reserved.toUpperAscii())
@@ -922,6 +922,9 @@ test "Passing command line arguments to a task (#633)":
     check output.contains("Got it")
 
 suite "nimble run":
+  let
+    dotExeExt = if ExeExt.len != 0: "." & ExeExt else: ""
+
   test "Invalid binary":
     cd "run":
       var (output, exitCode) = execNimble(
@@ -930,7 +933,7 @@ suite "nimble run":
         "blahblah", # The command to run
       )
       check exitCode == QuitFailure
-      check output.contains("Binary 'blahblah' is not defined in 'run' package.")
+      check output.contains("Binary 'blahblah$1' is not defined in 'run' package." % dotExeExt)
 
   test "Parameters passed to executable":
     cd "run":
@@ -942,7 +945,7 @@ suite "nimble run":
         "check" # Second argument passed to the executed command.
       )
       check exitCode == QuitSuccess
-      check output.contains("tests/run/run --debug check")
+      check output.contains("tests$1run$1run$2 --debug check" % [$DirSep, dotExeExt])
       check output.contains("""Testing `nimble run`: @["--debug", "check"]""")
 
 test "NimbleVersion is defined":
