@@ -48,10 +48,11 @@ proc doClone(meth: DownloadMethod, url, downloadDir: string, branch = "",
   case meth
   of DownloadMethod.git:
     let
-      depthArg = if onlyTip: "--depth 1 " else: ""
+      #depthArg = if onlyTip: "--depth 1 " else: ""
+      depthArg = ""
       branchArg = if branch == "": "" else: "-b " & branch & " "
-    doCmd("git clone --recursive " & depthArg & branchArg & url &
-          " " & downloadDir)
+    doCmd("git clone --recursive " & depthArg & branchArg & split(url, "#")[0] &
+          " " & downloadDir & " && " & "cd " & downloadDir & " && " & "git checkout " & split(url, "#")[1])
   of DownloadMethod.hg:
     let
       tipArg = if onlyTip: "-r tip " else: ""
@@ -88,7 +89,7 @@ proc getTagsListRemote*(url: string, meth: DownloadMethod): seq[string] =
   result = @[]
   case meth
   of DownloadMethod.git:
-    var (output, exitCode) = doCmdEx("git ls-remote --tags " & url)
+    var (output, exitCode) = doCmdEx("git ls-remote --tags " & split(url, "#")[0])
     if exitCode != QuitSuccess:
       raise newException(OSError, "Unable to query remote tags for " & url &
           ". Git returned: " & output)
@@ -136,7 +137,7 @@ proc getHeadName*(meth: DownloadMethod): Version =
 
 proc checkUrlType*(url: string): DownloadMethod =
   ## Determines the download method based on the URL.
-  if doCmdEx("git ls-remote " & url).exitCode == QuitSuccess:
+  if doCmdEx("git ls-remote " & split(url, "#")[0]).exitCode == QuitSuccess:
     return DownloadMethod.git
   elif doCmdEx("hg identify " & url).exitCode == QuitSuccess:
     return DownloadMethod.hg
