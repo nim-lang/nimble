@@ -89,6 +89,14 @@ test "issue 708":
     check(inLines(lines, "hello"))
     check(inLines(lines, "hello2"))
 
+test "issue 715":
+  cd "issue715":
+    var (output, exitCode) = execNimble("install", "-y", "--verbose")
+    check exitCode == QuitSuccess
+    let lines = output.strip.processOutput()
+    check(inLines(lines, "hello"))
+    check(inLines(lines, "hello2"))
+
 test "issue 564":
   cd "issue564":
     var (_, exitCode) = execNimble("build")
