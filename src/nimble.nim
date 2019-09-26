@@ -251,9 +251,9 @@ proc buildFromDir(
       createDir(outputDir)
 
     try:
-      doCmd("\"" & getNimBin() & "\" $# --noNimblePath $# $# $# \"$#\"" %
+      doCmd("\"" & getNimBin() & "\" --hints=off $# --noNimblePath $# $# $# \"$#\"" %
             [pkgInfo.backend, nimblePkgVersion, join(args, " "), outputOpt,
-             realDir / bin.changeFileExt("nim")])
+             realDir / bin.changeFileExt("nim")], true)
       binariesBuilt.inc()
     except NimbleError:
       let currentExc = (ref NimbleError)(getCurrentException())
