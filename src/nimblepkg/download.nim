@@ -54,7 +54,7 @@ proc doClone(meth: DownloadMethod, url, downloadDir: string, branch = "",
       splitUrl = split(url, "#")
     doCmd("git clone --recursive " & depthArg & branchArg & splitUrl[0] &
           " " & downloadDir)
-    if len(splitUrl) == 0:
+    if len(splitUrl) == 2:
       doCmd("cd " & downloadDir & " && " & "git checkout " & split(url, "#")[1])
   of DownloadMethod.hg:
     let
