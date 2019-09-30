@@ -922,9 +922,6 @@ test "Passing command line arguments to a task (#633)":
     check output.contains("Got it")
 
 suite "nimble run":
-  let
-    dotExeExt = if ExeExt.len != 0: "." & ExeExt else: ""
-
   test "Invalid binary":
     cd "run":
       var (output, exitCode) = execNimble(
@@ -933,7 +930,8 @@ suite "nimble run":
         "blahblah", # The command to run
       )
       check exitCode == QuitFailure
-      check output.contains("Binary 'blahblah$1' is not defined in 'run' package." % dotExeExt)
+      check output.contains("Binary '$1' is not defined in 'run' package." %
+                            "blahblah".changeFileExt(ExeExt))
 
   test "Parameters passed to executable":
     cd "run":
@@ -945,7 +943,8 @@ suite "nimble run":
         "check" # Second argument passed to the executed command.
       )
       check exitCode == QuitSuccess
-      check output.contains("tests$1run$1run$2 --debug check" % [$DirSep, dotExeExt])
+      check output.contains("tests$1run$1$2 --debug check" %
+                            [$DirSep, "run".changeFileExt(ExeExt)])
       check output.contains("""Testing `nimble run`: @["--debug", "check"]""")
 
 test "NimbleVersion is defined":
