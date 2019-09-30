@@ -8,16 +8,14 @@ language: c
 env:
   - BRANCH=0.19.6
   - BRANCH=0.20.2
+  - BRANCH=1.0.0
   # This is the latest working Nim version against which Nimble is being tested
-  # Update in cache:directories as well
-  - BRANCH=#2565d3d102efd21ba02ed1f3b96d892fe2637d2b
+  - BRANCH=#16c39f9b2edc963655889cfd33e165bfae91c96d
 
 cache:
   directories:
     - "$HOME/.nimble/bin"
-    - "$HOME/.choosenim/toolchains/nim-0.19.6"
-    - "$HOME/.choosenim/toolchains/nim-0.20.2"
-    - "$HOME/.choosenim/toolchains/nim-#2565d3d102efd21ba02ed1f3b96d892fe2637d2b"
+    - "$HOME/.choosenim"
 
 install:
   - export CHOOSENIM_NO_ANALYTICS=1
