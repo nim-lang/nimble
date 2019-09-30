@@ -43,8 +43,6 @@ install:
         curl https://nim-lang.org/choosenim/init.sh -sSf > init.sh
         sh init.sh -y
       fi
-    else
-      choosenim $BRANCH -y
     fi
 
 script:
