@@ -33,9 +33,6 @@ install:
         curl -L -s "https://bintray.com/genotrance/binaries/download_file?file_path=ssleay32.dll" -o ssleay32.dll
         ./choosenim.exe $BRANCH -y
         cp ./choosenim.exe $HOME/.nimble/bin/.
-        # 0.19.6 and 0.20.2 have nimble with issue #665
-        # Updating nimble to avoid failure with tests for #280 and #524
-        cd `./choosenim.exe show | grep Path | cut -f 8 -d " "` && ./koch.exe --latest nimble && cd -
       else
         export CHOOSENIM_CHOOSE_VERSION=$BRANCH
         curl https://nim-lang.org/choosenim/init.sh -sSf > init.sh
