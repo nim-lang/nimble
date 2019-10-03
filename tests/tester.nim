@@ -13,7 +13,7 @@ const path = "../src/nimble"
 const stringNotFound = -1
 
 # Set env var to propagate nimble binary path
-putEnv("NIMBLE_TEST", nimblePath)
+putEnv("NIMBLE_TEST_BINARY_PATH", nimblePath)
 
 # Clear nimble dir.
 removeDir(installDir)
