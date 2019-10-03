@@ -1063,7 +1063,11 @@ proc test(options: Options) =
         existsAfter = existsFile(binFileName)
         canRemove = not existsBefore and existsAfter
       if canRemove:
-        removeFile(binFileName)
+        try:
+          removeFile(binFileName)
+        except OSError as exc:
+          display("Warning:", "Failed to delete " & binFileName & ": " &
+                  exc.msg, Warning, MediumPriority)
 
   if failures == 0:
     display("Success:", "All tests passed", Success, HighPriority)

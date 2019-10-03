@@ -12,6 +12,9 @@ var installDir = rootDir / "tests" / "nimbleDir"
 const path = "../src/nimble"
 const stringNotFound = -1
 
+# Set env var to propagate nimble binary path
+putEnv("NIMBLE_TEST_BINARY_PATH", nimblePath)
+
 # Clear nimble dir.
 removeDir(installDir)
 createDir(installDir)
@@ -480,17 +483,17 @@ test "issue #349":
   ]
 
   proc checkName(name: string) =
-    when defined(windows):
-      if name.toLowerAscii() in @["con", "nul"]:
-        return
     let (outp, code) = execNimble("init", "-y", name)
     let msg = outp.strip.processOutput()
     check code == QuitFailure
     check inLines(msg,
       "\"$1\" is an invalid package name: reserved name" % name)
-    removeFile(name.changeFileExt("nimble"))
-    removeDir("src")
-    removeDir("tests")
+    try:
+      removeFile(name.changeFileExt("nimble"))
+      removeDir("src")
+      removeDir("tests")
+    except OSError:
+      discard
 
   for reserved in reservedNames:
     checkName(reserved.toUpperAscii())
@@ -930,7 +933,8 @@ suite "nimble run":
         "blahblah", # The command to run
       )
       check exitCode == QuitFailure
-      check output.contains("Binary 'blahblah' is not defined in 'run' package.")
+      check output.contains("Binary '$1' is not defined in 'run' package." %
+                            "blahblah".changeFileExt(ExeExt))
 
   test "Parameters passed to executable":
     cd "run":
@@ -942,7 +946,8 @@ suite "nimble run":
         "check" # Second argument passed to the executed command.
       )
       check exitCode == QuitSuccess
-      check output.contains("tests/run/run --debug check")
+      check output.contains("tests$1run$1$2 --debug check" %
+                            [$DirSep, "run".changeFileExt(ExeExt)])
       check output.contains("""Testing `nimble run`: @["--debug", "check"]""")
 
 test "NimbleVersion is defined":
