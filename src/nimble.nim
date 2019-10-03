@@ -1063,14 +1063,11 @@ proc test(options: Options) =
         existsAfter = existsFile(binFileName)
         canRemove = not existsBefore and existsAfter
       if canRemove:
-        var retry = 2
-        while retry > 0:
-          try:
-            removeFile(binFileName)
-            retry = 0
-          except OSError:
-            retry -= 1
-            sleep(1)
+        try:
+          removeFile(binFileName)
+        except OSError as exc:
+          display("Warning:", "Failed to delete " & binFileName & ": " &
+                  exc.msg, Warning, MediumPriority)
 
   if failures == 0:
     display("Success:", "All tests passed", Success, HighPriority)
