@@ -94,11 +94,16 @@ proc createFork(a: Auth) =
     raise newException(NimbleError, "Unable to create fork. Access token" &
                        " might not have enough permissions.")
 
-proc createPullRequest(a: Auth, packageName, branch: string): string =
+proc createPullRequest(a: Auth, packageName, branch: string, text = ""): string =
   display("Info", "Creating PR", priority = HighPriority)
+  let js = %* {
+    "title": &"Add package {packageName}",
+    "head": &"{a.user}:{branch}",
+    "base": "master",
+    "body": text,
+  }
   var body = a.http.postContent(ReposUrl & "nim-lang/packages/pulls",
-      body="""{"title": "Add package $1", "head": "$2:$3",
-               "base": "master"}""" % [packageName, a.user, branch])
+                                body = $js)
   var pr = parseJson(body)
   return pr{"html_url"}.getStr()
 
@@ -152,6 +157,13 @@ proc editJson(p: PackageInfo; url, tags, downloadMethod: string) =
   })
   writeFile("packages.json", contents.pretty.cleanupWhitespace)
 
+proc shellEscape(text: string): string =
+  result = text.escape(prefix = "'", suffix = "'")
+  result = result.multiReplace {
+    "\\\"": "\"",  # rewrite \" surrounding package name to "
+    "\\x0A": "\n"  # rewrite newlines from hex to literals
+  }
+
 proc usefulCommitMessage(p: PackageInfo; url, tags: string): string =
   result = &"""
 Added package "{p.name}"
@@ -162,11 +174,7 @@ Added package "{p.name}"
   Description:
     {p.description}
 """
-  result = result.strip.escape(prefix = "'", suffix = "'")
-  result = result.multiReplace {
-    "\\\"": "\"",  # rewrite \" surrounding package name to "
-    "\\x0A": "\n"  # rewrite newlines from hex to literals
-  }
+  result = result.strip
 
 proc publish*(p: PackageInfo, o: Options) =
   ## Publishes the package p.
@@ -235,11 +243,12 @@ proc publish*(p: PackageInfo, o: Options) =
   )
 
   cd pkgsDir:
+    let useful = p.usefulCommitMessage(url, tags)
     editJson(p, url, tags, downloadMethod)
     let branchName = "add-" & p.name & getTime().utc.format("HHmm")
     doCmd("git checkout -B " & branchName)
-    doCmd("git commit packages.json -m " & p.usefulCommitMessage(url, tags))
+    doCmd("git commit packages.json -m " & shellEscape(useful))
     display("Pushing", "to remote of fork.", priority = HighPriority)
     doCmd("git push https://" & auth.token & "@github.com/" & auth.user & "/packages " & branchName)
-    let prUrl = createPullRequest(auth, p.name, branchName)
+    let prUrl = createPullRequest(auth, p.name, branchName, text = useful)
   display("Success:", "Pull request successful, check at " & prUrl , Success, HighPriority)
