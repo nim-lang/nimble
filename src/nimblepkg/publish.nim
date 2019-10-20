@@ -6,7 +6,7 @@
 
 import system except TResult
 import httpclient, strutils, json, os, browsers, times, uri
-import version, tools, common, cli, config, options
+import version, tools, common, cli, config, options, strformat
 
 type
   Auth = object
@@ -152,6 +152,22 @@ proc editJson(p: PackageInfo; url, tags, downloadMethod: string) =
   })
   writeFile("packages.json", contents.pretty.cleanupWhitespace)
 
+proc usefulCommitMessage(p: PackageInfo; url, tags: string): string =
+  result = &"""
+Added package "{p.name}"
+
+         Tags: {tags}
+          Url: {url}
+      License: {p.license}
+  Description:
+    {p.description}
+"""
+  result = result.strip.escape(prefix = "'", suffix = "'")
+  result = result.multiReplace {
+    "\\\"": "\"",  # rewrite \" surrounding package name to "
+    "\\x0A": "\n"  # rewrite newlines from hex to literals
+  }
+
 proc publish*(p: PackageInfo, o: Options) =
   ## Publishes the package p.
   let auth = getGithubAuth(o)
@@ -222,7 +238,7 @@ proc publish*(p: PackageInfo, o: Options) =
     editJson(p, url, tags, downloadMethod)
     let branchName = "add-" & p.name & getTime().utc.format("HHmm")
     doCmd("git checkout -B " & branchName)
-    doCmd("git commit packages.json -m \"Added package " & p.name & "\"")
+    doCmd("git commit packages.json -m " & p.usefulCommitMessage(url, tags))
     display("Pushing", "to remote of fork.", priority = HighPriority)
     doCmd("git push https://" & auth.token & "@github.com/" & auth.user & "/packages " & branchName)
     let prUrl = createPullRequest(auth, p.name, branchName)
