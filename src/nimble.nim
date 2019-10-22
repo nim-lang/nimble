@@ -18,6 +18,8 @@ import nimblepkg/packageinfo, nimblepkg/version, nimblepkg/tools,
 
 import nimblepkg/nimscriptwrapper
 
+import gitapi
+
 proc refresh(options: Options) =
   ## Downloads the package list from the specified URL.
   ##
@@ -857,6 +859,19 @@ js   - Compile using JavaScript backend.""",
     ),
     pkgRoot
   )
+
+  # Add git vcs to the new project
+  let repo = createGitRepo(path=pkgRoot)
+  discard repo.gitCommand("init")
+
+  var fd = open(joinPath(pkgRoot, ".gitignore"), fmWrite)
+  fd.write(pkgName & "\n" & "*.out\n")
+  fd.close()
+
+  # Add a default xxx.nim.cfg file
+  fd = open(joinPath(pkgRoot, pkgSrcDir, pkgName & ".nim.cfg"), fmWrite)
+  fd.write("--d:release\n")
+  fd.close()
 
   display("Success:", "Package $# created successfully" % [pkgName], Success,
     HighPriority)
