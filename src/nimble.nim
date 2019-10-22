@@ -3,7 +3,7 @@
 
 import system except TResult
 
-import os, tables, strtabs, json, algorithm, sets, uri, sugar, sequtils
+import os, tables, strtabs, json, algorithm, sets, uri, sugar, sequtils, osproc
 import std/options as std_opt
 
 import strutils except toLower
@@ -18,7 +18,6 @@ import nimblepkg/packageinfo, nimblepkg/version, nimblepkg/tools,
 
 import nimblepkg/nimscriptwrapper
 
-import gitapi
 
 proc refresh(options: Options) =
   ## Downloads the package list from the specified URL.
@@ -861,17 +860,18 @@ js   - Compile using JavaScript backend.""",
   )
 
   # Add git vcs to the new project
-  let repo = createGitRepo(path=pkgRoot)
-  discard repo.gitCommand("init")
+  if findExe("git", true).len != 0:
+    let ret: tuple[output: string, exitCode: int] = execCmdEx("cd " & pkgRoot & " && git init")
+    if ret.exitCode != 0: quit ret.output
 
-  var fd = open(joinPath(pkgRoot, ".gitignore"), fmWrite)
-  fd.write(pkgName & "\n" & "*.out\n")
-  fd.close()
+    var fd1 = open(joinPath(pkgRoot, ".gitignore"), fmWrite)
+    fd1.write(pkgName & "\n")
+    fd1.close()
 
   # Add a default xxx.nim.cfg file
-  fd = open(joinPath(pkgRoot, pkgSrcDir, pkgName & ".nim.cfg"), fmWrite)
-  fd.write("--d:release\n")
-  fd.close()
+  var fd2 = open(joinPath(pkgRoot, pkgSrcDir, pkgName & ".nim.cfg"), fmWrite)
+  fd2.write("--d:release\n")
+  fd2.close()
 
   display("Success:", "Package $# created successfully" % [pkgName], Success,
     HighPriority)
