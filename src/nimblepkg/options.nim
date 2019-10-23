@@ -359,6 +359,7 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
     if not isGlobalFlag:
       result.action.compileOptions.add(getFlagString(kind, flag, val))
   of actionRun:
+    result.showHelp = false
     result.action.runFlags.add(getFlagString(kind, flag, val))
   of actionCustom:
     if result.action.command.normalize == "test":
