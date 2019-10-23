@@ -9,6 +9,7 @@ import std/options as std_opt
 import strutils except toLower
 from unicode import toLower
 from sequtils import toSeq
+from strformat import fmt
 
 import nimblepkg/packageinfo, nimblepkg/version, nimblepkg/tools,
        nimblepkg/download, nimblepkg/config, nimblepkg/common,
@@ -859,19 +860,21 @@ js   - Compile using JavaScript backend.""",
     pkgRoot
   )
 
-  # Add git vcs to the new project
-  if findExe("git", true).len != 0:
-    let ret: tuple[output: string, exitCode: int] = execCmdEx("cd " & pkgRoot & " && git init")
+  # Add vcs to the new nimble project
+  let vcsBin = options.action.vcsOption
+  if findExe(vcsBin, true).len != 0:
+    var cmd = fmt"cd {pkgRoot} && {vcsBin} init"
+    let ret: tuple[output: string, exitCode: int] = execCmdEx(cmd)
     if ret.exitCode != 0: quit ret.output
 
-    var fd1 = open(joinPath(pkgRoot, ".gitignore"), fmWrite)
-    fd1.write(pkgName & "\n")
-    fd1.close()
+    var ignoreFile: File
+    if vcsBin == "git":
+      ignoreFile = open(joinPath(pkgRoot, ".gitignore"), fmWrite)
+    elif vcsBin == "hg":
+      ignoreFile = open(joinPath(pkgRoot, ".hgignore"), fmWrite)
 
-  # Add a default xxx.nim.cfg file
-  var fd2 = open(joinPath(pkgRoot, pkgSrcDir, pkgName & ".nim.cfg"), fmWrite)
-  fd2.write("--d:release\n")
-  fd2.close()
+    ignoreFile.write(pkgName & "\n")
+    ignoreFile.close()
 
   display("Success:", "Package $# created successfully" % [pkgName], Success,
     HighPriority)
