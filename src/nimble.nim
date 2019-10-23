@@ -863,7 +863,7 @@ js   - Compile using JavaScript backend.""",
   # Add vcs to the new nimble project
   let vcsBin = options.action.vcsOption
   if findExe(vcsBin, true).len != 0:
-    var cmd = fmt"cd {pkgRoot} && {vcsBin} init"
+    let cmd = fmt"cd {pkgRoot} && {vcsBin} init"
     let ret: tuple[output: string, exitCode: int] = execCmdEx(cmd)
     if ret.exitCode != 0: quit ret.output
 
