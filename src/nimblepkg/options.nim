@@ -357,9 +357,7 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
   of actionInit:
     case f
     of "vcs":
-      result.action.vcsOption =
-        if val != "" and val in @["git", "hg"]: val
-        else: "git"
+      result.action.vcsOption = if val in @["git", "hg"]: val else: "git"
     else:
       wasFlagHandled = false
   of actionUninstall:
