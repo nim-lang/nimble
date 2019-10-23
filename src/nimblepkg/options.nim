@@ -371,7 +371,8 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
   if not wasFlagHandled and not isGlobalFlag:
     result.unknownFlags.add((kind, flag, val))
 
-proc initOptions(): Options =
+proc initOptions*(): Options =
+  # Exported for choosenim
   Options(
     action: Action(typ: actionNil),
     pkgInfoCache: newTable[string, PackageInfo](),
