@@ -300,4 +300,17 @@ when isMainModule:
     })
     doAssert expected == getVersionList(data)
 
+
+  block:
+    let data2 = @["v0.1.0", "v0.1.1", "v0.2.0",
+                 "0.4.0", "v0.4.2"]
+    let expected2 = toOrderedTable[Version, string]({
+      newVersion("0.4.2"): "v0.4.2",
+      newVersion("0.4.0"): "0.4.0",
+      newVersion("0.2.0"): "v0.2.0",
+      newVersion("0.1.1"): "v0.1.1",
+      newVersion("0.1.0"): "v0.1.0",
+    })
+    doAssert expected2 == getVersionList(data2)
+
   echo("Everything works!")
