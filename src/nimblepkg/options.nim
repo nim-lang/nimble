@@ -81,8 +81,8 @@ Commands:
   init         [pkgname]          Initializes a new Nimble project in the
                                   current directory or if a name is provided a
                                   new directory of the same name.
-               [--vcs:git]        Add git or hg vcs to the new nimble project,
-                                  the default choice is git.
+               --git
+               --hg               Create a git or hg repo in the new nimble project.
   publish                         Publishes a package on nim-lang/packages.
                                   The current working directory needs to be the
                                   toplevel directory of the Nimble package.
@@ -356,8 +356,8 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
       wasFlagHandled = false
   of actionInit:
     case f
-    of "vcs":
-      result.action.vcsOption = if val in @["git", "hg"]: val else: "git"
+    of "git", "hg":
+      result.action.vcsOption = f
     else:
       wasFlagHandled = false
   of actionUninstall:

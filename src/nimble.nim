@@ -19,7 +19,6 @@ import nimblepkg/packageinfo, nimblepkg/version, nimblepkg/tools,
 
 import nimblepkg/nimscriptwrapper
 
-
 proc refresh(options: Options) =
   ## Downloads the package list from the specified URL.
   ##
@@ -726,6 +725,11 @@ proc dump(options: Options) =
   echo "backend: ", p.backend.escape
 
 proc init(options: Options) =
+  # Check whether the vcs is installed.
+  let vcsBin = options.action.vcsOption
+  if vcsBin != "" and findExe(vcsBin, true) == "":
+    raise newException(NimbleError, "Please install git or mercurial first")
+
   # Determine the package name.
   let pkgName =
     if options.action.projName != "":
@@ -860,21 +864,16 @@ js   - Compile using JavaScript backend.""",
     pkgRoot
   )
 
-  # Add vcs to the new nimble project
-  let vcsBin = options.action.vcsOption
-  if findExe(vcsBin, true).len != 0:
+  # Create a git or hg repo in the new nimble project.
+  if vcsBin != "":
     let cmd = fmt"cd {pkgRoot} && {vcsBin} init"
     let ret: tuple[output: string, exitCode: int] = execCmdEx(cmd)
     if ret.exitCode != 0: quit ret.output
 
-    var ignoreFile: File
-    if vcsBin == "git":
-      ignoreFile = open(joinPath(pkgRoot, ".gitignore"), fmWrite)
-    elif vcsBin == "hg":
-      ignoreFile = open(joinPath(pkgRoot, ".hgignore"), fmWrite)
-
-    ignoreFile.write(pkgName & "\n")
-    ignoreFile.close()
+    var ignoreFile = if vcsBin == "git": ".gitignore" else: ".hgignore"
+    var fd = open(joinPath(pkgRoot, ignoreFile), fmWrite)
+    fd.write(pkgName & "\n")
+    fd.close()
 
   display("Success:", "Package $# created successfully" % [pkgName], Success,
     HighPriority)
