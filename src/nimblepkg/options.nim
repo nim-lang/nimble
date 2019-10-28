@@ -51,6 +51,7 @@ type
       search*: seq[string] # Search string.
     of actionInit, actionDump:
       projName*: string
+      vcsOption*: string
     of actionCompile, actionDoc, actionBuild:
       file*: string
       backend*: string
@@ -80,6 +81,8 @@ Commands:
   init         [pkgname]          Initializes a new Nimble project in the
                                   current directory or if a name is provided a
                                   new directory of the same name.
+               --git
+               --hg               Create a git or hg repo in the new nimble project.
   publish                         Publishes a package on nim-lang/packages.
                                   The current working directory needs to be the
                                   toplevel directory of the Nimble package.
@@ -201,8 +204,10 @@ proc initAction*(options: var Options, key: string) =
     else: options.action.backend = keyNorm
   of actionInit:
     options.action.projName = ""
+    options.action.vcsOption = ""
   of actionDump:
     options.action.projName = ""
+    options.action.vcsOption = ""
     options.forcePrompts = forcePromptYes
   of actionRefresh:
     options.action.optionalURL = ""
@@ -347,6 +352,12 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
       result.depsOnly = true
     of "passnim", "p":
       result.action.passNimFlags.add(val)
+    else:
+      wasFlagHandled = false
+  of actionInit:
+    case f
+    of "git", "hg":
+      result.action.vcsOption = f
     else:
       wasFlagHandled = false
   of actionUninstall:

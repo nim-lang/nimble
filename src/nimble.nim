@@ -3,12 +3,13 @@
 
 import system except TResult
 
-import os, tables, strtabs, json, algorithm, sets, uri, sugar, sequtils
+import os, tables, strtabs, json, algorithm, sets, uri, sugar, sequtils, osproc
 import std/options as std_opt
 
 import strutils except toLower
 from unicode import toLower
 from sequtils import toSeq
+from strformat import fmt
 
 import nimblepkg/packageinfo, nimblepkg/version, nimblepkg/tools,
        nimblepkg/download, nimblepkg/config, nimblepkg/common,
@@ -724,6 +725,11 @@ proc dump(options: Options) =
   echo "backend: ", p.backend.escape
 
 proc init(options: Options) =
+  # Check whether the vcs is installed.
+  let vcsBin = options.action.vcsOption
+  if vcsBin != "" and findExe(vcsBin, true) == "":
+    raise newException(NimbleError, "Please install git or mercurial first")
+
   # Determine the package name.
   let pkgName =
     if options.action.projName != "":
@@ -857,6 +863,17 @@ js   - Compile using JavaScript backend.""",
     ),
     pkgRoot
   )
+
+  # Create a git or hg repo in the new nimble project.
+  if vcsBin != "":
+    let cmd = fmt"cd {pkgRoot} && {vcsBin} init"
+    let ret: tuple[output: string, exitCode: int] = execCmdEx(cmd)
+    if ret.exitCode != 0: quit ret.output
+
+    var ignoreFile = if vcsBin == "git": ".gitignore" else: ".hgignore"
+    var fd = open(joinPath(pkgRoot, ignoreFile), fmWrite)
+    fd.write(pkgName & "\n")
+    fd.close()
 
   display("Success:", "Package $# created successfully" % [pkgName], Success,
     HighPriority)
