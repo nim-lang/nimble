@@ -172,12 +172,13 @@ example:
 This is of course Git-specific, for Mercurial, use ``tip`` instead of ``head``. A
 branch, tag, or commit hash may also be specified in the place of ``head``.
 
-Instead of specifying a VCS branch, you may also specify a version range, for
-example:
+Instead of specifying a VCS branch, you may also specify a concrete version or a
+version range, for example:
 
+    $ nimble install nimgame@0.5
     $ nimble install nimgame@"> 0.5"
 
-In this case a version which is greater than ``0.5`` will be installed.
+The latter command will install a version which is greater than ``0.5``.
 
 If you don't specify a parameter and there is a ``package.nimble`` file in your
 current working directory then Nimble will install the package residing in
