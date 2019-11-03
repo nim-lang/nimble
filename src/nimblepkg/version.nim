@@ -147,7 +147,7 @@ proc makeRange*(version: string, op: string): VersionRange =
     result = VersionRange(kind: verEqLater)
   of "<=":
     result = VersionRange(kind: verEqEarlier)
-  of "":
+  of "", "==":
     result = VersionRange(kind: verEq)
   else:
     raise newException(ParseVersionError, "Invalid operator: " & op)
@@ -298,9 +298,10 @@ when isMainModule:
   doAssert(newVersion("0.1.0") <= newVersion("0.1"))
 
   var inter1 = parseVersionRange(">= 1.0 & <= 1.5")
-  doAssert inter1.kind == verIntersect
+  doAssert(inter1.kind == verIntersect)
   var inter2 = parseVersionRange("1.0")
   doAssert(inter2.kind == verEq)
+  doAssert(parseVersionRange("== 3.4.2") == parseVersionRange("3.4.2"))
 
   doAssert(not withinRange(newVersion("1.5.1"), inter1))
   doAssert(withinRange(newVersion("1.0.2.3.4.5.6.7.8.9.10.11.12"), inter1))
