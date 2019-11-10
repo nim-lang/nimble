@@ -505,7 +505,7 @@ For a package named "foobar", the recommended project structure is the following
 └── src
     └── foobar.nim  # Imported via `import foobar`
 └── tests           # Contains the tests
-    ├── nim.cfg
+    ├── config.nims
     ├── tfoo1.nim   # First test
     └── tfoo2.nim   # Second test
 
