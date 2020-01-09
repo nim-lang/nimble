@@ -526,15 +526,23 @@ proc getCompilationFlags*(options: Options): seq[string] =
   var opt = options
   return opt.getCompilationFlags()
 
-proc getCompilationBinary*(options: Options): Option[string] =
+proc getCompilationBinary*(options: Options, pkgInfo: PackageInfo): Option[string] =
   case options.action.typ
   of actionBuild, actionDoc, actionCompile:
     let file = options.action.file.changeFileExt("")
     if file.len > 0:
       return some(file)
   of actionRun:
-    let runFile = options.action.runFile.changeFileExt(ExeExt)
+    let optRunFile = options.action.runFile
+    let runFile =
+      if optRunFile.len > 0:
+        optRunFile
+      elif pkgInfo.bin.len == 1:
+        pkgInfo.bin[0]
+      else:
+        ""
+
     if runFile.len > 0:
-      return some(runFile)
+      return some(runFile.changeFileExt(ExeExt))
   else:
     discard
