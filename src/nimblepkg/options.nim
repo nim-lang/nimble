@@ -90,10 +90,10 @@ Commands:
                [-i, --inclDeps]   Uninstall package and dependent package(s).
   build        [opts, ...] [bin]  Builds a package.
   run          [opts, ...] [bin]  Builds and runs a package.
-                                  If several binaries defined then binary name needs
-                                  to be specified after any compilation options,
-                                  any flags after the binary name are passed to
-                                  the binary when it is run.
+                                  If there are several binaries defined then binary
+                                  needs to be specified after any compilation
+                                  options, any flags after the binary or -- arg
+                                  are passed to the binary when it is run.
   c, cc, js    [opts, ...] f.nim  Builds a file inside a package. Passes options
                                   to the Nim compiler.
   test                            Compiles and executes tests
