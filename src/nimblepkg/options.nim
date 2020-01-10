@@ -57,7 +57,7 @@ type
       backend*: string
       compileOptions: seq[string]
     of actionRun:
-      runFile: string
+      runFile: Option[string]
       compileFlags: seq[string]
       runFlags*: seq[string]
     of actionCustom:
@@ -297,8 +297,8 @@ proc parseArgument*(key: string, result: var Options) =
   of actionBuild:
     result.action.file = key
   of actionRun:
-    if result.action.runFile.len == 0:
-      result.action.runFile = key
+    if result.action.runFile.isNone():
+      result.action.runFile = some(key)
     else:
       result.action.runFlags.add(key)
   of actionCustom:
@@ -434,6 +434,7 @@ proc parseCmdLine*(): Options =
   # Parse command line params first. A simple `--version` shouldn't require
   # a config to be parsed.
   for kind, key, val in getOpt():
+    echo "DEBUG1: ",repr((kind, key, val, result.action.typ))
     case kind
     of cmdArgument:
       if result.action.typ == actionNil:
@@ -441,7 +442,10 @@ proc parseCmdLine*(): Options =
       else:
         parseArgument(key, result)
     of cmdLongOption, cmdShortOption:
-      parseFlag(key, val, result, kind)
+      if key == "" and val == "":
+        parseArgument(key, result)
+      else:
+        parseFlag(key, val, result, kind)
     of cmdEnd: assert(false) # cannot happen
 
   handleUnknownFlags(result)
@@ -535,8 +539,8 @@ proc getCompilationBinary*(options: Options, pkgInfo: PackageInfo): Option[strin
   of actionRun:
     let optRunFile = options.action.runFile
     let runFile =
-      if optRunFile.len > 0:
-        optRunFile
+      if optRunFile.get("").len > 0:
+        optRunFile.get()
       elif pkgInfo.bin.len == 1:
         pkgInfo.bin[0]
       else:

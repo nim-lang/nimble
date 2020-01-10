@@ -950,6 +950,32 @@ suite "nimble run":
                             [$DirSep, "run".changeFileExt(ExeExt)])
       check output.contains("""Testing `nimble run`: @["--debug", "check"]""")
 
+  test "Parameters not passed to single executable":
+    cd "run":
+      var (output, exitCode) = execNimble(
+        "--debug", # Flag to enable debug verbosity in Nimble
+        "run", # Run command invokation
+        "--debug" # First argument passed to the executed command
+      )
+      check exitCode == QuitSuccess
+      check output.contains("tests$1run$1$2 --debug" %
+                            [$DirSep, "run".changeFileExt(ExeExt)])
+      check output.contains("""Testing `nimble run`: @["--debug"]""")
+
+  test "Parameters passed to single executable":
+    cd "run":
+      var (output, exitCode) = execNimble(
+        "--debug", # Flag to enable debug verbosity in Nimble
+        "run", # Run command invokation
+        "--", # Flag to set run file to "" before next argument
+        "--debug", # First argument passed to the executed command
+        "check" # Second argument passed to the executed command.
+      )
+      check exitCode == QuitSuccess
+      check output.contains("tests$1run$1$2 --debug check" %
+                            [$DirSep, "run".changeFileExt(ExeExt)])
+      check output.contains("""Testing `nimble run`: @["--debug", "check"]""")
+
 test "NimbleVersion is defined":
   cd "nimbleVersionDefine":
     var (output, exitCode) = execNimble("c", "-r", "src/nimbleVersionDefine.nim")
