@@ -89,8 +89,8 @@ Commands:
   uninstall    [pkgname, ...]     Uninstalls a list of packages.
                [-i, --inclDeps]   Uninstall package and dependent package(s).
   build        [opts, ...] [bin]  Builds a package.
-  run          [opts, ...] bin    Builds and runs a package.
-                                  A binary name needs
+  run          [opts, ...] [bin]  Builds and runs a package.
+                                  If several binaries defined then binary name needs
                                   to be specified after any compilation options,
                                   any flags after the binary name are passed to
                                   the binary when it is run.
