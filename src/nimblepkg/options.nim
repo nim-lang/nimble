@@ -266,8 +266,8 @@ proc parseCommand*(key: string, result: var Options) =
   result.action = Action(typ: parseActionType(key))
   initAction(result, key)
 
-proc setRunOptions(result: var Options, key, val: string, okForRun: bool) =
-  if okForRun and result.action.runFile.isNone():
+proc setRunOptions(result: var Options, key, val: string, isArg: bool) =
+  if result.action.runFile.isNone() and (isArg or val == "--"):
     result.action.runFile = some(key)
   else:
     result.action.runFlags.add(val)
@@ -374,7 +374,7 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
       result.action.compileOptions.add(getFlagString(kind, flag, val))
   of actionRun:
     result.showHelp = false
-    result.setRunOptions(flag, getFlagString(kind, flag, val), flag == "" and val == "")
+    result.setRunOptions(flag, getFlagString(kind, flag, val), false)
   of actionCustom:
     if result.action.command.normalize == "test":
       if f == "continue" or f == "c":
