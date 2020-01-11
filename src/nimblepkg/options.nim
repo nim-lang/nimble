@@ -90,10 +90,10 @@ Commands:
                [-i, --inclDeps]   Uninstall package and dependent package(s).
   build        [opts, ...] [bin]  Builds a package.
   run          [opts, ...] [bin]  Builds and runs a package.
-                                  If there are several binaries defined then binary
-                                  needs to be specified after any compilation
-                                  options, any flags after the binary or -- arg
-                                  are passed to the binary when it is run.
+                                  Binary needs to be specified after any
+                                  compilation options if there are several
+                                  binaries defined, any flags after the binary
+                                  or -- arg are passed to the binary when it is run.
   c, cc, js    [opts, ...] f.nim  Builds a file inside a package. Passes options
                                   to the Nim compiler.
   test                            Compiles and executes tests
@@ -266,6 +266,12 @@ proc parseCommand*(key: string, result: var Options) =
   result.action = Action(typ: parseActionType(key))
   initAction(result, key)
 
+proc setRunOptions(result: var Options, key, val: string) =
+  if result.action.runFile.isNone():
+    result.action.runFile = some(key)
+  else:
+    result.action.runFlags.add(val)
+
 proc parseArgument*(key: string, result: var Options) =
   case result.action.typ
   of actionNil:
@@ -297,10 +303,7 @@ proc parseArgument*(key: string, result: var Options) =
   of actionBuild:
     result.action.file = key
   of actionRun:
-    if result.action.runFile.isNone():
-      result.action.runFile = some(key)
-    else:
-      result.action.runFlags.add(key)
+    result.setRunOptions(key, key)
   of actionCustom:
     result.action.arguments.add(key)
   else:
@@ -371,7 +374,7 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
       result.action.compileOptions.add(getFlagString(kind, flag, val))
   of actionRun:
     result.showHelp = false
-    result.action.runFlags.add(getFlagString(kind, flag, val))
+    result.setRunOptions(flag, getFlagString(kind, flag, val))
   of actionCustom:
     if result.action.command.normalize == "test":
       if f == "continue" or f == "c":
@@ -434,7 +437,6 @@ proc parseCmdLine*(): Options =
   # Parse command line params first. A simple `--version` shouldn't require
   # a config to be parsed.
   for kind, key, val in getOpt():
-    echo "DEBUG1: ",repr((kind, key, val, result.action.typ))
     case kind
     of cmdArgument:
       if result.action.typ == actionNil:
@@ -442,9 +444,6 @@ proc parseCmdLine*(): Options =
       else:
         parseArgument(key, result)
     of cmdLongOption, cmdShortOption:
-      if key == "" and val == "":
-        parseArgument(key, result)
-      else:
         parseFlag(key, val, result, kind)
     of cmdEnd: assert(false) # cannot happen
 
