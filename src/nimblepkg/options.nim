@@ -57,7 +57,7 @@ type
       backend*: string
       compileOptions: seq[string]
     of actionRun:
-      runFile: string
+      runFile: Option[string]
       compileFlags: seq[string]
       runFlags*: seq[string]
     of actionCustom:
@@ -89,11 +89,11 @@ Commands:
   uninstall    [pkgname, ...]     Uninstalls a list of packages.
                [-i, --inclDeps]   Uninstall package and dependent package(s).
   build        [opts, ...] [bin]  Builds a package.
-  run          [opts, ...] bin    Builds and runs a package.
-                                  A binary name needs
-                                  to be specified after any compilation options,
-                                  any flags after the binary name are passed to
-                                  the binary when it is run.
+  run          [opts, ...] [bin]  Builds and runs a package.
+                                  Binary needs to be specified after any
+                                  compilation options if there are several
+                                  binaries defined, any flags after the binary
+                                  or -- arg are passed to the binary when it is run.
   c, cc, js    [opts, ...] f.nim  Builds a file inside a package. Passes options
                                   to the Nim compiler.
   test                            Compiles and executes tests
@@ -266,6 +266,12 @@ proc parseCommand*(key: string, result: var Options) =
   result.action = Action(typ: parseActionType(key))
   initAction(result, key)
 
+proc setRunOptions(result: var Options, key, val: string, isArg: bool) =
+  if result.action.runFile.isNone() and (isArg or val == "--"):
+    result.action.runFile = some(key)
+  else:
+    result.action.runFlags.add(val)
+
 proc parseArgument*(key: string, result: var Options) =
   case result.action.typ
   of actionNil:
@@ -297,10 +303,7 @@ proc parseArgument*(key: string, result: var Options) =
   of actionBuild:
     result.action.file = key
   of actionRun:
-    if result.action.runFile.len == 0:
-      result.action.runFile = key
-    else:
-      result.action.runFlags.add(key)
+    result.setRunOptions(key, key, true)
   of actionCustom:
     result.action.arguments.add(key)
   else:
@@ -371,7 +374,7 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
       result.action.compileOptions.add(getFlagString(kind, flag, val))
   of actionRun:
     result.showHelp = false
-    result.action.runFlags.add(getFlagString(kind, flag, val))
+    result.setRunOptions(flag, getFlagString(kind, flag, val), false)
   of actionCustom:
     if result.action.command.normalize == "test":
       if f == "continue" or f == "c":
@@ -441,7 +444,7 @@ proc parseCmdLine*(): Options =
       else:
         parseArgument(key, result)
     of cmdLongOption, cmdShortOption:
-      parseFlag(key, val, result, kind)
+        parseFlag(key, val, result, kind)
     of cmdEnd: assert(false) # cannot happen
 
   handleUnknownFlags(result)
@@ -526,15 +529,23 @@ proc getCompilationFlags*(options: Options): seq[string] =
   var opt = options
   return opt.getCompilationFlags()
 
-proc getCompilationBinary*(options: Options): Option[string] =
+proc getCompilationBinary*(options: Options, pkgInfo: PackageInfo): Option[string] =
   case options.action.typ
   of actionBuild, actionDoc, actionCompile:
     let file = options.action.file.changeFileExt("")
     if file.len > 0:
       return some(file)
   of actionRun:
-    let runFile = options.action.runFile.changeFileExt(ExeExt)
+    let optRunFile = options.action.runFile
+    let runFile =
+      if optRunFile.get("").len > 0:
+        optRunFile.get()
+      elif pkgInfo.bin.len == 1:
+        pkgInfo.bin[0]
+      else:
+        ""
+
     if runFile.len > 0:
-      return some(runFile)
+      return some(runFile.changeFileExt(ExeExt))
   else:
     discard

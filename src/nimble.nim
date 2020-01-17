@@ -221,7 +221,7 @@ proc buildFromDir(
   options: Options
 ) =
   ## Builds a package as specified by ``pkgInfo``.
-  let binToBuild = options.getCompilationBinary()
+  let binToBuild = options.getCompilationBinary(pkgInfo)
   # Handle pre-`build` hook.
   let realDir = pkgInfo.getRealDir()
   cd realDir: # Make sure `execHook` executes the correct .nimble file.
@@ -535,9 +535,9 @@ proc build(options: Options) =
   var args = options.getCompilationFlags()
   buildFromDir(pkgInfo, paths, args, options)
 
-proc execBackend(options: Options) =
+proc execBackend(pkgInfo: PackageInfo, options: Options) =
   let
-    bin = options.getCompilationBinary().get()
+    bin = options.getCompilationBinary(pkgInfo).get()
     binDotNim = bin.addFileExt("nim")
   if bin == "":
     raise newException(NimbleError, "You need to specify a file.")
@@ -1070,11 +1070,11 @@ proc test(options: Options) =
       if options.continueTestsOnFailure:
         inc tests
         try:
-          execBackend(optsCopy)
+          execBackend(pkgInfo, optsCopy)
         except NimbleError:
           inc failures
       else:
-        execBackend(optsCopy)
+        execBackend(pkgInfo, optsCopy)
 
       let
         existsAfter = existsFile(binFileName)
@@ -1113,11 +1113,12 @@ proc check(options: Options) =
 
 proc run(options: Options) =
   # Verify parameters.
-  let binary = options.getCompilationBinary().get("")
+  var pkgInfo = getPkgInfo(getCurrentDir(), options)
+
+  let binary = options.getCompilationBinary(pkgInfo).get("")
   if binary.len == 0:
     raiseNimbleError("Please specify a binary to run")
 
-  var pkgInfo = getPkgInfo(getCurrentDir(), options)
   if binary notin pkgInfo.bin:
     raiseNimbleError(
       "Binary '$#' is not defined in '$#' package." % [binary, pkgInfo.name]
@@ -1176,7 +1177,8 @@ proc doAction(options: var Options) =
   of actionRun:
     run(options)
   of actionCompile, actionDoc:
-    execBackend(options)
+    var pkgInfo = getPkgInfo(getCurrentDir(), options)
+    execBackend(pkgInfo, options)
   of actionInit:
     init(options)
   of actionPublish:
