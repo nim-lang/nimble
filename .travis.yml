@@ -8,9 +8,9 @@ language: c
 env:
   - BRANCH=0.19.6
   - BRANCH=0.20.2
-  - BRANCH=1.0.0
+  - BRANCH=1.0.6
   # This is the latest working Nim version against which Nimble is being tested
-  - BRANCH=#16c39f9b2edc963655889cfd33e165bfae91c96d
+  - BRANCH=#ab525cc48abdbbbed1f772e58e9fe21474f70f07
 
 cache:
   directories:
@@ -18,27 +18,8 @@ cache:
     - "$HOME/.choosenim"
 
 install:
-  - export CHOOSENIM_NO_ANALYTICS=1
-  - export PATH=$HOME/.nimble/bin:$PATH
-  - |
-    if ! type -P choosenim &> /dev/null; then
-      if [[ "$TRAVIS_OS_NAME" == "windows" ]]; then
-        # Latest choosenim binary doesn't have
-        #   https://github.com/dom96/choosenim/pull/117
-        #   https://github.com/dom96/choosenim/pull/135
-        #
-        # Using custom build with these PRs for Windows
-        curl -L -s "https://bintray.com/genotrance/binaries/download_file?file_path=choosenim.exe" -o choosenim.exe
-        curl -L -s "https://bintray.com/genotrance/binaries/download_file?file_path=libeay32.dll" -o libeay32.dll
-        curl -L -s "https://bintray.com/genotrance/binaries/download_file?file_path=ssleay32.dll" -o ssleay32.dll
-        ./choosenim.exe $BRANCH -y
-        cp ./choosenim.exe $HOME/.nimble/bin/.
-      else
-        export CHOOSENIM_CHOOSE_VERSION=$BRANCH
-        curl https://nim-lang.org/choosenim/init.sh -sSf > init.sh
-        sh init.sh -y
-      fi
-    fi
+  - curl https://gist.github.com/genotrance/fb53504a4fba88bc5201d3783df5c522/raw/travis.sh -LsSf -o travis.sh
+  - source travis.sh
 
 script:
   - cd tests
