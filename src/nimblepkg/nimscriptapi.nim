@@ -38,6 +38,7 @@ var
   success = false
   retVal = true
   projectFile = ""
+  scriptFile = ""
   outFile = ""
 
 proc requires*(deps: varargs[string]) =
@@ -52,7 +53,9 @@ proc getParams() =
     let
       param = paramStr(i)
     if param[0] != '-':
-      if projectFile.len == 0:
+      if scriptFile.len == 0:
+        scriptFile = param
+      elif projectFile.len == 0:
         projectFile = param
       elif outFile.len == 0:
         outFile = param

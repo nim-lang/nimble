@@ -37,30 +37,19 @@ proc writeExecutionOutput(data: string) =
   display("Info", data)
 
 proc execNimscript(
-  nimsFile, projectDir, actionName: string, options: Options, isHook: bool
+  nimsFile, projectDir, actionName: string, options: Options, isHook: bool,
+  nimbleFile = ""
 ): tuple[output: string, exitCode: int, stdout: string] =
   let
-    nimsFileCopied = projectDir / nimsFile.splitFile().name & "_" & getProcessId() & ".nims"
     outFile = getNimbleTempDir() & ".out"
 
-  let
-    isScriptResultCopied =
-      nimsFileCopied.fileExists() and
-      nimsFileCopied.getLastModificationTime() >= nimsFile.getLastModificationTime()
-
-  if not isScriptResultCopied:
-    nimsFile.copyFile(nimsFileCopied)
-
-  defer:
-    # Only if copied in this invocation, allows recursive calls of nimble
-    if not isScriptResultCopied and options.shouldRemoveTmp(nimsFileCopied):
-        nimsFileCopied.removeFile()
-
   var cmd = (
-    "nim e $# -p:$# $# $# $#" % [
+    "nim e $# -p:$# -p:$# $# $# $# $#" % [
       "--hints:off --verbosity:0",
       (getTempDir() / "nimblecache").quoteShell,
-      nimsFileCopied.quoteShell,
+      projectDir.quoteShell,
+      nimsFile.quoteShell,
+      if nimbleFile.len > 0: nimbleFile.quoteShell else: "",
       outFile.quoteShell,
       actionName
     ]
@@ -76,7 +65,6 @@ proc execNimscript(
         cmd &= ":" & val.quoteShell()
 
   displayDebug("Executing " & cmd)
-
   if needsLiveOutput(actionName, options, isHook):
     result.exitCode = execCmd(cmd)
   else:
@@ -101,9 +89,9 @@ proc getNimsFile(scriptName: string, options: Options): string =
     iniFile = result.changeFileExt(".ini")
 
     isNimscriptApiCached =
-      nimscriptApiFile.fileExists() and nimscriptApiFile.getLastModificationTime() > 
+      nimscriptApiFile.fileExists() and nimscriptApiFile.getLastModificationTime() >
       getAppFilename().getLastModificationTime()
-    
+
     isScriptResultCached =
       isNimscriptApiCached and result.fileExists() and result.getLastModificationTime() >
       scriptName.getLastModificationTime()
@@ -136,7 +124,8 @@ proc getIniFile*(scriptName: string, options: Options): string =
 
   if not isIniResultCached:
     let (output, exitCode, stdout) = execNimscript(
-      nimsFile, scriptName.parentDir(), printPkgInfo, options, isHook=false
+      nimsFile, scriptName.parentDir(), printPkgInfo, options, isHook=false,
+      nimbleFile = scriptName
     )
 
     if exitCode == 0 and output.len != 0:
@@ -152,7 +141,7 @@ proc execScript(
 
   let (output, exitCode, stdout) =
     execNimscript(
-      nimsFile, scriptName.parentDir(), actionName, options, isHook
+      nimsFile, scriptName.parentDir(), actionName, options, isHook, scriptName
     )
 
   if exitCode != 0:
