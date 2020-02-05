@@ -4,7 +4,7 @@
 ## Implements the new configuration system for Nimble. Uses Nim as a
 ## scripting language.
 
-import hashes, json, os, strutils, tables, times, osproc, strtabs
+import hashes, json, os, strutils, tables, times, osproc, strtabs, streams
 
 import version, options, cli, tools
 
@@ -65,12 +65,24 @@ proc execNimscript(
         cmd &= ":" & val.quoteShell()
 
   displayDebug("Executing " & cmd)
+
+  var poptions = {poEvalCommand}
   if needsLiveOutput(actionName, options, isHook):
-    result.exitCode = execCmd(cmd)
+    poptions.incl poParentStreams
   else:
+    poptions.incl poStdErrToStdOut
+  let scriptRunner = startProcess(
+    cmd,
+    workingDir = projectDir,
+    options = poptions
+  )
+  defer: close scriptRunner
+  result.exitCode = waitForExit(scriptRunner)
+  if poParentStreams notin poptions:
     # We want to capture any possible errors when parsing a .nimble
     # file's metadata. See #710.
-    (result.stdout, result.exitCode) = execCmdEx(cmd)
+    result.stdout = scriptRunner.outputStream.readAll()
+
   if outFile.fileExists():
     result.output = outFile.readFile()
     if options.shouldRemoveTmp(outFile):
