@@ -10,14 +10,14 @@ variables:
 steps:
   - task: Cache@2
     inputs:
-      key: 'toolchain' | $(CHOOSENIM_CHOOSE_VERSION) | $(CHOOSENIM_REVISION) | $(Agent.OS)
+      key: 'toolchain | "$(CHOOSENIM_CHOOSE_VERSION)" | "$(CHOOSENIM_REVISION)" | "$(Agent.OS)"'
       path: $(HOME)/.choosenim
       cacheHitVar: CHOOSENIM_CACHED
     displayName: 'Restore choosenim toolchains'
 
   - task: Cache@2
     inputs:
-      key: 'choosenim' | $(CHOOSENIM_CHOOSE_VERSION) | $(CHOOSENIM_REVISION) | $(Agent.OS)
+      key: 'choosenim | "$(CHOOSENIM_CHOOSE_VERSION)" | "$(CHOOSENIM_REVISION)" | "$(Agent.OS)" '
       path: $(HOME)/.nimble/bin
       cacheHitVar: CHOOSENIM_CACHED
     displayName: 'Restore choosenim'
