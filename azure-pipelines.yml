@@ -6,23 +6,24 @@ variables:
   CHOOSENIM_CHOOSE_VERSION: '#16c39f9b2edc963655889cfd33e165bfae91c96d'
   # bump everytime choosenim has to be updated
   CHOOSENIM_REVISION: 1
+  CHOOSENIM_CACHE_SIGNATURE: '"$(CHOOSENIM_CHOOSE_VERSION)" | "$(CHOOSENIM_REVISION)" | "$(Agent.OS)"'
 
 steps:
   - task: Cache@2
     inputs:
-      key: 'toolchain | "$(CHOOSENIM_CHOOSE_VERSION)" | "$(CHOOSENIM_REVISION)" | "$(Agent.OS)"'
+      key: 'toolchain | $(CHOOSENIM_CACHE_SIGNATURE)'
       path: $(HOME)/.choosenim
       cacheHitVar: CHOOSENIM_CACHED
     displayName: 'Restore choosenim toolchains'
 
   - task: Cache@2
     inputs:
-      key: 'choosenim | "$(CHOOSENIM_CHOOSE_VERSION)" | "$(CHOOSENIM_REVISION)" | "$(Agent.OS)" '
+      key: 'choosenim | $(CHOOSENIM_CACHE_SIGNATURE)'
       path: $(HOME)/.nimble/bin
       cacheHitVar: CHOOSENIM_CACHED
     displayName: 'Restore choosenim'
 
-  - bash: echo '##vso[task.prependpath]$HOME/.nimble/bin'
+  - bash: echo "##vso[task.prependpath]$HOME/.nimble/bin"
     displayName: 'Setup environment'
 
   - bash: |
