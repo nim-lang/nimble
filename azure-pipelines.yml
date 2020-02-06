@@ -29,7 +29,7 @@ steps:
       curl https://nim-lang.org/choosenim/init.sh -sSfo init.sh
       sh init.sh -y
     displayName: 'Install Nim with choosenim'
-    condition: eq($(CHOOSENIM_CACHED), false)
+    condition: eq(variables.CHOOSENIM_CACHED, false)
 
   - bash: testament cat nimble-packages
     displayName: 'Test important packages'
