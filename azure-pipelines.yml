@@ -32,6 +32,9 @@ steps:
     displayName: 'Install Nim with choosenim'
     condition: eq(variables.CHOOSENIM_CACHED, false)
 
+  - bash: nim c -r src/nimble install -y
+    displayName: 'Builds and install nimble'
+
   - bash: testament cat nimble-packages
     displayName: 'Test important packages'
     env:
