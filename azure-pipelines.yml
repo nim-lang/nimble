@@ -33,7 +33,7 @@ steps:
     condition: eq(variables.CHOOSENIM_CACHED, false)
 
   - bash: nim c -r src/nimble install -y
-    displayName: 'Builds and install nimble'
+    displayName: 'Build and install nimble'
 
   - bash: testament cat nimble-packages
     displayName: 'Test important packages'
