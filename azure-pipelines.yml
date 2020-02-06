@@ -1,10 +1,11 @@
-vmImage: 'ubuntu-latest'
+pool:
+  vmImage: 'ubuntu-latest'
 
 variables:
-  - CHOOSENIM_NO_ANALYTICS: 1
-  - CHOOSENIM_CHOOSE_VERSION: '#16c39f9b2edc963655889cfd33e165bfae91c96d'
+  CHOOSENIM_NO_ANALYTICS: 1
+  CHOOSENIM_CHOOSE_VERSION: '#16c39f9b2edc963655889cfd33e165bfae91c96d'
   # bump everytime choosenim has to be updated
-  - CHOOSENIM_REVISION: 1
+  CHOOSENIM_REVISION: 1
 
 steps:
   - task: Cache@2
