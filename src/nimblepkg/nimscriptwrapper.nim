@@ -66,19 +66,19 @@ proc execNimscript(
 
   displayDebug("Executing " & cmd)
 
-  var poptions = {poEvalCommand}
+  var processOpts = {poEvalCommand}
   if needsLiveOutput(actionName, options, isHook):
-    poptions.incl poParentStreams
+    processOpts.incl poParentStreams
   else:
-    poptions.incl poStdErrToStdOut
+    processOpts.incl poStdErrToStdOut
   let scriptRunner = startProcess(
     cmd,
     workingDir = projectDir,
-    options = poptions
+    options = processOpts
   )
   defer: close scriptRunner
   result.exitCode = waitForExit(scriptRunner)
-  if poParentStreams notin poptions:
+  if poParentStreams notin processOpts:
     # We want to capture any possible errors when parsing a .nimble
     # file's metadata. See #710.
     result.stdout = scriptRunner.outputStream.readAll()
