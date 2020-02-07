@@ -38,7 +38,7 @@ proc writeExecutionOutput(data: string) =
 
 proc execNimscript(
   nimsFile, projectDir, actionName: string, options: Options, isHook: bool,
-  nimbleFile = ""
+  nimbleFile: string
 ): tuple[output: string, exitCode: int, stdout: string] =
   let
     outFile = getNimbleTempDir() & ".out"
@@ -49,7 +49,7 @@ proc execNimscript(
       (getTempDir() / "nimblecache").quoteShell,
       projectDir.quoteShell,
       nimsFile.quoteShell,
-      if nimbleFile.len > 0: nimbleFile.quoteShell else: "",
+      nimbleFile.quoteShell,
       outFile.quoteShell,
       actionName
     ]
