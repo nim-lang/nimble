@@ -42,13 +42,13 @@ type
     case typ*: ActionType
     of actionNil, actionList, actionPublish, actionTasks, actionCheck: nil
     of actionRefresh:
-      optionalURL*: string # Overrides default package list.
+      optionalURL*: string     # Overrides default package list.
     of actionInstall, actionPath, actionUninstall, actionDevelop:
       packages*: seq[PkgTuple] # Optional only for actionInstall
                                # and actionDevelop.
       passNimFlags*: seq[string]
     of actionSearch:
-      search*: seq[string] # Search string.
+      search*: seq[string]     # Search string.
     of actionInit, actionDump:
       projName*: string
       vcsOption*: string
@@ -136,7 +136,7 @@ For more information read the Github readme:
 
 const noHookActions* = {actionCheck}
 
-proc writeHelp*(quit=true) =
+proc writeHelp*(quit = true) =
   echo(help)
   if quit:
     raise NimbleQuit(msg: "")
@@ -234,7 +234,8 @@ proc promptCustom*(options: Options, question, default: string): string =
   ## forcePrompts is forcePromptYes.
   return promptCustom(options.forcePrompts, question, default)
 
-proc promptList*(options: Options, question: string, args: openarray[string]): string =
+proc promptList*(options: Options, question: string, args: openarray[
+    string]): string =
   ## Asks an interactive question and returns the result.
   ##
   ## The proc will return one of the provided args. If not prompting the first
@@ -444,7 +445,7 @@ proc parseCmdLine*(): Options =
       else:
         parseArgument(key, result)
     of cmdLongOption, cmdShortOption:
-        parseFlag(key, val, result, kind)
+      parseFlag(key, val, result, kind)
     of cmdEnd: assert(false) # cannot happen
 
   handleUnknownFlags(result)

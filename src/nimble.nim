@@ -98,9 +98,9 @@ proc copyFilesRec(origDir, currentDir, dest: string,
   ## Returns a list of filepaths to files which have been installed.
   result = initHashSet[string]()
   let whitelistMode =
-          pkgInfo.installDirs.len != 0 or
-          pkgInfo.installFiles.len != 0 or
-          pkgInfo.installExt.len != 0
+    pkgInfo.installDirs.len != 0 or
+    pkgInfo.installFiles.len != 0 or
+    pkgInfo.installExt.len != 0
   if whitelistMode:
     for file in pkgInfo.installFiles:
       let src = origDir / file
@@ -378,7 +378,8 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
   # if the build fails then the old package will still be installed.
   if pkgInfo.bin.len > 0:
     let paths = result.deps.map(dep => dep.getRealDir())
-    let flags = if options.action.typ in {actionInstall, actionPath, actionUninstall, actionDevelop}:
+    let flags = if options.action.typ in {actionInstall, actionPath,
+        actionUninstall, actionDevelop}:
                   options.action.passNimFlags
                 else:
                   @[]
@@ -410,9 +411,9 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
   var filesInstalled = initHashSet[string]()
   iterInstallFiles(realDir, pkgInfo, options,
     proc (file: string) =
-      createDir(changeRoot(realDir, pkgDestDir, file.splitFile.dir))
-      let dest = changeRoot(realDir, pkgDestDir, file)
-      filesInstalled.incl copyFileD(file, dest)
+    createDir(changeRoot(realDir, pkgDestDir, file.splitFile.dir))
+    let dest = changeRoot(realDir, pkgDestDir, file)
+    filesInstalled.incl copyFileD(file, dest)
   )
 
   # Copy the .nimble file.
@@ -504,7 +505,7 @@ proc install(packages: seq[PkgTuple],
       let (meth, url, metadata) = getDownloadInfo(pv, options, doPrompt)
       let subdir = metadata.getOrDefault("subdir")
       let (downloadDir, downloadVersion) =
-          downloadPkg(url, pv.ver, meth, subdir, options)
+        downloadPkg(url, pv.ver, meth, subdir, options)
       try:
         result = installFromDir(downloadDir, pv.ver, options, url)
       except BuildFailed:
@@ -1202,7 +1203,7 @@ proc doAction(options: var Options) =
     let isPreDefined = options.action.command.normalize == "test"
 
     var execResult: ExecutionResult[bool]
-    if execCustom(options, execResult, failFast=not isPreDefined):
+    if execCustom(options, execResult, failFast = not isPreDefined):
       if execResult.hasTaskRequestedCommand():
         var options = execResult.getOptionsForCommand(options)
         doAction(options)

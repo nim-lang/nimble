@@ -55,7 +55,8 @@ proc execNimble(args: varargs[string]): tuple[output: string, exitCode: int] =
   checkpoint(cmd)
   checkpoint(result.output)
 
-proc execNimbleYes(args: varargs[string]): tuple[output: string, exitCode: int]=
+proc execNimbleYes(args: varargs[string]): tuple[output: string,
+    exitCode: int] =
   # issue #6314
   execNimble(@args & "-y")
 
@@ -275,7 +276,8 @@ test "can refresh with local package list":
       [PackageList]
       name = "local"
       path = "$1"
-    """.unindent % (getCurrentDir() / "issue368" / "packages.json").replace("\\", "\\\\"))
+    """.unindent % (getCurrentDir() / "issue368" / "packages.json").replace(
+        "\\", "\\\\"))
     let (output, exitCode) = execNimble(["refresh", "--verbose"])
     let lines = output.strip.processOutput()
     check inLines(lines, "config file at")
@@ -612,7 +614,7 @@ suite "can handle two binary versions":
     check output.strip() == "v2"
 
   test "can update symlink to earlier version after removal":
-    check execNimble("remove", "binaryPackage@2.0", "-y").exitCode==QuitSuccess
+    check execNimble("remove", "binaryPackage@2.0", "-y").exitCode == QuitSuccess
 
     let (output, exitCode) =
       execCmdEx(cmd)
@@ -620,7 +622,7 @@ suite "can handle two binary versions":
     check output.strip() == "v1"
 
   test "can keep symlink version after earlier version removal":
-    check execNimble("remove", "binaryPackage@1.0", "-y").exitCode==QuitSuccess
+    check execNimble("remove", "binaryPackage@1.0", "-y").exitCode == QuitSuccess
 
     let (output, exitCode) =
       execCmdEx(cmd)
@@ -928,8 +930,8 @@ suite "nimble run":
   test "Invalid binary":
     cd "run":
       var (output, exitCode) = execNimble(
-        "--debug", # Flag to enable debug verbosity in Nimble
-        "run", # Run command invokation
+        "--debug",  # Flag to enable debug verbosity in Nimble
+        "run",      # Run command invokation
         "blahblah", # The command to run
       )
       check exitCode == QuitFailure
@@ -940,10 +942,10 @@ suite "nimble run":
     cd "run":
       var (output, exitCode) = execNimble(
         "--debug", # Flag to enable debug verbosity in Nimble
-        "run", # Run command invokation
-        "run", # The command to run
+        "run",     # Run command invokation
+        "run",     # The command to run
         "--debug", # First argument passed to the executed command
-        "check" # Second argument passed to the executed command.
+        "check"    # Second argument passed to the executed command.
       )
       check exitCode == QuitSuccess
       check output.contains("tests$1run$1$2 --debug check" %
@@ -954,8 +956,8 @@ suite "nimble run":
     cd "run":
       var (output, exitCode) = execNimble(
         "--debug", # Flag to enable debug verbosity in Nimble
-        "run", # Run command invokation
-        "--debug" # First argument passed to the executed command
+        "run",     # Run command invokation
+        "--debug"  # First argument passed to the executed command
       )
       check exitCode == QuitSuccess
       check output.contains("tests$1run$1$2 --debug" %
@@ -966,10 +968,10 @@ suite "nimble run":
     cd "run":
       var (output, exitCode) = execNimble(
         "--debug", # Flag to enable debug verbosity in Nimble
-        "run", # Run command invokation
-        "--", # Flag to set run file to "" before next argument
+        "run",     # Run command invokation
+        "--",      # Flag to set run file to "" before next argument
         "--debug", # First argument passed to the executed command
-        "check" # Second argument passed to the executed command.
+        "check"    # Second argument passed to the executed command.
       )
       check exitCode == QuitSuccess
       check output.contains("tests$1run$1$2 --debug check" %

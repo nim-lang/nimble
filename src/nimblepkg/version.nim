@@ -7,14 +7,14 @@ type
   Version* = distinct string
 
   VersionRangeEnum* = enum
-    verLater, # > V
-    verEarlier, # < V
-    verEqLater, # >= V -- Equal or later
+    verLater,     # > V
+    verEarlier,   # < V
+    verEqLater,   # >= V -- Equal or later
     verEqEarlier, # <= V -- Equal or earlier
     verIntersect, # > V & < V
-    verEq, # V
-    verAny, # *
-    verSpecial # #head
+    verEq,        # V
+    verAny,       # *
+    verSpecial    # #head
 
   VersionRange* = ref VersionRangeObj
   VersionRangeObj = object
@@ -102,7 +102,7 @@ proc `<=`*(ver: Version, ver2: Version): bool =
   return (ver == ver2) or (ver < ver2)
 
 proc `==`*(range1: VersionRange, range2: VersionRange): bool =
-  if range1.kind != range2.kind : return false
+  if range1.kind != range2.kind: return false
   result = case range1.kind
   of verLater, verEarlier, verEqLater, verEqEarlier, verEq:
     range1.ver == range2.ver
