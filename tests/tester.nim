@@ -1025,3 +1025,30 @@ test "compilation without warnings":
     check exitCode == QuitSuccess
     linesWithWarningsCount += checkOutput(output)
   check linesWithWarningsCount == 0
+
+suite "clean command":
+
+  test "can clean binary file":
+    cd "binaryPackage/v1":
+      check execNimble("build").exitCode == QuitSuccess
+      var binPath = "binaryPackage"
+      when defined(windows):
+        binPath = binPath & ".exe"
+      check fileExists(binPath) == true
+
+      check execNimble("clean").exitCode == QuitSuccess
+
+      check fileExists(binPath) == false
+
+  test "can clean test files":
+    cd "testCommand/testsFail":
+      var testPath = "tests/t2"
+      when defined(windows):
+        testPath = testPath & ".exe"
+      let f = open(testPath, fmWrite)
+      f.close()
+      check fileExists(testPath) == true
+
+      check execNimble("clean").exitCode == QuitSuccess
+
+      check fileExists(testPath) == false

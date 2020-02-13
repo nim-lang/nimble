@@ -1038,53 +1038,58 @@ proc develop(options: Options) =
       discard downloadPkg(url, ver, meth, subdir, options, downloadDir)
       developFromDir(downloadDir / subdir, options)
 
+proc walkTests(): seq[(string, string)] =
+  var files = toSeq(walkDir(getCurrentDir() / "tests"))
+  if files.len < 1:
+    return
+  files.sort((a, b) => cmp(a.path, b.path))
+  for file in files:
+    let (_, name, ext) = file.path.splitFile()
+    if ext == ".nim" and name[0] == 't' and file.kind in {pcFile, pcLinkToFile}:
+      let binFileName = file.path.changeFileExt(ExeExt)
+      result.add((file.path, binFileName))
+
 proc test(options: Options) =
   ## Executes all tests starting with 't' in the ``tests`` directory.
   ## Subdirectories are not walked.
   var pkgInfo = getPkgInfo(getCurrentDir(), options)
 
-  var
-    files = toSeq(walkDir(getCurrentDir() / "tests"))
-    tests, failures: int
+  var tests, failures: int
 
+  let files = walkTests()
   if files.len < 1:
     display("Warning:", "No tests found!", Warning, HighPriority)
     return
 
-  files.sort((a, b) => cmp(a.path, b.path))
+  for fileInfo in files:
+    let (filename, binFileName) = fileInfo
+    var optsCopy = options.briefClone()
+    optsCopy.action = Action(typ: actionCompile)
+    optsCopy.action.file = filename
+    optsCopy.action.backend = pkgInfo.backend
+    optsCopy.getCompilationFlags() = @[]
+    optsCopy.getCompilationFlags().add("-r")
+    optsCopy.getCompilationFlags().add("--path:.")
+    let existsBefore = existsFile(binFileName)
 
-  for file in files:
-    let (_, name, ext) = file.path.splitFile()
-    if ext == ".nim" and name[0] == 't' and file.kind in {pcFile, pcLinkToFile}:
-      var optsCopy = options.briefClone()
-      optsCopy.action = Action(typ: actionCompile)
-      optsCopy.action.file = file.path
-      optsCopy.action.backend = pkgInfo.backend
-      optsCopy.getCompilationFlags() = @[]
-      optsCopy.getCompilationFlags().add("-r")
-      optsCopy.getCompilationFlags().add("--path:.")
-      let
-        binFileName = file.path.changeFileExt(ExeExt)
-        existsBefore = existsFile(binFileName)
-
-      if options.continueTestsOnFailure:
-        inc tests
-        try:
-          execBackend(pkgInfo, optsCopy)
-        except NimbleError:
-          inc failures
-      else:
+    if options.continueTestsOnFailure:
+      inc tests
+      try:
         execBackend(pkgInfo, optsCopy)
+      except NimbleError:
+        inc failures
+    else:
+      execBackend(pkgInfo, optsCopy)
 
-      let
-        existsAfter = existsFile(binFileName)
-        canRemove = not existsBefore and existsAfter
-      if canRemove:
-        try:
-          removeFile(binFileName)
-        except OSError as exc:
-          display("Warning:", "Failed to delete " & binFileName & ": " &
-                  exc.msg, Warning, MediumPriority)
+    let
+      existsAfter = existsFile(binFileName)
+      canRemove = not existsBefore and existsAfter
+    if canRemove:
+      try:
+        removeFile(binFileName)
+      except OSError as exc:
+        display("Warning:", "Failed to delete " & binFileName & ": " &
+                exc.msg, Warning, MediumPriority)
 
   if failures == 0:
     display("Success:", "All tests passed", Success, HighPriority)
@@ -1133,6 +1138,24 @@ proc run(options: Options) =
   let args = options.action.runFlags.join(" ")
 
   doCmd("$# $#" % [binaryPath, args], showOutput = true)
+
+proc clean(options: Options) =
+  ## Clean up all build files.
+  let cwd = getCurrentDir()
+  let pkgInfo = getPkgInfo(cwd, options)
+
+  for filename in pkgInfo.bin:
+    if existsFile(filename):
+      removeFile(filename)
+      display("Hint:", filename & " removed.", Success, HighPriority)
+
+  let tests = walkTests()
+  for files in tests:
+    let (_, binFileName) = files
+    if existsFile(binFileName):
+      removeFile(binFileName)
+      let relativeName = binFileName.replace(cwd & "/", "")
+      display("Hint:", relativeName & " removed.", Success, HighPriority)
 
 proc doAction(options: var Options) =
   if options.showHelp:
@@ -1192,6 +1215,8 @@ proc doAction(options: var Options) =
     develop(options)
   of actionCheck:
     check(options)
+  of actionClean:
+    clean(options)
   of actionNil:
     assert false
   of actionCustom:

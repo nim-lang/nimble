@@ -36,11 +36,12 @@ type
     actionInstall, actionSearch,
     actionList, actionBuild, actionPath, actionUninstall, actionCompile,
     actionDoc, actionCustom, actionTasks, actionDevelop, actionCheck,
-    actionRun
+    actionRun, actionClean
 
   Action* = object
     case typ*: ActionType
-    of actionNil, actionList, actionPublish, actionTasks, actionCheck: nil
+    of actionNil, actionList, actionPublish, actionTasks, actionCheck, actionClean:
+      nil
     of actionRefresh:
       optionalURL*: string # Overrides default package list.
     of actionInstall, actionPath, actionUninstall, actionDevelop:
@@ -116,6 +117,7 @@ Commands:
                                   external tools. The argument can be a
                                   .nimble file, a project directory or
                                   the name of an installed package.
+  clean                           Clean up all build files.
 
 
 Options:
@@ -186,6 +188,8 @@ proc parseActionType*(action: string): ActionType =
     result = actionDevelop
   of "check":
     result = actionCheck
+  of "clean":
+    result = actionClean
   else:
     result = actionCustom
 
@@ -218,7 +222,7 @@ proc initAction*(options: var Options, key: string) =
     options.action.arguments = @[]
     options.action.flags = newStringTable()
   of actionPublish, actionList, actionTasks, actionCheck, actionRun,
-     actionNil: discard
+     actionNil, actionClean: discard
 
 proc prompt*(options: Options, question: string): bool =
   ## Asks an interactive question and returns the result.
