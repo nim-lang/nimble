@@ -252,7 +252,7 @@ proc buildFromDir(
       createDir(outputDir)
 
     try:
-      doCmd("\"" & getNimBin() & "\" $# --noNimblePath $# $# $# \"$#\"" %
+      doCmd("\"" & getNimBin() & "\" $# --colors:on --noNimblePath $# $# $# \"$#\"" %
             [pkgInfo.backend, nimblePkgVersion, join(args, " "), outputOpt,
              realDir / bin.changeFileExt("nim")])
       binariesBuilt.inc()
