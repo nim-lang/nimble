@@ -1124,15 +1124,14 @@ proc run(options: Options) =
       "Binary '$#' is not defined in '$#' package." % [binary, pkgInfo.name]
     )
 
-  let binaryPath = pkgInfo.getOutputDir(binary)
-
   # Build the binary.
   build(options)
 
-  # Now run it.
-  let args = options.action.runFlags.join(" ")
+  let binaryPath = pkgInfo.getOutputDir(binary) 
+  let cmd = quoteShellCommand(binaryPath & options.action.runFlags)
+  displayDebug("Executing", cmd)
+  cmd.execCmd.quit
 
-  doCmd("$# $#" % [binaryPath, args], showOutput = true)
 
 proc doAction(options: var Options) =
   if options.showHelp:
