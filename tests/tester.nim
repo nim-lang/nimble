@@ -38,7 +38,7 @@ proc execNimble(args: varargs[string]): tuple[output: string, exitCode: int] =
   var quotedArgs = @args
   quotedArgs.insert("--nimbleDir:" & installDir)
   quotedArgs.insert(nimblePath)
-  quotedArgs = quotedArgs.map((x: string) => ("\"" & x & "\""))
+  quotedArgs = quotedArgs.map((x: string) => x.quoteShell)
 
   let path {.used.} = getCurrentDir().parentDir() / "src"
 
@@ -975,6 +975,24 @@ suite "nimble run":
       check output.contains("tests$1run$1$2 --debug check" %
                             [$DirSep, "run".changeFileExt(ExeExt)])
       check output.contains("""Testing `nimble run`: @["--debug", "check"]""")
+
+  test "Executable output is shown even when not debugging":
+    cd "run":
+      var (output, exitCode) =
+        execNimble("run", "run", "--option1", "arg1")
+      check exitCode == QuitSuccess
+      check output.contains("""Testing `nimble run`: @["--option1", "arg1"]""")
+
+  test "Quotes and whitespace are well handled":
+    cd "run":
+      var (output, exitCode) = execNimble(
+        "run", "run", "\"", "\'", "\t", "arg with spaces"
+      )
+      check exitCode == QuitSuccess
+      check output.contains(
+        """Testing `nimble run`: @["\"", "\'", "\t", "arg with spaces"]"""
+      )
+
 
 test "NimbleVersion is defined":
   cd "nimbleVersionDefine":
