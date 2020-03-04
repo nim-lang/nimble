@@ -202,7 +202,7 @@ proc publish*(p: PackageInfo, o: Options) =
   if dirExists(os.getCurrentDir() / ".git"):
     let (output, exitCode) = doCmdEx("git ls-remote --get-url")
     if exitCode == 0:
-      url = output.string.strip
+      url = output.strip
       if url.endsWith(".git"): url.setLen(url.len - 4)
       downloadMethod = "git"
     let parsed = parseUri(url)

@@ -3,7 +3,7 @@
 
 # Stdlib imports
 import system except TResult
-import hashes, json, strutils, os, sets, tables, httpclient, sequtils, sugar
+import hashes, json, strutils, os, sets, tables, httpclient
 from net import SslError
 
 from compiler/nimblecmd import getPathVersionChecksum
@@ -30,40 +30,35 @@ const
 proc lockFileExists*(dir: string): bool =
   fileExists(dir / lockFile.name)
 
-proc getPackage*(name: string, options: Options): Package
+proc writeLockFile*(fileName: string, packages: LockFileDependencies,
+                    topologicallySortedOrder: seq[string]) =
+  ## Saves lock file on the disk in topologically sorted order of the
+  ## dependencies.
 
-proc writeLockFile*(packages: seq[PackageInfo], options: Options) =
   let packagesJsonNode = newJObject()
-  for pkgInfo in packages:
-    let pkg = getPackage(pkgInfo.name, options)
-    let packageJsonNode = %{
-        $lfjkPackageVersion: %pkgInfo.version,
-        $lfjkPackageVcsRevision: %pkgInfo.vcsRevision,
-        $lfjkPackageUrl: %pkg.url,
-        $lfjkPackageDownloadMethod: %pkg.downloadMethod,
-        $lfjkPackageDependencies: %pkgInfo.requires.map(
-          pkg => pkg.name).filter(name => name != "nim"),
-        $lfjkPackageChecksum: %{
-          $lfjkPackageChecksumSha1: %pkgInfo.checksum
-          }
-        }
-    packagesJsonNode.add(pkgInfo.name, packageJsonNode)
+  for packageName in topologicallySortedOrder:
+    packagesJsonNode.add packageName, %packages[packageName]
 
   let mainJsonNode = %{
-    $lfjkVersion: %lockFile.version,
-    $lfjkPackages: packagesJsonNode
-    }
+      $lfjkVersion: %lockFile.version,
+      $lfjkPackages: packagesJsonNode
+      }
+  
+  writeFile(fileName, mainJsonNode.pretty)
 
-  writeFile(lockFile.name, mainJsonNode.pretty)
+proc writeLockFile*(packages: LockFileDependencies,
+                    topologicallySortedOrder: seq[string]) =
+  writeLockFile(lockFile.name, packages, topologicallySortedOrder)
 
-proc readLockFile*(dir: string): LockFileDependencies =
-  let lockFilePath = dir / lockFile.name
-  let json = parseFile(lockFilePath)
-  result = json[$lfjkPackages].to(result.typeof)
+proc readLockFile*(filePath: string): LockFileDependencies =
+  parseFile(filePath)[$lfjkPackages].to(result.typeof)
+
+proc readLockFileInDir*(dir: string): LockFileDependencies =
+  readLockFile(dir / lockFile.name)
 
 proc getLockedDependencies*(dir: string): LockFileDependencies =
   if lockFileExists(dir):
-    result = readLockFile(dir)
+    result = readLockFileInDir(dir)
 
 proc getNameVersionChecksum*(pkgpath: string): PackageBasicInfo =
   ## Splits ``pkgpath`` in the format

@@ -189,7 +189,7 @@ proc getVcsRevisionFromDir*(dir: string): string =
     try:
       let (output, exitCode) = doCmdEx(command)
       if exitCode == QuitSuccess:
-        return string(output).strip()
+        return output.strip()
     except:
       discard
 

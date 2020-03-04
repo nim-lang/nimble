@@ -16,7 +16,7 @@ import nimblepkg/packageinfotypes, nimblepkg/packageinfo, nimblepkg/version,
        nimblepkg/publish, nimblepkg/options, nimblepkg/packageparser,
        nimblepkg/cli, nimblepkg/packageinstaller, nimblepkg/reversedeps,
        nimblepkg/nimscriptexecutor, nimblepkg/init, nimblepkg/tools,
-       nimblepkg/checksum
+       nimblepkg/checksum, nimblepkg/topologicalsort
 
 import nimblepkg/nimscriptwrapper
 
@@ -1186,7 +1186,9 @@ proc lock(options: Options) =
   let packageInfo = getPkgInfo(currentDir, options)
   let dependencies = processDeps(packageInfo, options).toSeq.map(
     pkg => pkg.toFullInfo(options))
-  writeLockFile(dependencies, options)
+  let dependencyGraph = buildDependencyGraph(dependencies, options)
+  let (topologicalOrder, _) = topologicalSort(dependencyGraph)
+  writeLockFile(dependencyGraph, topologicalOrder)
 
 proc run(options: Options) =
   # Verify parameters.

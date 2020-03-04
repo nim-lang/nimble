@@ -315,7 +315,7 @@ suite "nimscript":
 
   test "can accept short flags (#329)":
     cd "nimscript":
-      check execNimble("c", "-d:release", "nimscript.nim").exitCode == QuitSuccess"
+      check execNimble("c", "-d:release", "nimscript.nim").exitCode == QuitSuccess
 
 suite "uninstall":
   beforeSuite()
@@ -1040,6 +1040,7 @@ suite "misc tests":
         "[Deprecated]",
         "[XDeclaredButNotUsed]",
         "[Spacing]",
+        "[ConvFromXtoItselfNotNeeded]",
         ]
 
       for line in output.splitLines():

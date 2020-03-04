@@ -24,11 +24,11 @@ proc extractFileList(consoleOutput: string): seq[string] =
 
 proc getPackageFileListFromGit(): seq[string] =
   let output = tryDoCmdEx("git ls-files")
-  extractFileList(string(output))
+  extractFileList(output)
 
 proc getPackageFileListFromMercurial(): seq[string] =
   let output = tryDoCmdEx("hg manifest")
-  extractFileList(string(output))
+  extractFileList(output)
 
 proc getPackageFileListWithoutScm(): seq[string] =
   for file in walkDirRec(".", relative = true):

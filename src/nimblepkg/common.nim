@@ -53,7 +53,7 @@ proc getOutputInfo*(err: ref NimbleError): (string, string) =
 
 proc reportUnitTestSuccess*() =
   if programResult == QuitSuccess:
-    stdout.styledWrite(fgGreen, "All tests passed.")
+    stdout.styledWrite(fgGreen, "All tests passed.\n")
 
 when not declared(initHashSet):
   template initHashSet*[A](initialSize = 64): HashSet[A] =

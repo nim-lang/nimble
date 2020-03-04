@@ -34,6 +34,7 @@ src/nimblepkg/packageparser
 src/nimblepkg/publish
 src/nimblepkg/reversedeps
 src/nimblepkg/tools
+src/nimblepkg/topologicalsort
 src/nimblepkg/version
 
 # Windows executables

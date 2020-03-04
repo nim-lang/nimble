@@ -16,7 +16,7 @@ type
     dependencies*: seq[string]
     checksum*: Checksums
 
-  LockFileDependencies* = Table[string, LockFileDependency]
+  LockFileDependencies* = OrderedTable[string, LockFileDependency]
 
   PackageInfo* = object
     myPath*: string ## The path of this .nimble file
