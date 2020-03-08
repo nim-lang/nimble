@@ -14,6 +14,8 @@ type
     pkgNimDep: string
     pkgType: string
 
+template p(s: string{lit}): string = static(s.replace("\n", "\p"))
+
 proc writeExampleIfNonExistent(file: string, content: string) =
   if not existsFile(file):
     writeFile(file, content)
@@ -31,7 +33,7 @@ proc createPkgStructure*(info: PkgInitInfo, pkgRoot: string) =
   of "binary":
     let mainFile = pkgRoot / info.pkgSrcDir / info.pkgName.changeFileExt("nim")
     writeExampleIfNonExistent(mainFile,
-"""
+p"""
 # This is just an example to get you started. A typical binary package
 # uses this file as the main entry point of the application.
 
@@ -39,11 +41,11 @@ when isMainModule:
   echo("Hello, World!")
 """
     )
-    nimbleFileOptions.add("bin           = @[\"$1\"]\n" % info.pkgName)
+    nimbleFileOptions.add("bin           = @[\"$1\"]\p" % info.pkgName)
   of "library":
     let mainFile = pkgRoot / info.pkgSrcDir / info.pkgName.changeFileExt("nim")
     writeExampleIfNonExistent(mainFile,
-"""
+p"""
 # This is just an example to get you started. A typical library package
 # exports the main API in this file. Note that you cannot rename this file
 # but you can remove it if you wish.
@@ -58,7 +60,7 @@ proc add*(x, y: int): int =
     let submodule = pkgRoot / info.pkgSrcDir / info.pkgName /
         "submodule".addFileExt("nim")
     writeExampleIfNonExistent(submodule,
-"""
+p"""
 # This is just an example to get you started. Users of your library will
 # import this file by writing ``import $1/submodule``. Feel free to rename or
 # remove this file altogether. You may create additional modules alongside
@@ -76,7 +78,7 @@ proc initSubmodule*(): Submodule =
   of "hybrid":
     let mainFile = pkgRoot / info.pkgSrcDir / info.pkgName.changeFileExt("nim")
     writeExampleIfNonExistent(mainFile,
-"""
+p"""
 # This is just an example to get you started. A typical hybrid package
 # uses this file as the main entry point of the application.
 
@@ -91,7 +93,7 @@ when isMainModule:
     createDirD(pkgSubDir)
     let submodule = pkgSubDir / "submodule".addFileExt("nim")
     writeExampleIfNonExistent(submodule,
-"""
+p"""
 # This is just an example to get you started. Users of your hybrid library will
 # import this file by writing ``import $1pkg/submodule``. Feel free to rename or
 # remove this file altogether. You may create additional modules alongside
@@ -100,8 +102,8 @@ when isMainModule:
 proc getWelcomeMessage*(): string = "Hello, World!"
 """ % info.pkgName
     )
-    nimbleFileOptions.add("installExt    = @[\"nim\"]\n")
-    nimbleFileOptions.add("bin           = @[\"$1\"]\n" % info.pkgName)
+    nimbleFileOptions.add("installExt    = @[\"nim\"]\p")
+    nimbleFileOptions.add("bin           = @[\"$1\"]\p" % info.pkgName)
   else:
     assert false, "Invalid package type specified."
 
@@ -120,7 +122,7 @@ proc getWelcomeMessage*(): string = "Hello, World!"
 
     if info.pkgType == "library":
       writeExampleIfNonExistent(pkgTestPath / "test1".addFileExt("nim"),
-"""
+p"""
 # This is just an example to get you started. You may wish to put all of your
 # tests into a single file, or separate them into multiple `test1`, `test2`
 # etc. files (better names are recommended, just make sure the name starts with
@@ -137,7 +139,7 @@ test "can add":
       )
     else:
       writeExampleIfNonExistent(pkgTestPath / "test1".addFileExt("nim"),
-"""
+p"""
 # This is just an example to get you started. You may wish to put all of your
 # tests into a single file, or separate them into multiple `test1`, `test2`
 # etc. files (better names are recommended, just make sure the name starts with
@@ -161,7 +163,7 @@ test "correct welcome":
   var pkgBackend = ""
   if (info.pkgBackend != "c"):
     pkgBackend = "backend       = " & info.pkgbackend.escape()
-  writeFile(nimbleFile, """# Package
+  writeFile(nimbleFile, p"""# Package
 
 version       = $#
 author        = "$#"
