@@ -16,9 +16,8 @@ import nimblepkg/packageinfotypes, nimblepkg/packageinfo, nimblepkg/version,
        nimblepkg/publish, nimblepkg/options, nimblepkg/packageparser,
        nimblepkg/cli, nimblepkg/packageinstaller, nimblepkg/reversedeps,
        nimblepkg/nimscriptexecutor, nimblepkg/init, nimblepkg/tools,
-       nimblepkg/checksum, nimblepkg/topologicalsort
-
-import nimblepkg/nimscriptwrapper
+       nimblepkg/checksum, nimblepkg/topologicalsort, nimblepkg/lockfile,
+       nimblepkg/nimscriptwrapper
 
 proc refresh(options: Options) =
   ## Downloads the package list from the specified URL.

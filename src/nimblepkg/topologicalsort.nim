@@ -2,7 +2,7 @@
 # BSD License. Look at license.txt for more info.
 
 import sequtils, sugar, tables, strformat, algorithm
-import packageinfotypes, packageinfo, options, cli
+import packageinfotypes, packageinfo, options, cli, lockfile
 
 proc buildDependencyGraph*(packages: seq[PackageInfo], options: Options):
     LockFileDependencies =

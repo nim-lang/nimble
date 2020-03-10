@@ -1,23 +1,10 @@
 # Copyright (C) Dominik Picheta. All rights reserved.
 # BSD License. Look at license.txt for more info.
 
-import sets, tables
-import version
+import sets
+import version, lockfile
 
 type
-  Checksums* = object
-    sha1*: string
-    
-  LockFileDependency* = object
-    version*: string
-    vcsRevision*: string
-    url*: string
-    downloadMethod*: string
-    dependencies*: seq[string]
-    checksum*: Checksums
-
-  LockFileDependencies* = OrderedTable[string, LockFileDependency]
-
   PackageInfo* = object
     myPath*: string ## The path of this .nimble file
     isNimScript*: bool ## Determines if this pkg info was read from a nims file
