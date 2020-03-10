@@ -23,6 +23,7 @@ src/nimblepkg/download
 src/nimblepkg/init
 src/nimblepkg/jsonhelpers
 src/nimblepkg/lockfile
+src/nimblepkg/nimbledata
 src/nimblepkg/nimscriptapi
 src/nimblepkg/nimscriptexecutor
 src/nimblepkg/nimscriptwrapper

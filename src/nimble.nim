@@ -17,7 +17,7 @@ import nimblepkg/packageinfotypes, nimblepkg/packageinfo, nimblepkg/version,
        nimblepkg/cli, nimblepkg/packageinstaller, nimblepkg/reversedeps,
        nimblepkg/nimscriptexecutor, nimblepkg/init, nimblepkg/tools,
        nimblepkg/checksum, nimblepkg/topologicalsort, nimblepkg/lockfile,
-       nimblepkg/nimscriptwrapper
+       nimblepkg/nimscriptwrapper, nimblepkg/nimbledata
 
 proc refresh(options: Options) =
   ## Downloads the package list from the specified URL.
@@ -201,14 +201,14 @@ proc buildFromDir(
 proc removePkgDir(dir: string, options: Options) =
   ## Removes files belonging to the package in ``dir``.
   try:
-    var nimblemeta = parseFile(dir / packageMetaDataFileName)
+    var nimblemeta = parseFile(dir / nimbleDataFile.name)
     if not nimblemeta.hasKey($pmdjkFiles):
       raise newException(JsonParsingError,
                          "Meta data does not contain required info.")
     for file in nimblemeta[$pmdjkFiles]:
       removeFile(dir / file.str)
 
-    removeFile(dir / packageMetaDataFileName)
+    removeFile(dir / nimbleDataFile.name)
 
     # If there are no files left in the directory, remove the directory.
     if toSeq(walkDirRec(dir)).len == 0:
@@ -244,6 +244,9 @@ proc removePkgDir(dir: string, options: Options) =
                           "in " & dir & "?"):
       raise NimbleQuit(msg: "")
     removeDir(dir)
+
+proc saveNimbleData(options: Options) =
+  saveNimbleDataToDir(options.getNimbleDir(), options.nimbleData)
 
 proc processLockedDependencies(packageInfo: PackageInfo, options: Options):
   seq[PackageInfo]
@@ -310,7 +313,7 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
   # Don't copy artifacts if project local deps mode and "installing" the top level package
   if not (options.localdeps and options.isInstallingTopLevel(dir)):
     let pkgDestDir = pkgInfo.getPkgDest(options)
-    if fileExists(pkgDestDir / packageMetaDataFileName):
+    if fileExists(pkgDestDir / nimbleDataFile.name):
       let msg = "$1@$2 already exists. Overwrite?" %
                 [pkgInfo.name, pkgInfo.specialVersion]
       if not options.prompt(msg):
@@ -1030,7 +1033,7 @@ proc developFromDir(dir: string, options: Options) =
     # This is similar to the code in `installFromDir`, except that we
     # *consciously* not worry about the package's binaries.
     let pkgDestDir = pkgInfo.getPkgDest(options)
-    if fileExists(pkgDestDir / packageMetaDataFileName):
+    if fileExists(pkgDestDir / nimbleDataFile.name):
       let msg = "$1@$2 already exists. Overwrite?" %
                 [pkgInfo.name, pkgInfo.specialVersion]
       if not options.prompt(msg):

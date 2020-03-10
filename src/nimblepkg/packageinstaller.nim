@@ -100,7 +100,7 @@ proc saveNimbleMeta*(pkgDestDir, url, vcsRevision: string,
   for bin in bins:
     binaries.add(%bin)
   nimblemeta[$pmdjkIsLink] = %isLink
-  writeFile(pkgDestDir / packageMetaDataFileName, nimblemeta.pretty)
+  writeFile(pkgDestDir / nimbleDataFile.name, nimblemeta.pretty)
 
 proc saveNimbleMeta*(pkgDestDir, pkgDir, vcsRevision, nimbleLinkPath: string) =
   ## Overload of saveNimbleMeta for linked (.nimble-link) packages.

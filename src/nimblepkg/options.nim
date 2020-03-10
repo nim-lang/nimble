@@ -6,7 +6,7 @@ import sequtils, sugar
 import std/options as std_opt
 from httpclient import Proxy, newProxy
 
-import config, version, common, cli, packageinfotypes
+import config, version, common, cli, packageinfotypes, nimbledata
 
 const
   nimbledeps* = "nimbledeps"
@@ -507,25 +507,6 @@ proc initOptions*(): Options =
     noColor: not isatty(stdout)
   )
 
-proc newNimbleDataNode*(): JsonNode =
-  %{ $ndjkVersion: %nimbleDataFile.version, $ndjkRevDep: newJObject() }
-
-proc convertToTheNewFormat(nimbleData: JsonNode) =
-  nimbleData.add($ndjkVersion, %nimbleDataFile.version)
-  for name, versions in nimbleData[$ndjkRevDep]:
-    for version, dependencies in versions:
-      for dependency in dependencies:
-        dependency.add($ndjkRevDepChecksum, %"")
-      versions[version] = %{ "": dependencies }
-
-proc parseNimbleData*(fileName: string): JsonNode =
-  if fileExists(fileName):
-    result = parseFile(fileName)
-    if not result.hasKey($ndjkVersion):
-      convertToTheNewFormat(result)
-  else:
-    result = newNimbleDataNode()
-
 proc handleUnknownFlags(options: var Options) =
   if options.action.typ == actionRun:
     # In addition to flags that come after the command before binary,
@@ -583,8 +564,7 @@ proc parseCmdLine*(): Options =
   # Parse config.
   result.config = parseConfig()
 
-  result.nimbleData = parseNimbleData(
-    result.getNimbleDir() / nimbleDataFile.name)
+  result.nimbleData = parseNimbleDataFromDir(result.getNimbleDir())
 
   if result.action.typ == actionNil and not result.showVersion:
     result.showHelp = true

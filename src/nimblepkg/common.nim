@@ -32,7 +32,6 @@ type
 const
   nimbleVersion* = "0.13.1"
   nimbleDataFile* = (name: "nimbledata.json", version: "0.1.0")
-  packageMetaDataFileName* = "nimblemeta.json"
 
 proc raiseNimbleError*(msg: string, hint = "") =
   var exc = newException(NimbleError, msg)

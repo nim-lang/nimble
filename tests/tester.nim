@@ -4,7 +4,7 @@ import osproc, unittest, strutils, os, sequtils, sugar, json, std/sha1,
        strformat
 
 from nimblepkg/common import ProcessOutput
-from nimblepkg/options import parseNimbleData
+from nimblepkg/nimbledata import parseNimbleData
 
 # TODO: Each test should start off with a clean slate. Currently installed
 # packages are shared between each test which causes a multitude of issues

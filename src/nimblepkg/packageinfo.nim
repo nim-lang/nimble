@@ -25,7 +25,7 @@ proc getNameVersionChecksum*(pkgpath: string): PackageBasicInfo =
 
 proc readMetaData*(path: string, silent = false): MetaData =
   ## Reads the metadata present in ``~/.nimble/pkgs/pkg-0.1/nimblemeta.json``
-  var bmeta = path / packageMetaDataFileName
+  var bmeta = path / nimbleDataFile.name
   if not fileExists(bmeta) and not silent:
     result.url = ""
     display("Warning:", "No nimblemeta.json file found in " & path,

@@ -1,15 +1,10 @@
 # Copyright (C) Dominik Picheta. All rights reserved.
 # BSD License. Look at license.txt for more info.
 
-import os, json, sets
+import json, sets
 
 import common, options, version, download, jsonhelpers,
        packageinfotypes, packageinfo
-
-proc saveNimbleData*(options: Options) =
-  # TODO: This file should probably be locked.
-  writeFile(options.getNimbleDir() / nimbleDataFile.name,
-            pretty(options.nimbleData))
 
 proc addRevDep*(nimbleData: JsonNode, dep: PackageBasicInfo,
                 pkg: PackageInfo) =
@@ -108,6 +103,7 @@ proc getAllRevDeps*(options: Options, pkg: PackageInfo,
 when isMainModule:
 
   import unittest
+  import nimbledata
 
   let nimforum1 = PackageInfo(
     isMinimal: false,
