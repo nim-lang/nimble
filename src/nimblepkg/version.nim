@@ -2,7 +2,7 @@
 # BSD License. Look at license.txt for more info.
 
 ## Module for handling versions and version ranges such as ``>= 1.0 & <= 1.5``
-import strutils, tables, hashes, parseutils
+import common, strutils, tables, hashes, parseutils
 
 type
   Version* = distinct string
@@ -35,8 +35,6 @@ type
   PkgTuple* = tuple[name: string, ver: VersionRange, vcsRevision: string]
 
   ParseVersionError* = object of ValueError
-  NimbleError* = object of CatchableError
-    hint*: string
 
 proc `$`*(ver: Version): string {.borrow.}
 

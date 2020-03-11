@@ -2,7 +2,7 @@
 # BSD License. Look at license.txt for more info.
 
 import os, strutils, std/sha1, algorithm, strformat
-import version, tools
+import common, tools
 
 type
   ChecksumError* = object of NimbleError

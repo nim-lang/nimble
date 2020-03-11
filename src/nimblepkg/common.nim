@@ -5,9 +5,11 @@
 # recursive imports
 
 import sets, terminal
-import version
 
 type
+  NimbleError* = object of CatchableError
+    hint*: string
+
   BuildFailed* = object of NimbleError
 
   ## Same as quit(QuitSuccess), but allows cleanup.

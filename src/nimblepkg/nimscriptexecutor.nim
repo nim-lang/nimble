@@ -3,8 +3,7 @@
 
 import os, strutils, sets
 
-import packageparser, common, packageinfo, options, nimscriptwrapper, cli,
-       version
+import packageparser, common, packageinfo, options, nimscriptwrapper, cli
 
 proc execHook*(options: Options, hookAction: ActionType, before: bool): bool =
   ## Returns whether to continue.

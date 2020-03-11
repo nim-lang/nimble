@@ -5,8 +5,7 @@
 ## scripting language.
 
 import hashes, json, os, strutils, tables, times, osproc
-
-import version, options, cli, tools
+import common, options, cli, tools
 
 type
   Flags = TableRef[string, seq[string]]

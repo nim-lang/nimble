@@ -13,7 +13,7 @@
 #   - Normal for MediumPriority.
 
 import terminal, sets, strutils
-import version
+import common
 
 when not declared(initHashSet):
   import common

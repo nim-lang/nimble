@@ -6,8 +6,7 @@
 
 import system except TResult
 import httpclient, strutils, json, os, browsers, times, uri
-import version, tools, cli, config, options, packageinfotypes
-import version, tools, common, cli, config, options
+import common, tools, cli, config, options, packageinfotypes
 {.warning[UnusedImport]: off.}
 from net import SslCVerifyMode, newContext
 
