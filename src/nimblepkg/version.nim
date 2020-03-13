@@ -32,7 +32,7 @@ type
       nil
 
   ## Tuple containing package name and version range.
-  PkgTuple* = tuple[name: string, ver: VersionRange, vcsRevision: string]
+  PkgTuple* = tuple[name: string, ver: VersionRange]
 
   ParseVersionError* = object of ValueError
 

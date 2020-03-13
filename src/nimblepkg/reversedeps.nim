@@ -71,7 +71,6 @@ proc getRevDepTups*(options: Options, pkg: PackageInfo): seq[PkgTuple] =
       let pkgTup = (
         name: pkg[$ndjkRevDepName].getStr(),
         ver: parseVersionRange(pkg[$ndjkRevDepVersion].getStr()),
-        vcsRevision: ""
       )
       var pkgInfo: PackageInfo
       if not findPkg(pkgList, pkgTup, pkgInfo):
@@ -109,9 +108,9 @@ when isMainModule:
     isMinimal: false,
     name: "nimforum",
     specialVersion: "0.1.0",
-    requires: @[("jester", parseVersionRange("0.1.0"), ""),
-                ("captcha", parseVersionRange("1.0.0"), ""),
-                ("auth", parseVersionRange("#head"), "")],
+    requires: @[("jester", parseVersionRange("0.1.0")),
+                ("captcha", parseVersionRange("1.0.0")),
+                ("auth", parseVersionRange("#head"))],
     checksum: "46A96C3F2B0ECB3D3F7BD71E12200ED401E9B9F2",
     )
 

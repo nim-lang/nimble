@@ -378,9 +378,9 @@ proc parseArgument*(key: string, result: var Options) =
       let (pkgName, pkgVer) = (key[0 .. i-1], key[i+1 .. key.len-1])
       if pkgVer.len == 0:
         raise newException(NimbleError, "Version range expected after '@'.")
-      result.action.packages.add((pkgName, pkgVer.parseVersionRange(), ""))
+      result.action.packages.add((pkgName, pkgVer.parseVersionRange()))
     else:
-      result.action.packages.add((key, VersionRange(kind: verAny), ""))
+      result.action.packages.add((key, VersionRange(kind: verAny)))
   of actionRefresh:
     result.action.optionalURL = key
   of actionSearch:

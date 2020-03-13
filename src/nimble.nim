@@ -85,7 +85,7 @@ proc processDeps(pkginfo: PackageInfo, options: Options): HashSet[PackageInfo] =
 
       if not found:
         display("Installing", $resolvedDep, priority = HighPriority)
-        let toInstall = @[(resolvedDep.name, resolvedDep.ver, "")]
+        let toInstall = @[(resolvedDep.name, resolvedDep.ver)]
         let (pkgs, installedPkg) = install(toInstall, options,
                                            doPrompt = false,
                                            first = false,
@@ -239,7 +239,7 @@ proc reinstallSymlinksForOlderVersion(pkgDir: string, options: Options) =
   let (pkgName, _, _) = getNameVersionChecksum(pkgDir)
   let pkgList = getInstalledPkgsMin(options.getPkgsDir(), options)
   var newPkgInfo: PackageInfo
-  if pkgList.findPkg((pkgName, newVRAny(), ""), newPkgInfo):
+  if pkgList.findPkg((pkgName, newVRAny()), newPkgInfo):
     newPkgInfo = newPkgInfo.toFullInfo(options)
     for bin in newPkgInfo.binaries:
       let symlinkDest = newPkgInfo.getOutputDir(bin)
@@ -537,7 +537,7 @@ proc install(packages: seq[PkgTuple],
                   " like to try installing '$1@#head' (latest unstable)?") %
                   [pv.name, $downloadVersion])
           if promptResult:
-            let toInstall = @[(pv.name, headVer.toVersionRange(), "")]
+            let toInstall = @[(pv.name, headVer.toVersionRange())]
             result = install(toInstall, options, doPrompt, first,
                              fromLockFile = false)
           else:
@@ -682,7 +682,7 @@ proc listPaths(options: Options) =
 
   var errors = 0
   let pkgs = getInstalledPkgsMin(options.getPkgsDir(), options)
-  for name, version, _ in options.action.packages.items:
+  for name, version in options.action.packages.items:
     var installed: seq[VersionAndPath] = @[]
     # There may be several, list all available ones and sort by version.
     for pkg in pkgs:
@@ -753,7 +753,7 @@ proc dump(options: Options) =
         # jsonutils.toJson would work but is only available since 1.3.5, so we
         # do it manually.
         j[key] = newJArray()
-        for (name, ver, _) in val:
+        for (name, ver) in val:
           j[key].add %{
             "name": % name,
             # we serialize both: `ver` may be more convenient for tooling
