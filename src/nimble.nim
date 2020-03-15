@@ -252,9 +252,11 @@ proc buildFromDir(
       createDir(outputDir)
 
     let input = realDir / bin.changeFileExt("nim")
-    let cmd = "$# $# --noNimblePath $# $# $# $#" %
-            [getNimBin().quoteShell, pkgInfo.backend, nimblePkgVersion,
-             join(args, " "), outputOpt, input.quoteShell]
+    # `quoteShell` would be more robust than `\"` (and avoid quoting when
+    # un-necessary) but would require changing `extractBin`
+    let cmd = "\"$#\" $# --noNimblePath $# $# $# \"$#\"" %
+            [getNimBin(), pkgInfo.backend, nimblePkgVersion,
+             join(args, " "), outputOpt, input]
     try:
       doCmd(cmd, showCmd = true)
       binariesBuilt.inc()
