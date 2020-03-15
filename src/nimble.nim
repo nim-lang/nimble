@@ -385,7 +385,7 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
                   options.action.passNimFlags
                 else:
                   @[]
-    buildFromDir(pkgInfo, paths, flags & "-d:release", options)
+    buildFromDir(pkgInfo, paths, "-d:release" & flags, options)
 
   let pkgDestDir = pkgInfo.getPkgDest(options)
   if existsDir(pkgDestDir) and existsFile(pkgDestDir / "nimblemeta.json"):
