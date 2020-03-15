@@ -1044,7 +1044,7 @@ proc test(options: Options) =
   var pkgInfo = getPkgInfo(getCurrentDir(), options)
 
   var
-    files = toSeq(walkDir(getCurrentDir() / "tests"))
+    files = toSeq(walkDir(getCurrentDir() / "tests", checkDir = false))
     tests, failures: int
 
   if files.len < 1:
