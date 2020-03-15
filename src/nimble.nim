@@ -257,7 +257,6 @@ proc buildFromDir(
              join(args, " "), outputOpt, input.quoteShell]
     try:
       doCmd(cmd, showCmd = true)
-      # doCmd(cmd, showCmd = options.showCmds)
       binariesBuilt.inc()
     except NimbleError:
       let currentExc = (ref NimbleError)(getCurrentException())
