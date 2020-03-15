@@ -517,7 +517,7 @@ proc iterInstallFiles*(realDir: string, pkgInfo: PackageInfo,
 
     iterFilesWithExt(realDir, pkgInfo, action)
   else:
-    for kind, file in walkDir(realDir):
+    for kind, file in walkDir(realDir, checkDir = false):
       if kind == pcDir:
         let skip = pkgInfo.checkInstallDir(realDir, file)
         if skip: continue
