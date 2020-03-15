@@ -516,8 +516,10 @@ proc iterInstallFiles*(realDir: string, pkgInfo: PackageInfo,
       iterFilesInDir(src, action)
 
     iterFilesWithExt(realDir, pkgInfo, action)
-  else:
-    for kind, file in walkDir(realDir, checkDir = false):
+  elif existsDir(realDir):
+    # check `existsDir` for things like:
+    # "C:\\Users\\foo\\.nimble\\pkgs\\chroma-0.1.0\\src
+    for kind, file in walkDir(realDir):
       if kind == pcDir:
         let skip = pkgInfo.checkInstallDir(realDir, file)
         if skip: continue

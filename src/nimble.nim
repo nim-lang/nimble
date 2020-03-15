@@ -1043,8 +1043,10 @@ proc test(options: Options) =
   ## Subdirectories are not walked.
   var pkgInfo = getPkgInfo(getCurrentDir(), options)
 
+  var files: seq[string]
+  let testsDir = getCurrentDir() / "tests"
+  if testsDir.existsDir: files = toSeq(walkDir(testsDir))
   var
-    files = toSeq(walkDir(getCurrentDir() / "tests", checkDir = false))
     tests, failures: int
 
   if files.len < 1:
