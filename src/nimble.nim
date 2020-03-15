@@ -251,10 +251,13 @@ proc buildFromDir(
     if not existsDir(outputDir):
       createDir(outputDir)
 
+    let input = realDir / bin.changeFileExt("nim")
+    let cmd = "$# $# --noNimblePath $# $# $# $#" %
+            [getNimBin().quoteShell, pkgInfo.backend, nimblePkgVersion,
+             join(args, " "), outputOpt, input.quoteShell]
+    display("cmd", cmd, priority = MediumPriority)
     try:
-      doCmd("\"" & getNimBin() & "\" $# --noNimblePath $# $# $# \"$#\"" %
-            [pkgInfo.backend, nimblePkgVersion, join(args, " "), outputOpt,
-             realDir / bin.changeFileExt("nim")])
+      doCmd(cmd)
       binariesBuilt.inc()
     except NimbleError:
       let currentExc = (ref NimbleError)(getCurrentException())
