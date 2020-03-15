@@ -255,9 +255,9 @@ proc buildFromDir(
     let cmd = "$# $# --noNimblePath $# $# $# $#" %
             [getNimBin().quoteShell, pkgInfo.backend, nimblePkgVersion,
              join(args, " "), outputOpt, input.quoteShell]
-    display("cmd", cmd, priority = MediumPriority)
     try:
-      doCmd(cmd)
+      doCmd(cmd, showCmd = true)
+      # doCmd(cmd, showCmd = options.showCmds)
       binariesBuilt.inc()
     except NimbleError:
       let currentExc = (ref NimbleError)(getCurrentException())

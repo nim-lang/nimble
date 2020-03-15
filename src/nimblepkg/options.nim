@@ -17,6 +17,7 @@ type
     queryInstalled*: bool
     nimbleDir*: string
     verbosity*: cli.Priority
+    showCmds*: bool
     action*: Action
     config*: Config
     nimbleData*: JsonNode ## Nimbledata.json
@@ -127,6 +128,7 @@ Options:
                                   information when searching or listing packages
       --nimbleDir:dirname         Set the Nimble directory.
       --verbose                   Show all non-debug output.
+      --showCmds                  Show commands.
       --debug                     Show all output including debug messages.
       --noColor                   Don't colorise output.
 
@@ -333,6 +335,7 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
   of "reject", "n": result.forcePrompts = forcePromptNo
   of "nimbledir": result.nimbleDir = val
   of "verbose": result.verbosity = LowPriority
+  of "showcmds": result.showCmds = true
   of "debug": result.verbosity = DebugPriority
   of "nocolor": result.noColor = true
   of "disablevalidation": result.disableValidation = true
