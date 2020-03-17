@@ -2,7 +2,7 @@
 # BSD License. Look at license.txt for more info.
 
 import sets, tables
-import version, lockfile
+import version, lockfile, aliasthis
 
 type
   PackageMetaData* = object
@@ -65,33 +65,4 @@ type
   PackageBasicInfo* = tuple[name, version, checksum: string]
   PackageDependenciesInfo* = tuple[deps: HashSet[PackageInfo], pkg: PackageInfo]
 
-template url*(packageInfo: PackageInfo): untyped =
-  packageInfo.metaData.url
-
-template `url=`*(packageInfo: var PackageInfo, urlParam: string) =
-  packageInfo.metaData.url = urlParam
-
-template vcsRevision*(packageInfo: PackageInfo): untyped =
-  packageInfo.metaData.vcsRevision
-
-template `vcsRevision=`*(packageInfo: var PackageInfo, vcsRevisionParam: string) =
-  packageInfo.metaData.vcsRevision = vcsRevisionParam
-
-template files*(packageInfo: PackageInfo): untyped =
-  packageInfo.metaData.files
-
-template `files=`*(packageInfo: var PackageInfo, filesParam: seq[string]) =
-  packageInfo.metaData.files = filesParam
-
-template binaries*(packageInfo: PackageInfo): untyped =
-  packageInfo.metaData.binaries
-
-template `binaries=`*(packageInfo: var PackageInfo,
-                      binariesParam: seq[string]) =
-  packageInfo.metaData.binaries = binariesParam
-
-template isLink*(packageInfo: PackageInfo): untyped =
-  packageInfo.metaData.isLink
-
-template `isLink=`*(packageInfo: PackageInfo, isLinkParam: bool) =
-  packageInfo.metaData.isLink = isLinkParam
+aliasThis PackageInfo.metaData
