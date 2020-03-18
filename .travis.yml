@@ -21,6 +21,7 @@ install:
   - source travis.sh
 
 script:
+  - choosenim $BRANCH
   - cd tests
   - nim c -r tester
   - cd ..

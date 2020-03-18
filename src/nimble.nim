@@ -253,7 +253,7 @@ proc buildFromDir(
 
     let input = realDir / bin.changeFileExt("nim")
     # `quoteShell` would be more robust than `\"` (and avoid quoting when
-    # un-necessary) but would require changing `extractBin`
+    # un-necessary) but would require changing `extractBin`.
     let cmd = "\"$#\" $# --noNimblePath $# $# $# \"$#\"" %
             [getNimBin(), pkgInfo.backend, nimblePkgVersion,
              join(args, " "), outputOpt, input]
