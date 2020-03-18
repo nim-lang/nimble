@@ -35,7 +35,8 @@ steps:
   - bash: nim c -r src/nimble install -y
     displayName: 'Build and install nimble'
 
-  - bash: testament cat nimble-packages
+  - bash: |
+      testament cat nimble-packages || echo '#vso[task.complete result=SucceededWithIssues;]'
     displayName: 'Test important packages'
     env:
       SYSTEM_ACCESSTOKEN: $(System.AccessToken)
