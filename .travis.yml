@@ -17,7 +17,8 @@ cache:
     - "$HOME/.choosenim"
 
 install:
-  - curl https://gist.github.com/genotrance/fb53504a4fba88bc5201d3783df5c522/raw/travis.sh -LsSf -o travis.sh
+  # was https://gist.github.com/genotrance/fb53504a4fba88bc5201d3783df5c522/raw/travis.sh
+  - curl https://gist.githubusercontent.com/timotheecour/fff49b1102659eedcbc2762bc201b375/raw/d2460f08aa8dd11c8e56c72fa5fde0108e7db3cb/travis.sh -LsSf -o travis.sh
   - source travis.sh
 
 script:
