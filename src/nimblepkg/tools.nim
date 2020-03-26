@@ -11,7 +11,7 @@ proc extractBin(cmd: string): string =
   else:
     return cmd.split(' ')[0]
 
-proc doCmd*(cmd: string, showOutput = false) =
+proc doCmd*(cmd: string, showOutput = false, showCmd = false) =
   let bin = extractBin(cmd)
   if findExe(bin) == "":
     raise newException(NimbleError, "'" & bin & "' not in PATH.")
@@ -20,7 +20,10 @@ proc doCmd*(cmd: string, showOutput = false) =
   stdout.flushFile()
   stderr.flushFile()
 
-  displayDebug("Executing", cmd)
+  if showCmd:
+    display("Executing", cmd, priority = MediumPriority)
+  else:
+    displayDebug("Executing", cmd)
   if showOutput:
     let exitCode = execCmd(cmd)
     displayDebug("Finished", "with exit code " & $exitCode)
