@@ -1,3 +1,9 @@
+# ignore files wo extension (posix binaries)
+*
+!*.*
+!*/
+
+
 # Any path
 *.swp
 *~
@@ -6,15 +12,6 @@ nimcache/
 # Absolute paths
 /src/babel
 /src/nimble
-
-# executables from test and build
-/nimble
-src/nimblepkg/cli
-src/nimblepkg/packageinfo
-src/nimblepkg/packageparser
-src/nimblepkg/reversedeps
-src/nimblepkg/version
-src/nimblepkg/download
 
 # Windows executables
 *.exe
@@ -31,4 +28,13 @@ src/nimblepkg/download
 *.orig
 
 # Test procedure artifacts
-nimble_*.nims
+/buildTests
+
+# executables from test and build (already gitignored but keeping for documentation)
+# /nimble
+# src/nimblepkg/cli
+# src/nimblepkg/packageinfo
+# src/nimblepkg/packageparser
+# src/nimblepkg/reversedeps
+# src/nimblepkg/version
+# src/nimblepkg/download
