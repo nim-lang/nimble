@@ -208,9 +208,11 @@ proc saveNimbleData(options: Options) =
   saveNimbleDataToDir(options.getNimbleDir(), options.nimbleData)
 
 proc promptRemoveEntirePackageDir(pkgDir: string, options: Options) =
-  display("Warning",
-    &"Unable to read {packageMetaDataFileName}: {getCurrentExceptionMsg()}",
-    Warning, HighPriority)
+  let exceptionMsg = getCurrentExceptionMsg()
+  let warningMsgEnd = if exceptionMsg.len > 0: &": {exceptionMsg}" else: "."
+  let warningMsg = &"Unable to read {packageMetaDataFileName}{warningMsgEnd}"
+
+  display("Warning", warningMsg, Warning, HighPriority)
 
   if not options.prompt(
       &"Would you like to COMPLETELY remove ALL files in {pkgDir}?"):
@@ -444,7 +446,11 @@ proc processLockedDependencies(packageInfo: PackageInfo, options: Options):
   for name, dep in packageInfo.lockedDependencies:
     let depDirName = packagesDir / fmt"{name}-{dep.version}-{dep.checksum.sha1}"
 
-    if not depDirName.dirExists:
+    if not existsFile(depDirName / packageMetaDataFileName):
+      if depDirName.existsDir:
+        promptRemoveEntirePackageDir(depDirName, options)
+        removeDir(depDirName)
+
       let (url, metadata) = getUrlData(dep.url)
       let version =  dep.version.parseVersionRange
       let subdir = metadata.getOrDefault("subdir")
@@ -1195,8 +1201,15 @@ proc check(options: Options) =
     display("Failure:", "Validation failed", Error, HighPriority)
     quit(QuitFailure)
 
+proc promptOverwriteLockFile(options: Options) =
+  let message = &"{lockFileName} already exists. Overwrite?"
+  if not options.prompt(message):
+    raise NimbleQuit(msg: "")
+
 proc lock(options: Options) =
   let currentDir = getCurrentDir()
+  if lockFileExists(currentDir):
+    promptOverwriteLockFile(options)
   let packageInfo = getPkgInfo(currentDir, options)
   let dependencies = processDeps(packageInfo, options).toSeq.map(
     pkg => pkg.toFullInfo(options))

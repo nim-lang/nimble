@@ -501,11 +501,17 @@ proc toFullInfo*(pkg: PackageInfo, options: Options): PackageInfo =
     if pkg.hasMetaData:
       result.metaData = pkg.metaData
     if pkg.isInstalled and not pkg.isLink:
-      # If this is an installed package and it is not a linked package, then
-      # there should not be a VCS revision read from the package directory and
-      # this read previously from the meta data should be used.
-      assert result.vcsRevision.len == 0
-      result.vcsRevision = pkg.vcsRevision
+      if result.vcsRevision.len == 0:
+        # If this is an installed package and it is not a linked package, then
+        # there should not be a VCS revision read from the package directory and
+        # this read previously from the meta data should be used.
+        result.vcsRevision = pkg.vcsRevision
+      else:
+        # But if the package meta data file is missing and the package is
+        # incorrectly identified as not a linked package, then there should be a 
+        # VCS revision read from the real package directory, which should be
+        # preserved by not overwriting it with an empty revision.
+        assert pkg.vcsRevision.len == 0
   else:
     return pkg
 

@@ -22,10 +22,11 @@ type
     lfjkPackages = "packages"
 
 const
-  lockFile = (name: "nimble.lockfile", version: "0.1.0")
+  lockFileName* = "nimble.lockfile"
+  lockFileVersion = "0.1.0"
 
 proc lockFileExists*(dir: string): bool =
-  fileExists(dir / lockFile.name)
+  fileExists(dir / lockFileName)
 
 proc writeLockFile*(fileName: string, packages: LockFileDependencies,
                     topologicallySortedOrder: seq[string]) =
@@ -37,7 +38,7 @@ proc writeLockFile*(fileName: string, packages: LockFileDependencies,
     packagesJsonNode.add packageName, %packages[packageName]
 
   let mainJsonNode = %{
-      $lfjkVersion: %lockFile.version,
+      $lfjkVersion: %lockFileVersion,
       $lfjkPackages: packagesJsonNode
       }
 
@@ -45,13 +46,13 @@ proc writeLockFile*(fileName: string, packages: LockFileDependencies,
 
 proc writeLockFile*(packages: LockFileDependencies,
                     topologicallySortedOrder: seq[string]) =
-  writeLockFile(lockFile.name, packages, topologicallySortedOrder)
+  writeLockFile(lockFileName, packages, topologicallySortedOrder)
 
 proc readLockFile*(filePath: string): LockFileDependencies =
   parseFile(filePath)[$lfjkPackages].to(result.typeof)
 
 proc readLockFileInDir*(dir: string): LockFileDependencies =
-  readLockFile(dir / lockFile.name)
+  readLockFile(dir / lockFileName)
 
 proc getLockedDependencies*(dir: string): LockFileDependencies =
   if lockFileExists(dir):
