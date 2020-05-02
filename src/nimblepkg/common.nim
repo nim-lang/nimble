@@ -63,7 +63,7 @@ when not defined(nimscript):
     return (error, hint)
 
 const
-  nimbleVersion* = "0.11.0"
+  nimbleVersion* = "0.11.2"
 
 when not declared(initHashSet):
   import sets

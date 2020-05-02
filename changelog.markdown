@@ -3,6 +3,20 @@
 
 # Nimble changelog
 
+## 0.11.2 - 02/05/2019
+
+This is a minor release containing just 15 commits. This release brings mostly
+bug fixes with some minor new features:
+
+- The `==` operator can now be used in version requirements.
+- Handling of arguments for `nimble run` has been improved.
+- The `nimble run` command can now be used without any arguments if the
+  package has only one binary specified.
+
+----
+
+Full changelog: https://github.com/nim-lang/nimble/compare/v0.11.0...v0.11.2
+
 ## 0.11.0 - 22/09/2019
 
 This is a major release containing nearly 60 commits. Most changes are
