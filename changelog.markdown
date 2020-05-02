@@ -3,7 +3,7 @@
 
 # Nimble changelog
 
-## 0.11.2 - 02/05/2019
+## 0.11.2 - 02/05/2020
 
 This is a minor release containing just 15 commits. This release brings mostly
 bug fixes with some minor new features:
