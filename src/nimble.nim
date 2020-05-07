@@ -251,10 +251,14 @@ proc buildFromDir(
     if not existsDir(outputDir):
       createDir(outputDir)
 
+    let input = realDir / bin.changeFileExt("nim")
+    # `quoteShell` would be more robust than `\"` (and avoid quoting when
+    # un-necessary) but would require changing `extractBin`
+    let cmd = "\"$#\" $# --colors:on --noNimblePath $# $# $# \"$#\"" %
+            [getNimBin(), pkgInfo.backend, nimblePkgVersion,
+             join(args, " "), outputOpt, input]
     try:
-      doCmd("\"" & getNimBin() & "\" $# --colors:on --noNimblePath $# $# $# \"$#\"" %
-            [pkgInfo.backend, nimblePkgVersion, join(args, " "), outputOpt,
-             realDir / bin.changeFileExt("nim")])
+      doCmd(cmd, showCmd = true)
       binariesBuilt.inc()
     except NimbleError:
       let currentExc = (ref NimbleError)(getCurrentException())
@@ -382,7 +386,7 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
                   options.action.passNimFlags
                 else:
                   @[]
-    buildFromDir(pkgInfo, paths, flags & "-d:release", options)
+    buildFromDir(pkgInfo, paths, "-d:release" & flags, options)
 
   let pkgDestDir = pkgInfo.getPkgDest(options)
   if existsDir(pkgDestDir) and existsFile(pkgDestDir / "nimblemeta.json"):
@@ -1124,15 +1128,14 @@ proc run(options: Options) =
       "Binary '$#' is not defined in '$#' package." % [binary, pkgInfo.name]
     )
 
-  let binaryPath = pkgInfo.getOutputDir(binary)
-
   # Build the binary.
   build(options)
 
-  # Now run it.
-  let args = options.action.runFlags.join(" ")
+  let binaryPath = pkgInfo.getOutputDir(binary) 
+  let cmd = quoteShellCommand(binaryPath & options.action.runFlags)
+  displayDebug("Executing", cmd)
+  cmd.execCmd.quit
 
-  doCmd("$# $#" % [binaryPath, args], showOutput = true)
 
 proc doAction(options: var Options) =
   if options.showHelp:

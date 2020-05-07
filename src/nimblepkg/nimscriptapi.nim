@@ -6,7 +6,10 @@
 import system except getCommand, setCommand, switch, `--`
 import strformat, strutils, tables
 
-when not defined(nimscript):
+when (NimMajor, NimMinor) < (1, 3):
+  when not defined(nimscript):
+    import os
+else:
   import os
 
 var
