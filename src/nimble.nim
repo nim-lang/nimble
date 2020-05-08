@@ -458,11 +458,11 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
 
   # update package path to point to installed directory rather than the temp directory
   pkgInfo.myPath = dest
+  pkgInfo.isInstalled = true
 
   # Return the dependencies of this package (mainly for paths).
   result.deps.add pkgInfo
   result.pkg = pkgInfo
-  result.pkg.isInstalled = true
 
   display("Success:", pkgInfo.name & " installed successfully.",
           Success, HighPriority)
