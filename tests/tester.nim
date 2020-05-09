@@ -1043,3 +1043,18 @@ test "compilation without warnings":
     check exitCode == QuitSuccess
     linesWithWarningsCount += checkOutput(output)
   check linesWithWarningsCount == 0
+
+
+suite "Package Installation":
+
+  # When building, any newly installed packages should be referenced via the path that they get permanently installed at.
+  test "issue799":
+    cd "issue799":
+      let (build_output, build_code) = execNimbleYes("--verbose", "build")
+      check build_code == 0
+      var build_results = processOutput(build_output)
+      build_results.keepItIf(unindent(it).startsWith("Executing"))
+      for build_line in build_results:
+        if build_line.contains("issue799"):
+          let pkg_installed_path = "--path:\"" & installDir / "pkgs" / "nimble-#head" & "\""
+          check build_line.contains(pkg_installed_path)
