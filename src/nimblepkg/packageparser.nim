@@ -15,6 +15,7 @@ type
   ValidationError* = object of NimbleError
     warnInstalled*: bool # Determines whether to show a warning for installed pkgs
     warnAll*: bool
+    pkgInfo*: PackageInfo
 
 const reservedNames = [
   "CON",
@@ -41,16 +42,21 @@ const reservedNames = [
   "LPT9",
 ]
 
-proc newValidationError(msg: string, warnInstalled: bool,
+proc newValidationError(info: PackageInfo, msg: string, warnInstalled: bool,
                         hint: string, warnAll: bool): ref ValidationError =
   result = newException(ValidationError, msg)
   result.warnInstalled = warnInstalled
   result.warnAll = warnAll
   result.hint = hint
+  result.pkgInfo = info
+
+proc raiseNewValidationError(info: PackageInfo, msg: string,
+                             warnInstalled: bool, hint = "", warnAll = false) =
+  raise info.newValidationError(msg, warnInstalled, hint, warnAll)
 
 proc raiseNewValidationError(msg: string, warnInstalled: bool,
-                             hint: string = "", warnAll = false) =
-  raise newValidationError(msg, warnInstalled, hint, warnAll)
+                             hint = "", warnAll = false) =
+  raise PackageInfo().newValidationError(msg, warnInstalled, hint, warnAll)
 
 proc validatePackageName*(name: string) =
   ## Raises an error if specified package name contains invalid characters.
@@ -139,7 +145,7 @@ proc validatePackageStructure(pkgInfo: PackageInfo, options: Options) =
                   "by adding `skipFiles = @[\"$3\"]` to the .nimble file. See " &
                   "https://github.com/nim-lang/nimble#libraries for more info.") %
                   [pkgInfo.name & ext, correctDir & DirSep, file & ext, pkgInfo.name]
-        raiseNewValidationError(msg, true, hint, true)
+        pkgInfo.raiseNewValidationError(msg, true, hint, true)
     else:
       assert(not pkgInfo.isMinimal)
       # On Windows `pkgInfo.bin` has a .exe extension, so we need to normalize.
@@ -155,36 +161,36 @@ proc validatePackageStructure(pkgInfo: PackageInfo, options: Options) =
                   "to '$3'. Otherwise, prevent its installation " &
                   "by adding `skipDirs = @[\"$1\"]` to the .nimble file.") %
               [dir, pkgInfo.name, correctDir]
-        raiseNewValidationError(msg, true, hint, true)
+        pkgInfo.raiseNewValidationError(msg, true, hint, true)
 
   iterInstallFiles(realDir, pkgInfo, options, onFile)
 
 proc validatePackageInfo(pkgInfo: PackageInfo, options: Options) =
   let path = pkgInfo.myPath
   if pkgInfo.name == "":
-    raiseNewValidationError("Incorrect .nimble file: " & path &
+    pkgInfo.raiseNewValidationError("Incorrect .nimble file: " & path &
         " does not contain a name field.", false)
 
   if pkgInfo.name.normalize != path.splitFile.name.normalize:
-    raiseNewValidationError(
+    pkgInfo.raiseNewValidationError(
         "The .nimble file name must match name specified inside " & path, true)
 
   if pkgInfo.version == "":
-    raiseNewValidationError("Incorrect .nimble file: " & path &
+    pkgInfo.raiseNewValidationError("Incorrect .nimble file: " & path &
         " does not contain a version field.", false)
 
   if not pkgInfo.isMinimal:
     if pkgInfo.author == "":
-      raiseNewValidationError("Incorrect .nimble file: " & path &
+      pkgInfo.raiseNewValidationError("Incorrect .nimble file: " & path &
           " does not contain an author field.", false)
     if pkgInfo.description == "":
-      raiseNewValidationError("Incorrect .nimble file: " & path &
+      pkgInfo.raiseNewValidationError("Incorrect .nimble file: " & path &
           " does not contain a description field.", false)
     if pkgInfo.license == "":
-      raiseNewValidationError("Incorrect .nimble file: " & path &
+      pkgInfo.raiseNewValidationError("Incorrect .nimble file: " & path &
           " does not contain a license field.", false)
     if pkgInfo.backend notin ["c", "cc", "objc", "cpp", "js"]:
-      raiseNewValidationError("'" & pkgInfo.backend &
+      pkgInfo.raiseNewValidationError("'" & pkgInfo.backend &
           "' is an invalid backend.", false)
 
   validatePackageStructure(pkginfo, options)
@@ -406,6 +412,7 @@ proc validate*(file: NimbleFile, options: Options,
     pkgInfo = readPackageInfo(file, options)
   except ValidationError as exc:
     error = exc[]
+    pkgInfo = exc.pkgInfo
     return false
 
   return true
@@ -417,6 +424,7 @@ proc getPkgInfoFromFile*(file: NimbleFile, options: Options): PackageInfo =
     result = readPackageInfo(file, options)
   except ValidationError:
     let exc = (ref ValidationError)(getCurrentException())
+    result = exc.pkgInfo
     if exc.warnAll:
       display("Warning:", exc.msg, Warning, HighPriority)
       display("Hint:", exc.hint, Warning, HighPriority)
