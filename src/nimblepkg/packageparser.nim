@@ -464,6 +464,7 @@ proc getInstalledPkgs*(libsDir: string, options: Options):
           pkg = readPackageInfo(nimbleFile, options, onlyMinimalInfo=false)
         except ValidationError:
           let exc = (ref ValidationError)(getCurrentException())
+          pkg = exc.pkgInfo
           exc.msg = createErrorMsg(validationErrorMsg, path, exc.msg)
           exc.hint = hintMsg % path
           if exc.warnInstalled or exc.warnAll:
