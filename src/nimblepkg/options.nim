@@ -32,7 +32,7 @@ type
     unknownFlags*: seq[(CmdLineKind, string, string)]
 
   ActionType* = enum
-    actionNil, actionRefresh, actionInit, actionDump, actionPublish,
+    actionNil, actionRefresh, actionInit, actionDump, actionDumpJson, actionPublish,
     actionInstall, actionSearch,
     actionList, actionBuild, actionPath, actionUninstall, actionCompile,
     actionDoc, actionCustom, actionTasks, actionDevelop, actionCheck,
@@ -49,7 +49,7 @@ type
       passNimFlags*: seq[string]
     of actionSearch:
       search*: seq[string] # Search string.
-    of actionInit, actionDump:
+    of actionInit, actionDump, actionDumpJson:
       projName*: string
       vcsOption*: string
     of actionCompile, actionDoc, actionBuild:
@@ -170,6 +170,8 @@ proc parseActionType*(action: string): ActionType =
     result = actionInit
   of "dump":
     result = actionDump
+  of "dumpjson":
+    result = actionDumpJson
   of "update", "refresh":
     result = actionRefresh
   of "search":
@@ -205,7 +207,7 @@ proc initAction*(options: var Options, key: string) =
   of actionInit:
     options.action.projName = ""
     options.action.vcsOption = ""
-  of actionDump:
+  of actionDump, actionDumpJson:
     options.action.projName = ""
     options.action.vcsOption = ""
     options.forcePrompts = forcePromptYes
@@ -290,7 +292,7 @@ proc parseArgument*(key: string, result: var Options) =
     result.action.optionalURL = key
   of actionSearch:
     result.action.search.add(key)
-  of actionInit, actionDump:
+  of actionInit, actionDump, actionDumpJson:
     if result.action.projName != "":
       raise newException(
         NimbleError, "Can only perform this action on one package at a time."
