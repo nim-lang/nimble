@@ -108,7 +108,7 @@ test "nimscript evaluation error message":
   cd "invalidPackage":
     var (output, exitCode) = execNimble("check")
     let lines = output.strip.processOutput()
-    check(lines[^2].endsWith("Error: undeclared identifier: 'thisFieldDoesNotExist'"))
+    check(lines[^2].contains("undeclared identifier: 'thisFieldDoesNotExist'"))
     check exitCode == QuitFailure
 
 test "caching of nims and ini detects changes":

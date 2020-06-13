@@ -57,7 +57,7 @@ proc execNimscript(
         nimsFileCopied.removeFile()
 
   var cmd = (
-    "nim e $# -p:$# $# $# $#" % [
+    getNimBin() & " e $# --colors:on -p:$# $# $# $#" % [
       "--hints:off --verbosity:0",
       (getTempDir() / "nimblecache").quoteShell,
       nimsFileCopied.quoteShell,
