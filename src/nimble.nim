@@ -731,8 +731,8 @@ proc dump(options: Options) =
           j[key].add %{
             "name": % name,
             # we serialize both: `ver` may be more convenient for tooling
-            # (no parsing needed); while verStr is more familiar.
-            "verStr": % $ver,
+            # (no parsing needed); while `str` is more familiar.
+            "str": % $ver,
             "ver": %* ver,
           }
       else:
