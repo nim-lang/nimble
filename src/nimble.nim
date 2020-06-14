@@ -713,11 +713,13 @@ proc getPackageByPattern(pattern: string, options: Options): PackageInfo =
 # import std/jsonutils
 proc `%`(a: Version): JsonNode = %a.string
 
-proc dump(options: Options, json: bool) =
+# proc dump(options: Options, json: bool) =
+proc dump(options: Options) =
   cli.setSuppressMessages(true)
   let p = getPackageByPattern(options.action.projName, options)
   var j: JsonNode
   var s: string
+  let json = options.dumpMode == kdumpJson
   if json: j = newJObject()
   template fn(key, val) =
     if json:
@@ -1222,9 +1224,7 @@ proc doAction(options: var Options) =
     var pkgInfo = getPkgInfo(getCurrentDir(), options)
     publish(pkgInfo, options)
   of actionDump:
-    dump(options, json = false)
-  of actionDumpJson:
-    dump(options, json = true)
+    dump(options)
   of actionTasks:
     listTasks(options)
   of actionDevelop:

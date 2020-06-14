@@ -4,7 +4,7 @@ _nimble() {
   local line
 
   _arguments -C \
-    '1: :(install init publish uninstall build c cc js doc doc2 refresh search list tasks path dump dumpJson develop)' \
+    '1: :(install init publish uninstall build c cc js doc doc2 refresh search list tasks path dump develop)' \
     '*::options:->options' \
     '(--version)--version[show version]' \
     '(--help)--help[show help]' \
@@ -28,7 +28,7 @@ _nimble() {
     install)
       _nimble_installable_packages
     ;;
-    uninstall|path|dump|dumpJson)
+    uninstall|path|dump)
       _nimble_installed_packages
     ;;
     init|publish|build|refresh|search|tasks)

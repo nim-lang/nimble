@@ -24,7 +24,6 @@ Interested in learning **how to create a package**? Skip directly to that sectio
   - [nimble publish](#nimble-publish)
   - [nimble tasks](#nimble-tasks)
   - [nimble dump](#nimble-dump)
-  - [nimble dumpJson](#nimble-dumpJson)
 - [Configuration](#configuration)
 - [Creating Packages](#creating-packages)
   - [Project structure](#project-structure)
@@ -338,9 +337,7 @@ Outputs information about the package in the current working directory in
 an ini-compatible format. Useful for tools wishing to read metadata about
 Nimble packages who do not want to use the NimScript evaluator.
 
-### nimble dumpJson
-
-Same as `nimble dump` but in json format.
+Use `nimble --json dump` to output in json format.
 
 ## Configuration
 
