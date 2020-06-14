@@ -337,6 +337,9 @@ Outputs information about the package in the current working directory in
 an ini-compatible format. Useful for tools wishing to read metadata about
 Nimble packages who do not want to use the NimScript evaluator.
 
+The format can be specified with `--json` or `--ini` (and defaults to `--ini`).
+Use `nimble dump pkg` to dump information about provided `pkg` instad.
+
 ## Configuration
 
 At startup Nimble will attempt to read ``~/.config/nimble/nimble.ini`` on Linux

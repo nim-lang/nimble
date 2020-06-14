@@ -710,25 +710,59 @@ proc getPackageByPattern(pattern: string, options: Options): PackageInfo =
       )
     result = getPkgInfoFromFile(skeletonInfo.myPath, options)
 
+# import std/jsonutils
+proc `%`(a: Version): JsonNode = %a.string
+
+# proc dump(options: Options, json: bool) =
 proc dump(options: Options) =
   cli.setSuppressMessages(true)
   let p = getPackageByPattern(options.action.projName, options)
-  echo "name: ", p.name.escape
-  echo "version: ", p.version.escape
-  echo "author: ", p.author.escape
-  echo "desc: ", p.description.escape
-  echo "license: ", p.license.escape
-  echo "skipDirs: ", p.skipDirs.join(", ").escape
-  echo "skipFiles: ", p.skipFiles.join(", ").escape
-  echo "skipExt: ", p.skipExt.join(", ").escape
-  echo "installDirs: ", p.installDirs.join(", ").escape
-  echo "installFiles: ", p.installFiles.join(", ").escape
-  echo "installExt: ", p.installExt.join(", ").escape
-  echo "requires: ", p.requires.join(", ").escape
-  echo "bin: ", p.bin.join(", ").escape
-  echo "binDir: ", p.binDir.escape
-  echo "srcDir: ", p.srcDir.escape
-  echo "backend: ", p.backend.escape
+  var j: JsonNode
+  var s: string
+  let json = options.dumpMode == kdumpJson
+  if json: j = newJObject()
+  template fn(key, val) =
+    if json:
+      when val is seq[PkgTuple]:
+        # jsonutils.toJson would work but is only available since 1.3.5, so we
+        # do it manually.
+        j[key] = newJArray()
+        for (name, ver) in val:
+          j[key].add %{
+            "name": % name,
+            # we serialize both: `ver` may be more convenient for tooling
+            # (no parsing needed); while `str` is more familiar.
+            "str": % $ver,
+            "ver": %* ver,
+          }
+      else:
+        j[key] = %*val
+    else:
+      if s.len > 0: s.add "\n"
+      s.add key & ": "
+      when val is string:
+        s.add val.escape
+      else:
+        s.add val.join(", ").escape
+  fn "name", p.name
+  fn "version", p.version
+  fn "author", p.author
+  fn "desc", p.description
+  fn "license", p.license
+  fn "skipDirs", p.skipDirs
+  fn "skipFiles", p.skipFiles
+  fn "skipExt", p.skipExt
+  fn "installDirs", p.installDirs
+  fn "installFiles", p.installFiles
+  fn "installExt", p.installExt
+  fn "requires", p.requires
+  fn "bin", p.bin
+  fn "binDir", p.binDir
+  fn "srcDir", p.srcDir
+  fn "backend", p.backend
+  if json:
+    s = j.pretty
+  echo s
 
 proc init(options: Options) =
   # Check whether the vcs is installed.

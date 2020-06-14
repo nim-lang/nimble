@@ -9,6 +9,7 @@ from httpclient import Proxy, newProxy
 import config, version, common, cli
 
 type
+  DumpMode* = enum kdumpIni, kdumpJson
   Options* = object
     forcePrompts*: ForcePrompt
     depsOnly*: bool
@@ -30,6 +31,7 @@ type
     forceFullClone*: bool
     # Temporary storage of flags that have not been captured by any specific Action.
     unknownFlags*: seq[(CmdLineKind, string, string)]
+    dumpMode*: DumpMode
 
   ActionType* = enum
     actionNil, actionRefresh, actionInit, actionDump, actionPublish,
@@ -347,6 +349,12 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
       result.queryInstalled = true
     of "ver":
       result.queryVersions = true
+    else:
+      wasFlagHandled = false
+  of actionDump:
+    case f
+    of "json": result.dumpMode = kdumpJson
+    of "ini": result.dumpMode = kdumpIni
     else:
       wasFlagHandled = false
   of actionInstall:
