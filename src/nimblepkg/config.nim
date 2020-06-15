@@ -19,24 +19,19 @@ type
 
 proc initConfig(): Config =
   result.nimbleDir = getHomeDir() / ".nimble"
-
   result.httpProxy = initUri()
-
   result.chcp = true
   result.cloneUsingHttps = true
-
-  result.packageLists = initTable[string, PackageList]()
-  let defaultPkgList = PackageList(name: "Official", urls: @[
+  result.packageLists["official"] = PackageList(name: "Official", urls: @[
     "https://github.com/nim-lang/packages/raw/master/packages.json",
     "https://irclogs.nim-lang.org/packages.json",
     "https://nim-lang.org/nimble/packages.json"
   ])
-  result.packageLists["official"] = defaultPkgList
 
-proc initPackageList(): PackageList =
-  result.name = ""
-  result.urls = @[]
-  result.path = ""
+proc clear(pkgList: var PackageList) =
+  pkgList.name = ""
+  pkgList.urls = @[]
+  pkgList.path = ""
 
 proc addCurrentPkgList(config: var Config, currentPackageList: PackageList) =
   if currentPackageList.name.len > 0:
@@ -60,7 +55,7 @@ proc parseConfig*(): Config =
     var p: CfgParser
     open(p, f, confFile)
     var currentSection = ""
-    var currentPackageList = initPackageList()
+    var currentPackageList: PackageList
     while true:
       var e = next(p)
       case e.kind
@@ -77,7 +72,7 @@ proc parseConfig*(): Config =
         currentSection = e.section
         case currentSection.normalize
         of "packagelist":
-          currentPackageList = initPackageList()
+          currentPackageList.clear()
         else:
           raise newException(NimbleError, "Unable to parse config file:" &
                              " Unknown section: " & e.key)

@@ -42,8 +42,8 @@ proc execCustom*(nimbleFile: string, options: Options,
 
   execResult = execTask(nimbleFile, options.action.command, options)
   if not execResult.success:
-    raiseNimbleError(msg = "Failed to execute task $1 in $2" %
-                           [options.action.command, nimbleFile])
+    raise nimbleError(msg = "Failed to execute task $1 in $2" %
+                             [options.action.command, nimbleFile])
 
   if execResult.command.normalize == "nop":
     display("Warning:", "Using `setCommand 'nop'` is not necessary.", Warning,
@@ -57,7 +57,7 @@ proc execCustom*(nimbleFile: string, options: Options,
 proc getOptionsForCommand*(execResult: ExecutionResult,
                            options: Options): Options =
   ## Creates an Options object for the requested command.
-  var newOptions = options.briefClone()
+  var newOptions = options
   parseCommand(execResult.command, newOptions)
   for arg in execResult.arguments:
     parseArgument(arg, newOptions)

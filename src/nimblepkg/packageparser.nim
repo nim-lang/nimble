@@ -3,8 +3,8 @@
 import parsecfg, sets, streams, strutils, os, tables, sugar
 from sequtils import apply, map, toSeq
 
-import common, version, tools, nimscriptwrapper, options, cli, packagemetadata,
-       packageinfo, packageinfotypes, checksum
+import common, version, tools, nimscriptwrapper, options, cli,
+       packagemetadatafile, packageinfo, packageinfotypes, checksum
 
 ## Contains procedures for parsing .nimble files. Moved here from ``packageinfo``
 ## because it depends on ``nimscriptwrapper`` (``nimscriptwrapper`` also
@@ -350,6 +350,7 @@ proc readPackageInfo(nf: NimbleFile, options: Options, onlyMinimalInfo=false):
     return
 
   result = initPackageInfo(nf)
+  result.isLink = not nf.startsWith(options.getPkgsDir)
 
   validatePackageName(nf.splitFile.name)
 
@@ -367,11 +368,6 @@ proc readPackageInfo(nf: NimbleFile, options: Options, onlyMinimalInfo=false):
     if onlyMinimalInfo:
       result.isNimScript = true
       result.isMinimal = true
-
-      # It's possible this proc will receive a .nimble-link file eventually,
-      # I added this assert to hopefully make this error clear for everyone.
-      let msg = "No version detected. Received nimble-link?"
-      assert result.version.len > 0, msg
     else:
       try:
         readPackageInfoFromNims(nf, options, result)
@@ -411,17 +407,8 @@ proc readPackageInfo(nf: NimbleFile, options: Options, onlyMinimalInfo=false):
     validateVersion(result.version)
     validatePackageInfo(result, options)
 
-proc validate*(file: NimbleFile, options: Options,
-               error: var ValidationError, pkgInfo: var PackageInfo): bool =
-  try:
-    pkgInfo = readPackageInfo(file, options)
-  except ValidationError as exc:
-    error = exc[]
-    return false
-
-  return true
-
-proc getPkgInfoFromFile*(file: NimbleFile, options: Options): PackageInfo =
+proc getPkgInfoFromFile*(file: NimbleFile, options: Options,
+                         forValidation = false): PackageInfo =
   ## Reads the specified .nimble file and returns its data as a PackageInfo
   ## object. Any validation errors are handled and displayed as warnings.
   var info: PackageInfo
@@ -429,7 +416,7 @@ proc getPkgInfoFromFile*(file: NimbleFile, options: Options): PackageInfo =
     info = readPackageInfo(file, options)
   except ValidationError:
     let exc = (ref ValidationError)(getCurrentException())
-    if exc.warnAll:
+    if exc.warnAll and not forValidation:
       display("Warning:", exc.msg, Warning, HighPriority)
       display("Hint:", exc.hint, Warning, HighPriority)
     else:
@@ -437,10 +424,11 @@ proc getPkgInfoFromFile*(file: NimbleFile, options: Options): PackageInfo =
   finally:
     result = info
 
-proc getPkgInfo*(dir: string, options: Options): PackageInfo =
+proc getPkgInfo*(dir: string, options: Options, forValidation = false):
+    PackageInfo =
   ## Find the .nimble file in ``dir`` and parses it, returning a PackageInfo.
   let nimbleFile = findNimbleFile(dir, true)
-  result = getPkgInfoFromFile(nimbleFile, options)
+  result = getPkgInfoFromFile(nimbleFile, options, forValidation)
 
 proc getInstalledPkgs*(libsDir: string, options: Options): seq[PackageInfo] =
   ## Gets a list of installed packages.
@@ -496,22 +484,21 @@ proc toFullInfo*(pkg: PackageInfo, options: Options): PackageInfo =
   if pkg.isMinimal:
     result = getPkgInfoFromFile(pkg.mypath, options)
     result.isInstalled = pkg.isInstalled
+    # The `isLink` data from the meta data file is with priority because of the
+    # old format develop packages.
     result.isLink = pkg.isLink
     result.specialVersion = pkg.specialVersion
-    if pkg.hasMetaData:
+
+    assert not (pkg.isInstalled and pkg.isLink),
+           "A package must not be simultaneously installed and linked."
+
+    if result.isInstalled:
+      assert result.vcsRevision.len == 0,
+            "Should not have a VCS revision read from package directory for " &
+            "installed packages."
+
+      # For installed packages use already read meta data.
       result.metaData = pkg.metaData
-    if pkg.isInstalled and not pkg.isLink:
-      if result.vcsRevision.len == 0:
-        # If this is an installed package and it is not a linked package, then
-        # there should not be a VCS revision read from the package directory and
-        # this read previously from the meta data should be used.
-        result.vcsRevision = pkg.vcsRevision
-      else:
-        # But if the package meta data file is missing and the package is
-        # incorrectly identified as not a linked package, then there should be a 
-        # VCS revision read from the real package directory, which should be
-        # preserved by not overwriting it with an empty revision.
-        assert pkg.vcsRevision.len == 0
   else:
     return pkg
 

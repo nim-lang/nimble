@@ -5,6 +5,7 @@
 /buildDir
 /binaryPackage/v1/binaryPackage
 /binaryPackage/v2/binaryPackage
+/develop/dependent/dependent
 /develop/dependent/src/dependent
 /issue27/issue27
 /issue206/issue/issue206bin
@@ -13,6 +14,7 @@
 /issue564/issue564/
 /nimbleDir/
 /nimbleVersionDefine/nimbleVersionDefine
+/nimbleVersionDefine/src/nimbleVersionDefine
 /packageStructure/c/c
 /packageStructure/y/y
 /run/run
@@ -27,12 +29,17 @@
 /testCommand/testsFail/tests/t2
 /passNimFlags/passNimFlags
 /issue799/issue799
+/issue308515/v1/binname-2
 /issue308515/v1/binname.out
+/issue308515/v2/binname-2
 /issue308515/v2/binname.out
+/issue399/tools/
+/issue727/def
+/issue727/src/abc
+/issue793/issue793
+/issue793/src/htmldocs/
+/localdeps/localdeps
 /localdeps/nimbledeps/
-/multi/
-/packagea/
-
 
 # occurs on multiple levels
 nimbleDir/

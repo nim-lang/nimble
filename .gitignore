@@ -20,11 +20,14 @@ src/nimblepkg/checksum
 src/nimblepkg/cli
 src/nimblepkg/common
 src/nimblepkg/config
+src/nimblepkg/counttables
+src/nimblepkg/developfile
 src/nimblepkg/download
 src/nimblepkg/init
 src/nimblepkg/jsonhelpers
 src/nimblepkg/lockfile
-src/nimblepkg/nimbledata
+src/nimblepkg/nimbledatafile
+src/nimblepkg/nimblelinkfile
 src/nimblepkg/nimscriptapi
 src/nimblepkg/nimscriptexecutor
 src/nimblepkg/nimscriptwrapper
@@ -32,8 +35,9 @@ src/nimblepkg/options
 src/nimblepkg/packageinfo
 src/nimblepkg/packageinfotypes
 src/nimblepkg/packageinstaller
-src/nimblepkg/packagemetadata
+src/nimblepkg/packagemetadatafile
 src/nimblepkg/packageparser
+src/nimblepkg/paths
 src/nimblepkg/publish
 src/nimblepkg/reversedeps
 src/nimblepkg/tools

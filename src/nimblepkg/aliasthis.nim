@@ -4,7 +4,7 @@
 import macros
 
 template delegateField*(ObjectType: type[object],
-                       objectField, accessor: untyped) =
+                        objectField, accessor: untyped) =
   ## Defines two additional templates for getter and setter of nested object
   ## field directly via the embedding object. The name of the nested object
   ## field must match the name of the accessor.
@@ -35,7 +35,7 @@ template delegateField*(ObjectType: type[object],
   template `accessor "="`*(obj: var ObjectType, value: AccessorType) =
     obj.objectField.accessor = value
 
-func fields(Object: type[object]): seq[string] =
+func fields(Object: type[object | tuple]): seq[string] =
   ## Collects the names of the fields of an object.
   let obj = Object.default
   for name, _ in obj.fieldPairs:
@@ -90,18 +90,23 @@ when isMainModule:
       field12: seq[int]
       field13: int
 
+    Tuple = tuple[tField1: string, tField2: int]
+
     Object2 = object
       field11: float # intentionally the name is the same as in Object1
       field22: Object1
+      field23: Tuple
 
   aliasThis(Object2.field22)
+  aliasThis(Object2.field23)
 
   var obj = Object2(
     field11: 3.14,
     field22: Object1(
       field11: 2.718,
       field12: @[1, 1, 2, 3, 5, 8],
-      field13: 42))
+      field13: 42),
+    field23: ("tuple", 1))
 
   # check access to the original value in both ways
   check obj.field13 == 42
@@ -139,5 +144,14 @@ when isMainModule:
   obj.field11 = 0
   check obj.field11 == 0
   check obj.field22.field11 == 2.718
+
+  # check access to tuple fields via an alias
+  check obj.tField1 == "tuple"
+  check obj.tField2 == 1
+
+  # check modification of tuple fields via an alias
+  obj.tField1 &= " test"
+  obj.tField2.inc
+  check obj.field23 == ("tuple test", 2)
 
   reportUnitTestSuccess()

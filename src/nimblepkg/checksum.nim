@@ -45,7 +45,7 @@ proc getPackageFileList(): seq[string] =
 
 proc updateSha1Checksum(checksum: var Sha1State, fileName: string) =
   checksum.update(fileName)
-  if not fileName.existsFile:
+  if not fileName.fileExists:
     # In some cases a file name returned by `git ls-files` or `hg manifest`
     # could be an empty directory name and if so trying to open it will result
     # in a crash. This happens for example in the case of a git sub module

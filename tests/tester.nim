@@ -1,38 +1,42 @@
 # Copyright (C) Dominik Picheta. All rights reserved.
 # BSD License. Look at license.txt for more info.
 import osproc, unittest, strutils, os, sequtils, sugar, json, std/sha1,
-       strformat
+       strformat, macros, sets
 
-from nimblepkg/common import ProcessOutput
-from nimblepkg/nimbledata import parseNimbleData
+import nimblepkg/common, nimblepkg/displaymessages, nimblepkg/paths
+
+from nimblepkg/developfile import
+  developFileName, developFileVersion, pkgFoundMoreThanOnceMsg
+from nimblepkg/nimbledatafile import
+  loadNimbleData, nimbleDataFileName, NimbleDataJsonKeys
+from nimblepkg/version import VersionRange, parseVersionRange
 
 # TODO: Each test should start off with a clean slate. Currently installed
 # packages are shared between each test which causes a multitude of issues
 # and is really fragile.
 
-let rootDir = getCurrentDir().parentDir()
-let nimblePath = rootDir / "src" / addFileExt("nimble", ExeExt)
-let installDir = rootDir / "tests" / "nimbleDir"
-let buildTests = rootDir / "buildTests"
-let pkgsDir = installDir / "pkgs"
+const
+  stringNotFound = -1
+  pkgAUrl = "https://github.com/nimble-test/packagea.git"
+  pkgBUrl = "https://github.com/nimble-test/packageb.git"
+  pkgBinUrl = "https://github.com/nimble-test/packagebin.git"
+  pkgBin2Url = "https://github.com/nimble-test/packagebin2.git"
+  pkgMultiUrl = "https://github.com/nimble-test/multi"
+  pkgMultiAlphaUrl = &"{pkgMultiUrl}?subdir=alpha"
+  pkgMultiBetaUrl = &"{pkgMultiUrl}?subdir=beta"
 
-const path = "../src/nimble"
-const stringNotFound = -1
+let
+  rootDir = getCurrentDir().parentDir()
+  nimblePath = rootDir / "src" / addFileExt("nimble", ExeExt)
+  installDir = rootDir / "tests" / "nimbleDir"
+  buildTests = rootDir / "buildTests"
+  pkgsDir = installDir / nimblePackagesDirName
 
 # Set env var to propagate nimble binary path
 putEnv("NIMBLE_TEST_BINARY_PATH", nimblePath)
 
 # Always recompile.
-doAssert execCmdEx("nim c -d:danger " & path).exitCode == QuitSuccess
-
-template cd*(dir: string, body: untyped) =
-  ## Sets the current dir to ``dir``, executes ``body`` and restores the
-  ## previous working dir.
-  block:
-    let lastDir = getCurrentDir()
-    setCurrentDir(dir)
-    body
-    setCurrentDir(lastDir)
+doAssert execCmdEx("nim c -d:danger " & nimblePath).exitCode == QuitSuccess
 
 proc execNimble(args: varargs[string]): ProcessOutput =
   var quotedArgs = @args
@@ -81,9 +85,31 @@ proc processOutput(output: string): seq[string] =
     )
   )
 
-proc inLines(lines: seq[string], line: string): bool =
-  for i in lines:
-    if line.normalize in i.normalize: return true
+macro defineInLinesProc(procName, extraLine: untyped): untyped  =
+  var LinesType = quote do: seq[string]
+  if extraLine[0].kind != nnkDiscardStmt:
+    LinesType = newTree(nnkVarTy, LinesType)
+
+  let linesParam = ident("lines")
+  let linesLoopCounter = ident("i")
+
+  result = quote do:
+    proc `procName`(`linesParam`: `LinesType`, msg: string): bool =
+      let msgLines = msg.splitLines
+      for msgLine in msgLines:
+        let msgLine = msgLine.normalize
+        var msgLineFound = false
+        for `linesLoopCounter`, line in `linesParam`:
+          if msgLine in line.normalize:
+            msgLineFound = true
+            `extraLine`
+            break
+        if not msgLineFound:
+          return false
+      return true
+
+defineInLinesProc(inLines): discard
+defineInLinesProc(inLinesOrdered): lines = lines[i + 1 .. ^1]
 
 proc hasLineStartingWith(lines: seq[string], prefix: string): bool =
   for line in lines:
@@ -91,7 +117,7 @@ proc hasLineStartingWith(lines: seq[string], prefix: string): bool =
       return true
   return false
 
-proc getPackageDir(pkgCacheDir, pkgDirPrefix: string): string =
+proc getPackageDir(pkgCacheDir, pkgDirPrefix: string, fullPath = true): string =
   for kind, dir in walkDir(pkgCacheDir):
     if kind != pcDir or not dir.startsWith(pkgCacheDir / pkgDirPrefix):
       continue
@@ -100,7 +126,7 @@ proc getPackageDir(pkgCacheDir, pkgDirPrefix: string): string =
       continue
     let pkgChecksum = dir[pkgChecksumStartIndex + 1 .. ^1]
     if pkgChecksum.isValidSha1Hash():
-      return dir
+      return if fullPath: dir else: dir.splitPath.tail
   return ""
 
 proc packageDirExists(pkgCacheDir, pkgDirPrefix: string): bool =
@@ -137,6 +163,39 @@ proc beforeSuite() =
   # Clear nimble dir.
   removeDir(installDir)
   createDir(installDir)
+
+template usePackageListFile(fileName: string, body: untyped) =
+  testRefresh():
+    writeFile(configFile, """
+      [PackageList]
+      name = "local"
+      path = "$1"
+    """.unindent % (fileName).replace("\\", "\\\\"))
+    check execNimble(["refresh"]).exitCode == QuitSuccess
+    body
+
+template cleanFile(fileName: string) =
+  removeFile fileName
+  defer: removeFile fileName
+
+macro cleanFiles(fileNames: varargs[string]) =
+  result = newStmtList()
+  for fn in fileNames:
+    result.add quote do: cleanFile(`fn`)
+
+template cleanDir(dirName: string) =
+  removeDir dirName
+  defer: removeDir dirName
+
+template createTempDir(dirName: string) =
+  createDir dirName
+  defer: removeDir dirName
+
+template cdCleanDir(dirName: string, body: untyped) =
+  cleanDir dirName
+  createDir dirName
+  cd dirName:
+    body
 
 suite "nimble refresh":
   beforeSuite()
@@ -230,7 +289,7 @@ suite "nimscript":
           check line.endsWith("tests" / "nimscript")
       check lines[^1].startsWith("After PkgDir:")
       let packageDir = getPackageDir(pkgsDir, "nimscript-0.1.0")
-      check lines[^1].endsWith(packageDir)
+      check lines[^1].strip(leading = false).endsWith(packageDir)
 
   test "before/after on build":
     cd "nimscript":
@@ -243,14 +302,14 @@ suite "nimscript":
 
   test "can execute nimscript tasks":
     cd "nimscript":
-      let (output, exitCode) = execNimble("--verbose", "work")
+      let (output, exitCode) = execNimble("work")
       let lines = output.strip.processOutput()
       check exitCode == QuitSuccess
       check lines[^1] == "10"
 
   test "can use nimscript's setCommand":
     cd "nimscript":
-      let (output, exitCode) = execNimble("--verbose", "cTest")
+      let (output, exitCode) = execNimble("cTest")
       let lines = output.strip.processOutput()
       check exitCode == QuitSuccess
       check "Execution finished".normalize in lines[^1].normalize
@@ -321,15 +380,14 @@ suite "uninstall":
   beforeSuite()
 
   test "can install packagebin2":
-    let args = ["install", "https://github.com/nimble-test/packagebin2.git"]
+    let args = ["install", pkgBin2Url]
     check execNimbleYes(args).exitCode == QuitSuccess
 
   proc cannotSatisfyMsg(v1, v2: string): string =
      &"Cannot satisfy the dependency on PackageA {v1} and PackageA {v2}"
 
   test "can reject same version dependencies":
-    let (outp, exitCode) = execNimbleYes(
-        "install", "https://github.com/nimble-test/packagebin.git")
+    let (outp, exitCode) = execNimbleYes("install", pkgBinUrl)
     # We look at the error output here to avoid out-of-order problems caused by
     # stderr output being generated and flushed without first flushing stdout
     let ls = outp.strip.processOutput()
@@ -337,25 +395,37 @@ suite "uninstall":
     check ls.inLines(cannotSatisfyMsg("0.2.0", "0.5.0")) or
           ls.inLines(cannotSatisfyMsg("0.5.0", "0.2.0"))
 
-  test "issue #27":
+  proc setupIssue27Packages() =
     # Install b
     cd "issue27/b":
       check execNimbleYes("install").exitCode == QuitSuccess
-
     # Install a
     cd "issue27/a":
       check execNimbleYes("install").exitCode == QuitSuccess
-
     cd "issue27":
       check execNimbleYes("install").exitCode == QuitSuccess
 
+  test "issue #27":
+    setupIssue27Packages()
+
   test "can uninstall":
+    # setup test environment
+    cleanDir(installDir)
+    setupIssue27Packages()
+    check execNimbleYes("install", &"{pkgAUrl}@0.2").exitCode == QuitSuccess
+    check execNimbleYes("install", &"{pkgAUrl}@0.5").exitCode == QuitSuccess
+    check execNimbleYes("install", &"{pkgAUrl}@0.6").exitCode == QuitSuccess
+    check execNimbleYes("install", pkgBin2Url).exitCode == QuitSuccess
+    check execNimbleYes("install", pkgBUrl).exitCode == QuitSuccess
+    cd "nimscript": check execNimbleYes("install").exitCode == QuitSuccess
+
     block:
       let (outp, exitCode) = execNimbleYes("uninstall", "issue27b")
-
-      let ls = outp.strip.processOutput()
       check exitCode != QuitSuccess
-      check inLines(ls, "Cannot uninstall issue27b (0.1.0) because issue27a (0.1.0) depends")
+      var ls = outp.strip.processOutput()
+      let pkg27ADir = getPackageDir(pkgsDir, "issue27a-0.1.0", false)
+      let expectedMsg = cannotUninstallPkgMsg("issue27b", "0.1.0", @[pkg27ADir])
+      check ls.inLinesOrdered(expectedMsg)
 
       check execNimbleYes("uninstall", "issue27").exitCode == QuitSuccess
       check execNimbleYes("uninstall", "issue27a").exitCode == QuitSuccess
@@ -366,8 +436,16 @@ suite "uninstall":
     let (outp, exitCode) = execNimbleYes("uninstall", "PackageA")
     check exitCode != QuitSuccess
     let ls = outp.processOutput()
-    check inLines(ls, "Cannot uninstall PackageA (0.2.0)")
-    check inLines(ls, "Cannot uninstall PackageA (0.6.0)")
+    let
+      pkgBin2Dir = getPackageDir(pkgsDir, "packagebin2-0.1.0", false)
+      pkgBDir = getPackageDir(pkgsDir, "packageb-0.1.0", false)
+      expectedMsgForPkgA0dot6 = cannotUninstallPkgMsg(
+        "PackageA", "0.6.0", @[pkgBin2Dir])
+      expectedMsgForPkgA0dot2 = cannotUninstallPkgMsg(
+        "PackageA", "0.2.0", @[pkgBDir])
+    check ls.inLines(expectedMsgForPkgA0dot6)
+    check ls.inLines(expectedMsgForPkgA0dot2)
+
     check execNimbleYes("uninstall", "PackageBin2").exitCode == QuitSuccess
 
     # Case insensitive
@@ -379,7 +457,7 @@ suite "uninstall":
 
     check execNimbleYes("uninstall", "PackageA@0.2", "issue27b").exitCode ==
         QuitSuccess
-    check(not dirExists(pkgsDir / "PackageA-0.2.0"))
+    check(not dirExists(installDir / "pkgs" / "PackageA-0.2.0"))
 
 suite "nimble dump":
   beforeSuite()
@@ -558,95 +636,915 @@ suite "reverse dependencies":
     doAssert fileExists(oldNimbleDataFileName)
     doAssert fileExists(newNimbleDataFileName)
 
-    let oldNimbleData = parseNimbleData(oldNimbleDataFileName)
-    let newNimbleData = parseNimbleData(newNimbleDataFileName)
+    let oldNimbleData = loadNimbleData(oldNimbleDataFileName)
+    let newNimbleData = loadNimbleData(newNimbleDataFileName)
 
     doAssert oldNimbleData == newNimbleData
 
 suite "develop feature":
-  beforeSuite()
+  proc filesList(filesNames: seq[string]): string =
+    for fileName in filesNames:
+      result.addQuoted fileName
+      result.add ','
+
+  proc developFile(includes: seq[string], dependencies: seq[string]): string =
+    result = """{"version":"$#","includes":[$#],"dependencies":[$#]}""" %
+      [developFileVersion, filesList(includes), filesList(dependencies)]
+
+  const
+    pkgListFileName = "packages.json"
+    dependentPkgName = "dependent"
+    dependentPkgVersion = "1.0"
+    dependentPkgNameAndVersion = &"{dependentPkgName}@{dependentPkgVersion}"
+    dependentPkgPath = "develop/dependent".normalizedPath
+    includeFileName = "included.develop"
+    pkgAName = "packagea"
+    pkgBName = "packageb"
+    pkgSrcDirTestName = "srcdirtest"
+    pkgHybridName = "hybrid"
+    depPath = "../dependency".normalizedPath
+    depName = "dependency"
+    depVersion = "0.1.0"
+    depNameAndVersion = &"{depName}@{depVersion}"
+    dep2Path = "../dependency2".normalizedPath
+    emptyDevelopFileContent = developFile(@[], @[])
+  
+  let anyVersion = parseVersionRange("")
+
+  test "can develop from dir with srcDir":
+    cd &"develop/{pkgSrcDirTestName}":
+      let (output, exitCode) = execNimble("develop")
+      check exitCode == QuitSuccess
+      let lines = output.processOutput
+      check not lines.inLines("will not be compiled")
+      check lines.inLines(pkgSetupInDevModeMsg(
+        pkgSrcDirTestName, getCurrentDir()))
+
+  test "can git clone for develop":
+    cdCleanDir installDir:
+      let (output, exitCode) = execNimble("develop", pkgAUrl)
+      check exitCode == QuitSuccess
+      check output.processOutput.inLines(
+        pkgSetupInDevModeMsg(pkgAName, installDir / pkgAName))
+
+  test "can develop from package name":
+    cdCleanDir installDir:
+      usePackageListFile &"../develop/{pkgListFileName}":
+        let (output, exitCode) = execNimble("develop", pkgBName)
+        check exitCode == QuitSuccess
+        var lines = output.processOutput
+        check lines.inLinesOrdered(pkgInstalledMsg(pkgAName))
+        check lines.inLinesOrdered(
+          pkgSetupInDevModeMsg(pkgBName, installDir / pkgBName))
+
+  test "can develop list of packages":
+    cdCleanDir installDir:
+      usePackageListFile &"../develop/{pkgListFileName}":
+        let (output, exitCode) = execNimble(
+          "develop", pkgAName, pkgBName)
+        check exitCode == QuitSuccess
+        var lines = output.processOutput
+        check lines.inLinesOrdered(pkgSetupInDevModeMsg(
+          pkgAName, installDir / pkgAName))
+        check lines.inLinesOrdered(pkgInstalledMsg(pkgAName))
+        check lines.inLinesOrdered(pkgSetupInDevModeMsg(
+          pkgBName, installDir / pkgBName))
+
+  test "cannot remove package with develop reverse dependency":
+    cdCleanDir installDir:
+      usePackageListFile &"../develop/{pkgListFileName}":
+        check execNimble("develop", pkgBName).exitCode == QuitSuccess
+        let (output, exitCode) = execNimble("remove", pkgAName)
+        check exitCode == QuitFailure
+        var lines = output.processOutput
+        check lines.inLinesOrdered(
+          cannotUninstallPkgMsg(pkgAName, "0.2.0", @[installDir / pkgBName]))
 
   test "can reject binary packages":
     cd "develop/binary":
       let (output, exitCode) = execNimble("develop")
-      checkpoint output
       check output.processOutput.inLines("cannot develop packages")
       check exitCode == QuitFailure
 
   test "can develop hybrid":
-    cd "develop/hybrid":
+    cd &"develop/{pkgHybridName}":
       let (output, exitCode) = execNimble("develop")
-      checkpoint output
-      check output.processOutput.inLines("will not be compiled")
       check exitCode == QuitSuccess
+      var lines = output.processOutput
+      check lines.inLinesOrdered("will not be compiled")
+      check lines.inLinesOrdered(
+        pkgSetupInDevModeMsg(pkgHybridName, getCurrentDir()))
 
-      let packageDir = getPackageDir(pkgsDir, "hybrid-#head")
-      let path = packageDir / "hybrid.nimble-link"
-      check fileExists(path)
-      let split = readFile(path).processOutput()
-      check split.len == 2
-      check split[0].endsWith("develop" / "hybrid" / "hybrid.nimble")
-      check split[1].endsWith("develop" / "hybrid")
-
-  test "can develop with srcDir":
-    cd "develop/srcdirtest":
-      let (output, exitCode) = execNimbleYes("develop")
-      checkpoint output
-      check(not output.processOutput.inLines("will not be compiled"))
-      check exitCode == QuitSuccess
-
-      let packageDir = getPackageDir(pkgsDir, "srcdirtest-#head")
-      let path = packageDir / "srcdirtest.nimble-link"
-      check fileExists(path)
-      let split = readFile(path).processOutput()
-      check split.len == 2
-      check split[0].endsWith("develop" / "srcdirtest" / "srcdirtest.nimble")
-      check split[1].endsWith("develop" / "srcdirtest" / "src")
-
-    cd "develop/dependent":
-      let (output, exitCode) = execNimbleYes("c", "-r", "src" / "dependent.nim")
-      checkpoint output
-      check(output.processOutput.inLines("hello"))
-      check exitCode == QuitSuccess
-
-  test "can uninstall linked package":
-    cd "develop/srcdirtest":
-      let (_, exitCode) = execNimbleYes("develop")
-      check exitCode == QuitSuccess
-
-    let (output, exitCode) = execNimbleYes("uninstall", "srcdirtest")
-    checkpoint(output)
+  test "can specify different absolute clone dir":
+    let otherDir = installDir / "./some/other/dir"
+    cleanDir otherDir
+    let (output, exitCode) = execNimble(
+      "develop", &"-p:{otherDir}", pkgAUrl)
     check exitCode == QuitSuccess
-    check(not output.processOutput.inLines("warning"))
+    check output.processOutput.inLines(
+      pkgSetupInDevModeMsg(pkgAName, otherDir / pkgAName))
 
-  test "can git clone for develop":
-    let cloneDir = installDir / "developTmp"
-    createDir(cloneDir)
-    cd cloneDir:
-      let url = "https://github.com/nimble-test/packagea.git"
-      let (_, exitCode) = execNimbleYes("develop", url)
+  test "can specify different relative clone dir":
+    const otherDir = "./some/other/dir"
+    cdCleanDir installDir:
+      let (output, exitCode) = execNimble(
+        "develop", &"-p:{otherDir}", pkgAUrl)
       check exitCode == QuitSuccess
+      check output.processOutput.inLines(
+        pkgSetupInDevModeMsg(pkgAName, installDir / otherDir / pkgAName))
 
-  test "nimble path points to develop":
-    cd "develop/srcdirtest":
-      var (output, exitCode) = execNimble("develop")
-      checkpoint output
+  test "do not allow multiple path options":
+    let
+      developDir = installDir / "./some/dir"
+      anotherDevelopDir = installDir / "./some/other/dir"
+    defer:
+      # cleanup in the case of test failure
+      removeDir developDir
+      removeDir anotherDevelopDir
+    let (output, exitCode) = execNimble(
+      "develop", &"-p:{developDir}", &"-p:{anotherDevelopDir}", pkgAUrl)
+    check exitCode == QuitFailure
+    check output.processOutput.inLines("Multiple path options are given")
+    check not developDir.dirExists
+    check not anotherDevelopDir.dirExists
+
+  test "do not allow path option without packages to download":
+    let developDir = installDir / "./some/dir"
+    let (output, exitCode) = execNimble("develop", &"-p:{developDir}")
+    check exitCode == QuitFailure
+    check output.processOutput.inLines(pathGivenButNoPkgsToDownloadMsg)
+    check not developDir.dirExists
+
+  test "do not allow add/remove options out of package directory":
+    cleanFile developFileName
+    let (output, exitCode) = execNimble("develop", "-a:./develop/dependency/")
+    check exitCode == QuitFailure
+    check output.processOutput.inLines(developOptionsOutOfPkgDirectoryMsg)
+
+  test "cannot load invalid develop file":
+    cd dependentPkgPath:
+      cleanFile developFileName
+      writeFile(developFileName, "this is not a develop file")
+      let (output, exitCode) = execNimble("check")
+      check exitCode == QuitFailure
+      var lines = output.processOutput
+      check lines.inLinesOrdered(
+        notAValidDevFileJsonMsg(getCurrentDir() / developFileName))
+      check lines.inLinesOrdered(validationFailedMsg)
+
+  test "add downloaded package to the develop file":
+    cleanDir installDir
+    cd "develop/dependency":
+      usePackageListFile &"../{pkgListFileName}":
+        cleanFile developFileName
+        let
+          (output, exitCode) = execNimble(
+            "develop", &"-p:{installDir}", pkgAName)
+          pkgAAbsPath = installDir / pkgAName
+          developFileContent = developFile(@[], @[pkgAAbsPath])
+        check exitCode == QuitSuccess
+        check parseFile(developFileName) == parseJson(developFileContent)
+        var lines = output.processOutput
+        check lines.inLinesOrdered(pkgSetupInDevModeMsg(pkgAName, pkgAAbsPath))
+        check lines.inLinesOrdered(
+          pkgAddedInDevModeMsg(&"{pkgAName}@0.6.0", pkgAAbsPath))
+
+  test "cannot add not a dependency downloaded package to the develop file":
+    cleanDir installDir
+    cd "develop/dependency":
+      usePackageListFile &"../{pkgListFileName}":
+        cleanFile developFileName
+        let
+          (output, exitCode) = execNimble(
+            "develop", &"-p:{installDir}", pkgAName, pkgBName)
+          pkgAAbsPath = installDir / pkgAName
+          pkgBAbsPath = installDir / pkgBName
+          developFileContent = developFile(@[], @[pkgAAbsPath])
+        check exitCode == QuitFailure
+        check parseFile(developFileName) == parseJson(developFileContent)
+        var lines = output.processOutput
+        check lines.inLinesOrdered(pkgSetupInDevModeMsg(pkgAName, pkgAAbsPath))
+        check lines.inLinesOrdered(pkgSetupInDevModeMsg(pkgBName, pkgBAbsPath))
+        check lines.inLinesOrdered(
+          pkgAddedInDevModeMsg(&"{pkgAName}@0.6.0", pkgAAbsPath))
+        check lines.inLinesOrdered(
+          notADependencyErrorMsg(&"{pkgBName}@0.2.0", depNameAndVersion))
+
+  test "add package to develop file":
+    cleanDir installDir
+    cd dependentPkgPath:
+      usePackageListFile &"../{pkgListFileName}":
+        cleanFiles developFileName, dependentPkgName.addFileExt(ExeExt)
+        var (output, exitCode) = execNimble("develop", &"-a:{depPath}")
+        check exitCode == QuitSuccess
+        check developFileName.fileExists
+        check output.processOutput.inLines(
+          pkgAddedInDevModeMsg(depNameAndVersion, depPath))
+        const expectedDevelopFile = developFile(@[], @[depPath])
+        check parseFile(developFileName) == parseJson(expectedDevelopFile)
+        (output, exitCode) = execNimble("run")
+        check exitCode == QuitSuccess
+        check output.processOutput.inLines(pkgInstalledMsg(pkgAName))
+
+  test "warning on attempt to add the same package twice":
+    cd dependentPkgPath:
+      cleanFile developFileName
+      const developFileContent = developFile(@[], @[depPath])
+      writeFile(developFileName, developFileContent)
+      let (output, exitCode) = execNimble("develop", &"-a:{depPath}")
       check exitCode == QuitSuccess
+      check output.processOutput.inLines(
+        pkgAlreadyInDevModeMsg(depNameAndVersion, depPath))
+      check parseFile(developFileName) ==  parseJson(developFileContent)
 
-      (output, exitCode) = execNimble("path", "srcdirtest")
+  test "cannot add invalid package to develop file":
+    cd dependentPkgPath:
+      cleanFile developFileName
+      const invalidPkgDir = "../invalidPkg".normalizedPath
+      createTempDir invalidPkgDir
+      let (output, exitCode) = execNimble("develop", &"-a:{invalidPkgDir}")
+      check exitCode == QuitFailure
+      check output.processOutput.inLines(invalidPkgMsg(invalidPkgDir))
+      check not developFileName.fileExists
 
-      checkpoint output
+  test "cannot add not a dependency to develop file":
+    cd dependentPkgPath:
+      cleanFile developFileName
+      let (output, exitCode) = execNimble("develop", "-a:../srcdirtest/")
+      check exitCode == QuitFailure
+      check output.processOutput.inLines(
+        notADependencyErrorMsg(&"{pkgSrcDirTestName}@1.0", "dependent@1.0"))
+      check not developFileName.fileExists
+
+  test "cannot add two packages with the same name to develop file":
+    cd dependentPkgPath:
+      cleanFile developFileName
+      const developFileContent = developFile(@[], @[depPath])
+      writeFile(developFileName, developFileContent)
+      let (output, exitCode) = execNimble("develop", &"-a:{dep2Path}")
+      check exitCode == QuitFailure
+      check output.processOutput.inLines(
+        pkgAlreadyPresentAtDifferentPathMsg(depName, depPath.absolutePath))
+      check parseFile(developFileName) == parseJson(developFileContent)
+
+  test "found two packages with the same name in the develop file":
+    cd dependentPkgPath:
+      cleanFile developFileName
+      const developFileContent = developFile(
+        @[], @[depPath, dep2Path])
+      writeFile(developFileName, developFileContent)
+
+      let
+        (output, exitCode) = execNimble("check")
+        developFilePath = getCurrentDir() / developFileName
+
+      check exitCode == QuitFailure
+      var lines = output.processOutput
+      check lines.inLinesOrdered(failedToLoadFileMsg(developFilePath))
+      check lines.inLinesOrdered(pkgFoundMoreThanOnceMsg(depName,
+        [(depPath.absolutePath.Path, developFilePath.Path), 
+         (dep2Path.absolutePath.Path, developFilePath.Path)].toHashSet))
+      check lines.inLinesOrdered(validationFailedMsg)
+
+  test "remove package from develop file by path":
+    cd dependentPkgPath:
+      cleanFile developFileName
+      const developFileContent = developFile(@[], @[depPath])
+      writeFile(developFileName, developFileContent)
+      let (output, exitCode) = execNimble("develop", &"-r:{depPath}")
       check exitCode == QuitSuccess
-      check output.strip() == getCurrentDir() / "src"
+      check output.processOutput.inLines(
+        pkgRemovedFromDevModeMsg(depNameAndVersion, depPath))
+      check parseFile(developFileName) == parseJson(emptyDevelopFileContent)
 
+  test "warning on attempt to remove not existing package path":
+    cd dependentPkgPath:
+      cleanFile developFileName
+      const developFileContent = developFile(@[], @[depPath])
+      writeFile(developFileName, developFileContent)
+      let (output, exitCode) = execNimble("develop", &"-r:{dep2Path}")
+      check exitCode == QuitSuccess
+      check output.processOutput.inLines(pkgPathNotInDevFileMsg(dep2Path))
+      check parseFile(developFileName) == parseJson(developFileContent)
+
+  test "remove package from develop file by name":
+    cd dependentPkgPath:
+      cleanFile developFileName
+      const developFileContent = developFile(@[], @[depPath])
+      writeFile(developFileName, developFileContent)
+      let (output, exitCode) = execNimble("develop", &"-n:{depName}")
+      check exitCode == QuitSuccess
+      check output.processOutput.inLines(
+        pkgRemovedFromDevModeMsg(depNameAndVersion, depPath.absolutePath))
+      check parseFile(developFileName) == parseJson(emptyDevelopFileContent)
+
+  test "warning on attempt to remove not existing package name":
+    cd dependentPkgPath:
+      cleanFile developFileName
+      const developFileContent = developFile(@[], @[depPath])
+      writeFile(developFileName, developFileContent)
+      const notExistingPkgName = "dependency2"
+      let (output, exitCode) = execNimble("develop", &"-n:{notExistingPkgName}")
+      check exitCode == QuitSuccess
+      check output.processOutput.inLines(
+        pkgNameNotInDevFileMsg(notExistingPkgName))
+      check parseFile(developFileName) == parseJson(developFileContent)
+
+  test "include develop file":
+    cleanDir installDir
+    cd dependentPkgPath:
+      usePackageListFile &"../{pkgListFileName}":
+        cleanFiles developFileName, includeFileName,
+                   dependentPkgName.addFileExt(ExeExt)
+        const includeFileContent = developFile(@[], @[depPath])
+        writeFile(includeFileName, includeFileContent)
+        var (output, exitCode) = execNimble("develop", &"-i:{includeFileName}")
+        check exitCode == QuitSuccess
+        check developFileName.fileExists
+        check output.processOutput.inLines(inclInDevFileMsg(includeFileName))
+        const expectedDevelopFile = developFile(@[includeFileName], @[])
+        check parseFile(developFileName) == parseJson(expectedDevelopFile)
+        (output, exitCode) = execNimble("run")
+        check exitCode == QuitSuccess
+        check output.processOutput.inLines(pkgInstalledMsg(pkgAName))
+
+  test "warning on attempt to include already included develop file":
+    cd dependentPkgPath:
+      cleanFiles developFileName, includeFileName
+      const developFileContent = developFile(@[includeFileName], @[])
+      writeFile(developFileName, developFileContent)
+      const includeFileContent = developFile(@[], @[depPath])
+      writeFile(includeFileName, includeFileContent)
+
+      let (output, exitCode) = execNimble("develop", &"-i:{includeFileName}")
+      check exitCode == QuitSuccess
+      check output.processOutput.inLines(
+        alreadyInclInDevFileMsg(includeFileName))
+      check parseFile(developFileName) == parseJson(developFileContent)
+
+  test "cannot include invalid develop file":
+    cd dependentPkgPath:
+      cleanFiles developFileName, includeFileName
+      writeFile(includeFileName, """{"some": "json"}""")
+      let (output, exitCode) = execNimble("develop", &"-i:{includeFileName}")
+      check exitCode == QuitFailure
+      check not developFileName.fileExists
+      check output.processOutput.inLines(failedToLoadFileMsg(includeFileName))
+
+  test "cannot load a develop file with an invalid include file in it":
+    cd dependentPkgPath:
+      cleanFiles developFileName, includeFileName
+      const developFileContent = developFile(@[includeFileName], @[])
+      writeFile(developFileName, developFileContent)
+      let (output, exitCode) = execNimble("check")
+      check exitCode == QuitFailure
+      let developFilePath = getCurrentDir() / developFileName
+      var lines = output.processOutput()
+      check lines.inLinesOrdered(failedToLoadFileMsg(developFilePath))
+      check lines.inLinesOrdered(invalidDevFileMsg(developFilePath))
+      check lines.inLinesOrdered(&"cannot read from file: {includeFileName}")
+      check lines.inLinesOrdered(validationFailedMsg)
+
+  test "can include file pointing to the same package":
+    cleanDir installDir
+    cd dependentPkgPath:
+      usePackageListFile &"../{pkgListFileName}":
+        cleanFiles developFileName, includeFileName,
+                   dependentPkgName.addFileExt(ExeExt)
+        const fileContent = developFile(@[], @[depPath])
+        writeFile(developFileName, fileContent)
+        writeFile(includeFileName, fileContent)
+        var (output, exitCode) = execNimble("develop", &"-i:{includeFileName}")
+        check exitCode == QuitSuccess
+        check output.processOutput.inLines(inclInDevFileMsg(includeFileName))
+        const expectedFileContent = developFile(
+          @[includeFileName], @[depPath])
+        check parseFile(developFileName) == parseJson(expectedFileContent)
+        (output, exitCode) = execNimble("run")
+        check exitCode == QuitSuccess
+        check output.processOutput.inLines(pkgInstalledMsg(pkgAName))
+
+  test "cannot include conflicting develop file":
+    cd dependentPkgPath:
+      cleanFiles developFileName, includeFileName
+      const developFileContent = developFile(@[], @[depPath])
+      writeFile(developFileName, developFileContent)
+      const includeFileContent = developFile(@[], @[dep2Path])
+      writeFile(includeFileName, includeFileContent)
+
+      let
+        (output, exitCode) = execNimble("develop", &"-i:{includeFileName}")
+        developFilePath = getCurrentDir() / developFileName
+
+      check exitCode == QuitFailure
+      var lines = output.processOutput
+      check lines.inLinesOrdered(
+        failedToInclInDevFileMsg(includeFileName, developFilePath))
+      check lines.inLinesOrdered(pkgFoundMoreThanOnceMsg(depName,
+        [(depPath.absolutePath.Path, developFilePath.Path),
+         (dep2Path.Path, includeFileName.Path)].toHashSet))
+      check parseFile(developFileName) == parseJson(developFileContent)
+
+  test "validate included dependencies version":
+    cd &"{dependentPkgPath}2":
+      cleanFiles developFileName, includeFileName
+      const includeFileContent = developFile(@[], @[dep2Path])
+      writeFile(includeFileName, includeFileContent)
+      let (output, exitCode) = execNimble("develop", &"-i:{includeFileName}")
+      check exitCode == QuitFailure
+      var lines = output.processOutput
+      let developFilePath = getCurrentDir() / developFileName
+      check lines.inLinesOrdered(
+        failedToInclInDevFileMsg(includeFileName, developFilePath))
+      check lines.inLinesOrdered(invalidPkgMsg(dep2Path))
+      check lines.inLinesOrdered(dependencyNotInRangeErrorMsg(
+        depNameAndVersion, dependentPkgNameAndVersion,
+        parseVersionRange(">= 0.2.0")))
+      check not developFileName.fileExists
+
+  test "exclude develop file":
+    cd dependentPkgPath:
+      cleanFiles developFileName, includeFileName
+      const developFileContent = developFile(@[includeFileName], @[])
+      writeFile(developFileName, developFileContent)
+      const includeFileContent = developFile(@[], @[depPath])
+      writeFile(includeFileName, includeFileContent)
+      let (output, exitCode) = execNimble("develop", &"-e:{includeFileName}")
+      check exitCode == QuitSuccess
+      check output.processOutput.inLines(exclFromDevFileMsg(includeFileName))
+      check parseFile(developFileName) == parseJson(emptyDevelopFileContent)
+
+  test "warning on attempt to exclude not included develop file":
+    cd dependentPkgPath:
+      cleanFiles developFileName, includeFileName
+      const developFileContent = developFile(@[includeFileName], @[])
+      writeFile(developFileName, developFileContent)
+      const includeFileContent = developFile(@[], @[depPath])
+      writeFile(includeFileName, includeFileContent)
+      let (output, exitCode) = execNimble("develop", &"-e:../{includeFileName}")
+      check exitCode == QuitSuccess
+      check output.processOutput.inLines(
+        notInclInDevFileMsg((&"../{includeFileName}").normalizedPath))
+      check parseFile(developFileName) == parseJson(developFileContent)
+
+  test "relative paths in the develop file and absolute from the command line":
+    cd dependentPkgPath:
+      cleanFiles developFileName, includeFileName
+      const developFileContent = developFile(
+        @[includeFileName], @[depPath])
+      writeFile(developFileName, developFileContent)
+      const includeFileContent = developFile(@[], @[depPath])
+      writeFile(includeFileName, includeFileContent)
+
+      let
+        includeFileAbsolutePath = includeFileName.absolutePath
+        dependencyPkgAbsolutePath = "../dependency".absolutePath
+        (output, exitCode) = execNimble("develop",
+          &"-e:{includeFileAbsolutePath}", &"-r:{dependencyPkgAbsolutePath}")
+
+      check exitCode == QuitSuccess
+      var lines = output.processOutput
+      check lines.inLinesOrdered(exclFromDevFileMsg(includeFileAbsolutePath))
+      check lines.inLinesOrdered(
+        pkgRemovedFromDevModeMsg(depNameAndVersion, dependencyPkgAbsolutePath))
+      check parseFile(developFileName) == parseJson(emptyDevelopFileContent)
+
+  test "absolute paths in the develop file and relative from the command line":
+    cd dependentPkgPath:
+      let
+        currentDir = getCurrentDir()
+        includeFileAbsPath = currentDir / includeFileName
+        dependencyAbsPath = currentDir / depPath
+        developFileContent = developFile(
+          @[includeFileAbsPath], @[dependencyAbsPath])
+        includeFileContent = developFile(@[], @[depPath])
+
+      cleanFiles developFileName, includeFileName
+      writeFile(developFileName, developFileContent)
+      writeFile(includeFileName, includeFileContent)
+
+      let (output, exitCode) = execNimble("develop",
+        &"-e:{includeFileName}", &"-r:{depPath}")
+
+      check exitCode == QuitSuccess
+      var lines = output.processOutput
+      check lines.inLinesOrdered(exclFromDevFileMsg(includeFileName))
+      check lines.inLinesOrdered(
+        pkgRemovedFromDevModeMsg(depNameAndVersion, depPath))
+      check parseFile(developFileName) == parseJson(emptyDevelopFileContent)
+
+  test "uninstall package with develop reverse dependencies":
+    cleanDir installDir
+    cd dependentPkgPath:
+      usePackageListFile &"../{pkgListFileName}":
+        const developFileContent = developFile(@[], @[depPath])
+        cleanFiles developFileName, "dependent"
+        writeFile(developFileName, developFileContent)
+
+        block checkSuccessfulInstallAndReverseDependencyAddedToNimbleData:
+          let
+            (_, exitCode) = execNimble("install")
+            nimbleData = parseFile(installDir / nimbleDataFileName)
+            packageDir = getPackageDir(pkgsDir, "PackageA-0.5.0")
+            checksum = packageDir[packageDir.rfind('-') + 1 .. ^1]
+            devRevDepPath = nimbleData{$ndjkRevDep}{pkgAName}{"0.5.0"}{
+              checksum}{0}{$ndjkRevDepPath}
+            depAbsPath = getCurrentDir() / depPath
+
+          check exitCode == QuitSuccess
+          check not devRevDepPath.isNil
+          check devRevDepPath.str == depAbsPath
+
+        block checkSuccessfulUninstallAndRemovalFromNimbleData:
+          let
+            (_, exitCode) = execNimble("uninstall", "-i", pkgAName, "-y")
+            nimbleData = parseFile(installDir / nimbleDataFileName)
+
+          check exitCode == QuitSuccess
+          check not nimbleData[$ndjkRevDep].hasKey(pkgAName)
+
+  test "follow develop dependency's develop file":
+    cd "develop":
+      const pkg1DevFilePath = "pkg1" / developFileName
+      const pkg2DevFilePath = "pkg2" / developFileName
+      cleanFiles pkg1DevFilePath, pkg2DevFilePath
+      const pkg1DevFileContent = developFile(@[], @["../pkg2"])
+      writeFile(pkg1DevFilePath, pkg1DevFileContent)
+      const pkg2DevFileContent = developFile(@[], @["../pkg3"])
+      writeFile(pkg2DevFilePath, pkg2DevFileContent)
+      cd "pkg1":
+        cleanFile "pkg1".addFileExt(ExeExt)
+        let (_, exitCode) = execNimble("run", "-n")
+        check exitCode == QuitSuccess
+
+  test "version clash from followed develop file":
+    cd "develop":
+      const pkg1DevFilePath = "pkg1" / developFileName
+      const pkg2DevFilePath = "pkg2" / developFileName
+      cleanFiles pkg1DevFilePath, pkg2DevFilePath
+      const pkg1DevFileContent = developFile(@[], @["../pkg2", "../pkg3"])
+      writeFile(pkg1DevFilePath, pkg1DevFileContent)
+      const pkg2DevFileContent = developFile(@[], @["../pkg3.2"])
+      writeFile(pkg2DevFilePath, pkg2DevFileContent)
+
+      let
+        currentDir = getCurrentDir()
+        pkg1DevFileAbsPath = currentDir / pkg1DevFilePath
+        pkg2DevFileAbsPath = currentDir / pkg2DevFilePath
+        pkg3AbsPath = currentDir / "pkg3"
+        pkg32AbsPath = currentDir / "pkg3.2"
+
+      cd "pkg1":
+        cleanFile "pkg1".addFileExt(ExeExt)
+        let (output, exitCode) = execNimble("run", "-n")
+        check exitCode == QuitFailure
+        var lines = output.processOutput
+        check lines.inLinesOrdered(failedToLoadFileMsg(pkg1DevFileAbsPath))
+        check lines.inLinesOrdered(pkgFoundMoreThanOnceMsg("pkg3",
+          [(pkg3AbsPath.Path, pkg1DevFileAbsPath.Path),
+           (pkg32AbsPath.Path, pkg2DevFileAbsPath.Path)].toHashSet))
+
+  test "relative include paths are followed from the file's directory":
+    cd dependentPkgPath:
+      const includeFilePath = &"../{includeFileName}"
+      cleanFiles includeFilePath, developFileName, dependentPkgName.addFileExt(ExeExt)
+      const developFileContent = developFile(@[includeFilePath], @[])
+      writeFile(developFileName, developFileContent)
+      const includeFileContent = developFile(@[], @["./dependency2/"])
+      writeFile(includeFilePath, includeFileContent)
+      let (_, errorCode) = execNimble("run", "-n")
+      check errorCode == QuitSuccess
+
+  test "filter not used included develop dependencies":
+    # +--------------------------+                +--------------------------+
+    # |           pkg1           |  +------------>|           pkg2           |
+    # +--------------------------+  | dependency  +--------------------------+
+    # | requires "pkg2", "pkg3"  |  |             |      nimble.develop      |
+    # +--------------------------+  |             +--------------------------+
+    # |      nimble.develop      |--+                           |
+    # +--------------------------+                     includes |
+    #                                                           v
+    #                                                   +---------------+
+    #                                                   | develop.json  |
+    #                                                   +---------------+
+    #                                                           |
+    #                                                dependency |
+    #                                                           v
+    #                                                +---------------------+
+    #                                                |         pkg3        |
+    #                                                +---------------------+
+    #                                                |  version = "0.2.0"  |
+    #                                                +---------------------+
+
+    # Here the build must fail because "pkg3" coming from develop file included
+    # in "pkg2"'s develop file is not a dependency of "pkg2" itself and it must
+    # be filtered. In this way "pkg1"'s dependency to "pkg3" is not satisfied.
+
+    cd "develop":
+      const
+        pkg1DevFilePath = "pkg1" / developFileName
+        pkg2DevFilePath = "pkg2.2" / developFileName
+        freeDevFileName = "develop.json"
+        pkg1DevFileContent = developFile(@[], @["../pkg2.2"])
+        pkg2DevFileContent = developFile(@[&"../{freeDevFileName}"], @[])
+        freeDevFileContent = developFile(@[], @["./pkg3.2"])
+
+      cleanFiles pkg1DevFilePath, pkg2DevFilePath, freeDevFileName
+      writeFile(pkg1DevFilePath, pkg1DevFileContent)
+      writeFile(pkg2DevFilePath, pkg2DevFileContent)
+      writeFile(freeDevFileName, freeDevFileContent)
+
+      cd "pkg1":
+        cleanFile "pkg1".addFileExt(ExeExt)
+        let (output, exitCode) = execNimble("run", "-n")
+        check exitCode == QuitFailure
+        var lines = output.processOutput
+        check lines.inLinesOrdered(
+          pkgDepsAlreadySatisfiedMsg(("pkg2", anyVersion)))
+        check lines.inLinesOrdered(pkgNotFoundMsg(("pkg3", anyVersion)))
+
+  test "do not filter used included develop dependencies":
+    # +--------------------------+                +--------------------------+
+    # |           pkg1           |  +------------>+           pkg2           |
+    # +--------------------------+  | dependency  +--------------------------+
+    # | requires "pkg2", "pkg3"  |  |             | requires "pkg3"          |
+    # +--------------------------+  |             +--------------------------+
+    # |      nimble.develop      |--+             |      nimble.develop      |
+    # +--------------------------+                +--------------------------+
+    #                                                          |
+    #                                                 includes |
+    #                                                          v
+    #                                                  +---------------+
+    #                                                  | develop.json  |
+    #                                                  +---------------+
+    #                                                          |
+    #                                               dependency |
+    #                                                          v
+    #                                                +---------------------+
+    #                                                |        pkg3         |
+    #                                                +---------------------+
+    #                                                |  version = "0.2.0"  |
+    #                                                +---------------------+
+
+    # Here the build must pass because "pkg3" coming form develop file included
+    # in "pkg2"'s develop file is a dependency of "pkg2" and it will be used,
+    # in this way satisfying also "pkg1"'s requirements.
+
+    cd "develop":
+      const
+        pkg1DevFilePath = "pkg1" / developFileName
+        pkg2DevFilePath = "pkg2" / developFileName
+        freeDevFileName = "develop.json"
+        pkg1DevFileContent = developFile(@[], @["../pkg2"])
+        pkg2DevFileContent = developFile(@[&"../{freeDevFileName}"], @[])
+        freeDevFileContent = developFile(@[], @["./pkg3.2"])
+
+      cleanFiles pkg1DevFilePath, pkg2DevFilePath, freeDevFileName
+      writeFile(pkg1DevFilePath, pkg1DevFileContent)
+      writeFile(pkg2DevFilePath, pkg2DevFileContent)
+      writeFile(freeDevFileName, freeDevFileContent)
+
+      cd "pkg1":
+        cleanFile "pkg1".addFileExt(ExeExt)
+        let (output, exitCode) = execNimble("run", "-n")
+        check exitCode == QuitSuccess
+        var lines = output.processOutput
+        check lines.inLinesOrdered(
+          pkgDepsAlreadySatisfiedMsg(("pkg2", anyVersion)))
+        check lines.inLinesOrdered(
+          pkgDepsAlreadySatisfiedMsg(("pkg3", anyVersion)))
+        check lines.inLinesOrdered(
+          pkgDepsAlreadySatisfiedMsg(("pkg3", anyVersion)))
+
+  test "no version clash with filtered not used included develop dependencies":
+    # +--------------------------+                +--------------------------+
+    # |           pkg1           |  +------------>|           pkg2           |
+    # +--------------------------+  | dependency  +--------------------------+
+    # | requires "pkg2", "pkg3"  |  |             |      nimble.develop      |
+    # +--------------------------+  |             +--------------------------+
+    # |      nimble.develop      |--+                           |
+    # +--------------------------+                     includes |
+    #             |                                             v
+    #    includes |                                     +---------------+
+    #             v                                     | develop2.json |
+    #     +---------------+                             +-------+-------+
+    #     | develop1.json |                                     |
+    #     +---------------+                          dependency |
+    #             |                                             v
+    #  dependency |                                  +---------------------+
+    #             v                                  |        pkg3         |
+    #   +-------------------+                        +---------------------+
+    #   |       pkg3        |                        |  version = "0.2.0"  |
+    #   +-------------------+                        +---------------------+
+    #   | version = "0.1.0" |
+    #   +-------------------+
+
+    # Here the build must pass because only the version of "pkg3" included via
+    # "develop1.json" must be taken into account, since "pkg2" does not depend
+    # on "pkg3" and the version coming from "develop2.json" must be filtered.
+
+    cd "develop":
+      const
+        pkg1DevFilePath = "pkg1" / developFileName
+        pkg2DevFilePath = "pkg2.2" / developFileName
+        freeDevFile1Name = "develop1.json"
+        freeDevFile2Name = "develop2.json"
+        pkg1DevFileContent = developFile(
+          @[&"../{freeDevFile1Name}"], @["../pkg2.2"])
+        pkg2DevFileContent = developFile(@[&"../{freeDevFile2Name}"], @[])
+        freeDevFile1Content = developFile(@[], @["./pkg3"])
+        freeDevFile2Content = developFile(@[], @["./pkg3.2"])
+
+      cleanFiles pkg1DevFilePath, pkg2DevFilePath,
+                 freeDevFile1Name, freeDevFile2Name
+      writeFile(pkg1DevFilePath, pkg1DevFileContent)
+      writeFile(pkg2DevFilePath, pkg2DevFileContent)
+      writeFile(freeDevFile1Name, freeDevFile1Content)
+      writeFile(freeDevFile2Name, freeDevFile2Content)
+
+      cd "pkg1":
+        cleanFile "pkg1".addFileExt(ExeExt)
+        let (output, exitCode) = execNimble("run", "-n")
+        check exitCode == QuitSuccess
+        var lines = output.processOutput
+        check lines.inLinesOrdered(
+          pkgDepsAlreadySatisfiedMsg(("pkg2", anyVersion)))
+        check lines.inLinesOrdered(
+          pkgDepsAlreadySatisfiedMsg(("pkg3", anyVersion)))
+
+  test "version clash with used included develop dependencies":
+    # +--------------------------+                +--------------------------+
+    # |           pkg1           |  +------------>|           pkg2           |
+    # +--------------------------+  | dependency  +--------------------------+
+    # | requires "pkg2", "pkg3"  |  |             | requires "pkg3"          |
+    # +--------------------------+  |             +--------------------------+
+    # |      nimble.develop      |--+             |      nimble.develop      |
+    # +--------------------------+                +--------------------------+
+    #             |                                             |
+    #    includes |                                    includes |
+    #             v                                             v
+    #     +-------+-------+                             +---------------+
+    #     | develop1.json |                             | develop2.json |
+    #     +-------+-------+                             +---------------+
+    #             |                                             |
+    #  dependency |                                  dependency |
+    #             v                                             v
+    #   +-------------------+                        +---------------------+
+    #   |       pkg3        |                        |         pkg3        |
+    #   +-------------------+                        +---------------------+
+    #   | version = "0.1.0" |                        |  version = "0.2.0"  |
+    #   +-------------------+                        +---------------------+
+
+    # Here the build must fail because since "pkg3" is dependency of both "pkg1"
+    # and "pkg2", both versions coming from "develop1.json" and "develop2.json"
+    # must be taken into account, but they are different."
+    
+    cd "develop":
+      const
+        pkg1DevFilePath = "pkg1" / developFileName
+        pkg2DevFilePath = "pkg2" / developFileName
+        freeDevFile1Name = "develop1.json"
+        freeDevFile2Name = "develop2.json"
+        pkg1DevFileContent = developFile(
+          @[&"../{freeDevFile1Name}"], @["../pkg2"])
+        pkg2DevFileContent = developFile(@[&"../{freeDevFile2Name}"], @[])
+        freeDevFile1Content = developFile(@[], @["./pkg3"])
+        freeDevFile2Content = developFile(@[], @["./pkg3.2"])
+
+      cleanFiles pkg1DevFilePath, pkg2DevFilePath,
+                 freeDevFile1Name, freeDevFile2Name
+      writeFile(pkg1DevFilePath, pkg1DevFileContent)
+      writeFile(pkg2DevFilePath, pkg2DevFileContent)
+      writeFile(freeDevFile1Name, freeDevFile1Content)
+      writeFile(freeDevFile2Name, freeDevFile2Content)
+
+      cd "pkg1":
+        cleanFile "pkg1".addFileExt(ExeExt)
+        let (output, exitCode) = execNimble("run", "-n")
+        check exitCode == QuitFailure
+        var lines = output.processOutput
+        check lines.inLinesOrdered(failedToLoadFileMsg(
+          getCurrentDir() / developFileName))
+        check lines.inLinesOrdered(pkgFoundMoreThanOnceMsg("pkg3",
+          [("../pkg3".Path, (&"../{freeDevFile1Name}").Path),
+           ("../pkg3.2".Path, (&"../{freeDevFile2Name}").Path)].toHashSet))
+
+  test "create an empty develop file with default name in the current dir":
+    cd dependentPkgPath:
+      cleanFile developFileName
+      let (output, errorCode) = execNimble("develop", "-c")
+      check errorCode == QuitSuccess
+      check parseFile(developFileName) == parseJson(emptyDevelopFileContent)
+      check output.processOutput.inLines(
+        emptyDevFileCreatedMsg(developFileName))
+
+  test "create an empty develop file in some dir":
+    cleanDir installDir
+    let filePath = installDir / "develop.json"
+    cleanFile filePath
+    createDir installDir
+    let (output, errorCode) = execNimble("develop", &"-c:{filePath}")
+    check errorCode == QuitSuccess
+    check parseFile(filePath) == parseJson(emptyDevelopFileContent)
+    check output.processOutput.inLines(emptyDevFileCreatedMsg(filePath))
+
+  test "try to create an empty develop file with already existing name":
+    cd dependentPkgPath:
+      cleanFile developFileName
+      const developFileContent = developFile(@[], @[depPath])
+      writeFile(developFileName, developFileContent)
+      let
+        filePath = getCurrentDir() / developFileName
+        (output, errorCode) = execNimble("develop", &"-c:{filePath}")
+      check errorCode == QuitFailure
+      check output.processOutput.inLines(fileAlreadyExistsMsg(filePath))
+      check parseFile(developFileName) == parseJson(developFileContent)
+
+  test "try to create an empty develop file in not existing dir":
+    let filePath = installDir / "some/not/existing/dir/develop.json"
+    cleanFile filePath
+    let (output, errorCode) = execNimble("develop", &"-c:{filePath}")
+    check errorCode == QuitFailure
+    check output.processOutput.inLines(&"cannot open: {filePath}")
+
+  test "partial success when some operations in single command failed":
+    cleanDir installDir
+    cd dependentPkgPath:
+      usePackageListFile &"../{pkgListFileName}":
+        const
+          dep2DevelopFilePath = dep2Path / developFileName
+          includeFileContent = developFile(@[], @[dep2Path])
+          invalidInclFilePath = "/some/not/existing/file/path".normalizedPath
+
+        cleanFiles developFileName, includeFileName, dep2DevelopFilePath
+        writeFile(includeFileName, includeFileContent)
+
+        let
+          developFilePath = getCurrentDir() / developFileName
+          (output, errorCode) = execNimble("develop", &"-p:{installDir}",
+            pkgAName,                    # fail because not a direct dependency
+             "-c",                       # success
+            &"-a:{depPath}",             # success
+            &"-a:{dep2Path}",            # fail because of names collision
+            &"-i:{includeFileName}",     # fail because of names collision
+            &"-n:{depName}",             # success
+            &"-c:{developFilePath}",     # fail because the file already exists
+            &"-a:{dep2Path}",            # success
+            &"-i:{includeFileName}",     # success
+            &"-i:{invalidInclFilePath}", # fail
+            &"-c:{dep2DevelopFilePath}") # success
+
+        check errorCode == QuitFailure
+        var lines = output.processOutput
+        check lines.inLinesOrdered(pkgSetupInDevModeMsg(
+          pkgAName, installDir / pkgAName))
+        check lines.inLinesOrdered(emptyDevFileCreatedMsg(developFileName))
+        check lines.inLinesOrdered(
+          pkgAddedInDevModeMsg(depNameAndVersion, depPath))
+        check lines.inLinesOrdered(
+          pkgAlreadyPresentAtDifferentPathMsg(depName, depPath))
+        check lines.inLinesOrdered(
+          failedToInclInDevFileMsg(includeFileName, developFilePath))
+        check lines.inLinesOrdered(pkgFoundMoreThanOnceMsg(depName,
+          [(depPath.Path, developFilePath.Path),
+           (dep2Path.Path, includeFileName.Path)].toHashSet))
+        check lines.inLinesOrdered(
+          pkgRemovedFromDevModeMsg(depNameAndVersion, depPath))
+        check lines.inLinesOrdered(fileAlreadyExistsMsg(developFilePath))
+        check lines.inLinesOrdered(
+          pkgAddedInDevModeMsg(depNameAndVersion, dep2Path))
+        check lines.inLinesOrdered(inclInDevFileMsg(includeFileName))
+        check lines.inLinesOrdered(failedToLoadFileMsg(invalidInclFilePath))
+        check lines.inLinesOrdered(emptyDevFileCreatedMsg(dep2DevelopFilePath))
+        check parseFile(dep2DevelopFilePath) ==
+              parseJson(emptyDevelopFileContent)
+        check lines.inLinesOrdered(notADependencyErrorMsg(
+          &"{pkgAName}@0.6.0", dependentPkgNameAndVersion))
+        const expectedDevelopFileContent = developFile(
+          @[includeFileName], @[dep2Path])
+        check parseFile(developFileName) ==
+              parseJson(expectedDevelopFileContent)
+
+suite "path command":
   test "can get correct path for srcDir (#531)":
-    check execNimbleYes("uninstall", "srcdirtest").exitCode == QuitSuccess
     cd "develop/srcdirtest":
       let (_, exitCode) = execNimbleYes("install")
       check exitCode == QuitSuccess
     let (output, _) = execNimble("path", "srcdirtest")
     let packageDir = getPackageDir(pkgsDir, "srcdirtest-1.0")
-    check output.strip() == packageDir 
+    check output.strip() == packageDir
+
+  # test "nimble path points to develop":
+  #   cd "develop/srcdirtest":
+  #     var (output, exitCode) = execNimble("develop")
+  #     checkpoint output
+  #     check exitCode == QuitSuccess
+
+  #     (output, exitCode) = execNimble("path", "srcdirtest")
+
+  #     checkpoint output
+  #     check exitCode == QuitSuccess
+  #     check output.strip() == getCurrentDir() / "src"
 
 suite "test command":
   beforeSuite()
@@ -697,25 +1595,25 @@ suite "check command":
       let (outp, exitCode) = execNimble("check")
       check exitCode == QuitSuccess
       check outp.processOutput.inLines("success")
-      check outp.processOutput.inLines("binaryPackage is valid")
+      check outp.processOutput.inLines("\"binaryPackage\" is valid")
 
     cd "packageStructure/a":
       let (outp, exitCode) = execNimble("check")
       check exitCode == QuitSuccess
       check outp.processOutput.inLines("success")
-      check outp.processOutput.inLines("a is valid")
+      check outp.processOutput.inLines("\"a\" is valid")
 
     cd "packageStructure/b":
       let (outp, exitCode) = execNimble("check")
       check exitCode == QuitSuccess
       check outp.processOutput.inLines("success")
-      check outp.processOutput.inLines("b is valid")
+      check outp.processOutput.inLines("\"b\" is valid")
 
     cd "packageStructure/c":
       let (outp, exitCode) = execNimble("check")
       check exitCode == QuitSuccess
       check outp.processOutput.inLines("success")
-      check outp.processOutput.inLines("c is valid")
+      check outp.processOutput.inLines("\"c\" is valid")
 
   test "can fail package":
     cd "packageStructure/x":
@@ -730,52 +1628,38 @@ suite "multi":
 
   test "can install package from git subdir":
     var
-      args = @["install", "https://github.com/nimble-test/multi?subdir=alpha"]
+      args = @["install", pkgMultiAlphaUrl]
       (output, exitCode) = execNimbleYes(args)
     check exitCode == QuitSuccess
 
     # Issue 785
-    args.add @["https://github.com/nimble-test/multi?subdir=beta", "-n"]
+    args.add @[pkgMultiBetaUrl, "-n"]
     (output, exitCode) = execNimble(args)
     check exitCode == QuitSuccess
     check output.contains("forced no")
     check output.contains("beta installed successfully")
 
   test "can develop package from git subdir":
-    removeDir("multi")
-    let args = ["develop", "https://github.com/nimble-test/multi?subdir=beta"]
-    check execNimbleYes(args).exitCode == QuitSuccess
+    cleanDir "beta"
+    check execNimbleYes("develop", pkgMultiBetaUrl).exitCode == QuitSuccess
 
 suite "Module tests":
-  beforeSuite()
+  template moduleTest(moduleName: string) =
+    test moduleName:
+      cd "..":
+        check execCmdEx("nim c -r src/nimblepkg/" & moduleName).
+          exitCode == QuitSuccess
 
-  test "version":
-    cd "..":
-      check execCmdEx("nim c -r src/nimblepkg/version").exitCode == QuitSuccess
-
-  test "reversedeps":
-    cd "..":
-      check execCmdEx("nim c -r src/nimblepkg/reversedeps").exitCode == QuitSuccess
-
-  test "packageparser":
-    cd "..":
-      check execCmdEx("nim c -r src/nimblepkg/packageparser").exitCode == QuitSuccess
-
-  test "packageinfo":
-    cd "..":
-      check execCmdEx("nim c -r src/nimblepkg/packageinfo").exitCode == QuitSuccess
-
-  test "cli":
-    cd "..":
-      check execCmdEx("nim c -r src/nimblepkg/cli").exitCode == QuitSuccess
-
-  test "download":
-    cd "..":
-      check execCmdEx("nim c -r src/nimblepkg/download").exitCode == QuitSuccess
-
-  test "jsonhelpers":
-    cd "..":
-      check execCmdEx("nim c -r src/nimblepkg/jsonhelpers").exitCode == QuitSuccess
+  moduleTest "aliasthis"
+  moduleTest "common"
+  moduleTest "download"
+  moduleTest "jsonhelpers"
+  moduleTest "packageinfo"
+  moduleTest "packageparser"
+  moduleTest "paths"
+  moduleTest "reversedeps"
+  moduleTest "topologicalsort"
+  moduleTest "version"
 
 suite "nimble run":
   beforeSuite()
@@ -946,7 +1830,7 @@ suite "project local deps mode":
 
   test "nimbledeps exists":
     cd "localdeps":
-      removeDir("nimbledeps")
+      cleanDir("nimbledeps")
       createDir("nimbledeps")
       let (output, exitCode) = execCmdEx(nimblePath & " install -y")
       check exitCode == QuitSuccess
@@ -955,15 +1839,16 @@ suite "project local deps mode":
 
   test "--localdeps flag":
     cd "localdeps":
-      removeDir("nimbledeps")
+      cleanDir("nimbledeps")
       let (output, exitCode) = execCmdEx(nimblePath & " install -y -l")
       check exitCode == QuitSuccess
       check output.contains("project local deps mode")
       check output.contains("Succeeded")
 
   test "localdeps develop":
-    removeDir("packagea")
-    let (_, exitCode) = execCmdEx(nimblePath & " develop https://github.com/nimble-test/packagea --localdeps -y")
+    cleanDir("packagea")
+    let (_, exitCode) = execCmdEx(nimblePath &
+      &" develop {pkgAUrl} --localdeps -y")
     check exitCode == QuitSuccess
     check dirExists("packagea" / "nimbledeps")
     check not dirExists("nimbledeps")
@@ -972,9 +1857,7 @@ suite "misc tests":
   beforeSuite()
 
   test "depsOnly + flag order test":
-    let (output, exitCode) = execNimbleYes(
-      "--depsOnly", "install", "https://github.com/nimble-test/packagebin2"
-    )
+    let (output, exitCode) = execNimbleYes("--depsOnly", "install", pkgBin2Url)
     check(not output.contains("Success: packagebin2 installed successfully."))
     check exitCode == QuitSuccess
 
@@ -1033,7 +1916,7 @@ suite "misc tests":
 
     proc execBuild(fileName: string): tuple[output: string, exitCode: int] =
       result = execCmdEx(
-        fmt"nim c -o:{buildDir/fileName.splitFile.name} {fileName}")
+        &"nim c -o:{buildDir/fileName.splitFile.name} {fileName}")
 
     proc checkOutput(output: string): uint =
       const warningsToCheck = [
@@ -1082,18 +1965,21 @@ suite "issues":
   test "issue 799":
     # When building, any newly installed packages should be referenced via the
     # path that they get permanently installed at.
-    removeDir installDir
+    cleanDir installDir
     cd "issue799":
-      let (build_output, build_code) = execNimbleYes("--verbose", "build")
-      check build_code == 0
-      var build_results = processOutput(build_output)
-      build_results.keepItIf(unindent(it).startsWith("Executing"))
+      let (output, exitCode) = execNimbleYes("build")
+      check exitCode == QuitSuccess
+      var lines = output.processOutput
+      lines.keepItIf(unindent(it).startsWith("Executing"))
 
-      for build_line in build_results:
-        if build_line.contains("issue799"):
-          let nimble_install_dir = getPackageDir(pkgsDir, "nimble-#head")
-          let pkg_installed_path = "--path:'" & nimble_install_dir & "'"
-          check build_line.contains(pkg_installed_path)
+      for line in lines:
+        if line.contains("issue799"):
+          let nimbleInstallDir = getPackageDir(
+            pkgsDir, &"nimble-{nimbleVersion}")
+          dump(nimbleInstallDir)
+          let pkgInstalledPath = "--path:'" & nimble_install_dir & "'"
+          dump(pkgInstalledPath)
+          check line.contains(pkgInstalledPath)
 
   test "issue 793":
     cd "issue793":
@@ -1245,10 +2131,13 @@ suite "issues":
   test "issue #428":
     cd "issue428":
       # Note: Can't use execNimble because it patches nimbleDir
-      check execCmdEx(nimblePath & " -y --nimbleDir=./nimbleDir install").exitCode == QuitSuccess
-      let pkgDir = getPackageDir("nimbleDir/pkgs", "dummy-0.1.0")
-      check pkgDir.dirExists
-      check not (pkgDir / "nimbleDir").dirExists
+      let (_, exitCode) = execCmdEx(
+        nimblePath & " -y --nimbleDir=./nimbleDir install")
+      check exitCode == QuitSuccess
+      let dummyPkgDir = getPackageDir(
+        "nimbleDir" / nimblePackagesDirName, "dummy-0.1.0")
+      check dummyPkgDir.dirExists
+      check not (dummyPkgDir / "nimbleDir").dirExists
 
   test "issue 399":
     cd "issue399":
@@ -1320,6 +2209,7 @@ suite "issues":
       check execNimble("tasks").exitCode == QuitSuccess
 
   test "can build with #head and versioned package (#289)":
+    cleanDir(installDir)
     cd "issue289":
       check execNimbleYes("install").exitCode == QuitSuccess
 
@@ -1386,11 +2276,11 @@ suite "issues":
           assert false
 
   test "issue 129 (installing commit hash)":
-    let arguments = @["install",
-                    "https://github.com/nimble-test/packagea.git@#1f9cb289c89"]
+    cleanDir(installDir)
+    let arguments = @["install", &"{pkgAUrl}@#1f9cb289c89"]
     check execNimbleYes(arguments).exitCode == QuitSuccess
     # Verify that it was installed correctly.
-    check packageDirExists(pkgsDir, "PackageA-#1f9cb289c89")
+    check packageDirExists(pkgsDir, "PackageA-0.6.0")
     # Remove it so that it doesn't interfere with the uninstall tests.
     check execNimbleYes("uninstall", "packagea@#1f9cb289c89").exitCode ==
           QuitSuccess
@@ -1409,7 +2299,7 @@ suite "issues":
       check inLines(lines1, "The .nimble file name must match name specified inside")
 
   test "issue 113 (uninstallation problems)":
-    removeDir(installDir)
+    cleanDir(installDir)
 
     cd "issue113/c":
       check execNimbleYes("install").exitCode == QuitSuccess
@@ -1419,10 +2309,13 @@ suite "issues":
       check execNimbleYes("install").exitCode == QuitSuccess
 
     # Try to remove c.
-    let (output, exitCode) = execNimbleYes(["remove", "c"])
-    let lines = output.strip.processOutput()
+    let
+      (output, exitCode) = execNimbleYes(["remove", "c"])
+      lines = output.strip.processOutput()
+      pkgBInstallDir = getPackageDir(pkgsDir, "b-0.1.0").splitPath.tail
+
     check exitCode != QuitSuccess
-    check inLines(lines, "cannot uninstall c (0.1.0) because b (0.1.0) depends on it")
+    check lines.inLines(cannotUninstallPkgMsg("c", "0.1.0", @[pkgBInstallDir]))
 
     check execNimbleYes(["remove", "a"]).exitCode == QuitSuccess
     check execNimbleYes(["remove", "b"]).exitCode == QuitSuccess

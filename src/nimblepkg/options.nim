@@ -6,7 +6,7 @@ import sequtils, sugar
 import std/options as std_opt
 from httpclient import Proxy, newProxy
 
-import config, version, common, cli, packageinfotypes, nimbledata
+import config, version, common, cli, packageinfotypes, displaymessages
 
 const
   nimbledeps* = "nimbledeps"
@@ -49,6 +49,11 @@ type
     actionDoc, actionCustom, actionTasks, actionDevelop, actionCheck,
     actionLock, actionRun
 
+  DevelopActionType* = enum
+    datNewFile, datAdd, datRemoveByPath, datRemoveByName, datInclude, datExclude
+
+  DevelopAction* = tuple[actionType: DevelopActionType, argument: string]
+
   Action* = object
     case typ*: ActionType
     of actionNil, actionList, actionPublish, actionTasks, actionCheck,
@@ -59,6 +64,8 @@ type
       packages*: seq[PkgTuple] # Optional only for actionInstall
                                # and actionDevelop.
       passNimFlags*: seq[string]
+      devActions*: seq[DevelopAction]
+      path*: string
     of actionSearch:
       search*: seq[string] # Search string.
     of actionInit, actionDump:
@@ -84,11 +91,28 @@ Usage: nimble [nimbleopts] COMMAND [cmdopts]
 
 Commands:
   install      [pkgname, ...]     Installs a list of packages.
-               [-d, --depsOnly]   Installs only dependencies of the package.
-               [opts, ...]        Passes options to the Nim compiler.
-  develop      [pkgname, ...]     Clones a list of packages for development.
-                                  Symlinks the cloned packages or any package
-                                  in the current working directory.
+               [-d, --depsOnly]   Install only dependencies.
+               [-p, --passNim]    Forward specified flag to compiler.
+  develop      [pkgname, ...]     Clones a list of packages for development. If
+                                  executed in a package directory creates a
+                                  `nimble.develop` file with paths to the cloned
+                                  packages.
+         [-p, --path path]        Specifies the path whether the packages should
+                                  be cloned.
+         [-c, --create [path]]    Creates an empty develop file with name
+                                  `nimble.develop` in the current directory or
+                                  if path is present to the given directory with
+                                  a given name.
+         [-a, --add path]         Adds a package at given path to the
+                                  `nimble.develop` file.
+         [-r, --remove-path path] Removes a package at given path from the
+                                  `nimble.develop` file.
+         [-n, --remove-name name] Removes a package with a given name from
+                                  the `nimble.develop` file.
+         [-i, --include file]     Includes a develop file into the current
+                                  directory's one.
+         [-e, --exclude file]     Excludes a develop file from the current
+                                  directory's one.
   check                           Verifies the validity of a package in the
                                   current working directory.
   init         [pkgname]          Initializes a new Nimble project in the
@@ -158,7 +182,7 @@ const noHookActions* = {actionCheck}
 proc writeHelp*(quit=true) =
   echo(help)
   if quit:
-    raise NimbleQuit(msg: "")
+    raise nimbleQuit()
 
 proc writeVersion*() =
   echo("nimble v$# compiled at $# $#" %
@@ -169,7 +193,7 @@ proc writeVersion*() =
   else:
     {.warning: "Couldn't determine GIT hash: " & execResult[0].}
     echo "git hash: couldn't determine git hash"
-  raise NimbleQuit(msg: "")
+  raise nimbleQuit()
 
 proc parseActionType*(action: string): ActionType =
   case action.normalize()
@@ -215,32 +239,18 @@ proc initAction*(options: var Options, key: string) =
   ## `key`.
   let keyNorm = key.normalize()
   case options.action.typ
-  of actionInstall, actionPath, actionDevelop, actionUninstall:
-    options.action.packages = @[]
-    options.action.passNimFlags = @[]
   of actionCompile, actionDoc, actionBuild:
-    options.action.compileOptions = @[]
-    options.action.file = ""
-    if keyNorm == "c" or keyNorm == "compile": options.action.backend = ""
-    else: options.action.backend = keyNorm
-  of actionInit:
-    options.action.projName = ""
-    options.action.vcsOption = ""
+    if keyNorm != "c" and keyNorm != "compile":
+      options.action.backend = keyNorm
   of actionDump:
-    options.action.projName = ""
-    options.action.vcsOption = ""
     options.forcePrompts = forcePromptYes
-  of actionRefresh:
-    options.action.optionalURL = ""
-  of actionSearch:
-    options.action.search = @[]
   of actionCustom:
     options.action.command = key
     options.action.arguments = @[]
     options.action.custCompileFlags = @[]
     options.action.custRunFlags = @[]
-  of actionPublish, actionList, actionTasks, actionCheck, actionRun, actionLock,
-     actionNil: discard
+  else:
+    discard
 
 proc prompt*(options: Options, question: string): bool =
   ## Asks an interactive question and returns the result.
@@ -267,10 +277,10 @@ proc getNimbleDir*(options: Options): string =
   return options.nimbleDir
 
 proc getPkgsDir*(options: Options): string =
-  options.getNimbleDir() / "pkgs"
+  options.getNimbleDir() / nimblePackagesDirName
 
 proc getBinDir*(options: Options): string =
-  options.getNimbleDir() / "bin"
+  options.getNimbleDir() / nimbleBinariesDirName
 
 proc setNimbleDir*(options: var Options) =
   var
@@ -492,6 +502,27 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
 
       # Set run flags for custom task
       result.action.custRunFlags.add(getFlagString(kind, flag, val))
+  of actionDevelop:
+    case f
+    of "c", "create":
+      result.action.devActions.add (datNewFile, val.normalizedPath)
+    of "a", "add":
+      result.action.devActions.add (datAdd, val.normalizedPath)
+    of "r", "remove-path":
+      result.action.devActions.add (datRemoveByPath, val.normalizedPath)
+    of "n", "remove-name":
+      result.action.devActions.add (datRemoveByName, val)
+    of "i", "include":
+      result.action.devActions.add (datInclude, val.normalizedPath)
+    of "e", "exclude":
+      result.action.devActions.add (datExclude, val.normalizedPath)
+    of "p", "path":
+      if result.action.path.len == 0:
+        result.action.path = val.normalizedPath
+      else:
+        raise nimbleError(multiplePathOptionsGivenMsg)
+    else: 
+      wasFlagHandled = false
   else:
     wasFlagHandled = false
 
@@ -504,7 +535,8 @@ proc initOptions*(): Options =
     action: Action(typ: actionNil),
     pkgInfoCache: newTable[string, PackageInfo](),
     verbosity: HighPriority,
-    noColor: not isatty(stdout)
+    noColor: not isatty(stdout),
+    startDir: getCurrentDir(),
   )
 
 proc handleUnknownFlags(options: var Options) =
@@ -564,8 +596,6 @@ proc parseCmdLine*(): Options =
   # Parse config.
   result.config = parseConfig()
 
-  result.nimbleData = parseNimbleDataFromDir(result.getNimbleDir())
-
   if result.action.typ == actionNil and not result.showVersion:
     result.showHelp = true
 
@@ -603,18 +633,6 @@ proc getProxy*(options: Options): Proxy =
     return newProxy($parsed, auth)
   else:
     return nil
-
-proc briefClone*(options: Options): Options =
-  ## Clones the few important fields and creates a new Options object.
-  var newOptions = initOptions()
-  newOptions.config = options.config
-  newOptions.nimbleData = options.nimbleData
-  newOptions.nimbleDir = options.nimbleDir
-  newOptions.forcePrompts = options.forcePrompts
-  newOptions.pkgInfoCache = options.pkgInfoCache
-  newOptions.verbosity = options.verbosity
-  newOptions.nim = options.nim
-  return newOptions
 
 proc shouldRemoveTmp*(options: Options, file: string): bool =
   result = true

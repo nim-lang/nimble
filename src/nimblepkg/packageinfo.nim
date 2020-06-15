@@ -3,39 +3,28 @@
 
 # Stdlib imports
 import system except TResult
-import hashes, json, strutils, os, sets, tables, httpclient
+import hashes, json, strutils, os, sets, tables, httpclient, strformat
 from net import SslError
-
-from compiler/nimblecmd import getPathVersionChecksum
 
 # Local imports
 import version, tools, common, options, cli, config, lockfile, packageinfotypes,
-       packagemetadata
+       packagemetadatafile
+
+proc isLoaded*(pkgInfo: PackageInfo): bool =
+  return pkgInfo.myPath.len > 0
 
 proc hasMetaData*(pkgInfo: PackageInfo): bool =
   # if the package info has loaded meta data its files list have to be not empty
   pkgInfo.files.len > 0
 
-proc getNameVersionChecksum*(pkgpath: string): PackageBasicInfo =
-  ## Splits ``pkgpath`` in the format
-  ## ``/home/user/.nimble/pkgs/package-0.1-febadeaea2345e777f0f6f8433f7f0a52edd5d1b``
-  ## into ``("packagea", "0.1", "febadeaea2345e777f0f6f8433f7f0a52edd5d1b")``
-  ##
-  ## Also works for file paths like:
-  ## ``/home/user/.nimble/pkgs/package-0.1-febadeaea2345e777f0f6f8433f7f0a52edd5d1b/package.nimble``
-  if pkgPath.splitFile.ext in [".nimble", ".nimble-link", ".babel"]:
-    return getNameVersionChecksum(pkgPath.splitPath.head)
-  getPathVersionChecksum(pkgpath.splitPath.tail)
-
 proc initPackageInfo*(filePath: string): PackageInfo =
   let (fileDir, fileName, _) = filePath.splitFile
-  result.myPath = filePath 
+  result.myPath = filePath
   result.name = fileName
   result.backend = "c"
   result.lockedDependencies = getLockedDependencies(fileDir)
 
 proc toValidPackageName*(name: string): string =
-  result = ""
   for c in name:
     case c
     of '_', '-':
@@ -85,15 +74,6 @@ proc fromJson(obj: JSonNode): Package =
       result.tags.add(t.str)
     result.description = obj.requiredField("description")
     result.web = obj.optionalField("web")
-
-proc readNimbleLink*(nimbleLinkPath: string): NimbleLink =
-  let s = readFile(nimbleLinkPath).splitLines()
-  result.nimbleFilePath = s[0]
-  result.packageDir = s[1]
-
-proc writeNimbleLink*(nimbleLinkPath: string, contents: NimbleLink) =
-  let c = contents.nimbleFilePath & "\n" & contents.packageDir
-  writeFile(nimbleLinkPath, c)
 
 proc needsRefresh*(options: Options): bool =
   ## Determines whether a ``nimble refresh`` is needed.
@@ -145,7 +125,7 @@ proc fetchList*(list: PackageList, options: Options) =
         client.downloadFile(url, tempPath)
       except SslError:
         let message = "Failed to verify the SSL certificate for " & url
-        raiseNimbleError(message, "Use --noSSLCheck to ignore this error.")
+        raise nimbleError(message, "Use --noSSLCheck to ignore this error.")
 
       except:
         let message = "Could not download: " & getCurrentExceptionMsg()
@@ -237,8 +217,7 @@ proc getPackage*(name: string, options: Options): Package =
 
 proc getPackageList*(options: Options): seq[Package] =
   ## Returns the list of packages found in the downloaded packages.json files.
-  result = @[]
-  var namesAdded = initHashSet[string]()
+  var namesAdded: HashSet[string]
   for name, list in options.config.packageLists:
     let packages = readPackageList(name, options)
     for p in packages:
@@ -248,13 +227,12 @@ proc getPackageList*(options: Options): seq[Package] =
         namesAdded.incl(pkg.name)
 
 proc findNimbleFile*(dir: string; error: bool): string =
-  result = ""
   var hits = 0
   for kind, path in walkDir(dir):
     if kind in {pcFile, pcLinkToFile}:
       let ext = path.splitFile.ext
       case ext
-      of ".babel", ".nimble", ".nimble-link":
+      of ".babel", ".nimble":
         result = path
         inc hits
       else: discard
@@ -266,18 +244,7 @@ proc findNimbleFile*(dir: string; error: bool): string =
       raise newException(NimbleError,
           "Could not find a file with a .nimble extension inside the specified directory: $1" % dir)
     else:
-      display("Warning:", "No .nimble or .nimble-link file found for " &
-              dir, Warning, HighPriority)
-
-  if result.splitFile.ext == ".nimble-link":
-    # Return the path of the real .nimble file.
-    result = readNimbleLink(result).nimbleFilePath
-    if not fileExists(result):
-      let msg = "The .nimble-link file is pointing to a missing file: " & result
-      let hintMsg =
-        "Remove '$1' or restore the file it points to." % dir
-      display("Warning:", msg, Warning, HighPriority)
-      display("Hint:", hintMsg, Warning, HighPriority)
+      displayWarning(&"No .nimble file found for {dir}")
 
 proc setNameVersionChecksum*(pkgInfo: var PackageInfo, pkgDir: string) =
   let (name, version, checksum) = getNameVersionChecksum(pkgDir)
@@ -293,18 +260,7 @@ proc getInstalledPackageMin*(pkgDir, nimbleFilePath: string): PackageInfo =
   setNameVersionChecksum(result, pkgDir)
   result.isMinimal = true
   result.isInstalled = true
-
   fillMetaData(result, pkgDir, false)
-
-  if result.isLink:
-    # Read the package's 'srcDir' (this is stored in the .nimble-link so we can
-    # easily grab it).
-    let nimbleLinkPath = pkgDir / result.name.addFileExt("nimble-link")
-    let realSrcPath = readNimbleLink(nimbleLinkPath).packageDir
-    let nimbleFileDir = nimbleFilePath.splitFile().dir
-    assert realSrcPath.startsWith(nimbleFileDir)
-    result.srcDir = realSrcPath.replace(nimbleFileDir)
-    result.srcDir.removePrefix(DirSep)
 
 proc getInstalledPkgsMin*(libsDir: string, options: Options): seq[PackageInfo] =
   ## Gets a list of installed packages. The resulting package info is
@@ -343,15 +299,23 @@ proc findPkg*(pkglist: seq[PackageInfo], dep: PkgTuple,
   ## Searches ``pkglist`` for a package of which version is within the range
   ## of ``dep.ver``. ``True`` is returned if a package is found. If multiple
   ## packages are found the newest one is returned (the one with the highest
-  ## version number)
+  ## version number). If there is a package in develop mode indicated by its
+  ## `isLink` field being `true`, it should be only one for given package name,
+  ## and if its version is in the required range, it will be treated with the
+  ## highest priority.
   ##
   ## **Note**: dep.name here could be a URL, hence the need for pkglist.meta.
   for pkg in pkglist:
     if cmpIgnoreStyle(pkg.name, dep.name) != 0 and
        cmpIgnoreStyle(pkg.url, dep.name) != 0: continue
+    assert not (pkg.isLink and r.isLink),
+           "Should not happen the list to contain " &
+           "the same package in develop mode twice."
     if withinRange(pkg, dep.ver):
       let isNewer = newVersion(r.version) < newVersion(pkg.version)
-      if not result or isNewer:
+      # If `pkg.isLink` this is a develop mode package and develop mode packages
+      # are always with higher priority than installed packages.
+      if not result or isNewer or pkg.isLink:
         r = pkg
         result = true
 
@@ -366,17 +330,20 @@ proc findAllPkgs*(pkglist: seq[PackageInfo], dep: PkgTuple): seq[PackageInfo] =
     if withinRange(pkg, dep.ver):
       result.add pkg
 
+proc getNimbleFileDir*(pkgInfo: PackageInfo): string =
+  pkgInfo.myPath.splitFile.dir
+
 proc getRealDir*(pkgInfo: PackageInfo): string =
   ## Returns the directory containing the package source files.
   if pkgInfo.srcDir != "" and (not pkgInfo.isInstalled or pkgInfo.isLink):
-    result = pkgInfo.mypath.splitFile.dir / pkgInfo.srcDir
+    result = pkgInfo.getNimbleFileDir() / pkgInfo.srcDir
   else:
-    result = pkgInfo.mypath.splitFile.dir
+    result = pkgInfo.getNimbleFileDir()
 
 proc getOutputDir*(pkgInfo: PackageInfo, bin: string): string =
   ## Returns a binary output dir for the package.
   if pkgInfo.binDir != "":
-    result = pkgInfo.mypath.splitFile.dir / pkgInfo.binDir / bin
+    result = pkgInfo.getNimbleFileDir() / pkgInfo.binDir / bin
   else:
     result = pkgInfo.mypath.splitFile.dir / bin
   if bin.len != 0 and dirExists(result):
@@ -469,7 +436,7 @@ proc iterInstallFiles*(realDir: string, pkgInfo: PackageInfo,
         if options.prompt("Missing file " & src & ". Continue?"):
           continue
         else:
-          raise NimbleQuit(msg: "")
+          raise nimbleQuit()
 
       action(src)
 
@@ -480,7 +447,7 @@ proc iterInstallFiles*(realDir: string, pkgInfo: PackageInfo,
         if options.prompt("Missing directory " & src & ". Continue?"):
           continue
         else:
-          raise NimbleQuit(msg: "")
+          raise nimbleQuit()
 
       iterFilesInDir(src, action)
 
@@ -500,19 +467,25 @@ proc iterInstallFiles*(realDir: string, pkgInfo: PackageInfo,
 
         action(file)
 
+proc getCacheDir*(pkgInfo: PackageBasicInfo): string =
+  &"{pkgInfo.name}-{pkgInfo.version}-{pkgInfo.checksum}"
+
+proc getPkgDest*(pkgInfo: PackageBasicInfo, options: Options): string =
+  options.getPkgsDir() / pkgInfo.getCacheDir()
+
 proc getPkgDest*(pkgInfo: PackageInfo, options: Options): string =
-  let versionStr = '-' & pkgInfo.specialVersion & '-' & pkgInfo.checksum
-  let pkgDestDir = options.getPkgsDir() / (pkgInfo.name & versionStr)
-  return pkgDestDir
+  pkgInfo.basicInfo.getPkgDest(options)
 
 proc `==`*(pkg1: PackageInfo, pkg2: PackageInfo): bool =
-  if pkg1.name == pkg2.name and pkg1.myPath == pkg2.myPath:
-    return true
+  pkg1.myPath == pkg2.myPath
 
 proc hash*(x: PackageInfo): Hash =
   var h: Hash = 0
   h = h !& hash(x.myPath)
   result = !$h
+
+proc getNameAndVersion*(pkgInfo: PackageInfo): string =
+  &"{pkgInfo.name}@{pkgInfo.version}"
 
 when isMainModule:
   import unittest 

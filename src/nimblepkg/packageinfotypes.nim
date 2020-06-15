@@ -5,12 +5,26 @@ import sets, tables
 import version, lockfile, aliasthis
 
 type
-  PackageMetaData* = object
+  PackageMetaDataBase* {.inheritable.} = object
     url*: string
     vcsRevision*: string
     files*: seq[string]
     binaries*: seq[string]
+
+  PackageMetaDataV1* = object of PackageMetaDataBase
     isLink*: bool
+
+  PackageMetaDataV2* = object of PackageMetaDataBase
+    specialVersion*: string
+
+  PackageMetaData* = object of PackageMetaDataBase
+    isLink*: bool
+    specialVersion*: string
+
+  PackageBasicInfo* = tuple
+    name: string
+    version: string
+    checksum: string
 
   PackageInfo* = object
     myPath*: string ## The path of this .nimble file
@@ -20,11 +34,6 @@ type
     nimbleTasks*: HashSet[string] ## All tasks defined in the Nimble file
     postHooks*: HashSet[string] ## Useful to know so that Nimble doesn't execHook unnecessarily
     preHooks*: HashSet[string]
-    name*: string
-    ## The version specified in the .nimble file.Assuming info is non-minimal,
-    ## it will always be a non-special version such as '0.1.4'
-    version*: string
-    specialVersion*: string ## Either `myVersion` or a special version such as #head.
     author*: string
     description*: string
     license*: string
@@ -40,8 +49,8 @@ type
     srcDir*: string
     backend*: string
     foreignDeps*: seq[string]
+    basicInfo*: PackageBasicInfo
     lockedDependencies*: LockFileDependencies
-    checksum*: string
     metaData*: PackageMetaData
 
   Package* = object ## Definition of package from packages.json.
@@ -58,11 +67,7 @@ type
     web*: string # Info url for humans.
     alias*: string ## A name of another package, that this package aliases.
 
-  NimbleLink* = object
-    nimbleFilePath*: string
-    packageDir*: string
-
-  PackageBasicInfo* = tuple[name, version, checksum: string]
   PackageDependenciesInfo* = tuple[deps: HashSet[PackageInfo], pkg: PackageInfo]
 
 aliasThis PackageInfo.metaData
+aliasThis PackageInfo.basicInfo

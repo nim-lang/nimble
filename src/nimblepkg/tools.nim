@@ -4,9 +4,10 @@
 # Various miscellaneous utility functions reside here.
 import osproc, pegs, strutils, os, uri, sets, json, parseutils, strformat,
        sequtils
-
-import common, version, cli, options
 from net import SslCVerifyMode, newContext, SslContext
+
+import version, cli, common, packageinfotypes, options
+from compiler/nimblecmd import getPathVersionChecksum
 
 proc extractBin(cmd: string): string =
   if cmd[0] == '"':
@@ -57,14 +58,10 @@ proc tryDoCmdEx*(cmd: string): string =
       fmt"Execution of '{cmd}' failed with an exit code {exitCode}")
   return output
 
-template cd*(dir: string, body: untyped) =
-  ## Sets the current dir to ``dir``, executes ``body`` and restores the
-  ## previous working dir.
-  let lastDir = getCurrentDir()
-  setCurrentDir(dir)
-  block:
-    defer: setCurrentDir(lastDir)
-    body
+proc getNimBin*: string =
+  result = "nim"
+  if findExe("nim") != "": result = findExe("nim")
+  elif findExe("nimrod") != "": result = findExe("nimrod")
 
 proc getNimrodVersion*(options: Options): Version =
   let vOutput = doCmdEx(getNimBin(options).quoteShell & " -v").output
@@ -121,7 +118,6 @@ proc createDirD*(dir: string) =
 proc getDownloadDirName*(uri: string, verRange: VersionRange,
                          vcsRevision: string): string =
   ## Creates a directory name based on the specified ``uri`` (url)
-  result = ""
   let puri = parseUri(uri)
   for i in puri.hostname:
     case i
@@ -200,6 +196,31 @@ proc getVcsRevisionFromDir*(dir: string): string =
 
 proc isEmptyDir*(dir: string): bool =
   toSeq(walkDirRec(dir)).len == 0
+
+proc getNameVersionChecksum*(pkgpath: string): PackageBasicInfo =
+  ## Splits ``pkgpath`` in the format
+  ## ``/home/user/.nimble/pkgs/package-0.1-febadeaea2345e777f0f6f8433f7f0a52edd5d1b``
+  ## into ``("packagea", "0.1", "febadeaea2345e777f0f6f8433f7f0a52edd5d1b")``
+  ##
+  ## Also works for file paths like:
+  ## ``/home/user/.nimble/pkgs/package-0.1-febadeaea2345e777f0f6f8433f7f0a52edd5d1b/package.nimble``
+  if pkgPath.splitFile.ext in [".nimble", ".babel"]:
+    return getNameVersionChecksum(pkgPath.splitPath.head)
+  getPathVersionChecksum(pkgpath.splitPath.tail)
+
+proc removePackageDir*(files: seq[string], dir: string, reportSuccess = false) =
+  for file in files:
+    removeFile(dir / file)
+
+  if dir.isEmptyDir():
+    removeDir(dir)
+    if reportSuccess:
+      displaySuccess(&"The directory \"{dir}\" has been removed.",
+                     MediumPriority)
+  else:
+    displayWarning(
+      &"Cannot completely remove the directory \"{dir}\".\n" &
+       "Files not installed by Nimble are present.")
 
 proc newSSLContext*(disabled: bool): SslContext =
   var sslVerifyMode = CVerifyPeer
