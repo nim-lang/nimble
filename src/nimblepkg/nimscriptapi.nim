@@ -20,7 +20,7 @@ var
   author*: string      ## The package's author.
   description*: string ## The package's description.
   license*: string     ## The package's license.
-  srcdir*: string      ## The package's source directory.
+  srcDir*: string      ## The package's source directory.
   binDir*: string      ## The package's binary directory.
   backend*: string     ## The package's backend.
 
@@ -104,7 +104,7 @@ proc printPkgInfo(): string =
   printIfLen author
   printIfLen description
   printIfLen license
-  printIfLen srcdir
+  printIfLen srcDir
   printIfLen binDir
   printIfLen backend
 
