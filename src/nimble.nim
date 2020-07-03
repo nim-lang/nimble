@@ -874,14 +874,6 @@ This should ideally be a valid SPDX identifier. See https://spdx.org/licenses/.
 Please specify a valid SPDX identifier.""",
       "MIT"
     )
-  var pkgBackend = options.promptList(
-    """Package Backend?
-c    - Compile using C backend.
-cpp  - Compile using C++ backend.
-objc - Compile using Objective-C backend.
-js   - Compile using JavaScript backend.""",
-    ["c", "cpp", "objc", "js"]
-  )
 
   # Ask for Nim dependency
   let nimDepDef = getNimrodVersion()
@@ -896,7 +888,6 @@ js   - Compile using JavaScript backend.""",
       pkgAuthor,
       pkgDesc,
       pkgLicense,
-      pkgBackend,
       pkgSrcDir,
       pkgNimDep,
       pkgType

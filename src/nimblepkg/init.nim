@@ -9,7 +9,6 @@ type
     pkgAuthor: string
     pkgDesc: string
     pkgLicense: string
-    pkgBackend: string
     pkgSrcDir: string
     pkgNimDep: string
     pkgType: string
@@ -157,10 +156,6 @@ test "correct welcome":
 
   # Write the nimble file
   let nimbleFile = pkgRoot / info.pkgName.changeFileExt("nimble")
-  # Only write backend if it isn't "c"
-  var pkgBackend = ""
-  if (info.pkgBackend != "c"):
-    pkgBackend = "backend       = " & info.pkgbackend.escape()
   writeFile(nimbleFile, """# Package
 
 version       = $#
@@ -169,7 +164,6 @@ description   = "$#"
 license       = $#
 srcDir        = $#
 $#
-$#
 
 # Dependencies
 
@@ -177,7 +171,7 @@ requires "nim >= $#"
 """ % [
       info.pkgVersion.escape(), info.pkgAuthor.replace("\"", "\\\""), info.pkgDesc.replace("\"", "\\\""),
       info.pkgLicense.escape(), info.pkgSrcDir.escape(), nimbleFileOptions,
-      pkgBackend, info.pkgNimDep
+      info.pkgNimDep
     ]
   )
 
