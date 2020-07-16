@@ -1002,6 +1002,7 @@ suite "misc tests":
       check execNimble("recurse").exitCode == QuitSuccess
 
   test "picks #head when looking for packages":
+    removeDir installDir
     cd "versionClashes" / "aporiaScenario":
       let (output, exitCode) = execNimbleYes("install", "--verbose")
       checkpoint output
@@ -1064,7 +1065,6 @@ suite "misc tests":
 
   test "can list":
     check execNimble("list").exitCode == QuitSuccess
-
     check execNimble("list", "-i").exitCode == QuitSuccess
 
 suite "issues":

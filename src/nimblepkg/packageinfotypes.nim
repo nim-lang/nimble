@@ -5,12 +5,18 @@ import sets, tables
 import version, lockfile
 
 type
+  PackageMetaData* = object
+    url*: string
+    vcsRevision*: string
+    files*: seq[string]
+    binaries*: seq[string]
+    isLink*: bool
+
   PackageInfo* = object
     myPath*: string ## The path of this .nimble file
     isNimScript*: bool ## Determines if this pkg info was read from a nims file
     isMinimal*: bool
     isInstalled*: bool ## Determines if the pkg this info belongs to is installed
-    isLinked*: bool ## Determines if the pkg this info belongs to has been linked via `develop`
     nimbleTasks*: HashSet[string] ## All tasks defined in the Nimble file
     postHooks*: HashSet[string] ## Useful to know so that Nimble doesn't execHook unnecessarily
     preHooks*: HashSet[string]
@@ -36,7 +42,7 @@ type
     foreignDeps*: seq[string]
     lockedDependencies*: LockFileDependencies
     checksum*: string
-    vcsRevision*: string ## This is git or hg commit sha1.
+    metaData*: PackageMetaData
 
   Package* = object ## Definition of package from packages.json.
     # Required fields in a package.
@@ -52,14 +58,40 @@ type
     web*: string # Info url for humans.
     alias*: string ## A name of another package, that this package aliases.
 
-  MetaData* = object
-    url*: string
-    vcsRevision*: string
-
   NimbleLink* = object
     nimbleFilePath*: string
     packageDir*: string
 
   PackageBasicInfo* = tuple[name, version, checksum: string]
   PackageDependenciesInfo* = tuple[deps: HashSet[PackageInfo], pkg: PackageInfo]
-  PackageInfoAndMetaData* = tuple[pkginfo: PackageInfo, meta: MetaData]
+
+template url*(packageInfo: PackageInfo): untyped =
+  packageInfo.metaData.url
+
+template `url=`*(packageInfo: var PackageInfo, urlParam: string) =
+  packageInfo.metaData.url = urlParam
+
+template vcsRevision*(packageInfo: PackageInfo): untyped =
+  packageInfo.metaData.vcsRevision
+
+template `vcsRevision=`*(packageInfo: var PackageInfo, vcsRevisionParam: string) =
+  packageInfo.metaData.vcsRevision = vcsRevisionParam
+
+template files*(packageInfo: PackageInfo): untyped =
+  packageInfo.metaData.files
+
+template `files=`*(packageInfo: var PackageInfo, filesParam: seq[string]) =
+  packageInfo.metaData.files = filesParam
+
+template binaries*(packageInfo: PackageInfo): untyped =
+  packageInfo.metaData.binaries
+
+template `binaries=`*(packageInfo: var PackageInfo,
+                      binariesParam: seq[string]) =
+  packageInfo.metaData.binaries = binariesParam
+
+template isLink*(packageInfo: PackageInfo): untyped =
+  packageInfo.metaData.isLink
+
+template `isLink=`*(packageInfo: PackageInfo, isLinkParam: bool) =
+  packageInfo.metaData.isLink = isLinkParam

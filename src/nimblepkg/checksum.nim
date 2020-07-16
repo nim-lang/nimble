@@ -12,7 +12,7 @@ proc raiseChecksumError*(name, version, vcsRevision,
   var error = newException(ChecksumError,
 fmt"""
 Downloaded package checksum does not correspond to that in the lock file:
-  Package:           {name}@v{version}@r{vcsRevision}
+  Package:           {name}@v.{version}@r.{vcsRevision}
   Checksum:          {checksum}
   Expected checksum: {expectedChecksum}
 """)

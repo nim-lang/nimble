@@ -31,6 +31,7 @@ src/nimblepkg/options
 src/nimblepkg/packageinfo
 src/nimblepkg/packageinfotypes
 src/nimblepkg/packageinstaller
+src/nimblepkg/packagemetadata
 src/nimblepkg/packageparser
 src/nimblepkg/publish
 src/nimblepkg/reversedeps

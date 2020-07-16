@@ -9,8 +9,12 @@ from net import SslError
 from compiler/nimblecmd import getPathVersionChecksum
 
 # Local imports
-import version, tools, common, options, cli, config, checksum,
-       packageinfotypes, lockfile
+import version, tools, common, options, cli, config, lockfile, packageinfotypes,
+       packagemetadata
+
+proc hasMetaData*(pkgInfo: PackageInfo): bool =
+  # if the package info has loaded meta data its files list have to be not empty
+  pkgInfo.files.len > 0
 
 proc getNameVersionChecksum*(pkgpath: string): PackageBasicInfo =
   ## Splits ``pkgpath`` in the format
@@ -23,60 +27,12 @@ proc getNameVersionChecksum*(pkgpath: string): PackageBasicInfo =
     return getNameVersionChecksum(pkgPath.splitPath.head)
   getPathVersionChecksum(pkgpath.splitPath.tail)
 
-proc readMetaData*(path: string, silent = false): MetaData =
-  ## Reads the metadata present in ``~/.nimble/pkgs/pkg-0.1/nimblemeta.json``
-  var bmeta = path / nimbleDataFile.name
-  if not fileExists(bmeta) and not silent:
-    result.url = ""
-    display("Warning:", "No nimblemeta.json file found in " & path,
-            Warning, HighPriority)
-    return
-    # TODO: Make this an error.
-  let cont = readFile(bmeta)
-  let jsonmeta = parseJson(cont)
-  result.url = jsonmeta[$pmdjkUrl].str
-  result.vcsRevision = jsonmeta[$pmdjkVcsRevision].str
-
-proc getVcsRevision(dir: string): string =
-  # If the directory is under version control get the revision from it.
-  result = getVcsRevisionFromDir(dir)
-  if result.len > 0: return
-  # Otherwise this probably is directory in the local cache and we try to get it
-  # from the nimble package meta data json file.
-  result = readMetaData(dir, true).vcsRevision
-
 proc initPackageInfo*(filePath: string): PackageInfo =
   let (fileDir, fileName, _) = filePath.splitFile
-  let (_, pkgVersion, pkgChecksum) = filePath.getNameVersionChecksum
-
-  result.myPath = filePath
-  result.specialVersion = ""
-  result.nimbleTasks.init()
-  result.preHooks.init()
-  result.postHooks.init()
-  # reasonable default:
+  result.myPath = filePath 
   result.name = fileName
-  result.version = pkgVersion
-  result.author = ""
-  result.description = ""
-  result.license = ""
-  result.skipDirs = @[]
-  result.skipFiles = @[]
-  result.skipExt = @[]
-  result.installDirs = @[]
-  result.installFiles = @[]
-  result.installExt = @[]
-  result.requires = @[]
-  result.foreignDeps = @[]
-  result.bin = initTable[string, string]()
-  result.srcDir = ""
-  result.binDir = ""
   result.backend = "c"
   result.lockedDependencies = getLockedDependencies(fileDir)
-  result.checksum =
-    if pkgChecksum.len > 0: pkgChecksum
-    else: calculatePackageSha1Checksum(fileDir)
-  result.vcsRevision = getVcsRevision(fileDir)
 
 proc toValidPackageName*(name: string): string =
   result = ""
@@ -323,29 +279,34 @@ proc findNimbleFile*(dir: string; error: bool): string =
       display("Warning:", msg, Warning, HighPriority)
       display("Hint:", hintMsg, Warning, HighPriority)
 
-proc getInstalledPackageMin*(packageDir, nimbleFilePath: string): PackageInfo =
-  let (name, version, checksum) = getNameVersionChecksum(packageDir)
+proc setNameVersionChecksum*(pkgInfo: var PackageInfo, pkgDir: string) =
+  let (name, version, checksum) = getNameVersionChecksum(pkgDir)
+  pkgInfo.name = name
+  if pkgInfo.version.len == 0:
+    # if there is no previously set version from the `.nimble` file
+    pkgInfo.version = version
+  pkgInfo.specialVersion = version
+  pkgInfo.checksum = checksum
+
+proc getInstalledPackageMin*(pkgDir, nimbleFilePath: string): PackageInfo =
   result = initPackageInfo(nimbleFilePath)
-  result.name = name
-  result.version = version
-  result.specialVersion = version
-  result.checksum = checksum
+  setNameVersionChecksum(result, pkgDir)
   result.isMinimal = true
   result.isInstalled = true
-  let nimbleFileDir = nimbleFilePath.splitFile().dir
-  result.isLinked = cmpPaths(nimbleFileDir, packageDir) != 0
 
-  # Read the package's 'srcDir' (this is stored in the .nimble-link so
-  # we can easily grab it)
-  if result.isLinked:
-    let nimbleLinkPath = packageDir / name.addFileExt("nimble-link")
+  fillMetaData(result, pkgDir, false)
+
+  if result.isLink:
+    # Read the package's 'srcDir' (this is stored in the .nimble-link so we can
+    # easily grab it).
+    let nimbleLinkPath = pkgDir / result.name.addFileExt("nimble-link")
     let realSrcPath = readNimbleLink(nimbleLinkPath).packageDir
+    let nimbleFileDir = nimbleFilePath.splitFile().dir
     assert realSrcPath.startsWith(nimbleFileDir)
     result.srcDir = realSrcPath.replace(nimbleFileDir)
     result.srcDir.removePrefix(DirSep)
 
-proc getInstalledPkgsMin*(libsDir: string, options: Options):
-        seq[PackageInfoAndMetaData] =
+proc getInstalledPkgsMin*(libsDir: string, options: Options): seq[PackageInfo] =
   ## Gets a list of installed packages. The resulting package info is
   ## minimal. This has the advantage that it does not depend on the
   ## ``packageparser`` module, and so can be used by ``nimscriptwrapper``.
@@ -356,9 +317,8 @@ proc getInstalledPkgsMin*(libsDir: string, options: Options):
     if kind == pcDir:
       let nimbleFile = findNimbleFile(path, false)
       if nimbleFile != "":
-        let meta = readMetaData(path)
         let pkg = getInstalledPackageMin(path, nimbleFile)
-        result.add((pkg, meta))
+        result.add pkg
 
 proc withinRange*(pkgInfo: PackageInfo, verRange: VersionRange): bool =
   ## Determines whether the specified package's version is within the
@@ -378,9 +338,8 @@ proc resolveAlias*(dep: PkgTuple, options: Options): PkgTuple =
     # no alias is present.
     result.name = pkg.name
 
-proc findPkg*(pkglist: seq[PackageInfoAndMetaData],
-             dep: PkgTuple,
-             r: var PackageInfo): bool =
+proc findPkg*(pkglist: seq[PackageInfo], dep: PkgTuple,
+              r: var PackageInfo): bool =
   ## Searches ``pkglist`` for a package of which version is within the range
   ## of ``dep.ver``. ``True`` is returned if a package is found. If multiple
   ## packages are found the newest one is returned (the one with the highest
@@ -388,29 +347,28 @@ proc findPkg*(pkglist: seq[PackageInfoAndMetaData],
   ##
   ## **Note**: dep.name here could be a URL, hence the need for pkglist.meta.
   for pkg in pkglist:
-    if cmpIgnoreStyle(pkg.pkginfo.name, dep.name) != 0 and
-       cmpIgnoreStyle(pkg.meta.url, dep.name) != 0: continue
-    if withinRange(pkg.pkgInfo, dep.ver):
-      let isNewer = newVersion(r.version) < newVersion(pkg.pkginfo.version)
+    if cmpIgnoreStyle(pkg.name, dep.name) != 0 and
+       cmpIgnoreStyle(pkg.url, dep.name) != 0: continue
+    if withinRange(pkg, dep.ver):
+      let isNewer = newVersion(r.version) < newVersion(pkg.version)
       if not result or isNewer:
-        r = pkg.pkginfo
+        r = pkg
         result = true
 
-proc findAllPkgs*(pkglist: seq[PackageInfoAndMetaData],
-                  dep: PkgTuple): seq[PackageInfo] =
+proc findAllPkgs*(pkglist: seq[PackageInfo], dep: PkgTuple): seq[PackageInfo] =
   ## Searches ``pkglist`` for packages of which version is within the range
   ## of ``dep.ver``. This is similar to ``findPkg`` but returns multiple
   ## packages if multiple are found.
   result = @[]
   for pkg in pkglist:
-    if cmpIgnoreStyle(pkg.pkgInfo.name, dep.name) != 0 and
-       cmpIgnoreStyle(pkg.meta.url, dep.name) != 0: continue
-    if withinRange(pkg.pkgInfo, dep.ver):
-      result.add pkg.pkginfo
+    if cmpIgnoreStyle(pkg.name, dep.name) != 0 and
+       cmpIgnoreStyle(pkg.url, dep.name) != 0: continue
+    if withinRange(pkg, dep.ver):
+      result.add pkg
 
 proc getRealDir*(pkgInfo: PackageInfo): string =
   ## Returns the directory containing the package source files.
-  if pkgInfo.srcDir != "" and (not pkgInfo.isInstalled or pkgInfo.isLinked):
+  if pkgInfo.srcDir != "" and (not pkgInfo.isInstalled or pkgInfo.isLink):
     result = pkgInfo.mypath.splitFile.dir / pkgInfo.srcDir
   else:
     result = pkgInfo.mypath.splitFile.dir

@@ -2,7 +2,9 @@
 # BSD License. Look at license.txt for more info.
 #
 # Various miscellaneous utility functions reside here.
-import osproc, pegs, strutils, os, uri, sets, json, parseutils, strformat
+import osproc, pegs, strutils, os, uri, sets, json, parseutils, strformat,
+       sequtils
+
 import common, version, cli, options
 from net import SslCVerifyMode, newContext, SslContext
 
@@ -182,8 +184,8 @@ proc getNimbleUserTempDir*(): string =
 
 
 proc getVcsRevisionFromDir*(dir: string): string =
-  ## Returns current revision number of HEAD if dir is inside VCS, or nil in
-  ## case of failure.
+  ## Returns current revision number of HEAD if dir is inside VCS, or an empty
+  ## string in case of failure.
 
   template tryToGetRevision(command: string): untyped =
     try:
@@ -195,6 +197,9 @@ proc getVcsRevisionFromDir*(dir: string): string =
 
   tryToGetRevision("git -C " & quoteShell(dir) & " rev-parse HEAD")
   tryToGetRevision("hg --cwd " & quoteShell(dir) & " id -i")
+
+proc isEmptyDir*(dir: string): bool =
+  toSeq(walkDirRec(dir)).len == 0
 
 proc newSSLContext*(disabled: bool): SslContext =
   var sslVerifyMode = CVerifyPeer

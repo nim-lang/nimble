@@ -3,13 +3,14 @@
 
 import system except TResult
 
-import os, tables, strtabs, json, algorithm, sets, uri, sugar, sequtils, osproc
+import os, tables, strtabs, json, algorithm, sets, uri, sugar, sequtils, osproc,
+       strformat
+
 import std/options as std_opt
 
 import strutils except toLower
 from unicode import toLower
 from sequtils import toSeq
-from strformat import fmt
 
 import nimblepkg/packageinfotypes, nimblepkg/packageinfo, nimblepkg/version,
        nimblepkg/tools, nimblepkg/download, nimblepkg/config, nimblepkg/common,
@@ -17,7 +18,8 @@ import nimblepkg/packageinfotypes, nimblepkg/packageinfo, nimblepkg/version,
        nimblepkg/cli, nimblepkg/packageinstaller, nimblepkg/reversedeps,
        nimblepkg/nimscriptexecutor, nimblepkg/init, nimblepkg/tools,
        nimblepkg/checksum, nimblepkg/topologicalsort, nimblepkg/lockfile,
-       nimblepkg/nimscriptwrapper, nimblepkg/nimbledata
+       nimblepkg/nimscriptwrapper, nimblepkg/nimbledata,
+       nimblepkg/packagemetadata
 
 proc refresh(options: Options) =
   ## Downloads the package list from the specified URL.
@@ -59,7 +61,7 @@ proc processDeps(pkginfo: PackageInfo, options: Options): HashSet[PackageInfo] =
           "dependencies for $1@$2" % [pkginfo.name, pkginfo.specialVersion],
           priority = HighPriority)
 
-  var pkgList {.global.}: seq[PackageInfoAndMetaData] = @[]
+  var pkgList {.global.}: seq[PackageInfo] = @[]
   once: pkgList = getInstalledPkgsMin(options.getPkgsDir(), options)
   var reverseDeps: seq[PackageBasicInfo] = @[]
   for dep in pkginfo.requires:
@@ -91,9 +93,10 @@ proc processDeps(pkginfo: PackageInfo, options: Options): HashSet[PackageInfo] =
         result.add(pkgs)
 
         pkg = installedPkg # For addRevDep
+        fillMetaData(pkg, pkg.getRealDir(), false)
 
         # This package has been installed so we add it to our pkgList.
-        pkgList.add((pkg, readMetaData(pkg.getRealDir())))
+        pkgList.add pkg
       else:
         display("Info:", "Dependency on $1 already satisfied" % $dep,
                 priority = HighPriority)
@@ -130,6 +133,7 @@ proc buildFromDir(
   let
     realDir = pkgInfo.getRealDir()
     pkgDir = pkgInfo.myPath.parentDir()
+
   cd pkgDir: # Make sure `execHook` executes the correct .nimble file.
     if not execHook(options, actionBuild, true):
       raise newException(NimbleError, "Pre-hook prevented further execution.")
@@ -138,6 +142,7 @@ proc buildFromDir(
     raise newException(NimbleError,
         "Nothing to build. Did you specify a module to build using the" &
         " `bin` key in your .nimble file?")
+
   var
     binariesBuilt = 0
     args = args
@@ -157,6 +162,7 @@ proc buildFromDir(
     if options.isInstallingTopLevel(pkgInfo.myPath.parentDir()):
       options.getCompilationBinary(pkgInfo).get("")
     else: ""
+
   for bin, src in pkgInfo.bin:
     # Check if this is the only binary that we want to build.
     if binToBuild.len != 0 and binToBuild != bin:
@@ -198,55 +204,85 @@ proc buildFromDir(
   cd pkgDir: # Make sure `execHook` executes the correct .nimble file.
     discard execHook(options, actionBuild, false)
 
-proc removePkgDir(dir: string, options: Options) =
-  ## Removes files belonging to the package in ``dir``.
-  try:
-    var nimblemeta = parseFile(dir / nimbleDataFile.name)
-    if not nimblemeta.hasKey($pmdjkFiles):
-      raise newException(JsonParsingError,
-                         "Meta data does not contain required info.")
-    for file in nimblemeta[$pmdjkFiles]:
-      removeFile(dir / file.str)
-
-    removeFile(dir / nimbleDataFile.name)
-
-    # If there are no files left in the directory, remove the directory.
-    if toSeq(walkDirRec(dir)).len == 0:
-      removeDir(dir)
-    else:
-      display("Warning:", ("Cannot completely remove $1. Files not installed " &
-              "by nimble are present.") % dir, Warning, HighPriority)
-
-    if nimblemeta.hasKey($pmdjkBinaries):
-      # Remove binaries.
-      for binary in nimblemeta[$pmdjkBinaries]:
-        removeFile(options.getBinDir() / binary.str)
-
-      # Search for an older version of the package we are removing.
-      # So that we can reinstate its symlink.
-      let (pkgName, _, _) = getNameVersionChecksum(dir)
-      let pkgList = getInstalledPkgsMin(options.getPkgsDir(), options)
-      var pkgInfo: PackageInfo
-      if pkgList.findPkg((pkgName, newVRAny(), ""), pkgInfo):
-        pkgInfo = pkgInfo.toFullInfo(options)
-        for bin, src in pkgInfo.bin:
-          let symlinkDest = pkgInfo.getOutputDir(bin)
-          let symlinkFilename = options.getBinDir() / bin.extractFilename
-          discard setupBinSymlink(symlinkDest, symlinkFilename, options)
-    else:
-      display("Warning:", ("Cannot completely remove $1. Binary symlinks may " &
-                          "have been left over in $2.") %
-                          [dir, options.getBinDir()])
-  except OSError, JsonParsingError:
-    display("Warning", "Unable to read nimblemeta.json: " &
-            getCurrentExceptionMsg(), Warning, HighPriority)
-    if not options.prompt("Would you like to COMPLETELY remove ALL files " &
-                          "in " & dir & "?"):
-      raise NimbleQuit(msg: "")
-    removeDir(dir)
-
 proc saveNimbleData(options: Options) =
   saveNimbleDataToDir(options.getNimbleDir(), options.nimbleData)
+
+proc promptRemoveEntirePackageDir(pkgDir: string, options: Options) =
+  display("Warning",
+    &"Unable to read {packageMetaDataFileName}: {getCurrentExceptionMsg()}",
+    Warning, HighPriority)
+
+  if not options.prompt(
+      &"Would you like to COMPLETELY remove ALL files in {pkgDir}?"):
+    raise NimbleQuit(msg: "")
+
+proc removePackageDir(pkgInfo: PackageInfo, pkgDestDir: string) =
+  for file in pkgInfo.files:
+    removeFile(pkgDestDir / file)
+  
+  removeFile(pkgDestDir / packageMetaDataFileName)
+
+  if pkgDestDir.isEmptyDir():
+    removeDir(pkgDestDir)
+  else:
+    display("Warning:", &"Cannot completely remove {pkgDestDir}." &
+            " Files not installed by Nimble are present.",
+            Warning, HighPriority)
+
+proc removeBinariesSymlinks(pkgInfo: PackageInfo, binDir: string) =
+  for bin in pkgInfo.binaries:
+    when defined(windows):
+      removeFile(binDir / bin.changeFileExt("cmd"))
+    removeFile(binDir / bin)
+
+proc reinstallSymlinksForOlderVersion(pkgDir: string, options: Options) =
+  let (pkgName, _, _) = getNameVersionChecksum(pkgDir)
+  let pkgList = getInstalledPkgsMin(options.getPkgsDir(), options)
+  var newPkgInfo: PackageInfo
+  if pkgList.findPkg((pkgName, newVRAny(), ""), newPkgInfo):
+    newPkgInfo = newPkgInfo.toFullInfo(options)
+    for bin in newPkgInfo.binaries:
+      let symlinkDest = newPkgInfo.getOutputDir(bin)
+      let symlinkFilename = options.getBinDir() / bin.extractFilename
+      discard setupBinSymlink(symlinkDest, symlinkFilename, options)
+
+proc removePackage(pkgInfo: PackageInfo, options: Options) =
+  var pkgInfo = pkgInfo
+  let pkgDestDir = pkgInfo.getPkgDest(options)
+
+  if not pkgInfo.hasMetaData:
+    try:
+      fillMetaData(pkgInfo, pkgDestDir, true)
+    except MetaDataError, ValueError:
+      promptRemoveEntirePackageDir(pkgDestDir, options)
+      removeDir(pkgDestDir)
+    
+  removePackageDir(pkgInfo, pkgDestDir)
+  removeBinariesSymlinks(pkgInfo, options.getBinDir())
+  reinstallSymlinksForOlderVersion(pkgDestDir, options)
+  options.nimbleData.removeRevDep(pkgInfo)
+
+proc packageExists(pkgInfo: PackageInfo, options: Options): bool =
+  let pkgDestDir = pkgInfo.getPkgDest(options)
+  return fileExists(pkgDestDir / packageMetaDataFileName)
+
+proc promptOverwriteExistingPackage(pkgInfo: PackageInfo,
+                                    options: Options): bool =
+  let message = "$1@$2 already exists. Overwrite?" %
+                [pkgInfo.name, pkgInfo.specialVersion]
+  return options.prompt(message)
+
+proc removeOldPackage(pkgInfo: PackageInfo, options: Options) =
+  let pkgDestDir = pkgInfo.getPkgDest(options)
+  let oldPkgInfo = getPkgInfo(pkgDestDir, options)
+  removePackage(oldPkgInfo, options)
+
+proc promptRemovePackageIfExists(pkgInfo: PackageInfo, options: Options): bool =
+  if packageExists(pkgInfo, options):
+    if not promptOverwriteExistingPackage(pkgInfo, options):
+      return false
+    removeOldPackage(pkgInfo, options)
+  return true
 
 proc processLockedDependencies(packageInfo: PackageInfo, options: Options):
   seq[PackageInfo]
@@ -310,32 +346,21 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
                   @[]
     buildFromDir(pkgInfo, paths, "-d:release" & flags, options)
 
-  # Don't copy artifacts if project local deps mode and "installing" the top level package
+  let pkgDestDir = pkgInfo.getPkgDest(options)
+
+  # Fill package Meta data
+  pkgInfo.url = url
+  pkgInfo.isLink = false
+
+  # Don't copy artifacts if project local deps mode and "installing" the top
+  # level package.
   if not (options.localdeps and options.isInstallingTopLevel(dir)):
-    let pkgDestDir = pkgInfo.getPkgDest(options)
-    if fileExists(pkgDestDir / nimbleDataFile.name):
-      let msg = "$1@$2 already exists. Overwrite?" %
-                [pkgInfo.name, pkgInfo.specialVersion]
-      if not options.prompt(msg):
-        return
-
-      # Remove reverse deps.
-      let pkgInfo = getPkgInfo(pkgDestDir, options)
-      options.nimbleData.removeRevDep(pkgInfo)
-
-      removePkgDir(pkgDestDir, options)
-      # Remove any symlinked binaries
-      for bin, src in pkgInfo.bin:
-        # TODO: Check that this binary belongs to the package being installed.
-        when defined(windows):
-          removeFile(binDir / bin.changeFileExt("cmd"))
-          removeFile(binDir / bin.changeFileExt(""))
-        else:
-          removeFile(binDir / bin)
+    if not promptRemovePackageIfExists(pkgInfo, options):
+      return
 
     createDir(pkgDestDir)
     # Copy this package's files based on the preferences specified in PkgInfo.
-    var filesInstalled = initHashSet[string]()
+    var filesInstalled: HashSet[string]
     iterInstallFiles(realDir, pkgInfo, options,
       proc (file: string) =
         createDir(changeRoot(realDir, pkgDestDir, file.splitFile.dir))
@@ -348,7 +373,7 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
                           pkgInfo.myPath)
     filesInstalled.incl copyFileD(pkgInfo.myPath, dest)
 
-    var binariesInstalled = initHashSet[string]()
+    var binariesInstalled: HashSet[string]
     if pkgInfo.bin.len > 0:
       # Make sure ~/.nimble/bin directory is created.
       createDir(binDir)
@@ -360,6 +385,7 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
           if dirExists(pkgDestDir / bin):
             bin & ".out"
           else: bin
+
         if fileExists(pkgDestDir / binDest):
           display("Warning:", ("Binary '$1' was already installed from source" &
                               " directory. Will be overwritten.") % bin, Warning,
@@ -373,32 +399,27 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
         # Set up a symlink.
         let symlinkDest = pkgDestDir / binDest
         let symlinkFilename = options.getBinDir() / bin.extractFilename
-        for filename in setupBinSymlink(symlinkDest, symlinkFilename, options):
-          binariesInstalled.incl(filename)
+        binariesInstalled.incl(
+          setupBinSymlink(symlinkDest, symlinkFilename, options))
 
-    let vcsRevision = getVcsRevisionFromDir(dir)
-
-    # Save a nimblemeta.json file.
-    saveNimbleMeta(pkgDestDir, url, vcsRevision, filesInstalled,
-                  binariesInstalled)
-
-    # Save the nimble data (which might now contain reverse deps added in
-    # processDeps).
-    saveNimbleData(options)
-
-    # update package path to point to installed directory rather than the temp directory
+    # Update package path to point to installed directory rather than the temp
+    # directory.
     pkgInfo.myPath = dest
+    pkgInfo.files = filesInstalled.toSeq
+    pkgInfo.binaries = binariesInstalled.toSeq
+
+    saveMetaData(pkgInfo.metaData, pkgDestDir)
+    saveNimbleData(options)
   else:
     display("Warning:", "Skipped copy in project local deps mode", Warning)
 
   pkgInfo.isInstalled = true
 
-  # Return the dependencies of this package (mainly for paths).
-  result.deps.add pkgInfo
-  result.pkg = pkgInfo
-
   display("Success:", pkgInfo.name & " installed successfully.",
           Success, HighPriority)
+
+  result.deps.incl pkgInfo
+  result.pkg = pkgInfo
 
   # Run post-install hook now that package is installed. The `execHook` proc
   # executes the hook defined in the CWD, so we set it to where the package
@@ -629,10 +650,10 @@ proc list(options: Options) =
 proc listInstalled(options: Options) =
   var h = initOrderedTable[string, seq[string]]()
   let pkgs = getInstalledPkgsMin(options.getPkgsDir(), options)
-  for x in pkgs.items():
+  for pkg in pkgs:
     let
-      pName = x.pkginfo.name
-      pVer = x.pkginfo.specialVersion
+      pName = pkg.name
+      pVer = pkg.specialVersion
     if not h.hasKey(pName): h[pName] = @[]
     var s = h[pName]
     add(s, pVer)
@@ -664,14 +685,14 @@ proc listPaths(options: Options) =
   for name, version, _ in options.action.packages.items:
     var installed: seq[VersionAndPath] = @[]
     # There may be several, list all available ones and sort by version.
-    for x in pkgs.items():
+    for pkg in pkgs:
       let
-        pName = x.pkginfo.name
-        pVer = x.pkginfo.specialVersion
+        pName = pkg.name
+        pVer = pkg.specialVersion
       if name == pName:
         var v: VersionAndPath
         v.version = newVersion(pVer)
-        v.path = x.pkginfo.getRealDir()
+        v.path = pkg.getRealDir()
         installed.add(v)
 
     if installed.len > 0:
@@ -761,7 +782,7 @@ proc dump(options: Options) =
   fn "installFiles", p.installFiles
   fn "installExt", p.installExt
   fn "requires", p.requires
-  fn "bin", toSeq(p.bin.keys)
+  fn "bin", toSeq(p.bin.values)
   fn "binDir", p.binDir
   fn "srcDir", p.srcDir
   fn "backend", p.backend
@@ -976,12 +997,8 @@ proc uninstall(options: Options) =
     raise NimbleQuit(msg: "")
 
   for pkg in pkgsToDelete:
-    # If we reach this point then the package can be safely removed.
-
-    # removeRevDep needs the package dependency info, so we can't just pass
-    # a minimal pkg info.
-    removeRevDep(options.nimbleData, pkg.toFullInfo(options))
-    removePkgDir(pkg.getPkgDest(options), options)
+    let pkgInfo = pkg.toFullInfo(options)
+    removePackage(pkgInfo, options)
     display("Removed", "$1 ($2)" % [pkg.name, $pkg.specialVersion], Success,
             HighPriority)
 
@@ -1030,16 +1047,10 @@ proc developFromDir(dir: string, options: Options) =
 
   # Don't link if project local deps mode and "developing" the top level package
   if not (options.localdeps and options.isInstallingTopLevel(dir)):
-    # This is similar to the code in `installFromDir`, except that we
-    # *consciously* not worry about the package's binaries.
-    let pkgDestDir = pkgInfo.getPkgDest(options)
-    if fileExists(pkgDestDir / nimbleDataFile.name):
-      let msg = "$1@$2 already exists. Overwrite?" %
-                [pkgInfo.name, pkgInfo.specialVersion]
-      if not options.prompt(msg):
-        raise NimbleQuit(msg: "")
-      removePkgDir(pkgDestDir, options)
+    if not promptRemovePackageIfExists(pkgInfo, options):
+      return
 
+    let pkgDestDir = pkgInfo.getPkgDest(options)
     createDir(pkgDestDir)
     # The .nimble-link file contains the path to the real .nimble file,
     # and a secondary path to the source directory of the package.
@@ -1054,11 +1065,12 @@ proc developFromDir(dir: string, options: Options) =
     )
     writeNimbleLink(nimbleLinkPath, nimbleLink)
 
-    # Save a nimblemeta.json file.
-    saveNimbleMeta(pkgDestDir, dir, getVcsRevisionFromDir(dir), nimbleLinkPath)
+    # Fill package meta data
+    pkgInfo.url = "file://" & dir
+    pkgInfo.files.add nimbleLinkPath
+    pkgInfo.isLink = true
 
-    # Save the nimble data (which might now contain reverse deps added in
-    # processDeps).
+    saveMetaData(pkgInfo.metaData, pkgDestDir)
     saveNimbleData(options)
 
     display("Success:", (pkgInfo.name & " linked successfully to '$1'.") %
@@ -1200,7 +1212,7 @@ proc run(options: Options) =
   if binary.len == 0:
     raiseNimbleError("Please specify a binary to run")
 
-  if binary notin toSeq(pkgInfo.bin.keys):
+  if binary notin pkgInfo.bin:
     raiseNimbleError(
       "Binary '$#' is not defined in '$#' package." % [binary, pkgInfo.name]
     )
@@ -1212,7 +1224,6 @@ proc run(options: Options) =
   let cmd = quoteShellCommand(binaryPath & options.action.runFlags)
   displayDebug("Executing", cmd)
   cmd.execCmd.quit
-
 
 proc doAction(options: var Options) =
   if options.showHelp:

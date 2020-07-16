@@ -24,13 +24,6 @@ type
     ndjkRevDepVersion = "version"
     ndjkRevDepChecksum = "checksum"
 
-  PackageMetaDataJsonKeys* = enum
-    pmdjkUrl = "url"
-    pmdjkVcsRevision = "vcsRevision"
-    pmdjkFiles = "files"
-    pmdjkBinaries = "binaries"
-    pmdjkIsLink = "isLink"
-
 const
   nimbleVersion* = "0.13.1"
   nimbleDataFile* = (name: "nimbledata.json", version: "0.1.0")

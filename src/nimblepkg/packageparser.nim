@@ -3,8 +3,8 @@
 import parsecfg, sets, streams, strutils, os, tables, sugar
 from sequtils import apply, map, toSeq
 
-import common, version, tools, nimscriptwrapper, options, cli,
-       packageinfo, packageinfotypes
+import common, version, tools, nimscriptwrapper, options, cli, packagemetadata,
+       packageinfo, packageinfotypes, checksum
 
 ## Contains procedures for parsing .nimble files. Moved here from ``packageinfo``
 ## because it depends on ``nimscriptwrapper`` (``nimscriptwrapper`` also
@@ -100,7 +100,7 @@ proc validatePackageStructure(pkgInfo: PackageInfo, options: Options) =
   ## https://github.com/nim-lang/nimble/issues/144
   let
     realDir = pkgInfo.getRealDir()
-    normalizedBinNames = toSeq(pkgInfo.bin.keys).map(
+    normalizedBinNames = toSeq(pkgInfo.bin.values).map(
       (x) => x.changeFileExt("").toLowerAscii()
     )
     correctDir =
@@ -326,8 +326,8 @@ proc inferInstallRules(pkgInfo: var PackageInfo, options: Options) =
     if fileExists(pkgInfo.getRealDir() / pkgInfo.name.addFileExt("nim")):
       pkgInfo.installFiles.add(pkgInfo.name.addFileExt("nim"))
 
-proc readPackageInfo(result: var PackageInfo, nf: NimbleFile, options: Options,
-    onlyMinimalInfo=false) =
+proc readPackageInfo(nf: NimbleFile, options: Options, onlyMinimalInfo=false):
+    PackageInfo =
   ## Reads package info from the specified Nimble file.
   ##
   ## Attempts to read it using the "old" Nimble ini format first, if that
@@ -386,17 +386,19 @@ proc readPackageInfo(result: var PackageInfo, nf: NimbleFile, options: Options,
                   "    " & exc.msg & "."
         raise newException(NimbleError, msg)
 
-  # By default specialVersion is the same as version.
-  result.specialVersion = result.version
-
-  # Only attempt to read a special version if `nf` is inside the $nimbleDir.
-  if nf.startsWith(options.getNimbleDir()):
-    # The package directory name may include a "special" version
-    # (example #head). If so, it is given higher priority and therefore
-    # overwrites the .nimble file's version.
-    let version = parseVersionRange(result.version)
-    if version.kind == verSpecial:
-      result.specialVersion = result.version
+  let fileDir = nf.splitFile().dir
+  if not fileDir.startsWith(options.getPkgsDir()):
+    # If the `.nimble` file is not in the installation directory but in the
+    # package repository we have to get its VCS revision and to calculate its
+    # checksum.
+    result.vcsRevision = getVcsRevisionFromDir(fileDir)
+    result.checksum = calculatePackageSha1Checksum(fileDir)
+    # By default specialVersion is the same as version.
+    result.specialVersion = result.version
+  else:
+    # Otherwise we have to get its name, special version and checksum from the
+    # package directory.
+    setNameVersionChecksum(result, fileDir)
 
   # Apply rules to infer which files should/shouldn't be installed. See #469.
   inferInstallRules(result, options)
@@ -412,7 +414,7 @@ proc readPackageInfo(result: var PackageInfo, nf: NimbleFile, options: Options,
 proc validate*(file: NimbleFile, options: Options,
                error: var ValidationError, pkgInfo: var PackageInfo): bool =
   try:
-    pkgInfo.readPackageInfo(file, options)
+    pkgInfo = readPackageInfo(file, options)
   except ValidationError as exc:
     error = exc[]
     return false
@@ -424,7 +426,7 @@ proc getPkgInfoFromFile*(file: NimbleFile, options: Options): PackageInfo =
   ## object. Any validation errors are handled and displayed as warnings.
   var info: PackageInfo
   try:
-    info.readPackageInfo(file, options)
+    info = readPackageInfo(file, options)
   except ValidationError:
     let exc = (ref ValidationError)(getCurrentException())
     if exc.warnAll:
@@ -440,8 +442,7 @@ proc getPkgInfo*(dir: string, options: Options): PackageInfo =
   let nimbleFile = findNimbleFile(dir, true)
   result = getPkgInfoFromFile(nimbleFile, options)
 
-proc getInstalledPkgs*(libsDir: string, options: Options):
-        seq[PackageInfoAndMetaData] =
+proc getInstalledPkgs*(libsDir: string, options: Options): seq[PackageInfo] =
   ## Gets a list of installed packages.
   ##
   ## ``libsDir`` is in most cases: ~/.nimble/pkgs/
@@ -453,7 +454,7 @@ proc getInstalledPkgs*(libsDir: string, options: Options):
 
   proc createErrorMsg(tmplt, path, msg: string): string =
     let (name, version, checksum) = getNameVersionChecksum(path)
-    let fullVersion = if checksum.len > 0: version & '-' & checksum
+    let fullVersion = if checksum.len > 0: version & "@c." & checksum
                       else: version
     return tmplt % [name, fullVersion, msg]
 
@@ -464,10 +465,10 @@ proc getInstalledPkgs*(libsDir: string, options: Options):
     if kind == pcDir:
       let nimbleFile = findNimbleFile(path, false)
       if nimbleFile != "":
-        let meta = readMetaData(path)
         var pkg: PackageInfo
         try:
-          pkg.readPackageInfo(nimbleFile, options, onlyMinimalInfo=false)
+          pkg = readPackageInfo(nimbleFile, options, onlyMinimalInfo=false)
+          fillMetaData(pkg, path, false)
         except ValidationError:
           let exc = (ref ValidationError)(getCurrentException())
           exc.msg = createErrorMsg(validationErrorMsg, path, exc.msg)
@@ -486,20 +487,19 @@ proc getInstalledPkgs*(libsDir: string, options: Options):
           raise exc
 
         pkg.isInstalled = true
-        pkg.isLinked =
-          cmpPaths(nimbleFile.splitFile().dir, path) != 0
-        result.add((pkg, meta))
+        result.add pkg
 
 proc isNimScript*(nf: string, options: Options): bool =
-  var p: PackageInfo
-  p.readPackageInfo(nf, options)
-  result = p.isNimScript
+  readPackageInfo(nf, options).isNimScript
 
 proc toFullInfo*(pkg: PackageInfo, options: Options): PackageInfo =
   if pkg.isMinimal:
     result = getPkgInfoFromFile(pkg.mypath, options)
     result.isInstalled = pkg.isInstalled
-    result.isLinked = pkg.isLinked
+    result.isLink = pkg.isLink
+    result.specialVersion = pkg.specialVersion
+    if pkg.hasMetaData:
+      result.metaData = pkg.metaData
   else:
     return pkg
 
