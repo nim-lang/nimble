@@ -134,7 +134,7 @@ proc fromJson(obj: JSonNode): Package =
 proc readMetaData*(path: string): MetaData =
   ## Reads the metadata present in ``~/.nimble/pkgs/pkg-0.1/nimblemeta.json``
   var bmeta = path / "nimblemeta.json"
-  if not existsFile(bmeta):
+  if not fileExists(bmeta):
     result.url = ""
     display("Warning:", "No nimblemeta.json file found in " & path,
             Warning, HighPriority)
@@ -496,7 +496,7 @@ proc iterInstallFiles*(realDir: string, pkgInfo: PackageInfo,
   if whitelistMode:
     for file in pkgInfo.installFiles:
       let src = realDir / file
-      if not src.existsFile():
+      if not src.fileExists():
         if options.prompt("Missing file " & src & ". Continue?"):
           continue
         else:
@@ -507,7 +507,7 @@ proc iterInstallFiles*(realDir: string, pkgInfo: PackageInfo,
     for dir in pkgInfo.installDirs:
       # TODO: Allow skipping files inside dirs?
       let src = realDir / dir
-      if not src.existsDir():
+      if not src.dirExists():
         if options.prompt("Missing directory " & src & ". Continue?"):
           continue
         else:

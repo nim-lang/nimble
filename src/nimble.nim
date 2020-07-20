@@ -104,7 +104,7 @@ proc copyFilesRec(origDir, currentDir, dest: string,
   if whitelistMode:
     for file in pkgInfo.installFiles:
       let src = origDir / file
-      if not src.existsFile():
+      if not src.fileExists():
         if options.prompt("Missing file " & src & ". Continue?"):
           continue
         else:
@@ -115,7 +115,7 @@ proc copyFilesRec(origDir, currentDir, dest: string,
     for dir in pkgInfo.installDirs:
       # TODO: Allow skipping files inside dirs?
       let src = origDir / dir
-      if not src.existsDir():
+      if not src.dirExists():
         if options.prompt("Missing directory " & src & ". Continue?"):
           continue
         else:
@@ -248,7 +248,7 @@ proc buildFromDir(
             [pkginfo.name, bin, pkgInfo.backend], priority = HighPriority)
 
     let outputDir = pkgInfo.getOutputDir("")
-    if not existsDir(outputDir):
+    if not dirExists(outputDir):
       createDir(outputDir)
 
     let input = realDir / bin.changeFileExt("nim")
@@ -389,7 +389,7 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
     buildFromDir(pkgInfo, paths, "-d:release" & flags, options)
 
   let pkgDestDir = pkgInfo.getPkgDest(options)
-  if existsDir(pkgDestDir) and existsFile(pkgDestDir / "nimblemeta.json"):
+  if dirExists(pkgDestDir) and fileExists(pkgDestDir / "nimblemeta.json"):
     let msg = "$1@$2 already exists. Overwrite?" %
               [pkgInfo.name, pkgInfo.specialVersion]
     if not options.prompt(msg):
@@ -431,7 +431,7 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
     # Set file permissions to +x for all binaries built,
     # and symlink them on *nix OS' to $nimbleDir/bin/
     for bin in pkgInfo.bin:
-      if existsFile(pkgDestDir / bin):
+      if fileExists(pkgDestDir / bin):
         display("Warning:", ("Binary '$1' was already installed from source" &
                             " directory. Will be overwritten.") % bin, Warning,
                 MediumPriority)
@@ -693,10 +693,10 @@ proc getPackageByPattern(pattern: string, options: Options): PackageInfo =
   if pattern == "":
     # Not specified - using current directory
     result = getPkgInfo(os.getCurrentDir(), options)
-  elif pattern.splitFile.ext == ".nimble" and pattern.existsFile:
+  elif pattern.splitFile.ext == ".nimble" and pattern.fileExists:
     # project file specified
     result = getPkgInfoFromFile(pattern, options)
-  elif pattern.existsDir:
+  elif pattern.dirExists:
     # project directory specified
     result = getPkgInfo(pattern, options)
   else:
@@ -789,7 +789,7 @@ proc init(options: Options) =
 
   let nimbleFile = (pkgRoot / pkgName).changeFileExt("nimble")
 
-  if existsFile(nimbleFile):
+  if fileExists(nimbleFile):
     let errMsg = "Nimble file already exists: $#" % nimbleFile
     raise newException(NimbleError, errMsg)
 
@@ -1003,7 +1003,7 @@ proc developFromDir(dir: string, options: Options) =
   # This is similar to the code in `installFromDir`, except that we
   # *consciously* not worry about the package's binaries.
   let pkgDestDir = pkgInfo.getPkgDest(options)
-  if existsDir(pkgDestDir) and existsFile(pkgDestDir / "nimblemeta.json"):
+  if dirExists(pkgDestDir) and fileExists(pkgDestDir / "nimblemeta.json"):
     let msg = "$1@$2 already exists. Overwrite?" %
               [pkgInfo.name, pkgInfo.specialVersion]
     if not options.prompt(msg):
@@ -1096,7 +1096,7 @@ proc test(options: Options) =
       optsCopy.getCompilationFlags().add("--path:.")
       let
         binFileName = file.path.changeFileExt(ExeExt)
-        existsBefore = existsFile(binFileName)
+        existsBefore = fileExists(binFileName)
 
       if options.continueTestsOnFailure:
         inc tests
@@ -1108,7 +1108,7 @@ proc test(options: Options) =
         execBackend(pkgInfo, optsCopy)
 
       let
-        existsAfter = existsFile(binFileName)
+        existsAfter = fileExists(binFileName)
         canRemove = not existsBefore and existsAfter
       if canRemove:
         try:
@@ -1158,7 +1158,7 @@ proc run(options: Options) =
   # Build the binary.
   build(options)
 
-  let binaryPath = pkgInfo.getOutputDir(binary) 
+  let binaryPath = pkgInfo.getOutputDir(binary)
   let cmd = quoteShellCommand(binaryPath & options.action.runFlags)
   displayDebug("Executing", cmd)
   cmd.execCmd.quit
@@ -1170,9 +1170,9 @@ proc doAction(options: var Options) =
   if options.showVersion:
     writeVersion()
 
-  if not existsDir(options.getNimbleDir()):
+  if not dirExists(options.getNimbleDir()):
     createDir(options.getNimbleDir())
-  if not existsDir(options.getPkgsDir):
+  if not dirExists(options.getPkgsDir):
     createDir(options.getPkgsDir)
 
   if options.action.typ in {actionTasks, actionRun, actionBuild, actionCompile}:
