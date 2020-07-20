@@ -36,6 +36,9 @@ proc writeExecutionOutput(data: string) =
   # Nimble files.
   display("Info", data)
 
+proc getNimblecache(): string =
+  getTempDir() / "nimblecache-" & $getEnv("USER").hash().abs()
+
 proc execNimscript(
   nimsFile, projectDir, actionName: string, options: Options, isHook: bool
 ): tuple[output: string, exitCode: int, stdout: string] =
@@ -59,7 +62,7 @@ proc execNimscript(
   var cmd = (
     getNimBin() & " e $# --colors:on -p:$# $# $# $#" % [
       "--hints:off --verbosity:0",
-      (getTempDir() / "nimblecache").quoteShell,
+      getNimblecache().quoteShell,
       nimsFileCopied.quoteShell,
       outFile.quoteShell,
       actionName
@@ -90,7 +93,7 @@ proc execNimscript(
 
 proc getNimsFile(scriptName: string, options: Options): string =
   let
-    cacheDir = getTempDir() / "nimblecache"
+    cacheDir = getNimblecache()
     shash = $scriptName.parentDir().hash().abs()
     prjCacheDir = cacheDir / scriptName.splitFile().name & "_" & shash
     nimscriptApiFile = cacheDir / "nimscriptapi.nim"
@@ -101,9 +104,9 @@ proc getNimsFile(scriptName: string, options: Options): string =
     iniFile = result.changeFileExt(".ini")
 
     isNimscriptApiCached =
-      nimscriptApiFile.fileExists() and nimscriptApiFile.getLastModificationTime() > 
+      nimscriptApiFile.fileExists() and nimscriptApiFile.getLastModificationTime() >
       getAppFilename().getLastModificationTime()
-    
+
     isScriptResultCached =
       isNimscriptApiCached and result.fileExists() and result.getLastModificationTime() >
       scriptName.getLastModificationTime()
