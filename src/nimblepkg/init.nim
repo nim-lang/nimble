@@ -14,7 +14,7 @@ type
     pkgType: string
 
 proc writeExampleIfNonExistent(file: string, content: string) =
-  if not existsFile(file):
+  if not fileExists(file):
     writeFile(file, content)
   else:
     display("Info:", "File " & file & " already exists, did not write " &

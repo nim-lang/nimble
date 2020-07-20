@@ -36,7 +36,7 @@ proc doPull(meth: DownloadMethod, downloadDir: string) {.used.} =
     doCheckout(meth, downloadDir, "")
     cd downloadDir:
       doCmd("git pull")
-      if existsFile(".gitmodules"):
+      if fileExists(".gitmodules"):
         doCmd("git submodule update")
   of DownloadMethod.hg:
     doCheckout(meth, downloadDir, "default")

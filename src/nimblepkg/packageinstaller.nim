@@ -35,7 +35,7 @@ proc setupBinSymlink*(symlinkDest, symlinkFilename: string,
   when defined(unix):
     display("Creating", "symlink: $1 -> $2" %
             [symlinkDest, symlinkFilename], priority = MediumPriority)
-    if existsFile(symlinkFilename):
+    if fileExists(symlinkFilename):
       let msg = "Symlink already exists in $1. Replacing." % symlinkFilename
       display("Warning:", msg, Warning, HighPriority)
       removeFile(symlinkFilename)
