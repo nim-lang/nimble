@@ -543,7 +543,7 @@ proc build(options: Options) =
 
 proc execBackend(pkgInfo: PackageInfo, options: Options) =
   let
-    bin = options.getCompilationBinary(pkgInfo).get()
+    bin = options.getCompilationBinary(pkgInfo).get("")
     binDotNim = bin.addFileExt("nim")
   if bin == "":
     raise newException(NimbleError, "You need to specify a file.")
