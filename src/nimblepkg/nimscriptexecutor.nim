@@ -31,32 +31,24 @@ proc execHook*(options: Options, hookAction: ActionType, before: bool): bool =
     if res.success:
       result = res.retVal
 
-proc execCustom*(options: Options,
-                 execResult: var ExecutionResult[bool],
-                 failFast = true): bool =
+proc execCustom*(nimbleFile: string, options: Options,
+                 execResult: var ExecutionResult[bool]): bool =
   ## Executes the custom command using the nimscript backend.
-  ##
-  ## If failFast is true then exceptions will be raised when something is wrong.
-  ## Otherwise this function will just return false.
 
-  # Custom command. Attempt to call a NimScript task.
-  let nimbleFile = findNimbleFile(getCurrentDir(), true)
-  if not nimbleFile.isNimScript(options) and failFast:
+  if not execHook(options, actionCustom, true):
+    raise newException(NimbleError, "Pre-hook prevented further execution.")
+
+  if not nimbleFile.isNimScript(options):
     writeHelp()
 
   execResult = execTask(nimbleFile, options.action.command, options)
   if not execResult.success:
-    if not failFast:
-      return
-    raiseNimbleError(msg = "Could not find task $1 in $2" %
-                           [options.action.command, nimbleFile],
-                     hint = "Run `nimble --help` and/or `nimble tasks` for" &
-                            " a list of possible commands.")
+    raiseNimbleError(msg = "Failed to execute task $1 in $2" %
+                           [options.action.command, nimbleFile])
 
   if execResult.command.normalize == "nop":
     display("Warning:", "Using `setCommand 'nop'` is not necessary.", Warning,
             HighPriority)
-    return
 
   if not execHook(options, actionCustom, false):
     return

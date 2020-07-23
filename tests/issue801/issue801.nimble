@@ -10,3 +10,8 @@ bin           = @["issue801"]
 # Dependencies
 
 requires "timezones"
+
+before test:
+   echo "before test"
+after test:
+  echo "after test"

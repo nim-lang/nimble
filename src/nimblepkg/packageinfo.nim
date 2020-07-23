@@ -33,6 +33,7 @@ type
 proc initPackageInfo*(path: string): PackageInfo =
   result.myPath = path
   result.specialVersion = ""
+  result.nimbleTasks.init()
   result.preHooks.init()
   result.postHooks.init()
   # reasonable default:

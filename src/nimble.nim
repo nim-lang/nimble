@@ -562,6 +562,9 @@ proc execBackend(pkgInfo: PackageInfo, options: Options) =
   nimScriptHint(pkgInfo)
   let deps = processDeps(pkginfo, options)
 
+  if not execHook(options, options.action.typ, true):
+    raise newException(NimbleError, "Pre-hook prevented further execution.")
+
   let nimblePkgVersion = "-d:NimblePkgVersion=" & pkgInfo.version
   var args = ""
   for dep in deps: args.add("--path:\"" & dep.getRealDir() & "\" ")
@@ -583,6 +586,9 @@ proc execBackend(pkgInfo: PackageInfo, options: Options) =
   doCmd("\"" & getNimBin() & "\" $# --noNimblePath $# $# \"$#\"" %
         [backend, nimblePkgVersion, args, bin], showOutput = true)
   display("Success:", "Execution finished", Success, HighPriority)
+
+  # Run the post hook for action if it exists
+  discard execHook(options, options.action.typ, false)
 
 proc search(options: Options) =
   ## Searches for matches in ``options.action.search``.
@@ -1088,6 +1094,9 @@ proc test(options: Options) =
     display("Warning:", "No tests found!", Warning, HighPriority)
     return
 
+  if not execHook(options, actionCustom, true):
+    raise newException(NimbleError, "Pre-hook prevented further execution.")
+
   files.sort((a, b) => cmp(a.path, b.path))
 
   for file in files:
@@ -1128,6 +1137,9 @@ proc test(options: Options) =
   else:
     let error = "Only " & $(tests - failures) & "/" & $tests & " tests passed"
     display("Error:", error, Error, HighPriority)
+
+  if not execHook(options, actionCustom, false):
+    return
 
 proc check(options: Options) =
   ## Validates a package in the current working directory.
@@ -1231,24 +1243,27 @@ proc doAction(options: var Options) =
   of actionNil:
     assert false
   of actionCustom:
-    if not execHook(options, actionCustom, true):
-      display("Warning", "Pre-hook prevented further execution.", Warning,
-              HighPriority)
-      return
-    let isPreDefined = options.action.command.normalize == "test"
+    let
+      command = options.action.command.normalize
+      nimbleFile = findNimbleFile(getCurrentDir(), true)
+      pkgInfo = getPkgInfoFromFile(nimbleFile, options)
 
-    var execResult: ExecutionResult[bool]
-    if execCustom(options, execResult, failFast=not isPreDefined):
-      if execResult.hasTaskRequestedCommand():
-        var options = execResult.getOptionsForCommand(options)
-        doAction(options)
-    else:
+    if command in pkgInfo.nimbleTasks:
+      # If valid task defined in nimscript, run it
+      var execResult: ExecutionResult[bool]
+      if execCustom(nimbleFile, options, execResult):
+        if execResult.hasTaskRequestedCommand():
+          var options = execResult.getOptionsForCommand(options)
+          doAction(options)
+    elif command == "test":
       # If there is no task defined for the `test` task, we run the pre-defined
       # fallback logic.
-      if isPreDefined:
         test(options)
-        # Run the post hook for `test` in case it exists.
-        discard execHook(options, actionCustom, false)
+    else:
+      raiseNimbleError(msg = "Could not find task $1 in $2" %
+                            [options.action.command, nimbleFile],
+                      hint = "Run `nimble --help` and/or `nimble tasks` for" &
+                              " a list of possible commands.")
 
 when isMainModule:
   var error = ""

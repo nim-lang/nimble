@@ -31,6 +31,7 @@ var
   foreignDeps*: seq[string] = @[] ## The foreign dependencies. Only
                                   ## exported for 'distros.nim'.
 
+  nimbleTasks: seq[string] = @[]
   beforeHooks: seq[string] = @[]
   afterHooks: seq[string] = @[]
   commandLineParams: seq[string] = @[]
@@ -115,6 +116,7 @@ proc printPkgInfo(): string =
   printSeqIfLen installFiles
   printSeqIfLen installExt
   printSeqIfLen bin
+  printSeqIfLen nimbleTasks
   printSeqIfLen beforeHooks
   printSeqIfLen afterHooks
 
@@ -159,6 +161,8 @@ template task*(name: untyped; description: string; body: untyped): untyped =
   ##  task build, "default build is via the C backend":
   ##    setCommand "c"
   proc `name Task`*() = body
+
+  nimbleTasks.add astToStr(name)
 
   if commandLineParams.len == 0 or "help" in commandLineParams:
     success = true
