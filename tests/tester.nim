@@ -385,7 +385,7 @@ suite "nimscript":
     cd "nimscript":
       let (output, exitCode) = execNimble("hooks2")
       let lines = output.strip.processOutput()
-      check exitCode == QuitSuccess
+      check exitCode == QuitFailure
       check(not inLines(lines, "Shouldn't happen"))
       check inLines(lines, "Hook prevented further execution")
 
@@ -920,7 +920,7 @@ test "do not install single dependency multiple times (#678)":
 
 test "Passing command line arguments to a task (#633)":
   cd "issue633":
-    var (output, exitCode) = execNimble("testTask --testTask")
+    var (output, exitCode) = execNimble("testTask", "--testTask")
     check exitCode == QuitSuccess
     check output.contains("Got it")
 
@@ -1030,8 +1030,12 @@ test "issue 727":
 
 test "issue 801":
   cd "issue801":
-    var (_, exitCode) = execNimble("test", "-y")
+    var (output, exitCode) = execNimble("test", "-y")
     check exitCode == QuitSuccess
+
+    # Verify hooks work
+    check output.contains("before test")
+    check output.contains("after test")
 
 test "issue 793":
   cd "issue793":
@@ -1039,6 +1043,11 @@ test "issue 793":
     check exitCode == QuitSuccess
     check output.contains("before build")
     check output.contains("after build")
+
+    # Issue 776
+    (output, exitCode) = execNimble("doc", "src/issue793")
+    check output.contains("before doc")
+    check output.contains("after doc")
 
 test "compilation without warnings":
   const buildDir = "./buildDir/"

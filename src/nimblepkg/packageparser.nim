@@ -264,6 +264,9 @@ proc readPackageInfoFromNimble(path: string; result: var PackageInfo) =
             case result.backend.normalize
             of "javascript": result.backend = "js"
             else: discard
+          of "nimbletasks":
+            for i in ev.value.multiSplit:
+              result.nimbleTasks.incl(i.normalize)
           of "beforehooks":
             for i in ev.value.multiSplit:
               result.preHooks.incl(i.normalize)
