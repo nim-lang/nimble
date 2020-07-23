@@ -222,8 +222,10 @@ proc buildFromDir(
 ) =
   ## Builds a package as specified by ``pkgInfo``.
   # Handle pre-`build` hook.
-  let realDir = pkgInfo.getRealDir()
-  cd realDir: # Make sure `execHook` executes the correct .nimble file.
+  let
+    realDir = pkgInfo.getRealDir()
+    pkgDir = pkgInfo.myPath.parentDir()
+  cd pkgDir: # Make sure `execHook` executes the correct .nimble file.
     if not execHook(options, actionBuild, true):
       raise newException(NimbleError, "Pre-hook prevented further execution.")
 
@@ -279,7 +281,7 @@ proc buildFromDir(
     )
 
   # Handle post-`build` hook.
-  cd realDir: # Make sure `execHook` executes the correct .nimble file.
+  cd pkgDir: # Make sure `execHook` executes the correct .nimble file.
     discard execHook(options, actionBuild, false)
 
 proc removePkgDir(dir: string, options: Options) =
