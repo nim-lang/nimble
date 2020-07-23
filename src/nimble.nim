@@ -221,7 +221,6 @@ proc buildFromDir(
   options: Options
 ) =
   ## Builds a package as specified by ``pkgInfo``.
-  let binToBuild = options.getCompilationBinary(pkgInfo)
   # Handle pre-`build` hook.
   let realDir = pkgInfo.getRealDir()
   cd realDir: # Make sure `execHook` executes the correct .nimble file.
@@ -236,10 +235,15 @@ proc buildFromDir(
   let nimblePkgVersion = "-d:NimblePkgVersion=" & pkgInfo.version
   for path in paths: args.add("--path:\"" & path & "\" ")
   var binariesBuilt = 0
+  let binToBuild =
+    # Only build binaries specified by user if any, but only if top-level package,
+    # dependencies should have every binary built.
+    if options.startDir == pkgInfo.myPath.parentDir():
+      options.getCompilationBinary(pkgInfo).get("")
+    else: ""
   for bin in pkgInfo.bin:
     # Check if this is the only binary that we want to build.
-    if binToBuild.isSome() and binToBuild.get() != bin:
-      let binToBuild = binToBuild.get()
+    if binToBuild.len != 0 and binToBuild != bin:
       if bin.extractFilename().changeFileExt("") != binToBuild:
         continue
 
@@ -1251,6 +1255,7 @@ when isMainModule:
   var opt: Options
   try:
     opt = parseCmdLine()
+    opt.startDir = getCurrentDir()
     opt.doAction()
   except NimbleError:
     let currentExc = (ref NimbleError)(getCurrentException())

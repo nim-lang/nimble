@@ -32,6 +32,8 @@ type
     # Temporary storage of flags that have not been captured by any specific Action.
     unknownFlags*: seq[(CmdLineKind, string, string)]
     dumpMode*: DumpMode
+    startDir*: string # Current directory on startup - is top level pkg dir for
+                      # some commands, useful when processing deps
 
   ActionType* = enum
     actionNil, actionRefresh, actionInit, actionDump, actionPublish,
