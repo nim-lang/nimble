@@ -1009,6 +1009,30 @@ test "issue 432":
     check execNimble("install", "-y", "--depsOnly").exitCode == QuitSuccess
     check execNimble("install", "-y", "--depsOnly").exitCode == QuitSuccess
 
+test "issue 727":
+  cd "issue727":
+    var (output, exitCode) = execNimble("c", "-y", "src/abc")
+    check exitCode == QuitSuccess
+    check fileExists("src/abc".addFileExt(ExeExt))
+    check not fileExists("src/def".addFileExt(ExeExt))
+
+    (output, exitCode) = execNimble("uninstall", "-i", "-y", "timezones")
+    check exitCode == QuitSuccess
+
+    (output, exitCode) = execNimble("run", "-y", "def")
+    check exitCode == QuitSuccess
+    check output.contains("def727")
+    check not fileExists("abc".addFileExt(ExeExt))
+    check fileExists("def".addFileExt(ExeExt))
+
+    (output, exitCode) = execNimble("uninstall", "-i", "-y", "timezones")
+    check exitCode == QuitSuccess
+
+test "issue 801":
+  cd "issue801":
+    var (_, exitCode) = execNimble("test", "-y")
+    check exitCode == QuitSuccess
+
 test "compilation without warnings":
   const buildDir = "./buildDir/"
   const filesToBuild = [
