@@ -1033,6 +1033,13 @@ test "issue 801":
     var (_, exitCode) = execNimble("test", "-y")
     check exitCode == QuitSuccess
 
+test "issue 793":
+  cd "issue793":
+    var (output, exitCode) = execNimble("build")
+    check exitCode == QuitSuccess
+    check output.contains("before build")
+    check output.contains("after build")
+
 test "compilation without warnings":
   const buildDir = "./buildDir/"
   const filesToBuild = [
