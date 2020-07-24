@@ -93,6 +93,8 @@ proc execNimscript(
 proc getNimsFile(scriptName: string, options: Options): string =
   # Create .nims and .ini file out of .nimble file in nimblecache
   let
+    scriptName = scriptName.absolutePath()
+
     nimbleLastModified = getAppFilename().getLastModificationTime()
     cacheDir = getNimblecache()
 
@@ -101,14 +103,10 @@ proc getNimsFile(scriptName: string, options: Options): string =
     nimscriptApiFile = cacheDir / ("nimscriptapi_" & nhash).addFileExt("nim")
 
     # .nims and .ini caching
-    shash = $(scriptName.parentDir() & $nimbleLastModified).hash().abs()
+    shash = $(scriptName & $nimbleLastModified).hash().abs()
     prjCacheDir = cacheDir / scriptName.splitFile().name & "_" & shash
     nimsFile = prjCacheDir / scriptName.extractFilename().changeFileExt("nims")
     iniFile = nimsFile.changeFileExt("ini")
-
-    isScriptResultCached =
-      nimsFile.fileExists() and nimsFile.getLastModificationTime() >
-      scriptName.getLastModificationTime()
 
   # Create nimscriptapi.nim unique to this version of nimble
   if not fileExists(nimscriptApiFile):
@@ -116,7 +114,7 @@ proc getNimsFile(scriptName: string, options: Options): string =
     writeFile(nimscriptApiFile, nimscriptApi)
 
   # Create .nims file contents
-  if not isScriptResultCached:
+  if not fileExists(nimsFile):
     createDir(nimsFile.parentDir())
     writeFile(nimsFile, """
 import system except getCommand, setCommand, switch, `--`,
@@ -129,7 +127,7 @@ import "$1"
 include "$2"
 
 onExit()
-""" % [nimscriptApiFile.replace("\\", "/"), scriptName.absolutePath().replace("\\", "/")])
+""" % [nimscriptApiFile.replace("\\", "/"), scriptName.replace("\\", "/")])
     discard tryRemoveFile(iniFile)
 
   result = nimsFile
