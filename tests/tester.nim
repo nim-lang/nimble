@@ -20,10 +20,7 @@ removeDir(installDir)
 createDir(installDir)
 
 # Always recompile.
-doAssert execCmdEx("nim c " & path).exitCode == QuitSuccess
-
-test "can compile with --os:windows":
-  check execCmdEx("nim check --os:windows " & path).exitCode == QuitSuccess
+doAssert execCmdEx("nim c -d:danger " & path).exitCode == QuitSuccess
 
 template cd*(dir: string, body: untyped) =
   ## Sets the current dir to ``dir``, executes ``body`` and restores the
@@ -82,147 +79,6 @@ proc hasLineStartingWith(lines: seq[string], prefix: string): bool =
       return true
   return false
 
-test "issue 708":
-  cd "issue708":
-    # TODO: We need a way to filter out compiler messages from the messages
-    # written by our nimble scripts.
-    var (output, exitCode) = execNimble("install", "-y", "--verbose")
-    check exitCode == QuitSuccess
-    let lines = output.strip.processOutput()
-    check(inLines(lines, "hello"))
-    check(inLines(lines, "hello2"))
-
-test "issue 564":
-  cd "issue564":
-    var (_, exitCode) = execNimble("build")
-    check exitCode == QuitSuccess
-
-test "depsOnly + flag order test":
-  var (output, exitCode) = execNimble(
-    "--depsOnly", "install", "-y", "https://github.com/nimble-test/packagebin2"
-  )
-  check(not output.contains("Success: packagebin2 installed successfully."))
-  check exitCode == QuitSuccess
-
-test "nimscript evaluation error message":
-  cd "invalidPackage":
-    var (output, exitCode) = execNimble("check")
-    let lines = output.strip.processOutput()
-    check(lines[^2].contains("undeclared identifier: 'thisFieldDoesNotExist'"))
-    check exitCode == QuitFailure
-
-test "caching of nims and ini detects changes":
-  cd "caching":
-    var (output, exitCode) = execNimble("dump")
-    check output.contains("0.1.0")
-    let
-      nfile = "caching.nimble"
-    writeFile(nfile, readFile(nfile).replace("0.1.0", "0.2.0"))
-    (output, exitCode) = execNimble("dump")
-    check output.contains("0.2.0")
-    writeFile(nfile, readFile(nfile).replace("0.2.0", "0.1.0"))
-
-test "tasks can be called recursively":
-  cd "recursive":
-    check execNimble("recurse").exitCode == QuitSuccess
-
-test "picks #head when looking for packages":
-  cd "versionClashes" / "aporiaScenario":
-    let (output, exitCode) = execNimble("install", "-y", "--verbose")
-    checkpoint output
-    check exitCode == QuitSuccess
-    check execNimble("remove", "aporiascenario", "-y").exitCode == QuitSuccess
-    check execNimble("remove", "packagea", "-y").exitCode == QuitSuccess
-
-test "can distinguish package reading in nimbleDir vs. other dirs (#304)":
-  cd "issue304" / "package-test":
-    check execNimble("tasks").exitCode == QuitSuccess
-
-test "can accept short flags (#329)":
-  cd "nimscript":
-    check execNimble("c", "-d:release", "nimscript.nim").exitCode == QuitSuccess
-
-test "can build with #head and versioned package (#289)":
-  cd "issue289":
-    check execNimble(["install", "-y"]).exitCode == QuitSuccess
-
-  check execNimble(["uninstall", "issue289", "-y"]).exitCode == QuitSuccess
-  check execNimble(["uninstall", "packagea", "-y"]).exitCode == QuitSuccess
-
-test "can validate package structure (#144)":
-  # Test that no warnings are produced for correctly structured packages.
-  for package in ["a", "b", "c", "validBinary", "softened"]:
-    cd "packageStructure/" & package:
-      let (output, exitCode) = execNimble(["install", "-y"])
-      check exitCode == QuitSuccess
-      let lines = output.strip.processOutput()
-      check(not lines.hasLineStartingWith("Warning:"))
-
-  # Test that warnings are produced for the incorrectly structured packages.
-  for package in ["x", "y", "z"]:
-    cd "packageStructure/" & package:
-      let (output, exitCode) = execNimble(["install", "-y"])
-      check exitCode == QuitSuccess
-      let lines = output.strip.processOutput()
-      checkpoint(output)
-      case package
-      of "x":
-        check lines.hasLineStartingWith(
-          "Warning: Package 'x' has an incorrect structure. It should" &
-          " contain a single directory hierarchy for source files," &
-          " named 'x', but file 'foobar.nim' is in a directory named" &
-          " 'incorrect' instead.")
-      of "y":
-        check lines.hasLineStartingWith(
-          "Warning: Package 'y' has an incorrect structure. It should" &
-          " contain a single directory hierarchy for source files," &
-          " named 'ypkg', but file 'foobar.nim' is in a directory named" &
-          " 'yWrong' instead.")
-      of "z":
-        check lines.hasLineStartingWith(
-          "Warning: Package 'z' has an incorrect structure. The top level" &
-          " of the package source directory should contain at most one module," &
-          " named 'z.nim', but a file named 'incorrect.nim' was found.")
-      else:
-        assert false
-
-test "issue 129 (installing commit hash)":
-  let arguments = @["install", "-y",
-                   "https://github.com/nimble-test/packagea.git@#1f9cb289c89"]
-  check execNimble(arguments).exitCode == QuitSuccess
-  # Verify that it was installed correctly.
-  check dirExists(installDir / "pkgs" / "PackageA-#1f9cb289c89")
-  # Remove it so that it doesn't interfere with the uninstall tests.
-  check execNimble("uninstall", "-y", "packagea@#1f9cb289c89").exitCode ==
-        QuitSuccess
-
-test "issue 113 (uninstallation problems)":
-  cd "issue113/c":
-    check execNimble(["install", "-y"]).exitCode == QuitSuccess
-  cd "issue113/b":
-    check execNimble(["install", "-y"]).exitCode == QuitSuccess
-  cd "issue113/a":
-    check execNimble(["install", "-y"]).exitCode == QuitSuccess
-
-  # Try to remove c.
-  let (output, exitCode) = execNimble(["remove", "-y", "c"])
-  let lines = output.strip.processOutput()
-  check exitCode != QuitSuccess
-  check inLines(lines, "cannot uninstall c (0.1.0) because b (0.1.0) depends on it")
-
-  check execNimble(["remove", "-y", "a"]).exitCode == QuitSuccess
-  check execNimble(["remove", "-y", "b"]).exitCode == QuitSuccess
-
-  cd "issue113/buildfail":
-    check execNimble(["install", "-y"]).exitCode != QuitSuccess
-
-  check execNimble(["remove", "-y", "c"]).exitCode == QuitSuccess
-
-test "can refresh with default urls":
-  let (output, exitCode) = execNimble(["refresh"])
-  checkpoint(output)
-  check exitCode == QuitSuccess
-
 proc safeMoveFile(src, dest: string) =
   try:
     moveFile(src, dest)
@@ -246,68 +102,74 @@ template testRefresh(body: untyped) =
   if fileExists(configBakFile):
     safeMoveFile(configBakFile, configFile)
 
-test "can refresh with custom urls":
-  testRefresh():
-    writeFile(configFile, """
-      [PackageList]
-      name = "official"
-      url = "http://google.com"
-      url = "http://google.com/404"
-      url = "http://irclogs.nim-lang.org/packages.json"
-      url = "http://nim-lang.org/nimble/packages.json"
-      url = "https://github.com/nim-lang/packages/raw/master/packages.json"
-    """.unindent)
-
-    let (output, exitCode) = execNimble(["refresh", "--verbose"])
+suite "nimble refresh":
+  test "can refresh with default urls":
+    let (output, exitCode) = execNimble(["refresh"])
     checkpoint(output)
-    let lines = output.strip.processOutput()
-    check exitCode == QuitSuccess
-    check inLines(lines, "config file at")
-    check inLines(lines, "official package list")
-    check inLines(lines, "http://google.com")
-    check inLines(lines, "packages.json file is invalid")
-    check inLines(lines, "404 not found")
-    check inLines(lines, "Package list downloaded.")
-
-test "can refresh with local package list":
-  testRefresh():
-    writeFile(configFile, """
-      [PackageList]
-      name = "local"
-      path = "$1"
-    """.unindent % (getCurrentDir() / "issue368" / "packages.json").replace("\\", "\\\\"))
-    let (output, exitCode) = execNimble(["refresh", "--verbose"])
-    let lines = output.strip.processOutput()
-    check inLines(lines, "config file at")
-    check inLines(lines, "Copying")
-    check inLines(lines, "Package list copied.")
     check exitCode == QuitSuccess
 
-test "package list source required":
-  testRefresh():
-    writeFile(configFile, """
-      [PackageList]
-      name = "local"
-    """)
-    let (output, exitCode) = execNimble(["refresh", "--verbose"])
-    let lines = output.strip.processOutput()
-    check inLines(lines, "config file at")
-    check inLines(lines, "Package list 'local' requires either url or path")
-    check exitCode == QuitFailure
+  test "can refresh with custom urls":
+    testRefresh():
+      writeFile(configFile, """
+        [PackageList]
+        name = "official"
+        url = "http://google.com"
+        url = "http://google.com/404"
+        url = "http://irclogs.nim-lang.org/packages.json"
+        url = "http://nim-lang.org/nimble/packages.json"
+        url = "https://github.com/nim-lang/packages/raw/master/packages.json"
+      """.unindent)
 
-test "package list can only have one source":
-  testRefresh():
-    writeFile(configFile, """
-      [PackageList]
-      name = "local"
-      path = "$1"
-      url = "http://nim-lang.org/nimble/packages.json"
-    """)
-    let (output, exitCode) = execNimble(["refresh", "--verbose"])
-    let lines = output.strip.processOutput()
-    check inLines(lines, "config file at")
-    check inLines(lines, "Attempted to specify `url` and `path` for the same package list 'local'")
-    check exitCode == QuitFailure
+      let (output, exitCode) = execNimble(["refresh", "--verbose"])
+      checkpoint(output)
+      let lines = output.strip.processOutput()
+      check exitCode == QuitSuccess
+      check inLines(lines, "config file at")
+      check inLines(lines, "official package list")
+      check inLines(lines, "http://google.com")
+      check inLines(lines, "packages.json file is invalid")
+      check inLines(lines, "404 not found")
+      check inLines(lines, "Package list downloaded.")
+
+  test "can refresh with local package list":
+    testRefresh():
+      writeFile(configFile, """
+        [PackageList]
+        name = "local"
+        path = "$1"
+      """.unindent % (getCurrentDir() / "issue368" / "packages.json").replace("\\", "\\\\"))
+      let (output, exitCode) = execNimble(["refresh", "--verbose"])
+      let lines = output.strip.processOutput()
+      check inLines(lines, "config file at")
+      check inLines(lines, "Copying")
+      check inLines(lines, "Package list copied.")
+      check exitCode == QuitSuccess
+
+  test "package list source required":
+    testRefresh():
+      writeFile(configFile, """
+        [PackageList]
+        name = "local"
+      """)
+      let (output, exitCode) = execNimble(["refresh", "--verbose"])
+      let lines = output.strip.processOutput()
+      check inLines(lines, "config file at")
+      check inLines(lines, "Package list 'local' requires either url or path")
+      check exitCode == QuitFailure
+
+  test "package list can only have one source":
+    testRefresh():
+      writeFile(configFile, """
+        [PackageList]
+        name = "local"
+        path = "$1"
+        url = "http://nim-lang.org/nimble/packages.json"
+      """)
+      let (output, exitCode) = execNimble(["refresh", "--verbose"])
+      let lines = output.strip.processOutput()
+      check inLines(lines, "config file at")
+      check inLines(lines, "Attempted to specify `url` and `path` for the same package list 'local'")
+      check exitCode == QuitFailure
 
 suite "nimscript":
   test "can install nimscript package":
@@ -396,200 +258,106 @@ suite "nimscript":
       check exitCode == QuitSuccess
       check inLines(lines, "PKG_DIR: " & getCurrentDir())
 
-test "can install packagebin2":
-  let args = ["install", "-y", "https://github.com/nimble-test/packagebin2.git"]
-  check execNimble(args).exitCode == QuitSuccess
+  test "nimscript evaluation error message":
+    cd "invalidPackage":
+      var (output, exitCode) = execNimble("check")
+      let lines = output.strip.processOutput()
+      check(lines[^2].contains("undeclared identifier: 'thisFieldDoesNotExist'"))
+      check exitCode == QuitFailure
 
-test "can reject same version dependencies":
-  let (outp, exitCode) = execNimble(
-      "install", "-y", "https://github.com/nimble-test/packagebin.git")
-  # We look at the error output here to avoid out-of-order problems caused by
-  # stderr output being generated and flushed without first flushing stdout
-  let ls = outp.strip.processOutput()
-  check exitCode != QuitSuccess
-  check "Cannot satisfy the dependency on PackageA 0.2.0 and PackageA 0.5.0" in
-        ls[ls.len-1]
+  test "can accept short flags (#329)":
+    cd "nimscript":
+      check execNimble("c", "-d:release", "nimscript.nim").exitCode == QuitSuccess
 
-test "can update":
-  check execNimble("update").exitCode == QuitSuccess
+suite "uninstall":
+  test "can install packagebin2":
+    let args = ["install", "-y", "https://github.com/nimble-test/packagebin2.git"]
+    check execNimble(args).exitCode == QuitSuccess
 
-test "issue #27":
-  # Install b
-  cd "issue27/b":
-    check execNimble("install", "-y").exitCode == QuitSuccess
-
-  # Install a
-  cd "issue27/a":
-    check execNimble("install", "-y").exitCode == QuitSuccess
-
-  cd "issue27":
-    check execNimble("install", "-y").exitCode == QuitSuccess
-
-test "issue #126":
-  cd "issue126/a":
-    let (output, exitCode) = execNimble("install", "-y")
-    let lines = output.strip.processOutput()
-    check exitCode != QuitSuccess # TODO
-    check inLines(lines, "issue-126 is an invalid package name: cannot contain '-'")
-
-  cd "issue126/b":
-    let (output1, exitCode1) = execNimble("install", "-y")
-    let lines1 = output1.strip.processOutput()
-    check exitCode1 != QuitSuccess
-    check inLines(lines1, "The .nimble file name must match name specified inside")
-
-test "issue #108":
-  cd "issue108":
-    let (output, exitCode) = execNimble("build")
-    let lines = output.strip.processOutput()
-    check exitCode != QuitSuccess
-    check inLines(lines, "Nothing to build")
-
-test "issue #206":
-  cd "issue206":
-    var (output, exitCode) = execNimble("install", "-y")
-    check exitCode == QuitSuccess
-    (output, exitCode) = execNimble("install", "-y")
-    check exitCode == QuitSuccess
-
-test "issue #338":
-  cd "issue338":
-    check execNimble("install", "-y").exitCode == QuitSuccess
-
-test "issue #349":
-  let reservedNames = [
-    "CON",
-    "PRN",
-    "AUX",
-    "NUL",
-    "COM1",
-    "COM2",
-    "COM3",
-    "COM4",
-    "COM5",
-    "COM6",
-    "COM7",
-    "COM8",
-    "COM9",
-    "LPT1",
-    "LPT2",
-    "LPT3",
-    "LPT4",
-    "LPT5",
-    "LPT6",
-    "LPT7",
-    "LPT8",
-    "LPT9",
-  ]
-
-  proc checkName(name: string) =
-    let (outp, code) = execNimble("init", "-y", name)
-    let msg = outp.strip.processOutput()
-    check code == QuitFailure
-    check inLines(msg,
-      "\"$1\" is an invalid package name: reserved name" % name)
-    try:
-      removeFile(name.changeFileExt("nimble"))
-      removeDir("src")
-      removeDir("tests")
-    except OSError:
-      discard
-
-  for reserved in reservedNames:
-    checkName(reserved.toUpperAscii())
-    checkName(reserved.toLowerAscii())
-
-test "issue #428":
-  cd "issue428":
-    # Note: Can't use execNimble because it patches nimbleDir
-    check execCmdEx(nimblePath & " -y --nimbleDir=./nimbleDir install").exitCode == QuitSuccess
-    check dirExists("nimbleDir/pkgs/dummy-0.1.0")
-    check(not dirExists("nimbleDir/pkgs/dummy-0.1.0/nimbleDir"))
-
-test "can list":
-  check execNimble("list").exitCode == QuitSuccess
-
-  check execNimble("list", "-i").exitCode == QuitSuccess
-
-test "can uninstall":
-  block:
-    let (outp, exitCode) = execNimble("uninstall", "-y", "issue27b")
-
+  test "can reject same version dependencies":
+    let (outp, exitCode) = execNimble(
+        "install", "-y", "https://github.com/nimble-test/packagebin.git")
+    # We look at the error output here to avoid out-of-order problems caused by
+    # stderr output being generated and flushed without first flushing stdout
     let ls = outp.strip.processOutput()
     check exitCode != QuitSuccess
-    check inLines(ls, "Cannot uninstall issue27b (0.1.0) because issue27a (0.1.0) depends")
+    check "Cannot satisfy the dependency on PackageA 0.2.0 and PackageA 0.5.0" in
+          ls[ls.len-1]
 
-    check execNimble("uninstall", "-y", "issue27").exitCode == QuitSuccess
-    check execNimble("uninstall", "-y", "issue27a").exitCode == QuitSuccess
+  test "issue #27":
+    # Install b
+    cd "issue27/b":
+      check execNimble("install", "-y").exitCode == QuitSuccess
 
-  # Remove Package*
-  check execNimble("uninstall", "-y", "PackageA@0.5").exitCode == QuitSuccess
+    # Install a
+    cd "issue27/a":
+      check execNimble("install", "-y").exitCode == QuitSuccess
 
-  let (outp, exitCode) = execNimble("uninstall", "-y", "PackageA")
-  check exitCode != QuitSuccess
-  let ls = outp.processOutput()
-  check inLines(ls, "Cannot uninstall PackageA (0.2.0)")
-  check inLines(ls, "Cannot uninstall PackageA (0.6.0)")
-  check execNimble("uninstall", "-y", "PackageBin2").exitCode == QuitSuccess
+    cd "issue27":
+      check execNimble("install", "-y").exitCode == QuitSuccess
 
-  # Case insensitive
-  check execNimble("uninstall", "-y", "packagea").exitCode == QuitSuccess
-  check execNimble("uninstall", "-y", "PackageA").exitCode != QuitSuccess
+  test "can uninstall":
+    block:
+      let (outp, exitCode) = execNimble("uninstall", "-y", "issue27b")
 
-  # Remove the rest of the installed packages.
-  check execNimble("uninstall", "-y", "PackageB").exitCode == QuitSuccess
+      let ls = outp.strip.processOutput()
+      check exitCode != QuitSuccess
+      check inLines(ls, "Cannot uninstall issue27b (0.1.0) because issue27a (0.1.0) depends")
 
-  check execNimble("uninstall", "-y", "PackageA@0.2", "issue27b").exitCode ==
-      QuitSuccess
-  check(not dirExists(installDir / "pkgs" / "PackageA-0.2.0"))
+      check execNimble("uninstall", "-y", "issue27").exitCode == QuitSuccess
+      check execNimble("uninstall", "-y", "issue27a").exitCode == QuitSuccess
 
-  check execNimble("uninstall", "-y", "nimscript").exitCode == QuitSuccess
+    # Remove Package*
+    check execNimble("uninstall", "-y", "PackageA@0.5").exitCode == QuitSuccess
 
-test "can dump for current project":
-  cd "testdump":
-    let (outp, exitCode) = execNimble("dump")
-    check: exitCode == 0
-    check: outp.processOutput.inLines("desc: \"Test package for dump command\"")
+    let (outp, exitCode) = execNimble("uninstall", "-y", "PackageA")
+    check exitCode != QuitSuccess
+    let ls = outp.processOutput()
+    check inLines(ls, "Cannot uninstall PackageA (0.2.0)")
+    check inLines(ls, "Cannot uninstall PackageA (0.6.0)")
+    check execNimble("uninstall", "-y", "PackageBin2").exitCode == QuitSuccess
 
-test "can dump for project directory":
-  let (outp, exitCode) = execNimble("dump", "testdump")
-  check: exitCode == 0
-  check: outp.processOutput.inLines("desc: \"Test package for dump command\"")
+    # Case insensitive
+    check execNimble("uninstall", "-y", "packagea").exitCode == QuitSuccess
+    check execNimble("uninstall", "-y", "PackageA").exitCode != QuitSuccess
 
-test "can dump for project file":
-  let (outp, exitCode) = execNimble("dump", "testdump" / "testdump.nimble")
-  check: exitCode == 0
-  check: outp.processOutput.inLines("desc: \"Test package for dump command\"")
+    # Remove the rest of the installed packages.
+    check execNimble("uninstall", "-y", "PackageB").exitCode == QuitSuccess
 
-test "can dump for installed package":
-  cd "testdump":
-    check: execNimble("install", "-y").exitCode == 0
-  defer:
-    discard execNimble("remove", "-y", "testdump")
+    check execNimble("uninstall", "-y", "PackageA@0.2", "issue27b").exitCode ==
+        QuitSuccess
+    check(not dirExists(installDir / "pkgs" / "PackageA-0.2.0"))
 
-  # Otherwise we might find subdirectory instead
-  cd "..":
+    check execNimble("uninstall", "-y", "nimscript").exitCode == QuitSuccess
+
+suite "nimble dump":
+  test "can dump for current project":
+    cd "testdump":
+      let (outp, exitCode) = execNimble("dump")
+      check: exitCode == 0
+      check: outp.processOutput.inLines("desc: \"Test package for dump command\"")
+
+  test "can dump for project directory":
     let (outp, exitCode) = execNimble("dump", "testdump")
     check: exitCode == 0
     check: outp.processOutput.inLines("desc: \"Test package for dump command\"")
 
-test "can install diamond deps (#184)":
-  cd "diamond_deps":
-    cd "d":
-      check execNimble("install", "-y").exitCode == 0
-    cd "c":
-      check execNimble("install", "-y").exitCode == 0
-    cd "b":
-      check execNimble("install", "-y").exitCode == 0
-    cd "a":
-      # TODO: This doesn't really test anything. But I couldn't quite
-      # reproduce #184.
-      let (output, exitCode) = execNimble("install", "-y")
-      checkpoint(output)
-      check exitCode == 0
+  test "can dump for project file":
+    let (outp, exitCode) = execNimble("dump", "testdump" / "testdump.nimble")
+    check: exitCode == 0
+    check: outp.processOutput.inLines("desc: \"Test package for dump command\"")
 
-test "issues #280 and #524":
-  check execNimble("install", "-y", "https://github.com/nimble-test/issue280and524.git").exitCode == 0
+  test "can dump for installed package":
+    cd "testdump":
+      check: execNimble("install", "-y").exitCode == 0
+    defer:
+      discard execNimble("remove", "-y", "testdump")
+
+    # Otherwise we might find subdirectory instead
+    cd "..":
+      let (outp, exitCode) = execNimble("dump", "testdump")
+      check: exitCode == 0
+      check: outp.processOutput.inLines("desc: \"Test package for dump command\"")
 
 suite "can handle two binary versions":
   setup:
@@ -626,21 +394,6 @@ suite "can handle two binary versions":
       execCmdEx(cmd)
     check exitCode == QuitSuccess
     check output.strip() == "v2"
-
-test "can pass args with spaces to Nim (#351)":
-  cd "binaryPackage/v2":
-    let (output, exitCode) = execCmdEx(nimblePath &
-                                       " c -r" &
-                                       " -d:myVar=\"string with spaces\"" &
-                                       " binaryPackage")
-    checkpoint output
-    check exitCode == QuitSuccess
-
-test "error if `bin` is a source file (#597)":
-  cd "issue597":
-    var (output, exitCode) = execNimble("build")
-    check exitCode != QuitSuccess
-    check output.contains("entry should not be a source file: test.nim")
 
 suite "reverse dependencies":
   test "basic test":
@@ -685,6 +438,20 @@ suite "reverse dependencies":
       verify execNimbleYes("install")
 
     verify execNimbleYes("remove", "mydep")
+
+  test "remove skips packages with revDeps (#504)":
+    check execNimble("install", "nimboost@0.5.5", "nimfp@0.4.4", "-y").exitCode == QuitSuccess
+
+    var (output, exitCode) = execNimble("uninstall", "nimboost", "nimfp", "-n")
+    var lines = output.strip.processOutput()
+    check inLines(lines, "Cannot uninstall nimboost")
+
+    (output, exitCode) = execNimble("uninstall", "nimfp", "nimboost", "-y")
+    lines = output.strip.processOutput()
+    check (not inLines(lines, "Cannot uninstall nimboost"))
+
+    check execNimble("path", "nimboost").exitCode != QuitSuccess
+    check execNimble("path", "nimfp").exitCode != QuitSuccess
 
 suite "develop feature":
   test "can reject binary packages":
@@ -759,7 +526,6 @@ suite "develop feature":
       check exitCode == QuitSuccess
       check output.strip() == getCurrentDir() / "src"
 
-suite "path command":
   test "can get correct path for srcDir (#531)":
     check execNimble("uninstall", "srcdirtest", "-y").exitCode == QuitSuccess
     cd "develop/srcdirtest":
@@ -874,56 +640,6 @@ suite "Module tests":
     cd "..":
       check execCmdEx("nim c -r src/nimblepkg/download").exitCode == QuitSuccess
 
-test "init does not overwrite existing files (#581)":
-  createDir("issue581/src")
-  cd "issue581":
-    const Src = "echo \"OK\""
-    writeFile("src/issue581.nim", Src)
-    check execNimbleYes("init").exitCode == QuitSuccess
-    check readFile("src/issue581.nim") == Src
-  removeDir("issue581")
-
-test "remove skips packages with revDeps (#504)":
-  check execNimble("install", "nimboost@0.5.5", "nimfp@0.4.4", "-y").exitCode == QuitSuccess
-
-  var (output, exitCode) = execNimble("uninstall", "nimboost", "nimfp", "-n")
-  var lines = output.strip.processOutput()
-  check inLines(lines, "Cannot uninstall nimboost")
-
-  (output, exitCode) = execNimble("uninstall", "nimfp", "nimboost", "-y")
-  lines = output.strip.processOutput()
-  check (not inLines(lines, "Cannot uninstall nimboost"))
-
-  check execNimble("path", "nimboost").exitCode != QuitSuccess
-  check execNimble("path", "nimfp").exitCode != QuitSuccess
-
-test "pass options to the compiler with `nimble install`":
-  cd "passNimFlags":
-    check execNimble("install", "--passNim:-d:passNimIsWorking").exitCode == QuitSuccess
-
-test "do not install single dependency multiple times (#678)":
-  # for the test to be correct, the tested package and its dependencies must not
-  # exist in the local cache
-  removeDir("nimbleDir")
-  cd "issue678":
-    testRefresh():
-      writeFile(configFile, """
-        [PackageList]
-        name = "local"
-        path = "$1"
-      """.unindent % (getCurrentDir() / "packages.json").replace("\\", "\\\\"))
-      check execNimble(["refresh"]).exitCode == QuitSuccess
-      let (output, exitCode) = execNimble("install", "-y")
-      check exitCode == QuitSuccess
-      let index = output.find("issue678_dependency_1@0.1.0 already exists")
-      check index == stringNotFound
-
-test "Passing command line arguments to a task (#633)":
-  cd "issue633":
-    var (output, exitCode) = execNimble("testTask", "--testTask")
-    check exitCode == QuitSuccess
-    check output.contains("Got it")
-
 suite "nimble run":
   test "Invalid binary":
     cd "run":
@@ -993,99 +709,103 @@ suite "nimble run":
         """Testing `nimble run`: @["\"", "\'", "\t", "arg with spaces"]"""
       )
 
-
-test "NimbleVersion is defined":
-  cd "nimbleVersionDefine":
-    var (output, exitCode) = execNimble("c", "-r", "src/nimbleVersionDefine.nim")
-    check output.contains("0.1.0")
+suite "misc tests":
+  test "depsOnly + flag order test":
+    var (output, exitCode) = execNimble(
+      "--depsOnly", "install", "-y", "https://github.com/nimble-test/packagebin2"
+    )
+    check(not output.contains("Success: packagebin2 installed successfully."))
     check exitCode == QuitSuccess
 
-    var (output2, exitCode2) = execNimble("run", "nimbleVersionDefine")
-    check output2.contains("0.1.0")
-    check exitCode2 == QuitSuccess
+  test "caching of nims and ini detects changes":
+    cd "caching":
+      var (output, exitCode) = execNimble("dump")
+      check output.contains("0.1.0")
+      let
+        nfile = "caching.nimble"
+      writeFile(nfile, readFile(nfile).replace("0.1.0", "0.2.0"))
+      (output, exitCode) = execNimble("dump")
+      check output.contains("0.2.0")
+      writeFile(nfile, readFile(nfile).replace("0.2.0", "0.1.0"))
 
-test "issue 432":
-  cd "issue432":
-    check execNimble("install", "-y", "--depsOnly").exitCode == QuitSuccess
-    check execNimble("install", "-y", "--depsOnly").exitCode == QuitSuccess
+  test "tasks can be called recursively":
+    cd "recursive":
+      check execNimble("recurse").exitCode == QuitSuccess
 
-test "issue 727":
-  cd "issue727":
-    var (output, exitCode) = execNimble("c", "-y", "src/abc")
-    check exitCode == QuitSuccess
-    check fileExists("src/abc".addFileExt(ExeExt))
-    check not fileExists("src/def".addFileExt(ExeExt))
+  test "picks #head when looking for packages":
+    cd "versionClashes" / "aporiaScenario":
+      let (output, exitCode) = execNimble("install", "-y", "--verbose")
+      checkpoint output
+      check exitCode == QuitSuccess
+      check execNimble("remove", "aporiascenario", "-y").exitCode == QuitSuccess
+      check execNimble("remove", "packagea", "-y").exitCode == QuitSuccess
 
-    (output, exitCode) = execNimble("uninstall", "-i", "-y", "timezones")
-    check exitCode == QuitSuccess
+  test "pass options to the compiler with `nimble install`":
+    cd "passNimFlags":
+      check execNimble("install", "--passNim:-d:passNimIsWorking").exitCode == QuitSuccess
 
-    (output, exitCode) = execNimble("run", "-y", "def")
-    check exitCode == QuitSuccess
-    check output.contains("def727")
-    check not fileExists("abc".addFileExt(ExeExt))
-    check fileExists("def".addFileExt(ExeExt))
+  test "NimbleVersion is defined":
+    cd "nimbleVersionDefine":
+      var (output, exitCode) = execNimble("c", "-r", "src/nimbleVersionDefine.nim")
+      check output.contains("0.1.0")
+      check exitCode == QuitSuccess
 
-    (output, exitCode) = execNimble("uninstall", "-i", "-y", "timezones")
-    check exitCode == QuitSuccess
+      var (output2, exitCode2) = execNimble("run", "nimbleVersionDefine")
+      check output2.contains("0.1.0")
+      check exitCode2 == QuitSuccess
 
-test "issue 801":
-  cd "issue801":
-    var (output, exitCode) = execNimble("test", "-y")
-    check exitCode == QuitSuccess
-
-    # Verify hooks work
-    check output.contains("before test")
-    check output.contains("after test")
-
-test "issue 793":
-  cd "issue793":
-    var (output, exitCode) = execNimble("build")
-    check exitCode == QuitSuccess
-    check output.contains("before build")
-    check output.contains("after build")
-
-    # Issue 776
-    (output, exitCode) = execNimble("doc", "src/issue793")
-    check output.contains("before doc")
-    check output.contains("after doc")
-
-test "compilation without warnings":
-  const buildDir = "./buildDir/"
-  const filesToBuild = [
-    "../src/nimble.nim",
-    "../src/nimblepkg/nimscriptapi.nim",
-    "./tester.nim",
-    ]
-
-  proc execBuild(fileName: string): tuple[output: string, exitCode: int] =
-    result = execCmdEx(
-      fmt"nim c -o:{buildDir/fileName.splitFile.name} {fileName}")
-
-  proc checkOutput(output: string): uint =
-    const warningsToCheck = [
-      "[UnusedImport]",
-      "[Deprecated]",
-      "[XDeclaredButNotUsed]",
+  test "compilation without warnings":
+    const buildDir = "./buildDir/"
+    const filesToBuild = [
+      "../src/nimble.nim",
+      "../src/nimblepkg/nimscriptapi.nim",
+      "./tester.nim",
       ]
 
-    for line in output.splitLines():
-      for warning in warningsToCheck:
-        if line.find(warning) != stringNotFound:
-          once: checkpoint("Detected warnings:")
-          checkpoint(line)
-          inc(result)
+    proc execBuild(fileName: string): tuple[output: string, exitCode: int] =
+      result = execCmdEx(
+        fmt"nim c -o:{buildDir/fileName.splitFile.name} {fileName}")
 
-  removeDir(buildDir)
+    proc checkOutput(output: string): uint =
+      const warningsToCheck = [
+        "[UnusedImport]",
+        "[Deprecated]",
+        "[XDeclaredButNotUsed]",
+        ]
 
-  var linesWithWarningsCount: uint = 0
-  for file in filesToBuild:
-    let (output, exitCode) = execBuild(file)
-    check exitCode == QuitSuccess
-    linesWithWarningsCount += checkOutput(output)
-  check linesWithWarningsCount == 0
+      for line in output.splitLines():
+        for warning in warningsToCheck:
+          if line.find(warning) != stringNotFound:
+            once: checkpoint("Detected warnings:")
+            checkpoint(line)
+            inc(result)
 
+    removeDir(buildDir)
 
-suite "Package Installation":
+    var linesWithWarningsCount: uint = 0
+    for file in filesToBuild:
+      let (output, exitCode) = execBuild(file)
+      check exitCode == QuitSuccess
+      linesWithWarningsCount += checkOutput(output)
+    check linesWithWarningsCount == 0
+
+  test "can update":
+    check execNimble("update").exitCode == QuitSuccess
+
+  test "can list":
+    check execNimble("list").exitCode == QuitSuccess
+
+    check execNimble("list", "-i").exitCode == QuitSuccess
+
+suite "issues":
+  test "issue 801":
+    cd "issue801":
+      var (output, exitCode) = execNimble("test", "-y")
+      check exitCode == QuitSuccess
+
+      # Verify hooks work
+      check output.contains("before test")
+      check output.contains("after test")
 
   # When building, any newly installed packages should be referenced via the path that they get permanently installed at.
   test "issue799":
@@ -1098,3 +818,280 @@ suite "Package Installation":
         if build_line.contains("issue799"):
           let pkg_installed_path = "--path:\"" & installDir / "pkgs" / "nimble-#head" & "\""
           check build_line.contains(pkg_installed_path)
+
+  test "issue 793":
+    cd "issue793":
+      var (output, exitCode) = execNimble("build")
+      check exitCode == QuitSuccess
+      check output.contains("before build")
+      check output.contains("after build")
+
+      # Issue 776
+      (output, exitCode) = execNimble("doc", "src/issue793")
+      check output.contains("before doc")
+      check output.contains("after doc")
+
+  test "issue 727":
+    cd "issue727":
+      var (output, exitCode) = execNimble("c", "-y", "src/abc")
+      check exitCode == QuitSuccess
+      check fileExists("src/abc".addFileExt(ExeExt))
+      check not fileExists("src/def".addFileExt(ExeExt))
+
+      (output, exitCode) = execNimble("uninstall", "-i", "-y", "timezones")
+      check exitCode == QuitSuccess
+
+      (output, exitCode) = execNimble("run", "-y", "def")
+      check exitCode == QuitSuccess
+      check output.contains("def727")
+      check not fileExists("abc".addFileExt(ExeExt))
+      check fileExists("def".addFileExt(ExeExt))
+
+      (output, exitCode) = execNimble("uninstall", "-i", "-y", "timezones")
+      check exitCode == QuitSuccess
+
+  test "issue 708":
+    cd "issue708":
+      # TODO: We need a way to filter out compiler messages from the messages
+      # written by our nimble scripts.
+      var (output, exitCode) = execNimble("install", "-y", "--verbose")
+      check exitCode == QuitSuccess
+      let lines = output.strip.processOutput()
+      check(inLines(lines, "hello"))
+      check(inLines(lines, "hello2"))
+
+  test "do not install single dependency multiple times (#678)":
+    # for the test to be correct, the tested package and its dependencies must not
+    # exist in the local cache
+    removeDir("nimbleDir")
+    cd "issue678":
+      testRefresh():
+        writeFile(configFile, """
+          [PackageList]
+          name = "local"
+          path = "$1"
+        """.unindent % (getCurrentDir() / "packages.json").replace("\\", "\\\\"))
+        check execNimble(["refresh"]).exitCode == QuitSuccess
+        let (output, exitCode) = execNimble("install", "-y")
+        check exitCode == QuitSuccess
+        let index = output.find("issue678_dependency_1@0.1.0 already exists")
+        check index == stringNotFound
+
+  test "Passing command line arguments to a task (#633)":
+    cd "issue633":
+      var (output, exitCode) = execNimble("testTask", "--testTask")
+      check exitCode == QuitSuccess
+      check output.contains("Got it")
+
+  test "error if `bin` is a source file (#597)":
+    cd "issue597":
+      var (output, exitCode) = execNimble("build")
+      check exitCode != QuitSuccess
+      check output.contains("entry should not be a source file: test.nim")
+
+  test "init does not overwrite existing files (#581)":
+    createDir("issue581/src")
+    cd "issue581":
+      const Src = "echo \"OK\""
+      writeFile("src/issue581.nim", Src)
+      check execNimbleYes("init").exitCode == QuitSuccess
+      check readFile("src/issue581.nim") == Src
+    removeDir("issue581")
+
+  test "issue 564":
+    cd "issue564":
+      var (_, exitCode) = execNimble("build")
+      check exitCode == QuitSuccess
+
+  test "issues #280 and #524":
+    check execNimble("install", "-y", "https://github.com/nimble-test/issue280and524.git").exitCode == 0
+
+  test "issue 432":
+    cd "issue432":
+      check execNimble("install", "-y", "--depsOnly").exitCode == QuitSuccess
+      check execNimble("install", "-y", "--depsOnly").exitCode == QuitSuccess
+
+  test "issue #428":
+    cd "issue428":
+      # Note: Can't use execNimble because it patches nimbleDir
+      check execCmdEx(nimblePath & " -y --nimbleDir=./nimbleDir install").exitCode == QuitSuccess
+      check dirExists("nimbleDir/pkgs/dummy-0.1.0")
+      check(not dirExists("nimbleDir/pkgs/dummy-0.1.0/nimbleDir"))
+
+  test "can pass args with spaces to Nim (#351)":
+    cd "binaryPackage/v2":
+      let (output, exitCode) = execCmdEx(nimblePath &
+                                        " c -r" &
+                                        " -d:myVar=\"string with spaces\"" &
+                                        " binaryPackage")
+      checkpoint output
+      check exitCode == QuitSuccess
+
+  test "issue #349":
+    let reservedNames = [
+      "CON",
+      "PRN",
+      "AUX",
+      "NUL",
+      "COM1",
+      "COM2",
+      "COM3",
+      "COM4",
+      "COM5",
+      "COM6",
+      "COM7",
+      "COM8",
+      "COM9",
+      "LPT1",
+      "LPT2",
+      "LPT3",
+      "LPT4",
+      "LPT5",
+      "LPT6",
+      "LPT7",
+      "LPT8",
+      "LPT9",
+    ]
+
+    proc checkName(name: string) =
+      let (outp, code) = execNimble("init", "-y", name)
+      let msg = outp.strip.processOutput()
+      check code == QuitFailure
+      check inLines(msg,
+        "\"$1\" is an invalid package name: reserved name" % name)
+      try:
+        removeFile(name.changeFileExt("nimble"))
+        removeDir("src")
+        removeDir("tests")
+      except OSError:
+        discard
+
+    for reserved in reservedNames:
+      checkName(reserved.toUpperAscii())
+      checkName(reserved.toLowerAscii())
+
+  test "issue #338":
+    cd "issue338":
+      check execNimble("install", "-y").exitCode == QuitSuccess
+
+  test "can distinguish package reading in nimbleDir vs. other dirs (#304)":
+    cd "issue304" / "package-test":
+      check execNimble("tasks").exitCode == QuitSuccess
+
+  test "can build with #head and versioned package (#289)":
+    cd "issue289":
+      check execNimble(["install", "-y"]).exitCode == QuitSuccess
+
+    check execNimble(["uninstall", "issue289", "-y"]).exitCode == QuitSuccess
+    check execNimble(["uninstall", "packagea", "-y"]).exitCode == QuitSuccess
+
+  test "issue #206":
+    cd "issue206":
+      var (output, exitCode) = execNimble("install", "-y")
+      check exitCode == QuitSuccess
+      (output, exitCode) = execNimble("install", "-y")
+      check exitCode == QuitSuccess
+
+  test "can install diamond deps (#184)":
+    cd "diamond_deps":
+      cd "d":
+        check execNimble("install", "-y").exitCode == 0
+      cd "c":
+        check execNimble("install", "-y").exitCode == 0
+      cd "b":
+        check execNimble("install", "-y").exitCode == 0
+      cd "a":
+        # TODO: This doesn't really test anything. But I couldn't quite
+        # reproduce #184.
+        let (output, exitCode) = execNimble("install", "-y")
+        checkpoint(output)
+        check exitCode == 0
+
+  test "can validate package structure (#144)":
+    # Test that no warnings are produced for correctly structured packages.
+    for package in ["a", "b", "c", "validBinary", "softened"]:
+      cd "packageStructure/" & package:
+        let (output, exitCode) = execNimble(["install", "-y"])
+        check exitCode == QuitSuccess
+        let lines = output.strip.processOutput()
+        check(not lines.hasLineStartingWith("Warning:"))
+
+    # Test that warnings are produced for the incorrectly structured packages.
+    for package in ["x", "y", "z"]:
+      cd "packageStructure/" & package:
+        let (output, exitCode) = execNimble(["install", "-y"])
+        check exitCode == QuitSuccess
+        let lines = output.strip.processOutput()
+        checkpoint(output)
+        case package
+        of "x":
+          check lines.hasLineStartingWith(
+            "Warning: Package 'x' has an incorrect structure. It should" &
+            " contain a single directory hierarchy for source files," &
+            " named 'x', but file 'foobar.nim' is in a directory named" &
+            " 'incorrect' instead.")
+        of "y":
+          check lines.hasLineStartingWith(
+            "Warning: Package 'y' has an incorrect structure. It should" &
+            " contain a single directory hierarchy for source files," &
+            " named 'ypkg', but file 'foobar.nim' is in a directory named" &
+            " 'yWrong' instead.")
+        of "z":
+          check lines.hasLineStartingWith(
+            "Warning: Package 'z' has an incorrect structure. The top level" &
+            " of the package source directory should contain at most one module," &
+            " named 'z.nim', but a file named 'incorrect.nim' was found.")
+        else:
+          assert false
+
+  test "issue 129 (installing commit hash)":
+    let arguments = @["install", "-y",
+                    "https://github.com/nimble-test/packagea.git@#1f9cb289c89"]
+    check execNimble(arguments).exitCode == QuitSuccess
+    # Verify that it was installed correctly.
+    check dirExists(installDir / "pkgs" / "PackageA-#1f9cb289c89")
+    # Remove it so that it doesn't interfere with the uninstall tests.
+    check execNimble("uninstall", "-y", "packagea@#1f9cb289c89").exitCode ==
+          QuitSuccess
+
+  test "issue #126":
+    cd "issue126/a":
+      let (output, exitCode) = execNimble("install", "-y")
+      let lines = output.strip.processOutput()
+      check exitCode != QuitSuccess # TODO
+      check inLines(lines, "issue-126 is an invalid package name: cannot contain '-'")
+
+    cd "issue126/b":
+      let (output1, exitCode1) = execNimble("install", "-y")
+      let lines1 = output1.strip.processOutput()
+      check exitCode1 != QuitSuccess
+      check inLines(lines1, "The .nimble file name must match name specified inside")
+
+  test "issue 113 (uninstallation problems)":
+    cd "issue113/c":
+      check execNimble(["install", "-y"]).exitCode == QuitSuccess
+    cd "issue113/b":
+      check execNimble(["install", "-y"]).exitCode == QuitSuccess
+    cd "issue113/a":
+      check execNimble(["install", "-y"]).exitCode == QuitSuccess
+
+    # Try to remove c.
+    let (output, exitCode) = execNimble(["remove", "-y", "c"])
+    let lines = output.strip.processOutput()
+    check exitCode != QuitSuccess
+    check inLines(lines, "cannot uninstall c (0.1.0) because b (0.1.0) depends on it")
+
+    check execNimble(["remove", "-y", "a"]).exitCode == QuitSuccess
+    check execNimble(["remove", "-y", "b"]).exitCode == QuitSuccess
+
+    cd "issue113/buildfail":
+      check execNimble(["install", "-y"]).exitCode != QuitSuccess
+
+    check execNimble(["remove", "-y", "c"]).exitCode == QuitSuccess
+
+  test "issue #108":
+    cd "issue108":
+      let (output, exitCode) = execNimble("build")
+      let lines = output.strip.processOutput()
+      check exitCode != QuitSuccess
+      check inLines(lines, "Nothing to build")

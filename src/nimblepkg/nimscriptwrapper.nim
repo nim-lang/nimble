@@ -20,7 +20,6 @@ type
 
 const
   internalCmd = "e"
-  nimscriptApi = staticRead("nimscriptapi.nim")
   printPkgInfo = "printPkgInfo"
 
 proc isCustomTask(actionName: string, options: Options): bool =
@@ -59,10 +58,15 @@ proc execNimscript(
     if not isScriptResultCopied and options.shouldRemoveTmp(nimsFileCopied):
         nimsFileCopied.removeFile()
 
+  # Location of nimscriptapi
+  var nimblePath = getAppDir()
+  if dirExists(nimblePath / "src"):
+    nimblePath = nimblePath / "src"
+
   var cmd = (
     getNimBin() & " e $# --colors:on -p:$# $# $# $#" % [
       "--hints:off --verbosity:0",
-      getNimblecache().quoteShell,
+      nimblePath.quoteShell,
       nimsFileCopied.quoteShell,
       outFile.quoteShell,
       actionName
@@ -92,39 +96,31 @@ proc execNimscript(
       discard outFile.tryRemoveFile()
 
 proc getNimsFile(scriptName: string, options: Options): string =
+  # Create .nims and .ini file out of .nimble file in nimblecache
   let
+    nimbleLastModified = getAppFilename().getLastModificationTime()
     cacheDir = getNimblecache()
-    shash = $scriptName.parentDir().hash().abs()
+    shash = $(scriptName.parentDir() & $nimbleLastModified).hash().abs()
     prjCacheDir = cacheDir / scriptName.splitFile().name & "_" & shash
-    nimscriptApiFile = cacheDir / "nimscriptapi.nim"
-
-  result = prjCacheDir / scriptName.extractFilename().changeFileExt ".nims"
-
-  let
-    iniFile = result.changeFileExt(".ini")
-
-    isNimscriptApiCached =
-      nimscriptApiFile.fileExists() and nimscriptApiFile.getLastModificationTime() >
-      getAppFilename().getLastModificationTime()
+    nimsFile = prjCacheDir / scriptName.extractFilename().addFileExt("nims")
+    iniFile = nimsFile.changeFileExt("ini")
 
     isScriptResultCached =
-      isNimscriptApiCached and result.fileExists() and result.getLastModificationTime() >
+      nimsFile.fileExists() and nimsFile.getLastModificationTime() >
       scriptName.getLastModificationTime()
 
-  if not isNimscriptApiCached:
-    createDir(cacheDir)
-    writeFile(nimscriptApiFile, nimscriptApi)
-
   if not isScriptResultCached:
-    createDir(result.parentDir())
-    writeFile(result, """
+    createDir(nimsFile.parentDir())
+    writeFile(nimsFile, """
 import system except getCommand, setCommand, switch, `--`,
   packageName, version, author, description, license, srcDir, binDir, backend,
   skipDirs, skipFiles, skipExt, installDirs, installFiles, installExt, bin, foreignDeps,
   requires, task, packageName
 """ &
-      "import nimscriptapi, strutils\n" & scriptName.readFile() & "\nonExit()\n")
+      "import nimblepkg/nimscriptapi, strutils\n" & scriptName.readFile() & "\nonExit()\n")
     discard tryRemoveFile(iniFile)
+
+  result = nimsFile
 
 proc getIniFile*(scriptName: string, options: Options): string =
   let
