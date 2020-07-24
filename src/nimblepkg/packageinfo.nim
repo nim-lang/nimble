@@ -4,6 +4,7 @@
 # Stdlib imports
 import system except TResult
 import hashes, json, strutils, os, sets, tables, httpclient
+from net import SSLError
 
 # Local imports
 import version, tools, common, options, cli, config
@@ -202,6 +203,10 @@ proc fetchList*(list: PackageList, options: Options) =
         let ctx = newSSLContext(options.disableSslCertCheck)
         let client = newHttpClient(proxy = proxy, sslContext = ctx)
         client.downloadFile(url, tempPath)
+      except SslError:
+        let message = "Failed to verify the SSL certificate for " & url
+        raiseNimbleError(message, "Use --noSSLCheck to ignore this error.")
+
       except:
         let message = "Could not download: " & getCurrentExceptionMsg()
         display("Warning:", message, Warning)
