@@ -199,7 +199,8 @@ proc fetchList*(list: PackageList, options: Options) =
                 priority = LowPriority)
 
       try:
-        let client = newHttpClient(proxy = proxy)
+        let ctx = newSSLContext(options.disableSslCertCheck)
+        let client = newHttpClient(proxy = proxy, sslContext = ctx)
         client.downloadFile(url, tempPath)
       except:
         let message = "Could not download: " & getCurrentExceptionMsg()

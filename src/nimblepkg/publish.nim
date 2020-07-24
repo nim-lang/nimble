@@ -7,6 +7,7 @@
 import system except TResult
 import httpclient, strutils, json, os, browsers, times, uri
 import version, tools, common, cli, config, options
+from net import SslCVerifyMode, newContext
 
 type
   Auth = object
@@ -51,7 +52,8 @@ proc requestNewToken(cfg: Config): string =
 
 proc getGithubAuth(o: Options): Auth =
   let cfg = o.config
-  result.http = newHttpClient(proxy = getProxy(o))
+  let ctx = newSSLContext(o.disableSslCertCheck)
+  result.http = newHttpClient(proxy = getProxy(o), sslContext = ctx)
   # always prefer the environment variable to asking for a new one
   if existsEnv(ApiTokenEnvironmentVariable):
     result.token = getEnv(ApiTokenEnvironmentVariable)
