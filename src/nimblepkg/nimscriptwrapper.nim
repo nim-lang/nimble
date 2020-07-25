@@ -20,6 +20,7 @@ type
 
 const
   internalCmd = "e"
+  nimscriptApi = staticRead("nimscriptapi.nim")
   printPkgInfo = "printPkgInfo"
 
 proc isCustomTask(actionName: string, options: Options): bool =
@@ -58,15 +59,9 @@ proc execNimscript(
     if not isScriptResultCopied and options.shouldRemoveTmp(nimsFileCopied):
         nimsFileCopied.removeFile()
 
-  # Location of nimscriptapi
-  var nimblePath = getAppDir()
-  if dirExists(nimblePath / "src"):
-    nimblePath = nimblePath / "src"
-
   var cmd = (
-    getNimBin() & " e $# --colors:on -p:$# $# $# $#" % [
+    getNimBin() & " e $# --colors:on $# $# $#" % [
       "--hints:off --verbosity:0",
-      nimblePath.quoteShell,
       nimsFileCopied.quoteShell,
       outFile.quoteShell,
       actionName
@@ -98,26 +93,41 @@ proc execNimscript(
 proc getNimsFile(scriptName: string, options: Options): string =
   # Create .nims and .ini file out of .nimble file in nimblecache
   let
+    scriptName = scriptName.absolutePath()
+
     nimbleLastModified = getAppFilename().getLastModificationTime()
     cacheDir = getNimblecache()
-    shash = $(scriptName.parentDir() & $nimbleLastModified).hash().abs()
+
+    # nimscriptapi.nim caching
+    nhash = $($nimbleLastModified).hash().abs()
+    nimscriptApiFile = cacheDir / ("nimscriptapi_" & nhash).addFileExt("nim")
+
+    # .nims and .ini caching
+    shash = $(scriptName & $nimbleLastModified).hash().abs()
     prjCacheDir = cacheDir / scriptName.splitFile().name & "_" & shash
-    nimsFile = prjCacheDir / scriptName.extractFilename().addFileExt("nims")
+    nimsFile = prjCacheDir / scriptName.extractFilename().changeFileExt("nims")
     iniFile = nimsFile.changeFileExt("ini")
 
-    isScriptResultCached =
-      nimsFile.fileExists() and nimsFile.getLastModificationTime() >
-      scriptName.getLastModificationTime()
+  # Create nimscriptapi.nim unique to this version of nimble
+  if not fileExists(nimscriptApiFile):
+    createDir(cacheDir)
+    writeFile(nimscriptApiFile, nimscriptApi)
 
-  if not isScriptResultCached:
+  # Create .nims file contents
+  if not fileExists(nimsFile):
     createDir(nimsFile.parentDir())
     writeFile(nimsFile, """
 import system except getCommand, setCommand, switch, `--`,
   packageName, version, author, description, license, srcDir, binDir, backend,
   skipDirs, skipFiles, skipExt, installDirs, installFiles, installExt, bin, foreignDeps,
   requires, task, packageName
-""" &
-      "import nimblepkg/nimscriptapi, strutils\n" & scriptName.readFile() & "\nonExit()\n")
+
+import strutils
+import "$1"
+include "$2"
+
+onExit()
+""" % [nimscriptApiFile.replace("\\", "/"), scriptName.replace("\\", "/")])
     discard tryRemoveFile(iniFile)
 
   result = nimsFile
