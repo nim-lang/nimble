@@ -40,29 +40,16 @@ proc getNimblecache(): string =
   getTempDir() / "nimblecache-" & $getEnv("USER").hash().abs()
 
 proc execNimscript(
-  nimsFile, projectDir, actionName: string, options: Options, isHook: bool
+  nimbleFile, nimsFile, actionName: string, options: Options, isHook: bool
 ): tuple[output: string, exitCode: int, stdout: string] =
   let
-    nimsFileCopied = projectDir / nimsFile.splitFile().name & "_" & getProcessId() & ".nims"
     outFile = getNimbleTempDir() & ".out"
 
-  let
-    isScriptResultCopied =
-      nimsFileCopied.fileExists() and
-      nimsFileCopied.getLastModificationTime() >= nimsFile.getLastModificationTime()
-
-  if not isScriptResultCopied:
-    nimsFile.copyFile(nimsFileCopied)
-
-  defer:
-    # Only if copied in this invocation, allows recursive calls of nimble
-    if not isScriptResultCopied and options.shouldRemoveTmp(nimsFileCopied):
-        nimsFileCopied.removeFile()
-
   var cmd = (
-    getNimBin() & " e $# --colors:on $# $# $#" % [
+    getNimBin() & " e $# --colors:on $# $# $# $#" % [
       "--hints:off --verbosity:0",
-      nimsFileCopied.quoteShell,
+      nimsFile.quoteShell,
+      nimbleFile.quoteShell,
       outFile.quoteShell,
       actionName
     ]
@@ -145,7 +132,7 @@ proc getIniFile*(scriptName: string, options: Options): string =
 
   if not isIniResultCached:
     let (output, exitCode, stdout) = execNimscript(
-      nimsFile, scriptName.parentDir(), printPkgInfo, options, isHook=false
+      scriptName, nimsFile, printPkgInfo, options, isHook=false
     )
 
     if exitCode == 0 and output.len != 0:
@@ -161,7 +148,7 @@ proc execScript(
 
   let (output, exitCode, stdout) =
     execNimscript(
-      nimsFile, scriptName.parentDir(), actionName, options, isHook
+      scriptName, nimsFile, actionName, options, isHook
     )
 
   if exitCode != 0:
