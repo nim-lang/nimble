@@ -728,6 +728,14 @@ suite "misc tests":
       check output.contains("0.2.0")
       writeFile(nfile, readFile(nfile).replace("0.2.0", "0.1.0"))
 
+      # Verify cached .nims runs project dir specific commands correctly
+      (output, exitCode) = execNimble("testpath")
+      check exitCode == QuitSuccess
+      check output.contains("imported")
+      check output.contains("tests/caching")
+      check output.contains("copied")
+      check output.contains("removed")
+
   test "tasks can be called recursively":
     cd "recursive":
       check execNimble("recurse").exitCode == QuitSuccess
