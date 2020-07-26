@@ -104,7 +104,7 @@ proc getNimsFile(scriptName: string, options: Options): string =
   if not fileExists(nimsFile):
     createDir(nimsFile.parentDir())
     writeFile(nimsFile, """
-import system except getCommand, setCommand, switch, `--`,
+import system except getCommand, setCommand, switch, `--`, thisDir,
   packageName, version, author, description, license, srcDir, binDir, backend,
   skipDirs, skipFiles, skipExt, installDirs, installFiles, installExt, bin, foreignDeps,
   requires, task, packageName
