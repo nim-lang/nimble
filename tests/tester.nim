@@ -257,6 +257,7 @@ suite "nimscript":
       let lines = output.strip.processOutput()
       check exitCode == QuitSuccess
       check inLines(lines, "PKG_DIR: " & getCurrentDir())
+      check inLines(lines, "thisDir: " & getCurrentDir())
 
   test "nimscript evaluation error message":
     cd "invalidPackage":

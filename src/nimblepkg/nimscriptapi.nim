@@ -203,4 +203,6 @@ proc getPkgDir*(): string =
   ## being evaluated.
   result = projectFile.rsplit(seps={'/', '\\', ':'}, maxsplit=1)[0]
 
+proc thisDir*(): string = getPkgDir()
+
 getParams()
