@@ -44,7 +44,7 @@ when not defined(nimscript):
       foreignDeps*: seq[string]
 
     ## Same as quit(QuitSuccess), but allows cleanup.
-    NimbleQuit* = ref object of Exception
+    NimbleQuit* = ref object of CatchableError
 
   proc raiseNimbleError*(msg: string, hint = "") =
     var exc = newException(NimbleError, msg)

@@ -32,7 +32,7 @@ type
   PkgTuple* = tuple[name: string, ver: VersionRange]
 
   ParseVersionError* = object of ValueError
-  NimbleError* = object of Exception
+  NimbleError* = object of CatchableError
     hint*: string
 
 proc `$`*(ver: Version): string {.borrow.}
