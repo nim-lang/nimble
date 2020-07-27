@@ -233,10 +233,16 @@ proc buildFromDir(
     raise newException(NimbleError,
         "Nothing to build. Did you specify a module to build using the" &
         " `bin` key in your .nimble file?")
-  var args = args
-  let nimblePkgVersion = "-d:NimblePkgVersion=" & pkgInfo.version
-  for path in paths: args.add("--path:\"" & path & "\" ")
-  var binariesBuilt = 0
+  var
+    binariesBuilt = 0
+    args = args
+  args.add "-d:NimblePkgVersion=" & pkgInfo.version
+  for path in paths:
+    args.add("--path:" & path.quoteShell)
+  if options.verbosity >= HighPriority:
+    # Hide Nim hints by default
+    args.add("--hints:off")
+
   let binToBuild =
     # Only build binaries specified by user if any, but only if top-level package,
     # dependencies should have every binary built.
@@ -249,7 +255,7 @@ proc buildFromDir(
       if bin.extractFilename().changeFileExt("") != binToBuild:
         continue
 
-    let outputOpt = "-o:\"" & pkgInfo.getOutputDir(bin) & "\""
+    let outputOpt = "-o:" & pkgInfo.getOutputDir(bin).quoteShell
     display("Building", "$1/$2 using $3 backend" %
             [pkginfo.name, bin, pkgInfo.backend], priority = HighPriority)
 
@@ -260,18 +266,18 @@ proc buildFromDir(
     let input = realDir / bin.changeFileExt("nim")
     # `quoteShell` would be more robust than `\"` (and avoid quoting when
     # un-necessary) but would require changing `extractBin`
-    let cmd = "\"$#\" $# --colors:on --noNimblePath $# $# $# \"$#\"" %
-            [getNimBin(), pkgInfo.backend, nimblePkgVersion,
-             join(args, " "), outputOpt, input]
+    let cmd = "$# $# --colors:on --noNimblePath $# $# $#" % [
+      getNimBin().quoteShell, pkgInfo.backend, join(args, " "),
+      outputOpt, input.quoteShell]
     try:
-      doCmd(cmd, showCmd = true)
+      doCmd(cmd)
       binariesBuilt.inc()
     except NimbleError:
       let currentExc = (ref NimbleError)(getCurrentException())
       let exc = newException(BuildFailed, "Build failed for package: " &
                              pkgInfo.name)
       let (error, hint) = getOutputInfo(currentExc)
-      exc.msg.add("\nDetails:\n" & error)
+      exc.msg.add("\n" & error)
       exc.hint = hint
       raise exc
 
@@ -565,11 +571,14 @@ proc execBackend(pkgInfo: PackageInfo, options: Options) =
   if not execHook(options, options.action.typ, true):
     raise newException(NimbleError, "Pre-hook prevented further execution.")
 
-  let nimblePkgVersion = "-d:NimblePkgVersion=" & pkgInfo.version
-  var args = ""
-  for dep in deps: args.add("--path:\"" & dep.getRealDir() & "\" ")
+  var args = @["-d:NimblePkgVersion=" & pkgInfo.version]
+  for dep in deps:
+    args.add("--path:" & dep.getRealDir().quoteShell)
+  if options.verbosity >= HighPriority:
+    # Hide Nim hints by default
+    args.add("--hints:off")
   for option in options.getCompilationFlags():
-    args.add("\"" & option & "\" ")
+    args.add(option.quoteShell)
 
   let backend =
     if options.action.backend.len > 0:
@@ -583,8 +592,8 @@ proc execBackend(pkgInfo: PackageInfo, options: Options) =
   else:
     display("Generating", ("documentation for $1 (from package $2) using $3 " &
             "backend") % [bin, pkgInfo.name, backend], priority = HighPriority)
-  doCmd("\"" & getNimBin() & "\" $# --noNimblePath $# $# \"$#\"" %
-        [backend, nimblePkgVersion, args, bin], showOutput = true)
+  doCmd(getNimBin().quoteShell & " $# --noNimblePath $# $#" %
+        [backend, join(args, " "), bin.quoteShell])
   display("Success:", "Execution finished", Success, HighPriority)
 
   # Run the post hook for action if it exists

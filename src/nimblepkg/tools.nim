@@ -11,8 +11,10 @@ proc extractBin(cmd: string): string =
   else:
     return cmd.split(' ')[0]
 
-proc doCmd*(cmd: string, showOutput = false, showCmd = false) =
-  let bin = extractBin(cmd)
+proc doCmd*(cmd: string) =
+  let
+    bin = extractBin(cmd)
+    isNim = bin.extractFilename().startsWith("nim")
   if findExe(bin) == "":
     raise newException(NimbleError, "'" & bin & "' not in PATH.")
 
@@ -20,26 +22,23 @@ proc doCmd*(cmd: string, showOutput = false, showCmd = false) =
   stdout.flushFile()
   stderr.flushFile()
 
-  if showCmd:
+  if isNim:
+    # Show no command line and --hints:off output by default for calls
+    # to Nim, command line and standard output with --verbose.
     display("Executing", cmd, priority = MediumPriority)
+    let exitCode = execCmd(cmd)
+    if exitCode != QuitSuccess:
+      raise newException(NimbleError,
+        "Execution failed with exit code $1\nCommand: $2" %
+        [$exitCode, cmd])
   else:
     displayDebug("Executing", cmd)
-  if showOutput:
-    let exitCode = execCmd(cmd)
-    displayDebug("Finished", "with exit code " & $exitCode)
-    if exitCode != QuitSuccess:
-      raise newException(NimbleError,
-          "Execution failed with exit code $1\nCommand: $2" %
-          [$exitCode, cmd])
-  else:
     let (output, exitCode) = execCmdEx(cmd)
-    displayDebug("Finished", "with exit code " & $exitCode)
     displayDebug("Output", output)
-
     if exitCode != QuitSuccess:
       raise newException(NimbleError,
-          "Execution failed with exit code $1\nCommand: $2\nOutput: $3" %
-          [$exitCode, cmd, output])
+        "Execution failed with exit code $1\nCommand: $2\nOutput: $3" %
+        [$exitCode, cmd, output])
 
 proc doCmdEx*(cmd: string): tuple[output: TaintedString, exitCode: int] =
   let bin = extractBin(cmd)

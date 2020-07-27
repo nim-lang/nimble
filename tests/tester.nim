@@ -825,7 +825,7 @@ suite "issues":
       build_results.keepItIf(unindent(it).startsWith("Executing"))
       for build_line in build_results:
         if build_line.contains("issue799"):
-          let pkg_installed_path = "--path:\"" & installDir / "pkgs" / "nimble-#head" & "\""
+          let pkg_installed_path = "--path:" & (installDir / "pkgs" / "nimble-#head").quoteShell
           check build_line.contains(pkg_installed_path)
 
   test "issue 793":
