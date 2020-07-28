@@ -538,7 +538,7 @@ suite "develop feature":
 suite "test command":
   test "Runs passing unit tests":
     cd "testCommand/testsPass":
-      let (outp, exitCode) = execNimble("test")
+      let (outp, exitCode) = execNimble("test", "-d:CUSTOM") # Pass flags to test #757
       check exitCode == QuitSuccess
       check outp.processOutput.inLines("First test")
       check outp.processOutput.inLines("Second test")

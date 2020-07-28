@@ -4,7 +4,7 @@
 ## Implements the new configuration system for Nimble. Uses Nim as a
 ## scripting language.
 
-import hashes, json, os, strutils, tables, times, osproc, strtabs
+import hashes, json, os, strutils, tables, times, osproc
 
 import version, options, cli, tools
 
@@ -59,10 +59,7 @@ proc execNimscript(
   if isCustomTask:
     for i in options.action.arguments:
       cmd &= " " & i.quoteShell()
-    for key, val in options.action.flags.pairs():
-      cmd &= " $#$#" % [if key.len == 1: "-" else: "--", key]
-      if val.len != 0:
-        cmd &= ":" & val.quoteShell()
+    cmd &= " " & join(options.getCompilationFlags(), " ")
 
   displayDebug("Executing " & cmd)
 

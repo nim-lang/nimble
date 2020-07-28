@@ -1115,7 +1115,7 @@ proc test(options: Options) =
       optsCopy.action = Action(typ: actionCompile)
       optsCopy.action.file = file.path
       optsCopy.action.backend = pkgInfo.backend
-      optsCopy.getCompilationFlags() = @[]
+      optsCopy.getCompilationFlags() = options.getCompilationFlags()
       optsCopy.getCompilationFlags().add("-r")
       optsCopy.getCompilationFlags().add("--path:.")
       let

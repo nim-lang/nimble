@@ -1,7 +1,7 @@
 # Copyright (C) Dominik Picheta. All rights reserved.
 # BSD License. Look at license.txt for more info.
 
-import json, strutils, os, parseopt, strtabs, uri, tables, terminal
+import json, strutils, os, parseopt, uri, tables, terminal
 import sequtils, sugar
 import std/options as std_opt
 from httpclient import Proxy, newProxy
@@ -67,16 +67,16 @@ type
     of actionCustom:
       command*: string
       arguments*: seq[string]
-      flags*: StringTableRef
+      flags*: seq[string]
 
 const
   help* = """
-Usage: nimble COMMAND [opts]
+Usage: nimble [nimbleopts] COMMAND [cmdopts]
 
 Commands:
   install      [pkgname, ...]     Installs a list of packages.
-               [-d, --depsOnly]   Install only dependencies.
-               [-p, --passNim]    Forward specified flag to compiler.
+               [-d, --depsOnly]   Installs only dependencies of the package.
+               [opts, ...]        Passes options to the Nim compiler.
   develop      [pkgname, ...]     Clones a list of packages for development.
                                   Symlinks the cloned packages or any package
                                   in the current working directory.
@@ -85,32 +85,34 @@ Commands:
   init         [pkgname]          Initializes a new Nimble project in the
                                   current directory or if a name is provided a
                                   new directory of the same name.
-               --git
-               --hg               Create a git or hg repo in the new nimble project.
+               [--git, --hg]      Creates a git/hg repo in the new nimble project.
   publish                         Publishes a package on nim-lang/packages.
                                   The current working directory needs to be the
                                   toplevel directory of the Nimble package.
   uninstall    [pkgname, ...]     Uninstalls a list of packages.
-               [-i, --inclDeps]   Uninstall package and dependent package(s).
-  build        [opts, ...] [bin]  Builds a package.
+               [-i, --inclDeps]   Uninstalls package and dependent package(s).
+  build        [opts, ...] [bin]  Builds a package. Passes options to the Nim
+                                  compiler.
   run          [opts, ...] [bin]  Builds and runs a package.
                                   Binary needs to be specified after any
                                   compilation options if there are several
-                                  binaries defined, any flags after the binary
+                                  binaries defined. Any flags after the binary
                                   or -- arg are passed to the binary when it is run.
   c, cc, js    [opts, ...] f.nim  Builds a file inside a package. Passes options
                                   to the Nim compiler.
   test                            Compiles and executes tests
                [-c, --continue]   Don't stop execution on a failed test.
+               [opts, ...]        Passes options to the Nim compiler if not
+                                  a custom `test` task.
   doc, doc2    [opts, ...] f.nim  Builds documentation for a file inside a
                                   package. Passes options to the Nim compiler.
   refresh      [url]              Refreshes the package list. A package list URL
                                   can be optionally specified.
   search       pkg/tag            Searches for a specified package. Search is
                                   performed by tag and by name.
-               [--ver]            Query remote server for package version.
+               [--ver]            Queries remote server for package version.
   list                            Lists all packages.
-               [--ver]            Query remote server for package version.
+               [--ver]            Queries remote server for package version.
                [-i, --installed]  Lists all installed packages.
   tasks                           Lists the tasks specified in the Nimble
                                   package's Nimble file.
@@ -121,8 +123,7 @@ Commands:
                                   .nimble file, a project directory or
                                   the name of an installed package.
 
-
-Options:
+Nimble Options:
   -h, --help                      Print this help message.
   -v, --version                   Print version information.
   -y, --accept                    Accept all interactive prompts.
@@ -220,7 +221,7 @@ proc initAction*(options: var Options, key: string) =
   of actionCustom:
     options.action.command = key
     options.action.arguments = @[]
-    options.action.flags = newStringTable()
+    options.action.flags = @[]
   of actionPublish, actionList, actionTasks, actionCheck, actionRun,
      actionNil: discard
 
@@ -275,6 +276,11 @@ proc setRunOptions(result: var Options, key, val: string, isArg: bool) =
     result.action.runFile = some(key)
   else:
     result.action.runFlags.add(val)
+
+proc setCustomOptions(result: var Options, flag: string) =
+  # Set flags only if command is already set
+  if result.action.command.len != 0:
+    result.action.flags.add(flag)
 
 proc parseArgument*(key: string, result: var Options) =
   case result.action.typ
@@ -366,7 +372,10 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
     of "passnim", "p":
       result.action.passNimFlags.add(val)
     else:
-      wasFlagHandled = false
+      if not isGlobalFlag:
+        result.action.passNimFlags.add(getFlagString(kind, flag, val))
+      else:
+        wasFlagHandled = false
   of actionInit:
     case f
     of "git", "hg":
@@ -386,10 +395,11 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
     result.showHelp = false
     result.setRunOptions(flag, getFlagString(kind, flag, val), false)
   of actionCustom:
-    if result.action.command.normalize == "test":
-      if f == "continue" or f == "c":
+    if result.action.command.normalize == "test" and
+      f == "continue" or f == "c":
         result.continueTestsOnFailure = true
-    result.action.flags[flag] = val
+    elif not isGlobalFlag:
+      result.setCustomOptions(getFlagString(kind, flag, val))
   else:
     wasFlagHandled = false
 
@@ -517,6 +527,7 @@ proc briefClone*(options: Options): Options =
   newOptions.nimbleDir = options.nimbleDir
   newOptions.forcePrompts = options.forcePrompts
   newOptions.pkgInfoCache = options.pkgInfoCache
+  newOptions.verbosity = options.verbosity
   return newOptions
 
 proc shouldRemoveTmp*(options: Options, file: string): bool =
@@ -532,6 +543,8 @@ proc getCompilationFlags*(options: var Options): var seq[string] =
     return options.action.compileOptions
   of actionRun:
     return options.action.compileFlags
+  of actionCustom:
+    return options.action.flags
   else:
     assert false
 
