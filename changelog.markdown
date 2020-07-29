@@ -3,6 +3,39 @@
 
 # Nimble changelog
 
+## 0.11.6 - TBD
+
+This is a minor release containing just X commits. This release brings mostly
+bug fixes with some minor improvements:
+
+- `nimble dump` now provides `--json` output.
+- Calls to the Nim compiler now display `--hints:off` output by default.
+  The `--verbose` flag will print the full Nim command as well as regular
+  compiler output.
+- Custom tasks can now be passed compiler flags as well as run flags when run
+  as `nimble <compflags> task <runflags>`. This includes the custom `test`
+  task if defined. Compile flags are forwarded to `nim e` that executes the
+  `.nimble` task and can be used to set `--define:xxx` and other compiler flags
+  that are applicable in Nimscript mode. Run flags can be accessed per usual
+  from `commandLineParams: seq[string]`.
+- The default `nimble test` task also allows passing compiler flags but given
+  run flags are not really applicable for multiple test binaries, it allows
+  specifying compile flags before or after the `test` task.
+- `nimble install` also allows passing compiler flags similar to the default
+  `nimble test` and no longer requires the `--passNim` flag.
+
+----
+
+Full changelog: https://github.com/nim-lang/nimble/compare/v0.11.4...master
+
+## 0.11.4 - 19/05/2020
+
+This is a minor release containing just 2 commits and a few minor bug fixes.
+
+----
+
+Full changelog: https://github.com/nim-lang/nimble/compare/v0.11.2...v0.11.4
+
 ## 0.11.2 - 02/05/2020
 
 This is a minor release containing just 15 commits. This release brings mostly

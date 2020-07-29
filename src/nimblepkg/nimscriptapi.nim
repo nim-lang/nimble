@@ -34,7 +34,7 @@ var
   nimbleTasks: seq[string] = @[]
   beforeHooks: seq[string] = @[]
   afterHooks: seq[string] = @[]
-  commandLineParams: seq[string] = @[]
+  commandLineParams*: seq[string] = @[]
   flags: TableRef[string, seq[string]]
 
   command = "e"
@@ -44,6 +44,7 @@ var
   scriptFile = ""
   projectFile = ""
   outFile = ""
+  actionName = ""
 
 proc requires*(deps: varargs[string]) =
   ## Call this to set the list of requirements of your Nimble
@@ -63,8 +64,12 @@ proc getParams() =
         projectFile = param
       elif outFile.len == 0:
         outFile = param
+      elif actionName.len == 0:
+        actionName = param.normalize
       else:
-        commandLineParams.add param.normalize
+        commandLineParams.add param
+    else:
+      commandLineParams.add param
 
 proc getCommand*(): string =
   return command
@@ -128,7 +133,7 @@ proc printPkgInfo(): string =
     result &= &"requires: \"{requiresData.join(\", \")}\"\n"
 
 proc onExit*() =
-  if "printPkgInfo".normalize in commandLineParams:
+  if "printPkgInfo".normalize == actionName:
     if outFile.len != 0:
       writeFile(outFile, printPkgInfo())
   else:
@@ -167,10 +172,10 @@ template task*(name: untyped; description: string; body: untyped): untyped =
 
   nimbleTasks.add astToStr(name)
 
-  if commandLineParams.len == 0 or "help" in commandLineParams:
+  if actionName.len == 0 or actionName == "help":
     success = true
     echo(astToStr(name), "        ", description)
-  elif astToStr(name).normalize in commandLineParams:
+  elif actionName == astToStr(name).normalize:
     success = true
     `name Task`()
 
@@ -182,7 +187,7 @@ template before*(action: untyped, body: untyped): untyped =
 
   beforeHooks.add astToStr(action)
 
-  if (astToStr(action) & "Before").normalize in commandLineParams:
+  if (astToStr(action) & "Before").normalize == actionName:
     success = true
     retVal = `action Before`()
 
@@ -194,7 +199,7 @@ template after*(action: untyped, body: untyped): untyped =
 
   afterHooks.add astToStr(action)
 
-  if (astToStr(action) & "After").normalize in commandLineParams:
+  if (astToStr(action) & "After").normalize == actionName:
     success = true
     retVal = `action After`()
 

@@ -6,4 +6,6 @@ license       = "BSD"
 skipFiles = @["myTester.nim"]
 
 task test, "Custom tester":
-  exec "nim c -r myTester.nim"
+  when defined(CUSTOM):
+    exec "nim c -r myTester.nim"
+    echo commandLineParams.contains("--runflag")

@@ -182,9 +182,12 @@ The latter command will install a version which is greater than ``0.5``.
 
 If you don't specify a parameter and there is a ``package.nimble`` file in your
 current working directory then Nimble will install the package residing in
-the current working directory. This can be useful for developers who are testing
-locally their ``.nimble`` files before submitting them to the official package
+the current working directory. This can be useful for developers who are locally
+testing their ``.nimble`` files before submitting them to the official package
 list. See the [Creating Packages](#creating-packages) section for more info on this.
+
+Nim flags provided to `nimble install` will be forwarded to the compiler when
+building any binaries.
 
 #### Package URLs
 
@@ -238,6 +241,8 @@ their ``.nimble`` package. This command will build the package with default
 flags, i.e. a debug build which includes stack traces but no GDB debug
 information. The ``install`` command will build the package in release mode
 instead.
+
+Nim flags provided to `nimble build` will be forwarded to the compiler.
 
 ### nimble run
 
@@ -496,6 +501,18 @@ also return ``false`` from these blocks to stop further execution.
 The ``nimscriptapi.nim`` module specifies this and includes other definitions
 which are also useful. Take a look at it for more information.
 
+Tasks support two kinds of flags: `nimble <compflags> task <runflags>`. Compile
+flags are those specified before the task name and are forwarded to the Nim
+compiler that runs the `.nimble` task. This enables setting `--define:xxx`
+values that can be checked with `when defined(xxx)` in the task, and other
+compiler flags that are applicable in Nimscript mode. Run flags are those after
+the task name and are available as command line arguments to the task. They can
+be accessed per usual from `commandLineParams: seq[string]`.
+
+In order to forward compiler flags to `exec("nim ...")` calls executed within a
+custom task, the user needs to specify these flags as run flags which will then
+need to be manually accessed and forwarded in the task.
+
 ### Project structure
 
 For a package named "foobar", the recommended project structure is the following:
@@ -577,7 +594,9 @@ your ``tests`` directory with the following contents:
 ```
 
 Nimble offers a pre-defined ``test`` task which compiles and runs all files
-in the ``tests`` directory beginning with 't' in their filename.
+in the ``tests`` directory beginning with 't' in their filename. Nim flags
+provided to `nimble test` will be forwarded to the compiler when building
+the tests.
 
 You may wish to override this ``test`` task in your ``.nimble`` file. This
 is particularly useful when you have a single test suite program. Just add

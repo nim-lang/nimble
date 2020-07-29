@@ -538,7 +538,8 @@ suite "develop feature":
 suite "test command":
   test "Runs passing unit tests":
     cd "testCommand/testsPass":
-      let (outp, exitCode) = execNimble("test")
+      # Pass flags to test #726, #757
+      let (outp, exitCode) = execNimble("test", "-d:CUSTOM")
       check exitCode == QuitSuccess
       check outp.processOutput.inLines("First test")
       check outp.processOutput.inLines("Second test")
@@ -555,9 +556,10 @@ suite "test command":
 
   test "test command can be overriden":
     cd "testCommand/testOverride":
-      let (outp, exitCode) = execNimble("test")
+      let (outp, exitCode) = execNimble("-d:CUSTOM", "test", "--runflag")
       check exitCode == QuitSuccess
       check outp.processOutput.inLines("overriden")
+      check outp.processOutput.inLines("true")
 
   test "certain files are ignored":
     cd "testCommand/testsIgnore":
