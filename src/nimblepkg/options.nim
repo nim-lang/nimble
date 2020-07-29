@@ -67,7 +67,8 @@ type
     of actionCustom:
       command*: string
       arguments*: seq[string]
-      flags*: seq[string]
+      custCompileFlags*: seq[string]
+      custRunFlags*: seq[string]
 
 const
   help* = """
@@ -102,8 +103,7 @@ Commands:
                                   to the Nim compiler.
   test                            Compiles and executes tests
                [-c, --continue]   Don't stop execution on a failed test.
-               [opts, ...]        Passes options to the Nim compiler if not
-                                  a custom `test` task.
+               [opts, ...]        Passes options to the Nim compiler.
   doc, doc2    [opts, ...] f.nim  Builds documentation for a file inside a
                                   package. Passes options to the Nim compiler.
   refresh      [url]              Refreshes the package list. A package list URL
@@ -221,7 +221,8 @@ proc initAction*(options: var Options, key: string) =
   of actionCustom:
     options.action.command = key
     options.action.arguments = @[]
-    options.action.flags = @[]
+    options.action.custCompileFlags = @[]
+    options.action.custRunFlags = @[]
   of actionPublish, actionList, actionTasks, actionCheck, actionRun,
      actionNil: discard
 
@@ -276,11 +277,6 @@ proc setRunOptions(result: var Options, key, val: string, isArg: bool) =
     result.action.runFile = some(key)
   else:
     result.action.runFlags.add(val)
-
-proc setCustomOptions(result: var Options, flag: string) =
-  # Set flags only if command is already set
-  if result.action.command.len != 0:
-    result.action.flags.add(flag)
 
 proc parseArgument*(key: string, result: var Options) =
   case result.action.typ
@@ -399,7 +395,8 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
       f == "continue" or f == "c":
         result.continueTestsOnFailure = true
     elif not isGlobalFlag:
-      result.setCustomOptions(getFlagString(kind, flag, val))
+      # Set run flags for task
+      result.action.custRunFlags.add(getFlagString(kind, flag, val))
   else:
     wasFlagHandled = false
 
@@ -433,6 +430,12 @@ proc handleUnknownFlags(options: var Options) =
     # ActionRun uses flags that come before the command as compilation flags
     # and flags that come after as run flags.
     options.action.compileFlags =
+      map(options.unknownFlags, x => getFlagString(x[0], x[1], x[2]))
+    options.unknownFlags = @[]
+  elif options.action.typ == actionCustom:
+    # actionCustom uses flags that come before the command as compilation flags
+    # and flags that come after as run flags.
+    options.action.custCompileFlags =
       map(options.unknownFlags, x => getFlagString(x[0], x[1], x[2]))
     options.unknownFlags = @[]
   else:
@@ -544,7 +547,7 @@ proc getCompilationFlags*(options: var Options): var seq[string] =
   of actionRun:
     return options.action.compileFlags
   of actionCustom:
-    return options.action.flags
+    return options.action.custCompileFlags
   else:
     assert false
 

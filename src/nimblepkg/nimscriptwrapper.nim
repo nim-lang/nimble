@@ -44,10 +44,14 @@ proc execNimscript(
 ): tuple[output: string, exitCode: int, stdout: string] =
   let
     outFile = getNimbleTempDir() & ".out"
+    isCustomTask = isCustomTask(actionName, options)
+    compFlags = if isCustomTask: join(options.getCompilationFlags(), " ")
+      else: ""
 
   var cmd = (
-    getNimBin() & " e $# --colors:on $# $# $# $#" % [
+    getNimBin() & " e $# --colors:on $# $# $# $# $#" % [
       "--hints:off --verbosity:0",
+      compFlags,
       nimsFile.quoteShell,
       nimbleFile.quoteShell,
       outFile.quoteShell,
@@ -55,11 +59,10 @@ proc execNimscript(
     ]
   ).strip()
 
-  let isCustomTask = isCustomTask(actionName, options)
   if isCustomTask:
     for i in options.action.arguments:
       cmd &= " " & i.quoteShell()
-    cmd &= " " & join(options.getCompilationFlags(), " ")
+    cmd &= " " & join(options.action.custRunFlags, " ")
 
   displayDebug("Executing " & cmd)
 
