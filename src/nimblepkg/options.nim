@@ -391,11 +391,12 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
     result.showHelp = false
     result.setRunOptions(flag, getFlagString(kind, flag, val), false)
   of actionCustom:
-    if result.action.command.normalize == "test" and
-      f == "continue" or f == "c":
-        result.continueTestsOnFailure = true
-    elif not isGlobalFlag:
-      # Set run flags for task
+    if not isGlobalFlag:
+      if result.action.command.normalize == "test":
+        if f == "continue" or f == "c":
+          result.continueTestsOnFailure = true
+
+      # Set run flags for custom task
       result.action.custRunFlags.add(getFlagString(kind, flag, val))
   else:
     wasFlagHandled = false

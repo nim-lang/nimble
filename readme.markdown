@@ -501,12 +501,17 @@ also return ``false`` from these blocks to stop further execution.
 The ``nimscriptapi.nim`` module specifies this and includes other definitions
 which are also useful. Take a look at it for more information.
 
-Tasks support two kinds of flags: `nimble <compflags> task <runflags>`. Compile flags
-are those specified before the task name and are forwarded to the Nim compiler. This
-enables setting `--define:xxx` values that can be checked with `when defined(xxx)`
-and other compiler flags that are applicable in nimscript mode. Run flags are those
-after the task name and are available as command line arguments to the task. They can
+Tasks support two kinds of flags: `nimble <compflags> task <runflags>`. Compile
+flags are those specified before the task name and are forwarded to the Nim
+compiler that runs the `.nimble` task. This enables setting `--define:xxx`
+values that can be checked with `when defined(xxx)` in the task, and other
+compiler flags that are applicable in Nimscript mode. Run flags are those after
+the task name and are available as command line arguments to the task. They can
 be accessed per usual from `commandLineParams: seq[string]`.
+
+In order to forward compiler flags to `exec("nim ...")` calls executed within a
+custom task, the user needs to specify these flags as run flags which will then
+need to be manually accessed and forwarded in the task.
 
 ### Project structure
 

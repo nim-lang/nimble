@@ -14,10 +14,10 @@ bug fixes with some minor improvements:
   compiler output.
 - Custom tasks can now be passed compiler flags as well as run flags when run
   as `nimble <compflags> task <runflags>`. This includes the custom `test`
-  task if defined. Compile flags can be used to set `--define:xxx` values that
-  can be checked with `when defined(xxx)` and other compiler flags that are
-  applicable in nimscript mode. Run flags can be accessed per usual from
-  `commandLineParams: seq[string]`.
+  task if defined. Compile flags are forwarded to `nim e` that executes the
+  `.nimble` task and can be used to set `--define:xxx` and other compiler flags
+  that are applicable in Nimscript mode. Run flags can be accessed per usual
+  from `commandLineParams: seq[string]`.
 - The default `nimble test` task also allows passing compiler flags but given
   run flags are not really applicable for multiple test binaries, it allows
   specifying compile flags before or after the `test` task.
