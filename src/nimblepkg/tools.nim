@@ -3,7 +3,7 @@
 #
 # Various miscellaneous utility functions reside here.
 import osproc, pegs, strutils, os, uri, sets, json, parseutils
-import version, cli
+import version, cli, options
 
 proc extractBin(cmd: string): string =
   if cmd[0] == '"':
@@ -54,14 +54,8 @@ template cd*(dir: string, body: untyped) =
   body
   setCurrentDir(lastDir)
 
-proc getNimBin*: string =
-  result = "nim"
-  if findExe("nim") != "": result = findExe("nim")
-  elif findExe("nimrod") != "": result = findExe("nimrod")
-
-proc getNimrodVersion*: Version =
-  let nimBin = getNimBin()
-  let vOutput = doCmdEx('"' & nimBin & "\" -v").output
+proc getNimrodVersion*(options: Options): Version =
+  let vOutput = doCmdEx(options.nim.quoteShell & " -v").output
   var matches: array[0..MaxSubpatterns, string]
   if vOutput.find(peg"'Version'\s{(\d+\.)+\d}", matches) == -1:
     raise newException(NimbleError, "Couldn't find Nim version.")

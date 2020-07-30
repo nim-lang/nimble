@@ -49,7 +49,8 @@ proc execNimscript(
       else: ""
 
   var cmd = (
-    getNimBin() & " e $# --colors:on $# $# $# $# $#" % [
+    "$# e $# --colors:on $# $# $# $# $#" % [
+      options.nim.quoteShell,
       "--hints:off --verbosity:0",
       compFlags,
       nimsFile.quoteShell,

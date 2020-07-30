@@ -388,9 +388,6 @@ You can currently configure the following in this file:
   Nimble will also attempt to read the ``http_proxy`` and ``https_proxy``
   environment variables.
   **Default: ""**
-* ``nimLibPrefix`` - Specifies the Nim standard library prefix to help Nimble
-  find the Nim standard library.
-  **Default: ""**
 
 ## Creating Packages
 

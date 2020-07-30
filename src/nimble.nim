@@ -162,7 +162,7 @@ proc processDeps(pkginfo: PackageInfo, options: Options): seq[PackageInfo] =
   var reverseDeps: seq[tuple[name, version: string]] = @[]
   for dep in pkginfo.requires:
     if dep.name == "nimrod" or dep.name == "nim":
-      let nimVer = getNimrodVersion()
+      let nimVer = getNimrodVersion(options)
       if not withinRange(nimVer, dep.ver):
         let msg = "Unsatisfied dependency: " & dep.name & " (" & $dep.ver & ")"
         raise newException(NimbleError, msg)
@@ -267,7 +267,7 @@ proc buildFromDir(
     # `quoteShell` would be more robust than `\"` (and avoid quoting when
     # un-necessary) but would require changing `extractBin`
     let cmd = "$# $# --colors:on --noNimblePath $# $# $#" % [
-      getNimBin().quoteShell, pkgInfo.backend, join(args, " "),
+      options.nim.quoteShell, pkgInfo.backend, join(args, " "),
       outputOpt, input.quoteShell]
     try:
       doCmd(cmd)
@@ -592,7 +592,7 @@ proc execBackend(pkgInfo: PackageInfo, options: Options) =
   else:
     display("Generating", ("documentation for $1 (from package $2) using $3 " &
             "backend") % [bin, pkgInfo.name, backend], priority = HighPriority)
-  doCmd(getNimBin().quoteShell & " $# --noNimblePath $# $#" %
+  doCmd(options.nim.quoteShell & " $# --noNimblePath $# $#" %
         [backend, join(args, " "), bin.quoteShell])
   display("Success:", "Execution finished", Success, HighPriority)
 
@@ -897,7 +897,7 @@ Please specify a valid SPDX identifier.""",
     )
 
   # Ask for Nim dependency
-  let nimDepDef = getNimrodVersion()
+  let nimDepDef = getNimrodVersion(options)
   let pkgNimDep = promptCustom(options, "Lowest supported Nim version?",
     $nimDepDef)
   validateVersion(pkgNimDep)
@@ -1203,6 +1203,7 @@ proc doAction(options: var Options) =
     createDir(options.getNimbleDir())
   if not dirExists(options.getPkgsDir):
     createDir(options.getPkgsDir)
+  setNimBin(options)
 
   if options.action.typ in {actionTasks, actionRun, actionBuild, actionCompile}:
     # Implicitly disable package validation for these commands.
