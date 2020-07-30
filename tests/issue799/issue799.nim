@@ -1,7 +1,6 @@
 
 import nimblepkg/tools
-import nimblepkg/version
 
 when isMainModule:
-  let current_version = getNimrodVersion()
+  let current_version = doCmdEx("nim -v").output
   echo $current_version

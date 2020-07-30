@@ -174,11 +174,13 @@ suite "nimble refresh":
 suite "nimscript":
   test "can install nimscript package":
     cd "nimscript":
-      check execNimble(["install", "-y"]).exitCode == QuitSuccess
+      let
+        nim = findExe("nim").relativePath(base = getCurrentDir())
+      check execNimble(["install", "-y", "--nim:" & nim]).exitCode == QuitSuccess
 
   test "before/after install pkg dirs are correct":
     cd "nimscript":
-      let (output, exitCode) = execNimble(["install", "-y"])
+      let (output, exitCode) = execNimble(["install", "-y", "--nim:nim"])
       check exitCode == QuitSuccess
       check output.contains("Before build")
       check output.contains("After build")
@@ -190,7 +192,7 @@ suite "nimscript":
 
   test "before/after on build":
     cd "nimscript":
-      let (output, exitCode) = execNimble(["build"])
+      let (output, exitCode) = execNimble(["build", "--nim:" & findExe("nim")])
       check exitCode == QuitSuccess
       check output.contains("Before build")
       check output.contains("After build")
@@ -819,7 +821,7 @@ suite "issues":
       check output.contains("after test")
 
   # When building, any newly installed packages should be referenced via the path that they get permanently installed at.
-  test "issue799":
+  test "issue 799":
     cd "issue799":
       let (build_output, build_code) = execNimbleYes("--verbose", "build")
       check build_code == 0

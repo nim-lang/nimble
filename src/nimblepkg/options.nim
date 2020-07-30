@@ -34,6 +34,7 @@ type
     dumpMode*: DumpMode
     startDir*: string # Current directory on startup - is top level pkg dir for
                       # some commands, useful when processing deps
+    nim*: string # Nim compiler location
 
   ActionType* = enum
     actionNil, actionRefresh, actionInit, actionDump, actionPublish,
@@ -131,6 +132,7 @@ Nimble Options:
       --ver                       Query remote server for package version
                                   information when searching or listing packages
       --nimbleDir:dirname         Set the Nimble directory.
+      --nim:path                  Use specified path for Nim compiler
       --verbose                   Show all non-debug output.
       --debug                     Show all output including debug messages.
       --noColor                   Don't colorise output.
@@ -272,6 +274,39 @@ proc parseCommand*(key: string, result: var Options) =
   result.action = Action(typ: parseActionType(key))
   initAction(result, key)
 
+proc setNimBin*(options: var Options) =
+  # Find nim binary and set into options
+  if options.nim.len != 0:
+    # --nim:<path> takes priority...
+    if options.nim.splitPath().head.len == 0:
+      # Just filename, search in PATH - nim_temp shortcut
+      let pnim = findExe(options.nim)
+      if pnim.len != 0:
+        options.nim = pnim
+      else:
+        raise newException(NimbleError,
+          "Unable to find `$1` in $PATH" % options.nim)
+    elif not options.nim.isAbsolute():
+      # Relative path
+      options.nim = expandTilde(options.nim).absolutePath()
+
+    if not fileExists(options.nim):
+      raise newException(NimbleError, "Unable to find `$1`" % options.nim)
+  else:
+    # Search PATH
+    let pnim = findExe("nim")
+    if pnim.len != 0:
+      options.nim = pnim
+    else:
+      let pnimrod = findExe("nimrod")
+      if pnimrod.len != 0:
+        options.nim = pnimrod
+
+    if options.nim.len == 0:
+      # Nim not found in PATH
+      raise newException(NimbleError,
+        "Unable to find `nim` binary - add to $PATH or use `--nim`")
+
 proc setRunOptions(result: var Options, key, val: string, isArg: bool) =
   if result.action.runFile.isNone() and (isArg or val == "--"):
     result.action.runFile = some(key)
@@ -342,6 +377,7 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
   of "debug": result.verbosity = DebugPriority
   of "nocolor": result.noColor = true
   of "disablevalidation": result.disableValidation = true
+  of "nim": result.nim = val
   else: isGlobalFlag = false
 
   var wasFlagHandled = true
@@ -532,6 +568,7 @@ proc briefClone*(options: Options): Options =
   newOptions.forcePrompts = options.forcePrompts
   newOptions.pkgInfoCache = options.pkgInfoCache
   newOptions.verbosity = options.verbosity
+  newOptions.nim = options.nim
   return newOptions
 
 proc shouldRemoveTmp*(options: Options, file: string): bool =
