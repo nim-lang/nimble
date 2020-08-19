@@ -3,7 +3,7 @@
 
 # Nimble changelog
 
-## 0.11.6 - TBD
+## 0.12.0 - TBD
 
 This is a minor release containing just X commits. This release brings mostly
 bug fixes with some minor improvements:

@@ -13,6 +13,7 @@ Interested in learning **how to create a package**? Skip directly to that sectio
 - [Nimble usage](#nimble-usage)
   - [nimble refresh](#nimble-refresh)
   - [nimble install](#nimble-install)
+  - [nimble develop](#nimble-develop)
   - [nimble uninstall](#nimble-uninstall)
   - [nimble build](#nimble-build)
   - [nimble run](#nimble-run)
