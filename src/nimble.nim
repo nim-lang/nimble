@@ -400,7 +400,7 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
                   @[]
     buildFromDir(pkgInfo, paths, "-d:release" & flags, options)
 
-  # Don't copy artifacts if local deps mode and "installing" the top level package
+  # Don't copy artifacts if project local deps mode and "installing" the top level package
   if not (options.localdeps and options.isInstallingTopLevel(dir)):
     let pkgDestDir = pkgInfo.getPkgDest(options)
     if dirExists(pkgDestDir) and fileExists(pkgDestDir / "nimblemeta.json"):
@@ -473,7 +473,7 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
     # update package path to point to installed directory rather than the temp directory
     pkgInfo.myPath = dest
   else:
-    display("Warning:", "Skipped copy in local deps mode", Warning)
+    display("Warning:", "Skipped copy in project local deps mode", Warning)
 
   pkgInfo.isInstalled = true
 
@@ -1026,7 +1026,7 @@ proc developFromDir(dir: string, options: Options) =
   # Dependencies need to be processed before the creation of the pkg dir.
   discard processDeps(pkgInfo, options)
 
-  # Don't link if local deps mode and "developing" the top level package
+  # Don't link if project local deps mode and "developing" the top level package
   if not (options.localdeps and options.isInstallingTopLevel(dir)):
     # This is similar to the code in `installFromDir`, except that we
     # *consciously* not worry about the package's binaries.
@@ -1062,7 +1062,7 @@ proc developFromDir(dir: string, options: Options) =
     display("Success:", (pkgInfo.name & " linked successfully to '$1'.") %
             dir, Success, HighPriority)
   else:
-    display("Warning:", "Skipping link in local deps mode", Warning)
+    display("Warning:", "Skipping link in project local deps mode", Warning)
 
   # Execute the post-develop hook.
   cd dir:

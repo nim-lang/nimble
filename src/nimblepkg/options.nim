@@ -35,7 +35,7 @@ type
     startDir*: string # Current directory on startup - is top level pkg dir for
                       # some commands, useful when processing deps
     nim*: string # Nim compiler location
-    localdeps*: bool # True if local deps mode
+    localdeps*: bool # True if project local deps mode
 
   ActionType* = enum
     actionNil, actionRefresh, actionInit, actionDump, actionPublish,
@@ -263,13 +263,14 @@ proc setNimbleDir*(options: var Options) =
     let env = getEnv("NIMBLE_DIR")
     if env.len != 0:
       display("Warning:", "Using the environment variable: NIMBLE_DIR='" &
-                        env & "'", Warning, priority = HighPriority)
+              env & "'", Warning, priority = HighPriority)
       nimbleDir = env
     else:
-      # ...followed by local deps mode
+      # ...followed by project local deps mode
       let nimbledeps = "nimbledeps"
       if dirExists(nimbledeps):
-        display("Warning:", "Using local deps mode", Warning, priority = HighPriority)
+        display("Warning:", "Using project local deps mode", Warning,
+                priority = HighPriority)
         nimbleDir = nimbledeps
         options.localdeps = true
         propagate = true
@@ -278,6 +279,11 @@ proc setNimbleDir*(options: var Options) =
   if propagate:
     # Propagate custom nimbleDir to child processes
     putEnv("NIMBLE_DIR", options.nimbleDir)
+
+    # Add $nimbledeps/bin to PATH
+    let path = getEnv("PATH")
+    if options.nimbleDir notin path:
+      putEnv("PATH", options.nimbleDir / "bin" & PathSep & path)
 
 proc getNimbleDir*(options: Options): string =
   return options.nimbleDir

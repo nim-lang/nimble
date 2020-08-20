@@ -810,6 +810,15 @@ suite "misc tests":
 
     check execNimble("list", "-i").exitCode == QuitSuccess
 
+  test "project local deps mode":
+    cd "localdeps":
+      removeDir("nimbledeps")
+      createDir("nimbledeps")
+      var (output, exitCode) = execCmdEx(nimblePath & " install -y")
+      check exitCode == QuitSuccess
+      check output.contains("project local deps mode")
+      check output.contains("Succeeded")
+
 suite "issues":
   test "issue 801":
     cd "issue801":
