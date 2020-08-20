@@ -246,7 +246,7 @@ proc buildFromDir(
   let binToBuild =
     # Only build binaries specified by user if any, but only if top-level package,
     # dependencies should have every binary built.
-    if options.startDir == pkgInfo.myPath.parentDir():
+    if options.isInstallingTopLevel(pkgInfo.myPath.parentDir()):
       options.getCompilationBinary(pkgInfo).get("")
     else: ""
   for bin in pkgInfo.bin:
@@ -401,7 +401,7 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
     buildFromDir(pkgInfo, paths, "-d:release" & flags, options)
 
   # Don't copy artifacts if local deps mode and "installing" the top level package
-  if not (options.localdeps and options.startDir == dir):
+  if not (options.localdeps and options.isInstallingTopLevel(dir)):
     let pkgDestDir = pkgInfo.getPkgDest(options)
     if dirExists(pkgDestDir) and fileExists(pkgDestDir / "nimblemeta.json"):
       let msg = "$1@$2 already exists. Overwrite?" %
@@ -1027,7 +1027,7 @@ proc developFromDir(dir: string, options: Options) =
   discard processDeps(pkgInfo, options)
 
   # Don't link if local deps mode and "developing" the top level package
-  if not (options.localdeps and options.startDir == dir):
+  if not (options.localdeps and options.isInstallingTopLevel(dir)):
     # This is similar to the code in `installFromDir`, except that we
     # *consciously* not worry about the package's binaries.
     let pkgDestDir = pkgInfo.getPkgDest(options)

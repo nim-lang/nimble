@@ -251,10 +251,13 @@ proc promptList*(options: Options, question: string, args: openarray[string]): s
   return promptList(options.forcePrompts, question, args)
 
 proc setNimbleDir*(options: var Options) =
-  var nimbleDir = options.config.nimbleDir
+  var
+    nimbleDir = options.config.nimbleDir
+    propagate = false
   if options.nimbleDir.len != 0:
     # --nimbleDir:<dir> takes priority...
     nimbleDir = options.nimbleDir
+    propagate = true
   else:
     # ...followed by the environment variable.
     let env = getEnv("NIMBLE_DIR")
@@ -269,8 +272,12 @@ proc setNimbleDir*(options: var Options) =
         display("Warning:", "Using local deps mode", Warning, priority = HighPriority)
         nimbleDir = nimbledeps
         options.localdeps = true
+        propagate = true
 
   options.nimbleDir = expandTilde(nimbleDir).absolutePath()
+  if propagate:
+    # Propagate custom nimbleDir to child processes
+    putEnv("NIMBLE_DIR", options.nimbleDir)
 
 proc getNimbleDir*(options: Options): string =
   return options.nimbleDir
@@ -627,3 +634,6 @@ proc getCompilationBinary*(options: Options, pkgInfo: PackageInfo): Option[strin
       return some(runFile.changeFileExt(ExeExt))
   else:
     discard
+
+proc isInstallingTopLevel*(options: Options, dir: string): bool =
+  return options.startDir == dir
