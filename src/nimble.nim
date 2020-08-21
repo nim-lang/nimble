@@ -1005,9 +1005,6 @@ proc listTasks(options: Options) =
   nimscriptwrapper.listTasks(nimbleFile, options)
 
 proc developFromDir(dir: string, options: Options) =
-  if options.depsOnly:
-    raiseNimbleError("Cannot develop dependencies only.")
-
   cd dir: # Make sure `execHook` executes the correct .nimble file.
     if not execHook(options, actionDevelop, true):
       raise newException(NimbleError, "Pre-hook prevented further execution.")
