@@ -147,7 +147,7 @@ proc buildFromDir(
   let binToBuild =
     # Only build binaries specified by user if any, but only if top-level package,
     # dependencies should have every binary built.
-    if options.startDir == pkgInfo.myPath.parentDir():
+    if options.isInstallingTopLevel(pkgInfo.myPath.parentDir()):
       options.getCompilationBinary(pkgInfo).get("")
     else: ""
   for bin in pkgInfo.bin:
@@ -168,7 +168,7 @@ proc buildFromDir(
     # `quoteShell` would be more robust than `\"` (and avoid quoting when
     # un-necessary) but would require changing `extractBin`
     let cmd = "$# $# --colors:on --noNimblePath $# $# $#" % [
-      options.nim.quoteShell, pkgInfo.backend, join(args, " "),
+      getNimBin(options).quoteShell, pkgInfo.backend, join(args, " "),
       outputOpt, input.quoteShell]
     try:
       doCmd(cmd)
@@ -301,76 +301,81 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
                   @[]
     buildFromDir(pkgInfo, paths, "-d:release" & flags, options)
 
-  let pkgDestDir = pkgInfo.getPkgDest(options)
-  if dirExists(pkgDestDir) and fileExists(pkgDestDir / "nimblemeta.json"):
-    let msg = "$1@$2 already exists. Overwrite?" %
-              [pkgInfo.name, pkgInfo.specialVersion]
-    if not options.prompt(msg):
-      raise NimbleQuit(msg: "")
+  # Don't copy artifacts if project local deps mode and "installing" the top level package
+  if not (options.localdeps and options.isInstallingTopLevel(dir)):
+    let pkgDestDir = pkgInfo.getPkgDest(options)
+    if dirExists(pkgDestDir) and fileExists(pkgDestDir / "nimblemeta.json"):
+      let msg = "$1@$2 already exists. Overwrite?" %
+                [pkgInfo.name, pkgInfo.specialVersion]
+      if not options.prompt(msg):
+        raise NimbleQuit(msg: "")
 
-    # Remove reverse deps.
-    let pkgInfo = getPkgInfo(pkgDestDir, options)
-    options.nimbleData.removeRevDep(pkgInfo)
+      # Remove reverse deps.
+      let pkgInfo = getPkgInfo(pkgDestDir, options)
+      options.nimbleData.removeRevDep(pkgInfo)
 
-    removePkgDir(pkgDestDir, options)
-    # Remove any symlinked binaries
-    for bin in pkgInfo.bin:
-      # TODO: Check that this binary belongs to the package being installed.
-      when defined(windows):
-        removeFile(binDir / bin.changeFileExt("cmd"))
-        removeFile(binDir / bin.changeFileExt(""))
-      else:
-        removeFile(binDir / bin)
+      removePkgDir(pkgDestDir, options)
+      # Remove any symlinked binaries
+      for bin in pkgInfo.bin:
+        # TODO: Check that this binary belongs to the package being installed.
+        when defined(windows):
+          removeFile(binDir / bin.changeFileExt("cmd"))
+          removeFile(binDir / bin.changeFileExt(""))
+        else:
+          removeFile(binDir / bin)
 
-  createDir(pkgDestDir)
-  # Copy this package's files based on the preferences specified in PkgInfo.
-  var filesInstalled = initHashSet[string]()
-  iterInstallFiles(realDir, pkgInfo, options,
-    proc (file: string) =
-      createDir(changeRoot(realDir, pkgDestDir, file.splitFile.dir))
-      let dest = changeRoot(realDir, pkgDestDir, file)
-      filesInstalled.incl copyFileD(file, dest)
-  )
+    createDir(pkgDestDir)
+    # Copy this package's files based on the preferences specified in PkgInfo.
+    var filesInstalled = initHashSet[string]()
+    iterInstallFiles(realDir, pkgInfo, options,
+      proc (file: string) =
+        createDir(changeRoot(realDir, pkgDestDir, file.splitFile.dir))
+        let dest = changeRoot(realDir, pkgDestDir, file)
+        filesInstalled.incl copyFileD(file, dest)
+    )
 
-  # Copy the .nimble file.
-  let dest = changeRoot(pkgInfo.myPath.splitFile.dir, pkgDestDir,
-                        pkgInfo.myPath)
-  filesInstalled.incl copyFileD(pkgInfo.myPath, dest)
+    # Copy the .nimble file.
+    let dest = changeRoot(pkgInfo.myPath.splitFile.dir, pkgDestDir,
+                          pkgInfo.myPath)
+    filesInstalled.incl copyFileD(pkgInfo.myPath, dest)
 
-  var binariesInstalled = initHashSet[string]()
-  if pkgInfo.bin.len > 0:
-    # Make sure ~/.nimble/bin directory is created.
-    createDir(binDir)
-    # Set file permissions to +x for all binaries built,
-    # and symlink them on *nix OS' to $nimbleDir/bin/
-    for bin in pkgInfo.bin:
-      if fileExists(pkgDestDir / bin):
-        display("Warning:", ("Binary '$1' was already installed from source" &
-                            " directory. Will be overwritten.") % bin, Warning,
-                MediumPriority)
+    var binariesInstalled = initHashSet[string]()
+    if pkgInfo.bin.len > 0:
+      # Make sure ~/.nimble/bin directory is created.
+      createDir(binDir)
+      # Set file permissions to +x for all binaries built,
+      # and symlink them on *nix OS' to $nimbleDir/bin/
+      for bin in pkgInfo.bin:
+        if fileExists(pkgDestDir / bin):
+          display("Warning:", ("Binary '$1' was already installed from source" &
+                              " directory. Will be overwritten.") % bin, Warning,
+                  MediumPriority)
 
-      # Copy the binary file.
-      filesInstalled.incl copyFileD(pkgInfo.getOutputDir(bin),
-                                    pkgDestDir / bin)
+        # Copy the binary file.
+        filesInstalled.incl copyFileD(pkgInfo.getOutputDir(bin),
+                                      pkgDestDir / bin)
 
-      # Set up a symlink.
-      let symlinkDest = pkgDestDir / bin
-      let symlinkFilename = binDir / bin.extractFilename
-      for filename in setupBinSymlink(symlinkDest, symlinkFilename, options):
-        binariesInstalled.incl(filename)
+        # Set up a symlink.
+        let symlinkDest = pkgDestDir / bin
+        let symlinkFilename = binDir / bin.extractFilename
+        for filename in setupBinSymlink(symlinkDest, symlinkFilename, options):
+          binariesInstalled.incl(filename)
 
-  let vcsRevision = vcsRevisionInDir(realDir)
+    let vcsRevision = vcsRevisionInDir(realDir)
 
-  # Save a nimblemeta.json file.
-  saveNimbleMeta(pkgDestDir, url, vcsRevision, filesInstalled,
-                 binariesInstalled)
+    # Save a nimblemeta.json file.
+    saveNimbleMeta(pkgDestDir, url, vcsRevision, filesInstalled,
+                  binariesInstalled)
 
-  # Save the nimble data (which might now contain reverse deps added in
-  # processDeps).
-  saveNimbleData(options)
+    # Save the nimble data (which might now contain reverse deps added in
+    # processDeps).
+    saveNimbleData(options)
 
-  # update package path to point to installed directory rather than the temp directory
-  pkgInfo.myPath = dest
+    # update package path to point to installed directory rather than the temp directory
+    pkgInfo.myPath = dest
+  else:
+    display("Warning:", "Skipped copy in project local deps mode", Warning)
+
   pkgInfo.isInstalled = true
 
   # Return the dependencies of this package (mainly for paths).
@@ -383,7 +388,7 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
   # Run post-install hook now that package is installed. The `execHook` proc
   # executes the hook defined in the CWD, so we set it to where the package
   # has been installed.
-  cd dest.splitFile.dir:
+  cd pkgInfo.myPath.splitFile.dir:
     discard execHook(options, actionInstall, false)
 
 proc getDownloadInfo*(pv: PkgTuple, options: Options,
@@ -493,7 +498,7 @@ proc execBackend(pkgInfo: PackageInfo, options: Options) =
   else:
     display("Generating", ("documentation for $1 (from package $2) using $3 " &
             "backend") % [bin, pkgInfo.name, backend], priority = HighPriority)
-  doCmd(options.nim.quoteShell & " $# --noNimblePath $# $#" %
+  doCmd(getNimBin(options).quoteShell & " $# --noNimblePath $# $#" %
         [backend, join(args, " "), bin.quoteShell])
   display("Success:", "Execution finished", Success, HighPriority)
 
@@ -901,9 +906,6 @@ proc listTasks(options: Options) =
   nimscriptwrapper.listTasks(nimbleFile, options)
 
 proc developFromDir(dir: string, options: Options) =
-  if options.depsOnly:
-    raiseNimbleError("Cannot develop dependencies only.")
-
   cd dir: # Make sure `execHook` executes the correct .nimble file.
     if not execHook(options, actionDevelop, true):
       raise newException(NimbleError, "Pre-hook prevented further execution.")
@@ -922,39 +924,43 @@ proc developFromDir(dir: string, options: Options) =
   # Dependencies need to be processed before the creation of the pkg dir.
   discard processDeps(pkgInfo, options)
 
-  # This is similar to the code in `installFromDir`, except that we
-  # *consciously* not worry about the package's binaries.
-  let pkgDestDir = pkgInfo.getPkgDest(options)
-  if dirExists(pkgDestDir) and fileExists(pkgDestDir / "nimblemeta.json"):
-    let msg = "$1@$2 already exists. Overwrite?" %
-              [pkgInfo.name, pkgInfo.specialVersion]
-    if not options.prompt(msg):
-      raise NimbleQuit(msg: "")
-    removePkgDir(pkgDestDir, options)
+  # Don't link if project local deps mode and "developing" the top level package
+  if not (options.localdeps and options.isInstallingTopLevel(dir)):
+    # This is similar to the code in `installFromDir`, except that we
+    # *consciously* not worry about the package's binaries.
+    let pkgDestDir = pkgInfo.getPkgDest(options)
+    if dirExists(pkgDestDir) and fileExists(pkgDestDir / "nimblemeta.json"):
+      let msg = "$1@$2 already exists. Overwrite?" %
+                [pkgInfo.name, pkgInfo.specialVersion]
+      if not options.prompt(msg):
+        raise NimbleQuit(msg: "")
+      removePkgDir(pkgDestDir, options)
 
-  createDir(pkgDestDir)
-  # The .nimble-link file contains the path to the real .nimble file,
-  # and a secondary path to the source directory of the package.
-  # The secondary path is necessary so that the package's .nimble file doesn't
-  # need to be read. This will mean that users will need to re-run
-  # `nimble develop` if they change their `srcDir` but I think it's a worthy
-  # compromise.
-  let nimbleLinkPath = pkgDestDir / pkgInfo.name.addFileExt("nimble-link")
-  let nimbleLink = NimbleLink(
-    nimbleFilePath: pkgInfo.myPath,
-    packageDir: pkgInfo.getRealDir()
-  )
-  writeNimbleLink(nimbleLinkPath, nimbleLink)
+    createDir(pkgDestDir)
+    # The .nimble-link file contains the path to the real .nimble file,
+    # and a secondary path to the source directory of the package.
+    # The secondary path is necessary so that the package's .nimble file doesn't
+    # need to be read. This will mean that users will need to re-run
+    # `nimble develop` if they change their `srcDir` but I think it's a worthy
+    # compromise.
+    let nimbleLinkPath = pkgDestDir / pkgInfo.name.addFileExt("nimble-link")
+    let nimbleLink = NimbleLink(
+      nimbleFilePath: pkgInfo.myPath,
+      packageDir: pkgInfo.getRealDir()
+    )
+    writeNimbleLink(nimbleLinkPath, nimbleLink)
 
-  # Save a nimblemeta.json file.
-  saveNimbleMeta(pkgDestDir, dir, vcsRevisionInDir(dir), nimbleLinkPath)
+    # Save a nimblemeta.json file.
+    saveNimbleMeta(pkgDestDir, dir, vcsRevisionInDir(dir), nimbleLinkPath)
 
-  # Save the nimble data (which might now contain reverse deps added in
-  # processDeps).
-  saveNimbleData(options)
+    # Save the nimble data (which might now contain reverse deps added in
+    # processDeps).
+    saveNimbleData(options)
 
-  display("Success:", (pkgInfo.name & " linked successfully to '$1'.") %
-          dir, Success, HighPriority)
+    display("Success:", (pkgInfo.name & " linked successfully to '$1'.") %
+            dir, Success, HighPriority)
+  else:
+    display("Warning:", "Skipping link in project local deps mode", Warning)
 
   # Execute the post-develop hook.
   cd dir:
@@ -1100,11 +1106,12 @@ proc doAction(options: var Options) =
   if options.showVersion:
     writeVersion()
 
+  setNimBin(options)
+  setNimbleDir(options)
   if not dirExists(options.getNimbleDir()):
     createDir(options.getNimbleDir())
   if not dirExists(options.getPkgsDir):
     createDir(options.getPkgsDir)
-  setNimBin(options)
 
   if options.action.typ in {actionTasks, actionRun, actionBuild, actionCompile}:
     # Implicitly disable package validation for these commands.

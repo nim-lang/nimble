@@ -7,10 +7,10 @@ language: c
 
 env:
   - BRANCH=0.20.2
-  - BRANCH=1.0.6
-  - BRANCH=1.2.4
+  - BRANCH=1.0.8
+  - BRANCH=1.2.6
   # This is the latest working Nim version against which Nimble is being tested
-  - BRANCH=#1e3a0ef
+  - BRANCH=#8a004e2
 
 cache:
   directories:

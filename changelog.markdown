@@ -3,10 +3,9 @@
 
 # Nimble changelog
 
-## 0.11.6 - TBD
+## 0.12.0 - TBD
 
-This is a minor release containing just X commits. This release brings mostly
-bug fixes with some minor improvements:
+This is a major release containing multiple improvements and bug fixes:
 
 - `nimble dump` now provides `--json` output.
 - Calls to the Nim compiler now display `--hints:off` output by default.
@@ -23,6 +22,12 @@ bug fixes with some minor improvements:
   specifying compile flags before or after the `test` task.
 - `nimble install` also allows passing compiler flags similar to the default
   `nimble test` and no longer requires the `--passNim` flag.
+- The Nim compiler to be used by Nimble can now be specified with the `--nim`
+  flag. This is useful for debugging purposes.
+- Nimble now supports project local dependency mode - if a `nimbledeps` directory
+  exists within a project, Nimble will use it to store all package dependencies
+  instead of `~/.nimble/bin`. This enables isolation of a project and its
+  dependencies from other projects being developed.
 
 ----
 

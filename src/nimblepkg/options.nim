@@ -35,6 +35,7 @@ type
     startDir*: string # Current directory on startup - is top level pkg dir for
                       # some commands, useful when processing deps
     nim*: string # Nim compiler location
+    localdeps*: bool # True if project local deps mode
 
   ActionType* = enum
     actionNil, actionRefresh, actionInit, actionDump, actionPublish,
@@ -249,20 +250,43 @@ proc promptList*(options: Options, question: string, args: openarray[string]): s
   ## options is selected.
   return promptList(options.forcePrompts, question, args)
 
-proc getNimbleDir*(options: Options): string =
-  result = options.config.nimbleDir
+proc setNimbleDir*(options: var Options) =
+  var
+    nimbleDir = options.config.nimbleDir
+    propagate = false
   if options.nimbleDir.len != 0:
     # --nimbleDir:<dir> takes priority...
-    result = options.nimbleDir
+    nimbleDir = options.nimbleDir
+    propagate = true
   else:
     # ...followed by the environment variable.
     let env = getEnv("NIMBLE_DIR")
     if env.len != 0:
       display("Warning:", "Using the environment variable: NIMBLE_DIR='" &
-                        env & "'", Warning)
-      result = env
+              env & "'", Warning, priority = HighPriority)
+      nimbleDir = env
+    else:
+      # ...followed by project local deps mode
+      let nimbledeps = "nimbledeps"
+      if dirExists(nimbledeps):
+        display("Warning:", "Using project local deps mode", Warning,
+                priority = HighPriority)
+        nimbleDir = nimbledeps
+        options.localdeps = true
+        propagate = true
 
-  return expandTilde(result)
+  options.nimbleDir = expandTilde(nimbleDir).absolutePath()
+  if propagate:
+    # Propagate custom nimbleDir to child processes
+    putEnv("NIMBLE_DIR", options.nimbleDir)
+
+    # Add $nimbledeps/bin to PATH
+    let path = getEnv("PATH")
+    if options.nimbleDir notin path:
+      putEnv("PATH", options.nimbleDir / "bin" & PathSep & path)
+
+proc getNimbleDir*(options: Options): string =
+  return options.nimbleDir
 
 proc getPkgsDir*(options: Options): string =
   options.getNimbleDir() / "pkgs"
@@ -306,6 +330,9 @@ proc setNimBin*(options: var Options) =
       # Nim not found in PATH
       raise newException(NimbleError,
         "Unable to find `nim` binary - add to $PATH or use `--nim`")
+
+proc getNimBin*(options: Options): string =
+  return options.nim
 
 proc setRunOptions(result: var Options, key, val: string, isArg: bool) =
   if result.action.runFile.isNone() and (isArg or val == "--"):
@@ -613,3 +640,6 @@ proc getCompilationBinary*(options: Options, pkgInfo: PackageInfo): Option[strin
       return some(runFile.changeFileExt(ExeExt))
   else:
     discard
+
+proc isInstallingTopLevel*(options: Options, dir: string): bool =
+  return options.startDir == dir
