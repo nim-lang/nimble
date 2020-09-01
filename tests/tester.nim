@@ -192,10 +192,12 @@ suite "nimscript":
 
   test "before/after on build":
     cd "nimscript":
-      let (output, exitCode) = execNimble(["build", "--nim:" & findExe("nim")])
+      let (output, exitCode) = execNimble([
+        "build", "--nim:" & findExe("nim"), "--silent"])
       check exitCode == QuitSuccess
       check output.contains("Before build")
       check output.contains("After build")
+      check not output.contains("Verifying")
 
   test "can execute nimscript tasks":
     cd "nimscript":

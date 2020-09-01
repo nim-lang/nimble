@@ -143,6 +143,9 @@ proc buildFromDir(
   if options.verbosity >= HighPriority:
     # Hide Nim hints by default
     args.add("--hints:off")
+  if options.verbosity == SilentPriority:
+    # Hide Nim warnings
+    args.add("--warnings:off")
 
   let binToBuild =
     # Only build binaries specified by user if any, but only if top-level package,
@@ -483,6 +486,9 @@ proc execBackend(pkgInfo: PackageInfo, options: Options) =
   if options.verbosity >= HighPriority:
     # Hide Nim hints by default
     args.add("--hints:off")
+  if options.verbosity == SilentPriority:
+    # Hide Nim warnings
+    args.add("--warnings:off")
   for option in options.getCompilationFlags():
     args.add(option.quoteShell)
 

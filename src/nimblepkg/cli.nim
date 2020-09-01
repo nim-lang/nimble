@@ -30,7 +30,7 @@ type
                            ## machine readable.
 
   Priority* = enum
-    DebugPriority, LowPriority, MediumPriority, HighPriority
+    DebugPriority, LowPriority, MediumPriority, HighPriority, SilentPriority
 
   DisplayType* = enum
     Error, Warning, Message, Success
