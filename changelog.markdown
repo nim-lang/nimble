@@ -28,6 +28,7 @@ This is a major release containing multiple improvements and bug fixes:
   exists within a project, Nimble will use it to store all package dependencies
   instead of `~/.nimble/bin`. This enables isolation of a project and its
   dependencies from other projects being developed.
+- Nimble output can now be suppressed using `--silent`.
 
 ----
 
