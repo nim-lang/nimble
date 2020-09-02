@@ -614,8 +614,18 @@ suite "check command":
 
 suite "multi":
   test "can install package from git subdir":
-    let args = ["install", "-y", "https://github.com/nimble-test/multi?subdir=alpha"]
-    check execNimble(args).exitCode == QuitSuccess
+    var
+      args = @["install", "-y", "https://github.com/nimble-test/multi?subdir=alpha"]
+      (output, exitCode) = execNimble(args)
+    check exitCode == QuitSuccess
+
+    # Issue 785
+    args[1] = "-n"
+    args.add "https://github.com/nimble-test/multi?subdir=beta"
+    (output, exitCode) = execNimble(args)
+    check exitCode == QuitSuccess
+    check output.contains("forced no")
+    check output.contains("beta installed successfully")
 
   test "can develop package from git subdir":
     removeDir("nimble-test/multi")
