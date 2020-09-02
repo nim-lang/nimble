@@ -258,7 +258,10 @@ proc readPackageInfoFromNimble(path: string; result: var PackageInfo) =
             for i in ev.value.multiSplit:
               if i.splitFile().ext == ".nim":
                 raise newException(NimbleError, "`bin` entry should not be a source file: " & i)
-              result.bin.add(i.addFileExt(ExeExt))
+              if result.backend == "js":
+                result.bin.add(i.addFileExt(".js"))
+              else:
+                result.bin.add(i.addFileExt(ExeExt))
           of "backend":
             result.backend = ev.value.toLowerAscii()
             case result.backend.normalize
