@@ -30,7 +30,9 @@ when defined(windows):
 proc setupBinSymlink*(symlinkDest, symlinkFilename: string,
                       options: Options): seq[string] =
   result = @[]
-  let currentPerms = getFilePermissions(symlinkDest)
+  let
+    symlinkDestRel = relativePath(symlinkDest, symlinkFilename.parentDir())
+    currentPerms = getFilePermissions(symlinkDest)
   setFilePermissions(symlinkDest, currentPerms + {fpUserExec})
   when defined(unix):
     display("Creating", "symlink: $1 -> $2" %
@@ -40,7 +42,7 @@ proc setupBinSymlink*(symlinkDest, symlinkFilename: string,
       display("Warning:", msg, Warning, HighPriority)
       removeFile(symlinkFilename)
 
-    createSymlink(symlinkDest, symlinkFilename)
+    createSymlink(symlinkDestRel, symlinkFilename)
     result.add symlinkFilename.extractFilename
   elif defined(windows):
     # There is a bug on XP, described here:
@@ -62,14 +64,14 @@ proc setupBinSymlink*(symlinkDest, symlinkFilename: string,
       if fixChcp:
         contents.add "chcp 65001 > nul && "
       else: contents.add "chcp 65001 > nul\n@"
-    contents.add "\"" & symlinkDest & "\" %*\n"
+    contents.add "\"%~dp0\\" & symlinkDestRel & "\" %*\n"
     writeFile(dest, contents)
     result.add dest.extractFilename
     # For bash on Windows (Cygwin/Git bash).
     let bashDest = dest.changeFileExt("")
     display("Creating", "Cygwin stub: $1 -> $2" %
             [symlinkDest, bashDest], priority = MediumPriority)
-    writeFile(bashDest, "\"" & symlinkDest & "\" \"$@\"\n")
+    writeFile(bashDest, "\"`dirname \"$0\"`\\" & symlinkDestRel & "\" \"$@\"\n")
     result.add bashDest.extractFilename
   else:
     {.error: "Sorry, your platform is not supported.".}
