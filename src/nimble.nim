@@ -311,7 +311,7 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
       let msg = "$1@$2 already exists. Overwrite?" %
                 [pkgInfo.name, pkgInfo.specialVersion]
       if not options.prompt(msg):
-        raise NimbleQuit(msg: "")
+        return
 
       # Remove reverse deps.
       let pkgInfo = getPkgInfo(pkgDestDir, options)
