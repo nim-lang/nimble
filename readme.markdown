@@ -188,7 +188,9 @@ testing their ``.nimble`` files before submitting them to the official package
 list. See the [Creating Packages](#creating-packages) section for more info on this.
 
 Nim flags provided to `nimble install` will be forwarded to the compiler when
-building any binaries.
+building any binaries. Such compiler flags can be made persistent by using Nim
+[configuration](https://nim-lang.org/docs/nimc.html#compiler-usage-configuration-files)
+files.
 
 #### Package URLs
 
@@ -243,7 +245,10 @@ flags, i.e. a debug build which includes stack traces but no GDB debug
 information. The ``install`` command will build the package in release mode
 instead.
 
-Nim flags provided to `nimble build` will be forwarded to the compiler.
+Nim flags provided to `nimble build` will be forwarded to the compiler. Such
+compiler flags can be made persistent by using Nim
+[configuration](https://nim-lang.org/docs/nimc.html#compiler-usage-configuration-files)
+files.
 
 ### nimble run
 
