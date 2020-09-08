@@ -5,6 +5,7 @@
 
 import system except getCommand, setCommand, switch, `--`
 import strformat, strutils, tables
+export tables
 
 when (NimMajor, NimMinor) < (1, 3):
   when not defined(nimscript):
@@ -35,7 +36,8 @@ var
   beforeHooks: seq[string] = @[]
   afterHooks: seq[string] = @[]
   commandLineParams*: seq[string] = @[]
-  flags: TableRef[string, seq[string]]
+  flags: Table[string, seq[string]]
+  namedBin*: Table[string, string]
 
   command = "e"
   project = ""
@@ -80,9 +82,6 @@ proc setCommand*(cmd: string, prj = "") =
     project = prj
 
 proc switch*(key: string, value="") =
-  if flags.isNil:
-    flags = newTable[string, seq[string]]()
-
   if flags.hasKey(key):
     flags[key].add(value)
   else:
@@ -105,6 +104,14 @@ template printSeqIfLen(varName) =
 proc printPkgInfo(): string =
   if backend.len == 0:
     backend = "c"
+
+  # Forward `namedBin` entries in `bin`
+  for k, v in namedBin:
+    let idx = bin.find(k)
+    if idx == -1:
+      bin.add k & "=" & v
+    else:
+      bin[idx] = k & "=" & v
 
   result = "[Package]\n"
   if packageName.len != 0:
@@ -143,7 +150,7 @@ proc onExit*() =
     output &= "\"command\": \"" & command & "\", "
     if project.len != 0:
       output &= "\"project\": \"" & project & "\", "
-    if not flags.isNil and flags.len != 0:
+    if flags.len != 0:
       output &= "\"flags\": {"
       for key, val in flags.pairs:
         output &= "\"" & key & "\": ["

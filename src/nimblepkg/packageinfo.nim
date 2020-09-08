@@ -50,7 +50,7 @@ proc initPackageInfo*(path: string): PackageInfo =
   result.installExt = @[]
   result.requires = @[]
   result.foreignDeps = @[]
-  result.bin = @[]
+  result.bin = initTable[string, string]()
   result.srcDir = ""
   result.binDir = ""
   result.backend = "c"
@@ -413,6 +413,8 @@ proc getOutputDir*(pkgInfo: PackageInfo, bin: string): string =
     result = pkgInfo.mypath.splitFile.dir / pkgInfo.binDir / bin
   else:
     result = pkgInfo.mypath.splitFile.dir / bin
+  if bin.len != 0 and dirExists(result):
+    result &= ".out"
 
 proc echoPackage*(pkg: Package) =
   echo(pkg.name & ":")

@@ -675,11 +675,15 @@ file, copy it into ``$nimbleDir/pkgs/pkgname-ver/`` and subsequently create a
 symlink to the binary in ``$nimbleDir/bin/``. On Windows a stub .cmd file is
 created instead.
 
-Other files will be copied in the same way as they are for library packages.
+The binary can be named differently than the source file with the ``namedBin``
+table:
 
-Binary packages should not install .nim files so include ``skipExt = @["nim"]``
-in your .nimble file, unless you intend for your package to be a binary/library
-combo.
+```nim
+namedBin["main"] = "mymain"
+namedBin = {"main": "mymain", "main2": "other-main"}.toTable()
+```
+
+Note that `namedBin` entries override duplicates in `bin`.
 
 Dependencies are automatically installed before building.
 It's a good idea to test that the dependencies you specified are correct by
@@ -688,18 +692,15 @@ of your package.
 
 ### Hybrids
 
-One thing to note about binary packages that contain source files aside from
-the one(s) specified in `bin` (or that also expose multiple library modules, as
-above) is that a binary may share the name of the package: this will mean
-that you will not be able to put your additional .nim files in a ``pkgname``
-directory. The reason for this is that binaries on some operating systems do
-not have an extension, so they will clash with a directory of the same name.
+Binary packages will not install .nim files so include ``installExt = @["nim"]``
+in your .nimble file if you intend for your package to be a hybrid binary/library
+combo.
 
-If this is the case, you should place your additional .nim files in a directory
-with `pkg` appended after the name of the project. For instance, if you were
-building a binary named `project`, you would put any additional source files in
-a directory called `projectpkg`. From within project.nim you would then import
-those modules namespaced with `projectpkg/`.
+Historically, binaries that shared the name of a ``pkgname`` directory that
+contains additional .nim files required workarounds. This is now handled behind 
+the scenes by appending a ``.out`` extension to the binary and is transparent to
+commands like `nimble run` or symlinks which can still refer to the original
+binary name.
 
 ### Dependencies
 
@@ -859,12 +860,12 @@ Nimble includes a ``publish`` command which does this for you automatically.
   if this option is specified nothing else will be installed except the dirs
   listed here, the files listed in ``installFiles``, the files which share the
   extensions listed in ``installExt``, the .nimble file and the binary
-  (if ``bin`` is specified). Separated by commas.
+  (if ``bin`` / ``namedBin`` is specified). Separated by commas.
 * ``installFiles`` - A list of files which should be exclusively installed,
   this complements ``installDirs`` and ``installExt``. Only the files listed
   here, directories listed in ``installDirs``, files which share the extension
-  listed in ``installExt``, the .nimble file and the binary (if ``bin`` is
-  specified) will be installed. Separated by commas.
+  listed in ``installExt``, the .nimble file and the binary (if ``bin`` / ``namedBin``
+  is specified) will be installed. Separated by commas.
 * ``installExt`` - A list of file extensions which should be exclusively
   installed, this complements ``installDirs`` and ``installFiles``.
   Separated by commas.
@@ -878,6 +879,10 @@ Nimble includes a ``publish`` command which does this for you automatically.
 * ``bin`` - A list of files which should be built separated by commas with
   no file extension required. This option turns your package into a *binary
   package*, Nimble will build the files specified and install them appropriately.
+* ``namedBin`` - A list of name:value files which should be built with specified
+  name, no file extension required. This option turns your package into a *binary
+  package*, Nimble will build the files specified and install them approriately.
+  `namedBin` entries override duplicates in `bin`.
 * ``backend`` - Specifies the backend which will be used to build the files
   listed in ``bin``. Possible values include: ``c``, ``cc``, ``cpp``, ``objc``,
   ``js``.

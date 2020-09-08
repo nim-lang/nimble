@@ -56,6 +56,15 @@ proc execNimbleYes(args: varargs[string]): tuple[output: string, exitCode: int]=
   # issue #6314
   execNimble(@args & "-y")
 
+proc execBin(name: string): tuple[output: string, exitCode: int] =
+  var
+    cmd = installDir / "bin" / name
+
+  when defined(windows):
+    cmd = "cmd /c " & cmd & ".cmd"
+
+  result = execCmdEx(cmd)
+
 template verify(res: (string, int)) =
   let r = res
   checkpoint r[0]
@@ -176,11 +185,11 @@ suite "nimscript":
     cd "nimscript":
       let
         nim = findExe("nim").relativePath(base = getCurrentDir())
-      check execNimble(["install", "-y", "--nim:" & nim]).exitCode == QuitSuccess
+      check execNimbleYes(["install", "--nim:" & nim]).exitCode == QuitSuccess
 
   test "before/after install pkg dirs are correct":
     cd "nimscript":
-      let (output, exitCode) = execNimble(["install", "-y", "--nim:nim"])
+      let (output, exitCode) = execNimbleYes(["install", "--nim:nim"])
       check exitCode == QuitSuccess
       check output.contains("Before build")
       check output.contains("After build")
@@ -276,12 +285,12 @@ suite "nimscript":
 
 suite "uninstall":
   test "can install packagebin2":
-    let args = ["install", "-y", "https://github.com/nimble-test/packagebin2.git"]
-    check execNimble(args).exitCode == QuitSuccess
+    let args = ["install", "https://github.com/nimble-test/packagebin2.git"]
+    check execNimbleYes(args).exitCode == QuitSuccess
 
   test "can reject same version dependencies":
-    let (outp, exitCode) = execNimble(
-        "install", "-y", "https://github.com/nimble-test/packagebin.git")
+    let (outp, exitCode) = execNimbleYes(
+        "install", "https://github.com/nimble-test/packagebin.git")
     # We look at the error output here to avoid out-of-order problems caused by
     # stderr output being generated and flushed without first flushing stdout
     let ls = outp.strip.processOutput()
@@ -292,48 +301,48 @@ suite "uninstall":
   test "issue #27":
     # Install b
     cd "issue27/b":
-      check execNimble("install", "-y").exitCode == QuitSuccess
+      check execNimbleYes("install").exitCode == QuitSuccess
 
     # Install a
     cd "issue27/a":
-      check execNimble("install", "-y").exitCode == QuitSuccess
+      check execNimbleYes("install").exitCode == QuitSuccess
 
     cd "issue27":
-      check execNimble("install", "-y").exitCode == QuitSuccess
+      check execNimbleYes("install").exitCode == QuitSuccess
 
   test "can uninstall":
     block:
-      let (outp, exitCode) = execNimble("uninstall", "-y", "issue27b")
+      let (outp, exitCode) = execNimbleYes("uninstall", "issue27b")
 
       let ls = outp.strip.processOutput()
       check exitCode != QuitSuccess
       check inLines(ls, "Cannot uninstall issue27b (0.1.0) because issue27a (0.1.0) depends")
 
-      check execNimble("uninstall", "-y", "issue27").exitCode == QuitSuccess
-      check execNimble("uninstall", "-y", "issue27a").exitCode == QuitSuccess
+      check execNimbleYes("uninstall", "issue27").exitCode == QuitSuccess
+      check execNimbleYes("uninstall", "issue27a").exitCode == QuitSuccess
 
     # Remove Package*
-    check execNimble("uninstall", "-y", "PackageA@0.5").exitCode == QuitSuccess
+    check execNimbleYes("uninstall", "PackageA@0.5").exitCode == QuitSuccess
 
-    let (outp, exitCode) = execNimble("uninstall", "-y", "PackageA")
+    let (outp, exitCode) = execNimbleYes("uninstall", "PackageA")
     check exitCode != QuitSuccess
     let ls = outp.processOutput()
     check inLines(ls, "Cannot uninstall PackageA (0.2.0)")
     check inLines(ls, "Cannot uninstall PackageA (0.6.0)")
-    check execNimble("uninstall", "-y", "PackageBin2").exitCode == QuitSuccess
+    check execNimbleYes("uninstall", "PackageBin2").exitCode == QuitSuccess
 
     # Case insensitive
-    check execNimble("uninstall", "-y", "packagea").exitCode == QuitSuccess
-    check execNimble("uninstall", "-y", "PackageA").exitCode != QuitSuccess
+    check execNimbleYes("uninstall", "packagea").exitCode == QuitSuccess
+    check execNimbleYes("uninstall", "PackageA").exitCode != QuitSuccess
 
     # Remove the rest of the installed packages.
-    check execNimble("uninstall", "-y", "PackageB").exitCode == QuitSuccess
+    check execNimbleYes("uninstall", "PackageB").exitCode == QuitSuccess
 
-    check execNimble("uninstall", "-y", "PackageA@0.2", "issue27b").exitCode ==
+    check execNimbleYes("uninstall", "PackageA@0.2", "issue27b").exitCode ==
         QuitSuccess
     check(not dirExists(installDir / "pkgs" / "PackageA-0.2.0"))
 
-    check execNimble("uninstall", "-y", "nimscript").exitCode == QuitSuccess
+    check execNimbleYes("uninstall", "nimscript").exitCode == QuitSuccess
 
 suite "nimble dump":
   test "can dump for current project":
@@ -354,9 +363,9 @@ suite "nimble dump":
 
   test "can dump for installed package":
     cd "testdump":
-      check: execNimble("install", "-y").exitCode == 0
+      check: execNimbleYes("install").exitCode == 0
     defer:
-      discard execNimble("remove", "-y", "testdump")
+      discard execNimbleYes("remove", "testdump")
 
     # Otherwise we might find subdirectory instead
     cd "..":
@@ -367,36 +376,27 @@ suite "nimble dump":
 suite "can handle two binary versions":
   setup:
     cd "binaryPackage/v1":
-      check execNimble("install", "-y").exitCode == QuitSuccess
+      check execNimbleYes("install").exitCode == QuitSuccess
 
     cd "binaryPackage/v2":
-      check execNimble("install", "-y").exitCode == QuitSuccess
-
-  var
-    cmd = installDir / "bin" / "binaryPackage"
-
-  when defined(windows):
-    cmd = "cmd /c " & cmd & ".cmd"
+      check execNimbleYes("install").exitCode == QuitSuccess
 
   test "can execute v2":
-    let (output, exitCode) =
-      execCmdEx(cmd)
+    let (output, exitCode) = execBin("binaryPackage")
     check exitCode == QuitSuccess
     check output.strip() == "v2"
 
   test "can update symlink to earlier version after removal":
-    check execNimble("remove", "binaryPackage@2.0", "-y").exitCode==QuitSuccess
+    check execNimbleYes("remove", "binaryPackage@2.0").exitCode==QuitSuccess
 
-    let (output, exitCode) =
-      execCmdEx(cmd)
+    let (output, exitCode) = execBin("binaryPackage")
     check exitCode == QuitSuccess
     check output.strip() == "v1"
 
   test "can keep symlink version after earlier version removal":
-    check execNimble("remove", "binaryPackage@1.0", "-y").exitCode==QuitSuccess
+    check execNimbleYes("remove", "binaryPackage@1.0").exitCode==QuitSuccess
 
-    let (output, exitCode) =
-      execCmdEx(cmd)
+    let (output, exitCode) = execBin("binaryPackage")
     check exitCode == QuitSuccess
     check output.strip() == "v2"
 
@@ -445,13 +445,13 @@ suite "reverse dependencies":
     verify execNimbleYes("remove", "mydep")
 
   test "remove skips packages with revDeps (#504)":
-    check execNimble("install", "nimboost@0.5.5", "nimfp@0.4.4", "-y").exitCode == QuitSuccess
+    check execNimbleYes("install", "nimboost@0.5.5", "nimfp@0.4.4").exitCode == QuitSuccess
 
     var (output, exitCode) = execNimble("uninstall", "nimboost", "nimfp", "-n")
     var lines = output.strip.processOutput()
     check inLines(lines, "Cannot uninstall nimboost")
 
-    (output, exitCode) = execNimble("uninstall", "nimfp", "nimboost", "-y")
+    (output, exitCode) = execNimbleYes("uninstall", "nimfp", "nimboost")
     lines = output.strip.processOutput()
     check (not inLines(lines, "Cannot uninstall nimboost"))
 
@@ -503,10 +503,10 @@ suite "develop feature":
 
   test "can uninstall linked package":
     cd "develop/srcdirtest":
-      let (_, exitCode) = execNimble("develop", "-y")
+      let (_, exitCode) = execNimbleYes("develop")
       check exitCode == QuitSuccess
 
-    let (output, exitCode) = execNimble("uninstall", "-y", "srcdirtest")
+    let (output, exitCode) = execNimbleYes("uninstall", "srcdirtest")
     checkpoint(output)
     check exitCode == QuitSuccess
     check(not output.processOutput.inLines("warning"))
@@ -516,7 +516,7 @@ suite "develop feature":
     createDir(cloneDir)
     cd cloneDir:
       let url = "https://github.com/nimble-test/packagea.git"
-      let (_, exitCode) = execNimble("develop", "-y", url)
+      let (_, exitCode) = execNimbleYes("develop", url)
       check exitCode == QuitSuccess
 
   test "nimble path points to develop":
@@ -532,9 +532,9 @@ suite "develop feature":
       check output.strip() == getCurrentDir() / "src"
 
   test "can get correct path for srcDir (#531)":
-    check execNimble("uninstall", "srcdirtest", "-y").exitCode == QuitSuccess
+    check execNimbleYes("uninstall", "srcdirtest").exitCode == QuitSuccess
     cd "develop/srcdirtest":
-      let (_, exitCode) = execNimble("install", "-y")
+      let (_, exitCode) = execNimbleYes("install")
       check exitCode == QuitSuccess
     let (output, _) = execNimble("path", "srcdirtest")
     check output.strip() == installDir / "pkgs" / "srcdirtest-1.0"
@@ -615,13 +615,12 @@ suite "check command":
 suite "multi":
   test "can install package from git subdir":
     var
-      args = @["install", "-y", "https://github.com/nimble-test/multi?subdir=alpha"]
-      (output, exitCode) = execNimble(args)
+      args = @["install", "https://github.com/nimble-test/multi?subdir=alpha"]
+      (output, exitCode) = execNimbleYes(args)
     check exitCode == QuitSuccess
 
     # Issue 785
-    args[1] = "-n"
-    args.add "https://github.com/nimble-test/multi?subdir=beta"
+    args.add @["https://github.com/nimble-test/multi?subdir=beta", "-n"]
     (output, exitCode) = execNimble(args)
     check exitCode == QuitSuccess
     check output.contains("forced no")
@@ -629,8 +628,8 @@ suite "multi":
 
   test "can develop package from git subdir":
     removeDir("nimble-test/multi")
-    let args = ["develop", "-y", "https://github.com/nimble-test/multi?subdir=beta"]
-    check execNimble(args).exitCode == QuitSuccess
+    let args = ["develop", "https://github.com/nimble-test/multi?subdir=beta"]
+    check execNimbleYes(args).exitCode == QuitSuccess
 
 suite "Module tests":
   test "version":
@@ -728,8 +727,8 @@ suite "nimble run":
 
 suite "misc tests":
   test "depsOnly + flag order test":
-    var (output, exitCode) = execNimble(
-      "--depsOnly", "install", "-y", "https://github.com/nimble-test/packagebin2"
+    var (output, exitCode) = execNimbleYes(
+      "--depsOnly", "install", "https://github.com/nimble-test/packagebin2"
     )
     check(not output.contains("Success: packagebin2 installed successfully."))
     check exitCode == QuitSuccess
@@ -759,11 +758,11 @@ suite "misc tests":
 
   test "picks #head when looking for packages":
     cd "versionClashes" / "aporiaScenario":
-      let (output, exitCode) = execNimble("install", "-y", "--verbose")
+      let (output, exitCode) = execNimbleYes("install", "--verbose")
       checkpoint output
       check exitCode == QuitSuccess
-      check execNimble("remove", "aporiascenario", "-y").exitCode == QuitSuccess
-      check execNimble("remove", "packagea", "-y").exitCode == QuitSuccess
+      check execNimbleYes("remove", "aporiascenario").exitCode == QuitSuccess
+      check execNimbleYes("remove", "packagea").exitCode == QuitSuccess
 
   test "pass options to the compiler with `nimble install`":
     cd "passNimFlags":
@@ -834,7 +833,7 @@ suite "misc tests":
 suite "issues":
   test "issue 801":
     cd "issue801":
-      var (output, exitCode) = execNimble("test", "-y")
+      var (output, exitCode) = execNimbleYes("test")
       check exitCode == QuitSuccess
 
       # Verify hooks work
@@ -867,28 +866,28 @@ suite "issues":
 
   test "issue 727":
     cd "issue727":
-      var (output, exitCode) = execNimble("c", "-y", "src/abc")
+      var (output, exitCode) = execNimbleYes("c", "src/abc")
       check exitCode == QuitSuccess
       check fileExists("src/abc".addFileExt(ExeExt))
       check not fileExists("src/def".addFileExt(ExeExt))
 
-      (output, exitCode) = execNimble("uninstall", "-i", "-y", "timezones")
+      (output, exitCode) = execNimbleYes("uninstall", "-i", "timezones")
       check exitCode == QuitSuccess
 
-      (output, exitCode) = execNimble("run", "-y", "def")
+      (output, exitCode) = execNimbleYes("run", "def")
       check exitCode == QuitSuccess
       check output.contains("def727")
       check not fileExists("abc".addFileExt(ExeExt))
       check fileExists("def".addFileExt(ExeExt))
 
-      (output, exitCode) = execNimble("uninstall", "-i", "-y", "timezones")
+      (output, exitCode) = execNimbleYes("uninstall", "-i", "timezones")
       check exitCode == QuitSuccess
 
   test "issue 708":
     cd "issue708":
       # TODO: We need a way to filter out compiler messages from the messages
       # written by our nimble scripts.
-      var (output, exitCode) = execNimble("install", "-y", "--verbose")
+      var (output, exitCode) = execNimbleYes("install", "--verbose")
       check exitCode == QuitSuccess
       let lines = output.strip.processOutput()
       check(inLines(lines, "hello"))
@@ -906,7 +905,7 @@ suite "issues":
           path = "$1"
         """.unindent % (getCurrentDir() / "packages.json").replace("\\", "\\\\"))
         check execNimble(["refresh"]).exitCode == QuitSuccess
-        let (output, exitCode) = execNimble("install", "-y")
+        let (output, exitCode) = execNimbleYes("install")
         check exitCode == QuitSuccess
         let index = output.find("issue678_dependency_1@0.1.0 already exists")
         check index == stringNotFound
@@ -938,12 +937,62 @@ suite "issues":
       check exitCode == QuitSuccess
 
   test "issues #280 and #524":
-    check execNimble("install", "-y", "https://github.com/nimble-test/issue280and524.git").exitCode == 0
+    check execNimbleYes("install", "https://github.com/nimble-test/issue280and524.git").exitCode == 0
+
+  test "issues #308 and #515":
+    let
+      ext = when defined(Windows): ExeExt else: "out"
+    cd "issue308515" / "v1":
+      var (output, exitCode) = execNimble(["run", "binname", "--silent"])
+      check exitCode == QuitSuccess
+      check output.contains "binname"
+
+      (output, exitCode) = execNimble(["run", "binname-2", "--silent"])
+      check exitCode == QuitSuccess
+      check output.contains "binname-2"
+
+      # Install v1 and check
+      (output, exitCode) = execNimbleYes(["install", "--verbose"])
+      check exitCode == QuitSuccess
+      check output.contains "binname-0.1.0" / "binname".addFileExt(ext)
+      check output.contains "binname-0.1.0" / "binname-2"
+
+      (output, exitCode) = execBin("binname")
+      check exitCode == QuitSuccess
+      check output.contains "binname 0.1.0"
+      (output, exitCode) = execBin("binname-2")
+      check exitCode == QuitSuccess
+      check output.contains "binname-2 0.1.0"
+
+    cd "issue308515" / "v2":
+      # Install v2 and check
+      var (output, exitCode) = execNimbleYes(["install", "--verbose"])
+      check exitCode == QuitSuccess
+      check output.contains "binname-0.2.0" / "binname".addFileExt(ext)
+      check output.contains "binname-0.2.0" / "binname-2"
+
+      (output, exitCode) = execBin("binname")
+      check exitCode == QuitSuccess
+      check output.contains "binname 0.2.0"
+      (output, exitCode) = execBin("binname-2")
+      check exitCode == QuitSuccess
+      check output.contains "binname-2 0.2.0"
+
+      # Uninstall and check v1 back
+      (output, exitCode) = execNimbleYes("uninstall", "binname@0.2.0")
+      check exitCode == QuitSuccess
+
+      (output, exitCode) = execBin("binname")
+      check exitCode == QuitSuccess
+      check output.contains "binname 0.1.0"
+      (output, exitCode) = execBin("binname-2")
+      check exitCode == QuitSuccess
+      check output.contains "binname-2 0.1.0"
 
   test "issue 432":
     cd "issue432":
-      check execNimble("install", "-y", "--depsOnly").exitCode == QuitSuccess
-      check execNimble("install", "-y", "--depsOnly").exitCode == QuitSuccess
+      check execNimbleYes("install", "--depsOnly").exitCode == QuitSuccess
+      check execNimbleYes("install", "--depsOnly").exitCode == QuitSuccess
 
   test "issue #428":
     cd "issue428":
@@ -988,7 +1037,7 @@ suite "issues":
     ]
 
     proc checkName(name: string) =
-      let (outp, code) = execNimble("init", "-y", name)
+      let (outp, code) = execNimbleYes("init", name)
       let msg = outp.strip.processOutput()
       check code == QuitFailure
       check inLines(msg,
@@ -1006,7 +1055,7 @@ suite "issues":
 
   test "issue #338":
     cd "issue338":
-      check execNimble("install", "-y").exitCode == QuitSuccess
+      check execNimbleYes("install").exitCode == QuitSuccess
 
   test "can distinguish package reading in nimbleDir vs. other dirs (#304)":
     cd "issue304" / "package-test":
@@ -1014,30 +1063,30 @@ suite "issues":
 
   test "can build with #head and versioned package (#289)":
     cd "issue289":
-      check execNimble(["install", "-y"]).exitCode == QuitSuccess
+      check execNimbleYes("install").exitCode == QuitSuccess
 
-    check execNimble(["uninstall", "issue289", "-y"]).exitCode == QuitSuccess
-    check execNimble(["uninstall", "packagea", "-y"]).exitCode == QuitSuccess
+    check execNimbleYes(["uninstall", "issue289"]).exitCode == QuitSuccess
+    check execNimbleYes(["uninstall", "packagea"]).exitCode == QuitSuccess
 
   test "issue #206":
     cd "issue206":
-      var (output, exitCode) = execNimble("install", "-y")
+      var (output, exitCode) = execNimbleYes("install")
       check exitCode == QuitSuccess
-      (output, exitCode) = execNimble("install", "-y")
+      (output, exitCode) = execNimbleYes("install")
       check exitCode == QuitSuccess
 
   test "can install diamond deps (#184)":
     cd "diamond_deps":
       cd "d":
-        check execNimble("install", "-y").exitCode == 0
+        check execNimbleYes("install").exitCode == 0
       cd "c":
-        check execNimble("install", "-y").exitCode == 0
+        check execNimbleYes("install").exitCode == 0
       cd "b":
-        check execNimble("install", "-y").exitCode == 0
+        check execNimbleYes("install").exitCode == 0
       cd "a":
         # TODO: This doesn't really test anything. But I couldn't quite
         # reproduce #184.
-        let (output, exitCode) = execNimble("install", "-y")
+        let (output, exitCode) = execNimbleYes("install")
         checkpoint(output)
         check exitCode == 0
 
@@ -1045,7 +1094,7 @@ suite "issues":
     # Test that no warnings are produced for correctly structured packages.
     for package in ["a", "b", "c", "validBinary", "softened"]:
       cd "packageStructure/" & package:
-        let (output, exitCode) = execNimble(["install", "-y"])
+        let (output, exitCode) = execNimbleYes("install")
         check exitCode == QuitSuccess
         let lines = output.strip.processOutput()
         check(not lines.hasLineStartingWith("Warning:"))
@@ -1053,7 +1102,7 @@ suite "issues":
     # Test that warnings are produced for the incorrectly structured packages.
     for package in ["x", "y", "z"]:
       cd "packageStructure/" & package:
-        let (output, exitCode) = execNimble(["install", "-y"])
+        let (output, exitCode) = execNimbleYes("install")
         check exitCode == QuitSuccess
         let lines = output.strip.processOutput()
         checkpoint(output)
@@ -1079,49 +1128,49 @@ suite "issues":
           assert false
 
   test "issue 129 (installing commit hash)":
-    let arguments = @["install", "-y",
+    let arguments = @["install",
                     "https://github.com/nimble-test/packagea.git@#1f9cb289c89"]
-    check execNimble(arguments).exitCode == QuitSuccess
+    check execNimbleYes(arguments).exitCode == QuitSuccess
     # Verify that it was installed correctly.
     check dirExists(installDir / "pkgs" / "PackageA-#1f9cb289c89")
     # Remove it so that it doesn't interfere with the uninstall tests.
-    check execNimble("uninstall", "-y", "packagea@#1f9cb289c89").exitCode ==
+    check execNimbleYes("uninstall", "packagea@#1f9cb289c89").exitCode ==
           QuitSuccess
 
   test "issue #126":
     cd "issue126/a":
-      let (output, exitCode) = execNimble("install", "-y")
+      let (output, exitCode) = execNimbleYes("install")
       let lines = output.strip.processOutput()
       check exitCode != QuitSuccess # TODO
       check inLines(lines, "issue-126 is an invalid package name: cannot contain '-'")
 
     cd "issue126/b":
-      let (output1, exitCode1) = execNimble("install", "-y")
+      let (output1, exitCode1) = execNimbleYes("install")
       let lines1 = output1.strip.processOutput()
       check exitCode1 != QuitSuccess
       check inLines(lines1, "The .nimble file name must match name specified inside")
 
   test "issue 113 (uninstallation problems)":
     cd "issue113/c":
-      check execNimble(["install", "-y"]).exitCode == QuitSuccess
+      check execNimbleYes("install").exitCode == QuitSuccess
     cd "issue113/b":
-      check execNimble(["install", "-y"]).exitCode == QuitSuccess
+      check execNimbleYes("install").exitCode == QuitSuccess
     cd "issue113/a":
-      check execNimble(["install", "-y"]).exitCode == QuitSuccess
+      check execNimbleYes("install").exitCode == QuitSuccess
 
     # Try to remove c.
-    let (output, exitCode) = execNimble(["remove", "-y", "c"])
+    let (output, exitCode) = execNimbleYes(["remove", "c"])
     let lines = output.strip.processOutput()
     check exitCode != QuitSuccess
     check inLines(lines, "cannot uninstall c (0.1.0) because b (0.1.0) depends on it")
 
-    check execNimble(["remove", "-y", "a"]).exitCode == QuitSuccess
-    check execNimble(["remove", "-y", "b"]).exitCode == QuitSuccess
+    check execNimbleYes(["remove", "a"]).exitCode == QuitSuccess
+    check execNimbleYes(["remove", "b"]).exitCode == QuitSuccess
 
     cd "issue113/buildfail":
-      check execNimble(["install", "-y"]).exitCode != QuitSuccess
+      check execNimbleYes("install").exitCode != QuitSuccess
 
-    check execNimble(["remove", "-y", "c"]).exitCode == QuitSuccess
+    check execNimbleYes(["remove", "c"]).exitCode == QuitSuccess
 
   test "issue #108":
     cd "issue108":
