@@ -980,7 +980,7 @@ proc develop(options: Options) =
     for pv in options.action.packages:
       let name =
         if isURL(pv.name):
-          parseUri(pv.name).path
+          parseUri(pv.name).path.splitPath().tail
         else:
           pv.name
       let downloadDir = getCurrentDir() / name
