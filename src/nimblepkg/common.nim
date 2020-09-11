@@ -5,7 +5,7 @@
 # recursive imports
 
 when not defined(nimscript):
-  import sets
+  import sets, tables
 
   import version
 
@@ -37,7 +37,7 @@ when not defined(nimscript):
       installFiles*: seq[string]
       installExt*: seq[string]
       requires*: seq[PkgTuple]
-      bin*: seq[string]
+      bin*: Table[string, string]
       binDir*: string
       srcDir*: string
       backend*: string

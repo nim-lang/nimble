@@ -29,6 +29,10 @@ This is a major release containing multiple improvements and bug fixes:
   instead of `~/.nimble/bin`. This enables isolation of a project and its
   dependencies from other projects being developed.
 - Nimble output can now be suppressed using `--silent`.
+- Binaries compiled by Nimble can now be named differently than the source file
+  with the `namedBin` table instead of `bin`. In addition, binary names that clash
+  with a `pkgname` directory containing .nim files no longer require appending
+  `pkg` to the directory.
 
 ----
 

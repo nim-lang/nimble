@@ -153,7 +153,7 @@ proc buildFromDir(
     if options.isInstallingTopLevel(pkgInfo.myPath.parentDir()):
       options.getCompilationBinary(pkgInfo).get("")
     else: ""
-  for bin in pkgInfo.bin:
+  for bin, src in pkgInfo.bin:
     # Check if this is the only binary that we want to build.
     if binToBuild.len != 0 and binToBuild != bin:
       if bin.extractFilename().changeFileExt("") != binToBuild:
@@ -167,7 +167,7 @@ proc buildFromDir(
     if not dirExists(outputDir):
       createDir(outputDir)
 
-    let input = realDir / bin.changeFileExt("nim")
+    let input = realDir / src.changeFileExt("nim")
     # `quoteShell` would be more robust than `\"` (and avoid quoting when
     # un-necessary) but would require changing `extractBin`
     let cmd = "$# $# --colors:on --noNimblePath $# $# $#" % [
@@ -225,8 +225,8 @@ proc removePkgDir(dir: string, options: Options) =
       var pkgInfo: PackageInfo
       if pkgList.findPkg((pkgName, newVRAny()), pkgInfo):
         pkgInfo = pkgInfo.toFullInfo(options)
-        for bin in pkgInfo.bin:
-          let symlinkDest = pkgInfo.getRealDir() / bin
+        for bin, src in pkgInfo.bin:
+          let symlinkDest = pkgInfo.getOutputDir(bin)
           let symlinkFilename = options.getBinDir() / bin.extractFilename
           discard setupBinSymlink(symlinkDest, symlinkFilename, options)
     else:
@@ -319,7 +319,7 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
 
       removePkgDir(pkgDestDir, options)
       # Remove any symlinked binaries
-      for bin in pkgInfo.bin:
+      for bin, src in pkgInfo.bin:
         # TODO: Check that this binary belongs to the package being installed.
         when defined(windows):
           removeFile(binDir / bin.changeFileExt("cmd"))
@@ -348,19 +348,24 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
       createDir(binDir)
       # Set file permissions to +x for all binaries built,
       # and symlink them on *nix OS' to $nimbleDir/bin/
-      for bin in pkgInfo.bin:
-        if fileExists(pkgDestDir / bin):
+      for bin, src in pkgInfo.bin:
+        let binDest =
+          # Issue #308
+          if dirExists(pkgDestDir / bin):
+            bin & ".out"
+          else: bin
+        if fileExists(pkgDestDir / binDest):
           display("Warning:", ("Binary '$1' was already installed from source" &
                               " directory. Will be overwritten.") % bin, Warning,
                   MediumPriority)
 
         # Copy the binary file.
         filesInstalled.incl copyFileD(pkgInfo.getOutputDir(bin),
-                                      pkgDestDir / bin)
+                                      pkgDestDir / binDest)
 
         # Set up a symlink.
-        let symlinkDest = pkgDestDir / bin
-        let symlinkFilename = binDir / bin.extractFilename
+        let symlinkDest = pkgDestDir / binDest
+        let symlinkFilename = options.getBinDir() / bin.extractFilename
         for filename in setupBinSymlink(symlinkDest, symlinkFilename, options):
           binariesInstalled.incl(filename)
 
@@ -689,7 +694,7 @@ proc dump(options: Options) =
   fn "installFiles", p.installFiles
   fn "installExt", p.installExt
   fn "requires", p.requires
-  fn "bin", p.bin
+  fn "bin", toSeq(p.bin.keys)
   fn "binDir", p.binDir
   fn "srcDir", p.srcDir
   fn "backend", p.backend
@@ -1092,7 +1097,7 @@ proc run(options: Options) =
   if binary.len == 0:
     raiseNimbleError("Please specify a binary to run")
 
-  if binary notin pkgInfo.bin:
+  if binary notin toSeq(pkgInfo.bin.keys):
     raiseNimbleError(
       "Binary '$#' is not defined in '$#' package." % [binary, pkgInfo.name]
     )
