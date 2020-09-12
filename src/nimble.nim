@@ -298,7 +298,8 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
   # if the build fails then the old package will still be installed.
   if pkgInfo.bin.len > 0:
     let paths = result.deps.map(dep => dep.getRealDir())
-    let flags = if options.action.typ in {actionInstall, actionPath, actionUninstall, actionDevelop}:
+    let flags = if options.action.typ in {actionInstall, actionPath,
+        actionUninstall, actionDevelop}:
                   options.action.passNimFlags
                 else:
                   @[]
@@ -1012,7 +1013,6 @@ proc develop(options: Options) =
 
 proc test(options: Options) =
   ## Executes all tests starting with 't' in the ``tests`` directory.
-  ## Subdirectories are not walked.
   var pkgInfo = getPkgInfo(getCurrentDir(), options)
 
   var
