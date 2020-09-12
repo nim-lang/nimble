@@ -1001,6 +1001,15 @@ suite "issues":
       check dirExists("nimbleDir/pkgs/dummy-0.1.0")
       check(not dirExists("nimbleDir/pkgs/dummy-0.1.0/nimbleDir"))
 
+  test "issue 399":
+    cd "issue399":
+      var (output, exitCode) = execNimbleYes("install")
+      check exitCode == QuitSuccess
+
+      (output, exitCode) = execBin("subbin")
+      check exitCode == QuitSuccess
+      check output.contains("subbin-1")
+
   test "can pass args with spaces to Nim (#351)":
     cd "binaryPackage/v2":
       let (output, exitCode) = execCmdEx(nimblePath &
