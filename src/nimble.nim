@@ -332,9 +332,9 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
     var filesInstalled = initHashSet[string]()
     iterInstallFiles(realDir, pkgInfo, options,
       proc (file: string) =
-        createDir(changeRoot(realDir, pkgDestDir, file.splitFile.dir))
-        let dest = changeRoot(realDir, pkgDestDir, file)
-        filesInstalled.incl copyFileD(file, dest)
+      createDir(changeRoot(realDir, pkgDestDir, file.splitFile.dir))
+      let dest = changeRoot(realDir, pkgDestDir, file)
+      filesInstalled.incl copyFileD(file, dest)
     )
 
     # Copy the .nimble file.
@@ -356,7 +356,8 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
           else: bin
         if fileExists(pkgDestDir / binDest):
           display("Warning:", ("Binary '$1' was already installed from source" &
-                              " directory. Will be overwritten.") % bin, Warning,
+                              " directory. Will be overwritten.") % bin,
+                              Warning,
                   MediumPriority)
 
         # Copy the binary file.
@@ -437,7 +438,7 @@ proc install(packages: seq[PkgTuple],
       let (meth, url, metadata) = getDownloadInfo(pv, options, doPrompt)
       let subdir = metadata.getOrDefault("subdir")
       let (downloadDir, downloadVersion) =
-          downloadPkg(url, pv.ver, meth, subdir, options)
+        downloadPkg(url, pv.ver, meth, subdir, options)
       try:
         result = installFromDir(downloadDir, pv.ver, options, url)
       except BuildFailed:
@@ -670,7 +671,7 @@ proc dump(options: Options) =
           j[key].add %{
             "name": % name,
             # we serialize both: `ver` may be more convenient for tooling
-            # (no parsing needed); while `str` is more familiar.
+              # (no parsing needed); while `str` is more familiar.
             "str": % $ver,
             "ver": %* ver,
           }
@@ -1015,7 +1016,8 @@ proc test(options: Options) =
   var pkgInfo = getPkgInfo(getCurrentDir(), options)
 
   var
-    files = toSeq(walkDir(getCurrentDir() / "tests"))
+    files = toSeq(walkDirRec(getCurrentDir() / "tests", {pcFile, pcLinkToFile},
+        relative = true))
     tests, failures: int
 
   if files.len < 1:
@@ -1025,23 +1027,23 @@ proc test(options: Options) =
   if not execHook(options, actionCustom, true):
     raise newException(NimbleError, "Pre-hook prevented further execution.")
 
-  files.sort((a, b) => cmp(a.path, b.path))
+  files.sort((a, b) => cmp(a, b))
+  files = files.map((a) => "tests" / a)
 
   for file in files:
-    let (_, name, ext) = file.path.splitFile()
-    if ext == ".nim" and name[0] == 't' and file.kind in {pcFile, pcLinkToFile}:
+    let (_, name, ext) = file.splitFile()
+    if ext == ".nim" and name[0] == 't':
       var optsCopy = options.briefClone()
       optsCopy.action = Action(typ: actionCompile)
-      optsCopy.action.file = file.path
+      optsCopy.action.file = file
       optsCopy.action.backend = pkgInfo.backend
       optsCopy.getCompilationFlags() = options.getCompilationFlags()
       # treat run flags as compile for default test task
       optsCopy.getCompilationFlags().add(options.action.custRunFlags)
       optsCopy.getCompilationFlags().add("-r")
+      optsCopy.getCompilationFlags().add("--out=" & ("build/" /
+          file.changeFileExt(ExeExt)))
       optsCopy.getCompilationFlags().add("--path:.")
-      let
-        binFileName = file.path.changeFileExt(ExeExt)
-        existsBefore = fileExists(binFileName)
 
       if options.continueTestsOnFailure:
         inc tests
@@ -1052,15 +1054,6 @@ proc test(options: Options) =
       else:
         execBackend(pkgInfo, optsCopy)
 
-      let
-        existsAfter = fileExists(binFileName)
-        canRemove = not existsBefore and existsAfter
-      if canRemove:
-        try:
-          removeFile(binFileName)
-        except OSError as exc:
-          display("Warning:", "Failed to delete " & binFileName & ": " &
-                  exc.msg, Warning, MediumPriority)
 
   if failures == 0:
     display("Success:", "All tests passed", Success, HighPriority)
@@ -1194,7 +1187,7 @@ proc doAction(options: var Options) =
     else:
       raiseNimbleError(msg = "Could not find task $1 in $2" %
                             [options.action.command, nimbleFile],
-                      hint = "Run `nimble --help` and/or `nimble tasks` for" &
+                            hint = "Run `nimble --help` and/or `nimble tasks` for" &
                               " a list of possible commands.")
 
 when isMainModule:
