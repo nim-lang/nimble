@@ -360,6 +360,7 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
                   MediumPriority)
 
         # Copy the binary file.
+        createDir((pkgDestDir / binDest).parentDir())
         filesInstalled.incl copyFileD(pkgInfo.getOutputDir(bin),
                                       pkgDestDir / binDest)
 
