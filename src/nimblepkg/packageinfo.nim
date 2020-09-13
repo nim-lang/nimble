@@ -232,8 +232,14 @@ proc fetchList*(list: PackageList, options: Options) =
     copyFile(copyFromPath,
         options.getNimbleDir() / "packages_$1.json" % list.name.toLowerAscii())
 
+# Cache after first call
+var
+  gPackageJson: Table[string, JsonNode]
 proc readPackageList(name: string, options: Options): JsonNode =
   # If packages.json is not present ask the user if they want to download it.
+  if gPackageJson.hasKey(name):
+    return gPackageJson[name]
+
   if needsRefresh(options):
     if options.prompt("No local packages.json found, download it from " &
             "internet?"):
@@ -242,9 +248,11 @@ proc readPackageList(name: string, options: Options): JsonNode =
     else:
       # The user might not need a package list for now. So let's try
       # going further.
-      return newJArray()
-  return parseFile(options.getNimbleDir() / "packages_" &
-                   name.toLowerAscii() & ".json")
+      gPackageJson[name] = newJArray()
+      return gPackageJson[name]
+  gPackageJson[name] = parseFile(options.getNimbleDir() / "packages_" &
+                                 name.toLowerAscii() & ".json")
+  return gPackageJson[name]
 
 proc getPackage*(pkg: string, options: Options, resPkg: var Package): bool
 proc resolveAlias(pkg: Package, options: Options): Package =
