@@ -933,8 +933,26 @@ proc developFromDir(dir: string, options: Options) =
   # Overwrite the version to #head always.
   pkgInfo.specialVersion = "#head"
 
-  # Dependencies need to be processed before the creation of the pkg dir.
-  discard processDeps(pkgInfo, options)
+  if options.developLocaldeps:
+    var optsCopy: Options
+    optsCopy.forcePrompts = options.forcePrompts
+    optsCopy.nimbleDir = dir / nimbledeps
+    createDir(optsCopy.getPkgsDir())
+    optsCopy.verbosity = options.verbosity
+    optsCopy.action = Action(typ: actionDevelop)
+    optsCopy.config = options.config
+    optsCopy.nimbleData = %{"reverseDeps": newJObject()}
+    optsCopy.pkgInfoCache = newTable[string, PackageInfo]()
+    optsCopy.noColor = options.noColor
+    optsCopy.disableValidation = options.disableValidation
+    optsCopy.forceFullClone = options.forceFullClone
+    optsCopy.startDir = dir
+    optsCopy.nim = options.nim
+    cd dir:
+      discard processDeps(pkgInfo, optsCopy)
+  else:
+    # Dependencies need to be processed before the creation of the pkg dir.
+    discard processDeps(pkgInfo, options)
 
   # Don't link if project local deps mode and "developing" the top level package
   if not (options.localdeps and options.isInstallingTopLevel(dir)):
@@ -1120,10 +1138,6 @@ proc doAction(options: var Options) =
 
   setNimBin(options)
   setNimbleDir(options)
-  if not dirExists(options.getNimbleDir()):
-    createDir(options.getNimbleDir())
-  if not dirExists(options.getPkgsDir):
-    createDir(options.getPkgsDir)
 
   if options.action.typ in {actionTasks, actionRun, actionBuild, actionCompile}:
     # Implicitly disable package validation for these commands.

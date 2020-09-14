@@ -627,7 +627,7 @@ suite "multi":
     check output.contains("beta installed successfully")
 
   test "can develop package from git subdir":
-    removeDir("nimble-test/multi")
+    removeDir("multi")
     let args = ["develop", "https://github.com/nimble-test/multi?subdir=beta"]
     check execNimbleYes(args).exitCode == QuitSuccess
 
