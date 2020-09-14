@@ -627,11 +627,10 @@ determined by the nature of your package, that is, whether your package exposes
 only one module or multiple modules.
 
 If your package exposes only a single module, then that module should be
-present in the root directory (the directory with the .nimble file) of your Git
-repository, and should be named whatever your package's name is. A good example
-of this is the [jester](https://github.com/dom96/jester) package which exposes
-the ``jester`` module. In this case the jester package is imported with
-``import jester``.
+present in the source directory of your Git repository, and should be named
+whatever your package's name is. A good example of this is the
+[jester](https://github.com/dom96/jester) package which exposes the ``jester``
+module. In this case the jester package is imported with ``import jester``.
 
 If your package exposes multiple modules then the modules should be in a
 ``PackageName`` directory. This will allow for a certain measure of isolation
