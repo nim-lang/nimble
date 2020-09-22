@@ -912,7 +912,8 @@ work properly and you won't be able to run them.
 If the ``nimbledeps`` directory exists next to the package ``.nimble`` file,
 Nimble will use that directory as ``$nimbleDir`` and ``$HOME/.nimble`` will be
 ignored. This allows for project local dependencies and isolation from other
-projects.
+projects. The `-l | --localdeps` flag can be used to setup a project in local
+dependency mode.
 
 Nimble also allows overriding ``$nimbleDir`` on the command line with the
 ``--nimbleDir`` flag or the ``NIMBLE_DIR`` environment variable if required.

@@ -134,7 +134,7 @@ Nimble Options:
   -v, --version                   Print version information.
   -y, --accept                    Accept all interactive prompts.
   -n, --reject                    Reject all interactive prompts.
-  -l, --local                     Run in project local dependency mode
+  -l, --localdeps                 Run in project local dependency mode
       --ver                       Query remote server for package version
                                   information when searching or listing packages
       --nimbleDir:dirname         Set the Nimble directory.
@@ -423,7 +423,7 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
   of "nocolor": result.noColor = true
   of "disablevalidation": result.disableValidation = true
   of "nim": result.nim = val
-  of "local", "l": result.localdeps = true
+  of "localdeps", "l": result.localdeps = true
   else: isGlobalFlag = false
 
   var wasFlagHandled = true
