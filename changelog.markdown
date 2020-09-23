@@ -3,7 +3,7 @@
 
 # Nimble changelog
 
-## 0.12.0 - TBD
+## 0.12.0
 
 This is a major release containing multiple improvements and bug fixes:
 

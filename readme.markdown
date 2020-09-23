@@ -6,6 +6,13 @@ language](https://nim-lang.org).
 Interested in learning **how to create a package**? Skip directly to that section
 [here](#creating-packages).
 
+This documentation is for the latest commit of Nimble. Nim releases ship with a
+specific version of Nimble and may not contain all the features and fixes described
+here. `nimble -v` will display the version of Nimble in use and corresponding
+documentation can be found [here](https://github.com/nim-lang/nimble/releases).
+
+The Nimble change log can be found [here](https://github.com/nim-lang/nimble/blob/master/changelog.markdown).
+
 ## Contents
 
 - [Requirements](#requirements)
