@@ -3,7 +3,7 @@
 
 # Nimble changelog
 
-## 0.12.0 - TBD
+## 0.12.0
 
 This is a major release containing multiple improvements and bug fixes:
 
@@ -28,6 +28,8 @@ This is a major release containing multiple improvements and bug fixes:
   exists within a project, Nimble will use it to store all package dependencies
   instead of `~/.nimble/bin`. This enables isolation of a project and its
   dependencies from other projects being developed.
+- The `-l | --localdeps` flag can be used to setup a project in local dependency
+  mode.
 - Nimble output can now be suppressed using `--silent`.
 - Binaries compiled by Nimble can now be named differently than the source file
   with the `namedBin` table instead of `bin`. In addition, binary names that clash
@@ -36,7 +38,7 @@ This is a major release containing multiple improvements and bug fixes:
 
 ----
 
-Full changelog: https://github.com/nim-lang/nimble/compare/v0.11.4...master
+Full changelog: https://github.com/nim-lang/nimble/compare/v0.11.4...v0.12.0
 
 ## 0.11.4 - 19/05/2020
 

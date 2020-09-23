@@ -8,6 +8,9 @@ from httpclient import Proxy, newProxy
 
 import config, version, common, cli
 
+const
+  nimbledeps* = "nimbledeps"
+
 type
   DumpMode* = enum kdumpIni, kdumpJson
   Options* = object
@@ -36,6 +39,7 @@ type
                       # some commands, useful when processing deps
     nim*: string # Nim compiler location
     localdeps*: bool # True if project local deps mode
+    developLocaldeps*: bool # True if local deps + nimble develop pkg1 ...
 
   ActionType* = enum
     actionNil, actionRefresh, actionInit, actionDump, actionPublish,
@@ -130,6 +134,7 @@ Nimble Options:
   -v, --version                   Print version information.
   -y, --accept                    Accept all interactive prompts.
   -n, --reject                    Reject all interactive prompts.
+  -l, --localdeps                 Run in project local dependency mode
       --ver                       Query remote server for package version
                                   information when searching or listing packages
       --nimbleDir:dirname         Set the Nimble directory.
@@ -251,10 +256,25 @@ proc promptList*(options: Options, question: string, args: openarray[string]): s
   ## options is selected.
   return promptList(options.forcePrompts, question, args)
 
+proc getNimbleDir*(options: Options): string =
+  return options.nimbleDir
+
+proc getPkgsDir*(options: Options): string =
+  options.getNimbleDir() / "pkgs"
+
+proc getBinDir*(options: Options): string =
+  options.getNimbleDir() / "bin"
+
 proc setNimbleDir*(options: var Options) =
   var
     nimbleDir = options.config.nimbleDir
     propagate = false
+
+  if (options.localdeps and options.action.typ == actionDevelop and
+      options.action.packages.len != 0):
+    # Localdeps + nimble develop pkg1 ...
+    options.developLocaldeps = true
+
   if options.nimbleDir.len != 0:
     # --nimbleDir:<dir> takes priority...
     nimbleDir = options.nimbleDir
@@ -268,8 +288,7 @@ proc setNimbleDir*(options: var Options) =
       nimbleDir = env
     else:
       # ...followed by project local deps mode
-      let nimbledeps = "nimbledeps"
-      if dirExists(nimbledeps):
+      if dirExists(nimbledeps) or (options.localdeps and not options.developLocaldeps):
         display("Warning:", "Using project local deps mode", Warning,
                 priority = HighPriority)
         nimbleDir = nimbledeps
@@ -286,14 +305,11 @@ proc setNimbleDir*(options: var Options) =
     if options.nimbleDir notin path:
       putEnv("PATH", options.nimbleDir / "bin" & PathSep & path)
 
-proc getNimbleDir*(options: Options): string =
-  return options.nimbleDir
-
-proc getPkgsDir*(options: Options): string =
-  options.getNimbleDir() / "pkgs"
-
-proc getBinDir*(options: Options): string =
-  options.getNimbleDir() / "bin"
+  if not options.developLocaldeps:
+    # Create nimbleDir/pkgs if it doesn't exist - will create nimbleDir as well
+    let pkgsDir = options.getPkgsDir()
+    if not dirExists(pkgsDir):
+      createDir(pkgsDir)
 
 proc parseCommand*(key: string, result: var Options) =
   result.action = Action(typ: parseActionType(key))
@@ -407,6 +423,7 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
   of "nocolor": result.noColor = true
   of "disablevalidation": result.disableValidation = true
   of "nim": result.nim = val
+  of "localdeps", "l": result.localdeps = true
   else: isGlobalFlag = false
 
   var wasFlagHandled = true

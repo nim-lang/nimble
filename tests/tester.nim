@@ -627,7 +627,7 @@ suite "multi":
     check output.contains("beta installed successfully")
 
   test "can develop package from git subdir":
-    removeDir("nimble-test/multi")
+    removeDir("multi")
     let args = ["develop", "https://github.com/nimble-test/multi?subdir=beta"]
     check execNimbleYes(args).exitCode == QuitSuccess
 
@@ -725,6 +725,31 @@ suite "nimble run":
         """Testing `nimble run`: @["\"", "\'", "\t", "arg with spaces"]"""
       )
 
+suite "project local deps mode":
+  test "nimbledeps exists":
+    cd "localdeps":
+      removeDir("nimbledeps")
+      createDir("nimbledeps")
+      let (output, exitCode) = execCmdEx(nimblePath & " install -y")
+      check exitCode == QuitSuccess
+      check output.contains("project local deps mode")
+      check output.contains("Succeeded")
+
+  test "--localdeps flag":
+    cd "localdeps":
+      removeDir("nimbledeps")
+      let (output, exitCode) = execCmdEx(nimblePath & " install -y -l")
+      check exitCode == QuitSuccess
+      check output.contains("project local deps mode")
+      check output.contains("Succeeded")
+
+  test "localdeps develop":
+    removeDir("packagea")
+    let (_, exitCode) = execCmdEx(nimblePath & " develop https://github.com/nimble-test/packagea --localdeps -y")
+    check exitCode == QuitSuccess
+    check dirExists("packagea" / "nimbledeps")
+    check not dirExists("nimbledeps")
+
 suite "misc tests":
   test "depsOnly + flag order test":
     var (output, exitCode) = execNimbleYes(
@@ -820,15 +845,6 @@ suite "misc tests":
     check execNimble("list").exitCode == QuitSuccess
 
     check execNimble("list", "-i").exitCode == QuitSuccess
-
-  test "project local deps mode":
-    cd "localdeps":
-      removeDir("nimbledeps")
-      createDir("nimbledeps")
-      var (output, exitCode) = execCmdEx(nimblePath & " install -y")
-      check exitCode == QuitSuccess
-      check output.contains("project local deps mode")
-      check output.contains("Succeeded")
 
 suite "issues":
   test "issue 801":

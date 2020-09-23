@@ -6,6 +6,13 @@ language](https://nim-lang.org).
 Interested in learning **how to create a package**? Skip directly to that section
 [here](#creating-packages).
 
+This documentation is for the latest commit of Nimble. Nim releases ship with a
+specific version of Nimble and may not contain all the features and fixes described
+here. `nimble -v` will display the version of Nimble in use and corresponding
+documentation can be found [here](https://github.com/nim-lang/nimble/releases).
+
+The Nimble change log can be found [here](https://github.com/nim-lang/nimble/blob/master/changelog.markdown).
+
 ## Contents
 
 - [Requirements](#requirements)
@@ -911,7 +918,8 @@ work properly and you won't be able to run them.
 If the ``nimbledeps`` directory exists next to the package ``.nimble`` file,
 Nimble will use that directory as ``$nimbleDir`` and ``$HOME/.nimble`` will be
 ignored. This allows for project local dependencies and isolation from other
-projects.
+projects. The `-l | --localdeps` flag can be used to setup a project in local
+dependency mode.
 
 Nimble also allows overriding ``$nimbleDir`` on the command line with the
 ``--nimbleDir`` flag or the ``NIMBLE_DIR`` environment variable if required.
