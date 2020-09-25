@@ -20,7 +20,7 @@ removeDir(installDir)
 createDir(installDir)
 
 # Always recompile.
-doAssert execCmdEx("nim c -d:danger " & path).exitCode == QuitSuccess
+doAssert execCmdEx("nim c -d:danger " & path).exitCode == QuitSuccess, path
 
 template cd*(dir: string, body: untyped) =
   ## Sets the current dir to ``dir``, executes ``body`` and restores the
