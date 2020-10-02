@@ -7,16 +7,14 @@ import common, tools
 type
   ChecksumError* = object of NimbleError
 
-proc raiseChecksumError*(name, version, vcsRevision,
-                         checksum, expectedChecksum: string) =
-  var error = newException(ChecksumError,
-fmt"""
+proc checksumError*(name, version, vcsRevision, checksum,
+                    expectedChecksum: string): ref ChecksumError =
+  result = newNimbleError[ChecksumError](fmt"""
 Downloaded package checksum does not correspond to that in the lock file:
   Package:           {name}@v.{version}@r.{vcsRevision}
   Checksum:          {checksum}
   Expected checksum: {expectedChecksum}
 """)
-  raise error
 
 proc extractFileList(consoleOutput: string): seq[string] =
   result = consoleOutput.splitLines()

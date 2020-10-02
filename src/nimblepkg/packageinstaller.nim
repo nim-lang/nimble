@@ -47,7 +47,7 @@ proc setupBinSymlink*(symlinkDest, symlinkFilename: string,
     var osver = OSVERSIONINFO()
     osver.dwOSVersionInfoSize = cast[DWORD](sizeof(OSVERSIONINFO))
     if GetVersionExA(osver) == WINBOOL(0):
-      raise newException(NimbleError,
+      raise nimbleError(
         "Can't detect OS version: GetVersionExA call failed")
     let fixChcp = osver.dwMajorVersion <= 5
 

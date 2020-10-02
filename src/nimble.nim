@@ -39,7 +39,7 @@ proc refresh(options: Options) =
     else:
       if parameter notin options.config.packageLists:
         let msg = "Package list with the specified name not found."
-        raise newException(NimbleError, msg)
+        raise nimbleError(msg)
 
       fetchList(options.config.packageLists[parameter], options)
   else:
@@ -75,7 +75,7 @@ proc processFreeDependencies(pkgInfo: PackageInfo, options: Options):
       let nimVer = getNimrodVersion(options)
       if not withinRange(nimVer, dep.ver):
         let msg = "Unsatisfied dependency: " & dep.name & " (" & $dep.ver & ")"
-        raise newException(NimbleError, msg)
+        raise nimbleError(msg)
     else:
       let resolvedDep = dep.resolveAlias(options)
       display("Checking", "for $1" % $resolvedDep, priority = MediumPriority)
@@ -117,7 +117,7 @@ proc processFreeDependencies(pkgInfo: PackageInfo, options: Options):
     let currentVer = pkgInfo.getConcreteVersion(options)
     if pkgsInPath.hasKey(pkgInfo.name) and
        pkgsInPath[pkgInfo.name] != currentVer:
-      raise newException(NimbleError,
+      raise nimbleError(
         "Cannot satisfy the dependency on $1 $2 and $1 $3" %
           [pkgInfo.name, currentVer, pkgsInPath[pkgInfo.name]])
     pkgsInPath[pkgInfo.name] = currentVer
@@ -139,10 +139,10 @@ proc buildFromDir(pkgInfo: PackageInfo, paths: HashSet[string],
 
   cd pkgDir: # Make sure `execHook` executes the correct .nimble file.
     if not execHook(options, actionBuild, true):
-      raise newException(NimbleError, "Pre-hook prevented further execution.")
+      raise nimbleError("Pre-hook prevented further execution.")
 
   if pkgInfo.bin.len == 0:
-    raise newException(NimbleError,
+    raise nimbleError(
         "Nothing to build. Did you specify a module to build using the" &
         " `bin` key in your .nimble file?")
 
@@ -300,7 +300,7 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
   if not options.depsOnly:
     cd dir: # Make sure `execHook` executes the correct .nimble file.
       if not execHook(options, actionInstall, true):
-        raise newException(NimbleError, "Pre-hook prevented further execution.")
+        raise nimbleError("Pre-hook prevented further execution.")
 
   var pkgInfo = getPkgInfo(dir, options)
   # Set the flag that the package is not in develop mode before saving it to the
@@ -459,8 +459,8 @@ proc processLockedDependencies(pkgInfo: PackageInfo, options: Options):
 
       let downloadedPackageChecksum = calculatePackageSha1Checksum(downloadDir)
       if downloadedPackageChecksum != dep.checksum.sha1:
-        raiseChecksumError(name, dep.version, dep.vcsRevision,
-                           downloadedPackageChecksum, dep.checksum.sha1)
+        raise checksumError(name, dep.version, dep.vcsRevision,
+                            downloadedPackageChecksum, dep.checksum.sha1)
 
       let (_, newlyInstalledPackageInfo) = installFromDir(
         downloadDir, version, options, url, first = false, fromLockFile = true)
@@ -503,7 +503,7 @@ proc getDownloadInfo*(pv: PkgTuple, options: Options,
         # isn't there)
         return getDownloadInfo(pv, options, false)
       else:
-        raise newException(NimbleError, pkgNotFoundMsg(pv))
+        raise nimbleError(pkgNotFoundMsg(pv))
 
 proc install(packages: seq[PkgTuple], options: Options,
              doPrompt, first, fromLockFile: bool): PackageDependenciesInfo =
@@ -569,10 +569,10 @@ proc execBackend(pkgInfo: PackageInfo, options: Options) =
     binDotNim = bin.addFileExt("nim")
 
   if bin == "":
-    raise newException(NimbleError, "You need to specify a file.")
+    raise nimbleError("You need to specify a file.")
 
   if not (fileExists(bin) or fileExists(binDotNim)):
-    raise newException(NimbleError,
+    raise nimbleError(
       "Specified file, " & bin & " or " & binDotNim & ", does not exist.")
 
   let pkgInfo = getPkgInfo(getCurrentDir(), options)
@@ -580,7 +580,7 @@ proc execBackend(pkgInfo: PackageInfo, options: Options) =
   let deps = pkgInfo.processAllDependencies(options)
 
   if not execHook(options, options.action.typ, true):
-    raise newException(NimbleError, "Pre-hook prevented further execution.")
+    raise nimbleError("Pre-hook prevented further execution.")
 
   var args = @["-d:NimblePkgVersion=" & pkgInfo.version]
   for dep in deps:
@@ -622,9 +622,9 @@ proc search(options: Options) =
   ## Searches are done in a case insensitive way making all strings lower case.
   assert options.action.typ == actionSearch
   if options.action.search == @[]:
-    raise newException(NimbleError, "Please specify a search string.")
+    raise nimbleError("Please specify a search string.")
   if needsRefresh(options):
-    raise newException(NimbleError, "Please run nimble refresh.")
+    raise nimbleError("Please run nimble refresh.")
   let pkgList = getPackageList(options)
   var found = false
   template onFound {.dirty.} =
@@ -651,7 +651,7 @@ proc search(options: Options) =
 
 proc list(options: Options) =
   if needsRefresh(options):
-    raise newException(NimbleError, "Please run nimble refresh.")
+    raise nimbleError("Please run nimble refresh.")
   let pkgList = getPackageList(options)
   for pkg in pkgList:
     echoPackage(pkg)
@@ -690,7 +690,7 @@ proc listPaths(options: Options) =
   assert options.action.typ == actionPath
 
   if options.action.packages.len == 0:
-    raise newException(NimbleError, "A package name needs to be specified")
+    raise nimbleError("A package name needs to be specified")
 
   var errors = 0
   let pkgs = getInstalledPkgsMin(options.getPkgsDir(), options)
@@ -716,7 +716,7 @@ proc listPaths(options: Options) =
               MediumPriority)
       errors += 1
   if errors > 0:
-    raise newException(NimbleError,
+    raise nimbleError(
         "At least one of the specified packages was not found")
 
 proc join(x: seq[PkgTuple]; y: string): string =
@@ -743,7 +743,7 @@ proc getPackageByPattern(pattern: string, options: Options): PackageInfo =
     let identTuple = parseRequires(pattern)
     var skeletonInfo: PackageInfo
     if not findPkg(packages, identTuple, skeletonInfo):
-      raise newException(NimbleError,
+      raise nimbleError(
           "Specified package not found"
       )
     result = getPkgInfoFromFile(skeletonInfo.myPath, options)
@@ -806,7 +806,7 @@ proc init(options: Options) =
   # Check whether the vcs is installed.
   let vcsBin = options.action.vcsOption
   if vcsBin != "" and findExe(vcsBin, true) == "":
-    raise newException(NimbleError, "Please install git or mercurial first")
+    raise nimbleError("Please install git or mercurial first")
 
   # Determine the package name.
   let pkgName =
@@ -829,7 +829,7 @@ proc init(options: Options) =
 
   if fileExists(nimbleFile):
     let errMsg = "Nimble file already exists: $#" % nimbleFile
-    raise newException(NimbleError, errMsg)
+    raise nimbleError(errMsg)
 
   if options.forcePrompts != forcePromptYes:
     display(
@@ -974,7 +974,7 @@ proc collectNames(pkgs: HashSet[ReverseDependency],
 
 proc uninstall(options: var Options) =
   if options.action.packages.len == 0:
-    raise newException(NimbleError,
+    raise nimbleError(
         "Please specify the package(s) to uninstall.")
 
   var pkgsToDelete: HashSet[ReverseDependency]
@@ -985,7 +985,7 @@ proc uninstall(options: var Options) =
     let installedPkgs = getInstalledPkgsMin(options.getPkgsDir(), options)
     var pkgList = findAllPkgs(installedPkgs, pkgTup)
     if pkgList.len == 0:
-      raise newException(NimbleError, "Package not found")
+      raise nimbleError("Package not found")
 
     display("Checking", "reverse dependencies", priority = HighPriority)
     for pkg in pkgList:
@@ -1003,7 +1003,7 @@ proc uninstall(options: var Options) =
           pkgsToDelete.incl pkg.toRevDep
 
   if pkgsToDelete.len == 0:
-    raise newException(NimbleError, "Failed uninstall - no packages to delete")
+    raise nimbleError("Failed uninstall - no packages to delete")
 
   if not options.prompt(pkgsToDelete.collectNames(false).promptRemovePkgsMsg):
     raise nimbleQuit()
@@ -1151,7 +1151,7 @@ proc test(options: Options) =
     return
 
   if not execHook(options, actionCustom, true):
-    raise newException(NimbleError, "Pre-hook prevented further execution.")
+    raise nimbleError("Pre-hook prevented further execution.")
 
   files.sort((a, b) => cmp(a.path, b.path))
 

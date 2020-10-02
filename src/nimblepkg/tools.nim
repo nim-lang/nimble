@@ -20,7 +20,7 @@ proc doCmd*(cmd: string) =
     bin = extractBin(cmd)
     isNim = bin.extractFilename().startsWith("nim")
   if findExe(bin) == "":
-    raise newException(NimbleError, "'" & bin & "' not in PATH.")
+    raise nimbleError("'" & bin & "' not in PATH.")
 
   # To keep output in sequence
   stdout.flushFile()
@@ -32,7 +32,7 @@ proc doCmd*(cmd: string) =
     display("Executing", cmd, priority = MediumPriority)
     let exitCode = execCmd(cmd)
     if exitCode != QuitSuccess:
-      raise newException(NimbleError,
+      raise nimbleError(
         "Execution failed with exit code $1\nCommand: $2" %
         [$exitCode, cmd])
   else:
@@ -40,22 +40,21 @@ proc doCmd*(cmd: string) =
     let (output, exitCode) = execCmdEx(cmd)
     displayDebug("Output", output)
     if exitCode != QuitSuccess:
-      raise newException(NimbleError,
+      raise nimbleError(
         "Execution failed with exit code $1\nCommand: $2\nOutput: $3" %
         [$exitCode, cmd, output])
 
 proc doCmdEx*(cmd: string): ProcessOutput =
   let bin = extractBin(cmd)
   if findExe(bin) == "":
-    raise newException(NimbleError, "'" & bin & "' not in PATH.")
+    raise nimbleError("'" & bin & "' not in PATH.")
   return execCmdEx(cmd)
 
 proc tryDoCmdEx*(cmd: string): string =
   let (output, exitCode) = doCmdEx(cmd)
   if exitCode != QuitSuccess:
-    raise newException(
-      NimbleError,
-      fmt"Execution of '{cmd}' failed with an exit code {exitCode}")
+    raise nimbleError(
+      &"Execution of '{cmd}' failed with an exit code {exitCode}")
   return output
 
 proc getNimBin*: string =
@@ -67,7 +66,7 @@ proc getNimrodVersion*(options: Options): Version =
   let vOutput = doCmdEx(getNimBin(options).quoteShell & " -v").output
   var matches: array[0..MaxSubpatterns, string]
   if vOutput.find(peg"'Version'\s{(\d+\.)+\d+}", matches) == -1:
-    raise newException(NimbleError, "Couldn't find Nim version.")
+    raise nimbleError("Couldn't find Nim version.")
   newVersion(matches[0])
 
 proc samePaths*(p1, p2: string): bool =
@@ -94,7 +93,7 @@ proc changeRoot*(origRoot, newRoot, path: string): string =
   if path.startsWith(origRoot) or path.samePaths(origRoot):
     return newRoot / path.substr(origRoot.len, path.len-1)
   else:
-    raise newException(ValueError,
+    raise nimbleError(
       "Cannot change root of path: Path does not begin with original root.")
 
 proc copyFileD*(fro, to: string): string =

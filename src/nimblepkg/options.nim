@@ -342,14 +342,14 @@ proc setNimBin*(options: var Options) =
       if pnim.len != 0:
         options.nim = pnim
       else:
-        raise newException(NimbleError,
+        raise nimbleError(
           "Unable to find `$1` in $PATH" % options.nim)
     elif not options.nim.isAbsolute():
       # Relative path
       options.nim = expandTilde(options.nim).absolutePath()
 
     if not fileExists(options.nim):
-      raise newException(NimbleError, "Unable to find `$1`" % options.nim)
+      raise nimbleError("Unable to find `$1`" % options.nim)
   else:
     # Search PATH
     let pnim = findExe("nim")
@@ -362,7 +362,7 @@ proc setNimBin*(options: var Options) =
 
     if options.nim.len == 0:
       # Nim not found in PATH
-      raise newException(NimbleError,
+      raise nimbleError(
         "Unable to find `nim` binary - add to $PATH or use `--nim`")
 
 proc getNimBin*(options: Options): string =
@@ -387,7 +387,7 @@ proc parseArgument*(key: string, result: var Options) =
       let i = find(key, '@')
       let (pkgName, pkgVer) = (key[0 .. i-1], key[i+1 .. key.len-1])
       if pkgVer.len == 0:
-        raise newException(NimbleError, "Version range expected after '@'.")
+        raise nimbleError("Version range expected after '@'.")
       result.action.packages.add((pkgName, pkgVer.parseVersionRange()))
     else:
       result.action.packages.add((key, VersionRange(kind: verAny)))
@@ -397,9 +397,8 @@ proc parseArgument*(key: string, result: var Options) =
     result.action.search.add(key)
   of actionInit, actionDump:
     if result.action.projName != "":
-      raise newException(
-        NimbleError, "Can only perform this action on one package at a time."
-      )
+      raise nimbleError(
+        "Can only perform this action on one package at a time.")
     result.action.projName = key
   of actionCompile, actionDoc:
     result.action.file = key
@@ -564,10 +563,8 @@ proc handleUnknownFlags(options: var Options) =
   # Any unhandled flags?
   if options.unknownFlags.len > 0:
     let flag = options.unknownFlags[0]
-    raise newException(
-      NimbleError,
-      "Unknown option: " & getFlagString(flag[0], flag[1], flag[2])
-    )
+    raise nimbleError("Unknown option: " &
+      getFlagString(flag[0], flag[1], flag[2]))
 
 proc parseCmdLine*(): Options =
   result = initOptions()

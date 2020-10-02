@@ -159,7 +159,7 @@ proc save*(data: DevelopFileData, path: Path, writeEmpty, overwrite: bool) =
     }
 
   if path.fileExists and not overwrite:
-    raise newException(IOError, fileAlreadyExistsMsg($path))
+    raise nimbleError(fileAlreadyExistsMsg($path))
 
   writeFile(path, json.pretty)
 

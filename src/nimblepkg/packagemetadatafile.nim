@@ -15,6 +15,9 @@ const
   packageMetaDataFileName* = "nimblemeta.json"
   packageMetaDataFileVersion = "0.1.0"
 
+proc metaDataError(msg: string): ref MetaDataError =
+  newNimbleError[MetaDataError](msg)
+
 proc saveMetaData*(metaData: PackageMetaData, dirName: string) =
   ## Saves some important data to file in the package installation directory.
   var metaDataWithChangedPaths = to(metaData, PackageMetaDataV2)
@@ -37,8 +40,7 @@ proc loadMetaData*(dirName: string, raiseIfNotFound: bool): PackageMetaData =
     else:
       result = to(json[$pmdjkMetaData].to(PackageMetaDataV2), PackageMetaData)
   elif raiseIfNotFound:
-    raise newException(MetaDataError,
-      &"No {packageMetaDataFileName} file found in {dirName}")
+    raise metaDataError(&"No {packageMetaDataFileName} file found in {dirName}")
   else:
     displayWarning(&"No {packageMetaDataFileName} file found in {dirName}")
 

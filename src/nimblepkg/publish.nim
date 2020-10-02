@@ -23,7 +23,7 @@ const
   defaultBranch = "master" # Default branch on https://github.com/nim-lang/packages
 
 proc userAborted() =
-  raise newException(NimbleError, "User aborted the process.")
+  raise nimbleError("User aborted the process.")
 
 proc createHeaders(a: Auth) =
   a.http.headers = newHttpHeaders({
@@ -95,7 +95,7 @@ proc createFork(a: Auth) =
   try:
     discard a.http.postContent(ReposUrl & "nim-lang/packages/forks")
   except HttpRequestError:
-    raise newException(NimbleError, "Unable to create fork. Access token" &
+    raise nimbleError("Unable to create fork. Access token" &
                        " might not have enough permissions.")
 
 proc createPullRequest(a: Auth, packageName, branch: string): string =
@@ -187,11 +187,11 @@ proc publish*(p: PackageInfo, o: Options) =
     doCmd("git push https://" & auth.token & "@github.com/" & auth.user & "/packages " & defaultBranch)
 
   if not dirExists(pkgsDir):
-    raise newException(NimbleError,
+    raise nimbleError(
         "Cannot find nimble-packages-fork git repository. Cloning failed.")
 
   if not fileExists(pkgsDir / "packages.json"):
-    raise newException(NimbleError,
+    raise nimbleError(
         "No packages file found in cloned fork.")
 
   # We need to do this **before** the cd:
@@ -220,7 +220,7 @@ proc publish*(p: PackageInfo, o: Options) =
     downloadMethod = "hg"
     # TODO: Retrieve URL from hg.
   else:
-    raise newException(NimbleError,
+    raise nimbleError(
          "No .git nor .hg directory found. Stopping.")
 
   if url.len == 0:

@@ -34,10 +34,12 @@ type
   ## Tuple containing package name and version range.
   PkgTuple* = tuple[name: string, ver: VersionRange]
 
-  ParseVersionError* = object of ValueError
+  ParseVersionError* = object of NimbleError
+
+proc parseVersionError*(msg: string): ref ParseVersionError =
+  result = newNimbleError[ParseVersionError](msg)
 
 proc `$`*(ver: Version): string {.borrow.}
-
 proc hash*(ver: Version): Hash {.borrow.}
 
 proc newVersion*(ver: string): Version =
@@ -168,8 +170,7 @@ proc getNextIncompatibleVersion(version: string, semver: bool): string =
 
 proc makeRange*(version: string, op: string): VersionRange =
   if version == "":
-    raise newException(ParseVersionError,
-        "A version needs to accompany the operator.")
+    raise parseVersionError("A version needs to accompany the operator.")
   case op
   of ">":
     result = VersionRange(kind: verLater)
@@ -189,7 +190,7 @@ proc makeRange*(version: string, op: string): VersionRange =
     result.verIRight = makeRange(excludedVersion, "<")
     return
   else:
-    raise newException(ParseVersionError, "Invalid operator: " & op)
+    raise parseVersionError("Invalid operator: " & op)
   result.ver = Version(version)
 
 proc parseVersionRange*(s: string): VersionRange =
@@ -221,9 +222,8 @@ proc parseVersionRange*(s: string): VersionRange =
       # Disallow more than one verIntersect. It's pointless and could lead to
       # major unpredictable mistakes.
       if result.verIRight.kind == verIntersect:
-        raise newException(ParseVersionError,
-            "Having more than one `&` in a version range is pointless")
-
+        raise parseVersionError(
+          "Having more than one `&` in a version range is pointless")
       return
     of '0'..'9', '.':
       version.add(s[i])
@@ -232,12 +232,11 @@ proc parseVersionRange*(s: string): VersionRange =
       # Make sure '0.9 8.03' is not allowed.
       if version != "" and i < s.len - 1:
         if s[i+1] in {'0'..'9', '.'}:
-          raise newException(ParseVersionError,
-              "Whitespace is not allowed in a version literal.")
-
+          raise parseVersionError(
+            "Whitespace is not allowed in a version literal.")
     else:
-      raise newException(ParseVersionError,
-          "Unexpected char in version range '" & s & "': " & s[i])
+      raise parseVersionError(
+        "Unexpected char in version range '" & s & "': " & s[i])
     inc(i)
   result = makeRange(version, op)
 
@@ -265,7 +264,7 @@ proc parseRequires*(req: string): PkgTuple =
       result.name = req.strip
       result.ver = VersionRange(kind: verAny)
   except ParseVersionError:
-    raise newException(NimbleError,
+    raise nimbleError(
         "Unable to parse dependency version range: " & getCurrentExceptionMsg())
 
 proc `$`*(verRange: VersionRange): string =

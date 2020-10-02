@@ -256,7 +256,7 @@ proc promptListInteractive(question: string, args: openarray[string]): string =
         break
       of '\3':
         showCursor(stdout)
-        raise newException(NimbleError, "Keyboard interrupt")
+        raise nimbleError("Keyboard interrupt")
       else: discard
 
   # Erase all lines of the selection

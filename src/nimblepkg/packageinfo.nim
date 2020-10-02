@@ -42,7 +42,7 @@ proc optionalField(obj: JsonNode, name: string, default = ""): string =
     if obj[name].kind == JString:
       return obj[name].str
     else:
-      raise newException(NimbleError, "Corrupted packages.json file. " & name &
+      raise nimbleError("Corrupted packages.json file. " & name &
           " field is of unexpected type.")
   else: return default
 
@@ -52,7 +52,7 @@ proc requiredField(obj: JsonNode, name: string): string =
   ## Aborts execution if the field does not exist or is of invalid json type.
   result = optionalField(obj, name)
   if result.len == 0:
-    raise newException(NimbleError,
+    raise nimbleError(
         "Package in packages.json file does not contain a " & name & " field.")
 
 proc fromJson(obj: JSonNode): Package =
@@ -152,7 +152,7 @@ proc fetchList*(list: PackageList, options: Options) =
       display("Success", "Package list copied.", Success, HighPriority)
 
   if lastError.len != 0:
-    raise newException(NimbleError, "Refresh failed\n" & lastError)
+    raise nimbleError("Refresh failed\n" & lastError)
 
   if copyFromPath.len > 0:
     copyFile(copyFromPath,
@@ -188,7 +188,7 @@ proc resolveAlias(pkg: Package, options: Options): Package =
     display("Warning:", "The $1 package has been renamed to $2" %
             [pkg.name, pkg.alias], Warning, HighPriority)
     if not getPackage(pkg.alias, options, result):
-      raise newException(NimbleError, "Alias for package not found: " &
+      raise nimbleError("Alias for package not found: " &
                          pkg.alias)
 
 proc getPackage*(pkg: string, options: Options, resPkg: var Package): bool =
@@ -212,7 +212,7 @@ proc getPackage*(pkg: string, options: Options, resPkg: var Package): bool =
 proc getPackage*(name: string, options: Options): Package =
   let success = getPackage(name, options, result)
   if not success:
-    raise newException(NimbleError,
+    raise nimbleError(
       "Cannot find package with name '" & name & "'.")
 
 proc getPackageList*(options: Options): seq[Package] =
@@ -237,12 +237,12 @@ proc findNimbleFile*(dir: string; error: bool): string =
         inc hits
       else: discard
   if hits >= 2:
-    raise newException(NimbleError,
+    raise nimbleError(
         "Only one .nimble file should be present in " & dir)
   elif hits == 0:
     if error:
-      raise newException(NimbleError,
-          "Could not find a file with a .nimble extension inside the specified directory: $1" % dir)
+      raise nimbleError(
+          "Specified directory ($1) does not contain a .nimble file." % dir)
     else:
       displayWarning(&"No .nimble file found for {dir}")
 
@@ -375,7 +375,7 @@ proc checkInstallFile(pkgInfo: PackageInfo,
 
   for ignoreFile in pkgInfo.skipFiles:
     if ignoreFile.endswith("nimble"):
-      raise newException(NimbleError, ignoreFile & " must be installed.")
+      raise nimbleError(ignoreFile & " must be installed.")
     if samePaths(file, origDir / ignoreFile):
       result = true
       break

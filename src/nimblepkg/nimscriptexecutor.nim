@@ -35,7 +35,7 @@ proc execCustom*(nimbleFile: string, options: Options,
   ## Executes the custom command using the nimscript backend.
 
   if not execHook(options, actionCustom, true):
-    raise newException(NimbleError, "Pre-hook prevented further execution.")
+    raise nimbleError("Pre-hook prevented further execution.")
 
   if not nimbleFile.isNimScript(options):
     writeHelp()

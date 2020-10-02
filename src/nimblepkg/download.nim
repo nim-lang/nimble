@@ -90,8 +90,8 @@ proc getTagsListRemote*(url: string, meth: DownloadMethod): seq[string] =
   of DownloadMethod.git:
     var (output, exitCode) = doCmdEx("git ls-remote --tags " & url.quoteShell())
     if exitCode != QuitSuccess:
-      raise newException(OSError, "Unable to query remote tags for " & url &
-          " Git returned: " & output)
+      raise nimbleError("Unable to query remote tags for " & url &
+                        ". Git returned: " & output)
     for i in output.splitLines():
       let refStart = i.find("refs/tags/")
       # git outputs warnings, empty lines, etc
@@ -102,7 +102,7 @@ proc getTagsListRemote*(url: string, meth: DownloadMethod): seq[string] =
 
   of DownloadMethod.hg:
     # http://stackoverflow.com/questions/2039150/show-tags-for-remote-hg-repository
-    raise newException(ValueError, "Hg doesn't support remote tag querying.")
+    raise nimbleError("Hg doesn't support remote tag querying.")
 
 proc getVersionList*(tags: seq[string]): OrderedTable[Version, string] =
   ## Return an ordered table of Version -> git tag label.  Ordering is
@@ -125,7 +125,7 @@ proc getDownloadMethod*(meth: string): DownloadMethod =
   of "git": return DownloadMethod.git
   of "hg", "mercurial": return DownloadMethod.hg
   else:
-    raise newException(NimbleError, "Invalid download method: " & meth)
+    raise nimbleError("Invalid download method: " & meth)
 
 proc getHeadName*(meth: DownloadMethod): Version =
   ## Returns the name of the download method specific head. i.e. for git
@@ -141,7 +141,7 @@ proc checkUrlType*(url: string): DownloadMethod =
   elif doCmdEx("hg identify " & url.quoteShell()).exitCode == QuitSuccess:
     return DownloadMethod.hg
   else:
-    raise newException(NimbleError, "Unable to identify url: " & url)
+    raise nimbleError("Unable to identify url: " & url)
 
 proc getUrlData*(url: string): (string, Table[string, string]) =
   var uri = parseUri(url)
@@ -291,7 +291,7 @@ proc downloadPkg*(url: string, verRange: VersionRange,
     ## version range.
     let pkginfo = getPkgInfo(result[0], options)
     if pkginfo.version.newVersion notin verRange:
-      raise newException(NimbleError,
+      raise nimbleError(
         "Downloaded package's version does not satisfy requested version " &
         "range: wanted $1 got $2." %
         [$verRange, $pkginfo.version])
@@ -307,7 +307,7 @@ proc echoPackageVersions*(pkg: Package) =
         echo("  versions:    " & join(sortedVersions, ", "))
       else:
         echo("  versions:    (No versions tagged in the remote repository)")
-    except OSError:
+    except CatchableError:
       echo(getCurrentExceptionMsg())
   of DownloadMethod.hg:
     echo("  versions:    (Remote tag retrieval not supported by " &

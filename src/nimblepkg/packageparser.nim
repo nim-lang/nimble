@@ -42,16 +42,11 @@ const reservedNames = [
   "LPT9",
 ]
 
-proc newValidationError(msg: string, warnInstalled: bool,
-                        hint: string, warnAll: bool): ref ValidationError =
-  result = newException(ValidationError, msg)
+proc validationError(msg: string, warnInstalled: bool, hint = "",
+                     warnAll = false): ref ValidationError =
+  result = newNimbleError[ValidationError](msg, hint)
   result.warnInstalled = warnInstalled
   result.warnAll = warnAll
-  result.hint = hint
-
-proc raiseNewValidationError(msg: string, warnInstalled: bool,
-                             hint: string = "", warnAll = false) =
-  raise newValidationError(msg, warnInstalled, hint, warnAll)
 
 proc validatePackageName*(name: string) =
   ## Raises an error if specified package name contains invalid characters.
@@ -61,7 +56,7 @@ proc validatePackageName*(name: string) =
   if name.len == 0: return
 
   if name[0] in {'0'..'9'}:
-    raiseNewValidationError(name &
+    raise validationError(name &
         "\"$1\" is an invalid package name: cannot begin with $2" %
         [name, $name[0]], true)
 
@@ -70,27 +65,27 @@ proc validatePackageName*(name: string) =
     case c
     of '_':
       if prevWasUnderscore:
-        raiseNewValidationError(
+        raise validationError(
             "$1 is an invalid package name: cannot contain \"__\"" % name, true)
       prevWasUnderscore = true
     of AllChars - IdentChars:
-      raiseNewValidationError(
+      raise validationError(
           "$1 is an invalid package name: cannot contain '$2'" % [name, $c],
           true)
     else:
       prevWasUnderscore = false
 
   if name.endsWith("pkg"):
-    raiseNewValidationError("\"$1\" is an invalid package name: cannot end" &
-                            " with \"pkg\"" % name, false)
+    raise validationError("\"$1\" is an invalid package name: cannot end" &
+                          " with \"pkg\"" % name, false)
   if name.toUpperAscii() in reservedNames:
-    raiseNewValidationError(
+    raise validationError(
       "\"$1\" is an invalid package name: reserved name" % name, false)
 
 proc validateVersion*(ver: string) =
   for c in ver:
     if c notin ({'.'} + Digits):
-      raiseNewValidationError(
+      raise validationError(
           "Version may only consist of numbers and the '.' character " &
           "but found '" & c & "'.", false)
 
@@ -140,7 +135,7 @@ proc validatePackageStructure(pkgInfo: PackageInfo, options: Options) =
                   "by adding `skipFiles = @[\"$3\"]` to the .nimble file. See " &
                   "https://github.com/nim-lang/nimble#libraries for more info.") %
                   [pkgInfo.name & ext, correctDir & DirSep, file & ext, pkgInfo.name]
-        raiseNewValidationError(msg, true, hint, true)
+        raise validationError(msg, true, hint, true)
     else:
       assert(not pkgInfo.isMinimal)
       # On Windows `pkgInfo.bin` has a .exe extension, so we need to normalize.
@@ -156,36 +151,36 @@ proc validatePackageStructure(pkgInfo: PackageInfo, options: Options) =
                   "to '$3'. Otherwise, prevent its installation " &
                   "by adding `skipDirs = @[\"$1\"]` to the .nimble file.") %
               [dir, pkgInfo.name, correctDir]
-        raiseNewValidationError(msg, true, hint, true)
+        raise validationError(msg, true, hint, true)
 
   iterInstallFiles(realDir, pkgInfo, options, onFile)
 
 proc validatePackageInfo(pkgInfo: PackageInfo, options: Options) =
   let path = pkgInfo.myPath
   if pkgInfo.name == "":
-    raiseNewValidationError("Incorrect .nimble file: " & path &
-        " does not contain a name field.", false)
+    raise validationError("Incorrect .nimble file: " & path &
+                          " does not contain a name field.", false)
 
   if pkgInfo.name.normalize != path.splitFile.name.normalize:
-    raiseNewValidationError(
+    raise validationError(
         "The .nimble file name must match name specified inside " & path, true)
 
   if pkgInfo.version == "":
-    raiseNewValidationError("Incorrect .nimble file: " & path &
+    raise validationError("Incorrect .nimble file: " & path &
         " does not contain a version field.", false)
 
   if not pkgInfo.isMinimal:
     if pkgInfo.author == "":
-      raiseNewValidationError("Incorrect .nimble file: " & path &
+      raise validationError("Incorrect .nimble file: " & path &
           " does not contain an author field.", false)
     if pkgInfo.description == "":
-      raiseNewValidationError("Incorrect .nimble file: " & path &
+      raise validationError("Incorrect .nimble file: " & path &
           " does not contain a description field.", false)
     if pkgInfo.license == "":
-      raiseNewValidationError("Incorrect .nimble file: " & path &
+      raise validationError("Incorrect .nimble file: " & path &
           " does not contain a license field.", false)
     if pkgInfo.backend notin ["c", "cc", "objc", "cpp", "js"]:
-      raiseNewValidationError("'" & pkgInfo.backend &
+      raise validationError("'" & pkgInfo.backend &
           "' is an invalid backend.", false)
 
   validatePackageStructure(pkginfo, options)
@@ -261,7 +256,7 @@ proc readPackageInfoFromNimble(path: string; result: var PackageInfo) =
                 let spl = i.split('=', 1)
                 (spl[0], spl[1])
               if src.splitFile().ext == ".nim":
-                raise newException(NimbleError, "`bin` entry should not be a source file: " & src)
+                raise nimbleError("`bin` entry should not be a source file: " & src)
               if result.backend == "js":
                 bin = bin.addFileExt(".js")
               else:
@@ -282,22 +277,22 @@ proc readPackageInfoFromNimble(path: string; result: var PackageInfo) =
             for i in ev.value.multiSplit:
               result.postHooks.incl(i.normalize)
           else:
-            raise newException(NimbleError, "Invalid field: " & ev.key)
+            raise nimbleError("Invalid field: " & ev.key)
         of "deps", "dependencies":
           case ev.key.normalize
           of "requires":
             for v in ev.value.multiSplit:
               result.requires.add(parseRequires(v.strip))
           else:
-            raise newException(NimbleError, "Invalid field: " & ev.key)
-        else: raise newException(NimbleError,
+            raise nimbleError("Invalid field: " & ev.key)
+        else: raise nimbleError(
               "Invalid section: " & currentSection)
-      of cfgOption: raise newException(NimbleError,
+      of cfgOption: raise nimbleError(
             "Invalid package info, should not contain --" & ev.value)
       of cfgError:
-        raise newException(NimbleError, "Error parsing .nimble file: " & ev.msg)
+        raise nimbleError("Error parsing .nimble file: " & ev.msg)
   else:
-    raise newException(ValueError, "Cannot open package info: " & path)
+    raise nimbleError("Cannot open package info: " & path)
 
 proc readPackageInfoFromNims(scriptName: string, options: Options,
     result: var PackageInfo) =
@@ -380,7 +375,7 @@ proc readPackageInfo(nf: NimbleFile, options: Options, onlyMinimalInfo=false):
                   "    " & iniError.msg & ".\n" &
                   "  Evaluating as NimScript file failed with: \n" &
                   "    " & exc.msg & "."
-        raise newException(NimbleError, msg)
+        raise nimbleError(msg)
 
   let fileDir = nf.splitFile().dir
   if not fileDir.startsWith(options.getPkgsDir()):
@@ -470,7 +465,7 @@ proc getInstalledPkgs*(libsDir: string, options: Options): seq[PackageInfo] =
         except:
           let tmplt = readErrorMsg & "\nMore info: $3"
           let msg = createErrorMsg(tmplt, path, getCurrentException().msg)
-          var exc = newException(NimbleError, msg)
+          var exc = nimbleError(msg)
           exc.hint = hintMsg % path
           raise exc
 

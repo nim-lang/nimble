@@ -14,7 +14,9 @@ type
   BuildFailed* = object of NimbleError
 
   ## Same as quit(QuitSuccess) or quit(QuitFailure), but allows cleanup.
-  NimbleQuit* = object of CatchableError
+  ## Inheriting from `Defect` is workaround to avoid accidental catching of
+  ## `NimbleQuit` by `CatchableError` handlers.
+  NimbleQuit* = object of Defect
     exitCode*: int
 
   ProcessOutput* = tuple[output: string, exitCode: int]
@@ -24,19 +26,19 @@ const
   nimblePackagesDirName* = "pkgs"
   nimbleBinariesDirName* = "bin"
 
-proc newNimbleError[ErrorType](msg: string, hint = "",
-                               details: ref CatchableError = nil):
+proc newNimbleError*[ErrorType](msg: string, hint = "",
+                                details: ref CatchableError = nil):
     ref ErrorType =
   result = newException(ErrorType, msg, details)
   result.hint = hint
 
-proc nimbleError*(msg: string, hint = "",  details: ref CatchableError = nil):
+proc nimbleError*(msg: string, hint = "", details: ref CatchableError = nil):
     ref NimbleError =
   newNimbleError[NimbleError](msg, hint, details)
 
-proc buildFailed*(msg: string, hint = "",  details: ref CatchableError = nil):
+proc buildFailed*(msg: string, details: ref CatchableError = nil):
     ref BuildFailed =
-  newNimbleError[BuildFailed](msg, hint, details)
+  newNimbleError[BuildFailed](msg)
 
 proc nimbleQuit*(exitCode = QuitSuccess): ref NimbleQuit =
   result = newException(NimbleQuit, "")

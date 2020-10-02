@@ -62,9 +62,9 @@ proc parseConfig*(): Config =
       of cfgEof:
         if currentSection.len > 0:
           if currentPackageList.urls.len == 0 and currentPackageList.path == "":
-            raise newException(NimbleError, "Package list '$1' requires either url or path" % currentPackageList.name)
+            raise nimbleError("Package list '$1' requires either url or path" % currentPackageList.name)
           if currentPackageList.urls.len > 0 and currentPackageList.path != "":
-            raise newException(NimbleError, "Attempted to specify `url` and `path` for the same package list '$1'" % currentPackageList.name)
+            raise nimbleError("Attempted to specify `url` and `path` for the same package list '$1'" % currentPackageList.name)
           addCurrentPkgList(result, currentPackageList)
         break
       of cfgSectionStart:
@@ -74,7 +74,7 @@ proc parseConfig*(): Config =
         of "packagelist":
           currentPackageList.clear()
         else:
-          raise newException(NimbleError, "Unable to parse config file:" &
+          raise nimbleError("Unable to parse config file:" &
                              " Unknown section: " & e.key)
       of cfgKeyValuePair, cfgOption:
         case e.key.normalize
@@ -102,7 +102,7 @@ proc parseConfig*(): Config =
           case currentSection.normalize
           of "packagelist":
             if currentPackageList.path != "":
-              raise newException(NimbleError, "Attempted to specify more than one `path` for the same package list.")
+              raise nimbleError("Attempted to specify more than one `path` for the same package list.")
             else:
               currentPackageList.path = e.value
           else: assert false
@@ -110,8 +110,8 @@ proc parseConfig*(): Config =
           # Not relevant anymore but leaving in for legacy ini files
           discard
         else:
-          raise newException(NimbleError, "Unable to parse config file:" &
+          raise nimbleError("Unable to parse config file:" &
                                      " Unknown key: " & e.key)
       of cfgError:
-        raise newException(NimbleError, "Unable to parse config file: " & e.msg)
+        raise nimbleError("Unable to parse config file: " & e.msg)
     close(p)
