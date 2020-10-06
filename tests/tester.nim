@@ -374,6 +374,54 @@ suite "nimble dump":
       check: exitCode == 0
       check: outp.processOutput.inLines("desc: \"Test package for dump command\"")
 
+  test "can dump when explicitly asking for INI format":
+    const outpExpected = """
+name: "testdump"
+version: "0.1.0"
+author: "nigredo-tori"
+desc: "Test package for dump command"
+license: "BSD"
+skipDirs: ""
+skipFiles: ""
+skipExt: ""
+installDirs: ""
+installFiles: ""
+installExt: ""
+requires: ""
+bin: ""
+binDir: ""
+srcDir: ""
+backend: "c"
+"""
+    let (outp, exitCode) = execNimble("dump", "--ini", "testdump")
+    check: exitCode == 0
+    check: outp == outpExpected
+
+  test "can dump in JSON format":
+    const outpExpected = """
+{
+  "name": "testdump",
+  "version": "0.1.0",
+  "author": "nigredo-tori",
+  "desc": "Test package for dump command",
+  "license": "BSD",
+  "skipDirs": [],
+  "skipFiles": [],
+  "skipExt": [],
+  "installDirs": [],
+  "installFiles": [],
+  "installExt": [],
+  "requires": [],
+  "bin": [],
+  "binDir": "",
+  "srcDir": "",
+  "backend": "c"
+}
+"""
+    let (outp, exitCode) = execNimble("dump", "--json", "testdump")
+    check: exitCode == 0
+    check: outp == outpExpected
+
 suite "can handle two binary versions":
   setup:
     cd "binaryPackage/v1":
