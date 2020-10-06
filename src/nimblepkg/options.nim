@@ -128,6 +128,7 @@ Commands:
                                   external tools. The argument can be a
                                   .nimble file, a project directory or
                                   the name of an installed package.
+               [--ini, --json]    Selects the output format (the default is --ini).
 
 Nimble Options:
   -h, --help                      Print this help message.
