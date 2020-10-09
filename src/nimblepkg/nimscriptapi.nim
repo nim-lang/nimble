@@ -35,7 +35,6 @@ var
   nimbleTasks: seq[string] = @[]
   beforeHooks: seq[string] = @[]
   afterHooks: seq[string] = @[]
-  commandLineParams*: seq[string] = @[]
   flags: Table[string, seq[string]]
   namedBin*: Table[string, string]
 
@@ -43,35 +42,36 @@ var
   project = ""
   success = false
   retVal = true
-  scriptFile = ""
-  projectFile = ""
-  outFile = ""
-  actionName = ""
 
 proc requires*(deps: varargs[string]) =
   ## Call this to set the list of requirements of your Nimble
   ## package.
   for d in deps: requiresData.add(d)
 
-proc getParams() =
+proc getParams(): tuple[scriptFile, projectFile, outFile, actionName: string,
+                        commandLineParams: seq[string]] =
   # Called by nimscriptwrapper.nim:execNimscript()
-  #   nim e --flags /full/path/to/file.nims /full/path/to/file.out action
+  #   nim e --flags /full/path/to/file.nims /full/path/to/file.nimble /full/path/to/file.out action
   for i in 2 .. paramCount():
     let
       param = paramStr(i)
     if param[0] != '-':
-      if scriptFile.len == 0:
-        scriptFile = param
-      elif projectFile.len == 0:
-        projectFile = param
-      elif outFile.len == 0:
-        outFile = param
-      elif actionName.len == 0:
-        actionName = param.normalize
+      if result.scriptFile.len == 0:
+        result.scriptFile = param
+      elif result.projectFile.len == 0:
+        result.projectFile = param
+      elif result.outFile.len == 0:
+        result.outFile = param
+      elif result.actionName.len == 0:
+        result.actionName = param.normalize
       else:
-        commandLineParams.add param
+        result.commandLineParams.add param
     else:
-      commandLineParams.add param
+      result.commandLineParams.add param
+
+const
+  # Command line values are const so that thisDir() works at compile time
+  (scriptFile, projectFile, outFile, actionName, commandLineParams*) = getParams()
 
 proc getCommand*(): string =
   return command
@@ -216,5 +216,3 @@ proc getPkgDir*(): string =
   result = projectFile.rsplit(seps={'/', '\\', ':'}, maxsplit=1)[0]
 
 proc thisDir*(): string = getPkgDir()
-
-getParams()

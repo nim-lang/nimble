@@ -13,6 +13,9 @@ bin = @["nimscript"]
 
 requires "nim >= 0.12.1"
 
+when thisDir().len != 0:
+  echo "thisDirCT: ", thisDir()
+
 task work, "test description":
   echo(5+5)
 

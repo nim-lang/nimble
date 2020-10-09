@@ -194,8 +194,8 @@ suite "nimscript":
       check output.contains("Before build")
       check output.contains("After build")
       let lines = output.strip.processOutput()
-      check lines[0].startsWith("Before PkgDir:")
-      check lines[0].endsWith("tests" / "nimscript")
+      check lines[1].startsWith("Before PkgDir:")
+      check lines[1].endsWith("tests" / "nimscript")
       check lines[^1].startsWith("After PkgDir:")
       check lines[^1].endsWith("tests" / "nimbleDir" / "pkgs" / "nimscript-0.1.0")
 
@@ -269,6 +269,7 @@ suite "nimscript":
       let (output, exitCode) = execNimble("api")
       let lines = output.strip.processOutput()
       check exitCode == QuitSuccess
+      check inLines(lines, "thisDirCT: " & getCurrentDir())
       check inLines(lines, "PKG_DIR: " & getCurrentDir())
       check inLines(lines, "thisDir: " & getCurrentDir())
 
@@ -807,7 +808,6 @@ suite "misc tests":
     const buildDir = "./buildDir/"
     const filesToBuild = [
       "../src/nimble.nim",
-      "../src/nimblepkg/nimscriptapi.nim",
       "./tester.nim",
       ]
 
