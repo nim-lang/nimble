@@ -57,7 +57,7 @@ template cd*(dir: string, body: untyped) =
 proc getNimrodVersion*(options: Options): Version =
   let vOutput = doCmdEx(getNimBin(options).quoteShell & " -v").output
   var matches: array[0..MaxSubpatterns, string]
-  if vOutput.find(peg"'Version'\s{(\d+\.)+\d}", matches) == -1:
+  if vOutput.find(peg"'Version'\s{(\d+\.)+\d+}", matches) == -1:
     raise newException(NimbleError, "Couldn't find Nim version.")
   newVersion(matches[0])
 
