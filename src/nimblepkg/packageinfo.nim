@@ -312,7 +312,7 @@ proc findNimbleFile*(dir: string; error: bool): string =
   elif hits == 0:
     if error:
       raise newException(NimbleError,
-          "Specified directory ($1) does not contain a .nimble file." % dir)
+          "Could not find a file with a .nimble extension inside the specified directory: $1" % dir)
     else:
       display("Warning:", "No .nimble or .nimble-link file found for " &
               dir, Warning, HighPriority)
