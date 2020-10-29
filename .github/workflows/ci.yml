@@ -1,0 +1,26 @@
+name: test
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    strategy:
+      matrix:
+        os: ['windows-latest', 'macos-latest', 'ubuntu-latest']
+        nim: ['devel', 'version-1-4', 'version-1-0']
+
+    name: Nim ${{ matrix.nim }} on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v2
+      - uses: alaviss/setup-nim@master
+        with:
+          path: 'nim'
+          version: ${{ matrix.nim }}
+      - run: |
+          cd tests
+          nim c -r tester
+      - run: ./src/nimble install -y
+        
