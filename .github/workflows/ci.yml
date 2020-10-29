@@ -19,6 +19,9 @@ jobs:
         with:
           path: 'nim'
           version: ${{ matrix.nim }}
+      - run: echo $PATH
+      - run: nim --version
+      - run: pwd
       - run: |
           cd tests
           nim c -r tester
