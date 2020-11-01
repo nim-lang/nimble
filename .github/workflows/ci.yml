@@ -15,7 +15,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v2
-      - uses: alaviss/setup-nim@master
+      - uses: alaviss/setup-nim@0.1.0
         with:
           path: 'nim'
           version: ${{ matrix.nim }}
