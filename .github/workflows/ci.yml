@@ -8,8 +8,13 @@ jobs:
   test:
     strategy:
       matrix:
-        os: ['windows-latest', 'macos-latest', 'ubuntu-latest']
-        nim: ['devel', 'version-1-4', 'version-1-0']
+        os:
+          - windows-latest
+          - macos-latest
+          - ubuntu-latest
+        nim:
+          - version-1-4
+          - version-1-0
 
     name: Nim ${{ matrix.nim }} on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
@@ -24,4 +29,42 @@ jobs:
           cd tests
           nim c -r tester
       - run: ./src/nimble install -y
-        
+
+  # The following is copied largely from alaviss/setup-nim to support
+  # building a particular commit rather than the latest devel version.
+  # Once alaviss/setup-nim supports building a particular commit, it's
+  # recommended that the following be removed.
+  devel:
+    strategy:
+      matrix:
+        os:
+          - windows-latest
+          - macos-latest
+          - ubuntu-latest
+        tag:
+          - 2020-11-03-devel-fde17b159fdc96eda5609fd98e1fe3c7a34ef40b
+    name: Nim ${{ matrix.tag }} on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v2
+      - name: 'Download the Nim compiler'
+        shell: bash
+        run: |
+          bash '.github/setup_from_release_url.sh' -o 'nim' 'nim-1.5.1' '${{ matrix.tag }}'
+      - name: 'Add the Nim compiler to PATH'
+        shell: bash
+        run: |
+          add-path() {
+            echo "$1" >> "$GITHUB_PATH"
+            echo "Directory '$1' has been added to PATH."
+          }
+          path='nim'
+          path=$(python -c "import os; import sys; print(os.path.realpath(sys.argv[1]))" "$path")
+          path=$path/bin
+          add-path "$path"
+          add-path "$HOME/.nimble/bin"
+      - run: nim --version
+      - run: |
+          cd tests
+          nim c -r tester
+      - run: ./src/nimble install -y
