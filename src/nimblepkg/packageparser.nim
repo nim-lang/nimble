@@ -217,7 +217,7 @@ proc multiSplit(s: string): seq[string] =
     else:
       return @[]
 
-proc readPackageInfoFromNimble(path: string; result: var PackageInfo) =
+proc readPackageInfoFromNimble*(path: string; result: var PackageInfo) =
   var fs = newFileStream(path, fmRead)
   if fs != nil:
     var p: CfgParser
