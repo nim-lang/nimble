@@ -1,0 +1,52 @@
+name: test
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    strategy:
+      matrix:
+        os:
+          - windows-latest
+          - macos-latest
+          - ubuntu-latest
+        tarball:
+          - https://github.com/nim-lang/nightlies/releases/download/latest-version-1-2/source.tar.xz
+          - https://github.com/nim-lang/nightlies/releases/download/latest-version-1-2/source.tar.xz
+          - https://github.com/nim-lang/nightlies/releases/download/2020-11-09-devel-49f68122e658ba7bcc13340fe157e276b4033a90/nim-1.5.1.tar.xz
+    name: ${{ matrix.os }} - ${{ matrix.tarball }}
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v2
+      - name: Build Nim
+        shell: bash
+        run: |
+          curl -L -o source.tar.xz ${{ matrix.tarball }}
+          mkdir -p nimtmp
+          tar xf source.tar.xz -C nimtmp
+          cd nimtmp
+          mv $(ls) ../nim
+          cd ../nim
+          sh build.sh
+          bin/nim c koch
+          ./koch boot -d:release
+      - name: Add nim/bin to PATH
+        shell: bash
+        run: |
+          add-path() {
+            echo "$1" >> "$GITHUB_PATH"
+            echo "Directory '$1' has been added to PATH."
+          }
+          path='nim'
+          path=$(python -c "import os; import sys; print(os.path.realpath(sys.argv[1]))" "$path")
+          path=$path/bin
+          add-path "$path"
+          add-path "$HOME/.nimble/bin"
+      - run: nim --version      
+      - name: Run nim c -r tester
+        run: |
+          cd tests
+          nim c -r tester
+      - run: ./src/nimble install -y
