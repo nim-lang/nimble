@@ -13,8 +13,8 @@ jobs:
           - macos-latest
           - ubuntu-latest
         tarball:
-          - https://github.com/nim-lang/nightlies/releases/download/latest-version-1-2/source.tar.xz
-          - https://github.com/nim-lang/nightlies/releases/download/latest-version-1-2/source.tar.xz
+          - https://github.com/nim-lang/nightlies/releases/download/latest-version-1-0/source.tar.xz
+          - https://github.com/nim-lang/nightlies/releases/download/latest-version-1-4/source.tar.xz
           - https://github.com/nim-lang/nightlies/releases/download/2020-11-09-devel-49f68122e658ba7bcc13340fe157e276b4033a90/nim-1.5.1.tar.xz
     name: ${{ matrix.os }} - ${{ matrix.tarball }}
     runs-on: ${{ matrix.os }}
