@@ -329,99 +329,111 @@ proc `$`*(dep: PkgTuple): string =
   return dep.name & "@" & $dep.ver
 
 when isMainModule:
-  doAssert(newVersion("1.0") < newVersion("1.4"))
-  doAssert(newVersion("1.0.1") > newVersion("1.0"))
-  doAssert(newVersion("1.0.6") <= newVersion("1.0.6"))
-  doAssert(not withinRange(newVersion("0.1.0"), parseVersionRange("> 0.1")))
-  doAssert(not (newVersion("0.1.0") < newVersion("0.1")))
-  doAssert(not (newVersion("0.1.0") > newVersion("0.1")))
-  doAssert(newVersion("0.1.0") < newVersion("0.1.0.0.1"))
-  doAssert(newVersion("0.1.0") <= newVersion("0.1"))
+  import unittest
 
-  var inter1 = parseVersionRange(">= 1.0 & <= 1.5")
-  doAssert(inter1.kind == verIntersect)
-  var inter2 = parseVersionRange("1.0")
-  doAssert(inter2.kind == verEq)
-  doAssert(parseVersionRange("== 3.4.2") == parseVersionRange("3.4.2"))
+  suite "version":
+    setup:
+      let versionRange1 {.used.} = parseVersionRange(">= 1.0 & <= 1.5")
+      let versionRange2 {.used.} = parseVersionRange("1.0")
 
-  doAssert(not withinRange(newVersion("1.5.1"), inter1))
-  doAssert(withinRange(newVersion("1.0.2.3.4.5.6.7.8.9.10.11.12"), inter1))
+    test "versions comparison":
+      check newVersion("1.0") < newVersion("1.4")
+      check newVersion("1.0.1") > newVersion("1.0")
+      check newVersion("1.0.6") <= newVersion("1.0.6")
+      check not (newVersion("0.1.0") < newVersion("0.1"))
+      check not (newVersion("0.1.0") > newVersion("0.1"))
+      check newVersion("0.1.0") < newVersion("0.1.0.0.1")
+      check newVersion("0.1.0") <= newVersion("0.1")
+      check newVersion("1") == newVersion("1")
+      check newVersion("1.0.2.4.6.1.2.123") == newVersion("1.0.2.4.6.1.2.123")
+      check newVersion("1.0.2") != newVersion("1.0.2.4.6.1.2.123")
+      check newVersion("1.0.3") != newVersion("1.0.2")
+      check newVersion("1") == newVersion("1.0")
 
-  doAssert(newVersion("1") == newVersion("1"))
-  doAssert(newVersion("1.0.2.4.6.1.2.123") == newVersion("1.0.2.4.6.1.2.123"))
-  doAssert(newVersion("1.0.2") != newVersion("1.0.2.4.6.1.2.123"))
-  doAssert(newVersion("1.0.3") != newVersion("1.0.2"))
+    test "version comparison with empty version":
+      check not (newVersion("") < newVersion("0.0.0"))
+      check newVersion("") < newVersion("1.0.0")
+      check newVersion("") < newVersion("0.1.0")
 
-  doAssert(not (newVersion("") < newVersion("0.0.0")))
-  doAssert(newVersion("") < newVersion("1.0.0"))
-  doAssert(newVersion("") < newVersion("0.1.0"))
+    test "comparison of Nimble special versions":
+      check newVersion("#ab26sgdt362") != newVersion("#qwersaggdt362")
+      check newVersion("#ab26saggdt362") == newVersion("#ab26saggdt362")
+      check newVersion("#head") == newVersion("#HEAD")
+      check newVersion("#head") == newVersion("#head")
 
-  var versions = toOrderedTable[Version, string]({
-    newVersion("0.0.1"): "v0.0.1",
-    newVersion("0.0.2"): "v0.0.2",
-    newVersion("0.1.1"): "v0.1.1",
-    newVersion("0.2.2"): "v0.2.2",
-    newVersion("0.2.3"): "v0.2.3",
-    newVersion("0.5"): "v0.5",
-    newVersion("1.2"): "v1.2",
-    newVersion("2.2.2"): "v2.2.2",
-    newVersion("2.2.3"): "v2.2.3",
-    newVersion("2.3.2"): "v2.3.2",
-    newVersion("3.2"): "v3.2",
-    newVersion("3.3.2"): "v3.3.2"
-  })
-  doAssert findLatest(parseVersionRange(">= 0.1 & <= 0.4"), versions) ==
-      (newVersion("0.2.3"), "v0.2.3")
-  doAssert findLatest(parseVersionRange("^= 0.1"), versions) ==
-      (newVersion("0.1.1"), "v0.1.1")
-  doAssert findLatest(parseVersionRange("^= 0"), versions) ==
-      (newVersion("0.5"), "v0.5")
-  doAssert findLatest(parseVersionRange("~= 2"), versions) ==
-      (newVersion("2.3.2"), "v2.3.2")
-  doAssert findLatest(parseVersionRange("^= 0.0.1"), versions) ==
-      (newVersion("0.0.1"), "v0.0.1")
-  doAssert findLatest(parseVersionRange("^= 2.2.2"), versions) ==
-      (newVersion("2.3.2"), "v2.3.2")
-  doAssert findLatest(parseVersionRange("^= 2.1.1.1"), versions) ==
-      (newVersion("2.3.2"), "v2.3.2")
-  doAssert findLatest(parseVersionRange("~= 2.2"), versions) ==
-      (newVersion("2.3.2"), "v2.3.2")
-  doAssert findLatest(parseVersionRange("~= 0.2.2"), versions) ==
-      (newVersion("0.2.3"), "v0.2.3")
+    test "#head is bigger than any other version":
+      check newVersion("#head") > newVersion("0.1.0")
+      check not (newVersion("#head") > newVersion("#head"))
+      check withinRange(newVersion("#head"), parseVersionRange(">= 0.5.0"))
+      check newVersion("#a111") < newVersion("#head")
 
-  # TODO: Allow these in later versions?
-  #doAssert newVersion("0.1-rc1") < newVersion("0.2")
-  #doAssert newVersion("0.1-rc1") < newVersion("0.1")
+    test "all special versions except #head are smaller than normal versions":
+      doAssert newVersion("#a111") < newVersion("1.1")
 
-  # Special tests
-  doAssert newVersion("#ab26sgdt362") != newVersion("#qwersaggdt362")
-  doAssert newVersion("#ab26saggdt362") == newVersion("#ab26saggdt362")
-  doAssert newVersion("#head") == newVersion("#HEAD")
-  doAssert newVersion("#head") == newVersion("#head")
+    # TODO: Allow these in later versions?
+    test "comparison of semantic versions with release candidate tags in them":
+      skip()
+      # check newVersion("0.1-rc1") < newVersion("0.2")
+      # check newVersion("0.1-rc1") < newVersion("0.1")
 
-  var sp = parseVersionRange("#ab26sgdt362")
-  doAssert newVersion("#ab26sgdt362") in sp
-  doAssert newVersion("#ab26saggdt362") notin sp
+    test "parse version range":
+      check parseVersionRange("== 3.4.2") == parseVersionRange("3.4.2")
 
-  doAssert newVersion("#head") in parseVersionRange("#head")
+    test "correct version range kinds":
+      check versionRange1.kind == verIntersect
+      check versionRange2.kind == verEq
+      # An empty version range should give verAny
+      doAssert parseVersionRange("").kind == verAny
 
-  # We assume that #head > 0.1.0, in practice this shouldn't be a problem.
-  doAssert(newVersion("#head") > newVersion("0.1.0"))
-  doAssert(not(newVersion("#head") > newVersion("#head")))
-  doAssert(withinRange(newVersion("#head"), parseVersionRange(">= 0.5.0")))
-  doAssert newVersion("#a111") < newVersion("#head")
-  # We assume that all other special versions are not higher than a normal
-  # version.
-  doAssert newVersion("#a111") < newVersion("1.1")
+    test "version is within range":
+      let version1 = newVersion("0.1.0")
+      let version2 = newVersion("1.5.1")
+      let version3 = newVersion("1.0.2.3.4.5.6.7.8.9.10.11.12")
+      let versionRange = parseVersionRange("> 0.1")
+      check not withinRange(version1, versionRange)
+      check not withinRange(version2, versionRange1)
+      check withinRange(version3, versionRange1)
 
-  # An empty version range should give verAny
-  doAssert parseVersionRange("").kind == verAny
+    test "in and notin operators":
+      let versionRange = parseVersionRange("#ab26sgdt362")
+      check newVersion("#ab26sgdt362") in versionRange
+      check newVersion("#ab26saggdt362") notin versionRange
+      check newVersion("#head") in parseVersionRange("#head")
 
-  # toVersionRange tests
-  doAssert toVersionRange(newVersion("#head")).kind == verSpecial
-  doAssert toVersionRange(newVersion("0.2.0")).kind == verEq
+    test "find latest version":
+      let versions = toOrderedTable[Version, string]({
+        newVersion("0.0.1"): "v0.0.1",
+        newVersion("0.0.2"): "v0.0.2",
+        newVersion("0.1.1"): "v0.1.1",
+        newVersion("0.2.2"): "v0.2.2",
+        newVersion("0.2.3"): "v0.2.3",
+        newVersion("0.5"): "v0.5",
+        newVersion("1.2"): "v1.2",
+        newVersion("2.2.2"): "v2.2.2",
+        newVersion("2.2.3"): "v2.2.3",
+        newVersion("2.3.2"): "v2.3.2",
+        newVersion("3.2"): "v3.2",
+        newVersion("3.3.2"): "v3.3.2"
+      })
+      check findLatest(parseVersionRange(">= 0.1 & <= 0.4"), versions) ==
+          (newVersion("0.2.3"), "v0.2.3")
+      check findLatest(parseVersionRange("^= 0.1"), versions) ==
+          (newVersion("0.1.1"), "v0.1.1")
+      check findLatest(parseVersionRange("^= 0"), versions) ==
+          (newVersion("0.5"), "v0.5")
+      check findLatest(parseVersionRange("~= 2"), versions) ==
+          (newVersion("2.3.2"), "v2.3.2")
+      check findLatest(parseVersionRange("^= 0.0.1"), versions) ==
+          (newVersion("0.0.1"), "v0.0.1")
+      check findLatest(parseVersionRange("^= 2.2.2"), versions) ==
+          (newVersion("2.3.2"), "v2.3.2")
+      check findLatest(parseVersionRange("^= 2.1.1.1"), versions) ==
+          (newVersion("2.3.2"), "v2.3.2")
+      check findLatest(parseVersionRange("~= 2.2"), versions) ==
+          (newVersion("2.3.2"), "v2.3.2")
+      check findLatest(parseVersionRange("~= 0.2.2"), versions) ==
+          (newVersion("0.2.3"), "v0.2.3")
 
-  # Something raised on IRC
-  doAssert newVersion("1") == newVersion("1.0")
-
-  echo("Everything works!")
+    test "convert version to version range":
+      check toVersionRange(newVersion("#head")).kind == verSpecial
+      check toVersionRange(newVersion("0.2.0")).kind == verEq

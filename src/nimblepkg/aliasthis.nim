@@ -82,7 +82,6 @@ template aliasThis*(dotExpression: untyped) =
 
 when isMainModule:
   import unittest
-  import common
 
   type
     Object1 = object
@@ -100,7 +99,7 @@ when isMainModule:
   aliasThis(Object2.field22)
   aliasThis(Object2.field23)
 
-  var obj = Object2(
+  const objPrototype = Object2(
     field11: 3.14,
     field22: Object1(
       field11: 2.718,
@@ -108,50 +107,56 @@ when isMainModule:
       field13: 42),
     field23: ("tuple", 1))
 
-  # check access to the original value in both ways
-  check obj.field13 == 42
-  check obj.field22.field13 == 42
-  check obj.field12 == @[1, 1, 2, 3, 5, 8]
-  check obj.field22.field12 == @[1, 1, 2, 3, 5, 8]
+  suite "aliasThis for objects":
+    setup:
+      var obj = objPrototype
 
-  # check setter via an alias
-  obj.field13 = -obj.field13
-  check obj.field13 == -42
-  check obj.field22.field13 == -42
+    test "access to the original value in both ways":
+      check obj.field13 == 42
+      check obj.field22.field13 == 42
+      check obj.field12 == @[1, 1, 2, 3, 5, 8]
+      check obj.field22.field12 == @[1, 1, 2, 3, 5, 8]
 
-  # check setter without an alias
-  obj.field22.field13 = 0
-  check obj.field13 == 0
-  check obj.field22.field13 == 0
+    test "setter via an alias":
+      obj.field13 = -obj.field13
+      check obj.field13 == -42
+      check obj.field22.field13 == -42
 
-  # check procedure call via an alias
-  obj.field12.add 13
-  check obj.field12 == @[1, 1, 2, 3, 5, 8, 13]
-  check obj.field22.field12 == @[1, 1, 2, 3, 5, 8, 13]
+    test "setter without an alias":
+      obj.field22.field13 = 0
+      check obj.field13 == 0
+      check obj.field22.field13 == 0
 
-  # check procedure call without an alias
-  obj.field22.field12.add 21
-  check obj.field12 == @[1, 1, 2, 3, 5, 8, 13, 21]
-  check obj.field22.field12 == @[1, 1, 2, 3, 5, 8, 13, 21]
+    test "procedure call via an alias":
+      obj.field12.add 13
+      check obj.field12 == @[1, 1, 2, 3, 5, 8, 13]
+      check obj.field22.field12 == @[1, 1, 2, 3, 5, 8, 13]
 
-  # check that the priority is on the not aliased field
-  check obj.field11 == 3.14
-  # check that the aliased, but shadowed field is still accessible
-  check obj.field22.field11 == 2.718
+    test "procedure call without an alias":
+      obj.field22.field12.add 13
+      check obj.field12 == @[1, 1, 2, 3, 5, 8, 13]
+      check obj.field22.field12 == @[1, 1, 2, 3, 5, 8, 13]
 
-  # check that setting via matching field name does not override
-  # the shadowed field
-  obj.field11 = 0
-  check obj.field11 == 0
-  check obj.field22.field11 == 2.718
+    test "the priority is on the not aliased field":
+      check obj.field11 == 3.14
 
-  # check access to tuple fields via an alias
-  check obj.tField1 == "tuple"
-  check obj.tField2 == 1
+    test "the aliased, but shadowed field is still accessible":
+      check obj.field22.field11 == 2.718
 
-  # check modification of tuple fields via an alias
-  obj.tField1 &= " test"
-  obj.tField2.inc
-  check obj.field23 == ("tuple test", 2)
+    test "setting via matching field name does not override the shadowed field":
+      obj.field11 = 0
+      check obj.field11 == 0
+      check obj.field22.field11 == 2.718
 
-  reportUnitTestSuccess()
+  suite "aliasThis for tuples":
+    setup:
+      var obj = objPrototype
+
+    test "access to tuple fields via an alias":
+      check obj.tField1 == "tuple"
+      check obj.tField2 == 1
+
+    test "modification of tuple fields via an alias":
+      obj.tField1 &= " test"
+      obj.tField2.inc
+      check obj.field23 == ("tuple test", 2)

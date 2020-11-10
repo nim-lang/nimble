@@ -1652,11 +1652,11 @@ suite "Module tests":
 
   moduleTest "aliasthis"
   moduleTest "common"
+  moduleTest "counttables"
   moduleTest "download"
   moduleTest "jsonhelpers"
   moduleTest "packageinfo"
   moduleTest "packageparser"
-  moduleTest "paths"
   moduleTest "reversedeps"
   moduleTest "topologicalsort"
   moduleTest "version"

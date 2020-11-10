@@ -4,7 +4,7 @@
 # Various miscellaneous common types reside here, to avoid problems with
 # recursive imports
 
-import sugar, terminal, macros, hashes, strutils, sets
+import sugar, macros, hashes, strutils, sets
 export sugar.dump
 
 type
@@ -43,10 +43,6 @@ proc buildFailed*(msg: string, details: ref CatchableError = nil):
 proc nimbleQuit*(exitCode = QuitSuccess): ref NimbleQuit =
   result = newException(NimbleQuit, "")
   result.exitCode = exitCode
-
-proc reportUnitTestSuccess*() =
-  if programResult == QuitSuccess:
-    stdout.styledWrite(fgGreen, "All tests passed.\n")
 
 proc hasField(NewType: type[object], fieldName: static string,
               FieldType: type): bool {.compiletime.} =
@@ -91,11 +87,6 @@ template cd*(dir: string, body: untyped) =
   block:
     defer: setCurrentDir(lastDir)
     body
-
-template debugTrace*(): untyped =
-  block:
-    let (filename, line, _) = instantiationInfo()
-    echo "filename = $#; line: $#" % [filename, $line]
 
 when isMainModule:
   import unittest

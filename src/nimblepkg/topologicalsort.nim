@@ -98,11 +98,11 @@ proc topologicalSort*(graph: LockFileDependencies):
   return (order, cycles)
 
 when isMainModule:
-  import unittest, common
+  import unittest
 
-  proc testTopologicalSort() =
+  suite "topological sort":
 
-    proc testWithoutCycles() =
+    test "graph without cycles":
       let
         graph = {
           "json_serialization": LockFileDependency(
@@ -126,7 +126,7 @@ when isMainModule:
       check actualTopologicallySortedOrder == expectedTopologicallySortedOrder
       check actualCycles == expectedCycles
 
-    proc testWithCycles() =
+    test "graph with cycles":
       let
         graph = {
           "A": LockFileDependency(dependencies: @["B", "E"]),
@@ -143,9 +143,3 @@ when isMainModule:
 
       check actualTopologicallySortedOrder == expectedTopologicallySortedOrder
       check actualCycles == expectedCycles
-
-    testWithoutCycles()
-    testWithCycles()
-
-  testTopologicalSort()
-  reportUnitTestSuccess()

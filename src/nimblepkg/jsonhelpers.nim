@@ -45,28 +45,24 @@ proc cleanUpEmptyObjects*(obj: JsonNode): JsonNode =
     result = obj
 
 when isMainModule:
-
   import unittest
-  from common import reportUnitTestSuccess
 
-  proc testNewJObjectIfKeyNotExists() =
-
-    proc test(testedJson, key, expectedResult: string) =
+  test "bewJObjectIfKeyNotExists":
+    proc testProc(testedJson, key, expectedResult: string) =
       let testedJson = parseJson(testedJson)
       let expectedResult = parseJson(expectedResult)
       let actualResult = newJObjectIfKeyNotExists(testedJson, key)
       check actualResult == expectedResult
 
-    test("{}", "key", "{}")
-    test("{ \"key1\": \"value1\", \"key2\": {} }", "key3", "{}")
-    test("{ \"key1\": \"value1\", \"key2\": {} }", "key1", "\"value1\"")
-    test("{ \"key1\": \"value1\", \"key2\": { \"key3\": [ 2, 3, 5] } }", "key2",
-         "{ \"key3\": [ 2, 3, 5] }")
+    testProc("{}", "key", "{}")
+    testProc("{ \"key1\": \"value1\", \"key2\": {} }", "key3", "{}")
+    testProc("{ \"key1\": \"value1\", \"key2\": {} }", "key1", "\"value1\"")
+    testProc("{ \"key1\": \"value1\", \"key2\": { \"key3\": [ 2, 3, 5] } }",
+             "key2", "{ \"key3\": [ 2, 3, 5] }")
 
-  proc testAddIfNotExist() =
-
-    proc test(testedJson: string, keys: varargs[string],
-              jsonToAdd, expectedResult, expectedEndObject: string) =
+  test "addIfNotExist":
+    proc testProc(testedJson: string, keys: varargs[string],
+                  jsonToAdd, expectedResult, expectedEndObject: string) =
       let expectedResult = parseJson(expectedResult)
       let jsonToAdd = parseJson(jsonToAdd)
       let actualResult = parseJson(testedJson)
@@ -75,36 +71,36 @@ when isMainModule:
       check actualResult == expectedResult
       check addedOrOldNode == expectedEndObject
 
-    test("{}", "key", "[]", "{ \"key\": [] }", "[]")
-    test("{}", "key1", "key2", "{}", "{ \"key1\": { \"key2\": {} } }", "{}")
-    test("{ \"key\": {} }", "key", "[]", "{ \"key\": {} }", "{}")
-    test("{ \"key1\": { \"key2\": {} } }", "key1", "key2", "[1, 2, 3]",
-         "{ \"key1\": { \"key2\": {} } }", "{}")
-    test("{ \"key1\": {}, \"key2\": {} }", "key2", "key3", "{ \"key4\": [1] }",
-         "{ \"key1\": {}, \"key2\": { \"key3\": { \"key4\": [1] } } }",
-         "{ \"key4\": [1] }")
+    testProc("{}", "key", "[]", "{ \"key\": [] }", "[]")
+    testProc("{}", "key1", "key2", "{}", "{ \"key1\": { \"key2\": {} } }", "{}")
+    testProc("{ \"key\": {} }", "key", "[]", "{ \"key\": {} }", "{}")
+    testProc("{ \"key1\": { \"key2\": {} } }", "key1", "key2", "[1, 2, 3]",
+             "{ \"key1\": { \"key2\": {} } }", "{}")
+    testProc("{ \"key1\": {}, \"key2\": {} }", "key2", "key3",
+             "{ \"key4\": [1] }",
+             "{ \"key1\": {}, \"key2\": { \"key3\": { \"key4\": [1] } } }",
+             "{ \"key4\": [1] }")
 
-  proc testCleanUpEmptyObjects() =
-
-    proc test(testedJson, expectedJson: string) =
+  test "cleanUpEmptyObjects":
+    proc testProc(testedJson, expectedJson: string) =
       let testedJsonNode = parseJson(testedJson)
       let expectedResult = parseJson(expectedJson)
       let actualResult = cleanUpEmptyObjects(testedJsonNode)
       check actualResult == expectedResult
 
-    test("{}", "{}")
-    test("[]", "[]")
-    test("{ \"key\": \"value\" }", "{ \"key\": \"value\" }")
-    test("[ 3, 1415 ]", "[ 3, 1415 ]")
+    testProc("{}", "{}")
+    testProc("[]", "[]")
+    testProc("{ \"key\": \"value\" }", "{ \"key\": \"value\" }")
+    testProc("[ 3, 1415 ]", "[ 3, 1415 ]")
 
-    test("{ \"key\": [ \"value1\", \"value2\" ] }",
-         "{ \"key\": [ \"value1\", \"value2\" ] }")
+    testProc("{ \"key\": [ \"value1\", \"value2\" ] }",
+             "{ \"key\": [ \"value1\", \"value2\" ] }")
 
-    test("{ \"key\": {} }", "{}")
-    test("[ [], [] ]", "[]")
-    test("[ { \"key1\": [ { \"key1.1\": [] } ] }, { \"key2\": [] } ]", "[]")
+    testProc("{ \"key\": {} }", "{}")
+    testProc("[ [], [] ]", "[]")
+    testProc("[ { \"key1\": [ { \"key1.1\": [] } ] }, { \"key2\": [] } ]", "[]")
 
-    test(""" {
+    testProc(""" {
       "key1": {
         "key1.1": "value1.1",
         "key1.2": "value1.2"
@@ -142,8 +138,3 @@ when isMainModule:
       ],
       "key5": 5
       }""")
-
-  testNewJObjectIfKeyNotExists()
-  testAddIfNotExist()
-  testCleanUpEmptyObjects()
-  reportUnitTestSuccess()

@@ -507,12 +507,9 @@ proc getConcreteVersion*(pkgInfo: PackageInfo, options: Options): string =
   assert(not newVersion(result).isSpecial)
 
 when isMainModule:
-  validatePackageName("foo_bar")
-  validatePackageName("f_oo_b_a_r")
-  try:
-    validatePackageName("foo__bar")
-    assert false
-  except NimbleError:
-    assert true
+  import unittest
 
-  echo("Everything passed!")
+  test "validatePackageName":
+    validatePackageName("foo_bar")
+    validatePackageName("f_oo_b_a_r")
+    expect NimbleError, validatePackageName("foo__bar")

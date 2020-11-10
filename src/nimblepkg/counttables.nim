@@ -62,7 +62,6 @@ proc hasKey*[K](t: CountTable[K], k: K): bool = t.count(k) != 0
 
 when isMainModule:
   import unittest
-  import common
 
   let testKey = 'a'
   var t: CountTable[testKey.typeOf]
@@ -76,21 +75,20 @@ when isMainModule:
       check not t.hasKey(k)
       expect KeyError, (discard t[k])
 
-  checkKeyCount(t, testKey, 0)
+  test "key count":
+    checkKeyCount(t, testKey, 0)
 
-  t.inc(testKey)
-  checkKeyCount(t, testKey, 1)
+    t.inc(testKey)
+    checkKeyCount(t, testKey, 1)
 
-  t.inc(testKey)
-  checkKeyCount(t, testKey, 2)
+    t.inc(testKey)
+    checkKeyCount(t, testKey, 2)
 
-  check not t.dec(testKey)
-  checkKeyCount(t, testKey, 1)
+    check not t.dec(testKey)
+    checkKeyCount(t, testKey, 1)
 
-  check t.dec(testKey)
-  checkKeyCount(t, testKey, 0)
+    check t.dec(testKey)
+    checkKeyCount(t, testKey, 0)
 
-  expect KeyError, t.dec(testKey)
-  checkKeyCount(t, testKey, 0)
-
-  reportUnitTestSuccess()
+    expect KeyError, t.dec(testKey)
+    checkKeyCount(t, testKey, 0)

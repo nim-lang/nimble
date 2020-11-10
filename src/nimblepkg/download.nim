@@ -314,30 +314,27 @@ proc echoPackageVersions*(pkg: Package) =
         pkg.downloadMethod & ")")
 
 when isMainModule:
-  # Test version sorting
-  block:
-    let data = @["v9.0.0-taeyeon", "v9.0.1-jessica", "v9.2.0-sunny",
-                 "v9.4.0-tiffany", "v9.4.2-hyoyeon"]
-    let expected = toOrderedTable[Version, string]({
-      newVersion("9.4.2-hyoyeon"): "v9.4.2-hyoyeon",
-      newVersion("9.4.0-tiffany"): "v9.4.0-tiffany",
-      newVersion("9.2.0-sunny"): "v9.2.0-sunny",
-      newVersion("9.0.1-jessica"): "v9.0.1-jessica",
-      newVersion("9.0.0-taeyeon"): "v9.0.0-taeyeon"
-    })
-    doAssert expected == getVersionList(data)
+  import unittest
 
+  suite "version sorting":
+    test "pre-release versions":
+      let data = @["v9.0.0-taeyeon", "v9.0.1-jessica", "v9.2.0-sunny",
+                   "v9.4.0-tiffany", "v9.4.2-hyoyeon"]
+      let expected = toOrderedTable[Version, string]({
+        newVersion("9.4.2-hyoyeon"): "v9.4.2-hyoyeon",
+        newVersion("9.4.0-tiffany"): "v9.4.0-tiffany",
+        newVersion("9.2.0-sunny"): "v9.2.0-sunny",
+        newVersion("9.0.1-jessica"): "v9.0.1-jessica",
+        newVersion("9.0.0-taeyeon"): "v9.0.0-taeyeon"})
+      check getVersionList(data) == expected
 
-  block:
-    let data2 = @["v0.1.0", "v0.1.1", "v0.2.0",
-                 "0.4.0", "v0.4.2"]
-    let expected2 = toOrderedTable[Version, string]({
-      newVersion("0.4.2"): "v0.4.2",
-      newVersion("0.4.0"): "0.4.0",
-      newVersion("0.2.0"): "v0.2.0",
-      newVersion("0.1.1"): "v0.1.1",
-      newVersion("0.1.0"): "v0.1.0",
-    })
-    doAssert expected2 == getVersionList(data2)
-
-  echo("Everything works!")
+    test "release versions":
+      let data = @["v0.1.0", "v0.1.1", "v0.2.0",
+                   "0.4.0", "v0.4.2"]
+      let expected = toOrderedTable[Version, string]({
+        newVersion("0.4.2"): "v0.4.2",
+        newVersion("0.4.0"): "0.4.0",
+        newVersion("0.2.0"): "v0.2.0",
+        newVersion("0.1.1"): "v0.1.1",
+        newVersion("0.1.0"): "v0.1.0",})
+      check getVersionList(data) == expected
