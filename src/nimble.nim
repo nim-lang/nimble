@@ -815,6 +815,14 @@ Please specify a valid SPDX identifier.""",
       "MIT"
     )
 
+  if pkgLicense in ["GPL-2.0", "GPL-3.0", "LGPL-2.1", "LGPL-3.0", "AGPL-3.0"]:
+    let orLater = options.promptList(
+      "\"Or any later version\" clause?", ["Yes", "No"])
+    if orLater == "Yes":
+      pkgLicense.add("-or-later")
+    else:
+      pkgLicense.add("-only")
+
   # Ask for Nim dependency
   let nimDepDef = getNimrodVersion(options)
   let pkgNimDep = promptCustom(options, "Lowest supported Nim version?",
