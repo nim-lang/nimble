@@ -28,3 +28,15 @@ proc hash*(path: Path): Hash = hash(absolutePath(string(path)))
 
 proc `==`*(lhs, rhs: Path): bool =
   absolutePath(string(lhs)) == absolutePath(string(rhs))
+
+when isMainModule:
+  import unittest
+
+  const testDir: Path = "some/relative/path/"
+  let absolutePathToTestDir: Path = getCurrentDir() / testDir
+
+  test "hashing":
+    check hash(testDir) == hash(absolutePathToTestDir)
+
+  test "equals":
+    check testDir == absolutePathToTestDir

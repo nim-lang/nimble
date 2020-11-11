@@ -1657,6 +1657,7 @@ suite "Module tests":
   moduleTest "jsonhelpers"
   moduleTest "packageinfo"
   moduleTest "packageparser"
+  moduleTest "paths"
   moduleTest "reversedeps"
   moduleTest "topologicalsort"
   moduleTest "version"
