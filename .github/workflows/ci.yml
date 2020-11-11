@@ -12,39 +12,33 @@ jobs:
           - windows-latest
           - macos-latest
           - ubuntu-latest
-        tarball:
-          - https://github.com/nim-lang/nightlies/releases/download/latest-version-1-0/source.tar.xz
-          - https://github.com/nim-lang/nightlies/releases/download/latest-version-1-4/source.tar.xz
-          - https://github.com/nim-lang/nightlies/releases/download/2020-11-09-devel-49f68122e658ba7bcc13340fe157e276b4033a90/nim-1.5.1.tar.xz
-    name: ${{ matrix.os }} - ${{ matrix.tarball }}
+        target:
+          ## Uncomment whichever builds you want:
+          ##   nightly:   download pre-built binaries (this is the fastest on all OSes)
+          ##   release:   download official releases (binaries for linux/win, build from source on macOS)
+          ##   sourcetar: download source archive and build
+          ##   git:       check out a specific tag/commit/branch and build source
+          - nightly:https://github.com/nim-lang/nightlies/releases/latest-version-1-0/
+          - nightly:https://github.com/nim-lang/nightlies/releases/latest-version-1-2/
+          - nightly:https://github.com/nim-lang/nightlies/releases/latest-version-1-4/
+          - nightly:https://github.com/nim-lang/nightlies/releases/tag/2020-11-11-devel-bbe49a14ae827b6474d692042406716a3b3dd71f
+          # - sourcetar:https://github.com/nim-lang/nightlies/releases/download/latest-version-1-0/source.tar.xz
+          # - sourcetar:https://github.com/nim-lang/nightlies/releases/download/latest-version-1-2/source.tar.xz
+          # - sourcetar:https://github.com/nim-lang/nightlies/releases/download/latest-version-1-4/source.tar.xz
+          # - sourcetar:https://github.com/nim-lang/nightlies/releases/download/2020-11-11-devel-bbe49a14ae827b6474d692042406716a3b3dd71f/nim-1.5.1.tar.xz
+          # - release:1.4.0
+          # - release:1.2.8
+          # - release:1.0.10
+          # - git:devel
+          # - git:bbe49a14ae827b6474d692042406716a3b3dd71f
+    name: ${{ matrix.os }} - ${{ matrix.target }}
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v2
-      - name: Build Nim
+      - name: Install Nim
         shell: bash
-        run: |
-          curl -L -o source.tar.xz ${{ matrix.tarball }}
-          mkdir -p nimtmp
-          tar xf source.tar.xz -C nimtmp
-          cd nimtmp
-          mv $(ls) ../nim
-          cd ../nim
-          sh build.sh
-          bin/nim c koch
-          ./koch boot -d:release
-      - name: Add nim/bin to PATH
-        shell: bash
-        run: |
-          add-path() {
-            echo "$1" >> "$GITHUB_PATH"
-            echo "Directory '$1' has been added to PATH."
-          }
-          path='nim'
-          path=$(python -c "import os; import sys; print(os.path.realpath(sys.argv[1]))" "$path")
-          path=$path/bin
-          add-path "$path"
-          add-path "$HOME/.nimble/bin"
-      - run: nim --version      
+        run: bash .github/install-nim.sh ${{ matrix.target }}
+      - run: nim --version
       - name: Run nim c -r tester
         run: |
           cd tests
