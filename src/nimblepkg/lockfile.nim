@@ -2,18 +2,19 @@
 # BSD License. Look at license.txt for more info.
 
 import tables, os, json
+import sha1hashes
 
 type
   Checksums* = object
-    sha1*: string
+    sha1*: Sha1Hash
 
   LockFileDependency* = object
     version*: string
-    vcsRevision*: string
+    vcsRevision*: Sha1Hash
     url*: string
     downloadMethod*: string
     dependencies*: seq[string]
-    checksum*: Checksums
+    checksums*: Checksums
 
   LockFileDependencies* = OrderedTable[string, LockFileDependency]
 
@@ -49,7 +50,11 @@ proc writeLockFile*(packages: LockFileDependencies,
   writeLockFile(lockFileName, packages, topologicallySortedOrder)
 
 proc readLockFile*(filePath: string): LockFileDependencies =
-  parseFile(filePath)[$lfjkPackages].to(result.typeof)
+  {.warning[UnsafeDefault]: off.}
+  {.warning[ProveInit]: off.}
+  result = parseFile(filePath)[$lfjkPackages].to(result.typeof)
+  {.warning[ProveInit]: on.}
+  {.warning[UnsafeDefault]: on.}
 
 proc readLockFileInDir*(dir: string): LockFileDependencies =
   readLockFile(dir / lockFileName)

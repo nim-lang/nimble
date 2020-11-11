@@ -587,7 +587,7 @@ proc addDevelopPackage(data: var DevelopFileData, path: Path): bool =
   ##     in the develop file or some of its includes.
   ##   - the package `pkg` is not a valid dependency of the dependent package.
 
-  let (pkgInfo, error) = validatePackage(path, PackageInfo(), data.options)
+  let (pkgInfo, error) = validatePackage(path, initPackageInfo(), data.options)
   if error != nil:
     displayError(invalidPkgMsg($path))
     displayDetails(error)
@@ -609,7 +609,7 @@ proc addDevelopPackageEx*(data: var DevelopFileData, path: Path) =
          "This procedure can only be used for free develop files intended " &
          "for inclusion in other packages develop files."
 
-  let (pkg, error) = validatePackage(path, PackageInfo(), data.options)
+  let (pkg, error) = validatePackage(path, initPackageInfo(), data.options)
   if error != nil: raise error
 
   # Check whether the develop file already contains a package with a name

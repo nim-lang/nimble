@@ -1525,26 +1525,26 @@ suite "develop feature":
         check parseFile(developFileName) ==
               parseJson(expectedDevelopFileContent)
 
-suite "path command":
-  test "can get correct path for srcDir (#531)":
-    cd "develop/srcdirtest":
-      let (_, exitCode) = execNimbleYes("install")
-      check exitCode == QuitSuccess
-    let (output, _) = execNimble("path", "srcdirtest")
-    let packageDir = getPackageDir(pkgsDir, "srcdirtest-1.0")
-    check output.strip() == packageDir
+# suite "path command":
+#   test "can get correct path for srcDir (#531)":
+#     cd "develop/srcdirtest":
+#       let (_, exitCode) = execNimbleYes("install")
+#       check exitCode == QuitSuccess
+#     let (output, _) = execNimble("path", "srcdirtest")
+#     let packageDir = getPackageDir(pkgsDir, "srcdirtest-1.0")
+#     check output.strip() == packageDir
 
-  # test "nimble path points to develop":
-  #   cd "develop/srcdirtest":
-  #     var (output, exitCode) = execNimble("develop")
-  #     checkpoint output
-  #     check exitCode == QuitSuccess
+#   test "nimble path points to develop":
+#     cd "develop/srcdirtest":
+#       var (output, exitCode) = execNimble("develop")
+#       checkpoint output
+#       check exitCode == QuitSuccess
 
-  #     (output, exitCode) = execNimble("path", "srcdirtest")
+#       (output, exitCode) = execNimble("path", "srcdirtest")
 
-  #     checkpoint output
-  #     check exitCode == QuitSuccess
-  #     check output.strip() == getCurrentDir() / "src"
+#       checkpoint output
+#       check exitCode == QuitSuccess
+#       check output.strip() == getCurrentDir() / "src"
 
 suite "test command":
   beforeSuite()
@@ -1659,6 +1659,8 @@ suite "Module tests":
   moduleTest "packageparser"
   moduleTest "paths"
   moduleTest "reversedeps"
+  moduleTest "sha1hashes"
+  moduleTest "tools"
   moduleTest "topologicalsort"
   moduleTest "version"
 
@@ -1925,6 +1927,8 @@ suite "misc tests":
         "[Deprecated]",
         "[XDeclaredButNotUsed]",
         "[Spacing]",
+        "[ProveInit]",
+        "[UnsafeDefault]",
         "[ConvFromXtoItselfNotNeeded]",
         ]
 
@@ -2132,11 +2136,13 @@ suite "issues":
   test "issue #428":
     cd "issue428":
       # Note: Can't use execNimble because it patches nimbleDir
+      const localNimbleDir = "./nimbleDir"
+      cleanDir localNimbleDir
       let (_, exitCode) = execCmdEx(
-        nimblePath & " -y --nimbleDir=./nimbleDir install")
+        &"{nimblePath} -y --nimbleDir={localNimbleDir} install")
       check exitCode == QuitSuccess
       let dummyPkgDir = getPackageDir(
-        "nimbleDir" / nimblePackagesDirName, "dummy-0.1.0")
+        localNimbleDir / nimblePackagesDirName, "dummy-0.1.0")
       check dummyPkgDir.dirExists
       check not (dummyPkgDir / "nimbleDir").dirExists
 

@@ -4,7 +4,7 @@
 import system except TResult
 
 import os, tables, strtabs, json, algorithm, sets, uri, sugar, sequtils, osproc,
-       strformat
+       strformat, sequtils
 
 import std/options as std_opt
 
@@ -20,7 +20,7 @@ import nimblepkg/packageinfotypes, nimblepkg/packageinfo, nimblepkg/version,
        nimblepkg/checksum, nimblepkg/topologicalsort, nimblepkg/lockfile,
        nimblepkg/nimscriptwrapper, nimblepkg/developfile, nimblepkg/paths,
        nimblepkg/nimbledatafile, nimblepkg/packagemetadatafile,
-       nimblepkg/displaymessages
+       nimblepkg/displaymessages, nimblepkg/sha1hashes
 
 proc refresh(options: Options) =
   ## Downloads the package list from the specified URL.
@@ -47,6 +47,14 @@ proc refresh(options: Options) =
     for name, list in options.config.packageLists:
       fetchList(list, options)
 
+proc initPkgList(pkgInfo: PackageInfo, options: Options): seq[PackageInfo] =
+  let
+    installedPkgs = getInstalledPkgsMin(options.getPkgsDir(), options)
+    developPkgs = processDevelopDependencies(pkgInfo, options)
+  {.warning[ProveInit]: off.}
+  result = concat(installedPkgs, developPkgs)
+  {.warning[ProveInit]: on.}
+
 proc install(packages: seq[PkgTuple], options: Options,
              doPrompt, first, fromLockFile: bool): PackageDependenciesInfo
 
@@ -61,9 +69,7 @@ proc processFreeDependencies(pkgInfo: PackageInfo, options: Options):
          "processFreeDependencies needs pkgInfo.requires"
 
   var pkgList {.global.}: seq[PackageInfo] = @[]
-  once:
-    pkgList = getInstalledPkgsMin(options.getPkgsDir(), options)
-    pkgList.add processDevelopDependencies(pkgInfo, options)
+  once: pkgList = initPkgList(pkgInfo, options)
 
   display("Verifying",
           "dependencies for $1@$2" % [pkgInfo.name, pkgInfo.specialVersion],
@@ -79,7 +85,7 @@ proc processFreeDependencies(pkgInfo: PackageInfo, options: Options):
     else:
       let resolvedDep = dep.resolveAlias(options)
       display("Checking", "for $1" % $resolvedDep, priority = MediumPriority)
-      var pkg: PackageInfo
+      var pkg = initPackageInfo()
       var found = findPkg(pkgList, resolvedDep, pkg)
       # Check if the original name exists.
       if not found and resolvedDep.name != dep.name:
@@ -225,7 +231,7 @@ proc removeBinariesSymlinks(pkgInfo: PackageInfo, binDir: string) =
 proc reinstallSymlinksForOlderVersion(pkgDir: string, options: Options) =
   let (pkgName, _, _) = getNameVersionChecksum(pkgDir)
   let pkgList = getInstalledPkgsMin(options.getPkgsDir(), options)
-  var newPkgInfo: PackageInfo
+  var newPkgInfo = initPackageInfo()
   if pkgList.findPkg((pkgName, newVRAny()), newPkgInfo):
     newPkgInfo = newPkgInfo.toFullInfo(options)
     for bin in newPkgInfo.binaries:
@@ -442,7 +448,7 @@ proc processLockedDependencies(pkgInfo: PackageInfo, options: Options):
   let packagesDir = options.getPkgsDir()
 
   for name, dep in pkgInfo.lockedDependencies:
-    let depDirName = packagesDir / fmt"{name}-{dep.version}-{dep.checksum.sha1}"
+    let depDirName = packagesDir / &"{name}-{dep.version}-{dep.checksums.sha1}"
 
     if not fileExists(depDirName / packageMetaDataFileName):
       if depDirName.dirExists:
@@ -458,9 +464,9 @@ proc processLockedDependencies(pkgInfo: PackageInfo, options: Options):
         downloadPath = "", dep.vcsRevision)
 
       let downloadedPackageChecksum = calculatePackageSha1Checksum(downloadDir)
-      if downloadedPackageChecksum != dep.checksum.sha1:
+      if downloadedPackageChecksum != dep.checksums.sha1:
         raise checksumError(name, dep.version, dep.vcsRevision,
-                            downloadedPackageChecksum, dep.checksum.sha1)
+                            downloadedPackageChecksum, dep.checksums.sha1)
 
       let (_, newlyInstalledPackageInfo) = installFromDir(
         downloadDir, version, options, url, first = false, fromLockFile = true)
@@ -468,7 +474,7 @@ proc processLockedDependencies(pkgInfo: PackageInfo, options: Options):
       for depDepName in dep.dependencies:
         let depDep = pkgInfo.lockedDependencies[depDepName]
         let revDep = (name: depDepName, version: depDep.version,
-                      checksum: depDep.checksum.sha1) 
+                      checksum: depDep.checksums.sha1) 
         options.nimbleData.addRevDep(revDep, newlyInstalledPackageInfo)
 
       result.incl newlyInstalledPackageInfo
@@ -527,7 +533,7 @@ proc install(packages: seq[PkgTuple], options: Options,
       let subdir = metadata.getOrDefault("subdir")
       let (downloadDir, downloadVersion) =
           downloadPkg(url, pv.ver, meth, subdir, options, downloadPath = "",
-                      vcsRevision = "")
+                      vcsRevision = notSetSha1Hash)
       try:
         result = installFromDir(downloadDir, pv.ver, options, url,
                                 first, fromLockFile)
@@ -741,7 +747,7 @@ proc getPackageByPattern(pattern: string, options: Options): PackageInfo =
     # Last resort - attempt to read as package identifier
     let packages = getInstalledPkgsMin(options.getPkgsDir(), options)
     let identTuple = parseRequires(pattern)
-    var skeletonInfo: PackageInfo
+    var skeletonInfo = initPackageInfo()
     if not findPkg(packages, identTuple, skeletonInfo):
       raise nimbleError(
           "Specified package not found"
@@ -1083,7 +1089,7 @@ proc installDevelopPackage(pkgTup: PkgTuple, options: Options): string =
   var options = options
   options.forceFullClone = true
   discard downloadPkg(url, ver, meth, subdir, options, downloadDir,
-                      vcsRevision = "")
+                      vcsRevision = notSetSha1Hash)
 
   let pkgDir = downloadDir / subdir
   var pkgInfo = getPkgInfo(pkgDir, options)
@@ -1102,7 +1108,7 @@ proc develop(options: var Options) =
   if not hasPackages and hasPath:
     raise nimbleError(pathGivenButNoPkgsToDownloadMsg)
 
-  var currentDirPkgInfo: PackageInfo
+  var currentDirPkgInfo = initPackageInfo()
 
   try:
     # Check whether the current directory is a package directory.

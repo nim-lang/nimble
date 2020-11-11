@@ -40,6 +40,7 @@ src/nimblepkg/packageparser
 src/nimblepkg/paths
 src/nimblepkg/publish
 src/nimblepkg/reversedeps
+src/nimblepkg/sha1hashes
 src/nimblepkg/tools
 src/nimblepkg/topologicalsort
 src/nimblepkg/version

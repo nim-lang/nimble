@@ -2,12 +2,12 @@
 # BSD License. Look at license.txt for more info.
 
 import sets, tables
-import version, lockfile, aliasthis
+import version, lockfile, aliasthis, sha1hashes
 
 type
   PackageMetaDataBase* {.inheritable.} = object
     url*: string
-    vcsRevision*: string
+    vcsRevision*: Sha1Hash
     files*: seq[string]
     binaries*: seq[string]
 
@@ -24,7 +24,7 @@ type
   PackageBasicInfo* = tuple
     name: string
     version: string
-    checksum: string
+    checksum: Sha1Hash
 
   PackageInfo* = object
     myPath*: string ## The path of this .nimble file
@@ -69,5 +69,9 @@ type
 
   PackageDependenciesInfo* = tuple[deps: HashSet[PackageInfo], pkg: PackageInfo]
 
+{.warning[UnsafeDefault]: off.}
+{.warning[ProveInit]: off.}
 aliasThis PackageInfo.metaData
 aliasThis PackageInfo.basicInfo
+{.warning[ProveInit]: on.}
+{.warning[UnsafeDefault]: on.}

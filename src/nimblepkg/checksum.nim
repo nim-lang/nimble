@@ -2,14 +2,15 @@
 # BSD License. Look at license.txt for more info.
 
 import os, strutils, std/sha1, algorithm, strformat
-import common, tools
+import common, tools, sha1hashes
 
 type
   ChecksumError* = object of NimbleError
 
-proc checksumError*(name, version, vcsRevision, checksum,
-                    expectedChecksum: string): ref ChecksumError =
-  result = newNimbleError[ChecksumError](fmt"""
+proc checksumError*(name, version: string,
+                    vcsRevision, checksum, expectedChecksum: Sha1Hash):
+    ref ChecksumError =
+  result = newNimbleError[ChecksumError](&"""
 Downloaded package checksum does not correspond to that in the lock file:
   Package:           {name}@v.{version}@r.{vcsRevision}
   Checksum:          {checksum}
@@ -58,10 +59,10 @@ proc updateSha1Checksum(checksum: var Sha1State, fileName: string) =
     if bytesRead == 0: break
     checksum.update(buffer[0..<bytesRead])
 
-proc calculatePackageSha1Checksum*(dir: string): string =
+proc calculatePackageSha1Checksum*(dir: string): Sha1Hash =
   cd dir:
     let packageFiles = getPackageFileList()
     var checksum = newSha1State()
     for file in packageFiles:
       updateSha1Checksum(checksum, file)
-    result = $SecureHash(checksum.finalize())
+    result = initSha1Hash($SecureHash(checksum.finalize()))

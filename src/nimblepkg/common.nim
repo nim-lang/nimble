@@ -67,7 +67,9 @@ proc to*(obj: object, NewType: type[object]): NewType =
 
 template newClone*[T: not ref](obj: T): ref T =
   ## Creates a garbage collected heap copy of not a reference object.
+  {.warning[ProveInit]: off.}
   let result = obj.typeOf.new
+  {.warning[ProveInit]: on.}
   result[] = obj
   result
 

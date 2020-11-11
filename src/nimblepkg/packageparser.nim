@@ -3,7 +3,7 @@
 import parsecfg, sets, streams, strutils, os, tables, sugar
 from sequtils import apply, map, toSeq
 
-import common, version, tools, nimscriptwrapper, options, cli,
+import common, version, tools, nimscriptwrapper, options, cli, sha1hashes,
        packagemetadatafile, packageinfo, packageinfotypes, checksum
 
 ## Contains procedures for parsing .nimble files. Moved here from ``packageinfo``
@@ -406,7 +406,7 @@ proc getPkgInfoFromFile*(file: NimbleFile, options: Options,
                          forValidation = false): PackageInfo =
   ## Reads the specified .nimble file and returns its data as a PackageInfo
   ## object. Any validation errors are handled and displayed as warnings.
-  var info: PackageInfo
+  var info = initPackageInfo()
   try:
     info = readPackageInfo(file, options)
   except ValidationError:
@@ -437,7 +437,7 @@ proc getInstalledPkgs*(libsDir: string, options: Options): seq[PackageInfo] =
 
   proc createErrorMsg(tmplt, path, msg: string): string =
     let (name, version, checksum) = getNameVersionChecksum(path)
-    let fullVersion = if checksum.len > 0: version & "@c." & checksum
+    let fullVersion = if checksum != notSetSha1Hash: version & "@c." & $checksum
                       else: version
     return tmplt % [name, fullVersion, msg]
 
@@ -448,7 +448,7 @@ proc getInstalledPkgs*(libsDir: string, options: Options): seq[PackageInfo] =
     if kind == pcDir:
       let nimbleFile = findNimbleFile(path, false)
       if nimbleFile != "":
-        var pkg: PackageInfo
+        var pkg = initPackageInfo()
         try:
           pkg = readPackageInfo(nimbleFile, options, onlyMinimalInfo=false)
           fillMetaData(pkg, path, false)
@@ -488,7 +488,7 @@ proc toFullInfo*(pkg: PackageInfo, options: Options): PackageInfo =
            "A package must not be simultaneously installed and linked."
 
     if result.isInstalled:
-      assert result.vcsRevision.len == 0,
+      assert result.vcsRevision == notSetSha1Hash,
             "Should not have a VCS revision read from package directory for " &
             "installed packages."
 

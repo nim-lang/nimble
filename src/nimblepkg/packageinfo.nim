@@ -8,7 +8,12 @@ from net import SslError
 
 # Local imports
 import version, tools, common, options, cli, config, lockfile, packageinfotypes,
-       packagemetadatafile
+       packagemetadatafile, sha1hashes
+
+proc initPackageInfo*(): PackageInfo =
+  result = PackageInfo(
+    basicInfo: ("", "", notSetSha1Hash),
+    metaData: initPackageMetaData())
 
 proc isLoaded*(pkgInfo: PackageInfo): bool =
   return pkgInfo.myPath.len > 0
@@ -18,6 +23,7 @@ proc hasMetaData*(pkgInfo: PackageInfo): bool =
   pkgInfo.files.len > 0
 
 proc initPackageInfo*(filePath: string): PackageInfo =
+  result = initPackageInfo()
   let (fileDir, fileName, _) = filePath.splitFile
   result.myPath = filePath
   result.name = fileName
@@ -489,65 +495,6 @@ proc getNameAndVersion*(pkgInfo: PackageInfo): string =
 
 when isMainModule:
   import unittest 
-
-  suite "getNameVersionCheksum":
-    test "directory names without sha1 hashes":
-      check getNameVersionChecksum(
-        "/home/user/.nimble/libs/packagea-0.1") ==
-        ("packagea", "0.1", "")
-
-      check getNameVersionChecksum(
-        "/home/user/.nimble/libs/package-a-0.1") ==
-        ("package-a", "0.1", "")
-
-      check getNameVersionChecksum(
-        "/home/user/.nimble/libs/package-a-0.1/package.nimble") ==
-        ("package-a", "0.1", "")
-
-      check getNameVersionChecksum(
-        "/home/user/.nimble/libs/package-#head") ==
-        ("package", "#head", "")
-
-      check getNameVersionChecksum(
-        "/home/user/.nimble/libs/package-#branch-with-dashes") ==
-        ("package", "#branch-with-dashes", "")
-
-      # readPackageInfo (and possibly more) depends on this not raising.
-      check getNameVersionChecksum(
-        "/home/user/.nimble/libs/package") ==
-        ("package", "", "")
-
-    test "directory names with sha1 hashes":
-      check getNameVersionChecksum(
-        "/home/user/.nimble/libs/packagea-0.1-" &
-        "9e6df089c5ee3d912006b2d1c016eb8fa7dcde82") ==
-        ("packagea", "0.1", "9e6df089c5ee3d912006b2d1c016eb8fa7dcde82")
-
-      check getNameVersionChecksum(
-        "/home/user/.nimble/libs/package-a-0.1-" &
-        "2f11b50a3d1933f9f8972bd09bc3325c38bc11d6") ==
-        ("package-a", "0.1", "2f11b50a3d1933f9f8972bd09bc3325c38bc11d6")
-
-      check getNameVersionChecksum(
-        "/home/user/.nimble/libs/package-a-0.1-" &
-        "43e3b1138312656310e93ffcfdd866b2dcce3b35/package.nimble") ==
-        ("package-a", "0.1", "43e3b1138312656310e93ffcfdd866b2dcce3b35")
-
-      check getNameVersionChecksum(
-        "/home/user/.nimble/libs/package-#head-" &
-        "efba335dccf2631d7ac2740109142b92beb3b465") ==
-        ("package", "#head", "efba335dccf2631d7ac2740109142b92beb3b465")
-
-      check getNameVersionChecksum(
-        "/home/user/.nimble/libs/package-#branch-with-dashes-" &
-        "8f995e59d6fc1012b3c1509fcb0ef0a75cb3610c") ==
-        ("package", "#branch-with-dashes",
-         "8f995e59d6fc1012b3c1509fcb0ef0a75cb3610c")
-
-      check getNameVersionChecksum(
-        "/home/user/.nimble/libs/package-" &
-        "b12e18db49fc60df117e5d8a289c4c2050a272dd") ==
-        ("package", "", "b12e18db49fc60df117e5d8a289c4c2050a272dd")
 
   test "toValidPackageName":
     check toValidPackageName("foo__bar") == "foo_bar"

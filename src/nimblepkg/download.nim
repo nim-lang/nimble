@@ -2,9 +2,12 @@
 # BSD License. Look at license.txt for more info.
 
 import parseutils, os, osproc, strutils, tables, pegs, uri, strformat
-import packageinfotypes, packageparser, version, tools, common, options, cli
+
 from algorithm import SortOrder, sorted
 from sequtils import toSeq, filterIt, map
+
+import packageinfotypes, packageparser, version, tools, common, options, cli,
+       sha1hashes
 
 type
   DownloadMethod* {.pure.} = enum
@@ -157,9 +160,9 @@ proc isURL*(name: string): bool =
   name.startsWith(peg" @'://' ")
 
 proc cloneSpecificRevision(downloadMethod: DownloadMethod,
-                           url, downloadDir, vcsRevision: string) =
-  assert vcsRevision.len > 0
-  display("Cloning", "revision: " & vcsRevision, priority = MediumPriority)
+                           url, downloadDir: string, vcsRevision: Sha1Hash) =
+  assert vcsRevision != notSetSha1Hash
+  display("Cloning", "revision: " & $vcsRevision, priority = MediumPriority)
   case downloadMethod
   of DownloadMethod.git:
     createDir(downloadDir)
@@ -173,7 +176,7 @@ proc cloneSpecificRevision(downloadMethod: DownloadMethod,
 
 proc doDownload(url: string, downloadDir: string, verRange: VersionRange,
                 downMethod: DownloadMethod, options: Options,
-                vcsRevision: string): Version =
+                vcsRevision: Sha1Hash): Version =
   ## Downloads the repository specified by ``url`` using the specified download
   ## method.
   ##
@@ -192,7 +195,7 @@ proc doDownload(url: string, downloadDir: string, verRange: VersionRange,
       result = latest.ver
 
   removeDir(downloadDir)
-  if vcsRevision.len > 0:
+  if vcsRevision != notSetSha1Hash:
     cloneSpecificRevision(downMethod, url, downloadDir, vcsRevision)
   elif verRange.kind == verSpecial:
     # We want a specific commit/branch/tag here.
@@ -243,7 +246,8 @@ proc downloadPkg*(url: string, verRange: VersionRange,
                   downMethod: DownloadMethod,
                   subdir: string,
                   options: Options,
-                  downloadPath, vcsRevision: string): (string, Version) =
+                  downloadPath: string,
+                  vcsRevision: Sha1Hash): (string, Version) =
   ## Downloads the repository as specified by ``url`` and ``verRange`` using
   ## the download method specified.
   ##

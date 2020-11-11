@@ -6,7 +6,7 @@ import osproc, pegs, strutils, os, uri, sets, json, parseutils, strformat,
        sequtils
 from net import SslCVerifyMode, newContext, SslContext
 
-import version, cli, common, packageinfotypes, options
+import version, cli, common, packageinfotypes, options, sha1hashes
 from compiler/nimblecmd import getPathVersionChecksum
 
 proc extractBin(cmd: string): string =
@@ -115,7 +115,7 @@ proc createDirD*(dir: string) =
   createDir(dir)
 
 proc getDownloadDirName*(uri: string, verRange: VersionRange,
-                         vcsRevision: string): string =
+                         vcsRevision: Sha1Hash): string =
   ## Creates a directory name based on the specified ``uri`` (url)
   let puri = parseUri(uri)
   for i in puri.hostname:
@@ -135,9 +135,9 @@ proc getDownloadDirName*(uri: string, verRange: VersionRange,
     result.add "_"
     result.add verSimple
   
-  if vcsRevision.len > 0:
+  if vcsRevision != notSetSha1Hash:
     result.add "_"
-    result.add vcsRevision
+    result.add $vcsRevision
 
 proc incl*(s: var HashSet[string], v: seq[string] | HashSet[string]) =
   for i in v:
@@ -178,7 +178,7 @@ proc getNimbleUserTempDir*(): string =
   return tmpdir
 
 
-proc getVcsRevisionFromDir*(dir: string): string =
+proc getVcsRevisionFromDir*(dir: string): Sha1Hash =
   ## Returns current revision number of HEAD if dir is inside VCS, or an empty
   ## string in case of failure.
 
@@ -186,10 +186,11 @@ proc getVcsRevisionFromDir*(dir: string): string =
     try:
       let (output, exitCode) = doCmdEx(command)
       if exitCode == QuitSuccess:
-        return output.strip()
+        return initSha1Hash(output.strip())
     except:
       discard
 
+  result = notSetSha1Hash
   tryToGetRevision("git -C " & quoteShell(dir) & " rev-parse HEAD")
   tryToGetRevision("hg --cwd " & quoteShell(dir) & " id -i")
 
@@ -203,9 +204,18 @@ proc getNameVersionChecksum*(pkgpath: string): PackageBasicInfo =
   ##
   ## Also works for file paths like:
   ## ``/home/user/.nimble/pkgs/package-0.1-febadeaea2345e777f0f6f8433f7f0a52edd5d1b/package.nimble``
+
   if pkgPath.splitFile.ext in [".nimble", ".babel"]:
     return getNameVersionChecksum(pkgPath.splitPath.head)
-  getPathVersionChecksum(pkgpath.splitPath.tail)
+
+  let (name, version, checksum) = getPathVersionChecksum(pkgPath.splitPath.tail)
+  let sha1Checksum = 
+    try:
+      initSha1Hash(checksum)
+    except InvalidSha1HashError:
+      notSetSha1Hash
+
+  return (name, version, sha1Checksum)
 
 proc removePackageDir*(files: seq[string], dir: string, reportSuccess = false) =
   for file in files:
@@ -227,3 +237,70 @@ proc newSSLContext*(disabled: bool): SslContext =
     display("Warning:", "disabling SSL certificate checking", Warning)
     sslVerifyMode = CVerifyNone
   return newContext(verifyMode = sslVerifyMode)
+
+when isMainModule:
+  import unittest
+
+  suite "getNameVersionCheksum":
+    test "directory names without sha1 hashes":
+      check getNameVersionChecksum(
+        "/home/user/.nimble/libs/packagea-0.1") ==
+        ("packagea", "0.1", notSetSha1Hash)
+
+      check getNameVersionChecksum(
+        "/home/user/.nimble/libs/package-a-0.1") ==
+        ("package-a", "0.1", notSetSha1Hash)
+
+      check getNameVersionChecksum(
+        "/home/user/.nimble/libs/package-a-0.1/package.nimble") ==
+        ("package-a", "0.1", notSetSha1Hash)
+
+      check getNameVersionChecksum(
+        "/home/user/.nimble/libs/package-#head") ==
+        ("package", "#head", notSetSha1Hash)
+
+      check getNameVersionChecksum(
+        "/home/user/.nimble/libs/package-#branch-with-dashes") ==
+        ("package", "#branch-with-dashes", notSetSha1Hash)
+
+      # readPackageInfo (and possibly more) depends on this not raising.
+      check getNameVersionChecksum(
+        "/home/user/.nimble/libs/package") ==
+        ("package", "", notSetSha1Hash)
+
+    test "directory names with sha1 hashes":
+      check getNameVersionChecksum(
+        "/home/user/.nimble/libs/packagea-0.1-" &
+         "9e6df089c5ee3d912006b2d1c016eb8fa7dcde82") ==
+        ("packagea", "0.1",
+         "9e6df089c5ee3d912006b2d1c016eb8fa7dcde82".initSha1Hash)
+
+      check getNameVersionChecksum(
+        "/home/user/.nimble/libs/package-a-0.1-" &
+         "2f11b50a3d1933f9f8972bd09bc3325c38bc11d6") ==
+        ("package-a", "0.1",
+         "2f11b50a3d1933f9f8972bd09bc3325c38bc11d6".initSha1Hash)
+
+      check getNameVersionChecksum(
+        "/home/user/.nimble/libs/package-a-0.1-" &
+         "43e3b1138312656310e93ffcfdd866b2dcce3b35/package.nimble") ==
+        ("package-a", "0.1",
+         "43e3b1138312656310e93ffcfdd866b2dcce3b35".initSha1Hash)
+
+      check getNameVersionChecksum(
+        "/home/user/.nimble/libs/package-#head-" &
+         "efba335dccf2631d7ac2740109142b92beb3b465") ==
+        ("package", "#head",
+         "efba335dccf2631d7ac2740109142b92beb3b465".initSha1Hash)
+
+      check getNameVersionChecksum(
+        "/home/user/.nimble/libs/package-#branch-with-dashes-" &
+         "8f995e59d6fc1012b3c1509fcb0ef0a75cb3610c") ==
+        ("package", "#branch-with-dashes",
+         "8f995e59d6fc1012b3c1509fcb0ef0a75cb3610c".initSha1Hash)
+
+      check getNameVersionChecksum(
+        "/home/user/.nimble/libs/package-" &
+         "b12e18db49fc60df117e5d8a289c4c2050a272dd") ==
+        ("package", "",
+         "b12e18db49fc60df117e5d8a289c4c2050a272dd".initSha1Hash)

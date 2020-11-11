@@ -3,7 +3,7 @@
 
 import json, sets, os, hashes, unicode
 
-import options, version, download, jsonhelpers, nimbledatafile,
+import options, version, download, jsonhelpers, nimbledatafile, sha1hashes,
        packageinfotypes, packageinfo, packageparser
 
 type
@@ -53,7 +53,7 @@ proc addRevDep*(nimbleData: JsonNode, dep: PackageBasicInfo,
     $ndjkRevDep,
     dep.name.toLower,
     dep.version,
-    dep.checksum,
+    $dep.checksum,
     newJArray())
 
   var dependency: JsonNode
@@ -86,7 +86,7 @@ proc removeRevDep*(nimbleData: JsonNode, pkg: PackageInfo) =
               if rd[$ndjkRevDepPath].str != pkg.getNimbleFileDir:
                 # It is compared by its directory path.
                 newVal.add rd
-            elif rd[$ndjkRevDepChecksum].str != pkg.checksum:
+            elif rd[$ndjkRevDepChecksum].str != $pkg.checksum:
               # For the reverse dependencies added since the introduction of the
               # new format comparison of the checksums is specific enough.
               newVal.add rd
@@ -94,7 +94,8 @@ proc removeRevDep*(nimbleData: JsonNode, pkg: PackageInfo) =
               # But if the both checksums are not present, those are converted
               # from the old format packages and they must be compared by the
               # `name` and `specialVersion` fields.
-              if rd[$ndjkRevDepChecksum].str.len == 0 and pkg.checksum.len == 0:
+              if rd[$ndjkRevDepChecksum].str.len == 0 and
+                 pkg.checksum == notSetSha1Hash:
                 if rd[$ndjkRevDepName].str != pkg.name.toLower or
                    rd[$ndjkRevDepVersion].str != pkg.specialVersion:
                   newVal.add rd
@@ -123,7 +124,7 @@ proc getRevDeps*(nimbleData: JsonNode, pkg: ReverseDependency):
     return
 
   let reverseDependencies = nimbleData[$ndjkRevDep]{
-    pkg.pkgInfo.name.toLower}{pkg.pkgInfo.version}{pkg.pkgInfo.checksum}
+    pkg.pkgInfo.name.toLower}{pkg.pkgInfo.version}{$pkg.pkgInfo.checksum}
 
   if reverseDependencies.isNil:
     return
@@ -135,9 +136,10 @@ proc getRevDeps*(nimbleData: JsonNode, pkg: ReverseDependency):
       result.incl ReverseDependency(kind: rdkDevelop, pkgPath: path)
     else:
       # This is an installed package.
-      let pkgBasicInfo = (name: revDep[$ndjkRevDepName].str,
-                          version: revDep[$ndjkRevDepVersion].str,
-                          checksum: revDep[$ndjkRevDepChecksum].str)
+      let pkgBasicInfo =
+        (name: revDep[$ndjkRevDepName].str,
+         version: revDep[$ndjkRevDepVersion].str,
+         checksum: revDep[$ndjkRevDepChecksum].str.initSha1Hash)
       result.incl ReverseDependency(kind: rdkInstalled, pkgInfo: pkgBasicInfo)
 
 proc toPkgInfo*(revDep: ReverseDependency, options: Options): PackageInfo =
@@ -167,46 +169,61 @@ proc getAllRevDeps*(nimbleData: JsonNode, pkg: ReverseDependency,
     getAllRevDeps(nimbleData, revDep, result)
 
 when isMainModule:
-  import unittest
+  import unittest, sequtils
+
+  type
+    RequiresSeq = seq[tuple[name, versionRange: string]]
+
+  proc initMetaData(isLink: bool): PackageMetaData =
+    result = PackageMetaData(
+      vcsRevision: notSetSha1Hash,
+      isLink: isLink)
+
+  proc parseRequires(requires: RequiresSeq): seq[PkgTuple] =
+    requires.mapIt((it.name, it.versionRange.parseVersionRange))
+
+  proc initPackageInfo(path: string, requires: RequiresSeq = @[]): PackageInfo =
+    result = PackageInfo(
+      myPath: path,
+      requires: requires.parseRequires,
+      metaData: initMetaData(true))
+
+  proc initPackageInfo(name, version, checksum: string,
+                       requires: RequiresSeq = @[]): PackageInfo =
+    result = PackageInfo(
+      basicInfo: (name, version, checksum.initSha1Hash),
+      requires: requires.parseRequires,
+      metaData: initMetaData(false))
 
   let
-    nimforum1 = PackageInfo(
-      basicInfo:
-        ("nimforum", "0.1.0", "46A96C3F2B0ECB3D3F7BD71E12200ED401E9B9F2"),
-      requires: @[("jester", parseVersionRange("0.1.0")),
-                  ("captcha", parseVersionRange("1.0.0")),
-                  ("auth", parseVersionRange("#head"))])
-
+    nimforum1 = initPackageInfo(
+      "nimforum", "0.1.0", "46a96c3f2b0ecb3d3f7bd71e12200ed401e9b9f2",
+      @[("jester", "0.1.0"), ("captcha", "1.0.0"), ("auth", "#head")])
     nimforum1RevDep = nimforum1.toRevDep
 
-    nimforum2 = PackageInfo(basicInfo:
-      ("nimforum", "0.2.0", "B60044137CEA185F287346EBEAB6B3E0895BDA4D"))
-
+    nimforum2 = initPackageInfo(
+      "nimforum", "0.2.0", "b60044137cea185f287346ebeab6b3e0895bda4d")
     nimforum2RevDep = nimforum2.toRevDep
 
-    play = PackageInfo(
-      basicInfo: ("play", "2.0.1", "8A54CCA572977ED0CC73B9BF783E9DFA6B6F2BF9"))
+    play = initPackageInfo(
+      "play", "2.0.1", "8a54cca572977ed0cc73b9bf783e9dfa6b6f2bf9")
 
-    nimforumDevelop = PackageInfo(
-      myPath: "/some/absolute/system/path/nimforum/nimforum.nimble",
-      metaData: PackageMetaData(isLink: true),
-      requires: @[("captcha", parseVersionRange("1.0.0"))])
-
+    nimforumDevelop = initPackageInfo(
+      "/some/absolute/system/path/nimforum/nimforum.nimble",
+      @[("captcha", "1.0.0")])
     nimforumDevelopRevDep = nimforumDevelop.toRevDep
 
-    jester = PackageInfo(basicInfo:
-      ("jester", "0.1.0", "1B629F98B23614DF292F176A1681FA439DCC05E2"))
-    
-    jesterWithoutSha1 = PackageInfo(basicInfo: ("jester", "0.1.0", ""))
+    jester = initPackageInfo(
+      "jester", "0.1.0", "1b629f98b23614df292f176a1681fa439dcc05e2")
 
-    captcha = PackageInfo(basicInfo:
-      ("captcha", "1.0.0", "CE128561B06DD106A83638AD415A2A52548F388E"))
+    jesterWithoutSha1 = initPackageInfo("jester", "0.1.0", "")
 
+    captcha = initPackageInfo(
+      "captcha", "1.0.0", "ce128561b06dd106a83638ad415a2a52548f388e")
     captchaRevDep = captcha.toRevDep
     
-    auth = PackageInfo(
-      basicInfo: ("auth", "#head", "C81545DF8A559E3DA7D38D125E0EAF2B4478CD01"))
-
+    auth = initPackageInfo(
+      "auth", "#head", "c81545df8a559e3da7d38d125e0eaf2b4478cd01")
     authRevDep = auth.toRevDep
 
   suite "reverse dependencies":
@@ -227,34 +244,34 @@ when isMainModule:
           "reverseDeps": {
             "jester": {
               "0.1.0": {
-                "1B629F98B23614DF292F176A1681FA439DCC05E2": [
+                "1b629f98b23614df292f176a1681fa439dcc05e2": [
                   {
                     "name": "nimforum",
                     "version": "0.1.0",
-                    "checksum": "46A96C3F2B0ECB3D3F7BD71E12200ED401E9B9F2"
+                    "checksum": "46a96c3f2b0ecb3d3f7bd71e12200ed401e9b9f2"
                   }
                 ],
                 "": [
                   {
                     "name": "play",
                     "version": "2.0.1",
-                    "checksum": "8A54CCA572977ED0CC73B9BF783E9DFA6B6F2BF9"
+                    "checksum": "8a54cca572977ed0cc73b9bf783e9dfa6b6f2bf9"
                   }
                 ]
               }
             },
             "captcha": {
               "1.0.0": {
-                "CE128561B06DD106A83638AD415A2A52548F388E": [
+                "ce128561b06dd106a83638ad415a2a52548f388e": [
                   {
                     "name": "nimforum",
                     "version": "0.1.0",
-                    "checksum": "46A96C3F2B0ECB3D3F7BD71E12200ED401E9B9F2"
+                    "checksum": "46a96c3f2b0ecb3d3f7bd71e12200ed401e9b9f2"
                   },
                   {
                     "name": "nimforum",
                     "version": "0.2.0",
-                    "checksum": "B60044137CEA185F287346EBEAB6B3E0895BDA4D"
+                    "checksum": "b60044137cea185f287346ebeab6b3e0895bda4d"
                   },
                   {
                     "path": "/some/absolute/system/path/nimforum"
@@ -264,21 +281,21 @@ when isMainModule:
             },
             "auth": {
               "#head": {
-                "C81545DF8A559E3DA7D38D125E0EAF2B4478CD01": [
+                "c81545df8a559e3da7d38d125e0eaf2b4478cd01": [
                   {
                     "name": "nimforum",
                     "version": "0.1.0",
-                    "checksum": "46A96C3F2B0ECB3D3F7BD71E12200ED401E9B9F2"
+                    "checksum": "46a96c3f2b0ecb3d3f7bd71e12200ed401e9b9f2"
                   },
                   {
                     "name": "nimforum",
                     "version": "0.2.0",
-                    "checksum": "B60044137CEA185F287346EBEAB6B3E0895BDA4D"
+                    "checksum": "b60044137cea185f287346ebeab6b3e0895bda4d"
                   },
                   {
                     "name": "captcha",
                     "version": "1.0.0",
-                    "checksum": "CE128561B06DD106A83638AD415A2A52548F388E"
+                    "checksum": "ce128561b06dd106a83638ad415a2a52548f388e"
                   }
                 ]
               }
@@ -298,34 +315,34 @@ when isMainModule:
                   {
                     "name": "play",
                     "version": "2.0.1",
-                    "checksum": "8A54CCA572977ED0CC73B9BF783E9DFA6B6F2BF9"
+                    "checksum": "8a54cca572977ed0cc73b9bf783e9dfa6b6f2bf9"
                   }
                 ]
               }
             },
             "captcha": {
               "1.0.0": {
-                "CE128561B06DD106A83638AD415A2A52548F388E": [
+                "ce128561b06dd106a83638ad415a2a52548f388e": [
                   {
                     "name": "nimforum",
                     "version": "0.2.0",
-                    "checksum": "B60044137CEA185F287346EBEAB6B3E0895BDA4D"
+                    "checksum": "b60044137cea185f287346ebeab6b3e0895bda4d"
                   }
                 ]
               }
             },
             "auth": {
               "#head": {
-                "C81545DF8A559E3DA7D38D125E0EAF2B4478CD01": [
+                "c81545df8a559e3da7d38d125e0eaf2b4478cd01": [
                   {
                     "name": "nimforum",
                     "version": "0.2.0",
-                    "checksum": "B60044137CEA185F287346EBEAB6B3E0895BDA4D"
+                    "checksum": "b60044137cea185f287346ebeab6b3e0895bda4d"
                   },
                   {
                     "name": "captcha",
                     "version": "1.0.0",
-                    "checksum": "CE128561B06DD106A83638AD415A2A52548F388E"
+                    "checksum": "ce128561b06dd106a83638ad415a2a52548f388e"
                   }
                 ]
               }
