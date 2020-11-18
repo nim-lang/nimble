@@ -25,12 +25,27 @@ format:
   
     $0 git:2382937843092342342556456
     $0 git:devel
+  
+  Using choosenim:
+
+    $0 choosenim:stable
+    $0 choosenim:1.4.0
 
 Set NIMDIR=path/where/nim/will/be
 EOF
 }
 set +x
 NIMDIR=${NIMDIR:-nim}
+
+
+abspath() {
+  python -c "import os; import sys; print(os.path.realpath(sys.argv[1]))" "$1"
+}
+add-path() {
+  echo "$1" >> "$GITHUB_PATH"
+  export PATH="$1:$PATH"
+  echo "Directory '$1' has been added to PATH."
+}
 
 guess_archive_name() {
   # Guess the archive name 
@@ -180,6 +195,19 @@ install_nightly() {
 }
 
 #------------------------------------------------
+# Install using choosenim
+#------------------------------------------------
+install_choosenim() {
+  target="$1"
+  echo "Installing via choosenim for: $target"
+  export CHOOSENIM_NO_ANALYTICS=1
+  curl https://nim-lang.org/choosenim/init.sh -sSf | sh -s -- -y
+  add-path "$HOME/.nimble/bin"
+  add-path "$(abspath "$HOME/.nimble/bin")"
+  choosenim "$target"
+}
+
+#------------------------------------------------
 # main
 #------------------------------------------------
 set -e
@@ -195,7 +223,6 @@ install_arg=$(echo "$TARGET" | cut -d: -f2-)
 #------------------------------------------------
 # Install Nim
 #------------------------------------------------
-echo "Installing Nim into dir: $NIMDIR"
 echo "Install type: $install_type"
 echo "       param: $install_arg"
 (install_${install_type} "${install_arg}")
@@ -207,13 +234,6 @@ if [ -z "$GITHUB_PATH" ]; then
   echo "Not setting up PATH since GITHUB_PATH is not defined"
 else
   echo "Setting up PATH"
-  abspath() {
-    python -c "import os; import sys; print(os.path.realpath(sys.argv[1]))" "$1"
-  }
-  add-path() {
-    echo "$1" >> "$GITHUB_PATH"
-    echo "Directory '$1' has been added to PATH."
-  }
   add-path "$(abspath "$NIMDIR/bin")"
   add-path "$(pwd)/$NIMDIR/bin"
   add-path "$HOME/.nimble/bin"
