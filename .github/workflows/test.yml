@@ -15,7 +15,6 @@ jobs:
           - 1.0.10
           - 1.2.8
           - 1.4.0
-          - git:8a004e2
           - nightly:https://github.com/nim-lang/nightlies/releases/tag/2020-11-11-devel-bbe49a14ae827b6474d692042406716a3b3dd71f
     name: ${{ matrix.os }} - ${{ matrix.target }}
     runs-on: ${{ matrix.os }}
