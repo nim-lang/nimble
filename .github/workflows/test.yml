@@ -1,0 +1,31 @@
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    strategy:
+      matrix:
+        os:
+          - windows-latest
+          - macos-latest
+          - ubuntu-latest
+        nimversion:
+          - 0.20.2
+          - 1.0.10
+          - 1.2.8
+          - 1.4.0
+          - nightly:https://github.com/nim-lang/nightlies/releases/tag/2020-11-11-devel-bbe49a14ae827b6474d692042406716a3b3dd71f
+    name: ${{ matrix.os }} - ${{ matrix.nimversion }}
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v2
+      - uses: iffy/install-nim@v3
+        with:
+          version: ${{ matrix.nimversion }}
+      - run: nim --version
+      - name: Run nim c -r tester
+        run: |
+          cd tests
+          nim c -r tester
+      - run: ./src/nimble install -y
