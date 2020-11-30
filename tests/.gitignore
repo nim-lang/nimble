@@ -1,6 +1,21 @@
-# ideally this shouldn't even be needed and all generated files would go under ../buildTests/
-
-# tester
+tcheckcommand
+tdevelopfeature
+tester
+testscommon
+tissues
+tlocaldeps
+tmisctests
+tmoduletests
+tmultipkgs
+tnimbledump
+tnimblerefresh
+tnimscript
+tpathcommand
+treversedeps
+truncommand
+ttestcommand
+ttwobinaryversions
+tuninstall
 /nimble-test
 /buildDir
 /binaryPackage/v1/binaryPackage
