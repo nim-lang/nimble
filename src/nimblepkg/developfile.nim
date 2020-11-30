@@ -4,11 +4,14 @@
 ## This module implements operations required for working with Nimble develop
 ## files.
 
-import sets, json, sequtils, os, strformat, tables, hashes, std/jsonutils,
-       strutils
+import sets, json, sequtils, os, strformat, tables, hashes, strutils, math,
+       std/jsonutils
+
+import typetraits except distinctBase
 
 import common, cli, packageinfotypes, packageinfo, packageparser, options,
-       version, counttables, aliasthis, paths, displaymessages
+       version, counttables, aliasthis, paths, displaymessages, sha1hashes,
+       tools, vcstools, syncfile, lockfile
 
 type
   DevelopFileJsonData = object
@@ -24,7 +27,7 @@ type
   PkgToDevFileNames* = Table[ref PackageInfo, HashSet[Path]]
     ## Mapping between a package and a set of develop files.
 
-  DevelopFileData* {.requiresInit.} = object
+  DevelopFileData* = object
     ## The raw data read from the JSON develop file plus the metadata.
     path: Path
       ## The full path to the develop file.
@@ -54,8 +57,10 @@ type
       ## It can be missing in the case that this is a develop file intended only
       ## for inclusion in other develop files and not related to specific
       ## package.
-    options: Options
-      ## Current run Nimble's options.
+
+  DevelopFileDataCache = Table[Path, DevelopFileData]
+    ## A cache for the loaded develop files data used to avoid multiple loads
+    ## of the same file when its data is queried in the code.
 
   DevelopFileJsonKeys = enum
     ## Develop file JSON objects names. 
@@ -83,7 +88,6 @@ type
     invalidPackages: InvalidPaths
     invalidIncludeFiles: InvalidPaths
 
-# Disable the warning caused by {.requiresInit.} pragma.
 {.warning[UnsafeDefault]: off.}
 {.warning[ProveInit]: off.}
 aliasThis DevelopFileData.jsonData
@@ -98,10 +102,8 @@ const
   developFileVersion* = "0.1.0"
     ## The version of the develop file's JSON schema.
 
-proc hasDependentPkg(data: DevelopFileData): bool =
-  ## Checks whether the develop file data `data` has an associated dependent
-  ## package.
-  data.dependentPkg.isLoaded
+proc initDevelopFileData: DevelopFileData =
+  result = DevelopFileData(dependentPkg: initPackageInfo())
 
 proc getNimbleFilePath(pkgInfo: PackageInfo): Path =
   ## This is a version of `PackageInfo`'s `getNimbleFileDir` procedure returning
@@ -110,7 +112,7 @@ proc getNimbleFilePath(pkgInfo: PackageInfo): Path =
 
 proc assertHasDependentPkg(data: DevelopFileData) =
   ## Checks whether there is associated dependent package with the `data`.
-  assert data.hasDependentPkg,
+  assert data.dependentPkg.isLoaded,
          "This procedure must be used only with associated with particular " &
          "package develop files."
 
@@ -121,20 +123,8 @@ proc getPkgDevFilePath(pkg: PackageInfo): Path =
 proc getDependentPkgDevFilePath(data: DevelopFileData): Path =
   ## Returns the path to the develop file of the dependent package associated
   ## with `data`.
+  data.assertHasDependentPkg
   data.dependentPkg.getPkgDevFilePath
-
-proc init*(T: type DevelopFileData, options: Options): T =
-  ## `DevelopFileData` constructor for a free develop file intended for
-  ## inclusion in packages develop files.
-  {.warning[ProveInit]: off.}
-  result.options = options
-
-proc init*(T: type DevelopFileData, dependentPkg: PackageInfo,
-           options: Options): T =
-  ## `DevelopFileData` constructor for develop file associated with a specific
-  ## package - `dependentPkg`.
-  result = init(T, options)
-  result.dependentPkg = dependentPkg
 
 proc isEmpty*(data: DevelopFileData): bool =
   ## Checks whether there is some content (paths to packages directories or 
@@ -167,18 +157,19 @@ template save(data: DevelopFileData, args: varargs[untyped]) =
   ## Saves the `data` to a JSON file in in the directory of `data`'s
   ## `dependentPkg` Nimble file.  Delegates the functionality to the `save`
   ## procedure taking path to develop file.
+  data.assertHasDependentPkg
   let fileName = data.getDependentPkgDevFilePath
   data.save(fileName, args)
 
-proc hasDevelopFile*(dir: Path): bool =
+proc developFileExists*(dir: Path): bool =
   ## Returns `true` if there is a Nimble develop file with a default name in
   ## the directory `dir` or `false` otherwise.
   fileExists(dir / developFileName)
 
-proc hasDevelopFile*(pkg: PackageInfo): bool =
+proc developFileExists*(pkg: PackageInfo): bool =
   ## Returns `true` if there is a Nimble develop file with a default name in
   ## the directory of the package's `pkg` `.nimble` file or `false` otherwise.
-  pkg.getNimbleFilePath.hasDevelopFile
+  pkg.getNimbleFilePath.developFileExists
 
 proc raiseDependencyNotInRangeError(
     dependencyNameAndVersion, dependentNameAndVersion: string,
@@ -375,7 +366,9 @@ proc addPackage(data: var DevelopFileData, pkgInfo: PackageInfo,
   if pkg == nil:
     # If a package with `pkgInfo.name` is missing add it to the
     # `DevelopFileData` internal data structures add it.
+    {.warning[ProveInit]: off.}
     pkg = pkgInfo.newClone
+    {.warning[ProveInit]: on.}
     data.pkgRefCount.inc(pkg)
     data.nameToPkg[pkg[].name] = pkg
     data.pathToPkg[pkg[].getNimbleFilePath()] = pkg
@@ -428,7 +421,7 @@ proc mergeIncludedDevFileData(lhs: var DevelopFileData, rhs: DevelopFileData,
   ## `lhs`'s list of dependencies.
 
   let pkgs =
-    if lhs.hasDependentPkg:
+    if lhs.dependentPkg.isLoaded:
       filterAndValidateIncludedPackages(
         lhs.dependentPkg, rhs, errors.invalidPackages)
     else:
@@ -444,8 +437,21 @@ proc mergeFollowedDevFileData(lhs: var DevelopFileData, rhs: DevelopFileData,
   lhs.addPackages(rhs.nameToPkg.values, rhs.path, rhs.pkgToDevFileNames,
                   errors.collidingNames)
 
-proc load(data: var DevelopFileData, path: Path,
-          silentIfFileNotExists, raiseOnValidationErrors: bool) =
+proc load(path: Path, dependentPkg: PackageInfo, options: Options,
+          silentIfFileNotExists, raiseOnValidationErrors: bool):
+    DevelopFileData
+
+template load(dependentPkg: PackageInfo, args: varargs[untyped]):
+    DevelopFileData =
+  ## Loads data for the `dependentPkg`'s develop file by searching it in the
+  ## package's Nimble file directory. Delegates the functionality to the `load`
+  ## procedure taking path to develop file.
+  dependentPkg.assertIsLoaded
+  load(dependentPkg.getPkgDevFilePath, dependentPkg, args)
+
+proc load(path: Path, dependentPkg: PackageInfo, options: Options,
+          silentIfFileNotExists, raiseOnValidationErrors: bool):
+    DevelopFileData =
   ## Loads data from a develop file at path `path`.
   ##
   ## If `silentIfFileNotExists` then does nothing in the case the develop file
@@ -460,73 +466,75 @@ proc load(data: var DevelopFileData, path: Path,
   ##   - contains a path to some invalid package.
   ##   - contains paths to multiple packages with the same name.
 
+  var cache {.global.}: DevelopFileDataCache
+  if cache.hasKey(path):
+    return cache[path]
+  
+  result = initDevelopFileData()
+  result.path = path
+  result.dependentPkg = dependentPkg
+
+  if silentIfFileNotExists and not path.fileExists:
+    return
+
   var
     errors {.global.}: ErrorsCollection
     visitedFiles {.global.}: HashSet[Path]
     visitedPkgs {.global.}: HashSet[Path]
 
-  data.path = path
-
-  if silentIfFileNotExists and not path.fileExists:
-    return
-
   visitedFiles.incl path
-  if data.hasDependentPkg:
-    visitedPkgs.incl data.dependentPkg.getNimbleFileDir
+  if dependentPkg.isLoaded:
+    visitedPkgs.incl dependentPkg.getNimbleFileDir
 
   try:
-    fromJson(data.jsonData, parseFile(path), Joptions(allowExtraKeys: true))
+    fromJson(result.jsonData, parseFile(path), Joptions(allowExtraKeys: true))
   except ValueError as error:
     raise nimbleError(notAValidDevFileJsonMsg($path), details = error)
 
-  for depPath in data.dependencies:
+  for depPath in result.dependencies:
     let depPath = if depPath.isAbsolute:
       depPath.normalizedPath else: (path.splitFile.dir / depPath).normalizedPath
     let (pkgInfo, error) = validatePackage(
-      depPath, data.dependentPkg, data.options)
+      depPath, result.dependentPkg, options)
     if error == nil:
-      data.addPackage(pkgInfo, path, [path].toHashSet, errors.collidingNames)
+      result.addPackage(pkgInfo, path, [path].toHashSet, errors.collidingNames)
     else:
       errors.invalidPackages[depPath] = error
 
-  for inclPath in data.includes:
+  for inclPath in result.includes:
     let inclPath = inclPath.normalizedPath
     if visitedFiles.contains(inclPath):
       continue
-    var inclDevFileData = init(DevelopFileData, data.options)
+    var inclDevFileData = initDevelopFileData()
     try:
-      inclDevFileData.load(inclPath, false, false)
+      inclDevFileData = load(inclPath, initPackageInfo(), options, false, false)
     except CatchableError as error:
       errors.invalidIncludeFiles[path] = error
       continue
-    data.mergeIncludedDevFileData(inclDevFileData, errors)
+    result.mergeIncludedDevFileData(inclDevFileData, errors)
 
-  if data.hasDependentPkg:
+  if result.dependentPkg.isLoaded:
     # If this is a package develop file, but not a free one, for each of the
     # package's develop mode dependencies load its develop file if it is not
     # already loaded and merge its data to the current develop file's data.
-    for path, pkg in data.pathToPkg.dup:
+    for path, pkg in result.pathToPkg.dup:
       if visitedPkgs.contains(path):
         continue
-      var followedPkgDevFileData = init(DevelopFileData, pkg[], data.options)
+      var followedPkgDevFileData = initDevelopFileData()
       try:
-        followedPkgDevFileData.load(pkg[].getPkgDevFilePath, true, false)
+        followedPkgDevFileData = load(pkg[], options, true, false)
       except:
         # The errors will be accumulated in `errors` global variable and
         # reported by the `load` call which initiated the recursive process.
         discard
-      data.mergeFollowedDevFileData(followedPkgDevFileData, errors)
+      result.mergeFollowedDevFileData(followedPkgDevFileData, errors)
 
-  if raiseOnValidationErrors and errors.hasErrors:
+  if not errors.hasErrors:
+      cache[path] = result
+      return result
+  elif raiseOnValidationErrors:
     raise nimbleError(failedToLoadFileMsg($path),
                       details = nimbleError(errors.getErrorsDetails))
-
-template load(data: var DevelopFileData, args: varargs[untyped]) =
-  ## Loads data for the associated with `data`'s `dependentPkg` develop file by
-  ## searching it in its Nimble file directory. Delegates the functionality to
-  ## the `load` procedure taking path to develop file.
-  let fileName = data.getDependentPkgDevFilePath
-  data.load(fileName, args)
 
 proc addDevelopPackage(data: var DevelopFileData, pkg: PackageInfo): bool =
   ## Adds package `pkg`'s path to the develop file.
@@ -550,7 +558,7 @@ proc addDevelopPackage(data: var DevelopFileData, pkg: PackageInfo): bool =
     displayError(pkgAlreadyPresentAtDifferentPathMsg(pkg.name, $otherPath))
     return false
 
-  if data.hasDependentPkg:
+  if data.dependentPkg.isLoaded:
     # Check whether `pkg` is a valid dependency.
     try:
       validateDependency(pkg, data.dependentPkg)
@@ -573,7 +581,8 @@ proc addDevelopPackage(data: var DevelopFileData, pkg: PackageInfo): bool =
 
   return true
 
-proc addDevelopPackage(data: var DevelopFileData, path: Path): bool =
+proc addDevelopPackage(data: var DevelopFileData, path: Path,
+                       options: Options): bool =
   ## Adds path `path` to some package directory to the develop file.
   ##
   ## Returns `true` if:
@@ -587,7 +596,7 @@ proc addDevelopPackage(data: var DevelopFileData, path: Path): bool =
   ##     in the develop file or some of its includes.
   ##   - the package `pkg` is not a valid dependency of the dependent package.
 
-  let (pkgInfo, error) = validatePackage(path, initPackageInfo(), data.options)
+  let (pkgInfo, error) = validatePackage(path, initPackageInfo(), options)
   if error != nil:
     displayError(invalidPkgMsg($path))
     displayDetails(error)
@@ -595,39 +604,41 @@ proc addDevelopPackage(data: var DevelopFileData, path: Path): bool =
 
   return addDevelopPackage(data, pkgInfo)
 
-proc addDevelopPackageEx*(data: var DevelopFileData, path: Path) =
-  ## Adds a package at path `path` to a free develop file intended for inclusion
-  ## in other packages develop files.
-  ##
-  ## Raises if:
-  ##   - the path in `path` does not point to a valid Nimble package.
-  ##   - a package with the same name but at different path is already present
-  ##     in the develop file or some of its includes.
-  ##   - the path is already present in the develop file.
+# proc addDevelopPackageEx*(data: var DevelopFileData, path: Path,
+#                           options: Options) =
+#   ## Adds a package at path `path` to a free develop file intended for inclusion
+#   ## in other packages develop files.
+#   ##
+#   ## Raises if:
+#   ##   - the path in `path` does not point to a valid Nimble package.
+#   ##   - a package with the same name but at different path is already present
+#   ##     in the develop file or some of its includes.
+#   ##   - the path is already present in the develop file.
 
-  assert not data.hasDependentPkg,
-         "This procedure can only be used for free develop files intended " &
-         "for inclusion in other packages develop files."
+#   assert not data.dependentPkg.isSome,
+#          "This procedure can only be used for free develop files intended " &
+#          "for inclusion in other packages develop files."
 
-  let (pkg, error) = validatePackage(path, initPackageInfo(), data.options)
-  if error != nil: raise error
+#   let (pkg, error) = validatePackage(path, PackageInfo.none, options)
+#   if error != nil:
+#     raise error
 
-  # Check whether the develop file already contains a package with a name
-  # `pkg.name` at different path.
-  if data.nameToPkg.hasKey(pkg.name) and not data.pathToPkg.hasKey(path):
-    raise nimbleError(
-      pkgAlreadyPresentAtDifferentPathMsg(pkg.name, $data.pathToPkg[pkg.name]))
+#   # Check whether the develop file already contains a package with a name
+#   # `pkg.name` at different path.
+#   if data.nameToPkg.hasKey(pkg.name) and not data.pathToPkg.hasKey(path):
+#     raise nimbleError(
+#       pkgAlreadyPresentAtDifferentPathMsg(pkg.name, $data.pathToPkg[pkg.name]))
 
-  # Add `pkg` to the develop file model.
-  let success = not data.dependencies.containsOrIncl(path)
+#   # Add `pkg` to the develop file model.
+#   let success = not data.dependencies.containsOrIncl(path)
 
-  var collidingNames: CollidingNames
-  addPackage(data, pkg, data.path, [data.path].toHashSet, collidingNames)
-  assert collidingNames.len == 0, "Must not have the same package name at " &
-                                  "path different than already existing one."
+#   var collidingNames: CollidingNames
+#   addPackage(data, pkg, data.path, [data.path].toHashSet, collidingNames)
+#   assert collidingNames.len == 0, "Must not have the same package name at " &
+#                                   "path different than already existing one."
 
-  if not success:
-    raise nimbleError(pkgAlreadyInDevModeMsg(pkg.getNameAndVersion, $path))
+#   if not success:
+#     raise nimbleError(pkgAlreadyInDevModeMsg(pkg.getNameAndVersion, $path))
 
 proc removePackage(data: var DevelopFileData, pkg: ref PackageInfo,
                    devFileName: Path) =
@@ -709,7 +720,8 @@ proc removeDevelopPackageByName(data: var DevelopFileData, name: string): bool =
 
   return success
 
-proc includeDevelopFile(data: var DevelopFileData, path: Path): bool =
+proc includeDevelopFile(data: var DevelopFileData, path: Path,
+                        options: Options): bool =
   ## Includes a develop file at path `path` to the current project's develop
   ## file.
   ##
@@ -724,9 +736,9 @@ proc includeDevelopFile(data: var DevelopFileData, path: Path): bool =
   ##     collisions with already added from different place packages with
   ##     the same name, but with different location.
 
-  var inclFileData = init(DevelopFileData, data.options)
+  var inclFileData = initDevelopFileData()
   try:
-    inclFileData.load(path, false, true)
+    inclFileData = load(path, initPackageInfo(), options, false, true)
   except CatchableError as error:
     displayError(failedToLoadFileMsg($path))
     displayDetails(error)
@@ -785,11 +797,10 @@ proc createEmptyDevelopFile(path: Path, options: Options): bool =
   ## Creates an empty develop file at given path `path` or with a default name
   ## in the current directory if there is no path given.
 
-  let
-    data = init(DevelopFileData, options)
-    filePath = if path.len == 0: Path(developFileName) else: path
+  let filePath = if path.len == 0: Path(developFileName) else: path
 
   try:
+    var data = initDevelopFileData()
     data.save(filePath, writeEmpty = true, overwrite = false)
   except CatchableError as error:
     displayError(error)
@@ -797,6 +808,11 @@ proc createEmptyDevelopFile(path: Path, options: Options): bool =
 
   displaySuccess(emptyDevFileCreatedMsg($filePath))
   return true
+
+proc assertDevelopActionIsSet(options: Options) =
+  ## Asserts that the currently set action in the `options` object is `develop`.
+  assert options.action.typ == actionDevelop,
+         "This procedure must be called only on develop command."
 
 proc updateDevelopFile*(dependentPkg: PackageInfo, options: Options): bool =
   ## Updates a dependent package `dependentPkg`'s develop file with an
@@ -811,59 +827,275 @@ proc updateDevelopFile*(dependentPkg: PackageInfo, options: Options): bool =
   ## Returns `true` if all operations are successful and `false` otherwise.
   ## Raises if cannot load an existing develop file.
 
-  assert options.action.typ == actionDevelop,
-         "This procedure must be called only on develop command."
+  options.assertDevelopActionIsSet
+  dependentPkg.assertIsLoaded
 
   var
     hasError = false
     hasSuccessfulRemoves = false
-    data = init(DevelopFileData, dependentPkg, options)
+    data = load(dependentPkg, options, true, true)
 
-  data.load(true, true)
-
-  # Save the develop file at the end of the procedure only in the case when it
-  # is being loaded without an exception.
-  defer: data.save(writeEmpty = hasSuccessfulRemoves, overwrite = true)
+  defer:
+    data.save(writeEmpty = hasSuccessfulRemoves, overwrite = true)
 
   for (actionType, argument) in options.action.devActions:
     case actionType
     of datNewFile:
       hasError = not createEmptyDevelopFile(argument, options) or hasError
     of datAdd:
-      if data.hasDependentPkg:
-        hasError = not data.addDevelopPackage(argument) or hasError
+      hasError = not data.addDevelopPackage(argument, options) or hasError
     of datRemoveByPath:
-      if data.hasDependentPkg:
-        hasSuccessfulRemoves = data.removeDevelopPackageByPath(argument) or
-                              hasSuccessfulRemoves
+      hasSuccessfulRemoves = data.removeDevelopPackageByPath(argument) or
+                             hasSuccessfulRemoves
     of datRemoveByName:
-      if data.hasDependentPkg:
-        hasSuccessfulRemoves = data.removeDevelopPackageByName(argument) or
-                              hasSuccessfulRemoves
+      hasSuccessfulRemoves = data.removeDevelopPackageByName(argument) or
+                             hasSuccessfulRemoves
     of datInclude:
-      if data.hasDependentPkg:
-        hasError = not data.includeDevelopFile(argument) or hasError
+      hasError = not data.includeDevelopFile(argument, options) or hasError
     of datExclude:
-      if data.hasDependentPkg:
-        hasSuccessfulRemoves = data.excludeDevelopFile(argument) or
-                              hasSuccessfulRemoves
+      hasSuccessfulRemoves = data.excludeDevelopFile(argument) or
+                             hasSuccessfulRemoves
 
   return not hasError
 
-proc validateDevelopFile*(dependentPkg: PackageInfo, options: Options) =
-  ## Validates the develop file for the package `dependentPkg` by trying to
-  ## load it.
-  var data = init(DevelopFileData, dependentPkg, options)
-  data.load(true, true)
+proc executeDevActionsAllowedOutsidePkgDir*(options: Options): bool =
+  ## Executes develop command sub-commands allowed outside a valid package
+  ## directory. Currently this is only `--create, -c` option for creating an
+  ## empty develop file.
+
+  options.assertDevelopActionIsSet
+
+  var hasError = false
+  for (actionType, argument) in options.action.devActions:
+    case actionType
+    of datNewFile:
+      hasError = not createEmptyDevelopFile(argument, options) or hasError
+    else:
+      discard
+  return not hasError
 
 proc processDevelopDependencies*(dependentPkg: PackageInfo, options: Options):
     seq[PackageInfo] =
   ## Returns a sequence with the develop mode dependencies of the `dependentPkg`
-  ## and all of their develop mode dependencies.
+  ## and recursively all of their develop mode dependencies.
 
-  var data = init(DevelopFileData, dependentPkg, options)
-  data.load(true, true)
-
+  let data = load(dependentPkg, options, true, true)
   result = newSeqOfCap[PackageInfo](data.nameToPkg.len)
   for _, pkg in data.nameToPkg:
     result.add pkg[]
+
+proc getDevelopDependencies*(dependentPkg: PackageInfo, options: Options):
+    Table[string, ref PackageInfo] =
+  ## Returns a table with a mapping between names and `PackageInfo`s of develop
+  ## mode dependencies of package `dependentPkg` and recursively all of their
+  ## develop mode dependencies.
+
+  let data = load(dependentPkg, options, true, true)
+  return data.nameToPkg
+
+type
+  ValidationErrorKind* = enum
+    ## Types of possible errors when validating the develop file against the
+    ## lock file with corresponding parts of their error messages.
+    vekDirIsNotUnderVersionControl = "is not under version control."
+    vekWorkingCopyIsNotClean       = "has not clean working copy."
+    vekVcsRevisionIsNotPushed      = "has not pushed VCS revisions."
+    vekWorkingCopyNeedsSync        = "has not synced working copy."
+    vekWorkingCopyNeedsLock        = "has not locked commits."
+    vekWorkingCopyNeedsMerge       = "has local changes which are in " &
+                                     "conflict with the remote changes."
+
+  ValidationErrorFlags = set[ValidationErrorKind]
+    ## Set containing flags for the already met validation errors.
+
+  ValidationError* = object
+    ## Contains information for a validation error for some develop mode
+    ## package.
+    kind*: ValidationErrorKind
+    path*: Path
+
+  ValidationErrors* = Table[string, ValidationError]
+    ## Mapping between package names and their validation errors info.
+
+  NeedsOperation = enum
+    ## Helper enum for the return type of the procedure determining whether a
+    ## develop mode dependency working copy needs some operation to resolve the
+    ## conflict between it and the lock file.
+    needsNone, needsLock, needsSync, needsMerge
+
+proc assertHasValidationErrors(errors: ValidationErrors) =
+  assert errors.len > 0, "Must have validation errors."
+
+proc getValidationErrorMessage*(name: string, error: ValidationError): string =
+  ## By given validation error `error` constructs a validation error message for
+  ## given develop mode dependency package with name `name`.
+  &"Package \"{name}\" at \"{error.path}\" {error.kind}.\n"
+
+proc getValidationErrorsMessage*(errors: ValidationErrors): string =
+  ## Constructs an error message reporting develop mode dependencies validation
+  ## errors.
+
+  errors.assertHasValidationErrors
+  result = "Some of package's develop mode dependencies are invalid.\n"
+  for name, error in errors:
+    result &= getValidationErrorMessage(name, error)
+
+proc allAreSet(errorFlags: set[ValidationErrorKind]): bool =
+  ## Checks whether all possible validation error flags are set.
+  cast[uint](errorFlags) == uint(2'd ^ ValidationErrorKind.enumLen - 1)
+
+proc getValidationsErrorsHint(errors: ValidationErrors): string =
+  ## Constructs a hint message for resolving develop mode dependencies
+  ## validation errors.
+
+  errors.assertHasValidationErrors
+  var errorFlags: ValidationErrorFlags
+
+  for _, error in errors:
+    case error.kind:
+    of vekDirIsNotUnderVersionControl, vekWorkingCopyIsNotClean,
+       vekVcsRevisionIsNotPushed:
+      if error.kind notin errorFlags:
+        result &=
+          "When you are using a lock file Nimble requires develop mode " &
+          "dependencies to be under version control, all local changes to be " &
+          "committed and pushed on some remote, and lock file to be updated.\n"
+    of vekWorkingCopyNeedsSync:
+      if error.kind notin errorFlags:
+        result &=
+          "You have to call `nimble sync` to synchronize your develop mode " &
+          "dependencies working copies with the latest lock file.\n"
+    of vekWorkingCopyNeedsLock:
+      if error.kind notin errorFlags:
+        result &=
+          "You have to call `nimble lock` to update your lock file with the " &
+          "latest versions of your develop mode dependencies working copies.\n"
+    of vekWorkingCopyNeedsMerge:
+      if error.kind notin errorFlags:
+        result &=
+          "You have to merge or rebase working copies of your develop mode " &
+          "dependencies which have conflicts with remote changes."
+
+    errorFlags.incl error.kind
+    if errorFlags.allAreSet: break
+
+proc pkgDirIsNotUnderVersionControl(depPkg: PackageInfo): bool =
+  ## Checks whether a develop mode dependency package directory is under version
+  ## control.
+  depPkg.getNimbleFileDir.getVcsType == vcsTypeNone
+
+proc workingCopyIsNotClean(depPkg: PackageInfo): bool =
+  ## Checks whether a working copy directory of a develop mode dependency
+  ## package is clean. Untracked files are not considered.
+  not depPkg.getNimbleFileDir.isWorkingCopyClean
+
+proc vcsRevisionIsNotPushed(depPkg: PackageInfo): bool =
+  ## Checks whether current VCS revision of the working copy directory of a
+  ## develop mode dependency package is pushed on some remote.
+  not depPkg.getNimbleFileDir.isVcsRevisionPresentOnSomeRemote(
+    depPkg.vcsRevision)
+
+proc workingCopyNeeds*(dependencyPkg, dependentPkg: PackageInfo,
+                       options: Options): NeedsOperation =
+  ## Be getting in consideration the information from the develop mode
+  ## dependency working copy directory, the lock file and the sync file
+  ## determines what kind of operation is needed to resolve the conflicts
+  ## if any.
+
+  let
+    lockFileVcsRev = dependentPkg.lockedDeps.getOrDefault(
+      dependencyPkg.name, notSetLockFileDep).vcsRevision
+    syncFile = getSyncFile(dependentPkg)
+    syncFileVcsRev = syncFile.getDepVcsRevision(dependencyPkg.name)
+    workingCopyVcsRev = getVcsRevision(dependencyPkg.getNimbleFileDir)
+
+  if lockFileVcsRev == syncFileVcsRev and syncFileVcsRev == workingCopyVcsRev:
+    # When all revisions are matching nothing have to be done.
+    return needsNone
+  
+  if lockFileVcsRev == syncFileVcsRev and syncFileVcsRev != workingCopyVcsRev:
+    # When lock file and sync file revisions are matching, but working copy
+    # revision is different, then most probably there are local changes and
+    # `nimble lock` is needed.
+    return needsLock
+
+  if lockFileVcsRev != syncFileVcsRev and syncFileVcsRev == workingCopyVcsRev:
+    # When lock file revision is different from sync file revision, but sync
+    # file revision is equal to working copy revision then most probably we have
+    # `pull` executed but we forgot to call `nimble sync`.
+    return needsSync
+
+  if lockFileVcsRev == workingCopyVcsRev and
+     workingCopyVcsRev != syncFileVcsRev:
+    # When lock file revision is equal to working copy revision, but they are
+    # different from sync file revision, most probably this is because of
+    # damaged sync file. Everything is Ok, because the sync file will be
+    # rewritten on the next `nimble lock` or `nimble sync` command.
+    return needsNone
+
+  if lockFileVcsRev != syncFileVcsRev and
+     lockFileVcsRev != workingCopyVcsRev and
+     syncFileVcsRev != workingCopyVcsRev:
+    # When all revisions are different from one another this indicates that
+    # there are local changes which are conflicting with remote changes. The
+    # user have to resolve them manually by merging or rebasing.
+    return needsMerge
+
+  assert false, "Here all cases are covered and the program " &
+                "flow must not reach this assert."
+
+  return needsNone
+
+template addError(error: ValidationErrorKind) =
+    errors[depPkg.name] = ValidationError(
+      path: depPkg.getNimbleFileDir, kind: error)
+
+proc findValidationErrorsOfDevDepsWithLockFile*(
+    dependentPkg: PackageInfo, options: Options,
+    errors: var ValidationErrors) =
+  ## Collects validation errors for the develop mode dependencies with the
+  ## content of the lock file by getting in consideration the information from
+  ## the sync file. In the case of discrepancy, gives a useful advice what have
+  ## to be done to resolve the conflicts for the not matching packages.
+
+  dependentPkg.assertIsLoaded
+
+  let developDependencies = processDevelopDependencies(dependentPkg, options)
+
+  for depPkg in developDependencies:
+    if depPkg.pkgDirIsNotUnderVersionControl:
+      addError(vekDirIsNotUnderVersionControl)
+    elif depPkg.workingCopyIsNotClean:
+      addError(vekWorkingCopyIsNotClean)
+    elif depPkg.vcsRevisionIsNotPushed:
+      addError(vekVcsRevisionIsNotPushed)
+    elif depPkg.workingCopyNeeds(dependentPkg, options) == needsSync:
+      addError(vekWorkingCopyNeedsSync)
+    elif depPkg.workingCopyNeeds(dependentPkg, options) == needsLock:
+      addError(vekWorkingCopyNeedsLock)
+    elif depPkg.workingCopyNeeds(dependentPkg, options) == needsMerge:
+      addError(vekWorkingCopyNeedsMerge)
+
+proc validationErrors*(errors: ValidationErrors): ref NimbleError =
+  result = nimbleError(
+    msg  = errors.getValidationErrorsMessage,
+    hint = errors.getValidationsErrorsHint)
+
+proc validateDevelopFileAgainstLockFile(
+    dependentPkg: PackageInfo, options: Options) =
+  ## Does validation of the develop file dependencies against the data written
+  ## in the lock file.
+
+  var errors: ValidationErrors
+
+  findValidationErrorsOfDevDepsWithLockFile(dependentPkg, options, errors)
+  if errors.len > 0:
+    raise validationErrors(errors)
+
+proc validateDevelopFile*(dependentPkg: PackageInfo, options: Options) =
+  ## The procedure is used in the Nimble's `check` command to transitively
+  ## validate the contents of the develop files.
+
+  discard load(dependentPkg, options, true, true)
+  if dependentPkg.areLockedDepsLoaded:
+    validateDevelopFileAgainstLockFile(dependentPkg, options)

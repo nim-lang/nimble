@@ -44,10 +44,9 @@ type
 
   ActionType* = enum
     actionNil, actionRefresh, actionInit, actionDump, actionPublish,
-    actionInstall, actionSearch,
-    actionList, actionBuild, actionPath, actionUninstall, actionCompile,
-    actionDoc, actionCustom, actionTasks, actionDevelop, actionCheck,
-    actionLock, actionRun
+    actionInstall, actionSearch, actionList, actionBuild, actionPath,
+    actionUninstall, actionCompile, actionDoc, actionCustom, actionTasks,
+    actionDevelop, actionCheck, actionLock, actionRun, actionSync
 
   DevelopActionType* = enum
     datNewFile, datAdd, datRemoveByPath, datRemoveByName, datInclude, datExclude
@@ -58,6 +57,8 @@ type
     case typ*: ActionType
     of actionNil, actionList, actionPublish, actionTasks, actionCheck,
        actionLock: nil
+    of actionSync:
+      listOnly*: bool
     of actionRefresh:
       optionalURL*: string # Overrides default package list.
     of actionInstall, actionPath, actionUninstall, actionDevelop:
@@ -156,6 +157,10 @@ Commands:
                                   the name of an installed package.
                [--ini, --json]    Selects the output format (the default is --ini).
   lock                            Generates or updates a package lock file.
+  sync                            Synchronizes develop mode dependencies with
+                                  the content of the lock file.
+               [-l, --list-only]  Only lists the packages which are not synced
+                                  without actually performing the sync operation.
 
 Nimble Options:
   -h, --help                      Print this help message.
@@ -231,6 +236,8 @@ proc parseActionType*(action: string): ActionType =
     result = actionCheck
   of "lock":
     result = actionLock
+  of "sync":
+    result = actionSync
   else:
     result = actionCustom
 
@@ -521,6 +528,12 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
       else:
         raise nimbleError(multiplePathOptionsGivenMsg)
     else: 
+      wasFlagHandled = false
+  of actionSync:
+    case f
+    of "l", "list-only":
+      result.action.listOnly = true
+    else:
       wasFlagHandled = false
   else:
     wasFlagHandled = false

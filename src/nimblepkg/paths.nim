@@ -23,6 +23,9 @@ proc parseFile*(filename: Path): JsonNode {.borrow.}
 proc `/`*(head, tail: Path): Path {.borrow.}
 proc writeFile*(filename: Path, content: string) {.borrow.}
 proc len*(path: Path): int {.borrow.}
+proc isRootDir*(path: Path): bool {.borrow.}
+proc parentDir*(path: Path): Path {.borrow.}
+proc quoteShell*(s: Path): Path {.borrow.}
 
 proc hash*(path: Path): Hash = hash(absolutePath(string(path)))
 

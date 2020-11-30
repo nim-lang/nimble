@@ -77,8 +77,10 @@ template aliasThis*(dotExpression: untyped) =
   ##   obj.field1 = 42
   ##   echo obj.field1        # prints 42
   ##   echo obj.field2.field1 # also prints 42
-
+  
+  {.warning[UnsafeDefault]: off.}
   aliasThisImpl(dotExpression, dotExpression.typeOf.fields)
+  {.warning[UnsafeDefault]: on.}
 
 when isMainModule:
   import unittest

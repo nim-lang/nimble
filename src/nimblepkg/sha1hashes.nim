@@ -1,7 +1,7 @@
 # Copyright (C) Dominik Picheta. All rights reserved.
 # BSD License. Look at license.txt for more info.
 
-import strformat, strutils, json
+import strformat, strutils, json, std/sha1, hashes
 import common
 
 type
@@ -13,29 +13,28 @@ type
     ## procedure which validates the input.
     hashValue: string
 
+const
+  notSetSha1Hash* = Sha1Hash(hashValue: "")
+
 template `$`*(sha1Hash: Sha1Hash): string = sha1Hash.hashValue
 template `%`*(sha1Hash: Sha1Hash): JsonNode = %sha1Hash.hashValue
 template `==`*(lhs, rhs: Sha1Hash): bool = lhs.hashValue == rhs.hashValue
+template hash*(sha1Hash: Sha1Hash): Hash = sha1Hash.hashValue.hash
 
 proc invalidSha1Hash(value: string): ref InvalidSha1HashError =
   ## Creates a new exception object for an invalid sha1 hash value.
   result = newNimbleError[InvalidSha1HashError](
     &"The string '{value}' does not represent a valid sha1 hash value.")
 
-proc validateSha1Hash(value: string): bool =
+proc isValidSha1Hash(value: string): bool =
   ## Checks whether given string is a valid sha1 hash value. Only lower case
   ## hexadecimal digits are accepted.
-  if value.len == 0:
-    # Empty string is used as a special value for not set sha1 hash.
-    return true
   if value.len != 40:
-    # Valid sha1 hash must be exactly 40 characters long.
+    # A valid sha1 hash should be 40 characters long string.
     return false
   for c in value:
     if c notin {'0' .. '9', 'a'..'f'}:
-      # All characters of valid sha1 hash must be hexadecimal digits with lower
-      # case letters for digits representing numbers between 10 and 15
-      # ('a' to 'f').
+      # It also should contain only lower case hexadecimal digits.
       return false
   return true
 
@@ -44,13 +43,12 @@ proc initSha1Hash*(value: string): Sha1Hash =
   ## lower case and validating the transformed value. In the case the supplied
   ## string is not a valid sha1 hash value then raises an `InvalidSha1HashError`
   ## exception.
+  if value == "":
+    return notSetSha1Hash
   let value = value.toLowerAscii
-  if not validateSha1Hash(value):
+  if not isValidSha1Hash(value):
     raise invalidSha1Hash(value)
   return Sha1Hash(hashValue: value)
-
-const
-  notSetSha1Hash* = initSha1Hash("")
 
 proc initFromJson*(dst: var Sha1Hash, jsonNode: JsonNode,
                    jsonPath: var string) =
@@ -66,12 +64,12 @@ when isMainModule:
   import unittest
 
   test "validate sha1":
-    check validateSha1Hash("")
-    check not validateSha1Hash("9")
-    check not validateSha1Hash("99345ce680cd3e48acdb9ab4212e4bd9bf9358g7")
-    check not validateSha1Hash("99345ce680cd3e48acdb9ab4212e4bd9bf9358b")
-    check not validateSha1Hash("99345CE680CD3E48ACDB9AB4212E4BD9BF9358B7")
-    check validateSha1Hash("99345ce680cd3e48acdb9ab4212e4bd9bf9358b7")
+    check not isValidSha1Hash("")
+    check not isValidSha1Hash("9")
+    check not isValidSha1Hash("99345ce680cd3e48acdb9ab4212e4bd9bf9358g7")
+    check not isValidSha1Hash("99345ce680cd3e48acdb9ab4212e4bd9bf9358b")
+    check not isValidSha1Hash("99345CE680CD3E48ACDB9AB4212E4BD9BF9358B7")
+    check isValidSha1Hash("99345ce680cd3e48acdb9ab4212e4bd9bf9358b7")
 
   test "init sha1":
     check initSha1Hash("") == notSetSha1Hash

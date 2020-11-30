@@ -2,9 +2,25 @@
 # BSD License. Look at license.txt for more info.
 
 import sets, tables
-import version, lockfile, aliasthis, sha1hashes
+import version, aliasthis, sha1hashes
 
 type
+  DownloadMethod* {.pure.} = enum
+    git = "git", hg = "hg"
+
+  Checksums* = object
+    sha1*: Sha1Hash
+
+  LockFileDep* = object
+    version*: string
+    vcsRevision*: Sha1Hash
+    url*: string
+    downloadMethod*: DownloadMethod
+    dependencies*: seq[string]
+    checksums*: Checksums
+
+  LockFileDeps* = OrderedTable[string, LockFileDep]
+
   PackageMetaDataBase* {.inheritable.} = object
     url*: string
     vcsRevision*: Sha1Hash
@@ -50,7 +66,7 @@ type
     backend*: string
     foreignDeps*: seq[string]
     basicInfo*: PackageBasicInfo
-    lockedDependencies*: LockFileDependencies
+    lockedDeps*: LockFileDeps
     metaData*: PackageMetaData
 
   Package* = object ## Definition of package from packages.json.
@@ -58,7 +74,7 @@ type
     name*: string
     url*: string # Download location.
     license*: string
-    downloadMethod*: string
+    downloadMethod*: DownloadMethod
     description*: string
     tags*: seq[string] # Even if empty, always a valid non nil seq. \
     # From here on, optional fields set to the empty string if not available.

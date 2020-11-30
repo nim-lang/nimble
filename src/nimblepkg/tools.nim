@@ -50,11 +50,12 @@ proc doCmdEx*(cmd: string): ProcessOutput =
     raise nimbleError("'" & bin & "' not in PATH.")
   return execCmdEx(cmd)
 
-proc tryDoCmdEx*(cmd: string): string =
+proc tryDoCmdEx*(cmd: string): string {.discardable.} =
   let (output, exitCode) = doCmdEx(cmd)
   if exitCode != QuitSuccess:
     raise nimbleError(
-      &"Execution of '{cmd}' failed with an exit code {exitCode}")
+      &"Execution of '{cmd}' failed with an exit code {exitCode}.\n" &
+      &"Details: {output}")
   return output
 
 proc getNimBin*: string =
@@ -176,23 +177,6 @@ proc getNimbleUserTempDir*(): string =
   else:
     tmpdir = getTempDir()
   return tmpdir
-
-
-proc getVcsRevisionFromDir*(dir: string): Sha1Hash =
-  ## Returns current revision number of HEAD if dir is inside VCS, or an empty
-  ## string in case of failure.
-
-  template tryToGetRevision(command: string): untyped =
-    try:
-      let (output, exitCode) = doCmdEx(command)
-      if exitCode == QuitSuccess:
-        return initSha1Hash(output.strip())
-    except:
-      discard
-
-  result = notSetSha1Hash
-  tryToGetRevision("git -C " & quoteShell(dir) & " rev-parse HEAD")
-  tryToGetRevision("hg --cwd " & quoteShell(dir) & " id -i")
 
 proc isEmptyDir*(dir: string): bool =
   toSeq(walkDirRec(dir)).len == 0

@@ -16,7 +16,7 @@ nimcache/
 # executables from test and build
 /nimble
 src/nimblepkg/aliasthis
-src/nimblepkg/checksum
+src/nimblepkg/checksums
 src/nimblepkg/cli
 src/nimblepkg/common
 src/nimblepkg/config
@@ -41,8 +41,10 @@ src/nimblepkg/paths
 src/nimblepkg/publish
 src/nimblepkg/reversedeps
 src/nimblepkg/sha1hashes
+src/nimblepkg/syncfile
 src/nimblepkg/tools
 src/nimblepkg/topologicalsort
+src/nimblepkg/vcstools
 src/nimblepkg/version
 
 # Windows executables

@@ -18,6 +18,12 @@ proc initPackageInfo*(): PackageInfo =
 proc isLoaded*(pkgInfo: PackageInfo): bool =
   return pkgInfo.myPath.len > 0
 
+proc assertIsLoaded*(pkgInfo: PackageInfo) =
+  assert pkgInfo.isLoaded, "The package info must be loaded."
+
+proc areLockedDepsLoaded*(pkgInfo: PackageInfo): bool =
+  pkgInfo.lockedDeps.len > 0
+
 proc hasMetaData*(pkgInfo: PackageInfo): bool =
   # if the package info has loaded meta data its files list have to be not empty
   pkgInfo.files.len > 0
@@ -28,7 +34,7 @@ proc initPackageInfo*(filePath: string): PackageInfo =
   result.myPath = filePath
   result.name = fileName
   result.backend = "c"
-  result.lockedDependencies = getLockedDependencies(fileDir)
+  result.lockedDeps = getLockedDependencies(fileDir)
 
 proc toValidPackageName*(name: string): string =
   for c in name:
@@ -61,6 +67,13 @@ proc requiredField(obj: JsonNode, name: string): string =
     raise nimbleError(
         "Package in packages.json file does not contain a " & name & " field.")
 
+proc parseDownloadMethod*(meth: string): DownloadMethod =
+  case meth
+  of "git": return DownloadMethod.git
+  of "hg", "mercurial": return DownloadMethod.hg
+  else:
+    raise nimbleError("Invalid download method: " & meth)
+
 proc fromJson(obj: JSonNode): Package =
   ## Constructs a Package object from a JSON node.
   ##
@@ -72,7 +85,7 @@ proc fromJson(obj: JSonNode): Package =
     result.alias = ""
     result.version = obj.optionalField("version")
     result.url = obj.requiredField("url")
-    result.downloadMethod = obj.requiredField("method")
+    result.downloadMethod = obj.requiredField("method").parseDownloadMethod
     result.dvcsTag = obj.optionalField("dvcs-tag")
     result.license = obj.requiredField("license")
     result.tags = @[]
@@ -360,7 +373,7 @@ proc echoPackage*(pkg: Package) =
   if pkg.alias.len > 0:
     echo("  Alias for ", pkg.alias)
   else:
-    echo("  url:         " & pkg.url & " (" & pkg.downloadMethod & ")")
+    echo("  url:         " & pkg.url & " (" & $pkg.downloadMethod & ")")
     echo("  tags:        " & pkg.tags.join(", "))
     echo("  description: " & pkg.description)
     echo("  license:     " & pkg.license)

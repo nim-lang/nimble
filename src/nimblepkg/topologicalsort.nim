@@ -2,15 +2,15 @@
 # BSD License. Look at license.txt for more info.
 
 import sequtils, sugar, tables, strformat, algorithm, sets
-import packageinfotypes, packageinfo, options, cli, lockfile
+import packageinfotypes, packageinfo, options, cli
 
 proc buildDependencyGraph*(packages: HashSet[PackageInfo], options: Options):
-    LockFileDependencies =
+    LockFileDeps =
   ## Creates records which will be saved to the lock file.
 
   for pkgInfo in packages:
     let pkg = getPackage(pkgInfo.name, options)
-    result[pkgInfo.name] = LockFileDependency(
+    result[pkgInfo.name] = LockFileDep(
       version: pkgInfo.version,
       vcsRevision: pkgInfo.vcsRevision,
       url: pkg.url,
@@ -19,7 +19,7 @@ proc buildDependencyGraph*(packages: HashSet[PackageInfo], options: Options):
         pkg => pkg.name).filter(name => name != "nim"),
       checksums: Checksums(sha1: pkgInfo.checksum))
 
-proc topologicalSort*(graph: LockFileDependencies):
+proc topologicalSort*(graph: LockFileDeps):
     tuple[order: seq[string], cycles: seq[seq[string]]] =
   ## Topologically sorts dependency graph which will be saved to the lock file.
   ##
@@ -100,8 +100,8 @@ when isMainModule:
   import unittest
   from sha1hashes import notSetSha1Hash
 
-  proc initLockFileDependency(deps: seq[string] = @[]): LockFileDependency =
-    result = LockFileDependency(
+  proc initLockFileDep(deps: seq[string] = @[]): LockFileDep =
+    result = LockFileDep(
       vcsRevision: notSetSha1Hash,
       dependencies: deps,
       checksums: Checksums(sha1: notSetSha1Hash))
@@ -111,13 +111,13 @@ when isMainModule:
     test "graph without cycles":
       let
         graph = {
-          "json_serialization": initLockFileDependency(
+          "json_serialization": initLockFileDep(
             @["serialization", "stew"]),
-          "faststreams": initLockFileDependency(@["stew"]),
-          "testutils": initLockFileDependency(),
-          "stew": initLockFileDependency(),
-          "serialization": initLockFileDependency(@["faststreams", "stew"]),
-          "chronicles": initLockFileDependency(
+          "faststreams": initLockFileDep(@["stew"]),
+          "testutils": initLockFileDep(),
+          "stew": initLockFileDep(),
+          "serialization": initLockFileDep(@["faststreams", "stew"]),
+          "chronicles": initLockFileDep(
             @["json_serialization", "testutils"])
           }.toOrderedTable
 
@@ -134,11 +134,11 @@ when isMainModule:
     test "graph with cycles":
       let
         graph = {
-          "A": initLockFileDependency(@["B", "E"]),
-          "B": initLockFileDependency(@["A", "C"]),
-          "C": initLockFileDependency(@["D"]),
-          "D": initLockFileDependency(@["B"]),
-          "E": initLockFileDependency(@["D", "E"])
+          "A": initLockFileDep(@["B", "E"]),
+          "B": initLockFileDep(@["A", "C"]),
+          "C": initLockFileDep(@["D"]),
+          "D": initLockFileDep(@["B"]),
+          "E": initLockFileDep(@["D", "E"])
           }.toOrderedTable
 
         expectedTopologicallySortedOrder = @["D", "C", "B", "E", "A"]

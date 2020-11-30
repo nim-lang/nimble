@@ -28,6 +28,11 @@ const
 
   multiplePathOptionsGivenMsg* = "Multiple path options are given."
 
+  updatingTheLockFileMsg* = "Updating the lock file..."
+  generatingTheLockFileMsg* = "Generating the lock file..."
+  lockFileIsUpdatedMsg* = "The lock file is updated."
+  lockFileIsGeneratedMsg* = "The lock file is generated."
+
 proc fileAlreadyExistsMsg*(path: string): string =
   &"Cannot create file \"{path}\" because it already exists."
 
@@ -122,3 +127,9 @@ proc promptRemovePkgsMsg*(pkgs: seq[string]): string =
   result = "The following packages will be removed:\n"
   result &= pkgs.foldl(a & "\n" & b)
   result &= "\nDo you wish to continue?"
+
+proc pkgWorkingCopyNeedsSyncingMsg*(pkgName, pkgPath: string): string =
+  &"Package \"{pkgName}\" working copy at path \"{pkgPath}\" needs syncing."
+
+proc pkgWorkingCopyIsSyncedMsg*(pkgName, pkgPath: string): string =
+  &"Working copy of package  \"{pkgName}\" at \"{pkgPath}\" is synced."

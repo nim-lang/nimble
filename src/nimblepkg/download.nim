@@ -9,17 +9,6 @@ from sequtils import toSeq, filterIt, map
 import packageinfotypes, packageparser, version, tools, common, options, cli,
        sha1hashes
 
-type
-  DownloadMethod* {.pure.} = enum
-    git = "git", hg = "hg"
-
-proc getSpecificDir(meth: DownloadMethod): string {.used.} =
-  case meth
-  of DownloadMethod.git:
-    ".git"
-  of DownloadMethod.hg:
-    ".hg"
-
 proc doCheckout(meth: DownloadMethod, downloadDir, branch: string) =
   case meth
   of DownloadMethod.git:
@@ -122,13 +111,6 @@ proc getVersionList*(tags: seq[string]): OrderedTable[Version, string] =
       .sorted(proc(a, b: (Version, string)): int = cmp(a[0], b[0]),
               SortOrder.Descending)
   result = toOrderedTable[Version, string](taggedVers)
-
-proc getDownloadMethod*(meth: string): DownloadMethod =
-  case meth
-  of "git": return DownloadMethod.git
-  of "hg", "mercurial": return DownloadMethod.hg
-  else:
-    raise nimbleError("Invalid download method: " & meth)
 
 proc getHeadName*(meth: DownloadMethod): Version =
   ## Returns the name of the download method specific head. i.e. for git
@@ -301,7 +283,7 @@ proc downloadPkg*(url: string, verRange: VersionRange,
         [$verRange, $pkginfo.version])
 
 proc echoPackageVersions*(pkg: Package) =
-  let downMethod = pkg.downloadMethod.getDownloadMethod()
+  let downMethod = pkg.downloadMethod
   case downMethod
   of DownloadMethod.git:
     try:
@@ -315,7 +297,7 @@ proc echoPackageVersions*(pkg: Package) =
       echo(getCurrentExceptionMsg())
   of DownloadMethod.hg:
     echo("  versions:    (Remote tag retrieval not supported by " &
-        pkg.downloadMethod & ")")
+        $pkg.downloadMethod & ")")
 
 when isMainModule:
   import unittest

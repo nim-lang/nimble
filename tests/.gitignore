@@ -4,6 +4,7 @@ tester
 testscommon
 tissues
 tlocaldeps
+tlockfile
 tmisctests
 tmoduletests
 tmultipkgs

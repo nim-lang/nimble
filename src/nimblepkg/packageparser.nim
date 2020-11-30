@@ -4,7 +4,8 @@ import parsecfg, sets, streams, strutils, os, tables, sugar
 from sequtils import apply, map, toSeq
 
 import common, version, tools, nimscriptwrapper, options, cli, sha1hashes,
-       packagemetadatafile, packageinfo, packageinfotypes, checksum
+       packagemetadatafile, packageinfo, packageinfotypes, checksums, vcstools,
+       paths
 
 ## Contains procedures for parsing .nimble files. Moved here from ``packageinfo``
 ## because it depends on ``nimscriptwrapper`` (``nimscriptwrapper`` also
@@ -184,7 +185,6 @@ proc validatePackageInfo(pkgInfo: PackageInfo, options: Options) =
           "' is an invalid backend.", false)
 
   validatePackageStructure(pkginfo, options)
-
 
 proc nimScriptHint*(pkgInfo: PackageInfo) =
   if not pkgInfo.isNimScript:
@@ -382,8 +382,8 @@ proc readPackageInfo(nf: NimbleFile, options: Options, onlyMinimalInfo=false):
     # If the `.nimble` file is not in the installation directory but in the
     # package repository we have to get its VCS revision and to calculate its
     # checksum.
-    result.vcsRevision = getVcsRevisionFromDir(fileDir)
-    result.checksum = calculatePackageSha1Checksum(fileDir)
+    result.vcsRevision = getVcsRevision(fileDir.Path)
+    result.checksum = calculateDirSha1Checksum(fileDir)
     # By default specialVersion is the same as version.
     result.specialVersion = result.version
   else:

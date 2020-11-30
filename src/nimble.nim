@@ -17,10 +17,11 @@ import nimblepkg/packageinfotypes, nimblepkg/packageinfo, nimblepkg/version,
        nimblepkg/publish, nimblepkg/options, nimblepkg/packageparser,
        nimblepkg/cli, nimblepkg/packageinstaller, nimblepkg/reversedeps,
        nimblepkg/nimscriptexecutor, nimblepkg/init, nimblepkg/tools,
-       nimblepkg/checksum, nimblepkg/topologicalsort, nimblepkg/lockfile,
+       nimblepkg/checksums, nimblepkg/topologicalsort, nimblepkg/lockfile,
        nimblepkg/nimscriptwrapper, nimblepkg/developfile, nimblepkg/paths,
        nimblepkg/nimbledatafile, nimblepkg/packagemetadatafile,
-       nimblepkg/displaymessages, nimblepkg/sha1hashes
+       nimblepkg/displaymessages, nimblepkg/sha1hashes, nimblepkg/syncfile,
+       nimblepkg/vcstools
 
 proc refresh(options: Options) =
   ## Downloads the package list from the specified URL.
@@ -282,7 +283,7 @@ proc processLockedDependencies(pkgInfo: PackageInfo, options: Options):
 
 proc processAllDependencies(pkgInfo: PackageInfo, options: Options):
     HashSet[PackageInfo] =
-  if pkgInfo.lockedDependencies.len > 0:
+  if pkgInfo.lockedDeps.len > 0:
     pkgInfo.processLockedDependencies(options)
   else:
     pkgInfo.processFreeDependencies(options)
@@ -323,7 +324,7 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
     pkgInfo.specialVersion = $requestedVer.spe
 
   # Dependencies need to be processed before the creation of the pkg dir.
-  if first and pkgInfo.lockedDependencies.len > 0:
+  if first and pkgInfo.lockedDeps.len > 0:
     result.deps = pkgInfo.processLockedDependencies(depsOptions)
   elif not fromLockFile:
     result.deps = pkgInfo.processFreeDependencies(depsOptions)
@@ -433,57 +434,67 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
   cd pkgInfo.myPath.splitFile.dir:
     discard execHook(options, actionInstall, false)
 
-proc processLockedDependencies(pkgInfo: PackageInfo, options: Options):
-    HashSet[PackageInfo] =
-  ## ```
-  ## For each dependency in the lock file:
-  ##   Check whether it is already installed and if not:
-  ##     Download it at specific VCS revision.
-  ##     Check whether it has the right checksum and if so:
-  ##       Install it from the download dir.
-  ##       Add record in the reverse dependencies file.
-  ##   Convert its info to PackageInfo and add it to the result.
-  ## ```
+proc getLockedDep(pkgInfo: PackageInfo, name: string, dep: LockFileDep,
+                  options: Options): PackageInfo =
+  ## Returns the package info for dependency package `dep` with name `name` from
+  ## the lock file of the package `pkgInfo` by searching for it in the local
+  ## Nimble cache and downloading it from its repository if the version with the
+  ## required checksum is not found locally.
 
   let packagesDir = options.getPkgsDir()
+  let depDirName = packagesDir / &"{name}-{dep.version}-{dep.checksums.sha1}"
 
-  for name, dep in pkgInfo.lockedDependencies:
-    let depDirName = packagesDir / &"{name}-{dep.version}-{dep.checksums.sha1}"
+  if not fileExists(depDirName / packageMetaDataFileName):
+    if depDirName.dirExists:
+      promptRemoveEntirePackageDir(depDirName, options)
+      removeDir(depDirName)
 
-    if not fileExists(depDirName / packageMetaDataFileName):
-      if depDirName.dirExists:
-        promptRemoveEntirePackageDir(depDirName, options)
-        removeDir(depDirName)
+    let (url, metadata) = getUrlData(dep.url)
+    let version =  dep.version.parseVersionRange
+    let subdir = metadata.getOrDefault("subdir")
 
-      let (url, metadata) = getUrlData(dep.url)
-      let version =  dep.version.parseVersionRange
-      let subdir = metadata.getOrDefault("subdir")
+    let (downloadDir, _) = downloadPkg(
+      url, version, dep.downloadMethod, subdir, options,
+      downloadPath = "", dep.vcsRevision)
 
-      let (downloadDir, _) = downloadPkg(
-        url, version, dep.downloadMethod.getDownloadMethod, subdir, options,
-        downloadPath = "", dep.vcsRevision)
+    let downloadedPackageChecksum = calculateDirSha1Checksum(downloadDir)
+    if downloadedPackageChecksum != dep.checksums.sha1:
+      raise checksumError(name, dep.version, dep.vcsRevision,
+                          downloadedPackageChecksum, dep.checksums.sha1)
 
-      let downloadedPackageChecksum = calculatePackageSha1Checksum(downloadDir)
-      if downloadedPackageChecksum != dep.checksums.sha1:
-        raise checksumError(name, dep.version, dep.vcsRevision,
-                            downloadedPackageChecksum, dep.checksums.sha1)
+    let (_, newlyInstalledPackageInfo) = installFromDir(
+      downloadDir, version, options, url, first = false, fromLockFile = true)
 
-      let (_, newlyInstalledPackageInfo) = installFromDir(
-        downloadDir, version, options, url, first = false, fromLockFile = true)
+    for depDepName in dep.dependencies:
+      let depDep = pkgInfo.lockedDeps[depDepName]
+      let revDep = (name: depDepName, version: depDep.version,
+                    checksum: depDep.checksums.sha1) 
+      options.nimbleData.addRevDep(revDep, newlyInstalledPackageInfo)
 
-      for depDepName in dep.dependencies:
-        let depDep = pkgInfo.lockedDependencies[depDepName]
-        let revDep = (name: depDepName, version: depDep.version,
-                      checksum: depDep.checksums.sha1) 
-        options.nimbleData.addRevDep(revDep, newlyInstalledPackageInfo)
+    return newlyInstalledPackageInfo
+  else:
+    let nimbleFilePath = findNimbleFile(depDirName, false)
+    let packageInfo = getInstalledPackageMin(
+      depDirName, nimbleFilePath).toFullInfo(options)
+    return packageInfo
 
-      result.incl newlyInstalledPackageInfo
+proc processLockedDependencies(pkgInfo: PackageInfo, options: Options):
+    HashSet[PackageInfo] =
+  # Returns a hash set with `PackageInfo` of all packages from the lock file of
+  # the package `pkgInfo` by getting the info for develop mode dependencies from
+  # their local file system directories and other packages from the Nimble
+  # cache. If a package with required checksum is missing from the local cache
+  # installs it by downloading it from its repository.
 
-    else:
-      let nimbleFilePath = findNimbleFile(depDirName, false)
-      let packageInfo = getInstalledPackageMin(
-        depDirName, nimbleFilePath).toFullInfo(options)
-      result.incl packageInfo
+  let developModeDeps = getDevelopDependencies(pkgInfo, options)
+  for name, dep in pkgInfo.lockedDeps:
+    let depPkg =
+      if developModeDeps.hasKey(name):
+        developModeDeps[name][]
+      else:
+        getLockedDep(pkgInfo, name, dep, options)
+
+    result.incl depPkg
 
 proc getDownloadInfo*(pv: PkgTuple, options: Options,
                       doPrompt: bool): (DownloadMethod, string,
@@ -495,7 +506,7 @@ proc getDownloadInfo*(pv: PkgTuple, options: Options,
     var pkg: Package
     if getPackage(pv.name, options, pkg):
       let (url, metadata) = getUrlData(pkg.url)
-      return (pkg.downloadMethod.getDownloadMethod(), url, metadata)
+      return (pkg.downloadMethod, url, metadata)
     else:
       # If package is not found give the user a chance to refresh
       # package.json
@@ -520,7 +531,7 @@ proc install(packages: seq[PkgTuple], options: Options,
 
   if packages == @[]:
     let currentDir = getCurrentDir()
-    if currentDir.hasDevelopFile:
+    if currentDir.developFileExists:
       displayWarning(
         "Installing a package which currently has develop mode dependencies." &
         "\nThey will be ignored and installed as normal packages.")
@@ -1098,17 +1109,22 @@ proc installDevelopPackage(pkgTup: PkgTuple, options: Options): string =
 
   return pkgInfo.getNimbleFileDir
 
+proc updateSyncFile(dependentPkg: PackageInfo, options: Options)
+
 proc develop(options: var Options) =
   let
-    hasDevActionsAllowedOnlyInPkgDir = options.action.devActions.filterIt(
-      it[0] != datNewFile).len > 0
     hasPackages = options.action.packages.len > 0
     hasPath = options.action.path.len > 0
+    hasDevActions = options.action.devActions.len > 0
 
   if not hasPackages and hasPath:
     raise nimbleError(pathGivenButNoPkgsToDownloadMsg)
 
-  var currentDirPkgInfo = initPackageInfo()
+  var
+    currentDirPkgInfo = initPackageInfo()
+    hasError = false
+    hasDevActionsAllowedOnlyInPkgDir = options.action.devActions.filterIt(
+      it[0] != datNewFile).len > 0
 
   try:
     # Check whether the current directory is a package directory.
@@ -1117,26 +1133,28 @@ proc develop(options: var Options) =
     if hasDevActionsAllowedOnlyInPkgDir:
       raise nimbleError(developOptionsOutOfPkgDirectoryMsg, details = error)
 
-  var hasDevActions = options.action.devActions.len > 0
-
   if currentDirPkgInfo.isLoaded and (not hasPackages) and (not hasDevActions):
     developFromDir(currentDirPkgInfo, options)
-
-  var hasError = false
 
   # Install each package.
   for pkgTup in options.action.packages:
     try:
       let pkgPath = installDevelopPackage(pkgTup, options)
-      options.action.devActions.add (datAdd, pkgPath.normalizedPath)
-      hasDevActions = true
+      if currentDirPkgInfo.isLoaded:
+        options.action.devActions.add (datAdd, pkgPath.normalizedPath)
+        hasDevActionsAllowedOnlyInPkgDir = true
     except CatchableError as error:
       hasError = true
       displayError(&"Cannot install package \"{pkgTup}\" for develop.")
       displayDetails(error)
 
-  if hasDevActions:
+  if hasDevActionsAllowedOnlyInPkgDir:
     hasError = not updateDevelopFile(currentDirPkgInfo, options) or hasError
+  else:
+    hasError = not executeDevActionsAllowedOutsidePkgDir(options) or hasError
+
+  if currentDirPkgInfo.isLoaded:
+    updateSyncFile(currentDirPkgInfo, options)
 
   if hasError:
     raise nimbleError(
@@ -1215,21 +1233,270 @@ proc check(options: Options) =
     display("Failure:", validationFailedMsg, Error, HighPriority)
     raise nimbleQuit(QuitFailure)
 
-proc promptOverwriteLockFile(options: Options) =
-  let message = &"{lockFileName} already exists. Overwrite?"
-  if not options.prompt(message):
-    raise nimbleQuit()
+proc updateSyncFile(dependentPkg: PackageInfo, options: Options) =
+  # Updates the sync file with the current VCS revisions of develop mode
+  # dependencies of the package `dependentPkg`.
+
+  let developDeps = processDevelopDependencies(dependentPkg, options).toHashSet
+  let syncFile = getSyncFile(dependentPkg)
+
+  # Remove old data from the sync file
+  syncFile.clear
+
+  # Add all current develop packages' VCS revisions to the sync file.
+  for dep in developDeps:
+    syncFile.setDepVcsRevision(dep.name, dep.vcsRevision)
+
+  syncFile.save
+
+proc validateDevModeDepsWorkingCopiesBeforeLock(
+    pkgInfo: PackageInfo, options: Options) =
+  ## Validates that the develop mode dependencies states are suitable for
+  ## locking. They must be under version control, their working copies must be
+  ## in a clean state and their current VCS revision must be present on some of
+  ## the configured remotes.
+
+  var errors: ValidationErrors
+  findValidationErrorsOfDevDepsWithLockFile(pkgInfo, options, errors)
+
+  # Those validation errors are not errors in the context of generating a lock
+  # file.
+  const notAnErrorSet = {
+    vekWorkingCopyNeedsSync,
+    vekWorkingCopyNeedsLock,
+    vekWorkingCopyNeedsMerge,
+    }
+  
+  # Remove not errors from the errors set.
+  for name, error in common.dup(errors):
+    if error.kind in notAnErrorSet:
+      errors.del name
+
+  if errors.len > 0:
+    raise validationErrors(errors)
+
+proc mergeLockedDependencies*(pkgInfo: PackageInfo, newDeps: LockFileDeps,
+                              options: Options): LockFileDeps =
+  ## Updates the lock file data of already generated lock file with the data
+  ## from a new lock operation.
+
+  result = pkgInfo.lockedDeps
+  let developDeps = pkgInfo.getDevelopDependencies(options)
+
+  for name, dep in newDeps:
+    if result.hasKey(name):
+      # If the dependency is already present in the old lock file
+      if developDeps.hasKey(name):
+        # and it is a develop mode dependency update it with the newly locked
+        # version,
+        result[name] = dep
+      else:
+        # but if it is installed dependency just leave it at the current
+        # version.
+        discard
+    else:
+      # If the dependency is missing from the old develop file add it.
+      result[name] = dep
+
+  # Clean dependencies which are missing from the newly locked list.
+  let deps = result
+  for name, dep in deps:
+    if not newDeps.hasKey(name):
+      result.del name
+
+proc displayLockOperationStart(dir: string): bool =
+  ## Displays a proper log message for starting generating or updating the lock
+  ## file of a package in directory `dir`.
+  
+  var doesLockFileExist = dir.lockFileExists
+  let msg = if doesLockFileExist:
+    updatingTheLockFileMsg
+  else:
+    generatingTheLockFileMsg
+  displayInfo(msg)
+  return doesLockFileExist
+
+proc displayLockOperationFinish(didLockFileExist: bool) =
+  ## Displays a proper log message for finished generation or update of a lock
+  ## file.
+
+  let msg = if didLockFileExist:
+    lockFileIsUpdatedMsg
+  else:
+    lockFileIsGeneratedMsg
+  displaySuccess(msg)
 
 proc lock(options: Options) =
+  ## Generates a lock file for the package in the current directory or updates 
+  ## it if it already exists.
+
   let currentDir = getCurrentDir()
-  if lockFileExists(currentDir):
-    promptOverwriteLockFile(options)
   let pkgInfo = getPkgInfo(currentDir, options)
+
+  let doesLockFileExist = displayLockOperationStart(currentDir)
+  validateDevModeDepsWorkingCopiesBeforeLock(pkgInfo, options)
+
   let dependencies = pkgInfo.processFreeDependencies(options).map(
     pkg => pkg.toFullInfo(options))
-  let dependencyGraph = buildDependencyGraph(dependencies, options)
+  var dependencyGraph = buildDependencyGraph(dependencies, options)
+
+  if currentDir.lockFileExists:
+    # If we already have a lock file, merge its data with the newly generated
+    # one.
+    #
+    # IMPORTANT TODO:
+    # To do this properly, an SMT solver is needed, but anyway, it seems that
+    # currently Nimble does not check properly for `require` clauses
+    # satisfaction between all packages, but just greedily picks the best
+    # matching version of dependencies for the currently processed package.
+
+    dependencyGraph = mergeLockedDependencies(pkgInfo, dependencyGraph, options)
+
   let (topologicalOrder, _) = topologicalSort(dependencyGraph)
   writeLockFile(dependencyGraph, topologicalOrder)
+  updateSyncFile(pkgInfo, options)
+  displayLockOperationFinish(doesLockFileExist)
+
+proc syncWorkingCopy(name: string, path: Path, dependentPkg: PackageInfo,
+                     options: Options) =
+  ## Syncs a working copy of a develop mode dependency of package `dependentPkg`
+  ## with name `name` at path `path` with the revision from the lock file of
+  ## `dependentPkg`.
+
+  displayInfo(&"Syncing working copy of package \"{name}\" at \"{path}\"...")
+
+  let lockedDeps = dependentPkg.lockedDeps
+  assert lockedDeps.hasKey(name),
+         &"Package \"{name}\" must be present in the lock file."
+
+  let vcsRevision = lockedDeps[name].vcsRevision
+  assert vcsRevision != path.getVcsRevision,
+        "If here the working copy VCS revision must be different from the " &
+        "revision written in the lock file."
+
+  try:
+    if not isVcsRevisionPresentOnSomeBranch(path, vcsRevision):
+      # If the searched revision is not present on some local branch retrieve
+      # changes sets from the remote branch corresponding to the local one.
+      let (remote, branch) = getCorrespondingRemoteAndBranch(path)
+      retrieveRemoteChangeSets(path, remote, branch)
+
+    if not isVcsRevisionPresentOnSomeBranch(path, vcsRevision):
+      # If the revision is still not found retrieve all remote change sets.
+      retrieveRemoteChangeSets(path)
+
+    let
+      currentBranch = getCurrentBranch(path)
+      localBranches = getBranchesOnWhichVcsRevisionIsPresent(
+        path, vcsRevision, btLocal)
+      remoteTrackingBranches = getBranchesOnWhichVcsRevisionIsPresent(
+        path, vcsRevision, btRemoteTracking)
+      allBranches = localBranches + remoteTrackingBranches
+
+    var targetBranch = 
+      if allBranches.len == 0:
+        # Te revision is not found on any branch.
+        ""
+      elif localBranches.len == 1:
+        # If the revision is present on only one local branch switch to it.
+        localBranches.toSeq[0]
+      elif localBranches.contains(currentBranch):
+        # If the current branch is among the local branches on which the
+        # revision is found we have to stay to it.
+        currentBranch
+      elif remoteTrackingBranches.len == 1:
+        # If the revision is found on only one remote tracking branch we have to
+        # fast forward merge it to a corresponding local branch and to switch to
+        # it.
+        remoteTrackingBranches.toSeq[0]
+      elif (let (hasBranch, branchName) = hasCorrespondingRemoteBranch(
+              path, remoteTrackingBranches); hasBranch):
+        # If the current branch has corresponding remote tracking branch on
+        # which the revision is found we have to get the name of the remote
+        # tracking branch in order to try to fast forward merge it to the local
+        # branch.
+        branchName
+      else:
+        # If the revision is found on several branches, but nighter of them is
+        # the current one or a remote tracking branch corresponding to the
+        # current one then give the user a choice to which branch to switch.
+        options.promptList(
+          &"The revision \"{vcsRevision}\" is found on multiple branches.\n" &
+          "Choose a branch to switch to:",
+          allBranches.toSeq.toOpenArray(0, allBranches.len - 1))
+
+    if path.getVcsType == vcsTypeGit and
+       remoteTrackingBranches.contains(targetBranch):
+      # If the target branch is a remote tracking branch get all local branches
+      # which track it.
+      let localBranches = getLocalBranchesTrackingRemoteBranch(
+        path, targetBranch)
+      let localBranch =
+        if localBranches.len == 0:
+          # There is no local branch tracking the remote branch and we have to
+          # get a name for a new branch.
+          getLocalBranchName(path, targetBranch)
+        elif localBranches.len == 1:
+          # There is only one local branch tracking the remote branch.
+          localBranches[0]
+        else:
+          # If there are multiple local branches which track the remote branch
+          # then give the user a choice to which to try to fast forward merge
+          # the remote branch.
+          options.promptList("Choose local branch where to try to fast " &
+                             &"forward merge \"{targetBranch}\":",
+            localBranches.toOpenArray(0, localBranches.len - 1))
+      fastForwardMerge(path, targetBranch, localBranch)
+      targetBranch = localBranch
+
+    if targetBranch != "":
+      if targetBranch != currentBranch:
+        switchBranch(path, targetBranch)
+      if path.getVcsRevision != vcsRevision:
+        setCurrentBranchToVcsRevision(path, vcsRevision)
+    else:
+      # If the revision is not found on any branch try to set the package
+      # working copy to it in detached state. If the revision is completely
+      # missing the operation will fail with exception.
+      setWorkingCopyToVcsRevision(path, vcsRevision)
+
+    displayInfo(pkgWorkingCopyIsSyncedMsg(name, $path))
+  except CatchableError as error:
+    displayError(&"Working copy of package \"{name}\" at path \"{path}\" " &
+                  "cannot be synced.")
+    displayDetails(error.msg)
+
+proc sync(options: Options) =
+  # Syncs working copies of the develop mode dependencies of the current
+  # directory package with the revision data from the lock file.
+
+  let currentDir = getCurrentDir()
+  let pkgInfo = getPkgInfo(currentDir, options)
+
+  if not pkgInfo.areLockedDepsLoaded:
+    raise nimbleError("Cannot execute `sync` when lock file is missing.")
+
+  if not options.action.listOnly:
+    # On `sync` we also want to update Nimble cache with the dependencies'
+    # versions from the lock file.
+    discard processLockedDependencies(pkgInfo, options)
+
+  var errors: ValidationErrors
+  findValidationErrorsOfDevDepsWithLockFile(pkgInfo, options, errors)
+
+  for name, error in common.dup(errors):
+    if error.kind == vekWorkingCopyNeedsSync:
+      if not options.action.listOnly:
+        syncWorkingCopy(name, error.path, pkgInfo, options)
+      else:
+        displayInfo(pkgWorkingCopyNeedsSyncingMsg(name, $error.path))
+      # Remove sync errors because we are doing sync.
+      errors.del name
+
+  updateSyncFile(pkgInfo, options)
+
+  if errors.len > 0:
+    raise validationErrors(errors)
 
 proc run(options: Options) =
   # Verify parameters.
@@ -1312,6 +1579,8 @@ proc doAction(options: var Options) =
     check(options)
   of actionLock:
     lock(options)
+  of actionSync:
+    sync(options)
   of actionNil:
     assert false
   of actionCustom:
@@ -1366,7 +1635,7 @@ when isMainModule:
       saveNimbleData(opt)
     except CatchableError as error:
       exitCode = QuitFailure
-      displayError(&"Couldn't save `{nimbleDataFileName}`.")
+      displayError(&"Couldn't save \"{nimbleDataFileName}\".")
       displayDetails(error)
 
   quit(exitCode)

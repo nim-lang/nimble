@@ -90,6 +90,20 @@ template cd*(dir: string, body: untyped) =
     defer: setCurrentDir(lastDir)
     body
 
+template createNewDir*(dir: string) =
+  removeDir dir
+  createDir dir
+
+template cdNewDir*(dir: string, body: untyped) =
+  createNewDir dir
+  cd dir:
+    body
+
+template debugTrace*(): untyped =
+  block:
+    let (filename, line, _ {.used.}) = instantiationInfo()
+    echo "filename = $#; line: $#" % [filename, $line]
+
 when isMainModule:
   import unittest
 

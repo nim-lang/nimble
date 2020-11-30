@@ -183,6 +183,10 @@ proc developFile*(includes: seq[string], dependencies: seq[string]): string =
   result = """{"version":"$#","includes":[$#],"dependencies":[$#]}""" %
     [developFileVersion, filesList(includes), filesList(dependencies)]
 
+proc writeDevelopFile*(path: string, includes: seq[string],
+                      dependencies: seq[string]) =
+  writeFile(path, developFile(includes, dependencies))
+
 # Set env var to propagate nimble binary path
 putEnv("NIMBLE_TEST_BINARY_PATH", nimblePath)
 
