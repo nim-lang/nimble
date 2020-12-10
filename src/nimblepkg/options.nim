@@ -92,7 +92,7 @@ Commands:
   init         [pkgname]          Initializes a new Nimble project in the
                                   current directory or if a name is provided a
                                   new directory of the same name.
-               [--git, --hg]      Creates a git/hg repo in the new nimble project.
+               [--git, --hg]      Initializes new nimble project with git or hg vcs.
   publish                         Publishes a package on nim-lang/packages.
                                   The current working directory needs to be the
                                   toplevel directory of the Nimble package.
