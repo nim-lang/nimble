@@ -281,8 +281,8 @@ proc readPackageInfoFromNimble(path: string; result: var PackageInfo) =
             for i in ev.value.multiSplit:
               result.postHooks.incl(i.normalize)
           else:
-            # 'key' starting with 'cfgBlankAndCommentLine' is the blank line 
-            # and comment line read by the 'parsecfg' module. An exception 
+            # 'key' starting with 'cfgBlankAndCommentLine' is the blank line
+            # and comment line read by the 'parsecfg' module. An exception
             # should not be thrown; it should be skipped.
             if not startsWith(ev.key, "cfgBlankAndCommentLine"):
               raise newException(NimbleError, "Invalid field: " & ev.key)
@@ -292,8 +292,8 @@ proc readPackageInfoFromNimble(path: string; result: var PackageInfo) =
             for v in ev.value.multiSplit:
               result.requires.add(parseRequires(v.strip))
           else:
-            # 'key' starting with 'cfgBlankAndCommentLine' is the blank line 
-            # and comment line read by the 'parsecfg' module. An exception 
+            # 'key' starting with 'cfgBlankAndCommentLine' is the blank line
+            # and comment line read by the 'parsecfg' module. An exception
             # should not be thrown; it should be skipped.
             if not startsWith(ev.key, "cfgBlankAndCommentLine"):
               raise newException(NimbleError, "Invalid field: " & ev.key)
