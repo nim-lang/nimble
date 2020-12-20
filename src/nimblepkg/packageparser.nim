@@ -300,8 +300,8 @@ proc readPackageInfoFromNimble(path: string; result: var PackageInfo) =
         else:
           # Skip the blank line and comment line in the header of the file.
           if currentSection != "":
-            raise newException(NimbleError,
-              "Invalid section: " & currentSection)
+            raise newException(NimbleError, "Invalid section: " &
+                               currentSection)
       of cfgOption: raise newException(NimbleError,
             "Invalid package info, should not contain --" & ev.value)
       of cfgError:
