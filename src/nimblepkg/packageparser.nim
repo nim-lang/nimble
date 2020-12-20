@@ -289,7 +289,8 @@ proc readPackageInfoFromNimble(path: string; result: var PackageInfo) =
             for v in ev.value.multiSplit:
               result.requires.add(parseRequires(v.strip))
           else:
-            raise newException(NimbleError, "Invalid field: " & ev.key)
+            if not startsWith(ev.key, "cfgBlankAndCommentLine"):
+              raise newException(NimbleError, "Invalid field: " & ev.key)
         else: raise newException(NimbleError,
               "Invalid section: " & currentSection)
       of cfgOption: raise newException(NimbleError,
