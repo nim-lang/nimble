@@ -291,10 +291,11 @@ proc readPackageInfoFromNimble(path: string; result: var PackageInfo) =
           else:
             if not startsWith(ev.key, "cfgBlankAndCommentLine"):
               raise newException(NimbleError, "Invalid field: " & ev.key)
-        of "":
-          discard
         else:
-          raise newException(NimbleError, "Invalid section: " & currentSection)
+          if not (currentSection == "" and 
+                  startsWith(ev.key, "cfgBlankAndCommentLine")):
+            raise newException(NimbleError, "Invalid section: " &
+                               currentSection)
       of cfgOption: raise newException(NimbleError,
             "Invalid package info, should not contain --" & ev.value)
       of cfgError:
