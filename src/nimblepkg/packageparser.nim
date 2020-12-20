@@ -281,7 +281,7 @@ proc readPackageInfoFromNimble(path: string; result: var PackageInfo) =
             for i in ev.value.multiSplit:
               result.postHooks.incl(i.normalize)
           else: # Blank lines and comment lines in 'parsecfg' are ignored when read.
-            if not startsWith(ev.key.normalize, "cfgBlankAndCommentLine"):
+            if not startsWith(ev.key, "cfgBlankAndCommentLine"):
               raise newException(NimbleError, "Invalid field: " & ev.key)
         of "deps", "dependencies":
           case ev.key.normalize
