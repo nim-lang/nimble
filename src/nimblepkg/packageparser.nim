@@ -280,7 +280,10 @@ proc readPackageInfoFromNimble(path: string; result: var PackageInfo) =
           of "afterhooks":
             for i in ev.value.multiSplit:
               result.postHooks.incl(i.normalize)
-          else: # Blank lines and comment lines in 'parsecfg' are ignored when read.
+          else:
+            # 'key' starting with 'cfgBlankAndCommentLine' is the blank line 
+            # and comment line read by the 'parsecfg' module. An exception 
+            # should not be thrown; it should be skipped.
             if not startsWith(ev.key, "cfgBlankAndCommentLine"):
               raise newException(NimbleError, "Invalid field: " & ev.key)
         of "deps", "dependencies":
@@ -289,9 +292,15 @@ proc readPackageInfoFromNimble(path: string; result: var PackageInfo) =
             for v in ev.value.multiSplit:
               result.requires.add(parseRequires(v.strip))
           else:
+            # 'key' starting with 'cfgBlankAndCommentLine' is the blank line 
+            # and comment line read by the 'parsecfg' module. An exception 
+            # should not be thrown; it should be skipped.
             if not startsWith(ev.key, "cfgBlankAndCommentLine"):
               raise newException(NimbleError, "Invalid field: " & ev.key)
-        else: raise newException(NimbleError,
+        else:
+          # Skip the blank line and comment line in the header of the file.
+          if currentSection != "":
+            raise newException(NimbleError,
               "Invalid section: " & currentSection)
       of cfgOption: raise newException(NimbleError,
             "Invalid package info, should not contain --" & ev.value)
