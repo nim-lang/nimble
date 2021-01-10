@@ -25,7 +25,7 @@ proc doCheckout(meth: DownloadMethod, downloadDir, branch: string) =
       # clone has happened. Like in the case of git on Windows where it
       # messes up the damn line endings.
       doCmd("git checkout --force " & branch)
-      doCmd("git submodule update --recursive")
+      doCmd("git submodule update --recursive --depth 1")
   of DownloadMethod.hg:
     cd downloadDir:
       doCmd("hg checkout " & branch)
@@ -37,7 +37,7 @@ proc doPull(meth: DownloadMethod, downloadDir: string) {.used.} =
     cd downloadDir:
       doCmd("git pull")
       if fileExists(".gitmodules"):
-        doCmd("git submodule update")
+        doCmd("git submodule update --recursive --depth 1")
   of DownloadMethod.hg:
     doCheckout(meth, downloadDir, "default")
     cd downloadDir:
@@ -50,8 +50,8 @@ proc doClone(meth: DownloadMethod, url, downloadDir: string, branch = "",
     let
       depthArg = if onlyTip: "--depth 1 " else: ""
       branchArg = if branch == "": "" else: "-b " & branch & " "
-    doCmd("git clone --recursive " & depthArg & branchArg & url &
-          " " & downloadDir)
+    doCmd("git clone --recursive --shallow-submodules " & depthArg & branchArg &
+          url & " " & downloadDir)
   of DownloadMethod.hg:
     let
       tipArg = if onlyTip: "-r tip " else: ""
