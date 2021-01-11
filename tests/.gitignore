@@ -14,6 +14,7 @@ tnimscript
 tpathcommand
 treversedeps
 truncommand
+tsetupcommand
 ttestcommand
 ttwobinaryversions
 tuninstall

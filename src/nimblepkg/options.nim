@@ -46,7 +46,7 @@ type
     actionNil, actionRefresh, actionInit, actionDump, actionPublish,
     actionInstall, actionSearch, actionList, actionBuild, actionPath,
     actionUninstall, actionCompile, actionDoc, actionCustom, actionTasks,
-    actionDevelop, actionCheck, actionLock, actionRun, actionSync
+    actionDevelop, actionCheck, actionLock, actionRun, actionSync, actionSetup
 
   DevelopActionType* = enum
     datNewFile, datAdd, datRemoveByPath, datRemoveByName, datInclude, datExclude
@@ -56,7 +56,7 @@ type
   Action* = object
     case typ*: ActionType
     of actionNil, actionList, actionPublish, actionTasks, actionCheck,
-       actionLock: nil
+       actionLock, actionSetup: nil
     of actionSync:
       listOnly*: bool
     of actionRefresh:
@@ -161,6 +161,10 @@ Commands:
                                   the content of the lock file.
                [-l, --list-only]  Only lists the packages which are not synced
                                   without actually performing the sync operation.
+  setup                           Creates `nimble.paths` file containing file
+                                  system paths to the dependencies. Also
+                                  includes the paths file in the `config.nims`
+                                  file to make them available for the compiler.
 
 Nimble Options:
   -h, --help                      Print this help message.
@@ -238,6 +242,8 @@ proc parseActionType*(action: string): ActionType =
     result = actionLock
   of "sync":
     result = actionSync
+  of "setup":
+    result = actionSetup
   else:
     result = actionCustom
 

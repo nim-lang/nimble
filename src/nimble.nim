@@ -23,6 +23,10 @@ import nimblepkg/packageinfotypes, nimblepkg/packageinfo, nimblepkg/version,
        nimblepkg/displaymessages, nimblepkg/sha1hashes, nimblepkg/syncfile,
        nimblepkg/vcstools
 
+const
+  nimblePathsFileName* = "nimble.paths"
+  nimbleConfigFileName* = "config.nims"
+
 proc refresh(options: Options) =
   ## Downloads the package list from the specified URL.
   ##
@@ -571,12 +575,16 @@ proc install(packages: seq[PkgTuple], options: Options,
         else:
           raise
 
+proc getDependenciesPaths(pkgInfo: PackageInfo, options: Options):
+    HashSet[string] =
+  let deps = pkgInfo.processAllDependencies(options)
+  return deps.map(dep => dep.getRealDir())
+
 proc build(options: Options) =
   let dir = getCurrentDir()
   let pkgInfo = getPkgInfo(dir, options)
   nimScriptHint(pkgInfo)
-  let deps = pkgInfo.processAllDependencies(options)
-  let paths = deps.map(dep => dep.getRealDir())
+  let paths = pkgInfo.getDependenciesPaths(options)
   var args = options.getCompilationFlags()
   buildFromDir(pkgInfo, paths, args, options)
 
@@ -1111,6 +1119,15 @@ proc installDevelopPackage(pkgTup: PkgTuple, options: Options): string =
 
 proc updateSyncFile(dependentPkg: PackageInfo, options: Options)
 
+proc updatePathsFile(pkgInfo: PackageInfo, options: Options) =
+  let paths = pkgInfo.getDependenciesPaths(options)
+  var pathsFileContent: string
+  for path in paths:
+    pathsFileContent &= &"--path:\"{path}\"\n"
+  var action = if fileExists(nimblePathsFileName): "updated" else: "generated"
+  writeFile(nimblePathsFileName, pathsFileContent)
+  displayInfo(&"\"{nimblePathsFileName}\" is {action}.")
+
 proc develop(options: var Options) =
   let
     hasPackages = options.action.packages.len > 0
@@ -1153,8 +1170,10 @@ proc develop(options: var Options) =
   else:
     hasError = not executeDevActionsAllowedOutsidePkgDir(options) or hasError
 
-  if currentDirPkgInfo.isLoaded:
+  if hasDevActionsAllowedOnlyInPkgDir:
     updateSyncFile(currentDirPkgInfo, options)
+    if fileExists(nimblePathsFileName):
+      updatePathsFile(currentDirPkgInfo, options)
 
   if hasError:
     raise nimbleError(
@@ -1480,6 +1499,8 @@ proc sync(options: Options) =
     # On `sync` we also want to update Nimble cache with the dependencies'
     # versions from the lock file.
     discard processLockedDependencies(pkgInfo, options)
+    if fileExists(nimblePathsFileName):
+      updatePathsFile(pkgInfo, options)
 
   var errors: ValidationErrors
   findValidationErrorsOfDevDepsWithLockFile(pkgInfo, options, errors)
@@ -1497,6 +1518,45 @@ proc sync(options: Options) =
 
   if errors.len > 0:
     raise validationErrors(errors)
+
+proc setup(options: Options) =
+  ## Creates `nimble.paths` file containing file system paths to the
+  ## dependencies. Includes it in `config.nims` file to make them available
+  ## for the compiler.
+  const
+    configFileVersion = "0.1.0"
+    configFileHeader = &"# begin Nimble config (version {configFileVersion})\n"
+    configFileContent = fmt"""
+when fileExists("{nimblePathsFileName}"):
+  include "{nimblePathsFileName}"
+# end Nimble config
+"""
+
+  let currentDir = getCurrentDir()
+  let pkgInfo = getPkgInfo(currentDir, options)
+  updatePathsFile(pkgInfo, options)
+
+  proc constructNimbleConfig: string =
+    result &= "\n"
+    result &= configFileHeader
+    result &= configFileContent
+
+  var writeFile = false
+  var fileContent: string
+  if fileExists(nimbleConfigFileName):
+    fileContent = readFile(nimbleConfigFileName)
+    if not fileContent.contains(configFileHeader):
+      fileContent &= constructNimbleConfig()
+      writeFile = true
+  else:
+    fileContent = constructNimbleConfig()
+    writeFile = true
+
+  if writeFile:
+    writeFile(nimbleConfigFileName, fileContent)
+    displayInfo(&"\"{nimbleConfigFileName}\" is set up.")
+  else:
+    displayInfo(&"\"{nimbleConfigFileName}\" is already set up.")
 
 proc run(options: Options) =
   # Verify parameters.
@@ -1581,6 +1641,8 @@ proc doAction(options: var Options) =
     lock(options)
   of actionSync:
     sync(options)
+  of actionSetup:
+    setup(options)
   of actionNil:
     assert false
   of actionCustom:

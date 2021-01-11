@@ -17,6 +17,7 @@ import tnimscript
 import tpathcommand
 import treversedeps
 import truncommand
+import tsetupcommand
 import ttestcommand
 import ttwobinaryversions
 import tuninstall
