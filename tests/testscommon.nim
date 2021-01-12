@@ -138,6 +138,7 @@ template testRefresh*(body: untyped) =
   body
 
   # Restore config
+  removeFile configFile
   if fileExists(configBakFile):
     safeMoveFile(configBakFile, configFile)
 
