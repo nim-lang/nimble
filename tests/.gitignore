@@ -3,6 +3,12 @@
 # tester
 /nimble-test
 /issue799/issue799
+/issue308515/v1/binname.out
+/issue308515/v2/binname.out
+/localdeps/nimbledeps/
+/multi/
+/packagea/
+
 
 # occurs on multiple levels
 nimbleDir/
