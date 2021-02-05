@@ -167,7 +167,7 @@ proc getNimbleUserTempDir*(): string =
   return tmpdir
 
 proc newSSLContext*(disabled: bool): SslContext =
-  var sslVerifyMode = CVerifyPeer
+  var sslVerifyMode = CVerifyNone # TODO: Restore CVerifyPeer
   if disabled:
     display("Warning:", "disabling SSL certificate checking", Warning)
     sslVerifyMode = CVerifyNone
