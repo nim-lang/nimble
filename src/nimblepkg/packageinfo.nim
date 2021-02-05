@@ -4,7 +4,7 @@
 # Stdlib imports
 import system except TResult
 import hashes, json, strutils, os, sets, tables, httpclient
-from net import SSLError
+from net import SslError
 
 # Local imports
 import version, tools, common, options, cli, config

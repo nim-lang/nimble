@@ -7,6 +7,7 @@
 import system except TResult
 import httpclient, strutils, json, os, browsers, times, uri
 import version, tools, common, cli, config, options
+{.warning[UnusedImport]: off.}
 from net import SslCVerifyMode, newContext
 
 type
@@ -44,7 +45,7 @@ proc requestNewToken(cfg: Config): string =
   let token = promptCustom("Personal access token?", "").strip()
   # inform the user that their token will be written to disk
   let tokenWritePath = cfg.nimbleDir / ApiKeyFile
-  display("Info:", "Writing access token to file:" & tokenWritePath, 
+  display("Info:", "Writing access token to file:" & tokenWritePath,
           priority = HighPriority)
   writeFile(tokenWritePath, token)
   sleep(3000)
@@ -57,7 +58,7 @@ proc getGithubAuth(o: Options): Auth =
   # always prefer the environment variable to asking for a new one
   if existsEnv(ApiTokenEnvironmentVariable):
     result.token = getEnv(ApiTokenEnvironmentVariable)
-    display("Info:", "Using the '" & ApiTokenEnvironmentVariable & 
+    display("Info:", "Using the '" & ApiTokenEnvironmentVariable &
             "' environment variable for the GitHub API Token.",
             priority = HighPriority)
   else:

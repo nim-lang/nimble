@@ -135,7 +135,7 @@ suite "nimble refresh":
       check exitCode == QuitSuccess
       check inLines(lines, "config file at")
       check inLines(lines, "official package list")
-      check inLines(lines, "http://google.com")
+      check inLines(lines, "https://google.com")
       check inLines(lines, "packages.json file is invalid")
       check inLines(lines, "404 not found")
       check inLines(lines, "Package list downloaded.")
@@ -194,8 +194,9 @@ suite "nimscript":
       check output.contains("Before build")
       check output.contains("After build")
       let lines = output.strip.processOutput()
-      check lines[1].startsWith("Before PkgDir:")
-      check lines[1].endsWith("tests" / "nimscript")
+      for line in lines:
+        if lines[3].startsWith("Before PkgDir:"):
+          check line.endsWith("tests" / "nimscript")
       check lines[^1].startsWith("After PkgDir:")
       check lines[^1].endsWith("tests" / "nimbleDir" / "pkgs" / "nimscript-0.1.0")
 
