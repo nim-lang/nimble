@@ -122,10 +122,10 @@ suite "nimble refresh":
       writeFile(configFile, """
         [PackageList]
         name = "official"
-        url = "http://google.com"
-        url = "http://google.com/404"
-        url = "http://irclogs.nim-lang.org/packages.json"
-        url = "http://nim-lang.org/nimble/packages.json"
+        url = "https://google.com"
+        url = "https://google.com/404"
+        url = "https://irclogs.nim-lang.org/packages.json"
+        url = "https://nim-lang.org/nimble/packages.json"
         url = "https://github.com/nim-lang/packages/raw/master/packages.json"
       """.unindent)
 

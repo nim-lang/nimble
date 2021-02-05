@@ -28,8 +28,8 @@ proc initConfig(): Config =
   result.packageLists = initTable[string, PackageList]()
   let defaultPkgList = PackageList(name: "Official", urls: @[
     "https://github.com/nim-lang/packages/raw/master/packages.json",
-    "http://irclogs.nim-lang.org/packages.json",
-    "http://nim-lang.org/nimble/packages.json"
+    "https://irclogs.nim-lang.org/packages.json",
+    "https://nim-lang.org/nimble/packages.json"
   ])
   result.packageLists["official"] = defaultPkgList
 
