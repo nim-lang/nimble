@@ -1,4 +1,4 @@
-# Nimble 
+# Nimble
 
 Nimble is a *beta*-grade *package manager* for the [Nim programming
 language](https://nim-lang.org).
@@ -124,7 +124,7 @@ to obtain a list of available commands.
 The ``refresh`` command is used to fetch and update the list of Nimble packages
 (see below). There is no automatic update mechanism, so you need to run this
 yourself if you need to *refresh* your local list of known available Nimble
-packages.  Example:
+packages. Example:
 
     $ nimble refresh
     Downloading package list from https://.../packages.json
@@ -259,10 +259,10 @@ files.
 
 ### nimble run
 
-The ``run`` command can be used to build and run any binary specified in your
-package's ``bin`` list. You can pass any compilation flags you wish by specifying
-them before the ``run`` command, and you can specify arguments for your binary
-by specifying them after the ``run`` command.
+The `run` command can be used to build and run any binary specified in your
+package's `bin` list. The binary needs to be specified after any compilation flags
+if there are several binaries defined. Any flags after the binary or `--`
+are passed to the binary when it is run.
 
 ### nimble c
 
@@ -703,7 +703,7 @@ in your .nimble file if you intend for your package to be a hybrid binary/librar
 combo.
 
 Historically, binaries that shared the name of a ``pkgname`` directory that
-contains additional .nim files required workarounds. This is now handled behind 
+contains additional .nim files required workarounds. This is now handled behind
 the scenes by appending a ``.out`` extension to the binary and is transparent to
 commands like `nimble run` or symlinks which can still refer to the original
 binary name.
@@ -811,7 +811,7 @@ the new version.
 ##### Git Version Tagging
 
 Use dot separated numbers to represent the release version in the git
-tag label.  Nimble will parse these git tag labels to know which
+tag label. Nimble will parse these git tag labels to know which
 versions of a package are published.
 
 ``` text
