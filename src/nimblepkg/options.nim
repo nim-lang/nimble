@@ -355,8 +355,11 @@ proc getNimBin*(options: Options): string =
   return options.nim
 
 proc setRunOptions(result: var Options, key, val: string, isArg: bool) =
-  if result.action.runFile.isNone() and (isArg or val == "--"):
-    result.action.runFile = some(key)
+  if result.action.runFile.isNone():
+    if isArg or val == "--":
+      result.action.runFile = some(key)
+    else:
+      result.action.compileFlags.add(val)
   else:
     result.action.runFlags.add(val)
 
@@ -514,8 +517,7 @@ proc parseMisc(options: var Options) =
 
 proc handleUnknownFlags(options: var Options) =
   if options.action.typ == actionRun:
-    # ActionRun uses flags that come before the command as compilation flags
-    # and flags that come after as run flags.
+    # actionRun uses flags that come before the command as compilation flags.
     options.action.compileFlags =
       map(options.unknownFlags, x => getFlagString(x[0], x[1], x[2]))
     options.unknownFlags = @[]
