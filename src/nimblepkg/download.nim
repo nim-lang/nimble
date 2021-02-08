@@ -88,7 +88,7 @@ proc getTagsListRemote*(url: string, meth: DownloadMethod): seq[string] =
   result = @[]
   case meth
   of DownloadMethod.git:
-    var (output, exitCode) = doCmdEx("git ls-remote --tags " & url)
+    var (output, exitCode) = doCmdEx("git ls-remote --tags " & url.quoteShell())
     if exitCode != QuitSuccess:
       raise newException(OSError, "Unable to query remote tags for " & url &
           ". Git returned: " & output)
@@ -136,9 +136,9 @@ proc getHeadName*(meth: DownloadMethod): Version =
 
 proc checkUrlType*(url: string): DownloadMethod =
   ## Determines the download method based on the URL.
-  if doCmdEx("git ls-remote " & url).exitCode == QuitSuccess:
+  if doCmdEx("git ls-remote " & url.quoteShell()).exitCode == QuitSuccess:
     return DownloadMethod.git
-  elif doCmdEx("hg identify " & url).exitCode == QuitSuccess:
+  elif doCmdEx("hg identify " & url.quoteShell()).exitCode == QuitSuccess:
     return DownloadMethod.hg
   else:
     raise newException(NimbleError, "Unable to identify url: " & url)
