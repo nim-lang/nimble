@@ -3,6 +3,15 @@
 
 # Nimble changelog
 
+## 0.13.0
+
+This is a bugfix release. It enhances the security in multiple aspects:
+
+- URLs default to `https`.
+- SSL certificates are checked.
+- Shell escaping bugs have been fixed.
+
+
 ## 0.12.0
 
 This is a major release containing multiple improvements and bug fixes:
