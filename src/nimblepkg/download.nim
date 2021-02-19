@@ -50,7 +50,7 @@ proc doClone(meth: DownloadMethod, url, downloadDir: string, branch = "",
     let
       depthArg = if onlyTip: "--depth 1 " else: ""
       branchArg = if branch == "": "" else: "-b " & branch & " "
-    doCmd("git clone --recursive --shallow-submodules " & depthArg & branchArg &
+    doCmd("git clone --recursive " & depthArg & branchArg &
           url & " " & downloadDir)
   of DownloadMethod.hg:
     let
