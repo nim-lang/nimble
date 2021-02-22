@@ -199,7 +199,7 @@ proc getNameVersionChecksum*(pkgpath: string): PackageBasicInfo =
     except InvalidSha1HashError:
       notSetSha1Hash
 
-  return (name, version, sha1Checksum)
+  return (name, newVersion(version), sha1Checksum)
 
 proc removePackageDir*(files: seq[string], dir: string, reportSuccess = false) =
   for file in files:
@@ -229,62 +229,62 @@ when isMainModule:
     test "directory names without sha1 hashes":
       check getNameVersionChecksum(
         "/home/user/.nimble/libs/packagea-0.1") ==
-        ("packagea", "0.1", notSetSha1Hash)
+        ("packagea", newVersion("0.1"), notSetSha1Hash)
 
       check getNameVersionChecksum(
         "/home/user/.nimble/libs/package-a-0.1") ==
-        ("package-a", "0.1", notSetSha1Hash)
+        ("package-a", newVersion("0.1"), notSetSha1Hash)
 
       check getNameVersionChecksum(
         "/home/user/.nimble/libs/package-a-0.1/package.nimble") ==
-        ("package-a", "0.1", notSetSha1Hash)
+        ("package-a", newVersion("0.1"), notSetSha1Hash)
 
       check getNameVersionChecksum(
         "/home/user/.nimble/libs/package-#head") ==
-        ("package", "#head", notSetSha1Hash)
+        ("package", newVersion("#head"), notSetSha1Hash)
 
       check getNameVersionChecksum(
         "/home/user/.nimble/libs/package-#branch-with-dashes") ==
-        ("package", "#branch-with-dashes", notSetSha1Hash)
+        ("package", newVersion("#branch-with-dashes"), notSetSha1Hash)
 
       # readPackageInfo (and possibly more) depends on this not raising.
       check getNameVersionChecksum(
         "/home/user/.nimble/libs/package") ==
-        ("package", "", notSetSha1Hash)
+        ("package", newVersion(""), notSetSha1Hash)
 
     test "directory names with sha1 hashes":
       check getNameVersionChecksum(
         "/home/user/.nimble/libs/packagea-0.1-" &
          "9e6df089c5ee3d912006b2d1c016eb8fa7dcde82") ==
-        ("packagea", "0.1",
+        ("packagea", newVersion("0.1"),
          "9e6df089c5ee3d912006b2d1c016eb8fa7dcde82".initSha1Hash)
 
       check getNameVersionChecksum(
         "/home/user/.nimble/libs/package-a-0.1-" &
          "2f11b50a3d1933f9f8972bd09bc3325c38bc11d6") ==
-        ("package-a", "0.1",
+        ("package-a", newVersion("0.1"),
          "2f11b50a3d1933f9f8972bd09bc3325c38bc11d6".initSha1Hash)
 
       check getNameVersionChecksum(
         "/home/user/.nimble/libs/package-a-0.1-" &
          "43e3b1138312656310e93ffcfdd866b2dcce3b35/package.nimble") ==
-        ("package-a", "0.1",
+        ("package-a", newVersion("0.1"),
          "43e3b1138312656310e93ffcfdd866b2dcce3b35".initSha1Hash)
 
       check getNameVersionChecksum(
         "/home/user/.nimble/libs/package-#head-" &
          "efba335dccf2631d7ac2740109142b92beb3b465") ==
-        ("package", "#head",
+        ("package", newVersion("#head"),
          "efba335dccf2631d7ac2740109142b92beb3b465".initSha1Hash)
 
       check getNameVersionChecksum(
         "/home/user/.nimble/libs/package-#branch-with-dashes-" &
          "8f995e59d6fc1012b3c1509fcb0ef0a75cb3610c") ==
-        ("package", "#branch-with-dashes",
+        ("package", newVersion("#branch-with-dashes"),
          "8f995e59d6fc1012b3c1509fcb0ef0a75cb3610c".initSha1Hash)
 
       check getNameVersionChecksum(
         "/home/user/.nimble/libs/package-" &
          "b12e18db49fc60df117e5d8a289c4c2050a272dd") ==
-        ("package", "",
+        ("package", newVersion(""),
          "b12e18db49fc60df117e5d8a289c4c2050a272dd".initSha1Hash)

@@ -115,7 +115,7 @@ proc notInclInDevFileMsg*(path: string): string =
 proc failedToLoadFileMsg*(path: string): string =
   &"Failed to load \"{path}\"."
 
-proc cannotUninstallPkgMsg*(pkgName, pkgVersion: string,
+proc cannotUninstallPkgMsg*(pkgName: string, pkgVersion: Version,
                             deps: seq[string]): string =
   assert deps.len > 0, "The sequence must have at least one package."
   result = &"Cannot uninstall {pkgName} ({pkgVersion}) because\n"

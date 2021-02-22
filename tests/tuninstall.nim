@@ -8,6 +8,7 @@ import testscommon
 
 from nimblepkg/displaymessages import cannotUninstallPkgMsg
 from nimblepkg/common import cd
+from nimblepkg/version import newVersion
 
 suite "uninstall":
   test "can install packagebin2":
@@ -57,7 +58,8 @@ suite "uninstall":
       check exitCode != QuitSuccess
       var ls = outp.strip.processOutput()
       let pkg27ADir = getPackageDir(pkgsDir, "issue27a-0.1.0", false)
-      let expectedMsg = cannotUninstallPkgMsg("issue27b", "0.1.0", @[pkg27ADir])
+      let expectedMsg = cannotUninstallPkgMsg(
+        "issue27b", newVersion("0.1.0"), @[pkg27ADir])
       check ls.inLinesOrdered(expectedMsg)
 
       check execNimbleYes("uninstall", "issue27").exitCode == QuitSuccess
@@ -73,9 +75,9 @@ suite "uninstall":
       pkgBin2Dir = getPackageDir(pkgsDir, "packagebin2-0.1.0", false)
       pkgBDir = getPackageDir(pkgsDir, "packageb-0.1.0", false)
       expectedMsgForPkgA0dot6 = cannotUninstallPkgMsg(
-        "PackageA", "0.6.0", @[pkgBin2Dir])
+        "PackageA", newVersion("0.6.0"), @[pkgBin2Dir])
       expectedMsgForPkgA0dot2 = cannotUninstallPkgMsg(
-        "PackageA", "0.2.0", @[pkgBDir])
+        "PackageA", newVersion("0.2.0"), @[pkgBDir])
     check ls.inLines(expectedMsgForPkgA0dot6)
     check ls.inLines(expectedMsgForPkgA0dot2)
 

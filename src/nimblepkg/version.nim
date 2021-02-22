@@ -2,10 +2,12 @@
 # BSD License. Look at license.txt for more info.
 
 ## Module for handling versions and version ranges such as ``>= 1.0 & <= 1.5``
+import json
 import common, strutils, tables, hashes, parseutils
 
 type
-  Version* = distinct string
+  Version* {.requiresInit.} = object
+    version: string
 
   VersionRangeEnum* = enum
     verLater, # > V
@@ -36,16 +38,29 @@ type
 
   ParseVersionError* = object of NimbleError
 
+const
+  notSetVersion* = Version(version: "-1")
+
 proc parseVersionError*(msg: string): ref ParseVersionError =
   result = newNimbleError[ParseVersionError](msg)
 
-proc `$`*(ver: Version): string {.borrow.}
-proc hash*(ver: Version): Hash {.borrow.}
+template `$`*(ver: Version): string = ver.version
+template hash*(ver: Version): Hash = ver.version.hash
+template `%`*(ver: Version): JsonNode = %ver.version
 
 proc newVersion*(ver: string): Version =
-  doAssert(ver.len == 0 or ver[0] in {'#', '\0'} + Digits,
-           "Wrong version: " & ver)
-  return Version(ver)
+  if ver.len != 0 and ver[0] notin {'#', '\0'} + Digits:
+    raise parseVersionError("Wrong version: " & ver)
+  return Version(version: ver)
+
+proc initFromJson*(dst: var Version, jsonNode: JsonNode, jsonPath: var string) =
+  case jsonNode.kind
+  of JNull: dst = notSetVersion
+  of JObject: dst = newVersion(jsonNode["version"].str)
+  of JString: dst = newVersion(jsonNode.str)
+  else:
+    assert false,
+      "The `jsonNode` must have one of {JNull, JObject, JString} kinds."
 
 proc isSpecial*(ver: Version): bool =
   return ($ver).len > 0 and ($ver)[0] == '#'
@@ -62,8 +77,8 @@ proc `<`*(ver: Version, ver2: Version): bool =
       return ($ver).normalize != "#head"
 
   # Handling for normal versions such as "0.1.0" or "1.0".
-  var sVer = string(ver).split('.')
-  var sVer2 = string(ver2).split('.')
+  var sVer = ver.version.split('.')
+  var sVer2 = ver2.version.split('.')
   for i in 0..max(sVer.len, sVer2.len)-1:
     var sVerI = 0
     if i < sVer.len:
@@ -81,9 +96,8 @@ proc `<`*(ver: Version, ver2: Version): bool =
 proc `==`*(ver: Version, ver2: Version): bool =
   if ver.isSpecial or ver2.isSpecial:
     return ($ver).toLowerAscii() == ($ver2).toLowerAscii()
-
-  var sVer = string(ver).split('.')
-  var sVer2 = string(ver2).split('.')
+  var sVer = ver.version.split('.')
+  var sVer2 = ver2.version.split('.')
   for i in 0..max(sVer.len, sVer2.len)-1:
     var sVerI = 0
     if i < sVer.len:
@@ -137,9 +151,9 @@ proc withinRange*(ver: Version, ran: VersionRange): bool =
 proc contains*(ran: VersionRange, ver: Version): bool =
   return withinRange(ver, ran)
 
-proc getNextIncompatibleVersion(version: string, semver: bool): string = 
+proc getNextIncompatibleVersion(version: Version, semver: bool): Version = 
   ## try to get next higher version to exclude according to semver semantic
-  var numbers = version.split('.')
+  var numbers = version.version.split('.')
   let originalNumberLen = numbers.len
   while numbers.len < 3:
     numbers.add("0")
@@ -166,32 +180,37 @@ proc getNextIncompatibleVersion(version: string, semver: bool): string =
   while zeroPosition < numbers.len:
     numbers[zeroPosition] = "0"
     inc(zeroPosition)
-  result = numbers.join(".")
+  result = newVersion(numbers.join("."))
 
-proc makeRange*(version: string, op: string): VersionRange =
-  if version == "":
+proc makeRange*(version: Version, op: string): VersionRange =
+  if version == notSetVersion:
     raise parseVersionError("A version needs to accompany the operator.")
+  
   case op
   of ">":
-    result = VersionRange(kind: verLater)
+    result = VersionRange(kind: verLater, ver: version)
   of "<":
-    result = VersionRange(kind: verEarlier)
+    result = VersionRange(kind: verEarlier, ver: version)
   of ">=":
-    result = VersionRange(kind: verEqLater)
+    result = VersionRange(kind: verEqLater, ver: version)
   of "<=":
-    result = VersionRange(kind: verEqEarlier)
+    result = VersionRange(kind: verEqEarlier, ver: version)
   of "", "==":
-    result = VersionRange(kind: verEq)
+    result = VersionRange(kind: verEq, ver: version)
   of "^=", "~=":
-    result = VersionRange(kind: if op == "^=": verCaret else: verTilde)
-    result.verILeft = makeRange(version, ">=")
-    var excludedVersion = getNextIncompatibleVersion(version, 
-      semver = (op == "^="))
-    result.verIRight = makeRange(excludedVersion, "<")
-    return
+    let
+      excludedVersion = getNextIncompatibleVersion(
+        version, semver = (op == "^="))
+      left = makeRange(version, ">=")
+      right = makeRange(excludedVersion, "<")
+
+    result =
+      if op == "^=":
+        VersionRange(kind: verCaret, verILeft: left, verIRight: right)
+      else:
+        VersionRange(kind: verTilde, verILeft: left, verIRight: right)
   else:
     raise parseVersionError("Invalid operator: " & op)
-  result.ver = Version(version)
 
 proc parseVersionRange*(s: string): VersionRange =
   # >= 1.5 & <= 1.8
@@ -200,8 +219,7 @@ proc parseVersionRange*(s: string): VersionRange =
     return
 
   if s[0] == '#':
-    result = VersionRange(kind: verSpecial)
-    result.spe = s.Version
+    result = VersionRange(kind: verSpecial, spe: newVersion(s))
     return
 
   var i = 0
@@ -213,7 +231,7 @@ proc parseVersionRange*(s: string): VersionRange =
       op.add(s[i])
     of '&':
       result = VersionRange(kind: verIntersect)
-      result.verILeft = makeRange(version, op)
+      result.verILeft = makeRange(newVersion(version), op)
 
       # Parse everything after &
       # Recursion <3
@@ -238,17 +256,18 @@ proc parseVersionRange*(s: string): VersionRange =
       raise parseVersionError(
         "Unexpected char in version range '" & s & "': " & s[i])
     inc(i)
-  result = makeRange(version, op)
+  result = makeRange(newVersion(version), op)
+
+proc parseVersionRange*(version: Version): VersionRange =
+  result = version.version.parseVersionRange
 
 proc toVersionRange*(ver: Version): VersionRange =
   ## Converts a version to either a verEq or verSpecial VersionRange.
-  new(result)
-  if ver.isSpecial:
-    result = VersionRange(kind: verSpecial)
-    result.spe = ver
-  else:
-    result = VersionRange(kind: verEq)
-    result.ver = ver
+  result = 
+    if ver.isSpecial:
+      VersionRange(kind: verSpecial, spe: ver)
+    else:
+      VersionRange(kind: verEq, ver: ver)
 
 proc parseRequires*(req: string): PkgTuple =
   try:
@@ -290,7 +309,7 @@ proc `$`*(verRange: VersionRange): string =
   of verAny:
     return "any version"
 
-  result.add(string(verRange.ver))
+  result.add($verRange.ver)
 
 proc getSimpleString*(verRange: VersionRange): string =
   ## Gets a string with no special symbols and spaces. Used for dir name
@@ -309,13 +328,11 @@ proc getSimpleString*(verRange: VersionRange): string =
 proc newVRAny*(): VersionRange =
   result = VersionRange(kind: verAny)
 
-proc newVREarlier*(ver: string): VersionRange =
-  result = VersionRange(kind: verEarlier)
-  result.ver = newVersion(ver)
+proc newVREarlier*(ver: Version): VersionRange =
+  result = VersionRange(kind: verEarlier, ver: ver)
 
-proc newVREq*(ver: string): VersionRange =
-  result = VersionRange(kind: verEq)
-  result.ver = newVersion(ver)
+proc newVREq*(ver: Version): VersionRange =
+  result = VersionRange(kind: verEq, ver: ver)
 
 proc findLatest*(verRange: VersionRange,
         versions: OrderedTable[Version, string]): tuple[ver: Version, tag: string] =

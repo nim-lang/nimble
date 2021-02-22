@@ -2,7 +2,7 @@
 # BSD License. Look at license.txt for more info.
 
 import tables, os, json
-import sha1hashes, packageinfotypes
+import version, sha1hashes, packageinfotypes
 
 type
   LockFileJsonKeys* = enum
@@ -16,6 +16,7 @@ const
 
 proc initLockFileDep(): LockFileDep =
   result = LockFileDep(
+    version: notSetVersion,
     vcsRevision: notSetSha1Hash,
     checksums: Checksums(sha1: notSetSha1Hash))
 

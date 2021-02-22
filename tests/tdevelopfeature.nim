@@ -8,7 +8,7 @@ import testscommon, nimblepkg/displaymessages, nimblepkg/paths
 
 from nimblepkg/common import cd
 from nimblepkg/developfile import developFileName, pkgFoundMoreThanOnceMsg
-from nimblepkg/version import parseVersionRange
+from nimblepkg/version import newVersion, parseVersionRange
 from nimblepkg/nimbledatafile import nimbleDataFileName, NimbleDataJsonKeys
 
 suite "develop feature":
@@ -79,7 +79,8 @@ suite "develop feature":
         check exitCode == QuitFailure
         var lines = output.processOutput
         check lines.inLinesOrdered(
-          cannotUninstallPkgMsg(pkgAName, "0.2.0", @[installDir / pkgBName]))
+          cannotUninstallPkgMsg(pkgAName, newVersion("0.2.0"),
+          @[installDir / pkgBName]))
 
   test "can reject binary packages":
     cd "develop/binary":

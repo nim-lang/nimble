@@ -6,6 +6,7 @@
 import unittest, os, osproc, strutils, sequtils, strformat
 import testscommon
 from nimblepkg/common import cd, nimbleVersion, nimblePackagesDirName
+from nimblepkg/version import newVersion
 from nimblepkg/displaymessages import cannotUninstallPkgMsg
 
 suite "issues":
@@ -372,7 +373,8 @@ suite "issues":
       pkgBInstallDir = getPackageDir(pkgsDir, "b-0.1.0").splitPath.tail
 
     check exitCode != QuitSuccess
-    check lines.inLines(cannotUninstallPkgMsg("c", "0.1.0", @[pkgBInstallDir]))
+    check lines.inLines(
+      cannotUninstallPkgMsg("c", newVersion("0.1.0"), @[pkgBInstallDir]))
 
     check execNimbleYes(["remove", "a"]).exitCode == QuitSuccess
     check execNimbleYes(["remove", "b"]).exitCode == QuitSuccess

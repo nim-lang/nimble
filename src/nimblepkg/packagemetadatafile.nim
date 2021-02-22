@@ -2,7 +2,7 @@
 # BSD License. Look at license.txt for more info.
 
 import json, os, strformat
-import common, packageinfotypes, cli, tools, sha1hashes
+import common, version, packageinfotypes, cli, tools, sha1hashes
 
 type
   MetaDataError* = object of NimbleError
@@ -16,7 +16,9 @@ const
   packageMetaDataFileVersion = "0.1.0"
 
 proc initPackageMetaData*(): PackageMetaData =
-  result = PackageMetaData(vcsRevision: notSetSha1Hash)
+  result = PackageMetaData(
+    specialVersion: notSetVersion,
+    vcsRevision: notSetSha1Hash)
 
 proc metaDataError(msg: string): ref MetaDataError =
   newNimbleError[MetaDataError](msg)

@@ -52,7 +52,7 @@ proc addRevDep*(nimbleData: JsonNode, dep: PackageBasicInfo,
   let dependencies = nimbleData.addIfNotExist(
     $ndjkRevDep,
     dep.name.toLower,
-    dep.version,
+    $dep.version,
     $dep.checksum,
     newJArray())
 
@@ -97,7 +97,7 @@ proc removeRevDep*(nimbleData: JsonNode, pkg: PackageInfo) =
               if rd[$ndjkRevDepChecksum].str.len == 0 and
                  pkg.checksum == notSetSha1Hash:
                 if rd[$ndjkRevDepName].str != pkg.name.toLower or
-                   rd[$ndjkRevDepVersion].str != pkg.specialVersion:
+                   rd[$ndjkRevDepVersion].str != $pkg.specialVersion:
                   newVal.add rd
           revDepsForVersion[checksum] = newVal
 
@@ -124,7 +124,7 @@ proc getRevDeps*(nimbleData: JsonNode, pkg: ReverseDependency):
     return
 
   let reverseDependencies = nimbleData[$ndjkRevDep]{
-    pkg.pkgInfo.name.toLower}{pkg.pkgInfo.version}{$pkg.pkgInfo.checksum}
+    pkg.pkgInfo.name.toLower}{$pkg.pkgInfo.version}{$pkg.pkgInfo.checksum}
 
   if reverseDependencies.isNil:
     return
@@ -138,7 +138,7 @@ proc getRevDeps*(nimbleData: JsonNode, pkg: ReverseDependency):
       # This is an installed package.
       let pkgBasicInfo =
         (name: revDep[$ndjkRevDepName].str,
-         version: revDep[$ndjkRevDepVersion].str,
+         version: newVersion(revDep[$ndjkRevDepVersion].str),
          checksum: revDep[$ndjkRevDepChecksum].str.initSha1Hash)
       result.incl ReverseDependency(kind: rdkInstalled, pkgInfo: pkgBasicInfo)
 
@@ -177,7 +177,8 @@ when isMainModule:
   proc initMetaData(isLink: bool): PackageMetaData =
     result = PackageMetaData(
       vcsRevision: notSetSha1Hash,
-      isLink: isLink)
+      isLink: isLink,
+      specialVersion: notSetVersion)
 
   proc parseRequires(requires: RequiresSeq): seq[PkgTuple] =
     requires.mapIt((it.name, it.versionRange.parseVersionRange))
@@ -191,7 +192,7 @@ when isMainModule:
   proc initPackageInfo(name, version, checksum: string,
                        requires: RequiresSeq = @[]): PackageInfo =
     result = PackageInfo(
-      basicInfo: (name, version, checksum.initSha1Hash),
+      basicInfo: (name, version.newVersion, checksum.initSha1Hash),
       requires: requires.parseRequires,
       metaData: initMetaData(false))
 

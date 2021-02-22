@@ -98,10 +98,12 @@ proc topologicalSort*(graph: LockFileDeps):
 
 when isMainModule:
   import unittest
+  from version import notSetVersion
   from sha1hashes import notSetSha1Hash
 
   proc initLockFileDep(deps: seq[string] = @[]): LockFileDep =
     result = LockFileDep(
+      version: notSetVersion,
       vcsRevision: notSetSha1Hash,
       dependencies: deps,
       checksums: Checksums(sha1: notSetSha1Hash))

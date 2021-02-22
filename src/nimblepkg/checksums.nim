@@ -2,12 +2,12 @@
 # BSD License. Look at license.txt for more info.
 
 import os, std/sha1, strformat
-import common, sha1hashes, vcstools, paths
+import common, version, sha1hashes, vcstools, paths
 
 type
   ChecksumError* = object of NimbleError
 
-proc checksumError*(name, version: string,
+proc checksumError*(name: string, version: Version,
                     vcsRevision, checksum, expectedChecksum: Sha1Hash):
     ref ChecksumError =
   result = newNimbleError[ChecksumError](&"""

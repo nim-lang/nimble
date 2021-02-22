@@ -166,7 +166,7 @@ proc validatePackageInfo(pkgInfo: PackageInfo, options: Options) =
     raise validationError(
         "The .nimble file name must match name specified inside " & path, true)
 
-  if pkgInfo.version == "":
+  if pkgInfo.version == notSetVersion:
     raise validationError("Incorrect .nimble file: " & path &
         " does not contain a version field.", false)
 
@@ -232,7 +232,7 @@ proc readPackageInfoFromNimble(path: string; result: var PackageInfo) =
         of "package":
           case ev.key.normalize
           of "name": result.name = ev.value
-          of "version": result.version = ev.value
+          of "version": result.version = newVersion(ev.value)
           of "author": result.author = ev.value
           of "description": result.description = ev.value
           of "license": result.license = ev.value
@@ -399,7 +399,7 @@ proc readPackageInfo(nf: NimbleFile, options: Options, onlyMinimalInfo=false):
 
   # Validate the rest of the package info last.
   if not options.disableValidation:
-    validateVersion(result.version)
+    validateVersion($result.version)
     validatePackageInfo(result, options)
 
 proc getPkgInfoFromFile*(file: NimbleFile, options: Options,
@@ -437,8 +437,11 @@ proc getInstalledPkgs*(libsDir: string, options: Options): seq[PackageInfo] =
 
   proc createErrorMsg(tmplt, path, msg: string): string =
     let (name, version, checksum) = getNameVersionChecksum(path)
-    let fullVersion = if checksum != notSetSha1Hash: version & "@c." & $checksum
-                      else: version
+    let fullVersion =
+      if checksum != notSetSha1Hash:
+        $version & "@c." & $checksum
+      else:
+        $version
     return tmplt % [name, fullVersion, msg]
 
   display("Loading", "list of installed packages", priority = MediumPriority)
@@ -497,14 +500,14 @@ proc toFullInfo*(pkg: PackageInfo, options: Options): PackageInfo =
   else:
     return pkg
 
-proc getConcreteVersion*(pkgInfo: PackageInfo, options: Options): string =
+proc getConcreteVersion*(pkgInfo: PackageInfo, options: Options): Version =
   ## Returns a non-special version from the specified ``pkgInfo``. If the
   ## ``pkgInfo`` is minimal it looks it up and retrieves the concrete version.
   result = pkgInfo.version
   if pkgInfo.isMinimal:
     let pkgInfo = pkgInfo.toFullInfo(options)
     result = pkgInfo.version
-  assert(not newVersion(result).isSpecial)
+  assert not result.isSpecial
 
 when isMainModule:
   import unittest

@@ -213,8 +213,9 @@ proc publish*(p: PackageInfo, o: Options) =
     elif parsed.username != "" or parsed.password != "":
       # check for any confidential information
       # TODO: Use raiseNimbleError(msg, hintMsg) here
-      raise newException(NimbleError,
-        "Cannot publish the repository URL because it contains username and/or password. Fix the remote URL. Hint: \"git remote -v\"")
+      raise nimbleError(
+        "Cannot publish the repository URL because it contains username " &
+        "and/or password. Fix the remote URL. Hint: \"git remote -v\"")
 
   elif dirExists(os.getCurrentDir() / ".hg"):
     downloadMethod = "hg"

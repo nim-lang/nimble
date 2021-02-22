@@ -156,6 +156,7 @@ proc cloneSpecificRevision(downloadMethod: DownloadMethod,
   of DownloadMethod.hg:
     doCmd(fmt"hg clone {url} -r {vcsRevision}")
 
+{.warning[ProveInit]: off.}
 proc doDownload(url: string, downloadDir: string, verRange: VersionRange,
                 downMethod: DownloadMethod, options: Options,
                 vcsRevision: Sha1Hash): Version =
@@ -223,6 +224,7 @@ proc doDownload(url: string, downloadDir: string, verRange: VersionRange,
       else:
         display("Warning:", "The package has no tagged releases, downloading HEAD instead.", Warning, 
                   priority = HighPriority)
+{.warning[ProveInit]: on.}
 
 proc downloadPkg*(url: string, verRange: VersionRange,
                   downMethod: DownloadMethod,
@@ -276,7 +278,7 @@ proc downloadPkg*(url: string, verRange: VersionRange,
     ## Makes sure that the downloaded package's version satisfies the requested
     ## version range.
     let pkginfo = getPkgInfo(result[0], options)
-    if pkginfo.version.newVersion notin verRange:
+    if pkginfo.version notin verRange:
       raise nimbleError(
         "Downloaded package's version does not satisfy requested version " &
         "range: wanted $1 got $2." %

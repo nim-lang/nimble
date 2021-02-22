@@ -202,7 +202,7 @@ proc validateDependency(dependencyPkg, dependentPkg: PackageInfo) =
   for pkg in dependentPkg.requires:
     if cmpIgnoreStyle(dependencyPkg.name, pkg.name) == 0:
       isNameFound = true
-      if Version(dependencyPkg.version) in pkg.ver:
+      if dependencyPkg.version in pkg.ver:
         # `dependencyPkg` is a valid dependency of `dependentPkg`.
         return
       else:
@@ -234,7 +234,7 @@ proc validateIncludedDependency(dependencyPkg, dependentPkg: PackageInfo,
   ## object. Otherwise returns `nil`.
 
   return
-    if Version(dependencyPkg.version) in requiredVersionRange: nil
+    if dependencyPkg.version in requiredVersionRange: nil
     else: nimbleError(
       dependencyNotInRangeErrorMsg(
         dependencyPkg.getNameAndVersion, dependentPkg.getNameAndVersion,

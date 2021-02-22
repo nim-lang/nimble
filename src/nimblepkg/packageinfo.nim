@@ -12,8 +12,11 @@ import version, tools, common, options, cli, config, lockfile, packageinfotypes,
 
 proc initPackageInfo*(): PackageInfo =
   result = PackageInfo(
-    basicInfo: ("", "", notSetSha1Hash),
+    basicInfo: ("", notSetVersion, notSetSha1Hash),
     metaData: initPackageMetaData())
+
+proc initPackage*(): Package =
+  result = Package(version: notSetVersion)
 
 proc isLoaded*(pkgInfo: PackageInfo): bool =
   return pkgInfo.myPath.len > 0
@@ -74,6 +77,7 @@ proc parseDownloadMethod*(meth: string): DownloadMethod =
   else:
     raise nimbleError("Invalid download method: " & meth)
 
+{.warning[ProveInit]: off.}
 proc fromJson(obj: JSonNode): Package =
   ## Constructs a Package object from a JSON node.
   ##
@@ -83,7 +87,7 @@ proc fromJson(obj: JSonNode): Package =
     result.alias = obj.requiredField("alias")
   else:
     result.alias = ""
-    result.version = obj.optionalField("version")
+    result.version = newVersion(obj.optionalField("version"))
     result.url = obj.requiredField("url")
     result.downloadMethod = obj.requiredField("method").parseDownloadMethod
     result.dvcsTag = obj.optionalField("dvcs-tag")
@@ -93,6 +97,7 @@ proc fromJson(obj: JSonNode): Package =
       result.tags.add(t.str)
     result.description = obj.requiredField("description")
     result.web = obj.optionalField("web")
+{.warning[ProveInit]: on.}
 
 proc needsRefresh*(options: Options): bool =
   ## Determines whether a ``nimble refresh`` is needed.
@@ -228,11 +233,13 @@ proc getPackage*(pkg: string, options: Options, resPkg: var Package): bool =
         resPkg = resolveAlias(resPkg, options)
         return true
 
+{.warning[ProveInit]: off.}
 proc getPackage*(name: string, options: Options): Package =
   let success = getPackage(name, options, result)
   if not success:
     raise nimbleError(
       "Cannot find package with name '" & name & "'.")
+{.warning[ProveInit]: on.}
 
 proc getPackageList*(options: Options): seq[Package] =
   ## Returns the list of packages found in the downloaded packages.json files.
@@ -268,7 +275,7 @@ proc findNimbleFile*(dir: string; error: bool): string =
 proc setNameVersionChecksum*(pkgInfo: var PackageInfo, pkgDir: string) =
   let (name, version, checksum) = getNameVersionChecksum(pkgDir)
   pkgInfo.name = name
-  if pkgInfo.version.len == 0:
+  if pkgInfo.version == notSetVersion:
     # if there is no previously set version from the `.nimble` file
     pkgInfo.version = version
   pkgInfo.specialVersion = version
@@ -299,14 +306,14 @@ proc withinRange*(pkgInfo: PackageInfo, verRange: VersionRange): bool =
   ## Determines whether the specified package's version is within the
   ## specified range. The check works with ordinary versions as well as
   ## special ones.
-  return withinRange(newVersion(pkgInfo.version), verRange) or
-         withinRange(newVersion(pkgInfo.specialVersion), verRange)
+  return withinRange(pkgInfo.version, verRange) or
+         withinRange(pkgInfo.specialVersion, verRange)
 
 proc resolveAlias*(dep: PkgTuple, options: Options): PkgTuple =
   ## Looks up the specified ``dep.name`` in the packages.json files to resolve
   ## a potential alias into the package's real name.
   result = dep
-  var pkg: Package
+  var pkg = initPackage()
   # TODO: This needs better caching.
   if getPackage(dep.name, options, pkg):
     # The resulting ``pkg`` will contain the resolved name or the original if
@@ -331,7 +338,7 @@ proc findPkg*(pkglist: seq[PackageInfo], dep: PkgTuple,
            "Should not happen the list to contain " &
            "the same package in develop mode twice."
     if withinRange(pkg, dep.ver):
-      let isNewer = newVersion(r.version) < newVersion(pkg.version)
+      let isNewer = r.version < pkg.version
       # If `pkg.isLink` this is a develop mode package and develop mode packages
       # are always with higher priority than installed packages.
       if not result or isNewer or pkg.isLink:

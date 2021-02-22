@@ -12,7 +12,7 @@ type
     sha1*: Sha1Hash
 
   LockFileDep* = object
-    version*: string
+    version*: Version
     vcsRevision*: Sha1Hash
     url*: string
     downloadMethod*: DownloadMethod
@@ -31,15 +31,15 @@ type
     isLink*: bool
 
   PackageMetaDataV2* = object of PackageMetaDataBase
-    specialVersion*: string
+    specialVersion*: Version
 
   PackageMetaData* = object of PackageMetaDataBase
     isLink*: bool
-    specialVersion*: string
+    specialVersion*: Version
 
   PackageBasicInfo* = tuple
     name: string
-    version: string
+    version: Version
     checksum: Sha1Hash
 
   PackageInfo* = object
@@ -78,7 +78,7 @@ type
     description*: string
     tags*: seq[string] # Even if empty, always a valid non nil seq. \
     # From here on, optional fields set to the empty string if not available.
-    version*: string
+    version*: Version
     dvcsTag*: string
     web*: string # Info url for humans.
     alias*: string ## A name of another package, that this package aliases.

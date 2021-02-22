@@ -4,24 +4,22 @@
 import system except TResult
 
 import os, tables, strtabs, json, algorithm, sets, uri, sugar, sequtils, osproc,
-       strformat, sequtils
+       strformat
 
 import std/options as std_opt
 
 import strutils except toLower
 from unicode import toLower
-from sequtils import toSeq
 
 import nimblepkg/packageinfotypes, nimblepkg/packageinfo, nimblepkg/version,
        nimblepkg/tools, nimblepkg/download, nimblepkg/config, nimblepkg/common,
        nimblepkg/publish, nimblepkg/options, nimblepkg/packageparser,
        nimblepkg/cli, nimblepkg/packageinstaller, nimblepkg/reversedeps,
-       nimblepkg/nimscriptexecutor, nimblepkg/init, nimblepkg/tools,
+       nimblepkg/nimscriptexecutor, nimblepkg/init, nimblepkg/vcstools,
        nimblepkg/checksums, nimblepkg/topologicalsort, nimblepkg/lockfile,
        nimblepkg/nimscriptwrapper, nimblepkg/developfile, nimblepkg/paths,
        nimblepkg/nimbledatafile, nimblepkg/packagemetadatafile,
-       nimblepkg/displaymessages, nimblepkg/sha1hashes, nimblepkg/syncfile,
-       nimblepkg/vcstools
+       nimblepkg/displaymessages, nimblepkg/sha1hashes, nimblepkg/syncfile
 
 const
   nimblePathsFileName* = "nimble.paths"
@@ -77,7 +75,7 @@ proc processFreeDependencies(pkgInfo: PackageInfo, options: Options):
   once: pkgList = initPkgList(pkgInfo, options)
 
   display("Verifying",
-          "dependencies for $1@$2" % [pkgInfo.name, pkgInfo.specialVersion],
+          "dependencies for $1@$2" % [pkgInfo.name, $pkgInfo.specialVersion],
           priority = HighPriority)
 
   var reverseDependencies: seq[PackageBasicInfo] = @[]
@@ -123,14 +121,14 @@ proc processFreeDependencies(pkgInfo: PackageInfo, options: Options):
 
   # Check if two packages of the same name (but different version) are listed
   # in the path.
-  var pkgsInPath: StringTableRef = newStringTable(modeCaseSensitive)
+  var pkgsInPath: Table[string, Version]
   for pkgInfo in result:
     let currentVer = pkgInfo.getConcreteVersion(options)
     if pkgsInPath.hasKey(pkgInfo.name) and
        pkgsInPath[pkgInfo.name] != currentVer:
       raise nimbleError(
         "Cannot satisfy the dependency on $1 $2 and $1 $3" %
-          [pkgInfo.name, currentVer, pkgsInPath[pkgInfo.name]])
+          [pkgInfo.name, $currentVer, $pkgsInPath[pkgInfo.name]])
     pkgsInPath[pkgInfo.name] = currentVer
 
   # We add the reverse deps to the JSON file here because we don't want
@@ -160,7 +158,7 @@ proc buildFromDir(pkgInfo: PackageInfo, paths: HashSet[string],
   var
     binariesBuilt = 0
     args = args
-  args.add "-d:NimblePkgVersion=" & pkgInfo.version
+  args.add "-d:NimblePkgVersion=" & $pkgInfo.version
   for path in paths:
     args.add("--path:" & path.quoteShell)
   if options.verbosity >= HighPriority:
@@ -267,7 +265,7 @@ proc packageExists(pkgInfo: PackageInfo, options: Options): bool =
 proc promptOverwriteExistingPackage(pkgInfo: PackageInfo,
                                     options: Options): bool =
   let message = "$1@$2 already exists. Overwrite?" %
-                [pkgInfo.name, pkgInfo.specialVersion]
+                [pkgInfo.name, $pkgInfo.specialVersion]
   return options.prompt(message)
 
 proc removeOldPackage(pkgInfo: PackageInfo, options: Options) =
@@ -325,7 +323,7 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
 
   # Overwrite the version if the requested version is "#head" or similar.
   if requestedVer.kind == verSpecial:
-    pkgInfo.specialVersion = $requestedVer.spe
+    pkgInfo.specialVersion = requestedVer.spe
 
   # Dependencies need to be processed before the creation of the pkg dir.
   if first and pkgInfo.lockedDeps.len > 0:
@@ -337,7 +335,7 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
     result.pkg = pkgInfo
     return result
 
-  display("Installing", "$1@$2" % [pkginfo.name, pkginfo.specialVersion],
+  display("Installing", "$1@$2" % [pkginfo.name, $pkginfo.specialVersion],
           priority = HighPriority)
 
   let isPackageAlreadyInCache = pkgInfo.packageExists(options)
@@ -507,7 +505,7 @@ proc getDownloadInfo*(pv: PkgTuple, options: Options,
     let (url, metadata) = getUrlData(pv.name)
     return (checkUrlType(url), url, metadata)
   else:
-    var pkg: Package
+    var pkg = initPackage()
     if getPackage(pv.name, options, pkg):
       let (url, metadata) = getUrlData(pkg.url)
       return (pkg.downloadMethod, url, metadata)
@@ -607,7 +605,7 @@ proc execBackend(pkgInfo: PackageInfo, options: Options) =
   if not execHook(options, options.action.typ, true):
     raise nimbleError("Pre-hook prevented further execution.")
 
-  var args = @["-d:NimblePkgVersion=" & pkgInfo.version]
+  var args = @["-d:NimblePkgVersion=" & $pkgInfo.version]
   for dep in deps:
     args.add("--path:" & dep.getRealDir().quoteShell)
   if options.verbosity >= HighPriority:
@@ -685,7 +683,7 @@ proc list(options: Options) =
     echo(" ")
 
 proc listInstalled(options: Options) =
-  var h = initOrderedTable[string, seq[string]]()
+  var h: OrderedTable[string, seq[Version]]
   let pkgs = getInstalledPkgsMin(options.getPkgsDir(), options)
   for pkg in pkgs:
     let
@@ -696,7 +694,7 @@ proc listInstalled(options: Options) =
     add(s, pVer)
     h[pName] = s
 
-  h.sort(proc (a, b: (string, seq[string])): int = cmpIgnoreCase(a[0], b[0]))
+  h.sort(proc (a, b: (string, seq[Version])): int = cmpIgnoreCase(a[0], b[0]))
   for k in keys(h):
     echo k & "  [" & h[k].join(", ") & "]"
 
@@ -723,14 +721,8 @@ proc listPaths(options: Options) =
     var installed: seq[VersionAndPath] = @[]
     # There may be several, list all available ones and sort by version.
     for pkg in pkgs:
-      let
-        pName = pkg.name
-        pVer = pkg.specialVersion
-      if name == pName:
-        var v: VersionAndPath
-        v.version = newVersion(pVer)
-        v.path = pkg.getRealDir()
-        installed.add(v)
+      if name == pkg.name:
+        installed.add((pkg.specialVersion, pkg.getRealDir))
 
     if installed.len > 0:
       sort(installed, cmp[VersionAndPath], Descending)
@@ -773,10 +765,6 @@ proc getPackageByPattern(pattern: string, options: Options): PackageInfo =
       )
     result = getPkgInfoFromFile(skeletonInfo.myPath, options)
 
-# import std/jsonutils
-proc `%`(a: Version): JsonNode = %a.string
-
-# proc dump(options: Options, json: bool) =
 proc dump(options: Options) =
   cli.setSuppressMessages(true)
   let p = getPackageByPattern(options.action.projName, options)
@@ -808,7 +796,7 @@ proc dump(options: Options) =
       else:
         s.add val.join(", ").escape
   fn "name", p.name
-  fn "version", p.version
+  fn "version", $p.version
   fn "author", p.author
   fn "desc", p.description
   fn "license", p.license
