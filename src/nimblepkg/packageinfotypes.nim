@@ -88,6 +88,7 @@ type
 {.warning[UnsafeDefault]: off.}
 {.warning[ProveInit]: off.}
 aliasThis PackageInfo.metaData
+{.warning[ProveInit]: on.}
 aliasThis PackageInfo.basicInfo
 {.warning[ProveInit]: on.}
 {.warning[UnsafeDefault]: on.}
