@@ -16,9 +16,11 @@ jobs:
           - nightly:https://github.com/nim-lang/nightlies/releases/tag/2021-02-06-devel-39230422d02bd41b02378211e8613f702e5b945c
     name: ${{ matrix.os }} - ${{ matrix.nimversion }}
     runs-on: ${{ matrix.os }}
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v2
-      - uses: iffy/install-nim@v3.1
+      - uses: iffy/install-nim@v3.2.0
         with:
           version: ${{ matrix.nimversion }}
       - run: nim --version
