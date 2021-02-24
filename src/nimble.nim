@@ -703,12 +703,13 @@ type VersionAndPath = tuple[version: Version, path: string]
 proc listPaths(options: Options) =
   ## Loops over the specified packages displaying their installed paths.
   ##
-  ## If there are several packages installed, only the last one (the version
-  ## listed in the packages.json) will be displayed. If any package name is not
-  ## found, the proc displays a missing message and continues through the list,
-  ## but at the end quits with a non zero exit error.
+  ## If there are several packages installed, all of them will be displayed.
+  ## If any package name is not found, the proc displays a missing message and
+  ## continues through the list, but at the end quits with a non zero exit
+  ## error.
   ##
   ## On success the proc returns normally.
+
   cli.setSuppressMessages(true)
   assert options.action.typ == actionPath
 
@@ -727,7 +728,8 @@ proc listPaths(options: Options) =
     if installed.len > 0:
       sort(installed, cmp[VersionAndPath], Descending)
       # The output for this command is used by tools so we do not use display().
-      echo installed[0].path
+      for pkg in installed:
+        echo pkg.path
     else:
       display("Warning:", "Package '$1' is not installed" % name, Warning,
               MediumPriority)
