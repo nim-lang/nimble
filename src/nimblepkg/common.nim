@@ -63,18 +63,8 @@ when not defined(nimscript):
 
     return (error, hint)
 
-import strscans
-from strutils import allCharsInSet
-
-proc extractNimbleVersion(): string =
-  let x = staticRead("../../nimble.nimble")
-  var prefix = ""
-  assert scanf(x, "$*version$s=$s\"$+\"", prefix, result)
-  assert result.len >= 3
-  assert allCharsInSet(result, {'0'..'9', '.'})
-
 const
-  nimbleVersion* = extractNimbleVersion()
+  nimbleVersion* = "0.13.0"
 
 when not declared(initHashSet):
   import sets
