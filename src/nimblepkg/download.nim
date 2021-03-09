@@ -91,7 +91,7 @@ proc getTagsListRemote*(url: string, meth: DownloadMethod): seq[string] =
     var (output, exitCode) = doCmdEx("git ls-remote --tags " & url.quoteShell())
     if exitCode != QuitSuccess:
       raise newException(OSError, "Unable to query remote tags for " & url &
-          ". Git returned: " & output)
+          " Git returned: " & output)
     for i in output.splitLines():
       let refStart = i.find("refs/tags/")
       # git outputs warnings, empty lines, etc
