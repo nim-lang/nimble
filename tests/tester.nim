@@ -9,6 +9,7 @@ import osproc, unittest, strutils, os, sequtils, sugar, strformat
 let rootDir = getCurrentDir().parentDir()
 let nimblePath = rootDir / "src" / addFileExt("nimble", ExeExt)
 let installDir = rootDir / "tests" / "nimbleDir"
+let buildTests = rootDir / "buildTests"
 const path = "../src/nimble"
 const stringNotFound = -1
 
@@ -962,8 +963,9 @@ suite "issues":
     cd "issue727":
       var (output, exitCode) = execNimbleYes("c", "src/abc")
       check exitCode == QuitSuccess
-      check fileExists("src/abc".addFileExt(ExeExt))
+      check fileExists(buildTests / "abc".addFileExt(ExeExt))
       check not fileExists("src/def".addFileExt(ExeExt))
+      check not fileExists(buildTests / "def".addFileExt(ExeExt))
 
       (output, exitCode) = execNimbleYes("uninstall", "-i", "timezones")
       check exitCode == QuitSuccess
