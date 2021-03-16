@@ -1,24 +1,17 @@
-tester
+# ideally this shouldn't even be needed and all generated files would go under ../buildTests/
+
+# tester
 /nimble-test
-/buildDir
-/binaryPackage/v1/binaryPackage
-/binaryPackage/v2/binaryPackage
-/develop/dependent/src/dependent
-/issue27/issue27
-/issue206/issue/issue206bin
-/issue289/issue289
-/issue428/nimbleDir/
-/nimbleDir/
-/packageStructure/c/c
-/packageStructure/y/y
-/testCommand/testOverride/myTester
-/testCommand/testsFail/tests/a
-/testCommand/testsFail/tests/b
-/testCommand/testsPass/tests/one
-/testCommand/testsPass/tests/three
-/testCommand/testsPass/tests/two
-/nimscript/nimscript
-/packageStructure/validBinary/y
-/testCommand/testsFail/tests/t2
-/passNimFlags/passNimFlags
 /issue799/issue799
+/issue308515/v1/binname.out
+/issue308515/v2/binname.out
+/localdeps/nimbledeps/
+/multi/
+/packagea/
+
+
+# occurs on multiple levels
+nimbleDir/
+
+# generated nims files
+*_*.nims
