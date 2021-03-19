@@ -154,11 +154,12 @@ proc makeRange*(version: string, op: string): VersionRange =
   result.ver = Version(version)
 
 proc parseVersionStringAt(s: string, i: var int): string = 
+  ## parse version string after ~ or ^ and return it
   while i < s.len:
     case s[i]
     of '0'..'9', '.':
       result.add(s[i])
-    of 'x', 'X', '*':
+    of 'x', 'X', '*': # only allowed for ~ and ^
       result.add("0")
     of '=':
       discard
@@ -173,7 +174,8 @@ proc parseVersionStringAt(s: string, i: var int): string =
           "Unexpected char in version range '" & s & "': " & s[i])
     inc(i)
 
-proc getNextExcludedVersion(version: string, nextMajor: bool): string = 
+proc getNextExcludedVersion(version: string, majorCompatibility: bool): string = 
+  ## try to get next higher version to exclude according to semver semantic
   var numbers = version.split('.')
   while numbers.len < 3:
     numbers.add("0")
@@ -182,7 +184,7 @@ proc getNextExcludedVersion(version: string, nextMajor: bool): string =
     if numbers[n] == "0":
       inc(zeros)
     else: break
-  let distanceToMajor = if nextMajor: 0 else: 1
+  let distanceToMajor = if majorCompatibility: 0 else: 1
   var excludedPosition = min(numbers.len - 2, zeros + distanceToMajor)
   if zeros == 2: 
     excludedPosition = max(2, excludedPosition)
@@ -226,22 +228,15 @@ proc parseVersionRange*(s: string): VersionRange =
             "Having more than one `&` in a version range is pointless")
 
       return
-    of '~':
+    of '~', '^':
+      let currentOp = s[i]
       inc(i)
       version = parseVersionStringAt(s, i)
       result = VersionRange(kind: verIntersect)
       result.verILeft = makeRange(version, ">=")
 
-      var excludedVersion = getNextExcludedVersion(version, nextMajor = false)
-      result.verIRight = makeRange(excludedVersion, "<")
-      return
-    of '^':
-      inc(i)
-      version = parseVersionStringAt(s, i)
-      result = VersionRange(kind: verIntersect)
-      result.verILeft = makeRange(version, ">=")
-
-      var excludedVersion = getNextExcludedVersion(version, nextMajor = true)
+      var excludedVersion = getNextExcludedVersion(version, 
+        majorCompatibility = (currentOp == '^'))
       result.verIRight = makeRange(excludedVersion, "<")
       return
     of '0'..'9', '.':
