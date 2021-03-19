@@ -153,6 +153,46 @@ proc makeRange*(version: string, op: string): VersionRange =
     raise newException(ParseVersionError, "Invalid operator: " & op)
   result.ver = Version(version)
 
+proc parseVersionStringAt(s: string, i: var int): string = 
+  while i < s.len:
+    case s[i]
+    of '0'..'9', '.':
+      result.add(s[i])
+    of 'x', 'X', '*':
+      result.add("0")
+    of '=':
+      discard
+    of ' ':
+      # Make sure '0.9 8.03' is not allowed.
+      if result != "" and i < s.len - 1:
+        if s[i+1] in {'0'..'9', '.'}:
+          raise newException(ParseVersionError,
+              "Whitespace is not allowed in a version literal.")
+    else:
+      raise newException(ParseVersionError,
+          "Unexpected char in version range '" & s & "': " & s[i])
+    inc(i)
+
+proc getNextExcludedVersion(version: string, nextMajor: bool): string = 
+  var numbers = version.split('.')
+  while numbers.len < 3:
+    numbers.add("0")
+  var zeros = 0
+  for n in 0 ..< numbers.len:
+    if numbers[n] == "0":
+      inc(zeros)
+    else: break
+  let distanceToMajor = if nextMajor: 0 else: 1
+  var excludedPosition = min(numbers.len - 2, zeros + distanceToMajor)
+  if zeros == 2: 
+    excludedPosition = max(2, excludedPosition)
+  numbers[excludedPosition] = $(numbers[excludedPosition].parseInt() + 1)
+  var zeroPosition = excludedPosition + 1
+  while(zeroPosition < numbers.len):
+    numbers[zeroPosition] = "0"
+    inc(zeroPosition)
+  result = numbers.join(".")
+
 proc parseVersionRange*(s: string): VersionRange =
   # >= 1.5 & <= 1.8
   if s.len == 0:
@@ -186,7 +226,24 @@ proc parseVersionRange*(s: string): VersionRange =
             "Having more than one `&` in a version range is pointless")
 
       return
+    of '~':
+      inc(i)
+      version = parseVersionStringAt(s, i)
+      result = VersionRange(kind: verIntersect)
+      result.verILeft = makeRange(version, ">=")
 
+      var excludedVersion = getNextExcludedVersion(version, nextMajor = false)
+      result.verIRight = makeRange(excludedVersion, "<")
+      return
+    of '^':
+      inc(i)
+      version = parseVersionStringAt(s, i)
+      result = VersionRange(kind: verIntersect)
+      result.verILeft = makeRange(version, ">=")
+
+      var excludedVersion = getNextExcludedVersion(version, nextMajor = true)
+      result.verIRight = makeRange(excludedVersion, "<")
+      return
     of '0'..'9', '.':
       version.add(s[i])
 
@@ -316,11 +373,30 @@ when isMainModule:
   doAssert(newVersion("") < newVersion("0.1.0"))
 
   var versions = toOrderedTable[Version, string]({
+    newVersion("0.0.1"): "v0.0.1",
+    newVersion("0.0.2"): "v0.0.2",
     newVersion("0.1.1"): "v0.1.1",
+    newVersion("0.2.2"): "v0.2.2",
     newVersion("0.2.3"): "v0.2.3",
-    newVersion("0.5"): "v0.5"
+    newVersion("0.5.0"): "v0.5.0",
+    newVersion("1.2"): "v1.2",
+    newVersion("2.2.2"): "v2.2.2",
+    newVersion("2.2.3"): "v2.2.3",
+    newVersion("2.3.2"): "v2.3.2",
+    newVersion("3.2"): "v3.2",
+    newVersion("3.3.2"): "v3.3.2"
   })
   doAssert findLatest(parseVersionRange(">= 0.1 & <= 0.4"), versions) ==
+      (newVersion("0.2.3"), "v0.2.3")
+  doAssert findLatest(parseVersionRange("^= 0.1"), versions) ==
+      (newVersion("0.1.1"), "v0.1.1")
+  doAssert findLatest(parseVersionRange("^= 0.0.1"), versions) ==
+      (newVersion("0.0.1"), "v0.0.1")
+  doAssert findLatest(parseVersionRange("^= 2.2.2"), versions) ==
+      (newVersion("2.3.2"), "v2.3.2")
+  doAssert findLatest(parseVersionRange("~= 2.2.2"), versions) ==
+      (newVersion("2.2.3"), "v2.2.3")
+  doAssert findLatest(parseVersionRange("~= 0.2.2"), versions) ==
       (newVersion("0.2.3"), "v0.2.3")
 
   # TODO: Allow these in later versions?
