@@ -373,7 +373,7 @@ when isMainModule:
     newVersion("0.1.1"): "v0.1.1",
     newVersion("0.2.2"): "v0.2.2",
     newVersion("0.2.3"): "v0.2.3",
-    newVersion("0.5.0"): "v0.5.0",
+    newVersion("0.5"): "v0.5",
     newVersion("1.2"): "v1.2",
     newVersion("2.2.2"): "v2.2.2",
     newVersion("2.2.3"): "v2.2.3",
@@ -388,6 +388,8 @@ when isMainModule:
   doAssert findLatest(parseVersionRange("^= 0.0.1"), versions) ==
       (newVersion("0.0.1"), "v0.0.1")
   doAssert findLatest(parseVersionRange("^= 2.2.2"), versions) ==
+      (newVersion("2.3.2"), "v2.3.2")
+  doAssert findLatest(parseVersionRange("^2.2.2"), versions) ==
       (newVersion("2.3.2"), "v2.3.2")
   doAssert findLatest(parseVersionRange("~= 2.2.2"), versions) ==
       (newVersion("2.2.3"), "v2.2.3")
