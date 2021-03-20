@@ -188,7 +188,7 @@ proc getNextExcludedVersion(version: string, majorCompatibility: bool): string =
     excludedPosition = max(2, excludedPosition)
   numbers[excludedPosition] = $(numbers[excludedPosition].parseInt() + 1)
   var zeroPosition = excludedPosition + 1
-  while(zeroPosition < numbers.len):
+  while zeroPosition < numbers.len:
     numbers[zeroPosition] = "0"
     inc(zeroPosition)
   result = numbers.join(".")
