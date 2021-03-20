@@ -159,7 +159,7 @@ proc parseVersionStringAt(s: string, i: var int): string =
     case s[i]
     of '0'..'9', '.':
       result.add(s[i])
-    of 'x', 'X', '*': # only allowed for ~ and ^
+    of '*': # only allowed for ~ and ^
       result.add("0")
     of ' ',  '=':
       # Make sure '0.9 8.03' is not allowed.
