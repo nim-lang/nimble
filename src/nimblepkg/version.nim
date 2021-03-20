@@ -147,7 +147,7 @@ proc getNextIncompatibleVersion(version: string, semver: bool): string =
     if numbers[n] == "0":
       inc(zeros)
     else: break
-  var increasePosition: int
+  var increasePosition = 0
   if (semver):
     if originalNumberLen > 1:
       case zeros
