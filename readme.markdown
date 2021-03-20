@@ -457,15 +457,15 @@ The operator specification of `^=` is similar to `^` in
 `~=` operator is similar to `~=` in 
 [python](https://www.python.org/dev/peps/pep-0440/#compatible-release):  
 - `^=` is selecting the latest compatible version according to 
-       [semver](https://semver.npmjs.com/). Major releases number changes
+       [semver](https://semver.npmjs.com/). Major release number changes
        cause incompatibility.
 - `~=` is selecting the latest version by increasing the last given digit 
        to the highest version.
 
 Both operators `^=` and `~=` were not available yet for Nimble 0.13.1 and
 earlier and would cause error messages if used there.
-Other more complex comparison operators like `!=`, `||`, `-`, `*` and `X` 
-are also not available. 
+Other more complex comparison operators that would be available in npm like 
+`!=`, `||`, `-`, `*` and `X` are also not available in Nimble. 
 ```
 # Examples for selector ^= and ~=
 
