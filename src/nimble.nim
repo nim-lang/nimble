@@ -24,6 +24,8 @@ import nimblepkg/packageinfotypes, nimblepkg/packageinfo, nimblepkg/version,
 const
   nimblePathsFileName* = "nimble.paths"
   nimbleConfigFileName* = "config.nims"
+  gitIgnoreFileName = ".gitignore"
+  hgIgnoreFileName = ".hgignore"
 
 proc refresh(options: Options) =
   ## Downloads the package list from the specified URL.
@@ -1509,7 +1511,14 @@ proc sync(options: Options) =
   if errors.len > 0:
     raise validationErrors(errors)
 
-proc setup(options: Options) =
+proc append(existingContent: var string; newContent: string) =
+  ## Appends `newContent` to the `existingContent` on a new line by inserting it
+  ## if the new line doesn't already exist.
+  if existingContent.len > 0 and existingContent[^1] != '\n':
+    existingContent &= "\n"
+  existingContent &= newContent
+
+proc setupNimbleConfig(options: Options) =
   ## Creates `nimble.paths` file containing file system paths to the
   ## dependencies. Includes it in `config.nims` file to make them available
   ## for the compiler.
@@ -1522,24 +1531,27 @@ when fileExists("{nimblePathsFileName}"):
 # end Nimble config
 """
 
-  let currentDir = getCurrentDir()
-  let pkgInfo = getPkgInfo(currentDir, options)
+  let
+    currentDir = getCurrentDir()
+    pkgInfo = getPkgInfo(currentDir, options)
+
   updatePathsFile(pkgInfo, options)
 
-  proc constructNimbleConfig: string =
-    result &= "\n"
-    result &= configFileHeader
-    result &= configFileContent
+  var
+    writeFile = false
+    fileContent: string
 
-  var writeFile = false
-  var fileContent: string
+  proc appendNimbleConfigFileHeaderAndContent =
+    fileContent.append(configFileHeader)
+    fileContent.append(configFileContent)
+
   if fileExists(nimbleConfigFileName):
     fileContent = readFile(nimbleConfigFileName)
     if not fileContent.contains(configFileHeader):
-      fileContent &= constructNimbleConfig()
+      appendNimbleConfigFileHeaderAndContent()
       writeFile = true
   else:
-    fileContent = constructNimbleConfig()
+    appendNimbleConfigFileHeaderAndContent()
     writeFile = true
 
   if writeFile:
@@ -1547,6 +1559,41 @@ when fileExists("{nimblePathsFileName}"):
     displayInfo(&"\"{nimbleConfigFileName}\" is set up.")
   else:
     displayInfo(&"\"{nimbleConfigFileName}\" is already set up.")
+
+proc setupVcsIgnoreFile =
+  ## Adds the names of some files which should not be committed to the VCS
+  ## ignore file.
+  let
+    currentDir = getCurrentDir()
+    vcsIgnoreFileName = case currentDir.getVcsType
+      of vcsTypeGit: gitIgnoreFileName
+      of vcsTypeHg: hgIgnoreFileName
+      of vcsTypeNone: raise nimbleError(
+        &"The directory {currentDir} is not under version control.")
+
+  var
+    writeFile = false
+    fileContent: string
+
+  if fileExists(vcsIgnoreFileName):
+    fileContent = readFile(vcsIgnoreFileName)
+    if not fileContent.contains(developFileName):
+      fileContent.append(developFileName)
+      writeFile = true
+    if not fileContent.contains(nimblePathsFileName):
+      fileContent.append(nimblePathsFileName)
+      writeFile = true
+  else:
+    fileContent.append(developFileName)
+    fileContent.append(nimblePathsFileName)
+    writeFile = true
+
+  if writeFile:
+    writeFile(vcsIgnoreFileName, fileContent & "\n")
+
+proc setup(options: Options) =
+  setupNimbleConfig(options)
+  setupVcsIgnoreFile()
 
 proc run(options: Options) =
   # Verify parameters.
