@@ -44,27 +44,6 @@ proc nimbleQuit*(exitCode = QuitSuccess): ref NimbleQuit =
   result = newException(NimbleQuit, "")
   result.exitCode = exitCode
 
-proc hasField(NewType: type[object], fieldName: static string,
-              FieldType: type): bool {.compiletime.} =
-  for name, value in fieldPairs(NewType.default):
-    if name == fieldName and $value.typeOf == $FieldType:
-      return true
-  return false
-
-macro accessField(obj: typed, name: static string): untyped = 
-  newDotExpr(obj, ident(name))
-
-proc to*(obj: object, NewType: type[object]): NewType =
-  ## Creates an object of `NewType` type, with all fields with both same name
-  ## and type like a field of `obj`, set to the values of the corresponding
-  ## fields of `obj`.
-
-  # `ResultType` is a bug workaround: "Cannot evaluate at compile time: NewType"
-  type ResultType = NewType
-  for name, value in fieldPairs(obj):
-    when ResultType.hasField(name, value.typeOf):
-      accessField(result, name) = value
-
 template newClone*[T: not ref](obj: T): ref T =
   ## Creates a garbage collected heap copy of not a reference object.
   {.warning[ProveInit]: off.}
@@ -98,27 +77,3 @@ template cdNewDir*(dir: string, body: untyped) =
   createNewDir dir
   cd dir:
     body
-
-template debugTrace*(): untyped =
-  block:
-    let (filename, line, _ {.used.}) = instantiationInfo()
-    echo "filename = $#; line: $#" % [filename, $line]
-
-when isMainModule:
-  import unittest
-
-  test "to":
-    type 
-      Foo = object
-        i: int
-        f: float
-      
-      Bar = object
-        i: string
-        f: float
-        s: string
-
-    let foo = Foo(i: 42, f: 3.1415)
-    var bar = to(foo, Bar)
-    bar.s = "hello"
-    check bar == Bar(i: "", f: 3.1415, s: "hello")

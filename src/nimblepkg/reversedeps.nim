@@ -174,10 +174,9 @@ when isMainModule:
   type
     RequiresSeq = seq[tuple[name, versionRange: string]]
 
-  proc initMetaData(isLink: bool): PackageMetaData =
+  proc initMetaData: PackageMetaData =
     result = PackageMetaData(
       vcsRevision: notSetSha1Hash,
-      isLink: isLink,
       specialVersion: notSetVersion)
 
   proc parseRequires(requires: RequiresSeq): seq[PkgTuple] =
@@ -187,14 +186,16 @@ when isMainModule:
     result = PackageInfo(
       myPath: path,
       requires: requires.parseRequires,
-      metaData: initMetaData(true))
+      metaData: initMetaData(),
+      isLink: true)
 
   proc initPackageInfo(name, version, checksum: string,
                        requires: RequiresSeq = @[]): PackageInfo =
     result = PackageInfo(
       basicInfo: (name, version.newVersion, checksum.initSha1Hash),
       requires: requires.parseRequires,
-      metaData: initMetaData(false))
+      metaData: initMetaData(),
+      isLink: false)
 
   let
     nimforum1 = initPackageInfo(

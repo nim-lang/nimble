@@ -34,19 +34,6 @@ proc saveNimbleData*(options: Options) =
 proc newNimbleDataNode*(): JsonNode =
   %{ $ndjkVersion: %nimbleDataFileVersion, $ndjkRevDep: newJObject() }
 
-proc convertToTheNewFormat(nimbleData: JsonNode) =
-  nimbleData.add($ndjkVersion, %nimbleDataFileVersion)
-  for name, versions in nimbleData[$ndjkRevDep]:
-    for version, dependencies in versions:
-      for dependency in dependencies:
-        dependency.add($ndjkRevDepChecksum, %"")
-      versions[version] = %{ "": dependencies }
-
-proc loadNimbleData*(fileName: string): JsonNode =
-  result = parseFile(fileName)
-  if not result.hasKey($ndjkVersion):
-    convertToTheNewFormat(result)
-
 proc removeDeadDevelopReverseDeps*(options: var Options) =
   template revDeps: var JsonNode = options.nimbleData[$ndjkRevDep]
   var hasDeleted = false
@@ -67,7 +54,11 @@ proc loadNimbleData*(options: var Options) =
     fileName = nimbleDir / nimbleDataFileName
 
   if fileExists(fileName):
-    options.nimbleData = loadNimbleData(fileName)
+    options.nimbleData = parseFile(fileName)
+    if not options.nimbleData.hasKey($ndjkVersion):
+      raise nimbleError(
+         "You are working with an old version of Nimble cache repository.\n",
+        &"Please delete your \"{options.getNimbleDir()}\" directory.")
     removeDeadDevelopReverseDeps(options)
     displayInfo(&"Nimble data file \"{fileName}\" has been loaded.",
                 LowPriority)

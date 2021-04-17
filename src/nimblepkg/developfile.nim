@@ -298,7 +298,7 @@ proc pkgFoundMoreThanOnceMsg*(
     pkgName: string, collisions: HashSet[NameCollisionRecord]): string =
   result = &"A package with name \"{pkgName}\" is found more than once."
   for (pkgPath, inclFilePath) in collisions:
-    result &= &"\"{pkgPath}\" from file \"{inclFilePath}\""
+    result &= &"\n\"{pkgPath}\" from file \"{inclFilePath}\""
 
 proc getErrorsDetails(errors: ErrorsCollection): string =
   ## Constructs a message with details about the collected errors.
@@ -603,42 +603,6 @@ proc addDevelopPackage(data: var DevelopFileData, path: Path,
     return false
 
   return addDevelopPackage(data, pkgInfo)
-
-# proc addDevelopPackageEx*(data: var DevelopFileData, path: Path,
-#                           options: Options) =
-#   ## Adds a package at path `path` to a free develop file intended for inclusion
-#   ## in other packages develop files.
-#   ##
-#   ## Raises if:
-#   ##   - the path in `path` does not point to a valid Nimble package.
-#   ##   - a package with the same name but at different path is already present
-#   ##     in the develop file or some of its includes.
-#   ##   - the path is already present in the develop file.
-
-#   assert not data.dependentPkg.isSome,
-#          "This procedure can only be used for free develop files intended " &
-#          "for inclusion in other packages develop files."
-
-#   let (pkg, error) = validatePackage(path, PackageInfo.none, options)
-#   if error != nil:
-#     raise error
-
-#   # Check whether the develop file already contains a package with a name
-#   # `pkg.name` at different path.
-#   if data.nameToPkg.hasKey(pkg.name) and not data.pathToPkg.hasKey(path):
-#     raise nimbleError(
-#       pkgAlreadyPresentAtDifferentPathMsg(pkg.name, $data.pathToPkg[pkg.name]))
-
-#   # Add `pkg` to the develop file model.
-#   let success = not data.dependencies.containsOrIncl(path)
-
-#   var collidingNames: CollidingNames
-#   addPackage(data, pkg, data.path, [data.path].toHashSet, collidingNames)
-#   assert collidingNames.len == 0, "Must not have the same package name at " &
-#                                   "path different than already existing one."
-
-#   if not success:
-#     raise nimbleError(pkgAlreadyInDevModeMsg(pkg.getNameAndVersion, $path))
 
 proc removePackage(data: var DevelopFileData, pkg: ref PackageInfo,
                    devFileName: Path) =

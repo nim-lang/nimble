@@ -21,20 +21,11 @@ type
 
   LockFileDeps* = OrderedTable[string, LockFileDep]
 
-  PackageMetaDataBase* {.inheritable.} = object
+  PackageMetaData* = object
     url*: string
     vcsRevision*: Sha1Hash
     files*: seq[string]
     binaries*: seq[string]
-
-  PackageMetaDataV1* = object of PackageMetaDataBase
-    isLink*: bool
-
-  PackageMetaDataV2* = object of PackageMetaDataBase
-    specialVersion*: Version
-
-  PackageMetaData* = object of PackageMetaDataBase
-    isLink*: bool
     specialVersion*: Version
 
   PackageBasicInfo* = tuple
@@ -68,6 +59,7 @@ type
     basicInfo*: PackageBasicInfo
     lockedDeps*: LockFileDeps
     metaData*: PackageMetaData
+    isLink*: bool
 
   Package* = object ## Definition of package from packages.json.
     # Required fields in a package.

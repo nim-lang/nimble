@@ -25,9 +25,7 @@ proc metaDataError(msg: string): ref MetaDataError =
 
 proc saveMetaData*(metaData: PackageMetaData, dirName: string) =
   ## Saves some important data to file in the package installation directory.
-  {.warning[ProveInit]: off.}
-  var metaDataWithChangedPaths = to(metaData, PackageMetaDataV2)
-  {.warning[ProveInit]: on.}
+  var metaDataWithChangedPaths = metaData
   for i, file in metaData.files:
     metaDataWithChangedPaths.files[i] = changeRoot(dirName, "", file)
   let json = %{
@@ -40,17 +38,9 @@ proc loadMetaData*(dirName: string, raiseIfNotFound: bool): PackageMetaData =
   result = initPackageMetaData()
   let fileName = dirName / packageMetaDataFileName
   if fileExists(fileName):
-    let json = parseFile(fileName)
-    if not json.hasKey($pmdjkVersion):
-      {.warning[ProveInit]: off.}
-      result = to(json.to(PackageMetaDataV1), PackageMetaData)
-      {.warning[ProveInit]: on.}
-      let (_, specialVersion, _) = getNameVersionChecksum(dirName)
-      result.specialVersion = specialVersion
-    else:
-      {.warning[ProveInit]: off.}
-      result = to(json[$pmdjkMetaData].to(PackageMetaDataV2), PackageMetaData)
-      {.warning[ProveInit]: on.}
+    {.warning[ProveInit]: off.}
+    result = parseFile(fileName)[$pmdjkMetaData].to(PackageMetaData)
+    {.warning[ProveInit]: on.}
   elif raiseIfNotFound:
     raise metaDataError(&"No {packageMetaDataFileName} file found in {dirName}")
   else:

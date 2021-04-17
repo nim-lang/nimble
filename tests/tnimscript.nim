@@ -105,8 +105,7 @@ suite "nimscript":
     cd "invalidPackage":
       let (output, exitCode) = execNimble("check")
       let lines = output.strip.processOutput()
-      check(lines.inLines(
-        "undeclared identifier: 'thisFieldDoesNotExist'"))
+      check(lines.inLines("undeclared identifier: 'thisFieldDoesNotExist'"))
       check exitCode == QuitFailure
 
   test "can accept short flags (#329)":

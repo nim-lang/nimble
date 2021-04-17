@@ -3,11 +3,10 @@
 
 {.used.}
 
-import unittest, os, strutils, json
+import unittest, os, strutils
 import testscommon
 
 from nimblepkg/common import cd
-from nimblepkg/nimbledatafile import loadNimbleData
 
 suite "reverse dependencies":
   test "basic test":
@@ -68,17 +67,3 @@ suite "reverse dependencies":
 
     check execNimble("path", "nimboost").exitCode != QuitSuccess
     check execNimble("path", "nimfp").exitCode != QuitSuccess
-
-  test "old format conversion":
-    const oldNimbleDataFileName =
-      "./revdep/nimbleData/old_nimble_data.json".normalizedPath
-    const newNimbleDataFileName =
-      "./revdep/nimbleData/new_nimble_data.json".normalizedPath
-
-    doAssert fileExists(oldNimbleDataFileName)
-    doAssert fileExists(newNimbleDataFileName)
-
-    let oldNimbleData = loadNimbleData(oldNimbleDataFileName)
-    let newNimbleData = loadNimbleData(newNimbleDataFileName)
-
-    doAssert oldNimbleData == newNimbleData
