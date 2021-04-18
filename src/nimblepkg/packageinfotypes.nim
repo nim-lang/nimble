@@ -23,6 +23,7 @@ type
 
   PackageMetaData* = object
     url*: string
+    downloadMethod*: DownloadMethod
     vcsRevision*: Sha1Hash
     files*: seq[string]
     binaries*: seq[string]

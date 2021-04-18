@@ -9,8 +9,8 @@ import common, paths, tools, sha1hashes
 
 type
   VcsType* = enum
-    ## This type represents a marker for the type of VCS under which is some
-    ## file system directory.
+    ## Represents a marker for the type of VCS under which is some file system
+    ## directory.
     vcsTypeNone = "none"
     vcsTypeGit  = "git"
     vcsTypeHg   = "hg"
@@ -18,6 +18,16 @@ type
   VcsTypeAndSpecialDirPath = tuple[vcsType: VcsType, path: Path]
     ## Represents a cache entry for the directory VCS type and VCS special
     ## directory path used by `getVcsTypeAndSpecialDirPath` procedure.
+  
+  BranchType* = enum
+    ## Determines the branch type which to be queried.
+    btLocal, btRemoteTracking, btBoth
+
+  RemoteUrlType {.pure.} = enum
+    ## Represents the type of URL of some VCS remote repository. Fetch URLs are
+    ## for downloading data from the repository and push URLs are for uploading
+    ## data to it.
+    fetch, push
 
 const
   noVcsSpecialDir    = ""
@@ -248,6 +258,36 @@ proc getRemotesNames*(path: Path): seq[string] =
   if output.len > 0:
     result = output.splitLines
 
+proc getRemoteUrl(path: Path, remoteName: string,
+                  urlType: RemoteUrlType): string =
+  ## Retrieves a fetch or push URL for the remote with name `remoteName` set in
+  ## repository at path `repositoryPath`.
+  ##
+  ## Raises a `NimbleError` if:
+  ##   - the external command fails.
+  ##   - the directory does not exist.
+  ##   - the directory is not under supported VCS type.
+  
+  let fetchOrPush = case urlType
+    of RemoteUrlType.fetch: ""
+    of RemoteUrlType.push: "--push"
+
+  result = tryDoVcsCmd(path,
+    gitCmd = &"remote get-url {fetchOrPush} {remoteName}",
+    hgCmd  = &"paths {remoteName}")
+
+  return result.strip
+
+proc getRemoteFetchUrl*(path: Path, remoteName: string): string =
+  ## Retrieves a fetch URL for the remote with name `remoteName` set in
+  ## repository at path `repositoryPath`.
+  ##
+  ## Raises a `NimbleError` if:
+  ##   - the external command fails.
+  ##   - the directory does not exist.
+  ##   - the directory is not under supported VCS type.
+  getRemoteUrl(path, remoteName, RemoteUrlType.fetch)
+
 proc getRemotePushUrl*(path: Path, remoteName: string): string =
   ## Retrieves a push URL for the remote with name `remoteName` set in
   ## repository at path `repositoryPath`.
@@ -256,12 +296,7 @@ proc getRemotePushUrl*(path: Path, remoteName: string): string =
   ##   - the external command fails.
   ##   - the directory does not exist.
   ##   - the directory is not under supported VCS type.
-
-  result = tryDoVcsCmd(path,
-    gitCmd = &"remote get-url --push {remoteName}",
-    hgCmd  = &"paths {remoteName}")
-
-  return result.strip
+  getRemoteUrl(path, remoteName, RemoteUrlType.push)
 
 proc getRemotesPushUrls*(path: Path): seq[string] =
   ## Retrieves a sequence with the push URLs of the set remotes for the
@@ -340,11 +375,6 @@ proc getCurrentBranch*(path: Path): string =
     hgCmd  = "branch")
 
   return result.strip
-
-type
-  BranchType* = enum
-    ## Determines the branch type which to be queried.
-    btLocal, btRemoteTracking, btBoth
 
 proc getBranchesOnWhichVcsRevisionIsPresent*(
     path: Path, vcsRevision: Sha1Hash, branchType = btBoth): HashSet[string] =

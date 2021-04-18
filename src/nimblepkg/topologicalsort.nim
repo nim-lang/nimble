@@ -1,22 +1,39 @@
 # Copyright (C) Dominik Picheta. All rights reserved.
 # BSD License. Look at license.txt for more info.
 
-import sequtils, sugar, tables, strformat, algorithm, sets
-import packageinfotypes, packageinfo, options, cli
+import sequtils, tables, strformat, algorithm, sets
+import common, packageinfotypes, packageinfo, options, cli
 
-proc buildDependencyGraph*(packages: HashSet[PackageInfo], options: Options):
+proc getDependencies(packages: seq[PackageInfo], package: PackageInfo,
+                     options: Options):
+    seq[string] =
+  ## Returns the names of the packages which are dependencies of a given
+  ## package. It is needed because some of the names of the packages in the
+  ## `requires` clause of a package could be URLs.
+  for dep in package.requires:
+    if dep.name == "nim":
+      continue
+    var depPkgInfo = initPackageInfo()
+    var found = findPkg(packages, dep, depPkgInfo)
+    if not found:
+      let resolvedDep = dep.resolveAlias(options)
+      found = findPkg(packages, resolvedDep, depPkgInfo)
+      if not found:
+        raise nimbleError(
+           "Cannot build the dependency graph.\n" & 
+          &"Missing package \"{dep.name}\".")
+    result.add depPkgInfo.name
+
+proc buildDependencyGraph*(packages: seq[PackageInfo], options: Options):
     LockFileDeps =
   ## Creates records which will be saved to the lock file.
-
   for pkgInfo in packages:
-    let pkg = getPackage(pkgInfo.name, options)
     result[pkgInfo.name] = LockFileDep(
       version: pkgInfo.version,
       vcsRevision: pkgInfo.vcsRevision,
-      url: pkg.url,
-      downloadMethod: pkg.downloadMethod,
-      dependencies: pkgInfo.requires.map(
-        pkg => pkg.name).filter(name => name != "nim"),
+      url: pkgInfo.url,
+      downloadMethod: pkgInfo.downloadMethod,
+      dependencies: getDependencies(packages, pkgInfo, options),
       checksums: Checksums(sha1: pkgInfo.checksum))
 
 proc topologicalSort*(graph: LockFileDeps):

@@ -379,13 +379,25 @@ proc readPackageInfo(nf: NimbleFile, options: Options, onlyMinimalInfo=false):
 
   let fileDir = nf.splitFile().dir
   if not fileDir.startsWith(options.getPkgsDir()):
-    # If the `.nimble` file is not in the installation directory but in the
-    # package repository we have to get its VCS revision and to calculate its
-    # checksum.
-    result.vcsRevision = getVcsRevision(fileDir.Path)
+    # If the `.nimble` file is not in the installation directory we have to get
+    # some of the package meta data from its directory.
     result.checksum = calculateDirSha1Checksum(fileDir)
     # By default specialVersion is the same as version.
     result.specialVersion = result.version
+    # If the `fileDir` is a VCS repository we can get some of the package meta
+    # data from it.
+    result.vcsRevision = getVcsRevision(fileDir)
+
+    case getVcsType(fileDir)
+      of vcsTypeGit: result.downloadMethod = DownloadMethod.git
+      of vcsTypeHg: result.downloadMethod = DownloadMethod.hg
+      of vcsTypeNone: discard
+
+    try:
+      result.url = getRemoteFetchUrl(fileDir,
+        getCorrespondingRemoteAndBranch(fileDir).remote)
+    except NimbleError:
+      discard
   else:
     # Otherwise we have to get its name, special version and checksum from the
     # package directory.

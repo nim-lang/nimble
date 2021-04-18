@@ -1349,7 +1349,7 @@ proc lock(options: Options) =
 
   let dependencies = pkgInfo.processFreeDependencies(options).map(
     pkg => pkg.toFullInfo(options))
-  var dependencyGraph = buildDependencyGraph(dependencies, options)
+  var dependencyGraph = buildDependencyGraph(dependencies.toSeq, options)
 
   if currentDir.lockFileExists:
     # If we already have a lock file, merge its data with the newly generated
