@@ -155,6 +155,14 @@ proc editJson(p: PackageInfo; url, tags, downloadMethod: string) =
   })
   writeFile("packages.json", contents.pretty.cleanupWhitespace)
 
+proc containSensitiveInformation(url: string): bool =
+  ## URL may contain username and password. This proc attempts to detect it.
+  # look for any '@' character in the url
+  for character in url:
+    if character == '@':
+      return true
+  return false
+
 proc publish*(p: PackageInfo, o: Options) =
   ## Publishes the package p.
   let auth = getGithubAuth(o)
@@ -212,7 +220,7 @@ proc publish*(p: PackageInfo, o: Options) =
     raise newException(NimbleError,
          "No .git nor .hg directory found. Stopping.")
 
-  if url.len == 0:
+  if url.len == 0 or url.containSensitiveInformation:
     url = promptCustom("Github URL of " & p.name & "?", "")
     if url.len == 0: userAborted()
 
