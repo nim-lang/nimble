@@ -157,8 +157,10 @@ proc editJson(p: PackageInfo; url, tags, downloadMethod: string) =
 
 proc containSensitiveInformation(url: string): bool =
   ## URL may contain username and password. This proc attempts to detect it.
-  # look for any '@' character in the url
-  '@' in url
+  # look for any '@' or '?' character in the url
+  for character in url:
+    if character == '@' or character == '?': return true
+  return false
 
 proc publish*(p: PackageInfo, o: Options) =
   ## Publishes the package p.
