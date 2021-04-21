@@ -21,6 +21,9 @@ The Nimble change log can be found [here](https://github.com/nim-lang/nimble/blo
   - [nimble refresh](#nimble-refresh)
   - [nimble install](#nimble-install)
   - [nimble develop](#nimble-develop)
+  - [nimble lock](#nimble-lock)
+  - [nimble sync](#nimble-sync)
+  - [nimble setup](#nimble-setup)
   - [nimble uninstall](#nimble-uninstall)
   - [nimble build](#nimble-build)
   - [nimble run](#nimble-run)
@@ -68,9 +71,11 @@ installed and added to your environment ``PATH``. Same goes for
 repositories so you may be able to get away without installing Mercurial.
 
 **Warning:** Ensure that you have a fairly recent version of Git installed.
-If the version is older than 1.9.0, then Nimble may have trouble using it.
-See [this issue](https://github.com/nim-lang/nimble/issues/105) for more
-information.
+Cloning of a specific Git commit described in the lock file uses a method
+(described [here](https://stackoverflow.com/a/3489576/853791)) requiring at
+least Git version **2.5** from year **2015** and enabled on server side with
+the configuration variable `uploadpack.allowReachableSHA1InWant`. Currently the
+feature is supported by both **GitHub** and **BitBucket**.
 
 ## Installation
 
@@ -151,7 +156,15 @@ Example:
          Hint: If 'incorrect' contains source files for building 'x', rename it to 'x'. Otherwise, prevent its installation by adding `skipDirs = @["incorrect"]` to the .nimble file.
       Failure: Validation failed
 
+On `check` command the development mode dependencies are also validated against
+the lock file. The following reasons for validation failure are possible:
 
+* The package directory is not under version control.
+* The package working copy directory is not in clean state.
+* Current VCS revision is no pushed on any remote.
+* The working copy needs sync.
+* The working copy needs lock.
+* The working copy needs merge or re-base.
 
 ### nimble install
 
@@ -213,26 +226,183 @@ query parameter. For example:
 
 ### nimble develop
 
-The ``develop`` command allows you to link an existing copy of a package into
-your installation directory. This is so that when developing a package you
-don't need to keep reinstalling it for every single change.
+The develop command is used for putting packages in a development mode. When
+executed with a list of packages it clones their repository and if it is
+executed in a package directory it adds cloned packages to the special
+`nimble.develop` file. This is a special file which is used for holding the
+paths to development mode dependencies of the current directory package. It has
+the following structure:
 
-    $ cd ~/projects/jester
-    $ nimble develop
+```json
+{
+    "version": "0.1.0",
+    "includes": [],
+    "dependencies": []
+}
+```
 
-Any packages depending on ``jester`` will now use the code in
-``~/projects/jester``.
+* `version` - JSON schema version
+* `includes` - JSON array of paths to included files.
+* `dependencies` - JSON array of paths to Nimble packages directories.
 
-If you specify a package name to this command, Nimble will clone it into the
-current working directory.
+The format for included develop files is the same as the project's develop
+file, but their validation works slightly different.
 
-    $ nimble develop jester
+Validation rules:
 
-The ``jester`` package will be cloned into ``./jester`` and it will be linked
-to your installation directory.
+* The included develop files must be valid.
+* The packages listed in `dependencies` section must be dependencies required
+by the package's `.nimble` file and to be in the required by its version range.
+Transitive dependencies are not allowed but this may be changed in the future.
+* The packages listed in the included develop files are required to be valid
+**Nimble** packages, but they are not required to be valid dependencies of the
+current project. In the last case, they are simply ignored.
+* The develop files of the develop mode dependencies a package are being
+followed and processed recursively. Finally, only one common set of develop
+mode dependencies is created.
+* In the final set of develop mode dependencies, it is not allowed to have more
+than one packages with the same name but with different file system paths.
 
 Just as with the ``install`` command, a package URL may also be specified
 instead of a name.
+
+If present the validity of the package's develop file is added to the
+requirements for validity of the package which is determined by `nimble check`
+command.
+
+The `develop` command has a list of options:
+
+* `-p, --path path` - Specifies the path whether the packages should be cloned.
+* `-c, --create [path]` - Creates an empty develop file with the name
+`nimble.develop` in the current directory or if a path is present to the given
+directory with a given name.
+* `-a, --add path` - Adds the package at the given path to the `nimble.develop`
+file.
+* `-r, --remove-path path` - Removes the package at the given path from the
+`nimble.develop` file.
+* `-n, --remove-name path` - Removed the package with the given name from the
+`nimble.develop` file.
+* `-i, --include file` - Includes a develop file into the current directory's
+one.
+* `-e, --exclude file` - Excludes a develop file from the current directory's
+one.
+
+The options for manipulation of the develop files could be given only when
+executing `develop` command from some package's directory and they work only on
+the project's develop file named `nimble.develop` and not on free develop files
+intended only for inclusion.
+
+Because the develop files are user-specific and they contain local file system
+paths they **MUST NOT** be committed.
+
+**Current limitations:**
+
+* Currently transitive dependencies in the `dependencies` section of the
+develop file are not allowed. In the future, they should be allowed because
+this will allow using in develop mode some transitive package dependencies
+without having in develop mode the full dependency tree path to them. It was a
+design mistake that was not allowed at the beginning. The current workaround is
+to add the transitive dependency as a dependency in the project's `.nimble`
+file.
+
+### nimble lock
+
+The `nimble lock` command will generate or update a package lock file named
+`nimble.lock`. This file is used for pinning the exact versions of the
+dependencies of the package. The file is intended to be committed and used by
+other developers to ensure that exactly the same version of the dependencies is
+used by all developers.
+
+Currently the lock file have the structure as in the following example:
+
+```json
+{
+  "version": "0.1.0",
+  "packages": {
+     ...
+     "chronos": {
+      "version": "3.0.2",
+      "vcsRevision": "aab1e30a726bb47c5d3f4a75a826981836cde9e2",
+      "url": "https://github.com/status-im/nim-chronos",
+      "downloadMethod": "git",
+      "dependencies": [
+        "stew",
+        "bearssl",
+        "httputils",
+        "unittest2"
+      ],
+      "checksums": {
+        "sha1": "a1cdaa77995f2d1381e8f9dc129594f2fa2ee07f"
+      }
+    },
+    ...
+  }
+  }
+}
+```
+
+* `version` - JSON schema version.
+* `packages` - JSON object containing JSON objects for all dependencies,
+* `chronos` - Nested JSON object keys are the names of the dependencies
+packages.
+* `version` - The version of the dependency.
+* `vcsRevision` - The revision at which the dependency is locked.
+* `url` - The URL of the repository of the package.
+* `downloadMethod` - `git` or `hg` according to the type of the repository at
+`url`.
+* `dependencies` - The direct dependencies of the package. Used for writing the
+reverse dependencies of the package in the `nimbledata.json` file. Those
+packages' names also must be in the lock file.
+* `checksums` - A JSON compound object containing different checksums used for
+verifying that a downloaded package is exactly the same as the pinned in the
+lock file package. Currently, only `sha1` checksums are supported
+* `sha1` - The *sha1* checksum of the package files.
+
+If a lock file `nimble.lock` exists, then on performing all Nimble commands
+which require searching for dependencies and downloading them in the case they
+are missing (like `build`, `install`, `develop`), it is read and its content is
+used to download the same version of the project dependencies by using the URL,
+download method and VCS revision written in it. The checksum of the downloaded
+package is compared against the one written in the lock file. In the case the
+two checksums are not equal then it will be printed error message and the
+operation will be aborted. Reverse dependencies are added for installed locked
+dependencies just like for any other package being locally installed.
+
+### nimble sync
+
+The `nimble sync` command will synchronize develop mode dependencies with the
+content of the lock file. If the specified in the lock file revision is not
+found locally tries to fetch it from the configured remotes. If it is present
+on multiple branches tries to stay on the current one and if cannot prefers
+local branches rather than remote-tracking ones. If found on more than one
+branch gives the user a choice whether to switch.
+
+Sync operation will also download non-develop mode dependencies versions
+described in the lock file if they are not already present in the Nimble cache.
+
+If the `-l, --list-only` option is given then the command only lists
+development mode dependencies which working copies are out of sync without
+actually syncing them and without downloading missing non-develop mode
+dependencies.
+
+**Important implementation details:**
+
+To be able to determine whether a working copy of development mode dependency
+needs to be synced, locked again, or merged with or re-based on some other
+branch a special sync file is kept in the VCS directory (.git or .hg) of the
+current package. It keeps a record for every development mode dependency for
+its current working copy revision during the last `lock`, `sync`, or `develop`
+operation. The name of the file is `<package_name>.nimble.sync`.
+
+### nimble setup
+
+The `nimble setup` command creates a `nimble.paths` file containing file system
+paths to the dependencies. Also includes the paths file in the `config.nims`
+file (by creating it if it does not already exist) to make them available for
+the compiler. `nimble.paths` file is user-specific and MUST NOT be committed.
+
+The command also adds `nimble.develop` and `nimble.paths` files to the
+`.gitignore` file.
 
 ### nimble uninstall
 
@@ -314,19 +484,7 @@ package must be queried separately.
 
 The nimble ``path`` command will show the absolute path to the installed
 packages matching the specified parameters. Since there can be many versions of
-the same package installed, the ``path`` command will always show the latest
-version. Example:
-
-    $ nimble path argument_parser
-    /home/user/.nimble/pkgs/argument_parser-0.1.2
-
-Under Unix you can use backticks to quickly access the directory of a package,
-which can be useful to read the bundled documentation. Example:
-
-    $ pwd
-    /usr/local/bin
-    $ cd `nimble path argument_parser`
-    $ less README.md
+the same package installed, the ``path`` command will list all of them.
 
 ### nimble init
 
