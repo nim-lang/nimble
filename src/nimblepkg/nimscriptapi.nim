@@ -4,7 +4,7 @@
 ## This module is implicitly imported in NimScript .nimble files.
 
 import system except getCommand, setCommand, switch, `--`
-import strformat, strutils, tables
+import strformat, strutils, tables, sequtils
 export tables
 
 when (NimMajor, NimMinor) < (1, 3):
@@ -32,7 +32,7 @@ var
   foreignDeps*: seq[string] = @[] ## The foreign dependencies. Only
                                   ## exported for 'distros.nim'.
 
-  nimbleTasks: seq[string] = @[]
+  nimbleTasks: seq[tuple[name, description: string]] = @[]
   beforeHooks: seq[string] = @[]
   afterHooks: seq[string] = @[]
   flags: Table[string, seq[string]]
@@ -97,9 +97,12 @@ template printIfLen(varName) =
   if varName.len != 0:
     result &= astToStr(varName) & ": \"\"\"" & varName & "\"\"\"\n"
 
-template printSeqIfLen(varName) =
+template printSeqIfLen(name: string, varName: untyped) =
   if varName.len != 0:
-    result &= astToStr(varName) & ": \"" & varName.join(", ") & "\"\n"
+    result &= name & ": \"" & varName.join(", ") & "\"\n"
+
+template printSeqIfLen(varName) =
+  printSeqIfLen(astToStr(varName), varName)
 
 proc printPkgInfo(): string =
   if backend.len == 0:
@@ -131,7 +134,7 @@ proc printPkgInfo(): string =
   printSeqIfLen installFiles
   printSeqIfLen installExt
   printSeqIfLen bin
-  printSeqIfLen nimbleTasks
+  printSeqIfLen "nimbleTasks", nimbleTasks.unzip()[0]
   printSeqIfLen beforeHooks
   printSeqIfLen afterHooks
 
@@ -140,6 +143,13 @@ proc printPkgInfo(): string =
     result &= &"requires: \"{requiresData.join(\", \")}\"\n"
 
 proc onExit*() =
+  if actionName.len == 0 or actionName == "help":
+    var maxNameLen = 8
+    for (name, _) in nimbleTasks:
+      maxNameLen = max(maxNameLen, name.len)
+    for (name, description) in nimbleTasks:
+      echo alignLeft(name, maxNameLen + 2), description
+
   if "printPkgInfo".normalize == actionName:
     if outFile.len != 0:
       writeFile(outFile, printPkgInfo())
@@ -177,11 +187,10 @@ template task*(name: untyped; description: string; body: untyped): untyped =
   ##    setCommand "c"
   proc `name Task`*() = body
 
-  nimbleTasks.add astToStr(name)
-
+  nimbleTasks.add (astToStr(name), description)
+  
   if actionName.len == 0 or actionName == "help":
     success = true
-    echo(astToStr(name), "        ", description)
   elif actionName == astToStr(name).normalize:
     success = true
     `name Task`()
