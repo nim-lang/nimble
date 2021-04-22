@@ -103,7 +103,7 @@ suite "issues":
 
   test "error if `bin` is a source file (#597)":
     cd "issue597":
-      var (output, exitCode) = execNimble("build")
+      let (output, exitCode) = execNimble("build")
       check exitCode != QuitSuccess
       check output.contains("entry should not be a source file: test.nim")
 

@@ -20,6 +20,7 @@ const
 let
   rootDir = getCurrentDir().parentDir
   nimblePath* = rootDir / "src" / addFileExt("nimble", ExeExt)
+  nimbleCompilePath = rootDir / "src" / "nimble.nim"
   installDir* = rootDir / "tests" / "nimbleDir"
   buildTests* = rootDir / "buildTests"
   pkgsDir* = installDir / nimblePackagesDirName
@@ -192,4 +193,4 @@ proc writeDevelopFile*(path: string, includes: seq[string],
 putEnv("NIMBLE_TEST_BINARY_PATH", nimblePath)
 
 # Always recompile.
-doAssert execCmdEx("nim c " & nimblePath).exitCode == QuitSuccess
+doAssert execCmdEx("nim c " & nimbleCompilePath).exitCode == QuitSuccess

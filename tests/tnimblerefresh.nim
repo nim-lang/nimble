@@ -17,10 +17,10 @@ suite "nimble refresh":
       writeFile(configFile, """
         [PackageList]
         name = "official"
-        url = "http://google.com"
-        url = "http://google.com/404"
-        url = "http://irclogs.nim-lang.org/packages.json"
-        url = "http://nim-lang.org/nimble/packages.json"
+        url = "https://google.com"
+        url = "https://google.com/404"
+        url = "https://irclogs.nim-lang.org/packages.json"
+        url = "https://nim-lang.org/nimble/packages.json"
         url = "https://github.com/nim-lang/packages/raw/master/packages.json"
       """.unindent)
 
@@ -30,7 +30,7 @@ suite "nimble refresh":
       check exitCode == QuitSuccess
       check inLines(lines, "config file at")
       check inLines(lines, "official package list")
-      check inLines(lines, "http://google.com")
+      check inLines(lines, "https://google.com")
       check inLines(lines, "packages.json file is invalid")
       check inLines(lines, "404 not found")
       check inLines(lines, "Package list downloaded.")

@@ -26,7 +26,7 @@ suite "nimscript":
           check line.endsWith("tests" / "nimscript")
       check lines[^1].startsWith("After PkgDir:")
       let packageDir = getPackageDir(pkgsDir, "nimscript-0.1.0")
-      check lines[^1].endsWith(packageDir)
+      check lines[^1].strip(trailing = true).endsWith(packageDir)
 
   test "before/after on build":
     cd "nimscript":
@@ -98,6 +98,7 @@ suite "nimscript":
       let (output, exitCode) = execNimble("api")
       let lines = output.strip.processOutput()
       check exitCode == QuitSuccess
+      check inLines(lines, "thisDirCT: " & getCurrentDir())
       check inLines(lines, "PKG_DIR: " & getCurrentDir())
       check inLines(lines, "thisDir: " & getCurrentDir())
 
