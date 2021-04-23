@@ -45,8 +45,9 @@ suite "setup command":
         check fileExists(nimbleConfigFileName)
         # Check that develop mode dependency path is written in the
         # "nimble.paths" file.
-        let developDepDir = (getCurrentDir() / "../dependency").normalizedPath
-        check nimblePathsFileName.readFile.contains(developDepDir)
+        let developDepDir =
+          (getCurrentDir() / ".." / "dependency").normalizedPath
+        check nimblePathsFileName.readFile.contains(developDepDir.escape)
         # Check that Nim can use "nimble.paths" file to find dependencies and
         # build the project.
         let (_, nimExitCode) = execCmdEx("nim c -r dependent")

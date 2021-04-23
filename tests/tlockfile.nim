@@ -19,6 +19,7 @@ from nimblepkg/lockfile import lockFileName, LockFileJsonKeys
 from nimblepkg/sha1hashes import initSha1Hash
 from nimblepkg/developfile import ValidationError, ValidationErrorKind,
   developFileName, getValidationErrorMessage
+from nimblepkg/vcstools import VcsType, getVcsDefaultBranchName
 
 suite "lock file":
   type
@@ -111,7 +112,8 @@ requires "nim >= 1.5.1"
     tryDoCmdEx("git commit -m " & msg.quoteShell)
 
   proc push(remote: string) =
-    tryDoCmdEx("git push " & remote)
+    tryDoCmdEx(
+      &"git push --set-upstream {remote} {vcsTypeGit.getVcsDefaultBranchName}")
 
   proc pull(remote: string) =
     tryDoCmdEx("git pull " & remote)

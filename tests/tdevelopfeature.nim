@@ -787,9 +787,16 @@ suite "develop feature":
         var lines = output.processOutput
         check lines.inLinesOrdered(failedToLoadFileMsg(
           getCurrentDir() / developFileName))
+
+        let
+          pkg3Path = (".." / "pkg3").Path
+          pkg32Path = (".." / "pkg3.2").Path
+          freeDevFile1Path = (".." / freeDevFile1Name).Path
+          freeDevFile2Path = (".." / freeDevFile2Name).Path
+
         check lines.inLinesOrdered(pkgFoundMoreThanOnceMsg("pkg3",
-          [("../pkg3".Path, (&"../{freeDevFile1Name}").Path),
-           ("../pkg3.2".Path, (&"../{freeDevFile2Name}").Path)].toHashSet))
+          [(pkg3Path, freeDevFile1Path),
+           (pkg32Path, freeDevFile2Path)].toHashSet))
 
   test "create an empty develop file with default name in the current dir":
     cd dependentPkgPath:

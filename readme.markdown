@@ -70,11 +70,12 @@ installed and added to your environment ``PATH``. Same goes for
 [Bitbucket](https://bitbucket.org). Nimble packages are typically hosted in Git
 repositories so you may be able to get away without installing Mercurial.
 
-**Warning:** Ensure that you have a fairly recent version of Git installed.
-Cloning of a specific Git commit described in the lock file uses a method
-(described [here](https://stackoverflow.com/a/3489576/853791)) requiring at
-least Git version **2.5** from year **2015** and enabled on server side with
-the configuration variable `uploadpack.allowReachableSHA1InWant`. Currently the
+**Warning:** Ensure that you have a fairly recent version of **Git** installed.
+Current minimal supported version is **Git** `2.22` from `2019-06-07`.
+Cloning of a specific **Git** commit described in the lock file uses a method
+described [here](https://stackoverflow.com/a/3489576/853791) and requiring an
+option enabled on server side with the configuration variable
+`uploadpack.allowReachableSHA1InWant`. Currently the
 feature is supported by both **GitHub** and **BitBucket**.
 
 ## Installation

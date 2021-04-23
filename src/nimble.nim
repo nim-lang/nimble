@@ -239,7 +239,7 @@ proc reinstallSymlinksForOlderVersion(pkgDir: string, options: Options) =
   var newPkgInfo = initPackageInfo()
   if pkgList.findPkg((pkgName, newVRAny()), newPkgInfo):
     newPkgInfo = newPkgInfo.toFullInfo(options)
-    for bin in newPkgInfo.binaries:
+    for bin, _ in newPkgInfo.bin:
       let symlinkDest = newPkgInfo.getOutputDir(bin)
       let symlinkFilename = options.getBinDir() / bin.extractFilename
       discard setupBinSymlink(symlinkDest, symlinkFilename, options)
@@ -1115,7 +1115,7 @@ proc updatePathsFile(pkgInfo: PackageInfo, options: Options) =
   let paths = pkgInfo.getDependenciesPaths(options)
   var pathsFileContent: string
   for path in paths:
-    pathsFileContent &= &"--path:\"{path}\"\n"
+    pathsFileContent &= &"--path:{path.escape}\n"
   var action = if fileExists(nimblePathsFileName): "updated" else: "generated"
   writeFile(nimblePathsFileName, pathsFileContent)
   displayInfo(&"\"{nimblePathsFileName}\" is {action}.")
@@ -1568,8 +1568,10 @@ proc setupVcsIgnoreFile =
     vcsIgnoreFileName = case currentDir.getVcsType
       of vcsTypeGit: gitIgnoreFileName
       of vcsTypeHg: hgIgnoreFileName
-      of vcsTypeNone: raise nimbleError(
-        &"The directory {currentDir} is not under version control.")
+      of vcsTypeNone: ""
+
+  if vcsIgnoreFileName.len == 0:
+    return
 
   var
     writeFile = false
