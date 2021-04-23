@@ -202,15 +202,15 @@ proc publish*(p: PackageInfo, o: Options) =
       downloadMethod = "git"
     let parsed = parseUri(url)
 
-    # check for any username or password in the URL
-    if parsed.username != "" or parsed.password != "":
-      display("Error: ", "cannot publish the repository URL because it contains username and/or password. Fix the remote URL (Hint: \"git remote -v\").", Error, HighPriority)
-      quit(1)
-
     if parsed.scheme == "":
       # Assuming that we got an ssh write/read URL.
       let sshUrl = parseUri("ssh://" & url)
       url = "https://" & sshUrl.hostname & "/" & sshUrl.port & sshUrl.path
+    elif parsed.username != "" or parsed.password != "":
+      # check for any confidential information
+      raise newException(NimbleError,
+        "Cannot publish the repository URL because it contains username and/or password. Fix the remote URL. Hint: \"git remote -v\"")
+
   elif dirExists(os.getCurrentDir() / ".hg"):
     downloadMethod = "hg"
     # TODO: Retrieve URL from hg.
