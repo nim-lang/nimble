@@ -155,13 +155,6 @@ proc editJson(p: PackageInfo; url, tags, downloadMethod: string) =
   })
   writeFile("packages.json", contents.pretty.cleanupWhitespace)
 
-proc containSensitiveInformation(url: string): bool =
-  ## URL may contain username and password. This proc attempts to detect it.
-  # look for any '@' or '?' character in the url
-  for character in url:
-    if character == '@' or character == '?': return true
-  return false
-
 proc publish*(p: PackageInfo, o: Options) =
   ## Publishes the package p.
   let auth = getGithubAuth(o)
@@ -208,6 +201,12 @@ proc publish*(p: PackageInfo, o: Options) =
       if url.endsWith(".git"): url.setLen(url.len - 4)
       downloadMethod = "git"
     let parsed = parseUri(url)
+
+    # check for any username or password in the URL
+    if parsed.username != "" or parsed.password != "":
+      display("Error: ", "cannot publish the repository URL because it contains username and/or password. Fix the remote URL (Hint: \"git remote -v\").", Error, HighPriority)
+      quit(1)
+
     if parsed.scheme == "":
       # Assuming that we got an ssh write/read URL.
       let sshUrl = parseUri("ssh://" & url)
@@ -219,7 +218,7 @@ proc publish*(p: PackageInfo, o: Options) =
     raise newException(NimbleError,
          "No .git nor .hg directory found. Stopping.")
 
-  if url.len == 0 or url.containSensitiveInformation:
+  if url.len == 0:
     url = promptCustom("Github URL of " & p.name & "?", "")
     if url.len == 0: userAborted()
 
