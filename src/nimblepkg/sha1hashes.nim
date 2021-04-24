@@ -26,18 +26,6 @@ proc invalidSha1Hash(value: string): ref InvalidSha1HashError =
   result = newNimbleError[InvalidSha1HashError](
     &"The string '{value}' does not represent a valid sha1 hash value.")
 
-proc isValidSha1Hash(value: string): bool =
-  ## Checks whether given string is a valid sha1 hash value. Only lower case
-  ## hexadecimal digits are accepted.
-  if value.len != 40:
-    # A valid sha1 hash should be 40 characters long string.
-    return false
-  for c in value:
-    if c notin {'0' .. '9', 'a'..'f'}:
-      # It also should contain only lower case hexadecimal digits.
-      return false
-  return true
-
 proc initSha1Hash*(value: string): Sha1Hash =
   ## Creates a new `Sha1Hash` object from a string by making all latin letters
   ## lower case and validating the transformed value. In the case the supplied
@@ -62,14 +50,6 @@ proc initFromJson*(dst: var Sha1Hash, jsonNode: JsonNode,
 
 when isMainModule:
   import unittest
-
-  test "validate sha1":
-    check not isValidSha1Hash("")
-    check not isValidSha1Hash("9")
-    check not isValidSha1Hash("99345ce680cd3e48acdb9ab4212e4bd9bf9358g7")
-    check not isValidSha1Hash("99345ce680cd3e48acdb9ab4212e4bd9bf9358b")
-    check not isValidSha1Hash("99345CE680CD3E48ACDB9AB4212E4BD9BF9358B7")
-    check isValidSha1Hash("99345ce680cd3e48acdb9ab4212e4bd9bf9358b7")
 
   test "init sha1":
     check initSha1Hash("") == notSetSha1Hash
