@@ -13,9 +13,7 @@ jobs:
           - macos-latest
           - ubuntu-latest
         nimversion:
-          - 1.2.8
-          - 1.4.2
-          - nightly:https://github.com/nim-lang/nightlies/releases/tag/2021-02-06-devel-39230422d02bd41b02378211e8613f702e5b945c
+          - sourcetar:https://github.com/bobeff/Nim/tarball/8ede3bc0494aa27d98384fa5449c5c3026ac8f92
     name: ${{ matrix.os }} - ${{ matrix.nimversion }}
     runs-on: ${{ matrix.os }}
     env:
