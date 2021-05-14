@@ -157,10 +157,25 @@ proc cloneSpecificRevision(downloadMethod: DownloadMethod,
   of DownloadMethod.hg:
     doCmd(fmt"hg clone {url} -r {vcsRevision}")
 
+proc getTarExePath: string =
+  ## Returns path to `tar` executable.
+  var tarExePath {.global.}: string
+  once:
+    tarExePath =
+      when defined(Windows):
+        findExe("git").splitPath.head / "../usr/bin/tar.exe"
+      else:
+        findExe("tar")
+    tarExePath = tarExePath.quoteShell
+  return tarExePath
+
 proc hasTar: bool =
   ## Checks whether a `tar` external tool is available.
   var hasTar {.global.} = false
-  once: hasTar = findExe("tar").len > 0
+  once:
+    # Try to execute `tar` to ensure that it is available.
+    let (_, exitCode) = execCmdEx(getTarExePath() & " --version")
+    hasTar = exitCode == QuitSuccess
   return hasTar
 
 proc isGitHubRepo(url: string): bool =
@@ -260,6 +275,16 @@ proc getRevision(url, version: string): Sha1Hash =
       raise nimbleError(&"Cannot get revision for version \"{version}\" " &
                         &"of package at \"{url}\".")
 
+proc getTarCmdLine(downloadDir, filePath: string): string =
+  ## Returns an OS specific command line for extracting the downloaded tarball.
+  when defined(Windows):
+    let downloadDir = downloadDir.replace('\\', '/')
+    let filePath = filePath.replace('\\', '/')
+    &"{getTarExePath()} -C {downloadDir} -xf {filePath} " &
+     "--strip-components 1 --force-local"
+  else:
+    &"tar -C {downloadDir} -xf {filePath} --strip-components 1"
+
 proc doDownloadTarball(url, downloadDir, version: string, queryRevision: bool):
     Sha1Hash =
   ## Downloads package tarball from GitHub. Returns the commit hash of the
@@ -277,8 +302,15 @@ proc doDownloadTarball(url, downloadDir, version: string, queryRevision: bool):
   display("Completed", "saving " & filePath)
 
   display("Unpacking", filePath)
-  discard tryDoCmdEx(
-    &"tar -C {downloadDir} -xf {filePath} --strip-components 1")
+  let cmd = getTarCmdLine(downloadDir, filePath)
+  let (output, exitCode) = doCmdEx(cmd)
+  if exitCode != QuitSuccess and not output.contains("Cannot create symlink to"):
+    # If the command fails for reason different then unable establishing a
+    # sym-link raise an exception. This reason for failure is common on Windows
+    # and the `tar` tool does not provide suitable option for avoiding it on
+    # unpack time. If this error occurs the files were previously extracted
+    # successfully and it should not be treated as error.
+    raise nimbleError(tryDoCmdExErrorMessage(cmd, output, exitCode))
   display("Completed", "unpacking " & filePath)
 
   filePath.removeFile

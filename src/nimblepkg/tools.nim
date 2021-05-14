@@ -50,12 +50,14 @@ proc doCmdEx*(cmd: string): ProcessOutput =
     raise nimbleError("'" & bin & "' not in PATH.")
   return execCmdEx(cmd)
 
+proc tryDoCmdExErrorMessage*(cmd, output: string, exitCode: int): string =
+  &"Execution of '{cmd}' failed with an exit code {exitCode}.\n" &
+  &"Details: {output}"
+
 proc tryDoCmdEx*(cmd: string): string {.discardable.} =
   let (output, exitCode) = doCmdEx(cmd)
   if exitCode != QuitSuccess:
-    raise nimbleError(
-      &"Execution of '{cmd}' failed with an exit code {exitCode}.\n" &
-      &"Details: {output}")
+    raise nimbleError(tryDoCmdExErrorMessage(cmd, output, exitCode))
   return output
 
 proc getNimBin*: string =
