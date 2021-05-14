@@ -1,7 +1,7 @@
 # Copyright (C) Dominik Picheta. All rights reserved.
 # BSD License. Look at license.txt for more info.
 
-import os, std/sha1, strformat
+import os, std/sha1, strformat, algorithm
 import common, version, sha1hashes, vcstools, paths
 
 type
@@ -42,7 +42,8 @@ proc calculateDirSha1Checksum*(dir: string): Sha1Hash =
   ##   - the external command for getting the package file list fails.
   ##   - the directory does not exist.
 
-  let packageFiles = getPackageFileList(dir.Path)
+  var packageFiles = getPackageFileList(dir.Path)
+  packageFiles.sort
   var checksum = newSha1State()
   for file in packageFiles:
     updateSha1Checksum(checksum, file)

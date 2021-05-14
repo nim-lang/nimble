@@ -293,7 +293,8 @@ proc processAllDependencies(pkgInfo: PackageInfo, options: Options):
     pkgInfo.processFreeDependencies(options)
 
 proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
-                    url: string, first: bool, fromLockFile: bool):
+                    url: string, first: bool, fromLockFile: bool,
+                    vcsRevision = notSetSha1Hash):
     PackageDependenciesInfo =
   ## Returns where package has been installed to, together with paths
   ## to the packages this package depends on.
@@ -317,6 +318,11 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
   # Set the flag that the package is not in develop mode before saving it to the
   # reverse dependencies.
   pkgInfo.isLink = false
+  if vcsRevision != notSetSha1Hash:
+    ## In the case we downloaded the package as tarball we have to set the VCS
+    ## revision returned by download procedure because it cannot be queried from
+    ## the package directory.
+    pkgInfo.vcsRevision = vcsRevision
 
   let realDir = pkgInfo.getRealDir()
   let binDir = options.getBinDir()
@@ -457,7 +463,7 @@ proc getLockedDep(pkgInfo: PackageInfo, name: string, dep: LockFileDep,
     let version =  dep.version.parseVersionRange
     let subdir = metadata.getOrDefault("subdir")
 
-    let (downloadDir, _) = downloadPkg(
+    let (downloadDir, _, vcsRevision) = downloadPkg(
       url, version, dep.downloadMethod, subdir, options,
       downloadPath = "", dep.vcsRevision)
 
@@ -466,8 +472,8 @@ proc getLockedDep(pkgInfo: PackageInfo, name: string, dep: LockFileDep,
       raise checksumError(name, dep.version, dep.vcsRevision,
                           downloadedPackageChecksum, dep.checksums.sha1)
 
-    let (_, newlyInstalledPackageInfo) = installFromDir(
-      downloadDir, version, options, url, first = false, fromLockFile = true)
+    var (_, newlyInstalledPackageInfo) = installFromDir(downloadDir, version,
+      options, url, first = false, fromLockFile = true, vcsRevision)
 
     for depDepName in dep.dependencies:
       let depDep = pkgInfo.lockedDeps[depDepName]
@@ -546,12 +552,12 @@ proc install(packages: seq[PkgTuple], options: Options,
     for pv in packages:
       let (meth, url, metadata) = getDownloadInfo(pv, options, doPrompt)
       let subdir = metadata.getOrDefault("subdir")
-      let (downloadDir, downloadVersion) =
+      let (downloadDir, downloadVersion, vcsRevision) =
           downloadPkg(url, pv.ver, meth, subdir, options, downloadPath = "",
                       vcsRevision = notSetSha1Hash)
       try:
         result = installFromDir(downloadDir, pv.ver, options, url,
-                                first, fromLockFile)
+                                first, fromLockFile, vcsRevision)
       except BuildFailed as error:
         # The package failed to build.
         # Check if we tried building a tagged version of the package.
