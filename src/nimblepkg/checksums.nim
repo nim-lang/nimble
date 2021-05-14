@@ -17,15 +17,15 @@ Downloaded package checksum does not correspond to that in the lock file:
   Expected checksum: {expectedChecksum}
 """)
 
-proc updateSha1Checksum(checksum: var Sha1State, fileName: string) =
+proc updateSha1Checksum(checksum: var Sha1State, fileName, filePath: string) =
   checksum.update(fileName)
-  if not fileName.fileExists:
+  if not filePath.fileExists:
     # In some cases a file name returned by `git ls-files` or `hg manifest`
     # could be an empty directory name and if so trying to open it will result
     # in a crash. This happens for example in the case of a git sub module
     # directory from which no files are being installed.
     return
-  let file = fileName.open(fmRead)
+  let file = filePath.open(fmRead)
   defer: close(file)
   const bufferSize = 8192
   var buffer = newString(bufferSize)
@@ -46,5 +46,5 @@ proc calculateDirSha1Checksum*(dir: string): Sha1Hash =
   packageFiles.sort
   var checksum = newSha1State()
   for file in packageFiles:
-    updateSha1Checksum(checksum, file)
+    updateSha1Checksum(checksum, file, dir / file)
   result = initSha1Hash($SecureHash(checksum.finalize()))
