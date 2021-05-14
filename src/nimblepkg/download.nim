@@ -347,8 +347,10 @@ proc doDownload(url: string, downloadDir: string, verRange: VersionRange,
       if versions.len > 0:
         getLatestByTag:
           if downloadTarball(url, options):
+            let versionToDownload =
+              if latest.tag.len > 0: latest.tag else: "HEAD"
             result.vcsRevision = doDownloadTarball(
-              url, downloadDir, latest.tag, true)
+              url, downloadDir, versionToDownload, true)
           else:
             display("Cloning", "latest tagged version: " & latest.tag,
                     priority = MediumPriority)
