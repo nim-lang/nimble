@@ -20,6 +20,7 @@ const
   ApiKeyFile = "github_api_token"
   ApiTokenEnvironmentVariable = "NIMBLE_GITHUB_API_TOKEN"
   ReposUrl = "https://api.github.com/repos/"
+  defaultBranch = "master" # Default branch on https://github.com/nim-lang/packages
 
 proc userAborted() =
   raise newException(NimbleError, "User aborted the process.")
@@ -101,7 +102,7 @@ proc createPullRequest(a: Auth, packageName, branch: string): string =
   display("Info", "Creating PR", priority = HighPriority)
   var body = a.http.postContent(ReposUrl & "nim-lang/packages/pulls",
       body="""{"title": "Add package $1", "head": "$2:$3",
-               "base": "master"}""" % [packageName, a.user, branch])
+               "base": "$4"}""" % [packageName, a.user, branch, defaultBranch])
   var pr = parseJson(body)
   return pr{"html_url"}.getStr()
 
@@ -176,11 +177,14 @@ proc publish*(p: PackageInfo, o: Options) =
     # https://github.com/blog/1270-easier-builds-and-deployments-using-git-over-https-and-oauth
     display("Copying", "packages fork into: " & pkgsDir, priority = HighPriority)
     doCmd("git init")
+    # The repo will have 0 branches created at this point. So the
+    # below command will always work.
+    doCmd("git checkout -b " & defaultBranch)
     doCmd("git pull https://github.com/" & auth.user & "/packages")
     # Make sure to update the fork
     display("Updating", "the fork", priority = HighPriority)
-    doCmd("git pull https://github.com/nim-lang/packages.git master")
-    doCmd("git push https://" & auth.token & "@github.com/" & auth.user & "/packages master")
+    doCmd("git pull https://github.com/nim-lang/packages.git " & defaultBranch)
+    doCmd("git push https://" & auth.token & "@github.com/" & auth.user & "/packages " & defaultBranch)
 
   if not dirExists(pkgsDir):
     raise newException(NimbleError,
