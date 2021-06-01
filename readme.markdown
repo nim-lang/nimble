@@ -162,7 +162,7 @@ the lock file. The following reasons for validation failure are possible:
 
 * The package directory is not under version control.
 * The package working copy directory is not in clean state.
-* Current VCS revision is no pushed on any remote.
+* Current VCS revision is not pushed on any remote.
 * The working copy needs sync.
 * The working copy needs lock.
 * The working copy needs merge or re-base.
@@ -228,7 +228,7 @@ query parameter. For example:
 ### nimble develop
 
 The develop command is used for putting packages in a development mode. When
-executed with a list of packages it clones their repository and if it is
+executed with a list of packages it clones their repository. If it is
 executed in a package directory it adds cloned packages to the special
 `nimble.develop` file. This is a special file which is used for holding the
 paths to development mode dependencies of the current directory package. It has
@@ -254,20 +254,20 @@ Validation rules:
 * The included develop files must be valid.
 * The packages listed in `dependencies` section must be dependencies required
 by the package's `.nimble` file and to be in the required by its version range.
-Transitive dependencies are not allowed but this may be changed in the future.
+Transitive dependencies are not allowed, but this may be changed in the future.
 * The packages listed in the included develop files are required to be valid
 **Nimble** packages, but they are not required to be valid dependencies of the
-current project. In the last case, they are simply ignored.
-* The develop files of the develop mode dependencies a package are being
+current project. In the latter case, they are simply ignored.
+* The develop files of the develop mode dependencies of a package are being
 followed and processed recursively. Finally, only one common set of develop
 mode dependencies is created.
 * In the final set of develop mode dependencies, it is not allowed to have more
-than one packages with the same name but with different file system paths.
+than one package with the same name but with different file system paths.
 
 Just as with the ``install`` command, a package URL may also be specified
 instead of a name.
 
-If present the validity of the package's develop file is added to the
+If present, the validity of the package's develop file is added to the
 requirements for validity of the package which is determined by `nimble check`
 command.
 
@@ -275,7 +275,7 @@ The `develop` command has a list of options:
 
 * `-p, --path path` - Specifies the path whether the packages should be cloned.
 * `-c, --create [path]` - Creates an empty develop file with the name
-`nimble.develop` in the current directory or if a path is present to the given
+`nimble.develop` in the current directory or, if a path is present, to the given
 directory with a given name.
 * `-a, --add path` - Adds the package at the given path to the `nimble.develop`
 file.
@@ -338,7 +338,6 @@ Currently the lock file have the structure as in the following example:
     },
     ...
   }
-  }
 }
 ```
 
@@ -372,17 +371,17 @@ dependencies just like for any other package being locally installed.
 ### nimble sync
 
 The `nimble sync` command will synchronize develop mode dependencies with the
-content of the lock file. If the specified in the lock file revision is not
-found locally tries to fetch it from the configured remotes. If it is present
-on multiple branches tries to stay on the current one and if cannot prefers
+content of the lock file. If the revision specified in the lock file is not
+found locally, it tries to fetch it from the configured remotes. If it is present
+on multiple branches, it tries to stay on the current one, and if can't, it prefers
 local branches rather than remote-tracking ones. If found on more than one
-branch gives the user a choice whether to switch.
+branch, it gives the user a choice whether to switch.
 
 Sync operation will also download non-develop mode dependencies versions
 described in the lock file if they are not already present in the Nimble cache.
 
 If the `-l, --list-only` option is given then the command only lists
-development mode dependencies which working copies are out of sync without
+development mode dependencies whose working copies are out of sync, without
 actually syncing them and without downloading missing non-develop mode
 dependencies.
 
@@ -398,7 +397,7 @@ operation. The name of the file is `<package_name>.nimble.sync`.
 ### nimble setup
 
 The `nimble setup` command creates a `nimble.paths` file containing file system
-paths to the dependencies. Also includes the paths file in the `config.nims`
+paths to the dependencies. It also includes the paths file in the `config.nims`
 file (by creating it if it does not already exist) to make them available for
 the compiler. `nimble.paths` file is user-specific and MUST NOT be committed.
 
