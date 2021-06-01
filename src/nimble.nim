@@ -4,7 +4,7 @@
 import system except TResult
 
 import os, tables, strtabs, json, algorithm, sets, uri, sugar, sequtils, osproc,
-       strformat
+       strformat, asyncdispatch
 
 import std/options as std_opt
 
@@ -444,49 +444,99 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
   cd pkgInfo.myPath.splitFile.dir:
     discard execHook(options, actionInstall, false)
 
-proc getLockedDep(pkgInfo: PackageInfo, name: string, dep: LockFileDep,
-                  options: Options): PackageInfo =
-  ## Returns the package info for dependency package `dep` with name `name` from
-  ## the lock file of the package `pkgInfo` by searching for it in the local
-  ## Nimble cache and downloading it from its repository if the version with the
-  ## required checksum is not found locally.
+proc getDependencyDir(name: string, dep: LockFileDep, options: Options):
+    string =
+  ## Returns the installation directory for a dependency from the lock file.
+  options.getPkgsDir() /  &"{name}-{dep.version}-{dep.checksums.sha1}"
 
-  let packagesDir = options.getPkgsDir()
-  let depDirName = packagesDir / &"{name}-{dep.version}-{dep.checksums.sha1}"
+proc isInstalled(name: string, dep: LockFileDep, options: Options): bool =
+  ## Checks whether a dependency from the lock file is already installed.
+  fileExists(getDependencyDir(name, dep, options) / packageMetaDataFileName)
 
-  if not fileExists(depDirName / packageMetaDataFileName):
-    if depDirName.dirExists:
+proc getDependency(name: string, dep: LockFileDep, options: Options):
+    PackageInfo =
+  ## Returns a `PackageInfo` for an already installed dependency from the
+  ## lock file.
+  let depDirName = getDependencyDir(name, dep, options)
+  let nimbleFilePath = findNimbleFile(depDirName, false)
+  getInstalledPackageMin(depDirName, nimbleFilePath).toFullInfo(options)
+
+type
+  DownloadInfo = ref object
+    ## Information for a downloaded dependency needed for installation.
+    dependency: LockFileDep
+    url: string
+    version: VersionRange
+    downloadDir: string
+    vcsRevision: Sha1HashRef
+
+  DownloadQueue = ref seq[tuple[name: string, dep: LockFileDep]]
+    ## A queue of dependencies from the lock file which to be downloaded.
+
+  DownloadResults = ref seq[DownloadInfo]
+    ## A list of `DownloadInfo` objects used for installing the downloaded
+    ## dependencies.
+
+proc downloadDependency(name: string, dep: LockFileDep, options: Options):
+    Future[DownloadInfo] {.async.} =
+  ## Asynchronously downloads a dependency from the lock file.
+
+  let depDirName = getDependencyDir(name, dep, options)
+
+  if depDirName.dirExists:
       promptRemoveEntirePackageDir(depDirName, options)
       removeDir(depDirName)
 
-    let (url, metadata) = getUrlData(dep.url)
-    let version =  dep.version.parseVersionRange
-    let subdir = metadata.getOrDefault("subdir")
+  let (url, metadata) = getUrlData(dep.url)
+  let version =  dep.version.parseVersionRange
+  let subdir = metadata.getOrDefault("subdir")
 
-    let (downloadDir, _, vcsRevision) = downloadPkg(
-      url, version, dep.downloadMethod, subdir, options,
-      downloadPath = "", dep.vcsRevision)
+  let (downloadDir, _, vcsRevision) = await downloadPkg(
+    url, version, dep.downloadMethod, subdir, options,
+    downloadPath = "", dep.vcsRevision)
 
-    let downloadedPackageChecksum = calculateDirSha1Checksum(downloadDir)
-    if downloadedPackageChecksum != dep.checksums.sha1:
-      raise checksumError(name, dep.version, dep.vcsRevision,
-                          downloadedPackageChecksum, dep.checksums.sha1)
+  let downloadedPackageChecksum = calculateDirSha1Checksum(downloadDir)
+  if downloadedPackageChecksum != dep.checksums.sha1:
+    raise checksumError(name, dep.version, dep.vcsRevision,
+                        downloadedPackageChecksum, dep.checksums.sha1)
 
-    var (_, newlyInstalledPackageInfo) = installFromDir(downloadDir, version,
-      options, url, first = false, fromLockFile = true, vcsRevision)
+  result = DownloadInfo(
+    dependency: dep,
+    url: url, 
+    version: version,
+    downloadDir: downloadDir,
+    vcsRevision: vcsRevision)
 
-    for depDepName in dep.dependencies:
-      let depDep = pkgInfo.lockedDeps[depDepName]
-      let revDep = (name: depDepName, version: depDep.version,
-                    checksum: depDep.checksums.sha1) 
-      options.nimbleData.addRevDep(revDep, newlyInstalledPackageInfo)
+proc installDependency(pkgInfo: PackageInfo, downloadInfo: DownloadInfo,
+                       options: Options): PackageInfo =
+  ## Installs an already downloaded dependency of the package `pkgInfo`. 
+  let (_, newlyInstalledPkgInfo) = installFromDir(
+    downloadInfo.downloadDir,
+    downloadInfo.version,
+    options,
+    downloadInfo.url,
+    first = false,
+    fromLockFile = true,
+    downloadInfo.vcsRevision[])
 
-    return newlyInstalledPackageInfo
-  else:
-    let nimbleFilePath = findNimbleFile(depDirName, false)
-    let packageInfo = getInstalledPackageMin(
-      depDirName, nimbleFilePath).toFullInfo(options)
-    return packageInfo
+  downloadInfo.downloadDir.removeDir
+
+  for depDepName in downloadInfo.dependency.dependencies:
+    let depDep = pkgInfo.lockedDeps[depDepName]
+    let revDep = (name: depDepName, version: depDep.version,
+                  checksum: depDep.checksums.sha1) 
+    options.nimbleData.addRevDep(revDep, newlyInstalledPkgInfo)
+
+  return newlyInstalledPkgInfo
+
+proc startDownloadWorker(queue: DownloadQueue, options: Options,
+                         downloadResults: DownloadResults) {.async.} =
+  ## Starts a new download worker.
+  while queue[].len > 0:
+    let download = queue[].pop
+    let index = queue[].len
+    downloadResults[index] = await downloadDependency(
+      download.name, download.dep, options)
 
 proc processLockedDependencies(pkgInfo: PackageInfo, options: Options):
     HashSet[PackageInfo] =
@@ -497,14 +547,32 @@ proc processLockedDependencies(pkgInfo: PackageInfo, options: Options):
   # installs it by downloading it from its repository.
 
   let developModeDeps = getDevelopDependencies(pkgInfo, options)
-  for name, dep in pkgInfo.lockedDeps:
-    let depPkg =
-      if developModeDeps.hasKey(name):
-        developModeDeps[name][]
-      else:
-        getLockedDep(pkgInfo, name, dep, options)
 
-    result.incl depPkg
+  var dependenciesToDownload: DownloadQueue
+  dependenciesToDownload.new
+
+  for name, dep in pkgInfo.lockedDeps:
+    if developModeDeps.hasKey(name):
+      result.incl developModeDeps[name][]
+    elif isInstalled(name, dep, options):
+      result.incl getDependency(name, dep, options)
+    else:
+      dependenciesToDownload[].add (name, dep)
+
+  var downloadResults: DownloadResults
+  downloadResults.new
+  downloadResults[].setLen(dependenciesToDownload[].len)
+
+  var downloadWorkers: seq[Future[void]]
+  let workersCount = min(
+    options.maxParallelDownloads, dependenciesToDownload[].len)
+  for i in 0 ..< workersCount:
+    downloadWorkers.add startDownloadWorker(
+      dependenciesToDownload, options, downloadResults)
+  waitFor all(downloadWorkers)
+
+  for downloadResult in downloadResults[]:
+    result.incl installDependency(pkgInfo, downloadResult, options)
 
 proc getDownloadInfo*(pv: PkgTuple, options: Options,
                       doPrompt: bool): (DownloadMethod, string,
@@ -553,11 +621,11 @@ proc install(packages: seq[PkgTuple], options: Options,
       let (meth, url, metadata) = getDownloadInfo(pv, options, doPrompt)
       let subdir = metadata.getOrDefault("subdir")
       let (downloadDir, downloadVersion, vcsRevision) =
-          downloadPkg(url, pv.ver, meth, subdir, options, downloadPath = "",
-                      vcsRevision = notSetSha1Hash)
+          waitFor downloadPkg(url, pv.ver, meth, subdir, options,
+                              downloadPath = "", vcsRevision = notSetSha1Hash)
       try:
         result = installFromDir(downloadDir, pv.ver, options, url,
-                                first, fromLockFile, vcsRevision)
+                                first, fromLockFile, vcsRevision[])
       except BuildFailed as error:
         # The package failed to build.
         # Check if we tried building a tagged version of the package.
@@ -1105,8 +1173,8 @@ proc installDevelopPackage(pkgTup: PkgTuple, options: Options): string =
 
   var options = options
   options.forceFullClone = true
-  discard downloadPkg(url, ver, meth, subdir, options, downloadDir,
-                      vcsRevision = notSetSha1Hash)
+  discard waitFor downloadPkg(url, ver, meth, subdir, options, downloadDir,
+                              vcsRevision = notSetSha1Hash)
 
   let pkgDir = downloadDir / subdir
   var pkgInfo = getPkgInfo(pkgDir, options)

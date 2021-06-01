@@ -2,7 +2,7 @@
 # BSD License. Look at license.txt for more info.
 
 import parseutils, os, osproc, strutils, tables, pegs, uri, strformat,
-       httpclient, json
+       httpclient, json, asyncdispatch
 
 from algorithm import SortOrder, sorted
 from sequtils import toSeq, filterIt, map
@@ -10,55 +10,51 @@ from sequtils import toSeq, filterIt, map
 import packageinfotypes, packageparser, version, tools, common, options, cli,
        sha1hashes, vcstools
 
-proc doCheckout(meth: DownloadMethod, downloadDir, branch: string) =
-  case meth
-  of DownloadMethod.git:
-    cd downloadDir:
-      # Force is used here because local changes may appear straight after a
-      # clone has happened. Like in the case of git on Windows where it
-      # messes up the damn line endings.
-      doCmd("git checkout --force " & branch)
-      doCmd("git submodule update --recursive --depth 1")
-  of DownloadMethod.hg:
-    cd downloadDir:
-      doCmd("hg checkout " & branch)
+type
+  DownloadPkgResult = tuple
+    dir: string
+    version: Version
+    vcsRevision: Sha1HashRef
 
-proc doPull(meth: DownloadMethod, downloadDir: string) {.used.} =
+proc doCheckout(meth: DownloadMethod, downloadDir, branch: string):
+    Future[void] {.async.} =
   case meth
   of DownloadMethod.git:
-    doCheckout(meth, downloadDir, "")
-    cd downloadDir:
-      doCmd("git pull")
-      if fileExists(".gitmodules"):
-        doCmd("git submodule update --recursive --depth 1")
+    # Force is used here because local changes may appear straight after a clone
+    # has happened. Like in the case of git on Windows where it messes up the
+    # damn line endings.
+    discard await tryDoCmdExAsync(
+      &"git -C {downloadDir} checkout --force {branch}")
+    discard await tryDoCmdExAsync(
+      &"git -C {downloadDir} submodule update --recursive --depth 1")
   of DownloadMethod.hg:
-    doCheckout(meth, downloadDir, "default")
-    cd downloadDir:
-      doCmd("hg pull")
+    discard await tryDoCmdExAsync(&"hg --cwd {downloadDir} checkout {branch}")
 
 proc doClone(meth: DownloadMethod, url, downloadDir: string, branch = "",
-             onlyTip = true) =
+             onlyTip = true) {.async.} =
   case meth
   of DownloadMethod.git:
     let
-      depthArg = if onlyTip: "--depth 1 " else: ""
-      branchArg = if branch == "": "" else: "-b " & branch & " "
-    doCmd("git clone --recursive " & depthArg & branchArg &
-          url & " " & downloadDir)
+      depthArg = if onlyTip: "--depth 1" else: ""
+      branchArg = if branch == "": "" else: "-b " & branch
+    discard await tryDoCmdExAsync(
+      &"git clone --recursive {depthArg} {branchArg} {url} {downloadDir}")
   of DownloadMethod.hg:
     let
-      tipArg = if onlyTip: "-r tip " else: ""
-      branchArg = if branch == "": "" else: "-b " & branch & " "
-    doCmd("hg clone " & tipArg & branchArg & url & " " & downloadDir)
+      tipArg = if onlyTip: "-r tip" else: ""
+      branchArg = if branch == "": "" else: "-b " & branch
+    discard await tryDoCmdExAsync(
+      &"hg clone {tipArg} {branchArg} {url} {downloadDir}")
 
-proc getTagsList(dir: string, meth: DownloadMethod): seq[string] =
+proc getTagsList(dir: string, meth: DownloadMethod):
+    Future[seq[string]] {.async.} =
   var output: string
   cd dir:
     case meth
     of DownloadMethod.git:
-      output = execProcess("git tag")
+      output = await tryDoCmdExAsync("git tag")
     of DownloadMethod.hg:
-      output = execProcess("hg tags")
+      output = await tryDoCmdExAsync("hg tags")
   if output.len > 0:
     case meth
     of DownloadMethod.git:
@@ -77,11 +73,13 @@ proc getTagsList(dir: string, meth: DownloadMethod): seq[string] =
   else:
     result = @[]
 
-proc getTagsListRemote*(url: string, meth: DownloadMethod): seq[string] =
+proc getTagsListRemote*(url: string, meth: DownloadMethod):
+    Future[seq[string]] {.async.} =
   result = @[]
   case meth
   of DownloadMethod.git:
-    var (output, exitCode) = doCmdEx("git ls-remote --tags " & url.quoteShell())
+    var (output, exitCode) = await doCmdExAsync(
+      &"git ls-remote --tags {url.quoteShell}")
     if exitCode != QuitSuccess:
       raise nimbleError("Unable to query remote tags for " & url &
                         ". Git returned: " & output)
@@ -143,19 +141,24 @@ proc isURL*(name: string): bool =
   name.startsWith(peg" @'://' ")
 
 proc cloneSpecificRevision(downloadMethod: DownloadMethod,
-                           url, downloadDir: string, vcsRevision: Sha1Hash) =
+                           url, downloadDir: string,
+                           vcsRevision: Sha1Hash) {.async.} =
   assert vcsRevision != notSetSha1Hash
   display("Cloning", "revision: " & $vcsRevision, priority = MediumPriority)
   case downloadMethod
   of DownloadMethod.git:
+    let downloadDir = downloadDir.quoteShell
     createDir(downloadDir)
-    cd downloadDir:
-      doCmd("git init")
-      doCmd(fmt"git remote add origin {url}")
-      doCmd(fmt"git fetch --depth 1 origin {vcsRevision}")
-      doCmd("git reset --hard FETCH_HEAD")
+    discard await tryDoCmdExAsync(
+      &"git -C {downloadDir} init")
+    discard await tryDoCmdExAsync(
+      &"git -C {downloadDir} remote add origin {url}")
+    discard await tryDoCmdExAsync(
+      &"git -C {downloadDir} fetch --depth 1 origin {vcsRevision}")
+    discard await tryDoCmdExAsync(
+      &"git -C {downloadDir} reset --hard FETCH_HEAD")
   of DownloadMethod.hg:
-    doCmd(fmt"hg clone {url} -r {vcsRevision}")
+    discard await tryDoCmdExAsync(&"hg clone {url} -r {vcsRevision}")
 
 proc getTarExePath: string =
   ## Returns path to `tar` executable.
@@ -226,23 +229,23 @@ proc getGitHubApiUrl(url, commit: string): string =
   ## an URL for the GitHub REST API query for the full commit hash.
   &"https://api.github.com/repos/{extractOwnerAndRepo(url)}/commits/{commit}"
 
-proc getUrlContent(url: string): string =
+proc getUrlContent(url: string): Future[string] {.async.} =
   ## Makes a GET request to `url`.
-  var client {.global.}: HttpClient
-  once: client = newHttpClient()
-  return client.getContent(url)
+  let client = newAsyncHttpClient()
+  return await client.getContent(url)
 
 {.warning[ProveInit]: off.}
-proc getFullRevisionFromGitHubApi(url, version: string): Sha1Hash =
+proc getFullRevisionFromGitHubApi(url, version: string):
+    Future[Sha1HashRef] {.async.} =
   ## By given a commit short hash and an URL to a GitHub repository retrieves
   ## the full hash of the commit by using GitHub REST API.
   try:
     let gitHubApiUrl = getGitHubApiUrl(url, version)
     display("Get", gitHubApiUrl);
-    let content = getUrlContent(gitHubApiUrl)
+    let content = await getUrlContent(gitHubApiUrl)
     let json = parseJson(content)
     if json.hasKey("sha"):
-      return json["sha"].str.initSha1Hash
+      return json["sha"].str.initSha1Hash.newClone
     else:
       raise nimbleError(json["message"].str)
   except CatchableError as error:
@@ -250,7 +253,7 @@ proc getFullRevisionFromGitHubApi(url, version: string): Sha1Hash =
                       &"of package at \"{url}\".", details = error)
 {.warning[ProveInit]: on.}
 
-proc parseRevision(lsRemoteOutput: string): Sha1Hash =
+proc parseRevision(lsRemoteOutput: string): Sha1HashRef =
   ## Parses the output from `git ls-remote` call to extract the returned sha1
   ## hash value. Even when successful the first line of the command's output
   ## can be a redirection warning.
@@ -258,19 +261,19 @@ proc parseRevision(lsRemoteOutput: string): Sha1Hash =
   for line in lines:
     if line.len >= 40:
       try:
-        return initSha1Hash(line[0..39])
+        return line[0..39].initSha1Hash.newClone
       except InvalidSha1HashError:
         discard
-  return notSetSha1Hash
+  return notSetSha1Hash.newClone
 
-proc getRevision(url, version: string): Sha1Hash =
+proc getRevision(url, version: string): Future[Sha1HashRef] {.async.} =
   ## Returns the commit hash corresponding to the given `version` of the package
   ## in repository at `url`.
-  let output = tryDoCmdEx(&"git ls-remote {url} {version}")
+  let output = await tryDoCmdExAsync(&"git ls-remote {url} {version}")
   result = parseRevision(output)
-  if result == notSetSha1Hash:
+  if result[] == notSetSha1Hash:
     if version.seemsLikeRevision:
-      result = getFullRevisionFromGitHubApi(url, version)
+      result = await getFullRevisionFromGitHubApi(url, version)
     else:
       raise nimbleError(&"Cannot get revision for version \"{version}\" " &
                         &"of package at \"{url}\".")
@@ -286,13 +289,13 @@ proc getTarCmdLine(downloadDir, filePath: string): string =
     &"tar -C {downloadDir} -xf {filePath} --strip-components 1"
 
 proc doDownloadTarball(url, downloadDir, version: string, queryRevision: bool):
-    Sha1Hash =
+    Future[Sha1HashRef] {.async.} =
   ## Downloads package tarball from GitHub. Returns the commit hash of the
   ## downloaded package in the case `queryRevision` is `true`.
 
   let downloadLink = getTarballDownloadLink(url, version)
   display("Downloading", downloadLink)
-  let data = getUrlContent(downloadLink)
+  let data = await getUrlContent(downloadLink)
   display("Completed", "downloading " & downloadLink)
 
   let filePath = downloadDir / "tarball.tar.gz"
@@ -303,7 +306,7 @@ proc doDownloadTarball(url, downloadDir, version: string, queryRevision: bool):
 
   display("Unpacking", filePath)
   let cmd = getTarCmdLine(downloadDir, filePath)
-  let (output, exitCode) = doCmdEx(cmd)
+  let (output, exitCode) = await doCmdExAsync(cmd)
   if exitCode != QuitSuccess and not output.contains("Cannot create symlink to"):
     # If the command fails for reason different then unable establishing a
     # sym-link raise an exception. This reason for failure is common on Windows
@@ -314,13 +317,14 @@ proc doDownloadTarball(url, downloadDir, version: string, queryRevision: bool):
   display("Completed", "unpacking " & filePath)
 
   filePath.removeFile
-  return if queryRevision: getRevision(url, version) else: notSetSha1Hash
+  return if queryRevision: await getRevision(url, version)
+         else: notSetSha1Hash.newClone
 
 {.warning[ProveInit]: off.}
 proc doDownload(url: string, downloadDir: string, verRange: VersionRange,
                 downMethod: DownloadMethod, options: Options,
                 vcsRevision: Sha1Hash):
-    tuple[version: Version, vcsRevision: Sha1Hash] =
+    Future[tuple[version: Version, vcsRevision: Sha1HashRef]] {.async.} =
   ## Downloads the repository specified by ``url`` using the specified download
   ## method.
   ##
@@ -338,36 +342,38 @@ proc doDownload(url: string, downloadDir: string, verRange: VersionRange,
     if $latest.ver != "":
       result.version = latest.ver
 
-  result.vcsRevision = notSetSha1Hash
+  result.vcsRevision = notSetSha1Hash.newClone
 
   removeDir(downloadDir)
   if vcsRevision != notSetSha1Hash:
     if downloadTarball(url, options):
-      discard doDownloadTarball(url, downloadDir, $vcsRevision, false)
+      discard await doDownloadTarball(url, downloadDir, $vcsRevision, false)
     else:
-      cloneSpecificRevision(downMethod, url, downloadDir, vcsRevision)
-    result.vcsRevision = vcsRevision
+      await cloneSpecificRevision(downMethod, url, downloadDir, vcsRevision)
+    result.vcsRevision = vcsRevision.newClone
   elif verRange.kind == verSpecial:
     # We want a specific commit/branch/tag here.
     if verRange.spe == getHeadName(downMethod):
        # Grab HEAD.
       if downloadTarball(url, options):
-        result.vcsRevision = doDownloadTarball(url, downloadDir, "HEAD", true)
+        result.vcsRevision = await doDownloadTarball(
+          url, downloadDir, "HEAD", true)
       else:
-        doClone(downMethod, url, downloadDir, onlyTip = not options.forceFullClone)
+        await doClone(downMethod, url, downloadDir,
+                      onlyTip = not options.forceFullClone)
     else:
       assert ($verRange.spe)[0] == '#',
              "The special version must start with '#'."
       let specialVersion = substr($verRange.spe, 1)
       if downloadTarball(url, options):
-        result.vcsRevision = doDownloadTarball(
+        result.vcsRevision = await doDownloadTarball(
           url, downloadDir, specialVersion, true)
       else:
         # Grab the full repo.
-        doClone(downMethod, url, downloadDir, onlyTip = false)
+        await doClone(downMethod, url, downloadDir, onlyTip = false)
         # Then perform a checkout operation to get the specified branch/commit.
         # `spe` starts with '#', trim it.
-        doCheckout(downMethod, downloadDir, specialVersion)
+        await doCheckout(downMethod, downloadDir, specialVersion)
     result.version = verRange.spe
   else:
     case downMethod
@@ -375,45 +381,48 @@ proc doDownload(url: string, downloadDir: string, verRange: VersionRange,
       # For Git we have to query the repo remotely for its tags. This is
       # necessary as cloning with a --depth of 1 removes all tag info.
       result.version = getHeadName(downMethod)
-      let versions = getTagsListRemote(url, downMethod).getVersionList()
+      let versions = (await getTagsListRemote(url, downMethod)).getVersionList()
       if versions.len > 0:
         getLatestByTag:
           if downloadTarball(url, options):
             let versionToDownload =
               if latest.tag.len > 0: latest.tag else: "HEAD"
-            result.vcsRevision = doDownloadTarball(
+            result.vcsRevision = await doDownloadTarball(
               url, downloadDir, versionToDownload, true)
           else:
             display("Cloning", "latest tagged version: " & latest.tag,
                     priority = MediumPriority)
-            doClone(downMethod, url, downloadDir, latest.tag,
-                    onlyTip = not options.forceFullClone)
+            await doClone(downMethod, url, downloadDir, latest.tag,
+                          onlyTip = not options.forceFullClone)
       else:
         display("Warning:", "The package has no tagged releases, downloading HEAD instead.", Warning, 
                 priority = HighPriority)
         if downloadTarball(url, options):
-          result.vcsRevision = doDownloadTarball(url, downloadDir, "HEAD", true)
+          result.vcsRevision = await doDownloadTarball(
+            url, downloadDir, "HEAD", true)
         else:
           # If no commits have been tagged on the repo we just clone HEAD.
-          doClone(downMethod, url, downloadDir) # Grab HEAD.
+          await doClone(downMethod, url, downloadDir) # Grab HEAD.
     of DownloadMethod.hg:
-      doClone(downMethod, url, downloadDir, onlyTip = not options.forceFullClone)
+      await doClone(downMethod, url, downloadDir,
+                    onlyTip = not options.forceFullClone)
       result.version = getHeadName(downMethod)
-      let versions = getTagsList(downloadDir, downMethod).getVersionList()
+      let versions =
+        (await getTagsList(downloadDir, downMethod)).getVersionList()
 
       if versions.len > 0:
         getLatestByTag:
           display("Switching", "to latest tagged version: " & latest.tag,
                   priority = MediumPriority)
-          doCheckout(downMethod, downloadDir, latest.tag)
+          await doCheckout(downMethod, downloadDir, latest.tag)
       else:
         display("Warning:", "The package has no tagged releases, downloading HEAD instead.", Warning, 
                   priority = HighPriority)
 
-  if result.vcsRevision == notSetSha1Hash:
+  if result.vcsRevision[] == notSetSha1Hash:
     # In the case the package in not downloaded as tarball we must query its
     # VCS revision from its download directory.
-    result.vcsRevision = getVcsRevision(downloadDir)
+    result.vcsRevision = downloadDir.getVcsRevision.newClone
 {.warning[ProveInit]: on.}
 
 proc downloadPkg*(url: string, verRange: VersionRange,
@@ -421,8 +430,7 @@ proc downloadPkg*(url: string, verRange: VersionRange,
                   subdir: string,
                   options: Options,
                   downloadPath: string,
-                  vcsRevision: Sha1Hash):
-    tuple[dir: string, version: Version, vcsRevision: Sha1Hash] =
+                  vcsRevision: Sha1Hash): Future[DownloadPkgResult] {.async.} =
   ## Downloads the repository as specified by ``url`` and ``verRange`` using
   ## the download method specified.
   ##
@@ -465,7 +473,7 @@ proc downloadPkg*(url: string, verRange: VersionRange,
             priority = HighPriority)
 
   result.dir = downloadDir / subdir
-  (result.version, result.vcsRevision) = doDownload(
+  (result.version, result.vcsRevision) = await doDownload(
     modUrl, downloadDir, verRange, downMethod, options, vcsRevision)
 
   if verRange.kind != verSpecial:
@@ -483,7 +491,8 @@ proc echoPackageVersions*(pkg: Package) =
   case downMethod
   of DownloadMethod.git:
     try:
-      let versions = getTagsListRemote(pkg.url, downMethod).getVersionList()
+      let versions =
+        (waitFor getTagsListRemote(pkg.url, downMethod)).getVersionList()
       if versions.len > 0:
         let sortedVersions = toSeq(values(versions))
         echo("  versions:    " & join(sortedVersions, ", "))

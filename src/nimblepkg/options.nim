@@ -42,6 +42,8 @@ type
     developLocaldeps*: bool # True if local deps + nimble develop pkg1 ...
     disableSslCertCheck*: bool
     noTarballs*: bool # Disable downloading of packages as tarballs from GitHub.
+    maxParallelDownloads*: int # This is the maximum number of parallel
+                               # downloads. 0 means no limit.
 
   ActionType* = enum
     actionNil, actionRefresh, actionInit, actionDump, actionPublish,
@@ -175,6 +177,8 @@ Nimble Options:
   -l, --localdeps                 Run in project local dependency mode
   -t, --no-tarballs               Disable downloading of packages as tarballs
                                   when working with GitHub repositories.
+  -m, --max-parallel-downloads    The maximum number of parallel downloads.
+                                  The default value is 20. Use 0 for no limit.
       --ver                       Query remote server for package version
                                   information when searching or listing packages.
       --nimbleDir:dirname         Set the Nimble directory.
@@ -461,6 +465,10 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
   of "localdeps", "l": result.localdeps = true
   of "nosslcheck": result.disableSslCertCheck = true
   of "no-tarballs", "t": result.noTarballs = true
+  of "max-parallel-downloads", "m":
+    result.maxParallelDownloads = parseInt(val)
+    if result.maxParallelDownloads == 0:
+      result.maxParallelDownloads = int.high
   else: isGlobalFlag = false
 
   var wasFlagHandled = true
@@ -559,6 +567,7 @@ proc initOptions*(): Options =
     verbosity: HighPriority,
     noColor: not isatty(stdout),
     startDir: getCurrentDir(),
+    maxParallelDownloads: 20,
   )
 
 proc handleUnknownFlags(options: var Options) =

@@ -10,16 +10,14 @@ import testscommon
 import nimblepkg/displaymessages
 import nimblepkg/sha1hashes
 import nimblepkg/paths
+import nimblepkg/vcstools
 
 from nimblepkg/common import cd, dump, cdNewDir
 from nimblepkg/tools import tryDoCmdEx, doCmdEx
-from nimblepkg/vcstools import getVcsRevision, getCurrentBranch
 from nimblepkg/packageinfotypes import DownloadMethod
 from nimblepkg/lockfile import lockFileName, LockFileJsonKeys
-from nimblepkg/sha1hashes import initSha1Hash
 from nimblepkg/developfile import ValidationError, ValidationErrorKind,
   developFileName, getValidationErrorMessage
-from nimblepkg/vcstools import VcsType, getVcsDefaultBranchName
 
 suite "lock file":
   type
