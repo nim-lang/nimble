@@ -1597,7 +1597,7 @@ proc setupNimbleConfig(options: Options) =
   ## dependencies. Includes it in `config.nims` file to make them available
   ## for the compiler.
   const
-    configFileVersion = "0.1.0"
+    configFileVersion = 1
     configFileHeader = &"# begin Nimble config (version {configFileVersion})\n"
     configFileContent = fmt"""
 when fileExists("{nimblePathsFileName}"):

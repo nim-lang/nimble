@@ -236,7 +236,7 @@ the following structure:
 
 ```json
 {
-    "version": "0.1.0",
+    "version": 1,
     "includes": [],
     "dependencies": []
 }
@@ -318,7 +318,7 @@ Currently the lock file have the structure as in the following example:
 
 ```json
 {
-  "version": "0.1.0",
+  "version": 1,
   "packages": {
      ...
      "chronos": {

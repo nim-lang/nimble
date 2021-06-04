@@ -29,7 +29,7 @@ type
 
 const
   syncFileExt     = ".nimble.sync"
-  syncFileVersion = "0.1.0"
+  syncFileVersion = 1
 
 proc getPkgDir(pkgInfo: PackageInfo): string =
   pkgInfo.myPath.splitFile.dir

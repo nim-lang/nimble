@@ -15,7 +15,7 @@ type
 
 const
   nimbleDataFileName* = "nimbledata.json"
-  nimbleDataFileVersion ="0.1.0"
+  nimbleDataFileVersion = 1
 
 var isNimbleDataFileLoaded = false
 

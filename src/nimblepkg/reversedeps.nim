@@ -242,7 +242,7 @@ when isMainModule:
 
     test "addRevDep":
       let expectedResult = """{
-          "version": "0.1.0",
+          "version": 1,
           "reverseDeps": {
             "jester": {
               "0.1.0": {
@@ -309,7 +309,7 @@ when isMainModule:
 
     test "removeRevDep":
       let expectedResult = """{
-          "version": "0.1.0",
+          "version": 1,
           "reverseDeps": {
             "jester": {
               "0.1.0": {

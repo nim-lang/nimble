@@ -182,8 +182,8 @@ proc filesList(filesNames: seq[string]): string =
     result.add ','
 
 proc developFile*(includes: seq[string], dependencies: seq[string]): string =
-  result = """{"version":"$#","includes":[$#],"dependencies":[$#]}""" %
-    [developFileVersion, filesList(includes), filesList(dependencies)]
+  result = """{"version":$#,"includes":[$#],"dependencies":[$#]}""" %
+    [$developFileVersion, filesList(includes), filesList(dependencies)]
 
 proc writeDevelopFile*(path: string, includes: seq[string],
                       dependencies: seq[string]) =

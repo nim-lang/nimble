@@ -12,7 +12,7 @@ type
 
 const
   lockFileName* = "nimble.lock"
-  lockFileVersion = "0.1.0"
+  lockFileVersion = 1
 
 proc initLockFileDep(): LockFileDep =
   result = LockFileDep(

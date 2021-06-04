@@ -99,7 +99,7 @@ const
     ## The default name of a Nimble's develop file. This must always be the name
     ## of develop files which are not only for inclusion but associated with a
     ## specific package.
-  developFileVersion* = "0.1.0"
+  developFileVersion* = 1
     ## The version of the develop file's JSON schema.
 
 proc initDevelopFileData: DevelopFileData =

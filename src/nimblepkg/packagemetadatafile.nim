@@ -13,7 +13,7 @@ type
 
 const
   packageMetaDataFileName* = "nimblemeta.json"
-  packageMetaDataFileVersion = "0.1.0"
+  packageMetaDataFileVersion = 1
 
 proc initPackageMetaData*(): PackageMetaData =
   result = PackageMetaData(
