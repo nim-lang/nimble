@@ -50,20 +50,6 @@ proc pkgNotFoundMsg*(pkg: PkgTuple): string = &"Package {pkg} not found."
 proc pkgDepsAlreadySatisfiedMsg*(dep: PkgTuple): string =
   &"Dependency on {dep} already satisfied"
 
-proc dependencyNotInRangeErrorMsg*(
-    dependencyNameAndVersion, dependentNameAndVersion: string,
-    versionRange: VersionRange): string =
-  ## Returns an error message for `DependencyNotInRange` exception.
-  &"The dependency package \"{dependencyNameAndVersion}\" version is out of " &
-  &"the required by the dependent package \"{dependentNameAndVersion}\" " &
-  &"version range \"{versionRange}\"."
-
-proc notADependencyErrorMsg*(
-    dependencyNameAndVersion, dependentNameAndVersion: string): string =
-  ## Returns an error message for `NotADependency` exception.
-  &"The package \"{dependencyNameAndVersion}\" is not a dependency of the " &
-  &"package \"{dependentNameAndVersion}\"."
-
 proc invalidPkgMsg*(path: string): string =
   &"The package at \"{path}\" is invalid."
 
@@ -133,3 +119,18 @@ proc pkgWorkingCopyNeedsSyncingMsg*(pkgName, pkgPath: string): string =
 
 proc pkgWorkingCopyIsSyncedMsg*(pkgName, pkgPath: string): string =
   &"Working copy of package  \"{pkgName}\" at \"{pkgPath}\" is synced."
+
+proc notInRequiredRangeMsg*(
+    dependencyPkgName, dependencyPkgPath, dependencyPkgVersion,
+    dependentPkgName, dependentPkgPath, requiredVersionRange: string): string =
+  &"The version of the package \"{dependencyPkgName}\" at " &
+  &"\"{dependencyPkgPath}\" is \"{dependencyPkgVersion}\" and it does not " &
+  &"match the required by the package \"{dependentPkgName}\" at " &
+  &"\"{dependentPkgPath}\" version \"{requiredVersionRange}\"."
+  
+proc invalidDevelopDependenciesVersionsMsg*(errors: seq[string]): string =
+  result = "Some of the develop mode dependencies are with versions which " &
+           "are not in the required by other package's Nimble file range."
+  for error in errors:
+    result &= "\n"
+    result &= error

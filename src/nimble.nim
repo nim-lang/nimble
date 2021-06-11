@@ -1308,10 +1308,36 @@ proc test(options: Options) =
   if not execHook(options, actionCustom, false):
     return
 
+proc notInRequiredRangeMsg*(dependentPkg, dependencyPkg: PackageInfo,
+                            versionRange: VersionRange): string =
+  notInRequiredRangeMsg(dependencyPkg.name, dependencyPkg.getNimbleFileDir,
+    $dependencyPkg.version, dependentPkg.name, dependentPkg.getNimbleFileDir,
+    $versionRange)
+
+proc validateDevelopDependenciesVersionRanges(dependentPkg: PackageInfo,
+    dependencies: seq[PackageInfo], options: Options) =
+  let allPackages = concat(@[dependentPkg], dependencies)
+  let developDependencies = processDevelopDependencies(dependentPkg, options)
+  var errors: seq[string]
+  for pkg in allPackages:
+    for dep in pkg.requires:
+      var depPkg = initPackageInfo()
+      if not findPkg(developDependencies, dep, depPkg):
+        # This dependency is not part of the develop mode dependencies.
+        continue
+      if not withinRange(depPkg, dep.ver):
+        errors.add notInRequiredRangeMsg(pkg, depPkg, dep.ver)
+  if errors.len > 0:
+    raise nimbleError(invalidDevelopDependenciesVersionsMsg(errors))
+
 proc check(options: Options) =
   try:
-    let pkgInfo = getPkgInfo(getCurrentDir(), options, true)
-    validateDevelopFile(pkgInfo, options)
+    let currentDir = getCurrentDir()
+    let pkgInfo = getPkgInfo(currentDir, options, true)
+    if currentDir.developFileExists:
+      validateDevelopFile(pkgInfo, options)
+      let dependencies = pkgInfo.processAllDependencies(options).toSeq
+      validateDevelopDependenciesVersionRanges(pkgInfo, dependencies, options)
     displaySuccess(&"The package \"{pkgInfo.name}\" is valid.")
   except CatchableError as error:
     displayError(error)
@@ -1422,8 +1448,9 @@ proc lock(options: Options) =
   validateDevModeDepsWorkingCopiesBeforeLock(pkgInfo, options)
 
   let dependencies = pkgInfo.processFreeDependencies(options).map(
-    pkg => pkg.toFullInfo(options))
-  var dependencyGraph = buildDependencyGraph(dependencies.toSeq, options)
+    pkg => pkg.toFullInfo(options)).toSeq
+  pkgInfo.validateDevelopDependenciesVersionRanges(dependencies, options)
+  var dependencyGraph = buildDependencyGraph(dependencies, options)
 
   if currentDir.lockFileExists:
     # If we already have a lock file, merge its data with the newly generated

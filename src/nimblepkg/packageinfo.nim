@@ -335,14 +335,15 @@ proc findPkg*(pkglist: seq[PackageInfo], dep: PkgTuple,
   for pkg in pkglist:
     if cmpIgnoreStyle(pkg.name, dep.name) != 0 and
        cmpIgnoreStyle(pkg.url, dep.name) != 0: continue
-    assert not (pkg.isLink and r.isLink),
-           "Should not happen the list to contain " &
-           "the same package in develop mode twice."
-    if withinRange(pkg, dep.ver):
-      let isNewer = r.version < pkg.version
+    if pkg.isLink:
       # If `pkg.isLink` this is a develop mode package and develop mode packages
-      # are always with higher priority than installed packages.
-      if not result or isNewer or pkg.isLink:
+      # are always with higher priority than installed packages. Version range
+      # is not being considered for them.
+      r = pkg
+      return true
+    elif withinRange(pkg, dep.ver):
+      let isNewer = r.version < pkg.version
+      if not result or isNewer:
         r = pkg
         result = true
 

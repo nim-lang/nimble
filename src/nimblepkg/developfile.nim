@@ -171,123 +171,22 @@ proc developFileExists*(pkg: PackageInfo): bool =
   ## the directory of the package's `pkg` `.nimble` file or `false` otherwise.
   pkg.getNimbleFilePath.developFileExists
 
-proc raiseDependencyNotInRangeError(
-    dependencyNameAndVersion, dependentNameAndVersion: string,
-    versionRange: VersionRange) =
-  ## Raises `DependencyNotInRange` exception.
-  raise nimbleError(
-    dependencyNotInRangeErrorMsg(
-      dependencyNameAndVersion, dependentNameAndVersion, versionRange),
-    dependencyNotInRangeErrorHint)
-
-proc raiseNotADependencyError(
-    dependencyNameAndVersion, dependentNameAndVersion: string) =
-  ## Raises `NotADependency` exception.
-  raise nimbleError(
-    notADependencyErrorMsg(dependencyNameAndVersion, dependentNameAndVersion),
-    notADependencyErrorHint)
-
-proc validateDependency(dependencyPkg, dependentPkg: PackageInfo) =
-  ## Checks whether `dependencyPkg` is a valid dependency of the `dependentPkg`.
-  ## If it is not, then raises a `NimbleError` or otherwise simply returns.
-  ##
-  ## Raises a `NimbleError` if:
-  ##   - the `dependencyPkg` is not a dependency of the `dependentPkg`.
-  ##   - the `dependencyPkg` is a dependency og the `dependentPkg`, but its
-  ##     version is out of the required by `dependentPkg` version range.
-
-  var isNameFound = false
-  var versionRange = parseVersionRange("") # any version
-
-  for pkg in dependentPkg.requires:
-    if cmpIgnoreStyle(dependencyPkg.name, pkg.name) == 0:
-      isNameFound = true
-      if dependencyPkg.version in pkg.ver:
-        # `dependencyPkg` is a valid dependency of `dependentPkg`.
-        return
-      else:
-        # The package with a name `dependencyPkg.name` is found among
-        # `dependentPkg` dependencies but its version is out of the required
-        # range.
-        versionRange = pkg.ver
-        break
-
-  # If in `dependentPkg` requires clauses is not found a package with a name
-  # `dependencyPkg.name` or its version is not in the required range, then
-  # `dependencyPkg` is not a valid dependency of `dependentPkg`.
-
-  let dependencyPkgNameAndVersion = dependencyPkg.getNameAndVersion()
-  let dependentPkgNameAndVersion = dependentPkg.getNameAndVersion()
-
-  if isNameFound:
-    raiseDependencyNotInRangeError(
-      dependencyPkgNameAndVersion, dependentPkgNameAndVersion, versionRange)
-  else:
-    raiseNotADependencyError(
-      dependencyPkgNameAndVersion, dependentPkgNameAndVersion)
-
-proc validateIncludedDependency(dependencyPkg, dependentPkg: PackageInfo,
-                                requiredVersionRange: VersionRange):
-    ref CatchableError =
-  ## Checks whether the `dependencyPkg` version is in required by the
-  ## `dependentPkg` version range and if not returns a reference to an error
-  ## object. Otherwise returns `nil`.
-
-  return
-    if dependencyPkg.version in requiredVersionRange: nil
-    else: nimbleError(
-      dependencyNotInRangeErrorMsg(
-        dependencyPkg.getNameAndVersion, dependentPkg.getNameAndVersion,
-        requiredVersionRange),
-      dependencyNotInRangeErrorHint)
-
-proc validatePackage(pkgPath: Path, dependentPkg: PackageInfo,
-                     options: Options):
+proc validatePackage(pkgPath: Path, options: Options):
     tuple[pkgInfo: PackageInfo, error: ref CatchableError] =
   ## By given file system path `pkgPath`, determines whether it points to a
   ## valid Nimble package.
-  ##
-  ## If a not empty `dependentPkg` argument is given checks whether the package
-  ## at `pkgPath` is a valid dependency of `dependentPkg`.
   ##
   ## Returns a tuple containing:
   ##   - `pkgInfo` - the package info of the package at `pkgPath` in case
   ##                 `pkgPath` directory contains a valid Nimble package.
   ##
   ##   - `error`   - a reference to the exception raised in case `pkgPath` is
-  ##                 not a valid package directory or the package in `pkgPath`
-  ##                 is not a valid dependency of the `dependentPkg`.
+  ##                 not a valid package directory.
 
   try:
     result.pkgInfo = getPkgInfo(string(pkgPath), options, true)
-    if dependentPkg.isLoaded:
-      validateDependency(result.pkgInfo, dependentPkg)
   except CatchableError as error:
     result.error = error
-
-proc filterAndValidateIncludedPackages(dependentPkg: PackageInfo,
-                                       inclFileData: DevelopFileData,
-                                       invalidPackages: var InvalidPaths):
-    seq[ref PackageInfo] =
-  ## Iterates over `dependentPkg` dependencies and for each one found in the
-  ## `inclFileData` list of packages checks whether it is in the required
-  ## version range. If so stores it to the result sequence and otherwise stores
-  ## an error object in `invalidPackages` sequence for future error reporting.
-
-  # For each dependency of the dependent package.
-  for pkg in dependentPkg.requires:
-    # Check whether it is in the loaded from the included develop file
-    # dependencies.
-    let inclPkg = inclFileData.nameToPkg.getOrDefault pkg.name
-    if inclPkg == nil:
-      # If not then continue.
-      continue
-    # Otherwise validate it against the dependent package.
-    let error = validateIncludedDependency(inclPkg[], dependentPkg, pkg.ver)
-    if error == nil:
-      result.add inclPkg
-    else:
-      invalidPackages[inclPkg[].getNimbleFilePath] = error
 
 proc hasErrors(errors: ErrorsCollection): bool =
   ## Checks whether there are some errors in the `ErrorsCollection` - `errors`.
@@ -416,18 +315,9 @@ proc addPackages(lhs: var DevelopFileData, pkgs: seq[ref PackageInfo],
 proc mergeIncludedDevFileData(lhs: var DevelopFileData, rhs: DevelopFileData,
                               errors: var ErrorsCollection) =
   ## Merges develop file data `rhs` coming from some included develop file into
-  ## `lhs`. If `lhs` represents develop file data of some package, but not a
-  ## free develop file, then first filter and validate `rhs` packages against
-  ## `lhs`'s list of dependencies.
-
-  let pkgs =
-    if lhs.dependentPkg.isLoaded:
-      filterAndValidateIncludedPackages(
-        lhs.dependentPkg, rhs, errors.invalidPackages)
-    else:
-      rhs.nameToPkg.values
-
-  lhs.addPackages(pkgs, rhs.path, rhs.pkgToDevFileNames, errors.collidingNames)
+  ## `lhs`.
+  lhs.addPackages(rhs.nameToPkg.values, rhs.path, rhs.pkgToDevFileNames,
+                  errors.collidingNames)
 
 proc mergeFollowedDevFileData(lhs: var DevelopFileData, rhs: DevelopFileData,
                               errors: var ErrorsCollection) =
@@ -494,8 +384,7 @@ proc load(path: Path, dependentPkg: PackageInfo, options: Options,
   for depPath in result.dependencies:
     let depPath = if depPath.isAbsolute:
       depPath.normalizedPath else: (path.splitFile.dir / depPath).normalizedPath
-    let (pkgInfo, error) = validatePackage(
-      depPath, result.dependentPkg, options)
+    let (pkgInfo, error) = validatePackage(depPath, options)
     if error == nil:
       result.addPackage(pkgInfo, path, [path].toHashSet, errors.collidingNames)
     else:
@@ -547,7 +436,6 @@ proc addDevelopPackage(data: var DevelopFileData, pkg: PackageInfo): bool =
   ## Returns `false` in the case of error when:
   ##   - a package with the same name but at different path is already present
   ##     in the develop file or some of its includes.
-  ##   - the package `pkg` is not a valid dependency of the dependent package.
 
   let pkgDir = pkg.getNimbleFilePath()
 
@@ -557,14 +445,6 @@ proc addDevelopPackage(data: var DevelopFileData, pkg: PackageInfo): bool =
     let otherPath = data.nameToPkg[pkg.name][].getNimbleFilePath()
     displayError(pkgAlreadyPresentAtDifferentPathMsg(pkg.name, $otherPath))
     return false
-
-  if data.dependentPkg.isLoaded:
-    # Check whether `pkg` is a valid dependency.
-    try:
-      validateDependency(pkg, data.dependentPkg)
-    except CatchableError as error:
-      displayError(error)
-      return false
 
   # Add `pkg` to the develop file model.
   let success = not data.dependencies.containsOrIncl(pkgDir)
@@ -594,9 +474,8 @@ proc addDevelopPackage(data: var DevelopFileData, path: Path,
   ##   - the path in `path` does not point to a valid Nimble package.
   ##   - a package with the same name but at different path is already present
   ##     in the develop file or some of its includes.
-  ##   - the package `pkg` is not a valid dependency of the dependent package.
 
-  let (pkgInfo, error) = validatePackage(path, initPackageInfo(), options)
+  let (pkgInfo, error) = validatePackage(path, options)
   if error != nil:
     displayError(invalidPkgMsg($path))
     displayDetails(error)

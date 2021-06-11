@@ -225,6 +225,35 @@ requires "nim >= 1.5.1"
       cd mainPkgRepoPath:
         testLockFile(@[(dep1PkgName, dep1PkgRepoPath)], isNew = true)
 
+  test "cannot lock because develop dependency is out of range":
+    cleanUp()
+    withPkgListFile:
+      initNewNimblePackage(mainPkgOriginRepoPath, mainPkgRepoPath,
+                           @[dep1PkgName, dep2PkgName])
+      initNewNimblePackage(dep1PkgOriginRepoPath, dep1PkgRepoPath)
+      initNewNimblePackage(dep2PkgOriginRepoPath, dep2PkgRepoPath)
+      cd mainPkgRepoPath:
+        writeDevelopFile(developFileName, @[],
+                         @[dep1PkgRepoPath, dep2PkgRepoPath])
+
+        # Make main package's Nimble file to require dependencies versions
+        # different than provided in the develop file.
+        let nimbleFileContent = mainPkgNimbleFileName.readFile
+        mainPkgNimbleFileName.writeFile(nimbleFileContent.replace(
+          &"\"{dep1PkgName}\",\"{dep2PkgName}\"",
+          &"\"{dep1PkgName} > 0.1.0\",\"{dep2PkgName} < 0.1.0\""))
+
+        let (output, exitCode) = execNimbleYes("lock")
+        check exitCode == QuitFailure
+        let errors = @[
+          notInRequiredRangeMsg(dep1PkgName, dep1PkgRepoPath, "0.1.0",
+                                mainPkgName, mainPkgRepoPath, "> 0.1.0"),
+          notInRequiredRangeMsg(dep2PkgName, dep2PkgRepoPath, "0.1.0",
+                                mainPkgName, mainPkgRepoPath, "< 0.1.0")
+          ]
+        check output.processOutput.inLines(
+          invalidDevelopDependenciesVersionsMsg(errors))
+
   test "can download locked dependencies":
     cleanUp()
     withPkgListFile:

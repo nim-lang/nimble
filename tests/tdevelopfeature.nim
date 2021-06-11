@@ -15,8 +15,6 @@ suite "develop feature":
   const
     pkgListFileName = "packages.json"
     dependentPkgName = "dependent"
-    dependentPkgVersion = "1.0"
-    dependentPkgNameAndVersion = &"{dependentPkgName}@{dependentPkgVersion}"
     dependentPkgPath = "develop/dependent".normalizedPath
     includeFileName = "included.develop"
     pkgAName = "packagea"
@@ -171,7 +169,7 @@ suite "develop feature":
         check lines.inLinesOrdered(
           pkgAddedInDevModeMsg(&"{pkgAName}@0.6.0", pkgAAbsPath))
 
-  test "cannot add not a dependency downloaded package to the develop file":
+  test "can add not a dependency downloaded package to the develop file":
     cleanDir installDir
     cd "develop/dependency":
       usePackageListFile &"../{pkgListFileName}":
@@ -181,8 +179,8 @@ suite "develop feature":
             "develop", &"-p:{installDir}", pkgAName, pkgBName)
           pkgAAbsPath = installDir / pkgAName
           pkgBAbsPath = installDir / pkgBName
-          developFileContent = developFile(@[], @[pkgAAbsPath])
-        check exitCode == QuitFailure
+          developFileContent = developFile(@[], @[pkgAAbsPath, pkgBAbsPath])
+        check exitCode == QuitSuccess
         check parseFile(developFileName) == parseJson(developFileContent)
         var lines = output.processOutput
         check lines.inLinesOrdered(pkgSetupInDevModeMsg(pkgAName, pkgAAbsPath))
@@ -190,7 +188,7 @@ suite "develop feature":
         check lines.inLinesOrdered(
           pkgAddedInDevModeMsg(&"{pkgAName}@0.6.0", pkgAAbsPath))
         check lines.inLinesOrdered(
-          notADependencyErrorMsg(&"{pkgBName}@0.2.0", depNameAndVersion))
+          pkgAddedInDevModeMsg(&"{pkgBName}@0.2.0", pkgBAbsPath))
 
   test "add package to develop file":
     cleanDir installDir
@@ -229,14 +227,17 @@ suite "develop feature":
       check output.processOutput.inLines(invalidPkgMsg(invalidPkgDir))
       check not developFileName.fileExists
 
-  test "cannot add not a dependency to develop file":
+  test "can add not a dependency to develop file":
     cd dependentPkgPath:
       cleanFile developFileName
-      let (output, exitCode) = execNimble("develop", "-a:../srcdirtest/")
-      check exitCode == QuitFailure
-      check output.processOutput.inLines(
-        notADependencyErrorMsg(&"{pkgSrcDirTestName}@1.0", "dependent@1.0"))
-      check not developFileName.fileExists
+      const srcDirTestPath = "../srcdirtest"
+      let (output, exitCode) = execNimble("develop", &"-a:{srcDirTestPath}")
+      check exitCode == QuitSuccess
+      let lines = output.processOutput
+      check lines.inLines(
+        pkgAddedInDevModeMsg("srcdirtest@1.0", srcDirTestPath))
+      const developFileContent = developFile(@[], @[srcDirTestPath])
+      check parseFile(developFileName) == parseJson(developFileContent)
 
   test "cannot add two packages with the same name to develop file":
     cd dependentPkgPath:
@@ -407,23 +408,6 @@ suite "develop feature":
          (dep2Path.Path, includeFileName.Path)].toHashSet))
       check parseFile(developFileName) == parseJson(developFileContent)
 
-  test "validate included dependencies version":
-    cd &"{dependentPkgPath}2":
-      cleanFiles developFileName, includeFileName
-      const includeFileContent = developFile(@[], @[dep2Path])
-      writeFile(includeFileName, includeFileContent)
-      let (output, exitCode) = execNimble("develop", &"-i:{includeFileName}")
-      check exitCode == QuitFailure
-      var lines = output.processOutput
-      let developFilePath = getCurrentDir() / developFileName
-      check lines.inLinesOrdered(
-        failedToInclInDevFileMsg(includeFileName, developFilePath))
-      check lines.inLinesOrdered(invalidPkgMsg(dep2Path))
-      check lines.inLinesOrdered(dependencyNotInRangeErrorMsg(
-        depNameAndVersion, dependentPkgNameAndVersion,
-        parseVersionRange(">= 0.2.0")))
-      check not developFileName.fileExists
-
   test "exclude develop file":
     cd dependentPkgPath:
       cleanFiles developFileName, includeFileName
@@ -577,7 +561,7 @@ suite "develop feature":
       let (_, errorCode) = execNimble("run", "-n")
       check errorCode == QuitSuccess
 
-  test "filter not used included develop dependencies":
+  test "do not filter not used included develop dependencies":
     # +--------------------------+                +--------------------------+
     # |           pkg1           |  +------------>|           pkg2           |
     # +--------------------------+  | dependency  +--------------------------+
@@ -598,10 +582,6 @@ suite "develop feature":
     #                                                |  version = "0.2.0"  |
     #                                                +---------------------+
 
-    # Here the build must fail because "pkg3" coming from develop file included
-    # in "pkg2"'s develop file is not a dependency of "pkg2" itself and it must
-    # be filtered. In this way "pkg1"'s dependency to "pkg3" is not satisfied.
-
     cd "develop":
       const
         pkg1DevFilePath = "pkg1" / developFileName
@@ -619,11 +599,12 @@ suite "develop feature":
       cd "pkg1":
         cleanFile "pkg1".addFileExt(ExeExt)
         let (output, exitCode) = execNimble("run", "-n")
-        check exitCode == QuitFailure
+        check exitCode == QuitSuccess
         var lines = output.processOutput
         check lines.inLinesOrdered(
           pkgDepsAlreadySatisfiedMsg(("pkg2", anyVersion)))
-        check lines.inLinesOrdered(pkgNotFoundMsg(("pkg3", anyVersion)))
+        check lines.inLinesOrdered(
+          pkgDepsAlreadySatisfiedMsg(("pkg3", anyVersion)))
 
   test "do not filter used included develop dependencies":
     # +--------------------------+                +--------------------------+
@@ -678,7 +659,7 @@ suite "develop feature":
         check lines.inLinesOrdered(
           pkgDepsAlreadySatisfiedMsg(("pkg3", anyVersion)))
 
-  test "no version clash with filtered not used included develop dependencies":
+  test "version clash with not used included develop dependencies":
     # +--------------------------+                +--------------------------+
     # |           pkg1           |  +------------>|           pkg2           |
     # +--------------------------+  | dependency  +--------------------------+
@@ -701,9 +682,9 @@ suite "develop feature":
     #   | version = "0.1.0" |
     #   +-------------------+
 
-    # Here the build must pass because only the version of "pkg3" included via
-    # "develop1.json" must be taken into account, since "pkg2" does not depend
-    # on "pkg3" and the version coming from "develop2.json" must be filtered.
+    # Here the build must fail because both the version of "pkg3" included via
+    # "develop1.json" and the version of "pkg3" included via "develop2.json" are
+    # taken into account.
 
     cd "develop":
       const
@@ -716,6 +697,10 @@ suite "develop feature":
         pkg2DevFileContent = developFile(@[&"../{freeDevFile2Name}"], @[])
         freeDevFile1Content = developFile(@[], @["./pkg3"])
         freeDevFile2Content = developFile(@[], @["./pkg3.2"])
+        pkg3Path = (".." / "pkg3").Path
+        pkg32Path = (".." / "pkg3.2").Path
+        freeDevFile1Path = (".." / freeDevFile1Name).Path
+        freeDevFile2Path = (".." / freeDevFile2Name).Path
 
       cleanFiles pkg1DevFilePath, pkg2DevFilePath,
                  freeDevFile1Name, freeDevFile2Name
@@ -727,12 +712,11 @@ suite "develop feature":
       cd "pkg1":
         cleanFile "pkg1".addFileExt(ExeExt)
         let (output, exitCode) = execNimble("run", "-n")
-        check exitCode == QuitSuccess
+        check exitCode == QuitFailure
         var lines = output.processOutput
-        check lines.inLinesOrdered(
-          pkgDepsAlreadySatisfiedMsg(("pkg2", anyVersion)))
-        check lines.inLinesOrdered(
-          pkgDepsAlreadySatisfiedMsg(("pkg3", anyVersion)))
+        check lines.inLinesOrdered(pkgFoundMoreThanOnceMsg("pkg3",
+          [(pkg3Path, freeDevFile1Path),
+           (pkg32Path, freeDevFile2Path)].toHashSet))
 
   test "version clash with used included develop dependencies":
     # +--------------------------+                +--------------------------+
@@ -851,7 +835,7 @@ suite "develop feature":
         let
           developFilePath = getCurrentDir() / developFileName
           (output, errorCode) = execNimble("develop", &"-p:{installDir}",
-            pkgAName,                    # fail because not a direct dependency
+            pkgAName,                    # success
              "-c",                       # success
             &"-a:{depPath}",             # success
             &"-a:{dep2Path}",            # fail because of names collision
@@ -887,9 +871,7 @@ suite "develop feature":
         check lines.inLinesOrdered(emptyDevFileCreatedMsg(dep2DevelopFilePath))
         check parseFile(dep2DevelopFilePath) ==
               parseJson(emptyDevelopFileContent)
-        check lines.inLinesOrdered(notADependencyErrorMsg(
-          &"{pkgAName}@0.6.0", dependentPkgNameAndVersion))
-        const expectedDevelopFileContent = developFile(
-          @[includeFileName], @[dep2Path])
+        let expectedDevelopFileContent = developFile(
+          @[includeFileName], @[dep2Path, &"{installDir}/{pkgAName}"])
         check parseFile(developFileName) ==
               parseJson(expectedDevelopFileContent)
