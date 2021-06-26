@@ -205,7 +205,7 @@ proc doDownload(url: string, downloadDir: string, verRange: VersionRange,
                   onlyTip = not options.forceFullClone)
       else:
         # If no commits have been tagged on the repo we just clone HEAD.
-        display("Warning:", "No corresponding tag found with required version. We grab HEAD.", Warning, 
+        display("Warning:", "The package has no tagged releases, downloading HEAD instead.", Warning, 
                   priority = HighPriority)
         doClone(downMethod, url, downloadDir) # Grab HEAD.
     of DownloadMethod.hg:
