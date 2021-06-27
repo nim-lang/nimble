@@ -219,7 +219,7 @@ proc doDownload(url: string, downloadDir: string, verRange: VersionRange,
                   priority = MediumPriority)
           doCheckout(downMethod, downloadDir, latest.tag)
       else:
-        display("Warning:", "No corresponding tag found with required version.", Warning, 
+        display("Warning:", "The package has no tagged releases, downloading HEAD instead.", Warning, 
                   priority = HighPriority)
 
 proc downloadPkg*(url: string, verRange: VersionRange,
