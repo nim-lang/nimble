@@ -507,7 +507,7 @@ suite "reverse dependencies":
     verify execNimbleYes("remove", "mydep")
 
   test "remove skips packages with revDeps (#504)":
-    check execNimbleYes("install", "nimboost@0.5.5", "nimfp@0.4.4").exitCode == QuitSuccess
+    check execNimbleYes("--debug", "install", "nimboost@0.5.5", "nimfp@0.4.4").exitCode == QuitSuccess
 
     var (output, exitCode) = execNimble("uninstall", "nimboost", "nimfp", "-n")
     var lines = output.strip.processOutput()
@@ -957,7 +957,7 @@ suite "issues":
 
   test "issue 801":
     cd "issue801":
-      let (output, exitCode) = execNimbleYes("test")
+      let (output, exitCode) = execNimbleYes("--debug", "test")
       check exitCode == QuitSuccess
 
       # Verify hooks work
@@ -990,22 +990,22 @@ suite "issues":
 
   test "issue 727":
     cd "issue727":
-      var (output, exitCode) = execNimbleYes("c", "src/abc")
+      var (output, exitCode) = execNimbleYes("--debug", "c", "src/abc")
       check exitCode == QuitSuccess
       check fileExists(buildTests / "abc".addFileExt(ExeExt))
       check not fileExists("src/def".addFileExt(ExeExt))
       check not fileExists(buildTests / "def".addFileExt(ExeExt))
 
-      (output, exitCode) = execNimbleYes("uninstall", "-i", "timezones")
+      (output, exitCode) = execNimbleYes("--debug", "uninstall", "-i", "timezones")
       check exitCode == QuitSuccess
 
-      (output, exitCode) = execNimbleYes("run", "def")
+      (output, exitCode) = execNimbleYes("--debug", "run", "def")
       check exitCode == QuitSuccess
       check output.contains("def727")
       check not fileExists("abc".addFileExt(ExeExt))
       check fileExists("def".addFileExt(ExeExt))
 
-      (output, exitCode) = execNimbleYes("uninstall", "-i", "timezones")
+      (output, exitCode) = execNimbleYes("--debug", "uninstall", "-i", "timezones")
       check exitCode == QuitSuccess
 
   test "issue 708":
