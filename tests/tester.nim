@@ -107,6 +107,10 @@ template testRefresh(body: untyped) =
   # Restore config
   if fileExists(configBakFile):
     safeMoveFile(configBakFile, configFile)
+  else:
+    # If the old config doesn't exist, we should still get rid of this new
+    # config to not screw up the other tests.
+    removeFile(configFile)
 
 proc beforeSuite() =
   # Clear nimble dir.
