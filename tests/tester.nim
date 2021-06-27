@@ -16,10 +16,6 @@ const stringNotFound = -1
 # Set env var to propagate nimble binary path
 putEnv("NIMBLE_TEST_BINARY_PATH", nimblePath)
 
-# Clear nimble dir.
-removeDir(installDir)
-createDir(installDir)
-
 # Always recompile.
 doAssert execCmdEx("nim c -d:danger " & path).exitCode == QuitSuccess
 
@@ -112,7 +108,14 @@ template testRefresh(body: untyped) =
   if fileExists(configBakFile):
     safeMoveFile(configBakFile, configFile)
 
+proc beforeSuite() =
+  # Clear nimble dir.
+  removeDir(installDir)
+  createDir(installDir)
+
 suite "nimble refresh":
+  beforeSuite()
+
   test "can refresh with default urls":
     let (output, exitCode) = execNimble(["refresh"])
     checkpoint(output)
@@ -182,6 +185,8 @@ suite "nimble refresh":
       check exitCode == QuitFailure
 
 suite "nimscript":
+  beforeSuite()
+
   test "can install nimscript package":
     cd "nimscript":
       let
@@ -287,6 +292,8 @@ suite "nimscript":
       check execNimble("c", "-d:release", "nimscript.nim").exitCode == QuitSuccess
 
 suite "uninstall":
+  beforeSuite()
+
   test "can install packagebin2":
     let args = ["install", "https://github.com/nimble-test/packagebin2.git"]
     check execNimbleYes(args).exitCode == QuitSuccess
@@ -345,9 +352,9 @@ suite "uninstall":
         QuitSuccess
     check(not dirExists(installDir / "pkgs" / "PackageA-0.2.0"))
 
-    check execNimbleYes("uninstall", "nimscript").exitCode == QuitSuccess
-
 suite "nimble dump":
+  beforeSuite()
+
   test "can dump for current project":
     cd "testdump":
       let (outp, exitCode) = execNimble("dump")
@@ -425,6 +432,8 @@ backend: "c"
     check: outp == outpExpected
 
 suite "can handle two binary versions":
+  beforeSuite()
+
   setup:
     cd "binaryPackage/v1":
       check execNimbleYes("install").exitCode == QuitSuccess
@@ -452,6 +461,8 @@ suite "can handle two binary versions":
     check output.strip() == "v2"
 
 suite "reverse dependencies":
+  beforeSuite()
+
   test "basic test":
     cd "revdep/mydep":
       verify execNimbleYes("install")
@@ -510,6 +521,8 @@ suite "reverse dependencies":
     check execNimble("path", "nimfp").exitCode != QuitSuccess
 
 suite "develop feature":
+  beforeSuite()
+
   test "can reject binary packages":
     cd "develop/binary":
       let (output, exitCode) = execNimble("develop")
@@ -533,7 +546,7 @@ suite "develop feature":
 
   test "can develop with srcDir":
     cd "develop/srcdirtest":
-      let (output, exitCode) = execNimble("develop")
+      let (output, exitCode) = execNimbleYes("develop")
       checkpoint output
       check(not output.processOutput.inLines("will not be compiled"))
       check exitCode == QuitSuccess
@@ -547,7 +560,7 @@ suite "develop feature":
       check split[1].endsWith("develop" / "srcdirtest" / "src")
 
     cd "develop/dependent":
-      let (output, exitCode) = execNimble("c", "-r", "src" / "dependent.nim")
+      let (output, exitCode) = execNimbleYes("c", "-r", "src" / "dependent.nim")
       checkpoint output
       check(output.processOutput.inLines("hello"))
       check exitCode == QuitSuccess
@@ -591,6 +604,8 @@ suite "develop feature":
     check output.strip() == installDir / "pkgs" / "srcdirtest-1.0"
 
 suite "test command":
+  beforeSuite()
+
   test "Runs passing unit tests":
     cd "testCommand/testsPass":
       # Pass flags to test #726, #757
@@ -630,6 +645,8 @@ suite "test command":
       check outp.processOutput.inLines(getCurrentDir())
 
 suite "check command":
+  beforeSuite()
+
   test "can succeed package":
     cd "binaryPackage/v1":
       let (outp, exitCode) = execNimble("check")
@@ -664,6 +681,8 @@ suite "check command":
       check outp.processOutput.inLines("package 'x' has an incorrect structure")
 
 suite "multi":
+  beforeSuite()
+
   test "can install package from git subdir":
     var
       args = @["install", "https://github.com/nimble-test/multi?subdir=alpha"]
@@ -683,6 +702,8 @@ suite "multi":
     check execNimbleYes(args).exitCode == QuitSuccess
 
 suite "Module tests":
+  beforeSuite()
+
   test "version":
     cd "..":
       check execCmdEx("nim c -r src/nimblepkg/version").exitCode == QuitSuccess
@@ -708,6 +729,8 @@ suite "Module tests":
       check execCmdEx("nim c -r src/nimblepkg/download").exitCode == QuitSuccess
 
 suite "nimble run":
+  beforeSuite()
+
   test "Invalid binary":
     cd "run":
       let (output, exitCode) = execNimble(
@@ -806,6 +829,8 @@ suite "nimble run":
       check output.contains("""Testing `nimble run`: @["--test"]""")
 
 suite "project local deps mode":
+  beforeSuite()
+
   test "nimbledeps exists":
     cd "localdeps":
       removeDir("nimbledeps")
@@ -831,6 +856,8 @@ suite "project local deps mode":
     check not dirExists("nimbledeps")
 
 suite "misc tests":
+  beforeSuite()
+
   test "depsOnly + flag order test":
     let (output, exitCode) = execNimbleYes(
       "--depsOnly", "install", "https://github.com/nimble-test/packagebin2"
@@ -926,6 +953,8 @@ suite "misc tests":
     check execNimble("list", "-i").exitCode == QuitSuccess
 
 suite "issues":
+  beforeSuite()
+
   test "issue 801":
     cd "issue801":
       let (output, exitCode) = execNimbleYes("test")
@@ -1285,6 +1314,8 @@ suite "issues":
       check inLines(lines, "Nothing to build")
 
 suite "nimble tasks":
+  beforeSuite()
+
   test "can list tasks even with no tasks defined in nimble file":
     cd "tasks/empty":
       let (_, exitCode) = execNimble("tasks")
