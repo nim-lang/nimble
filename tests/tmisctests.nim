@@ -75,6 +75,7 @@ suite "misc tests":
     proc checkOutput(output: string): uint =
       const warningsToCheck = [
         "[UnusedImport]",
+        "[DuplicateModuleImport]",
         "[Deprecated]",
         "[XDeclaredButNotUsed]",
         "[Spacing]",
