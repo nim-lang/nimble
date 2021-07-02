@@ -287,6 +287,8 @@ file.
 one.
 * `-e, --exclude file` - Excludes a develop file from the current directory's
 one.
+* `--with-dependencies` - Clones for develop also the dependencies of the
+packages for which the develop command is executed.
 
 The options for manipulation of the develop files could be given only when
 executing `develop` command from some package's directory and they work only on

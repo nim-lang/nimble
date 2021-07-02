@@ -56,6 +56,18 @@ suite "develop feature":
         check lines.inLinesOrdered(
           pkgSetupInDevModeMsg(pkgBName, installDir / pkgBName))
 
+  test "can develop with dependencies":
+    cdCleanDir installDir:
+      usePackageListFile &"../develop/{pkgListFileName}":
+        let (output, exitCode) = execNimble(
+          "develop", "--with-dependencies", pkgBName)
+        check exitCode == QuitSuccess
+        var lines = output.processOutput
+        check lines.inLinesOrdered(
+          pkgSetupInDevModeMsg(pkgAName, installDir / pkgAName))
+        check lines.inLinesOrdered(
+          pkgSetupInDevModeMsg(pkgBName, installDir / pkgBName))
+
   test "can develop list of packages":
     cdCleanDir installDir:
       usePackageListFile &"../develop/{pkgListFileName}":
@@ -80,11 +92,12 @@ suite "develop feature":
           cannotUninstallPkgMsg(pkgAName, newVersion("0.2.0"),
           @[installDir / pkgBName]))
 
-  test "can reject binary packages":
+  test "can develop binary packages":
     cd "develop/binary":
       let (output, exitCode) = execNimble("develop")
-      check output.processOutput.inLines("cannot develop packages")
-      check exitCode == QuitFailure
+      check exitCode == QuitSuccess
+      check output.processOutput.inLines(
+        pkgSetupInDevModeMsg("binary", getCurrentDir()))
 
   test "can develop hybrid":
     cd &"develop/{pkgHybridName}":

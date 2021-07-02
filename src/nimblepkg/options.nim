@@ -70,6 +70,9 @@ type
       passNimFlags*: seq[string]
       devActions*: seq[DevelopAction]
       path*: string
+      withDependencies*: bool
+        ## Whether to put in develop mode also the dependencies of the packages
+        ## listed in the develop command.
     of actionSearch:
       search*: seq[string] # Search string.
     of actionInit, actionDump:
@@ -101,6 +104,8 @@ Commands:
                                   executed in a package directory creates a
                                   `nimble.develop` file with paths to the cloned
                                   packages.
+         [--with-dependencies]    Puts in develop mode also the dependencies
+                                  of the packages in the list.
          [-p, --path path]        Specifies the path whether the packages should
                                   be cloned.
          [-c, --create [path]]    Creates an empty develop file with name
@@ -306,6 +311,9 @@ proc setNimbleDir*(options: var Options) =
   var
     nimbleDir = options.config.nimbleDir
     propagate = false
+
+  if options.action.typ == actionDevelop:
+    options.forceFullClone = true
 
   if (options.localdeps and options.action.typ == actionDevelop and
       options.action.packages.len != 0):
@@ -545,6 +553,8 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
         result.action.path = val.normalizedPath
       else:
         raise nimbleError(multiplePathOptionsGivenMsg)
+    of "with-dependencies":
+      result.action.withDependencies = true
     else: 
       wasFlagHandled = false
   of actionSync:

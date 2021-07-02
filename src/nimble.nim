@@ -464,6 +464,7 @@ proc getDependency(name: string, dep: LockFileDep, options: Options):
 type
   DownloadInfo = ref object
     ## Information for a downloaded dependency needed for installation.
+    name: string
     dependency: LockFileDep
     url: string
     version: VersionRange
@@ -477,23 +478,54 @@ type
     ## A list of `DownloadInfo` objects used for installing the downloaded
     ## dependencies.
 
+proc developWithDependencies(options: Options): bool =
+  ## Determines whether the current executed action is a develop sub-command
+  ## with `--with-dependencies` flag.
+  options.action.typ == actionDevelop and options.action.withDependencies
+
+proc getDevelopDownloadDir(url, subdir: string, options: Options): string =
+  ## Returns the download dir for a develop mode dependency.
+  assert isURL(url), "The string \"{url}\" is not a URL."
+
+  let downloadDirName =
+    if subdir.len == 0:
+      parseUri(url).path.splitFile.name
+    else:
+      subdir.splitFile.name
+
+  result =
+    if options.action.path.isAbsolute:
+      options.action.path / downloadDirName
+    else:
+      getCurrentDir() / options.action.path / downloadDirName
+
+proc raiseCannotCloneInExistingDirException(downloadDir: string) =
+  let msg = "Cannot clone into '$1': directory exists." % downloadDir
+  const hint = "Remove the directory, or run this command somewhere else."
+  raise nimbleError(msg, hint)
+
 proc downloadDependency(name: string, dep: LockFileDep, options: Options):
     Future[DownloadInfo] {.async.} =
   ## Asynchronously downloads a dependency from the lock file.
 
-  let depDirName = getDependencyDir(name, dep, options)
-
-  if depDirName.dirExists:
+  if not options.developWithDependencies:
+    let depDirName = getDependencyDir(name, dep, options)
+    if depDirName.dirExists:
       promptRemoveEntirePackageDir(depDirName, options)
       removeDir(depDirName)
 
   let (url, metadata) = getUrlData(dep.url)
   let version =  dep.version.parseVersionRange
   let subdir = metadata.getOrDefault("subdir")
+  let downloadPath = if options.developWithDependencies:
+    getDevelopDownloadDir(url, subdir, options) else: ""
+
+  if dirExists(downloadPath):
+    raiseCannotCloneInExistingDirException(downloadPath)
 
   let (downloadDir, _, vcsRevision) = await downloadPkg(
-    url, version, dep.downloadMethod, subdir, options,
-    downloadPath = "", dep.vcsRevision)
+    url, version, dep.downloadMethod, subdir, options, downloadPath,
+    dep.vcsRevision)
 
   let downloadedPackageChecksum = calculateDirSha1Checksum(downloadDir)
   if downloadedPackageChecksum != dep.checksums.sha1:
@@ -501,6 +533,7 @@ proc downloadDependency(name: string, dep: LockFileDep, options: Options):
                         downloadedPackageChecksum, dep.checksums.sha1)
 
   result = DownloadInfo(
+    name: name,
     dependency: dep,
     url: url, 
     version: version,
@@ -538,6 +571,22 @@ proc startDownloadWorker(queue: DownloadQueue, options: Options,
     downloadResults[index] = await downloadDependency(
       download.name, download.dep, options)
 
+proc lockedDepsDownload(dependenciesToDownload: DownloadQueue,
+                        options: Options): DownloadResults =
+  ## By given queue with dependencies to download performs the downloads and
+  ## returns the result objects.
+
+  result.new
+  result[].setLen(dependenciesToDownload[].len)
+
+  var downloadWorkers: seq[Future[void]]
+  let workersCount = min(
+    options.maxParallelDownloads, dependenciesToDownload[].len)
+  for i in 0 ..< workersCount:
+    downloadWorkers.add startDownloadWorker(
+      dependenciesToDownload, options, result)
+  waitFor all(downloadWorkers)
+
 proc processLockedDependencies(pkgInfo: PackageInfo, options: Options):
     HashSet[PackageInfo] =
   # Returns a hash set with `PackageInfo` of all packages from the lock file of
@@ -559,18 +608,7 @@ proc processLockedDependencies(pkgInfo: PackageInfo, options: Options):
     else:
       dependenciesToDownload[].add (name, dep)
 
-  var downloadResults: DownloadResults
-  downloadResults.new
-  downloadResults[].setLen(dependenciesToDownload[].len)
-
-  var downloadWorkers: seq[Future[void]]
-  let workersCount = min(
-    options.maxParallelDownloads, dependenciesToDownload[].len)
-  for i in 0 ..< workersCount:
-    downloadWorkers.add startDownloadWorker(
-      dependenciesToDownload, options, downloadResults)
-  waitFor all(downloadWorkers)
-
+  let downloadResults = lockedDepsDownload(dependenciesToDownload, options)
   for downloadResult in downloadResults[]:
     result.incl installDependency(pkgInfo, downloadResult, options)
 
@@ -1105,7 +1143,12 @@ proc listTasks(options: Options) =
   let nimbleFile = findNimbleFile(getCurrentDir(), true)
   nimscriptwrapper.listTasks(nimbleFile, options)
 
-proc developFromDir(pkgInfo: PackageInfo, options: Options) =
+proc developAllDependencies(pkgInfo: PackageInfo, options: var Options)
+
+proc developFromDir(pkgInfo: PackageInfo, options: var Options) =
+  assert options.action.typ == actionDevelop,
+    "This procedure should be called only when executing develop sub-command."
+
   let dir = pkgInfo.getNimbleFileDir()
 
   if options.depsOnly:
@@ -1116,9 +1159,6 @@ proc developFromDir(pkgInfo: PackageInfo, options: Options) =
       raise nimbleError("Pre-hook prevented further execution.")
 
   if pkgInfo.bin.len > 0:
-    if "nim" in pkgInfo.skipExt:
-      raise nimbleError("Cannot develop packages that are binaries only.")
-
     displayWarning(
       "This package's binaries will not be compiled for development.")
 
@@ -1129,10 +1169,16 @@ proc developFromDir(pkgInfo: PackageInfo, options: Options) =
     optsCopy.startDir = dir
     createDir(optsCopy.getPkgsDir())
     cd dir:
-      discard processAllDependencies(pkgInfo, optsCopy)
+      if options.action.withDependencies:
+        developAllDependencies(pkgInfo, optsCopy)
+      else:
+        discard processAllDependencies(pkgInfo, optsCopy)
   else:
-    # Dependencies need to be processed before the creation of the pkg dir.
-    discard processAllDependencies(pkgInfo, options)
+    if options.action.withDependencies:
+      developAllDependencies(pkgInfo, options)
+    else:
+      # Dependencies need to be processed before the creation of the pkg dir.
+      discard processAllDependencies(pkgInfo, options)
 
   displaySuccess(pkgSetupInDevModeMsg(pkgInfo.name, dir))
 
@@ -1140,29 +1186,14 @@ proc developFromDir(pkgInfo: PackageInfo, options: Options) =
   cd dir:
     discard execHook(options, actionDevelop, false)
 
-proc installDevelopPackage(pkgTup: PkgTuple, options: Options): string =
+proc installDevelopPackage(pkgTup: PkgTuple, options: var Options):
+    PackageInfo =
   let (meth, url, metadata) = getDownloadInfo(pkgTup, options, true)
   let subdir = metadata.getOrDefault("subdir")
-
-  let name =
-    if isURL(pkgTup.name):
-      if subdir.len == 0:
-        parseUri(pkgTup.name).path.splitFile.name
-      else:
-        subdir.splitFile.name
-    else:
-      pkgTup.name
-
-  let downloadDir =
-    if options.action.path.isAbsolute:
-      options.action.path / name
-    else:
-      getCurrentDir() / options.action.path / name
+  let downloadDir = getDevelopDownloadDir(url, subdir, options)
 
   if dirExists(downloadDir):
-    let msg = "Cannot clone into '$1': directory exists." % downloadDir
-    let hint = "Remove the directory, or run this command somewhere else."
-    raise nimbleError(msg, hint)
+    raiseCannotCloneInExistingDirException(downloadDir)
 
   # Download the HEAD and make sure the full history is downloaded.
   let ver =
@@ -1171,8 +1202,6 @@ proc installDevelopPackage(pkgTup: PkgTuple, options: Options): string =
     else:
       pkgTup.ver
 
-  var options = options
-  options.forceFullClone = true
   discard waitFor downloadPkg(url, ver, meth, subdir, options, downloadDir,
                               vcsRevision = notSetSha1Hash)
 
@@ -1180,8 +1209,70 @@ proc installDevelopPackage(pkgTup: PkgTuple, options: Options): string =
   var pkgInfo = getPkgInfo(pkgDir, options)
 
   developFromDir(pkgInfo, options)
+  options.action.devActions.add(
+    (datAdd, pkgInfo.getNimbleFileDir.normalizedPath))
+  return pkgInfo
 
-  return pkgInfo.getNimbleFileDir
+proc developLockedDependencies(pkgInfo: PackageInfo,
+    alreadyDownloaded: var HashSet[string], options: var Options) =
+  ## Downloads for develop the dependencies from the lock file.
+
+  var dependenciesToDownload: DownloadQueue
+  dependenciesToDownload.new
+
+  for name, dep in pkgInfo.lockedDeps:
+    if dep.url.removeTrailingGitString notin alreadyDownloaded:
+      dependenciesToDownload[].add (name, dep)
+
+  let downloadResults = lockedDepsDownload(dependenciesToDownload, options)
+  for downloadResult in downloadResults[]:
+    alreadyDownloaded.incl downloadResult.url.removeTrailingGitString
+    options.action.devActions.add(
+      (datAdd, downloadResult.downloadDir.normalizedPath))
+
+proc check(alreadyDownloaded: HashSet[string], dep: PkgTuple,
+           options: Options): bool =
+  let (_, url, _) = getDownloadInfo(dep, options, false)
+  alreadyDownloaded.contains url.removeTrailingGitString
+
+proc developFreeDependencies(pkgInfo: PackageInfo,
+                             alreadyDownloaded: var HashSet[string],
+                             options: var Options) =
+  # Downloads for develop the dependencies of `pkgInfo` (including transitive
+  # ones) by recursively following the requires clauses in the Nimble files.
+  assert not pkgInfo.isMinimal,
+         "developFreeDependencies needs pkgInfo.requires"
+
+  for dep in pkgInfo.requires:
+    if dep.name == "nimrod" or dep.name == "nim":
+      continue
+
+    let resolvedDep = dep.resolveAlias(options)
+    var found = alreadyDownloaded.check(dep, options)
+
+    if not found and resolvedDep.name != dep.name:
+      found = alreadyDownloaded.check(dep, options)
+      if found:
+        displayWarning(&"Develop package {dep.name} should be renamed to " &
+                       resolvedDep.name)
+
+    if found:
+      continue
+
+    let pkgInfo = installDevelopPackage(dep, options)
+    alreadyDownloaded.incl pkgInfo.url.removeTrailingGitString
+
+proc developAllDependencies(pkgInfo: PackageInfo, options: var Options) =
+  ## Puts all dependencies of `pkgInfo` (including transitive ones) in develop
+  ## mode by cloning their repositories.
+
+  var alreadyDownloadedDependencies {.global.}: HashSet[string]
+  alreadyDownloadedDependencies.incl pkgInfo.url.removeTrailingGitString
+
+  if pkgInfo.lockedDeps.len > 0:
+    pkgInfo.developLockedDependencies(alreadyDownloadedDependencies, options)
+  else:
+    pkgInfo.developFreeDependencies(alreadyDownloadedDependencies, options)
 
 proc updateSyncFile(dependentPkg: PackageInfo, options: Options)
 
@@ -1194,26 +1285,31 @@ proc updatePathsFile(pkgInfo: PackageInfo, options: Options) =
   writeFile(nimblePathsFileName, pathsFileContent)
   displayInfo(&"\"{nimblePathsFileName}\" is {action}.")
 
+proc hasDevActionsAllowedOnlyInPkgDir(options: Options): bool =
+  assert options.action.typ == actionDevelop,
+         "This function make sense only for the `develop` command."
+  for (action, _) in options.action.devActions:
+    if action != datNewFile:
+      return true
+
 proc develop(options: var Options) =
   let
     hasPackages = options.action.packages.len > 0
     hasPath = options.action.path.len > 0
     hasDevActions = options.action.devActions.len > 0
 
-  if not hasPackages and hasPath:
+  if not hasPackages and hasPath and not options.action.withDependencies:
     raise nimbleError(pathGivenButNoPkgsToDownloadMsg)
 
   var
     currentDirPkgInfo = initPackageInfo()
     hasError = false
-    hasDevActionsAllowedOnlyInPkgDir = options.action.devActions.filterIt(
-      it[0] != datNewFile).len > 0
 
   try:
     # Check whether the current directory is a package directory.
     currentDirPkgInfo = getPkgInfo(getCurrentDir(), options)
   except CatchableError as error:
-    if hasDevActionsAllowedOnlyInPkgDir:
+    if options.hasDevActionsAllowedOnlyInPkgDir:
       raise nimbleError(developOptionsOutOfPkgDirectoryMsg, details = error)
 
   if currentDirPkgInfo.isLoaded and (not hasPackages) and (not hasDevActions):
@@ -1222,24 +1318,19 @@ proc develop(options: var Options) =
   # Install each package.
   for pkgTup in options.action.packages:
     try:
-      let pkgPath = installDevelopPackage(pkgTup, options)
-      if currentDirPkgInfo.isLoaded:
-        options.action.devActions.add (datAdd, pkgPath.normalizedPath)
-        hasDevActionsAllowedOnlyInPkgDir = true
+      discard installDevelopPackage(pkgTup, options)
     except CatchableError as error:
       hasError = true
       displayError(&"Cannot install package \"{pkgTup}\" for develop.")
       displayDetails(error)
 
-  if hasDevActionsAllowedOnlyInPkgDir:
+  if currentDirPkgInfo.isLoaded and options.hasDevActionsAllowedOnlyInPkgDir:
     hasError = not updateDevelopFile(currentDirPkgInfo, options) or hasError
-  else:
-    hasError = not executeDevActionsAllowedOutsidePkgDir(options) or hasError
-
-  if hasDevActionsAllowedOnlyInPkgDir:
     updateSyncFile(currentDirPkgInfo, options)
     if fileExists(nimblePathsFileName):
       updatePathsFile(currentDirPkgInfo, options)
+  else:
+    hasError = not executeDevActionsAllowedOutsidePkgDir(options) or hasError
 
   if hasError:
     raise nimbleError(
@@ -1321,6 +1412,12 @@ proc validateDevelopDependenciesVersionRanges(dependentPkg: PackageInfo,
   var errors: seq[string]
   for pkg in allPackages:
     for dep in pkg.requires:
+      if dep.ver.kind == verSpecial:
+        # Develop packages versions are not being validated against the special
+        # versions in the Nimble files requires clauses, because there is no
+        # special versions for develop mode packages. If special version is
+        # required then any version for the develop package is allowed.
+        continue
       var depPkg = initPackageInfo()
       if not findPkg(developDependencies, dep, depPkg):
         # This dependency is not part of the develop mode dependencies.

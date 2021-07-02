@@ -11,7 +11,7 @@ import packageinfotypes, packageparser, version, tools, common, options, cli,
        sha1hashes, vcstools
 
 type
-  DownloadPkgResult = tuple
+  DownloadPkgResult* = tuple
     dir: string
     version: Version
     vcsRevision: Sha1HashRef
@@ -192,7 +192,7 @@ proc downloadTarball(url: string, options: Options): bool =
   not options.noTarballs and
   url.isGitHubRepo
 
-proc removeTrailingGitString(url: string): string =
+proc removeTrailingGitString*(url: string): string =
   ## Removes ".git" from an URL.
   ##
   ## For example:
