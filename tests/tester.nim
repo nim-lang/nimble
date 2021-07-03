@@ -804,7 +804,7 @@ suite "nimble run":
         """Testing `nimble run`: @["\"", "\'", "\t", "arg with spaces"]"""
       )
 
-  test "Compile flags before executable name":
+  test "Nimble options before executable name":
     cd "run":
       let (output, exitCode) = execNimble(
         "run", # Run command invokation
@@ -818,7 +818,7 @@ suite "nimble run":
       echo output
       check output.contains("""Testing `nimble run`: @["--test"]""")
 
-  test "Compile flags before --":
+  test "Nimble options before --":
     cd "run":
       let (output, exitCode) = execNimble(
         "run", # Run command invokation
@@ -831,6 +831,72 @@ suite "nimble run":
                             [$DirSep, "run".changeFileExt(ExeExt)])
       echo output
       check output.contains("""Testing `nimble run`: @["--test"]""")
+
+  test "Compilation flags before run command":
+    cd "run":
+      let (output, exitCode) = execNimble(
+        "-d:sayWhee", # Compile flag to define a conditional symbol
+        "run", # Run command invokation
+        "--debug", # Flag to enable debug verbosity in Nimble
+        "--", # Separator for arguments
+        "--test" # First argument passed to the executed command
+      )
+      check exitCode == QuitSuccess
+      check output.contains("tests$1run$1$2 --test" %
+                            [$DirSep, "run".changeFileExt(ExeExt)])
+      echo output
+      check output.contains("""Testing `nimble run`: @["--test"]""")
+      check output.contains("""Whee!""")
+
+  test "Compilation flags before executable name":
+    cd "run":
+      let (output, exitCode) = execNimble(
+        "--debug", # Flag to enable debug verbosity in Nimble
+        "run", # Run command invokation
+        "-d:sayWhee", # Compile flag to define a conditional symbol
+        "run", # The executable to run
+        "--test" # First argument passed to the executed command
+      )
+      check exitCode == QuitSuccess
+      check output.contains("tests$1run$1$2 --test" %
+                            [$DirSep, "run".changeFileExt(ExeExt)])
+      echo output
+      check output.contains("""Testing `nimble run`: @["--test"]""")
+      check output.contains("""Whee!""")
+
+  test "Compilation flags before --":
+    cd "run":
+      let (output, exitCode) = execNimble(
+        "run", # Run command invokation
+        "-d:sayWhee", # Compile flag to define a conditional symbol
+        "--debug", # Flag to enable debug verbosity in Nimble
+        "--", # Separator for arguments
+        "--test" # First argument passed to the executed command
+      )
+      check exitCode == QuitSuccess
+      check output.contains("tests$1run$1$2 --test" %
+                            [$DirSep, "run".changeFileExt(ExeExt)])
+      echo output
+      check output.contains("""Testing `nimble run`: @["--test"]""")
+      check output.contains("""Whee!""")
+
+  test "Order of compilation flags before and after run command":
+    cd "run":
+      let (output, exitCode) = execNimble(
+        "-d:compileFlagBeforeRunCommand", # Compile flag to define a conditional symbol
+        "run", # Run command invokation
+        "-d:sayWhee", # Compile flag to define a conditional symbol
+        "--debug", # Flag to enable debug verbosity in Nimble
+        "--", # Separator for arguments
+        "--test" # First argument passed to the executed command
+      )
+      check exitCode == QuitSuccess
+      check output.contains("-d:compileFlagBeforeRunCommand -d:sayWhee")
+      check output.contains("tests$1run$1$2 --test" %
+                            [$DirSep, "run".changeFileExt(ExeExt)])
+      echo output
+      check output.contains("""Testing `nimble run`: @["--test"]""")
+      check output.contains("""Whee!""")
 
 suite "project local deps mode":
   beforeSuite()

@@ -478,7 +478,8 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
       result.action.compileOptions.add(getFlagString(kind, flag, val))
   of actionRun:
     result.showHelp = false
-    result.setRunOptions(flag, getFlagString(kind, flag, val), false)
+    if not isGlobalFlag:
+      result.setRunOptions(flag, getFlagString(kind, flag, val), false)
   of actionCustom:
     if not isGlobalFlag:
       if result.action.command.normalize == "test":
@@ -517,9 +518,11 @@ proc parseMisc(options: var Options) =
 
 proc handleUnknownFlags(options: var Options) =
   if options.action.typ == actionRun:
-    # actionRun uses flags that come before the command as compilation flags.
-    options.action.compileFlags =
+    # In addition to flags that come after the command before binary,
+    # actionRun also uses flags that come before the command as compilation flags.
+    options.action.compileFlags.insert(
       map(options.unknownFlags, x => getFlagString(x[0], x[1], x[2]))
+    )
     options.unknownFlags = @[]
   elif options.action.typ == actionCustom:
     # actionCustom uses flags that come before the command as compilation flags
