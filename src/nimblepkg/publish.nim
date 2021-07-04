@@ -208,6 +208,7 @@ proc publish*(p: PackageInfo, o: Options) =
       url = "https://" & sshUrl.hostname & "/" & sshUrl.port & sshUrl.path
     elif parsed.username != "" or parsed.password != "":
       # check for any confidential information
+      # TODO: Use raiseNimbleError(msg, hintMsg) here
       raise newException(NimbleError,
         "Cannot publish the repository URL because it contains username and/or password. Fix the remote URL. Hint: \"git remote -v\"")
 
