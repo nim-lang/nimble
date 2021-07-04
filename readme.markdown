@@ -449,6 +449,35 @@ requires "fizzbuzz >= 1.0"
 requires "https://github.com/user/pkg#5a54b5e"
 ```
 
+There are also following version selector operators available for "requires":
+ `<`,`>`, `>=`, `<=`, `==`, `^=` and `~=`.
+
+The operator specification of `^=` is similar to `^` in 
+[npm](https://github.com/npm/node-semver#caret-ranges-123-025-004), while the 
+`~=` operator is similar to `~=` in 
+[python](https://www.python.org/dev/peps/pep-0440/#compatible-release):  
+- `^=` is selecting the latest compatible version according to 
+       [semver](https://semver.npmjs.com/). Major release number changes
+       cause incompatibility.
+- `~=` is selecting the latest version by increasing the last given digit 
+       to the highest version.
+
+Both operators `^=` and `~=` were not available yet for Nimble 0.13.1 and
+earlier and would cause error messages if used there.
+Other more complex comparison operators that would be available in npm like 
+`!=`, `||`, `-`, `*` and `X` are also not available in Nimble. 
+```
+# Examples for selector ^= and ~=
+
+requires "nim ^= 1.2.2" # nim >= 1.2.2 & < 2.0.0 
+requires "nim ~= 1.2.2" # nim >= 1.2.2 & < 1.3.0 
+requires "jester ^= 0.4.1" # jester >= 0.4.1 & < 0.5.0 
+requires "jester ~= 0.4.1" # jester >= 0.4.1 & < 0.5.0 
+requires "jester ~= 0.4" # jester >= 0.4.0 & < 1.0.0 
+requires "choosenim ~= 0" # choosenim >= 0.0.0 & < 1.0.0 
+requires "choosenim ^= 0" # choosenim >= 0.0.0 & < 1.0.0 
+```
+
 Nimble currently supports installation of packages from a local directory, a
 Git repository and a mercurial repository. The .nimble file must be present in
 the root of the directory or repository being installed.

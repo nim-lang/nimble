@@ -12,6 +12,8 @@ type
     verEqLater, # >= V -- Equal or later
     verEqEarlier, # <= V -- Equal or earlier
     verIntersect, # > V & < V
+    verTilde, # ~= V
+    verCaret, # ^= V
     verEq, # V
     verAny, # *
     verSpecial # #head
@@ -23,7 +25,7 @@ type
       ver*: Version
     of verSpecial:
       spe*: Version
-    of verIntersect:
+    of verIntersect, verTilde, verCaret:
       verILeft, verIRight: VersionRange
     of verAny:
       nil
@@ -108,7 +110,7 @@ proc `==`*(range1: VersionRange, range2: VersionRange): bool =
     range1.ver == range2.ver
   of verSpecial:
     range1.spe == range2.spe
-  of verIntersect:
+  of verIntersect, verTilde, verCaret:
     range1.verILeft == range2.verILeft and range1.verIRight == range2.verIRight
   of verAny: true
 
@@ -126,13 +128,44 @@ proc withinRange*(ver: Version, ran: VersionRange): bool =
     return ver == ran.ver
   of verSpecial:
     return ver == ran.spe
-  of verIntersect:
+  of verIntersect, verTilde, verCaret:
     return withinRange(ver, ran.verILeft) and withinRange(ver, ran.verIRight)
   of verAny:
     return true
 
 proc contains*(ran: VersionRange, ver: Version): bool =
   return withinRange(ver, ran)
+
+proc getNextIncompatibleVersion(version: string, semver: bool): string = 
+  ## try to get next higher version to exclude according to semver semantic
+  var numbers = version.split('.')
+  let originalNumberLen = numbers.len
+  while numbers.len < 3:
+    numbers.add("0")
+  var zeros = 0
+  for n in 0 ..< 2:
+    if numbers[n] == "0":
+      inc(zeros)
+    else: break
+  var increasePosition = 0
+  if (semver):
+    if originalNumberLen > 1:
+      case zeros
+      of 0:
+        increasePosition = 0
+      of 1:
+        increasePosition = 1
+      else:
+        increasePosition = 2
+  else:
+    increasePosition = max(0, originalNumberLen - 2)
+
+  numbers[increasePosition] = $(numbers[increasePosition].parseInt() + 1)
+  var zeroPosition = increasePosition + 1
+  while zeroPosition < numbers.len:
+    numbers[zeroPosition] = "0"
+    inc(zeroPosition)
+  result = numbers.join(".")
 
 proc makeRange*(version: string, op: string): VersionRange =
   if version == "":
@@ -149,6 +182,13 @@ proc makeRange*(version: string, op: string): VersionRange =
     result = VersionRange(kind: verEqEarlier)
   of "", "==":
     result = VersionRange(kind: verEq)
+  of "^=", "~=":
+    result = VersionRange(kind: if op == "^=": verCaret else: verTilde)
+    result.verILeft = makeRange(version, ">=")
+    var excludedVersion = getNextIncompatibleVersion(version, 
+      semver = (op == "^="))
+    result.verIRight = makeRange(excludedVersion, "<")
+    return
   else:
     raise newException(ParseVersionError, "Invalid operator: " & op)
   result.ver = Version(version)
@@ -169,7 +209,7 @@ proc parseVersionRange*(s: string): VersionRange =
   var version = ""
   while i < s.len:
     case s[i]
-    of '>', '<', '=':
+    of '>', '<', '=', '~', '^':
       op.add(s[i])
     of '&':
       result = VersionRange(kind: verIntersect)
@@ -186,7 +226,6 @@ proc parseVersionRange*(s: string): VersionRange =
             "Having more than one `&` in a version range is pointless")
 
       return
-
     of '0'..'9', '.':
       version.add(s[i])
 
@@ -246,6 +285,10 @@ proc `$`*(verRange: VersionRange): string =
     return $verRange.spe
   of verIntersect:
     return $verRange.verILeft & " & " & $verRange.verIRight
+  of verTilde:
+    return " ~= " & $verRange.verILeft
+  of verCaret:
+    return " ^= " & $verRange.verILeft
   of verAny:
     return "any version"
 
@@ -259,7 +302,7 @@ proc getSimpleString*(verRange: VersionRange): string =
     result = $verRange.spe
   of verLater, verEarlier, verEqLater, verEqEarlier, verEq:
     result = $verRange.ver
-  of verIntersect:
+  of verIntersect, verTilde, verCaret:
     result = getSimpleString(verRange.verILeft) & "_" &
         getSimpleString(verRange.verIRight)
   of verAny:
@@ -316,11 +359,36 @@ when isMainModule:
   doAssert(newVersion("") < newVersion("0.1.0"))
 
   var versions = toOrderedTable[Version, string]({
+    newVersion("0.0.1"): "v0.0.1",
+    newVersion("0.0.2"): "v0.0.2",
     newVersion("0.1.1"): "v0.1.1",
+    newVersion("0.2.2"): "v0.2.2",
     newVersion("0.2.3"): "v0.2.3",
-    newVersion("0.5"): "v0.5"
+    newVersion("0.5"): "v0.5",
+    newVersion("1.2"): "v1.2",
+    newVersion("2.2.2"): "v2.2.2",
+    newVersion("2.2.3"): "v2.2.3",
+    newVersion("2.3.2"): "v2.3.2",
+    newVersion("3.2"): "v3.2",
+    newVersion("3.3.2"): "v3.3.2"
   })
   doAssert findLatest(parseVersionRange(">= 0.1 & <= 0.4"), versions) ==
+      (newVersion("0.2.3"), "v0.2.3")
+  doAssert findLatest(parseVersionRange("^= 0.1"), versions) ==
+      (newVersion("0.1.1"), "v0.1.1")
+  doAssert findLatest(parseVersionRange("^= 0"), versions) ==
+      (newVersion("0.5"), "v0.5")
+  doAssert findLatest(parseVersionRange("~= 2"), versions) ==
+      (newVersion("2.3.2"), "v2.3.2")
+  doAssert findLatest(parseVersionRange("^= 0.0.1"), versions) ==
+      (newVersion("0.0.1"), "v0.0.1")
+  doAssert findLatest(parseVersionRange("^= 2.2.2"), versions) ==
+      (newVersion("2.3.2"), "v2.3.2")
+  doAssert findLatest(parseVersionRange("^= 2.1.1.1"), versions) ==
+      (newVersion("2.3.2"), "v2.3.2")
+  doAssert findLatest(parseVersionRange("~= 2.2"), versions) ==
+      (newVersion("2.3.2"), "v2.3.2")
+  doAssert findLatest(parseVersionRange("~= 0.2.2"), versions) ==
       (newVersion("0.2.3"), "v0.2.3")
 
   # TODO: Allow these in later versions?
