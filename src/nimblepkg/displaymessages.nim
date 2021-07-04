@@ -5,7 +5,7 @@
 ## error messages in order to facilitate testing by removing the requirement
 ## the message to be repeated both in Nimble and the testing code.
 
-import strformat, sequtils
+import strformat, strutils
 import version
 
 const
@@ -105,13 +105,13 @@ proc cannotUninstallPkgMsg*(pkgName: string, pkgVersion: Version,
                             deps: seq[string]): string =
   assert deps.len > 0, "The sequence must have at least one package."
   result = &"Cannot uninstall {pkgName} ({pkgVersion}) because\n"
-  result &= deps.foldl(a & "\n" & b)
+  result &= deps.join("\n")
   result &= "\ndepend" & (if deps.len == 1: "s" else: "") & " on it"
 
 proc promptRemovePkgsMsg*(pkgs: seq[string]): string =
   assert pkgs.len > 0, "The sequence must have at least one package."
   result = "The following packages will be removed:\n"
-  result &= pkgs.foldl(a & "\n" & b)
+  result &= pkgs.join("\n")
   result &= "\nDo you wish to continue?"
 
 proc pkgWorkingCopyNeedsSyncingMsg*(pkgName, pkgPath: string): string =
