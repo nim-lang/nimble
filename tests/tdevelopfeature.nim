@@ -152,7 +152,7 @@ suite "develop feature":
     cleanFile developFileName
     let (output, exitCode) = execNimble("develop", "-a:./develop/dependency/")
     check exitCode == QuitFailure
-    check output.processOutput.inLines(developOptionsOutOfPkgDirectoryMsg)
+    check output.processOutput.inLines(developOptionsWithoutDevelopFileMsg)
 
   test "cannot load invalid develop file":
     cd dependentPkgPath:
@@ -179,8 +179,8 @@ suite "develop feature":
         check parseFile(developFileName) == parseJson(developFileContent)
         var lines = output.processOutput
         check lines.inLinesOrdered(pkgSetupInDevModeMsg(pkgAName, pkgAAbsPath))
-        check lines.inLinesOrdered(
-          pkgAddedInDevModeMsg(&"{pkgAName}@0.6.0", pkgAAbsPath))
+        check lines.inLinesOrdered(pkgAddedInDevFileMsg(
+          &"{pkgAName}@0.6.0", pkgAAbsPath, developFileName))
 
   test "can add not a dependency downloaded package to the develop file":
     cleanDir installDir
@@ -198,10 +198,10 @@ suite "develop feature":
         var lines = output.processOutput
         check lines.inLinesOrdered(pkgSetupInDevModeMsg(pkgAName, pkgAAbsPath))
         check lines.inLinesOrdered(pkgSetupInDevModeMsg(pkgBName, pkgBAbsPath))
-        check lines.inLinesOrdered(
-          pkgAddedInDevModeMsg(&"{pkgAName}@0.6.0", pkgAAbsPath))
-        check lines.inLinesOrdered(
-          pkgAddedInDevModeMsg(&"{pkgBName}@0.2.0", pkgBAbsPath))
+        check lines.inLinesOrdered(pkgAddedInDevFileMsg(
+          &"{pkgAName}@0.6.0", pkgAAbsPath, developFileName))
+        check lines.inLinesOrdered(pkgAddedInDevFileMsg(
+          &"{pkgBName}@0.2.0", pkgBAbsPath, developFileName))
 
   test "add package to develop file":
     cleanDir installDir
@@ -211,8 +211,8 @@ suite "develop feature":
         var (output, exitCode) = execNimble("develop", &"-a:{depPath}")
         check exitCode == QuitSuccess
         check developFileName.fileExists
-        check output.processOutput.inLines(
-          pkgAddedInDevModeMsg(depNameAndVersion, depPath))
+        check output.processOutput.inLines(pkgAddedInDevFileMsg(
+          depNameAndVersion, depPath, developFileName))
         const expectedDevelopFile = developFile(@[], @[depPath])
         check parseFile(developFileName) == parseJson(expectedDevelopFile)
         (output, exitCode) = execNimble("run")
@@ -226,8 +226,8 @@ suite "develop feature":
       writeFile(developFileName, developFileContent)
       let (output, exitCode) = execNimble("develop", &"-a:{depPath}")
       check exitCode == QuitSuccess
-      check output.processOutput.inLines(
-        pkgAlreadyInDevModeMsg(depNameAndVersion, depPath))
+      check output.processOutput.inLines(pkgAlreadyInDevFileMsg(
+        depNameAndVersion, depPath, developFileName))
       check parseFile(developFileName) ==  parseJson(developFileContent)
 
   test "cannot add invalid package to develop file":
@@ -247,8 +247,8 @@ suite "develop feature":
       let (output, exitCode) = execNimble("develop", &"-a:{srcDirTestPath}")
       check exitCode == QuitSuccess
       let lines = output.processOutput
-      check lines.inLines(
-        pkgAddedInDevModeMsg("srcdirtest@1.0", srcDirTestPath))
+      check lines.inLines(pkgAddedInDevFileMsg(
+        "srcdirtest@1.0", srcDirTestPath, developFileName))
       const developFileContent = developFile(@[], @[srcDirTestPath])
       check parseFile(developFileName) == parseJson(developFileContent)
 
@@ -259,8 +259,8 @@ suite "develop feature":
       writeFile(developFileName, developFileContent)
       let (output, exitCode) = execNimble("develop", &"-a:{dep2Path}")
       check exitCode == QuitFailure
-      check output.processOutput.inLines(
-        pkgAlreadyPresentAtDifferentPathMsg(depName, depPath.absolutePath))
+      check output.processOutput.inLines(pkgAlreadyPresentAtDifferentPathMsg(
+        depName, depPath, developFileName))
       check parseFile(developFileName) == parseJson(developFileContent)
 
   test "found two packages with the same name in the develop file":
@@ -289,8 +289,8 @@ suite "develop feature":
       writeFile(developFileName, developFileContent)
       let (output, exitCode) = execNimble("develop", &"-r:{depPath}")
       check exitCode == QuitSuccess
-      check output.processOutput.inLines(
-        pkgRemovedFromDevModeMsg(depNameAndVersion, depPath))
+      check output.processOutput.inLines(pkgRemovedFromDevFileMsg(
+        depNameAndVersion, depPath, developFileName))
       check parseFile(developFileName) == parseJson(emptyDevelopFileContent)
 
   test "warning on attempt to remove not existing package path":
@@ -300,7 +300,8 @@ suite "develop feature":
       writeFile(developFileName, developFileContent)
       let (output, exitCode) = execNimble("develop", &"-r:{dep2Path}")
       check exitCode == QuitSuccess
-      check output.processOutput.inLines(pkgPathNotInDevFileMsg(dep2Path))
+      check output.processOutput.inLines(pkgPathNotInDevFileMsg(
+        dep2Path, developFileName))
       check parseFile(developFileName) == parseJson(developFileContent)
 
   test "remove package from develop file by name":
@@ -310,8 +311,8 @@ suite "develop feature":
       writeFile(developFileName, developFileContent)
       let (output, exitCode) = execNimble("develop", &"-n:{depName}")
       check exitCode == QuitSuccess
-      check output.processOutput.inLines(
-        pkgRemovedFromDevModeMsg(depNameAndVersion, depPath.absolutePath))
+      check output.processOutput.inLines(pkgRemovedFromDevFileMsg(
+        depNameAndVersion, depPath, developFileName))
       check parseFile(developFileName) == parseJson(emptyDevelopFileContent)
 
   test "warning on attempt to remove not existing package name":
@@ -322,8 +323,8 @@ suite "develop feature":
       const notExistingPkgName = "dependency2"
       let (output, exitCode) = execNimble("develop", &"-n:{notExistingPkgName}")
       check exitCode == QuitSuccess
-      check output.processOutput.inLines(
-        pkgNameNotInDevFileMsg(notExistingPkgName))
+      check output.processOutput.inLines(pkgNameNotInDevFileMsg(
+        notExistingPkgName, developFileName))
       check parseFile(developFileName) == parseJson(developFileContent)
 
   test "include develop file":
@@ -337,7 +338,8 @@ suite "develop feature":
         var (output, exitCode) = execNimble("develop", &"-i:{includeFileName}")
         check exitCode == QuitSuccess
         check developFileName.fileExists
-        check output.processOutput.inLines(inclInDevFileMsg(includeFileName))
+        check output.processOutput.inLines(inclInDevFileMsg(
+          includeFileName, developFileName))
         const expectedDevelopFile = developFile(@[includeFileName], @[])
         check parseFile(developFileName) == parseJson(expectedDevelopFile)
         (output, exitCode) = execNimble("run")
@@ -354,8 +356,8 @@ suite "develop feature":
 
       let (output, exitCode) = execNimble("develop", &"-i:{includeFileName}")
       check exitCode == QuitSuccess
-      check output.processOutput.inLines(
-        alreadyInclInDevFileMsg(includeFileName))
+      check output.processOutput.inLines(alreadyInclInDevFileMsg(
+        includeFileName, developFileName))
       check parseFile(developFileName) == parseJson(developFileContent)
 
   test "cannot include invalid develop file":
@@ -392,7 +394,8 @@ suite "develop feature":
         writeFile(includeFileName, fileContent)
         var (output, exitCode) = execNimble("develop", &"-i:{includeFileName}")
         check exitCode == QuitSuccess
-        check output.processOutput.inLines(inclInDevFileMsg(includeFileName))
+        check output.processOutput.inLines(inclInDevFileMsg(
+          includeFileName, developFileName))
         const expectedFileContent = developFile(
           @[includeFileName], @[depPath])
         check parseFile(developFileName) == parseJson(expectedFileContent)
@@ -408,16 +411,14 @@ suite "develop feature":
       const includeFileContent = developFile(@[], @[dep2Path])
       writeFile(includeFileName, includeFileContent)
 
-      let
-        (output, exitCode) = execNimble("develop", &"-i:{includeFileName}")
-        developFilePath = getCurrentDir() / developFileName
+      let (output, exitCode) = execNimble("develop", &"-i:{includeFileName}")
 
       check exitCode == QuitFailure
       var lines = output.processOutput
       check lines.inLinesOrdered(
-        failedToInclInDevFileMsg(includeFileName, developFilePath))
+        failedToInclInDevFileMsg(includeFileName, developFileName))
       check lines.inLinesOrdered(pkgFoundMoreThanOnceMsg(depName,
-        [(depPath.absolutePath.Path, developFilePath.Path),
+        [(depPath.Path, developFileName.Path),
          (dep2Path.Path, includeFileName.Path)].toHashSet))
       check parseFile(developFileName) == parseJson(developFileContent)
 
@@ -430,7 +431,8 @@ suite "develop feature":
       writeFile(includeFileName, includeFileContent)
       let (output, exitCode) = execNimble("develop", &"-e:{includeFileName}")
       check exitCode == QuitSuccess
-      check output.processOutput.inLines(exclFromDevFileMsg(includeFileName))
+      check output.processOutput.inLines(exclFromDevFileMsg(
+        includeFileName, developFileName))
       check parseFile(developFileName) == parseJson(emptyDevelopFileContent)
 
   test "warning on attempt to exclude not included develop file":
@@ -442,8 +444,8 @@ suite "develop feature":
       writeFile(includeFileName, includeFileContent)
       let (output, exitCode) = execNimble("develop", &"-e:../{includeFileName}")
       check exitCode == QuitSuccess
-      check output.processOutput.inLines(
-        notInclInDevFileMsg((&"../{includeFileName}").normalizedPath))
+      check output.processOutput.inLines(notInclInDevFileMsg(
+        (&"../{includeFileName}").normalizedPath, developFileName))
       check parseFile(developFileName) == parseJson(developFileContent)
 
   test "relative paths in the develop file and absolute from the command line":
@@ -463,9 +465,10 @@ suite "develop feature":
 
       check exitCode == QuitSuccess
       var lines = output.processOutput
-      check lines.inLinesOrdered(exclFromDevFileMsg(includeFileAbsolutePath))
-      check lines.inLinesOrdered(
-        pkgRemovedFromDevModeMsg(depNameAndVersion, dependencyPkgAbsolutePath))
+      check lines.inLinesOrdered(exclFromDevFileMsg(
+        includeFileAbsolutePath, developFileName))
+      check lines.inLinesOrdered(pkgRemovedFromDevFileMsg(
+        depNameAndVersion, dependencyPkgAbsolutePath, developFileName))
       check parseFile(developFileName) == parseJson(emptyDevelopFileContent)
 
   test "absolute paths in the develop file and relative from the command line":
@@ -487,9 +490,10 @@ suite "develop feature":
 
       check exitCode == QuitSuccess
       var lines = output.processOutput
-      check lines.inLinesOrdered(exclFromDevFileMsg(includeFileName))
-      check lines.inLinesOrdered(
-        pkgRemovedFromDevModeMsg(depNameAndVersion, depPath))
+      check lines.inLinesOrdered(exclFromDevFileMsg(
+        includeFileName, developFileName))
+      check lines.inLinesOrdered(pkgRemovedFromDevFileMsg(
+        depNameAndVersion, depPath, developFileName))
       check parseFile(developFileName) == parseJson(emptyDevelopFileContent)
 
   test "uninstall package with develop reverse dependencies":
@@ -795,43 +799,67 @@ suite "develop feature":
           [(pkg3Path, freeDevFile1Path),
            (pkg32Path, freeDevFile2Path)].toHashSet))
 
-  test "create an empty develop file with default name in the current dir":
-    cd dependentPkgPath:
-      cleanFile developFileName
-      let (output, errorCode) = execNimble("develop", "-c")
-      check errorCode == QuitSuccess
-      check parseFile(developFileName) == parseJson(emptyDevelopFileContent)
-      check output.processOutput.inLines(
-        emptyDevFileCreatedMsg(developFileName))
-
   test "create an empty develop file in some dir":
     cleanDir installDir
     let filePath = installDir / "develop.json"
     cleanFile filePath
     createDir installDir
-    let (output, errorCode) = execNimble("develop", &"-c:{filePath}")
+    let (output, errorCode) = execNimble(
+      "--debug", "develop", &"--develop-file:{filePath}")
     check errorCode == QuitSuccess
     check parseFile(filePath) == parseJson(emptyDevelopFileContent)
-    check output.processOutput.inLines(emptyDevFileCreatedMsg(filePath))
+    check output.processOutput.inLines(developFileSavedMsg(filePath))
 
-  test "try to create an empty develop file with already existing name":
-    cd dependentPkgPath:
-      cleanFile developFileName
-      const developFileContent = developFile(@[], @[depPath])
-      writeFile(developFileName, developFileContent)
-      let
-        filePath = getCurrentDir() / developFileName
-        (output, errorCode) = execNimble("develop", &"-c:{filePath}")
-      check errorCode == QuitFailure
-      check output.processOutput.inLines(fileAlreadyExistsMsg(filePath))
-      check parseFile(developFileName) == parseJson(developFileContent)
-
-  test "try to create an empty develop file in not existing dir":
+  test "try to create a develop file in not existing dir":
     let filePath = installDir / "some/not/existing/dir/develop.json"
     cleanFile filePath
-    let (output, errorCode) = execNimble("develop", &"-c:{filePath}")
+    let (output, errorCode) = execNimble(
+      "--debug", "develop", &"--develop-file:{filePath}")
     check errorCode == QuitFailure
     check output.processOutput.inLines(&"cannot open: {filePath}")
+
+  test "can manipulate a free develop file":
+    cleanDir installDir
+    cd dependentPkgPath:
+      usePackageListFile &"../{pkgListFileName}":
+        const
+          developFileName = "develop.json"
+          includeFileName = "include.json"
+          includeFileContent = developFile(@[], @[depPath])
+        cleanFiles developFileName, includeFileName
+        writeFile(includeFileName, includeFileContent)
+        var (output, exitCode) = execNimble(
+          "develop", &"--develop-file:{developFileName}",
+          &"-a:{depPath}", &"-i:{includeFileName}")
+        check exitCode == QuitSuccess
+        var lines = output.processOutput
+        check lines.inLinesOrdered(pkgAddedInDevFileMsg(
+          depNameAndVersion, depPath, developFileName))
+        check lines.inLinesOrdered(inclInDevFileMsg(
+          includeFileName, developFileName))
+        const expectedDevelopFile = developFile(@[includeFileName], @[depPath])
+        check parseFile(developFileName) == parseJson(expectedDevelopFile)
+
+  test "add develop --with-dependencies packages to free develop file":
+    cdCleanDir installDir:
+      const developFile = "develop.json"
+      usePackageListFile &"../develop/{pkgListFileName}":
+        let (output, exitCode) = execNimble("--debug", "develop",
+          "--with-dependencies", &"--develop-file:{developFile}", pkgBName)
+        check exitCode == QuitSuccess
+        let 
+          pkgAPath = installDir / pkgAName
+          pkgBPath = installDir / pkgBName
+        var lines = output.processOutput
+        check lines.inLinesOrdered(pkgSetupInDevModeMsg(pkgAName, pkgAPath))
+        check lines.inLinesOrdered(pkgSetupInDevModeMsg(pkgBName, pkgBPath))
+        check lines.inLinesOrdered(pkgAddedInDevFileMsg(
+          &"{pkgAName}@0.2.0", pkgAPath, developFile))
+        check lines.inLinesOrdered(pkgAddedInDevFileMsg(
+          &"{pkgBName}@0.2.0", pkgBPath, developFile))
+        check lines.inLinesOrdered(developFileSavedMsg(developFile))
+        let developFileContent = developFile(@[], @[pkgAPath, pkgBPath])
+        check parseFile(developFile) == parseJson(developFileContent)
 
   test "partial success when some operations in single command failed":
     cleanDir installDir
@@ -845,45 +873,36 @@ suite "develop feature":
         cleanFiles developFileName, includeFileName, dep2DevelopFilePath
         writeFile(includeFileName, includeFileContent)
 
-        let
-          developFilePath = getCurrentDir() / developFileName
-          (output, errorCode) = execNimble("develop", &"-p:{installDir}",
-            pkgAName,                    # success
-             "-c",                       # success
-            &"-a:{depPath}",             # success
-            &"-a:{dep2Path}",            # fail because of names collision
-            &"-i:{includeFileName}",     # fail because of names collision
-            &"-n:{depName}",             # success
-            &"-c:{developFilePath}",     # fail because the file already exists
-            &"-a:{dep2Path}",            # success
-            &"-i:{includeFileName}",     # success
-            &"-i:{invalidInclFilePath}", # fail
-            &"-c:{dep2DevelopFilePath}") # success
+        let (output, errorCode) = execNimble("develop", &"-p:{installDir}",
+          pkgAName,                    # success
+          &"-a:{depPath}",             # success
+          &"-a:{dep2Path}",            # fail because of names collision
+          &"-i:{includeFileName}",     # fail because of names collision
+          &"-n:{depName}",             # success
+          &"-a:{dep2Path}",            # success
+          &"-i:{includeFileName}",     # success
+          &"-i:{invalidInclFilePath}") # fail
 
         check errorCode == QuitFailure
         var lines = output.processOutput
         check lines.inLinesOrdered(pkgSetupInDevModeMsg(
           pkgAName, installDir / pkgAName))
-        check lines.inLinesOrdered(emptyDevFileCreatedMsg(developFileName))
+        check lines.inLinesOrdered(pkgAddedInDevFileMsg(
+          depNameAndVersion, depPath, developFileName))
+        check lines.inLinesOrdered(pkgAlreadyPresentAtDifferentPathMsg(
+          depName, depPath, developFileName))
         check lines.inLinesOrdered(
-          pkgAddedInDevModeMsg(depNameAndVersion, depPath))
-        check lines.inLinesOrdered(
-          pkgAlreadyPresentAtDifferentPathMsg(depName, depPath))
-        check lines.inLinesOrdered(
-          failedToInclInDevFileMsg(includeFileName, developFilePath))
+          failedToInclInDevFileMsg(includeFileName, developFileName))
         check lines.inLinesOrdered(pkgFoundMoreThanOnceMsg(depName,
-          [(depPath.Path, developFilePath.Path),
+          [(depPath.Path, developFileName.Path),
            (dep2Path.Path, includeFileName.Path)].toHashSet))
-        check lines.inLinesOrdered(
-          pkgRemovedFromDevModeMsg(depNameAndVersion, depPath))
-        check lines.inLinesOrdered(fileAlreadyExistsMsg(developFilePath))
-        check lines.inLinesOrdered(
-          pkgAddedInDevModeMsg(depNameAndVersion, dep2Path))
-        check lines.inLinesOrdered(inclInDevFileMsg(includeFileName))
+        check lines.inLinesOrdered(pkgRemovedFromDevFileMsg(
+          depNameAndVersion, depPath, developFileName))
+        check lines.inLinesOrdered(pkgAddedInDevFileMsg(
+          depNameAndVersion, dep2Path, developFileName))
+        check lines.inLinesOrdered(inclInDevFileMsg(
+          includeFileName, developFileName))
         check lines.inLinesOrdered(failedToLoadFileMsg(invalidInclFilePath))
-        check lines.inLinesOrdered(emptyDevFileCreatedMsg(dep2DevelopFilePath))
-        check parseFile(dep2DevelopFilePath) ==
-              parseJson(emptyDevelopFileContent)
         let expectedDevelopFileContent = developFile(
           @[includeFileName], @[dep2Path, &"{installDir}/{pkgAName}"])
         check parseFile(developFileName) ==

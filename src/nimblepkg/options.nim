@@ -52,7 +52,7 @@ type
     actionDevelop, actionCheck, actionLock, actionRun, actionSync, actionSetup
 
   DevelopActionType* = enum
-    datNewFile, datAdd, datRemoveByPath, datRemoveByName, datInclude, datExclude
+    datAdd, datRemoveByPath, datRemoveByName, datInclude, datExclude
 
   DevelopAction* = tuple[actionType: DevelopActionType, argument: string]
 
@@ -73,6 +73,7 @@ type
       withDependencies*: bool
         ## Whether to put in develop mode also the dependencies of the packages
         ## listed in the develop command.
+      developFile*: string
     of actionSearch:
       search*: seq[string] # Search string.
     of actionInit, actionDump:
@@ -100,28 +101,34 @@ Commands:
   install      [pkgname, ...]     Installs a list of packages.
                [-d, --depsOnly]   Install only dependencies.
                [-p, --passNim]    Forward specified flag to compiler.
-  develop      [pkgname, ...]     Clones a list of packages for development. If
-                                  executed in a package directory creates a
-                                  `nimble.develop` file with paths to the cloned
-                                  packages.
+  develop      [pkgname, ...]     Clones a list of packages for development.
+                                  Adds them to a develop file if specified or
+                                  to `nimble.develop` if not specified and
+                                  executed in package's directory.
          [--with-dependencies]    Puts in develop mode also the dependencies
-                                  of the packages in the list.
+                                  of the packages in the list or of the current
+                                  directory package if the list is
+         [--develop-file]         Specifies the name of the develop file which
+                                  to be manipulated. If not present creates it.
          [-p, --path path]        Specifies the path whether the packages should
                                   be cloned.
-         [-c, --create [path]]    Creates an empty develop file with name
-                                  `nimble.develop` in the current directory or
-                                  if path is present to the given directory with
-                                  a given name.
-         [-a, --add path]         Adds a package at given path to the
-                                  `nimble.develop` file.
-         [-r, --remove-path path] Removes a package at given path from the
-                                  `nimble.develop` file.
+         [-a, --add path]         Adds a package at given path to a specified
+                                  develop file or to `nimble.develop` if not
+                                  specified and executed in package's directory.
+         [-r, --remove-path path] Removes a package at given path from a
+                                  specified develop file or from `nimble.develop`
+                                  if not specified and executed in package's
+                                  directory.
          [-n, --remove-name name] Removes a package with a given name from
-                                  the `nimble.develop` file.
-         [-i, --include file]     Includes a develop file into the current
-                                  directory's one.
-         [-e, --exclude file]     Excludes a develop file from the current
-                                  directory's one.
+                                  a specified develop file or from `nimble.develop`
+                                  if not specified and executed in package's
+                                  directory.
+         [-i, --include file]     Includes a develop file into a specified
+                                  develop file or to `nimble.develop` if not
+                                  specified and executed in package's directory.
+         [-e, --exclude file]     Excludes a develop file from a specified
+                                  develop file or from `nimble.develop` if not
+                                  specified and executed in package's directory.
   check                           Verifies the validity of a package in the
                                   current working directory.
   init         [pkgname]          Initializes a new Nimble project in the
@@ -130,7 +137,7 @@ Commands:
                [--git, --hg]      Creates a git/hg repo in the new nimble project.
   publish                         Publishes a package on nim-lang/packages.
                                   The current working directory needs to be the
-                                  toplevel directory of the Nimble package.
+                                  top level directory of the Nimble package.
   uninstall    [pkgname, ...]     Uninstalls a list of packages.
                [-i, --inclDeps]   Uninstalls package and dependent package(s).
   build        [opts, ...] [bin]  Builds a package. Passes options to the Nim
@@ -536,8 +543,6 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
       result.action.custRunFlags.add(getFlagString(kind, flag, val))
   of actionDevelop:
     case f
-    of "c", "create":
-      result.action.devActions.add (datNewFile, val.normalizedPath)
     of "a", "add":
       result.action.devActions.add (datAdd, val.normalizedPath)
     of "r", "remove-path":
@@ -555,7 +560,12 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
         raise nimbleError(multiplePathOptionsGivenMsg)
     of "with-dependencies":
       result.action.withDependencies = true
-    else: 
+    of "develop-file":
+      if result.action.developFile.len == 0:
+        result.action.developFile = val.normalizedPath
+      else:
+        raise nimbleError(multipleDevelopFileOptionsGivenMsg)
+    else:
       wasFlagHandled = false
   of actionSync:
     case f

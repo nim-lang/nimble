@@ -1285,21 +1285,13 @@ proc updatePathsFile(pkgInfo: PackageInfo, options: Options) =
   writeFile(nimblePathsFileName, pathsFileContent)
   displayInfo(&"\"{nimblePathsFileName}\" is {action}.")
 
-proc hasDevActionsAllowedOnlyInPkgDir(options: Options): bool =
-  assert options.action.typ == actionDevelop,
-         "This function make sense only for the `develop` command."
-  for (action, _) in options.action.devActions:
-    if action != datNewFile:
-      return true
-
 proc develop(options: var Options) =
   let
     hasPackages = options.action.packages.len > 0
     hasPath = options.action.path.len > 0
     hasDevActions = options.action.devActions.len > 0
-
-  if not hasPackages and hasPath and not options.action.withDependencies:
-    raise nimbleError(pathGivenButNoPkgsToDownloadMsg)
+    hasDevFile = options.action.developFile.len > 0
+    withDependencies = options.action.withDependencies
 
   var
     currentDirPkgInfo = initPackageInfo()
@@ -1309,8 +1301,15 @@ proc develop(options: var Options) =
     # Check whether the current directory is a package directory.
     currentDirPkgInfo = getPkgInfo(getCurrentDir(), options)
   except CatchableError as error:
-    if options.hasDevActionsAllowedOnlyInPkgDir:
-      raise nimbleError(developOptionsOutOfPkgDirectoryMsg, details = error)
+    if hasDevActions and not hasDevFile:
+      raise nimbleError(developOptionsWithoutDevelopFileMsg, details = error)
+
+  if withDependencies and not hasPackages and not currentDirPkgInfo.isLoaded:
+    raise nimbleError(developWithDependenciesWithoutPackagesMsg)
+
+  if hasPath and not hasPackages and
+     (not currentDirPkgInfo.isLoaded or not withDependencies):
+    raise nimbleError(pathGivenButNoPkgsToDownloadMsg)
 
   if currentDirPkgInfo.isLoaded and (not hasPackages) and (not hasDevActions):
     developFromDir(currentDirPkgInfo, options)
@@ -1324,13 +1323,18 @@ proc develop(options: var Options) =
       displayError(&"Cannot install package \"{pkgTup}\" for develop.")
       displayDetails(error)
 
-  if currentDirPkgInfo.isLoaded and options.hasDevActionsAllowedOnlyInPkgDir:
+  if currentDirPkgInfo.isLoaded and not hasDevFile:
+    options.action.developFile = developFileName
+
+  if options.action.developFile.len > 0:
     hasError = not updateDevelopFile(currentDirPkgInfo, options) or hasError
-    updateSyncFile(currentDirPkgInfo, options)
-    if fileExists(nimblePathsFileName):
-      updatePathsFile(currentDirPkgInfo, options)
-  else:
-    hasError = not executeDevActionsAllowedOutsidePkgDir(options) or hasError
+    if currentDirPkgInfo.isLoaded and
+       options.action.developFile == developFileName:
+      # If we are updated package's develop file we have to update also
+      # sync and paths files.
+      updateSyncFile(currentDirPkgInfo, options)
+      if fileExists(nimblePathsFileName):
+        updatePathsFile(currentDirPkgInfo, options)
 
   if hasError:
     raise nimbleError(

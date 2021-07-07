@@ -120,12 +120,6 @@ proc getPkgDevFilePath(pkg: PackageInfo): Path =
   ## Returns the path to the develop file associated with the package `pkg`.
   pkg.getNimbleFilePath / developFileName
 
-proc getDependentPkgDevFilePath(data: DevelopFileData): Path =
-  ## Returns the path to the develop file of the dependent package associated
-  ## with `data`.
-  data.assertHasDependentPkg
-  data.dependentPkg.getPkgDevFilePath
-
 proc isEmpty*(data: DevelopFileData): bool =
   ## Checks whether there is some content (paths to packages directories or 
   ## includes to other develop files) in the develop file.
@@ -152,14 +146,7 @@ proc save*(data: DevelopFileData, path: Path, writeEmpty, overwrite: bool) =
     raise nimbleError(fileAlreadyExistsMsg($path))
 
   writeFile(path, json.pretty)
-
-template save(data: DevelopFileData, args: varargs[untyped]) =
-  ## Saves the `data` to a JSON file in in the directory of `data`'s
-  ## `dependentPkg` Nimble file.  Delegates the functionality to the `save`
-  ## procedure taking path to develop file.
-  data.assertHasDependentPkg
-  let fileName = data.getDependentPkgDevFilePath
-  data.save(fileName, args)
+  displaySuccess(developFileSavedMsg($path), priority = DebugPriority)
 
 proc developFileExists*(dir: Path): bool =
   ## Returns `true` if there is a Nimble develop file with a default name in
@@ -402,7 +389,7 @@ proc load(path: Path, dependentPkg: PackageInfo, options: Options,
       continue
     result.mergeIncludedDevFileData(inclDevFileData, errors)
 
-  if result.dependentPkg.isLoaded:
+  if result.dependentPkg.isLoaded and path.splitPath.tail == developFileName:
     # If this is a package develop file, but not a free one, for each of the
     # package's develop mode dependencies load its develop file if it is not
     # already loaded and merge its data to the current develop file's data.
@@ -443,7 +430,8 @@ proc addDevelopPackage(data: var DevelopFileData, pkg: PackageInfo): bool =
   # `pkg.name` at different path.
   if data.nameToPkg.hasKey(pkg.name) and not data.pathToPkg.hasKey(pkgDir):
     let otherPath = data.nameToPkg[pkg.name][].getNimbleFilePath()
-    displayError(pkgAlreadyPresentAtDifferentPathMsg(pkg.name, $otherPath))
+    displayError(pkgAlreadyPresentAtDifferentPathMsg(
+      pkg.name, $otherPath, $data.path))
     return false
 
   # Add `pkg` to the develop file model.
@@ -455,9 +443,11 @@ proc addDevelopPackage(data: var DevelopFileData, pkg: PackageInfo): bool =
                                   "path different than already existing one."
 
   if success:
-    displaySuccess(pkgAddedInDevModeMsg(pkg.getNameAndVersion, $pkgDir))
+    displaySuccess(pkgAddedInDevFileMsg(
+      pkg.getNameAndVersion, $pkgDir, $data.path))
   else:
-    displayWarning(pkgAlreadyInDevModeMsg(pkg.getNameAndVersion, $pkgDir))
+    displayWarning(pkgAlreadyInDevFileMsg(
+      pkg.getNameAndVersion, $pkgDir, $data.path))
 
   return true
 
@@ -536,9 +526,9 @@ proc removeDevelopPackageByPath(data: var DevelopFileData, path: Path): bool =
   if success:
     let nameAndVersion = data.pathToPkg[path][].getNameAndVersion()
     data.removePackage(path, data.path)
-    displaySuccess(pkgRemovedFromDevModeMsg(nameAndVersion, $path))
+    displaySuccess(pkgRemovedFromDevFileMsg(nameAndVersion, $path, $data.path))
   else:
-    displayWarning(pkgPathNotInDevFileMsg($path))
+    displayWarning(pkgPathNotInDevFileMsg($path, $data.path))
 
   return success
 
@@ -557,9 +547,10 @@ proc removeDevelopPackageByName(data: var DevelopFileData, name: string): bool =
 
   if success:
     data.removePackage(path, data.path)
-    displaySuccess(pkgRemovedFromDevModeMsg(pkg[].getNameAndVersion, $path))
+    displaySuccess(pkgRemovedFromDevFileMsg(
+      pkg[].getNameAndVersion, $path, $data.path))
   else:
-    displayWarning(pkgNameNotInDevFileMsg(name))
+    displayWarning(pkgNameNotInDevFileMsg(name, $data.path))
 
   return success
 
@@ -601,9 +592,9 @@ proc includeDevelopFile(data: var DevelopFileData, path: Path,
         data.removePackage(pkgPath, path)
       return false
 
-    displaySuccess(inclInDevFileMsg($path))
+    displaySuccess(inclInDevFileMsg($path, $data.path))
   else:
-    displayWarning(alreadyInclInDevFileMsg($path))
+    displayWarning(alreadyInclInDevFileMsg($path, $data.path))
 
   return true
 
@@ -630,27 +621,11 @@ proc excludeDevelopFile(data: var DevelopFileData, path: Path): bool =
     for pkg in packages:
       data.removePackage(pkg, path)
 
-    displaySuccess(exclFromDevFileMsg($path))
+    displaySuccess(exclFromDevFileMsg($path, $data.path))
   else:
-    displayWarning(notInclInDevFileMsg($path))
+    displayWarning(notInclInDevFileMsg($path, $data.path))
 
   return success
-
-proc createEmptyDevelopFile(path: Path, options: Options): bool =
-  ## Creates an empty develop file at given path `path` or with a default name
-  ## in the current directory if there is no path given.
-
-  let filePath = if path.len == 0: Path(developFileName) else: path
-
-  try:
-    var data = initDevelopFileData()
-    data.save(filePath, writeEmpty = true, overwrite = false)
-  except CatchableError as error:
-    displayError(error)
-    return false
-
-  displaySuccess(emptyDevFileCreatedMsg($filePath))
-  return true
 
 proc assertDevelopActionIsSet(options: Options) =
   ## Asserts that the currently set action in the `options` object is `develop`.
@@ -671,20 +646,22 @@ proc updateDevelopFile*(dependentPkg: PackageInfo, options: Options): bool =
   ## Raises if cannot load an existing develop file.
 
   options.assertDevelopActionIsSet
-  dependentPkg.assertIsLoaded
+
+  let developFile = options.action.developFile
 
   var
     hasError = false
     hasSuccessfulRemoves = false
-    data = load(dependentPkg, options, true, true)
+    data = load(developFile, dependentPkg, options, true, true)
 
   defer:
-    data.save(writeEmpty = hasSuccessfulRemoves, overwrite = true)
+    let writeEmpty = hasSuccessfulRemoves or
+                     developFile != developFileName or
+                     not dependentPkg.isLoaded
+    data.save(developFile, writeEmpty = writeEmpty, overwrite = true)
 
   for (actionType, argument) in options.action.devActions:
     case actionType
-    of datNewFile:
-      hasError = not createEmptyDevelopFile(argument, options) or hasError
     of datAdd:
       hasError = not data.addDevelopPackage(argument, options) or hasError
     of datRemoveByPath:
@@ -699,22 +676,6 @@ proc updateDevelopFile*(dependentPkg: PackageInfo, options: Options): bool =
       hasSuccessfulRemoves = data.excludeDevelopFile(argument) or
                              hasSuccessfulRemoves
 
-  return not hasError
-
-proc executeDevActionsAllowedOutsidePkgDir*(options: Options): bool =
-  ## Executes develop command sub-commands allowed outside a valid package
-  ## directory. Currently this is only `--create, -c` option for creating an
-  ## empty develop file.
-
-  options.assertDevelopActionIsSet
-
-  var hasError = false
-  for (actionType, argument) in options.action.devActions:
-    case actionType
-    of datNewFile:
-      hasError = not createEmptyDevelopFile(argument, options) or hasError
-    else:
-      discard
   return not hasError
 
 proc processDevelopDependencies*(dependentPkg: PackageInfo, options: Options):

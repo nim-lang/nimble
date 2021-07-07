@@ -289,11 +289,13 @@ one.
 one.
 * `--with-dependencies` - Clones for develop also the dependencies of the
 packages for which the develop command is executed.
+* `--develop-file` - Changes the name of the develop file which to be
+manipulated. It is useful for creating a free develop file which is not 
+associated with any project intended for inclusion in some other develop file.
 
 The options for manipulation of the develop files could be given only when
-executing `develop` command from some package's directory and they work only on
-the project's develop file named `nimble.develop` and not on free develop files
-intended only for inclusion.
+executing `develop` command from some package's directory unless
+`--develop-file` option with a name of develop file is explicitly given.
 
 Because the develop files are user-specific and they contain local file system
 paths they **MUST NOT** be committed.

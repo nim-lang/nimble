@@ -14,9 +14,12 @@ const
   pathGivenButNoPkgsToDownloadMsg* =
     "Path option is given but there are no given packages for download."
   
-  developOptionsOutOfPkgDirectoryMsg* =
+  developOptionsWithoutDevelopFileMsg* =
     "Options 'add', 'remove', 'include' and 'exclude' cannot be given " &
-    "when develop is being executed out of a valid package directory."
+    "when no develop file is specified."
+
+  developWithDependenciesWithoutPackagesMsg* =
+    "Option 'with-dependencies' is given without packages for develop."
 
   dependencyNotInRangeErrorHint* =
     "Update the version of the dependency package in its Nimble file or " &
@@ -28,6 +31,9 @@ const
 
   multiplePathOptionsGivenMsg* = "Multiple path options are given."
 
+  multipleDevelopFileOptionsGivenMsg* =
+    "Multiple develop file options are given."
+
   updatingTheLockFileMsg* = "Updating the lock file..."
   generatingTheLockFileMsg* = "Generating the lock file..."
   lockFileIsUpdatedMsg* = "The lock file is updated."
@@ -36,8 +42,8 @@ const
 proc fileAlreadyExistsMsg*(path: string): string =
   &"Cannot create file \"{path}\" because it already exists."
 
-proc emptyDevFileCreatedMsg*(path: string): string =
-  &"An empty develop file \"{path}\" has been created."
+proc developFileSavedMsg*(path: string): string =
+  &"The develop file \"{path}\" has been saved."
 
 proc pkgSetupInDevModeMsg*(pkgName, pkgPath: string): string =
   &"\"{pkgName}\" set up in develop mode successfully to \"{pkgPath}\"."
@@ -59,44 +65,47 @@ proc invalidDevFileMsg*(path: string): string =
 proc notAValidDevFileJsonMsg*(devFilePath: string): string =
   &"The file \"{devFilePath}\" has not a valid develop file JSON schema."
 
-proc pkgAlreadyPresentAtDifferentPathMsg*(pkgName, otherPath: string): string =
+proc pkgAlreadyPresentAtDifferentPathMsg*(
+    pkgName, otherPath, fileName: string): string =
   &"A package with a name \"{pkgName}\" at different path \"{otherPath}\" " &
-   "is already present in the develop file."
+   "is already present in the develop file \"{fileName}\"."
 
-proc pkgAddedInDevModeMsg*(pkg, path: string): string =
-  &"The package \"{pkg}\" at path \"{path}\" is added as a develop mode " &
-   "dependency."
+proc pkgAddedInDevFileMsg*(pkg, path, fileName: string): string =
+  &"The package \"{pkg}\" at path \"{path}\" is added to the develop file " &
+  &"\"{fileName}\"."
 
-proc pkgAlreadyInDevModeMsg*(pkg, path: string): string =
-  &"The package \"{pkg}\" at path \"{path}\" is already in develop mode."
+proc pkgAlreadyInDevFileMsg*(pkg, path, fileName: string): string =
+  &"The package \"{pkg}\" at path \"{path}\" is already present in the " &
+  &"develop file \"{fileName}\"."
 
-proc pkgRemovedFromDevModeMsg*(pkg, path: string): string =
-  &"The package \"{pkg}\" at path \"{path}\" is removed from the develop file."
+proc pkgRemovedFromDevFileMsg*(pkg, path, fileName: string): string =
+  &"The package \"{pkg}\" at path \"{path}\" is removed from the develop " &
+  &"file \"{fileName}\"."
 
-proc pkgPathNotInDevFileMsg*(path: string): string =
-  &"The path \"{path}\" is not in the develop file."
+proc pkgPathNotInDevFileMsg*(path, fileName: string): string =
+  &"The path \"{path}\" is not in the develop file \"{fileName}\"."
 
-proc pkgNameNotInDevFileMsg*(pkgName: string): string =
-  &"A package with name \"{pkgName}\" is not in the develop file."
+proc pkgNameNotInDevFileMsg*(pkgName, fileName: string): string =
+  &"A package with name \"{pkgName}\" is not in the develop file " &
+  &"\"{fileName}\"."
 
 proc failedToInclInDevFileMsg*(inclFile, devFile: string): string =
-  &"Failed to include \"{inclFile}\" to \"{devFile}\""
+  &"Failed to include \"{inclFile}\" to the develop file \"{devFile}\""
 
-proc inclInDevFileMsg*(path: string): string =
-  &"The develop file \"{path}\" is successfully included into the current " &
-   "project's develop file."
+proc inclInDevFileMsg*(path, fileName: string): string =
+  &"The develop file \"{path}\" is successfully included into the develop " &
+  &"file \"{fileName}\""
 
-proc alreadyInclInDevFileMsg*(path: string): string =
-  &"The develop file \"{path}\" is already included in the current project's " &
-   "develop file."
+proc alreadyInclInDevFileMsg*(path, fileName: string): string =
+  &"The develop file \"{path}\" is already included in the develop file " &
+  &"\"{fileName}\"."
 
-proc exclFromDevFileMsg*(path: string): string =
-  &"The develop file \"{path}\" is successfully excluded from the current " &
-   "project's develop file."
+proc exclFromDevFileMsg*(path, fileName: string): string =
+  &"The develop file \"{path}\" is successfully excluded from the develop " &
+  &"file \"{fileName}\"."
 
-proc notInclInDevFileMsg*(path: string): string =
-  &"The develop file \"{path}\" is not included in the current project's " &
-   "develop file."
+proc notInclInDevFileMsg*(path, fileName: string): string =
+  &"The file \"{path}\" is not included in the develop file \"{fileName}\"."
 
 proc failedToLoadFileMsg*(path: string): string =
   &"Failed to load \"{path}\"."
