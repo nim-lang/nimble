@@ -24,6 +24,9 @@ else:
   const STILL_ACTIVE = 259
   import posix
 
+when defined(linux):
+  import linux
+
 type
   ProcessOption* = enum  ## options that can be passed `startProcess`
     poEchoCmd,            ## echo the command before execution
@@ -141,7 +144,7 @@ proc startProcess*(command: string, workingDir: string = "",
                    pipeStdout: AsyncPipe = nil,
                    pipeStderr: AsyncPipe = nil): AsyncProcess
   ## Starts a process.
-  ## and returns its exit code and output as a tuple
+  ##
   ## ``command`` is the executable file path
   ##
   ## ``workingDir`` is the process's working directory. If ``workingDir == ""``
@@ -384,7 +387,7 @@ when defined(windows):
 
     var tmp = newWideCString(cmdl)
     var ee =
-      if e.str.isNil: nil
+      if e.str.isNil: newWideCString(cstring(nil))
       else: newWideCString(e.str, e.len)
     var wwd = newWideCString(wd)
     var flags = NORMAL_PRIORITY_CLASS or CREATE_UNICODE_ENVIRONMENT
@@ -507,7 +510,7 @@ else:
     result = cast[cstringArray](alloc0((counter + 1) * sizeof(cstring)))
     var i = 0
     for key, val in envPairs():
-      var x = key & "=" & val
+      var x = key.string & "=" & val.string
       result[i] = cast[cstring](alloc(x.len+1))
       copyMem(result[i], addr(x[0]), x.len+1)
       inc(i)

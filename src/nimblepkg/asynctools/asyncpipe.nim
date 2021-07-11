@@ -135,6 +135,10 @@ else:
     proc connectNamedPipe(hNamedPipe: Handle, lpOverlapped: pointer): WINBOOL
          {.importc: "ConnectNamedPipe", stdcall, dynlib: "kernel32".}
 
+    when not declared(PCustomOverlapped):
+      type
+        PCustomOverlapped = CustomRef
+
     const
       pipeHeaderName = r"\\.\pipe\asyncpipe_"
 
