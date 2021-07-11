@@ -889,6 +889,7 @@ proc execProcess(command: string, args: seq[string] = @[],
   var data = newString(bufferSize)
   var p = startProcess(command, args = args, env = env, options = options)
 
+  let future = p.waitForExit()
   while true:
     let res = await p.outputHandle.readInto(addr data[0], bufferSize)
     if res > 0:
@@ -897,7 +898,7 @@ proc execProcess(command: string, args: seq[string] = @[],
       data.setLen(bufferSize)
     else:
       break
-  result.exitcode = await p.waitForExit()
+  result.exitcode = await future
   close(p)
 
 when isMainModule:
