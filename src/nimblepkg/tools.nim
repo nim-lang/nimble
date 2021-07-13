@@ -52,11 +52,16 @@ proc doCmdEx*(cmd: string): ProcessOutput =
     raise nimbleError("'" & bin & "' not in PATH.")
   return execCmdEx(cmd)
 
-proc doCmdExAsync*(cmd: string): Future[ProcessOutput] {.async.} =
+proc removeQuotes(cmd: string): string =
+  cmd.filterIt(it != '"').join
+
+proc doCmdExAsync*(cmd: string, args: seq[string] = @[]):
+    Future[ProcessOutput] {.async.} =
   let bin = extractBin(cmd)
   if findExe(bin) == "":
     raise nimbleError("'" & bin & "' not in PATH.")
-  let res = await asyncproc.execProcess(cmd)
+  let res = await asyncproc.execProcess(cmd.removeQuotes, args,
+    options = {asyncproc.poStdErrToStdOut, asyncproc.poUsePath})
   return (res.output, res.exitCode)
 
 proc tryDoCmdExErrorMessage*(cmd, output: string, exitCode: int): string =
@@ -69,8 +74,9 @@ proc tryDoCmdEx*(cmd: string): string {.discardable.} =
     raise nimbleError(tryDoCmdExErrorMessage(cmd, output, exitCode))
   return output
 
-proc tryDoCmdExAsync*(cmd: string): Future[string] {.async.} =
-  let (output, exitCode) = await doCmdExAsync(cmd)
+proc tryDoCmdExAsync*(cmd: string, args: seq[string] = @[]):
+    Future[string] {.async.} =
+  let (output, exitCode) = await doCmdExAsync(cmd, args)
   if exitCode != QuitSuccess:
     raise nimbleError(tryDoCmdExErrorMessage(cmd, output, exitCode))
   return output

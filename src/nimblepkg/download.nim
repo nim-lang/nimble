@@ -2,10 +2,9 @@
 # BSD License. Look at license.txt for more info.
 
 import parseutils, os, osproc, strutils, tables, pegs, uri, strformat,
-       httpclient, json, asyncdispatch
+       httpclient, json, asyncdispatch, sequtils
 
 from algorithm import SortOrder, sorted
-from sequtils import toSeq, filterIt, map
 
 import packageinfotypes, packageparser, version, tools, common, options, cli,
        sha1hashes, vcstools
@@ -23,28 +22,29 @@ proc doCheckout(meth: DownloadMethod, downloadDir, branch: string):
     # Force is used here because local changes may appear straight after a clone
     # has happened. Like in the case of git on Windows where it messes up the
     # damn line endings.
-    discard await tryDoCmdExAsync(
-      &"git -C {downloadDir} checkout --force {branch}")
-    discard await tryDoCmdExAsync(
-      &"git -C {downloadDir} submodule update --recursive --depth 1")
+    discard await tryDoCmdExAsync("git",
+      @["-C", downloadDir, "checkout", "--force", "branch"])
+    discard await tryDoCmdExAsync("git",
+      @["-C", downloadDir, "submodule", "update", "--recursive", "--depth", "1"])
   of DownloadMethod.hg:
-    discard await tryDoCmdExAsync(&"hg --cwd {downloadDir} checkout {branch}")
+    discard await tryDoCmdExAsync("hg",
+      @["--cwd", downloadDir, "checkout", "branch"])
 
 proc doClone(meth: DownloadMethod, url, downloadDir: string, branch = "",
              onlyTip = true) {.async.} =
   case meth
   of DownloadMethod.git:
     let
-      depthArg = if onlyTip: "--depth 1" else: ""
-      branchArg = if branch == "": "" else: "-b " & branch
-    discard await tryDoCmdExAsync(
-      &"git clone --recursive {depthArg} {branchArg} {url} {downloadDir}")
+      depthArgs = if onlyTip: @["--depth", "1"] else: @[]
+      branchArgs = if branch == "": @[] else: @["-b", branch]
+    discard await tryDoCmdExAsync("git", concat(@["clone", "--recursive"],
+      depthArgs, branchArgs, @[url, downloadDir]))
   of DownloadMethod.hg:
     let
-      tipArg = if onlyTip: "-r tip" else: ""
-      branchArg = if branch == "": "" else: "-b " & branch
-    discard await tryDoCmdExAsync(
-      &"hg clone {tipArg} {branchArg} {url} {downloadDir}")
+      tipArgs = if onlyTip: @["-r", "tip"] else: @[]
+      branchArgs = if branch == "": @[] else: @["-b", branch]
+    discard await tryDoCmdExAsync("hg",
+      concat(@["clone"], tipArgs, branchArgs, @[url, downloadDir]))
 
 proc getTagsList(dir: string, meth: DownloadMethod):
     Future[seq[string]] {.async.} =
@@ -52,9 +52,9 @@ proc getTagsList(dir: string, meth: DownloadMethod):
   cd dir:
     case meth
     of DownloadMethod.git:
-      output = await tryDoCmdExAsync("git tag")
+      output = await tryDoCmdExAsync("git", @["tag"])
     of DownloadMethod.hg:
-      output = await tryDoCmdExAsync("hg tags")
+      output = await tryDoCmdExAsync("hg", @["tags"])
   if output.len > 0:
     case meth
     of DownloadMethod.git:
@@ -78,8 +78,8 @@ proc getTagsListRemote*(url: string, meth: DownloadMethod):
   result = @[]
   case meth
   of DownloadMethod.git:
-    var (output, exitCode) = await doCmdExAsync(
-      &"git ls-remote --tags {url.quoteShell}")
+    var (output, exitCode) = await doCmdExAsync("git",
+      @["ls-remote", "--tags", url])
     if exitCode != QuitSuccess:
       raise nimbleError("Unable to query remote tags for " & url &
                         ". Git returned: " & output)
@@ -149,16 +149,15 @@ proc cloneSpecificRevision(downloadMethod: DownloadMethod,
   of DownloadMethod.git:
     let downloadDir = downloadDir.quoteShell
     createDir(downloadDir)
-    discard await tryDoCmdExAsync(
-      &"git -C {downloadDir} init")
-    discard await tryDoCmdExAsync(
-      &"git -C {downloadDir} remote add origin {url}")
-    discard await tryDoCmdExAsync(
-      &"git -C {downloadDir} fetch --depth 1 origin {vcsRevision}")
-    discard await tryDoCmdExAsync(
-      &"git -C {downloadDir} reset --hard FETCH_HEAD")
+    discard await tryDoCmdExAsync("git", @["-C", downloadDir, "init"])
+    discard await tryDoCmdExAsync("git",
+      @["-C", downloadDir, "remote", "add", "origin", url])
+    discard await tryDoCmdExAsync("git",
+      @["-C", downloadDir, "fetch", "--depth", "1", "origin", $vcsRevision])
+    discard await tryDoCmdExAsync("git",
+      @["-C", downloadDir, "reset", "--hard", "FETCH_HEAD"])
   of DownloadMethod.hg:
-    discard await tryDoCmdExAsync(&"hg clone {url} -r {vcsRevision}")
+    discard await tryDoCmdExAsync("hg", @["clone", url, "-r", $vcsRevision])
 
 proc getTarExePath: string =
   ## Returns path to `tar` executable.
@@ -269,7 +268,7 @@ proc parseRevision(lsRemoteOutput: string): Sha1HashRef =
 proc getRevision(url, version: string): Future[Sha1HashRef] {.async.} =
   ## Returns the commit hash corresponding to the given `version` of the package
   ## in repository at `url`.
-  let output = await tryDoCmdExAsync(&"git ls-remote {url} {version}")
+  let output = await tryDoCmdExAsync("git", @["ls-remote", url, $version])
   result = parseRevision(output)
   if result[] == notSetSha1Hash:
     if version.seemsLikeRevision:
@@ -278,15 +277,17 @@ proc getRevision(url, version: string): Future[Sha1HashRef] {.async.} =
       raise nimbleError(&"Cannot get revision for version \"{version}\" " &
                         &"of package at \"{url}\".")
 
-proc getTarCmdLine(downloadDir, filePath: string): string =
-  ## Returns an OS specific command line for extracting the downloaded tarball.
+proc getTarCmdLine(downloadDir, filePath: string):
+    tuple[cmd: string, args: seq[string]] =
+  ## Returns an OS specific command and arguments for extracting the downloaded
+  ## tarball.
   when defined(Windows):
     let downloadDir = downloadDir.replace('\\', '/')
     let filePath = filePath.replace('\\', '/')
-    &"{getTarExePath()} -C {downloadDir} -xf {filePath} " &
-     "--strip-components 1 --force-local"
+    (getTarExePath(), @["-C", downloadDir, "-xf", filePath,
+                        "--strip-components", "1", "--force-local"])
   else:
-    &"tar -C {downloadDir} -xf {filePath} --strip-components 1"
+    ("tar", @["-C", downloadDir, "-xf", filePath, "--strip-components", "1"])
 
 proc doDownloadTarball(url, downloadDir, version: string, queryRevision: bool):
     Future[Sha1HashRef] {.async.} =
@@ -305,8 +306,8 @@ proc doDownloadTarball(url, downloadDir, version: string, queryRevision: bool):
   display("Completed", "saving " & filePath)
 
   display("Unpacking", filePath)
-  let cmd = getTarCmdLine(downloadDir, filePath)
-  let (output, exitCode) = await doCmdExAsync(cmd)
+  let (cmd, args) = getTarCmdLine(downloadDir, filePath)
+  let (output, exitCode) = await doCmdExAsync(cmd, args)
   if exitCode != QuitSuccess and not output.contains("Cannot create symlink to"):
     # If the command fails for reason different then unable establishing a
     # sym-link raise an exception. This reason for failure is common on Windows
