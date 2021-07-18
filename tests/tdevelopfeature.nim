@@ -243,7 +243,7 @@ suite "develop feature":
   test "can add not a dependency to develop file":
     cd dependentPkgPath:
       cleanFile developFileName
-      const srcDirTestPath = "../srcdirtest"
+      const srcDirTestPath = "../srcdirtest".normalizedPath
       let (output, exitCode) = execNimble("develop", &"-a:{srcDirTestPath}")
       check exitCode == QuitSuccess
       let lines = output.processOutput
@@ -904,6 +904,6 @@ suite "develop feature":
           includeFileName, developFileName))
         check lines.inLinesOrdered(failedToLoadFileMsg(invalidInclFilePath))
         let expectedDevelopFileContent = developFile(
-          @[includeFileName], @[dep2Path, &"{installDir}/{pkgAName}"])
+          @[includeFileName], @[dep2Path, installDir / pkgAName])
         check parseFile(developFileName) ==
               parseJson(expectedDevelopFileContent)
