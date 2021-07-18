@@ -192,15 +192,15 @@ else:
 
       result = AsyncPipe(readPipe: pipeIn, writePipe: pipeOut)
 
-      var ovl = OVERLAPPED()
-      let res = connectNamedPipe(pipeIn, cast[pointer](addr ovl))
+      var ovl = PCustomOverlapped()
+      let res = connectNamedPipe(pipeIn, cast[pointer](ovl))
       if res == 0:
         let err = osLastError()
         if err.int32 == ERROR_PIPE_CONNECTED:
           discard
         elif err.int32 == ERROR_IO_PENDING:
           var bytesRead = 0.Dword
-          if getOverlappedResult(pipeIn, addr ovl, bytesRead, 1) == 0:
+          if getOverlappedResult(pipeIn, cast[POVERLAPPED](ovl), bytesRead, 1) == 0:
             let oerr = osLastError()
             discard closeHandle(pipeIn)
             discard closeHandle(pipeOut)
