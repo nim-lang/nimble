@@ -25,4 +25,5 @@ suite "Module tests":
   moduleTest "sha1hashes"
   moduleTest "tools"
   moduleTest "topologicalsort"
+  moduleTest "vcstools"
   moduleTest "version"
