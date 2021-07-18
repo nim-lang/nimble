@@ -119,12 +119,18 @@ requires "nim >= 1.5.1"
   proc addRemote(remoteName, remoteUrl: string) =
     tryDoCmdEx(&"git remote add {remoteName} {remoteUrl}")
 
+  proc configUserAndEmail =
+    tryDoCmdEx("git config user.name \"John Doe\"")
+    tryDoCmdEx("git config user.email \"john.doe@example.com\"")
+
   proc initRepo(isBare = false) =
     let bare = if isBare: "--bare" else: ""
     tryDoCmdEx("git init " & bare)
+    configUserAndEmail()
 
   proc clone(urlFrom, pathTo: string) =
     tryDoCmdEx(&"git clone {urlFrom} {pathTo}")
+    cd pathTo: configUserAndEmail()
 
   proc branch(branchName: string) =
     tryDoCmdEx(&"git branch {branchName}")
@@ -183,7 +189,7 @@ requires "nim >= 1.5.1"
     else:
       check fileExists(lockFileName)
 
-    let (output, exitCode) = execNimbleYes("lock")
+    let (output, exitCode) = execNimbleYes("lock", "--debug")
     check exitCode == QuitSuccess
 
     var lines = output.processOutput
@@ -245,6 +251,13 @@ requires "nim >= 1.5.1"
 
         let (output, exitCode) = execNimbleYes("lock")
         check exitCode == QuitFailure
+        let mainPkgRepoPath =
+          when defined(macosx):
+            # This is a workaround for the added `/private` prefix to the main
+            # repository Nimble file path when executing the test on macOS.
+            "/private" / mainPkgRepoPath
+          else:
+            mainPkgRepoPath
         let errors = @[
           notInRequiredRangeMsg(dep1PkgName, dep1PkgRepoPath, "0.1.0",
                                 mainPkgName, mainPkgRepoPath, "> 0.1.0"),
@@ -266,7 +279,7 @@ requires "nim >= 1.5.1"
                        (dep2PkgName, dep2PkgRepoPath)],
                      isNew = true)
         removeDir installDir
-        let (output, exitCode) = execNimbleYes("install")
+        let (output, exitCode) = execNimbleYes("install", "--debug")
         check exitCode == QuitSuccess
         let lines = output.processOutput
         check lines.inLines(&"Downloading {dep1PkgOriginRepoPath} using git")

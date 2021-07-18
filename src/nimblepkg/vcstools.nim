@@ -410,14 +410,15 @@ proc getBranchesOnWhichVcsRevisionIsPresent*(
 
   let vcsType = path.getVcsType
   for line in output.strip.splitLines:
-    var line = line.strip(chars = Whitespace + {'*'})
+    var line = line.strip(chars = Whitespace + {'*', '\''})
     if vcsType == vcsTypeGit and branchType == btBoth:
       # For "git branch -a" remote branches are starting with "remotes" which
       # have to be removed for uniformity with "git branch -r".
       const prefix = "remotes/"
       if line.startsWith(prefix):
         line = line[prefix.len .. ^1]
-    result.incl line
+    if line.len > 0:
+      result.incl line
 
 proc isVcsRevisionPresentOnSomeBranch*(path: Path, vcsRevision: Sha1Hash):
     bool =
@@ -624,7 +625,7 @@ proc fastForwardMerge*(path: Path, remoteBranch, localBranch: string) =
     tryDoCmdEx(&"{git(path)} checkout {currentBranch}")
 
 when isMainModule:
-  import unittest, std/sha1, sequtils, os
+  import unittest, std/sha1, sequtils
 
   type
     NameToVcsRevision = OrderedTable[string, Sha1Hash]
@@ -635,11 +636,11 @@ when isMainModule:
     testGitDir = tempDir / "testGitDir"
     testHgDir = tempDir / "testHgDir"
     testNoVcsDir = tempDir / "testNoVcsDir"
-    testSubDir = "./testSubDir"
+    testSubDir = "testSubDir"
     testFile = "test.txt"
     testFile2 = "test2.txt"
     testFileContent = "This is a test file.\n"
-    testSubDirFile = testSubDir / testFile
+    testSubDirFile = &"{testSubDir}/{testFile}"
     testRemotes: seq[tuple[name, url: string]] = @[
       ("origin", "testRemote1Dir"),
       ("other", "testRemote2Dir"),
@@ -654,12 +655,20 @@ when isMainModule:
 
   var nameToVcsRevision: NameToVcsRevision
 
-  proc getMercurialPathsDesc(): string =
-    result = "[paths]\n"
+  proc getMercurialRcFileContent(): string =
+    result = """
+[ui]
+username = John Doe <john.doe@example.com>
+[paths]
+"""
     for remote in testRemotes:
-      result &= &"{remote.name} = {remote.url.absolutePath}\n"
+      result &= &"{remote.name} = {testHgDir / remote.url}\n"
 
-  proc initRepo(vcsType: VcsType) = tryDoCmdEx(&"{vcsType} init")
+  proc initRepo(vcsType: VcsType, url = ".") =
+    tryDoCmdEx(&"{vcsType} init {url}")
+    if vcsType == vcsTypeGit:
+      tryDoCmdEx(&"git -C {url} config user.name \"John Doe\"")
+      tryDoCmdEx(&"git -C {url} config user.email \"john.doe@example.com\"")
 
   proc collectFiles(files: varargs[string]): string =
     for file in files: result &= file & " "
@@ -688,13 +697,13 @@ when isMainModule:
       for remote in testRemotes:
         tryDoCmdEx(&"git remote add {remote.name} {remote.url}")
     of vcsTypeHg:
-      writeFile(".hg/hgrc", getMercurialPathsDesc())
+      writeFile(".hg/hgrc", getMercurialRcFileContent())
     of vcsTypeNone:
       assert false, "VCS type must not be 'vcsTypeNone'."
 
   proc setupRemoteRepo(vcsType: VcsType, remoteUrl: string) =
     createDir remoteUrl
-    tryDoCmdEx(&"{vcsType} init {remoteUrl}")
+    initRepo(vcsType, remoteUrl)
     if vcsType == vcsTypeGit:
       cd remoteUrl:
         tryDoCmdEx("git config receive.denyCurrentBranch ignore")
@@ -726,6 +735,9 @@ when isMainModule:
     tryDoCmdEx(&"{vcsType} branch {branchName}")
 
   proc pushToRemote(vcsType: VcsType, remoteName: string) =
+    if vcsType == vcsTypeGit and remoteName == gitDefaultRemote:
+      let branchName = getCurrentBranch(".")
+      tryDoCmdEx(&"git push --set-upstream {remoteName} {branchName}")
     tryDoCmdEx(&"{vcsType} push {remoteName}")
 
   proc pushToTestRemotes(vcsType: VcsType) =
@@ -1033,13 +1045,13 @@ when isMainModule:
 
   suite "Mercurial":
     suiteTestCode(vcsTypeHg, testHgDir):
-      (testHgDir / remote.url).absolutePath
+      testHgDir / remote.url
 
   suite "no version control":
     setupNoVcsSuite()
 
     test "getVcsTypeAndSpecialDirPath":
-      const rootDir = when defined(windows): '\\' else: '/'
+      const rootDir = when defined(windows): ':' else: '/'
       let (vcsType, specialDirPath) = getVcsTypeAndSpecialDirPath(testNoVcsDir)
       check vcsType == vcsTypeNone
       check ($specialDirPath)[^1] == rootDir
@@ -1048,6 +1060,7 @@ when isMainModule:
       check not isValidSha1Hash($getVcsRevision(testNoVcsDir))
 
     test "getPackageFileList":
-      check getPackageFileList(testNoVcsDir) == @[testFile, testSubDirFile]
+      check getPackageFileList(testNoVcsDir) ==
+            @[testFile, testSubDirFile.normalizedPath]
 
     tearDownSuite(testNoVcsDir)

@@ -1,7 +1,10 @@
 # Copyright (C) Dominik Picheta. All rights reserved.
 # BSD License. Look at license.txt for more info.
 
-# import suites
+import testscommon
+
+# suits imports
+
 import tcheckcommand
 import tdevelopfeature
 import tissues

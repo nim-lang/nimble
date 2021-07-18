@@ -24,9 +24,6 @@ else:
   const STILL_ACTIVE = 259
   import posix
 
-when defined(linux):
-  import linux
-
 type
   ProcessOption* = enum  ## options that can be passed `startProcess`
     poEchoCmd,            ## echo the command before execution
@@ -510,7 +507,7 @@ else:
     result = cast[cstringArray](alloc0((counter + 1) * sizeof(cstring)))
     var i = 0
     for key, val in envPairs():
-      var x = key.string & "=" & val.string
+      var x = key & "=" & val
       result[i] = cast[cstring](alloc(x.len+1))
       copyMem(result[i], addr(x[0]), x.len+1)
       inc(i)
@@ -889,7 +886,17 @@ proc execProcess(command: string, args: seq[string] = @[],
   var data = newString(bufferSize)
   var p = startProcess(command, args = args, env = env, options = options)
 
-  let future = p.waitForExit()
+  # Here the code path for Linux systems is a workaround for a bug eighter in
+  # the `asynctools` library or the Nim standard library which causes `Resource
+  # temporarily unavailable (code: 11)` error when executing multiple
+  # asynchronous operations.
+  #
+  # TODO: Add a proper fix that does not use a different code ordering on the
+  # different systems.
+
+  when not defined(linux):
+    let future = p.waitForExit
+
   while true:
     let res = await p.outputHandle.readInto(addr data[0], bufferSize)
     if res > 0:
@@ -898,12 +905,16 @@ proc execProcess(command: string, args: seq[string] = @[],
       data.setLen(bufferSize)
     else:
       break
-  result.exitcode = await future
+
+  result.exitcode =
+    when not defined(linux):
+      await future
+    else:
+      await p.waitForExit
+
   close(p)
 
 when isMainModule:
-  import os
-
   when defined(windows):
     var data = waitFor(execProcess("cd"))
   else:

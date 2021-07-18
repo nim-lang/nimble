@@ -47,6 +47,7 @@ proc doCmd*(cmd: string) =
         [$exitCode, cmd, output])
 
 proc doCmdEx*(cmd: string): ProcessOutput =
+  displayDebug("Executing", cmd)
   let bin = extractBin(cmd)
   if findExe(bin) == "":
     raise nimbleError("'" & bin & "' not in PATH.")
@@ -57,6 +58,7 @@ proc removeQuotes(cmd: string): string =
 
 proc doCmdExAsync*(cmd: string, args: seq[string] = @[]):
     Future[ProcessOutput] {.async.} =
+  displayDebug("Executing", join(concat(@[cmd], args), " "))
   let bin = extractBin(cmd)
   if findExe(bin) == "":
     raise nimbleError("'" & bin & "' not in PATH.")
