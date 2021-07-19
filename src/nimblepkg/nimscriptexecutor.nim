@@ -3,8 +3,7 @@
 
 import os, strutils, sets
 
-import packageparser, common, packageinfo, options, nimscriptwrapper, cli,
-       version
+import packageparser, common, packageinfo, options, nimscriptwrapper, cli
 
 proc execHook*(options: Options, hookAction: ActionType, before: bool): bool =
   ## Returns whether to continue.
@@ -36,15 +35,15 @@ proc execCustom*(nimbleFile: string, options: Options,
   ## Executes the custom command using the nimscript backend.
 
   if not execHook(options, actionCustom, true):
-    raise newException(NimbleError, "Pre-hook prevented further execution.")
+    raise nimbleError("Pre-hook prevented further execution.")
 
   if not nimbleFile.isNimScript(options):
     writeHelp()
 
   execResult = execTask(nimbleFile, options.action.command, options)
   if not execResult.success:
-    raiseNimbleError(msg = "Failed to execute task $1 in $2" %
-                           [options.action.command, nimbleFile])
+    raise nimbleError(msg = "Failed to execute task $1 in $2" %
+                             [options.action.command, nimbleFile])
 
   if execResult.command.normalize == "nop":
     display("Warning:", "Using `setCommand 'nop'` is not necessary.", Warning,
@@ -58,7 +57,7 @@ proc execCustom*(nimbleFile: string, options: Options,
 proc getOptionsForCommand*(execResult: ExecutionResult,
                            options: Options): Options =
   ## Creates an Options object for the requested command.
-  var newOptions = options.briefClone()
+  var newOptions = options
   parseCommand(execResult.command, newOptions)
   for arg in execResult.arguments:
     parseArgument(arg, newOptions)

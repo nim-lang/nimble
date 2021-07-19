@@ -6,7 +6,7 @@
 
 import system except TResult
 import httpclient, strutils, json, os, browsers, times, uri
-import version, tools, common, cli, config, options
+import common, tools, cli, config, options, packageinfotypes
 {.warning[UnusedImport]: off.}
 from net import SslCVerifyMode, newContext
 
@@ -23,7 +23,7 @@ const
   defaultBranch = "master" # Default branch on https://github.com/nim-lang/packages
 
 proc userAborted() =
-  raise newException(NimbleError, "User aborted the process.")
+  raise nimbleError("User aborted the process.")
 
 proc createHeaders(a: Auth) =
   a.http.headers = newHttpHeaders({
@@ -95,7 +95,7 @@ proc createFork(a: Auth) =
   try:
     discard a.http.postContent(ReposUrl & "nim-lang/packages/forks")
   except HttpRequestError:
-    raise newException(NimbleError, "Unable to create fork. Access token" &
+    raise nimbleError("Unable to create fork. Access token" &
                        " might not have enough permissions.")
 
 proc createPullRequest(a: Auth, packageName, branch: string): string =
@@ -187,11 +187,11 @@ proc publish*(p: PackageInfo, o: Options) =
     doCmd("git push https://" & auth.token & "@github.com/" & auth.user & "/packages " & defaultBranch)
 
   if not dirExists(pkgsDir):
-    raise newException(NimbleError,
+    raise nimbleError(
         "Cannot find nimble-packages-fork git repository. Cloning failed.")
 
   if not fileExists(pkgsDir / "packages.json"):
-    raise newException(NimbleError,
+    raise nimbleError(
         "No packages file found in cloned fork.")
 
   # We need to do this **before** the cd:
@@ -201,7 +201,7 @@ proc publish*(p: PackageInfo, o: Options) =
   if dirExists(os.getCurrentDir() / ".git"):
     let (output, exitCode) = doCmdEx("git ls-remote --get-url")
     if exitCode == 0:
-      url = output.string.strip
+      url = output.strip
       if url.endsWith(".git"): url.setLen(url.len - 4)
       downloadMethod = "git"
     let parsed = parseUri(url)
@@ -213,14 +213,15 @@ proc publish*(p: PackageInfo, o: Options) =
     elif parsed.username != "" or parsed.password != "":
       # check for any confidential information
       # TODO: Use raiseNimbleError(msg, hintMsg) here
-      raise newException(NimbleError,
-        "Cannot publish the repository URL because it contains username and/or password. Fix the remote URL. Hint: \"git remote -v\"")
+      raise nimbleError(
+        "Cannot publish the repository URL because it contains username " &
+        "and/or password. Fix the remote URL. Hint: \"git remote -v\"")
 
   elif dirExists(os.getCurrentDir() / ".hg"):
     downloadMethod = "hg"
     # TODO: Retrieve URL from hg.
   else:
-    raise newException(NimbleError,
+    raise nimbleError(
          "No .git nor .hg directory found. Stopping.")
 
   if url.len == 0:
@@ -240,4 +241,4 @@ proc publish*(p: PackageInfo, o: Options) =
     display("Pushing", "to remote of fork.", priority = HighPriority)
     doCmd("git push https://" & auth.token & "@github.com/" & auth.user & "/packages " & branchName)
     let prUrl = createPullRequest(auth, p.name, branchName)
-  display("Success:", "Pull request successful, check at " & prUrl , Success, HighPriority)
+    display("Success:", "Pull request successful, check at " & prUrl , Success, HighPriority)

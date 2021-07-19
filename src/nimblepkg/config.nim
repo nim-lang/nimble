@@ -2,7 +2,7 @@
 # BSD License. Look at license.txt for more info.
 import parsecfg, streams, strutils, os, tables, uri
 
-import version, cli
+import common, cli
 
 type
   Config* = object
@@ -19,24 +19,19 @@ type
 
 proc initConfig(): Config =
   result.nimbleDir = getHomeDir() / ".nimble"
-
   result.httpProxy = initUri()
-
   result.chcp = true
   result.cloneUsingHttps = true
-
-  result.packageLists = initTable[string, PackageList]()
-  let defaultPkgList = PackageList(name: "Official", urls: @[
+  result.packageLists["official"] = PackageList(name: "Official", urls: @[
     "https://github.com/nim-lang/packages/raw/master/packages.json",
     "https://irclogs.nim-lang.org/packages.json",
     "https://nim-lang.org/nimble/packages.json"
   ])
-  result.packageLists["official"] = defaultPkgList
 
-proc initPackageList(): PackageList =
-  result.name = ""
-  result.urls = @[]
-  result.path = ""
+proc clear(pkgList: var PackageList) =
+  pkgList.name = ""
+  pkgList.urls = @[]
+  pkgList.path = ""
 
 proc addCurrentPkgList(config: var Config, currentPackageList: PackageList) =
   if currentPackageList.name.len > 0:
@@ -60,16 +55,16 @@ proc parseConfig*(): Config =
     var p: CfgParser
     open(p, f, confFile)
     var currentSection = ""
-    var currentPackageList = initPackageList()
+    var currentPackageList: PackageList
     while true:
       var e = next(p)
       case e.kind
       of cfgEof:
         if currentSection.len > 0:
           if currentPackageList.urls.len == 0 and currentPackageList.path == "":
-            raise newException(NimbleError, "Package list '$1' requires either url or path" % currentPackageList.name)
+            raise nimbleError("Package list '$1' requires either url or path" % currentPackageList.name)
           if currentPackageList.urls.len > 0 and currentPackageList.path != "":
-            raise newException(NimbleError, "Attempted to specify `url` and `path` for the same package list '$1'" % currentPackageList.name)
+            raise nimbleError("Attempted to specify `url` and `path` for the same package list '$1'" % currentPackageList.name)
           addCurrentPkgList(result, currentPackageList)
         break
       of cfgSectionStart:
@@ -77,9 +72,9 @@ proc parseConfig*(): Config =
         currentSection = e.section
         case currentSection.normalize
         of "packagelist":
-          currentPackageList = initPackageList()
+          currentPackageList.clear()
         else:
-          raise newException(NimbleError, "Unable to parse config file:" &
+          raise nimbleError("Unable to parse config file:" &
                              " Unknown section: " & e.key)
       of cfgKeyValuePair, cfgOption:
         case e.key.normalize
@@ -107,7 +102,7 @@ proc parseConfig*(): Config =
           case currentSection.normalize
           of "packagelist":
             if currentPackageList.path != "":
-              raise newException(NimbleError, "Attempted to specify more than one `path` for the same package list.")
+              raise nimbleError("Attempted to specify more than one `path` for the same package list.")
             else:
               currentPackageList.path = e.value
           else: assert false
@@ -115,8 +110,8 @@ proc parseConfig*(): Config =
           # Not relevant anymore but leaving in for legacy ini files
           discard
         else:
-          raise newException(NimbleError, "Unable to parse config file:" &
+          raise nimbleError("Unable to parse config file:" &
                                      " Unknown key: " & e.key)
       of cfgError:
-        raise newException(NimbleError, "Unable to parse config file: " & e.msg)
+        raise nimbleError("Unable to parse config file: " & e.msg)
     close(p)

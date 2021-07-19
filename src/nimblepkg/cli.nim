@@ -13,10 +13,7 @@
 #   - Normal for MediumPriority.
 
 import terminal, sets, strutils
-import version
-
-when not declared(initHashSet):
-  import common
+import common
 
 type
   CLI* = ref object
@@ -33,7 +30,7 @@ type
     DebugPriority, LowPriority, MediumPriority, HighPriority, SilentPriority
 
   DisplayType* = enum
-    Error, Warning, Message, Success
+    Error, Warning, Details, Hint, Message, Success
 
   ForcePrompt* = enum
     dontForcePrompt, forcePromptYes, forcePromptNo
@@ -41,22 +38,17 @@ type
 const
   longestCategory = len("Downloading")
   foregrounds: array[Error .. Success, ForegroundColor] =
-    [fgRed, fgYellow, fgCyan, fgGreen]
+    [fgRed, fgYellow, fgBlue, fgWhite, fgCyan, fgGreen]
   styles: array[DebugPriority .. HighPriority, set[Style]] =
     [{styleDim}, {styleDim}, {}, {styleBright}]
-
 
 proc newCLI(): CLI =
   result = CLI(
     level: HighPriority,
-    warnings: initHashSet[(string, string)](),
-    suppressionCount: 0,
     showColor: true,
-    suppressMessages: false
   )
 
 var globalCLI = newCLI()
-
 
 proc calculateCategoryOffset(category: string): int =
   assert category.len <= longestCategory
@@ -122,6 +114,40 @@ proc display*(category, msg: string, displayType = Message,
     displayLine(if i == 0: category else: "...", line, displayType, priority)
     i.inc
 
+proc displayWarning*(message: string, priority = HighPriority) =
+  display("Warning: ", message, Warning, priority)
+
+proc displayHint*(message: string, priority = HighPriority) =
+  display("Hint: ", message, Hint, priority)
+
+proc displayDetails*(message: string, priority = HighPriority) =
+  display("Details: ", message, Details, priority)
+
+proc displaySuccess*(message: string, priority = HighPriority) =
+  display("Success: ", message, Success, priority)
+
+proc displayError*(message: string,  priority = HighPriority) =
+  display("Error: ", message, Error, priority)
+
+proc displayInfo*(message: string, priority = HighPriority) =
+  display("Info: ", message, Message, priority)
+
+template defineDisplayMethods(displayMethodName: untyped) {.dirty.} =
+  method displayMethodName*(error: ref CatchableError, priority = HighPriority)
+      {.base.} =
+    displayMethodName(error.msg, priority)
+    var errorIt = error
+    if errorIt.parent != nil:
+      displayDetails((ref CatchableError)(errorIt.parent), priority)
+
+  method displayMethodName*(error: ref NimbleError, priority = HighPriority) =
+    procCall (ref CatchableError)(error).displayMethodName(priority)
+    displayHint(error.hint, priority)
+
+defineDisplayMethods(displayDetails)
+defineDisplayMethods(displayError)
+defineDisplayMethods(displayWarning)
+
 proc displayDebug*(category, msg: string) =
   ## Convenience for displaying debug messages.
   display(category, msg, priority = DebugPriority)
@@ -147,7 +173,7 @@ proc prompt*(forcePrompts: ForcePrompt, question: string): bool =
     display("Prompt:", question & " -> [forced no]", Warning, HighPriority)
     return false
   of dontForcePrompt:
-    displayLine("Prompt:", question & " [y/N]", Warning, HighPriority)
+    display("Prompt:", question & " [y/N]", Warning, HighPriority)
     displayCategory("Answer:", Warning, HighPriority)
     let yn = stdin.readLine()
     case yn.normalize
@@ -230,7 +256,7 @@ proc promptListInteractive(question: string, args: openarray[string]): string =
         break
       of '\3':
         showCursor(stdout)
-        raise newException(NimbleError, "Keyboard interrupt")
+        raise nimbleError("Keyboard interrupt")
       else: discard
 
   # Erase all lines of the selection
@@ -273,23 +299,3 @@ proc setShowColor*(val: bool) =
 
 proc setSuppressMessages*(val: bool) =
   globalCLI.suppressMessages = val
-
-when isMainModule:
-  display("Reading", "config file at /Users/dom/.config/nimble/nimble.ini",
-          priority = LowPriority)
-
-  display("Reading", "official package list",
-        priority = LowPriority)
-
-  display("Downloading", "daemonize v0.0.2 using Git",
-      priority = HighPriority)
-
-  display("Warning", "dashes in package names will be deprecated", Warning,
-      priority = HighPriority)
-
-  display("Error", """Unable to read package info for /Users/dom/.nimble/pkgs/nimble-0.7.11
-Reading as ini file failed with:
-  Invalid section: .
-Evaluating as NimScript file failed with:
-  Users/dom/.nimble/pkgs/nimble-0.7.11/nimble.nimble(3, 23) Error: cannot open 'src/nimblepkg/common'.
-""", Error, HighPriority)

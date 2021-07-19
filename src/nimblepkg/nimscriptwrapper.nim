@@ -5,8 +5,7 @@
 ## scripting language.
 
 import hashes, json, os, strutils, tables, times, osproc
-
-import version, options, cli, tools
+import common, options, cli, tools
 
 type
   Flags = TableRef[string, seq[string]]
@@ -140,7 +139,7 @@ proc getIniFile*(scriptName: string, options: Options): string =
       result.writeFile(output)
       stdout.writeExecutionOutput()
     else:
-      raise newException(NimbleError, stdout & "\nprintPkgInfo() failed")
+      raise nimbleError(stdout & "\nprintPkgInfo() failed")
 
 proc execScript(
   scriptName, actionName: string, options: Options, isHook: bool
@@ -158,7 +157,7 @@ proc execScript(
         stdout
       else:
         "Exception raised during nimble script execution"
-    raise newException(NimbleError, errMsg)
+    raise nimbleError(errMsg)
 
   let
     j =
