@@ -10,7 +10,7 @@ import sets, json, sequtils, os, strformat, tables, hashes, strutils, math,
 import typetraits except distinctBase
 
 import common, cli, packageinfotypes, packageinfo, packageparser, options,
-       version, counttables, aliasthis, paths, displaymessages, sha1hashes,
+       version, aliasthis, paths, displaymessages, sha1hashes,
        tools, vcstools, syncfile, lockfile
 
 type
@@ -48,7 +48,7 @@ type
       ## For each package contains the set of names of the develop files where
       ## the path to its directory is mentioned. Used for colliding names error
       ## reporting when packages with same name but different paths are present.
-    pkgRefCount: counttables.CountTable[ref PackageInfo]
+    pkgRefCount: CountTable[ref PackageInfo]
       ## For each package contains the number of times it is included from
       ## different develop files. When the reference count drops to zero the
       ## package will be removed from all internal meta data structures.
@@ -393,7 +393,7 @@ proc load(path: Path, dependentPkg: PackageInfo, options: Options,
     # If this is a package develop file, but not a free one, for each of the
     # package's develop mode dependencies load its develop file if it is not
     # already loaded and merge its data to the current develop file's data.
-    for path, pkg in result.pathToPkg.dup:
+    for path, pkg in result.pathToPkg:
       if visitedPkgs.contains(path):
         continue
       var followedPkgDevFileData = initDevelopFileData()
@@ -472,6 +472,22 @@ proc addDevelopPackage(data: var DevelopFileData, path: Path,
     return false
 
   return addDevelopPackage(data, pkgInfo)
+
+proc dec[K](t: var CountTable[K], k: K): bool {.discardable.} =
+  ## Decrements the count of key `k` in table `t`. If the count drops to zero
+  ## the procedure removes the key from the table.
+  ##
+  ## Returns `true` in the case the count for the key `k` drops to zero and the
+  ## key is removed from the table or `false` otherwise.
+  ##
+  ## If the key `k` is missing raises a `KeyError` exception.
+  if k in t:
+    t[k] = t[k] - 1
+    if t[k] == 0:
+      t.del(k)
+      result = true
+  else:
+    raise newException(KeyError, &"The key \"{k}\" is not found.")
 
 proc removePackage(data: var DevelopFileData, pkg: ref PackageInfo,
                    devFileName: Path) =

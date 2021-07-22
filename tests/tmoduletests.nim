@@ -15,7 +15,6 @@ suite "Module tests":
 
   moduleTest "aliasthis"
   moduleTest "common"
-  moduleTest "counttables"
   moduleTest "download"
   moduleTest "jsonhelpers"
   moduleTest "packageinfo"
