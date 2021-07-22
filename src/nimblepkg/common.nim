@@ -52,8 +52,6 @@ template newClone*[T: not ref](obj: T): ref T =
   result[] = obj
   result
 
-proc dup*[T](obj: T): T = obj
-
 proc `$`*(p: ptr | ref): string = cast[int](p).toHex
   ## Converts the pointer `p` to its hex string representation.
 
