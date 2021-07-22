@@ -29,13 +29,13 @@ proc areLockedDepsLoaded*(pkgInfo: PackageInfo): bool =
 
 proc hasMetaData*(pkgInfo: PackageInfo): bool =
   # if the package info has loaded meta data its files list have to be not empty
-  pkgInfo.files.len > 0
+  pkgInfo.metaData.files.len > 0
 
 proc initPackageInfo*(filePath: string): PackageInfo =
   result = initPackageInfo()
   let (fileDir, fileName, _) = filePath.splitFile
   result.myPath = filePath
-  result.name = fileName
+  result.basicInfo.name = fileName
   result.backend = "c"
   result.lockedDeps = getLockedDependencies(fileDir)
 
@@ -275,12 +275,12 @@ proc findNimbleFile*(dir: string; error: bool): string =
 
 proc setNameVersionChecksum*(pkgInfo: var PackageInfo, pkgDir: string) =
   let (name, version, checksum) = getNameVersionChecksum(pkgDir)
-  pkgInfo.name = name
-  if pkgInfo.version == notSetVersion:
+  pkgInfo.basicInfo.name = name
+  if pkgInfo.basicInfo.version == notSetVersion:
     # if there is no previously set version from the `.nimble` file
-    pkgInfo.version = version
-  pkgInfo.specialVersion = version
-  pkgInfo.checksum = checksum
+    pkgInfo.basicInfo.version = version
+  pkgInfo.metaData.specialVersion = version
+  pkgInfo.basicInfo.checksum = checksum
 
 proc getInstalledPackageMin*(pkgDir, nimbleFilePath: string): PackageInfo =
   result = initPackageInfo(nimbleFilePath)
@@ -307,8 +307,8 @@ proc withinRange*(pkgInfo: PackageInfo, verRange: VersionRange): bool =
   ## Determines whether the specified package's version is within the
   ## specified range. The check works with ordinary versions as well as
   ## special ones.
-  return withinRange(pkgInfo.version, verRange) or
-         withinRange(pkgInfo.specialVersion, verRange)
+  return withinRange(pkgInfo.basicInfo.version, verRange) or
+         withinRange(pkgInfo.metaData.specialVersion, verRange)
 
 proc resolveAlias*(dep: PkgTuple, options: Options): PkgTuple =
   ## Looks up the specified ``dep.name`` in the packages.json files to resolve
@@ -333,8 +333,8 @@ proc findPkg*(pkglist: seq[PackageInfo], dep: PkgTuple,
   ##
   ## **Note**: dep.name here could be a URL, hence the need for pkglist.meta.
   for pkg in pkglist:
-    if cmpIgnoreStyle(pkg.name, dep.name) != 0 and
-       cmpIgnoreStyle(pkg.url, dep.name) != 0: continue
+    if cmpIgnoreStyle(pkg.basicInfo.name, dep.name) != 0 and
+       cmpIgnoreStyle(pkg.metaData.url, dep.name) != 0: continue
     if pkg.isLink:
       # If `pkg.isLink` this is a develop mode package and develop mode packages
       # are always with higher priority than installed packages. Version range
@@ -342,7 +342,7 @@ proc findPkg*(pkglist: seq[PackageInfo], dep: PkgTuple,
       r = pkg
       return true
     elif withinRange(pkg, dep.ver):
-      let isNewer = r.version < pkg.version
+      let isNewer = r.basicInfo.version < pkg.basicInfo.version
       if not result or isNewer:
         r = pkg
         result = true
@@ -353,8 +353,8 @@ proc findAllPkgs*(pkglist: seq[PackageInfo], dep: PkgTuple): seq[PackageInfo] =
   ## packages if multiple are found.
   result = @[]
   for pkg in pkglist:
-    if cmpIgnoreStyle(pkg.name, dep.name) != 0 and
-       cmpIgnoreStyle(pkg.url, dep.name) != 0: continue
+    if cmpIgnoreStyle(pkg.basicInfo.name, dep.name) != 0 and
+       cmpIgnoreStyle(pkg.metaData.url, dep.name) != 0: continue
     if withinRange(pkg, dep.ver):
       result.add pkg
 
@@ -513,7 +513,7 @@ proc hash*(x: PackageInfo): Hash =
   result = !$h
 
 proc getNameAndVersion*(pkgInfo: PackageInfo): string =
-  &"{pkgInfo.name}@{pkgInfo.version}"
+  &"{pkgInfo.basicInfo.name}@{pkgInfo.basicInfo.version}"
 
 when isMainModule:
   import unittest 

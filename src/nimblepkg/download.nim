@@ -481,11 +481,11 @@ proc downloadPkg*(url: string, verRange: VersionRange,
     ## Makes sure that the downloaded package's version satisfies the requested
     ## version range.
     let pkginfo = getPkgInfo(result[0], options)
-    if pkginfo.version notin verRange:
+    if pkginfo.basicInfo.version notin verRange:
       raise nimbleError(
         "Downloaded package's version does not satisfy requested version " &
         "range: wanted $1 got $2." %
-        [$verRange, $pkginfo.version])
+        [$verRange, $pkginfo.basicInfo.version])
 
 proc echoPackageVersions*(pkg: Package) =
   let downMethod = pkg.downloadMethod

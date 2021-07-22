@@ -146,7 +146,7 @@ proc editJson(p: PackageInfo; url, tags, downloadMethod: string) =
   var contents = parseFile("packages.json")
   doAssert contents.kind == JArray
   contents.add(%*{
-    "name": p.name,
+    "name": p.basicInfo.name,
     "url": url,
     "method": downloadMethod,
     "tags": tags.split(),
@@ -225,7 +225,7 @@ proc publish*(p: PackageInfo, o: Options) =
          "No .git nor .hg directory found. Stopping.")
 
   if url.len == 0:
-    url = promptCustom("Github URL of " & p.name & "?", "")
+    url = promptCustom("Github URL of " & p.basicInfo.name & "?", "")
     if url.len == 0: userAborted()
 
   let tags = promptCustom(
@@ -235,10 +235,10 @@ proc publish*(p: PackageInfo, o: Options) =
 
   cd pkgsDir:
     editJson(p, url, tags, downloadMethod)
-    let branchName = "add-" & p.name & getTime().utc.format("HHmm")
+    let branchName = "add-" & p.basicInfo.name & getTime().utc.format("HHmm")
     doCmd("git checkout -B " & branchName)
-    doCmd("git commit packages.json -m \"Added package " & p.name & "\"")
+    doCmd("git commit packages.json -m \"Added package " & p.basicInfo.name & "\"")
     display("Pushing", "to remote of fork.", priority = HighPriority)
     doCmd("git push https://" & auth.token & "@github.com/" & auth.user & "/packages " & branchName)
-    let prUrl = createPullRequest(auth, p.name, branchName)
+    let prUrl = createPullRequest(auth, p.basicInfo.name, branchName)
     display("Success:", "Pull request successful, check at " & prUrl , Success, HighPriority)

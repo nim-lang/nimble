@@ -15,7 +15,6 @@ nimcache/
 
 # executables from test and build
 /nimble
-src/nimblepkg/aliasthis
 src/nimblepkg/checksums
 src/nimblepkg/cli
 src/nimblepkg/common

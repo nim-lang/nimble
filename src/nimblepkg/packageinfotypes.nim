@@ -2,7 +2,7 @@
 # BSD License. Look at license.txt for more info.
 
 import sets, tables
-import version, aliasthis, sha1hashes
+import version, sha1hashes
 
 type
   DownloadMethod* {.pure.} = enum
@@ -77,11 +77,3 @@ type
     alias*: string ## A name of another package, that this package aliases.
 
   PackageDependenciesInfo* = tuple[deps: HashSet[PackageInfo], pkg: PackageInfo]
-
-{.warning[UnsafeDefault]: off.}
-{.warning[ProveInit]: off.}
-aliasThis PackageInfo.metaData
-{.warning[ProveInit]: on.}
-aliasThis PackageInfo.basicInfo
-{.warning[ProveInit]: on.}
-{.warning[UnsafeDefault]: on.}
