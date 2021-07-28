@@ -246,9 +246,7 @@ proc addPackage(data: var DevelopFileData, pkgInfo: PackageInfo,
   if pkg == nil:
     # If a package with `pkgInfo.name` is missing add it to the
     # `DevelopFileData` internal data structures add it.
-    {.warning[ProveInit]: off.}
     pkg = pkgInfo.newClone
-    {.warning[ProveInit]: on.}
     data.pkgRefCount.inc(pkg)
     data.nameToPkg[pkg[].basicInfo.name] = pkg
     data.pathToPkg[pkg[].getNimbleFilePath()] = pkg
@@ -387,7 +385,7 @@ proc load(path: Path, dependentPkg: PackageInfo, options: Options,
     # If this is a package develop file, but not a free one, for each of the
     # package's develop mode dependencies load its develop file if it is not
     # already loaded and merge its data to the current develop file's data.
-    for path, pkg in result.pathToPkg:
+    for path, pkg in result.pathToPkg.dup:
       if visitedPkgs.contains(path):
         continue
       var followedPkgDevFileData = initDevelopFileData()

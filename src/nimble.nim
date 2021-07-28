@@ -1480,7 +1480,7 @@ proc validateDevModeDepsWorkingCopiesBeforeLock(
     }
   
   # Remove not errors from the errors set.
-  for name, error in errors:
+  for name, error in common.dup(errors):
     if error.kind in notAnErrorSet:
       errors.del name
 
@@ -1699,7 +1699,7 @@ proc sync(options: Options) =
   var errors: ValidationErrors
   findValidationErrorsOfDevDepsWithLockFile(pkgInfo, options, errors)
 
-  for name, error in errors:
+  for name, error in common.dup(errors):
     if error.kind == vekWorkingCopyNeedsSync:
       if not options.action.listOnly:
         syncWorkingCopy(name, error.path, pkgInfo, options)
