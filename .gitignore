@@ -15,12 +15,10 @@ nimcache/
 
 # executables from test and build
 /nimble
-src/nimblepkg/aliasthis
 src/nimblepkg/checksums
 src/nimblepkg/cli
 src/nimblepkg/common
 src/nimblepkg/config
-src/nimblepkg/counttables
 src/nimblepkg/developfile
 src/nimblepkg/download
 src/nimblepkg/init

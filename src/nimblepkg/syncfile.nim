@@ -50,7 +50,7 @@ proc getSyncFilePath(pkgInfo: PackageInfo): Path =
              "supported type of version control.",
       hint = "Put package's working directory under version control.")
 
-  return vcsSpecialDirPath / (pkgInfo.name & syncFileExt).Path
+  return vcsSpecialDirPath / (pkgInfo.basicInfo.name & syncFileExt).Path
 
 proc load(syncFile: ref SyncFile, path: Path) =
   ## Loads a sync file.

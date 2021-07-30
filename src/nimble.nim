@@ -77,7 +77,7 @@ proc processFreeDependencies(pkgInfo: PackageInfo, options: Options):
   once: pkgList = initPkgList(pkgInfo, options)
 
   display("Verifying",
-          "dependencies for $1@$2" % [pkgInfo.name, $pkgInfo.specialVersion],
+          "dependencies for $1@$2" % [pkgInfo.basicInfo.name, $pkgInfo.metaData.specialVersion],
           priority = HighPriority)
 
   var reverseDependencies: seq[PackageBasicInfo] = @[]
@@ -119,19 +119,19 @@ proc processFreeDependencies(pkgInfo: PackageInfo, options: Options):
         # Process the dependencies of this dependency.
         result.incl processFreeDependencies(pkg.toFullInfo(options), options)
       if not pkg.isLink:
-        reverseDependencies.add((pkg.name, pkg.specialVersion, pkg.checksum))
+        reverseDependencies.add((pkg.basicInfo.name, pkg.metaData.specialVersion, pkg.basicInfo.checksum))
 
   # Check if two packages of the same name (but different version) are listed
   # in the path.
   var pkgsInPath: Table[string, Version]
   for pkgInfo in result:
     let currentVer = pkgInfo.getConcreteVersion(options)
-    if pkgsInPath.hasKey(pkgInfo.name) and
-       pkgsInPath[pkgInfo.name] != currentVer:
+    if pkgsInPath.hasKey(pkgInfo.basicInfo.name) and
+       pkgsInPath[pkgInfo.basicInfo.name] != currentVer:
       raise nimbleError(
         "Cannot satisfy the dependency on $1 $2 and $1 $3" %
-          [pkgInfo.name, $currentVer, $pkgsInPath[pkgInfo.name]])
-    pkgsInPath[pkgInfo.name] = currentVer
+          [pkgInfo.basicInfo.name, $currentVer, $pkgsInPath[pkgInfo.basicInfo.name]])
+    pkgsInPath[pkgInfo.basicInfo.name] = currentVer
 
   # We add the reverse deps to the JSON file here because we don't want
   # them added if the above errorenous condition occurs
@@ -160,7 +160,7 @@ proc buildFromDir(pkgInfo: PackageInfo, paths: HashSet[string],
   var
     binariesBuilt = 0
     args = args
-  args.add "-d:NimblePkgVersion=" & $pkgInfo.version
+  args.add "-d:NimblePkgVersion=" & $pkgInfo.basicInfo.version
   for path in paths:
     args.add("--path:" & path.quoteShell)
   if options.verbosity >= HighPriority:
@@ -185,7 +185,7 @@ proc buildFromDir(pkgInfo: PackageInfo, paths: HashSet[string],
 
     let outputOpt = "-o:" & pkgInfo.getOutputDir(bin).quoteShell
     display("Building", "$1/$2 using $3 backend" %
-            [pkginfo.name, bin, pkgInfo.backend], priority = HighPriority)
+            [pkginfo.basicInfo.name, bin, pkgInfo.backend], priority = HighPriority)
 
     let outputDir = pkgInfo.getOutputDir("")
     if not dirExists(outputDir):
@@ -202,7 +202,7 @@ proc buildFromDir(pkgInfo: PackageInfo, paths: HashSet[string],
       binariesBuilt.inc()
     except CatchableError as error:
       raise buildFailed(
-        &"Build failed for the package: {pkgInfo.name}", details = error)
+        &"Build failed for the package: {pkgInfo.basicInfo.name}", details = error)
 
   if binariesBuilt == 0:
     raise nimbleError(
@@ -225,10 +225,10 @@ proc promptRemoveEntirePackageDir(pkgDir: string, options: Options) =
     raise nimbleQuit()
 
 proc removePackageDir(pkgInfo: PackageInfo, pkgDestDir: string) =
-  removePackageDir(pkgInfo.files & packageMetaDataFileName, pkgDestDir)
+  removePackageDir(pkgInfo.metaData.files & packageMetaDataFileName, pkgDestDir)
 
 proc removeBinariesSymlinks(pkgInfo: PackageInfo, binDir: string) =
-  for bin in pkgInfo.binaries:
+  for bin in pkgInfo.metaData.binaries:
     when defined(windows):
       removeFile(binDir / bin.changeFileExt("cmd"))
     removeFile(binDir / bin)
@@ -267,7 +267,7 @@ proc packageExists(pkgInfo: PackageInfo, options: Options): bool =
 proc promptOverwriteExistingPackage(pkgInfo: PackageInfo,
                                     options: Options): bool =
   let message = "$1@$2 already exists. Overwrite?" %
-                [pkgInfo.name, $pkgInfo.specialVersion]
+                [pkgInfo.basicInfo.name, $pkgInfo.metaData.specialVersion]
   return options.prompt(message)
 
 proc removeOldPackage(pkgInfo: PackageInfo, options: Options) =
@@ -322,7 +322,7 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
     ## In the case we downloaded the package as tarball we have to set the VCS
     ## revision returned by download procedure because it cannot be queried from
     ## the package directory.
-    pkgInfo.vcsRevision = vcsRevision
+    pkgInfo.metaData.vcsRevision = vcsRevision
 
   let realDir = pkgInfo.getRealDir()
   let binDir = options.getBinDir()
@@ -331,7 +331,7 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
 
   # Overwrite the version if the requested version is "#head" or similar.
   if requestedVer.kind == verSpecial:
-    pkgInfo.specialVersion = requestedVer.spe
+    pkgInfo.metaData.specialVersion = requestedVer.spe
 
   # Dependencies need to be processed before the creation of the pkg dir.
   if first and pkgInfo.lockedDeps.len > 0:
@@ -343,7 +343,7 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
     result.pkg = pkgInfo
     return result
 
-  display("Installing", "$1@$2" % [pkginfo.name, $pkginfo.specialVersion],
+  display("Installing", "$1@$2" % [pkginfo.basicInfo.name, $pkginfo.metaData.specialVersion],
           priority = HighPriority)
 
   let isPackageAlreadyInCache = pkgInfo.packageExists(options)
@@ -368,7 +368,7 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
   let pkgDestDir = pkgInfo.getPkgDest(options)
 
   # Fill package Meta data
-  pkgInfo.url = url
+  pkgInfo.metaData.url = url
   pkgInfo.isLink = false
 
   # Don't copy artifacts if project local deps mode and "installing" the top
@@ -424,8 +424,8 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
     # Update package path to point to installed directory rather than the temp
     # directory.
     pkgInfo.myPath = dest
-    pkgInfo.files = filesInstalled.toSeq
-    pkgInfo.binaries = binariesInstalled.toSeq
+    pkgInfo.metaData.files = filesInstalled.toSeq
+    pkgInfo.metaData.binaries = binariesInstalled.toSeq
 
     saveMetaData(pkgInfo.metaData, pkgDestDir)
   else:
@@ -433,7 +433,7 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
 
   pkgInfo.isInstalled = true
 
-  displaySuccess(pkgInstalledMsg(pkgInfo.name))
+  displaySuccess(pkgInstalledMsg(pkgInfo.basicInfo.name))
 
   result.deps.incl pkgInfo
   result.pkg = pkgInfo
@@ -719,7 +719,7 @@ proc execBackend(pkgInfo: PackageInfo, options: Options) =
   if not execHook(options, options.action.typ, true):
     raise nimbleError("Pre-hook prevented further execution.")
 
-  var args = @["-d:NimblePkgVersion=" & $pkgInfo.version]
+  var args = @["-d:NimblePkgVersion=" & $pkgInfo.basicInfo.version]
   for dep in deps:
     args.add("--path:" & dep.getRealDir().quoteShell)
   if options.verbosity >= HighPriority:
@@ -740,10 +740,10 @@ proc execBackend(pkgInfo: PackageInfo, options: Options) =
 
   if options.action.typ == actionCompile:
     display("Compiling", "$1 (from package $2) using $3 backend" %
-            [bin, pkgInfo.name, backend], priority = HighPriority)
+            [bin, pkgInfo.basicInfo.name, backend], priority = HighPriority)
   else:
     display("Generating", ("documentation for $1 (from package $2) using $3 " &
-            "backend") % [bin, pkgInfo.name, backend], priority = HighPriority)
+            "backend") % [bin, pkgInfo.basicInfo.name, backend], priority = HighPriority)
 
   doCmd(getNimBin(options).quoteShell & " $# --noNimblePath $# $#" %
         [backend, join(args, " "), bin.quoteShell])
@@ -801,8 +801,8 @@ proc listInstalled(options: Options) =
   let pkgs = getInstalledPkgsMin(options.getPkgsDir(), options)
   for pkg in pkgs:
     let
-      pName = pkg.name
-      pVer = pkg.specialVersion
+      pName = pkg.basicInfo.name
+      pVer = pkg.metaData.specialVersion
     if not h.hasKey(pName): h[pName] = @[]
     var s = h[pName]
     add(s, pVer)
@@ -836,8 +836,8 @@ proc listPaths(options: Options) =
     var installed: seq[VersionAndPath] = @[]
     # There may be several, list all available ones and sort by version.
     for pkg in pkgs:
-      if name == pkg.name:
-        installed.add((pkg.specialVersion, pkg.getRealDir))
+      if name == pkg.basicInfo.name:
+        installed.add((pkg.metaData.specialVersion, pkg.getRealDir))
 
     if installed.len > 0:
       sort(installed, cmp[VersionAndPath], Descending)
@@ -911,8 +911,8 @@ proc dump(options: Options) =
         s.add val.escape
       else:
         s.add val.join(", ").escape
-  fn "name", p.name
-  fn "version", $p.version
+  fn "name", p.basicInfo.name
+  fn "version", $p.basicInfo.version
   fn "author", p.author
   fn "desc", p.description
   fn "license", p.license
@@ -1127,7 +1127,7 @@ proc uninstall(options: var Options) =
         if len(revDeps - pkgsToDelete) > 0:
           let pkgs = revDeps.collectNames(true)
           displayWarning(
-            cannotUninstallPkgMsg(pkgTup.name, pkg.specialVersion, pkgs))
+            cannotUninstallPkgMsg(pkgTup.name, pkg.metaData.specialVersion, pkgs))
         else:
           pkgsToDelete.incl pkg.toRevDep
 
@@ -1180,7 +1180,7 @@ proc developFromDir(pkgInfo: PackageInfo, options: var Options) =
       # Dependencies need to be processed before the creation of the pkg dir.
       discard processAllDependencies(pkgInfo, options)
 
-  displaySuccess(pkgSetupInDevModeMsg(pkgInfo.name, dir))
+  displaySuccess(pkgSetupInDevModeMsg(pkgInfo.basicInfo.name, dir))
 
   # Execute the post-develop hook.
   cd dir:
@@ -1260,14 +1260,14 @@ proc developFreeDependencies(pkgInfo: PackageInfo,
       continue
 
     let pkgInfo = installDevelopPackage(dep, options)
-    alreadyDownloaded.incl pkgInfo.url.removeTrailingGitString
+    alreadyDownloaded.incl pkgInfo.metaData.url.removeTrailingGitString
 
 proc developAllDependencies(pkgInfo: PackageInfo, options: var Options) =
   ## Puts all dependencies of `pkgInfo` (including transitive ones) in develop
   ## mode by cloning their repositories.
 
   var alreadyDownloadedDependencies {.global.}: HashSet[string]
-  alreadyDownloadedDependencies.incl pkgInfo.url.removeTrailingGitString
+  alreadyDownloadedDependencies.incl pkgInfo.metaData.url.removeTrailingGitString
 
   if pkgInfo.lockedDeps.len > 0:
     pkgInfo.developLockedDependencies(alreadyDownloadedDependencies, options)
@@ -1405,8 +1405,8 @@ proc test(options: Options) =
 
 proc notInRequiredRangeMsg*(dependentPkg, dependencyPkg: PackageInfo,
                             versionRange: VersionRange): string =
-  notInRequiredRangeMsg(dependencyPkg.name, dependencyPkg.getNimbleFileDir,
-    $dependencyPkg.version, dependentPkg.name, dependentPkg.getNimbleFileDir,
+  notInRequiredRangeMsg(dependencyPkg.basicInfo.name, dependencyPkg.getNimbleFileDir,
+    $dependencyPkg.basicInfo.version, dependentPkg.basicInfo.name, dependentPkg.getNimbleFileDir,
     $versionRange)
 
 proc validateDevelopDependenciesVersionRanges(dependentPkg: PackageInfo,
@@ -1439,7 +1439,7 @@ proc check(options: Options) =
       validateDevelopFile(pkgInfo, options)
       let dependencies = pkgInfo.processAllDependencies(options).toSeq
       validateDevelopDependenciesVersionRanges(pkgInfo, dependencies, options)
-    displaySuccess(&"The package \"{pkgInfo.name}\" is valid.")
+    displaySuccess(&"The package \"{pkgInfo.basicInfo.name}\" is valid.")
   except CatchableError as error:
     displayError(error)
     display("Failure:", validationFailedMsg, Error, HighPriority)
@@ -1457,7 +1457,7 @@ proc updateSyncFile(dependentPkg: PackageInfo, options: Options) =
 
   # Add all current develop packages' VCS revisions to the sync file.
   for dep in developDeps:
-    syncFile.setDepVcsRevision(dep.name, dep.vcsRevision)
+    syncFile.setDepVcsRevision(dep.basicInfo.name, dep.metaData.vcsRevision)
 
   syncFile.save
 
@@ -1809,7 +1809,7 @@ proc run(options: Options) =
 
   if binary notin pkgInfo.bin:
     raise nimbleError(
-      "Binary '$#' is not defined in '$#' package." % [binary, pkgInfo.name]
+      "Binary '$#' is not defined in '$#' package." % [binary, pkgInfo.basicInfo.name]
     )
 
   # Build the binary.

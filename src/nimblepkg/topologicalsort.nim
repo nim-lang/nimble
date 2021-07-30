@@ -22,19 +22,19 @@ proc getDependencies(packages: seq[PackageInfo], package: PackageInfo,
         raise nimbleError(
            "Cannot build the dependency graph.\n" & 
           &"Missing package \"{dep.name}\".")
-    result.add depPkgInfo.name
+    result.add depPkgInfo.basicInfo.name
 
 proc buildDependencyGraph*(packages: seq[PackageInfo], options: Options):
     LockFileDeps =
   ## Creates records which will be saved to the lock file.
   for pkgInfo in packages:
-    result[pkgInfo.name] = LockFileDep(
-      version: pkgInfo.version,
-      vcsRevision: pkgInfo.vcsRevision,
-      url: pkgInfo.url,
-      downloadMethod: pkgInfo.downloadMethod,
+    result[pkgInfo.basicInfo.name] = LockFileDep(
+      version: pkgInfo.basicInfo.version,
+      vcsRevision: pkgInfo.metaData.vcsRevision,
+      url: pkgInfo.metaData.url,
+      downloadMethod: pkgInfo.metaData.downloadMethod,
       dependencies: getDependencies(packages, pkgInfo, options),
-      checksums: Checksums(sha1: pkgInfo.checksum))
+      checksums: Checksums(sha1: pkgInfo.basicInfo.checksum))
 
 proc topologicalSort*(graph: LockFileDeps):
     tuple[order: seq[string], cycles: seq[seq[string]]] =

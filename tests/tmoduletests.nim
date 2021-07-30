@@ -13,9 +13,7 @@ suite "Module tests":
         check execCmdEx("nim c -r src/nimblepkg/" & moduleName).
           exitCode == QuitSuccess
 
-  moduleTest "aliasthis"
   moduleTest "common"
-  moduleTest "counttables"
   moduleTest "download"
   moduleTest "jsonhelpers"
   moduleTest "packageinfo"

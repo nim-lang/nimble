@@ -10,7 +10,7 @@ import sets, json, sequtils, os, strformat, tables, hashes, strutils, math,
 import typetraits except distinctBase
 
 import common, cli, packageinfotypes, packageinfo, packageparser, options,
-       version, counttables, aliasthis, paths, displaymessages, sha1hashes,
+       version, paths, displaymessages, sha1hashes,
        tools, vcstools, syncfile, lockfile
 
 type
@@ -48,7 +48,7 @@ type
       ## For each package contains the set of names of the develop files where
       ## the path to its directory is mentioned. Used for colliding names error
       ## reporting when packages with same name but different paths are present.
-    pkgRefCount: counttables.CountTable[ref PackageInfo]
+    pkgRefCount: CountTable[ref PackageInfo]
       ## For each package contains the number of times it is included from
       ## different develop files. When the reference count drops to zero the
       ## package will be removed from all internal meta data structures.
@@ -63,7 +63,7 @@ type
     ## of the same file when its data is queried in the code.
 
   DevelopFileJsonKeys = enum
-    ## Develop file JSON objects names. 
+    ## Develop file JSON objects names.
     dfjkVersion = "version"
     dfjkIncludes = "includes"
     dfjkDependencies = "dependencies"
@@ -80,19 +80,13 @@ type
     ## Describes an invalid path to a Nimble package or included develop file.
     ## Contains the path as a key and the exact error occurred when we had tried
     ## to read the package or the develop file at it.
-  
+
   ErrorsCollection = object
     ## Describes the different errors which are possible to occur on loading of
     ## a develop file.
     collidingNames: CollidingNames
     invalidPackages: InvalidPaths
     invalidIncludeFiles: InvalidPaths
-
-{.warning[UnsafeDefault]: off.}
-{.warning[ProveInit]: off.}
-aliasThis DevelopFileData.jsonData
-{.warning[ProveInit]: on.}
-{.warning[UnsafeDefault]: on.}
 
 const
   developFileName* = "nimble.develop"
@@ -121,9 +115,9 @@ proc getPkgDevFilePath(pkg: PackageInfo): Path =
   pkg.getNimbleFilePath / developFileName
 
 proc isEmpty*(data: DevelopFileData): bool =
-  ## Checks whether there is some content (paths to packages directories or 
+  ## Checks whether there is some content (paths to packages directories or
   ## includes to other develop files) in the develop file.
-  data.includes.len == 0 and data.dependencies.len == 0
+  data.jsonData.includes.len == 0 and data.jsonData.dependencies.len == 0
 
 proc save*(data: DevelopFileData, path: Path, writeEmpty, overwrite: bool) =
   ## Saves the `data` to a JSON file with path `path`. If the `data` is empty
@@ -138,8 +132,8 @@ proc save*(data: DevelopFileData, path: Path, writeEmpty, overwrite: bool) =
 
   let json = %{
     $dfjkVersion: %developFileVersion,
-    $dfjkIncludes: %data.includes.toSeq,
-    $dfjkDependencies: %data.dependencies.toSeq,
+    $dfjkIncludes: %data.jsonData.includes.toSeq,
+    $dfjkDependencies: %data.jsonData.dependencies.toSeq,
     }
 
   if path.fileExists and not overwrite:
@@ -248,15 +242,13 @@ proc addPackage(data: var DevelopFileData, pkgInfo: PackageInfo,
   ##                        but with different paths are registered for error
   ##                        reporting.
 
-  var pkg = data.nameToPkg.getOrDefault(pkgInfo.name)
+  var pkg = data.nameToPkg.getOrDefault(pkgInfo.basicInfo.name)
   if pkg == nil:
     # If a package with `pkgInfo.name` is missing add it to the
     # `DevelopFileData` internal data structures add it.
-    {.warning[ProveInit]: off.}
     pkg = pkgInfo.newClone
-    {.warning[ProveInit]: on.}
     data.pkgRefCount.inc(pkg)
-    data.nameToPkg[pkg[].name] = pkg
+    data.nameToPkg[pkg[].basicInfo.name] = pkg
     data.pathToPkg[pkg[].getNimbleFilePath()] = pkg
     data.devFileNameToPkgs.add(comingFrom, pkg)
     data.pkgToDevFileNames.add(pkg, actualComingFrom)
@@ -278,9 +270,9 @@ proc addPackage(data: var DevelopFileData, pkgInfo: PackageInfo,
       # register the name collision which to be reported as error.
       assertHasKey(data.pkgToDevFileNames, pkg)
       for devFileName in data.pkgToDevFileNames[pkg]:
-        collidingNames.add(pkg[].name, (alreadyIncludedPkgPath, devFileName))
+        collidingNames.add(pkg[].basicInfo.name, (alreadyIncludedPkgPath, devFileName))
       for devFileName in actualComingFrom:
-        collidingNames.add(pkg[].name, (newPkgPath, devFileName))
+        collidingNames.add(pkg[].basicInfo.name, (newPkgPath, devFileName))
 
 proc values[K, V](t: Table[K, V]): seq[V] =
   ## Returns a sequence containing table's `t` values.
@@ -346,7 +338,7 @@ proc load(path: Path, dependentPkg: PackageInfo, options: Options,
   var cache {.global.}: DevelopFileDataCache
   if cache.hasKey(path):
     return cache[path]
-  
+
   result = initDevelopFileData()
   result.path = path
   result.dependentPkg = dependentPkg
@@ -368,7 +360,7 @@ proc load(path: Path, dependentPkg: PackageInfo, options: Options,
   except ValueError as error:
     raise nimbleError(notAValidDevFileJsonMsg($path), details = error)
 
-  for depPath in result.dependencies:
+  for depPath in result.jsonData.dependencies:
     let depPath = if depPath.isAbsolute:
       depPath.normalizedPath else: (path.splitFile.dir / depPath).normalizedPath
     let (pkgInfo, error) = validatePackage(depPath, options)
@@ -377,7 +369,7 @@ proc load(path: Path, dependentPkg: PackageInfo, options: Options,
     else:
       errors.invalidPackages[depPath] = error
 
-  for inclPath in result.includes:
+  for inclPath in result.jsonData.includes:
     let inclPath = inclPath.normalizedPath
     if visitedFiles.contains(inclPath):
       continue
@@ -428,14 +420,14 @@ proc addDevelopPackage(data: var DevelopFileData, pkg: PackageInfo): bool =
 
   # Check whether the develop file already contains a package with a name
   # `pkg.name` at different path.
-  if data.nameToPkg.hasKey(pkg.name) and not data.pathToPkg.hasKey(pkgDir):
-    let otherPath = data.nameToPkg[pkg.name][].getNimbleFilePath()
+  if data.nameToPkg.hasKey(pkg.basicInfo.name) and not data.pathToPkg.hasKey(pkgDir):
+    let otherPath = data.nameToPkg[pkg.basicInfo.name][].getNimbleFilePath()
     displayError(pkgAlreadyPresentAtDifferentPathMsg(
-      pkg.name, $otherPath, $data.path))
+      pkg.basicInfo.name, $otherPath, $data.path))
     return false
 
   # Add `pkg` to the develop file model.
-  let success = not data.dependencies.containsOrIncl(pkgDir)
+  let success = not data.jsonData.dependencies.containsOrIncl(pkgDir)
 
   var collidingNames: CollidingNames
   addPackage(data, pkg, data.path, [data.path].toHashSet, collidingNames)
@@ -473,6 +465,22 @@ proc addDevelopPackage(data: var DevelopFileData, path: Path,
 
   return addDevelopPackage(data, pkgInfo)
 
+proc dec[K](t: var CountTable[K], k: K): bool {.discardable.} =
+  ## Decrements the count of key `k` in table `t`. If the count drops to zero
+  ## the procedure removes the key from the table.
+  ##
+  ## Returns `true` in the case the count for the key `k` drops to zero and the
+  ## key is removed from the table or `false` otherwise.
+  ##
+  ## If the key `k` is missing raises a `KeyError` exception.
+  if k in t:
+    t[k] = t[k] - 1
+    if t[k] == 0:
+      t.del(k)
+      result = true
+  else:
+    raise newException(KeyError, &"The key \"{k}\" is not found.")
+
 proc removePackage(data: var DevelopFileData, pkg: ref PackageInfo,
                    devFileName: Path) =
   ## Decreases the reference count for a package at path `path` and removes the
@@ -493,7 +501,7 @@ proc removePackage(data: var DevelopFileData, pkg: ref PackageInfo,
 
   # But if the reference count is zero the package should be removed from all
   # other meta data structures to free memory for it and its indexes.
-  data.nameToPkg.del(pkg[].name)
+  data.nameToPkg.del(pkg[].basicInfo.name)
   data.pathToPkg.del(pkg[].getNimbleFilePath())
 
   # The package `pkg` could already be missing from `pkgToDevFileNames` if it
@@ -521,7 +529,7 @@ proc removeDevelopPackageByPath(data: var DevelopFileData, path: Path): bool =
   ## Returns `true` if path `path` is successfully removed from the develop file
   ## or `false` if there is no such path added in it.
 
-  let success = not data.dependencies.missingOrExcl(path)
+  let success = not data.jsonData.dependencies.missingOrExcl(path)
 
   if success:
     let nameAndVersion = data.pathToPkg[path][].getNameAndVersion()
@@ -543,7 +551,7 @@ proc removeDevelopPackageByName(data: var DevelopFileData, name: string): bool =
   let
     pkg = data.nameToPkg.getOrDefault(name)
     path = if pkg != nil: pkg[].getNimbleFilePath() else: ""
-    success = not data.dependencies.missingOrExcl(path)
+    success = not data.jsonData.dependencies.missingOrExcl(path)
 
   if success:
     data.removePackage(path, data.path)
@@ -578,16 +586,16 @@ proc includeDevelopFile(data: var DevelopFileData, path: Path,
     displayDetails(error)
     return false
 
-  let success = not data.includes.containsOrIncl(path)
+  let success = not data.jsonData.includes.containsOrIncl(path)
 
   if success:
     var errors: ErrorsCollection
     data.mergeIncludedDevFileData(inclFileData, errors)
     if errors.hasErrors:
       displayError(failedToInclInDevFileMsg($path, $data.path))
-      displayDetails(errors.getErrorsDetails)                              
+      displayDetails(errors.getErrorsDetails)
       # Revert the inclusion in the case of merge errors.
-      data.includes.excl(path)
+      data.jsonData.includes.excl(path)
       for pkgPath, _ in inclFileData.pathToPkg:
         data.removePackage(pkgPath, path)
       return false
@@ -606,7 +614,7 @@ proc excludeDevelopFile(data: var DevelopFileData, path: Path): bool =
   ## from the current project's develop file or `false` if there is no such
   ## file included in the current one.
 
-  let success = not data.includes.missingOrExcl(path)
+  let success = not data.jsonData.includes.missingOrExcl(path)
 
   if success:
     assertHasKey(data.devFileNameToPkgs, path)
@@ -797,7 +805,7 @@ proc vcsRevisionIsNotPushed(depPkg: PackageInfo): bool =
   ## Checks whether current VCS revision of the working copy directory of a
   ## develop mode dependency package is pushed on some remote.
   not depPkg.getNimbleFileDir.isVcsRevisionPresentOnSomeRemote(
-    depPkg.vcsRevision)
+    depPkg.metaData.vcsRevision)
 
 proc workingCopyNeeds*(dependencyPkg, dependentPkg: PackageInfo,
                        options: Options): NeedsOperation =
@@ -808,15 +816,15 @@ proc workingCopyNeeds*(dependencyPkg, dependentPkg: PackageInfo,
 
   let
     lockFileVcsRev = dependentPkg.lockedDeps.getOrDefault(
-      dependencyPkg.name, notSetLockFileDep).vcsRevision
+      dependencyPkg.basicInfo.name, notSetLockFileDep).vcsRevision
     syncFile = getSyncFile(dependentPkg)
-    syncFileVcsRev = syncFile.getDepVcsRevision(dependencyPkg.name)
+    syncFileVcsRev = syncFile.getDepVcsRevision(dependencyPkg.basicInfo.name)
     workingCopyVcsRev = getVcsRevision(dependencyPkg.getNimbleFileDir)
 
   if lockFileVcsRev == syncFileVcsRev and syncFileVcsRev == workingCopyVcsRev:
     # When all revisions are matching nothing have to be done.
     return needsNone
-  
+
   if lockFileVcsRev == syncFileVcsRev and syncFileVcsRev != workingCopyVcsRev:
     # When lock file and sync file revisions are matching, but working copy
     # revision is different, then most probably there are local changes and
@@ -851,7 +859,7 @@ proc workingCopyNeeds*(dependencyPkg, dependentPkg: PackageInfo,
   return needsNone
 
 template addError(error: ValidationErrorKind) =
-    errors[depPkg.name] = ValidationError(
+    errors[depPkg.basicInfo.name] = ValidationError(
       path: depPkg.getNimbleFileDir, kind: error)
 
 proc findValidationErrorsOfDevDepsWithLockFile*(

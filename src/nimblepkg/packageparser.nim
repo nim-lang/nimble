@@ -100,10 +100,10 @@ proc validatePackageStructure(pkgInfo: PackageInfo, options: Options) =
       (x) => x.changeFileExt("").toLowerAscii()
     )
     correctDir =
-      if pkgInfo.name.toLowerAscii() in normalizedBinNames:
-        pkgInfo.name & "pkg"
+      if pkgInfo.basicInfo.name.toLowerAscii() in normalizedBinNames:
+        pkgInfo.basicInfo.name & "pkg"
       else:
-        pkgInfo.name
+        pkgInfo.basicInfo.name
 
   proc onFile(path: string) =
     # Remove the root to leave only the package subdirectories.
@@ -117,7 +117,7 @@ proc validatePackageStructure(pkgInfo: PackageInfo, options: Options) =
       return
 
     if dir.len == 0:
-      if file != pkgInfo.name:
+      if file != pkgInfo.basicInfo.name:
         # A source file was found in the top level of srcDir that doesn't share
         # a name with the package.
         let
@@ -126,7 +126,7 @@ proc validatePackageStructure(pkgInfo: PackageInfo, options: Options) =
                 "should contain at most one module, " &
                 "named '$2', but a file named '$3' was found. This " &
                 "will be an error in the future.") %
-                [pkgInfo.name, pkgInfo.name & ext, file & ext]
+                [pkgInfo.basicInfo.name, pkgInfo.basicInfo.name & ext, file & ext]
           hint = ("If this is the primary source file in the package, " &
                   "rename it to '$1'. If it's a source file required by " &
                   "the main module, or if it is one of several " &
@@ -135,7 +135,7 @@ proc validatePackageStructure(pkgInfo: PackageInfo, options: Options) =
                   "to build the the package '$1', prevent its installation " &
                   "by adding `skipFiles = @[\"$3\"]` to the .nimble file. See " &
                   "https://github.com/nim-lang/nimble#libraries for more info.") %
-                  [pkgInfo.name & ext, correctDir & DirSep, file & ext, pkgInfo.name]
+                  [pkgInfo.basicInfo.name & ext, correctDir & DirSep, file & ext, pkgInfo.basicInfo.name]
         raise validationError(msg, true, hint, true)
     else:
       assert(not pkgInfo.isMinimal)
@@ -147,26 +147,26 @@ proc validatePackageStructure(pkgInfo: PackageInfo, options: Options) =
                 "for source files, named '$3', but file '$1' " &
                 "is in a directory named '$4' instead. " &
                 "This will be an error in the future.") %
-              [file & ext, pkgInfo.name, correctDir, dir]
+              [file & ext, pkgInfo.basicInfo.name, correctDir, dir]
           hint = ("If '$1' contains source files for building '$2', rename it " &
                   "to '$3'. Otherwise, prevent its installation " &
                   "by adding `skipDirs = @[\"$1\"]` to the .nimble file.") %
-              [dir, pkgInfo.name, correctDir]
+              [dir, pkgInfo.basicInfo.name, correctDir]
         raise validationError(msg, true, hint, true)
 
   iterInstallFiles(realDir, pkgInfo, options, onFile)
 
 proc validatePackageInfo(pkgInfo: PackageInfo, options: Options) =
   let path = pkgInfo.myPath
-  if pkgInfo.name == "":
+  if pkgInfo.basicInfo.name == "":
     raise validationError("Incorrect .nimble file: " & path &
                           " does not contain a name field.", false)
 
-  if pkgInfo.name.normalize != path.splitFile.name.normalize:
+  if pkgInfo.basicInfo.name.normalize != path.splitFile.name.normalize:
     raise validationError(
         "The .nimble file name must match name specified inside " & path, true)
 
-  if pkgInfo.version == notSetVersion:
+  if pkgInfo.basicInfo.version == notSetVersion:
     raise validationError("Incorrect .nimble file: " & path &
         " does not contain a version field.", false)
 
@@ -231,8 +231,8 @@ proc readPackageInfoFromNimble(path: string; result: var PackageInfo) =
         case currentSection.normalize
         of "package":
           case ev.key.normalize
-          of "name": result.name = ev.value
-          of "version": result.version = newVersion(ev.value)
+          of "name": result.basicInfo.name = ev.value
+          of "version": result.basicInfo.version = newVersion(ev.value)
           of "author": result.author = ev.value
           of "description": result.description = ev.value
           of "license": result.license = ev.value
@@ -316,10 +316,10 @@ proc inferInstallRules(pkgInfo: var PackageInfo, options: Options) =
   # them and prevent the installation of anything else. The user can always
   # override this with `installFiles`.
   if pkgInfo.srcDir == "":
-    if dirExists(pkgInfo.getRealDir() / pkgInfo.name):
-      pkgInfo.installDirs.add(pkgInfo.name)
-    if fileExists(pkgInfo.getRealDir() / pkgInfo.name.addFileExt("nim")):
-      pkgInfo.installFiles.add(pkgInfo.name.addFileExt("nim"))
+    if dirExists(pkgInfo.getRealDir() / pkgInfo.basicInfo.name):
+      pkgInfo.installDirs.add(pkgInfo.basicInfo.name)
+    if fileExists(pkgInfo.getRealDir() / pkgInfo.basicInfo.name.addFileExt("nim")):
+      pkgInfo.installFiles.add(pkgInfo.basicInfo.name.addFileExt("nim"))
 
 proc readPackageInfo(nf: NimbleFile, options: Options, onlyMinimalInfo=false):
     PackageInfo =
@@ -381,20 +381,20 @@ proc readPackageInfo(nf: NimbleFile, options: Options, onlyMinimalInfo=false):
   if not fileDir.startsWith(options.getPkgsDir()):
     # If the `.nimble` file is not in the installation directory we have to get
     # some of the package meta data from its directory.
-    result.checksum = calculateDirSha1Checksum(fileDir)
+    result.basicInfo.checksum = calculateDirSha1Checksum(fileDir)
     # By default specialVersion is the same as version.
-    result.specialVersion = result.version
+    result.metaData.specialVersion = result.basicInfo.version
     # If the `fileDir` is a VCS repository we can get some of the package meta
     # data from it.
-    result.vcsRevision = getVcsRevision(fileDir)
+    result.metaData.vcsRevision = getVcsRevision(fileDir)
 
     case getVcsType(fileDir)
-      of vcsTypeGit: result.downloadMethod = DownloadMethod.git
-      of vcsTypeHg: result.downloadMethod = DownloadMethod.hg
+      of vcsTypeGit: result.metaData.downloadMethod = DownloadMethod.git
+      of vcsTypeHg: result.metaData.downloadMethod = DownloadMethod.hg
       of vcsTypeNone: discard
 
     try:
-      result.url = getRemoteFetchUrl(fileDir,
+      result.metaData.url = getRemoteFetchUrl(fileDir,
         getCorrespondingRemoteAndBranch(fileDir).remote)
     except NimbleError:
       discard
@@ -411,7 +411,7 @@ proc readPackageInfo(nf: NimbleFile, options: Options, onlyMinimalInfo=false):
 
   # Validate the rest of the package info last.
   if not options.disableValidation:
-    validateVersion($result.version)
+    validateVersion($result.basicInfo.version)
     validatePackageInfo(result, options)
 
 proc getPkgInfoFromFile*(file: NimbleFile, options: Options,
@@ -497,13 +497,13 @@ proc toFullInfo*(pkg: PackageInfo, options: Options): PackageInfo =
     # The `isLink` data from the meta data file is with priority because of the
     # old format develop packages.
     result.isLink = pkg.isLink
-    result.specialVersion = pkg.specialVersion
+    result.metaData.specialVersion = pkg.metaData.specialVersion
 
     assert not (pkg.isInstalled and pkg.isLink),
            "A package must not be simultaneously installed and linked."
 
     if result.isInstalled:
-      assert result.vcsRevision == notSetSha1Hash,
+      assert result.metaData.vcsRevision == notSetSha1Hash,
             "Should not have a VCS revision read from package directory for " &
             "installed packages."
 
@@ -515,10 +515,10 @@ proc toFullInfo*(pkg: PackageInfo, options: Options): PackageInfo =
 proc getConcreteVersion*(pkgInfo: PackageInfo, options: Options): Version =
   ## Returns a non-special version from the specified ``pkgInfo``. If the
   ## ``pkgInfo`` is minimal it looks it up and retrieves the concrete version.
-  result = pkgInfo.version
+  result = pkgInfo.basicInfo.version
   if pkgInfo.isMinimal:
     let pkgInfo = pkgInfo.toFullInfo(options)
-    result = pkgInfo.version
+    result = pkgInfo.basicInfo.version
   assert not result.isSpecial
 
 when isMainModule:

@@ -59,9 +59,9 @@ proc addRevDep*(nimbleData: JsonNode, dep: PackageBasicInfo,
   var dependency: JsonNode
   if not pkg.isLink:
     dependency = %{
-      $ndjkRevDepName: %pkg.name.toLower,
-      $ndjkRevDepVersion: %pkg.version,
-      $ndjkRevDepChecksum: %pkg.checksum}
+      $ndjkRevDepName: %pkg.basicInfo.name.toLower,
+      $ndjkRevDepVersion: %pkg.basicInfo.version,
+      $ndjkRevDepChecksum: %pkg.basicInfo.checksum}
   else:
     dependency = %{ $ndjkRevDepPath: %pkg.getNimbleFileDir().absolutePath }
 
@@ -86,7 +86,7 @@ proc removeRevDep*(nimbleData: JsonNode, pkg: PackageInfo) =
               if rd[$ndjkRevDepPath].str != pkg.getNimbleFileDir:
                 # It is compared by its directory path.
                 newVal.add rd
-            elif rd[$ndjkRevDepChecksum].str != $pkg.checksum:
+            elif rd[$ndjkRevDepChecksum].str != $pkg.basicInfo.checksum:
               # For the reverse dependencies added since the introduction of the
               # new format comparison of the checksums is specific enough.
               newVal.add rd
@@ -95,9 +95,9 @@ proc removeRevDep*(nimbleData: JsonNode, pkg: PackageInfo) =
               # from the old format packages and they must be compared by the
               # `name` and `specialVersion` fields.
               if rd[$ndjkRevDepChecksum].str.len == 0 and
-                 pkg.checksum == notSetSha1Hash:
-                if rd[$ndjkRevDepName].str != pkg.name.toLower or
-                   rd[$ndjkRevDepVersion].str != $pkg.specialVersion:
+                 pkg.basicInfo.checksum == notSetSha1Hash:
+                if rd[$ndjkRevDepName].str != pkg.basicInfo.name.toLower or
+                   rd[$ndjkRevDepVersion].str != $pkg.metaData.specialVersion:
                   newVal.add rd
           revDepsForVersion[checksum] = newVal
 
@@ -154,7 +154,7 @@ proc toRevDep*(pkg: PackageInfo): ReverseDependency =
   if not pkg.isLink:
     result = ReverseDependency(
       kind: rdkInstalled,
-      pkgInfo: (pkg.name, pkg.version, pkg.checksum))
+      pkgInfo: (pkg.basicInfo.name, pkg.basicInfo.version, pkg.basicInfo.checksum))
   else:
     result = ReverseDependency(
       kind: rdkDevelop,
