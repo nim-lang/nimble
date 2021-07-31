@@ -279,7 +279,7 @@ proc setNameVersionChecksum*(pkgInfo: var PackageInfo, pkgDir: string) =
   if pkgInfo.basicInfo.version == notSetVersion:
     # if there is no previously set version from the `.nimble` file
     pkgInfo.basicInfo.version = version
-  pkgInfo.metaData.specialVersion = version
+  pkgInfo.metaData.specialVersions.incl version
   pkgInfo.basicInfo.checksum = checksum
 
 proc getInstalledPackageMin*(pkgDir, nimbleFilePath: string): PackageInfo =
@@ -304,11 +304,10 @@ proc getInstalledPkgsMin*(libsDir: string, options: Options): seq[PackageInfo] =
         result.add pkg
 
 proc withinRange*(pkgInfo: PackageInfo, verRange: VersionRange): bool =
-  ## Determines whether the specified package's version is within the
-  ## specified range. The check works with ordinary versions as well as
-  ## special ones.
-  return withinRange(pkgInfo.basicInfo.version, verRange) or
-         withinRange(pkgInfo.metaData.specialVersion, verRange)
+  ## Determines whether the specified package's version is within the specified
+  ## range. As the ordinary version is always added to the special versions set
+  ## checking only the special versions is enough.
+  return withinRange(pkgInfo.metaData.specialVersions, verRange)
 
 proc resolveAlias*(dep: PkgTuple, options: Options): PkgTuple =
   ## Looks up the specified ``dep.name`` in the packages.json files to resolve
@@ -496,7 +495,7 @@ proc iterInstallFiles*(realDir: string, pkgInfo: PackageInfo,
         action(file)
 
 proc getCacheDir*(pkgInfo: PackageBasicInfo): string =
-  &"{pkgInfo.name}-{pkgInfo.version}-{pkgInfo.checksum}"
+  &"{pkgInfo.name}-{pkgInfo.version}-{$pkgInfo.checksum}"
 
 proc getPkgDest*(pkgInfo: PackageBasicInfo, options: Options): string =
   options.getPkgsDir() / pkgInfo.getCacheDir()

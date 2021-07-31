@@ -2,7 +2,7 @@
 # BSD License. Look at license.txt for more info.
 
 ## Module for handling versions and version ranges such as ``>= 1.0 & <= 1.5``
-import json
+import json, sets
 import common, strutils, tables, hashes, parseutils
 
 type
@@ -147,6 +147,14 @@ proc withinRange*(ver: Version, ran: VersionRange): bool =
     return withinRange(ver, ran.verILeft) and withinRange(ver, ran.verIRight)
   of verAny:
     return true
+
+proc withinRange*(versions: HashSet[Version], range: VersionRange): bool =
+  ## Checks whether any of the versions from the set `versions` are in the range
+  ## `range`.
+
+  for version in versions:
+    if withinRange(version, range):
+      return true
 
 proc contains*(ran: VersionRange, ver: Version): bool =
   return withinRange(ver, ran)

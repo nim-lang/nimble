@@ -47,6 +47,8 @@ suite "reverse dependencies":
     cd "revdep/pkgWithDep":
       verify execNimbleYes("install")
 
+    verify execNimbleYes("remove", "pkgA")
+
     cd "revdep/pkgNoDep":
       verify execNimbleYes("install")
 

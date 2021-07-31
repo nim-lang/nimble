@@ -6,7 +6,7 @@
 ## the message to be repeated both in Nimble and the testing code.
 
 import strformat, strutils
-import version
+import version, packageinfotypes, sha1hashes
 
 const
   validationFailedMsg* = "Validation failed."
@@ -143,3 +143,13 @@ proc invalidDevelopDependenciesVersionsMsg*(errors: seq[string]): string =
   for error in errors:
     result &= "\n"
     result &= error
+
+proc pkgAlreadyExistsInTheCacheMsg*(name, version, checksum: string): string =
+  &"A package \"{name}@{version}\" with checksum \"{checksum}\" already " &
+   "exists the the cache."
+
+proc pkgAlreadyExistsInTheCacheMsg*(pkgInfo: PackageInfo): string =
+  pkgAlreadyExistsInTheCacheMsg(
+     pkgInfo.basicInfo.name,
+    $pkgInfo.basicInfo.version,
+    $pkgInfo.basicInfo.checksum)

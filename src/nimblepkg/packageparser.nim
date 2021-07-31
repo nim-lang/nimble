@@ -383,7 +383,7 @@ proc readPackageInfo(nf: NimbleFile, options: Options, onlyMinimalInfo=false):
     # some of the package meta data from its directory.
     result.basicInfo.checksum = calculateDirSha1Checksum(fileDir)
     # By default specialVersion is the same as version.
-    result.metaData.specialVersion = result.basicInfo.version
+    result.metaData.specialVersions.incl result.basicInfo.version
     # If the `fileDir` is a VCS repository we can get some of the package meta
     # data from it.
     result.metaData.vcsRevision = getVcsRevision(fileDir)
@@ -497,7 +497,7 @@ proc toFullInfo*(pkg: PackageInfo, options: Options): PackageInfo =
     # The `isLink` data from the meta data file is with priority because of the
     # old format develop packages.
     result.isLink = pkg.isLink
-    result.metaData.specialVersion = pkg.metaData.specialVersion
+    result.metaData.specialVersions.incl pkg.metaData.specialVersions
 
     assert not (pkg.isInstalled and pkg.isLink),
            "A package must not be simultaneously installed and linked."

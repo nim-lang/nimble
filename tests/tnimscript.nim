@@ -9,12 +9,14 @@ from nimblepkg/common import cd
 
 suite "nimscript":
   test "can install nimscript package":
+    cleanDir installDir
     cd "nimscript":
       let
         nim = findExe("nim").relativePath(base = getCurrentDir())
       check execNimbleYes(["install", "--nim:" & nim]).exitCode == QuitSuccess
 
   test "before/after install pkg dirs are correct":
+    cleanDir installDir
     cd "nimscript":
       let (output, exitCode) = execNimbleYes(["install", "--nim:nim"])
       check exitCode == QuitSuccess

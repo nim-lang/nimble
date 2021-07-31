@@ -76,8 +76,8 @@ proc processFreeDependencies(pkgInfo: PackageInfo, options: Options):
   var pkgList {.global.}: seq[PackageInfo] = @[]
   once: pkgList = initPkgList(pkgInfo, options)
 
-  display("Verifying",
-          "dependencies for $1@$2" % [pkgInfo.basicInfo.name, $pkgInfo.metaData.specialVersion],
+  display("Verifying", "dependencies for $1@$2" %
+          [pkgInfo.basicInfo.name, $pkgInfo.basicInfo.version],
           priority = HighPriority)
 
   var reverseDependencies: seq[PackageBasicInfo] = @[]
@@ -106,7 +106,15 @@ proc processFreeDependencies(pkgInfo: PackageInfo, options: Options):
         let (packages, installedPkg) = install(toInstall, options,
           doPrompt = false, first = false, fromLockFile = false)
 
-        result.incl packages
+        for pkg in packages:
+          if result.contains pkg:
+            # If the result already contains the newly tried to install package
+            # we had to merge its special versions set into the set of the old
+            # one.
+            result[pkg].metaData.specialVersions.incl(
+              pkg.metaData.specialVersions)
+          else:
+            result.incl pkg
 
         pkg = installedPkg # For addRevDep
         fillMetaData(pkg, pkg.getRealDir(), false)
@@ -119,7 +127,7 @@ proc processFreeDependencies(pkgInfo: PackageInfo, options: Options):
         # Process the dependencies of this dependency.
         result.incl processFreeDependencies(pkg.toFullInfo(options), options)
       if not pkg.isLink:
-        reverseDependencies.add((pkg.basicInfo.name, pkg.metaData.specialVersion, pkg.basicInfo.checksum))
+        reverseDependencies.add(pkg.basicInfo)
 
   # Check if two packages of the same name (but different version) are listed
   # in the path.
@@ -260,27 +268,24 @@ proc removePackage(pkgInfo: PackageInfo, options: Options) =
   reinstallSymlinksForOlderVersion(pkgDestDir, options)
   options.nimbleData.removeRevDep(pkgInfo)
 
-proc packageExists(pkgInfo: PackageInfo, options: Options): bool =
+proc packageExists(pkgInfo: PackageInfo, options: Options):
+    Option[PackageInfo] =
+  ## Checks whether a package `pkgInfo` already exists in the Nimble cache. If a
+  ## package already exists returns the `PackageInfo` of the package in the
+  ## cache otherwise returns `none`. Raises a `NimbleError` in the case the
+  ## package exists in the cache but it is not valid.
   let pkgDestDir = pkgInfo.getPkgDest(options)
-  return fileExists(pkgDestDir / packageMetaDataFileName)
-
-proc promptOverwriteExistingPackage(pkgInfo: PackageInfo,
-                                    options: Options): bool =
-  let message = "$1@$2 already exists. Overwrite?" %
-                [pkgInfo.basicInfo.name, $pkgInfo.metaData.specialVersion]
-  return options.prompt(message)
-
-proc removeOldPackage(pkgInfo: PackageInfo, options: Options) =
-  let pkgDestDir = pkgInfo.getPkgDest(options)
-  let oldPkgInfo = getPkgInfo(pkgDestDir, options)
-  removePackage(oldPkgInfo, options)
-
-proc promptRemovePackageIfExists(pkgInfo: PackageInfo, options: Options): bool =
-  if packageExists(pkgInfo, options):
-    if not promptOverwriteExistingPackage(pkgInfo, options):
-      return false
-    removeOldPackage(pkgInfo, options)
-  return true
+  if not fileExists(pkgDestDir / packageMetaDataFileName):
+    return none[PackageInfo]()
+  else:
+    var oldPkgInfo = initPackageInfo()
+    try:
+      oldPkgInfo = pkgDestDir.getPkgInfo(options)
+    except CatchableError as error:
+      raise nimbleError(&"The package inside \"{pkgDestDir}\" is invalid.",
+                        details = error)
+    fillMetaData(oldPkgInfo, pkgDestDir, true)
+    return some(oldPkgInfo)
 
 proc processLockedDependencies(pkgInfo: PackageInfo, options: Options):
   HashSet[PackageInfo]
@@ -329,9 +334,10 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
   var depsOptions = options
   depsOptions.depsOnly = false
 
-  # Overwrite the version if the requested version is "#head" or similar.
   if requestedVer.kind == verSpecial:
-    pkgInfo.metaData.specialVersion = requestedVer.spe
+    # Add a version alias to special versions set if requested version is a
+    # special one.
+    pkgInfo.metaData.specialVersions.incl requestedVer.spe
 
   # Dependencies need to be processed before the creation of the pkg dir.
   if first and pkgInfo.lockedDeps.len > 0:
@@ -343,10 +349,24 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
     result.pkg = pkgInfo
     return result
 
-  display("Installing", "$1@$2" % [pkginfo.basicInfo.name, $pkginfo.metaData.specialVersion],
-          priority = HighPriority)
+  display("Installing", "$1@$2" %
+    [pkginfo.basicInfo.name, $pkginfo.basicInfo.version],
+    priority = HighPriority)
 
-  let isPackageAlreadyInCache = pkgInfo.packageExists(options)
+  let oldPkg = pkgInfo.packageExists(options)
+  if oldPkg.isSome:
+    # In the case we already have the same package in the cache then only merge
+    # the new package special versions to the old one.
+    displayWarning(pkgAlreadyExistsInTheCacheMsg(pkgInfo))
+    var oldPkg = oldPkg.get
+    oldPkg.metaData.specialVersions.incl pkgInfo.metaData.specialVersions
+    saveMetaData(oldPkg.metaData, oldPkg.getNimbleFileDir, changeRoots = false)
+    if result.deps.contains oldPkg:
+      result.deps[oldPkg].metaData.specialVersions.incl(
+        oldPkg.metaData.specialVersions)
+    result.deps.incl oldPkg
+    result.pkg = oldPkg
+    return
 
   # Build before removing an existing package (if one exists). This way
   # if the build fails then the old package will still be installed.
@@ -361,8 +381,7 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
     try:
       buildFromDir(pkgInfo, paths, "-d:release" & flags, options)
     except CatchableError:
-      if not isPackageAlreadyInCache:
-        removeRevDep(options.nimbleData, pkgInfo)
+      removeRevDep(options.nimbleData, pkgInfo)
       raise
 
   let pkgDestDir = pkgInfo.getPkgDest(options)
@@ -374,9 +393,6 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
   # Don't copy artifacts if project local deps mode and "installing" the top
   # level package.
   if not (options.localdeps and options.isInstallingTopLevel(dir)):
-    if not promptRemovePackageIfExists(pkgInfo, options):
-      return
-
     createDir(pkgDestDir)
     # Copy this package's files based on the preferences specified in PkgInfo.
     var filesInstalled: HashSet[string]
@@ -797,18 +813,22 @@ proc list(options: Options) =
     echo(" ")
 
 proc listInstalled(options: Options) =
-  var h: OrderedTable[string, seq[Version]]
+  type
+    VersionChecksumTuple = tuple[version: Version, checksum: Sha1Hash]
+  var h: OrderedTable[string, seq[VersionChecksumTuple]]
   let pkgs = getInstalledPkgsMin(options.getPkgsDir(), options)
   for pkg in pkgs:
     let
       pName = pkg.basicInfo.name
-      pVer = pkg.metaData.specialVersion
+      pVersion = pkg.basicInfo.version
+      pChecksum = pkg.basicInfo.checksum
     if not h.hasKey(pName): h[pName] = @[]
     var s = h[pName]
-    add(s, pVer)
+    add(s, (pVersion, pChecksum))
     h[pName] = s
 
-  h.sort(proc (a, b: (string, seq[Version])): int = cmpIgnoreCase(a[0], b[0]))
+  h.sort(proc (a, b: (string, seq[VersionChecksumTuple])): int =
+    cmpIgnoreCase(a[0], b[0]))
   for k in keys(h):
     echo k & "  [" & h[k].join(", ") & "]"
 
@@ -837,7 +857,7 @@ proc listPaths(options: Options) =
     # There may be several, list all available ones and sort by version.
     for pkg in pkgs:
       if name == pkg.basicInfo.name:
-        installed.add((pkg.metaData.specialVersion, pkg.getRealDir))
+        installed.add((pkg.basicInfo.version, pkg.getRealDir))
 
     if installed.len > 0:
       sort(installed, cmp[VersionAndPath], Descending)
@@ -1127,7 +1147,7 @@ proc uninstall(options: var Options) =
         if len(revDeps - pkgsToDelete) > 0:
           let pkgs = revDeps.collectNames(true)
           displayWarning(
-            cannotUninstallPkgMsg(pkgTup.name, pkg.metaData.specialVersion, pkgs))
+            cannotUninstallPkgMsg(pkgTup.name, pkg.basicInfo.version, pkgs))
         else:
           pkgsToDelete.incl pkg.toRevDep
 

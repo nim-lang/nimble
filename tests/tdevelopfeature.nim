@@ -17,8 +17,8 @@ suite "develop feature":
     dependentPkgName = "dependent"
     dependentPkgPath = "develop/dependent".normalizedPath
     includeFileName = "included.develop"
-    pkgAName = "packagea"
-    pkgBName = "packageb"
+    pkgAName = "PackageA"
+    pkgBName = "PackageB"
     pkgSrcDirTestName = "srcdirtest"
     pkgHybridName = "hybrid"
     depPath = "../dependency".normalizedPath
@@ -173,7 +173,7 @@ suite "develop feature":
         let
           (output, exitCode) = execNimble(
             "develop", &"-p:{installDir}", pkgAName)
-          pkgAAbsPath = installDir / pkgAName
+          pkgAAbsPath = installDir / pkgAName.toLower
           developFileContent = developFile(@[], @[pkgAAbsPath])
         check exitCode == QuitSuccess
         check parseFile(developFileName) == parseJson(developFileContent)
@@ -190,8 +190,8 @@ suite "develop feature":
         let
           (output, exitCode) = execNimble(
             "develop", &"-p:{installDir}", pkgAName, pkgBName)
-          pkgAAbsPath = installDir / pkgAName
-          pkgBAbsPath = installDir / pkgBName
+          pkgAAbsPath = installDir / pkgAName.toLower
+          pkgBAbsPath = installDir / pkgBName.toLower
           developFileContent = developFile(@[], @[pkgAAbsPath, pkgBAbsPath])
         check exitCode == QuitSuccess
         check parseFile(developFileName) == parseJson(developFileContent)
@@ -518,13 +518,17 @@ suite "develop feature":
           check not devRevDepPath.isNil
           check devRevDepPath.str == depAbsPath
 
-        block checkSuccessfulUninstallAndRemovalFromNimbleData:
+        block checkSuccessfulUninstallButNotRemoveFromNimbleData:
           let
-            (_, exitCode) = execNimble("uninstall", "-i", pkgAName, "-y")
+            (_, exitCode) = execNimbleYes("uninstall", "-i", pkgAName)
             nimbleData = parseFile(installDir / nimbleDataFileName)
 
           check exitCode == QuitSuccess
-          check not nimbleData[$ndjkRevDep].hasKey(pkgAName)
+          # The package should remain in the Nimble data because in the case it
+          # is installed again it should continue to block its uninstalling
+          # without the "-i" option until all reverse dependencies (leaf nodes
+          # of the JSON object) are uninstalled.
+          check nimbleData[$ndjkRevDep].hasKey(pkgAName)
 
   test "follow develop dependency's develop file":
     cd "develop":
@@ -848,8 +852,8 @@ suite "develop feature":
           "--with-dependencies", &"--develop-file:{developFile}", pkgBName)
         check exitCode == QuitSuccess
         let 
-          pkgAPath = installDir / pkgAName
-          pkgBPath = installDir / pkgBName
+          pkgAPath = installDir / pkgAName.toLower
+          pkgBPath = installDir / pkgBName.toLower
         var lines = output.processOutput
         check lines.inLinesOrdered(pkgSetupInDevModeMsg(pkgAName, pkgAPath))
         check lines.inLinesOrdered(pkgSetupInDevModeMsg(pkgBName, pkgBPath))
@@ -886,7 +890,7 @@ suite "develop feature":
         check errorCode == QuitFailure
         var lines = output.processOutput
         check lines.inLinesOrdered(pkgSetupInDevModeMsg(
-          pkgAName, installDir / pkgAName))
+          pkgAName, installDir / pkgAName.toLower))
         check lines.inLinesOrdered(pkgAddedInDevFileMsg(
           depNameAndVersion, depPath, developFileName))
         check lines.inLinesOrdered(pkgAlreadyPresentAtDifferentPathMsg(
@@ -904,6 +908,6 @@ suite "develop feature":
           includeFileName, developFileName))
         check lines.inLinesOrdered(failedToLoadFileMsg(invalidInclFilePath))
         let expectedDevelopFileContent = developFile(
-          @[includeFileName], @[dep2Path, installDir / pkgAName])
+          @[includeFileName], @[dep2Path, installDir / pkgAName.toLower])
         check parseFile(developFileName) ==
               parseJson(expectedDevelopFileContent)

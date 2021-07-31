@@ -1,7 +1,7 @@
 # Copyright (C) Dominik Picheta. All rights reserved.
 # BSD License. Look at license.txt for more info.
 
-import json, sets, os, hashes, unicode
+import json, sets, os, hashes
 
 import options, version, download, jsonhelpers, nimbledatafile, sha1hashes,
        packageinfotypes, packageinfo, packageparser
@@ -51,7 +51,7 @@ proc addRevDep*(nimbleData: JsonNode, dep: PackageBasicInfo,
 
   let dependencies = nimbleData.addIfNotExist(
     $ndjkRevDep,
-    dep.name.toLower,
+    dep.name,
     $dep.version,
     $dep.checksum,
     newJArray())
@@ -59,7 +59,7 @@ proc addRevDep*(nimbleData: JsonNode, dep: PackageBasicInfo,
   var dependency: JsonNode
   if not pkg.isLink:
     dependency = %{
-      $ndjkRevDepName: %pkg.basicInfo.name.toLower,
+      $ndjkRevDepName: %pkg.basicInfo.name,
       $ndjkRevDepVersion: %pkg.basicInfo.version,
       $ndjkRevDepChecksum: %pkg.basicInfo.checksum}
   else:
@@ -87,18 +87,8 @@ proc removeRevDep*(nimbleData: JsonNode, pkg: PackageInfo) =
                 # It is compared by its directory path.
                 newVal.add rd
             elif rd[$ndjkRevDepChecksum].str != $pkg.basicInfo.checksum:
-              # For the reverse dependencies added since the introduction of the
-              # new format comparison of the checksums is specific enough.
+              # Installed dependencies are compared by checksum.
               newVal.add rd
-            else:
-              # But if the both checksums are not present, those are converted
-              # from the old format packages and they must be compared by the
-              # `name` and `specialVersion` fields.
-              if rd[$ndjkRevDepChecksum].str.len == 0 and
-                 pkg.basicInfo.checksum == notSetSha1Hash:
-                if rd[$ndjkRevDepName].str != pkg.basicInfo.name.toLower or
-                   rd[$ndjkRevDepVersion].str != $pkg.metaData.specialVersion:
-                  newVal.add rd
           revDepsForVersion[checksum] = newVal
 
   let reverseDependencies = nimbleData[$ndjkRevDep]
@@ -109,7 +99,7 @@ proc removeRevDep*(nimbleData: JsonNode, pkg: PackageInfo) =
       for key, val in reverseDependencies:
         remove(pkg, depTup, val)
     else:
-      let thisDep = nimbleData{$ndjkRevDep, depTup.name.toLower}
+      let thisDep = nimbleData{$ndjkRevDep, depTup.name}
       if thisDep.isNil: continue
       remove(pkg, depTup, thisDep)
 
@@ -124,7 +114,7 @@ proc getRevDeps*(nimbleData: JsonNode, pkg: ReverseDependency):
     return
 
   let reverseDependencies = nimbleData[$ndjkRevDep]{
-    pkg.pkgInfo.name.toLower}{$pkg.pkgInfo.version}{$pkg.pkgInfo.checksum}
+    pkg.pkgInfo.name}{$pkg.pkgInfo.version}{$pkg.pkgInfo.checksum}
 
   if reverseDependencies.isNil:
     return
@@ -176,8 +166,7 @@ when isMainModule:
 
   proc initMetaData: PackageMetaData =
     result = PackageMetaData(
-      vcsRevision: notSetSha1Hash,
-      specialVersion: notSetVersion)
+      vcsRevision: notSetSha1Hash)
 
   proc parseRequires(requires: RequiresSeq): seq[PkgTuple] =
     requires.mapIt((it.name, it.versionRange.parseVersionRange))
@@ -200,7 +189,7 @@ when isMainModule:
   let
     nimforum1 = initPackageInfo(
       "nimforum", "0.1.0", "46a96c3f2b0ecb3d3f7bd71e12200ed401e9b9f2",
-      @[("jester", "0.1.0"), ("captcha", "1.0.0"), ("auth", "#head")])
+      @[("jester", "0.1.0"), ("captcha", "1.0.0"), ("auth", "2.0.0")])
     nimforum1RevDep = nimforum1.toRevDep
 
     nimforum2 = initPackageInfo(
@@ -218,21 +207,22 @@ when isMainModule:
     jester = initPackageInfo(
       "jester", "0.1.0", "1b629f98b23614df292f176a1681fa439dcc05e2")
 
-    jesterWithoutSha1 = initPackageInfo("jester", "0.1.0", "")
+    jester2 = initPackageInfo(
+      "jester", "0.1.0", "deff1d836528db4fd128932ebd48e568e52b7bb4")
 
     captcha = initPackageInfo(
       "captcha", "1.0.0", "ce128561b06dd106a83638ad415a2a52548f388e")
     captchaRevDep = captcha.toRevDep
     
     auth = initPackageInfo(
-      "auth", "#head", "c81545df8a559e3da7d38d125e0eaf2b4478cd01")
+      "auth", "2.0.0", "c81545df8a559e3da7d38d125e0eaf2b4478cd01")
     authRevDep = auth.toRevDep
 
   suite "reverse dependencies":
     setup:
       var nimbleData = newNimbleDataNode()
       nimbleData.addRevDep(jester.basicInfo, nimforum1)
-      nimbleData.addRevDep(jesterWithoutSha1.basicInfo, play)
+      nimbleData.addRevDep(jester2.basicInfo, play)
       nimbleData.addRevDep(captcha.basicInfo, nimforum1)
       nimbleData.addRevDep(captcha.basicInfo, nimforum2)
       nimbleData.addRevDep(captcha.basicInfo, nimforumDevelop)
@@ -253,7 +243,7 @@ when isMainModule:
                     "checksum": "46a96c3f2b0ecb3d3f7bd71e12200ed401e9b9f2"
                   }
                 ],
-                "": [
+                "deff1d836528db4fd128932ebd48e568e52b7bb4": [
                   {
                     "name": "play",
                     "version": "2.0.1",
@@ -282,7 +272,7 @@ when isMainModule:
               }
             },
             "auth": {
-              "#head": {
+              "2.0.0": {
                 "c81545df8a559e3da7d38d125e0eaf2b4478cd01": [
                   {
                     "name": "nimforum",
@@ -313,7 +303,7 @@ when isMainModule:
           "reverseDeps": {
             "jester": {
               "0.1.0": {
-                "": [
+                "deff1d836528db4fd128932ebd48e568e52b7bb4": [
                   {
                     "name": "play",
                     "version": "2.0.1",
@@ -334,7 +324,7 @@ when isMainModule:
               }
             },
             "auth": {
-              "#head": {
+              "2.0.0": {
                 "c81545df8a559e3da7d38d125e0eaf2b4478cd01": [
                   {
                     "name": "nimforum",
@@ -367,4 +357,3 @@ when isMainModule:
       nimbleData.getAllRevDeps(authRevDep, revDeps)
       check revDeps == [authRevDep, nimforum1RevDep, nimforum2RevDep,
                         nimforumDevelopRevDep, captchaRevDep].toHashSet
-  

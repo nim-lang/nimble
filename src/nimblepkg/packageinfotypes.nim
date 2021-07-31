@@ -27,7 +27,10 @@ type
     vcsRevision*: Sha1Hash
     files*: seq[string]
     binaries*: seq[string]
-    specialVersion*: Version
+    specialVersions*: HashSet[Version]
+      # Special versions are aliases with which a single package can be
+      # referred. For example a package can be versions `0.1.0`, `#head` and
+      # `#master` at the same time.
 
   PackageBasicInfo* = tuple
     name: string
