@@ -153,3 +153,7 @@ proc pkgAlreadyExistsInTheCacheMsg*(pkgInfo: PackageInfo): string =
      pkgInfo.basicInfo.name,
     $pkgInfo.basicInfo.version,
     $pkgInfo.basicInfo.checksum)
+
+proc skipDownloadingInAlreadyExistingDirectoryMsg*(dir, name: string): string =
+  &"The download directory \"{dir}\" already exists.\n" &
+  &"Skipping the download of \"{name}\"."

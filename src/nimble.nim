@@ -537,7 +537,19 @@ proc downloadDependency(name: string, dep: LockFileDep, options: Options):
     getDevelopDownloadDir(url, subdir, options) else: ""
 
   if dirExists(downloadPath):
-    raiseCannotCloneInExistingDirException(downloadPath)
+    if options.developWithDependencies:
+      displayWarning(skipDownloadingInAlreadyExistingDirectoryMsg(
+        downloadPath, name))
+      result = DownloadInfo(
+        name: name,
+        dependency: dep,
+        url: url,
+        version: version,
+        downloadDir: downloadPath,
+        vcsRevision: dep.vcsRevision.newClone)
+      return
+    else:
+      raiseCannotCloneInExistingDirException(downloadPath)
 
   let (downloadDir, _, vcsRevision) = await downloadPkg(
     url, version, dep.downloadMethod, subdir, options, downloadPath,
@@ -1213,7 +1225,16 @@ proc installDevelopPackage(pkgTup: PkgTuple, options: var Options):
   let downloadDir = getDevelopDownloadDir(url, subdir, options)
 
   if dirExists(downloadDir):
-    raiseCannotCloneInExistingDirException(downloadDir)
+    if options.developWithDependencies:
+      displayWarning(skipDownloadingInAlreadyExistingDirectoryMsg(
+        downloadDir, pkgTup.name))
+      let pkgInfo = getPkgInfo(downloadDir, options)
+      developFromDir(pkgInfo, options)
+      options.action.devActions.add(
+        (datAdd, pkgInfo.getNimbleFileDir.normalizedPath))
+      return pkgInfo
+    else:
+      raiseCannotCloneInExistingDirException(downloadDir)
 
   # Download the HEAD and make sure the full history is downloaded.
   let ver =
