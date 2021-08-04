@@ -65,7 +65,7 @@ The Nimble change log can be found [here](https://github.com/nim-lang/nimble/blo
 Nimble has some runtime dependencies on external tools, these tools are used to
 download Nimble packages. For instance, if a package is hosted on
 [GitHub](https://github.com), you need to have [git](https://www.git-scm.com)
-installed and added to your environment ``PATH``. Same goes for
+installed and added to your environment ``PATH``. The same goes for
 [Mercurial](http://mercurial.selenic.com) repositories on
 [Bitbucket](https://bitbucket.org). Nimble packages are typically hosted in Git
 repositories so you may be able to get away without installing Mercurial.
@@ -81,7 +81,7 @@ feature is supported by both **GitHub** and **BitBucket**.
 ## Installation
 
 Nimble is now bundled with [Nim](https://nim-lang.org)
-(since Nim version 0.15.0).
+(as of Nim version 0.15.0).
 This means that you should have Nimble installed already, as long as you have
 the latest version of Nim installed as well. Because of this **you likely do
 not need to install Nimble manually**.
@@ -181,10 +181,10 @@ Example:
     nake installed successfully
 
 Nimble always fetches and installs the latest version of a package. Note that
-latest version is defined as the latest tagged version in the Git (or Mercurial)
+the latest version is defined as the latest tagged version in the Git (or Mercurial)
 repository, if the package has no tagged versions then the latest commit in the
 remote repository will be installed. If you already have that version installed,
-Nimble will ask you whether you wish it to overwrite your local copy.
+Nimble will ask you whether you wish to overwrite your local copy.
 
 You can force Nimble to download the latest commit from the package's repo, for
 example:
@@ -200,7 +200,7 @@ version range, for example:
     $ nimble install nimgame@0.5
     $ nimble install nimgame@"> 0.5"
 
-The latter command will install a version which is greater than ``0.5``.
+The latter command will install a version that is greater than ``0.5``.
 
 If you don't specify a parameter and there is a ``package.nimble`` file in your
 current working directory then Nimble will install the package residing in
@@ -215,7 +215,7 @@ files.
 
 #### Package URLs
 
-A valid URL to a Git or Merurial repository can also be specified, Nimble will
+A valid URL to a Git or Mercurial repository can also be specified, Nimble will
 automatically detect the type of the repository that the url points to and
 install it.
 
@@ -411,7 +411,7 @@ The command also adds `nimble.develop` and `nimble.paths` files to the
 ### nimble uninstall
 
 The ``uninstall`` command will remove an installed package. Attempting to remove
-a package which other packages depend on will result in an error. You can use the
+a package that other packages depend on will result in an error. You can use the
 ``--inclDeps`` or ``-i`` flag to remove all dependent packages along with the package.
 
 Similar to the ``install`` command you can specify a version range, for example:
@@ -518,7 +518,7 @@ an ini-compatible format. Useful for tools wishing to read metadata about
 Nimble packages who do not want to use the NimScript evaluator.
 
 The format can be specified with `--json` or `--ini` (and defaults to `--ini`).
-Use `nimble dump pkg` to dump information about provided `pkg` instad.
+Use `nimble dump pkg` to dump information about provided `pkg` instead.
 
 ## Configuration
 
@@ -554,7 +554,7 @@ You can currently configure the following in this file:
   defaults to the "Official" package list, you can override it by specifying
   a ``[PackageList]`` section named "official". Multiple URLs can be specified
   under each section, Nimble will try each in succession if
-  downloading from the first fails. Alternately, ``path`` can specify a
+  downloading from the first fails. Alternatively, ``path`` can specify a
   local file path to copy a package list .json file from.
 * ``cloneUsingHttps`` - Whether to replace any ``git://`` inside URLs with
   ``https://``.
@@ -640,13 +640,13 @@ requires "choosenim ~= 0" # choosenim >= 0.0.0 & < 1.0.0
 requires "choosenim ^= 0" # choosenim >= 0.0.0 & < 1.0.0 
 ```
 
-Nimble currently supports installation of packages from a local directory, a
+Nimble currently supports the installation of packages from a local directory, a
 Git repository and a mercurial repository. The .nimble file must be present in
 the root of the directory or repository being installed.
 
 The .nimble file is very flexible because it is interpreted using NimScript.
-Because of Nim's flexibility the definitions remain declarative. With the added
-ability of using the Nim language to enrich your package specification.
+Because of Nim's flexibility, the definitions remain declarative. With the added
+ability to use the Nim language to enrich your package specification.
 For example, you can define dependencies for specific platforms using Nim's
 ``when`` statement.
 
@@ -676,7 +676,7 @@ which makes this feature very powerful.
 You can also check what tasks are supported by the package in the current
 directory by using the ``tasks`` command.
 
-Nimble provides an API which adds even more functionality. For example,
+Nimble provides an API that adds even more functionality. For example,
 you can specify
 pre and post hooks for any Nimble command (including commands that
 you define yourself). To do this you can add something like the following:
@@ -707,7 +707,7 @@ flags are those specified before the task name and are forwarded to the Nim
 compiler that runs the `.nimble` task. This enables setting `--define:xxx`
 values that can be checked with `when defined(xxx)` in the task, and other
 compiler flags that are applicable in Nimscript mode. Run flags are those after
-the task name and are available as command line arguments to the task. They can
+the task name and are available as command-line arguments to the task. They can
 be accessed per usual from `commandLineParams: seq[string]`.
 
 In order to forward compiler flags to `exec("nim ...")` calls executed within a
@@ -785,7 +785,7 @@ be solved in a few different ways:
 * Use a simple path modification to resolve the package properly.
 
 The latter is highly recommended. Reinstalling the package to test an actively
-changing code base is a massive pain.
+changing codebase is a massive pain.
 
 To modify the path for your tests only, simply add a ``nim.cfg`` file into
 your ``tests`` directory with the following contents:
@@ -794,7 +794,7 @@ your ``tests`` directory with the following contents:
 --path:"../src/"
 ```
 
-Nimble offers a pre-defined ``test`` task which compiles and runs all files
+Nimble offers a pre-defined ``test`` task that compiles and runs all files
 in the ``tests`` directory beginning with 't' in their filename. Nim flags
 provided to `nimble test` will be forwarded to the compiler when building
 the tests.
@@ -825,14 +825,14 @@ determined by the nature of your package, that is, whether your package exposes
 only one module or multiple modules.
 
 If your package exposes only a single module, then that module should be
-present in the source directory of your Git repository, and should be named
+present in the source directory of your Git repository and should be named
 whatever your package's name is. A good example of this is the
 [jester](https://github.com/dom96/jester) package which exposes the ``jester``
-module. In this case the jester package is imported with ``import jester``.
+module. In this case, the jester package is imported with ``import jester``.
 
 If your package exposes multiple modules then the modules should be in a
 ``PackageName`` directory. This will allow for a certain measure of isolation
-from other packages which expose modules with the same names. In this case
+from other packages which expose modules with the same names. In this case,
 the package's modules will be imported with ``import PackageName/module``.
 
 Here's a simple example multi-module library package called `kool`:
@@ -850,7 +850,7 @@ them in a ``PackageName/private`` directory. Your modules may then import these
 private modules with ``import PackageName/private/module``. This directory
 structure may be enforced in the future.
 
-All files and folders in the directory of where the .nimble file resides will be
+All files and folders in the directory where the .nimble file resides will be
 copied as-is, you can however skip some directories or files by setting
 the ``skipDirs``, ``skipFiles`` or ``skipExt`` options in your .nimble file.
 Directories and files can also be specified on a *whitelist* basis, if you
@@ -869,7 +869,7 @@ bin = @["main"]
 
 In this case when ``nimble install`` is invoked, Nimble will build the ``main.nim``
 file, copy it into ``$nimbleDir/pkgs/pkgname-ver/`` and subsequently create a
-symlink to the binary in ``$nimbleDir/bin/``. On Windows a stub .cmd file is
+symlink to the binary in ``$nimbleDir/bin/``. On Windows, a stub .cmd file is
 created instead.
 
 The binary can be named differently than the source file with the ``namedBin``
@@ -932,8 +932,7 @@ latest commit of Jester.
 related to it are more likely to be introduced than for any other Nimble
 features.
 
-Starting with Nimble v0.8.0, you can now specify external dependencies. These
-are dependencies which are not managed by Nimble and can only be installed via
+Starting with Nimble v0.8.0, you can now specify external dependencies. These dependencies are not managed by Nimble and can only be installed via
 your system's package manager or downloaded manually via the internet.
 
 As an example, to specify a dependency on openssl you may put this in your
@@ -969,11 +968,11 @@ installing your package (on macOS):
 Versions of cloned packages via Git or Mercurial are determined through the
 repository's *tags*.
 
-When installing a package which needs to be downloaded, after the download is
+When installing a package that needs to be downloaded, after the download is
 complete and if the package is distributed through a VCS, Nimble will check the
 cloned repository's tags list. If no tags exist, Nimble will simply install the
 HEAD (or tip in Mercurial) of the repository. If tags exist, Nimble will attempt
-to look for tags which resemble versions (e.g. v0.1) and will then find the
+to look for tags that resemble versions (e.g. v0.1) and will then find the
 latest version out of the available tags, once it does so it will install the
 package after checking out the latest version.
 
@@ -1001,7 +1000,7 @@ the new version.
 
 ##### Git Version Tagging
 
-Use dot separated numbers to represent the release version in the git
+Use dot-separated numbers to represent the release version in the git
 tag label. Nimble will parse these git tag labels to know which
 versions of a package are published.
 
@@ -1019,12 +1018,12 @@ a specific name to a URL pointing to your package. This mapping is stored
 in an official packages repository located
 [here](https://github.com/nim-lang/packages).
 
-This repository contains a ``packages.json`` file which lists all the published
+This repository contains a ``packages.json`` file that lists all the published
 packages. It contains a set of package names with associated metadata. You
 can read more about this metadata in the
 [readme for the packages repository](https://github.com/nim-lang/packages#readme).
 
-To publish your package you need to fork that repository, and add an entry
+To publish your package you need to fork that repository and add an entry
 into the ``packages.json`` file for your package. Then create a pull request
 with your changes. **You only need to do this
 once**.
@@ -1042,7 +1041,7 @@ Nimble includes a ``publish`` command which does this for you automatically.
   **before** tagging the current version using ``git tag`` or ``hg tag``.
 * ``author`` - The name of the author of this package.
 * ``description`` - A string describing the package.
-* ``license`` - The name of the license in which this package is licensed under.
+* ``license`` - The name of the license under which this package is licensed.
 
 #### Optional
 
@@ -1112,7 +1111,7 @@ ignored. This allows for project local dependencies and isolation from other
 projects. The `-l | --localdeps` flag can be used to setup a project in local
 dependency mode.
 
-Nimble also allows overriding ``$nimbleDir`` on the command line with the
+Nimble also allows overriding ``$nimbleDir`` on the command-line with the
 ``--nimbleDir`` flag or the ``NIMBLE_DIR`` environment variable if required.
 
 If the default ``$HOME/.nimble`` is overridden by one of the above methods,
@@ -1128,7 +1127,7 @@ in Nimble's package directory when compiling your software. This means that
 it cannot resolve dependencies, and it can only use the latest version of a
 package when compiling.
 
-When Nimble builds your package it actually executes the Nim compiler.
+When Nimble builds your package it executes the Nim compiler.
 It resolves the dependencies and feeds the path of each package to
 the compiler so that it knows precisely which version to use.
 
@@ -1191,9 +1190,9 @@ Make sure that you are running at least version 0.16.0 of Nim (or the latest nig
 * ``Error: cannot open '/home/user/.nimble/lib/system.nim'.``
 
 Nimble cannot find the Nim standard library. This is considered a bug so
-please report it. As a workaround you can set the ``NIM_LIB_PREFIX`` environment
+please report it. As a workaround, you can set the ``NIM_LIB_PREFIX`` environment
 variable to the directory where ``lib/system.nim`` (and other standard library
-files) are found. Alternatively you can also configure this in Nimble's
+files) are found. Alternatively, you can also configure this in Nimble's
 config file.
 
 ## Repository information
