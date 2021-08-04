@@ -9,6 +9,9 @@ This is a major release containing two big features:
 
 - A new dependencies development mode.
 - Support for lock files.
+- Download tarballs when downloading packages from GitHub.
+- Parallel downloads of the locked dependencies.
+- Setup command.
 
 ## 0.13.0
 
