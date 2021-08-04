@@ -32,7 +32,7 @@ proc updateSha1Checksum(checksum: var Sha1State, fileName, filePath: string) =
   while true:
     var bytesRead = readChars(file, buffer)
     if bytesRead == 0: break
-    checksum.update(buffer[0..<bytesRead])
+    checksum.update(buffer.toOpenArray(0, bytesRead - 1))
 
 proc calculateDirSha1Checksum*(dir: string): Sha1Hash =
   ## Recursively calculates the sha1 checksum of the contents of the directory
