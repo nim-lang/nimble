@@ -144,7 +144,7 @@ proc toRevDep*(pkg: PackageInfo): ReverseDependency =
   if not pkg.isLink:
     result = ReverseDependency(
       kind: rdkInstalled,
-      pkgInfo: (pkg.basicInfo.name, pkg.basicInfo.version, pkg.basicInfo.checksum))
+      pkgInfo: pkg.basicInfo)
   else:
     result = ReverseDependency(
       kind: rdkDevelop,
