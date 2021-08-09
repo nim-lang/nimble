@@ -175,9 +175,12 @@ proc hasTar: bool =
   ## Checks whether a `tar` external tool is available.
   var hasTar {.global.} = false
   once:
-    # Try to execute `tar` to ensure that it is available.
-    let (_, exitCode) = execCmdEx(getTarExePath() & " --version")
-    hasTar = exitCode == QuitSuccess
+    try:
+      # Try to execute `tar` to ensure that it is available.
+      let (_, exitCode) = execCmdEx(getTarExePath() & " --version")
+      hasTar = exitCode == QuitSuccess
+    except OSError:
+      discard
   return hasTar
 
 proc isGitHubRepo(url: string): bool =
