@@ -13,8 +13,6 @@ type
     ## procedure which validates the input.
     hashValue: string
 
-  Sha1HashRef* = ref Sha1Hash
-
 const
   notSetSha1Hash* = Sha1Hash(hashValue: "")
 

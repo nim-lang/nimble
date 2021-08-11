@@ -3,12 +3,11 @@
 #
 # Various miscellaneous utility functions reside here.
 import osproc, pegs, strutils, os, uri, sets, json, parseutils, strformat,
-       sequtils, asyncdispatch
+       sequtils
 
 from net import SslCVerifyMode, newContext, SslContext
 
 import version, cli, common, packageinfotypes, options, sha1hashes
-import asynctools/asyncproc except quoteShell
 from compiler/nimblecmd import getPathVersionChecksum
 
 proc extractBin(cmd: string): string =
@@ -53,32 +52,12 @@ proc doCmdEx*(cmd: string): ProcessOutput =
     raise nimbleError("'" & bin & "' not in PATH.")
   return execCmdEx(cmd)
 
-proc removeQuotes(cmd: string): string =
-  cmd.filterIt(it != '"').join
-
-proc doCmdExAsync*(cmd: string, args: seq[string] = @[]):
-    Future[ProcessOutput] {.async.} =
-  displayDebug("Executing", join(concat(@[cmd], args), " "))
-  let bin = extractBin(cmd)
-  if findExe(bin) == "":
-    raise nimbleError("'" & bin & "' not in PATH.")
-  let res = await asyncproc.execProcess(cmd.removeQuotes, args,
-    options = {asyncproc.poStdErrToStdOut, asyncproc.poUsePath})
-  return (res.output, res.exitCode)
-
 proc tryDoCmdExErrorMessage*(cmd, output: string, exitCode: int): string =
   &"Execution of '{cmd}' failed with an exit code {exitCode}.\n" &
   &"Details: {output}"
 
 proc tryDoCmdEx*(cmd: string): string {.discardable.} =
   let (output, exitCode) = doCmdEx(cmd)
-  if exitCode != QuitSuccess:
-    raise nimbleError(tryDoCmdExErrorMessage(cmd, output, exitCode))
-  return output
-
-proc tryDoCmdExAsync*(cmd: string, args: seq[string] = @[]):
-    Future[string] {.async.} =
-  let (output, exitCode) = await doCmdExAsync(cmd, args)
   if exitCode != QuitSuccess:
     raise nimbleError(tryDoCmdExErrorMessage(cmd, output, exitCode))
   return output

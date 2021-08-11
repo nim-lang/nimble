@@ -4,7 +4,7 @@
 import system except TResult
 
 import os, tables, strtabs, json, algorithm, sets, uri, sugar, sequtils, osproc,
-       strformat, asyncdispatch
+       strformat
 
 import std/options as std_opt
 
@@ -485,14 +485,7 @@ type
     url: string
     version: VersionRange
     downloadDir: string
-    vcsRevision: Sha1HashRef
-
-  DownloadQueue = ref seq[tuple[name: string, dep: LockFileDep]]
-    ## A queue of dependencies from the lock file which to be downloaded.
-
-  DownloadResults = ref seq[DownloadInfo]
-    ## A list of `DownloadInfo` objects used for installing the downloaded
-    ## dependencies.
+    vcsRevision: Sha1Hash
 
 proc developWithDependencies(options: Options): bool =
   ## Determines whether the current executed action is a develop sub-command
@@ -521,8 +514,8 @@ proc raiseCannotCloneInExistingDirException(downloadDir: string) =
   raise nimbleError(msg, hint)
 
 proc downloadDependency(name: string, dep: LockFileDep, options: Options):
-    Future[DownloadInfo] {.async.} =
-  ## Asynchronously downloads a dependency from the lock file.
+    DownloadInfo =
+  ## Downloads a dependency from the lock file.
 
   if not options.developWithDependencies:
     let depDirName = getDependencyDir(name, dep, options)
@@ -546,12 +539,12 @@ proc downloadDependency(name: string, dep: LockFileDep, options: Options):
         url: url,
         version: version,
         downloadDir: downloadPath,
-        vcsRevision: dep.vcsRevision.newClone)
+        vcsRevision: dep.vcsRevision)
       return
     else:
       raiseCannotCloneInExistingDirException(downloadPath)
 
-  let (downloadDir, _, vcsRevision) = await downloadPkg(
+  let (downloadDir, _, vcsRevision) = downloadPkg(
     url, version, dep.downloadMethod, subdir, options, downloadPath,
     dep.vcsRevision)
 
@@ -578,7 +571,7 @@ proc installDependency(pkgInfo: PackageInfo, downloadInfo: DownloadInfo,
     downloadInfo.url,
     first = false,
     fromLockFile = true,
-    downloadInfo.vcsRevision[])
+    downloadInfo.vcsRevision)
 
   downloadInfo.downloadDir.removeDir
 
@@ -590,31 +583,6 @@ proc installDependency(pkgInfo: PackageInfo, downloadInfo: DownloadInfo,
 
   return newlyInstalledPkgInfo
 
-proc startDownloadWorker(queue: DownloadQueue, options: Options,
-                         downloadResults: DownloadResults) {.async.} =
-  ## Starts a new download worker.
-  while queue[].len > 0:
-    let download = queue[].pop
-    let index = queue[].len
-    downloadResults[index] = await downloadDependency(
-      download.name, download.dep, options)
-
-proc lockedDepsDownload(dependenciesToDownload: DownloadQueue,
-                        options: Options): DownloadResults =
-  ## By given queue with dependencies to download performs the downloads and
-  ## returns the result objects.
-
-  result.new
-  result[].setLen(dependenciesToDownload[].len)
-
-  var downloadWorkers: seq[Future[void]]
-  let workersCount = min(
-    options.maxParallelDownloads, dependenciesToDownload[].len)
-  for i in 0 ..< workersCount:
-    downloadWorkers.add startDownloadWorker(
-      dependenciesToDownload, options, result)
-  waitFor all(downloadWorkers)
-
 proc processLockedDependencies(pkgInfo: PackageInfo, options: Options):
     HashSet[PackageInfo] =
   # Returns a hash set with `PackageInfo` of all packages from the lock file of
@@ -625,20 +593,14 @@ proc processLockedDependencies(pkgInfo: PackageInfo, options: Options):
 
   let developModeDeps = getDevelopDependencies(pkgInfo, options)
 
-  var dependenciesToDownload: DownloadQueue
-  dependenciesToDownload.new
-
   for name, dep in pkgInfo.lockedDeps:
     if developModeDeps.hasKey(name):
       result.incl developModeDeps[name][]
     elif isInstalled(name, dep, options):
       result.incl getDependency(name, dep, options)
     else:
-      dependenciesToDownload[].add (name, dep)
-
-  let downloadResults = lockedDepsDownload(dependenciesToDownload, options)
-  for downloadResult in downloadResults[]:
-    result.incl installDependency(pkgInfo, downloadResult, options)
+      let downloadResult = downloadDependency(name, dep, options)
+      result.incl installDependency(pkgInfo, downloadResult, options)
 
 proc getDownloadInfo*(pv: PkgTuple, options: Options,
                       doPrompt: bool): (DownloadMethod, string,
@@ -687,11 +649,11 @@ proc install(packages: seq[PkgTuple], options: Options,
       let (meth, url, metadata) = getDownloadInfo(pv, options, doPrompt)
       let subdir = metadata.getOrDefault("subdir")
       let (downloadDir, downloadVersion, vcsRevision) =
-          waitFor downloadPkg(url, pv.ver, meth, subdir, options,
-                              downloadPath = "", vcsRevision = notSetSha1Hash)
+        downloadPkg(url, pv.ver, meth, subdir, options,
+                    downloadPath = "", vcsRevision = notSetSha1Hash)
       try:
         result = installFromDir(downloadDir, pv.ver, options, url,
-                                first, fromLockFile, vcsRevision[])
+                                first, fromLockFile, vcsRevision)
       except BuildFailed as error:
         # The package failed to build.
         # Check if we tried building a tagged version of the package.
@@ -1243,8 +1205,8 @@ proc installDevelopPackage(pkgTup: PkgTuple, options: var Options):
     else:
       pkgTup.ver
 
-  discard waitFor downloadPkg(url, ver, meth, subdir, options, downloadDir,
-                              vcsRevision = notSetSha1Hash)
+  discard downloadPkg(url, ver, meth, subdir, options, downloadDir,
+                      vcsRevision = notSetSha1Hash)
 
   let pkgDir = downloadDir / subdir
   var pkgInfo = getPkgInfo(pkgDir, options)
@@ -1258,18 +1220,12 @@ proc developLockedDependencies(pkgInfo: PackageInfo,
     alreadyDownloaded: var HashSet[string], options: var Options) =
   ## Downloads for develop the dependencies from the lock file.
 
-  var dependenciesToDownload: DownloadQueue
-  dependenciesToDownload.new
-
   for name, dep in pkgInfo.lockedDeps:
     if dep.url.removeTrailingGitString notin alreadyDownloaded:
-      dependenciesToDownload[].add (name, dep)
-
-  let downloadResults = lockedDepsDownload(dependenciesToDownload, options)
-  for downloadResult in downloadResults[]:
-    alreadyDownloaded.incl downloadResult.url.removeTrailingGitString
-    options.action.devActions.add(
-      (datAdd, downloadResult.downloadDir.normalizedPath))
+      let downloadResult = downloadDependency(name, dep, options)
+      alreadyDownloaded.incl downloadResult.url.removeTrailingGitString
+      options.action.devActions.add(
+        (datAdd, downloadResult.downloadDir.normalizedPath))
 
 proc check(alreadyDownloaded: HashSet[string], dep: PkgTuple,
            options: Options): bool =
@@ -1965,6 +1921,7 @@ when isMainModule:
   except CatchableError as error:
     exitCode = QuitFailure
     displayTip()
+    echo error.getStackTrace()
     displayError(error)
   finally:
     try:

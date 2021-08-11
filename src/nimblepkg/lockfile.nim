@@ -14,7 +14,7 @@ const
   lockFileName* = "nimble.lock"
   lockFileVersion = 1
 
-proc initLockFileDep(): LockFileDep =
+proc initLockFileDep*: LockFileDep =
   result = LockFileDep(
     version: notSetVersion,
     vcsRevision: notSetSha1Hash,
