@@ -18,7 +18,14 @@ type
     path*: string
 
 proc initConfig(): Config =
-  result.nimbleDir = getHomeDir() / ".nimble"
+  when defined(windows):
+    let cache = getEnv("LOCALAPPDATA")
+  elif defined(osx):
+    let cache = getEnv("XDG_CACHE_HOME", getEnv("HOME") / "Library/Caches")
+  else:
+    let cache = getEnv("XDG_CACHE_HOME", getEnv("HOME") / ".cache")
+
+  result.nimbleDir = cache / "nimble"
 
   result.httpProxy = initUri()
 
