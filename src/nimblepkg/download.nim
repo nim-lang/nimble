@@ -21,11 +21,11 @@ proc doCheckout(meth: DownloadMethod, downloadDir, branch: string) =
     # Force is used here because local changes may appear straight after a clone
     # has happened. Like in the case of git on Windows where it messes up the
     # damn line endings.
-    discard tryDoCmdEx(&"git -C {downloadDir} checkout --force branch")
+    discard tryDoCmdEx(&"git -C {downloadDir} checkout --force {branch}")
     discard tryDoCmdEx(
       &"git -C {downloadDir} submodule update --recursive --depth 1")
   of DownloadMethod.hg:
-    discard tryDoCmdEx(&"hg --cwd {downloadDir} checkout branch")
+    discard tryDoCmdEx(&"hg --cwd {downloadDir} checkout {branch}")
 
 proc doClone(meth: DownloadMethod, url, downloadDir: string, branch = "",
              onlyTip = true) =
