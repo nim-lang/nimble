@@ -180,10 +180,10 @@ proc isGitHubRepo(url: string): bool =
 
 proc downloadTarball(url: string, options: Options): bool =
   ## Determines whether to download the repository as a tarball.
-  hasTar() and
+  options.enableTarballs and
   not options.forceFullClone and
-  not options.noTarballs and
-  url.isGitHubRepo
+  url.isGitHubRepo and
+  hasTar()
 
 proc removeTrailingGitString*(url: string): string =
   ## Removes ".git" from an URL.

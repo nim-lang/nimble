@@ -41,7 +41,7 @@ type
     localdeps*: bool # True if project local deps mode
     developLocaldeps*: bool # True if local deps + nimble develop pkg1 ...
     disableSslCertCheck*: bool
-    noTarballs*: bool # Disable downloading of packages as tarballs from GitHub.
+    enableTarballs*: bool # Enable downloading of packages as tarballs from GitHub.
 
   ActionType* = enum
     actionNil, actionRefresh, actionInit, actionDump, actionPublish,
@@ -185,7 +185,7 @@ Nimble Options:
   -y, --accept                    Accept all interactive prompts.
   -n, --reject                    Reject all interactive prompts.
   -l, --localdeps                 Run in project local dependency mode
-  -t, --no-tarballs               Disable downloading of packages as tarballs
+  -t, --tarballs                  Enable downloading of packages as tarballs
                                   when working with GitHub repositories.
       --ver                       Query remote server for package version
                                   information when searching or listing packages.
@@ -475,7 +475,7 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
   of "nim": result.nim = val
   of "localdeps", "l": result.localdeps = true
   of "nosslcheck": result.disableSslCertCheck = true
-  of "no-tarballs", "t": result.noTarballs = true
+  of "tarballs", "t": result.enableTarballs = true
   else: isGlobalFlag = false
 
   var wasFlagHandled = true
