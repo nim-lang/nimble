@@ -2,7 +2,7 @@
 # BSD License. Look at license.txt for more info.
 
 import os, std/sha1, strformat, algorithm
-import common, version, sha1hashes, vcstools, paths
+import common, version, sha1hashes, vcstools, paths, cli
 
 type
   ChecksumError* = object of NimbleError
@@ -25,7 +25,15 @@ proc updateSha1Checksum(checksum: var Sha1State, fileName, filePath: string) =
     # directory from which no files are being installed.
     return
   checksum.update(fileName)
-  let file = filePath.open(fmRead)
+  var file: File
+  try:
+    file = filePath.open(fmRead)
+  except IOError:
+    ## If the file cannot be open for reading do not count its content in the
+    ## checksum.
+    displayWarning(&"The file \"{filePath}\" cannot be open for reading.\n" &
+                    "Skipping it in the calculation of the checksum.")
+    return
   defer: close(file)
   const bufferSize = 8192
   var buffer = newString(bufferSize)
