@@ -3,6 +3,15 @@
 
 # Nimble changelog
 
+## 0.14.0
+
+This is a major release containing four new features:
+
+- A new dependencies development mode.
+- Support for lock files.
+- Download tarballs when downloading packages from GitHub.
+- A setup command.
+
 ## 0.13.0
 
 This is a bugfix release. It enhances the security in multiple aspects:

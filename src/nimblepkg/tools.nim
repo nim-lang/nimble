@@ -2,9 +2,13 @@
 # BSD License. Look at license.txt for more info.
 #
 # Various miscellaneous utility functions reside here.
-import osproc, pegs, strutils, os, uri, sets, json, parseutils
-import version, cli, options
+import osproc, pegs, strutils, os, uri, sets, json, parseutils, strformat,
+       sequtils
+
 from net import SslCVerifyMode, newContext, SslContext
+
+import version, cli, common, packageinfotypes, options, sha1hashes
+from compiler/nimblecmd import getPathVersionChecksum
 
 proc extractBin(cmd: string): string =
   if cmd[0] == '"':
@@ -17,7 +21,7 @@ proc doCmd*(cmd: string) =
     bin = extractBin(cmd)
     isNim = bin.extractFilename().startsWith("nim")
   if findExe(bin) == "":
-    raise newException(NimbleError, "'" & bin & "' not in PATH.")
+    raise nimbleError("'" & bin & "' not in PATH.")
 
   # To keep output in sequence
   stdout.flushFile()
@@ -29,7 +33,7 @@ proc doCmd*(cmd: string) =
     display("Executing", cmd, priority = MediumPriority)
     let exitCode = execCmd(cmd)
     if exitCode != QuitSuccess:
-      raise newException(NimbleError,
+      raise nimbleError(
         "Execution failed with exit code $1\nCommand: $2" %
         [$exitCode, cmd])
   else:
@@ -37,30 +41,37 @@ proc doCmd*(cmd: string) =
     let (output, exitCode) = execCmdEx(cmd)
     displayDebug("Output", output)
     if exitCode != QuitSuccess:
-      raise newException(NimbleError,
+      raise nimbleError(
         "Execution failed with exit code $1\nCommand: $2\nOutput: $3" %
         [$exitCode, cmd, output])
 
-{.warning[Deprecated]: off.}
-proc doCmdEx*(cmd: string): tuple[output: TaintedString, exitCode: int] =
+proc doCmdEx*(cmd: string): ProcessOutput =
+  displayDebug("Executing", cmd)
   let bin = extractBin(cmd)
   if findExe(bin) == "":
-    raise newException(NimbleError, "'" & bin & "' not in PATH.")
+    raise nimbleError("'" & bin & "' not in PATH.")
   return execCmdEx(cmd)
 
-template cd*(dir: string, body: untyped) =
-  ## Sets the current dir to ``dir``, executes ``body`` and restores the
-  ## previous working dir.
-  let lastDir = getCurrentDir()
-  setCurrentDir(dir)
-  body
-  setCurrentDir(lastDir)
+proc tryDoCmdExErrorMessage*(cmd, output: string, exitCode: int): string =
+  &"Execution of '{cmd}' failed with an exit code {exitCode}.\n" &
+  &"Details: {output}"
+
+proc tryDoCmdEx*(cmd: string): string {.discardable.} =
+  let (output, exitCode) = doCmdEx(cmd)
+  if exitCode != QuitSuccess:
+    raise nimbleError(tryDoCmdExErrorMessage(cmd, output, exitCode))
+  return output
+
+proc getNimBin*: string =
+  result = "nim"
+  if findExe("nim") != "": result = findExe("nim")
+  elif findExe("nimrod") != "": result = findExe("nimrod")
 
 proc getNimrodVersion*(options: Options): Version =
   let vOutput = doCmdEx(getNimBin(options).quoteShell & " -v").output
   var matches: array[0..MaxSubpatterns, string]
   if vOutput.find(peg"'Version'\s{(\d+\.)+\d+}", matches) == -1:
-    raise newException(NimbleError, "Couldn't find Nim version.")
+    raise nimbleError("Couldn't find Nim version.")
   newVersion(matches[0])
 
 proc samePaths*(p1, p2: string): bool =
@@ -87,7 +98,7 @@ proc changeRoot*(origRoot, newRoot, path: string): string =
   if path.startsWith(origRoot) or path.samePaths(origRoot):
     return newRoot / path.substr(origRoot.len, path.len-1)
   else:
-    raise newException(ValueError,
+    raise nimbleError(
       "Cannot change root of path: Path does not begin with original root.")
 
 proc copyFileD*(fro, to: string): string =
@@ -108,9 +119,9 @@ proc createDirD*(dir: string) =
   display("Creating", "directory $#" % dir, priority = LowPriority)
   createDir(dir)
 
-proc getDownloadDirName*(uri: string, verRange: VersionRange): string =
+proc getDownloadDirName*(uri: string, verRange: VersionRange,
+                         vcsRevision: Sha1Hash): string =
   ## Creates a directory name based on the specified ``uri`` (url)
-  result = ""
   let puri = parseUri(uri)
   for i in puri.hostname:
     case i
@@ -128,6 +139,10 @@ proc getDownloadDirName*(uri: string, verRange: VersionRange): string =
   if verSimple != "":
     result.add "_"
     result.add verSimple
+  
+  if vcsRevision != notSetSha1Hash:
+    result.add "_"
+    result.add $vcsRevision
 
 proc incl*(s: var HashSet[string], v: seq[string] | HashSet[string]) =
   for i in v:
@@ -167,9 +182,113 @@ proc getNimbleUserTempDir*(): string =
     tmpdir = getTempDir()
   return tmpdir
 
+proc isEmptyDir*(dir: string): bool =
+  toSeq(walkDirRec(dir)).len == 0
+
+proc getNameVersionChecksum*(pkgpath: string): PackageBasicInfo =
+  ## Splits ``pkgpath`` in the format
+  ## ``/home/user/.nimble/pkgs/package-0.1-febadeaea2345e777f0f6f8433f7f0a52edd5d1b``
+  ## into ``("packagea", "0.1", "febadeaea2345e777f0f6f8433f7f0a52edd5d1b")``
+  ##
+  ## Also works for file paths like:
+  ## ``/home/user/.nimble/pkgs/package-0.1-febadeaea2345e777f0f6f8433f7f0a52edd5d1b/package.nimble``
+
+  if pkgPath.splitFile.ext in [".nimble", ".babel"]:
+    return getNameVersionChecksum(pkgPath.splitPath.head)
+
+  let (name, version, checksum) = getPathVersionChecksum(pkgPath.splitPath.tail)
+  let sha1Checksum = 
+    try:
+      initSha1Hash(checksum)
+    except InvalidSha1HashError:
+      notSetSha1Hash
+
+  return (name, newVersion(version), sha1Checksum)
+
+proc removePackageDir*(files: seq[string], dir: string, reportSuccess = false) =
+  for file in files:
+    removeFile(dir / file)
+
+  if dir.isEmptyDir():
+    removeDir(dir)
+    if reportSuccess:
+      displaySuccess(&"The directory \"{dir}\" has been removed.",
+                     MediumPriority)
+  else:
+    displayWarning(
+      &"Cannot completely remove the directory \"{dir}\".\n" &
+       "Files not installed by Nimble are present.")
+
 proc newSSLContext*(disabled: bool): SslContext =
   var sslVerifyMode = CVerifyPeer
   if disabled:
     display("Warning:", "disabling SSL certificate checking", Warning)
     sslVerifyMode = CVerifyNone
   return newContext(verifyMode = sslVerifyMode)
+
+when isMainModule:
+  import unittest
+
+  suite "getNameVersionCheksum":
+    test "directory names without sha1 hashes":
+      check getNameVersionChecksum(
+        "/home/user/.nimble/libs/packagea-0.1") ==
+        ("packagea", newVersion("0.1"), notSetSha1Hash)
+
+      check getNameVersionChecksum(
+        "/home/user/.nimble/libs/package-a-0.1") ==
+        ("package-a", newVersion("0.1"), notSetSha1Hash)
+
+      check getNameVersionChecksum(
+        "/home/user/.nimble/libs/package-a-0.1/package.nimble") ==
+        ("package-a", newVersion("0.1"), notSetSha1Hash)
+
+      check getNameVersionChecksum(
+        "/home/user/.nimble/libs/package-#head") ==
+        ("package", newVersion("#head"), notSetSha1Hash)
+
+      check getNameVersionChecksum(
+        "/home/user/.nimble/libs/package-#branch-with-dashes") ==
+        ("package", newVersion("#branch-with-dashes"), notSetSha1Hash)
+
+      # readPackageInfo (and possibly more) depends on this not raising.
+      check getNameVersionChecksum(
+        "/home/user/.nimble/libs/package") ==
+        ("package", newVersion(""), notSetSha1Hash)
+
+    test "directory names with sha1 hashes":
+      check getNameVersionChecksum(
+        "/home/user/.nimble/libs/packagea-0.1-" &
+         "9e6df089c5ee3d912006b2d1c016eb8fa7dcde82") ==
+        ("packagea", newVersion("0.1"),
+         "9e6df089c5ee3d912006b2d1c016eb8fa7dcde82".initSha1Hash)
+
+      check getNameVersionChecksum(
+        "/home/user/.nimble/libs/package-a-0.1-" &
+         "2f11b50a3d1933f9f8972bd09bc3325c38bc11d6") ==
+        ("package-a", newVersion("0.1"),
+         "2f11b50a3d1933f9f8972bd09bc3325c38bc11d6".initSha1Hash)
+
+      check getNameVersionChecksum(
+        "/home/user/.nimble/libs/package-a-0.1-" &
+         "43e3b1138312656310e93ffcfdd866b2dcce3b35/package.nimble") ==
+        ("package-a", newVersion("0.1"),
+         "43e3b1138312656310e93ffcfdd866b2dcce3b35".initSha1Hash)
+
+      check getNameVersionChecksum(
+        "/home/user/.nimble/libs/package-#head-" &
+         "efba335dccf2631d7ac2740109142b92beb3b465") ==
+        ("package", newVersion("#head"),
+         "efba335dccf2631d7ac2740109142b92beb3b465".initSha1Hash)
+
+      check getNameVersionChecksum(
+        "/home/user/.nimble/libs/package-#branch-with-dashes-" &
+         "8f995e59d6fc1012b3c1509fcb0ef0a75cb3610c") ==
+        ("package", newVersion("#branch-with-dashes"),
+         "8f995e59d6fc1012b3c1509fcb0ef0a75cb3610c".initSha1Hash)
+
+      check getNameVersionChecksum(
+        "/home/user/.nimble/libs/package-" &
+         "b12e18db49fc60df117e5d8a289c4c2050a272dd") ==
+        ("package", newVersion(""),
+         "b12e18db49fc60df117e5d8a289c4c2050a272dd".initSha1Hash)

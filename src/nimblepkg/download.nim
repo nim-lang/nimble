@@ -1,71 +1,55 @@
 # Copyright (C) Dominik Picheta. All rights reserved.
 # BSD License. Look at license.txt for more info.
 
-import parseutils, os, osproc, strutils, tables, pegs, uri
-import packageinfo, packageparser, version, tools, common, options, cli
+import parseutils, os, osproc, strutils, tables, pegs, uri, strformat,
+       httpclient, json, sequtils
+
 from algorithm import SortOrder, sorted
-from sequtils import toSeq, filterIt, map
+
+import packageinfotypes, packageparser, version, tools, common, options, cli,
+       sha1hashes, vcstools
 
 type
-  DownloadMethod* {.pure.} = enum
-    git = "git", hg = "hg"
-
-proc getSpecificDir(meth: DownloadMethod): string {.used.} =
-  case meth
-  of DownloadMethod.git:
-    ".git"
-  of DownloadMethod.hg:
-    ".hg"
+  DownloadPkgResult* = tuple
+    dir: string
+    version: Version
+    vcsRevision: Sha1Hash
 
 proc doCheckout(meth: DownloadMethod, downloadDir, branch: string) =
   case meth
   of DownloadMethod.git:
-    cd downloadDir:
-      # Force is used here because local changes may appear straight after a
-      # clone has happened. Like in the case of git on Windows where it
-      # messes up the damn line endings.
-      doCmd("git checkout --force " & branch)
-      doCmd("git submodule update --recursive --depth 1")
+    # Force is used here because local changes may appear straight after a clone
+    # has happened. Like in the case of git on Windows where it messes up the
+    # damn line endings.
+    discard tryDoCmdEx(&"git -C {downloadDir} checkout --force {branch}")
+    discard tryDoCmdEx(
+      &"git -C {downloadDir} submodule update --recursive --depth 1")
   of DownloadMethod.hg:
-    cd downloadDir:
-      doCmd("hg checkout " & branch)
-
-proc doPull(meth: DownloadMethod, downloadDir: string) {.used.} =
-  case meth
-  of DownloadMethod.git:
-    doCheckout(meth, downloadDir, "")
-    cd downloadDir:
-      doCmd("git pull")
-      if fileExists(".gitmodules"):
-        doCmd("git submodule update --recursive --depth 1")
-  of DownloadMethod.hg:
-    doCheckout(meth, downloadDir, "default")
-    cd downloadDir:
-      doCmd("hg pull")
+    discard tryDoCmdEx(&"hg --cwd {downloadDir} checkout {branch}")
 
 proc doClone(meth: DownloadMethod, url, downloadDir: string, branch = "",
              onlyTip = true) =
   case meth
   of DownloadMethod.git:
     let
-      depthArg = if onlyTip: "--depth 1 " else: ""
-      branchArg = if branch == "": "" else: "-b " & branch & " "
-    doCmd("git clone --recursive " & depthArg & branchArg &
-          url & " " & downloadDir)
+      depthArg = if onlyTip: "--depth 1" else: ""
+      branchArg = if branch == "": "" else: &"-b {branch}"
+    discard tryDoCmdEx(
+      &"git clone --recursive {depthArg} {branchArg} {url} {downloadDir}")
   of DownloadMethod.hg:
     let
       tipArg = if onlyTip: "-r tip " else: ""
-      branchArg = if branch == "": "" else: "-b " & branch & " "
-    doCmd("hg clone " & tipArg & branchArg & url & " " & downloadDir)
+      branchArg = if branch == "": "" else: &"-b {branch}"
+    discard tryDoCmdEx(&"hg clone {tipArg} {branchArg} {url} {downloadDir}")
 
 proc getTagsList(dir: string, meth: DownloadMethod): seq[string] =
+  var output: string
   cd dir:
-    var output = execProcess("git tag")
     case meth
     of DownloadMethod.git:
-      output = execProcess("git tag")
+      output = tryDoCmdEx("git tag")
     of DownloadMethod.hg:
-      output = execProcess("hg tags")
+      output = tryDoCmdEx("hg tags")
   if output.len > 0:
     case meth
     of DownloadMethod.git:
@@ -88,10 +72,10 @@ proc getTagsListRemote*(url: string, meth: DownloadMethod): seq[string] =
   result = @[]
   case meth
   of DownloadMethod.git:
-    var (output, exitCode) = doCmdEx("git ls-remote --tags " & url.quoteShell())
+    var (output, exitCode) = doCmdEx(&"git ls-remote --tags {url}")
     if exitCode != QuitSuccess:
-      raise newException(OSError, "Unable to query remote tags for " & url &
-          " Git returned: " & output)
+      raise nimbleError("Unable to query remote tags for " & url &
+                        ". Git returned: " & output)
     for i in output.splitLines():
       let refStart = i.find("refs/tags/")
       # git outputs warnings, empty lines, etc
@@ -102,7 +86,7 @@ proc getTagsListRemote*(url: string, meth: DownloadMethod): seq[string] =
 
   of DownloadMethod.hg:
     # http://stackoverflow.com/questions/2039150/show-tags-for-remote-hg-repository
-    raise newException(ValueError, "Hg doesn't support remote tag querying.")
+    raise nimbleError("Hg doesn't support remote tag querying.")
 
 proc getVersionList*(tags: seq[string]): OrderedTable[Version, string] =
   ## Return an ordered table of Version -> git tag label.  Ordering is
@@ -120,13 +104,6 @@ proc getVersionList*(tags: seq[string]): OrderedTable[Version, string] =
               SortOrder.Descending)
   result = toOrderedTable[Version, string](taggedVers)
 
-proc getDownloadMethod*(meth: string): DownloadMethod =
-  case meth
-  of "git": return DownloadMethod.git
-  of "hg", "mercurial": return DownloadMethod.hg
-  else:
-    raise newException(NimbleError, "Invalid download method: " & meth)
-
 proc getHeadName*(meth: DownloadMethod): Version =
   ## Returns the name of the download method specific head. i.e. for git
   ## it's ``head`` for hg it's ``tip``.
@@ -141,7 +118,7 @@ proc checkUrlType*(url: string): DownloadMethod =
   elif doCmdEx("hg identify " & url.quoteShell()).exitCode == QuitSuccess:
     return DownloadMethod.hg
   else:
-    raise newException(NimbleError, "Unable to identify url: " & url)
+    raise nimbleError("Unable to identify url: " & url)
 
 proc getUrlData*(url: string): (string, Table[string, string]) =
   var uri = parseUri(url)
@@ -156,9 +133,190 @@ proc getUrlData*(url: string): (string, Table[string, string]) =
 proc isURL*(name: string): bool =
   name.startsWith(peg" @'://' ")
 
-proc doDownload(url: string, downloadDir: string, verRange: VersionRange,
-                 downMethod: DownloadMethod,
-                 options: Options): Version =
+proc cloneSpecificRevision(downloadMethod: DownloadMethod,
+                           url, downloadDir: string,
+                           vcsRevision: Sha1Hash) =
+  assert vcsRevision != notSetSha1Hash
+  display("Cloning", "revision: " & $vcsRevision, priority = MediumPriority)
+  case downloadMethod
+  of DownloadMethod.git:
+    let downloadDir = downloadDir.quoteShell
+    createDir(downloadDir)
+    discard tryDoCmdEx(&"git -C {downloadDir} init")
+    discard tryDoCmdEx(&"git -C {downloadDir} remote add origin {url}")
+    discard tryDoCmdEx(
+      &"git -C {downloadDir} fetch --depth 1 origin {vcsRevision}")
+    discard tryDoCmdEx(&"git -C {downloadDir} reset --hard FETCH_HEAD")
+  of DownloadMethod.hg:
+    discard tryDoCmdEx(&"hg clone {url} -r {vcsRevision}")
+
+proc getTarExePath: string =
+  ## Returns path to `tar` executable.
+  var tarExePath {.global.}: string
+  once:
+    tarExePath =
+      when defined(Windows):
+        findExe("git").splitPath.head / "../usr/bin/tar.exe"
+      else:
+        findExe("tar")
+    tarExePath = tarExePath.quoteShell
+  return tarExePath
+
+proc hasTar: bool =
+  ## Checks whether a `tar` external tool is available.
+  var hasTar {.global.} = false
+  once:
+    try:
+      # Try to execute `tar` to ensure that it is available.
+      let (_, exitCode) = execCmdEx(getTarExePath() & " --version")
+      hasTar = exitCode == QuitSuccess
+    except OSError:
+      discard
+  return hasTar
+
+proc isGitHubRepo(url: string): bool =
+  ## Determines whether the `url` points to a GitHub repository.
+  url.contains("github.com")
+
+proc downloadTarball(url: string, options: Options): bool =
+  ## Determines whether to download the repository as a tarball.
+  options.enableTarballs and
+  not options.forceFullClone and
+  url.isGitHubRepo and
+  hasTar()
+
+proc removeTrailingGitString*(url: string): string =
+  ## Removes ".git" from an URL.
+  ##
+  ## For example:
+  ## "https://github.com/nim-lang/nimble.git" -> "https://github.com/nim-lang/nimble"
+  if url.len > 4 and url.endsWith(".git"): url[0..^5] else: url
+
+proc getTarballDownloadLink(url, version: string): string =
+  ## Returns the package tarball download link for given repository URL and
+  ## version.
+  removeTrailingGitString(url) & "/tarball/" & version
+
+proc seemsLikeRevision(version: string): bool =
+  ## Checks whether the given `version` string seems like part of sha1 hash
+  ## value.
+  assert version.len > 0, "version must not be an empty string"
+  for c in version:
+    if c notin HexDigits:
+      return false
+  return true
+
+proc extractOwnerAndRepo(url: string): string =
+  ## Extracts owner and repository string from an URL to GitHub repository.
+  ##
+  ## For example:
+  ## "https://github.com/nim-lang/nimble.git" -> "nim-lang/nimble"
+  assert url.isGitHubRepo, "Only GitHub URLs are supported."
+  let url = removeTrailingGitString(url)
+  var slashPosition = url.rfind('/')
+  slashPosition = url.rfind('/', last = slashPosition - 1)
+  return url[slashPosition + 1 .. ^1]
+
+proc getGitHubApiUrl(url, commit: string): string =
+  ## By given URL to GitHub repository and part of a commit hash constructs
+  ## an URL for the GitHub REST API query for the full commit hash.
+  &"https://api.github.com/repos/{extractOwnerAndRepo(url)}/commits/{commit}"
+
+proc getUrlContent(url: string): string =
+  ## Makes a GET request to `url`.
+  let client = newHttpClient()
+  return client.getContent(url)
+
+{.warning[ProveInit]: off.}
+proc getFullRevisionFromGitHubApi(url, version: string): Sha1Hash =
+  ## By given a commit short hash and an URL to a GitHub repository retrieves
+  ## the full hash of the commit by using GitHub REST API.
+  try:
+    let gitHubApiUrl = getGitHubApiUrl(url, version)
+    display("Get", gitHubApiUrl);
+    let content = getUrlContent(gitHubApiUrl)
+    let json = parseJson(content)
+    if json.hasKey("sha"):
+      return json["sha"].str.initSha1Hash
+    else:
+      raise nimbleError(json["message"].str)
+  except CatchableError as error:
+    raise nimbleError(&"Cannot get revision for version \"{version}\" " &
+                      &"of package at \"{url}\".", details = error)
+{.warning[ProveInit]: on.}
+
+proc parseRevision(lsRemoteOutput: string): Sha1Hash =
+  ## Parses the output from `git ls-remote` call to extract the returned sha1
+  ## hash value. Even when successful the first line of the command's output
+  ## can be a redirection warning.
+  let lines = lsRemoteOutput.splitLines
+  for line in lines:
+    if line.len >= 40:
+      try:
+        return line[0..39].initSha1Hash
+      except InvalidSha1HashError:
+        discard
+  return notSetSha1Hash
+
+proc getRevision(url, version: string): Sha1Hash =
+  ## Returns the commit hash corresponding to the given `version` of the package
+  ## in repository at `url`.
+  let output = tryDoCmdEx(&"git ls-remote {url} {version}")
+  result = parseRevision(output)
+  if result == notSetSha1Hash:
+    if version.seemsLikeRevision:
+      result = getFullRevisionFromGitHubApi(url, version)
+    else:
+      raise nimbleError(&"Cannot get revision for version \"{version}\" " &
+                        &"of package at \"{url}\".")
+
+proc getTarCmdLine(downloadDir, filePath: string): string =
+  ## Returns an OS specific command and arguments for extracting the downloaded
+  ## tarball.
+  when defined(Windows):
+    let downloadDir = downloadDir.replace('\\', '/')
+    let filePath = filePath.replace('\\', '/')
+    &"{getTarExePath()} -C {downloadDir} -xf {filePath} --strip-components 1 " &
+     "--force-local"
+  else:
+    &"tar -C {downloadDir} -xf {filePath} --strip-components 1"
+
+proc doDownloadTarball(url, downloadDir, version: string, queryRevision: bool):
+    Sha1Hash =
+  ## Downloads package tarball from GitHub. Returns the commit hash of the
+  ## downloaded package in the case `queryRevision` is `true`.
+
+  let downloadLink = getTarballDownloadLink(url, version)
+  display("Downloading", downloadLink)
+  let data = getUrlContent(downloadLink)
+  display("Completed", "downloading " & downloadLink)
+
+  let filePath = downloadDir / "tarball.tar.gz"
+  display("Saving", filePath)
+  downloadDir.createDir
+  writeFile(filePath, data)
+  display("Completed", "saving " & filePath)
+
+  display("Unpacking", filePath)
+  let cmd = getTarCmdLine(downloadDir, filePath)
+  let (output, exitCode) = doCmdEx(cmd)
+  if exitCode != QuitSuccess and not output.contains("Cannot create symlink to"):
+    # If the command fails for reason different then unable establishing a
+    # sym-link raise an exception. This reason for failure is common on Windows
+    # and the `tar` tool does not provide suitable option for avoiding it on
+    # unpack time. If this error occurs the files were previously extracted
+    # successfully and it should not be treated as error.
+    raise nimbleError(tryDoCmdExErrorMessage(cmd, output, exitCode))
+  display("Completed", "unpacking " & filePath)
+
+  filePath.removeFile
+  return if queryRevision: getRevision(url, version) else: notSetSha1Hash
+
+{.warning[ProveInit]: off.}
+proc doDownload(url, downloadDir: string, verRange: VersionRange,
+                downMethod: DownloadMethod, options: Options,
+                vcsRevision: Sha1Hash):
+    tuple[version: Version, vcsRevision: Sha1Hash] =
   ## Downloads the repository specified by ``url`` using the specified download
   ## method.
   ##
@@ -174,43 +332,71 @@ proc doDownload(url: string, downloadDir: string, verRange: VersionRange,
     # https://github.com/nim-lang/nimble/issues/22
     meth
     if $latest.ver != "":
-      result = latest.ver
+      result.version = latest.ver
+
+  result.vcsRevision = notSetSha1Hash
 
   removeDir(downloadDir)
-  if verRange.kind == verSpecial:
+  if vcsRevision != notSetSha1Hash:
+    if downloadTarball(url, options):
+      discard doDownloadTarball(url, downloadDir, $vcsRevision, false)
+    else:
+      cloneSpecificRevision(downMethod, url, downloadDir, vcsRevision)
+    result.vcsRevision = vcsRevision
+  elif verRange.kind == verSpecial:
     # We want a specific commit/branch/tag here.
     if verRange.spe == getHeadName(downMethod):
        # Grab HEAD.
-      doClone(downMethod, url, downloadDir, onlyTip = not options.forceFullClone)
+      if downloadTarball(url, options):
+        result.vcsRevision = doDownloadTarball(url, downloadDir, "HEAD", true)
+      else:
+        doClone(downMethod, url, downloadDir,
+                onlyTip = not options.forceFullClone)
     else:
-      # Grab the full repo.
-      doClone(downMethod, url, downloadDir, onlyTip = false)
-      # Then perform a checkout operation to get the specified branch/commit.
-      # `spe` starts with '#', trim it.
-      doAssert(($verRange.spe)[0] == '#')
-      doCheckout(downMethod, downloadDir, substr($verRange.spe, 1))
-    result = verRange.spe
+      assert ($verRange.spe)[0] == '#',
+             "The special version must start with '#'."
+      let specialVersion = substr($verRange.spe, 1)
+      if downloadTarball(url, options):
+        result.vcsRevision = doDownloadTarball(
+          url, downloadDir, specialVersion, true)
+      else:
+        # Grab the full repo.
+        doClone(downMethod, url, downloadDir, onlyTip = false)
+        # Then perform a checkout operation to get the specified branch/commit.
+        # `spe` starts with '#', trim it.
+        doCheckout(downMethod, downloadDir, specialVersion)
+    result.version = verRange.spe
   else:
     case downMethod
     of DownloadMethod.git:
       # For Git we have to query the repo remotely for its tags. This is
       # necessary as cloning with a --depth of 1 removes all tag info.
-      result = getHeadName(downMethod)
+      result.version = getHeadName(downMethod)
       let versions = getTagsListRemote(url, downMethod).getVersionList()
       if versions.len > 0:
         getLatestByTag:
-          display("Cloning", "latest tagged version: " & latest.tag,
-                  priority = MediumPriority)
-          doClone(downMethod, url, downloadDir, latest.tag,
-                  onlyTip = not options.forceFullClone)
+          if downloadTarball(url, options):
+            let versionToDownload =
+              if latest.tag.len > 0: latest.tag else: "HEAD"
+            result.vcsRevision = doDownloadTarball(
+              url, downloadDir, versionToDownload, true)
+          else:
+            display("Cloning", "latest tagged version: " & latest.tag,
+                    priority = MediumPriority)
+            doClone(downMethod, url, downloadDir, latest.tag,
+                    onlyTip = not options.forceFullClone)
       else:
-        # If no commits have been tagged on the repo we just clone HEAD.
         display("Warning:", "The package has no tagged releases, downloading HEAD instead.", Warning, 
-                  priority = HighPriority)
-        doClone(downMethod, url, downloadDir) # Grab HEAD.
+                priority = HighPriority)
+        if downloadTarball(url, options):
+          result.vcsRevision = doDownloadTarball(url, downloadDir, "HEAD", true)
+        else:
+          # If no commits have been tagged on the repo we just clone HEAD.
+          doClone(downMethod, url, downloadDir) # Grab HEAD.
     of DownloadMethod.hg:
-      doClone(downMethod, url, downloadDir, onlyTip = not options.forceFullClone)
-      result = getHeadName(downMethod)
+      doClone(downMethod, url, downloadDir,
+              onlyTip = not options.forceFullClone)
+      result.version = getHeadName(downMethod)
       let versions = getTagsList(downloadDir, downMethod).getVersionList()
 
       if versions.len > 0:
@@ -222,11 +408,18 @@ proc doDownload(url: string, downloadDir: string, verRange: VersionRange,
         display("Warning:", "The package has no tagged releases, downloading HEAD instead.", Warning, 
                   priority = HighPriority)
 
+  if result.vcsRevision == notSetSha1Hash:
+    # In the case the package in not downloaded as tarball we must query its
+    # VCS revision from its download directory.
+    result.vcsRevision = downloadDir.getVcsRevision
+{.warning[ProveInit]: on.}
+
 proc downloadPkg*(url: string, verRange: VersionRange,
-                 downMethod: DownloadMethod,
-                 subdir: string,
-                 options: Options,
-                 downloadPath = ""): (string, Version) =
+                  downMethod: DownloadMethod,
+                  subdir: string,
+                  options: Options,
+                  downloadPath: string,
+                  vcsRevision: Sha1Hash): DownloadPkgResult =
   ## Downloads the repository as specified by ``url`` and ``verRange`` using
   ## the download method specified.
   ##
@@ -234,9 +427,14 @@ proc downloadPkg*(url: string, verRange: VersionRange,
   ##
   ## Returns the directory where it was downloaded (subdir is appended) and
   ## the concrete version  which was downloaded.
+  ##
+  ## ``vcsRevision``
+  ##   If specified this parameter will cause specific VCS revision to be
+  ##   checked out.
+
   let downloadDir =
     if downloadPath == "":
-      (getNimbleTempDir() / getDownloadDirName(url, verRange))
+      (getNimbleTempDir() / getDownloadDirName(url, verRange, vcsRevision))
     else:
       downloadPath
 
@@ -252,30 +450,33 @@ proc downloadPkg*(url: string, verRange: VersionRange,
   if modUrl.contains("github.com") and modUrl.endswith("/"):
     modUrl = modUrl[0 .. ^2]
 
+  let downloadMethod = if downloadTarball(modUrl, options):
+    "http" else: $downMethod
+
   if subdir.len > 0:
     display("Downloading", "$1 using $2 (subdir is '$3')" %
-                           [modUrl, $downMethod, subdir],
+                           [modUrl, downloadMethod, subdir],
             priority = HighPriority)
   else:
-    display("Downloading", "$1 using $2" % [modUrl, $downMethod],
+    display("Downloading", "$1 using $2" % [modUrl, downloadMethod],
             priority = HighPriority)
-  result = (
-    downloadDir / subdir,
-    doDownload(modUrl, downloadDir, verRange, downMethod, options)
-  )
+
+  result.dir = downloadDir / subdir
+  (result.version, result.vcsRevision) = doDownload(
+    modUrl, downloadDir, verRange, downMethod, options, vcsRevision)
 
   if verRange.kind != verSpecial:
     ## Makes sure that the downloaded package's version satisfies the requested
     ## version range.
     let pkginfo = getPkgInfo(result[0], options)
-    if pkginfo.version.newVersion notin verRange:
-      raise newException(NimbleError,
+    if pkginfo.basicInfo.version notin verRange:
+      raise nimbleError(
         "Downloaded package's version does not satisfy requested version " &
         "range: wanted $1 got $2." %
-        [$verRange, $pkginfo.version])
+        [$verRange, $pkginfo.basicInfo.version])
 
 proc echoPackageVersions*(pkg: Package) =
-  let downMethod = pkg.downloadMethod.getDownloadMethod()
+  let downMethod = pkg.downloadMethod
   case downMethod
   of DownloadMethod.git:
     try:
@@ -285,37 +486,34 @@ proc echoPackageVersions*(pkg: Package) =
         echo("  versions:    " & join(sortedVersions, ", "))
       else:
         echo("  versions:    (No versions tagged in the remote repository)")
-    except OSError:
+    except CatchableError:
       echo(getCurrentExceptionMsg())
   of DownloadMethod.hg:
     echo("  versions:    (Remote tag retrieval not supported by " &
-        pkg.downloadMethod & ")")
+        $pkg.downloadMethod & ")")
 
 when isMainModule:
-  # Test version sorting
-  block:
-    let data = @["v9.0.0-taeyeon", "v9.0.1-jessica", "v9.2.0-sunny",
-                 "v9.4.0-tiffany", "v9.4.2-hyoyeon"]
-    let expected = toOrderedTable[Version, string]({
-      newVersion("9.4.2-hyoyeon"): "v9.4.2-hyoyeon",
-      newVersion("9.4.0-tiffany"): "v9.4.0-tiffany",
-      newVersion("9.2.0-sunny"): "v9.2.0-sunny",
-      newVersion("9.0.1-jessica"): "v9.0.1-jessica",
-      newVersion("9.0.0-taeyeon"): "v9.0.0-taeyeon"
-    })
-    doAssert expected == getVersionList(data)
+  import unittest
 
+  suite "version sorting":
+    test "pre-release versions":
+      let data = @["v9.0.0-taeyeon", "v9.0.1-jessica", "v9.2.0-sunny",
+                   "v9.4.0-tiffany", "v9.4.2-hyoyeon"]
+      let expected = toOrderedTable[Version, string]({
+        newVersion("9.4.2-hyoyeon"): "v9.4.2-hyoyeon",
+        newVersion("9.4.0-tiffany"): "v9.4.0-tiffany",
+        newVersion("9.2.0-sunny"): "v9.2.0-sunny",
+        newVersion("9.0.1-jessica"): "v9.0.1-jessica",
+        newVersion("9.0.0-taeyeon"): "v9.0.0-taeyeon"})
+      check getVersionList(data) == expected
 
-  block:
-    let data2 = @["v0.1.0", "v0.1.1", "v0.2.0",
-                 "0.4.0", "v0.4.2"]
-    let expected2 = toOrderedTable[Version, string]({
-      newVersion("0.4.2"): "v0.4.2",
-      newVersion("0.4.0"): "0.4.0",
-      newVersion("0.2.0"): "v0.2.0",
-      newVersion("0.1.1"): "v0.1.1",
-      newVersion("0.1.0"): "v0.1.0",
-    })
-    doAssert expected2 == getVersionList(data2)
-
-  echo("Everything works!")
+    test "release versions":
+      let data = @["v0.1.0", "v0.1.1", "v0.2.0",
+                   "0.4.0", "v0.4.2"]
+      let expected = toOrderedTable[Version, string]({
+        newVersion("0.4.2"): "v0.4.2",
+        newVersion("0.4.0"): "0.4.0",
+        newVersion("0.2.0"): "v0.2.0",
+        newVersion("0.1.1"): "v0.1.1",
+        newVersion("0.1.0"): "v0.1.0",})
+      check getVersionList(data) == expected
