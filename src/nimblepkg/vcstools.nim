@@ -203,7 +203,8 @@ proc getVcsRevision*(dir: Path): Sha1Hash =
 proc getPackageFileListWithoutVcs(dir: Path): seq[string] =
   ## Recursively walks the directory `dir` and returns a list of files in it and
   ## its subdirectories.
-  for file in walkDirRec($dir, relative = true):
+  for file in walkDirRec($dir, yieldFilter = {pcFile, pcLinkToFile},
+                         relative = true):
     result.add file
 
 proc getPackageFileList*(dir: Path): seq[string] =
