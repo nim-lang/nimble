@@ -309,6 +309,26 @@ proc doDownloadTarball(url, downloadDir, version: string, queryRevision: bool):
     raise nimbleError(tryDoCmdExErrorMessage(cmd, output, exitCode))
   display("Completed", "unpacking " & filePath)
 
+  when defined(windows):
+    # On Windows symbolic link files are not being extracted properly by the
+    # `tar` command. They are extracted as empty files, but when cloning the
+    # repository with Git they are extracted as ordinary files with the link
+    # path in them. For that reason here we parse the tar file content to
+    # extract the symbolic links and add their paths manually to the content of
+    # their files.
+    let listCmd = &"{getTarExePath()} -ztvf {filePath} --force-local"
+    let (cmdOutput, cmdExitCode) = doCmdEx(listCmd)
+    if cmdExitCode != QuitSuccess:
+      raise nimbleError(tryDoCmdExErrorMessage(listCmd, cmdOutput, cmdExitCode))
+    let lines = cmdOutput.splitLines()
+    for line in lines:
+      if line.contains(" -> "):
+        let parts = line.split
+        let linkPath = parts[^1]
+        let linkNameParts = parts[^3].split('/')
+        let linkName = linkNameParts[1 .. ^1].foldl(a / b)
+        writeFile(downloadDir / linkName, linkPath)
+
   filePath.removeFile
   return if queryRevision: getRevision(url, version) else: notSetSha1Hash
 

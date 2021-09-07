@@ -205,6 +205,10 @@ proc getPackageFileListWithoutVcs(dir: Path): seq[string] =
   ## its subdirectories.
   for file in walkDirRec($dir, yieldFilter = {pcFile, pcLinkToFile},
                          relative = true):
+    when defined(windows):
+      # On windows relative paths to files which are included in the calculation
+      # of the package checksum must be the same as on POSIX systems.
+      let file = file.replace('\\', '/')
     result.add file
 
 proc getPackageFileList*(dir: Path): seq[string] =
@@ -1061,7 +1065,6 @@ username = John Doe <john.doe@example.com>
       check not isValidSha1Hash($getVcsRevision(testNoVcsDir))
 
     test "getPackageFileList":
-      check getPackageFileList(testNoVcsDir) ==
-            @[testFile, testSubDirFile.normalizedPath]
+      check getPackageFileList(testNoVcsDir) == @[testFile, testSubDirFile]
 
     tearDownSuite(testNoVcsDir)
