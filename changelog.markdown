@@ -5,12 +5,13 @@
 
 ## 0.14.0
 
-This is a major release containing four new features:
+This is a major release containing two big features:
 
 - A new dependencies development mode.
 - Support for lock files.
 - Download tarballs when downloading packages from GitHub.
-- A setup command.
+- Parallel downloads of the locked dependencies.
+- Setup command.
 
 ## 0.13.0
 
