@@ -11,7 +11,8 @@ installExt = @["nim"]
 
 # Dependencies
 
-requires "nim >= 0.13.0"
+requires "nim >= 0.13.0", "chronos", "bearssl", "stew"
+
 
 when defined(nimdistros):
   import distros
@@ -22,4 +23,4 @@ when defined(nimdistros):
 
 task test, "Run the Nimble tester!":
   withDir "tests":
-    exec "nim c -r tester"
+    exec "nim c -r -d:release tester"

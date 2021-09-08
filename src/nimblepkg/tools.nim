@@ -3,10 +3,10 @@
 #
 # Various miscellaneous utility functions reside here.
 import osproc, pegs, strutils, os, uri, sets, json, parseutils, strformat,
-       sequtils
+       sequtils, chronos
 
 from net import SslCVerifyMode, newContext, SslContext
-
+import chronos/asyncproc
 import version, cli, common, packageinfotypes, options, sha1hashes
 from compiler/nimblecmd import getPathVersionChecksum
 
@@ -52,6 +52,23 @@ proc doCmdEx*(cmd: string): ProcessOutput =
     raise nimbleError("'" & bin & "' not in PATH.")
   return execCmdEx(cmd)
 
+proc removeQuotes(cmd: string): string =
+  cmd.filterIt(it != '"').join
+
+proc doCmdExAsync*(cmd: string, args: seq[string] = @[]):
+    Future[ProcessOutput] {.async.} =
+  display("Executing", join(concat(@[cmd], args), " "))
+  let bin = extractBin(cmd)
+  if findExe(bin) == "":
+    raise nimbleError("'" & bin & "' not in PATH.")
+
+  let res = await execCommandEx(
+    command = cmd.removeQuotes,
+    arguments = args,
+    options = {UsePath})
+
+  return (res.stdOutput, res.status)
+
 proc tryDoCmdExErrorMessage*(cmd, output: string, exitCode: int): string =
   &"Execution of '{cmd}' failed with an exit code {exitCode}.\n" &
   &"Details: {output}"
@@ -60,6 +77,13 @@ proc tryDoCmdEx*(cmd: string): string {.discardable.} =
   let (output, exitCode) = doCmdEx(cmd)
   if exitCode != QuitSuccess:
     raise nimbleError(tryDoCmdExErrorMessage(cmd, output, exitCode))
+  return output
+
+proc tryDoCmdExAsync*(cmd: string, args: seq[string] = @[]):
+    Future[string] {.async.} =
+  let (output, exitCode) = await doCmdExAsync(cmd, args)
+  if exitCode != QuitSuccess:
+    raise nimbleError(tryDoCmdExErrorMessage(cmd & " " & args.join(" "), output, exitCode))
   return output
 
 proc getNimBin*: string =
@@ -139,7 +163,7 @@ proc getDownloadDirName*(uri: string, verRange: VersionRange,
   if verSimple != "":
     result.add "_"
     result.add verSimple
-  
+
   if vcsRevision != notSetSha1Hash:
     result.add "_"
     result.add $vcsRevision
@@ -197,7 +221,7 @@ proc getNameVersionChecksum*(pkgpath: string): PackageBasicInfo =
     return getNameVersionChecksum(pkgPath.splitPath.head)
 
   let (name, version, checksum) = getPathVersionChecksum(pkgPath.splitPath.tail)
-  let sha1Checksum = 
+  let sha1Checksum =
     try:
       initSha1Hash(checksum)
     except InvalidSha1HashError:

@@ -195,4 +195,4 @@ proc writeDevelopFile*(path: string, includes: seq[string],
 putEnv("NIMBLE_TEST_BINARY_PATH", nimblePath)
 
 # Always recompile.
-doAssert execCmdEx("nim c " & nimbleCompilePath).exitCode == QuitSuccess
+doAssert execCmdEx("nim c -d:release " & nimbleCompilePath).exitCode == QuitSuccess

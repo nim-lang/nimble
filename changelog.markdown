@@ -12,6 +12,7 @@ This is a major release containing four new features:
 - Download tarballs when downloading packages from GitHub.
 - A setup command.
 - Added a `--package, -p` command line option.
+- Parallel downloads of the locked dependencies.
 
 ## 0.13.0
 

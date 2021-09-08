@@ -2,3 +2,5 @@
 import os
 let buildDir = currentSourcePath().parentDir.parentDir / "buildTests"
 switch("outdir", buildDir)
+when fileExists("tester.paths"):
+  include "tester.paths"

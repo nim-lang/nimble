@@ -1,0 +1,12 @@
+[submodule "nim-bearssl"]
+	path = nim-bearssl
+	url = https://github.com/status-im/nim-bearssl
+[submodule "nim-chronos"]
+	path = nim-chronos
+	url = https://github.com/status-im/nim-chronos
+[submodule "nim-stew"]
+	path = nim-stew
+	url = https://github.com/status-im/nim-stew
+[submodule "nim-http-utils"]
+	path = nim-http-utils
+	url = https://github.com/status-im/nim-http-utils
