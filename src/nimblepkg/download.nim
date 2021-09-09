@@ -320,8 +320,7 @@ proc doDownloadTarball(url, downloadDir, version: string, queryRevision: bool):
     let (cmdOutput, cmdExitCode) = doCmdEx(listCmd)
     if cmdExitCode != QuitSuccess:
       raise nimbleError(tryDoCmdExErrorMessage(listCmd, cmdOutput, cmdExitCode))
-    let lines = cmdOutput.splitLines()
-    for line in lines:
+    for line in cmdOutput.splitLines():
       if line.contains(" -> "):
         let parts = line.split
         let linkPath = parts[^1]
