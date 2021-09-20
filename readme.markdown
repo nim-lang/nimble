@@ -228,11 +228,11 @@ query parameter. For example:
 ### nimble develop
 
 The develop command is used for putting packages in a development mode. When
-executed with a list of packages it clones their repository. If it is
-executed in a package directory it adds cloned packages to the special
-`nimble.develop` file. This is a special file which is used for holding the
-paths to development mode dependencies of the current directory package. It has
-the following structure:
+executed with a list of packages it clones their repository. If it is executed
+in a package directory it adds cloned packages to the special `nimble.develop`
+file. This is a special file which is used for holding the paths to development
+mode dependencies of the current directory package. It has the following
+structure:
 
 ```json
 {
@@ -247,17 +247,15 @@ the following structure:
 * `dependencies` - JSON array of paths to Nimble packages directories.
 
 The format for included develop files is the same as the project's develop
-file, but their validation works slightly different.
+file.
 
-Validation rules:
+Develop files validation rules:
 
 * The included develop files must be valid.
-* The packages listed in `dependencies` section must be dependencies required
-by the package's `.nimble` file and to be in the required by its version range.
-Transitive dependencies are not allowed, but this may be changed in the future.
-* The packages listed in the included develop files are required to be valid
-**Nimble** packages, but they are not required to be valid dependencies of the
-current project. In the latter case, they are simply ignored.
+* The packages listed in the `dependencies` section and in the included develop
+files are required to be valid **Nimble** packages, but they are not required
+to be valid dependencies of the current project. In the latter case, they are
+simply ignored.
 * The develop files of the develop mode dependencies of a package are being
 followed and processed recursively. Finally, only one common set of develop
 mode dependencies is created.
@@ -299,16 +297,6 @@ executing `develop` command from some package's directory unless
 
 Because the develop files are user-specific and they contain local file system
 paths they **MUST NOT** be committed.
-
-**Current limitations:**
-
-* Currently transitive dependencies in the `dependencies` section of the
-develop file are not allowed. In the future, they should be allowed because
-this will allow using in develop mode some transitive package dependencies
-without having in develop mode the full dependency tree path to them. It was a
-design mistake that was not allowed at the beginning. The current workaround is
-to add the transitive dependency as a dependency in the project's `.nimble`
-file.
 
 ### nimble lock
 
