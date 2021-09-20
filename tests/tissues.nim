@@ -390,3 +390,14 @@ suite "issues":
       let lines = output.strip.processOutput()
       check exitCode != QuitSuccess
       check inLines(lines, "Nothing to build")
+
+  test "issue #941 (add binaries' extensions in nimble dump command)":
+    cd "issue941":
+      let (output, exitCode) = execNimble("dump")
+      check exitCode == QuitSuccess
+      const expectedBinaryName =
+        when defined(windows):
+          "issue941.dll"
+        else:
+          "libissue941.so"
+      check output.contains(expectedBinaryName)
