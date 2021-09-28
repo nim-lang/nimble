@@ -816,9 +816,9 @@ Library packages are likely the most popular form of Nimble packages. They are
 meant to be used by other library or binary packages.
 
 When Nimble installs a library, it will copy all of its files
-into ``$nimbleDir/pkgs/pkgname-ver``. It's up to the package creator to make sure
-that the package directory layout is correct, this is so that users of the
-package can correctly import the package.
+into ``$nimbleDir/pkgs2/pkgname-ver-checksum``. It's up to the package creator
+to make sure that the package directory layout is correct, this is so that users
+of the package can correctly import the package.
 
 It is suggested that the layout be as follows. The directory layout is
 determined by the nature of your package, that is, whether your package exposes
@@ -868,9 +868,9 @@ bin = @["main"]
 ```
 
 In this case when ``nimble install`` is invoked, Nimble will build the ``main.nim``
-file, copy it into ``$nimbleDir/pkgs/pkgname-ver/`` and subsequently create a
-symlink to the binary in ``$nimbleDir/bin/``. On Windows, a stub .cmd file is
-created instead.
+file, copy it into ``$nimbleDir/pkgs2/pkgname-ver-checksum/`` and subsequently
+create a symlink to the binary in ``$nimbleDir/bin/``. On Windows, a stub .cmd
+file is created instead.
 
 The binary can be named differently than the source file with the ``namedBin``
 table:
@@ -1096,7 +1096,7 @@ Nimble includes a ``publish`` command which does this for you automatically.
 ## Nimble's folder structure and packages
 
 Nimble stores all installed packages and metadata in ``$HOME/.nimble`` by default.
-Libraries are stored in ``$nimbleDir/pkgs``, and compiled binaries are linked in
+Libraries are stored in ``$nimbleDir/pkgs2``, and compiled binaries are linked in
 ``$nimbleDir/bin``. The Nim compiler is aware of Nimble and will automatically
 find modules so you can ``import modulename`` and have that working without
 additional setup.
@@ -1146,13 +1146,13 @@ For example, if your Nimble directory is located at `/some/custom/path/nimble`,
 this should work:
 
 ```
-nim c --nimblePath:/some/custom/path/nimble/pkgs main.nim
+nim c --nimblePath:/some/custom/path/nimble/pkgs2 main.nim
 ```
 
 In the case of package local dependencies with ``nimbledeps``:
 
 ```
-nim c --nimblePath:nimbledeps/pkgs main.nim
+nim c --nimblePath:nimbledeps/pkgs2 main.nim
 ```
 
 Some code editors rely on `nim check` to check for errors under the hood (e.g.
@@ -1162,12 +1162,12 @@ In this case, you will have to use the Nim compiler's configuration file capabil
 Simply add the following line to the `nim.cfg` located in any directory listed
 in the [documentation](https://nim-lang.org/docs/nimc.html#compiler-usage-configuration-files).
 ```
-nimblePath = "/some/custom/path/nimble/pkgs"
+nimblePath = "/some/custom/path/nimble/pkgs2"
 ```
 
 For project local dependencies:
 ```
-nimblePath = "$project/nimbledeps/pkgs"
+nimblePath = "$project/nimbledeps/pkgs2"
 ```
 
 ## Troubleshooting
