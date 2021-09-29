@@ -14,7 +14,7 @@ type
     ndjkRevDepPath = "path"
 
 const
-  nimbleDataFileName* = "nimbledata.json"
+  nimbleDataFileName* = "nimbledata2.json"
   nimbleDataFileVersion = 1
 
 var isNimbleDataFileLoaded = false
@@ -55,10 +55,6 @@ proc loadNimbleData*(options: var Options) =
 
   if fileExists(fileName):
     options.nimbleData = parseFile(fileName)
-    if not options.nimbleData.hasKey($ndjkVersion):
-      raise nimbleError(
-         "You are working with an old version of Nimble cache repository.\n",
-        &"Please delete your \"{options.getNimbleDir()}\" directory.")
     removeDeadDevelopReverseDeps(options)
     displayInfo(&"Nimble data file \"{fileName}\" has been loaded.",
                 LowPriority)

@@ -23,7 +23,7 @@ type
 
 const
   nimbleVersion* = "0.13.1"
-  nimblePackagesDirName* = "pkgs"
+  nimblePackagesDirName* = "pkgs2"
   nimbleBinariesDirName* = "bin"
 
 proc newNimbleError*[ErrorType](msg: string, hint = "",

@@ -92,6 +92,6 @@ suite "uninstall":
 
     check execNimbleYes("uninstall", "PackageA@0.2", "issue27b").exitCode ==
         QuitSuccess
-    check(not dirExists(installDir / "pkgs" / "PackageA-0.2.0"))
+    check(not dirExists(pkgsDir / "PackageA-0.2.0"))
 
     check execNimbleYes("uninstall", "nimscript").exitCode == QuitSuccess

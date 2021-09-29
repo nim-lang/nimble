@@ -95,7 +95,7 @@ proc fromJson(obj: JSonNode): Package =
     result.tags = @[]
     for t in obj["tags"]:
       result.tags.add(t.str)
-    result.description = obj.requiredField("description")
+    result.description = obj.optionalField("description")
     result.web = obj.optionalField("web")
 {.warning[ProveInit]: on.}
 
