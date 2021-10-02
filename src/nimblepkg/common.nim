@@ -22,7 +22,7 @@ type
   ProcessOutput* = tuple[output: string, exitCode: int]
 
 const
-  nimbleVersion* = "0.13.1"
+  nimbleVersion* = "0.14.0"
   nimblePackagesDirName* = "pkgs2"
   nimbleBinariesDirName* = "bin"
 
