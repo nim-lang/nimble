@@ -492,9 +492,15 @@ proc developWithDependencies(options: Options): bool =
   ## with `--with-dependencies` flag.
   options.action.typ == actionDevelop and options.action.withDependencies
 
+proc removeTrailingSlash(s: string): string =
+  s.strip(chars = {'/'}, leading = false)
+
 proc getDevelopDownloadDir(url, subdir: string, options: Options): string =
   ## Returns the download dir for a develop mode dependency.
   assert isURL(url), "The string \"{url}\" is not a URL."
+
+  let url = url.removeTrailingSlash
+  let subdir = subdir.removeTrailingSlash
 
   let downloadDirName =
     if subdir.len == 0:
