@@ -574,7 +574,7 @@ when isMainModule:
     test "without subdir and with absolute path":
       check getDevelopDownloadDir(
         "https://github.com/nimble-test/packagea", "",
-        dummyOptionsWithAbsolutePath) == "/some/dir/packagea"
+        dummyOptionsWithAbsolutePath) == "/some/dir/packagea".normalizedPath
 
     test "without subdir and with relative path":
       check getDevelopDownloadDir(
@@ -589,7 +589,7 @@ when isMainModule:
     test "with subdir and with absolute path":
       check getDevelopDownloadDir(
         "https://github.com/nimble-test/multi/", "alpha/",
-        dummyOptionsWithAbsolutePath) == "/some/dir/alpha"
+        dummyOptionsWithAbsolutePath) == "/some/dir/alpha".normalizedPath
 
     test "with subdir and with relative path":
       check getDevelopDownloadDir(
