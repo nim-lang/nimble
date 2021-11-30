@@ -411,6 +411,7 @@ suite "issues":
     let lines = output.strip.processOutput()
     # Test that it needed to refresh packages and that it installed
     check:
+      exitCode == QuitSuccess
       inLines(lines, "check internet for updated packages")
       inLines(lines, "fusion installed successfully")
 
