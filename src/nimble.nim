@@ -603,14 +603,14 @@ proc processLockedDependencies(pkgInfo: PackageInfo, options: Options):
       result.incl installDependency(pkgInfo, downloadResult, options)
 
 proc getDownloadInfo*(pv: PkgTuple, options: Options,
-                      doPrompt: bool): (DownloadMethod, string,
+                      doPrompt: bool, clean = false): (DownloadMethod, string,
                                         Table[string, string]) =
   if pv.name.isURL:
     let (url, metadata) = getUrlData(pv.name)
     return (checkUrlType(url), url, metadata)
   else:
     var pkg = initPackage()
-    if getPackage(pv.name, options, pkg):
+    if getPackage(pv.name, options, pkg, clean):
       let (url, metadata) = getUrlData(pkg.url)
       return (pkg.downloadMethod, url, metadata)
     else:
@@ -624,7 +624,8 @@ proc getDownloadInfo*(pv: PkgTuple, options: Options,
         # Once we've refreshed, try again, but don't prompt if not found
         # (as we've already refreshed and a failure means it really
         # isn't there)
-        return getDownloadInfo(pv, options, false)
+        # Also set `clean` to true so that it ignores current gPackageJson cache
+        return getDownloadInfo(pv, options, false, true)
       else:
         raise nimbleError(pkgNotFoundMsg(pv))
 
