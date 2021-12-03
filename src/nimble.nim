@@ -492,22 +492,6 @@ proc developWithDependencies(options: Options): bool =
   ## with `--with-dependencies` flag.
   options.action.typ == actionDevelop and options.action.withDependencies
 
-proc getDevelopDownloadDir(url, subdir: string, options: Options): string =
-  ## Returns the download dir for a develop mode dependency.
-  assert isURL(url), "The string \"{url}\" is not a URL."
-
-  let downloadDirName =
-    if subdir.len == 0:
-      parseUri(url).path.splitFile.name
-    else:
-      subdir.splitFile.name
-
-  result =
-    if options.action.path.isAbsolute:
-      options.action.path / downloadDirName
-    else:
-      getCurrentDir() / options.action.path / downloadDirName
-
 proc raiseCannotCloneInExistingDirException(downloadDir: string) =
   let msg = "Cannot clone into '$1': directory exists." % downloadDir
   const hint = "Remove the directory, or run this command somewhere else."

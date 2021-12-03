@@ -511,6 +511,28 @@ proc echoPackageVersions*(pkg: Package) =
     echo("  versions:    (Remote tag retrieval not supported by " &
         $pkg.downloadMethod & ")")
 
+proc removeTrailingSlash(s: string): string =
+  s.strip(chars = {'/'}, leading = false)
+
+proc getDevelopDownloadDir*(url, subdir: string, options: Options): string =
+  ## Returns the download dir for a develop mode dependency.
+  assert isURL(url), &"The string \"{url}\" is not a URL."
+
+  let url = url.removeTrailingSlash
+  let subdir = subdir.removeTrailingSlash
+
+  let downloadDirName =
+    if subdir.len == 0:
+      parseUri(url).path.splitFile.name
+    else:
+      subdir.splitFile.name
+
+  result =
+    if options.action.path.isAbsolute:
+      options.action.path / downloadDirName
+    else:
+      getCurrentDir() / options.action.path / downloadDirName
+
 when isMainModule:
   import unittest
 
@@ -536,3 +558,40 @@ when isMainModule:
         newVersion("0.1.1"): "v0.1.1",
         newVersion("0.1.0"): "v0.1.0",})
       check getVersionList(data) == expected
+
+  suite "getDevelopDownloadDir":
+    let dummyOptionsWithoutPath = Options(action: Action(typ: actionDevelop))
+    let dummyOptionsWithAbsolutePath = Options(
+      action: Action(typ: actionDevelop, path: "/some/dir/"))
+    let dummyOptionsWithRelativePath = Options(
+      action: Action(typ: actionDevelop, path: "some/dir/"))
+    
+    test "without subdir and without path":  
+      check getDevelopDownloadDir(
+        "https://github.com/nimble-test/packagea/", "",
+        dummyOptionsWithoutPath) == getCurrentDir() / "packagea"
+
+    test "without subdir and with absolute path":
+      check getDevelopDownloadDir(
+        "https://github.com/nimble-test/packagea", "",
+        dummyOptionsWithAbsolutePath) == "/some/dir/packagea".normalizedPath
+
+    test "without subdir and with relative path":
+      check getDevelopDownloadDir(
+        "https://github.com/nimble-test/packagea/", "",
+        dummyOptionsWithRelativePath) == getCurrentDir() / "some/dir/packagea"
+
+    test "with subdir and without path":
+      check getDevelopDownloadDir(
+        "https://github.com/nimble-test/multi", "beta",
+        dummyOptionsWithoutPath) == getCurrentDir() / "beta"
+
+    test "with subdir and with absolute path":
+      check getDevelopDownloadDir(
+        "https://github.com/nimble-test/multi/", "alpha/",
+        dummyOptionsWithAbsolutePath) == "/some/dir/alpha".normalizedPath
+
+    test "with subdir and with relative path":
+      check getDevelopDownloadDir(
+        "https://github.com/nimble-test/multi", "alpha/",
+        dummyOptionsWithRelativePath) == getCurrentDir() / "some/dir/alpha"
