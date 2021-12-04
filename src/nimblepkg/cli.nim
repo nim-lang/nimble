@@ -260,7 +260,7 @@ proc promptListInteractive(question: string, args: openarray[string]): string =
       of '\27':
         if getch() != '\91': continue
         case getch():
-        of char 65:
+        of char(65): # Up arrow
           current = (args.len + current - 1) mod args.len
           break
         of char 66:
