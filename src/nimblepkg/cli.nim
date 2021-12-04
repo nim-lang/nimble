@@ -263,7 +263,7 @@ proc promptListInteractive(question: string, args: openarray[string]): string =
         of char(65): # Up arrow
           current = (args.len + current - 1) mod args.len
           break
-        of char 66:
+        of char(66): # Down arrow
           current = (current + 1) mod args.len
           break
         else: discard
