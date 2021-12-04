@@ -257,6 +257,16 @@ proc promptListInteractive(question: string, args: openarray[string]): string =
       of '\3':
         showCursor(stdout)
         raise nimbleError("Keyboard interrupt")
+      of '\27':
+        if getch() != '\91': continue
+        case getch():
+        of char(65): # Up arrow
+          current = (args.len + current - 1) mod args.len
+          break
+        of char(66): # Down arrow
+          current = (current + 1) mod args.len
+          break
+        else: discard
       else: discard
 
   # Erase all lines of the selection
