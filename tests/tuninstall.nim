@@ -11,6 +11,11 @@ from nimblepkg/common import cd
 from nimblepkg/version import newVersion
 
 suite "uninstall":
+  test "can install packagebin2 (--dryRun)":
+    cleanDir(installDir)
+    let args = ["--dryRun", "install", pkgBin2Url]
+    check execNimbleYes(args).exitCode == QuitSuccess
+
   test "can install packagebin2":
     cleanDir(installDir)
     let args = ["install", pkgBin2Url]
@@ -41,6 +46,45 @@ suite "uninstall":
 
   test "issue #27":
     setupIssue27Packages()
+
+  test "can uninstall (--dryRun)":
+    # setup test environment
+    cleanDir(installDir)
+    setupIssue27Packages()
+    check execNimbleYes("install", &"{pkgAUrl}@0.2").exitCode == QuitSuccess
+    check execNimbleYes("install", &"{pkgAUrl}@0.5").exitCode == QuitSuccess
+    check execNimbleYes("install", &"{pkgAUrl}@0.6").exitCode == QuitSuccess
+    check execNimbleYes("install", pkgBin2Url).exitCode == QuitSuccess
+    check execNimbleYes("install", pkgBUrl).exitCode == QuitSuccess
+    cd "nimscript": check execNimbleYes("install").exitCode == QuitSuccess
+
+    block:
+      let (outp, exitCode) = execNimbleYes("--dryRun", "uninstall", "issue27b")
+      check exitCode != QuitSuccess
+      var ls = outp.strip.processOutput()
+      let pkg27ADir = getPackageDir(pkgsDir, "issue27a-0.1.0", false)
+      let expectedMsg = cannotUninstallPkgMsg(
+        "issue27b", newVersion("0.1.0"), @[pkg27ADir])
+      check ls.inLinesOrdered(expectedMsg)
+
+      check execNimbleYes("--dryRun", "uninstall", "issue27").exitCode == QuitSuccess
+      check execNimbleYes("--dryRun", "uninstall", "issue27a").exitCode != QuitSuccess
+
+    check execNimbleYes("--dryRun", "uninstall", "PackageA@0.5").exitCode == QuitSuccess
+    check execNimbleYes("--dryRun", "uninstall", "PackageA").exitCode == QuitSuccess
+
+    check execNimbleYes("--dryRun", "uninstall", "PackageBin2").exitCode == QuitSuccess
+
+    # Case insensitive
+    check execNimbleYes("--dryRun", "uninstall", "packagea").exitCode == QuitSuccess
+    check execNimbleYes("--dryRun", "uninstall", "PackageA").exitCode == QuitSuccess
+
+    check execNimbleYes("--dryRun", "uninstall", "PackageB").exitCode == QuitSuccess
+
+    check execNimbleYes("--dryRun", "uninstall", "PackageA@0.2", "issue27b").exitCode !=
+        QuitSuccess
+
+    check execNimbleYes("--dryRun", "uninstall", "nimscript").exitCode == QuitSuccess
 
   test "can uninstall":
     # setup test environment
