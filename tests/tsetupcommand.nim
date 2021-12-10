@@ -11,6 +11,15 @@ from nimblepkg/developfile import developFileName
 
 suite "setup command":
   cleanDir installDir
+  test "nimble --dryRun setup (without develop file)":
+    cd "setup/binary":
+      usePackageListFile "../../develop/packages.json":
+        cleanFiles nimblePathsFileName, nimbleConfigFileName, "binary"
+        check execNimble("--dryRun", "setup").exitCode == QuitSuccess
+        # Check that the paths and config files are not generated.
+        check(not fileExists(nimblePathsFileName))
+        check(not fileExists(nimbleConfigFileName))
+
   test "nimble setup (without develop file)":
     cd "setup/binary":
       usePackageListFile "../../develop/packages.json":
