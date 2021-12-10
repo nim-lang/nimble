@@ -8,6 +8,10 @@ import testscommon
 from nimblepkg/common import cd
 
 suite "test command":
+  test "Runs passing unit tests (--dryRun)":
+    cd "testCommand/testsPass":
+      check execNimble("--dryRun", "test", "-d:CUSTOM").exitCode == QuitSuccess
+
   test "Runs passing unit tests":
     cd "testCommand/testsPass":
       # Pass flags to test #726, #757
@@ -17,6 +21,10 @@ suite "test command":
       check outp.processOutput.inLines("Second test")
       check outp.processOutput.inLines("Third test")
       check outp.processOutput.inLines("Executing my func")
+
+  test "Runs failing unit tests (--dryRun)":
+    cd "testCommand/testsFail":
+      check execNimble("--dryRun", "test").exitCode == QuitSuccess
 
   test "Runs failing unit tests":
     cd "testCommand/testsFail":
