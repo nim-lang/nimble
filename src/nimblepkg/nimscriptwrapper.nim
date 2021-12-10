@@ -66,7 +66,9 @@ proc execNimscript(
 
   displayDebug("Executing " & cmd)
 
-  if needsLiveOutput(actionName, options, isHook):
+  if actionName != printPkgInfo and options.dryRun:
+    result.exitCode = QuitSuccess
+  elif needsLiveOutput(actionName, options, isHook):
     result.exitCode = execCmd(cmd)
   else:
     # We want to capture any possible errors when parsing a .nimble

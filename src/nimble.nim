@@ -145,8 +145,9 @@ proc processFreeDependencies(pkgInfo: PackageInfo, options: Options):
   # them added if the above errorenous condition occurs
   # (unsatisfiable dependendencies).
   # N.B. NimbleData is saved in installFromDir.
-  for i in reverseDependencies:
-    addRevDep(options.nimbleData, i, pkgInfo)
+  if not options.dryRun:
+    for i in reverseDependencies:
+      addRevDep(options.nimbleData, i, pkgInfo)
 
 proc buildFromDir(pkgInfo: PackageInfo, paths: HashSet[string],
                   args: seq[string], options: Options) =
@@ -196,7 +197,7 @@ proc buildFromDir(pkgInfo: PackageInfo, paths: HashSet[string],
             [pkginfo.basicInfo.name, bin, pkgInfo.backend], priority = HighPriority)
 
     let outputDir = pkgInfo.getOutputDir("")
-    if not dirExists(outputDir):
+    if not dirExists(outputDir) and not options.dryRun:
       createDir(outputDir)
 
     let input = realDir / src.changeFileExt("nim")
@@ -206,7 +207,8 @@ proc buildFromDir(pkgInfo: PackageInfo, paths: HashSet[string],
       getNimBin(options).quoteShell, pkgInfo.backend, join(args, " "),
       outputOpt, input.quoteShell]
     try:
-      doCmd(cmd)
+      if not options.dryRun:
+        doCmd(cmd)
       binariesBuilt.inc()
     except CatchableError as error:
       raise buildFailed(
@@ -261,12 +263,14 @@ proc removePackage(pkgInfo: PackageInfo, options: Options) =
       fillMetaData(pkgInfo, pkgDestDir, true)
     except MetaDataError, ValueError:
       promptRemoveEntirePackageDir(pkgDestDir, options)
-      removeDir(pkgDestDir)
+      if not options.dryRun:
+        removeDir(pkgDestDir)
 
-  removePackageDir(pkgInfo, pkgDestDir)
-  removeBinariesSymlinks(pkgInfo, options.getBinDir())
-  reinstallSymlinksForOlderVersion(pkgDestDir, options)
-  options.nimbleData.removeRevDep(pkgInfo)
+  if not options.dryRun:
+    removePackageDir(pkgInfo, pkgDestDir)
+    removeBinariesSymlinks(pkgInfo, options.getBinDir())
+    reinstallSymlinksForOlderVersion(pkgDestDir, options)
+    options.nimbleData.removeRevDep(pkgInfo)
 
 proc packageExists(pkgInfo: PackageInfo, options: Options):
     Option[PackageInfo] =
@@ -381,7 +385,8 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
     try:
       buildFromDir(pkgInfo, paths, "-d:release" & flags, options)
     except CatchableError:
-      removeRevDep(options.nimbleData, pkgInfo)
+      if not options.dryRun:
+        removeRevDep(options.nimbleData, pkgInfo)
       raise
 
   let pkgDestDir = pkgInfo.getPkgDest(options)
@@ -390,9 +395,11 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
   pkgInfo.metaData.url = url
   pkgInfo.isLink = false
 
-  # Don't copy artifacts if project local deps mode and "installing" the top
-  # level package.
-  if not (options.localdeps and options.isInstallingTopLevel(dir)):
+  if options.dryRun:
+    discard
+  elif not (options.localdeps and options.isInstallingTopLevel(dir)):
+    # Don't copy artifacts if project local deps mode and "installing" the top
+    # level package.
     createDir(pkgDestDir)
     # Copy this package's files based on the preferences specified in PkgInfo.
     var filesInstalled: HashSet[string]
@@ -528,26 +535,30 @@ proc downloadDependency(name: string, dep: LockFileDep, options: Options):
     else:
       raiseCannotCloneInExistingDirException(downloadPath)
 
-  let (downloadDir, _, vcsRevision) = downloadPkg(
-    url, version, dep.downloadMethod, subdir, options, downloadPath,
-    dep.vcsRevision)
+  var downloadDir = downloadPath
+  var vcsRevision = dep.vcsRevision
+  if not options.dryRun:
+    var downloadVersion = newVersion("0.0.0")
+    (downloadDir, downloadVersion, vcsRevision) = downloadPkg(
+      url, version, dep.downloadMethod, subdir, options, downloadPath,
+      dep.vcsRevision)
 
-  let downloadedPackageChecksum = calculateDirSha1Checksum(downloadDir)
-  if downloadedPackageChecksum != dep.checksums.sha1:
-    raise checksumError(name, dep.version, dep.vcsRevision,
-                        downloadedPackageChecksum, dep.checksums.sha1)
+    let downloadedPackageChecksum = calculateDirSha1Checksum(downloadDir)
+    if downloadedPackageChecksum != dep.checksums.sha1:
+      raise checksumError(name, dep.version, dep.vcsRevision,
+                          downloadedPackageChecksum, dep.checksums.sha1)
 
   result = DownloadInfo(
     name: name,
     dependency: dep,
-    url: url, 
+    url: url,
     version: version,
     downloadDir: downloadDir,
     vcsRevision: vcsRevision)
 
 proc installDependency(pkgInfo: PackageInfo, downloadInfo: DownloadInfo,
                        options: Options): PackageInfo =
-  ## Installs an already downloaded dependency of the package `pkgInfo`. 
+  ## Installs an already downloaded dependency of the package `pkgInfo`.
   let (_, newlyInstalledPkgInfo) = installFromDir(
     downloadInfo.downloadDir,
     downloadInfo.version,
@@ -557,13 +568,15 @@ proc installDependency(pkgInfo: PackageInfo, downloadInfo: DownloadInfo,
     fromLockFile = true,
     downloadInfo.vcsRevision)
 
-  downloadInfo.downloadDir.removeDir
+  if not options.dryRun:
+    downloadInfo.downloadDir.removeDir
 
   for depDepName in downloadInfo.dependency.dependencies:
     let depDep = pkgInfo.lockedDeps[depDepName]
     let revDep = (name: depDepName, version: depDep.version,
                   checksum: depDep.checksums.sha1) 
-    options.nimbleData.addRevDep(revDep, newlyInstalledPkgInfo)
+    if not options.dryRun:
+      options.nimbleData.addRevDep(revDep, newlyInstalledPkgInfo)
 
   return newlyInstalledPkgInfo
 
@@ -719,8 +732,9 @@ proc execBackend(pkgInfo: PackageInfo, options: Options) =
     display("Generating", ("documentation for $1 (from package $2) using $3 " &
             "backend") % [bin, pkgInfo.basicInfo.name, backend], priority = HighPriority)
 
-  doCmd(getNimBin(options).quoteShell & " $# --noNimblePath $# $#" %
-        [backend, join(args, " "), bin.quoteShell])
+  if not options.dryRun:
+    doCmd(getNimBin(options).quoteShell & " $# --noNimblePath $# $#" %
+          [backend, join(args, " "), bin.quoteShell])
 
   display("Success:", "Execution finished", Success, HighPriority)
 
@@ -1035,22 +1049,23 @@ Please specify a valid SPDX identifier.""",
     $nimDepDef)
   validateVersion(pkgNimDep)
 
-  createPkgStructure(
-    (
-      pkgName,
-      pkgVersion,
-      pkgAuthor,
-      pkgDesc,
-      pkgLicense,
-      pkgSrcDir,
-      pkgNimDep,
-      pkgType
-    ),
-    pkgRoot
-  )
+  if not options.dryRun:
+    createPkgStructure(
+      (
+        pkgName,
+        pkgVersion,
+        pkgAuthor,
+        pkgDesc,
+        pkgLicense,
+        pkgSrcDir,
+        pkgNimDep,
+        pkgType
+      ),
+      pkgRoot
+    )
 
   # Create a git or hg repo in the new nimble project.
-  if vcsBin != "":
+  if vcsBin != "" and not options.dryRun:
     let cmd = fmt"cd {pkgRoot} && {vcsBin} init"
     let ret: tuple[output: string, exitCode: int] = execCmdEx(cmd)
     if ret.exitCode != 0: quit ret.output
@@ -1068,10 +1083,12 @@ proc removePackages(pkgs: HashSet[ReverseDependency], options: var Options) =
     let pkgInfo = pkg.toPkgInfo(options)
     case pkg.kind
     of rdkInstalled:
-      pkgInfo.removePackage(options)
+      if not options.dryRun:
+        pkgInfo.removePackage(options)
       display("Removed", $pkg, Success, HighPriority)
     of rdkDevelop:
-      options.nimbleData.removeRevDep(pkgInfo)
+      if not options.dryRun:
+        options.nimbleData.removeRevDep(pkgInfo)
 
 proc collectNames(pkgs: HashSet[ReverseDependency],
                   includeDevelopRevDeps: bool): seq[string] =
@@ -1140,7 +1157,9 @@ proc developFromDir(pkgInfo: PackageInfo, options: var Options) =
     displayWarning(
       "This package's binaries will not be compiled for development.")
 
-  if options.developLocaldeps:
+  if options.dryRun:
+    discard
+  elif options.developLocaldeps:
     var optsCopy = options
     optsCopy.nimbleDir = dir / nimbledeps
     optsCopy.nimbleData = newNimbleDataNode()
@@ -1263,7 +1282,8 @@ proc updatePathsFile(pkgInfo: PackageInfo, options: Options) =
   for path in paths:
     pathsFileContent &= &"--path:{path.escape}\n"
   var action = if fileExists(nimblePathsFileName): "updated" else: "generated"
-  writeFile(nimblePathsFileName, pathsFileContent)
+  if not options.dryRun:
+    writeFile(nimblePathsFileName, pathsFileContent)
   displayInfo(&"\"{nimblePathsFileName}\" is {action}.")
 
 proc develop(options: var Options) =
@@ -1313,7 +1333,8 @@ proc develop(options: var Options) =
        options.action.developFile == developFileName:
       # If we are updated package's develop file we have to update also
       # sync and paths files.
-      updateSyncFile(currentDirPkgInfo, options)
+      if not options.dryRun:
+        updateSyncFile(currentDirPkgInfo, options)
       if fileExists(nimblePathsFileName):
         updatePathsFile(currentDirPkgInfo, options)
 
@@ -1333,6 +1354,8 @@ proc test(options: Options) =
 
   if files.len < 1:
     display("Warning:", "No tests found!", Warning, HighPriority)
+    if options.dryRun:
+      raise nimbleQuit(QuitFailure)
     return
 
   if not execHook(options, actionCustom, true):
@@ -1547,8 +1570,9 @@ proc lock(options: Options) =
     dependencyGraph = mergeLockedDependencies(pkgInfo, dependencyGraph, options)
 
   let (topologicalOrder, _) = topologicalSort(dependencyGraph)
-  writeLockFile(dependencyGraph, topologicalOrder)
-  updateSyncFile(pkgInfo, options)
+  if not options.dryRun:
+    writeLockFile(dependencyGraph, topologicalOrder)
+    updateSyncFile(pkgInfo, options)
   displayLockOperationFinish(doesLockFileExist)
 
 proc syncWorkingCopy(name: string, path: Path, dependentPkg: PackageInfo,
@@ -1587,7 +1611,7 @@ proc syncWorkingCopy(name: string, path: Path, dependentPkg: PackageInfo,
         path, vcsRevision, btRemoteTracking)
       allBranches = localBranches + remoteTrackingBranches
 
-    var targetBranch = 
+    var targetBranch =
       if allBranches.len == 0:
         # Te revision is not found on any branch.
         ""
@@ -1689,7 +1713,8 @@ proc sync(options: Options) =
       # Remove sync errors because we are doing sync.
       errors.del name
 
-  updateSyncFile(pkgInfo, options)
+  if not options.dryRun:
+    updateSyncFile(pkgInfo, options)
 
   if errors.len > 0:
     raise validationErrors(errors)
@@ -1728,7 +1753,9 @@ when fileExists("{nimblePathsFileName}"):
     fileContent.append(configFileHeader)
     fileContent.append(configFileContent)
 
-  if fileExists(nimbleConfigFileName):
+  if options.dryRun:
+    discard
+  elif fileExists(nimbleConfigFileName):
     fileContent = readFile(nimbleConfigFileName)
     if not fileContent.contains(configFileHeader):
       appendNimbleConfigFileHeaderAndContent()
@@ -1738,7 +1765,8 @@ when fileExists("{nimblePathsFileName}"):
     writeFile = true
 
   if writeFile:
-    writeFile(nimbleConfigFileName, fileContent)
+    if not options.dryRun:
+      writeFile(nimbleConfigFileName, fileContent)
     displayInfo(&"\"{nimbleConfigFileName}\" is set up.")
   else:
     displayInfo(&"\"{nimbleConfigFileName}\" is already set up.")
@@ -1778,7 +1806,8 @@ proc setupVcsIgnoreFile =
 
 proc setup(options: Options) =
   setupNimbleConfig(options)
-  setupVcsIgnoreFile()
+  if not options.dryRun:
+    setupVcsIgnoreFile()
 
 proc run(options: Options) =
   # Verify parameters.
@@ -1800,8 +1829,9 @@ proc run(options: Options) =
   let cmd = quoteShellCommand(binaryPath & options.action.runFlags)
   displayDebug("Executing", cmd)
 
-  let exitCode = cmd.execCmd
-  raise nimbleQuit(exitCode)
+  if not options.dryRun:
+    let exitCode = cmd.execCmd
+    raise nimbleQuit(exitCode)
 
 proc doAction(options: var Options) =
   if options.showHelp:

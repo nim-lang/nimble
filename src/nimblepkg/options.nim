@@ -20,6 +20,7 @@ type
     queryVersions*: bool
     queryInstalled*: bool
     nimbleDir*: string
+    dryRun*: bool
     verbosity*: cli.Priority
     action*: Action
     config*: Config
@@ -191,6 +192,7 @@ Nimble Options:
                                   information when searching or listing packages.
       --nimbleDir:dirname         Set the Nimble directory.
       --nim:path                  Use specified path for Nim compiler
+      --dryRun                    Print the commands that would be executed.
       --silent                    Hide all Nimble and Nim output
       --verbose                   Show all non-debug output.
       --debug                     Show all output including debug messages.
@@ -467,6 +469,7 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
   of "accept", "y": result.forcePrompts = forcePromptYes
   of "reject", "n": result.forcePrompts = forcePromptNo
   of "nimbledir": result.nimbleDir = val
+  of "dryrun": result.dryRun = true
   of "silent": result.verbosity = SilentPriority
   of "verbose": result.verbosity = LowPriority
   of "debug": result.verbosity = DebugPriority
