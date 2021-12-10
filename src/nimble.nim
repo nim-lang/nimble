@@ -191,13 +191,20 @@ proc buildFromDir(pkgInfo: PackageInfo, paths: HashSet[string],
       if bin.extractFilename().changeFileExt("") != binToBuild:
         continue
 
+    let outputDir = pkgInfo.getOutputDir("")
+    if dirExists(outputDir):
+      if fileExists(outputDir / bin):
+        if not pkgInfo.needsRebuild(outputDir / bin, realDir, options):
+          display("Skipping", "$1/$2 (up-to-date)" %
+                  [pkginfo.basicInfo.name, bin], priority = HighPriority)
+          binariesBuilt.inc()
+          continue
+    else:
+      createDir(outputDir)
+
     let outputOpt = "-o:" & pkgInfo.getOutputDir(bin).quoteShell
     display("Building", "$1/$2 using $3 backend" %
             [pkginfo.basicInfo.name, bin, pkgInfo.backend], priority = HighPriority)
-
-    let outputDir = pkgInfo.getOutputDir("")
-    if not dirExists(outputDir):
-      createDir(outputDir)
 
     let input = realDir / src.changeFileExt("nim")
     # `quoteShell` would be more robust than `\"` (and avoid quoting when
