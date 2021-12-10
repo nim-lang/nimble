@@ -514,7 +514,7 @@ proc getCacheDir*(pkgInfo: PackageBasicInfo): string =
   &"{pkgInfo.name}-{pkgInfo.version}-{$pkgInfo.checksum}"
 
 proc getPkgDest*(pkgInfo: PackageBasicInfo, options: Options): string =
-  options.getPkgsDir() / pkgInfo.getCacheDir()
+  options.getDestDir() / options.getPkgsDir() / pkgInfo.getCacheDir()
 
 proc getPkgDest*(pkgInfo: PackageInfo, options: Options): string =
   pkgInfo.basicInfo.getPkgDest(options)

@@ -70,6 +70,7 @@ type
       devActions*: seq[DevelopAction]
       path*: string
       noRebuild*: bool
+      destDir*: string
       withDependencies*: bool
         ## Whether to put in develop mode also the dependencies of the packages
         ## listed in the develop command.
@@ -102,6 +103,7 @@ Commands:
                [-d, --depsOnly]   Install only dependencies.
                [-p, --passNim]    Forward specified flag to compiler.
                [--noRebuild]      Don't rebuild binaries if they're up-to-date.
+               [--destDir:path]   Prepend path to each installed target file.
   develop      [pkgname, ...]     Clones a list of packages for development.
                                   Adds them to a develop file if specified or
                                   to `nimble.develop` if not specified and
@@ -308,6 +310,10 @@ proc promptList*(options: Options, question: string, args: openarray[string]): s
 proc getNimbleDir*(options: Options): string =
   return options.nimbleDir
 
+proc getDestDir*(options: Options): string =
+  if options.action.typ == actionInstall:
+    return options.action.destDir
+
 proc getPkgsDir*(options: Options): string =
   options.getNimbleDir() / nimblePackagesDirName
 
@@ -508,6 +514,8 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
       result.action.noRebuild = true
     of "passnim", "p":
       result.action.passNimFlags.add(val)
+    of "destdir":
+      result.action.destDir = val
     else:
       if not isGlobalFlag:
         result.action.passNimFlags.add(getFlagString(kind, flag, val))
