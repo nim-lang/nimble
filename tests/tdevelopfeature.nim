@@ -30,6 +30,15 @@ suite "develop feature":
   
   let anyVersion = parseVersionRange("")
 
+  test "can develop from dir with srcDir (--dryRun)":
+    cd &"develop/{pkgSrcDirTestName}":
+      let (output, exitCode) = execNimble("--dryRun", "develop")
+      check exitCode == QuitSuccess
+      let lines = output.processOutput
+      check not lines.inLines("will not be compiled")
+      check lines.inLines(pkgSetupInDevModeMsg(
+        pkgSrcDirTestName, getCurrentDir()))
+
   test "can develop from dir with srcDir":
     cd &"develop/{pkgSrcDirTestName}":
       let (output, exitCode) = execNimble("develop")
