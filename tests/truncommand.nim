@@ -8,6 +8,18 @@ import testscommon
 from nimblepkg/common import cd
 
 suite "nimble run":
+  test "Invalid binary (--dryRun)":
+    cd "run":
+      let (output, exitCode) = execNimble(
+        "--dryRun",
+        "--debug", # Flag to enable debug verbosity in Nimble
+        "run", # Run command invokation
+        "blahblah", # The command to run
+      )
+      check exitCode == QuitFailure
+      check output.contains("Binary '$1' is not defined in 'run' package." %
+                            "blahblah".changeFileExt(ExeExt))
+
   test "Invalid binary":
     cd "run":
       let (output, exitCode) = execNimble(
