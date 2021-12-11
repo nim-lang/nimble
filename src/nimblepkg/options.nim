@@ -27,6 +27,7 @@ type
     pkgInfoCache*: TableRef[string, PackageInfo]
     showHelp*: bool
     showVersion*: bool
+    offline*: bool
     noColor*: bool
     disableValidation*: bool
     continueTestsOnFailure*: bool
@@ -194,6 +195,7 @@ Nimble Options:
       --silent                    Hide all Nimble and Nim output
       --verbose                   Show all non-debug output.
       --debug                     Show all output including debug messages.
+      --offline                   Don't use network.
       --noColor                   Don't colorise output.
       --noSSLCheck                Don't check SSL certificates.
 
@@ -470,6 +472,7 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
   of "silent": result.verbosity = SilentPriority
   of "verbose": result.verbosity = LowPriority
   of "debug": result.verbosity = DebugPriority
+  of "offline": result.offline = true
   of "nocolor": result.noColor = true
   of "disablevalidation": result.disableValidation = true
   of "nim": result.nim = val

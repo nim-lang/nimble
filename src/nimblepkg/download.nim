@@ -451,6 +451,9 @@ proc downloadPkg*(url: string, verRange: VersionRange,
   ##   If specified this parameter will cause specific VCS revision to be
   ##   checked out.
 
+  if options.offline:
+    raise nimbleError("Cannot download in offline mode.")
+
   let downloadDir =
     if downloadPath == "":
       (getNimbleTempDir() / getDownloadDirName(url, verRange, vcsRevision))

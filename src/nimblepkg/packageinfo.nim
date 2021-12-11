@@ -515,7 +515,7 @@ proc getNameAndVersion*(pkgInfo: PackageInfo): string =
   &"{pkgInfo.basicInfo.name}@{pkgInfo.basicInfo.version}"
 
 when isMainModule:
-  import unittest 
+  import unittest
 
   test "toValidPackageName":
     check toValidPackageName("foo__bar") == "foo_bar"
