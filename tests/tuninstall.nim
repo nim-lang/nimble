@@ -11,6 +11,13 @@ from nimblepkg/common import cd
 from nimblepkg/version import newVersion
 
 suite "uninstall":
+  test "cannot install packagebin2 in --offline mode":
+    cleanDir(installDir)
+    let args = ["--offline", "install", pkgBin2Url]
+    let (output, exitCode) = execNimbleYes(args)
+    check exitCode != QuitSuccess
+    check output.contains("Cannot download in offline mode.")
+
   test "can install packagebin2":
     cleanDir(installDir)
     let args = ["install", pkgBin2Url]
