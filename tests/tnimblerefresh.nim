@@ -7,6 +7,11 @@ import unittest, os, strutils
 import testscommon
 
 suite "nimble refresh":
+  test "cannot refresh in --offline mode":
+    let (output, exitCode) = execNimble(["--offline", "refresh"])
+    check exitCode != QuitSuccess
+    check output.contains("Cannot refresh package list in offline mode.")
+
   test "can refresh with default urls":
     let (output, exitCode) = execNimble(["refresh"])
     checkpoint(output)

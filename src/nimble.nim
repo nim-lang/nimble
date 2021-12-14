@@ -31,6 +31,9 @@ proc refresh(options: Options) =
   ## Downloads the package list from the specified URL.
   ##
   ## If the download is not successful, an exception is raised.
+  if options.offline:
+    raise nimbleError("Cannot refresh package list in offline mode.")
+
   let parameter =
     if options.action.typ == actionRefresh:
       options.action.optionalURL
@@ -310,7 +313,7 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
     PackageDependenciesInfo =
   ## Returns where package has been installed to, together with paths
   ## to the packages this package depends on.
-  ## 
+  ##
   ## The return value of this function is used by
   ## ``processFreeDependencies``
   ##   To gather a list of paths to pass to the Nim compiler.
@@ -507,6 +510,8 @@ proc raiseCannotCloneInExistingDirException(downloadDir: string) =
 proc downloadDependency(name: string, dep: LockFileDep, options: Options):
     DownloadInfo =
   ## Downloads a dependency from the lock file.
+  if options.offline:
+    raise nimbleError("Cannot download in offline mode.")
 
   if not options.developWithDependencies:
     let depDirName = getDependencyDir(name, dep, options)
@@ -547,14 +552,14 @@ proc downloadDependency(name: string, dep: LockFileDep, options: Options):
   result = DownloadInfo(
     name: name,
     dependency: dep,
-    url: url, 
+    url: url,
     version: version,
     downloadDir: downloadDir,
     vcsRevision: vcsRevision)
 
 proc installDependency(pkgInfo: PackageInfo, downloadInfo: DownloadInfo,
                        options: Options): PackageInfo =
-  ## Installs an already downloaded dependency of the package `pkgInfo`. 
+  ## Installs an already downloaded dependency of the package `pkgInfo`.
   let (_, newlyInstalledPkgInfo) = installFromDir(
     downloadInfo.downloadDir,
     downloadInfo.version,
@@ -569,7 +574,7 @@ proc installDependency(pkgInfo: PackageInfo, downloadInfo: DownloadInfo,
   for depDepName in downloadInfo.dependency.dependencies:
     let depDep = pkgInfo.lockedDeps[depDepName]
     let revDep = (name: depDepName, version: depDep.version,
-                  checksum: depDep.checksums.sha1) 
+                  checksum: depDep.checksums.sha1)
     options.nimbleData.addRevDep(revDep, newlyInstalledPkgInfo)
 
   return newlyInstalledPkgInfo
@@ -589,9 +594,11 @@ proc processLockedDependencies(pkgInfo: PackageInfo, options: Options):
       result.incl developModeDeps[name][]
     elif isInstalled(name, dep, options):
       result.incl getDependency(name, dep, options)
-    else:
+    elif not options.offline:
       let downloadResult = downloadDependency(name, dep, options)
       result.incl installDependency(pkgInfo, downloadResult, options)
+    else:
+      raise nimbleError("Unsatisfied dependency: " & pkgInfo.basicInfo.name)
 
 proc getDownloadInfo*(pv: PkgTuple, options: Options,
                       doPrompt: bool): (DownloadMethod, string,
@@ -607,7 +614,7 @@ proc getDownloadInfo*(pv: PkgTuple, options: Options,
     else:
       # If package is not found give the user a chance to refresh
       # package.json
-      if doPrompt and
+      if doPrompt and not options.offline and
           options.prompt(pv.name & " not found in any local packages.json, " &
                          "check internet for updated packages?"):
         refresh(options)
@@ -1466,7 +1473,7 @@ proc validateDevModeDepsWorkingCopiesBeforeLock(
     vekWorkingCopyNeedsLock,
     vekWorkingCopyNeedsMerge,
     }
-  
+
   # Remove not errors from the errors set.
   for name, error in common.dup(errors):
     if error.kind in notAnErrorSet:
@@ -1507,7 +1514,7 @@ proc mergeLockedDependencies*(pkgInfo: PackageInfo, newDeps: LockFileDeps,
 proc displayLockOperationStart(dir: string): bool =
   ## Displays a proper log message for starting generating or updating the lock
   ## file of a package in directory `dir`.
-  
+
   var doesLockFileExist = dir.lockFileExists
   let msg = if doesLockFileExist:
     updatingTheLockFileMsg
@@ -1527,7 +1534,7 @@ proc displayLockOperationFinish(didLockFileExist: bool) =
   displaySuccess(msg)
 
 proc lock(options: Options) =
-  ## Generates a lock file for the package in the current directory or updates 
+  ## Generates a lock file for the package in the current directory or updates
   ## it if it already exists.
 
   let currentDir = getCurrentDir()
@@ -1564,6 +1571,9 @@ proc syncWorkingCopy(name: string, path: Path, dependentPkg: PackageInfo,
   ## with name `name` at path `path` with the revision from the lock file of
   ## `dependentPkg`.
 
+  if options.offline:
+    raise nimbleError("Cannot sync in offline mode.")
+
   displayInfo(&"Syncing working copy of package \"{name}\" at \"{path}\"...")
 
   let lockedDeps = dependentPkg.lockedDeps
@@ -1594,7 +1604,7 @@ proc syncWorkingCopy(name: string, path: Path, dependentPkg: PackageInfo,
         path, vcsRevision, btRemoteTracking)
       allBranches = localBranches + remoteTrackingBranches
 
-    var targetBranch = 
+    var targetBranch =
       if allBranches.len == 0:
         # Te revision is not found on any branch.
         ""
@@ -1676,6 +1686,9 @@ proc sync(options: Options) =
 
   if not pkgInfo.areLockedDepsLoaded:
     raise nimbleError("Cannot execute `sync` when lock file is missing.")
+
+  if options.offline:
+    raise nimbleError("Cannot execute `sync` in offline mode.")
 
   if not options.action.listOnly:
     # On `sync` we also want to update Nimble cache with the dependencies'
