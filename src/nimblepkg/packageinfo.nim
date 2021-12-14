@@ -3,7 +3,7 @@
 
 # Stdlib imports
 import system except TResult
-import hashes, json, strutils, os, sets, tables, httpclient, strformat
+import hashes, json, strutils, os, sets, tables, times, httpclient, strformat
 from net import SslError
 
 # Local imports
@@ -494,6 +494,22 @@ proc iterInstallFiles*(realDir: string, pkgInfo: PackageInfo,
 
         action(file)
 
+proc needsRebuild*(pkgInfo: PackageInfo, bin: string, dir: string, options: Options): bool =
+  if options.action.typ != actionInstall:
+    return true
+  if not options.action.noRebuild:
+    return true
+
+  let binTimestamp = getFileInfo(bin).lastWriteTime
+  var rebuild = false
+  iterFilesWithExt(dir, pkgInfo,
+    proc (file: string) =
+      let srcTimestamp = getFileInfo(file).lastWriteTime
+      if binTimestamp < srcTimestamp:
+        rebuild = true
+  )
+  return rebuild
+
 proc getCacheDir*(pkgInfo: PackageBasicInfo): string =
   &"{pkgInfo.name}-{pkgInfo.version}-{$pkgInfo.checksum}"
 
@@ -515,7 +531,7 @@ proc getNameAndVersion*(pkgInfo: PackageInfo): string =
   &"{pkgInfo.basicInfo.name}@{pkgInfo.basicInfo.version}"
 
 when isMainModule:
-  import unittest 
+  import unittest
 
   test "toValidPackageName":
     check toValidPackageName("foo__bar") == "foo_bar"

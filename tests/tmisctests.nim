@@ -50,6 +50,14 @@ suite "misc tests":
       let (_, exitCode) = execNimble("install", "--passNim:-d:passNimIsWorking")
       check exitCode == QuitSuccess
 
+  test "install with --noRebuild flag":
+    cd "run":
+      check execNimbleYes("build").exitCode == QuitSuccess
+
+      let (output, exitCode) = execNimbleYes("install", "--noRebuild")
+      check exitCode == QuitSuccess
+      check output.contains("Skipping")
+
   test "NimbleVersion is defined":
     cd "nimbleVersionDefine":
       let (output, exitCode) = execNimble("c", "-r", "src/nimbleVersionDefine.nim")
