@@ -185,9 +185,9 @@ proc fetchList*(list: PackageList, options: Options) =
 # Cache after first call
 var
   gPackageJson: Table[string, JsonNode]
-proc readPackageList(name: string, options: Options, clean = false): JsonNode =
+proc readPackageList(name: string, options: Options, ignorePackageCache = false): JsonNode =
   # If packages.json is not present ask the user if they want to download it.
-  if (not clean) and gPackageJson.hasKey(name):
+  if (not ignorePackageCache) and gPackageJson.hasKey(name):
     return gPackageJson[name]
 
   if needsRefresh(options):
@@ -204,7 +204,7 @@ proc readPackageList(name: string, options: Options, clean = false): JsonNode =
                                  name.toLowerAscii() & ".json")
   return gPackageJson[name]
 
-proc getPackage*(pkg: string, options: Options, resPkg: var Package, clean = false): bool
+proc getPackage*(pkg: string, options: Options, resPkg: var Package, ignorePackageCache = false): bool
 proc resolveAlias(pkg: Package, options: Options): Package =
   result = pkg
   # Resolve alias.
@@ -215,7 +215,7 @@ proc resolveAlias(pkg: Package, options: Options): Package =
       raise nimbleError("Alias for package not found: " &
                          pkg.alias)
 
-proc getPackage*(pkg: string, options: Options, resPkg: var Package, clean = false): bool =
+proc getPackage*(pkg: string, options: Options, resPkg: var Package, ignorePackageCache = false): bool =
   ## Searches any packages.json files defined in ``options.config.packageLists``
   ## Saves the found package into ``resPkg``.
   ##
@@ -226,7 +226,7 @@ proc getPackage*(pkg: string, options: Options, resPkg: var Package, clean = fal
   ## Aliases are handled and resolved.
   for name, list in options.config.packageLists:
     display("Reading", "$1 package list" % name, priority = LowPriority)
-    let packages = readPackageList(name, options, clean)
+    let packages = readPackageList(name, options, ignorePackageCache)
     for p in packages:
       if normalize(p["name"].str) == normalize(pkg):
         resPkg = p.fromJson()
