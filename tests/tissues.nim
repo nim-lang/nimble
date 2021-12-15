@@ -401,3 +401,19 @@ suite "issues":
         else:
           "libissue941.so"
       check output.contains(expectedBinaryName)
+
+  test "issue #953 (Use refreshed package list)":
+    # Remove all packages from the json file so it needs to be refreshed
+    writeFile(installDir / "packages_official.json", "[]")
+    removeDir(installDir / "pkgs2")
+
+    let (output, exitCode) = execNimble("install", "-y", "fusion")
+    let lines = output.strip.processOutput()
+    # Test that it needed to refresh packages and that it installed
+    check:
+      exitCode == QuitSuccess
+      inLines(lines, "check internet for updated packages")
+      inLines(lines, "fusion installed successfully")
+
+    # Clean up package file
+    check execNimble(["refresh"]).exitCode == QuitSuccess

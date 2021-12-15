@@ -601,14 +601,14 @@ proc processLockedDependencies(pkgInfo: PackageInfo, options: Options):
       raise nimbleError("Unsatisfied dependency: " & pkgInfo.basicInfo.name)
 
 proc getDownloadInfo*(pv: PkgTuple, options: Options,
-                      doPrompt: bool): (DownloadMethod, string,
+                      doPrompt: bool, ignorePackageCache = false): (DownloadMethod, string,
                                         Table[string, string]) =
   if pv.name.isURL:
     let (url, metadata) = getUrlData(pv.name)
     return (checkUrlType(url), url, metadata)
   else:
     var pkg = initPackage()
-    if getPackage(pv.name, options, pkg):
+    if getPackage(pv.name, options, pkg, ignorePackageCache):
       let (url, metadata) = getUrlData(pkg.url)
       return (pkg.downloadMethod, url, metadata)
     else:
@@ -622,7 +622,8 @@ proc getDownloadInfo*(pv: PkgTuple, options: Options,
         # Once we've refreshed, try again, but don't prompt if not found
         # (as we've already refreshed and a failure means it really
         # isn't there)
-        return getDownloadInfo(pv, options, false)
+        # Also ignore the package cache so the old info isn't used
+        return getDownloadInfo(pv, options, false, true)
       else:
         raise nimbleError(pkgNotFoundMsg(pv))
 
