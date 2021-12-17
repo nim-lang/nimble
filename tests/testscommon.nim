@@ -28,8 +28,10 @@ let
   pkgsDir* = installDir / nimblePackagesDirName
 
 proc execNimble*(args: varargs[string]): ProcessOutput =
+  let defaultNimbleDir = getHomeDir() / ".nimble"
   var quotedArgs = @args
   quotedArgs.insert("--nimbleDir:" & installDir)
+  quotedArgs.insert("--excludeNimbleDir:" & defaultNimbleDir)
   quotedArgs.insert(nimblePath)
   quotedArgs = quotedArgs.map((x: string) => x.quoteShell)
 

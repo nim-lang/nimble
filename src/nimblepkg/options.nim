@@ -20,6 +20,7 @@ type
     queryVersions*: bool
     queryInstalled*: bool
     nimbleDirs*: seq[string]
+    excludeNimbleDirs*: seq[string]
     verbosity*: cli.Priority
     action*: Action
     config*: Config
@@ -209,9 +210,11 @@ Nimble Options:
                                   when working with GitHub repositories.
       --ver                       Query remote server for package version
                                   information when searching or listing packages.
-      --nimbleDir:dirname         Set the Nimble directory. This option can be
-                                  given multiple times, the last one specified
-                                  is used as destination directory.
+      --nimbleDir:dirname         Add a Nimble directory. This option can be
+                                  given multiple times, the last one is used as
+                                  destination directory.
+      --excludeNimbleDir:dirname  Do not use a Nimble directory. This option can
+                                  be given multiple times.
       --nim:path                  Use specified path for Nim compiler
       --silent                    Hide all Nimble and Nim output
       --verbose                   Show all non-debug output.
@@ -352,9 +355,13 @@ proc addNimbleDir(options: var Options, nimbleDir: string, propagate = false) =
   if nimbleDir.len == 0:
     return
 
-  var nimbleDir = expandTilde(nimbleDir).absolutePath()
+  let nimbleDir = expandTilde(nimbleDir).absolutePath()
+  if nimbleDir in options.excludeNimbleDirs:
+    return
+
   if nimbleDir notin options.nimbleDirs:
     options.nimbleDirs.insert(nimbleDir, 0)
+
   if propagate:
     # Propagate custom nimbleDir to child processes
     let env = getEnv("NIMBLE_DIR")
@@ -378,6 +385,10 @@ proc setNimbleDirs*(options: var Options) =
       options.action.packages.len != 0):
     # Localdeps + nimble develop pkg1 ...
     options.developLocaldeps = true
+
+  for i in low(options.excludeNimbleDirs)..high(options.excludeNimbleDirs):
+    let nimbleDir = expandTilde(options.excludeNimbleDirs[i]).absolutePath()
+    options.excludeNimbleDirs[i] = nimbleDir
 
   # --nimbleDir:<dir> takes priority...
   let nimbleDirsCopy = reversed(options.nimbleDirs)
@@ -515,6 +526,7 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
   of "accept", "y": result.forcePrompts = forcePromptYes
   of "reject", "n": result.forcePrompts = forcePromptNo
   of "nimbledir": result.nimbleDirs.add(val)
+  of "excludenimbledir": result.excludeNimbleDirs.add(val)
   of "silent": result.verbosity = SilentPriority
   of "verbose": result.verbosity = LowPriority
   of "debug": result.verbosity = DebugPriority
