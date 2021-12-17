@@ -57,7 +57,7 @@ proc refresh(options: Options) =
 
 proc initPkgList(pkgInfo: PackageInfo, options: Options): seq[PackageInfo] =
   let
-    installedPkgs = getInstalledPkgsMin(options.getPkgsDir(), options)
+    installedPkgs = getInstalledPkgsMin(options)
     developPkgs = processDevelopDependencies(pkgInfo, options)
   {.warning[ProveInit]: off.}
   result = concat(installedPkgs, developPkgs)
@@ -149,7 +149,7 @@ proc processFreeDependencies(pkgInfo: PackageInfo, options: Options):
   # (unsatisfiable dependendencies).
   # N.B. NimbleData is saved in installFromDir.
   for i in reverseDependencies:
-    addRevDep(options.nimbleData, i, pkgInfo)
+    addRevDep(options.getNimbleData(), i, pkgInfo)
 
 proc buildFromDir(pkgInfo: PackageInfo, paths: HashSet[string],
                   args: seq[string], options: Options) =
@@ -275,6 +275,7 @@ proc removeBinariesSymlinks(pkgInfo: PackageInfo, binDir: string) =
 
 proc reinstallSymlinksForOlderVersion(pkgDir: string, options: Options) =
   let (pkgName, _, _) = getNameVersionChecksum(pkgDir)
+  # make changes in the main Nimble directory only
   let pkgList = getInstalledPkgsMin(options.getPkgsDir(), options)
   var newPkgInfo = initPackageInfo()
   if pkgList.findPkg((pkgName, newVRAny()), newPkgInfo):
@@ -298,7 +299,7 @@ proc removePackage(pkgInfo: PackageInfo, options: Options) =
   removePackageDir(pkgInfo, pkgDestDir)
   removeBinariesSymlinks(pkgInfo, options.getBinDir())
   reinstallSymlinksForOlderVersion(pkgDestDir, options)
-  options.nimbleData.removeRevDep(pkgInfo)
+  options.getNimbleData().removeRevDep(pkgInfo)
 
 proc packageExists(pkgInfo: PackageInfo, options: Options):
     Option[PackageInfo] =
@@ -413,7 +414,7 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
     try:
       buildFromDir(pkgInfo, paths, "-d:release" & flags, options)
     except CatchableError:
-      removeRevDep(options.nimbleData, pkgInfo)
+      options.getNimbleData().removeRevDep(pkgInfo)
       raise
 
   let pkgDestDir = pkgInfo.getPkgDest(options)
@@ -597,7 +598,7 @@ proc installDependency(pkgInfo: PackageInfo, downloadInfo: DownloadInfo,
     let depDep = pkgInfo.lockedDeps[depDepName]
     let revDep = (name: depDepName, version: depDep.version,
                   checksum: depDep.checksums.sha1)
-    options.nimbleData.addRevDep(revDep, newlyInstalledPkgInfo)
+    options.getNimbleData().addRevDep(revDep, newlyInstalledPkgInfo)
 
   return newlyInstalledPkgInfo
 
@@ -821,7 +822,7 @@ proc listInstalled(options: Options) =
   type
     VersionChecksumTuple = tuple[version: Version, checksum: Sha1Hash]
   var h: OrderedTable[string, seq[VersionChecksumTuple]]
-  let pkgs = getInstalledPkgsMin(options.getPkgsDir(), options)
+  let pkgs = getInstalledPkgsMin(options)
   for pkg in pkgs:
     let
       pName = pkg.basicInfo.name
@@ -856,7 +857,7 @@ proc listPaths(options: Options) =
     raise nimbleError("A package name needs to be specified")
 
   var errors = 0
-  let pkgs = getInstalledPkgsMin(options.getPkgsDir(), options)
+  let pkgs = getInstalledPkgsMin(options)
   for name, version in options.action.packages.items:
     var installed: seq[VersionAndPath] = @[]
     # There may be several, list all available ones and sort by version.
@@ -897,7 +898,7 @@ proc getPackageByPattern(pattern: string, options: Options): PackageInfo =
     result = getPkgInfo(pattern, options)
   else:
     # Last resort - attempt to read as package identifier
-    let packages = getInstalledPkgsMin(options.getPkgsDir(), options)
+    let packages = getInstalledPkgsMin(options)
     let identTuple = parseRequires(pattern)
     var skeletonInfo = initPackageInfo()
     if not findPkg(packages, identTuple, skeletonInfo):
@@ -1118,7 +1119,7 @@ proc removePackages(pkgs: HashSet[ReverseDependency], options: var Options) =
       pkgInfo.removePackage(options)
       display("Removed", $pkg, Success, HighPriority)
     of rdkDevelop:
-      options.nimbleData.removeRevDep(pkgInfo)
+      options.getNimbleData().removeRevDep(pkgInfo)
 
 proc collectNames(pkgs: HashSet[ReverseDependency],
                   includeDevelopRevDeps: bool): seq[string] =
@@ -1136,19 +1137,25 @@ proc uninstall(options: var Options) =
   for pkgTup in options.action.packages:
     display("Looking", "for $1 ($2)" % [pkgTup.name, $pkgTup.ver],
             priority = HighPriority)
+    # find packages to uninstall in the main Nimble directory only
     let installedPkgs = getInstalledPkgsMin(options.getPkgsDir(), options)
     var pkgList = findAllPkgs(installedPkgs, pkgTup)
     if pkgList.len == 0:
-      raise nimbleError("Package not found")
+      raise nimbleError(pkgNotFoundInNimbleDirMsg(options.getNimbleDir()))
 
     display("Checking", "reverse dependencies", priority = HighPriority)
     for pkg in pkgList:
       # Check whether any packages depend on the ones the user is trying to
       # uninstall.
       if options.uninstallRevDeps:
-        getAllRevDeps(options.nimbleData, pkg.toRevDep, pkgsToDelete)
+        if options.nimbleDirs.len > 1:
+          raise nimbleError(uninstallRevDepsNimbleDirsMsg)
+        else:
+          getAllRevDeps(options.getNimbleData(), pkg.toRevDep, pkgsToDelete)
       else:
-        let revDeps = options.nimbleData.getRevDeps(pkg.toRevDep)
+        var revDeps: HashSet[ReverseDependency]
+        for nimbleData in options.nimbleData:
+          revDeps.incl nimbleData.getRevDeps(pkg.toRevDep)
         if len(revDeps - pkgsToDelete) > 0:
           let pkgs = revDeps.collectNames(true)
           displayWarning(
@@ -1204,8 +1211,8 @@ proc developFromDir(pkgInfo: PackageInfo, options: var Options) =
 
   if options.developLocaldeps:
     var optsCopy = options
-    optsCopy.nimbleDir = dir / nimbledeps
-    optsCopy.nimbleData = newNimbleDataNode()
+    optsCopy.nimbleDirs = @[dir / nimbledeps]
+    optsCopy.nimbleData = @[newNimbleDataNode()]
     optsCopy.startDir = dir
     createDir(optsCopy.getPkgsDir())
     cd dir:
@@ -1988,7 +1995,7 @@ when isMainModule:
   try:
     opt = parseCmdLine()
     opt.setNimBin
-    opt.setNimbleDir
+    opt.setNimbleDirs
     opt.loadNimbleData
     opt.doAction()
   except NimbleQuit as quit:

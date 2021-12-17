@@ -2,7 +2,7 @@
 # BSD License. Look at license.txt for more info.
 
 import json, strutils, os, parseopt, uri, tables, terminal
-import sequtils, sugar
+import algorithm, sequtils, sugar
 import std/options as std_opt
 from httpclient import Proxy, newProxy
 
@@ -19,11 +19,11 @@ type
     uninstallRevDeps*: bool
     queryVersions*: bool
     queryInstalled*: bool
-    nimbleDir*: string
+    nimbleDirs*: seq[string]
     verbosity*: cli.Priority
     action*: Action
     config*: Config
-    nimbleData*: JsonNode ## Nimbledata.json
+    nimbleData*: seq[JsonNode] ## Nimbledata.json
     pkgInfoCache*: TableRef[string, PackageInfo]
     showHelp*: bool
     showVersion*: bool
@@ -209,7 +209,9 @@ Nimble Options:
                                   when working with GitHub repositories.
       --ver                       Query remote server for package version
                                   information when searching or listing packages.
-      --nimbleDir:dirname         Set the Nimble directory.
+      --nimbleDir:dirname         Set the Nimble directory. This option can be
+                                  given multiple times, the last one specified
+                                  is used as destination directory.
       --nim:path                  Use specified path for Nim compiler
       --silent                    Hide all Nimble and Nim output
       --verbose                   Show all non-debug output.
@@ -325,22 +327,50 @@ proc promptList*(options: Options, question: string, args: openarray[string]): s
   return promptList(options.forcePrompts, question, args)
 
 proc getNimbleDir*(options: Options): string =
-  return options.nimbleDir
+  ## Returns the main Nimble directory.
+  if options.nimbleDirs.len == 0:
+    return ""
+  return options.nimbleDirs[^1]
 
-proc getPkgsDir*(options: Options): string =
-  options.getNimbleDir() / nimblePackagesDirName
+proc getNimbleData*(options: Options): JsonNode =
+  options.nimbleData[^1]
 
 proc getPkgsLinksDir*(options: Options): string =
   options.getNimbleDir() / nimblePackagesLinksDirName
 
+proc getPkgsDir*(options: Options): string =
+  options.getNimbleDir() / nimblePackagesDirName
+
+proc getPkgsDir*(nimbleDir: string): string =
+  nimbleDir / nimblePackagesDirName
+
 proc getBinDir*(options: Options): string =
   options.getNimbleDir() / nimbleBinariesDirName
 
-proc setNimbleDir*(options: var Options) =
-  var
-    nimbleDir = options.config.nimbleDir
-    propagate = false
+proc addNimbleDir(options: var Options, nimbleDir: string, propagate = false) =
+  ## Insert given nimble directory with lowest priority.
+  if nimbleDir.len == 0:
+    return
 
+  var nimbleDir = expandTilde(nimbleDir).absolutePath()
+  if nimbleDir notin options.nimbleDirs:
+    options.nimbleDirs.insert(nimbleDir, 0)
+  if propagate:
+    # Propagate custom nimbleDir to child processes
+    let env = getEnv("NIMBLE_DIR")
+    if nimbleDir notin env.split(PathSep):
+      if env.len == 0:
+        putEnv("NIMBLE_DIR", nimbleDir)
+      else:
+        putEnv("NIMBLE_DIR", nimbleDir & PathSep & env)
+
+    # Add $nimbledeps/bin to PATH
+    let path = getEnv("PATH")
+    let binDir = nimbleDir / "bin"
+    if binDir notin path.split(PathSep):
+      putEnv("PATH", binDir & PathSep & path)
+
+proc setNimbleDirs*(options: var Options) =
   if options.action.typ == actionDevelop:
     options.forceFullClone = true
 
@@ -349,35 +379,27 @@ proc setNimbleDir*(options: var Options) =
     # Localdeps + nimble develop pkg1 ...
     options.developLocaldeps = true
 
-  if options.nimbleDir.len != 0:
-    # --nimbleDir:<dir> takes priority...
-    nimbleDir = options.nimbleDir
-    propagate = true
-  else:
-    # ...followed by the environment variable.
-    let env = getEnv("NIMBLE_DIR")
-    if env.len != 0:
-      display("Warning:", "Using the environment variable: NIMBLE_DIR='" &
-              env & "'", Warning, priority = HighPriority)
-      nimbleDir = env
-    else:
-      # ...followed by project local deps mode
-      if dirExists(nimbledeps) or (options.localdeps and not options.developLocaldeps):
-        display("Warning:", "Using project local deps mode", Warning,
-                priority = HighPriority)
-        nimbleDir = nimbledeps
-        options.localdeps = true
-        propagate = true
+  # --nimbleDir:<dir> takes priority...
+  let nimbleDirsCopy = reversed(options.nimbleDirs)
+  options.nimbleDirs = @[]
+  for nimbleDir in nimbleDirsCopy:
+    options.addNimbleDir(nimbleDir, propagate = true)
 
-  options.nimbleDir = expandTilde(nimbleDir).absolutePath()
-  if propagate:
-    # Propagate custom nimbleDir to child processes
-    putEnv("NIMBLE_DIR", options.nimbleDir)
+  # ...followed by the environment variable.
+  let env = getEnv("NIMBLE_DIR")
+  if env.len != 0:
+    for nimbleDir in env.split(PathSep).filterIt(it.len != 0):
+      options.addNimbleDir(nimbleDir, propagate = true)
 
-    # Add $nimbledeps/bin to PATH
-    let path = getEnv("PATH")
-    if options.nimbleDir notin path:
-      putEnv("PATH", options.nimbleDir / "bin" & PathSep & path)
+  # ...followed by project local deps mode
+  if dirExists(nimbledeps) or (options.localdeps and not options.developLocaldeps):
+    display("Warning:", "Using project local deps mode", Warning,
+            priority = HighPriority)
+    options.addNimbleDir(nimbledeps, propagate = true)
+    options.localdeps = true
+
+  # ...followed by the config
+  options.addNimbleDir(options.config.nimbleDir)
 
   if not options.developLocaldeps:
     # Create nimbleDir/pkgs if it doesn't exist - will create nimbleDir as well
@@ -492,7 +514,7 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
   of "version", "v": result.showVersion = true
   of "accept", "y": result.forcePrompts = forcePromptYes
   of "reject", "n": result.forcePrompts = forcePromptNo
-  of "nimbledir": result.nimbleDir = val
+  of "nimbledir": result.nimbleDirs.add(val)
   of "silent": result.verbosity = SilentPriority
   of "verbose": result.verbosity = LowPriority
   of "debug": result.verbosity = DebugPriority

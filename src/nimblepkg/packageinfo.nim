@@ -303,6 +303,11 @@ proc getInstalledPkgsMin*(libsDir: string, options: Options): seq[PackageInfo] =
         let pkg = getInstalledPackageMin(path, nimbleFile)
         result.add pkg
 
+proc getInstalledPkgsMin*(options: Options): seq[PackageInfo] =
+  result = @[]
+  for nimbleDir in options.nimbleDirs:
+    result.add(getInstalledPkgsMin(nimbleDir.getPkgsDir(), options))
+
 proc withinRange*(pkgInfo: PackageInfo, verRange: VersionRange): bool =
   ## Determines whether the specified package's version is within the specified
   ## range. As the ordinary version is always added to the special versions set

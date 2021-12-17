@@ -37,6 +37,9 @@ const
   ignoringCompilationFlagsMsg* =
     "Ignoring compilation flags for installed package."
 
+  uninstallRevDepsNimbleDirsMsg* =
+    "Option 'inclDeps' cannot be used with multiple Nimble directories."
+
   updatingTheLockFileMsg* = "Updating the lock file..."
   generatingTheLockFileMsg* = "Generating the lock file..."
   lockFileIsUpdatedMsg* = "The lock file is updated."
@@ -55,6 +58,9 @@ proc pkgInstalledMsg*(pkgName: string): string =
   &"{pkgName} installed successfully."
 
 proc pkgNotFoundMsg*(pkg: PkgTuple): string = &"Package {pkg} not found."
+
+proc pkgNotFoundInNimbleDirMsg*(nimbleDir: string): string =
+  &"Package not found in \"{nimbleDir}\"."
 
 proc pkgDepsAlreadySatisfiedMsg*(dep: PkgTuple): string =
   &"Dependency on {dep} already satisfied"

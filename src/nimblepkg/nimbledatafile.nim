@@ -29,13 +29,14 @@ proc saveNimbleDataToDir(nimbleDir: string, nimbleData: JsonNode) =
   saveNimbleData(nimbleDir / nimbleDataFileName, nimbleData)
 
 proc saveNimbleData*(options: Options) =
-  saveNimbleDataToDir(options.getNimbleDir(), options.nimbleData)
+  # Save nimbledata for the main nimbleDir only - fallback dirs must be read-only.
+  saveNimbleDataToDir(options.getNimbleDir(), options.getNimbleData())
 
 proc newNimbleDataNode*(): JsonNode =
   %{ $ndjkVersion: %nimbleDataFileVersion, $ndjkRevDep: newJObject() }
 
 proc removeDeadDevelopReverseDeps*(options: var Options) =
-  template revDeps: var JsonNode = options.nimbleData[$ndjkRevDep]
+  template revDeps: var JsonNode = options.getNimbleData()[$ndjkRevDep]
   var hasDeleted = false
   for name, versions in revDeps:
     for version, hashSums in versions:
@@ -46,21 +47,20 @@ proc removeDeadDevelopReverseDeps*(options: var Options) =
             dep.delete($ndjkRevDepPath)
             hasDeleted = true
   if hasDeleted:
-    options.nimbleData[$ndjkRevDep] = cleanUpEmptyObjects(revDeps)
+    options.getNimbleData()[$ndjkRevDep] = cleanUpEmptyObjects(revDeps)
 
 proc loadNimbleData*(options: var Options) =
-  let
-    nimbleDir = options.getNimbleDir()
-    fileName = nimbleDir / nimbleDataFileName
+  for nimbleDir in options.nimbleDirs:
+    let fileName = nimbleDir / nimbleDataFileName
 
-  if fileExists(fileName):
-    options.nimbleData = parseFile(fileName)
-    removeDeadDevelopReverseDeps(options)
-    displayInfo(&"Nimble data file \"{fileName}\" has been loaded.",
-                LowPriority)
-  else:
-    displayWarning(&"Nimble data file \"{fileName}\" is not found.",
-                   LowPriority)
-    options.nimbleData = newNimbleDataNode()
+    if fileExists(fileName):
+      options.nimbleData.add(parseFile(fileName))
+      displayInfo(&"Nimble data file \"{fileName}\" has been loaded.",
+                  LowPriority)
+    else:
+      displayWarning(&"Nimble data file \"{fileName}\" is not found.",
+                     LowPriority)
+      options.nimbleData.add(newNimbleDataNode())
 
+  removeDeadDevelopReverseDeps(options)
   isNimbleDataFileLoaded = true

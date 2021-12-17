@@ -503,10 +503,6 @@ proc toFullInfo*(pkg: PackageInfo, options: Options): PackageInfo =
            "A package must not be simultaneously installed and linked."
 
     if result.isInstalled:
-      assert result.metaData.vcsRevision == notSetSha1Hash,
-            "Should not have a VCS revision read from package directory for " &
-            "installed packages."
-
       # For installed packages use already read meta data.
       result.metaData = pkg.metaData
   else:
