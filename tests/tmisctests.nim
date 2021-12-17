@@ -107,6 +107,15 @@ suite "misc tests":
       linesWithWarningsCount += checkOutput(output)
     check linesWithWarningsCount == 0
 
+  test "can find deps in fallback Nimble directory":
+    cleanDir(installDir)
+    cleanDir(&"{installDir}2")
+    check execNimbleYes("install", &"{pkgAUrl}@0.2").exitCode == QuitSuccess
+    let (output, exitCode) = execNimbleYes(
+      &"--nimbleDir:{installDir}2", "install", pkgBUrl)
+    check exitCode == QuitSuccess
+    check output.contains("Dependency on PackageA@0.2 already satisfied")
+
   test "can update":
     check execNimble("update").exitCode == QuitSuccess
 
