@@ -20,7 +20,7 @@ proc getDependencies(packages: seq[PackageInfo], package: PackageInfo,
       found = findPkg(packages, resolvedDep, depPkgInfo)
       if not found:
         raise nimbleError(
-           "Cannot build the dependency graph.\n" & 
+           "Cannot build the dependency graph.\n" &
           &"Missing package \"{dep.name}\".")
     result.add depPkgInfo.basicInfo.name
 

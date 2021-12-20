@@ -118,6 +118,13 @@ proc cmp*(a, b: Version): int =
 proc `<=`*(ver: Version, ver2: Version): bool =
   return (ver == ver2) or (ver < ver2)
 
+proc `<`*(range1: VersionRange, range2: VersionRange): bool =
+  assert range1.kind <= verIntersect and range2.kind <= verIntersect
+  range1.ver < range2.ver
+
+proc `<=`*(ver: VersionRange, ver2: VersionRange): bool =
+  return (ver == ver2) or (ver < ver2)
+
 proc `==`*(range1: VersionRange, range2: VersionRange): bool =
   if range1.kind != range2.kind : return false
   result = case range1.kind
@@ -159,7 +166,52 @@ proc withinRange*(versions: HashSet[Version], range: VersionRange): bool =
 proc contains*(ran: VersionRange, ver: Version): bool =
   return withinRange(ver, ran)
 
-proc getNextIncompatibleVersion(version: Version, semver: bool): Version = 
+proc refine*(input_a, input_b: VersionRange): VersionRange =
+  var
+    a = input_a
+    b = input_b
+  if a.kind > b.kind: swap(a, b)
+
+  if b.kind == verEq or b.kind == verSpecial:
+    # Eq & Special are handled elsewhere
+    # Ignore them during refining
+    return a
+  if b.kind == verAny:
+    return a
+
+  result = case a.kind
+    of verEqLater, verLater:
+      case b.kind:
+      of verLater, verEqLater:
+        max(a, b)
+      of verEarlier, verEqEarlier:
+        VersionRange(kind: verIntersect, verILeft: a, verIRight: b)
+      of verIntersect, verTilde, verCaret:
+        VersionRange(kind: verIntersect, verILeft: max(a, b.verILeft), verIRight: b.verIRight)
+      else: raise newException(Defect, "?")
+
+    of verEarlier, verEqEarlier:
+      case b.kind:
+      of verEarlier, verEqEarlier:
+        min(a, b)
+      of verEqLater:
+        VersionRange(kind: verIntersect, verILeft: b, verIRight: a)
+      of verIntersect, verTilde, verCaret:
+        VersionRange(kind: verIntersect, verILeft: b.verILeft, verIRight: min(a, b.verIRight))
+      else: raise newException(Defect, "?")
+
+    of verIntersect, verTilde, verCaret:
+      case b.kind:
+      of verIntersect, verTilde, verCaret:
+        VersionRange(kind: verIntersect, verILeft: max(a.verILeft, b.verILeft), verIRight: min(a.verIRight, b.verIRight))
+      else: raise newException(Defect, "?")
+    else: raise newException(Defect, "?")
+
+  if result.kind in @[verIntersect, verTilde, verCaret]:
+    if result.verILeft.ver > result.verIRight.ver:
+      raise newException(NimbleError, "Can't refine range")
+
+proc getNextIncompatibleVersion(version: Version, semver: bool): Version =
   ## try to get next higher version to exclude according to semver semantic
   var numbers = version.version.split('.')
   let originalNumberLen = numbers.len
@@ -271,7 +323,7 @@ proc parseVersionRange*(version: Version): VersionRange =
 
 proc toVersionRange*(ver: Version): VersionRange =
   ## Converts a version to either a verEq or verSpecial VersionRange.
-  result = 
+  result =
     if ver.isSpecial:
       VersionRange(kind: verSpecial, spe: ver)
     else:
@@ -462,3 +514,37 @@ when isMainModule:
     test "convert version to version range":
       check toVersionRange(newVersion("#head")).kind == verSpecial
       check toVersionRange(newVersion("0.2.0")).kind == verEq
+    
+    test "version refining":
+      check min(newVersion("1.2"), newVersion("2.0")) == newVersion("1.2")
+      check min(newVersion("2"), newVersion("1")) == newVersion("1")
+      check max(newVersion("1"), newVersion("2")) == newVersion("2")
+      check max(newVersion("2"), newVersion("1")) == newVersion("2")
+
+      check min(parseVersionRange("< 10"), parseVersionRange("< 8")) == parseVersionRange("< 8")
+      check max(parseVersionRange("< 10"), parseVersionRange("< 8")) == parseVersionRange("< 10")
+
+      check refine(parseVersionRange("< 10"), parseVersionRange(" > 0")) == parseVersionRange("> 0 & < 10")
+      check refine(parseVersionRange(">= 0"), parseVersionRange(" < 10")) == parseVersionRange(">= 0 & < 10")
+      check refine(parseVersionRange("> 0"), parseVersionRange(" <= 10")) == parseVersionRange("> 0 & <= 10")
+      check refine(parseVersionRange(">= 0"), parseVersionRange(" <= 10")) == parseVersionRange(">= 0 & <= 10")
+
+      check refine(parseVersionRange("> 0"), parseVersionRange("> 5")) == parseVersionRange("> 5")
+      check refine(parseVersionRange("< 1"), parseVersionRange("< 5")) == parseVersionRange("< 1")
+
+      check refine(parseVersionRange("> 5 & < 10"), parseVersionRange("< 6")) == parseVersionRange("> 5 & < 6")
+
+      check refine(parseVersionRange("> 5 & < 6"), parseVersionRange("< 10")) == parseVersionRange("> 5 & < 6")
+
+      check refine(parseVersionRange("> 5 & < 10"), parseVersionRange(">= 6")) == parseVersionRange(">= 6 & < 10")
+      check refine(parseVersionRange("> 6 & < 10"), parseVersionRange("> 5")) == parseVersionRange("> 6 & < 10")
+
+      check refine(parseVersionRange("> 6 & < 10"), parseVersionRange("> 5 & < 8")) == parseVersionRange("> 6 & < 8")
+
+      check refine(parseVersionRange("~= 0.4.1"), parseVersionRange("> 0.4.3")) == parseVersionRange("> 0.4.3 & < 0.5.0")
+
+      try:
+        discard refine(parseVersionRange("> 6"), parseVersionRange("< 5"))
+        check false
+      except NimbleError:
+        discard

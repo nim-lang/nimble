@@ -63,94 +63,6 @@ proc initPkgList(pkgInfo: PackageInfo, options: Options): seq[PackageInfo] =
   result = concat(installedPkgs, developPkgs)
   {.warning[ProveInit]: on.}
 
-proc install(packages: seq[PkgTuple], options: Options,
-             doPrompt, first, fromLockFile: bool): PackageDependenciesInfo
-
-proc processFreeDependencies(pkgInfo: PackageInfo, options: Options):
-    HashSet[PackageInfo] =
-  ## Verifies and installs dependencies.
-  ##
-  ## Returns set of PackageInfo (for paths) to pass to the compiler
-  ## during build phase.
-
-  assert not pkgInfo.isMinimal,
-         "processFreeDependencies needs pkgInfo.requires"
-
-  var pkgList {.global.}: seq[PackageInfo] = @[]
-  once: pkgList = initPkgList(pkgInfo, options)
-
-  display("Verifying", "dependencies for $1@$2" %
-          [pkgInfo.basicInfo.name, $pkgInfo.basicInfo.version],
-          priority = HighPriority)
-
-  var reverseDependencies: seq[PackageBasicInfo] = @[]
-  for dep in pkgInfo.requires:
-    if dep.name == "nimrod" or dep.name == "nim":
-      let nimVer = getNimrodVersion(options)
-      if not withinRange(nimVer, dep.ver):
-        let msg = "Unsatisfied dependency: " & dep.name & " (" & $dep.ver & ")"
-        raise nimbleError(msg)
-    else:
-      let resolvedDep = dep.resolveAlias(options)
-      display("Checking", "for $1" % $resolvedDep, priority = MediumPriority)
-      var pkg = initPackageInfo()
-      var found = findPkg(pkgList, resolvedDep, pkg)
-      # Check if the original name exists.
-      if not found and resolvedDep.name != dep.name:
-        display("Checking", "for $1" % $dep, priority = MediumPriority)
-        found = findPkg(pkgList, dep, pkg)
-        if found:
-          displayWarning(&"Installed package {dep.name} should be renamed to " &
-                         resolvedDep.name)
-
-      if not found:
-        display("Installing", $resolvedDep, priority = HighPriority)
-        let toInstall = @[(resolvedDep.name, resolvedDep.ver)]
-        let (packages, installedPkg) = install(toInstall, options,
-          doPrompt = false, first = false, fromLockFile = false)
-
-        for pkg in packages:
-          if result.contains pkg:
-            # If the result already contains the newly tried to install package
-            # we had to merge its special versions set into the set of the old
-            # one.
-            result[pkg].metaData.specialVersions.incl(
-              pkg.metaData.specialVersions)
-          else:
-            result.incl pkg
-
-        pkg = installedPkg # For addRevDep
-        fillMetaData(pkg, pkg.getRealDir(), false)
-
-        # This package has been installed so we add it to our pkgList.
-        pkgList.add pkg
-      else:
-        displayInfo(pkgDepsAlreadySatisfiedMsg(dep))
-        result.incl pkg
-        # Process the dependencies of this dependency.
-        result.incl processFreeDependencies(pkg.toFullInfo(options), options)
-      if not pkg.isLink:
-        reverseDependencies.add(pkg.basicInfo)
-
-  # Check if two packages of the same name (but different version) are listed
-  # in the path.
-  var pkgsInPath: Table[string, Version]
-  for pkgInfo in result:
-    let currentVer = pkgInfo.getConcreteVersion(options)
-    if pkgsInPath.hasKey(pkgInfo.basicInfo.name) and
-       pkgsInPath[pkgInfo.basicInfo.name] != currentVer:
-      raise nimbleError(
-        "Cannot satisfy the dependency on $1 $2 and $1 $3" %
-          [pkgInfo.basicInfo.name, $currentVer, $pkgsInPath[pkgInfo.basicInfo.name]])
-    pkgsInPath[pkgInfo.basicInfo.name] = currentVer
-
-  # We add the reverse deps to the JSON file here because we don't want
-  # them added if the above errorenous condition occurs
-  # (unsatisfiable dependendencies).
-  # N.B. NimbleData is saved in installFromDir.
-  for i in reverseDependencies:
-    addRevDep(options.nimbleData, i, pkgInfo)
-
 proc buildFromDir(pkgInfo: PackageInfo, paths: HashSet[string],
                   args: seq[string], options: Options) =
   ## Builds a package as specified by ``pkgInfo``.
@@ -297,20 +209,8 @@ proc packageExists(pkgInfo: PackageInfo, options: Options):
     fillMetaData(oldPkgInfo, pkgDestDir, true)
     return some(oldPkgInfo)
 
-proc processLockedDependencies(pkgInfo: PackageInfo, options: Options):
-  HashSet[PackageInfo]
-
-proc processAllDependencies(pkgInfo: PackageInfo, options: Options):
-    HashSet[PackageInfo] =
-  if pkgInfo.lockedDeps.len > 0:
-    pkgInfo.processLockedDependencies(options)
-  else:
-    pkgInfo.processFreeDependencies(options)
-
-proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
-                    url: string, first: bool, fromLockFile: bool,
-                    vcsRevision = notSetSha1Hash):
-    PackageDependenciesInfo =
+proc installFromDir(dir: string, options: Options,
+                    paths: HashSet[string], url: string, pkgInfo: var PackageInfo) =
   ## Returns where package has been installed to, together with paths
   ## to the packages this package depends on.
   ##
@@ -324,65 +224,25 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
   ##   True if we are installing dependencies from the lock file.
 
   # Handle pre-`install` hook.
-  if not options.depsOnly:
-    cd dir: # Make sure `execHook` executes the correct .nimble file.
-      if not execHook(options, actionInstall, true):
-        raise nimbleError("Pre-hook prevented further execution.")
+  cd dir: # Make sure `execHook` executes the correct .nimble file.
+    if not execHook(options, actionInstall, true):
+      raise nimbleError("Pre-hook prevented further execution.")
 
-  var pkgInfo = getPkgInfo(dir, options)
   # Set the flag that the package is not in develop mode before saving it to the
   # reverse dependencies.
   pkgInfo.isLink = false
-  if vcsRevision != notSetSha1Hash:
-    ## In the case we downloaded the package as tarball we have to set the VCS
-    ## revision returned by download procedure because it cannot be queried from
-    ## the package directory.
-    pkgInfo.metaData.vcsRevision = vcsRevision
 
   let realDir = pkgInfo.getRealDir()
   let binDir = options.getBinDir()
-  var depsOptions = options
-  depsOptions.depsOnly = false
-
-  if requestedVer.kind == verSpecial:
-    # Add a version alias to special versions set if requested version is a
-    # special one.
-    pkgInfo.metaData.specialVersions.incl requestedVer.spe
-
-  # Dependencies need to be processed before the creation of the pkg dir.
-  if first and pkgInfo.lockedDeps.len > 0:
-    result.deps = pkgInfo.processLockedDependencies(depsOptions)
-  elif not fromLockFile:
-    result.deps = pkgInfo.processFreeDependencies(depsOptions)
-
-  if options.depsOnly:
-    result.pkg = pkgInfo
-    return result
 
   display("Installing", "$1@$2" %
     [pkginfo.basicInfo.name, $pkginfo.basicInfo.version],
     priority = HighPriority)
 
-  let oldPkg = pkgInfo.packageExists(options)
-  if oldPkg.isSome:
-    # In the case we already have the same package in the cache then only merge
-    # the new package special versions to the old one.
-    displayWarning(pkgAlreadyExistsInTheCacheMsg(pkgInfo))
-    var oldPkg = oldPkg.get
-    oldPkg.metaData.specialVersions.incl pkgInfo.metaData.specialVersions
-    saveMetaData(oldPkg.metaData, oldPkg.getNimbleFileDir, changeRoots = false)
-    if result.deps.contains oldPkg:
-      result.deps[oldPkg].metaData.specialVersions.incl(
-        oldPkg.metaData.specialVersions)
-    result.deps.incl oldPkg
-    result.pkg = oldPkg
-    return
-
   # Build before removing an existing package (if one exists). This way
   # if the build fails then the old package will still be installed.
 
   if pkgInfo.bin.len > 0:
-    let paths = result.deps.map(dep => dep.getRealDir())
     let flags = if options.action.typ in {actionInstall, actionPath, actionUninstall, actionDevelop}:
                   options.action.passNimFlags
                 else:
@@ -460,9 +320,6 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
   pkgInfo.isInstalled = true
 
   displaySuccess(pkgInstalledMsg(pkgInfo.basicInfo.name))
-
-  result.deps.incl pkgInfo
-  result.pkg = pkgInfo
 
   # Run post-install hook now that package is installed. The `execHook` proc
   # executes the hook defined in the CWD, so we set it to where the package
@@ -560,24 +417,25 @@ proc downloadDependency(name: string, dep: LockFileDep, options: Options):
 proc installDependency(pkgInfo: PackageInfo, downloadInfo: DownloadInfo,
                        options: Options): PackageInfo =
   ## Installs an already downloaded dependency of the package `pkgInfo`.
-  let (_, newlyInstalledPkgInfo) = installFromDir(
-    downloadInfo.downloadDir,
-    downloadInfo.version,
-    options,
-    downloadInfo.url,
-    first = false,
-    fromLockFile = true,
-    downloadInfo.vcsRevision)
+  ## TODO
+  #let (_, newlyInstalledPkgInfo) = installFromDir(
+  #  downloadInfo.downloadDir,
+  #  downloadInfo.version,
+  #  options,
+  #  downloadInfo.url,
+  #  first = false,
+  #  fromLockFile = true,
+  #  downloadInfo.vcsRevision)
 
-  downloadInfo.downloadDir.removeDir
+  #downloadInfo.downloadDir.removeDir
 
-  for depDepName in downloadInfo.dependency.dependencies:
-    let depDep = pkgInfo.lockedDeps[depDepName]
-    let revDep = (name: depDepName, version: depDep.version,
-                  checksum: depDep.checksums.sha1)
-    options.nimbleData.addRevDep(revDep, newlyInstalledPkgInfo)
+  #for depDepName in downloadInfo.dependency.dependencies:
+  #  let depDep = pkgInfo.lockedDeps[depDepName]
+  #  let revDep = (name: depDepName, version: depDep.version,
+  #                checksum: depDep.checksums.sha1)
+  #  options.nimbleData.addRevDep(revDep, newlyInstalledPkgInfo)
 
-  return newlyInstalledPkgInfo
+  #return newlyInstalledPkgInfo
 
 proc processLockedDependencies(pkgInfo: PackageInfo, options: Options):
     HashSet[PackageInfo] =
@@ -627,54 +485,255 @@ proc getDownloadInfo*(pv: PkgTuple, options: Options,
       else:
         raise nimbleError(pkgNotFoundMsg(pv))
 
-proc install(packages: seq[PkgTuple], options: Options,
-             doPrompt, first, fromLockFile: bool): PackageDependenciesInfo =
-  ## ``first``
-  ##   True if this is the first level of the indirect recursion.
-  ## ``fromLockFile``
-  ##   True if we are installing dependencies from the lock file.
+proc installIteration(packages: seq[PkgTuple],
+             options: Options,
+             doPrompt = true): seq[PackageInfo] =
+  type
+    InstallConstraint =
+      tuple[
+        source: string,
+        version: VersionRange
+      ]
 
-  if packages == @[]:
+    InstallInfo =
+      tuple[
+        package: PackageInfo,
+        version: Version,
+        downloadDir: string,
+        url: string,
+      ]
+
+  var
+    pkgList = getInstalledPkgsMin(options.getPkgsDir(), options)
+    installConstraints: Table[string, seq[InstallConstraint]]
+    dependencies: Table[string, seq[string]]
+    installInfo: Table[string, InstallInfo]
+    toProcess: seq[string]
+
+  for package in packages:
+    let constraintTuple = ("user", package.ver)
+    if package.name == "nimrod" or package.name == "nim":
+      let nimVer = getNimrodVersion(options)
+      if not withinRange(nimVer, package.ver):
+        let msg = "Unsatisfied dependency: " & package.name & " (" & $package.ver & ")"
+        raise newException(NimbleError, msg)
+      continue
+    if package.name in installConstraints:
+      installConstraints[package.name] &= constraintTuple
+    else:
+      installConstraints[package.name] = @[constraintTuple]
+      toProcess.add(package.name)
+
+  # For each thing to install:
+  # - Create a version range using all constraints
+  # - Get all deps, add constraint on each of them
+  # - If a dep has already been installed, and we have a new incompatible
+  #   constraint, put it back in the list
+  while toProcess.len > 0:
+    var packageName = toProcess[0]
+    let packageConstraints = installConstraints[packageName]
+    toProcess.delete(0)
+
+    display("Checking",
+            "$1 required by: $2" % [packageName, packageConstraints.mapIt(it.source & " (" & $it.version & ")").join(", ")],
+            priority = HighPriority)
+
+    # Compute versions constraints
+    var
+      combinedVersion = none(VersionRange)
+      specialVersion = none(Version)
+    try:
+      for constraint in packageConstraints:
+        if constraint.version.kind == verSpecial:
+          specialVersion =
+            some(if specialVersion.isSome and specialVersion.get() != constraint.version.spe:
+              raise newException(NimbleError, "Non-compatible special versions")
+            else:
+              constraint.version.spe)
+        else:
+          combinedVersion =
+            some(if combinedVersion.isSome:
+              combinedVersion.get().refine(constraint.version)
+            else:
+              constraint.version)
+    except NimbleError:
+      raise newException(NimbleError, "Cannot satisfy the dependencies on $1" % [packageName])
+
+    var pkgTuple = (
+      name: packageName,
+      ver: if specialVersion.isSome: toVersionRange(specialVersion.get()) else: combinedVersion.get()
+    )
+
+    if packageName in dependencies:
+      # We already have ran this package before
+      # clean it up from previous dependencies
+      # and remove no longer used packages
+      var noLongerRequired: seq[string]
+      for otherPackage in dependencies[packageName]:
+        installConstraints[otherPackage].keepItIf(it.source != packageName)
+        if installConstraints[otherPackage].len == 0:
+          noLongerRequired.add(otherPackage)
+      dependencies.del(packageName)
+      for otherPackage in noLongerRequired:
+        dependencies.del(otherPackage)
+        installInfo.del(otherPackage)
+        installConstraints.del(otherPackage)
+
+
+    var
+      downloadDir: string
+      downloadUrl: string
+      downloadVersion = notSetVersion
+      vcsRevision = notSetSha1Hash
+
+    var package: PackageInfo = initPackageInfo()
+    if not pkgList.findPkg(pkgTuple, package):
+      # Not already installed
+      # Download it to get it's metadata
+      let (meth, url, metadata) = getDownloadInfo(pkgTuple, options, doPrompt)
+      let subdir = metadata.getOrDefault("subdir")
+
+      (downloadDir, downloadVersion, vcsRevision) = downloadPkg(url, pkgTuple.ver, meth, subdir, options, downloadPath = "", vcsRevision = notSetSha1Hash)
+      downloadUrl = url
+      package = getPkgInfo(downloadDir, options)
+
+    if package.basicInfo.name != packageName:
+      let resolvedName = package.basicInfo.name
+      # We resolved the real package name
+
+      # We have to replace the old name
+      for otherDep in dependencies.keys():
+        dependencies[otherDep].applyIt(if it == packageName: resolvedName else: it)
+
+      installConstraints.del(packageName)
+
+      if resolvedName in installConstraints:
+        installConstraints[resolvedName] &= packageConstraints
+
+        if resolvedName in installInfo and resolvedName notin toProcess:
+          let currentVersion = installInfo[resolvedName].version
+          # Check that our constraints are compatible
+          # otherwise, recompute this package
+          for constraint in packageConstraints:
+            if not currentVersion.withinRange(constraint.version):
+              toProcess.add(resolvedName)
+              break
+        continue
+      else:
+        # This is the first time we hear about this package
+        # let's continue after renaming it correctly
+        packageName = resolvedName
+        installConstraints[packageName] = packageConstraints
+        pkgTuple.name = packageName
+
+        if pkgList.findPkg(pkgTuple, package):
+          # The resolved package is already installed
+          downloadDir = ""
+
+    package = package.toFullInfo(options)
+
+    # If we used a special version, check that the combined constraints
+    # are also compatible
+    if combinedVersion.isSome and not package.basicInfo.version.withinRange(combinedVersion.get()):
+      raise newException(NimbleError, "Cannot satisfy the dependencies on $1" % [packageName])
+
+    if specialVersion.isSome:
+      package.metaData.specialVersions.incl(specialVersion.get())
+
+    installInfo[packageName] = (
+      package: package,
+      version: package.basicInfo.version,
+      downloadDir: downloadDir,
+      url: downloadUrl
+    )
+
+    # Check its deps
+    var deps: seq[string]
+    for dep in package.requires:
+      if dep.name == "nimrod" or dep.name == "nim":
+        let nimVer = getNimrodVersion(options)
+        if not withinRange(nimVer, dep.ver):
+          let msg = "Unsatisfied dependency: " & dep.name & " (" & $dep.ver & ")"
+          raise newException(NimbleError, msg)
+
+      else:
+        var depPackage: PackageInfo = initPackageInfo()
+        let
+          resolvedDep =
+            (name: dep.name.removeTrailingGitString,
+            ver: dep.ver).resolveAlias(options)
+          resolvedName =
+            if pkgList.findPkg(resolvedDep, depPackage):
+              depPackage.basicInfo.name
+            else: resolvedDep.name
+
+          constraintTuple = (packageName, resolvedDep.ver)
+
+        if resolvedName in installConstraints:
+          # Adds our constraint
+          if constraintTuple notin installConstraints[resolvedName]:
+            installConstraints[resolvedName].add(constraintTuple)
+
+            # Are we compatible?
+            if resolvedName in installInfo and resolvedName notin toProcess:
+              if not installInfo[resolvedName].version.withinRange(resolvedDep.ver):
+                # No, recompute this package
+                toProcess.add(resolvedName)
+        else:
+          # New package, add it
+          installConstraints[resolvedName] = @[constraintTuple]
+          toProcess.add(resolvedName)
+        deps.add(resolvedName)
+      dependencies[packageName] = deps
+
+  # Install missing packages
+  toProcess = toSeq(installInfo.keys())
+  while toProcess.len > 0:
+    let packageName = toProcess[0]
+    toProcess.delete(0)
+
+    var depPaths: seq[string]
+    # Dumb dependency solver
+    for dep in dependencies[packageName]:
+      if dep in toProcess:
+        toProcess.add(packageName)
+        break
+      depPaths.add(installInfo[dep].package.getRealDir())
+    if packageName in toProcess: continue
+
+    if installInfo[packageName].downloadDir.len > 0:
+      # This will save output data to package directly
+      installFromDir(installInfo[packageName].downloadDir, options, depPaths.toHashSet(), installInfo[packageName].url, installInfo[packageName].package)
+
+      for dep in dependencies[packageName]:
+        addRevDep(options.nimbleData, installInfo[dep].package.basicInfo, installInfo[packageName].package)
+
+    result.add installInfo[packageName].package
+
+
+proc install(packages: seq[PkgTuple],
+             options: Options,
+             doPrompt = true): seq[PackageInfo] =
+  if packages.len == 0:
     let currentDir = getCurrentDir()
     if currentDir.developFileExists:
       displayWarning(
         "Installing a package which currently has develop mode dependencies." &
         "\nThey will be ignored and installed as normal packages.")
-    result = installFromDir(currentDir, newVRAny(), options, "", first,
-                            fromLockFile)
+    var pkgInfo = getPkgInfo(currentDir, options)
+    result = installIteration(pkgInfo.requires, options, doPrompt)
+    if not options.depsOnly:
+      installFromDir(getCurrentDir(), options, result.map(it => it.getRealDir()).toHashSet(), "", pkgInfo)
+      result.add(pkgInfo)
   else:
-    # Install each package.
-    for pv in packages:
-      let (meth, url, metadata) = getDownloadInfo(pv, options, doPrompt)
-      let subdir = metadata.getOrDefault("subdir")
-      let (downloadDir, downloadVersion, vcsRevision) =
-        downloadPkg(url, pv.ver, meth, subdir, options,
-                    downloadPath = "", vcsRevision = notSetSha1Hash)
-      try:
-        result = installFromDir(downloadDir, pv.ver, options, url,
-                                first, fromLockFile, vcsRevision)
-      except BuildFailed as error:
-        # The package failed to build.
-        # Check if we tried building a tagged version of the package.
-        let headVer = getHeadName(meth)
-        if pv.ver.kind != verSpecial and downloadVersion != headVer and
-           not fromLockFile:
-          # If we tried building a tagged version of the package and this is not
-          # fixed in the lock file version then ask the user whether they want
-          # to try building #head.
-          let promptResult = doPrompt and
-              options.prompt(("Build failed for '$1@$2', would you" &
-                  " like to try installing '$1@#head' (latest unstable)?") %
-                  [pv.name, $downloadVersion])
-          if promptResult:
-            let toInstall = @[(pv.name, headVer.toVersionRange())]
-            result =  install(toInstall, options, doPrompt, first,
-                              fromLockFile = false)
-          else:
-            raise buildFailed(
-              "Aborting installation due to build failure.", details = error)
-        else:
-          raise
+    result = installIteration(packages, options, doPrompt)
+
+proc processAllDependencies(pkgInfo: PackageInfo, options: Options):
+    HashSet[PackageInfo] =
+  if pkgInfo.lockedDeps.len > 0:
+    install(toSeq(pkgInfo.lockedDeps.pairs()).map(it => (name: it[0], ver: it[1].version.toVersionRange)), options).toHashSet()
+  else:
+    install(pkgInfo.requires, options).toHashSet()
 
 proc getDependenciesPaths(pkgInfo: PackageInfo, options: Options):
     HashSet[string] =
@@ -1544,7 +1603,7 @@ proc lock(options: Options) =
   let doesLockFileExist = displayLockOperationStart(currentDir)
   validateDevModeDepsWorkingCopiesBeforeLock(pkgInfo, options)
 
-  let dependencies = pkgInfo.processFreeDependencies(options).map(
+  let dependencies = pkgInfo.requires.install(options).map(
     pkg => pkg.toFullInfo(options)).toSeq
   pkgInfo.validateDevelopDependenciesVersionRanges(dependencies, options)
   var dependencyGraph = buildDependencyGraph(dependencies, options)
@@ -1838,10 +1897,9 @@ proc doAction(options: var Options) =
   of actionRefresh:
     refresh(options)
   of actionInstall:
-    let (_, pkgInfo) = install(options.action.packages, options,
-                               doPrompt = true,
-                               first = true,
-                               fromLockFile = false)
+    let
+      pkgs = install(options.action.packages, options)
+      pkgInfo = pkgs[^1]
     if options.action.packages.len == 0:
       nimScriptHint(pkgInfo)
     if pkgInfo.foreignDeps.len > 0:
