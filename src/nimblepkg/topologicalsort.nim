@@ -33,7 +33,7 @@ proc buildDependencyGraph*(packages: seq[PackageInfo], options: Options):
       vcsRevision: pkgInfo.metaData.vcsRevision,
       url: pkgInfo.metaData.url,
       downloadMethod: pkgInfo.metaData.downloadMethod,
-      dependencies: getDependencies(packages, pkgInfo, options),
+      #dependencies: getDependencies(packages, pkgInfo, options),
       checksums: Checksums(sha1: pkgInfo.basicInfo.checksum))
 
 proc topologicalSort*(graph: LockFileDeps):
