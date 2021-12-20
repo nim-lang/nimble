@@ -1138,6 +1138,21 @@ proc listTasks(options: Options) =
 
 proc developAllDependencies(pkgInfo: PackageInfo, options: var Options)
 
+proc saveLinkFile(pkgInfo: PackageInfo, options: Options) =
+  let
+    pkgName = pkgInfo.basicInfo.name
+    pkgLinkDir = options.getPkgsLinksDir / pkgName & "-#head"
+    pkgLinkFilePath = pkgLinkDir / pkgName & ".nimble-link"
+    pkgLinkFileContent = pkgInfo.myPath & "\n" & pkgInfo.getNimbleFileDir
+
+  if pkgLinkDir.dirExists and not options.prompt(
+    &"The link file for {pkgName} already exists. Overwrite?"):
+    return
+
+  pkgLinkDir.createDir
+  writeFile(pkgLinkFilePath, pkgLinkFileContent)
+  displaySuccess(&"Package link file saved to \"{pkgLinkFilePath}\".")
+
 proc developFromDir(pkgInfo: PackageInfo, options: var Options) =
   assert options.action.typ == actionDevelop,
     "This procedure should be called only when executing develop sub-command."
@@ -1172,6 +1187,9 @@ proc developFromDir(pkgInfo: PackageInfo, options: var Options) =
     else:
       # Dependencies need to be processed before the creation of the pkg dir.
       discard processAllDependencies(pkgInfo, options)
+
+  if options.action.global:
+    saveLinkFile(pkgInfo, options)
 
   displaySuccess(pkgSetupInDevModeMsg(pkgInfo.basicInfo.name, dir))
 
