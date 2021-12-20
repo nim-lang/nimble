@@ -448,6 +448,7 @@ proc installIteration(packages: seq[PkgTuple],
     toProcess: seq[string]
 
   for package in packages:
+    if package.name.len == 0: continue
     let constraintTuple = ("user", package.ver)
     if package.name == "nimrod" or package.name == "nim":
       let nimVer = getNimrodVersion(options)
@@ -664,6 +665,8 @@ proc install(packages: seq[PkgTuple],
     result = installIteration(pkgInfo.requires, options, doPrompt, fromLockFile)
     if not options.depsOnly:
       installFromDir(getCurrentDir(), options, result.map(it => it.getRealDir()).toHashSet(), "", pkgInfo)
+      for dep in result:
+        addRevDep(options.nimbleData, dep.basicInfo, pkgInfo)
       result.add(pkgInfo)
   else:
     result = installIteration(packages, options, doPrompt, fromLockFile)
