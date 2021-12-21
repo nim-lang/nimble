@@ -421,10 +421,11 @@ proc getDownloadInfo*(pv: PkgTuple, options: Options,
       else:
         raise nimbleError(pkgNotFoundMsg(pv))
 
-proc installIteration(packages: seq[PkgTuple],
-             options: Options,
-             doPrompt = true,
-             fromLockfile = false): seq[PackageInfo] =
+proc installIteration(pkgList: seq[PackageInfo],
+                      packages: seq[PkgTuple],
+                      options: Options,
+                      doPrompt = true,
+                      fromLockfile = false): seq[PackageInfo] =
   type
     InstallConstraint =
       tuple[
@@ -441,7 +442,6 @@ proc installIteration(packages: seq[PkgTuple],
       ]
 
   var
-    pkgList = getInstalledPkgsMin(options.getPkgsDir(), options)
     installConstraints: Table[string, seq[InstallConstraint]]
     dependencies: Table[string, seq[string]]
     installInfo: Table[string, InstallInfo]
@@ -651,38 +651,51 @@ proc installIteration(packages: seq[PkgTuple],
 
     result.add installInfo[packageName].package
 
+proc install(pkgInfo: PackageInfo,
+             options: Options,
+             doPrompt = true): seq[PackageInfo] =
+  var pkgList = getInstalledPkgsMin(options.getPkgsDir(), options)
+  #TODO
+  #let currentDir = getCurrentDir()
+  #if currentDir.developFileExists:
+  #  displayWarning(
+  #    "Installing a package which currently has develop mode dependencies." &
+  #    "\nThey will be ignored and installed as normal packages.")
+  #var pkgInfo = getPkgInfo(currentDir, options)
+
+  let developDeps = processDevelopDependencies(pkgInfo, options)
+
+  result =
+    if pkgInfo.lockedDeps.len > 0:
+      let lockedDeps = toSeq(pkgInfo.lockedDeps.pairs()).map(it =>
+        (
+          #TODO download method is not used
+          name: it[1].url,
+          ver: ("#" & $it[1].vcsRevision).parseVersionRange
+        ))
+      #TODO check hashes
+      installIteration(concat(pkgList, developDeps), lockedDeps, options, doPrompt, fromLockfile=true)
+    else:
+      installIteration(concat(pkgList, developDeps), pkgInfo.requires, options, doPrompt, fromLockfile=false)
+
+  for dep in result:
+    addRevDep(options.nimbleData, dep.basicInfo, pkgInfo)
+
+  if not options.depsOnly:
+    var resultPkgInfo = pkgInfo
+    installFromDir(getCurrentDir(), options, result.map(it => it.getRealDir()).toHashSet(), "", resultPkgInfo)
+    result.add(resultPkgInfo)
+
 proc install(packages: seq[PkgTuple],
              options: Options,
              doPrompt = true,
              fromLockfile = false): seq[PackageInfo] =
-  if packages.len == 0:
-    let currentDir = getCurrentDir()
-    if currentDir.developFileExists:
-      displayWarning(
-        "Installing a package which currently has develop mode dependencies." &
-        "\nThey will be ignored and installed as normal packages.")
-    var pkgInfo = getPkgInfo(currentDir, options)
-    result = installIteration(pkgInfo.requires, options, doPrompt, fromLockFile)
-    if not options.depsOnly:
-      installFromDir(getCurrentDir(), options, result.map(it => it.getRealDir()).toHashSet(), "", pkgInfo)
-      for dep in result:
-        addRevDep(options.nimbleData, dep.basicInfo, pkgInfo)
-      result.add(pkgInfo)
-  else:
-    result = installIteration(packages, options, doPrompt, fromLockFile)
+  var pkgList = getInstalledPkgsMin(options.getPkgsDir(), options)
+  installIteration(pkgList, packages, options, doPrompt, fromLockFile)
 
 proc processAllDependencies(pkgInfo: PackageInfo, options: Options):
     HashSet[PackageInfo] =
-  if pkgInfo.lockedDeps.len > 0:
-    install(toSeq(pkgInfo.lockedDeps.pairs()).map(it =>
-      (
-        #TODO download method is not used
-        name: it[1].url,
-        ver: ("#" & $it[1].vcsRevision).parseVersionRange
-      )), options, fromLockFile = true).toHashSet()
-    #TODO check hashes
-  else:
-    install(pkgInfo.requires, options).toHashSet()
+  install(pkgInfo, options).toHashSet()
 
 proc getDependenciesPaths(pkgInfo: PackageInfo, options: Options):
     HashSet[string] =
@@ -1831,9 +1844,17 @@ proc doAction(options: var Options) =
   of actionRefresh:
     refresh(options)
   of actionInstall:
-    let
-      pkgs = install(options.action.packages, options)
-      pkgInfo = pkgs[^1]
+    let pkgs =
+      if options.action.packages.len == 0:
+        # Install currentDir
+        let
+          currentDir = getCurrentDir()
+          pkgInfo = getPkgInfo(currentDir, options)
+        install(pkgInfo, options)
+      else:
+        install(options.action.packages, options)
+
+    let pkgInfo = pkgs[^1]
     if options.action.packages.len == 0:
       nimScriptHint(pkgInfo)
     if pkgInfo.foreignDeps.len > 0:
