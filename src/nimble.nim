@@ -1151,7 +1151,7 @@ proc saveLinkFile(pkgInfo: PackageInfo, options: Options) =
 
   pkgLinkDir.createDir
   writeFile(pkgLinkFilePath, pkgLinkFileContent)
-  displaySuccess(&"Package link file saved to \"{pkgLinkFilePath}\".")
+  displaySuccess(pkgLinkFileSavedMsg(pkgLinkFilePath))
 
 proc developFromDir(pkgInfo: PackageInfo, options: var Options) =
   assert options.action.typ == actionDevelop,
