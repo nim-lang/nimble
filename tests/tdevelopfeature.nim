@@ -566,8 +566,8 @@ suite "develop feature":
         let (output, exitCode) = execNimble("run", "-n")
         check exitCode == QuitFailure
         var lines = output.processOutput
-        check lines.inLinesOrdered(failedToLoadFileMsg(pkg1DevFileAbsPath))
-        check lines.inLinesOrdered(pkgFoundMoreThanOnceMsg("pkg3",
+        check lines.inLines(failedToLoadFileMsg(pkg1DevFileAbsPath))
+        check lines.inLines(pkgFoundMoreThanOnceMsg("pkg3",
           [(pkg3AbsPath.Path, pkg1DevFileAbsPath.Path),
            (pkg32AbsPath.Path, pkg2DevFileAbsPath.Path)].toHashSet))
 
@@ -622,9 +622,9 @@ suite "develop feature":
         let (output, exitCode) = execNimble("run", "-n")
         check exitCode == QuitSuccess
         var lines = output.processOutput
-        check lines.inLinesOrdered(
+        check lines.inLines(
           pkgDepsAlreadySatisfiedMsg(("pkg2", anyVersion)))
-        check lines.inLinesOrdered(
+        check lines.inLines(
           pkgDepsAlreadySatisfiedMsg(("pkg3", anyVersion)))
 
   test "do not filter used included develop dependencies":
@@ -673,11 +673,11 @@ suite "develop feature":
         let (output, exitCode) = execNimble("run", "-n")
         check exitCode == QuitSuccess
         var lines = output.processOutput
-        check lines.inLinesOrdered(
+        check lines.inLines(
           pkgDepsAlreadySatisfiedMsg(("pkg2", anyVersion)))
-        check lines.inLinesOrdered(
+        check lines.inLines(
           pkgDepsAlreadySatisfiedMsg(("pkg3", anyVersion)))
-        check lines.inLinesOrdered(
+        check lines.inLines(
           pkgDepsAlreadySatisfiedMsg(("pkg3", anyVersion)))
 
   test "version clash with not used included develop dependencies":
@@ -799,7 +799,7 @@ suite "develop feature":
           freeDevFile1Path = (".." / freeDevFile1Name).Path
           freeDevFile2Path = (".." / freeDevFile2Name).Path
 
-        check lines.inLinesOrdered(pkgFoundMoreThanOnceMsg("pkg3",
+        check lines.inLines(pkgFoundMoreThanOnceMsg("pkg3",
           [(pkg3Path, freeDevFile1Path),
            (pkg32Path, freeDevFile2Path)].toHashSet))
 

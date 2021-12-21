@@ -425,7 +425,8 @@ proc installIteration(pkgList: seq[PackageInfo],
                       packages: seq[PkgTuple],
                       options: Options,
                       doPrompt = true,
-                      fromLockfile = false): seq[PackageInfo] =
+                      fromLockfile = false,
+                      parentDep = none(PackageInfo)): seq[PackageInfo] =
   type
     InstallConstraint =
       tuple[
@@ -437,6 +438,7 @@ proc installIteration(pkgList: seq[PackageInfo],
       tuple[
         package: PackageInfo,
         version: Version,
+        requestedVersion: VersionRange,
         downloadDir: string,
         url: string,
       ]
@@ -581,6 +583,7 @@ proc installIteration(pkgList: seq[PackageInfo],
     installInfo[packageName] = (
       package: package,
       version: package.basicInfo.version,
+      requestedVersion: pkgTuple.ver,
       downloadDir: downloadDir,
       url: downloadUrl
     )
@@ -645,13 +648,18 @@ proc installIteration(pkgList: seq[PackageInfo],
     if installInfo[packageName].downloadDir.len > 0:
       # This will save output data to package directly
       installFromDir(installInfo[packageName].downloadDir, options, depPaths.toHashSet(), installInfo[packageName].url, installInfo[packageName].package)
-
-      for dep in dependencies[packageName]:
-        addRevDep(options.nimbleData, installInfo[dep].package.basicInfo, installInfo[packageName].package)
     else:
-      displayInfo(pkgDepsAlreadySatisfiedMsg((name: packageName, ver: installInfo[packageName].version.toVersionRange)))
+      displayInfo(pkgDepsAlreadySatisfiedMsg((name: packageName, ver: installInfo[packageName].requestedVersion)))
+
+    # This should only be required when we install it
+    # But for some reason, tests fails if we only do that
+    for dep in dependencies[packageName]:
+      addRevDep(options.nimbleData, installInfo[dep].package.basicInfo, installInfo[packageName].package)
 
     result.add installInfo[packageName].package
+
+    if parentDep.isSome and installConstraints[packageName].filterIt(it.source == "user").len > 0:
+      addRevDep(options.nimbleData, installInfo[packageName].package.basicInfo, parentDep.get())
 
 proc install(pkgInfo: PackageInfo,
              options: Options,
@@ -676,12 +684,9 @@ proc install(pkgInfo: PackageInfo,
           ver: ("#" & $it[1].vcsRevision).parseVersionRange
         ))
       #TODO check hashes
-      installIteration(concat(pkgList, developDeps), lockedDeps, options, doPrompt, fromLockfile=true)
+      installIteration(concat(pkgList, developDeps), lockedDeps, options, doPrompt, fromLockfile=true, parentDep = some(pkgInfo))
     else:
-      installIteration(concat(pkgList, developDeps), pkgInfo.requires, options, doPrompt, fromLockfile=false)
-
-  for dep in result:
-    addRevDep(options.nimbleData, dep.basicInfo, pkgInfo)
+      installIteration(concat(pkgList, developDeps), pkgInfo.requires, options, doPrompt, fromLockfile=false, parentDep = some(pkgInfo))
 
   if not options.depsOnly:
     var resultPkgInfo = pkgInfo
