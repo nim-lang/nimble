@@ -293,8 +293,8 @@ packages for which the develop command is executed.
 manipulated. It is useful for creating a free develop file which is not 
 associated with any project intended for inclusion in some other develop file.
 * `-g, --global` - Creates an old style link file in the special `links`
-directory. It is read by Nim to be able to use global develop mode packages but
-it is ignored by Nimble.
+directory. It is read by Nim to be able to use global develop mode packages.
+Nimble uses it as a global develop file if a local one does not exist.
 
 The options for manipulation of the develop files could be given only when
 executing `develop` command from some package's directory unless

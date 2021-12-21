@@ -78,3 +78,9 @@ template cdNewDir*(dir: string, body: untyped) =
   createNewDir dir
   cd dir:
     body
+
+proc getLinkFileDir*(pkgName: string): string =
+  pkgName & "-#head"
+
+proc getLinkFileName*(pkgName: string): string =
+  pkgName & ".nimble-link"

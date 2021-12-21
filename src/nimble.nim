@@ -1141,8 +1141,8 @@ proc developAllDependencies(pkgInfo: PackageInfo, options: var Options)
 proc saveLinkFile(pkgInfo: PackageInfo, options: Options) =
   let
     pkgName = pkgInfo.basicInfo.name
-    pkgLinkDir = options.getPkgsLinksDir / pkgName & "-#head"
-    pkgLinkFilePath = pkgLinkDir / pkgName & ".nimble-link"
+    pkgLinkDir = options.getPkgsLinksDir / pkgName.getLinkFileDir
+    pkgLinkFilePath = pkgLinkDir / pkgName.getLinkFileName
     pkgLinkFileContent = pkgInfo.myPath & "\n" & pkgInfo.getNimbleFileDir
 
   if pkgLinkDir.dirExists and not options.prompt(
@@ -1449,10 +1449,9 @@ proc check(options: Options) =
   try:
     let currentDir = getCurrentDir()
     let pkgInfo = getPkgInfo(currentDir, options, true)
-    if currentDir.developFileExists:
-      validateDevelopFile(pkgInfo, options)
-      let dependencies = pkgInfo.processAllDependencies(options).toSeq
-      validateDevelopDependenciesVersionRanges(pkgInfo, dependencies, options)
+    validateDevelopFile(pkgInfo, options)
+    let dependencies = pkgInfo.processAllDependencies(options).toSeq
+    validateDevelopDependenciesVersionRanges(pkgInfo, dependencies, options)
     displaySuccess(&"The package \"{pkgInfo.basicInfo.name}\" is valid.")
   except CatchableError as error:
     displayError(error)
