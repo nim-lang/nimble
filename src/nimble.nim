@@ -425,8 +425,7 @@ proc installIteration(pkgList: seq[PackageInfo],
                       packages: seq[PkgTuple],
                       options: Options,
                       doPrompt = true,
-                      fromLockfile = false,
-                      parentDep = none(PackageInfo)): seq[PackageInfo] =
+                      fromLockfile = false): seq[(bool, PackageInfo)] =
   type
     InstallConstraint =
       tuple[
@@ -656,10 +655,8 @@ proc installIteration(pkgList: seq[PackageInfo],
     for dep in dependencies[packageName]:
       addRevDep(options.nimbleData, installInfo[dep].package.basicInfo, installInfo[packageName].package)
 
-    result.add installInfo[packageName].package
-
-    if parentDep.isSome and installConstraints[packageName].filterIt(it.source == "user").len > 0:
-      addRevDep(options.nimbleData, installInfo[packageName].package.basicInfo, parentDep.get())
+    let isDirectDep = installConstraints[packageName].filterIt(it.source == "user").len > 0
+    result.add (isDirectDep, installInfo[packageName].package)
 
 proc install(pkgInfo: PackageInfo,
              options: Options,
@@ -675,7 +672,7 @@ proc install(pkgInfo: PackageInfo,
 
   let developDeps = processDevelopDependencies(pkgInfo, options)
 
-  result =
+  let deps =
     if pkgInfo.lockedDeps.len > 0:
       let lockedDeps = toSeq(pkgInfo.lockedDeps.pairs()).map(it =>
         (
@@ -684,25 +681,33 @@ proc install(pkgInfo: PackageInfo,
           ver: ("#" & $it[1].vcsRevision).parseVersionRange
         ))
       #TODO check hashes
-      installIteration(concat(pkgList, developDeps), lockedDeps, options, doPrompt, fromLockfile=true, parentDep = some(pkgInfo))
+      installIteration(concat(pkgList, developDeps), lockedDeps, options, doPrompt, fromLockfile=true)
     else:
-      installIteration(concat(pkgList, developDeps), pkgInfo.requires, options, doPrompt, fromLockfile=false, parentDep = some(pkgInfo))
+      installIteration(concat(pkgList, developDeps), pkgInfo.requires, options, doPrompt, fromLockfile=false)
+
+  result = deps.map(x => x[1])
 
   if not options.depsOnly:
     var resultPkgInfo = pkgInfo
     installFromDir(getCurrentDir(), options, result.map(it => it.getRealDir()).toHashSet(), "", resultPkgInfo)
     result.add(resultPkgInfo)
 
+    for dep in deps:
+      if dep[0]:
+        addRevDep(options.nimbleData, dep[1].basicInfo, resultPkgInfo)
+
 proc install(packages: seq[PkgTuple],
              options: Options,
              doPrompt = true,
              fromLockfile = false): seq[PackageInfo] =
   var pkgList = getInstalledPkgsMin(options.getPkgsDir(), options)
-  installIteration(pkgList, packages, options, doPrompt, fromLockFile)
+  installIteration(pkgList, packages, options, doPrompt, fromLockFile).map(x => x[1])
 
 proc processAllDependencies(pkgInfo: PackageInfo, options: Options):
     HashSet[PackageInfo] =
-  install(pkgInfo, options).toHashSet()
+  var optionsCopy = options
+  optionsCopy.depsOnly = true
+  install(pkgInfo, optionsCopy).toHashSet()
 
 proc getDependenciesPaths(pkgInfo: PackageInfo, options: Options):
     HashSet[string] =
