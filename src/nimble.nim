@@ -648,6 +648,8 @@ proc installIteration(pkgList: seq[PackageInfo],
 
       for dep in dependencies[packageName]:
         addRevDep(options.nimbleData, installInfo[dep].package.basicInfo, installInfo[packageName].package)
+    else:
+      displayInfo(pkgDepsAlreadySatisfiedMsg((name: packageName, ver: installInfo[packageName].version.toVersionRange)))
 
     result.add installInfo[packageName].package
 
