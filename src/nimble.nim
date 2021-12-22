@@ -55,7 +55,7 @@ proc refresh(options: Options) =
     for name, list in options.config.packageLists:
       fetchList(list, options)
 
-proc buildFromDir(pkgInfo: PackageInfo, paths: HashSet[string],
+proc buildFromDir(pkgInfo: PackageInfo, paths: seq[string],
                   args: seq[string], options: Options) =
   ## Builds a package as specified by ``pkgInfo``.
   # Handle pre-`build` hook.
@@ -202,7 +202,7 @@ proc packageExists(pkgInfo: PackageInfo, options: Options):
     return some(oldPkgInfo)
 
 proc installFromDir(dir: string, options: Options,
-                    paths: HashSet[string], url: string, pkgInfo: var PackageInfo) =
+                    paths: seq[string], url: string, pkgInfo: var PackageInfo) =
   ## Returns where package has been installed to, together with paths
   ## to the packages this package depends on.
   ##
@@ -444,7 +444,7 @@ proc installIteration(pkgList: seq[PackageInfo],
 
   var
     installConstraints: Table[string, seq[InstallConstraint]]
-    dependencies: Table[string, seq[string]]
+    dependencies: OrderedTable[string, seq[string]]
     installInfo: Table[string, InstallInfo]
     toProcess: seq[string]
 
@@ -630,23 +630,18 @@ proc installIteration(pkgList: seq[PackageInfo],
       dependencies[packageName] = deps
 
   # Install missing packages
-  toProcess = toSeq(installInfo.keys())
-  while toProcess.len > 0:
-    let packageName = toProcess[0]
-    toProcess.delete(0)
+  var cycles: seq[seq[string]]
+  (toProcess, cycles) = topologicalSort(dependencies)
+  for packageName in toProcess:
+    if packageName notin installInfo: continue
 
     var depPaths: seq[string]
-    # Dumb dependency solver
     for dep in dependencies[packageName]:
-      if dep in toProcess:
-        toProcess.add(packageName)
-        break
       depPaths.add(installInfo[dep].package.getRealDir())
-    if packageName in toProcess: continue
 
     if installInfo[packageName].downloadDir.len > 0:
       # This will save output data to package directly
-      installFromDir(installInfo[packageName].downloadDir, options, depPaths.toHashSet(), installInfo[packageName].url, installInfo[packageName].package)
+      installFromDir(installInfo[packageName].downloadDir, options, depPaths, installInfo[packageName].url, installInfo[packageName].package)
     else:
       displayInfo(pkgDepsAlreadySatisfiedMsg((name: packageName, ver: installInfo[packageName].requestedVersion)))
 
@@ -695,7 +690,7 @@ proc install(pkgInfo: PackageInfo,
           addRevDep(options.nimbleData, dep[1].basicInfo, pkgInfo)
     else:
       var resultPkgInfo = pkgInfo
-      installFromDir(getCurrentDir(), options, result.map(it => it.getRealDir()).toHashSet(), "", resultPkgInfo)
+      installFromDir(getCurrentDir(), options, result.map(it => it.getRealDir()), "", resultPkgInfo)
       result.add(resultPkgInfo)
 
       for dep in deps:
@@ -710,13 +705,13 @@ proc install(packages: seq[PkgTuple],
   installIteration(pkgList, packages, options, doPrompt, fromLockFile).map(x => x[1])
 
 proc processAllDependencies(pkgInfo: PackageInfo, options: Options):
-    HashSet[PackageInfo] =
+    seq[PackageInfo] =
   var optionsCopy = options
   optionsCopy.depsOnly = true
-  install(pkgInfo, optionsCopy).toHashSet()
+  install(pkgInfo, optionsCopy)
 
 proc getDependenciesPaths(pkgInfo: PackageInfo, options: Options):
-    HashSet[string] =
+    seq[string] =
   let deps = pkgInfo.processAllDependencies(options)
   return deps.map(dep => dep.getRealDir())
 
@@ -1578,15 +1573,17 @@ proc lock(options: Options) =
   ## it if it already exists.
 
   let currentDir = getCurrentDir()
-  let pkgInfo = getPkgInfo(currentDir, options)
+  var pkgInfo = getPkgInfo(currentDir, options)
 
   let doesLockFileExist = displayLockOperationStart(currentDir)
   validateDevModeDepsWorkingCopiesBeforeLock(pkgInfo, options)
 
-  let dependencies = pkgInfo.requires.install(options).map(
-    pkg => pkg.toFullInfo(options)).buildDependencyGraph(options)
-  #pkgInfo.validateDevelopDependenciesVersionRanges(dependencies, options)
-  writeLockFile(dependencies, toSeq(dependencies.keys()))
+  pkgInfo.lockedDeps.clear()
+  let
+    dependencies = pkgInfo.processAllDependencies(options).map(pkg => pkg.toFullInfo(options)).toSeq()
+    dependenciesGraph = dependencies.buildDependencyGraph(options)
+  pkgInfo.validateDevelopDependenciesVersionRanges(dependencies, options)
+  writeLockFile(dependenciesGraph, toSeq(dependenciesGraph.keys()))
   updateSyncFile(pkgInfo, options)
   displayLockOperationFinish(doesLockFileExist)
 

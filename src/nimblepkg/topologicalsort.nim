@@ -36,7 +36,7 @@ proc buildDependencyGraph*(packages: seq[PackageInfo], options: Options):
       #dependencies: getDependencies(packages, pkgInfo, options),
       checksums: Checksums(sha1: pkgInfo.basicInfo.checksum))
 
-proc topologicalSort*(graph: LockFileDeps):
+proc topologicalSort*(graph: OrderedTable[string, seq[string]]):
     tuple[order: seq[string], cycles: seq[seq[string]]] =
   ## Topologically sorts dependency graph which will be saved to the lock file.
   ##
@@ -96,7 +96,7 @@ proc topologicalSort*(graph: LockFileDeps):
 
     nodeInfo.mark = nmTemporary
 
-    let neighbors = graph[node].dependencies
+    let neighbors = graph[node]
     for node2 in neighbors:
       nodesInfo[node2].cameFrom = node
       visit(node2)
@@ -130,14 +130,12 @@ when isMainModule:
     test "graph without cycles":
       let
         graph = {
-          "json_serialization": initLockFileDep(
-            @["serialization", "stew"]),
-          "faststreams": initLockFileDep(@["stew"]),
-          "testutils": initLockFileDep(),
-          "stew": initLockFileDep(),
-          "serialization": initLockFileDep(@["faststreams", "stew"]),
-          "chronicles": initLockFileDep(
-            @["json_serialization", "testutils"])
+          "json_serialization": @["serialization", "stew"],
+          "faststreams": @["stew"],
+          "testutils": @[],
+          "stew": @[],
+          "serialization": @["faststreams", "stew"],
+          "chronicles": @["json_serialization", "testutils"]
           }.toOrderedTable
 
         expectedTopologicallySortedOrder = @[
@@ -153,11 +151,11 @@ when isMainModule:
     test "graph with cycles":
       let
         graph = {
-          "A": initLockFileDep(@["B", "E"]),
-          "B": initLockFileDep(@["A", "C"]),
-          "C": initLockFileDep(@["D"]),
-          "D": initLockFileDep(@["B"]),
-          "E": initLockFileDep(@["D", "E"])
+          "A": @["B", "E"],
+          "B": @["A", "C"],
+          "C": @["D"],
+          "D": @["B"],
+          "E": @["D", "E"]
           }.toOrderedTable
 
         expectedTopologicallySortedOrder = @["D", "C", "B", "E", "A"]
