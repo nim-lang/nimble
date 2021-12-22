@@ -2,7 +2,7 @@
 # BSD License. Look at license.txt for more info.
 
 import sequtils, tables, strformat, algorithm, sets
-import common, packageinfotypes, packageinfo, options, cli
+import packageinfotypes, options, cli
 
 proc buildLockFileDeps*(packages: seq[PackageInfo], depGraph: Table[string, seq[string]], options: Options):
     LockFileDeps =

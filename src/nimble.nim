@@ -182,25 +182,6 @@ proc removePackage(pkgInfo: PackageInfo, options: Options) =
   reinstallSymlinksForOlderVersion(pkgDestDir, options)
   options.nimbleData.removeRevDep(pkgInfo)
 
-proc packageExists(pkgInfo: PackageInfo, options: Options):
-    Option[PackageInfo] =
-  ## Checks whether a package `pkgInfo` already exists in the Nimble cache. If a
-  ## package already exists returns the `PackageInfo` of the package in the
-  ## cache otherwise returns `none`. Raises a `NimbleError` in the case the
-  ## package exists in the cache but it is not valid.
-  let pkgDestDir = pkgInfo.getPkgDest(options)
-  if not fileExists(pkgDestDir / packageMetaDataFileName):
-    return none[PackageInfo]()
-  else:
-    var oldPkgInfo = initPackageInfo()
-    try:
-      oldPkgInfo = pkgDestDir.getPkgInfo(options)
-    except CatchableError as error:
-      raise nimbleError(&"The package inside \"{pkgDestDir}\" is invalid.",
-                        details = error)
-    fillMetaData(oldPkgInfo, pkgDestDir, true)
-    return some(oldPkgInfo)
-
 proc installFromDir(dir: string, options: Options,
                     paths: seq[string], url: string, pkgInfo: var PackageInfo) =
   ## Returns where package has been installed to, together with paths
@@ -1607,7 +1588,6 @@ proc lock(options: Options) =
   let doesLockFileExist = displayLockOperationStart(currentDir)
   validateDevModeDepsWorkingCopiesBeforeLock(pkgInfo, options)
 
-  pkgInfo.lockedDeps.clear()
   let
     packageList = getInstalledPkgsMin(options.getPkgsDir(), options)
     developDeps = processDevelopDependencies(pkgInfo, options)

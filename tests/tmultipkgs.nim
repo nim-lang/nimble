@@ -7,9 +7,9 @@ import unittest, os
 import testscommon
 
 from nimblepkg/common import nimblePackagesDirName
-from nimblepkg/version import `$`
+from nimblepkg/version import newVRAny
 from nimblepkg/sha1hashes import `$`
-from nimblepkg/displaymessages import pkgAlreadyExistsInTheCacheMsg
+from nimblepkg/displaymessages import pkgDepsAlreadySatisfiedMsg
 from nimblepkg/tools import getNameVersionChecksum
 
 template installAlpha =
@@ -33,7 +33,7 @@ suite "multi":
       let (name, version, checksum) = getNameVersionChecksum(dir)
       if name != "alpha": continue
       check lines.inLinesOrdered(
-        pkgAlreadyExistsInTheCacheMsg(name, $version, $checksum))
+        pkgDepsAlreadySatisfiedMsg((name: name, ver: newVRAny())))
       break
     check lines.inLinesOrdered("beta installed successfully")
 

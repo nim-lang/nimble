@@ -172,12 +172,17 @@ proc refine*(input_a, input_b: VersionRange): VersionRange =
     b = input_b
   if a.kind > b.kind: swap(a, b)
 
-  if b.kind == verEq or b.kind == verSpecial:
-    # Eq & Special are handled elsewhere
+  if b.kind == verSpecial:
+    # Special are handled elsewhere
     # Ignore them during refining
     return a
   if b.kind == verAny:
     return a
+
+  if b.kind == verEq:
+    if not b.ver.withinRange(a):
+      raise newException(NimbleError, "Can't refine range")
+    return b
 
   result = case a.kind
     of verEqLater, verLater:
