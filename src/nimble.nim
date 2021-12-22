@@ -184,12 +184,8 @@ proc removePackage(pkgInfo: PackageInfo, options: Options) =
 
 proc installFromDir(dir: string, options: Options,
                     paths: seq[string], url: string, pkgInfo: var PackageInfo) =
-  ## Returns where package has been installed to, together with paths
-  ## to the packages this package depends on.
-  ##
-  ## The return value of this function is used by
-  ## ``processFreeDependencies``
-  ##   To gather a list of paths to pass to the Nim compiler.
+  ## Installs a package which dependencies are already installed
+  ## Package is outputted in `pkgInfo`
 
   # Handle pre-`install` hook.
   cd dir: # Make sure `execHook` executes the correct .nimble file.
@@ -300,16 +296,6 @@ proc getDependencyDir(name: string, dep: LockFileDep, options: Options):
   ## Returns the installation directory for a dependency from the lock file.
   options.getPkgsDir() /  &"{name}-{dep.version}-{dep.checksums.sha1}"
 
-type
-  DownloadInfo = ref object
-    ## Information for a downloaded dependency needed for installation.
-    name: string
-    dependency: LockFileDep
-    url: string
-    version: VersionRange
-    downloadDir: string
-    vcsRevision: Sha1Hash
-
 proc developWithDependencies(options: Options): bool =
   ## Determines whether the current executed action is a develop sub-command
   ## with `--with-dependencies` flag.
@@ -319,6 +305,16 @@ proc raiseCannotCloneInExistingDirException(downloadDir: string) =
   let msg = "Cannot clone into '$1': directory exists." % downloadDir
   const hint = "Remove the directory, or run this command somewhere else."
   raise nimbleError(msg, hint)
+
+type
+  DownloadInfo = ref object
+    ## Information for a downloaded dependency needed for installation.
+    name: string
+    dependency: LockFileDep
+    url: string
+    version: VersionRange
+    downloadDir: string
+    vcsRevision: Sha1Hash
 
 proc downloadLockedDependency(name: string, dep: LockFileDep, options: Options):
     DownloadInfo =
@@ -406,7 +402,7 @@ proc isLockedInstalled(name: string, dep: LockFileDep, options: Options): bool =
 
 proc processLockedDependencies(pkgInfo: PackageInfo, options: Options):
     seq[PackageInfo] =
-  # Returns a hash set with `PackageInfo` of all packages from the lock file of
+  # Returns a seq with `PackageInfo` of all packages from the lock file of
   # the package `pkgInfo` by getting the info for develop mode dependencies from
   # their local file system directories and other packages from the Nimble
   # cache. If a package with required checksum is missing from the local cache
@@ -592,6 +588,8 @@ proc installIteration(pkgList: seq[PackageInfo],
       installConstraints.del(packageName)
 
       if resolvedName in installConstraints:
+        # The resolved name exist in our list
+        # Just add current constraints to it
         installConstraints[resolvedName] &= packageConstraints
 
         if resolvedName in installInfo and resolvedName notin toProcess:
@@ -718,13 +716,11 @@ proc install(pkgInfo: PackageInfo,
   if pkgInfo.lockedDeps.len > 0:
     return processLockedDependencies(pkgInfo, options)
   var pkgList = getInstalledPkgsMin(options.getPkgsDir(), options)
-  #TODO
-  #let currentDir = getCurrentDir()
-  #if currentDir.developFileExists:
+  #TODO do we still need this?
+  #if pkgInfo.getRealDir().developFileExists:
   #  displayWarning(
   #    "Installing a package which currently has develop mode dependencies." &
   #    "\nThey will be ignored and installed as normal packages.")
-  #var pkgInfo = getPkgInfo(currentDir, options)
 
   let developDeps = processDevelopDependencies(pkgInfo, options)
 
@@ -733,6 +729,8 @@ proc install(pkgInfo: PackageInfo,
   result = toSeq(deps.installed.values)
 
   if not options.depsOnly:
+    # fromDevelop: add deps without install
+    # not fromDevelop: install and add deps
     if fromDevelop:
       for dep in deps.directDeps:
         addRevDep(options.nimbleData, deps.installed[dep].basicInfo, pkgInfo)
