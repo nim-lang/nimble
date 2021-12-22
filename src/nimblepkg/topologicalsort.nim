@@ -13,7 +13,7 @@ proc buildLockFileDeps*(packages: seq[PackageInfo], depGraph: Table[string, seq[
       vcsRevision: pkgInfo.metaData.vcsRevision,
       url: pkgInfo.metaData.url,
       downloadMethod: pkgInfo.metaData.downloadMethod,
-      dependencies: depGraph.getOrDefault(pkgInfo.basicInfo.name),
+      dependencies: depGraph.getOrDefault(pkgInfo.basicInfo.name).sorted,
       checksums: Checksums(sha1: pkgInfo.basicInfo.checksum))
 
 proc topologicalSort*(graph: OrderedTable[string, seq[string]]):
