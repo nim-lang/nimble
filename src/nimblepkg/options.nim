@@ -48,7 +48,8 @@ type
     actionNil, actionRefresh, actionInit, actionDump, actionPublish,
     actionInstall, actionSearch, actionList, actionBuild, actionPath,
     actionUninstall, actionCompile, actionDoc, actionCustom, actionTasks,
-    actionDevelop, actionCheck, actionLock, actionRun, actionSync, actionSetup
+    actionDevelop, actionCheck, actionLock, actionRun, actionSync, actionSetup,
+    actionClean
 
   DevelopActionType* = enum
     datAdd, datRemoveByPath, datRemoveByName, datInclude, datExclude
@@ -58,7 +59,7 @@ type
   Action* = object
     case typ*: ActionType
     of actionNil, actionList, actionPublish, actionTasks, actionCheck,
-       actionLock, actionSetup: nil
+       actionLock, actionSetup, actionClean: nil
     of actionSync:
       listOnly*: bool
     of actionRefresh:
@@ -143,6 +144,7 @@ Commands:
                [-i, --inclDeps]   Uninstalls package and dependent package(s).
   build        [opts, ...] [bin]  Builds a package. Passes options to the Nim
                                   compiler.
+  clean                           Clean build artifacts.
   run          [opts, ...] [bin]  Builds and runs a package.
                                   Binary needs to be specified after any
                                   compilation options if there are several
@@ -231,6 +233,8 @@ proc parseActionType*(action: string): ActionType =
     result = actionPath
   of "build":
     result = actionBuild
+  of "clean":
+    result = actionClean
   of "run":
     result = actionRun
   of "c", "compile", "js", "cpp", "cc":
