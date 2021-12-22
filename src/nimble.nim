@@ -660,7 +660,8 @@ proc installIteration(pkgList: seq[PackageInfo],
 
 proc install(pkgInfo: PackageInfo,
              options: Options,
-             doPrompt = true): seq[PackageInfo] =
+             doPrompt = true,
+             fromDevelop = false): seq[PackageInfo] =
   var pkgList = getInstalledPkgsMin(options.getPkgsDir(), options)
   #TODO
   #let currentDir = getCurrentDir()
@@ -688,13 +689,18 @@ proc install(pkgInfo: PackageInfo,
   result = deps.map(x => x[1])
 
   if not options.depsOnly:
-    var resultPkgInfo = pkgInfo
-    installFromDir(getCurrentDir(), options, result.map(it => it.getRealDir()).toHashSet(), "", resultPkgInfo)
-    result.add(resultPkgInfo)
+    if fromDevelop:
+      for dep in deps:
+        if dep[0]:
+          addRevDep(options.nimbleData, dep[1].basicInfo, pkgInfo)
+    else:
+      var resultPkgInfo = pkgInfo
+      installFromDir(getCurrentDir(), options, result.map(it => it.getRealDir()).toHashSet(), "", resultPkgInfo)
+      result.add(resultPkgInfo)
 
-    for dep in deps:
-      if dep[0]:
-        addRevDep(options.nimbleData, dep[1].basicInfo, resultPkgInfo)
+      for dep in deps:
+        if dep[0]:
+          addRevDep(options.nimbleData, dep[1].basicInfo, resultPkgInfo)
 
 proc install(packages: seq[PkgTuple],
              options: Options,
@@ -736,14 +742,14 @@ proc execBackend(pkgInfo: PackageInfo, options: Options) =
 
   let pkgInfo = getPkgInfo(getCurrentDir(), options)
   nimScriptHint(pkgInfo)
-  let deps = pkgInfo.processAllDependencies(options)
+  let paths = pkgInfo.getDependenciesPaths(options)
 
   if not execHook(options, options.action.typ, true):
     raise nimbleError("Pre-hook prevented further execution.")
 
   var args = @["-d:NimblePkgVersion=" & $pkgInfo.basicInfo.version]
-  for dep in deps:
-    args.add("--path:" & dep.getRealDir().quoteShell)
+  for path in paths:
+    args.add("--path:" & path.quoteShell)
   if options.verbosity >= HighPriority:
     # Hide Nim hints by default
     args.add("--hints:off")
@@ -1198,13 +1204,13 @@ proc developFromDir(pkgInfo: PackageInfo, options: var Options) =
       if options.action.withDependencies:
         developAllDependencies(pkgInfo, optsCopy)
       else:
-        discard processAllDependencies(pkgInfo, optsCopy)
+        discard install(pkgInfo, optsCopy, fromDevelop = true)
   else:
     if options.action.withDependencies:
       developAllDependencies(pkgInfo, options)
     else:
       # Dependencies need to be processed before the creation of the pkg dir.
-      discard processAllDependencies(pkgInfo, options)
+      discard install(pkgInfo, options, fromDevelop = true)
 
   displaySuccess(pkgSetupInDevModeMsg(pkgInfo.basicInfo.name, dir))
 
