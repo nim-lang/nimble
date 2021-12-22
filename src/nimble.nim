@@ -231,6 +231,28 @@ proc buildFromDir(pkgInfo: PackageInfo, paths: HashSet[string],
   cd pkgDir: # Make sure `execHook` executes the correct .nimble file.
     discard execHook(options, actionBuild, false)
 
+proc cleanFromDir(pkgInfo: PackageInfo, options: Options) =
+  ## Clean up build files.
+  # Handle pre-`clean` hook.
+  let pkgDir = pkgInfo.myPath.parentDir()
+
+  cd pkgDir: # Make sure `execHook` executes the correct .nimble file.
+    if not execHook(options, actionClean, true):
+      raise nimbleError("Pre-hook prevented further execution.")
+
+  if pkgInfo.bin.len == 0:
+    return
+
+  for bin, _ in pkgInfo.bin:
+    let outputDir = pkgInfo.getOutputDir("")
+    if dirExists(outputDir):
+      if fileExists(outputDir / bin):
+        removeFile(outputDir / bin)
+
+  # Handle post-`clean` hook.
+  cd pkgDir: # Make sure `execHook` executes the correct .nimble file.
+    discard execHook(options, actionClean, false)
+
 proc promptRemoveEntirePackageDir(pkgDir: string, options: Options) =
   let exceptionMsg = getCurrentExceptionMsg()
   let warningMsgEnd = if exceptionMsg.len > 0: &": {exceptionMsg}" else: "."
@@ -688,6 +710,12 @@ proc build(options: Options) =
   let paths = pkgInfo.getDependenciesPaths(options)
   var args = options.getCompilationFlags()
   buildFromDir(pkgInfo, paths, args, options)
+
+proc clean(options: Options) =
+  let dir = getCurrentDir()
+  let pkgInfo = getPkgInfo(dir, options)
+  nimScriptHint(pkgInfo)
+  cleanFromDir(pkgInfo, options)
 
 proc execBackend(pkgInfo: PackageInfo, options: Options) =
   let
@@ -1862,6 +1890,8 @@ proc doAction(options: var Options) =
     listPaths(options)
   of actionBuild:
     build(options)
+  of actionClean:
+    clean(options)
   of actionRun:
     run(options)
   of actionCompile, actionDoc:
