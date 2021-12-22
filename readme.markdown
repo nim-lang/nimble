@@ -1,6 +1,6 @@
 # Nimble
 
-Nimble is a *beta*-grade *package manager* for the [Nim programming
+Nimble is the default *package manager* for the [Nim programming
 language](https://nim-lang.org).
 
 Interested in learning **how to create a package**? Skip directly to that section
