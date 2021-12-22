@@ -370,10 +370,10 @@ proc downloadLockedDependency(name: string, dep: LockFileDep, options: Options):
     downloadDir: downloadDir,
     vcsRevision: vcsRevision)
 
-proc installLockedDependency(pkgInfo: PackageInfo, downloadInfo: DownloadInfo,
+proc installLockedDependency(parentInfo: PackageInfo, downloadInfo: DownloadInfo,
                              paths: seq[string], options: Options): PackageInfo =
   ## Installs an already downloaded dependency of the package `pkgInfo`.
-  var newlyInstalledPkgInfo = pkgInfo
+  var newlyInstalledPkgInfo = getPkgInfo(downloadInfo.downloadDir, options)
   installFromDir(
     downloadInfo.downloadDir,
     options,
@@ -385,7 +385,7 @@ proc installLockedDependency(pkgInfo: PackageInfo, downloadInfo: DownloadInfo,
   downloadInfo.downloadDir.removeDir
 
   for depDepName in downloadInfo.dependency.dependencies:
-    let depDep = pkgInfo.lockedDeps[depDepName]
+    let depDep = parentInfo.lockedDeps[depDepName]
     let revDep = (name: depDepName, version: depDep.version,
                   checksum: depDep.checksums.sha1)
     options.nimbleData.addRevDep(revDep, newlyInstalledPkgInfo)
