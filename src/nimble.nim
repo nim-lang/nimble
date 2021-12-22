@@ -209,11 +209,6 @@ proc installFromDir(dir: string, options: Options,
   ## The return value of this function is used by
   ## ``processFreeDependencies``
   ##   To gather a list of paths to pass to the Nim compiler.
-  ##
-  ## ``first``
-  ##   True if this is the first level of the indirect recursion.
-  ## ``fromLockFile``
-  ##   True if we are installing dependencies from the lock file.
 
   # Handle pre-`install` hook.
   cd dir: # Make sure `execHook` executes the correct .nimble file.
@@ -344,7 +339,7 @@ proc raiseCannotCloneInExistingDirException(downloadDir: string) =
   const hint = "Remove the directory, or run this command somewhere else."
   raise nimbleError(msg, hint)
 
-proc downloadDependency(name: string, dep: LockFileDep, options: Options):
+proc downloadLockedDependency(name: string, dep: LockFileDep, options: Options):
     DownloadInfo =
   ## Downloads a dependency from the lock file.
   if options.offline:
@@ -394,6 +389,70 @@ proc downloadDependency(name: string, dep: LockFileDep, options: Options):
     downloadDir: downloadDir,
     vcsRevision: vcsRevision)
 
+proc installLockedDependency(pkgInfo: PackageInfo, downloadInfo: DownloadInfo,
+                             paths: seq[string], options: Options): PackageInfo =
+  ## Installs an already downloaded dependency of the package `pkgInfo`.
+  var newlyInstalledPkgInfo = pkgInfo
+  installFromDir(
+    downloadInfo.downloadDir,
+    options,
+    paths,
+    downloadInfo.url,
+    newlyInstalledPkgInfo
+    )
+
+  downloadInfo.downloadDir.removeDir
+
+  for depDepName in downloadInfo.dependency.dependencies:
+    let depDep = pkgInfo.lockedDeps[depDepName]
+    let revDep = (name: depDepName, version: depDep.version,
+                  checksum: depDep.checksums.sha1)
+    options.nimbleData.addRevDep(revDep, newlyInstalledPkgInfo)
+
+  return newlyInstalledPkgInfo
+
+proc getLockedDependency(name: string, dep: LockFileDep, options: Options):
+    PackageInfo =
+  ## Returns a `PackageInfo` for an already installed dependency from the
+  ## lock file.
+  let depDirName = getDependencyDir(name, dep, options)
+  let nimbleFilePath = findNimbleFile(depDirName, false)
+  getInstalledPackageMin(depDirName, nimbleFilePath).toFullInfo(options)
+
+proc isLockedInstalled(name: string, dep: LockFileDep, options: Options): bool =
+  ## Checks whether a dependency from the lock file is already installed.
+  fileExists(getDependencyDir(name, dep, options) / packageMetaDataFileName)
+
+proc processLockedDependencies(pkgInfo: PackageInfo, options: Options):
+    seq[PackageInfo] =
+  # Returns a hash set with `PackageInfo` of all packages from the lock file of
+  # the package `pkgInfo` by getting the info for develop mode dependencies from
+  # their local file system directories and other packages from the Nimble
+  # cache. If a package with required checksum is missing from the local cache
+  # installs it by downloading it from its repository.
+
+  let
+    depsGraph = toSeq(pkgInfo.lockedDeps.pairs).map(pair => (pair[0], pair[1].dependencies))
+    (order, cycles) = topologicalSort(depsGraph.toOrderedTable())
+    developModeDeps = getDevelopDependencies(pkgInfo, options)
+
+  var paths: seq[string]
+  for name in order:
+    let dep = pkgInfo.lockedDeps[name]
+    let depInfo =
+      if developModeDeps.hasKey(name):
+        developModeDeps[name][]
+      elif isLockedInstalled(name, dep, options):
+        getLockedDependency(name, dep, options)
+      elif not options.offline:
+        let downloadResult = downloadLockedDependency(name, dep, options)
+        installLockedDependency(pkgInfo, downloadResult, paths, options)
+      else:
+        raise nimbleError("Unsatisfied dependency: " & pkgInfo.basicInfo.name)
+
+    paths.add(depInfo.getRealDir())
+    result.add depInfo
+
 proc getDownloadInfo*(pv: PkgTuple, options: Options,
                       doPrompt: bool, ignorePackageCache = false): (DownloadMethod, string,
                                         Table[string, string]) =
@@ -421,11 +480,16 @@ proc getDownloadInfo*(pv: PkgTuple, options: Options,
       else:
         raise nimbleError(pkgNotFoundMsg(pv))
 
+type InstalledInfo = tuple[
+    installed: OrderedTable[string, PackageInfo],
+    directDeps: seq[string],
+    dependencies: Table[string, seq[string]]
+  ]
 proc installIteration(pkgList: seq[PackageInfo],
                       packages: seq[PkgTuple],
                       options: Options,
-                      doPrompt = true,
-                      fromLockfile = false): seq[(bool, PackageInfo)] =
+                      doPrompt = true):
+                      InstalledInfo =
   type
     InstallConstraint =
       tuple[
@@ -609,21 +673,20 @@ proc installIteration(pkgList: seq[PackageInfo],
 
           constraintTuple = (packageName, resolvedDep.ver)
 
-        if not fromLockFile:
-          if resolvedName in installConstraints:
-            # Adds our constraint
-            if constraintTuple notin installConstraints[resolvedName]:
-              installConstraints[resolvedName].add(constraintTuple)
+        if resolvedName in installConstraints:
+          # Adds our constraint
+          if constraintTuple notin installConstraints[resolvedName]:
+            installConstraints[resolvedName].add(constraintTuple)
 
-              # Are we compatible?
-              if resolvedName in installInfo and resolvedName notin toProcess:
-                if not installInfo[resolvedName].version.withinRange(resolvedDep.ver):
-                  # No, recompute this package
-                  toProcess.add(resolvedName)
-          else:
-            # New package, add it
-            installConstraints[resolvedName] = @[constraintTuple]
-            toProcess.add(resolvedName)
+            # Are we compatible?
+            if resolvedName in installInfo and resolvedName notin toProcess:
+              if not installInfo[resolvedName].version.withinRange(resolvedDep.ver):
+                # No, recompute this package
+                toProcess.add(resolvedName)
+        else:
+          # New package, add it
+          installConstraints[resolvedName] = @[constraintTuple]
+          toProcess.add(resolvedName)
 
         if resolvedName in installConstraints:
           deps.add(resolvedName)
@@ -645,18 +708,27 @@ proc installIteration(pkgList: seq[PackageInfo],
     else:
       displayInfo(pkgDepsAlreadySatisfiedMsg((name: packageName, ver: installInfo[packageName].requestedVersion)))
 
-    # This should only be required when we install it
+    # This should only be required when we install it the first time
     # But for some reason, tests fails if we only do that
     for dep in dependencies[packageName]:
       addRevDep(options.nimbleData, installInfo[dep].package.basicInfo, installInfo[packageName].package)
 
+    result.installed[packageName] = installInfo[packageName].package
+    result.dependencies[packageName] = dependencies[packageName]
+
+    # This check is not ideal, but because of package name resolving
+    # it's hard at this stage to know if this is package coming from the
+    # "packages" parameter
     let isDirectDep = installConstraints[packageName].filterIt(it.source == "user").len > 0
-    result.add (isDirectDep, installInfo[packageName].package)
+    if isDirectDep:
+      result.directDeps.add(packageName)
 
 proc install(pkgInfo: PackageInfo,
              options: Options,
              doPrompt = true,
              fromDevelop = false): seq[PackageInfo] =
+  if pkgInfo.lockedDeps.len > 0:
+    return processLockedDependencies(pkgInfo, options)
   var pkgList = getInstalledPkgsMin(options.getPkgsDir(), options)
   #TODO
   #let currentDir = getCurrentDir()
@@ -668,41 +740,27 @@ proc install(pkgInfo: PackageInfo,
 
   let developDeps = processDevelopDependencies(pkgInfo, options)
 
-  let deps =
-    if pkgInfo.lockedDeps.len > 0:
-      let lockedDeps = toSeq(pkgInfo.lockedDeps.pairs()).map(it =>
-        (
-          #TODO download method is not used
-          name: it[1].url,
-          ver: ("#" & $it[1].vcsRevision).parseVersionRange
-        ))
-      #TODO check hashes
-      installIteration(concat(pkgList, developDeps), lockedDeps, options, doPrompt, fromLockfile=true)
-    else:
-      installIteration(concat(pkgList, developDeps), pkgInfo.requires, options, doPrompt, fromLockfile=false)
+  let deps = installIteration(concat(pkgList, developDeps), pkgInfo.requires, options, doPrompt)
 
-  result = deps.map(x => x[1])
+  result = toSeq(deps.installed.values)
 
   if not options.depsOnly:
     if fromDevelop:
-      for dep in deps:
-        if dep[0]:
-          addRevDep(options.nimbleData, dep[1].basicInfo, pkgInfo)
+      for dep in deps.directDeps:
+        addRevDep(options.nimbleData, deps.installed[dep].basicInfo, pkgInfo)
     else:
       var resultPkgInfo = pkgInfo
       installFromDir(getCurrentDir(), options, result.map(it => it.getRealDir()), "", resultPkgInfo)
       result.add(resultPkgInfo)
 
-      for dep in deps:
-        if dep[0]:
-          addRevDep(options.nimbleData, dep[1].basicInfo, resultPkgInfo)
+      for dep in deps.directDeps:
+        addRevDep(options.nimbleData, deps.installed[dep].basicInfo, resultPkgInfo)
 
 proc install(packages: seq[PkgTuple],
              options: Options,
-             doPrompt = true,
-             fromLockfile = false): seq[PackageInfo] =
+             doPrompt = true): seq[PackageInfo] =
   var pkgList = getInstalledPkgsMin(options.getPkgsDir(), options)
-  installIteration(pkgList, packages, options, doPrompt, fromLockFile).map(x => x[1])
+  toSeq(installIteration(pkgList, packages, options, doPrompt).installed.values)
 
 proc processAllDependencies(pkgInfo: PackageInfo, options: Options):
     seq[PackageInfo] =
@@ -1255,7 +1313,7 @@ proc developLockedDependencies(pkgInfo: PackageInfo,
 
   for name, dep in pkgInfo.lockedDeps:
     if dep.url.removeTrailingGitString notin alreadyDownloaded:
-      let downloadResult = downloadDependency(name, dep, options)
+      let downloadResult = downloadLockedDependency(name, dep, options)
       alreadyDownloaded.incl downloadResult.url.removeTrailingGitString
       options.action.devActions.add(
         (datAdd, downloadResult.downloadDir.normalizedPath))
@@ -1551,8 +1609,12 @@ proc lock(options: Options) =
 
   pkgInfo.lockedDeps.clear()
   let
-    dependencies = pkgInfo.processAllDependencies(options).map(pkg => pkg.toFullInfo(options)).toSeq()
-    dependenciesGraph = dependencies.buildDependencyGraph(options)
+    packageList = getInstalledPkgsMin(options.getPkgsDir(), options)
+    developDeps = processDevelopDependencies(pkgInfo, options)
+    installedInfo = installIteration(concat(packageList, developDeps), pkgInfo.requires, options)
+    dependencies = toSeq(installedInfo.installed.values).map(x => x.toFullInfo(options))
+    dependenciesGraph = dependencies.buildLockFileDeps(installedInfo.dependencies, options)
+
   pkgInfo.validateDevelopDependenciesVersionRanges(dependencies, options)
   writeLockFile(dependenciesGraph, toSeq(dependenciesGraph.keys()).sorted)
   updateSyncFile(pkgInfo, options)

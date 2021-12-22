@@ -4,27 +4,7 @@
 import sequtils, tables, strformat, algorithm, sets
 import common, packageinfotypes, packageinfo, options, cli
 
-proc getDependencies(packages: seq[PackageInfo], package: PackageInfo,
-                     options: Options):
-    seq[string] =
-  ## Returns the names of the packages which are dependencies of a given
-  ## package. It is needed because some of the names of the packages in the
-  ## `requires` clause of a package could be URLs.
-  for dep in package.requires:
-    if dep.name == "nim":
-      continue
-    var depPkgInfo = initPackageInfo()
-    var found = findPkg(packages, dep, depPkgInfo)
-    if not found:
-      let resolvedDep = dep.resolveAlias(options)
-      found = findPkg(packages, resolvedDep, depPkgInfo)
-      if not found:
-        raise nimbleError(
-           "Cannot build the dependency graph.\n" &
-          &"Missing package \"{dep.name}\".")
-    result.add depPkgInfo.basicInfo.name
-
-proc buildDependencyGraph*(packages: seq[PackageInfo], options: Options):
+proc buildLockFileDeps*(packages: seq[PackageInfo], depGraph: Table[string, seq[string]], options: Options):
     LockFileDeps =
   ## Creates records which will be saved to the lock file.
   for pkgInfo in packages:
@@ -33,7 +13,7 @@ proc buildDependencyGraph*(packages: seq[PackageInfo], options: Options):
       vcsRevision: pkgInfo.metaData.vcsRevision,
       url: pkgInfo.metaData.url,
       downloadMethod: pkgInfo.metaData.downloadMethod,
-      #dependencies: getDependencies(packages, pkgInfo, options),
+      dependencies: depGraph.getOrDefault(pkgInfo.basicInfo.name),
       checksums: Checksums(sha1: pkgInfo.basicInfo.checksum))
 
 proc topologicalSort*(graph: OrderedTable[string, seq[string]]):
@@ -77,7 +57,7 @@ proc topologicalSort*(graph: OrderedTable[string, seq[string]]):
 
   proc printNotADagWarning() =
     let message = cycles.foldl(
-      a & "\nCycle detected: " & b.foldl(&"{a} -> {b}"), 
+      a & "\nCycle detected: " & b.foldl(&"{a} -> {b}"),
       "The dependency graph is not a DAG.")
     display("Warning", message, Warning, HighPriority)
 
@@ -117,13 +97,6 @@ when isMainModule:
   import unittest
   from version import notSetVersion
   from sha1hashes import notSetSha1Hash
-
-  proc initLockFileDep(deps: seq[string] = @[]): LockFileDep =
-    result = LockFileDep(
-      version: notSetVersion,
-      vcsRevision: notSetSha1Hash,
-      dependencies: deps,
-      checksums: Checksums(sha1: notSetSha1Hash))
 
   suite "topological sort":
 
