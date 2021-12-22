@@ -1292,7 +1292,7 @@ proc updateSyncFile(dependentPkg: PackageInfo, options: Options)
 
 proc updatePathsFile(pkgInfo: PackageInfo, options: Options) =
   let paths = pkgInfo.getDependenciesPaths(options)
-  var pathsFileContent: string
+  var pathsFileContent = "--noNimblePath\n"
   for path in paths:
     pathsFileContent &= &"--path:{path.escape}\n"
   var action = if fileExists(nimblePathsFileName): "updated" else: "generated"
