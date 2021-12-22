@@ -601,7 +601,7 @@ proc installIteration(pkgList: seq[PackageInfo],
         let
           resolvedDep =
             (name: dep.name.removeTrailingGitString,
-            ver: dep.ver).resolveAlias(options)
+            ver: dep.ver)
           resolvedName =
             if pkgList.findPkg(resolvedDep, depPackage):
               depPackage.basicInfo.name
