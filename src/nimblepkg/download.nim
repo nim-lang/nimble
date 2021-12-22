@@ -144,6 +144,7 @@ proc cloneSpecificRevision(downloadMethod: DownloadMethod,
     let downloadDir = downloadDir.quoteShell
     createDir(downloadDir)
     discard tryDoCmdEx(&"git -C {downloadDir} init")
+    discard tryDoCmdEx(&"git -C {downloadDir} config core.autocrlf false")
     discard tryDoCmdEx(&"git -C {downloadDir} remote add origin {url}")
     discard tryDoCmdEx(
       &"git -C {downloadDir} fetch --depth 1 origin {vcsRevision}")
