@@ -414,7 +414,7 @@ proc processLockedDependencies(pkgInfo: PackageInfo, options: Options):
 
   let
     depsGraph = toSeq(pkgInfo.lockedDeps.pairs).map(pair => (pair[0], pair[1].dependencies))
-    (order, cycles) = topologicalSort(depsGraph.toOrderedTable())
+    (order, _) = topologicalSort(depsGraph.toOrderedTable())
     developModeDeps = getDevelopDependencies(pkgInfo, options)
 
   var paths: seq[string]
@@ -703,6 +703,13 @@ proc installIteration(pkgList: seq[PackageInfo],
     let isDirectDep = installConstraints[packageName].filterIt(it.source == "user").len > 0
     if isDirectDep:
       result.directDeps.add(packageName)
+
+# To avoid weird warning
+template concat(a, b: seq[PackageInfo]): seq[PackageInfo] =
+  {.warning[ProveInit]: off.}
+  let res = concat(a, b)
+  {.warning[ProveInit]: on.}
+  res
 
 proc install(pkgInfo: PackageInfo,
              options: Options,
@@ -1592,7 +1599,12 @@ proc lock(options: Options) =
     packageList = getInstalledPkgsMin(options.getPkgsDir(), options)
     developDeps = processDevelopDependencies(pkgInfo, options)
     installedInfo = installIteration(concat(packageList, developDeps), pkgInfo.requires, options)
-    dependencies = toSeq(installedInfo.installed.values).map(x => x.toFullInfo(options))
+    dependencies =
+      block:
+        # To avoid warning on `map`
+        var res = toSeq(installedInfo.installed.values)
+        res.apply(x => x.toFullInfo(options))
+        res
     dependenciesGraph = dependencies.buildLockFileDeps(installedInfo.dependencies, options)
 
   pkgInfo.validateDevelopDependenciesVersionRanges(dependencies, options)
