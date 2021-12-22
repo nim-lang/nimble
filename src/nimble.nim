@@ -1517,35 +1517,6 @@ proc validateDevModeDepsWorkingCopiesBeforeLock(
   if errors.len > 0:
     raise validationErrors(errors)
 
-proc mergeLockedDependencies*(pkgInfo: PackageInfo, newDeps: LockFileDeps,
-                              options: Options): LockFileDeps =
-  ## Updates the lock file data of already generated lock file with the data
-  ## from a new lock operation.
-
-  result = pkgInfo.lockedDeps
-  let developDeps = pkgInfo.getDevelopDependencies(options)
-
-  for name, dep in newDeps:
-    if result.hasKey(name):
-      # If the dependency is already present in the old lock file
-      if developDeps.hasKey(name):
-        # and it is a develop mode dependency update it with the newly locked
-        # version,
-        result[name] = dep
-      else:
-        # but if it is installed dependency just leave it at the current
-        # version.
-        discard
-    else:
-      # If the dependency is missing from the old develop file add it.
-      result[name] = dep
-
-  # Clean dependencies which are missing from the newly locked list.
-  let deps = result
-  for name, dep in deps:
-    if not newDeps.hasKey(name):
-      result.del name
-
 proc displayLockOperationStart(dir: string): bool =
   ## Displays a proper log message for starting generating or updating the lock
   ## file of a package in directory `dir`.
@@ -1583,7 +1554,7 @@ proc lock(options: Options) =
     dependencies = pkgInfo.processAllDependencies(options).map(pkg => pkg.toFullInfo(options)).toSeq()
     dependenciesGraph = dependencies.buildDependencyGraph(options)
   pkgInfo.validateDevelopDependenciesVersionRanges(dependencies, options)
-  writeLockFile(dependenciesGraph, toSeq(dependenciesGraph.keys()))
+  writeLockFile(dependenciesGraph, toSeq(dependenciesGraph.keys()).sorted)
   updateSyncFile(pkgInfo, options)
   displayLockOperationFinish(doesLockFileExist)
 
