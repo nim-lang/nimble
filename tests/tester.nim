@@ -6,6 +6,7 @@ import testscommon
 # suits imports
 
 import tcheckcommand
+import tcleancommand
 import tdevelopfeature
 import tissues
 import tlocaldeps
