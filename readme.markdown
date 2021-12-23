@@ -436,7 +436,12 @@ files.
 The `run` command can be used to build and run any binary specified in your
 package's `bin` list. The binary needs to be specified after any compilation flags
 if there are several binaries defined. Any flags after the binary or `--`
-are passed to the binary when it is run.
+are passed to the binary when it is run. It is possible to run a binary from some
+dependency package. To do this pass the `--package, -p` option to Nimble. For example:
+
+```
+nimble --package:foo run <compilation_flags> bar <run_flags>
+```
 
 ### nimble c
 
