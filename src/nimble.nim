@@ -703,13 +703,17 @@ proc getDependenciesPaths(pkgInfo: PackageInfo, options: Options):
   let deps = pkgInfo.processAllDependencies(options)
   return deps.map(dep => dep.getRealDir())
 
-proc build(options: Options) =
-  let dir = getCurrentDir()
-  let pkgInfo = getPkgInfo(dir, options)
+proc build(pkgInfo: PackageInfo, options: Options) =
+  ## Builds the package `pkgInfo`.
   nimScriptHint(pkgInfo)
   let paths = pkgInfo.getDependenciesPaths(options)
   var args = options.getCompilationFlags()
   buildFromDir(pkgInfo, paths, args, options)
+
+proc build(options: Options) =
+  let dir = getCurrentDir()
+  let pkgInfo = getPkgInfo(dir, options)
+  pkgInfo.build(options)
 
 proc clean(options: Options) =
   let dir = getCurrentDir()
@@ -1829,21 +1833,40 @@ proc setup(options: Options) =
   setupNimbleConfig(options)
   setupVcsIgnoreFile()
 
+proc getPackageForAction(pkgInfo: PackageInfo, options: Options): PackageInfo =
+  ## Returns the `PackageInfo` for the package in `pkgInfo`'s dependencies tree
+  ## with the name specified in `options.package`. If `options.package` is empty
+  ## or it matches the name of the `pkgInfo` then `pkgInfo` is returned. Raises
+  ## a `NimbleError` if the package with the provided name is not found.
+  
+  result = initPackageInfo()
+
+  if options.package.len == 0 or pkgInfo.basicInfo.name == options.package:
+    return pkgInfo
+
+  let deps = pkgInfo.processAllDependencies(options)
+  for dep in deps:
+    if dep.basicInfo.name == options.package:
+      return dep.toFullInfo(options)
+
+  raise nimbleError(notFoundPkgWithNameInPkgDepTree(options.package))
+
 proc run(options: Options) =
-  # Verify parameters.
   var pkgInfo = getPkgInfo(getCurrentDir(), options)
+  pkgInfo = getPackageForAction(pkgInfo, options)
 
   let binary = options.getCompilationBinary(pkgInfo).get("")
   if binary.len == 0:
     raise nimbleError("Please specify a binary to run")
 
   if binary notin pkgInfo.bin:
-    raise nimbleError(
-      "Binary '$#' is not defined in '$#' package." % [binary, pkgInfo.basicInfo.name]
-    )
+    raise nimbleError(binaryNotDefinedInPkgMsg(binary, pkgInfo.basicInfo.name))
 
-  # Build the binary.
-  build(options)
+  if pkgInfo.isLink:
+    # If this is not installed package then build the binary.
+    pkgInfo.build(options)
+  elif options.getCompilationFlags.len > 0:
+    displayWarning(ignoringCompilationFlagsMsg)
 
   let binaryPath = pkgInfo.getOutputDir(binary)
   let cmd = quoteShellCommand(binaryPath & options.action.runFlags)

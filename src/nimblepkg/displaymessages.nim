@@ -34,6 +34,9 @@ const
   multipleDevelopFileOptionsGivenMsg* =
     "Multiple develop file options are given."
 
+  ignoringCompilationFlagsMsg* =
+    "Ignoring compilation flags for installed package."
+
   updatingTheLockFileMsg* = "Updating the lock file..."
   generatingTheLockFileMsg* = "Generating the lock file..."
   lockFileIsUpdatedMsg* = "The lock file is updated."
@@ -157,3 +160,10 @@ proc pkgAlreadyExistsInTheCacheMsg*(pkgInfo: PackageInfo): string =
 proc skipDownloadingInAlreadyExistingDirectoryMsg*(dir, name: string): string =
   &"The download directory \"{dir}\" already exists.\n" &
   &"Skipping the download of \"{name}\"."
+
+proc binaryNotDefinedInPkgMsg*(binaryName, pkgName: string): string =
+  &"Binary '{binaryName}' is not defined in '{pkgName}' package."
+
+proc notFoundPkgWithNameInPkgDepTree*(pkgName: string): string =
+  &"Not found package with name '{pkgName}' in the current package's " &
+   "dependency tree."
