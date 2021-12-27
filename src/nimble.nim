@@ -296,16 +296,6 @@ proc getDependencyDir(name: string, dep: LockFileDep, options: Options):
   ## Returns the installation directory for a dependency from the lock file.
   options.getPkgsDir() /  &"{name}-{dep.version}-{dep.checksums.sha1}"
 
-proc developWithDependencies(options: Options): bool =
-  ## Determines whether the current executed action is a develop sub-command
-  ## with `--with-dependencies` flag.
-  options.action.typ == actionDevelop and options.action.withDependencies
-
-proc raiseCannotCloneInExistingDirException(downloadDir: string) =
-  let msg = "Cannot clone into '$1': directory exists." % downloadDir
-  const hint = "Remove the directory, or run this command somewhere else."
-  raise nimbleError(msg, hint)
-
 type
   DownloadInfo = ref object
     ## Information for a downloaded dependency needed for installation.
@@ -315,6 +305,16 @@ type
     version: VersionRange
     downloadDir: string
     vcsRevision: Sha1Hash
+
+proc developWithDependencies(options: Options): bool =
+  ## Determines whether the current executed action is a develop sub-command
+  ## with `--with-dependencies` flag.
+  options.action.typ == actionDevelop and options.action.withDependencies
+
+proc raiseCannotCloneInExistingDirException(downloadDir: string) =
+  let msg = "Cannot clone into '$1': directory exists." % downloadDir
+  const hint = "Remove the directory, or run this command somewhere else."
+  raise nimbleError(msg, hint)
 
 proc downloadLockedDependency(name: string, dep: LockFileDep, options: Options):
     DownloadInfo =
@@ -1738,7 +1738,7 @@ proc sync(options: Options) =
   if not options.action.listOnly:
     # On `sync` we also want to update Nimble cache with the dependencies'
     # versions from the lock file.
-    discard processAllDependencies(pkgInfo, options)
+    discard processLockedDependencies(pkgInfo, options)
     if fileExists(nimblePathsFileName):
       updatePathsFile(pkgInfo, options)
 
