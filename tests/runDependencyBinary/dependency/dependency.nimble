@@ -5,4 +5,4 @@ license       = "MIT"
 
 bin = @["binary"]
 
-requires "nim >= 1.7.1"
+requires "nim >= 1.5.1"
