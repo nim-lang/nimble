@@ -3,7 +3,7 @@
 
 {.used.}
 
-import unittest, os, strutils
+import unittest, os, strutils, strformat
 import testscommon
 import nimblepkg/displaymessages
 from nimblepkg/common import cd
@@ -200,7 +200,9 @@ suite "nimble run":
           "-d:danger", "binary", "--arg1", "--arg2")
         check exitCode == QuitSuccess
         var lines = output.processOutput
-        check lines.inLinesOrdered("Building dependency/binary using c backend")
+        const binaryName = when defined(windows): "binary.exe" else: "binary"
+        check lines.inLinesOrdered(
+          &"Building dependency/{binaryName} using c backend")
         check lines.inLinesOrdered("--arg1")
         check lines.inLinesOrdered("--arg2")
 
@@ -228,4 +230,6 @@ suite "nimble run":
         let (output, exitCode) = execNimble("--package:dependency", "run",
           "-d:danger", "bin", "--arg1", "--arg2")
         check exitCode == QuitFailure
-        check output.contains(binaryNotDefinedInPkgMsg("bin", "dependency"))
+        const binaryName = when defined(windows): "bin.exe" else: "bin"
+        check output.contains(binaryNotDefinedInPkgMsg(
+          binaryName, "dependency"))
