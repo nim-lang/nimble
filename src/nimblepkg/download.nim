@@ -35,7 +35,8 @@ proc doClone(meth: DownloadMethod, url, downloadDir: string, branch = "",
       depthArg = if onlyTip: "--depth 1" else: ""
       branchArg = if branch == "": "" else: &"-b {branch}"
     discard tryDoCmdEx(
-      &"git clone --recursive {depthArg} {branchArg} {url} {downloadDir}")
+       "git clone --config core.autocrlf=false --recursive " &
+      &"{depthArg} {branchArg} {url} {downloadDir}")
   of DownloadMethod.hg:
     let
       tipArg = if onlyTip: "-r tip " else: ""
@@ -143,6 +144,7 @@ proc cloneSpecificRevision(downloadMethod: DownloadMethod,
     let downloadDir = downloadDir.quoteShell
     createDir(downloadDir)
     discard tryDoCmdEx(&"git -C {downloadDir} init")
+    discard tryDoCmdEx(&"git -C {downloadDir} config core.autocrlf false")
     discard tryDoCmdEx(&"git -C {downloadDir} remote add origin {url}")
     discard tryDoCmdEx(
       &"git -C {downloadDir} fetch --depth 1 origin {vcsRevision}")
