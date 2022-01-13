@@ -15,15 +15,18 @@ type
     version: Version
     vcsRevision: Sha1Hash
 
+proc updateSubmodules(dir: string) =
+  discard tryDoCmdEx(
+    &"git -C {dir} submodule update --init --recursive --depth 1")
+
 proc doCheckout(meth: DownloadMethod, downloadDir, branch: string) =
   case meth
   of DownloadMethod.git:
     # Force is used here because local changes may appear straight after a clone
     # has happened. Like in the case of git on Windows where it messes up the
     # damn line endings.
-    discard tryDoCmdEx(&"git -C {downloadDir} checkout --force {branch}")
-    discard tryDoCmdEx(
-      &"git -C {downloadDir} submodule update --recursive --depth 1")
+    discard tryDoCmdEx(&"git -C {downloadDir} checkout --force {branch}") 
+    downloadDir.updateSubmodules
   of DownloadMethod.hg:
     discard tryDoCmdEx(&"hg --cwd {downloadDir} checkout {branch}")
 
@@ -149,6 +152,7 @@ proc cloneSpecificRevision(downloadMethod: DownloadMethod,
     discard tryDoCmdEx(
       &"git -C {downloadDir} fetch --depth 1 origin {vcsRevision}")
     discard tryDoCmdEx(&"git -C {downloadDir} reset --hard FETCH_HEAD")
+    downloadDir.updateSubmodules
   of DownloadMethod.hg:
     discard tryDoCmdEx(&"hg clone {url} -r {vcsRevision}")
 
