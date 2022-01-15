@@ -857,7 +857,7 @@ proc listPaths(options: Options) =
     var installed: seq[VersionAndPath] = @[]
     # There may be several, list all available ones and sort by version.
     for pkg in pkgs:
-      if name == pkg.basicInfo.name:
+      if name == pkg.basicInfo.name and withinRange(pkg.basicInfo.version, version):
         installed.add((pkg.basicInfo.version, pkg.getRealDir))
 
     if installed.len > 0:
