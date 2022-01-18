@@ -167,3 +167,6 @@ proc binaryNotDefinedInPkgMsg*(binaryName, pkgName: string): string =
 proc notFoundPkgWithNameInPkgDepTree*(pkgName: string): string =
   &"Not found package with name '{pkgName}' in the current package's " &
    "dependency tree."
+
+proc pkgLinkFileSavedMsg*(path: string): string =
+  &"Package link file \"{path}\" is saved."

@@ -1170,6 +1170,21 @@ proc listTasks(options: Options) =
 
 proc developAllDependencies(pkgInfo: PackageInfo, options: var Options)
 
+proc saveLinkFile(pkgInfo: PackageInfo, options: Options) =
+  let
+    pkgName = pkgInfo.basicInfo.name
+    pkgLinkDir = options.getPkgsLinksDir / pkgName.getLinkFileDir
+    pkgLinkFilePath = pkgLinkDir / pkgName.getLinkFileName
+    pkgLinkFileContent = pkgInfo.myPath & "\n" & pkgInfo.getNimbleFileDir
+
+  if pkgLinkDir.dirExists and not options.prompt(
+    &"The link file for {pkgName} already exists. Overwrite?"):
+    return
+
+  pkgLinkDir.createDir
+  writeFile(pkgLinkFilePath, pkgLinkFileContent)
+  displaySuccess(pkgLinkFileSavedMsg(pkgLinkFilePath))
+
 proc developFromDir(pkgInfo: PackageInfo, options: var Options) =
   assert options.action.typ == actionDevelop,
     "This procedure should be called only when executing develop sub-command."
@@ -1204,6 +1219,9 @@ proc developFromDir(pkgInfo: PackageInfo, options: var Options) =
     else:
       # Dependencies need to be processed before the creation of the pkg dir.
       discard processAllDependencies(pkgInfo, options)
+
+  if options.action.global:
+    saveLinkFile(pkgInfo, options)
 
   displaySuccess(pkgSetupInDevModeMsg(pkgInfo.basicInfo.name, dir))
 
@@ -1306,7 +1324,7 @@ proc updateSyncFile(dependentPkg: PackageInfo, options: Options)
 
 proc updatePathsFile(pkgInfo: PackageInfo, options: Options) =
   let paths = pkgInfo.getDependenciesPaths(options)
-  var pathsFileContent: string
+  var pathsFileContent = "--noNimblePath\n"
   for path in paths:
     pathsFileContent &= &"--path:{path.escape}\n"
   var action = if fileExists(nimblePathsFileName): "updated" else: "generated"
@@ -1463,10 +1481,9 @@ proc check(options: Options) =
   try:
     let currentDir = getCurrentDir()
     let pkgInfo = getPkgInfo(currentDir, options, true)
-    if currentDir.developFileExists:
-      validateDevelopFile(pkgInfo, options)
-      let dependencies = pkgInfo.processAllDependencies(options).toSeq
-      validateDevelopDependenciesVersionRanges(pkgInfo, dependencies, options)
+    validateDevelopFile(pkgInfo, options)
+    let dependencies = pkgInfo.processAllDependencies(options).toSeq
+    validateDevelopDependenciesVersionRanges(pkgInfo, dependencies, options)
     displaySuccess(&"The package \"{pkgInfo.basicInfo.name}\" is valid.")
   except CatchableError as error:
     displayError(error)

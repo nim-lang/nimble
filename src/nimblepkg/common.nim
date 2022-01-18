@@ -24,6 +24,7 @@ type
 const
   nimbleVersion* = "0.14.0"
   nimblePackagesDirName* = "pkgs2"
+  nimblePackagesLinksDirName* ="links"
   nimbleBinariesDirName* = "bin"
 
 proc newNimbleError*[ErrorType](msg: string, hint = "",
@@ -77,3 +78,9 @@ template cdNewDir*(dir: string, body: untyped) =
   createNewDir dir
   cd dir:
     body
+
+proc getLinkFileDir*(pkgName: string): string =
+  pkgName & "-#head"
+
+proc getLinkFileName*(pkgName: string): string =
+  pkgName & ".nimble-link"

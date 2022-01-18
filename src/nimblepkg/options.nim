@@ -79,6 +79,7 @@ type
         ## Whether to put in develop mode also the dependencies of the packages
         ## listed in the develop command.
       developFile*: string
+      global*: bool
     of actionSearch:
       search*: seq[string] # Search string.
     of actionInit, actionDump:
@@ -113,7 +114,7 @@ Commands:
                                   executed in package's directory.
          [--with-dependencies]    Puts in develop mode also the dependencies
                                   of the packages in the list or of the current
-                                  directory package if the list is
+                                  directory package if the list is empty.
          [--develop-file]         Specifies the name of the develop file which
                                   to be manipulated. If not present creates it.
          [-p, --path path]        Specifies the path whether the packages should
@@ -135,6 +136,11 @@ Commands:
          [-e, --exclude file]     Excludes a develop file from a specified
                                   develop file or from `nimble.develop` if not
                                   specified and executed in package's directory.
+         [-g, --global]           Creates an old style link file in the special
+                                  `links` directory. It is read by Nim to be
+                                  able to use global develop mode packages.
+                                  Nimble uses it as a global develop file if a
+                                  local one does not exist.
   check                           Verifies the validity of a package in the
                                   current working directory.
   init         [pkgname]          Initializes a new Nimble project in the
@@ -323,6 +329,9 @@ proc getNimbleDir*(options: Options): string =
 
 proc getPkgsDir*(options: Options): string =
   options.getNimbleDir() / nimblePackagesDirName
+
+proc getPkgsLinksDir*(options: Options): string =
+  options.getNimbleDir() / nimblePackagesLinksDirName
 
 proc getBinDir*(options: Options): string =
   options.getNimbleDir() / nimbleBinariesDirName
@@ -573,6 +582,8 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
         raise nimbleError(multiplePathOptionsGivenMsg)
     of "with-dependencies":
       result.action.withDependencies = true
+    of "global":
+      result.action.global = true
     of "develop-file":
       if result.action.developFile.len == 0:
         result.action.developFile = val.normalizedPath
