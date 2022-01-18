@@ -307,7 +307,7 @@ proc mergeFollowedDevFileData(lhs: var DevelopFileData, rhs: DevelopFileData,
                   errors.collidingNames)
 
 proc load(path: Path, dependentPkg: PackageInfo, options: Options,
-          silentIfFileNotExists, raiseOnValidationErrors: bool):
+          silentIfFileNotExists, raiseOnValidationErrors, loadGlobalDeps: bool):
     DevelopFileData
 
 template load(dependentPkg: PackageInfo, args: varargs[untyped]):
@@ -318,8 +318,37 @@ template load(dependentPkg: PackageInfo, args: varargs[untyped]):
   dependentPkg.assertIsLoaded
   load(dependentPkg.getPkgDevFilePath, dependentPkg, args)
 
+proc loadGlobalDependencies(result: var DevelopFileData,
+                            collidingNames: var CollidingNames,
+                            options: Options) =
+  ## Loads data from the `links` subdirectory in the Nimble cache. The links
+  ## in the cache are treated as paths in a global develop file used when a
+  ## local one does not exist.
+
+  for (kind, path) in walkDir(options.getPkgsLinksDir):
+    if kind != pcDir:
+      continue
+    let (pkgName, _, _) = getNameVersionChecksum(path)
+    let linkFilePath = path / pkgName.getLinkFileName
+    if not linkFilePath.fileExists:
+      displayWarning(&"Not found link file in \"{path}\".")
+      continue
+    let lines = linkFilePath.readFile.split("\n")
+    if lines.len != 2:
+      displayWarning(&"Invalid link file \"{linkFilePath}\".")
+      continue
+    let pkgPath = lines[1]
+    let (pkgInfo, error) = validatePackage(pkgPath, options)
+    if error == nil:
+      let path = path.Path
+      result.addPackage(pkgInfo, path, [path].toHashSet, collidingNames)
+    else:
+      displayWarning(
+        &"Package \"{pkgName}\" at path \"{pkgPath}\" is invalid. Skipping it.")
+      displayDetails(error.msg)
+
 proc load(path: Path, dependentPkg: PackageInfo, options: Options,
-          silentIfFileNotExists, raiseOnValidationErrors: bool):
+          silentIfFileNotExists, raiseOnValidationErrors, loadGlobalDeps: bool):
     DevelopFileData =
   ## Loads data from a develop file at path `path`.
   ##
@@ -328,6 +357,10 @@ proc load(path: Path, dependentPkg: PackageInfo, options: Options,
   ##
   ## If `raiseOnValidationErrors` raises a `NimbleError` in the case some of the
   ## contents of the develop file are invalid.
+  ## 
+  ## If `loadGlobalDeps` then load the packages pointed by the link files in the
+  ## `links` directory in the Nimble cache instead of the once pointed by the
+  ## local develop file.
   ##
   ## Raises if the develop file or some of the included develop files:
   ##   - cannot be read.
@@ -343,9 +376,6 @@ proc load(path: Path, dependentPkg: PackageInfo, options: Options,
   result.path = path
   result.dependentPkg = dependentPkg
 
-  if silentIfFileNotExists and not path.fileExists:
-    return
-
   var
     errors {.global.}: ErrorsCollection
     visitedFiles {.global.}: HashSet[Path]
@@ -355,31 +385,38 @@ proc load(path: Path, dependentPkg: PackageInfo, options: Options,
   if dependentPkg.isLoaded:
     visitedPkgs.incl dependentPkg.getNimbleFileDir
 
-  try:
-    fromJson(result.jsonData, parseFile(path), Joptions(allowExtraKeys: true))
-  except ValueError as error:
-    raise nimbleError(notAValidDevFileJsonMsg($path), details = error)
+  if loadGlobalDeps:
+    loadGlobalDependencies(result, errors.collidingNames, options)
+  else:
+    if silentIfFileNotExists and not path.fileExists:
+      return
 
-  for depPath in result.jsonData.dependencies:
-    let depPath = if depPath.isAbsolute:
-      depPath.normalizedPath else: (path.splitFile.dir / depPath).normalizedPath
-    let (pkgInfo, error) = validatePackage(depPath, options)
-    if error == nil:
-      result.addPackage(pkgInfo, path, [path].toHashSet, errors.collidingNames)
-    else:
-      errors.invalidPackages[depPath] = error
-
-  for inclPath in result.jsonData.includes:
-    let inclPath = inclPath.normalizedPath
-    if visitedFiles.contains(inclPath):
-      continue
-    var inclDevFileData = initDevelopFileData()
     try:
-      inclDevFileData = load(inclPath, initPackageInfo(), options, false, false)
-    except CatchableError as error:
-      errors.invalidIncludeFiles[path] = error
-      continue
-    result.mergeIncludedDevFileData(inclDevFileData, errors)
+      fromJson(result.jsonData, parseFile(path), Joptions(allowExtraKeys: true))
+    except ValueError as error:
+      raise nimbleError(notAValidDevFileJsonMsg($path), details = error)
+
+    for depPath in result.jsonData.dependencies:
+      let depPath = if depPath.isAbsolute:
+        depPath.normalizedPath else: (path.splitFile.dir / depPath).normalizedPath
+      let (pkgInfo, error) = validatePackage(depPath, options)
+      if error == nil:
+        result.addPackage(pkgInfo, path, [path].toHashSet, errors.collidingNames)
+      else:
+        errors.invalidPackages[depPath] = error
+
+    for inclPath in result.jsonData.includes:
+      let inclPath = inclPath.normalizedPath
+      if visitedFiles.contains(inclPath):
+        continue
+      var inclDevFileData = initDevelopFileData()
+      try:
+        inclDevFileData = load(
+          inclPath, initPackageInfo(), options, false, false, false)
+      except CatchableError as error:
+        errors.invalidIncludeFiles[path] = error
+        continue
+      result.mergeIncludedDevFileData(inclDevFileData, errors)
 
   if result.dependentPkg.isLoaded and path.splitPath.tail == developFileName:
     # If this is a package develop file, but not a free one, for each of the
@@ -390,7 +427,7 @@ proc load(path: Path, dependentPkg: PackageInfo, options: Options,
         continue
       var followedPkgDevFileData = initDevelopFileData()
       try:
-        followedPkgDevFileData = load(pkg[], options, true, false)
+        followedPkgDevFileData = load(pkg[], options, true, false, false)
       except:
         # The errors will be accumulated in `errors` global variable and
         # reported by the `load` call which initiated the recursive process.
@@ -580,7 +617,7 @@ proc includeDevelopFile(data: var DevelopFileData, path: Path,
 
   var inclFileData = initDevelopFileData()
   try:
-    inclFileData = load(path, initPackageInfo(), options, false, true)
+    inclFileData = load(path, initPackageInfo(), options, false, true, false)
   except CatchableError as error:
     displayError(failedToLoadFileMsg($path))
     displayDetails(error)
@@ -660,7 +697,7 @@ proc updateDevelopFile*(dependentPkg: PackageInfo, options: Options): bool =
   var
     hasError = false
     hasSuccessfulRemoves = false
-    data = load(developFile, dependentPkg, options, true, true)
+    data = load(developFile, dependentPkg, options, true, true, false)
 
   defer:
     let writeEmpty = hasSuccessfulRemoves or
@@ -691,7 +728,8 @@ proc processDevelopDependencies*(dependentPkg: PackageInfo, options: Options):
   ## Returns a sequence with the develop mode dependencies of the `dependentPkg`
   ## and recursively all of their develop mode dependencies.
 
-  let data = load(dependentPkg, options, true, true)
+  let loadGlobalDeps = not dependentPkg.getPkgDevFilePath.fileExists
+  let data = load(dependentPkg, options, true, true, loadGlobalDeps)
   result = newSeqOfCap[PackageInfo](data.nameToPkg.len)
   for _, pkg in data.nameToPkg:
     result.add pkg[]
@@ -702,7 +740,8 @@ proc getDevelopDependencies*(dependentPkg: PackageInfo, options: Options):
   ## mode dependencies of package `dependentPkg` and recursively all of their
   ## develop mode dependencies.
 
-  let data = load(dependentPkg, options, true, true)
+  let loadGlobalDeps = not dependentPkg.getPkgDevFilePath.fileExists
+  let data = load(dependentPkg, options, true, true, loadGlobalDeps)
   return data.nameToPkg
 
 type
@@ -908,6 +947,7 @@ proc validateDevelopFile*(dependentPkg: PackageInfo, options: Options) =
   ## The procedure is used in the Nimble's `check` command to transitively
   ## validate the contents of the develop files.
 
-  discard load(dependentPkg, options, true, true)
+  let loadGlobalDeps = not dependentPkg.getPkgDevFilePath.fileExists
+  discard load(dependentPkg, options, true, true, loadGlobalDeps)
   if dependentPkg.areLockedDepsLoaded:
     validateDevelopFileAgainstLockFile(dependentPkg, options)

@@ -6,7 +6,7 @@
 import unittest, os, strutils, strformat, json, sets
 import testscommon, nimblepkg/displaymessages, nimblepkg/paths
 
-from nimblepkg/common import cd
+from nimblepkg/common import cd, getLinkFileName, getLinkFileDir
 from nimblepkg/developfile import developFileName, pkgFoundMoreThanOnceMsg
 from nimblepkg/version import newVersion, parseVersionRange
 from nimblepkg/nimbledatafile import nimbleDataFileName, NimbleDataJsonKeys
@@ -80,6 +80,33 @@ suite "develop feature":
         check lines.inLinesOrdered(pkgInstalledMsg(pkgAName))
         check lines.inLinesOrdered(pkgSetupInDevModeMsg(
           pkgBName, installDir / pkgBName))
+
+  test "can develop global":
+    cleanDir installDir
+    usePackageListFile &"develop/{pkgListFileName}":
+      let dependencyPath = getCurrentDir() / "develop" / "dependency"
+
+      # Check that a link file can be created for a global develop dependency.
+      cd dependencyPath:
+        let (output, exitCode) = execNimble("develop", "--global")
+        check exitCode == QuitSuccess
+        var lines = output.processOutput
+        let linkFilePath = installDir / "links" / depName.getLinkFileDir /
+                           depName.getLinkFileName
+        check lines.inLinesOrdered(pkgLinkFileSavedMsg(linkFilePath))
+        check lines.inLinesOrdered(pkgSetupInDevModeMsg(
+          depName, dependencyPath))
+        check linkFilePath.fileExists
+        let linkFileLines = linkFilePath.readFile.split('\n')
+        let expectedLinkNimbleFilePath = dependencyPath / depName & ".nimble"
+        check linkFileLines[0] == expectedLinkNimbleFilePath
+        check linkFileLines[1] == dependencyPath
+
+      # Check that a link file can be used for finding the dependency.
+      cd "develop/dependent":
+        cleanFile dependentPkgName.addFileExt(ExeExt)
+        let (_, exitCode) = execNimble("run")
+        check exitCode == QuitSuccess
 
   test "cannot remove package with develop reverse dependency":
     cdCleanDir installDir:

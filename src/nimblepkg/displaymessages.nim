@@ -157,3 +157,6 @@ proc pkgAlreadyExistsInTheCacheMsg*(pkgInfo: PackageInfo): string =
 proc skipDownloadingInAlreadyExistingDirectoryMsg*(dir, name: string): string =
   &"The download directory \"{dir}\" already exists.\n" &
   &"Skipping the download of \"{name}\"."
+
+proc pkgLinkFileSavedMsg*(path: string): string =
+  &"Package link file \"{path}\" is saved."
