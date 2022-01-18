@@ -11,6 +11,7 @@ This is a major release containing four new features:
 - Support for lock files.
 - Download tarballs when downloading packages from GitHub.
 - A setup command.
+- Added a `--package, -p` command line option.
 
 ## 0.13.0
 
