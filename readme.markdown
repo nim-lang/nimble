@@ -871,9 +871,11 @@ file is created instead.
 The binary can be named differently than the source file with the ``namedBin``
 table:
 
+The keys in ``namedBin`` are Nim source filenames (without extension), and the values are executable names.
+
 ```nim
-namedBin["main"] = "mymain"
-namedBin = {"main": "mymain", "main2": "other-main"}.toTable()
+namedBin["main"] = "package-name"
+namedBin = {"main": "package-name", "sourcename2": "other-main"}.toTable()
 ```
 
 Note that `namedBin` entries override duplicates in `bin`.
