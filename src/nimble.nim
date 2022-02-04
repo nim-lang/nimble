@@ -963,7 +963,7 @@ proc init(options: Options) =
     raise nimbleError("Please install git or mercurial first")
 
   # Determine the package name.
-  let hasprojectname = options.action.projName != ""
+  let hasProjectName = options.action.projName != ""
   let pkgName =
     if options.action.projName != "":
       options.action.projName
