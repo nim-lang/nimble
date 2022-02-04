@@ -48,7 +48,7 @@ when isMainModule:
 # but you can remove it if you wish.
 
 proc add*(x, y: int): int =
-  ## Adds two files together.
+  ## Adds two numbers together.
   return x + y
 """
     )
