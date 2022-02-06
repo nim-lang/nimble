@@ -3,25 +3,15 @@
 
 {.used.}
 
-import unittest, os, osproc
-from nimblepkg/common import cd
+import unittest, os, osproc, strutils
 
 suite "Module tests":
-  template moduleTest(moduleName: string) =
+  template moduleTest(modulePath: string) =
+    let moduleName = splitFile(modulePath).name
     test moduleName:
-      cd "..":
-        check execCmdEx("nim c -r src/nimblepkg/" & moduleName).
-          exitCode == QuitSuccess
+      check execCmdEx("nim c -r " & modulePath).
+        exitCode == QuitSuccess
 
-  moduleTest "common"
-  moduleTest "download"
-  moduleTest "jsonhelpers"
-  moduleTest "packageinfo"
-  moduleTest "packageparser"
-  moduleTest "paths"
-  moduleTest "reversedeps"
-  moduleTest "sha1hashes"
-  moduleTest "tools"
-  moduleTest "topologicalsort"
-  moduleTest "vcstools"
-  moduleTest "version"
+  for module in walkDir("../src/nimblepkg"):
+    if readFile(module.path).contains("unittest"):
+      moduleTest module.path
