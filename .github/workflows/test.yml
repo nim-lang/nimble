@@ -27,22 +27,10 @@ jobs:
       - name: Install Mercurial on macOS
         if: matrix.os == 'macos-latest'
         run: brew install mercurial
-      - name: Run nimblepkg unit tests
-        run: |
-          cd src/nimblepkg
-          nim c -r download
-          nim c -r jsonhelpers
-          nim c -r packageinfo
-          nim c -r packageparser
-          nim c -r paths
-          nim c -r reversedeps
-          nim c -r sha1hashes
-          nim c -r tools
-          nim c -r topologicalsort
-          nim c -r vcstools
-          nim c -r version
       - name: Run nim c -r tester
         run: |
           cd tests
           nim c -r tester
+          # there's no need to add nimblepkg unit tests --
+          # they are run by tmoduletests.nim
       - run: ./src/nimble install -y
