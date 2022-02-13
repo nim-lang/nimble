@@ -975,7 +975,7 @@ proc init(options: Options) =
 
   # Determine the package root.
   let pkgRoot =
-    if not hasprojectname:
+    if not hasProjectName:
       os.getCurrentDir()
     else:
       os.getCurrentDir() / pkgName
