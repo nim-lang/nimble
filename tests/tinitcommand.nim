@@ -6,8 +6,7 @@ from nimblepkg/common import cd
 suite "init":
   ## https://github.com/nim-lang/nimble/pull/983
   test "init within directory that is invalid package name will not create new directory":
-    cleanDir(installDir)
-    let tempdir = installDir / "a-b"
+    let tempdir = getTempDir() / "a-b"
     createDir(tempdir)
     cd(tempdir):
       let args = ["init"]
