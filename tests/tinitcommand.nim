@@ -1,3 +1,5 @@
+{.used.}
+
 import unittest, os
 import testscommon
 
@@ -11,6 +13,7 @@ suite "init":
     cd(tempdir):
       let args = ["init"]
       let (output, exitCode) = execNimbleYes(args)
+      discard output
       check exitCode == QuitSuccess
       check not dirExists("a_b")
       check fileExists("a_b.nimble")
