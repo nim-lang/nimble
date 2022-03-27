@@ -963,6 +963,7 @@ proc init(options: Options) =
     raise nimbleError("Please install git or mercurial first")
 
   # Determine the package name.
+  let hasProjectName = options.action.projName != ""
   let pkgName =
     if options.action.projName != "":
       options.action.projName
@@ -974,7 +975,7 @@ proc init(options: Options) =
 
   # Determine the package root.
   let pkgRoot =
-    if pkgName == os.getCurrentDir().splitPath.tail:
+    if not hasProjectName:
       os.getCurrentDir()
     else:
       os.getCurrentDir() / pkgName
