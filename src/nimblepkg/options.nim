@@ -740,9 +740,9 @@ proc getCompilationBinary*(options: Options, pkgInfo: PackageInfo): Option[strin
       if optRunFile.get("").len > 0:
         optRunFile.get()
       elif pkgInfo.bin.len == 1:
-        toSeq(pkgInfo.bin.values)[0]
+        toSeq(pkgInfo.bin.keys)[0]
       else:
-        ""
+        return none(string)
 
     if runFile.len > 0:
       return some(runFile.changeFileExt(ExeExt))
