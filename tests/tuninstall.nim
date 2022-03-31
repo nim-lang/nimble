@@ -23,8 +23,8 @@ suite "uninstall":
     let args = ["install", pkgBin2Url]
     check execNimbleYes(args).exitCode == QuitSuccess
 
-  proc cannotSatisfyMsg(v1, v2: string): string =
-     &"Cannot satisfy the dependency on PackageA {v1} and PackageA {v2}"
+  proc cannotSatisfyMsg(package: string): string =
+     &"Cannot satisfy the dependencies on " & package
 
   test "can reject same version dependencies":
     cleanDir(installDir)
@@ -33,8 +33,7 @@ suite "uninstall":
     # stderr output being generated and flushed without first flushing stdout
     let ls = outp.strip.processOutput()
     check exitCode != QuitSuccess
-    check ls.inLines(cannotSatisfyMsg("0.2.0", "0.5.0")) or
-          ls.inLines(cannotSatisfyMsg("0.5.0", "0.2.0"))
+    check ls.inLines(cannotSatisfyMsg("PackageA"))
 
   proc setupIssue27Packages() =
     # Install b

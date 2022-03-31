@@ -340,7 +340,9 @@ proc findPkg*(pkglist: seq[PackageInfo], dep: PkgTuple,
       # is not being considered for them.
       r = pkg
       return true
-    elif withinRange(pkg, dep.ver):
+    elif withinRange(pkg, dep.ver) or
+      (dep.ver.kind == verSpecial and dep.ver.spe in pkg.metaData.specialVersions):
+
       let isNewer = r.basicInfo.version < pkg.basicInfo.version
       if not result or isNewer:
         r = pkg

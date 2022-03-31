@@ -2,29 +2,9 @@
 # BSD License. Look at license.txt for more info.
 
 import sequtils, tables, strformat, algorithm, sets
-import common, packageinfotypes, packageinfo, options, cli
+import packageinfotypes, options, cli
 
-proc getDependencies(packages: seq[PackageInfo], package: PackageInfo,
-                     options: Options):
-    seq[string] =
-  ## Returns the names of the packages which are dependencies of a given
-  ## package. It is needed because some of the names of the packages in the
-  ## `requires` clause of a package could be URLs.
-  for dep in package.requires:
-    if dep.name == "nim":
-      continue
-    var depPkgInfo = initPackageInfo()
-    var found = findPkg(packages, dep, depPkgInfo)
-    if not found:
-      let resolvedDep = dep.resolveAlias(options)
-      found = findPkg(packages, resolvedDep, depPkgInfo)
-      if not found:
-        raise nimbleError(
-           "Cannot build the dependency graph.\n" & 
-          &"Missing package \"{dep.name}\".")
-    result.add depPkgInfo.basicInfo.name
-
-proc buildDependencyGraph*(packages: seq[PackageInfo], options: Options):
+proc buildLockFileDeps*(packages: seq[PackageInfo], depGraph: Table[string, seq[string]], options: Options):
     LockFileDeps =
   ## Creates records which will be saved to the lock file.
   for pkgInfo in packages:
@@ -33,10 +13,10 @@ proc buildDependencyGraph*(packages: seq[PackageInfo], options: Options):
       vcsRevision: pkgInfo.metaData.vcsRevision,
       url: pkgInfo.metaData.url,
       downloadMethod: pkgInfo.metaData.downloadMethod,
-      dependencies: getDependencies(packages, pkgInfo, options),
+      dependencies: depGraph.getOrDefault(pkgInfo.basicInfo.name).sorted,
       checksums: Checksums(sha1: pkgInfo.basicInfo.checksum))
 
-proc topologicalSort*(graph: LockFileDeps):
+proc topologicalSort*(graph: OrderedTable[string, seq[string]]):
     tuple[order: seq[string], cycles: seq[seq[string]]] =
   ## Topologically sorts dependency graph which will be saved to the lock file.
   ##
@@ -77,7 +57,7 @@ proc topologicalSort*(graph: LockFileDeps):
 
   proc printNotADagWarning() =
     let message = cycles.foldl(
-      a & "\nCycle detected: " & b.foldl(&"{a} -> {b}"), 
+      a & "\nCycle detected: " & b.foldl(&"{a} -> {b}"),
       "The dependency graph is not a DAG.")
     display("Warning", message, Warning, HighPriority)
 
@@ -96,7 +76,7 @@ proc topologicalSort*(graph: LockFileDeps):
 
     nodeInfo.mark = nmTemporary
 
-    let neighbors = graph[node].dependencies
+    let neighbors = graph[node]
     for node2 in neighbors:
       nodesInfo[node2].cameFrom = node
       visit(node2)
@@ -118,26 +98,17 @@ when isMainModule:
   from version import notSetVersion
   from sha1hashes import notSetSha1Hash
 
-  proc initLockFileDep(deps: seq[string] = @[]): LockFileDep =
-    result = LockFileDep(
-      version: notSetVersion,
-      vcsRevision: notSetSha1Hash,
-      dependencies: deps,
-      checksums: Checksums(sha1: notSetSha1Hash))
-
   suite "topological sort":
 
     test "graph without cycles":
       let
         graph = {
-          "json_serialization": initLockFileDep(
-            @["serialization", "stew"]),
-          "faststreams": initLockFileDep(@["stew"]),
-          "testutils": initLockFileDep(),
-          "stew": initLockFileDep(),
-          "serialization": initLockFileDep(@["faststreams", "stew"]),
-          "chronicles": initLockFileDep(
-            @["json_serialization", "testutils"])
+          "json_serialization": @["serialization", "stew"],
+          "faststreams": @["stew"],
+          "testutils": @[],
+          "stew": @[],
+          "serialization": @["faststreams", "stew"],
+          "chronicles": @["json_serialization", "testutils"]
           }.toOrderedTable
 
         expectedTopologicallySortedOrder = @[
@@ -153,11 +124,11 @@ when isMainModule:
     test "graph with cycles":
       let
         graph = {
-          "A": initLockFileDep(@["B", "E"]),
-          "B": initLockFileDep(@["A", "C"]),
-          "C": initLockFileDep(@["D"]),
-          "D": initLockFileDep(@["B"]),
-          "E": initLockFileDep(@["D", "E"])
+          "A": @["B", "E"],
+          "B": @["A", "C"],
+          "C": @["D"],
+          "D": @["B"],
+          "E": @["D", "E"]
           }.toOrderedTable
 
         expectedTopologicallySortedOrder = @["D", "C", "B", "E", "A"]
