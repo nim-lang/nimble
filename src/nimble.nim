@@ -1508,14 +1508,13 @@ proc updateSyncFile(dependentPkg: PackageInfo, options: Options) =
   syncFile.save
 
 proc validateDevModeDepsWorkingCopiesBeforeLock(
-    pkgInfo: PackageInfo, options: Options) =
+    pkgInfo: PackageInfo, options: Options): ValidationErrors =
   ## Validates that the develop mode dependencies states are suitable for
   ## locking. They must be under version control, their working copies must be
   ## in a clean state and their current VCS revision must be present on some of
   ## the configured remotes.
 
-  var errors: ValidationErrors
-  findValidationErrorsOfDevDepsWithLockFile(pkgInfo, options, errors)
+  findValidationErrorsOfDevDepsWithLockFile(pkgInfo, options, result)
 
   # Those validation errors are not errors in the context of generating a lock
   # file.
@@ -1526,12 +1525,9 @@ proc validateDevModeDepsWorkingCopiesBeforeLock(
     }
 
   # Remove not errors from the errors set.
-  for name, error in common.dup(errors):
+  for name, error in common.dup(result):
     if error.kind in notAnErrorSet:
-      errors.del name
-
-  if errors.len > 0:
-    raise validationErrors(errors)
+      result.del name
 
 proc mergeLockedDependencies*(pkgInfo: PackageInfo, newDeps: LockFileDeps,
                               options: Options): LockFileDeps =
@@ -1592,12 +1588,20 @@ proc lock(options: Options) =
   let pkgInfo = getPkgInfo(currentDir, options)
 
   let doesLockFileExist = displayLockOperationStart(currentDir)
-  validateDevModeDepsWorkingCopiesBeforeLock(pkgInfo, options)
+  var errors = validateDevModeDepsWorkingCopiesBeforeLock(pkgInfo, options)
 
   let dependencies = pkgInfo.processFreeDependencies(options).map(
     pkg => pkg.toFullInfo(options)).toSeq
   pkgInfo.validateDevelopDependenciesVersionRanges(dependencies, options)
   var dependencyGraph = buildDependencyGraph(dependencies, options)
+
+  # throw error only for dependencies that are part of the graph
+  for name, error in common.dup(errors):
+    if not dependencyGraph.contains(name):
+      errors.del name
+
+  if errors.len > 0:
+    raise validationErrors(errors)
 
   if currentDir.lockFileExists:
     # If we already have a lock file, merge its data with the newly generated
@@ -1856,7 +1860,7 @@ proc getPackageForAction(pkgInfo: PackageInfo, options: Options): PackageInfo =
   ## with the name specified in `options.package`. If `options.package` is empty
   ## or it matches the name of the `pkgInfo` then `pkgInfo` is returned. Raises
   ## a `NimbleError` if the package with the provided name is not found.
-  
+
   result = initPackageInfo()
 
   if options.package.len == 0 or pkgInfo.basicInfo.name == options.package:

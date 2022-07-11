@@ -46,7 +46,7 @@ suite "lock file":
       `pkgName"PkgRepoPath"` {.used, inject.} = tempDir / `pkgName"PkgName"`
       `pkgName"PkgOriginRepoPath"`{.used, inject.} =
         originsDirPath / `pkgName"PkgName"`
-      `pkgName"PkgRemoteName"` {.used, inject.} = 
+      `pkgName"PkgRemoteName"` {.used, inject.} =
         `pkgName"PkgName"` & "Remote"
       `pkgName"PkgRemotePath"` {.used, inject.} =
         additionalRemotesDirPath / `pkgName"PkgRemoteName"`
@@ -327,7 +327,7 @@ requires "nim >= 1.5.1"
       cd dep1PkgOriginRepoPath:
         createBranchAndSwitchToIt(branchName)
         addAdditionalFileToTheRepo("dep1.nim", additionalFileContent)
-      
+
       cd dep2PkgOriginRepoPath:
         createBranchAndSwitchToIt(branchName)
         addAdditionalFileToTheRepo("dep2.nim", additionalFileContent)
@@ -370,7 +370,7 @@ requires "nim >= 1.5.1"
       # match those in the lock file.
       testLockedVcsRevisions(@[(dep1PkgName, dep1PkgRepoPath),
                                 (dep2PkgName, dep2PkgRepoPath)])
-  
+
   test "can sync out of sync develop dependencies":
     outOfSyncDepsTest(""):
       testDepsSync()
@@ -408,8 +408,9 @@ requires "nim >= 1.5.1"
                            @[dep1PkgName])
       initNewNimblePackage(dep1PkgOriginRepoPath, dep1PkgRepoPath)
       cd dep1PkgRepoPath:
-        # Modify the Nimble file to make the working copy not clean.
-        discard initNewNimbleFile(dep1PkgRepoPath, @[dep2PkgName])
+        # Add a file to make the working copy not clean.
+        writeFile("dirty", "dirty")
+        addFiles("dirty")
       cd mainPkgRepoPath:
         writeDevelopFile(developFileName, @[], @[dep1PkgRepoPath])
         let (output, exitCode) = execNimbleYes("lock")
@@ -528,3 +529,25 @@ requires "nim >= 1.5.1"
                                  path: dep1PkgRepoPath)
          errorMessage = getValidationErrorMessage(dep1PkgName, error)
        check output.processOutput.inLines(errorMessage)
+
+  test "can lock with dirty non-deps in develop file":
+    cleanUp()
+    withPkgListFile:
+      initNewNimblePackage(mainPkgOriginRepoPath, mainPkgRepoPath,
+                           @[dep1PkgName])
+      initNewNimblePackage(dep1PkgOriginRepoPath, dep1PkgRepoPath)
+      initNewNimblePackage(dep2PkgOriginRepoPath, dep2PkgRepoPath)
+
+      cd dep2PkgRepoPath:
+        # make dep2 dirty
+        writeFile("dirty", "dirty")
+        addFiles("dirty")
+
+
+      cd mainPkgRepoPath:
+        # make main dirty
+        writeFile("dirty", "dirty")
+        addFiles("dirty")
+        writeDevelopFile(developFileName, @[],
+                         @[dep2PkgRepoPath, mainPkgRepoPath, dep1PkgRepoPath])
+        testLockFile(@[(dep1PkgName, dep1PkgRepoPath)], isNew = true)
