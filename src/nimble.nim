@@ -766,8 +766,12 @@ proc execBackend(pkgInfo: PackageInfo, options: Options) =
     display("Generating", ("documentation for $1 (from package $2) using $3 " &
             "backend") % [bin, pkgInfo.basicInfo.name, backend], priority = HighPriority)
 
-  doCmd(getNimBin(options).quoteShell & " $# --noNimblePath $# $#" %
-        [backend, join(args, " "), bin.quoteShell])
+  doCmd("$# $# --noNimblePath $# $# $#" %
+        [getNimBin(options).quoteShell,
+         backend,
+         join(args, " "),
+         bin.quoteShell,
+         options.action.additionalArguments.map(quoteShell).join(" ")])
 
   display("Success:", "Execution finished", Success, HighPriority)
 
@@ -1412,6 +1416,7 @@ proc test(options: Options) =
       var optsCopy = options
       optsCopy.action = Action(typ: actionCompile)
       optsCopy.action.file = file.path
+      optsCopy.action.additionalArguments = options.action.arguments
       optsCopy.action.backend = pkgInfo.backend
       optsCopy.getCompilationFlags() = options.getCompilationFlags()
       # treat run flags as compile for default test task

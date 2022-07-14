@@ -10,6 +10,13 @@ from nimblepkg/version import newVersion
 from nimblepkg/displaymessages import cannotUninstallPkgMsg
 
 suite "issues":
+  test "test params":
+    cd "testParams":
+      let (output, exitCode) = execNimbleYes("test", "Passing test")
+
+      check exitCode == QuitSuccess
+      check output.contains("Passing test")
+
   test "issue 801":
     cd "issue801":
       let (output, exitCode) = execNimbleYes("test")
