@@ -88,6 +88,7 @@ type
     of actionCompile, actionDoc, actionBuild:
       file*: string
       backend*: string
+      additionalArguments*: seq[string]
       compileOptions: seq[string]
     of actionRun:
       runFile: Option[string]
