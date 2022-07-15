@@ -551,3 +551,15 @@ requires "nim >= 1.5.1"
         writeDevelopFile(developFileName, @[],
                          @[dep2PkgRepoPath, mainPkgRepoPath, dep1PkgRepoPath])
         testLockFile(@[(dep1PkgName, dep1PkgRepoPath)], isNew = true)
+
+  test "can sync ignoring deps not present in lock file even if they are in develop file":
+    cleanUp()
+    withPkgListFile:
+      initNewNimblePackage(mainPkgOriginRepoPath, mainPkgRepoPath,
+                           @[dep1PkgName])
+      initNewNimblePackage(dep1PkgOriginRepoPath, dep1PkgRepoPath)
+      cd mainPkgRepoPath:
+        testLockFile(@[(dep1PkgName, dep1PkgRepoPath)], isNew = true)
+        writeDevelopFile(developFileName, @[], @[dep1PkgRepoPath, mainPkgOriginRepoPath])
+        let (_, exitCode) = execNimbleYes("--debug", "--verbose", "sync")
+        check exitCode == QuitSuccess
