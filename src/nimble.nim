@@ -1761,7 +1761,9 @@ proc sync(options: Options) =
   findValidationErrorsOfDevDepsWithLockFile(pkgInfo, options, errors)
 
   for name, error in common.dup(errors):
-    if error.kind == vekWorkingCopyNeedsSync:
+    if not pkgInfo.lockedDeps.contains(name):
+      errors.del name
+    elif error.kind == vekWorkingCopyNeedsSync:
       if not options.action.listOnly:
         syncWorkingCopy(name, error.path, pkgInfo, options)
       else:
