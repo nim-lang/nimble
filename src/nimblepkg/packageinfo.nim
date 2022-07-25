@@ -31,13 +31,13 @@ proc hasMetaData*(pkgInfo: PackageInfo): bool =
   # if the package info has loaded meta data its files list have to be not empty
   pkgInfo.metaData.files.len > 0
 
-proc initPackageInfo*(filePath: string): PackageInfo =
+proc initPackageInfo*(options: Options, filePath: string): PackageInfo =
   result = initPackageInfo()
   let (fileDir, fileName, _) = filePath.splitFile
   result.myPath = filePath
   result.basicInfo.name = fileName
   result.backend = "c"
-  result.lockedDeps = getLockedDependencies(fileDir)
+  result.lockedDeps = options.lockFile(fileDir).getLockedDependencies()
 
 proc toValidPackageName*(name: string): string =
   for c in name:
@@ -282,8 +282,8 @@ proc setNameVersionChecksum*(pkgInfo: var PackageInfo, pkgDir: string) =
   pkgInfo.metaData.specialVersions.incl version
   pkgInfo.basicInfo.checksum = checksum
 
-proc getInstalledPackageMin*(pkgDir, nimbleFilePath: string): PackageInfo =
-  result = initPackageInfo(nimbleFilePath)
+proc getInstalledPackageMin*(options: Options, pkgDir, nimbleFilePath: string): PackageInfo =
+  result = initPackageInfo(options, nimbleFilePath)
   setNameVersionChecksum(result, pkgDir)
   result.isMinimal = true
   result.isInstalled = true
@@ -300,7 +300,7 @@ proc getInstalledPkgsMin*(libsDir: string, options: Options): seq[PackageInfo] =
     if kind == pcDir:
       let nimbleFile = findNimbleFile(path, false)
       if nimbleFile != "":
-        let pkg = getInstalledPackageMin(path, nimbleFile)
+        let pkg = getInstalledPackageMin(options, path, nimbleFile)
         result.add pkg
 
 proc withinRange*(pkgInfo: PackageInfo, verRange: VersionRange): bool =

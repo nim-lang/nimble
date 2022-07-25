@@ -11,7 +11,6 @@ type
     lfjkPkgVcsRevision = "vcsRevision"
 
 const
-  lockFileName* = "nimble.lock"
   lockFileVersion = 1
 
 proc initLockFileDep*: LockFileDep =
@@ -22,9 +21,6 @@ proc initLockFileDep*: LockFileDep =
 
 const
   notSetLockFileDep* = initLockFileDep()
-
-proc lockFileExists*(dir: string): bool =
-  fileExists(dir / lockFileName)
 
 proc writeLockFile*(fileName: string, packages: LockFileDeps,
                     topologicallySortedOrder: seq[string]) =
@@ -42,10 +38,6 @@ proc writeLockFile*(fileName: string, packages: LockFileDeps,
 
   writeFile(fileName, mainJsonNode.pretty)
 
-proc writeLockFile*(packages: LockFileDeps,
-                    topologicallySortedOrder: seq[string]) =
-  writeLockFile(lockFileName, packages, topologicallySortedOrder)
-
 proc readLockFile*(filePath: string): LockFileDeps =
   {.warning[UnsafeDefault]: off.}
   {.warning[ProveInit]: off.}
@@ -53,9 +45,6 @@ proc readLockFile*(filePath: string): LockFileDeps =
   {.warning[ProveInit]: on.}
   {.warning[UnsafeDefault]: on.}
 
-proc readLockFileInDir*(dir: string): LockFileDeps =
-  readLockFile(dir / lockFileName)
-
-proc getLockedDependencies*(dir: string): LockFileDeps =
-  if lockFileExists(dir):
-    result = readLockFileInDir(dir)
+proc getLockedDependencies*(lockFile: string): LockFileDeps =
+  if lockFile.fileExists:
+    result = lockFile.readLockFile

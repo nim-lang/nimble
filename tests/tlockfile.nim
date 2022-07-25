@@ -15,7 +15,8 @@ import nimblepkg/vcstools
 from nimblepkg/common import cd, dump, cdNewDir
 from nimblepkg/tools import tryDoCmdEx, doCmdEx
 from nimblepkg/packageinfotypes import DownloadMethod
-from nimblepkg/lockfile import lockFileName, LockFileJsonKeys
+from nimblepkg/lockfile import LockFileJsonKeys
+from nimblepkg/options import defaultLockFileName
 from nimblepkg/developfile import ValidationError, ValidationErrorKind,
   developFileName, getValidationErrorMessage
 
@@ -165,7 +166,7 @@ requires "nim >= 1.5.1"
     addFiles(fileName)
     commit("Add additional file")
 
-  proc testLockedVcsRevisions(deps: seq[tuple[name, path: string]]) =
+  proc testLockedVcsRevisions(deps: seq[tuple[name, path: string]], lockFileName = defaultLockFileName) =
     check lockFileName.fileExists
 
     let json = lockFileName.readFile.parseJson
@@ -175,7 +176,7 @@ requires "nim >= 1.5.1"
         json{$lfjkPackages}{depName}{$lfjkPkgVcsRevision}.str.initSha1Hash
       check lockedVcsRevision == expectedVcsRevision
 
-  proc testLockFile(deps: seq[tuple[name, path: string]], isNew: bool) =
+  proc testLockFile(deps: seq[tuple[name, path: string]], isNew: bool, lockFileName = defaultLockFileName) =
     ## Generates or updates a lock file and tests whether it contains
     ## dependencies with given names at given repository paths and whether their
     ## VCS revisions match the written in the lock file ones.
@@ -189,7 +190,11 @@ requires "nim >= 1.5.1"
     else:
       check fileExists(lockFileName)
 
-    let (output, exitCode) = execNimbleYes("lock", "--debug")
+    let (output, exitCode) = if lockFileName == defaultLockFileName:
+        execNimbleYes("lock", "--debug")
+      else:
+        execNimbleYes("--lock-file=" & lockFileName, "lock")
+
     check exitCode == QuitSuccess
 
     var lines = output.processOutput
@@ -200,7 +205,7 @@ requires "nim >= 1.5.1"
       check lines.inLinesOrdered(updatingTheLockFileMsg)
       check lines.inLinesOrdered(lockFileIsUpdatedMsg)
 
-    testLockedVcsRevisions(deps)
+    testLockedVcsRevisions(deps, lockFileName)
 
   template filesAndDirsToRemove() =
     removeFile pkgListFilePath
@@ -230,6 +235,28 @@ requires "nim >= 1.5.1"
       initNewNimblePackage(dep1PkgOriginRepoPath, dep1PkgRepoPath)
       cd mainPkgRepoPath:
         testLockFile(@[(dep1PkgName, dep1PkgRepoPath)], isNew = true)
+
+  test "can generate overridden lock file":
+    cleanUp()
+    withPkgListFile:
+      initNewNimblePackage(mainPkgOriginRepoPath, mainPkgRepoPath,
+                           @[dep1PkgName])
+      initNewNimblePackage(dep1PkgOriginRepoPath, dep1PkgRepoPath)
+      cd mainPkgRepoPath:
+        testLockFile(@[(dep1PkgName, dep1PkgRepoPath)],
+                     isNew = true,
+                     lockFileName = "changed-lock-file.lock")
+
+  test "can generate overridden lock file absolute path":
+    cleanUp()
+    withPkgListFile:
+      initNewNimblePackage(mainPkgOriginRepoPath, mainPkgRepoPath,
+                           @[dep1PkgName])
+      initNewNimblePackage(dep1PkgOriginRepoPath, dep1PkgRepoPath)
+      cd mainPkgRepoPath:
+        testLockFile(@[(dep1PkgName, dep1PkgRepoPath)],
+                     isNew = true,
+                     lockFileName = mainPkgRepoPath / "changed-lock-file.lock")
 
   test "cannot lock because develop dependency is out of range":
     cleanUp()
@@ -336,7 +363,7 @@ requires "nim >= 1.5.1"
         testLockFile(@[(dep1PkgName, dep1PkgOriginRepoPath),
                        (dep2PkgName, dep2PkgOriginRepoPath)],
                      isNew = true)
-        addFiles(lockFileName)
+        addFiles(defaultLockFileName)
         commit("Add the lock file to version control")
 
       cd mainPkgRepoPath:
@@ -481,7 +508,7 @@ requires "nim >= 1.5.1"
 
       cd mainPkgOriginRepoPath:
         testLockFile(@[(dep1PkgName, dep1PkgOriginRepoPath)], isNew = true)
-        addFiles(lockFileName)
+        addFiles(defaultLockFileName)
         commit("Add the lock file to version control")
 
       cd mainPkgRepoPath:
@@ -504,7 +531,7 @@ requires "nim >= 1.5.1"
         writeDevelopFile(developFileName, @[], @[dep1PkgOriginRepoPath])
         # Update the origin lock file.
         testLockFile(@[(dep1PkgName, dep1PkgOriginRepoPath)], isNew = false)
-        addFiles(lockFileName)
+        addFiles(defaultLockFileName)
         commit("Modify the lock file")
 
       cd mainPkgRepoPath:
