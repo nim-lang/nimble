@@ -55,7 +55,7 @@ type
     actionInstall, actionSearch, actionList, actionBuild, actionPath,
     actionUninstall, actionCompile, actionDoc, actionCustom, actionTasks,
     actionDevelop, actionCheck, actionLock, actionRun, actionSync, actionSetup,
-    actionClean
+    actionClean, actionDeps
 
   DevelopActionType* = enum
     datAdd, datRemoveByPath, datRemoveByName, datInclude, datExclude
@@ -101,6 +101,8 @@ type
       arguments*: seq[string]
       custCompileFlags*: seq[string]
       custRunFlags*: seq[string]
+    of actionDeps:
+      format*: string
 
 const
   help* = """
@@ -189,6 +191,9 @@ Commands:
                                   the name of an installed package.
                [--ini, --json]    Selects the output format (the default is --ini).
   lock                            Generates or updates a package lock file.
+  deps                            Outputs dependency tree
+               [--format type]    Specify the output format. Json is the only supported
+                                  format
   sync                            Synchronizes develop mode dependencies with
                                   the content of the lock file.
                [-l, --list-only]  Only lists the packages which are not synced
@@ -283,6 +288,8 @@ proc parseActionType*(action: string): ActionType =
     result = actionCheck
   of "lock":
     result = actionLock
+  of "deps":
+    result = actionDeps
   of "sync":
     result = actionSync
   of "setup":
@@ -601,6 +608,12 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
     case f
     of "l", "list-only":
       result.action.listOnly = true
+    else:
+      wasFlagHandled = false
+  of actionDeps:
+    case f
+    of "format":
+      result.action.format = val
     else:
       wasFlagHandled = false
   else:

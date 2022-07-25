@@ -1630,6 +1630,76 @@ proc lock(options: Options) =
   updateSyncFile(pkgInfo, options)
   displayLockOperationFinish(doesLockFileExist)
 
+type
+  DependencyNode = ref object of RootObj
+    name*: string
+    version*: string
+    resolvedTo*: string
+    error*: string
+    dependencies*: seq[DependencyNode]
+
+proc depsRecursive(pkgInfo: PackageInfo,
+                   dependencies: seq[PackageInfo],
+                   errors: ValidationErrors): seq[DependencyNode] =
+  result = @[]
+  for (name, ver) in pkgInfo.requires:
+    var depPkgInfo = initPackageInfo()
+    let
+      found = dependencies.findPkg((name, ver), depPkgInfo)
+      packageName = if found: depPkgInfo.basicInfo.name else: name
+
+    let node = DependencyNode(name: packageName)
+
+    result.add node
+    node.version = if ver.kind == verAny: "@any" else: $ver
+    node.resolvedTo = if found: $depPkgInfo.basicInfo.version else: ""
+    node.error = if errors.contains(packageName):
+      getValidationErrorMessage(packageName, errors.getOrDefault packageName)
+    else: ""
+
+    if found:
+      node.dependencies = depsRecursive(depPkgInfo, dependencies, errors)
+
+proc printDepsHumanReadable(pkgInfo: PackageInfo, dependencies: seq[PackageInfo], level: int, errors: ValidationErrors) =
+  for (name, ver) in pkgInfo.requires:
+    var depPkgInfo = initPackageInfo()
+    let
+      found = dependencies.findPkg((name, ver), depPkgInfo)
+      packageName = if found: depPkgInfo.basicInfo.name else: name
+
+    echo " ".repeat(level * 2),
+      packageName,
+      if ver.kind == verAny: "@any" else: " " & $ver,
+      if found: fmt "(resolved {depPkgInfo.basicInfo.version})" else: "",
+      if errors.contains(packageName):
+        " - error: " & getValidationErrorMessage(packageName, errors.getOrDefault packageName)
+      else:
+        ""
+    if found: printDepsHumanReadable(depPkgInfo, dependencies, level + 1, errors)
+
+proc depsTree(options: Options) =
+  ## Prints the dependency tree
+
+  let pkgInfo = getPkgInfo(getCurrentDir(), options)
+
+  var errors = validateDevModeDepsWorkingCopiesBeforeLock(pkgInfo, options)
+
+  let dependencies = pkgInfo.processFreeDependencies(options).map(
+    pkg => pkg.toFullInfo(options)).toSeq
+  pkgInfo.validateDevelopDependenciesVersionRanges(dependencies, options)
+  var dependencyGraph = buildDependencyGraph(dependencies, options)
+
+  # delete errors for dependencies that aren't part of the graph
+  for name, error in common.dup errors:
+    if not dependencyGraph.contains name:
+      errors.del name
+
+  if options.action.format == "json":
+    echo (%depsRecursive(pkgInfo, dependencies, errors)).pretty
+  else:
+    echo pkgInfo.basicInfo.name
+    printDepsHumanReadable(pkgInfo, dependencies, 1, errors)
+
 proc syncWorkingCopy(name: string, path: Path, dependentPkg: PackageInfo,
                      options: Options) =
   ## Syncs a working copy of a develop mode dependency of package `dependentPkg`
@@ -1969,6 +2039,8 @@ proc doAction(options: var Options) =
     check(options)
   of actionLock:
     lock(options)
+  of actionDeps:
+    depsTree(options)
   of actionSync:
     sync(options)
   of actionSetup:
