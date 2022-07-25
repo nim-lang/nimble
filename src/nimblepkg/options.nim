@@ -10,6 +10,7 @@ import config, version, common, cli, packageinfotypes, displaymessages
 
 const
   nimbledeps* = "nimbledeps"
+  defaultLockFileName* = "nimble.lock"
 
 type
   DumpMode* = enum kdumpIni, kdumpJson
@@ -26,6 +27,7 @@ type
     nimbleData*: JsonNode ## Nimbledata.json
     pkgInfoCache*: TableRef[string, PackageInfo]
     showHelp*: bool
+    lockFileName*: string
     showVersion*: bool
     offline*: bool
     noColor*: bool
@@ -219,6 +221,7 @@ Nimble Options:
       --offline                   Don't use network.
       --noColor                   Don't colorise output.
       --noSSLCheck                Don't check SSL certificates.
+      --lock-file                 Override the lock file name.
 
 For more information read the Github readme:
   https://github.com/nim-lang/nimble#readme
@@ -506,6 +509,7 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
   of "nosslcheck": result.disableSslCertCheck = true
   of "tarballs", "t": result.enableTarballs = true
   of "package", "p": result.package = val
+  of "lock-file": result.lockFileName = val
   else: isGlobalFlag = false
 
   var wasFlagHandled = true
@@ -753,3 +757,13 @@ proc getCompilationBinary*(options: Options, pkgInfo: PackageInfo): Option[strin
 
 proc isInstallingTopLevel*(options: Options, dir: string): bool =
   return options.startDir == dir
+
+proc lockFile*(options: Options, dir: string): string =
+  let lockFile = if options.lockFileName == default(string):
+    defaultLockFileName
+  else:
+    options.lockFileName
+  if lockFile.isAbsolute:
+    result = lockFile
+  else:
+    result = dir / lockFile

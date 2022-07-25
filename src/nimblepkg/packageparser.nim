@@ -344,7 +344,7 @@ proc readPackageInfo(nf: NimbleFile, options: Options, onlyMinimalInfo=false):
     result = options.pkgInfoCache[nf]
     return
 
-  result = initPackageInfo(nf)
+  result = initPackageInfo(options, nf)
   result.isLink = not nf.startsWith(options.getPkgsDir)
 
   validatePackageName(nf.splitFile.name)

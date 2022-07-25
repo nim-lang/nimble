@@ -507,7 +507,7 @@ proc getDependency(name: string, dep: LockFileDep, options: Options):
   ## lock file.
   let depDirName = getDependencyDir(name, dep, options)
   let nimbleFilePath = findNimbleFile(depDirName, false)
-  getInstalledPackageMin(depDirName, nimbleFilePath).toFullInfo(options)
+  getInstalledPackageMin(options, depDirName, nimbleFilePath).toFullInfo(options)
 
 type
   DownloadInfo = ref object
@@ -1565,11 +1565,11 @@ proc mergeLockedDependencies*(pkgInfo: PackageInfo, newDeps: LockFileDeps,
     if not newDeps.hasKey(name):
       result.del name
 
-proc displayLockOperationStart(dir: string): bool =
+proc displayLockOperationStart(lockFile: string): bool =
   ## Displays a proper log message for starting generating or updating the lock
   ## file of a package in directory `dir`.
 
-  var doesLockFileExist = dir.lockFileExists
+  var doesLockFileExist = lockFile.fileExists
   let msg = if doesLockFileExist:
     updatingTheLockFileMsg
   else:
@@ -1591,10 +1591,12 @@ proc lock(options: Options) =
   ## Generates a lock file for the package in the current directory or updates
   ## it if it already exists.
 
-  let currentDir = getCurrentDir()
-  let pkgInfo = getPkgInfo(currentDir, options)
+  let
+    currentDir = getCurrentDir()
+    pkgInfo = getPkgInfo(currentDir, options)
+    currentLockFile = options.lockFile(currentDir)
+    doesLockFileExist = displayLockOperationStart(currentLockFile)
 
-  let doesLockFileExist = displayLockOperationStart(currentDir)
   var errors = validateDevModeDepsWorkingCopiesBeforeLock(pkgInfo, options)
 
   let dependencies = pkgInfo.processFreeDependencies(options).map(
@@ -1610,7 +1612,7 @@ proc lock(options: Options) =
   if errors.len > 0:
     raise validationErrors(errors)
 
-  if currentDir.lockFileExists:
+  if currentLockFile.fileExists:
     # If we already have a lock file, merge its data with the newly generated
     # one.
     #
@@ -1623,7 +1625,8 @@ proc lock(options: Options) =
     dependencyGraph = mergeLockedDependencies(pkgInfo, dependencyGraph, options)
 
   let (topologicalOrder, _) = topologicalSort(dependencyGraph)
-  writeLockFile(dependencyGraph, topologicalOrder)
+
+  writeLockFile(currentLockFile, dependencyGraph, topologicalOrder)
   updateSyncFile(pkgInfo, options)
   displayLockOperationFinish(doesLockFileExist)
 
