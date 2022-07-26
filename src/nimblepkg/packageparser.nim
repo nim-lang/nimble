@@ -272,7 +272,7 @@ proc readPackageInfoFromNimble(path: string; result: var PackageInfo) =
               if result.backend == "js":
                 raise nimbleError("`dynlib` entry can not be compiled with backend `js`: " & src)
               else:
-                dynlib = dynlib.addFileExt(ExeExt)
+                dynlib = DynlibFormat % [dynlib]
               result.dynlib[dynlib] = src
           of "backend":
             result.backend = ev.value.toLowerAscii()
