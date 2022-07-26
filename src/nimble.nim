@@ -163,10 +163,10 @@ proc buildFromDir(pkgInfo: PackageInfo, paths: HashSet[string],
     if not execHook(options, actionBuild, true):
       raise nimbleError("Pre-hook prevented further execution.")
 
-  if pkgInfo.bin.len == 0:
+  if pkgInfo.bin.len + pkgInfo.dynlib.len == 0:
     raise nimbleError(
         "Nothing to build. Did you specify a module to build using the" &
-        " `bin` key in your .nimble file?")
+        " `bin` or `dynlib` key in your .nimble file?")
 
   var
     binariesBuilt = 0

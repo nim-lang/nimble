@@ -56,6 +56,8 @@ type
     installExt*: seq[string]
     requires*: seq[PkgTuple]
     bin*: Table[string, string]
+    dynlib*: Table[string, string]
+    dynlibOptions*: seq[string]
     binDir*: string
     srcDir*: string
     backend*: string

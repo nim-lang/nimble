@@ -262,11 +262,25 @@ proc readPackageInfoFromNimble(path: string; result: var PackageInfo) =
               else:
                 bin = bin.addFileExt(ExeExt)
               result.bin[bin] = src
+          of "dynlib":
+            for i in ev.value.multiSplit:
+              var (src, dynlib) = if '=' notin i: (i, i) else:
+                let spl = i.split('=', 1)
+                (spl[0], spl[1])
+              if src.splitFile().ext == ".nim":
+                raise nimbleError("`dynlib` entry should not be a source file: " & src)
+              if result.backend == "js":
+                raise nimbleError("`dynlib` entry can not be compiled with backend `js`: " & src)
+              else:
+                dynlib = dynlib.addFileExt(ExeExt)
+              result.dynlib[dynlib] = src
           of "backend":
             result.backend = ev.value.toLowerAscii()
             case result.backend.normalize
             of "javascript": result.backend = "js"
             else: discard
+          of "dynliboptions":
+            result.dynlibOptions = ev.value.split " "
           of "nimbletasks":
             for i in ev.value.multiSplit:
               result.nimbleTasks.incl(i.normalize)
