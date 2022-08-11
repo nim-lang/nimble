@@ -430,9 +430,9 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
     var filesInstalled: HashSet[string]
     iterInstallFiles(realDir, pkgInfo, options,
       proc (file: string) =
-        createDir(changeRoot(realDir, pkgDestDir, file.splitFile.dir))
-        let dest = changeRoot(realDir, pkgDestDir, file)
-        filesInstalled.incl copyFileD(file, dest)
+      createDir(changeRoot(realDir, pkgDestDir, file.splitFile.dir))
+      let dest = changeRoot(realDir, pkgDestDir, file)
+      filesInstalled.incl copyFileD(file, dest)
     )
 
     # Copy the .nimble file.
@@ -927,7 +927,7 @@ proc dump(options: Options) =
           j[key].add %{
             "name": % name,
             # we serialize both: `ver` may be more convenient for tooling
-            # (no parsing needed); while `str` is more familiar.
+              # (no parsing needed); while `str` is more familiar.
             "str": % $ver,
             "ver": %* ver,
           }
@@ -1394,11 +1394,10 @@ proc develop(options: var Options) =
 
 proc test(options: Options) =
   ## Executes all tests starting with 't' in the ``tests`` directory.
-  ## Subdirectories are not walked.
   var pkgInfo = getPkgInfo(getCurrentDir(), options)
 
   var
-    files = toSeq(walkDir(getCurrentDir() / "tests"))
+    files = toSeq(walkDirRec(getCurrentDir() / "tests", {pcFile, pcLinkToFile}, relative = true))
     tests, failures: int
 
   if files.len < 1:
@@ -1408,7 +1407,8 @@ proc test(options: Options) =
   if not execHook(options, actionCustom, true):
     raise nimbleError("Pre-hook prevented further execution.")
 
-  files.sort((a, b) => cmp(a.path, b.path))
+  files.sort((a, b) => cmp(a, b))
+  files = files.map((a) => "tests" / a)
 
   for file in files:
     let (_, name, ext) = file.path.splitFile()
@@ -1422,10 +1422,8 @@ proc test(options: Options) =
       # treat run flags as compile for default test task
       optsCopy.getCompilationFlags().add(options.action.custRunFlags)
       optsCopy.getCompilationFlags().add("-r")
+      optsCopy.getCompilationFlags().add("--out=" & ("build/" / file.changeFileExt(ExeExt)))
       optsCopy.getCompilationFlags().add("--path:.")
-      let
-        binFileName = file.path.changeFileExt(ExeExt)
-        existsBefore = fileExists(binFileName)
 
       if options.continueTestsOnFailure:
         inc tests
@@ -1436,15 +1434,6 @@ proc test(options: Options) =
       else:
         execBackend(pkgInfo, optsCopy)
 
-      let
-        existsAfter = fileExists(binFileName)
-        canRemove = not existsBefore and existsAfter
-      if canRemove:
-        try:
-          removeFile(binFileName)
-        except OSError as exc:
-          display("Warning:", "Failed to delete " & binFileName & ": " &
-                  exc.msg, Warning, MediumPriority)
 
   if failures == 0:
     display("Success:", "All tests passed", Success, HighPriority)
@@ -1988,10 +1977,10 @@ proc doAction(options: var Options) =
       # fallback logic.
         test(options)
     else:
-      raise nimbleError(msg = "Could not find task $1 in $2" %
-                              [options.action.command, nimbleFile],
-                        hint = "Run `nimble --help` and/or `nimble tasks` for" &
-                               " a list of possible commands.")
+      raiseNimbleError(msg = "Could not find task $1 in $2" %
+                            [options.action.command, nimbleFile],
+                      hint = "Run `nimble --help` and/or `nimble tasks` for" &
+                              " a list of possible commands.")
 
 when isMainModule:
   var exitCode = QuitSuccess
