@@ -1411,11 +1411,11 @@ proc test(options: Options) =
   files = files.map((a) => "tests" / a)
 
   for file in files:
-    let (_, name, ext) = file.path.splitFile()
-    if ext == ".nim" and name[0] == 't' and file.kind in {pcFile, pcLinkToFile}:
+    let (_, name, ext) = file.splitFile()
+    if ext == ".nim" and name[0] == 't':
       var optsCopy = options
       optsCopy.action = Action(typ: actionCompile)
-      optsCopy.action.file = file.path
+      optsCopy.action.file = file
       optsCopy.action.additionalArguments = options.action.arguments
       optsCopy.action.backend = pkgInfo.backend
       optsCopy.getCompilationFlags() = options.getCompilationFlags()
