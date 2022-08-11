@@ -430,9 +430,9 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
     var filesInstalled: HashSet[string]
     iterInstallFiles(realDir, pkgInfo, options,
       proc (file: string) =
-      createDir(changeRoot(realDir, pkgDestDir, file.splitFile.dir))
-      let dest = changeRoot(realDir, pkgDestDir, file)
-      filesInstalled.incl copyFileD(file, dest)
+        createDir(changeRoot(realDir, pkgDestDir, file.splitFile.dir))
+        let dest = changeRoot(realDir, pkgDestDir, file)
+        filesInstalled.incl copyFileD(file, dest)
     )
 
     # Copy the .nimble file.
@@ -927,7 +927,7 @@ proc dump(options: Options) =
           j[key].add %{
             "name": % name,
             # we serialize both: `ver` may be more convenient for tooling
-              # (no parsing needed); while `str` is more familiar.
+            # (no parsing needed); while `str` is more familiar.
             "str": % $ver,
             "ver": %* ver,
           }
@@ -1977,9 +1977,9 @@ proc doAction(options: var Options) =
       # fallback logic.
         test(options)
     else:
-      raiseNimbleError(msg = "Could not find task $1 in $2" %
-                            [options.action.command, nimbleFile],
-                      hint = "Run `nimble --help` and/or `nimble tasks` for" &
+      raise nimbleError(msg = "Could not find task $1 in $2" %
+                              [options.action.command, nimbleFile],
+                        hint = "Run `nimble --help` and/or `nimble tasks` for" &
                               " a list of possible commands.")
 
 when isMainModule:
