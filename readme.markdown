@@ -180,6 +180,12 @@ Example:
     ...
     nake installed successfully
 
+Packages needed for developing or testing a project can be installed by
+passing the `--depsOnly` option and leaving out the package name.  
+Example:
+
+    $ cd myProgram/ && nimble install --depsOnly
+
 Nimble always fetches and installs the latest version of a package. Note that
 the latest version is defined as the latest tagged version in the Git (or Mercurial)
 repository, if the package has no tagged versions then the latest commit in the

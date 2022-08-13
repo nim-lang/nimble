@@ -106,7 +106,8 @@ Usage: nimble [nimbleopts] COMMAND [cmdopts]
 
 Commands:
   install      [pkgname, ...]     Installs a list of packages.
-               [-d, --depsOnly]   Install only dependencies.
+               [-d, --depsOnly]   Only install dependencies. Leave out pkgname
+                                  to install deps for a local nimble package. 
                [-p, --passNim]    Forward specified flag to compiler.
                [--noRebuild]      Don't rebuild binaries if they're up-to-date.
   develop      [pkgname, ...]     Clones a list of packages for development.
