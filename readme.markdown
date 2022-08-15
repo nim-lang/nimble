@@ -213,7 +213,7 @@ The ``install`` command can also be used for locally testing or developing a
 Nimble package by leaving out the package name parameter. Your current working
 directory must be a Nimble package and contain a valid ``package.nimble`` file.
 
-Nimble will install the package residing in the current working directory if you
+Nimble will install the package residing in the current working directory when you
 don't specify a package name and the directory contains a ``package.nimble`` file.
 This can be useful for developers who are locally testing their ``.nimble`` files
 before submitting them to the official package list.
@@ -221,8 +221,8 @@ See the [Creating Packages](#creating-packages) section for more info on this.
 
 Dependencies required for developing or testing a project can be installed by
 passing `--depsOnly` without specifying a package name. Nimble will then install
-any missing dependencies listed in the package's ``package.nimble`` file. Note 
-that the required dependencies will be installed globally.
+any missing dependencies listed in the package's ``package.nimble`` file in the 
+current working directoy. Note that dependencies will be installed globally.
 
 For example to install the dependencies for a Nimble project ``myPackage``:
 
