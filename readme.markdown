@@ -180,12 +180,6 @@ Example:
     ...
     nake installed successfully
 
-Packages needed for developing or testing a project can be installed by
-passing the `--depsOnly` option and leaving out the package name.  
-Example:
-
-    $ cd myProgram/ && nimble install --depsOnly
-
 Nimble always fetches and installs the latest version of a package. Note that
 the latest version is defined as the latest tagged version in the Git (or Mercurial)
 repository, if the package has no tagged versions then the latest commit in the
@@ -208,16 +202,31 @@ version range, for example:
 
 The latter command will install a version that is greater than ``0.5``.
 
-If you don't specify a parameter and there is a ``package.nimble`` file in your
-current working directory then Nimble will install the package residing in
-the current working directory. This can be useful for developers who are locally
-testing their ``.nimble`` files before submitting them to the official package
-list. See the [Creating Packages](#creating-packages) section for more info on this.
-
 Nim flags provided to `nimble install` will be forwarded to the compiler when
 building any binaries. Such compiler flags can be made persistent by using Nim
 [configuration](https://nim-lang.org/docs/nimc.html#compiler-usage-configuration-files)
 files.
+
+#### Local Package Development
+
+The ``install`` command can also be used when testing or developing a Nimble
+package locally by leaving out the package name parameter. Your current working
+directory must contain a ``package.nimble`` file to use Nimble this way.
+
+A package can be installed from local sources if you don't specify a package
+name and there is a ``package.nimble`` file in your current working directory.
+Nimble will then install the package residing in the current working directory.
+This can be useful for developers who are locally testing their ``.nimble`` files
+before submitting them to the official package list.
+See the [Creating Packages](#creating-packages) section for more info on this.
+
+Alternatively passing `--depsOnly` without a package name will install all the
+dependencies required for developing or testing a project as listed in the
+``package.nimble`` file. 
+
+For example to install the dependencies for a Nimble project ``myPackage``:
+
+    $ cd myPackage/ && nimble install --depsOnly
 
 #### Package URLs
 
