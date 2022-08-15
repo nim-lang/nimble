@@ -137,6 +137,9 @@ proc getUrlData*(url: string): (string, Table[string, string]) =
 proc isURL*(name: string): bool =
   name.startsWith(peg" @'://' ")
 
+proc isNimble*(name: string): bool =
+  name.startsWith(peg" @'://' ")
+
 proc cloneSpecificRevision(downloadMethod: DownloadMethod,
                            url, downloadDir: string,
                            vcsRevision: Sha1Hash) =

@@ -622,9 +622,13 @@ proc processLockedDependencies(pkgInfo: PackageInfo, options: Options):
     else:
       raise nimbleError("Unsatisfied dependency: " & pkgInfo.basicInfo.name)
 
-proc getDownloadInfo*(pv: PkgTuple, options: Options,
-                      doPrompt: bool, ignorePackageCache = false): (DownloadMethod, string,
-                                        Table[string, string]) =
+proc getDownloadInfo*(
+  pv: PkgTuple,
+  options: Options,
+  doPrompt: bool,
+  ignorePackageCache = false
+): (DownloadMethod, string, Table[string, string]) =
+  ## download info
   if pv.name.isURL:
     let (url, metadata) = getUrlData(pv.name)
     return (checkUrlType(url), url, metadata)
@@ -664,6 +668,11 @@ proc install(packages: seq[PkgTuple], options: Options,
         "\nThey will be ignored and installed as normal packages.")
     result = installFromDir(currentDir, newVRAny(), options, "", first,
                             fromLockFile)
+  elif options.action.isNimbleFile:
+    let pv = packages[0]
+    let pkgInfo = getPkgInfoFromFile(pv.name, options, forValidation=true)
+    result = installFromDir(pkgInfo.myPath.parentDir(), pv.ver, options, "",
+                            first, fromLockFile)
   else:
     # Install each package.
     for pv in packages:
