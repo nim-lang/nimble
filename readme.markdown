@@ -202,16 +202,31 @@ version range, for example:
 
 The latter command will install a version that is greater than ``0.5``.
 
-If you don't specify a parameter and there is a ``package.nimble`` file in your
-current working directory then Nimble will install the package residing in
-the current working directory. This can be useful for developers who are locally
-testing their ``.nimble`` files before submitting them to the official package
-list. See the [Creating Packages](#creating-packages) section for more info on this.
-
 Nim flags provided to `nimble install` will be forwarded to the compiler when
 building any binaries. Such compiler flags can be made persistent by using Nim
 [configuration](https://nim-lang.org/docs/nimc.html#compiler-usage-configuration-files)
 files.
+
+#### Local Package Development
+
+The ``install`` command can also be used for locally testing or developing a
+Nimble package by leaving out the package name parameter. Your current working
+directory must be a Nimble package and contain a valid ``package.nimble`` file.
+
+Nimble will install the package residing in the current working directory when you
+don't specify a package name and the directory contains a ``package.nimble`` file.
+This can be useful for developers who are locally testing their ``.nimble`` files
+before submitting them to the official package list.
+See the [Creating Packages](#creating-packages) section for more info on this.
+
+Dependencies required for developing or testing a project can be installed by
+passing `--depsOnly` without specifying a package name. Nimble will then install
+any missing dependencies listed in the package's ``package.nimble`` file in the 
+current working directoy. Note that dependencies will be installed globally.
+
+For example to install the dependencies for a Nimble project ``myPackage``:
+
+    $ cd myPackage/ && nimble install --depsOnly
 
 #### Package URLs
 
