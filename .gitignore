@@ -62,3 +62,6 @@ src/nimblepkg/version
 # Test procedure artifacts
 *.nims
 /buildTests
+/nimble.develop
+nimble.paths
+*.paths

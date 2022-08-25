@@ -27,6 +27,11 @@ jobs:
       - name: Install Mercurial on macOS
         if: matrix.os == 'macos-latest'
         run: brew install mercurial
+      - name: setup submodules
+        run: |
+          git submodule update --init
+          cd nim-bearssl
+          git submodule update --init
       - name: Run nim c -r tester
         run: |
           cd tests
