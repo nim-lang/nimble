@@ -119,8 +119,9 @@ proc awaitInstallFutures(futures: seq[Future[PackageDependenciesInfo]],
                          reverseDependencies: ptr seq[PackageBasicInfo],
                          resultSet: ptr HashSet[PackageInfo]):
     Future[void] {.async.} =
-  var installResults = if futures.len > 0: await all(futures) else: @[]
-  for (deps, pkg) in mitems(installResults):
+  await allFutures(futures)
+  for fut in futures:
+    var (deps, pkg) = fut.waitFor()
     addDepsToResultSet(deps, resultSet)
     fillMetaData(pkg, pkg.getRealDir(), false)
     pkgList[].add pkg
@@ -706,7 +707,7 @@ proc lockedDepsDownload(dependenciesToDownload: DownloadQueue,
   for i in 0 ..< workersCount:
     downloadWorkers.add startDownloadWorker(
       dependenciesToDownload, options, result)
-  waitFor all(downloadWorkers)
+  waitFor allFutures(downloadWorkers)
 
 proc processLockedDependencies(pkgInfo: PackageInfo, options: Options):
     HashSet[PackageInfo] =
