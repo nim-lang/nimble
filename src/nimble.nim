@@ -19,7 +19,8 @@ import nimblepkg/packageinfotypes, nimblepkg/packageinfo, nimblepkg/version,
        nimblepkg/checksums, nimblepkg/topologicalsort, nimblepkg/lockfile,
        nimblepkg/nimscriptwrapper, nimblepkg/developfile, nimblepkg/paths,
        nimblepkg/nimbledatafile, nimblepkg/packagemetadatafile,
-       nimblepkg/displaymessages, nimblepkg/sha1hashes, nimblepkg/syncfile
+       nimblepkg/displaymessages, nimblepkg/sha1hashes, nimblepkg/syncfile,
+       nimblepkg/deps
 
 const
   nimblePathsFileName* = "nimble.paths"
@@ -1630,6 +1631,30 @@ proc lock(options: Options) =
   updateSyncFile(pkgInfo, options)
   displayLockOperationFinish(doesLockFileExist)
 
+
+proc depsTree(options: Options) =
+  ## Prints the dependency tree
+
+  let pkgInfo = getPkgInfo(getCurrentDir(), options)
+
+  var errors = validateDevModeDepsWorkingCopiesBeforeLock(pkgInfo, options)
+
+  let dependencies = pkgInfo.processFreeDependencies(options).map(
+    pkg => pkg.toFullInfo(options)).toSeq
+  pkgInfo.validateDevelopDependenciesVersionRanges(dependencies, options)
+  var dependencyGraph = buildDependencyGraph(dependencies, options)
+
+  # delete errors for dependencies that aren't part of the graph
+  for name, error in common.dup errors:
+    if not dependencyGraph.contains name:
+      errors.del name
+
+  if options.action.format == "json":
+    echo (%depsRecursive(pkgInfo, dependencies, errors)).pretty
+  else:
+    echo pkgInfo.basicInfo.name
+    printDepsHumanReadable(pkgInfo, dependencies, 1, errors)
+
 proc syncWorkingCopy(name: string, path: Path, dependentPkg: PackageInfo,
                      options: Options) =
   ## Syncs a working copy of a develop mode dependency of package `dependentPkg`
@@ -1969,6 +1994,8 @@ proc doAction(options: var Options) =
     check(options)
   of actionLock:
     lock(options)
+  of actionDeps:
+    depsTree(options)
   of actionSync:
     sync(options)
   of actionSetup:
