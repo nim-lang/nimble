@@ -225,6 +225,7 @@ Nimble Options:
       --silent                    Hide all Nimble and Nim output
       --verbose                   Show all non-debug output.
       --debug                     Show all output including debug messages.
+      --example                   Build/run an example instead of a package.
       --offline                   Don't use network.
       --noColor                   Don't colorise output.
       --noSSLCheck                Don't check SSL certificates.
