@@ -27,7 +27,7 @@ proc exampleCode(info: PkgInitInfo): Option[string] =
 # You may create as many example files as you want. Example file names should
 # be valid Nim module names.
 #
-# To run this example, simply execute `nimble run example1 --example`.
+# To run this example, simply execute `nimble --example run example1`.
 
 import $1
 
@@ -40,7 +40,7 @@ echo "One plus one equals ", $$add(1, 1)
 # You may create as many example files as you want. Example file names should
 # be valid Nim module names.
 #
-# To run this example, simply execute `nimble run example1 --example`.
+# To run this example, simply execute `nimble --example run example1`.
 
 import $1pkg/submodule
 

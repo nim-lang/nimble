@@ -153,19 +153,18 @@ proc processFreeDependencies(pkgInfo: PackageInfo, options: Options):
     addRevDep(options.nimbleData, i, pkgInfo)
 
 proc buildFromDir(pkgInfo: PackageInfo, paths: HashSet[string],
-                  args: seq[string], options: Options,
-                  example = false) =
+                  args: seq[string], options: Options) =
   ## Builds a package as specified by ``pkgInfo``.
   # Handle pre-`build` hook.
   let
     pkgDir = pkgInfo.myPath.parentDir()
     realDir =
-      if example:
+      if options.example:
         pkgInfo.getRealExamplesDir()
       else:
         pkgInfo.getRealDir()
     bin =
-      if example:
+      if options.example:
         pkgInfo.getExampleBin()
       else:
         pkgInfo.bin
@@ -191,7 +190,7 @@ proc buildFromDir(pkgInfo: PackageInfo, paths: HashSet[string],
   if options.verbosity == SilentPriority:
     # Hide Nim warnings
     args.add("--warnings:off")
-  if example:
+  if options.example:
     args.add("--path:" & pkgInfo.srcDir.quoteShell)
 
   let binToBuild =
@@ -207,7 +206,7 @@ proc buildFromDir(pkgInfo: PackageInfo, paths: HashSet[string],
       if bin.extractFilename().changeFileExt("") != binToBuild:
         continue
 
-    let outputDir = pkgInfo.getOutputDir("", example)
+    let outputDir = pkgInfo.getOutputDir("", options.example)
     if dirExists(outputDir):
       if fileExists(outputDir / bin):
         if not pkgInfo.needsRebuild(outputDir / bin, realDir, options):
@@ -218,7 +217,7 @@ proc buildFromDir(pkgInfo: PackageInfo, paths: HashSet[string],
     else:
       createDir(outputDir)
 
-    let outputOpt = "-o:" & pkgInfo.getOutputDir(bin, example).quoteShell
+    let outputOpt = "-o:" & pkgInfo.getOutputDir(bin, options.example).quoteShell
     display("Building", "$1/$2 using $3 backend" %
             [pkginfo.basicInfo.name, bin, pkgInfo.backend], priority = HighPriority)
 
@@ -716,17 +715,17 @@ proc getDependenciesPaths(pkgInfo: PackageInfo, options: Options):
   let deps = pkgInfo.processAllDependencies(options)
   return deps.map(dep => dep.getRealDir())
 
-proc build(pkgInfo: PackageInfo, options: Options, example=false) =
+proc build(pkgInfo: PackageInfo, options: Options) =
   ## Builds the package `pkgInfo`.
   nimScriptHint(pkgInfo)
   let paths = pkgInfo.getDependenciesPaths(options)
   var args = options.getCompilationFlags()
-  buildFromDir(pkgInfo, paths, args, options, example)
+  buildFromDir(pkgInfo, paths, args, options)
 
-proc build(options: Options, example=false) =
+proc build(options: Options) =
   let dir = getCurrentDir()
   let pkgInfo = getPkgInfo(dir, options)
-  pkgInfo.build(options, example)
+  pkgInfo.build(options)
 
 proc clean(options: Options) =
   let dir = getCurrentDir()
@@ -1930,18 +1929,16 @@ proc run(options: Options) =
   if binary.len == 0:
     raise nimbleError("Please specify a binary to run")
 
-  let example = "--example" in options.action.runFlags
-
-  if not example and binary notin pkgInfo.bin:
+  if not options.example and binary notin pkgInfo.bin:
     raise nimbleError(binaryNotDefinedInPkgMsg(binary, pkgInfo.basicInfo.name))
 
   if pkgInfo.isLink:
     # If this is not installed package then build the binary.
-    pkgInfo.build(options, example)
+    pkgInfo.build(options)
   elif options.getCompilationFlags.len > 0:
     displayWarning(ignoringCompilationFlagsMsg)
 
-  let binaryPath = pkgInfo.getOutputDir(binary, example)
+  let binaryPath = pkgInfo.getOutputDir(binary, options.example)
   let cmd = quoteShellCommand(binaryPath & options.action.runFlags)
   displayDebug("Executing", cmd)
 

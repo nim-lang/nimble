@@ -31,6 +31,7 @@ type
     showVersion*: bool
     offline*: bool
     noColor*: bool
+    example*: bool
     disableValidation*: bool
     continueTestsOnFailure*: bool
     ## Whether packages' repos should always be downloaded with their history.
@@ -518,6 +519,7 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
   of "tarballs", "t": result.enableTarballs = true
   of "package", "p": result.package = val
   of "lock-file": result.lockFileName = val
+  of "example": result.example = true
   else: isGlobalFlag = false
 
   var wasFlagHandled = true
