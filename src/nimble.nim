@@ -1976,6 +1976,8 @@ proc doAction(options: var Options) =
     clean(options)
   of actionRun:
     run(options)
+  of actionExample:
+    echo "TODO"
   of actionCompile, actionDoc:
     var pkgInfo = getPkgInfo(getCurrentDir(), options)
     execBackend(pkgInfo, options)

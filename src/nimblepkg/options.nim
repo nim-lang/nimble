@@ -55,7 +55,8 @@ type
     actionInstall, actionSearch, actionList, actionBuild, actionPath,
     actionUninstall, actionCompile, actionDoc, actionCustom, actionTasks,
     actionDevelop, actionCheck, actionLock, actionRun, actionSync, actionSetup,
-    actionClean, actionDeps
+    actionClean, actionDeps,
+    actionExample
 
   DevelopActionType* = enum
     datAdd, datRemoveByPath, datRemoveByName, datInclude, datExclude
@@ -103,6 +104,8 @@ type
       custRunFlags*: seq[string]
     of actionDeps:
       format*: string
+    of actionExample:
+      discard
 
 const
   help* = """
@@ -266,6 +269,8 @@ proc parseActionType*(action: string): ActionType =
     result = actionCompile
   of "doc", "doc2":
     result = actionDoc
+  of "example":
+    result = actionExample
   of "init":
     result = actionInit
   of "dump":
