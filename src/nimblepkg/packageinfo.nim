@@ -384,10 +384,12 @@ proc getOutputDir*(pkgInfo: PackageInfo, bin: string, example = false): string =
 
 proc getRealExamplesDir*(pkgInfo: PackageInfo): string =
   ## Returns the directory containing the example source files.
-  ## If no example directory was specified in the package info, empty string
+  ## If no example directory was specified in the package info, "examples"
   ## is returned.
   if pkgInfo.examplesDir != "" and (not pkgInfo.isInstalled or pkgInfo.isLink):
     result = pkgInfo.getNimbleFileDir() / pkgInfo.examplesDir
+  elif not pkgInfo.isInstalled or pkgInfo.isLink:
+    result = "examples"
 
 proc echoPackage*(pkg: Package) =
   echo(pkg.name & ":")
