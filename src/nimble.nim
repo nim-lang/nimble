@@ -735,7 +735,11 @@ proc clean(options: Options) =
 
 proc execBackend(pkgInfo: PackageInfo, options: Options) =
   let
-    bin = options.getCompilationBinary(pkgInfo).get("")
+    bin =
+      if options.example:
+        pkgInfo.getRealExamplesDir() / options.getCompilationBinary(pkgInfo).get("")
+      else:
+        options.getCompilationBinary(pkgInfo).get("")
     binDotNim = bin.addFileExt("nim")
 
   if bin == "":
@@ -761,6 +765,8 @@ proc execBackend(pkgInfo: PackageInfo, options: Options) =
   if options.verbosity == SilentPriority:
     # Hide Nim warnings
     args.add("--warnings:off")
+  if options.example:
+    args.add("--path:" & pkgInfo.srcDir.quoteShell)
 
   for option in options.getCompilationFlags():
     args.add(option.quoteShell)
