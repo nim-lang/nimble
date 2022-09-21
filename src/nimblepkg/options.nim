@@ -55,8 +55,8 @@ type
     actionInstall, actionSearch, actionList, actionBuild, actionPath,
     actionUninstall, actionCompile, actionDoc, actionCustom, actionTasks,
     actionDevelop, actionCheck, actionLock, actionRun, actionSync, actionSetup,
-    actionClean, actionDeps,
-    actionExample
+    actionClean, actionDeps
+    
 
   DevelopActionType* = enum
     datAdd, datRemoveByPath, datRemoveByName, datInclude, datExclude
@@ -97,6 +97,7 @@ type
       runFile: Option[string]
       compileFlags: seq[string]
       runFlags*: seq[string]
+      runExample*: bool
     of actionCustom:
       command*: string
       arguments*: seq[string]
@@ -104,8 +105,6 @@ type
       custRunFlags*: seq[string]
     of actionDeps:
       format*: string
-    of actionExample:
-      discard
 
 const
   help* = """
@@ -269,8 +268,6 @@ proc parseActionType*(action: string): ActionType =
     result = actionCompile
   of "doc", "doc2":
     result = actionDoc
-  of "example":
-    result = actionExample
   of "init":
     result = actionInit
   of "dump":
@@ -450,6 +447,8 @@ proc setRunOptions(result: var Options, key, val: string, isArg: bool) =
       result.action.compileFlags.add(val)
   else:
     result.action.runFlags.add(val)
+    if val == "--example":
+      result.action.runExample = true
 
 proc parseArgument*(key: string, result: var Options) =
   case result.action.typ

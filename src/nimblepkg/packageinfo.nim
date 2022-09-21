@@ -38,6 +38,7 @@ proc initPackageInfo*(options: Options, filePath: string): PackageInfo =
   result.basicInfo.name = fileName
   result.backend = "c"
   result.lockedDeps = options.lockFile(fileDir).getLockedDependencies()
+  result.examplesDir = "examples"
 
 proc toValidPackageName*(name: string): string =
   for c in name:

@@ -1918,8 +1918,12 @@ proc run(options: Options) =
   if binary.len == 0:
     raise nimbleError("Please specify a binary to run")
 
-  if binary notin pkgInfo.bin:
-    raise nimbleError(binaryNotDefinedInPkgMsg(binary, pkgInfo.basicInfo.name))
+  if not options.action.runExample:
+    if binary notin pkgInfo.bin:
+      raise nimbleError(binaryNotDefinedInPkgMsg(binary, pkgInfo.basicInfo.name))
+  else:
+    if binary notin pkgInfo.exampleBin:
+      raise nimbleError(binaryNotDefinedInPkgMsg(binary, pkgInfo.basicInfo.name))
 
   if pkgInfo.isLink:
     # If this is not installed package then build the binary.
@@ -1976,8 +1980,6 @@ proc doAction(options: var Options) =
     clean(options)
   of actionRun:
     run(options)
-  of actionExample:
-    echo "TODO"
   of actionCompile, actionDoc:
     var pkgInfo = getPkgInfo(getCurrentDir(), options)
     execBackend(pkgInfo, options)
