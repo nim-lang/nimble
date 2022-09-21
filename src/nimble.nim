@@ -153,18 +153,28 @@ proc processFreeDependencies(pkgInfo: PackageInfo, options: Options):
     addRevDep(options.nimbleData, i, pkgInfo)
 
 proc buildFromDir(pkgInfo: PackageInfo, paths: HashSet[string],
-                  args: seq[string], options: Options) =
+                  args: seq[string], options: Options,
+                  example = false) =
   ## Builds a package as specified by ``pkgInfo``.
   # Handle pre-`build` hook.
   let
-    realDir = pkgInfo.getRealDir()
     pkgDir = pkgInfo.myPath.parentDir()
+    realDir =
+      if example:
+        pkgInfo.getRealExamplesDir()
+      else:
+        pkgInfo.getRealDir()
+    bin =
+      if example:
+        pkgInfo.getExampleBin()
+      else:
+        pkgInfo.bin
 
   cd pkgDir: # Make sure `execHook` executes the correct .nimble file.
     if not execHook(options, actionBuild, true):
       raise nimbleError("Pre-hook prevented further execution.")
 
-  if pkgInfo.bin.len == 0:
+  if bin.len == 0:
     raise nimbleError(
         "Nothing to build. Did you specify a module to build using the" &
         " `bin` key in your .nimble file?")
@@ -189,13 +199,13 @@ proc buildFromDir(pkgInfo: PackageInfo, paths: HashSet[string],
       options.getCompilationBinary(pkgInfo).get("")
     else: ""
 
-  for bin, src in pkgInfo.bin:
+  for bin, src in bin:
     # Check if this is the only binary that we want to build.
     if binToBuild.len != 0 and binToBuild != bin:
       if bin.extractFilename().changeFileExt("") != binToBuild:
         continue
 
-    let outputDir = pkgInfo.getOutputDir("")
+    let outputDir = pkgInfo.getOutputDir("", example)
     if dirExists(outputDir):
       if fileExists(outputDir / bin):
         if not pkgInfo.needsRebuild(outputDir / bin, realDir, options):
@@ -206,7 +216,7 @@ proc buildFromDir(pkgInfo: PackageInfo, paths: HashSet[string],
     else:
       createDir(outputDir)
 
-    let outputOpt = "-o:" & pkgInfo.getOutputDir(bin).quoteShell
+    let outputOpt = "-o:" & pkgInfo.getOutputDir(bin, example).quoteShell
     display("Building", "$1/$2 using $3 backend" %
             [pkginfo.basicInfo.name, bin, pkgInfo.backend], priority = HighPriority)
 
@@ -704,17 +714,17 @@ proc getDependenciesPaths(pkgInfo: PackageInfo, options: Options):
   let deps = pkgInfo.processAllDependencies(options)
   return deps.map(dep => dep.getRealDir())
 
-proc build(pkgInfo: PackageInfo, options: Options) =
+proc build(pkgInfo: PackageInfo, options: Options, example=false) =
   ## Builds the package `pkgInfo`.
   nimScriptHint(pkgInfo)
   let paths = pkgInfo.getDependenciesPaths(options)
   var args = options.getCompilationFlags()
-  buildFromDir(pkgInfo, paths, args, options)
+  buildFromDir(pkgInfo, paths, args, options, example)
 
-proc build(options: Options) =
+proc build(options: Options, example=false) =
   let dir = getCurrentDir()
   let pkgInfo = getPkgInfo(dir, options)
-  pkgInfo.build(options)
+  pkgInfo.build(options, example)
 
 proc clean(options: Options) =
   let dir = getCurrentDir()
@@ -1918,20 +1928,18 @@ proc run(options: Options) =
   if binary.len == 0:
     raise nimbleError("Please specify a binary to run")
 
-  if not options.action.runExample:
-    if binary notin pkgInfo.bin:
-      raise nimbleError(binaryNotDefinedInPkgMsg(binary, pkgInfo.basicInfo.name))
-  else:
-    if binary notin pkgInfo.exampleBin:
-      raise nimbleError(binaryNotDefinedInPkgMsg(binary, pkgInfo.basicInfo.name))
+  let example = "--example" in options.action.runFlags
+
+  if not example and binary notin pkgInfo.bin:
+    raise nimbleError(binaryNotDefinedInPkgMsg(binary, pkgInfo.basicInfo.name))
 
   if pkgInfo.isLink:
     # If this is not installed package then build the binary.
-    pkgInfo.build(options)
+    pkgInfo.build(options, example)
   elif options.getCompilationFlags.len > 0:
     displayWarning(ignoringCompilationFlagsMsg)
 
-  let binaryPath = pkgInfo.getOutputDir(binary)
+  let binaryPath = pkgInfo.getOutputDir(binary, example)
   let cmd = quoteShellCommand(binaryPath & options.action.runFlags)
   displayDebug("Executing", cmd)
 

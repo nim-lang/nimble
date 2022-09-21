@@ -56,7 +56,6 @@ type
     installExt*: seq[string]
     requires*: seq[PkgTuple]
     bin*: Table[string, string]
-    exampleBin*: Table[string, string]
     binDir*: string
     srcDir*: string
     examplesDir*: string

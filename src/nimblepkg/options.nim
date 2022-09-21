@@ -97,7 +97,6 @@ type
       runFile: Option[string]
       compileFlags: seq[string]
       runFlags*: seq[string]
-      runExample*: bool
     of actionCustom:
       command*: string
       arguments*: seq[string]
@@ -447,8 +446,6 @@ proc setRunOptions(result: var Options, key, val: string, isArg: bool) =
       result.action.compileFlags.add(val)
   else:
     result.action.runFlags.add(val)
-    if val == "--example":
-      result.action.runExample = true
 
 proc parseArgument*(key: string, result: var Options) =
   case result.action.typ
