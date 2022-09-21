@@ -191,6 +191,8 @@ proc buildFromDir(pkgInfo: PackageInfo, paths: HashSet[string],
   if options.verbosity == SilentPriority:
     # Hide Nim warnings
     args.add("--warnings:off")
+  if example:
+    args.add("--path:" & pkgInfo.srcDir.quoteShell)
 
   let binToBuild =
     # Only build binaries specified by user if any, but only if top-level package,
