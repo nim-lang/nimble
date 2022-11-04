@@ -28,7 +28,7 @@ var
   skipDirs*, skipFiles*, skipExt*, installDirs*, installFiles*,
     installExt*, bin*: seq[string] = @[] ## Nimble metadata.
   requiresData*: seq[string] = @[] ## The package's dependencies.
-
+  taskRequirements*: Table[string, seq[string]] ## Task dependencies
   foreignDeps*: seq[string] = @[] ## The foreign dependencies. Only
                                   ## exported for 'distros.nim'.
 
@@ -47,6 +47,13 @@ proc requires*(deps: varargs[string]) =
   ## Call this to set the list of requirements of your Nimble
   ## package.
   for d in deps: requiresData.add(d)
+
+proc taskRequires*(task: string, deps: varargs[string]) =
+  ## Call this to set the list of requirements for a certain task
+  if task notin taskRequirements:
+    taskRequirements[task] = @[]
+  for d in deps:
+    taskRequirements[task] &= d
 
 proc getParams(): tuple[scriptFile, projectFile, outFile, actionName: string,
                         commandLineParams: seq[string]] =

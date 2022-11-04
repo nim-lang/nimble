@@ -195,4 +195,7 @@ proc writeDevelopFile*(path: string, includes: seq[string],
 putEnv("NIMBLE_TEST_BINARY_PATH", nimblePath)
 
 # Always recompile.
-doAssert execCmdEx("nim c " & nimbleCompilePath).exitCode == QuitSuccess
+block:
+  # Verbose name is used for exit code so assert is clearer
+  let (output, nimbleCompileExitCode) = execCmdEx("nim c " & nimbleCompilePath)
+  doAssert nimbleCompileExitCode == QuitSuccess, output
