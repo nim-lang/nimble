@@ -95,7 +95,7 @@ proc processFreeDependencies(pkgInfo: PackageInfo, options: Options):
     reverseDependencies: seq[PackageBasicInfo] = @[]
     requirements = pkgInfo.requires
 
-  if isMain and command in pkgInfo.taskRequires:
+  if isMain and (command in pkgInfo.taskRequires or command == "test"):
     # If this is the main file then add its needed
     # requirements for running a task
     requirements &= pkgInfo.taskRequires[command]
@@ -2023,10 +2023,10 @@ proc doAction(options: var Options) =
       nimbleFile = findNimbleFile(getCurrentDir(), true)
       pkgInfo = getPkgInfoFromFile(nimbleFile, options)
 
+    discard pkgInfo.processAllDependencies(options)
     if command in pkgInfo.nimbleTasks:
       # If valid task defined in nimscript, run it
       var execResult: ExecutionResult[bool]
-      discard pkgInfo.processAllDependencies(options)
       if execCustom(nimbleFile, options, execResult):
         if execResult.hasTaskRequestedCommand():
           var options = execResult.getOptionsForCommand(options)

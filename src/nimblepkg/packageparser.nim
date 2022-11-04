@@ -289,7 +289,7 @@ proc readPackageInfoFromNimble(path: string; result: var PackageInfo) =
               let task = normalizedKey.dup(removeSuffix("requires"))
               # Tasks have already been parsed, so we can safely check
               # if the task is valid or not
-              if task notin result.nimbleTasks:
+              if task notin result.nimbleTasks and task != "test":
                 raise nimbleError(fmt"Task {task} doesn't exist for requirement'")
 
               if task notin result.taskRequires:

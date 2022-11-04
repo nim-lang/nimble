@@ -33,20 +33,3 @@ suite "nimble tasks":
       check output.contains("a         Description for a")
       check exitCode == QuitSuccess
 
-
-  test "Can specify custom requirement for a task":
-    cd "tasks/dependencies":
-      let (output, exitCode) = execNimble("tasks")
-      check exitCode == QuitSuccess
-
-  test "Dependency is used when running task":
-    cd "tasks/dependencies":
-      let (output, exitCode) = execNimble("a")
-      check exitCode == QuitSuccess
-      check output.contains("dependencies for unittest2@0.0.4")
-
-  test "Dependency is not used when not running task":
-    cd "tasks/dependencies":
-      let (output, exitCode) = execNimble("install")
-      check exitCode == QuitSuccess
-      check not output.contains("dependencies for unittest2@0.0.4")
