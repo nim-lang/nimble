@@ -1,7 +1,7 @@
 # Copyright (C) Dominik Picheta. All rights reserved.
 # BSD License. Look at license.txt for more info.
 
-import json, strutils, os, parseopt, uri, tables, terminal
+import json, strutils, os, parseopt, uri, tables, terminal, sets
 import sequtils, sugar
 import std/options as std_opt
 from httpclient import Proxy, newProxy

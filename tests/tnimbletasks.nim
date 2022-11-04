@@ -41,12 +41,12 @@ suite "nimble tasks":
 
   test "Dependency is used when running task":
     cd "tasks/dependencies":
-      let (output, exitCode) = execNimble("test")
+      let (output, exitCode) = execNimble("a")
       check exitCode == QuitSuccess
-      check output.contains("dependencies for unittest2@>= 0.0.1")
+      check output.contains("dependencies for unittest2@0.0.4")
 
   test "Dependency is not used when not running task":
     cd "tasks/dependencies":
       let (output, exitCode) = execNimble("install")
       check exitCode == QuitSuccess
-      check not output.contains("dependencies for unittest2@>= 0.0.1")
+      check not output.contains("dependencies for unittest2@0.0.4")

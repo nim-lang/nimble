@@ -55,6 +55,7 @@ type
     installFiles*: seq[string]
     installExt*: seq[string]
     requires*: seq[PkgTuple]
+    taskRequires*: Table[string, seq[PkgTuple]]
     bin*: Table[string, string]
     binDir*: string
     srcDir*: string

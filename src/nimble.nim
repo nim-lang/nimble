@@ -76,6 +76,13 @@ proc processFreeDependencies(pkgInfo: PackageInfo, options: Options):
 
   assert not pkgInfo.isMinimal,
          "processFreeDependencies needs pkgInfo.requires"
+  # If the folder we are operating in is the same folder that the .nimble
+  # file is in then we know we are working the main package
+  let
+    isMain = options.startDir == pkgInfo.myPath.splitpath().head
+    command = case options.action.typ
+      of actionCustom: options.action.command.normalize
+      else: ""
 
   var pkgList {.global.}: seq[PackageInfo] = @[]
   once: pkgList = initPkgList(pkgInfo, options)
@@ -84,8 +91,16 @@ proc processFreeDependencies(pkgInfo: PackageInfo, options: Options):
           [pkgInfo.basicInfo.name, $pkgInfo.basicInfo.version],
           priority = HighPriority)
 
-  var reverseDependencies: seq[PackageBasicInfo] = @[]
-  for dep in pkgInfo.requires:
+  var
+    reverseDependencies: seq[PackageBasicInfo] = @[]
+    requirements = pkgInfo.requires
+
+  if isMain and command in pkgInfo.taskRequires:
+    # If this is the main file then add its needed
+    # requirements for running a task
+    requirements &= pkgInfo.taskRequires[command]
+
+  for dep in requirements:
     if dep.name == "nimrod" or dep.name == "nim":
       let nimVer = getNimrodVersion(options)
       if not withinRange(nimVer, dep.ver):
@@ -2011,6 +2026,7 @@ proc doAction(options: var Options) =
     if command in pkgInfo.nimbleTasks:
       # If valid task defined in nimscript, run it
       var execResult: ExecutionResult[bool]
+      discard pkgInfo.processAllDependencies(options)
       if execCustom(nimbleFile, options, execResult):
         if execResult.hasTaskRequestedCommand():
           var options = execResult.getOptionsForCommand(options)
