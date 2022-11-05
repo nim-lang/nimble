@@ -32,4 +32,3 @@ suite "nimble tasks":
       let (output, exitCode) = execNimble("tasks")
       check output.contains("a         Description for a")
       check exitCode == QuitSuccess
-

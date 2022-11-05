@@ -128,6 +128,15 @@ proc safeMoveFile(src, dest: string) =
     copyFile(src, dest)
     removeFile(src)
 
+proc uninstallDeps*() =
+  ## Uninstalls all installed dependencies.
+  ## Useful for cleaning up after a test case
+  let (output, exitCode) = execNimble("list", "-i")
+  for line in output.splitLines:
+    let package = line.split("  ")[0]
+    if package != "":
+      verify execNimbleYes("uninstall", "-i", package)
+
 template testRefresh*(body: untyped) =
   # Backup current config
   let configFile {.inject.} = getConfigDir() / "nimble" / "nimble.ini"
