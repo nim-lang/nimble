@@ -73,16 +73,13 @@ proc processFreeDependencies(pkgInfo: PackageInfo, options: Options):
   ##
   ## Returns set of PackageInfo (for paths) to pass to the compiler
   ## during build phase.
-
   assert not pkgInfo.isMinimal,
          "processFreeDependencies needs pkgInfo.requires"
   # If the folder we are operating in is the same folder that the .nimble
   # file is in then we know we are working the main package
   let
     isMain = options.startDir == pkgInfo.myPath.splitpath().head
-    command = case options.action.typ
-      of actionCustom: options.action.command.normalize
-      else: ""
+    task = options.task
 
   var pkgList {.global.}: seq[PackageInfo] = @[]
   once: pkgList = initPkgList(pkgInfo, options)
@@ -94,11 +91,23 @@ proc processFreeDependencies(pkgInfo: PackageInfo, options: Options):
   var
     reverseDependencies: seq[PackageBasicInfo] = @[]
     requirements = pkgInfo.requires
+  template addTaskRequirements =
+    ## Adds all task requirements to list of requirements
+    for requires in pkgInfo.taskRequires.values:
+        requirements &= requires
 
-  if isMain and (command in pkgInfo.taskRequires or command == "test"):
-    # If this is the main file then add its needed
-    # requirements for running a task
-    requirements &= pkgInfo.taskRequires[command]
+  if isMain:
+    if task in pkgInfo.taskRequires or task == "test":
+      # If this is the main file then add its needed
+      # requirements for running a task
+      # "test" might not have dependencies which is what the orDefault is for
+      requirements &= pkgInfo.taskRequires.getOrDefault(task)
+    elif options.action.typ in {actionLock, actionSync}:
+      # We only what the add task level dependencies for main package
+      # into the lock file
+      addTaskRequirements()
+  if options.action.typ == actionDeps:
+    addTaskRequirements()
 
   for dep in requirements:
     if dep.name == "nimrod" or dep.name == "nim":
@@ -751,8 +760,8 @@ proc execBackend(pkgInfo: PackageInfo, options: Options) =
 
   let pkgInfo = getPkgInfo(getCurrentDir(), options)
   nimScriptHint(pkgInfo)
-  let deps = pkgInfo.processAllDependencies(options)
 
+  let deps = pkgInfo.processAllDependencies(options)
   if not execHook(options, options.action.typ, true):
     raise nimbleError("Pre-hook prevented further execution.")
 
@@ -2018,23 +2027,24 @@ proc doAction(options: var Options) =
   of actionNil:
     assert false
   of actionCustom:
+    var optsCopy = options
+    optsCopy.task = options.action.command.normalize
     let
-      command = options.action.command.normalize
       nimbleFile = findNimbleFile(getCurrentDir(), true)
-      pkgInfo = getPkgInfoFromFile(nimbleFile, options)
+      pkgInfo = getPkgInfoFromFile(nimbleFile, optsCopy)
 
-    discard pkgInfo.processAllDependencies(options)
-    if command in pkgInfo.nimbleTasks:
+    discard pkgInfo.processAllDependencies(optsCopy)
+    if optsCopy.task in pkgInfo.nimbleTasks:
       # If valid task defined in nimscript, run it
       var execResult: ExecutionResult[bool]
-      if execCustom(nimbleFile, options, execResult):
+      if execCustom(nimbleFile, optsCopy, execResult):
         if execResult.hasTaskRequestedCommand():
-          var options = execResult.getOptionsForCommand(options)
-          doAction(options)
-    elif command == "test":
+          var options = execResult.getOptionsForCommand(optsCopy)
+          doAction(optsCopy)
+    elif optsCopy.task == "test":
       # If there is no task defined for the `test` task, we run the pre-defined
       # fallback logic.
-        test(options)
+      test(optsCopy)
     else:
       raise nimbleError(msg = "Could not find task $1 in $2" %
                               [options.action.command, nimbleFile],

@@ -344,7 +344,8 @@ Currently the lock file have the structure as in the following example:
       ],
       "checksums": {
         "sha1": "a1cdaa77995f2d1381e8f9dc129594f2fa2ee07f"
-      }
+      },
+      "task": null
     },
     ...
   }
@@ -367,6 +368,7 @@ packages' names also must be in the lock file.
 verifying that a downloaded package is exactly the same as the pinned in the
 lock file package. Currently, only `sha1` checksums are supported
 * `sha1` - The *sha1* checksum of the package files.
+* `task` - The task the dependency belongs to. Is `null` is it doesn't belong to any one task (i.e. Just a normal requirement)
 
 If a lock file `nimble.lock` exists, then on performing all Nimble commands
 which require searching for dependencies and downloading them in the case they

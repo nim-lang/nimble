@@ -7,6 +7,8 @@ import json
 from nimblepkg/common import cd
 
 suite "Task level dependencies":
+  teardown:
+    uninstallDeps()
   test "Can specify custom requirement for a task":
     cd "taskdeps/dependencies":
       let (output, exitCode) = execNimble("tasks")
@@ -40,7 +42,7 @@ suite "Task level dependencies":
       check "unittest2" in json["packages"]
       let pkgInfo = json["packages"]["unittest2"]
       check pkgInfo["version"].getStr() == "0.0.4"
-      check pkgInfo["task"] == "test"
+      check pkgInfo["task"].getStr() == "test"
       removeFile("nimble.lock")
 
   test "Lock file doesn't install task dependencies":
@@ -68,3 +70,13 @@ suite "Task level dependencies":
         if dependency["name"].getStr() == "unittest2":
           found = true
       check found
+
+  test "Develop file is used":
+    cd "taskdeps/dependencies":
+      removeDir("nim-unittest2")
+      removeFile("nimble.develop")
+
+      verify execNimble("develop", "unittest2")
+      createDir "nim-unittest2/unittest2"
+      "nim-unittest2/unittest2/customFile.nim".writeFile("")
+      verify execNimble("test")

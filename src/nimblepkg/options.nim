@@ -45,6 +45,7 @@ type
     developLocaldeps*: bool # True if local deps + nimble develop pkg1 ...
     disableSslCertCheck*: bool
     enableTarballs*: bool # Enable downloading of packages as tarballs from GitHub.
+    task*: string # Name of the task that is getting ran
     package*: string
       # For which package in the dependency tree the command should be executed.
       # If not provided by default it applies to the current directory package.

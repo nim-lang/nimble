@@ -1,7 +1,7 @@
 # Copyright (C) Dominik Picheta. All rights reserved.
 # BSD License. Look at license.txt for more info.
 
-import sets, tables
+import sets, tables, std/options
 import version, sha1hashes
 
 type
@@ -18,6 +18,7 @@ type
     downloadMethod*: DownloadMethod
     dependencies*: seq[string]
     checksums*: Checksums
+    task: Option[string]
 
   LockFileDeps* = OrderedTable[string, LockFileDep]
 
