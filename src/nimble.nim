@@ -2043,8 +2043,11 @@ proc doAction(options: var Options) =
       nimbleFile = findNimbleFile(getCurrentDir(), true)
       pkgInfo = getPkgInfoFromFile(nimbleFile, optsCopy)
 
-    discard pkgInfo.processAllDependencies(optsCopy)
     if optsCopy.task in pkgInfo.nimbleTasks:
+      # Make sure we have dependencies for the task.
+      # We do that here to make sure that any binaries from dependencies
+      # are installed
+      discard pkgInfo.processAllDependencies(optsCopy)
       # If valid task defined in nimscript, run it
       var execResult: ExecutionResult[bool]
       if execCustom(nimbleFile, optsCopy, execResult):
