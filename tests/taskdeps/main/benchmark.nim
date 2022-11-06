@@ -1,1 +1,4 @@
-import benchytimeIt "test":  discard
+import benchy
+
+timeIt "test":
+  discard

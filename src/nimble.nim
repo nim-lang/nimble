@@ -95,7 +95,7 @@ proc processFreeDependencies(pkgInfo: PackageInfo, options: Options):
   template addTaskRequirements =
     ## Adds all task requirements to list of requirements
     for task, requires in pkgInfo.taskRequires:
-        requirements &= requires
+      requirements &= requires
 
   # Check what task level dependencies need to be added
   if isMain:
