@@ -6,9 +6,17 @@ import testscommon
 import json
 from nimblepkg/common import cd
 
+template makeLockFile() =
+  ## Makes lock file, cleans up after itself
+  verify execNimble("lock")
+  defer: removeFile("nimble.lock")
+
 suite "Task level dependencies":
+  verify execNimbleYes("update")
+
   teardown:
     uninstallDeps()
+
   test "Can specify custom requirement for a task":
     cd "taskdeps/dependencies":
       let (output, exitCode) = execNimble("tasks")
@@ -35,19 +43,22 @@ suite "Task level dependencies":
 
   test "Lock file has dependencies added to it":
     cd "taskdeps/dependencies":
-      removeFile("nimble.lock")
-      verify execNimble("lock")
+      makeLockFile()
       # Check task level dependencies are in the lock file
       let json = parseFile("nimble.lock")
       check "unittest2" in json["packages"]
       let pkgInfo = json["packages"]["unittest2"]
       check pkgInfo["version"].getStr() == "0.0.4"
       check pkgInfo["task"].getStr() == "test"
-      removeFile("nimble.lock")
+
+  test "Task dependencies from lock file are used":
+    makeLockFile()
+    let (output, exitCode) = execNimble()
+    #
 
   test "Lock file doesn't install task dependencies":
-    cd "taskdeps/lock":
-      verify execNimble("lock")
+    cd "taskdeps/dependencies":
+      makeLockFile()
       # Uninstall the dependencies and see if nimble
       # tries to install them later
       uninstallDeps()
@@ -73,10 +84,11 @@ suite "Task level dependencies":
 
   test "Develop file is used":
     cd "taskdeps/dependencies":
-      removeDir("nim-unittest2")
-      removeFile("nimble.develop")
+      defer:
+        removeDir("nim-unittest2")
+        removeFile("nimble.develop")
 
       verify execNimble("develop", "unittest2")
       createDir "nim-unittest2/unittest2"
       "nim-unittest2/unittest2/customFile.nim".writeFile("")
-      verify execNimble("test")
+      verify execNimble("-d:useDevelop", "test")

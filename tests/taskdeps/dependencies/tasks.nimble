@@ -11,6 +11,7 @@ bin           = @[]
 # Dependencies
 
 requires "nim >= 0.19.0"
+
 taskRequires "a", "unittest2 == 0.0.4"
 taskRequires "test", "unittest2"
 
