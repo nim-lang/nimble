@@ -18,7 +18,6 @@ type
     downloadMethod*: DownloadMethod
     dependencies*: seq[string]
     checksums*: Checksums
-    task: Option[string]
 
   LockFileDeps* = OrderedTable[string, LockFileDep]
 

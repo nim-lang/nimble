@@ -91,20 +91,19 @@ proc processFreeDependencies(pkgInfo: PackageInfo, options: Options):
   var
     reverseDependencies: seq[PackageBasicInfo] = @[]
     requirements = pkgInfo.requires
+
   template addTaskRequirements =
     ## Adds all task requirements to list of requirements
-    for requires in pkgInfo.taskRequires.values:
+    for task, requires in pkgInfo.taskRequires:
         requirements &= requires
 
+  # Check what task level dependencies need to be added
   if isMain:
-    if task in pkgInfo.taskRequires or task == "test":
-      # If this is the main file then add its needed
-      # requirements for running a task
-      # "test" might not have dependencies which is what the orDefault is for
-      requirements &= pkgInfo.taskRequires.getOrDefault(task)
+    if task in pkgInfo.taskRequires:
+      # If this is the main file then add its needed requirements for running a task.
+      requirements &= pkgInfo.taskRequires[task]
     elif options.action.typ in {actionLock, actionSync}:
-      # We only what the add task level dependencies for main package
-      # into the lock file
+      # We only add top level task requirements into lock file
       addTaskRequirements()
   if options.action.typ == actionDeps:
     addTaskRequirements()
@@ -636,16 +635,27 @@ proc processLockedDependencies(pkgInfo: PackageInfo, options: Options):
 
   let developModeDeps = getDevelopDependencies(pkgInfo, options)
 
+  # Build list of packages allowed for running.
+  # This is to stop requirements from unrelated tasks
+  # needing to be downloaded
+  var allowedPackages: HashSet[string]
+  for requirement in pkgInfo.requires:
+    allowedPackages.incl requirement.name
+
+  for requirement in pkgInfo.taskRequires.getOrDefault(options.task):
+    allowedPackages.incl requirement.name
+
   for name, dep in pkgInfo.lockedDeps:
-    if developModeDeps.hasKey(name):
-      result.incl developModeDeps[name][]
-    elif isInstalled(name, dep, options):
-      result.incl getDependency(name, dep, options)
-    elif not options.offline:
-      let downloadResult = downloadDependency(name, dep, options)
-      result.incl installDependency(pkgInfo, downloadResult, options)
-    else:
-      raise nimbleError("Unsatisfied dependency: " & pkgInfo.basicInfo.name)
+    if name in allowedPackages:
+      if developModeDeps.hasKey(name):
+        result.incl developModeDeps[name][]
+      elif isInstalled(name, dep, options):
+        result.incl getDependency(name, dep, options)
+      elif not options.offline:
+        let downloadResult = downloadDependency(name, dep, options)
+        result.incl installDependency(pkgInfo, downloadResult, options)
+      else:
+        raise nimbleError("Unsatisfied dependency: " & pkgInfo.basicInfo.name)
 
 proc getDownloadInfo*(pv: PkgTuple, options: Options,
                       doPrompt: bool, ignorePackageCache = false): (DownloadMethod, string,

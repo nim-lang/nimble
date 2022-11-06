@@ -49,12 +49,12 @@ suite "Task level dependencies":
       check "unittest2" in json["packages"]
       let pkgInfo = json["packages"]["unittest2"]
       check pkgInfo["version"].getStr() == "0.0.4"
-      check pkgInfo["task"].getStr() == "test"
 
   test "Task dependencies from lock file are used":
-    makeLockFile()
-    let (output, exitCode) = execNimble()
-    #
+    cd "taskdeps/dependencies":
+      makeLockFile()
+      let (output, exitCode) = execNimble()
+      verify execNimble("test")
 
   test "Lock file doesn't install task dependencies":
     cd "taskdeps/dependencies":
