@@ -1,7 +1,7 @@
 # Copyright (C) Dominik Picheta. All rights reserved.
 # BSD License. Look at license.txt for more info.
 
-import sets, tables, std/options
+import sets, tables
 import version, sha1hashes
 
 type

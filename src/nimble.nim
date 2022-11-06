@@ -2050,7 +2050,7 @@ proc doAction(options: var Options) =
       if execCustom(nimbleFile, optsCopy, execResult):
         if execResult.hasTaskRequestedCommand():
           var options = execResult.getOptionsForCommand(optsCopy)
-          doAction(optsCopy)
+          doAction(options)
     elif optsCopy.task == "test":
       # If there is no task defined for the `test` task, we run the pre-defined
       # fallback logic.

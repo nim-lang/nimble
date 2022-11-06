@@ -131,7 +131,7 @@ proc safeMoveFile(src, dest: string) =
 proc uninstallDeps*() =
   ## Uninstalls all installed dependencies.
   ## Useful for cleaning up after a test case
-  let (output, exitCode) = execNimble("list", "-i")
+  let (output, _) = execNimble("list", "-i")
   for line in output.splitLines:
     let package = line.split("  ")[0]
     if package != "":
