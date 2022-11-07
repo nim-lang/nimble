@@ -987,6 +987,8 @@ proc dump(options: Options) =
   fn "installFiles", p.installFiles
   fn "installExt", p.installExt
   fn "requires", p.requires
+  for task, requirements in p.taskRequires:
+    fn task & "Requires", requirements
   fn "bin", p.bin.keys.toSeq
   fn "binDir", p.binDir
   fn "srcDir", p.srcDir

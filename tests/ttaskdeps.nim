@@ -127,3 +127,10 @@ suite "Task level dependencies":
       let (output, exitCode) = execNimble("check")
       check exitCode == QuitFailure
       check "Task benchmark doesn't exist for requirement benchy == 0.0.1" in output
+
+  test "Dump contains information":
+    inDir:
+      let (output, exitCode) = execNimble("dump")
+      check exitCode == QuitSuccess
+      check output.processOutput.inLines("benchmarkRequires: \"benchy 0.0.1\"")
+      check output.processOutput.inLines("testRequires: \"unittest2 0.0.4\"")
