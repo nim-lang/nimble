@@ -7,6 +7,7 @@
 import system except TResult
 import httpclient, strutils, json, os, browsers, times, uri
 import common, tools, cli, config, options, packageinfotypes
+import strformat
 {.warning[UnusedImport]: off.}
 from net import SslCVerifyMode, newContext
 
@@ -98,11 +99,15 @@ proc createFork(a: Auth) =
     raise nimbleError("Unable to create fork. Access token" &
                        " might not have enough permissions.")
 
-proc createPullRequest(a: Auth, packageName, branch: string): string =
+proc createPullRequest(a: Auth, pkg: PackageInfo, url, branch: string): string =
   display("Info", "Creating PR", priority = HighPriority)
-  var body = a.http.postContent(ReposUrl & "nim-lang/packages/pulls",
-      body="""{"title": "Add package $1", "head": "$2:$3",
-               "base": "$4"}""" % [packageName, a.user, branch, defaultBranch])
+  let payload = %* {
+      "title": fmt"Add package {pkg.basicInfo.name}",
+      "head": fmt"{a.user}:{branch}",
+      "base": defaultBranch,
+      "body": &"{pkg.description}\n\n{url}"
+  }
+  var body = a.http.postContent(ReposUrl & "nim-lang/packages/pulls", $payload)
   var pr = parseJson(body)
   return pr{"html_url"}.getStr()
 
@@ -240,5 +245,5 @@ proc publish*(p: PackageInfo, o: Options) =
     doCmd("git commit packages.json -m \"Added package " & p.basicInfo.name & "\"")
     display("Pushing", "to remote of fork.", priority = HighPriority)
     doCmd("git push https://" & auth.token & "@github.com/" & auth.user & "/packages " & branchName)
-    let prUrl = createPullRequest(auth, p.basicInfo.name, branchName)
+    let prUrl = createPullRequest(auth, p, url, branchName)
     display("Success:", "Pull request successful, check at " & prUrl , Success, HighPriority)
