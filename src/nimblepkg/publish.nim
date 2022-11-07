@@ -102,8 +102,8 @@ proc createFork(a: Auth) =
 proc createPullRequest(a: Auth, pkg: PackageInfo, url, branch: string): string =
   display("Info", "Creating PR", priority = HighPriority)
   let payload = %* {
-      "title": fmt"Add package {pkg.basicInfo.name}",
-      "head": fmt"{a.user}:{branch}",
+      "title": &"Add package {pkg.basicInfo.name}",
+      "head": &"{a.user}:{branch}",
       "base": defaultBranch,
       "body": &"{pkg.description}\n\n{url}"
   }
