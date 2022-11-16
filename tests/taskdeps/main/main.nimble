@@ -12,4 +12,8 @@ bin           = @[]
 
 requires "nim >= 0.19.0"
 
+taskRequires "benchmark", "benchy == 0.0.1"
 taskRequires "test", "unittest2 == 0.0.4"
+
+task benchmark, "Runs benchmarks":
+  setCommand("c", "benchmark")

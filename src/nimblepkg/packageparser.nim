@@ -290,7 +290,7 @@ proc readPackageInfoFromNimble(path: string; result: var PackageInfo) =
               # Tasks have already been parsed, so we can safely check
               # if the task is valid or not
               if task notin result.nimbleTasks and task != "test":
-                raise nimbleError(fmt"Task {task} doesn't exist for requirement'")
+                raise nimbleError(fmt"Task {task} doesn't exist for requirement {ev.value}")
 
               if task notin result.taskRequires:
                 result.taskRequires[task] = @[]

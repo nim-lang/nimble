@@ -520,10 +520,11 @@ proc getPkgDest*(pkgInfo: PackageInfo, options: Options): string =
   pkgInfo.basicInfo.getPkgDest(options)
 
 proc fullRequirements*(pkgInfo: PackageInfo): seq[PkgTuple] =
-  ## Returns all requirements for a task (Normal requirements and all task level requirements)
-  result &= pkgInfo.requires
+  ## Returns all requirements for a package (All top level + all task requirements)
+  result = pkgInfo.requires
   for requirements in pkgInfo.taskRequires.values:
     result &= requirements
+
 
 proc `==`*(pkg1: PackageInfo, pkg2: PackageInfo): bool =
   pkg1.myPath == pkg2.myPath
