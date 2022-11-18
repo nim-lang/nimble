@@ -12,7 +12,8 @@ proc depsRecursive*(pkgInfo: PackageInfo,
                     dependencies: seq[PackageInfo],
                     errors: ValidationErrors): seq[DependencyNode] =
   result = @[]
-  for (name, ver) in pkgInfo.requires:
+
+  for (name, ver) in pkgInfo.fullRequirements:
     var depPkgInfo = initPackageInfo()
     let
       found = dependencies.findPkg((name, ver), depPkgInfo)

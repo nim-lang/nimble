@@ -678,6 +678,13 @@ Executing task hello in /Users/user/projects/pkg/pkg.nimble
 Hello World!
 ```
 
+Dependencies that are only needed for a certain task can be declared with `taskRequires` like so
+
+```nim
+taskRequires "hello", "choosenim == 0.4.0"
+```
+
+
 You can place any Nim code inside these tasks. As long as that code does not
 access the FFI. The ``nimscript``
 [module](https://nim-lang.org/docs/nimscript.html) in Nim's standard library defines

@@ -128,6 +128,15 @@ proc safeMoveFile(src, dest: string) =
     copyFile(src, dest)
     removeFile(src)
 
+proc uninstallDeps*() =
+  ## Uninstalls all installed dependencies.
+  ## Useful for cleaning up after a test case
+  let (output, _) = execNimble("list", "-i")
+  for line in output.splitLines:
+    let package = line.split("  ")[0]
+    if package != "":
+      verify execNimbleYes("uninstall", "-i", package)
+
 template testRefresh*(body: untyped) =
   # Backup current config
   let configFile {.inject.} = getConfigDir() / "nimble" / "nimble.ini"
@@ -195,4 +204,7 @@ proc writeDevelopFile*(path: string, includes: seq[string],
 putEnv("NIMBLE_TEST_BINARY_PATH", nimblePath)
 
 # Always recompile.
-doAssert execCmdEx("nim c " & nimbleCompilePath).exitCode == QuitSuccess
+block:
+  # Verbose name is used for exit code so assert is clearer
+  let (output, nimbleCompileExitCode) = execCmdEx("nim c " & nimbleCompilePath)
+  doAssert nimbleCompileExitCode == QuitSuccess, output
