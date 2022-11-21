@@ -29,8 +29,8 @@ proc quoteShell*(s: Path): Path {.borrow.}
 
 proc hash*(path: Path): Hash = hash(absolutePath(string(path)))
 
-proc `==`*(lhs, rhs: Path): bool =
-  absolutePath(string(lhs)) == absolutePath(string(rhs))
+func `==`*(lhs, rhs: Path): bool =
+  cmpPaths(string(lhs), string(rhs)) == 0
 
 when isMainModule:
   import unittest
