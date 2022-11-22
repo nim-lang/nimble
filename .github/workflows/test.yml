@@ -13,7 +13,7 @@ jobs:
           - macos-latest
           - ubuntu-latest
         nimversion:
-          - nightly:https://github.com/nim-lang/nightlies/releases/tag/2021-07-18-devel-923a1c6ea7d9f45b6389680717692690218228fb
+          - devel
     name: ${{ matrix.os }} - ${{ matrix.nimversion }}
     runs-on: ${{ matrix.os }}
     env:
