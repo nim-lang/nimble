@@ -33,4 +33,10 @@ jobs:
           nim c -r tester
           # there's no need to add nimblepkg unit tests --
           # they are run by tmoduletests.nim
+      - name: Run nim c -r --d:useMalloc tester
+        run: |
+          cd tests
+          nim c -r --d:useMalloc tester
+          # there's no need to add nimblepkg unit tests --
+          # they are run by tmoduletests.nim
       - run: ./src/nimble install -y
