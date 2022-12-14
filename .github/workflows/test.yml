@@ -14,13 +14,14 @@ jobs:
           - ubuntu-latest
         nimversion:
           - devel
+          - stable
     name: ${{ matrix.os }} - ${{ matrix.nimversion }}
     runs-on: ${{ matrix.os }}
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v3
-      - uses: iffy/install-nim@v4
+      - uses: jiro4989/setup-nim-action@v1
         with:
           version: ${{ matrix.nimversion }}
       - run: nim --version
