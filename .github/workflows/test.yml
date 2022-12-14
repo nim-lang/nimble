@@ -12,7 +12,7 @@ jobs:
           - windows-latest
           - macos-latest
           - ubuntu-latest
-        version:
+        nimversion:
           - devel
     name: ${{ matrix.os }} - ${{ matrix.nimversion }}
     runs-on: ${{ matrix.os }}
