@@ -85,7 +85,7 @@ proc topologicalSort*(graph: LockFileDeps):
     nodesInfo[node] = (mark: nmNotMarked, cameFrom: "")
 
   proc visit(node: string) =
-    template nodeInfo: var NodeInfo = nodesInfo[node]
+    template nodeInfo: untyped = nodesInfo[node]
 
     if nodeInfo.mark == nmPermanent:
       return
