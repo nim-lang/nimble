@@ -206,5 +206,5 @@ putEnv("NIMBLE_TEST_BINARY_PATH", nimblePath)
 # Always recompile.
 block:
   # Verbose name is used for exit code so assert is clearer
-  let (output, nimbleCompileExitCode) = execCmdEx("nim c " & nimbleCompilePath)
+  let (output, nimbleCompileExitCode) = execCmdEx("nim c --mm:refc " & nimbleCompilePath)
   doAssert nimbleCompileExitCode == QuitSuccess, output
