@@ -2,3 +2,4 @@
 # too many false positives.
 switch("warning", "ObservableStores:off")
 switch("define", "ssl")
+switch("mm", "refc")
