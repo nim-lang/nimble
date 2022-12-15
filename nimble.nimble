@@ -22,4 +22,4 @@ when defined(nimdistros):
 
 task test, "Run the Nimble tester!":
   withDir "tests":
-    exec "nim c -r tester"
+    exec "nim c -r --gc:refc tester"
