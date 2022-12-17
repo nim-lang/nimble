@@ -346,6 +346,17 @@ proc findPkg*(pkglist: seq[PackageInfo], dep: PkgTuple,
         r = pkg
         result = true
 
+proc resolveURL*(pkglist: seq[PackageInfo], str: string): string =
+  ## Resolves a URL into a package name from a package list.
+  ## Just returns **str** if its not a url
+  # We can't just check if it starts with "http" since thats a valid package name
+  if str.startsWith("http://") or str.startsWith("https://"):
+    for pkg in pkglist:
+      if cmpIgnoreStyle(pkg.metaData.url, str) == 0:
+           return pkg.basicInfo.name
+  else:
+    return str
+
 proc findAllPkgs*(pkglist: seq[PackageInfo], dep: PkgTuple): seq[PackageInfo] =
   ## Searches ``pkglist`` for packages of which version is within the range
   ## of ``dep.ver``. This is similar to ``findPkg`` but returns multiple
