@@ -332,8 +332,9 @@ proc processAllDependencies(pkgInfo: PackageInfo, options: Options):
   if pkgInfo.lockedDeps.len > 0:
     result = pkgInfo.processLockedDependencies(options)
   else:
-    var requires = pkgInfo.requires & pkgInfo.taskRequires.getOrDefault(options.task)
-    pkgInfo.processFreeDependencies(requires, options, result)
+    pkgInfo.processFreeDependencies(pkgInfo.requires, options, result)
+    if options.task in pkgInfo.taskRequires:
+      pkgInfo.processFreeDependencies(pkgInfo.taskRequires[options.task], options, result)
 
 proc allDependencies(pkgInfo: PackageInfo, options: Options): HashSet[PackageInfo] =
   ## Returns all dependencies for a package (Including tasks)
@@ -604,7 +605,7 @@ proc installDependency(pkgInfo: PackageInfo, downloadInfo: DownloadInfo,
     downloadInfo.vcsRevision)
 
   downloadInfo.downloadDir.removeDir
-  let deps = pkgInfo.lockedDeps[""]
+  let deps = pkgInfo.lockedDeps[noTask]
   for depDepName in downloadInfo.dependency.dependencies:
     let depDep = deps[depDepName]
     let revDep = (name: depDepName, version: depDep.version,
@@ -623,18 +624,16 @@ proc processLockedDependencies(pkgInfo: PackageInfo, options: Options):
 
   let developModeDeps = getDevelopDependencies(pkgInfo, options)
 
-  for task, deps in pkgInfo.lockedDeps:
-    if task in ["", options.task]:
-      for name, dep in deps:
-        if developModeDeps.hasKey(name):
-          result.incl developModeDeps[name][]
-        elif isInstalled(name, dep, options):
-          result.incl getDependency(name, dep, options)
-        elif not options.offline:
-          let downloadResult = downloadDependency(name, dep, options)
-          result.incl installDependency(pkgInfo, downloadResult, options)
-        else:
-          raise nimbleError("Unsatisfied dependency: " & pkgInfo.basicInfo.name)
+  for name, dep in pkgInfo.lockedDepsFor(options):
+    if developModeDeps.hasKey(name):
+      result.incl developModeDeps[name][]
+    elif isInstalled(name, dep, options):
+      result.incl getDependency(name, dep, options)
+    elif not options.offline:
+      let downloadResult = downloadDependency(name, dep, options)
+      result.incl installDependency(pkgInfo, downloadResult, options)
+    else:
+      raise nimbleError("Unsatisfied dependency: " & pkgInfo.basicInfo.name)
 
 proc getDownloadInfo*(pv: PkgTuple, options: Options,
                       doPrompt: bool, ignorePackageCache = false): (DownloadMethod, string,
@@ -1556,30 +1555,30 @@ proc mergeLockedDependencies*(pkgInfo: PackageInfo, newDeps: LockFileDeps,
                               options: Options, task: string): LockFileDeps =
   ## Updates the lock file data of already generated lock file with the data
   ## from a new lock operation.
+  if task in pkgInfo.lockedDeps:
+    result = pkgInfo.lockedDeps[task]
+    let developDeps = pkgInfo.getDevelopDependencies(options)
 
-  result = pkgInfo.lockedDeps[task]
-  let developDeps = pkgInfo.getDevelopDependencies(options)
-
-  for name, dep in newDeps:
-    if result.hasKey(name):
-      # If the dependency is already present in the old lock file
-      if developDeps.hasKey(name):
-        # and it is a develop mode dependency update it with the newly locked
-        # version,
-        result[name] = dep
+    for name, dep in newDeps:
+      if result.hasKey(name):
+        # If the dependency is already present in the old lock file
+        if developDeps.hasKey(name):
+          # and it is a develop mode dependency update it with the newly locked
+          # version,
+          result[name] = dep
+        else:
+          # but if it is installed dependency just leave it at the current
+          # version.
+          discard
       else:
-        # but if it is installed dependency just leave it at the current
-        # version.
-        discard
-    else:
-      # If the dependency is missing from the old develop file add it.
-      result[name] = dep
+        # If the dependency is missing from the old develop file add it.
+        result[name] = dep
 
-  # Clean dependencies which are missing from the newly locked list.
-  let deps = result
-  for name, dep in deps:
-    if not newDeps.hasKey(name):
-      result.del name
+    # Clean dependencies which are missing from the newly locked list.
+    let deps = result
+    for name, dep in deps:
+      if not newDeps.hasKey(name):
+        result.del name
 
 proc displayLockOperationStart(lockFile: string): bool =
   ## Displays a proper log message for starting generating or updating the lock
@@ -1621,8 +1620,7 @@ proc lock(options: Options) =
     currentDir = getCurrentDir()
     pkgInfo = getPkgInfo(currentDir, options)
     currentLockFile = options.lockFile(currentDir)
-    doesLockFileExist = displayLockOperationStart(currentLockFile)
-    lockExists = currentLockFile.fileExists
+    lockExists = displayLockOperationStart(currentLockFile)
 
   var errors = validateDevModeDepsWorkingCopiesBeforeLock(pkgInfo, options)
 
@@ -1639,13 +1637,14 @@ proc lock(options: Options) =
   let fullInfo = deps.toSeq().map(pkg => pkg.toFullInfo(options))
 
   pkgInfo.validateDevelopDependenciesVersionRanges(fullInfo, options)
+
   var graph = buildDependencyGraph(fullInfo, options)
   errors.check(graph)
   let (topologicalOrder, _) = topologicalSort(graph)
 
-  lockDeps[""] = LockFileDeps()
+  lockDeps[noTask] = LockFileDeps()
   for dep in topologicalOrder:
-    lockDeps[""][dep] = graph[dep]
+    lockDeps[noTask][dep] = graph[dep]
 
   if lockExists:
     # If we already have a lock file, merge its data with the newly generated
@@ -1680,7 +1679,7 @@ proc lock(options: Options) =
 
   writeLockFile(currentLockFile, lockDeps)
   updateSyncFile(pkgInfo, options)
-  displayLockOperationFinish(doesLockFileExist)
+  displayLockOperationFinish(lockExists)
 
 
 proc depsTree(options: Options) =
@@ -1717,11 +1716,11 @@ proc syncWorkingCopy(name: string, path: Path, dependentPkg: PackageInfo,
 
   displayInfo(&"Syncing working copy of package \"{name}\" at \"{path}\"...")
 
-  let lockedDeps = dependentPkg.lockedDeps
+  let lockedDeps = dependentPkg.lockedDeps[noTask]
   assert lockedDeps.hasKey(name),
          &"Package \"{name}\" must be present in the lock file."
 
-  let vcsRevision = lockedDeps[""][name].vcsRevision
+  let vcsRevision = lockedDeps[name].vcsRevision
   assert vcsRevision != path.getVcsRevision,
         "If here the working copy VCS revision must be different from the " &
         "revision written in the lock file."

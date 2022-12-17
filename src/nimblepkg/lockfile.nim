@@ -9,6 +9,7 @@ type
     lfjkVersion = "version"
     lfjkPackages = "packages"
     lfjkPkgVcsRevision = "vcsRevision"
+    lfjkTasks = "tasks"
 
 const
   lockFileVersion = 2
@@ -28,8 +29,13 @@ proc writeLockFile*(fileName: string, packages: AllLockFileDeps) =
 
   let mainJsonNode = %{
       $lfjkVersion: %lockFileVersion,
-      $lfjkPackages: %packages
-      }
+      $lfjkPackages: %packages[noTask]
+  }
+  # Store task graph seperate
+  mainJsonNode[$lfjkTasks] = newJObject()
+  for task, deps in packages:
+    if task != noTask:
+      mainJsonNode[$lfjkTasks][task] = %deps
 
   var s = mainJsonNode.pretty
   s.add '\n'
@@ -39,10 +45,11 @@ proc readLockFile*(filePath: string): AllLockFileDeps =
   {.warning[UnsafeDefault]: off.}
   {.warning[ProveInit]: off.}
   let data = parseFile(filePath)
-  if data["version"].getInt() == 1:
-    result[""] = data[$lfjkPackages].to(LockFileDeps)
-  else:
-    result = data[$lfjkPackages].to(result.typeof)
+  result[noTask] = data[$lfjkPackages].to(LockFileDeps)
+  if $lfjkTasks in data:
+    for task, deps in data[$lfjkTasks]:
+      echo "Reading in ", task
+      result[task] = deps.to(LockFileDeps)
   {.warning[ProveInit]: on.}
   {.warning[UnsafeDefault]: on.}
 

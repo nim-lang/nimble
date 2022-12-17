@@ -32,29 +32,31 @@ suite "Task level dependencies":
     inDir:
       let (output, exitCode) = execNimble("benchmark")
       check exitCode == QuitSuccess
-      check output.contains("dependencies for benchy@0.0.1")
-      check not output.contains("dependencies for unittest2@0.0.4")
+      check output.contains("benchy@0.0.1")
+      check not output.contains("unittest2@0.0.4")
 
   test "Dependency is not used when not running task":
     inDir:
       let (output, exitCode) = execNimble("install")
       check exitCode == QuitSuccess
-      check not output.contains("dependencies for unittest2@0.0.4")
-      check not output.contains("dependencies for benchy@0.0.1")
+      check not output.contains("unittest2@0.0.4")
+      check not output.contains("benchy@0.0.1")
 
   test "Dependency can be defined for test task":
     inDir:
       let (output, exitCode) = execNimble("test")
       check exitCode == QuitSuccess
-      check output.contains("dependencies for unittest2@0.0.4")
+      check output.contains("unittest2@0.0.4")
 
   test "Lock file has dependencies added to it":
     inDir:
       makeLockFile()
       # Check task level dependencies are in the lock file
       let json = parseFile("nimble.lock")
-      check "unittest2" in json["packages"]
-      let pkgInfo = json["packages"]["unittest2"]
+      check:
+        "test" in json["packages"]
+        "benchmark" in json["packages"]
+      let pkgInfo = json["packages"]["test"]["unittest2"]
       check pkgInfo["version"].getStr() == "0.0.4"
 
   test "Task dependencies from lock file are used":
