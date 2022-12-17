@@ -22,7 +22,7 @@ proc isLoaded*(pkgInfo: PackageInfo): bool =
   return pkgInfo.myPath.len > 0
 
 proc assertIsLoaded*(pkgInfo: PackageInfo) =
-  assert pkgInfo.isLoaded, "The package info must be loaded."
+  assert pkgInfo.isLoaded, "The package info must be loaded. "
 
 proc areLockedDepsLoaded*(pkgInfo: PackageInfo): bool =
   pkgInfo.lockedDeps.len > 0
@@ -200,8 +200,11 @@ proc readPackageList(name: string, options: Options, ignorePackageCache = false)
       # going further.
       gPackageJson[name] = newJArray()
       return gPackageJson[name]
-  gPackageJson[name] = parseFile(options.getNimbleDir() / "packages_" &
-                                 name.toLowerAscii() & ".json")
+  let file = options.getNimbleDir() / "packages_" & name.toLowerAscii() & ".json"
+  if file.fileExists:
+    gPackageJson[name] = parseFile(file)
+  else:
+    gPackageJson[name] = newJArray()
   return gPackageJson[name]
 
 proc getPackage*(pkg: string, options: Options, resPkg: var Package, ignorePackageCache = false): bool
@@ -527,6 +530,12 @@ proc fullRequirements*(pkgInfo: PackageInfo): seq[PkgTuple] =
 
 proc name*(pkgInfo: PackageInfo): string {.inline.} =
   pkgInfo.basicInfo.name
+
+iterator lockedDepsFor*(pkgInfo: PackageInfo, options: Options): (string, LockFileDep) =
+  for task, deps in pkgInfo.lockedDeps:
+    if task in ["", options.task]:
+      for name, dep in deps:
+        yield (name, dep)
 
 proc `==`*(pkg1: PackageInfo, pkg2: PackageInfo): bool =
   pkg1.myPath == pkg2.myPath
