@@ -635,15 +635,18 @@ proc processLockedDependencies(pkgInfo: PackageInfo, options: Options):
 
   let developModeDeps = getDevelopDependencies(pkgInfo, options)
 
+  # We need to resolve URL's into names
+  var pkgList {.global.}: seq[PackageInfo] = @[]
+  once: pkgList = initPkgList(pkgInfo, options)
+
   # Build list of packages allowed for running.
   # This is to stop requirements from unrelated tasks
   # needing to be downloaded
   var allowedPackages: HashSet[string]
-  for requirement in pkgInfo.requires:
-    allowedPackages.incl requirement.name
+  for requirement in pkgInfo.requires & pkgInfo.taskRequires.getOrDefault(options.task):
+    let name = pkgList.resolveURL(requirement.name)
+    allowedPackages.incl name
 
-  for requirement in pkgInfo.taskRequires.getOrDefault(options.task):
-    allowedPackages.incl requirement.name
 
   for name, dep in pkgInfo.lockedDeps:
     if name in allowedPackages:
@@ -1638,6 +1641,7 @@ proc lock(options: Options) =
 
   let dependencies = pkgInfo.processFreeDependencies(options).map(
     pkg => pkg.toFullInfo(options)).toSeq
+
   pkgInfo.validateDevelopDependenciesVersionRanges(dependencies, options)
   var dependencyGraph = buildDependencyGraph(dependencies, options)
 
