@@ -21,6 +21,8 @@ type
 
   LockFileDeps* = OrderedTable[string, LockFileDep]
 
+  AllLockFileDeps* = Table[string, LockFileDeps]
+
   PackageMetaData* = object
     url*: string
     downloadMethod*: DownloadMethod
@@ -62,7 +64,7 @@ type
     backend*: string
     foreignDeps*: seq[string]
     basicInfo*: PackageBasicInfo
-    lockedDeps*: LockFileDeps
+    lockedDeps*: AllLockFileDeps
     metaData*: PackageMetaData
     isLink*: bool
 
