@@ -136,3 +136,9 @@ suite "Task level dependencies":
       check exitCode == QuitSuccess
       check output.processOutput.inLines("benchmarkRequires: \"benchy 0.0.1\"")
       check output.processOutput.inLines("testRequires: \"unittest2 0.0.4\"")
+
+  test "Lock files don't break":
+    # Tests for regression caused by tasks deps.
+    # nimlangserver is good candidate, has locks and quite a few dependencies
+    let (_, exitCode) = execNimble("install", "nimlangserver@#19715af")
+    check exitCode == QuitSuccess
