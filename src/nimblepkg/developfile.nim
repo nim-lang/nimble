@@ -854,7 +854,7 @@ proc workingCopyNeeds*(dependencyPkg, dependentPkg: PackageInfo,
   ## if any.
 
   let
-    lockFileVcsRev = dependentPkg.lockedDeps.getOrDefault(
+    lockFileVcsRev = dependentPkg.lockedDeps[""].getOrDefault(
       dependencyPkg.basicInfo.name, notSetLockFileDep).vcsRevision
     syncFile = getSyncFile(dependentPkg)
     syncFileVcsRev = syncFile.getDepVcsRevision(dependencyPkg.basicInfo.name)
