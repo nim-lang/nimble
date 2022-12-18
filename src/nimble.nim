@@ -1629,7 +1629,6 @@ proc lock(options: Options) =
 
   # We need to process free dependencies for all tasks.
   # Then we can store each task as a seperate sub graph.
-  var requirements = pkgInfo.requires
   var deps = pkgInfo.processFreeDependencies(pkgInfo.requires, options)
   var fullDeps = deps # Deps shared by base and tasks
 
