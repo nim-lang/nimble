@@ -1656,7 +1656,7 @@ proc lock(options: Options) =
     # Reset the deps to what they were before hand.
     # Stops dependencies in this task overflowing into the next
     fullDeps.incl newDeps
-
+  options.checkSatisfied(fullDeps)
   let fullInfo = fullDeps.toSeq().map(pkg => pkg.toFullInfo(options))
   pkgInfo.validateDevelopDependenciesVersionRanges(fullInfo, options)
   var graph = buildDependencyGraph(fullInfo, options)
