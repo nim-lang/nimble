@@ -81,7 +81,7 @@ proc checkSatisfied(options: Options, dependencies: HashSet[PackageInfo]) =
     pkgsInPath[pkgInfo.basicInfo.name] = currentVer
 
 proc processFreeDependencies(pkgInfo: PackageInfo, requirements: seq[PkgTuple],
-                             options: Options, dependencies: var HashSet[PackageInfo]) =
+                             options: Options): HashSet[PackageInfo] =
   ## Verifies and installs dependencies.
   ##
   ## Returns set of PackageInfo (for paths) to pass to the compiler
@@ -89,9 +89,8 @@ proc processFreeDependencies(pkgInfo: PackageInfo, requirements: seq[PkgTuple],
   assert not pkgInfo.isMinimal,
          "processFreeDependencies needs pkgInfo.requires"
 
-  var pkgList {.global.}: seq[PackageInfo] = @[]
+  var pkgList {.global.}: seq[PackageInfo]
   once: pkgList = initPkgList(pkgInfo, options)
-
   display("Verifying", "dependencies for $1@$2" %
           [pkgInfo.basicInfo.name, $pkgInfo.basicInfo.version],
           priority = HighPriority)
@@ -124,14 +123,14 @@ proc processFreeDependencies(pkgInfo: PackageInfo, requirements: seq[PkgTuple],
           doPrompt = false, first = false, fromLockFile = false)
 
         for pkg in packages:
-          if dependencies.contains pkg:
+          if result.contains pkg:
             # If the result already contains the newly tried to install package
             # we had to merge its special versions set into the set of the old
             # one.
-            dependencies[pkg].metaData.specialVersions.incl(
+            result[pkg].metaData.specialVersions.incl(
               pkg.metaData.specialVersions)
           else:
-            dependencies.incl pkg
+            result.incl pkg
 
         pkg = installedPkg # For addRevDep
         fillMetaData(pkg, pkg.getRealDir(), false)
@@ -140,15 +139,15 @@ proc processFreeDependencies(pkgInfo: PackageInfo, requirements: seq[PkgTuple],
         pkgList.add pkg
       else:
         displayInfo(pkgDepsAlreadySatisfiedMsg(dep))
-        dependencies.incl pkg
+        result.incl pkg
         # Process the dependencies of this dependency.
         let fullInfo = pkg.toFullInfo(options)
-        processFreeDependencies(fullInfo, fullInfo.requires, options, dependencies)
+        result.incl processFreeDependencies(fullInfo, fullInfo.requires, options)
 
       if not pkg.isLink:
         reverseDependencies.add(pkg.basicInfo)
 
-  options.checkSatisfied(dependencies)
+  options.checkSatisfied(result)
 
   # We add the reverse deps to the JSON file here because we don't want
   # them added if the above errorenous condition occurs
@@ -333,15 +332,15 @@ proc processAllDependencies(pkgInfo: PackageInfo, options: Options):
   if pkgInfo.hasLockedDeps():
     result = pkgInfo.processLockedDependencies(options)
   else:
-    pkgInfo.processFreeDependencies(pkgInfo.requires, options, result)
+    result.incl pkgInfo.processFreeDependencies(pkgInfo.requires, options)
     if options.task in pkgInfo.taskRequires:
-      pkgInfo.processFreeDependencies(pkgInfo.taskRequires[options.task], options, result)
+      result.incl pkgInfo.processFreeDependencies(pkgInfo.taskRequires[options.task], options)
 
 proc allDependencies(pkgInfo: PackageInfo, options: Options): HashSet[PackageInfo] =
   ## Returns all dependencies for a package (Including tasks)
-  pkgInfo.processFreeDependencies(pkgInfo.requires, options, result)
+  result.incl pkgInfo.processFreeDependencies(pkgInfo.requires, options)
   for requires in pkgInfo.taskRequires.values:
-    pkgInfo.processFreeDependencies(requires, options, result)
+    result.incl pkgInfo.processFreeDependencies(requires, options)
 
 proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
                     url: string, first: bool, fromLockFile: bool,
@@ -389,7 +388,7 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
   if first and pkgInfo.hasLockedDeps():
     result.deps = pkgInfo.processLockedDependencies(depsOptions)
   elif not fromLockFile:
-    pkgInfo.processFreeDependencies(pkgInfo.requires, depsOptions, result.deps)
+    result.deps = pkgInfo.processFreeDependencies(pkgInfo.requires, depsOptions)
 
   if options.depsOnly:
     result.pkg = pkgInfo
@@ -1630,8 +1629,8 @@ proc lock(options: Options) =
 
   # We need to process free dependencies for all tasks.
   # Then we can store each task as a seperate sub graph.
-  var deps = initHashSet[PackageInfo]() # Base deps
-  pkgInfo.processFreeDependencies(pkgInfo.requires, options, deps)
+  var requirements = pkgInfo.requires
+  var deps = pkgInfo.processFreeDependencies(pkgInfo.requires, options)
   var fullDeps = deps # Deps shared by base and tasks
 
   # We need to seperate the graph into seperate tasks later
@@ -1645,21 +1644,18 @@ proc lock(options: Options) =
 
   # Add each individual tasks as partial sub graphs
   for task, requires in pkgInfo.taskRequires:
-    pkgInfo.processFreeDependencies(requires, options, deps)
-    let fullInfo = deps.toSeq().map(pkg => pkg.toFullInfo(options))
+    let newDeps = pkgInfo.processFreeDependencies(requires, options)
+    let fullInfo = newDeps.toSeq().map(pkg => pkg.toFullInfo(options))
     pkgInfo.validateDevelopDependenciesVersionRanges(fullInfo, options)
-    var origBaseDeps = initHashSet[PackageInfo](baseDepNames.len)
     # Add in the dependencies that are in this task but not in base
     taskDepNames[task] = initHashSet[string]()
-    for dep in deps:
+    for dep in newDeps:
       fullDeps.incl dep
       if dep.name notin baseDepNames:
         taskDepNames[task].incl dep.name
-      else:
-        origBaseDeps.incl dep
     # Reset the deps to what they were before hand.
     # Stops dependencies in this task overflowing into the next
-    deps = origBaseDeps
+    fullDeps.incl newDeps
 
   let fullInfo = fullDeps.toSeq().map(pkg => pkg.toFullInfo(options))
   pkgInfo.validateDevelopDependenciesVersionRanges(fullInfo, options)
