@@ -516,6 +516,8 @@ Publishes your Nimble package to the official Nimble package repository.
 
 **Note:** Requires a valid GitHub account with an SSH key attached to it. To upload your public key onto your GitHub account, follow [this link](https://github.com/settings/keys).
 
+The token is stored in `$nimbleDir/github_api_token` which can be replaced if you need to update/replace your token.
+
 ### nimble tasks
 
 For a Nimble package in the current working directory, list the tasks which that
