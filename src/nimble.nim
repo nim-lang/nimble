@@ -142,7 +142,8 @@ proc processFreeDependencies(pkgInfo: PackageInfo, requirements: seq[PkgTuple],
         displayInfo(pkgDepsAlreadySatisfiedMsg(dep))
         dependencies.incl pkg
         # Process the dependencies of this dependency.
-        processFreeDependencies(pkg.toFullInfo(options), pkg.requires, options, dependencies)
+        let fullInfo = pkg.toFullInfo(options)
+        processFreeDependencies(fullInfo, fullInfo.requires, options, dependencies)
 
       if not pkg.isLink:
         reverseDependencies.add(pkg.basicInfo)
@@ -329,7 +330,7 @@ proc processLockedDependencies(pkgInfo: PackageInfo, options: Options):
 
 proc processAllDependencies(pkgInfo: PackageInfo, options: Options):
     HashSet[PackageInfo] =
-  if pkgInfo.lockedDeps.len > 0:
+  if pkgInfo.hasLockedDeps():
     result = pkgInfo.processLockedDependencies(options)
   else:
     pkgInfo.processFreeDependencies(pkgInfo.requires, options, result)
@@ -385,7 +386,7 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
     pkgInfo.metaData.specialVersions.incl requestedVer.spe
 
   # Dependencies need to be processed before the creation of the pkg dir.
-  if first and pkgInfo.lockedDeps.len > 0:
+  if first and pkgInfo.hasLockedDeps():
     result.deps = pkgInfo.processLockedDependencies(depsOptions)
   elif not fromLockFile:
     pkgInfo.processFreeDependencies(pkgInfo.requires, depsOptions, result.deps)
@@ -1337,7 +1338,7 @@ proc developAllDependencies(pkgInfo: PackageInfo, options: var Options) =
   var alreadyDownloadedDependencies {.global.}: HashSet[string]
   alreadyDownloadedDependencies.incl pkgInfo.metaData.url.removeTrailingGitString
 
-  if pkgInfo.lockedDeps.len > 0:
+  if pkgInfo.hasLockedDeps():
     pkgInfo.developLockedDependencies(alreadyDownloadedDependencies, options)
   else:
     pkgInfo.developFreeDependencies(alreadyDownloadedDependencies, options)
@@ -1552,33 +1553,36 @@ proc validateDevModeDepsWorkingCopiesBeforeLock(
       result.del name
 
 proc mergeLockedDependencies*(pkgInfo: PackageInfo, newDeps: LockFileDeps,
-                              options: Options, task: string): LockFileDeps =
+                              options: Options): LockFileDeps =
   ## Updates the lock file data of already generated lock file with the data
   ## from a new lock operation.
-  if task in pkgInfo.lockedDeps:
-    result = pkgInfo.lockedDeps[task]
-    let developDeps = pkgInfo.getDevelopDependencies(options)
-
-    for name, dep in newDeps:
-      if result.hasKey(name):
-        # If the dependency is already present in the old lock file
-        if developDeps.hasKey(name):
-          # and it is a develop mode dependency update it with the newly locked
-          # version,
-          result[name] = dep
-        else:
-          # but if it is installed dependency just leave it at the current
-          # version.
-          discard
-      else:
-        # If the dependency is missing from the old develop file add it.
-        result[name] = dep
-
-    # Clean dependencies which are missing from the newly locked list.
-    let deps = result
+  # Copy across the data in the existing lock file
+  for deps in pkgInfo.lockedDeps.values:
     for name, dep in deps:
-      if not newDeps.hasKey(name):
-        result.del name
+      result[name] = dep
+
+  let developDeps = pkgInfo.getDevelopDependencies(options)
+
+  for name, dep in newDeps:
+    if result.hasKey(name):
+      # If the dependency is already present in the old lock file
+      if developDeps.hasKey(name):
+        # and it is a develop mode dependency update it with the newly locked
+        # version,
+        result[name] = dep
+      else:
+        # but if it is installed dependency just leave it at the current
+        # version.
+        discard
+    else:
+      # If the dependency is missing from the old develop file add it.
+      result[name] = dep
+
+  # Clean dependencies which are missing from the newly locked list.
+  let deps = result
+  for name, dep in deps:
+    if not newDeps.hasKey(name):
+      result.del name
 
 proc displayLockOperationStart(lockFile: string): bool =
   ## Displays a proper log message for starting generating or updating the lock
@@ -1626,25 +1630,41 @@ proc lock(options: Options) =
 
   # We need to process free dependencies for all tasks.
   # Then we can store each task as a seperate sub graph.
-  var deps = initHashSet[PackageInfo]()
+  var deps = initHashSet[PackageInfo]() # Base deps
   pkgInfo.processFreeDependencies(pkgInfo.requires, options, deps)
-  # Remember the base deps so we can keep them seperate from tasks
-  var baseDepNames: HashSet[string]
+  var fullDeps = deps # Deps shared by base and tasks
+
+  # We need to seperate the graph into seperate tasks later
+  var
+    baseDepNames: HashSet[string]
+    taskDepNames: Table[string, HashSet[string]]
+
   for dep in deps:
     baseDepNames.incl dep.name
 
-  var lockDeps: AllLockFileDeps
-  let fullInfo = deps.toSeq().map(pkg => pkg.toFullInfo(options))
 
+  # Add each individual tasks as partial sub graphs
+  for task, requires in pkgInfo.taskRequires:
+    pkgInfo.processFreeDependencies(requires, options, deps)
+    let fullInfo = deps.toSeq().map(pkg => pkg.toFullInfo(options))
+    pkgInfo.validateDevelopDependenciesVersionRanges(fullInfo, options)
+    var origBaseDeps = initHashSet[PackageInfo](baseDepNames.len)
+    # Add in the dependencies that are in this task but not in base
+    taskDepNames[task] = initHashSet[string]()
+    for dep in deps:
+      fullDeps.incl dep
+      if dep.name notin baseDepNames:
+        taskDepNames[task].incl dep.name
+      else:
+        origBaseDeps.incl dep
+    # Reset the deps to what they were before hand.
+    # Stops dependencies in this task overflowing into the next
+    deps = origBaseDeps
+
+  let fullInfo = fullDeps.toSeq().map(pkg => pkg.toFullInfo(options))
   pkgInfo.validateDevelopDependenciesVersionRanges(fullInfo, options)
-
   var graph = buildDependencyGraph(fullInfo, options)
   errors.check(graph)
-  let (topologicalOrder, _) = topologicalSort(graph)
-
-  lockDeps[noTask] = LockFileDeps()
-  for dep in topologicalOrder:
-    lockDeps[noTask][dep] = graph[dep]
 
   if lockExists:
     # If we already have a lock file, merge its data with the newly generated
@@ -1655,27 +1675,23 @@ proc lock(options: Options) =
     # currently Nimble does not check properly for `require` clauses
     # satisfaction between all packages, but just greedily picks the best
     # matching version of dependencies for the currently processed package.
+    graph = mergeLockedDependencies(pkgInfo, graph, options)
 
-    graph = mergeLockedDependencies(pkgInfo, graph, options, "")
-
-  # Add each individual tasks as partial sub graphs
-  for task, requires in pkgInfo.taskRequires:
-    pkgInfo.processFreeDependencies(requires, options, deps)
-    let fullInfo = deps.toSeq().map(pkg => pkg.toFullInfo(options))
-
-    pkgInfo.validateDevelopDependenciesVersionRanges(fullInfo, options)
-    var graph = buildDependencyGraph(fullInfo, options)
+  let (topologicalOrder, _) = topologicalSort(graph)
+  var lockDeps: AllLockFileDeps
+  # Now we break up tasks into seperate graphs
+  lockDeps[noTask] = LockFileDeps()
+  for task in pkgInfo.taskRequires.keys:
     lockDeps[task] = LockFileDeps()
-    errors.check(graph)
-    let (topologicalOrder, _) = topologicalSort(graph)
-    # Only store task deps
-    for dep in topologicalOrder:
-      if dep notin baseDepNames:
-        lockDeps[task][dep] = graph[dep]
-    # Still unsure the point of this
-    graph = mergeLockedDependencies(pkgInfo, graph, options, task)
 
-
+  for dep in topologicalOrder:
+    if dep in baseDepNames:
+      lockDeps[noTask][dep] = graph[dep]
+    else:
+      # Add the dependency for any task that requires it
+      for task in pkgInfo.taskRequires.keys:
+        if dep in taskDepNames[task]:
+          lockDeps[task][dep] = graph[dep]
 
   writeLockFile(currentLockFile, lockDeps)
   updateSyncFile(pkgInfo, options)
@@ -1841,7 +1857,7 @@ proc sync(options: Options) =
   findValidationErrorsOfDevDepsWithLockFile(pkgInfo, options, errors)
 
   for name, error in common.dup(errors):
-    if not pkgInfo.lockedDeps.contains(name):
+    if not pkgInfo.lockedDeps.hasPackage(name):
       errors.del name
     elif error.kind == vekWorkingCopyNeedsSync:
       if not options.action.listOnly:
