@@ -1644,7 +1644,10 @@ proc lock(options: Options) =
   # Add each individual tasks as partial sub graphs
   for task, requires in pkgInfo.taskRequires:
     let newDeps = pkgInfo.processFreeDependencies(requires, options)
+    {.push warning[ProveInit]: off.}
+    # Don't know why this isn't considered proved
     let fullInfo = newDeps.toSeq().map(pkg => pkg.toFullInfo(options))
+    {.push warning[ProveInit]: on.}
     pkgInfo.validateDevelopDependenciesVersionRanges(fullInfo, options)
     # Add in the dependencies that are in this task but not in base
     taskDepNames[task] = initHashSet[string]()
@@ -1655,6 +1658,7 @@ proc lock(options: Options) =
     # Reset the deps to what they were before hand.
     # Stops dependencies in this task overflowing into the next
     fullDeps.incl newDeps
+  # Now build graph for all dependencies
   options.checkSatisfied(fullDeps)
   let fullInfo = fullDeps.toSeq().map(pkg => pkg.toFullInfo(options))
   pkgInfo.validateDevelopDependenciesVersionRanges(fullInfo, options)
