@@ -48,7 +48,6 @@ proc readLockFile*(filePath: string): AllLockFileDeps =
   result[noTask] = data[$lfjkPackages].to(LockFileDeps)
   if $lfjkTasks in data:
     for task, deps in data[$lfjkTasks]:
-      echo "Reading in ", task
       result[task] = deps.to(LockFileDeps)
   {.warning[ProveInit]: on.}
   {.warning[UnsafeDefault]: on.}
