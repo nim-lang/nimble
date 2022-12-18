@@ -172,6 +172,7 @@ requires "nim >= 1.5.1"
     let json = lockFileName.readFile.parseJson
     for (depName, depPath) in deps:
       let expectedVcsRevision = depPath.getVcsRevision
+      check depName in json{$lfjkPackages}
       let lockedVcsRevision =
         json{$lfjkPackages}{depName}{$lfjkPkgVcsRevision}.str.initSha1Hash
       check lockedVcsRevision == expectedVcsRevision

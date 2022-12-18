@@ -537,6 +537,18 @@ iterator lockedDepsFor*(pkgInfo: PackageInfo, options: Options): (string, LockFi
       for name, dep in deps:
         yield (name, dep)
 
+proc hasLockedDeps*(pkgInfo: PackageInfo): bool =
+  ## Returns true if pkgInfo has any locked deps (including any tasks)
+  # Check if any tasks have locked deps
+  for deps in pkgInfo.lockedDeps.values:
+    if deps.len > 0:
+      return true
+
+proc hasPackage*(deps: AllLockFileDeps, pkgName: string): bool =
+  for deps in deps.values:
+    if pkgName in deps:
+      return true
+
 proc `==`*(pkg1: PackageInfo, pkg2: PackageInfo): bool =
   pkg1.myPath == pkg2.myPath
 
