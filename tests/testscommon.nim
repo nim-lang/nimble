@@ -131,8 +131,12 @@ proc safeMoveFile(src, dest: string) =
 proc uninstallDeps*() =
   ## Uninstalls all installed dependencies.
   ## Useful for cleaning up after a test case
-  removeDir pkgsDir
-  removeFile installDir / "nimbledata2.json"
+  let (output, _) = execNimble("list", "-i")
+  for line in output.splitLines:
+    let package = line.split("  ")[0]
+    if package != "":
+      discard execNimbleYes("uninstall", "-i", package)
+
 
 template testRefresh*(body: untyped) =
   # Backup current config
