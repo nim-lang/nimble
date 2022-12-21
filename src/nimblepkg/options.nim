@@ -375,8 +375,8 @@ proc setNimbleDir*(options: var Options) =
     # ...followed by the environment variable.
     let env = getEnv("NIMBLE_DIR")
     if env.len != 0:
-      display("Warning:", "Using the environment variable: NIMBLE_DIR='" &
-              env & "'", Warning, priority = HighPriority)
+      display("Info:", "Using the environment variable: NIMBLE_DIR='" &
+              env & "'", Success, priority = HighPriority)
       nimbleDir = env
     else:
       # ...followed by project local deps mode
