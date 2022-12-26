@@ -6,7 +6,7 @@ import json, sets
 import common, strutils, tables, hashes, parseutils
 
 type
-  Version* {.requiresInit.} = object
+  Version* = object
     version: string
 
   VersionRangeEnum* = enum

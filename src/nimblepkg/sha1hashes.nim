@@ -8,7 +8,7 @@ type
   InvalidSha1HashError* = object of NimbleError
     ## Represents an error caused by invalid value of a sha1 hash.
 
-  Sha1Hash* {.requiresInit.} = object
+  Sha1Hash* = object
     ## Type representing a sha1 hash value. It can only be created by special
     ## procedure which validates the input.
     hashValue: string
