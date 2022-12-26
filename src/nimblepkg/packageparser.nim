@@ -1,6 +1,6 @@
 # Copyright (C) Dominik Picheta. All rights reserved.
 # BSD License. Look at license.txt for more info.
-import parsecfg, sets, streams, strutils, os, tables, sugar
+import parsecfg, sets, streams, strutils, os, tables, sugar, strformat
 from sequtils import apply, map, toSeq
 
 import common, version, tools, nimscriptwrapper, options, cli, sha1hashes,
@@ -279,13 +279,28 @@ proc readPackageInfoFromNimble(path: string; result: var PackageInfo) =
           else:
             raise nimbleError("Invalid field: " & ev.key)
         of "deps", "dependencies":
-          case ev.key.normalize
+          let normalizedKey = ev.key.normalize
+          case normalizedKey
           of "requires":
             for v in ev.value.multiSplit:
               result.requires.add(parseRequires(v.strip))
           else:
-            raise nimbleError("Invalid field: " & ev.key)
-        else: raise nimbleError(
+            if normalizedKey.endsWith("requires"):
+              let task = normalizedKey.dup(removeSuffix("requires"))
+              # Tasks have already been parsed, so we can safely check
+              # if the task is valid or not
+              if task notin result.nimbleTasks and task != "test":
+                raise nimbleError(fmt"Task {task} doesn't exist for requirement {ev.value}")
+
+              if task notin result.taskRequires:
+                result.taskRequires[task] = @[]
+              # Add all requirements for the task
+              for v in ev.value.multiSplit:
+                result.taskRequires[task].add(parseRequires(v.strip))
+            else:
+              raise nimbleError("Invalid field: " & ev.key)
+        else:
+          raise nimbleError(
               "Invalid section: " & currentSection)
       of cfgOption: raise nimbleError(
             "Invalid package info, should not contain --" & ev.value)

@@ -28,7 +28,7 @@ var
   skipDirs*, skipFiles*, skipExt*, installDirs*, installFiles*,
     installExt*, bin*: seq[string] = @[] ## Nimble metadata.
   requiresData*: seq[string] = @[] ## The package's dependencies.
-
+  taskRequiresData*: Table[string, seq[string]] ## Task dependencies
   foreignDeps*: seq[string] = @[] ## The foreign dependencies. Only
                                   ## exported for 'distros.nim'.
 
@@ -47,6 +47,13 @@ proc requires*(deps: varargs[string]) =
   ## Call this to set the list of requirements of your Nimble
   ## package.
   for d in deps: requiresData.add(d)
+
+proc taskRequires*(task: string, deps: varargs[string]) =
+  ## Call this to set the list of requirements for a certain task
+  if task notin taskRequiresData:
+    taskRequiresData[task] = @[]
+  for d in deps:
+    taskRequiresData[task] &= d
 
 proc getParams(): tuple[scriptFile, projectFile, outFile, actionName: string,
                         commandLineParams: seq[string]] =
@@ -138,9 +145,15 @@ proc printPkgInfo(): string =
   printSeqIfLen beforeHooks
   printSeqIfLen afterHooks
 
-  if requiresData.len != 0:
+  if requiresData.len != 0 or taskRequiresData.len != 0:
     result &= "\n[Deps]\n"
-    result &= &"requires: \"{requiresData.join(\", \")}\"\n"
+    # Write package level dependencies
+    if requiresData.len != 0:
+      result &= &"requires: \"{requiresData.join(\", \")}\"\n"
+    # Write task level dependencies
+    for task, requiresData in taskRequiresData.pairs:
+      result &= &"{task}Requires: \"{requiresData.join(\", \")}\"\n"
+
 
 proc onExit*() =
   if actionName.len == 0 or actionName == "help":

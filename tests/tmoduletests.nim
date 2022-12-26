@@ -3,14 +3,13 @@
 
 {.used.}
 
-import unittest, os, osproc, strutils
+import unittest, os, osproc, strutils, testscommon
 
 suite "Module tests":
   template moduleTest(modulePath: string) =
     let moduleName = splitFile(modulePath).name
     test moduleName:
-      check execCmdEx("nim c -r " & modulePath).
-        exitCode == QuitSuccess
+      verify execCmdEx("nim c -r " & modulePath)
 
   for module in walkDir("../src/nimblepkg"):
     if readFile(module.path).contains("unittest"):

@@ -26,3 +26,4 @@ import tsetupcommand
 import ttestcommand
 import ttwobinaryversions
 import tuninstall
+import ttaskdeps
