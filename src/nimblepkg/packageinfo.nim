@@ -360,8 +360,6 @@ proc findAllPkgs*(pkglist: seq[PackageInfo], dep: PkgTuple): seq[PackageInfo] =
     if withinRange(pkg, dep.ver):
       result.add pkg
 
-proc getNimbleFileDir*(pkgInfo: PackageInfo): string =
-  pkgInfo.myPath.splitFile.dir
 
 proc getRealDir*(pkgInfo: PackageInfo): string =
   ## Returns the directory containing the package source files.
@@ -559,6 +557,9 @@ proc hash*(x: PackageInfo): Hash =
 
 proc getNameAndVersion*(pkgInfo: PackageInfo): string =
   &"{pkgInfo.basicInfo.name}@{pkgInfo.basicInfo.version}"
+
+proc isNim*(name: string): bool =
+  result = name == "nim" or name == "nimrod" or name == "compiler"
 
 when isMainModule:
   import unittest

@@ -62,11 +62,6 @@ proc tryDoCmdEx*(cmd: string): string {.discardable.} =
     raise nimbleError(tryDoCmdExErrorMessage(cmd, output, exitCode))
   return output
 
-proc getNimBin*: string =
-  result = "nim"
-  if findExe("nim") != "": result = findExe("nim")
-  elif findExe("nimrod") != "": result = findExe("nimrod")
-
 proc getNimrodVersion*(options: Options): Version =
   let vOutput = doCmdEx(getNimBin(options).quoteShell & " -v").output
   var matches: array[0..MaxSubpatterns, string]

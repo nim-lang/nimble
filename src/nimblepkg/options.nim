@@ -435,6 +435,20 @@ proc setNimBin*(options: var Options) =
       raise nimbleError(
         "Unable to find `nim` binary - add to $PATH or use `--nim`")
 
+proc getNimbleFileDir*(pkgInfo: PackageInfo): string =
+  pkgInfo.myPath.splitFile.dir
+
+proc getNimBin*(pkgInfo: PackageInfo, options: Options): string =
+  if pkgInfo.basicInfo.name == "nim":
+    let binaryPath =  when defined(windows):
+        "bin\nim.exe"
+      else:
+        "bin/nim"
+    result = pkgInfo.getNimbleFileDir() / binaryPath
+    display("Info:", "compiling nim package using $1" % result, priority = HighPriority)
+  else:
+    result = options.nim
+
 proc getNimBin*(options: Options): string =
   return options.nim
 
