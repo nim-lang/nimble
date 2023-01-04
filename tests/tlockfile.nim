@@ -591,3 +591,24 @@ requires "nim >= 1.5.1"
         writeDevelopFile(developFileName, @[], @[dep1PkgRepoPath, mainPkgOriginRepoPath])
         let (_, exitCode) = execNimbleYes("--debug", "--verbose", "sync")
         check exitCode == QuitSuccess
+
+  test "can generate lock file for nim as dep":
+    cleanUp()
+    cd "nimdep":
+      removeFile "nimble.develop"
+      removeFile "nimble.lock"
+      removeDir "Nim"
+
+      check execNimbleYes("develop", "nim").exitCode == QuitSuccess
+      cd "Nim":
+        let (_, exitCode) = execNimbleYes("-y", "install")
+        check exitCode == QuitSuccess
+
+      # check if the compiler version will be used when doing build
+      testLockFile(@[("nim", "Nim")], isNew = true)
+      removeFile "nimble.develop"
+      removeDir "Nim"
+
+      let (output, exitCodeInstall) = execNimbleYes("-y", "build")
+      check exitCodeInstall == QuitSuccess
+      check output.contains("bin/nim for compilation")
