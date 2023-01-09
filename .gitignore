@@ -62,3 +62,4 @@ src/nimblepkg/version
 # Test procedure artifacts
 *.nims
 /buildTests
+/tests/nimdep/nimble.lock

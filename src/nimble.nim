@@ -357,6 +357,9 @@ proc useLockedNimIfNeeded(pkgInfo: PackageInfo, options: var Options) =
                             "If you are using develop mode nim make sure to compile it.")
 
         options.nim = nim
+        let separator = when defined(windows): ";" else: ":"
+
+        putEnv("PATH", nimDep.getRealDir() / "bin" & separator & getEnv("PATH"))
         display("Info:", "using $1 for compilation" % options.nim, priority = HighPriority)
 
 proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
@@ -2128,6 +2131,7 @@ proc doAction(options: var Options) =
       discard pkgInfo.processAllDependencies(optsCopy)
       # If valid task defined in nimscript, run it
       var execResult: ExecutionResult[bool]
+      useLockedNimIfNeeded(pkgInfo, optsCopy)
       if execCustom(nimbleFile, optsCopy, execResult):
         if execResult.hasTaskRequestedCommand():
           var options = execResult.getOptionsForCommand(optsCopy)

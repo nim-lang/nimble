@@ -591,6 +591,8 @@ requires "nim >= 1.5.1"
         writeDevelopFile(developFileName, @[], @[dep1PkgRepoPath, mainPkgOriginRepoPath])
         let (_, exitCode) = execNimbleYes("--debug", "--verbose", "sync")
         check exitCode == QuitSuccess
+  proc getRevision(dep: string, lockFileName = defaultLockFileName): string =
+    result = lockFileName.readFile.parseJson{$lfjkPackages}{dep}{$lfjkPkgVcsRevision}.str
 
   test "can generate lock file for nim as dep":
     cleanUp()
@@ -612,3 +614,7 @@ requires "nim >= 1.5.1"
       let (output, exitCodeInstall) = execNimbleYes("-y", "build")
       check exitCodeInstall == QuitSuccess
       check output.contains("bin/nim for compilation")
+
+      # check the nim version
+      let (outputVersion, _) = execNimble("version")
+      check outputVersion.contains(getRevision("nim"))
