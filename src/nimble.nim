@@ -1854,17 +1854,30 @@ proc setupNimbleConfig(options: Options) =
   ## dependencies. Includes it in `config.nims` file to make them available
   ## for the compiler.
   const
-    configFileVersion = 1
+    configFileVersion = 2
+    sectionEnd = "# end Nimble config"
+    sectionStart = "# begin Nimble config"
     configFileHeader = &"# begin Nimble config (version {configFileVersion})\n"
-    configFileContent = fmt"""
-when fileExists("{nimblePathsFileName}"):
+    configFileContentNoLock = fmt"""
+{configFileHeader}
+when system.fileExists("{nimblePathsFileName}"):
   include "{nimblePathsFileName}"
-# end Nimble config
+{sectionEnd}
+"""
+    configFileContentWithLock = fmt"""
+{configFileHeader}
+--noNimblePath
+when system.fileExists("{nimblePathsFileName}"):
+  include "{nimblePathsFileName}"
+{sectionEnd}
 """
 
   let
     currentDir = getCurrentDir()
     pkgInfo = getPkgInfo(currentDir, options)
+    lockFileExists = options.lockFile(currentDir).fileExists
+    configFileContent = if lockFileExists: configFileContentWithLock
+                        else: configFileContentNoLock
 
   updatePathsFile(pkgInfo, options)
 
@@ -1872,17 +1885,19 @@ when fileExists("{nimblePathsFileName}"):
     writeFile = false
     fileContent: string
 
-  proc appendNimbleConfigFileHeaderAndContent =
-    fileContent.append(configFileHeader)
-    fileContent.append(configFileContent)
-
   if fileExists(nimbleConfigFileName):
     fileContent = readFile(nimbleConfigFileName)
-    if not fileContent.contains(configFileHeader):
-      appendNimbleConfigFileHeaderAndContent()
+    if not fileContent.contains(configFileContent):
+      let
+        startIndex = fileContent.find(sectionStart)
+        endIndex = fileContent.find(sectionEnd)
+      if startIndex >= 0 and endIndex >= 0:
+        fileContent.delete(startIndex..endIndex + sectionEnd.len - 1)
+
+      fileContent.append(configFileContent)
       writeFile = true
   else:
-    appendNimbleConfigFileHeaderAndContent()
+    fileContent.append(configFileContent)
     writeFile = true
 
   if writeFile:
