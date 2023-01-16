@@ -1930,17 +1930,17 @@ proc setupNimbleConfig(options: Options) =
     configFileVersion = 2
     sectionEnd = "# end Nimble config"
     sectionStart = "# begin Nimble config"
-    configFileHeader = &"# begin Nimble config (version {configFileVersion})\n"
+    configFileHeader = &"# begin Nimble config (version {configFileVersion})"
     configFileContentNoLock = fmt"""
 {configFileHeader}
-when system.fileExists("{nimblePathsFileName}"):
+when withDir(thisDir(), system.fileExists("{nimblePathsFileName}")):
   include "{nimblePathsFileName}"
 {sectionEnd}
 """
     configFileContentWithLock = fmt"""
 {configFileHeader}
 --noNimblePath
-when system.fileExists("{nimblePathsFileName}"):
+when withDir(thisDir(), system.fileExists("{nimblePathsFileName}")):
   include "{nimblePathsFileName}"
 {sectionEnd}
 """
