@@ -618,3 +618,7 @@ requires "nim >= 1.5.1"
       # check the nim version
       let (outputVersion, _) = execNimble("version")
       check outputVersion.contains(getRevision("nim"))
+
+      let (outputGlobalNim, exitCodeGlobalNim) = execNimbleYes("-y", "--use-system-nim", "build")
+      check exitCodeGlobalNim == QuitSuccess
+      check not outputGlobalNim.contains("bin/nim for compilation")

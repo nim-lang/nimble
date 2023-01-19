@@ -28,6 +28,7 @@ type
     pkgInfoCache*: TableRef[string, PackageInfo]
     showHelp*: bool
     lockFileName*: string
+    useSystemNim*: bool
     showVersion*: bool
     offline*: bool
     noColor*: bool
@@ -112,7 +113,7 @@ Usage: nimble [nimbleopts] COMMAND [cmdopts]
 Commands:
   install      [pkgname, ...]     Installs a list of packages.
                [-d, --depsOnly]   Only install dependencies. Leave out pkgname
-                                  to install deps for a local nimble package. 
+                                  to install deps for a local nimble package.
                [-p, --passNim]    Forward specified flag to compiler.
                [--noRebuild]      Don't rebuild binaries if they're up-to-date.
   develop      [pkgname, ...]     Clones a list of packages for development.
@@ -228,6 +229,8 @@ Nimble Options:
       --noColor                   Don't colorise output.
       --noSSLCheck                Don't check SSL certificates.
       --lock-file                 Override the lock file name.
+      --use-system-nim            Use system nim and ignore nim from the lock
+                                  file if any
 
 For more information read the Github readme:
   https://github.com/nim-lang/nimble#readme
@@ -532,6 +535,7 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
   of "tarballs", "t": result.enableTarballs = true
   of "package", "p": result.package = val
   of "lock-file": result.lockFileName = val
+  of "use-system-nim": result.useSystemNim = true
   else: isGlobalFlag = false
 
   var wasFlagHandled = true
