@@ -9,7 +9,7 @@ bin           = @["demo"]
 
 # Dependencies
 
-requires "nim == 1.7.1"
+requires "nim"
 
 task version, "Test nim version":
   exec "nim --version"

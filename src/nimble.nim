@@ -344,7 +344,7 @@ proc allDependencies(pkgInfo: PackageInfo, options: Options): HashSet[PackageInf
     result.incl pkgInfo.processFreeDependencies(requires, options)
 
 proc useLockedNimIfNeeded(pkgInfo: PackageInfo, options: var Options) =
-  if pkgInfo.lockedDeps.len > 0:
+  if pkgInfo.lockedDeps.len > 0 and not options.useSystemNim:
     var deps = pkgInfo.processLockedDependencies(options, true)
     if deps.len != 0:
       # process the first entry (hash.pop is triggering warnings)
