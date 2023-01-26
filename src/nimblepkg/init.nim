@@ -1,4 +1,4 @@
-import os, strutils
+import os, strutils, std/options
 
 import ./cli, ./tools
 
@@ -19,6 +19,36 @@ proc writeExampleIfNonExistent(file: string, content: string) =
   else:
     display("Info:", "File " & file & " already exists, did not write " &
             "example code", priority = HighPriority)
+
+proc exampleCode(info: PkgInitInfo): Option[string] =
+  case info.pkgType
+  of "library":
+    result = some("""
+# You may create as many example files as you want. Example file names should
+# be valid Nim module names.
+#
+# To run this example, simply execute `nimble run --example example1`.
+
+import $1
+
+echo "One plus one equals ", $$add(1, 1)
+
+""" % info.pkgName)
+
+  of "hybrid":
+    result = some("""
+# You may create as many example files as you want. Example file names should
+# be valid Nim module names.
+#
+# To run this example, simply execute `nimble run --example example1`.
+
+import $1pkg/submodule
+
+echo getWelcomeMessage()
+
+""" % info.pkgName)
+  else:
+    discard
 
 proc createPkgStructure*(info: PkgInitInfo, pkgRoot: string) =
   # Create source directory
@@ -153,6 +183,17 @@ test "correct welcome":
       )
   else:
     assert false, "Invalid package type specified."
+
+  # Create examples directory and dummy example
+  let pkgExamplesDir = "examples"
+  let pkgExampleCode = exampleCode(info)
+  if pkgExampleCode.isSome():
+    let pkgExampleCode = pkgExampleCode.get("")
+    let pkgExamplesPath = pkgRoot / pkgExamplesDir
+  
+    createDirD(pkgExamplesPath)
+    nimbleFileOptions.add("# examplesDir   = $1    # Uncomment to change the name of the examples directory\n" % pkgExamplesDir.escape())
+    writeExampleIfNonExistent(pkgExamplesPath / "example1".addFileExt(".nim"), pkgExampleCode)
 
   # Write the nimble file
   let nimbleFile = pkgRoot / info.pkgName.changeFileExt("nimble")

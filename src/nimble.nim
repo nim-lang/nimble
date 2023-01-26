@@ -180,14 +180,23 @@ proc buildFromDir(pkgInfo: PackageInfo, paths: HashSet[string],
   ## Builds a package as specified by ``pkgInfo``.
   # Handle pre-`build` hook.
   let
-    realDir = pkgInfo.getRealDir()
     pkgDir = pkgInfo.myPath.parentDir()
+    realDir =
+      if options.example:
+        pkgInfo.getRealExamplesDir()
+      else:
+        pkgInfo.getRealDir()
+    bin =
+      if options.example:
+        pkgInfo.getExampleBin()
+      else:
+        pkgInfo.bin
 
   cd pkgDir: # Make sure `execHook` executes the correct .nimble file.
     if not execHook(options, actionBuild, true):
       raise nimbleError("Pre-hook prevented further execution.")
 
-  if pkgInfo.bin.len == 0:
+  if bin.len == 0:
     raise nimbleError(
         "Nothing to build. Did you specify a module to build using the" &
         " `bin` key in your .nimble file?")
@@ -204,6 +213,8 @@ proc buildFromDir(pkgInfo: PackageInfo, paths: HashSet[string],
   if options.verbosity == SilentPriority:
     # Hide Nim warnings
     args.add("--warnings:off")
+  if options.example:
+    args.add("--path:" & pkgInfo.srcDir.quoteShell)
 
   let binToBuild =
     # Only build binaries specified by user if any, but only if top-level package,
@@ -212,13 +223,13 @@ proc buildFromDir(pkgInfo: PackageInfo, paths: HashSet[string],
       options.getCompilationBinary(pkgInfo).get("")
     else: ""
 
-  for bin, src in pkgInfo.bin:
+  for bin, src in bin:
     # Check if this is the only binary that we want to build.
     if binToBuild.len != 0 and binToBuild != bin:
       if bin.extractFilename().changeFileExt("") != binToBuild:
         continue
 
-    let outputDir = pkgInfo.getOutputDir("")
+    let outputDir = pkgInfo.getOutputDir("", options.example)
     if dirExists(outputDir):
       if fileExists(outputDir / bin):
         if not pkgInfo.needsRebuild(outputDir / bin, realDir, options):
@@ -229,7 +240,7 @@ proc buildFromDir(pkgInfo: PackageInfo, paths: HashSet[string],
     else:
       createDir(outputDir)
 
-    let outputOpt = "-o:" & pkgInfo.getOutputDir(bin).quoteShell
+    let outputOpt = "-o:" & pkgInfo.getOutputDir(bin, options.example).quoteShell
     display("Building", "$1/$2 using $3 backend" %
             [pkginfo.basicInfo.name, bin, pkgInfo.backend], priority = HighPriority)
 
@@ -758,7 +769,11 @@ proc clean(options: Options) =
 
 proc execBackend(pkgInfo: PackageInfo, options: Options) =
   let
-    bin = options.getCompilationBinary(pkgInfo).get("")
+    bin =
+      if options.example:
+        pkgInfo.getRealExamplesDir() / options.getCompilationBinary(pkgInfo).get("")
+      else:
+        options.getCompilationBinary(pkgInfo).get("")
     binDotNim = bin.addFileExt("nim")
 
   if bin == "":
@@ -784,6 +799,8 @@ proc execBackend(pkgInfo: PackageInfo, options: Options) =
   if options.verbosity == SilentPriority:
     # Hide Nim warnings
     args.add("--warnings:off")
+  if options.example:
+    args.add("--path:" & pkgInfo.srcDir.quoteShell)
 
   for option in options.getCompilationFlags():
     args.add(option.quoteShell)
@@ -1969,7 +1986,7 @@ proc run(options: Options) =
   if binary.len == 0:
     raise nimbleError("Please specify a binary to run")
 
-  if binary notin pkgInfo.bin:
+  if not options.example and binary notin pkgInfo.bin:
     raise nimbleError(binaryNotDefinedInPkgMsg(binary, pkgInfo.basicInfo.name))
 
   if pkgInfo.isLink:
@@ -1978,7 +1995,7 @@ proc run(options: Options) =
   elif options.getCompilationFlags.len > 0:
     displayWarning(ignoringCompilationFlagsMsg)
 
-  let binaryPath = pkgInfo.getOutputDir(binary)
+  let binaryPath = pkgInfo.getOutputDir(binary, options.example)
   let cmd = quoteShellCommand(binaryPath & options.action.runFlags)
   displayDebug("Executing", cmd)
 

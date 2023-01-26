@@ -59,6 +59,7 @@ type
     bin*: Table[string, string]
     binDir*: string
     srcDir*: string
+    examplesDir*: string
     backend*: string
     foreignDeps*: seq[string]
     basicInfo*: PackageBasicInfo

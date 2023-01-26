@@ -238,6 +238,7 @@ proc readPackageInfoFromNimble(path: string; result: var PackageInfo) =
           of "license": result.license = ev.value
           of "srcdir": result.srcDir = ev.value
           of "bindir": result.binDir = ev.value
+          of "examplesdir": result.examplesDir = ev.value
           of "skipdirs":
             result.skipDirs.add(ev.value.multiSplit)
           of "skipfiles":

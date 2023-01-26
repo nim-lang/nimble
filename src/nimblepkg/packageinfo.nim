@@ -367,14 +367,29 @@ proc getRealDir*(pkgInfo: PackageInfo): string =
   else:
     result = pkgInfo.getNimbleFileDir()
 
-proc getOutputDir*(pkgInfo: PackageInfo, bin: string): string =
+proc getOutputDir*(pkgInfo: PackageInfo, bin: string, example = false): string =
   ## Returns a binary output dir for the package.
-  if pkgInfo.binDir != "":
-    result = pkgInfo.getNimbleFileDir() / pkgInfo.binDir / bin
+  if example and pkgInfo.examplesDir != "":
+    if pkgInfo.binDir != "":
+      result = pkgInfo.getNimbleFileDir() / pkgInfo.binDir / pkgInfo.examplesDir / bin
+    else:
+      result = pkgInfo.mypath.splitFile.dir / pkgInfo.examplesDir / bin
   else:
-    result = pkgInfo.mypath.splitFile.dir / bin
+    if pkgInfo.binDir != "":
+      result = pkgInfo.getNimbleFileDir() / pkgInfo.binDir / bin
+    else:
+      result = pkgInfo.mypath.splitFile.dir / bin
   if bin.len != 0 and dirExists(result):
     result &= ".out"
+
+proc getRealExamplesDir*(pkgInfo: PackageInfo): string =
+  ## Returns the directory containing the example source files.
+  ## If no example directory was specified in the package info, "examples"
+  ## is returned.
+  if pkgInfo.examplesDir != "" and (not pkgInfo.isInstalled or pkgInfo.isLink):
+    result = pkgInfo.getNimbleFileDir() / pkgInfo.examplesDir
+  elif not pkgInfo.isInstalled or pkgInfo.isLink:
+    result = "examples"
 
 proc echoPackage*(pkg: Package) =
   echo(pkg.name & ":")
@@ -536,6 +551,20 @@ proc hash*(x: PackageInfo): Hash =
 
 proc getNameAndVersion*(pkgInfo: PackageInfo): string =
   &"{pkgInfo.basicInfo.name}@{pkgInfo.basicInfo.version}"
+
+proc getExampleBin*(pkgInfo: PackageInfo): Table[string,string] =
+  let examplesDir = pkgInfo.getRealExamplesDir()
+  if examplesDir == "":
+    raise nimbleError("Cannot find example files", hint="Was 'examplesDir' defined in '$1' ?" % pkgInfo.myPath)
+
+  if not examplesDir.dirExists():
+    raise nimbleError("Examples directory not found: $1" % examplesDir)
+
+  for kind, path in walkDir(examplesDir):
+    if kind in {pcFile, pcLinkToFile}:
+      let (_, name, ext) = path.splitFile()
+      if ext == ".nim":
+        result[name] = name
 
 when isMainModule:
   import unittest

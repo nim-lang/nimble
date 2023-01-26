@@ -31,6 +31,7 @@ type
     showVersion*: bool
     offline*: bool
     noColor*: bool
+    example*: bool
     disableValidation*: bool
     continueTestsOnFailure*: bool
     ## Whether packages' repos should always be downloaded with their history.
@@ -57,6 +58,7 @@ type
     actionUninstall, actionCompile, actionDoc, actionCustom, actionTasks,
     actionDevelop, actionCheck, actionLock, actionRun, actionSync, actionSetup,
     actionClean, actionDeps
+    
 
   DevelopActionType* = enum
     datAdd, datRemoveByPath, datRemoveByName, datInclude, datExclude
@@ -224,6 +226,7 @@ Nimble Options:
       --silent                    Hide all Nimble and Nim output
       --verbose                   Show all non-debug output.
       --debug                     Show all output including debug messages.
+      --example                   Build/run an example instead of a package.
       --offline                   Don't use network.
       --noColor                   Don't colorise output.
       --noSSLCheck                Don't check SSL certificates.
@@ -518,6 +521,7 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
   of "tarballs", "t": result.enableTarballs = true
   of "package", "p": result.package = val
   of "lock-file": result.lockFileName = val
+  of "example": result.example = true
   else: isGlobalFlag = false
 
   var wasFlagHandled = true

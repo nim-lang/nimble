@@ -24,6 +24,7 @@ var
   srcDir*: string      ## The package's source directory.
   binDir*: string      ## The package's binary directory.
   backend*: string     ## The package's backend.
+  examplesDir*: string ## The package's examples directory.
 
   skipDirs*, skipFiles*, skipExt*, installDirs*, installFiles*,
     installExt*, bin*: seq[string] = @[] ## Nimble metadata.
@@ -133,6 +134,7 @@ proc printPkgInfo(): string =
   printIfLen srcDir
   printIfLen binDir
   printIfLen backend
+  printIfLen examplesDir
 
   printSeqIfLen skipDirs
   printSeqIfLen skipFiles
