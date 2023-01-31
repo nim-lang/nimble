@@ -36,7 +36,9 @@ proc writeLockFile*(fileName: string, packages: LockFileDeps,
       $lfjkPackages: packagesJsonNode
       }
 
-  writeFile(fileName, mainJsonNode.pretty)
+  var s = mainJsonNode.pretty
+  s.add '\n'
+  writeFile(fileName, s)
 
 proc readLockFile*(filePath: string): LockFileDeps =
   {.warning[UnsafeDefault]: off.}
