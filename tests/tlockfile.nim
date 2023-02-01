@@ -613,7 +613,8 @@ requires "nim >= 1.5.1"
 
       let (output, exitCodeInstall) = execNimbleYes("-y", "build")
       check exitCodeInstall == QuitSuccess
-      check output.contains("bin/nim for compilation")
+      let usingNim = when defined(Windows): "nim.exe for compilation" else: "bin/nim for compilation"
+      check output.contains(usingNim)
 
       # check the nim version
       let (outputVersion, _) = execNimble("version")
@@ -621,4 +622,4 @@ requires "nim >= 1.5.1"
 
       let (outputGlobalNim, exitCodeGlobalNim) = execNimbleYes("-y", "--use-system-nim", "build")
       check exitCodeGlobalNim == QuitSuccess
-      check not outputGlobalNim.contains("bin/nim for compilation")
+      check not outputGlobalNim.contains(usingNim)
