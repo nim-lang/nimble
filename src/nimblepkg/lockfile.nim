@@ -37,7 +37,9 @@ proc writeLockFile*(fileName: string, packages: AllLockFileDeps) =
     if task != noTask:
       mainJsonNode[$lfjkTasks][task] = %deps
 
-  writeFile(fileName, mainJsonNode.pretty)
+  var s = mainJsonNode.pretty
+  s.add '\n'
+  writeFile(fileName, s)
 
 proc readLockFile*(filePath: string): AllLockFileDeps =
   {.warning[UnsafeDefault]: off.}
