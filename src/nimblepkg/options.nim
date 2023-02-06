@@ -45,6 +45,7 @@ type
     localdeps*: bool # True if project local deps mode
     developLocaldeps*: bool # True if local deps + nimble develop pkg1 ...
     disableSslCertCheck*: bool
+    disableLockFile*: bool
     enableTarballs*: bool # Enable downloading of packages as tarballs from GitHub.
     task*: string # Name of the task that is getting ran
     package*: string
@@ -229,6 +230,7 @@ Nimble Options:
       --noColor                   Don't colorise output.
       --noSSLCheck                Don't check SSL certificates.
       --lock-file                 Override the lock file name.
+      --noLockFile                Ignore the lock file if present.
       --use-system-nim            Use system nim and ignore nim from the lock
                                   file if any
 
@@ -532,6 +534,7 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
   of "nim": result.nim = val
   of "localdeps", "l": result.localdeps = true
   of "nosslcheck": result.disableSslCertCheck = true
+  of "nolockfile": result.disableLockFile = true
   of "tarballs", "t": result.enableTarballs = true
   of "package", "p": result.package = val
   of "lock-file": result.lockFileName = val

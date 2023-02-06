@@ -42,6 +42,7 @@ var
   project = ""
   success = false
   retVal = true
+  nimblePathsEnv = "__NIMBLE_PATHS"
 
 proc requires*(deps: varargs[string]) =
   ## Call this to set the list of requirements of your Nimble
@@ -201,7 +202,7 @@ template task*(name: untyped; description: string; body: untyped): untyped =
   proc `name Task`*() = body
 
   nimbleTasks.add (astToStr(name), description)
-  
+
   if actionName.len == 0 or actionName == "help":
     success = true
   elif actionName == astToStr(name).normalize:
@@ -238,3 +239,11 @@ proc getPkgDir*(): string =
   result = projectFile.rsplit(seps={'/', '\\', ':'}, maxsplit=1)[0]
 
 proc thisDir*(): string = getPkgDir()
+
+proc getPaths*(): seq[string] =
+  ## Returns the paths to the dependencies
+  return getEnv(nimblePathsEnv).split("|")
+
+proc getPathsClause*(): string =
+  ## Returns the paths to the dependencies as consumed by the nim compiler.
+  return getPaths().mapIt("--path:" & it.quoteShell).join(" ")
