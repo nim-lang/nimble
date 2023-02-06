@@ -27,6 +27,7 @@ const
   nimbleConfigFileName* = "config.nims"
   gitIgnoreFileName = ".gitignore"
   hgIgnoreFileName = ".hgignore"
+  nimblePathsEnv = "__NIMBLE_PATHS"
 
 proc refresh(options: Options) =
   ## Downloads the package list from the specified URL.
@@ -328,6 +329,9 @@ proc packageExists(pkgInfo: PackageInfo, options: Options):
 proc processLockedDependencies(pkgInfo: PackageInfo, options: Options, onlyNim = false):
   HashSet[PackageInfo]
 
+proc getDependenciesPaths(pkgInfo: PackageInfo, options: Options):
+    HashSet[string]
+
 proc processAllDependencies(pkgInfo: PackageInfo, options: Options):
     HashSet[PackageInfo] =
   if pkgInfo.hasLockedDeps():
@@ -336,6 +340,8 @@ proc processAllDependencies(pkgInfo: PackageInfo, options: Options):
     result.incl pkgInfo.processFreeDependencies(pkgInfo.requires, options)
     if options.task in pkgInfo.taskRequires:
       result.incl pkgInfo.processFreeDependencies(pkgInfo.taskRequires[options.task], options)
+
+  putEnv(nimblePathsEnv, result.map(dep => dep.getRealDir()).toSeq().join("|"))
 
 proc allDependencies(pkgInfo: PackageInfo, options: Options): HashSet[PackageInfo] =
   ## Returns all dependencies for a package (Including tasks)
@@ -364,7 +370,8 @@ proc useLockedNimIfNeeded(pkgInfo: PackageInfo, options: var Options) =
 
 proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
                     url: string, first: bool, fromLockFile: bool,
-                    vcsRevision = notSetSha1Hash):
+                    vcsRevision = notSetSha1Hash,
+                    deps: seq[PackageInfo] = @[]):
     PackageDependenciesInfo =
   ## Returns where package has been installed to, together with paths
   ## to the packages this package depends on.
@@ -409,6 +416,8 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
     result.deps = pkgInfo.processLockedDependencies(depsOptions)
   elif not fromLockFile:
     result.deps = pkgInfo.processFreeDependencies(pkgInfo.requires, depsOptions)
+  else:
+    result.deps = deps.toHashSet
 
   if options.depsOnly:
     result.pkg = pkgInfo
@@ -617,7 +626,8 @@ proc downloadDependency(name: string, dep: LockFileDep, options: Options):
     vcsRevision: vcsRevision)
 
 proc installDependency(pkgInfo: PackageInfo, downloadInfo: DownloadInfo,
-                       options: Options): PackageInfo =
+                       options: Options,
+                       deps: seq[PackageInfo]): PackageInfo =
   ## Installs an already downloaded dependency of the package `pkgInfo`.
   let (_, newlyInstalledPkgInfo) = installFromDir(
     downloadInfo.downloadDir,
@@ -626,7 +636,8 @@ proc installDependency(pkgInfo: PackageInfo, downloadInfo: DownloadInfo,
     downloadInfo.url,
     first = false,
     fromLockFile = true,
-    downloadInfo.vcsRevision)
+    downloadInfo.vcsRevision,
+    deps = deps)
 
   downloadInfo.downloadDir.removeDir
   let deps = pkgInfo.lockedDeps[noTask]
@@ -656,8 +667,10 @@ proc processLockedDependencies(pkgInfo: PackageInfo, options: Options, onlyNim =
     elif isInstalled(name, dep, options):
       result.incl getDependency(name, dep, options)
     elif not options.offline:
-      let downloadResult = downloadDependency(name, dep, options)
-      result.incl installDependency(pkgInfo, downloadResult, options)
+      let
+        downloadResult = downloadDependency(name, dep, options)
+        dependencies = result.toSeq.filterIt(dep.dependencies.contains(it.name))
+      result.incl installDependency(pkgInfo, downloadResult, options, dependencies)
     else:
       raise nimbleError("Unsatisfied dependency: " & pkgInfo.basicInfo.name)
 
