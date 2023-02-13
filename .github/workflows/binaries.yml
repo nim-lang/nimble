@@ -1,0 +1,101 @@
+on:
+  push:
+    tags:
+    - 'v*' # "v1.2.3"
+    branches:
+    - master
+    paths-ignore: ['media/**', 'docs/**', '**/*.md']
+    pull_request:
+      paths-ignore: ['media/**', 'docs/**', '**/*.md']
+    workflow_dispatch:
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - os: linux
+            triple: x86_64-linux-musl
+            name: linux_x64
+          - os: linux
+            triple: i686-linux-musl
+            name: linux_x32
+          - os: linux
+            triple: aarch64-linux-musl
+            name: linux_aarch64
+          - os: linux
+            triple: armv7l-linux-musleabihf
+            name: linux_armv7l
+          - os: macosx
+            triple: x86_64-apple-darwin14
+            name: apple_x64
+          - os: windows
+            triple: x86_64-w64-mingw32
+            name: windows_x64
+          - os: windows
+            triple: i686-w64-mingw32
+            name: windows_x32
+        include:
+          - target:
+              os: linux
+            builder: ubuntu-20.04
+          - target:
+              os: macosx
+            builder: macos-11
+          - target:
+              os: windows
+            builder: windows-2019
+    defaults:
+      run:
+        shell: bash
+
+    name: '${{ matrix.target.triple }}'
+    runs-on: ${{ matrix.builder }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - uses: jiro4989/setup-nim-action@v1.4.3
+        with:
+          nimversion: ${{ matrix.nim-version }}
+          yes: true
+
+      - name: build nimble
+        run: |
+          nim -d:release c src/nimble.nim
+
+      - name: Compress the Nim Language Server binaries
+        run: |
+          cd src
+          tar -c -z -v -f ../nimble-${{ matrix.target.name }}.tar.gz `ls nimble{,.exe} 2>/dev/null || true`
+
+      - name: Upload the Nim Language Server Binaries
+        uses: actions/upload-artifact@v2
+        with:
+          name: nimble-${{ matrix.target.name }}.tar.gz
+          path: nimble-${{ matrix.target.name }}.tar.gz
+
+  create-github-release:
+    name: Create Github Release
+    needs: [build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download artefacts
+        uses: actions/download-artifact@v2
+
+      - uses: ncipollo/release-action@v1
+        with:
+          name: Latest Langserver Binaries
+          artifacts: "*/*"
+          allowUpdates: true
+          makeLatest: true
+          prerelease: true
+          tag: latest
+
+      - name: Delete artefacts
+        uses: geekyeggo/delete-artifact@v1
+        with:
+          failOnError: false
+          name: "nimble-*"
