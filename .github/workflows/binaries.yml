@@ -1,0 +1,88 @@
+on:
+  push:
+    tags:
+    - 'v*' # "v1.2.3"workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - os: linux
+            cpu: amd64
+          - os: linux
+            cpu: arm64
+          - os: macos
+            cpu: amd64
+          - os: macos
+            cpu: arm64
+          - os: windows
+            cpu: amd64
+        include:
+          - target:
+              os: linux
+            builder: ubuntu-22.04
+            shell: bash
+          - target:
+              os: macos
+            builder: macos-11
+            shell: bash
+          - target:
+              os: windows
+            builder: windows-2019
+            shell: bash
+    defaults:
+      run:
+        shell: ${{ matrix.shell }}
+
+    name: '${{ matrix.target.os }}-${{ matrix.target.cpu }}'
+    runs-on: ${{ matrix.builder }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - uses: jiro4989/setup-nim-action@v1.4.3
+        with:
+          nimversion: ${{ matrix.nim-version }}
+          yes: true
+
+      - name: build nimble
+        run: |
+          nim -d:release c src/nimble.nim
+
+      - name: Compress the Nim Language Server binaries
+        run: |
+          cd src
+          tar -c -z -v -f ../nimble-${{ matrix.target.os }}-${{ matrix.target.cpu }}.tar.gz `ls nimble{,.exe} 2>/dev/null || true`
+
+      - name: Upload the Nim Language Server Binaries
+        uses: actions/upload-artifact@v2
+        with:
+          name: nimble-${{ matrix.target.os }}-${{ matrix.target.cpu }}.tar.gz
+          path: nimble-${{ matrix.target.os }}-${{ matrix.target.cpu }}.tar.gz
+
+  create-github-release:
+    name: Create Github Release
+    needs: [build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download artefacts
+        uses: actions/download-artifact@v2
+
+      - uses: ncipollo/release-action@v1
+        with:
+          name: Latest Langserver Binaries
+          artifacts: "*/*"
+          allowUpdates: true
+          makeLatest: true
+          prerelease: true
+          tag: latest
+
+      - name: Delete artefacts
+        uses: geekyeggo/delete-artifact@v1
+        with:
+          failOnError: false
+          name: "nimble-*"
