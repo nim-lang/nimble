@@ -38,7 +38,7 @@ proc doClone(meth: DownloadMethod, url, downloadDir: string, branch = "",
       depthArg = if onlyTip: "--depth 1" else: ""
       branchArg = if branch == "": "" else: &"-b {branch}"
     discard tryDoCmdEx(
-       "git clone --config core.autocrlf=false --recursive " &
+       "git clone --config core.autocrlf=false --config core.eol=lf --recursive " &
       &"{depthArg} {branchArg} {url} {downloadDir}")
   of DownloadMethod.hg:
     let
