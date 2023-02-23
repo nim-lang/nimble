@@ -221,7 +221,7 @@ See the [Creating Packages](#creating-packages) section for more info on this.
 
 Dependencies required for developing or testing a project can be installed by
 passing `--depsOnly` without specifying a package name. Nimble will then install
-any missing dependencies listed in the package's ``package.nimble`` file in the 
+any missing dependencies listed in the package's ``package.nimble`` file in the
 current working directoy. Note that dependencies will be installed globally.
 
 For example to install the dependencies for a Nimble project ``myPackage``:
@@ -292,18 +292,18 @@ The `develop` command has a list of options:
 directory with a given name.
 * `-a, --add path` - Adds the package at the given path to the `nimble.develop`
 file.
-* `-r, --remove-path path` - Removes the package at the given path from the
+* `-r, --removePath path` - Removes the package at the given path from the
 `nimble.develop` file.
-* `-n, --remove-name path` - Removed the package with the given name from the
+* `-n, --removeName path` - Removed the package with the given name from the
 `nimble.develop` file.
 * `-i, --include file` - Includes a develop file into the current directory's
 one.
 * `-e, --exclude file` - Excludes a develop file from the current directory's
 one.
-* `--with-dependencies` - Clones for develop also the dependencies of the
+* `--withDependencies` - Clones for develop also the dependencies of the
 packages for which the develop command is executed.
-* `--develop-file` - Changes the name of the develop file which to be
-manipulated. It is useful for creating a free develop file which is not 
+* `--developFile` - Changes the name of the develop file which to be
+manipulated. It is useful for creating a free develop file which is not
 associated with any project intended for inclusion in some other develop file.
 * `-g, --global` - Creates an old style link file in the special `links`
 directory. It is read by Nim to be able to use global develop mode packages.
@@ -311,7 +311,7 @@ Nimble uses it as a global develop file if a local one does not exist.
 
 The options for manipulation of the develop files could be given only when
 executing `develop` command from some package's directory unless
-`--develop-file` option with a name of develop file is explicitly given.
+`--developFile` option with a name of develop file is explicitly given.
 
 Because the develop files are user-specific and they contain local file system
 paths they **MUST NOT** be committed.
@@ -390,7 +390,7 @@ branch, it gives the user a choice whether to switch.
 Sync operation will also download non-develop mode dependencies versions
 described in the lock file if they are not already present in the Nimble cache.
 
-If the `-l, --list-only` option is given then the command only lists
+If the `-l, --listOnly` option is given then the command only lists
 development mode dependencies whose working copies are out of sync, without
 actually syncing them and without downloading missing non-develop mode
 dependencies.
@@ -627,30 +627,30 @@ requires "https://github.com/user/pkg#5a54b5e"
 There are also following version selector operators available for "requires":
  `<`,`>`, `>=`, `<=`, `==`, `^=` and `~=`.
 
-The operator specification of `^=` is similar to `^` in 
-[npm](https://github.com/npm/node-semver#caret-ranges-123-025-004), while the 
-`~=` operator is similar to `~=` in 
-[python](https://www.python.org/dev/peps/pep-0440/#compatible-release):  
-- `^=` is selecting the latest compatible version according to 
+The operator specification of `^=` is similar to `^` in
+[npm](https://github.com/npm/node-semver#caret-ranges-123-025-004), while the
+`~=` operator is similar to `~=` in
+[python](https://www.python.org/dev/peps/pep-0440/#compatible-release):
+- `^=` is selecting the latest compatible version according to
        [semver](https://semver.npmjs.com/). Major release number changes
        cause incompatibility.
-- `~=` is selecting the latest version by increasing the last given digit 
+- `~=` is selecting the latest version by increasing the last given digit
        to the highest version.
 
 Both operators `^=` and `~=` were not available yet for Nimble 0.13.1 and
 earlier and would cause error messages if used there.
-Other more complex comparison operators that would be available in npm like 
-`!=`, `||`, `-`, `*` and `X` are also not available in Nimble. 
+Other more complex comparison operators that would be available in npm like
+`!=`, `||`, `-`, `*` and `X` are also not available in Nimble.
 ```
 # Examples for selector ^= and ~=
 
-requires "nim ^= 1.2.2" # nim >= 1.2.2 & < 2.0.0 
-requires "nim ~= 1.2.2" # nim >= 1.2.2 & < 1.3.0 
-requires "jester ^= 0.4.1" # jester >= 0.4.1 & < 0.5.0 
-requires "jester ~= 0.4.1" # jester >= 0.4.1 & < 0.5.0 
-requires "jester ~= 0.4" # jester >= 0.4.0 & < 1.0.0 
-requires "choosenim ~= 0" # choosenim >= 0.0.0 & < 1.0.0 
-requires "choosenim ^= 0" # choosenim >= 0.0.0 & < 1.0.0 
+requires "nim ^= 1.2.2" # nim >= 1.2.2 & < 2.0.0
+requires "nim ~= 1.2.2" # nim >= 1.2.2 & < 1.3.0
+requires "jester ^= 0.4.1" # jester >= 0.4.1 & < 0.5.0
+requires "jester ~= 0.4.1" # jester >= 0.4.1 & < 0.5.0
+requires "jester ~= 0.4" # jester >= 0.4.0 & < 1.0.0
+requires "choosenim ~= 0" # choosenim >= 0.0.0 & < 1.0.0
+requires "choosenim ^= 0" # choosenim >= 0.0.0 & < 1.0.0
 ```
 
 Nimble currently supports the installation of packages from a local directory, a
