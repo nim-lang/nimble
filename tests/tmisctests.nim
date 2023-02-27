@@ -84,11 +84,11 @@ suite "misc tests":
       const warningsToCheck = [
         "[UnusedImport]",
         "[DuplicateModuleImport]",
-        # "[Deprecated]", # todo fixme
+        "[Deprecated]",
         "[XDeclaredButNotUsed]",
         "[Spacing]",
         "[ProveInit]",
-        # "[UnsafeDefault]", # todo fixme
+        "[UnsafeDefault]",
         ]
 
       for line in output.splitLines():
