@@ -617,7 +617,7 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
         raise nimbleError(multiplePathOptionsGivenMsg)
     of "with-dependencies":
       result.action.withDependencies = true
-    of "global":
+    of "g", "global":
       result.action.global = true
     of "develop-file":
       if result.action.developFile.len == 0:
