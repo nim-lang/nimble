@@ -623,3 +623,8 @@ requires "nim >= 1.5.1"
       let (outputGlobalNim, exitCodeGlobalNim) = execNimbleYes("-y", "--use-system-nim", "build")
       check exitCodeGlobalNim == QuitSuccess
       check not outputGlobalNim.contains(usingNim)
+
+  test "can install task level deps when dep has subdeb":
+    cleanUp()
+    cd "lockfile-subdep":
+      check execNimbleYes("test").exitCode == QuitSuccess

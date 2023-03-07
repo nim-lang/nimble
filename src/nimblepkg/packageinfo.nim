@@ -532,7 +532,7 @@ proc name*(pkgInfo: PackageInfo): string {.inline.} =
 
 iterator lockedDepsFor*(pkgInfo: PackageInfo, options: Options): (string, LockFileDep) =
   for task, deps in pkgInfo.lockedDeps:
-    if task in ["", options.task]:
+    if task in [noTask, options.task]:
       for name, dep in deps:
         yield (name, dep)
 

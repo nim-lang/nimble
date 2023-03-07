@@ -640,7 +640,7 @@ proc installDependency(pkgInfo: PackageInfo, downloadInfo: DownloadInfo,
     deps = deps)
 
   downloadInfo.downloadDir.removeDir
-  let deps = pkgInfo.lockedDeps[noTask]
+  let deps = pkgInfo.lockedDepsFor(options).toSeq.toTable
   for depDepName in downloadInfo.dependency.dependencies:
     let depDep = deps[depDepName]
     let revDep = (name: depDepName, version: depDep.version,
