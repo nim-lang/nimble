@@ -357,7 +357,7 @@ proc load(path: Path, dependentPkg: PackageInfo, options: Options,
   ##
   ## If `raiseOnValidationErrors` raises a `NimbleError` in the case some of the
   ## contents of the develop file are invalid.
-  ## 
+  ##
   ## If `loadGlobalDeps` then load the packages pointed by the link files in the
   ## `links` directory in the Nimble cache instead of the once pointed by the
   ## local develop file.
@@ -854,7 +854,7 @@ proc workingCopyNeeds*(dependencyPkg, dependentPkg: PackageInfo,
   ## if any.
 
   let
-    lockFileVcsRev = dependentPkg.lockedDeps.getOrDefault("").getOrDefault(
+    lockFileVcsRev = dependentPkg.lockedDeps.getOrDefault(noTask).getOrDefault(
       dependencyPkg.basicInfo.name, notSetLockFileDep).vcsRevision
     syncFile = getSyncFile(dependentPkg)
     syncFileVcsRev = syncFile.getDepVcsRevision(dependencyPkg.basicInfo.name)
