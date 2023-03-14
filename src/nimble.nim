@@ -349,25 +349,6 @@ proc allDependencies(pkgInfo: PackageInfo, options: Options): HashSet[PackageInf
   for requires in pkgInfo.taskRequires.values:
     result.incl pkgInfo.processFreeDependencies(requires, options)
 
-proc useLockedNimIfNeeded(pkgInfo: PackageInfo, options: var Options) =
-  if pkgInfo.lockedDeps.len > 0 and not options.useSystemNim:
-    var deps = pkgInfo.processLockedDependencies(options, true)
-    if deps.len != 0:
-      # process the first entry (hash.pop is triggering warnings)
-      for nimDep in deps:
-        const binaryName = when defined(windows): "nim.exe" else: "nim"
-        let nim = nimDep.getRealDir() / "bin" / binaryName
-
-        if not fileExists(nim):
-          raise nimbleError("Trying to use nim from $1 " % nimDep.getRealDir(),
-                            "If you are using develop mode nim make sure to compile it.")
-
-        options.nim = nim
-        let separator = when defined(windows): ";" else: ":"
-
-        putEnv("PATH", nimDep.getRealDir() / "bin" & separator & getEnv("PATH"))
-        display("Info:", "using $1 for compilation" % options.nim, priority = HighPriority)
-
 proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
                     url: string, first: bool, fromLockFile: bool,
                     vcsRevision = notSetSha1Hash,
@@ -575,7 +556,7 @@ proc raiseCannotCloneInExistingDirException(downloadDir: string) =
   const hint = "Remove the directory, or run this command somewhere else."
   raise nimbleError(msg, hint)
 
-proc downloadDependency(name: string, dep: LockFileDep, options: Options):
+proc downloadDependency(name: string, dep: LockFileDep, options: Options, validateRange = true):
     DownloadInfo =
   ## Downloads a dependency from the lock file.
   if options.offline:
@@ -610,7 +591,7 @@ proc downloadDependency(name: string, dep: LockFileDep, options: Options):
 
   let (downloadDir, _, vcsRevision) = downloadPkg(
     url, version, dep.downloadMethod, subdir, options, downloadPath,
-    dep.vcsRevision)
+    dep.vcsRevision, validateRange = validateRange)
 
   let downloadedPackageChecksum = calculateDirSha1Checksum(downloadDir)
   if downloadedPackageChecksum != dep.checksums.sha1:
@@ -625,7 +606,7 @@ proc downloadDependency(name: string, dep: LockFileDep, options: Options):
     downloadDir: downloadDir,
     vcsRevision: vcsRevision)
 
-proc installDependency(pkgInfo: PackageInfo, downloadInfo: DownloadInfo,
+proc installDependency(lockedDeps: Table[string, LockFileDep], downloadInfo: DownloadInfo,
                        options: Options,
                        deps: seq[PackageInfo]): PackageInfo =
   ## Installs an already downloaded dependency of the package `pkgInfo`.
@@ -640,9 +621,8 @@ proc installDependency(pkgInfo: PackageInfo, downloadInfo: DownloadInfo,
     deps = deps)
 
   downloadInfo.downloadDir.removeDir
-  let deps = pkgInfo.lockedDepsFor(options).toSeq.toTable
   for depDepName in downloadInfo.dependency.dependencies:
-    let depDep = deps[depDepName]
+    let depDep = lockedDeps[depDepName]
     let revDep = (name: depDepName, version: depDep.version,
                   checksum: depDep.checksums.sha1)
     options.nimbleData.addRevDep(revDep, newlyInstalledPkgInfo)
@@ -659,7 +639,7 @@ proc processLockedDependencies(pkgInfo: PackageInfo, options: Options, onlyNim =
 
   let developModeDeps = getDevelopDependencies(pkgInfo, options)
 
-  for name, dep in pkgInfo.lockedDepsFor(options):
+  for name, dep in pkgInfo.lockedDeps.lockedDepsFor(options):
     if onlyNim and not name.isNim:
       continue
     if developModeDeps.hasKey(name):
@@ -670,7 +650,8 @@ proc processLockedDependencies(pkgInfo: PackageInfo, options: Options, onlyNim =
       let
         downloadResult = downloadDependency(name, dep, options)
         dependencies = result.toSeq.filterIt(dep.dependencies.contains(it.name))
-      result.incl installDependency(pkgInfo, downloadResult, options, dependencies)
+      result.incl installDependency(pkgInfo.lockedDeps.lockedDepsFor(options).toSeq.toTable,
+                                    downloadResult, options, dependencies)
     else:
       raise nimbleError("Unsatisfied dependency: " & pkgInfo.basicInfo.name)
 
@@ -763,10 +744,7 @@ proc build(pkgInfo: PackageInfo, options: Options) =
   buildFromDir(pkgInfo, paths, args, options)
 
 proc build(options: var Options) =
-  let dir = getCurrentDir()
-  let pkgInfo = getPkgInfo(dir, options)
-  useLockedNimIfNeeded(pkgInfo, options)
-  pkgInfo.build(options)
+  getPkgInfo(getCurrentDir(), options).build(options)
 
 proc clean(options: Options) =
   let dir = getCurrentDir()
@@ -2072,10 +2050,6 @@ proc doAction(options: var Options) =
   of actionRefresh:
     refresh(options)
   of actionInstall:
-    if options.action.packages.len == 0:
-      let pkgInfo = getPkgInfo(getCurrentDir(), options)
-      useLockedNimIfNeeded(pkgInfo, options)
-
     let (_, pkgInfo) = install(options.action.packages, options,
                                doPrompt = true,
                                first = true,
@@ -2144,7 +2118,6 @@ proc doAction(options: var Options) =
       discard pkgInfo.processAllDependencies(optsCopy)
       # If valid task defined in nimscript, run it
       var execResult: ExecutionResult[bool]
-      useLockedNimIfNeeded(pkgInfo, optsCopy)
       if execCustom(nimbleFile, optsCopy, execResult):
         if execResult.hasTaskRequestedCommand():
           var options = execResult.getOptionsForCommand(optsCopy)
@@ -2159,15 +2132,74 @@ proc doAction(options: var Options) =
                         hint = "Run `nimble --help` and/or `nimble tasks` for" &
                                " a list of possible commands.")
 
+proc useLockedNim(options: var Options, realDir: string) =
+  const binaryName = when defined(windows): "nim.exe" else: "nim"
+  let nim = realDir / "bin" / binaryName
+
+  if not fileExists(nim):
+    raise nimbleError("Trying to use nim from $1 " % realDir,
+                      "If you are using develop mode nim make sure to compile it.")
+
+  options.nim = nim
+  let separator = when defined(windows): ";" else: ":"
+
+  putEnv("PATH", realDir / "bin" & separator & getEnv("PATH"))
+  display("Info:", "using $1 for compilation" % options.nim, priority = HighPriority)
+
+proc setNimBin*(options: var Options) =
+  # Find nim binary and set into options
+  if options.nim.len != 0:
+    # --nim:<path> takes priority...
+    if options.nim.splitPath().head.len == 0:
+      # Just filename, search in PATH - nim_temp shortcut
+      let pnim = findExe(options.nim)
+      if pnim.len != 0:
+        options.nim = pnim
+      else:
+        raise nimbleError(
+          "Unable to find `$1` in $PATH" % options.nim)
+    elif not options.nim.isAbsolute():
+      # Relative path
+      options.nim = expandTilde(options.nim).absolutePath()
+
+    if not fileExists(options.nim):
+      raise nimbleError("Unable to find `$1`" % options.nim)
+  else:
+    let lockFile = options.lockFile(getCurrentDir())
+
+    if lockFile.fileExists and not options.disableLockFile and not options.useSystemNim:
+      for name, dep in lockFile.getLockedDependencies.lockedDepsFor(options):
+        if name.isNim:
+          if isInstalled(name, dep, options):
+            options.useLockedNim(getDependencyDir(name, dep, options))
+          elif not options.offline:
+            let
+              downloadResult = downloadDependency(name, dep, options, false)
+              command = when defined(windows): "build_all.bat" else: "./build_all.sh"
+            cd downloadResult.downloadDir:
+              tryDoCmdEx(command)
+            options.useLockedNim(downloadResult.downloadDir)
+            let pkgInfo = installDependency(initTable[string, LockFileDep](), downloadResult, options, @[])
+            options.useLockedNim(pkgInfo.getRealDir)
+          break
+
+    # Search PATH
+    if options.nim.len == 0: options.nim = findExe("nim")
+
+    if options.nim.len == 0:
+      # Nim not found in PATH
+      raise nimbleError(
+        "Unable to find `nim` binary - add to $PATH or use `--nim`")
+
 when isMainModule:
   var exitCode = QuitSuccess
 
   var opt: Options
   try:
     opt = parseCmdLine()
-    opt.setNimBin
     opt.setNimbleDir
     opt.loadNimbleData
+    opt.setNimBin
     opt.doAction()
   except NimbleQuit as quit:
     exitCode = quit.exitCode
