@@ -5,6 +5,7 @@ import testscommon
 
 # suits imports
 
+import tnonim
 import tinitcommand
 import tcheckcommand
 import tcleancommand
@@ -27,4 +28,3 @@ import ttestcommand
 import ttwobinaryversions
 import tuninstall
 import ttaskdeps
-import tnonim

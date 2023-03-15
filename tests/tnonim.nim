@@ -11,7 +11,7 @@ suite "No global nim":
   let
     path = getEnv("PATH")
     nimbleCacheDir = getCurrentDir() / "localnimbledeps"
-  when not defined windows:
+  when defined Linux:
     putEnv("PATH", findExe("git").parentDir)
   putEnv("NIMBLE_DIR", nimbleCacheDir)
 
@@ -23,6 +23,10 @@ suite "No global nim":
       let (output, exitCode) =
         execCmdEx(nimblePath & " version -y --lock-file=nimble-no-global-nim.lock")
       check exitCode == QuitSuccess
+
+      echo "-----------------"
+      echo output
+      echo "-----------------"
 
       let usingNim = when defined(Windows): "nim.exe for compilation" else: "bin/nim for compilation"
       check output.contains(usingNim)
