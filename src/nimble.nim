@@ -28,6 +28,7 @@ const
   gitIgnoreFileName = ".gitignore"
   hgIgnoreFileName = ".hgignore"
   nimblePathsEnv = "__NIMBLE_PATHS"
+  separator = when defined(windows): ";" else: ":"
 
 proc refresh(options: Options) =
   ## Downloads the package list from the specified URL.
@@ -1994,6 +1995,36 @@ proc setup(options: Options) =
   setupNimbleConfig(options)
   setupVcsIgnoreFile()
 
+proc getAlteredPath(options: Options): string =
+  let pkgInfo = getPkgInfo(getCurrentDir(), options)
+  var pkgs = pkgInfo.processAllDependencies(options).toSeq.toOrderedSet
+  pkgs.incl(pkgInfo)
+
+  result = getEnv("PATH")
+  for pkg in pkgs:
+    let fullInfo = pkg.toFullInfo(options)
+    for bin, _ in fullInfo.bin:
+      let folder = fullInfo.getOutputDir(bin).parentDir.quoteShell
+      result = fmt "{folder}{separator}{result}"
+
+proc shellenv(options: var Options) =
+  setVerbosity(SilentPriority)
+  options.verbosity = SilentPriority
+  const prefix = when defined(windows): "set PATH=" else: "export PATH="
+  echo prefix & getAlteredPath(options)
+
+proc shell(options: Options) =
+  putEnv("PATH", getAlteredPath(options))
+
+  when defined windows:
+    var shell = getEnv("ComSpec")
+    if shell == "": shell = "powershell"
+  else:
+    var shell = getEnv("SHELL")
+    if shell == "": shell = "/bin/bash"
+
+  discard waitForExit startProcess(shell, options = {poParentStreams})
+
 proc getPackageForAction(pkgInfo: PackageInfo, options: Options): PackageInfo =
   ## Returns the `PackageInfo` for the package in `pkgInfo`'s dependencies tree
   ## with the name specified in `options.package`. If `options.package` is empty
@@ -2102,6 +2133,10 @@ proc doAction(options: var Options) =
     sync(options)
   of actionSetup:
     setup(options)
+  of actionShellEnv:
+    shellenv(options)
+  of actionShell:
+    shell(options)
   of actionNil:
     assert false
   of actionCustom:
