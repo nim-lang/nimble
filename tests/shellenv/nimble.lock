@@ -1,0 +1,28 @@
+{
+  "version": 2,
+  "packages": {
+    "unittest2": {
+      "version": "0.0.6",
+      "vcsRevision": "883c7a50ad3b82158e64d074c5578fe33ab3c452",
+      "url": "https://github.com/status-im/nim-unittest2",
+      "downloadMethod": "git",
+      "dependencies": [],
+      "checksums": {
+        "sha1": "540e3959bd489b423dcd7d5f6373fa43153c35c8"
+      }
+    },
+    "testutils": {
+      "version": "0.5.0",
+      "vcsRevision": "dfc4c1b39f9ded9baf6365014de2b4bfb4dafc34",
+      "url": "https://github.com/status-im/nim-testutils",
+      "downloadMethod": "git",
+      "dependencies": [
+        "unittest2"
+      ],
+      "checksums": {
+        "sha1": "756d0757c4dd06a068f9d38c7f238576ba5ee897"
+      }
+    }
+  },
+  "tasks": {}
+}

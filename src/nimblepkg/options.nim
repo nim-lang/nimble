@@ -58,7 +58,7 @@ type
     actionInstall, actionSearch, actionList, actionBuild, actionPath,
     actionUninstall, actionCompile, actionDoc, actionCustom, actionTasks,
     actionDevelop, actionCheck, actionLock, actionRun, actionSync, actionSetup,
-    actionClean, actionDeps
+    actionClean, actionDeps, actionShellEnv, actionShell
 
   DevelopActionType* = enum
     datAdd, datRemoveByPath, datRemoveByName, datInclude, datExclude
@@ -106,6 +106,8 @@ type
       custRunFlags*: seq[string]
     of actionDeps:
       format*: string
+    of actionShellEnv, actionShell:
+      discard
 
 const
   help* = """
@@ -205,6 +207,11 @@ Commands:
                                   system paths to the dependencies. Also
                                   includes the paths file in the `config.nims`
                                   file to make them available for the compiler.
+  shell                           Creates a new shell with PATH modified to contain
+                                  the bin folders of the dependencies.
+  shellenv                        Similar to shell command but it returns the script to run in
+                                  order to alter the environment. This is intended to be
+                                  used in scripts.
 
 Nimble Options:
   -h, --help                      Print this help message.
@@ -310,6 +317,10 @@ proc parseActionType*(action: string): ActionType =
     result = actionSync
   of "setup":
     result = actionSetup
+  of "shellenv":
+    result = actionShellEnv
+  of "shell":
+    result = actionShell
   else:
     result = actionCustom
 
