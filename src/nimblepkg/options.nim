@@ -407,38 +407,6 @@ proc parseCommand*(key: string, result: var Options) =
   result.action = Action(typ: parseActionType(key))
   initAction(result, key)
 
-proc setNimBin*(options: var Options) =
-  # Find nim binary and set into options
-  if options.nim.len != 0:
-    # --nim:<path> takes priority...
-    if options.nim.splitPath().head.len == 0:
-      # Just filename, search in PATH - nim_temp shortcut
-      let pnim = findExe(options.nim)
-      if pnim.len != 0:
-        options.nim = pnim
-      else:
-        raise nimbleError(
-          "Unable to find `$1` in $PATH" % options.nim)
-    elif not options.nim.isAbsolute():
-      # Relative path
-      options.nim = expandTilde(options.nim).absolutePath()
-
-    if not fileExists(options.nim):
-      raise nimbleError("Unable to find `$1`" % options.nim)
-  else:
-    # Search PATH
-    let pnim = findExe("nim")
-    if pnim.len != 0:
-      options.nim = pnim
-    else:
-      let pnimrod = findExe("nimrod")
-      if pnimrod.len != 0:
-        options.nim = pnimrod
-
-    if options.nim.len == 0:
-      # Nim not found in PATH
-      raise nimbleError(
-        "Unable to find `nim` binary - add to $PATH or use `--nim`")
 
 proc getNimbleFileDir*(pkgInfo: PackageInfo): string =
   pkgInfo.myPath.splitFile.dir

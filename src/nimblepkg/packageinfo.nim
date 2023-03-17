@@ -530,8 +530,8 @@ proc fullRequirements*(pkgInfo: PackageInfo): seq[PkgTuple] =
 proc name*(pkgInfo: PackageInfo): string {.inline.} =
   pkgInfo.basicInfo.name
 
-iterator lockedDepsFor*(pkgInfo: PackageInfo, options: Options): (string, LockFileDep) =
-  for task, deps in pkgInfo.lockedDeps:
+iterator lockedDepsFor*(allDeps: AllLockFileDeps, options: Options): (string, LockFileDep) =
+  for task, deps in allDeps:
     if task in [noTask, options.task]:
       for name, dep in deps:
         yield (name, dep)
