@@ -11,6 +11,16 @@ from nimblepkg/common import cd
 from nimblepkg/version import newVersion
 
 suite "uninstall":
+  test "can install deps from nimble file":
+    let srcDirTest = "develop/srcdirtest/srcdirtest.nimble"
+    cleanDir(installDir)
+    check execNimbleYes("install", "--onlyDeps", "--nimble-file", srcDirTest).exitCode == QuitSuccess
+
+  test "can install from nimble file":
+    let srcDirTest = "develop/srcdirtest/srcdirtest.nimble"
+    cleanDir(installDir)
+    check execNimbleYes("install", "--nimble-file", srcDirTest).exitCode == QuitSuccess
+
   test "cannot install packagebin2 in --offline mode":
     cleanDir(installDir)
     let args = ["--offline", "install", pkgBin2Url]

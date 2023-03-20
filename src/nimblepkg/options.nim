@@ -80,6 +80,7 @@ type
       devActions*: seq[DevelopAction]
       path*: string
       noRebuild*: bool
+      isNimbleFile*: bool
       withDependencies*: bool
         ## Whether to put in develop mode also the dependencies of the packages
         ## listed in the develop command.
@@ -117,6 +118,7 @@ Commands:
                                   to install deps for a local nimble package.
                [-p, --passNim]    Forward specified flag to compiler.
                [--noRebuild]      Don't rebuild binaries if they're up-to-date.
+               [--nimble-file]    Use nimble file instead of pkgname. 
   develop      [pkgname, ...]     Clones a list of packages for development.
                                   Adds them to a develop file if specified or
                                   to `nimble.develop` if not specified and
@@ -530,6 +532,8 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
     case f
     of "depsonly", "d":
       result.depsOnly = true
+    of "nimble-file":
+      result.action.isNimbleFile = true
     of "norebuild":
       result.action.noRebuild = true
     of "passnim", "p":
