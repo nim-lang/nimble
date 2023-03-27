@@ -24,10 +24,6 @@ suite "No global nim":
         execCmdEx(nimblePath & " version -y --lock-file=nimble-no-global-nim.lock")
       check exitCode == QuitSuccess
 
-      echo "-----------------"
-      echo output
-      echo "-----------------"
-
       let usingNim = when defined(Windows): "nim.exe for compilation" else: "bin/nim for compilation"
       check output.contains(usingNim)
       check output.contains("koch")
