@@ -116,26 +116,26 @@ Commands:
                [-d, --depsOnly]   Only install dependencies. Leave out pkgname
                                   to install deps for a local nimble package.
                [-p, --passNim]    Forward specified flag to compiler.
-               [--noRebuild]      Don't rebuild binaries if they're up-to-date.
+               [--noRebuild ]     Don't rebuild binaries if they're up-to-date.
   develop      [pkgname, ...]     Clones a list of packages for development.
                                   Adds them to a develop file if specified or
                                   to `nimble.develop` if not specified and
                                   executed in package's directory.
-         [--with-dependencies]    Puts in develop mode also the dependencies
+         [--withDependencies]     Puts in develop mode also the dependencies
                                   of the packages in the list or of the current
                                   directory package if the list is empty.
-         [--develop-file]         Specifies the name of the develop file which
+         [--developFile]          Specifies the name of the develop file which
                                   to be manipulated. If not present creates it.
          [-p, --path path]        Specifies the path whether the packages should
                                   be cloned.
          [-a, --add path]         Adds a package at given path to a specified
                                   develop file or to `nimble.develop` if not
                                   specified and executed in package's directory.
-         [-r, --remove-path path] Removes a package at given path from a
+         [-r, --removePath path]  Removes a package at given path from a
                                   specified develop file or from `nimble.develop`
                                   if not specified and executed in package's
                                   directory.
-         [-n, --remove-name name] Removes a package with a given name from
+         [-n, --removeName name]  Removes a package with a given name from
                                   a specified develop file or from `nimble.develop`
                                   if not specified and executed in package's
                                   directory.
@@ -199,7 +199,7 @@ Commands:
                                   format
   sync                            Synchronizes develop mode dependencies with
                                   the content of the lock file.
-               [-l, --list-only]  Only lists the packages which are not synced
+               [-l, --listOnly]   Only lists the packages which are not synced
                                   without actually performing the sync operation.
   setup                           Creates `nimble.paths` file containing file
                                   system paths to the dependencies. Also
@@ -228,10 +228,10 @@ Nimble Options:
       --debug                     Show all output including debug messages.
       --offline                   Don't use network.
       --noColor                   Don't colorise output.
-      --noSSLCheck                Don't check SSL certificates.
-      --lock-file                 Override the lock file name.
-      --noLockFile                Ignore the lock file if present.
-      --use-system-nim            Use system nim and ignore nim from the lock
+      --noSslCheck                Don't check SSL certificates.
+      --lockFile                  Override the lock file name.
+      --noLockfile                Ignore the lock file if present.
+      --useSystemNim              Use system nim and ignore nim from the lock
                                   file if any
 
 For more information read the Github readme:
@@ -483,7 +483,7 @@ proc getFlagString(kind: CmdLineKind, flag, val: string): string =
 
 proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
 
-  let f = flag.normalize()
+  let f = flag.normalize().replace("-", "")
 
   # Global flags.
   var isGlobalFlag = true
@@ -505,8 +505,8 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
   of "nolockfile": result.disableLockFile = true
   of "tarballs", "t": result.enableTarballs = true
   of "package", "p": result.package = val
-  of "lock-file": result.lockFileName = val
-  of "use-system-nim": result.useSystemNim = true
+  of "lockfile": result.lockFileName = val
+  of "usesystemnim": result.useSystemNim = true
   else: isGlobalFlag = false
 
   var wasFlagHandled = true
@@ -570,9 +570,9 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
     case f
     of "a", "add":
       result.action.devActions.add (datAdd, val.normalizedPath)
-    of "r", "remove-path":
+    of "r", "removepath":
       result.action.devActions.add (datRemoveByPath, val.normalizedPath)
-    of "n", "remove-name":
+    of "n", "removename":
       result.action.devActions.add (datRemoveByName, val)
     of "i", "include":
       result.action.devActions.add (datInclude, val.normalizedPath)
@@ -583,11 +583,11 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
         result.action.path = val.normalizedPath
       else:
         raise nimbleError(multiplePathOptionsGivenMsg)
-    of "with-dependencies":
+    of "withdependencies":
       result.action.withDependencies = true
     of "g", "global":
       result.action.global = true
-    of "develop-file":
+    of "developfile":
       if result.action.developFile.len == 0:
         result.action.developFile = val.normalizedPath
       else:
@@ -596,7 +596,7 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
       wasFlagHandled = false
   of actionSync:
     case f
-    of "l", "list-only":
+    of "l", "listonly":
       result.action.listOnly = true
     else:
       wasFlagHandled = false
