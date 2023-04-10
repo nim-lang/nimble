@@ -17,7 +17,7 @@ type
     # Maps develop mode dependency name to the VCS revision it has in the time
     # of the last `lock` or `sync` operation or when it is added as a develop
     # mode dependency if there is no such operations after that moment.
-  
+
   SyncFile = object
     path: Path
     data: SyncFileData
@@ -34,7 +34,7 @@ const
 proc getPkgDir(pkgInfo: PackageInfo): string =
   pkgInfo.myPath.splitFile.dir
 
-proc getSyncFilePath(pkgInfo: PackageInfo): Path =  
+proc getSyncFilePath(pkgInfo: PackageInfo): Path =
   ## Returns a path to the sync file for package `pkgInfo`.
 
   let (vcsType, vcsSpecialDirPath) =

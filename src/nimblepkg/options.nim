@@ -54,7 +54,7 @@ type
       # For now, it is used only by the run action and it is ignored by others.
 
   ActionType* = enum
-    actionNil, actionRefresh, actionInit, actionDump, actionPublish,
+    actionNil, actionRefresh, actionInit, actionDump, actionPublish, actionUpgrade
     actionInstall, actionSearch, actionList, actionBuild, actionPath,
     actionUninstall, actionCompile, actionDoc, actionCustom, actionTasks,
     actionDevelop, actionCheck, actionLock, actionRun, actionSync, actionSetup,
@@ -73,7 +73,7 @@ type
       listOnly*: bool
     of actionRefresh:
       optionalURL*: string # Overrides default package list.
-    of actionInstall, actionPath, actionUninstall, actionDevelop:
+    of actionInstall, actionPath, actionUninstall, actionDevelop, actionUpgrade:
       packages*: seq[PkgTuple] # Optional only for actionInstall
                                # and actionDevelop.
       passNimFlags*: seq[string]
@@ -196,6 +196,7 @@ Commands:
                                   the name of an installed package.
                [--ini, --json]    Selects the output format (the default is --ini).
   lock                            Generates or updates a package lock file.
+  upgrade      [pkgname, ...]     Upgrades a list of packages in the lock file.
   deps                            Outputs dependency tree
                [--format type]    Specify the output format. Json is the only supported
                                   format
@@ -303,6 +304,8 @@ proc parseActionType*(action: string): ActionType =
     result = actionUninstall
   of "publish":
     result = actionPublish
+  of "upgrade":
+    result = actionUpgrade
   of "tasks":
     result = actionTasks
   of "develop":
@@ -465,7 +468,7 @@ proc parseArgument*(key: string, result: var Options) =
   case result.action.typ
   of actionNil:
     assert false
-  of actionInstall, actionPath, actionDevelop, actionUninstall:
+  of actionInstall, actionPath, actionDevelop, actionUninstall, actionUpgrade:
     # Parse pkg@verRange
     if '@' in key:
       let i = find(key, '@')

@@ -2,15 +2,15 @@
 # BSD License. Look at license.txt for more info.
 
 import sequtils, tables, strformat, algorithm, sets
-import common, packageinfotypes, packageinfo, options, cli
+import common, packageinfotypes, packageinfo, options, cli, version
 
-proc getDependencies(packages: seq[PackageInfo], package: PackageInfo,
+proc getDependencies(packages: seq[PackageInfo], requires: seq[PkgTuple],
                      options: Options):
     seq[string] =
   ## Returns the names of the packages which are dependencies of a given
   ## package. It is needed because some of the names of the packages in the
   ## `requires` clause of a package could be URLs.
-  for dep in package.requires:
+  for dep in requires:
     if dep.name.isNim:
       continue
     var depPkgInfo = initPackageInfo()
@@ -20,9 +20,30 @@ proc getDependencies(packages: seq[PackageInfo], package: PackageInfo,
       found = findPkg(packages, resolvedDep, depPkgInfo)
       if not found:
         raise nimbleError(
-           "Cannot build the dependency graph.\n" & 
+           "Cannot build the dependency graph.\n" &
           &"Missing package \"{dep.name}\".")
-    result.add depPkgInfo.basicInfo.name
+    result.add depPkgInfo.name
+
+proc allDependencies(requires: seq[PkgTuple], packages: seq[PackageInfo], options: Options): seq[string] =
+  for dep in requires:
+    var depPkgInfo = initPackageInfo()
+    if findPkg(packages, dep, depPkgInfo):
+      result.add depPkgInfo.name
+      result.add allDependencies(depPkgInfo.requires, packages, options)
+    else:
+      let resolvedDep = dep.resolveAlias(options)
+      if findPkg(packages, resolvedDep, depPkgInfo):
+        result.add depPkgInfo.name
+        result.add allDependencies(depPkgInfo.requires, packages, options)
+
+proc deleteStaleDependencies*(packages: seq[PackageInfo],
+                      rootPackage: PackageInfo,
+                      options: Options): seq[PackageInfo] =
+  let all = allDependencies(concat(rootPackage.requires,
+                                   rootPackage.taskRequires.getOrDefault(options.task)),
+                            packages,
+                            options)
+  result = packages.filterIt(all.contains(it.name))
 
 proc buildDependencyGraph*(packages: seq[PackageInfo], options: Options):
     LockFileDeps =
@@ -33,7 +54,7 @@ proc buildDependencyGraph*(packages: seq[PackageInfo], options: Options):
       vcsRevision: pkgInfo.metaData.vcsRevision,
       url: pkgInfo.metaData.url,
       downloadMethod: pkgInfo.metaData.downloadMethod,
-      dependencies: getDependencies(packages, pkgInfo, options),
+      dependencies: getDependencies(packages, pkgInfo.requires, options),
       checksums: Checksums(sha1: pkgInfo.basicInfo.checksum))
 
 proc topologicalSort*(graph: LockFileDeps):
@@ -77,7 +98,7 @@ proc topologicalSort*(graph: LockFileDeps):
 
   proc printNotADagWarning() =
     let message = cycles.foldl(
-      a & "\nCycle detected: " & b.foldl(&"{a} -> {b}"), 
+      a & "\nCycle detected: " & b.foldl(&"{a} -> {b}"),
       "The dependency graph is not a DAG.")
     display("Warning", message, Warning, HighPriority)
 
@@ -162,7 +183,7 @@ when isMainModule:
 
         expectedTopologicallySortedOrder = @["D", "C", "B", "E", "A"]
         expectedCycles = @[@["A", "B", "A"], @["B", "C", "D", "B"], @["E", "E"]]
-        
+
         (actualTopologicallySortedOrder, actualCycles) = topologicalSort(graph)
 
       check actualTopologicallySortedOrder == expectedTopologicallySortedOrder

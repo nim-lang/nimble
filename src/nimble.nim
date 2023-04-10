@@ -62,14 +62,13 @@ proc initPkgList(pkgInfo: PackageInfo, options: Options): seq[PackageInfo] =
   let
     installedPkgs = getInstalledPkgsMin(options.getPkgsDir(), options)
     developPkgs = processDevelopDependencies(pkgInfo, options)
-  {.warning[ProveInit]: off.}
   result = concat(installedPkgs, developPkgs)
-  {.warning[ProveInit]: on.}
 
 proc install(packages: seq[PkgTuple], options: Options,
-             doPrompt, first, fromLockFile: bool): PackageDependenciesInfo
+             doPrompt, first, fromLockFile: bool,
+             preferredPackages: seq[PackageInfo] = @[]): PackageDependenciesInfo
 
-proc checkSatisfied(options: Options, dependencies: HashSet[PackageInfo]) =
+proc checkSatisfied(options: Options, dependencies: seq[PackageInfo]) =
   ## Check if two packages of the same name (but different version) are listed
   ## in the path. Throws error if it fails
   var pkgsInPath: Table[string, Version]
@@ -82,8 +81,10 @@ proc checkSatisfied(options: Options, dependencies: HashSet[PackageInfo]) =
           [pkgInfo.basicInfo.name, $currentVer, $pkgsInPath[pkgInfo.basicInfo.name]])
     pkgsInPath[pkgInfo.basicInfo.name] = currentVer
 
-proc processFreeDependencies(pkgInfo: PackageInfo, requirements: seq[PkgTuple],
-                             options: Options, nimAsDependency = false):
+proc processFreeDependencies(pkgInfo: PackageInfo,
+                             requirements: seq[PkgTuple],
+                             options: Options,
+                             preferredPackages: seq[PackageInfo] = @[]):
     HashSet[PackageInfo] =
   ## Verifies and installs dependencies.
   ##
@@ -100,57 +101,61 @@ proc processFreeDependencies(pkgInfo: PackageInfo, requirements: seq[PkgTuple],
 
   var reverseDependencies: seq[PackageBasicInfo] = @[]
 
+  let includeNim =
+    pkgInfo.lockedDeps.contains("compiler") or
+    pkgInfo.getDevelopDependencies(options).contains("nim")
+
   for dep in requirements:
-    if not nimAsDependency and dep.name.isNim:
-      let nimVer = getNimrodVersion(options)
-      if not withinRange(nimVer, dep.ver):
-        let msg = "Unsatisfied dependency: " & dep.name & " (" & $dep.ver & ")"
-        raise nimbleError(msg)
+    if dep.name.isNim and not includeNim:
+      continue
+
+    let resolvedDep = dep.resolveAlias(options)
+    display("Checking", "for $1" % $resolvedDep, priority = MediumPriority)
+    var pkg = initPackageInfo()
+    var found = findPkg(preferredPackages, resolvedDep, pkg) or
+      findPkg(pkgList, resolvedDep, pkg)
+    # Check if the original name exists.
+    if not found and resolvedDep.name != dep.name:
+      display("Checking", "for $1" % $dep, priority = MediumPriority)
+      found = findPkg(preferredPackages, dep, pkg) or findPkg(pkgList, dep, pkg)
+      if found:
+        displayWarning(&"Installed package {dep.name} should be renamed to " &
+                       resolvedDep.name)
+
+    if not found:
+      display("Installing", $resolvedDep, priority = HighPriority)
+      let toInstall = @[(resolvedDep.name, resolvedDep.ver)]
+      let (packages, installedPkg) = install(toInstall, options,
+        doPrompt = false, first = false, fromLockFile = false,
+        preferredPackages = preferredPackages)
+
+      for pkg in packages:
+        if result.contains pkg:
+          # If the result already contains the newly tried to install package
+          # we had to merge its special versions set into the set of the old
+          # one.
+          result[pkg].metaData.specialVersions.incl(
+            pkg.metaData.specialVersions)
+        else:
+          result.incl pkg
+
+      pkg = installedPkg # For addRevDep
+      fillMetaData(pkg, pkg.getRealDir(), false)
+
+      # This package has been installed so we add it to our pkgList.
+      pkgList.add pkg
     else:
-      let resolvedDep = dep.resolveAlias(options)
-      display("Checking", "for $1" % $resolvedDep, priority = MediumPriority)
-      var pkg = initPackageInfo()
-      var found = findPkg(pkgList, resolvedDep, pkg)
-      # Check if the original name exists.
-      if not found and resolvedDep.name != dep.name:
-        display("Checking", "for $1" % $dep, priority = MediumPriority)
-        found = findPkg(pkgList, dep, pkg)
-        if found:
-          displayWarning(&"Installed package {dep.name} should be renamed to " &
-                         resolvedDep.name)
+      displayInfo(pkgDepsAlreadySatisfiedMsg(dep))
+      result.incl pkg
+      # Process the dependencies of this dependency.
+      let fullInfo = pkg.toFullInfo(options)
+      result.incl processFreeDependencies(fullInfo, fullInfo.requires, options,
+                                          preferredPackages)
 
-      if not found:
-        display("Installing", $resolvedDep, priority = HighPriority)
-        let toInstall = @[(resolvedDep.name, resolvedDep.ver)]
-        let (packages, installedPkg) = install(toInstall, options,
-          doPrompt = false, first = false, fromLockFile = false)
+    if not pkg.isLink:
+      reverseDependencies.add(pkg.basicInfo)
 
-        for pkg in packages:
-          if result.contains pkg:
-            # If the result already contains the newly tried to install package
-            # we had to merge its special versions set into the set of the old
-            # one.
-            result[pkg].metaData.specialVersions.incl(
-              pkg.metaData.specialVersions)
-          else:
-            result.incl pkg
-
-        pkg = installedPkg # For addRevDep
-        fillMetaData(pkg, pkg.getRealDir(), false)
-
-        # This package has been installed so we add it to our pkgList.
-        pkgList.add pkg
-      else:
-        displayInfo(pkgDepsAlreadySatisfiedMsg(dep))
-        result.incl pkg
-        # Process the dependencies of this dependency.
-        let fullInfo = pkg.toFullInfo(options)
-        result.incl processFreeDependencies(fullInfo, fullInfo.requires, options)
-
-      if not pkg.isLink:
-        reverseDependencies.add(pkg.basicInfo)
-
-  options.checkSatisfied(result)
+  options.checkSatisfied(result.toSeq)
 
   # We add the reverse deps to the JSON file here because we don't want
   # them added if the above errorenous condition occurs
@@ -327,7 +332,7 @@ proc packageExists(pkgInfo: PackageInfo, options: Options):
     fillMetaData(oldPkgInfo, pkgDestDir, true)
     return some(oldPkgInfo)
 
-proc processLockedDependencies(pkgInfo: PackageInfo, options: Options, onlyNim = false):
+proc processLockedDependencies(pkgInfo: PackageInfo, options: Options):
   HashSet[PackageInfo]
 
 proc getDependenciesPaths(pkgInfo: PackageInfo, options: Options):
@@ -353,7 +358,8 @@ proc allDependencies(pkgInfo: PackageInfo, options: Options): HashSet[PackageInf
 proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
                     url: string, first: bool, fromLockFile: bool,
                     vcsRevision = notSetSha1Hash,
-                    deps: seq[PackageInfo] = @[]):
+                    deps: seq[PackageInfo] = @[],
+                    preferredPackages: seq[PackageInfo] = @[]):
     PackageDependenciesInfo =
   ## Returns where package has been installed to, together with paths
   ## to the packages this package depends on.
@@ -397,7 +403,8 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
   if first and pkgInfo.hasLockedDeps():
     result.deps = pkgInfo.processLockedDependencies(depsOptions)
   elif not fromLockFile:
-    result.deps = pkgInfo.processFreeDependencies(pkgInfo.requires, depsOptions)
+    result.deps = pkgInfo.processFreeDependencies(pkgInfo.requires, depsOptions,
+                                                  preferredPackages = preferredPackages)
   else:
     result.deps = deps.toHashSet
 
@@ -630,7 +637,7 @@ proc installDependency(lockedDeps: Table[string, LockFileDep], downloadInfo: Dow
 
   return newlyInstalledPkgInfo
 
-proc processLockedDependencies(pkgInfo: PackageInfo, options: Options, onlyNim = false):
+proc processLockedDependencies(pkgInfo: PackageInfo, options: Options):
     HashSet[PackageInfo] =
   # Returns a hash set with `PackageInfo` of all packages from the lock file of
   # the package `pkgInfo` by getting the info for develop mode dependencies from
@@ -640,21 +647,23 @@ proc processLockedDependencies(pkgInfo: PackageInfo, options: Options, onlyNim =
 
   let developModeDeps = getDevelopDependencies(pkgInfo, options, raiseOnValidationErrors = false)
 
+  var res: seq[PackageInfo]
+
   for name, dep in pkgInfo.lockedDeps.lockedDepsFor(options):
-    if onlyNim and not name.isNim:
-      continue
     if developModeDeps.hasKey(name):
-      result.incl developModeDeps[name][]
+      res.add developModeDeps[name][]
     elif isInstalled(name, dep, options):
-      result.incl getDependency(name, dep, options)
+      res.add getDependency(name, dep, options)
     elif not options.offline:
       let
         downloadResult = downloadDependency(name, dep, options)
-        dependencies = result.toSeq.filterIt(dep.dependencies.contains(it.name))
-      result.incl installDependency(pkgInfo.lockedDeps.lockedDepsFor(options).toSeq.toTable,
-                                    downloadResult, options, dependencies)
+        dependencies = res.filterIt(dep.dependencies.contains(it.name))
+      res.add installDependency(pkgInfo.lockedDeps.lockedDepsFor(options).toSeq.toTable,
+                                downloadResult, options, dependencies)
     else:
       raise nimbleError("Unsatisfied dependency: " & pkgInfo.basicInfo.name)
+
+  return res.toHashSet
 
 proc getDownloadInfo*(pv: PkgTuple, options: Options,
                       doPrompt: bool, ignorePackageCache = false): (DownloadMethod, string,
@@ -684,11 +693,14 @@ proc getDownloadInfo*(pv: PkgTuple, options: Options,
         raise nimbleError(pkgNotFoundMsg(pv))
 
 proc install(packages: seq[PkgTuple], options: Options,
-             doPrompt, first, fromLockFile: bool): PackageDependenciesInfo =
+             doPrompt, first, fromLockFile: bool,
+             preferredPackages: seq[PackageInfo] = @[]): PackageDependenciesInfo =
   ## ``first``
   ##   True if this is the first level of the indirect recursion.
   ## ``fromLockFile``
   ##   True if we are installing dependencies from the lock file.
+  ## ``preferredPackages``
+  ##   Prefer these packages when performing `processFreeDependencies`
 
   if packages == @[]:
     let currentDir = getCurrentDir()
@@ -697,7 +709,8 @@ proc install(packages: seq[PkgTuple], options: Options,
         "Installing a package which currently has develop mode dependencies." &
         "\nThey will be ignored and installed as normal packages.")
     result = installFromDir(currentDir, newVRAny(), options, "", first,
-                            fromLockFile)
+                            fromLockFile,
+                            preferredPackages = preferredPackages)
   else:
     # Install each package.
     for pv in packages:
@@ -708,7 +721,8 @@ proc install(packages: seq[PkgTuple], options: Options,
                     downloadPath = "", vcsRevision = notSetSha1Hash)
       try:
         result = installFromDir(downloadDir, pv.ver, options, url,
-                                first, fromLockFile, vcsRevision)
+                                first, fromLockFile, vcsRevision,
+                                preferredPackages = preferredPackages)
       except BuildFailed as error:
         # The package failed to build.
         # Check if we tried building a tagged version of the package.
@@ -1288,6 +1302,7 @@ proc installDevelopPackage(pkgTup: PkgTuple, options: var Options):
     else:
       raiseCannotCloneInExistingDirException(downloadDir)
 
+
   # Download the HEAD and make sure the full history is downloaded.
   let ver =
     if pkgTup.ver.kind == verAny:
@@ -1304,6 +1319,7 @@ proc installDevelopPackage(pkgTup: PkgTuple, options: var Options):
   developFromDir(pkgInfo, options)
   options.action.devActions.add(
     (datAdd, pkgInfo.getNimbleFileDir.normalizedPath))
+
   return pkgInfo
 
 proc developLockedDependencies(pkgInfo: PackageInfo,
@@ -1570,38 +1586,6 @@ proc validateDevModeDepsWorkingCopiesBeforeLock(
     if error.kind in notAnErrorSet:
       result.del name
 
-proc mergeLockedDependencies*(pkgInfo: PackageInfo, newDeps: LockFileDeps,
-                              options: Options): LockFileDeps =
-  ## Updates the lock file data of already generated lock file with the data
-  ## from a new lock operation.
-  # Copy across the data in the existing lock file
-  for deps in pkgInfo.lockedDeps.values:
-    for name, dep in deps:
-      result[name] = dep
-
-  let developDeps = pkgInfo.getDevelopDependencies(options)
-
-  for name, dep in newDeps:
-    if result.hasKey(name):
-      # If the dependency is already present in the old lock file
-      if developDeps.hasKey(name):
-        # and it is a develop mode dependency update it with the newly locked
-        # version,
-        result[name] = dep
-      else:
-        # but if it is installed dependency just leave it at the current
-        # version.
-        discard
-    else:
-      # If the dependency is missing from the old develop file add it.
-      result[name] = dep
-
-  # Clean dependencies which are missing from the newly locked list.
-  let deps = result
-  for name, dep in deps:
-    if not newDeps.hasKey(name):
-      result.del name
-
 proc displayLockOperationStart(lockFile: string): bool =
   ## Displays a proper log message for starting generating or updating the lock
   ## file of a package in directory `dir`.
@@ -1624,89 +1608,88 @@ proc displayLockOperationFinish(didLockFileExist: bool) =
     lockFileIsGeneratedMsg
   displaySuccess(msg)
 
-proc check(errors: var ValidationErrors, graph: LockFileDeps) =
+proc check(errors: ValidationErrors, graph: LockFileDeps) =
   ## Checks that the dependency graph has no errors
   # throw error only for dependencies that are part of the graph
-  for name, error in common.dup(errors):
+  var err = errors
+  for name, error in errors:
     if name notin graph:
-      errors.del name
+      err.del name
 
-  if errors.len > 0:
-    raise validationErrors(errors)
+  if err.len > 0:
+    raise validationErrors(err)
+
+proc getDependenciesForLocking(pkgInfo: PackageInfo, options: Options):
+    seq[PackageInfo] =
+  ## Get all of the dependencies and then force the upgrade spec
+  var res = pkgInfo.processAllDependencies(options).toSeq
+
+  if pkgInfo.hasLockedDeps():
+    # if we are performing lock and there is a lock file we make sure that the
+    # requires section still applies over the lock dependencies. In case it does
+    # not, we upgrade those.
+    let
+      toUpgrade = if options.action.typ == actionUpgrade:
+        options.action.packages
+      else:
+        pkgInfo.requires
+
+      allRequiredPackages = pkgInfo.processFreeDependencies(toUpgrade, options, res).toSeq
+      allRequiredNames = allRequiredPackages.mapIt(it.name)
+
+    res = res.filterIt(it.name notin allRequiredNames)
+    res.add allRequiredPackages
+
+  result = res.deleteStaleDependencies(pkgInfo, options).deduplicate
 
 proc lock(options: Options) =
   ## Generates a lock file for the package in the current directory or updates
   ## it if it already exists.
-
   let
     currentDir = getCurrentDir()
     pkgInfo = getPkgInfo(currentDir, options)
     currentLockFile = options.lockFile(currentDir)
     lockExists = displayLockOperationStart(currentLockFile)
+    baseDeps = pkgInfo.getDependenciesForLocking(options) # Deps shared by base and tasks
+    baseDepNames: HashSet[string] = baseDeps.mapIt(it.name).toHashSet
 
-  var errors = validateDevModeDepsWorkingCopiesBeforeLock(pkgInfo, options)
-
-  # We need to process free dependencies for all tasks.
-  # Then we can store each task as a seperate sub graph.
-  let
-    includeNim =
-      pkgInfo.lockedDeps.contains("compiler") or
-      pkgInfo.getDevelopDependencies(options, raiseOnValidationErrors = false).contains("nim")
-    deps = pkgInfo.processFreeDependencies(pkgInfo.requires, options, includeNim)
-  var fullDeps = deps # Deps shared by base and tasks
+  pkgInfo.validateDevelopDependenciesVersionRanges(baseDeps, options)
 
   # We need to seperate the graph into seperate tasks later
   var
-    baseDepNames: HashSet[string]
-    taskDepNames: Table[string, HashSet[string]]
+    errors = validateDevModeDepsWorkingCopiesBeforeLock(pkgInfo, options)
+    taskDepNames: Table[string, HashSet[string]] # We need to seperate the graph into seperate tasks later
+    allDeps = baseDeps.toHashSet
+    lockDeps: AllLockFileDeps
 
-  for dep in deps:
-    baseDepNames.incl dep.name
-
+  lockDeps[noTask] = LockFileDeps()
 
   # Add each individual tasks as partial sub graphs
-  for task, requires in pkgInfo.taskRequires:
-    let newDeps = pkgInfo.processFreeDependencies(requires, options)
-    {.push warning[ProveInit]: off.}
-    # Don't know why this isn't considered proved
-    let fullInfo = newDeps.toSeq().map(pkg => pkg.toFullInfo(options))
-    {.push warning[ProveInit]: on.}
-    pkgInfo.validateDevelopDependenciesVersionRanges(fullInfo, options)
+  for task in pkgInfo.taskRequires.keys:
+    var taskOptions = options
+    taskOptions.task = task
+
+    let taskDeps = pkgInfo.getDependenciesForLocking(taskOptions)
+
+    pkgInfo.validateDevelopDependenciesVersionRanges(taskDeps, taskOptions)
+
     # Add in the dependencies that are in this task but not in base
     taskDepNames[task] = initHashSet[string]()
-    for dep in newDeps:
-      fullDeps.incl dep
+    for dep in taskDeps:
       if dep.name notin baseDepNames:
         taskDepNames[task].incl dep.name
-    # Reset the deps to what they were before hand.
-    # Stops dependencies in this task overflowing into the next
-    fullDeps.incl newDeps
-  # Now build graph for all dependencies
-  options.checkSatisfied(fullDeps)
-  let fullInfo = fullDeps.toSeq().map(pkg => pkg.toFullInfo(options))
-  pkgInfo.validateDevelopDependenciesVersionRanges(fullInfo, options)
-  var graph = buildDependencyGraph(fullInfo, options)
+        allDeps.incl dep
+
+    # Now build graph for all dependencies
+    taskOptions.checkSatisfied(taskDeps)
+
+  let graph = buildDependencyGraph(allDeps.toSeq, options)
   errors.check(graph)
 
-  if lockExists:
-    # If we already have a lock file, merge its data with the newly generated
-    # one.
-    #
-    # IMPORTANT TODO:
-    # To do this properly, an SMT solver is needed, but anyway, it seems that
-    # currently Nimble does not check properly for `require` clauses
-    # satisfaction between all packages, but just greedily picks the best
-    # matching version of dependencies for the currently processed package.
-    graph = mergeLockedDependencies(pkgInfo, graph, options)
-
-  let (topologicalOrder, _) = topologicalSort(graph)
-  var lockDeps: AllLockFileDeps
-  # Now we break up tasks into seperate graphs
-  lockDeps[noTask] = LockFileDeps()
   for task in pkgInfo.taskRequires.keys:
     lockDeps[task] = LockFileDeps()
 
-  for dep in topologicalOrder:
+  for dep in topologicalSort(graph).order:
     if dep in baseDepNames:
       lockDeps[noTask][dep] = graph[dep]
     else:
@@ -1718,7 +1701,6 @@ proc lock(options: Options) =
   writeLockFile(currentLockFile, lockDeps)
   updateSyncFile(pkgInfo, options)
   displayLockOperationFinish(lockExists)
-
 
 proc depsTree(options: Options) =
   ## Prints the dependency tree
@@ -2111,6 +2093,8 @@ proc doAction(options: var Options) =
     clean(options)
   of actionRun:
     run(options)
+  of actionUpgrade:
+    lock(options)
   of actionCompile, actionDoc:
     var pkgInfo = getPkgInfo(getCurrentDir(), options)
     execBackend(pkgInfo, options)
