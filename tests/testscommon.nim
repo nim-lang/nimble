@@ -135,7 +135,8 @@ proc uninstallDeps*() =
   for line in output.splitLines:
     let package = line.split("  ")[0]
     if package != "":
-      verify execNimbleYes("uninstall", "-i", package)
+      discard execNimbleYes("uninstall", "-i", package)
+
 
 template testRefresh*(body: untyped) =
   # Backup current config

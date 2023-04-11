@@ -11,7 +11,7 @@ proc getDependencies(packages: seq[PackageInfo], package: PackageInfo,
   ## package. It is needed because some of the names of the packages in the
   ## `requires` clause of a package could be URLs.
   for dep in package.requires:
-    if dep.name == "nim":
+    if dep.name.isNim:
       continue
     var depPkgInfo = initPackageInfo()
     var found = findPkg(packages, dep, depPkgInfo)

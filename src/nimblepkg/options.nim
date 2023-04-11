@@ -28,6 +28,7 @@ type
     pkgInfoCache*: TableRef[string, PackageInfo]
     showHelp*: bool
     lockFileName*: string
+    useSystemNim*: bool
     showVersion*: bool
     offline*: bool
     noColor*: bool
@@ -44,6 +45,7 @@ type
     localdeps*: bool # True if project local deps mode
     developLocaldeps*: bool # True if local deps + nimble develop pkg1 ...
     disableSslCertCheck*: bool
+    disableLockFile*: bool
     enableTarballs*: bool # Enable downloading of packages as tarballs from GitHub.
     task*: string # Name of the task that is getting ran
     package*: string
@@ -112,28 +114,28 @@ Usage: nimble [nimbleopts] COMMAND [cmdopts]
 Commands:
   install      [pkgname, ...]     Installs a list of packages.
                [-d, --depsOnly]   Only install dependencies. Leave out pkgname
-                                  to install deps for a local nimble package. 
+                                  to install deps for a local nimble package.
                [-p, --passNim]    Forward specified flag to compiler.
-               [--noRebuild]      Don't rebuild binaries if they're up-to-date.
+               [--noRebuild ]     Don't rebuild binaries if they're up-to-date.
   develop      [pkgname, ...]     Clones a list of packages for development.
                                   Adds them to a develop file if specified or
                                   to `nimble.develop` if not specified and
                                   executed in package's directory.
-         [--with-dependencies]    Puts in develop mode also the dependencies
+         [--withDependencies]     Puts in develop mode also the dependencies
                                   of the packages in the list or of the current
                                   directory package if the list is empty.
-         [--develop-file]         Specifies the name of the develop file which
+         [--developFile]          Specifies the name of the develop file which
                                   to be manipulated. If not present creates it.
          [-p, --path path]        Specifies the path whether the packages should
                                   be cloned.
          [-a, --add path]         Adds a package at given path to a specified
                                   develop file or to `nimble.develop` if not
                                   specified and executed in package's directory.
-         [-r, --remove-path path] Removes a package at given path from a
+         [-r, --removePath path]  Removes a package at given path from a
                                   specified develop file or from `nimble.develop`
                                   if not specified and executed in package's
                                   directory.
-         [-n, --remove-name name] Removes a package with a given name from
+         [-n, --removeName name]  Removes a package with a given name from
                                   a specified develop file or from `nimble.develop`
                                   if not specified and executed in package's
                                   directory.
@@ -197,7 +199,7 @@ Commands:
                                   format
   sync                            Synchronizes develop mode dependencies with
                                   the content of the lock file.
-               [-l, --list-only]  Only lists the packages which are not synced
+               [-l, --listOnly]   Only lists the packages which are not synced
                                   without actually performing the sync operation.
   setup                           Creates `nimble.paths` file containing file
                                   system paths to the dependencies. Also
@@ -226,8 +228,11 @@ Nimble Options:
       --debug                     Show all output including debug messages.
       --offline                   Don't use network.
       --noColor                   Don't colorise output.
-      --noSSLCheck                Don't check SSL certificates.
-      --lock-file                 Override the lock file name.
+      --noSslCheck                Don't check SSL certificates.
+      --lockFile                  Override the lock file name.
+      --noLockfile                Ignore the lock file if present.
+      --useSystemNim              Use system nim and ignore nim from the lock
+                                  file if any
 
 For more information read the Github readme:
   https://github.com/nim-lang/nimble#readme
@@ -370,8 +375,8 @@ proc setNimbleDir*(options: var Options) =
     # ...followed by the environment variable.
     let env = getEnv("NIMBLE_DIR")
     if env.len != 0:
-      display("Warning:", "Using the environment variable: NIMBLE_DIR='" &
-              env & "'", Warning, priority = HighPriority)
+      display("Info:", "Using the environment variable: NIMBLE_DIR='" &
+              env & "'", Success, priority = HighPriority)
       nimbleDir = env
     else:
       # ...followed by project local deps mode
@@ -402,38 +407,20 @@ proc parseCommand*(key: string, result: var Options) =
   result.action = Action(typ: parseActionType(key))
   initAction(result, key)
 
-proc setNimBin*(options: var Options) =
-  # Find nim binary and set into options
-  if options.nim.len != 0:
-    # --nim:<path> takes priority...
-    if options.nim.splitPath().head.len == 0:
-      # Just filename, search in PATH - nim_temp shortcut
-      let pnim = findExe(options.nim)
-      if pnim.len != 0:
-        options.nim = pnim
+
+proc getNimbleFileDir*(pkgInfo: PackageInfo): string =
+  pkgInfo.myPath.splitFile.dir
+
+proc getNimBin*(pkgInfo: PackageInfo, options: Options): string =
+  if pkgInfo.basicInfo.name == "nim":
+    let binaryPath =  when defined(windows):
+        "bin\nim.exe"
       else:
-        raise nimbleError(
-          "Unable to find `$1` in $PATH" % options.nim)
-    elif not options.nim.isAbsolute():
-      # Relative path
-      options.nim = expandTilde(options.nim).absolutePath()
-
-    if not fileExists(options.nim):
-      raise nimbleError("Unable to find `$1`" % options.nim)
+        "bin/nim"
+    result = pkgInfo.getNimbleFileDir() / binaryPath
+    display("Info:", "compiling nim package using $1" % result, priority = HighPriority)
   else:
-    # Search PATH
-    let pnim = findExe("nim")
-    if pnim.len != 0:
-      options.nim = pnim
-    else:
-      let pnimrod = findExe("nimrod")
-      if pnimrod.len != 0:
-        options.nim = pnimrod
-
-    if options.nim.len == 0:
-      # Nim not found in PATH
-      raise nimbleError(
-        "Unable to find `nim` binary - add to $PATH or use `--nim`")
+    result = options.nim
 
 proc getNimBin*(options: Options): string =
   return options.nim
@@ -496,7 +483,7 @@ proc getFlagString(kind: CmdLineKind, flag, val: string): string =
 
 proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
 
-  let f = flag.normalize()
+  let f = flag.normalize().replace("-", "")
 
   # Global flags.
   var isGlobalFlag = true
@@ -515,9 +502,11 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
   of "nim": result.nim = val
   of "localdeps", "l": result.localdeps = true
   of "nosslcheck": result.disableSslCertCheck = true
+  of "nolockfile": result.disableLockFile = true
   of "tarballs", "t": result.enableTarballs = true
   of "package", "p": result.package = val
-  of "lock-file": result.lockFileName = val
+  of "lockfile": result.lockFileName = val
+  of "usesystemnim": result.useSystemNim = true
   else: isGlobalFlag = false
 
   var wasFlagHandled = true
@@ -581,9 +570,9 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
     case f
     of "a", "add":
       result.action.devActions.add (datAdd, val.normalizedPath)
-    of "r", "remove-path":
+    of "r", "removepath":
       result.action.devActions.add (datRemoveByPath, val.normalizedPath)
-    of "n", "remove-name":
+    of "n", "removename":
       result.action.devActions.add (datRemoveByName, val)
     of "i", "include":
       result.action.devActions.add (datInclude, val.normalizedPath)
@@ -594,11 +583,11 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
         result.action.path = val.normalizedPath
       else:
         raise nimbleError(multiplePathOptionsGivenMsg)
-    of "with-dependencies":
+    of "withdependencies":
       result.action.withDependencies = true
-    of "global":
+    of "g", "global":
       result.action.global = true
-    of "develop-file":
+    of "developfile":
       if result.action.developFile.len == 0:
         result.action.developFile = val.normalizedPath
       else:
@@ -607,7 +596,7 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
       wasFlagHandled = false
   of actionSync:
     case f
-    of "l", "list-only":
+    of "l", "listonly":
       result.action.listOnly = true
     else:
       wasFlagHandled = false

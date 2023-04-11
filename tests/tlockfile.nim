@@ -172,6 +172,7 @@ requires "nim >= 1.5.1"
     let json = lockFileName.readFile.parseJson
     for (depName, depPath) in deps:
       let expectedVcsRevision = depPath.getVcsRevision
+      check depName in json{$lfjkPackages}
       let lockedVcsRevision =
         json{$lfjkPackages}{depName}{$lfjkPkgVcsRevision}.str.initSha1Hash
       check lockedVcsRevision == expectedVcsRevision
@@ -590,3 +591,40 @@ requires "nim >= 1.5.1"
         writeDevelopFile(developFileName, @[], @[dep1PkgRepoPath, mainPkgOriginRepoPath])
         let (_, exitCode) = execNimbleYes("--debug", "--verbose", "sync")
         check exitCode == QuitSuccess
+  proc getRevision(dep: string, lockFileName = defaultLockFileName): string =
+    result = lockFileName.readFile.parseJson{$lfjkPackages}{dep}{$lfjkPkgVcsRevision}.str
+
+  test "can generate lock file for nim as dep":
+    cleanUp()
+    cd "nimdep":
+      removeFile "nimble.develop"
+      removeFile "nimble.lock"
+      removeDir "Nim"
+
+      check execNimbleYes("develop", "nim").exitCode == QuitSuccess
+      cd "Nim":
+        let (_, exitCode) = execNimbleYes("-y", "install")
+        check exitCode == QuitSuccess
+
+      # check if the compiler version will be used when doing build
+      testLockFile(@[("nim", "Nim")], isNew = true)
+      removeFile "nimble.develop"
+      removeDir "Nim"
+
+      let (output, exitCodeInstall) = execNimbleYes("-y", "build")
+      check exitCodeInstall == QuitSuccess
+      let usingNim = when defined(Windows): "nim.exe for compilation" else: "bin/nim for compilation"
+      check output.contains(usingNim)
+
+      # check the nim version
+      let (outputVersion, _) = execNimble("version")
+      check outputVersion.contains(getRevision("nim"))
+
+      let (outputGlobalNim, exitCodeGlobalNim) = execNimbleYes("-y", "--use-system-nim", "build")
+      check exitCodeGlobalNim == QuitSuccess
+      check not outputGlobalNim.contains(usingNim)
+
+  test "can install task level deps when dep has subdeb":
+    cleanUp()
+    cd "lockfile-subdep":
+      check execNimbleYes("test").exitCode == QuitSuccess

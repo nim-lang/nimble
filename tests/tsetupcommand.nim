@@ -52,3 +52,20 @@ suite "setup command":
         # build the project.
         let (_, nimExitCode) = execCmdEx("nim c -r dependent")
         check nimExitCode == QuitSuccess
+
+  test "Check if upgrading of setup section":
+    cd "setupproject":
+      cleanFiles nimblePathsFileName, nimbleConfigFileName, "nimble.lock", ".gitignore"
+      discard execNimble("setup")
+      var configFileContent = nimbleConfigFileName.readFile
+      check not configFileContent.contains("--noNimblePath")
+      let (_, developExitCode) = execNimble("lock")
+      check developExitCode == QuitSuccess
+
+      # update of the section works
+      discard execNimble("setup")
+      check fileExists("nimble.lock")
+      configFileContent = nimbleConfigFileName.readFile
+      check configFileContent.contains("--noNimblePath")
+
+      cleanFiles nimblePathsFileName, nimbleConfigFileName, "nimble.lock", ".gitignore"
