@@ -87,7 +87,7 @@ jobs:
 
       - uses: ncipollo/release-action@v1
         with:
-          name: Latest Langserver Binaries
+          name: Latest Nimble Binaries
           artifacts: "*/*"
           allowUpdates: true
           makeLatest: true
