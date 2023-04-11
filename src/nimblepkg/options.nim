@@ -245,15 +245,25 @@ proc writeHelp*(quit=true) =
   if quit:
     raise nimbleQuit()
 
+const
+  ## You can override this if you are building the
+  ## sources outside the git tree of Nimble:
+  git_revision_override* {.strdefine.} = ""
+
+  gitRevision* = when git_revision_override.len == 0:
+    const execResult = gorgeEx("git rev-parse HEAD")
+    when execResult[0].len > 0 and execResult[1] == QuitSuccess:
+      execResult[0]
+    else:
+      {.warning: "Couldn't determine GIT hash: " & execResult[0].}
+      "couldn't determine git hash"
+  else:
+    git_revision_override
+
 proc writeVersion*() =
   echo("nimble v$# compiled at $# $#" %
       [nimbleVersion, CompileDate, CompileTime])
-  const execResult = gorgeEx("git rev-parse HEAD")
-  when execResult[0].len > 0 and execResult[1] == QuitSuccess:
-    echo "git hash: ", execResult[0]
-  else:
-    {.warning: "Couldn't determine GIT hash: " & execResult[0].}
-    echo "git hash: couldn't determine git hash"
+  echo "git hash: ", gitRevision
   raise nimbleQuit()
 
 proc parseActionType*(action: string): ActionType =
