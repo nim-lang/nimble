@@ -2000,12 +2000,14 @@ proc getAlteredPath(options: Options): string =
   var pkgs = pkgInfo.processAllDependencies(options).toSeq.toOrderedSet
   pkgs.incl(pkgInfo)
 
-  result = getEnv("PATH")
+  var paths: seq[string] = @[]
   for pkg in pkgs:
     let fullInfo = pkg.toFullInfo(options)
     for bin, _ in fullInfo.bin:
       let folder = fullInfo.getOutputDir(bin).parentDir.quoteShell
-      result = fmt "{folder}{separator}{result}"
+      paths.add folder
+  paths.reverse
+  result = fmt "{paths.join(separator)}{separator}{getEnv(\"PATH\")}"
 
 proc shellenv(options: var Options) =
   setVerbosity(SilentPriority)
@@ -2021,9 +2023,9 @@ proc shell(options: Options) =
     if shell == "": shell = "powershell"
   else:
     var shell = getEnv("SHELL")
-    if shell == "": shell = "/bin/bash"
+    if shell == "": shell = "bash"
 
-  discard waitForExit startProcess(shell, options = {poParentStreams})
+  discard waitForExit startProcess(shell, options = {poParentStreams, poUsePath})
 
 proc getPackageForAction(pkgInfo: PackageInfo, options: Options): PackageInfo =
   ## Returns the `PackageInfo` for the package in `pkgInfo`'s dependencies tree
