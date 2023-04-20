@@ -63,3 +63,4 @@ src/nimblepkg/version
 *.nims
 /buildTests
 /tests/nimdep/nimble.lock
+/tests/nimdep/localnimbledeps/

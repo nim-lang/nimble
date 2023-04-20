@@ -25,7 +25,7 @@ proc doCheckout(meth: DownloadMethod, downloadDir, branch: string) =
     # Force is used here because local changes may appear straight after a clone
     # has happened. Like in the case of git on Windows where it messes up the
     # damn line endings.
-    discard tryDoCmdEx(&"git -C {downloadDir} checkout --force {branch}") 
+    discard tryDoCmdEx(&"git -C {downloadDir} checkout --force {branch}")
     downloadDir.updateSubmodules
   of DownloadMethod.hg:
     discard tryDoCmdEx(&"hg --cwd {downloadDir} checkout {branch}")
@@ -411,7 +411,7 @@ proc doDownload(url, downloadDir: string, verRange: VersionRange,
             doClone(downMethod, url, downloadDir, latest.tag,
                     onlyTip = not options.forceFullClone)
       else:
-        display("Warning:", "The package has no tagged releases, downloading HEAD instead.", Warning, 
+        display("Warning:", "The package has no tagged releases, downloading HEAD instead.", Warning,
                 priority = HighPriority)
         if downloadTarball(url, options):
           result.vcsRevision = doDownloadTarball(url, downloadDir, "HEAD", true)
@@ -430,7 +430,7 @@ proc doDownload(url, downloadDir: string, verRange: VersionRange,
                   priority = MediumPriority)
           doCheckout(downMethod, downloadDir, latest.tag)
       else:
-        display("Warning:", "The package has no tagged releases, downloading HEAD instead.", Warning, 
+        display("Warning:", "The package has no tagged releases, downloading HEAD instead.", Warning,
                   priority = HighPriority)
 
   if result.vcsRevision == notSetSha1Hash:
@@ -444,7 +444,8 @@ proc downloadPkg*(url: string, verRange: VersionRange,
                   subdir: string,
                   options: Options,
                   downloadPath: string,
-                  vcsRevision: Sha1Hash): DownloadPkgResult =
+                  vcsRevision: Sha1Hash,
+                  validateRange = true): DownloadPkgResult =
   ## Downloads the repository as specified by ``url`` and ``verRange`` using
   ## the download method specified.
   ##
@@ -493,7 +494,7 @@ proc downloadPkg*(url: string, verRange: VersionRange,
   (result.version, result.vcsRevision) = doDownload(
     modUrl, downloadDir, verRange, downMethod, options, vcsRevision)
 
-  if verRange.kind != verSpecial:
+  if validateRange and verRange.kind != verSpecial:
     ## Makes sure that the downloaded package's version satisfies the requested
     ## version range.
     let pkginfo = getPkgInfo(result[0], options)
@@ -574,8 +575,8 @@ when isMainModule:
       action: Action(typ: actionDevelop, path: "/some/dir/"))
     let dummyOptionsWithRelativePath = Options(
       action: Action(typ: actionDevelop, path: "some/dir/"))
-    
-    test "without subdir and without path":  
+
+    test "without subdir and without path":
       check getDevelopDownloadDir(
         "https://github.com/nimble-test/packagea/", "",
         dummyOptionsWithoutPath) == getCurrentDir() / "packagea"

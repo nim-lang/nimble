@@ -5,6 +5,7 @@ import testscommon
 
 # suits imports
 
+import tnonim
 import tinitcommand
 import tcheckcommand
 import tcleancommand
