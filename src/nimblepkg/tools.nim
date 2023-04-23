@@ -66,7 +66,8 @@ proc getNimrodVersion*(options: Options): Version =
   let vOutput = doCmdEx(getNimBin(options).quoteShell & " -v").output
   var matches: array[0..MaxSubpatterns, string]
   if vOutput.find(peg"'Version'\s{(\d+\.)+\d+}", matches) == -1:
-    raise nimbleError("Couldn't find Nim version.")
+    if vOutput.find(peg"'Nim:'\s{(\d+\.)+\d+}", matches) == -1:
+      raise nimbleError("Couldn't find Nim version.")
   newVersion(matches[0])
 
 proc samePaths*(p1, p2: string): bool =
