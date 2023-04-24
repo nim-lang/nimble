@@ -9,9 +9,10 @@ type
     lfjkVersion = "version"
     lfjkPackages = "packages"
     lfjkPkgVcsRevision = "vcsRevision"
+    lfjkTasks = "tasks"
 
 const
-  lockFileVersion = 1
+  lockFileVersion = 2
 
 proc initLockFileDep*: LockFileDep =
   result = LockFileDep(
@@ -22,29 +23,35 @@ proc initLockFileDep*: LockFileDep =
 const
   notSetLockFileDep* = initLockFileDep()
 
-proc writeLockFile*(fileName: string, packages: LockFileDeps,
-                    topologicallySortedOrder: seq[string]) =
+proc writeLockFile*(fileName: string, packages: AllLockFileDeps) =
   ## Saves lock file on the disk in topologically sorted order of the
   ## dependencies.
 
-  let packagesJsonNode = newJObject()
-  for packageName in topologicallySortedOrder:
-    packagesJsonNode.add packageName, %packages[packageName]
-
   let mainJsonNode = %{
       $lfjkVersion: %lockFileVersion,
-      $lfjkPackages: packagesJsonNode
-      }
+      $lfjkPackages: %packages[noTask]
+  }
+  # Store task graph seperate
+  mainJsonNode[$lfjkTasks] = newJObject()
+  for task, deps in packages:
+    if task != noTask:
+      mainJsonNode[$lfjkTasks][task] = %deps
 
-  writeFile(fileName, mainJsonNode.pretty)
+  var s = mainJsonNode.pretty
+  s.add '\n'
+  writeFile(fileName, s)
 
-proc readLockFile*(filePath: string): LockFileDeps =
+proc readLockFile*(filePath: string): AllLockFileDeps =
   {.warning[UnsafeDefault]: off.}
   {.warning[ProveInit]: off.}
-  result = parseFile(filePath)[$lfjkPackages].to(result.typeof)
+  let data = parseFile(filePath)
+  result[noTask] = data[$lfjkPackages].to(LockFileDeps)
+  if $lfjkTasks in data:
+    for task, deps in data[$lfjkTasks]:
+      result[task] = deps.to(LockFileDeps)
   {.warning[ProveInit]: on.}
   {.warning[UnsafeDefault]: on.}
 
-proc getLockedDependencies*(lockFile: string): LockFileDeps =
+proc getLockedDependencies*(lockFile: string): AllLockFileDeps =
   if lockFile.fileExists:
     result = lockFile.readLockFile

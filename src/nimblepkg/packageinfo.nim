@@ -22,7 +22,7 @@ proc isLoaded*(pkgInfo: PackageInfo): bool =
   return pkgInfo.myPath.len > 0
 
 proc assertIsLoaded*(pkgInfo: PackageInfo) =
-  assert pkgInfo.isLoaded, "The package info must be loaded."
+  assert pkgInfo.isLoaded, "The package info must be loaded. "
 
 proc areLockedDepsLoaded*(pkgInfo: PackageInfo): bool =
   pkgInfo.lockedDeps.len > 0
@@ -37,7 +37,8 @@ proc initPackageInfo*(options: Options, filePath: string): PackageInfo =
   result.myPath = filePath
   result.basicInfo.name = fileName
   result.backend = "c"
-  result.lockedDeps = options.lockFile(fileDir).getLockedDependencies()
+  if not options.disableLockFile:
+    result.lockedDeps = options.lockFile(fileDir).getLockedDependencies()
 
 proc toValidPackageName*(name: string): string =
   for c in name:
@@ -200,8 +201,11 @@ proc readPackageList(name: string, options: Options, ignorePackageCache = false)
       # going further.
       gPackageJson[name] = newJArray()
       return gPackageJson[name]
-  gPackageJson[name] = parseFile(options.getNimbleDir() / "packages_" &
-                                 name.toLowerAscii() & ".json")
+  let file = options.getNimbleDir() / "packages_" & name.toLowerAscii() & ".json"
+  if file.fileExists:
+    gPackageJson[name] = parseFile(file)
+  else:
+    gPackageJson[name] = newJArray()
   return gPackageJson[name]
 
 proc getPackage*(pkg: string, options: Options, resPkg: var Package, ignorePackageCache = false): bool
@@ -357,8 +361,6 @@ proc findAllPkgs*(pkglist: seq[PackageInfo], dep: PkgTuple): seq[PackageInfo] =
     if withinRange(pkg, dep.ver):
       result.add pkg
 
-proc getNimbleFileDir*(pkgInfo: PackageInfo): string =
-  pkgInfo.myPath.splitFile.dir
 
 proc getRealDir*(pkgInfo: PackageInfo): string =
   ## Returns the directory containing the package source files.
@@ -525,6 +527,26 @@ proc fullRequirements*(pkgInfo: PackageInfo): seq[PkgTuple] =
   for requirements in pkgInfo.taskRequires.values:
     result &= requirements
 
+proc name*(pkgInfo: PackageInfo): string {.inline.} =
+  pkgInfo.basicInfo.name
+
+iterator lockedDepsFor*(allDeps: AllLockFileDeps, options: Options): (string, LockFileDep) =
+  for task, deps in allDeps:
+    if task in [noTask, options.task]:
+      for name, dep in deps:
+        yield (name, dep)
+
+proc hasLockedDeps*(pkgInfo: PackageInfo): bool =
+  ## Returns true if pkgInfo has any locked deps (including any tasks)
+  # Check if any tasks have locked deps
+  for deps in pkgInfo.lockedDeps.values:
+    if deps.len > 0:
+      return true
+
+proc hasPackage*(deps: AllLockFileDeps, pkgName: string): bool =
+  for deps in deps.values:
+    if pkgName in deps:
+      return true
 
 proc `==`*(pkg1: PackageInfo, pkg2: PackageInfo): bool =
   pkg1.myPath == pkg2.myPath
@@ -536,6 +558,9 @@ proc hash*(x: PackageInfo): Hash =
 
 proc getNameAndVersion*(pkgInfo: PackageInfo): string =
   &"{pkgInfo.basicInfo.name}@{pkgInfo.basicInfo.version}"
+
+proc isNim*(name: string): bool =
+  result = name == "nim" or name == "nimrod" or name == "compiler"
 
 when isMainModule:
   import unittest

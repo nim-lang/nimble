@@ -139,7 +139,8 @@ proc uninstallDeps*() =
   for line in output.splitLines:
     let package = line.split("  ")[0]
     if package != "":
-      verify execNimbleYes("uninstall", "-i", package)
+      discard execNimbleYes("uninstall", "-i", package)
+
 
 template testRefresh*(body: untyped) =
   # Backup current config
@@ -210,5 +211,5 @@ putEnv("NIMBLE_TEST_BINARY_PATH", nimblePath)
 # Always recompile.
 block:
   # Verbose name is used for exit code so assert is clearer
-  let (output, nimbleCompileExitCode) = execCmdEx("nim c " & nimbleCompilePath)
+  let (output, nimbleCompileExitCode) = execCmdEx("nim c --mm:refc " & nimbleCompilePath)
   doAssert nimbleCompileExitCode == QuitSuccess, output

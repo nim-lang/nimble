@@ -13,16 +13,17 @@ jobs:
           - macos-latest
           - ubuntu-latest
         nimversion:
-          - nightly:https://github.com/nim-lang/nightlies/releases/tag/2021-07-18-devel-923a1c6ea7d9f45b6389680717692690218228fb
+          - devel
+          - stable
     name: ${{ matrix.os }} - ${{ matrix.nimversion }}
     runs-on: ${{ matrix.os }}
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
-      - uses: actions/checkout@v2
-      - uses: iffy/install-nim@v3.2.0
+      - uses: actions/checkout@v3
+      - uses: jiro4989/setup-nim-action@v1
         with:
-          version: ${{ matrix.nimversion }}
+          nim-version: ${{ matrix.nimversion }}
       - run: nim --version
       - name: Install Mercurial on macOS
         if: matrix.os == 'macos-latest'
@@ -30,7 +31,7 @@ jobs:
       - name: Run nim c -r tester
         run: |
           cd tests
-          nim c -r tester
+          nim c -r --mm:refc tester
           # there's no need to add nimblepkg unit tests --
           # they are run by tmoduletests.nim
       - run: ./src/nimble install -y

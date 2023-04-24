@@ -184,7 +184,9 @@ proc validatePackageInfo(pkgInfo: PackageInfo, options: Options) =
       raise validationError("'" & pkgInfo.backend &
           "' is an invalid backend.", false)
 
-  validatePackageStructure(pkginfo, options)
+  # nim is used for building the project, thus no need to validate its structure.
+  if not pkgInfo.basicInfo.name.isNim:
+    validatePackageStructure(pkginfo, options)
 
 proc nimScriptHint*(pkgInfo: PackageInfo) =
   if not pkgInfo.isNimScript:
@@ -323,7 +325,7 @@ proc inferInstallRules(pkgInfo: var PackageInfo, options: Options) =
   # installed.)
   let installInstructions =
     pkgInfo.installDirs.len + pkgInfo.installExt.len + pkgInfo.installFiles.len
-  if installInstructions == 0 and pkgInfo.bin.len > 0:
+  if installInstructions == 0 and pkgInfo.bin.len > 0 and pkgInfo.basicInfo.name != "nim":
     pkgInfo.skipExt.add("nim")
 
   # When a package doesn't specify a `srcDir` it's fair to assume that

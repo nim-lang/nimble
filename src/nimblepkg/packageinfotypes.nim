@@ -21,6 +21,10 @@ type
 
   LockFileDeps* = OrderedTable[string, LockFileDep]
 
+  AllLockFileDeps* = Table[string, LockFileDeps]
+    ## Base deps is stored with empty string key ""
+    ## Other tasks have task name as key
+
   PackageMetaData* = object
     url*: string
     downloadMethod*: DownloadMethod
@@ -62,7 +66,7 @@ type
     backend*: string
     foreignDeps*: seq[string]
     basicInfo*: PackageBasicInfo
-    lockedDeps*: LockFileDeps
+    lockedDeps*: AllLockFileDeps
     metaData*: PackageMetaData
     isLink*: bool
 
@@ -81,3 +85,5 @@ type
     alias*: string ## A name of another package, that this package aliases.
 
   PackageDependenciesInfo* = tuple[deps: HashSet[PackageInfo], pkg: PackageInfo]
+
+const noTask* = "" # Means that noTask is being ran. Use this as key for base dependencies
