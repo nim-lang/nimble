@@ -630,7 +630,12 @@ proc fastForwardMerge*(path: Path, remoteBranch, localBranch: string) =
     tryDoCmdEx(&"{git(path)} checkout {currentBranch}")
 
 when isMainModule:
-  import unittest, std/sha1, sequtils
+  import unittest, sequtils
+
+  when defined(nimHasChecksums):
+    import "$nim/dist/checksums/checksums/sha1"
+  else:
+    import std/sha1
 
   type
     NameToVcsRevision = OrderedTable[string, Sha1Hash]

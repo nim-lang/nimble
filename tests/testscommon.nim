@@ -3,8 +3,12 @@
 
 {.used.}
 
-import sequtils, strutils, strformat, os, osproc, sugar, unittest, macros,
-       std/sha1
+import sequtils, strutils, strformat, os, osproc, sugar, unittest, macros
+
+when defined(nimHasChecksums):
+  import "$nim/dist/checksums/checksums/sha1"
+else:
+  import std/sha1
 
 from nimblepkg/common import cd, nimblePackagesDirName, ProcessOutput
 from nimblepkg/developfile import developFileVersion

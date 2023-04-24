@@ -1,7 +1,12 @@
 # Copyright (C) Dominik Picheta. All rights reserved.
 # BSD License. Look at license.txt for more info.
 
-import strformat, strutils, json, std/sha1, hashes
+when defined(nimHasChecksums):
+  import "$nim/dist/checksums/checksums/sha1"
+else:
+  import std/sha1
+
+import strformat, strutils, json, hashes
 import common
 
 type
