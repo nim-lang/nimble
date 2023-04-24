@@ -1,7 +1,7 @@
 # Copyright (C) Dominik Picheta. All rights reserved.
 # BSD License. Look at license.txt for more info.
 
-import strformat, strutils, json, std/sha1, hashes
+import strformat, strutils, json, hashes
 import common
 
 type
@@ -25,6 +25,10 @@ proc invalidSha1Hash(value: string): ref InvalidSha1HashError =
   ## Creates a new exception object for an invalid sha1 hash value.
   result = newNimbleError[InvalidSha1HashError](
     &"The string '{value}' does not represent a valid sha1 hash value.")
+
+proc isValidSha1Hash*(s: string): bool =
+  ## Checks if a string is a valid sha1 hash sum.
+  s.len == 40 and allCharsInSet(s, HexDigits)
 
 proc initSha1Hash*(value: string): Sha1Hash =
   ## Creates a new `Sha1Hash` object from a string by making all latin letters

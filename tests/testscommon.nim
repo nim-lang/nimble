@@ -3,11 +3,11 @@
 
 {.used.}
 
-import sequtils, strutils, strformat, os, osproc, sugar, unittest, macros,
-       std/sha1
+import sequtils, strutils, strformat, os, osproc, sugar, unittest, macros
 
 from nimblepkg/common import cd, nimblePackagesDirName, ProcessOutput
 from nimblepkg/developfile import developFileVersion
+from nimblepkg/sha1hashes import isValidSha1Hash
 
 const
   stringNotFound* = -1
