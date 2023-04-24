@@ -41,7 +41,7 @@ type
     dumpMode*: DumpMode
     startDir*: string # Current directory on startup - is top level pkg dir for
                       # some commands, useful when processing deps
-    nim*: string # Nim compiler location
+    nimBin*: string # Nim compiler location. Typically accessed via options.nim.
     localdeps*: bool # True if project local deps mode
     developLocaldeps*: bool # True if local deps + nimble develop pkg1 ...
     disableSslCertCheck*: bool
@@ -352,6 +352,12 @@ proc promptList*(options: Options, question: string, args: openarray[string]): s
   ## options is selected.
   return promptList(options.forcePrompts, question, args)
 
+proc nim*(options: Options): string =
+  if options.nimBin.len == 0:
+    raise nimbleError(
+      "Unable to find `nim` binary - add to $PATH or use `--nim`")
+  return options.nimBin
+
 proc getNimbleDir*(options: Options): string =
   return options.nimbleDir
 
@@ -509,7 +515,7 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
   of "offline": result.offline = true
   of "nocolor": result.noColor = true
   of "disablevalidation": result.disableValidation = true
-  of "nim": result.nim = val
+  of "nim": result.nimBin = val
   of "localdeps", "l": result.localdeps = true
   of "nosslcheck": result.disableSslCertCheck = true
   of "nolockfile": result.disableLockFile = true

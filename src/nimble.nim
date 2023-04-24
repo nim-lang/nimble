@@ -2140,7 +2140,7 @@ proc useLockedNim(options: var Options, realDir: string) =
     raise nimbleError("Trying to use nim from $1 " % realDir,
                       "If you are using develop mode nim make sure to compile it.")
 
-  options.nim = nim
+  options.nimBin = nim
   let separator = when defined(windows): ";" else: ":"
 
   putEnv("PATH", realDir / "bin" & separator & getEnv("PATH"))
@@ -2148,22 +2148,22 @@ proc useLockedNim(options: var Options, realDir: string) =
 
 proc setNimBin*(options: var Options) =
   # Find nim binary and set into options
-  if options.nim.len != 0:
+  if options.nimBin.len != 0:
     # --nim:<path> takes priority...
-    if options.nim.splitPath().head.len == 0:
+    if options.nimBin.splitPath().head.len == 0:
       # Just filename, search in PATH - nim_temp shortcut
-      let pnim = findExe(options.nim)
+      let pnim = findExe(options.nimBin)
       if pnim.len != 0:
-        options.nim = pnim
+        options.nimBin = pnim
       else:
         raise nimbleError(
-          "Unable to find `$1` in $PATH" % options.nim)
-    elif not options.nim.isAbsolute():
+          "Unable to find `$1` in $PATH" % options.nimBin)
+    elif not options.nimBin.isAbsolute():
       # Relative path
-      options.nim = expandTilde(options.nim).absolutePath()
+      options.nimBin = expandTilde(options.nimBin).absolutePath()
 
-    if not fileExists(options.nim):
-      raise nimbleError("Unable to find `$1`" % options.nim)
+    if not fileExists(options.nimBin):
+      raise nimbleError("Unable to find `$1`" % options.nimBin)
   else:
     let lockFile = options.lockFile(getCurrentDir())
 
@@ -2184,12 +2184,8 @@ proc setNimBin*(options: var Options) =
           break
 
     # Search PATH
-    if options.nim.len == 0: options.nim = findExe("nim")
+    if options.nimBin.len == 0: options.nimBin = findExe("nim")
 
-    if options.nim.len == 0:
-      # Nim not found in PATH
-      raise nimbleError(
-        "Unable to find `nim` binary - add to $PATH or use `--nim`")
 
 when isMainModule:
   var exitCode = QuitSuccess
