@@ -60,6 +60,9 @@ jobs:
           nimversion: ${{ matrix.nim-version }}
           yes: true
 
+      - name: Install checksums
+        run: nim r ci/action.nim
+
       - name: build nimble
         run: |
           nim -d:release c src/nimble.nim

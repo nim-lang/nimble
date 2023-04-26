@@ -28,6 +28,8 @@ jobs:
       - name: Install Mercurial on macOS
         if: matrix.os == 'macos-latest'
         run: brew install mercurial
+      - name: Install checksums
+        run: nim r ci/action.nim
       - name: Run nim c -r tester
         run: |
           cd tests
