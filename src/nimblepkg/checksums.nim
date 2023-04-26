@@ -3,7 +3,7 @@
 
 import os, strformat, algorithm
 import common, version, sha1hashes, vcstools, paths, cli
-import ../../dist/checksums/checksums/sha1
+import ../../dist/checksums/src/checksums/sha1
 
 type
   ChecksumError* = object of NimbleError

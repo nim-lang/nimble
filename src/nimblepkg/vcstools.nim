@@ -631,7 +631,7 @@ proc fastForwardMerge*(path: Path, remoteBranch, localBranch: string) =
 
 when isMainModule:
   import unittest, sequtils
-  import ../../dist/checksums/checksums/sha1
+  import ../../dist/checksums/src/checksums/sha1
 
   type
     NameToVcsRevision = OrderedTable[string, Sha1Hash]

@@ -43,7 +43,7 @@ proc cloneDependency(destDirBase: string, url: string, commit = commitHead,
 
 proc command =
   const distDir = "dist"
-  const commit = "affcffa3696fcb09d7dd652670baca33242b60fc"
+  const commit = "3fa15df7d27ecef624ed932d60f63d6a8949618d"
   cloneDependency(distDir, "https://github.com/nim-lang/checksums.git", commit)
 
 command()

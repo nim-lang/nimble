@@ -3,7 +3,7 @@
 
 import strformat, strutils, json,  hashes
 import common
-import ../../dist/checksums/checksums/sha1
+import ../../dist/checksums/src/checksums/sha1
 
 type
   InvalidSha1HashError* = object of NimbleError

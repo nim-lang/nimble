@@ -4,7 +4,7 @@
 {.used.}
 
 import sequtils, strutils, strformat, os, osproc, sugar, unittest, macros
-import ../dist/checksums/checksums/sha1
+import ../dist/checksums/src/checksums/sha1
 
 from nimblepkg/common import cd, nimblePackagesDirName, ProcessOutput
 from nimblepkg/developfile import developFileVersion
