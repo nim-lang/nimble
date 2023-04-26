@@ -61,7 +61,7 @@ jobs:
           yes: true
 
       - name: Install checksums
-        run: nim r ci/action.nim
+        run: nim r src/nimblepkg/private/clone.nim
 
       - name: build nimble
         run: |
