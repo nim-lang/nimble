@@ -3,7 +3,7 @@
 
 {.used.}
 
-import unittest, os, osproc, strutils, sequtils, strformat
+import unittest, os, osproc, strutils, strformat
 import testscommon
 from nimblepkg/common import cd, nimbleVersion, nimblePackagesDirName
 from nimblepkg/version import newVersion
