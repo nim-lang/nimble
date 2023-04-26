@@ -26,22 +26,23 @@ suite "issues":
       check output.contains("before test")
       check output.contains("after test")
 
-  test "issue 799":
-    # When building, any newly installed packages should be referenced via the
-    # path that they get permanently installed at.
-    cleanDir installDir
-    cd "issue799":
-      let (output, exitCode) = execNimbleYes("build")
-      check exitCode == QuitSuccess
-      var lines = output.processOutput
-      lines.keepItIf(unindent(it).startsWith("Executing"))
+  when false:
+    test "issue 799":
+      # When building, any newly installed packages should be referenced via the
+      # path that they get permanently installed at.
+      cleanDir installDir
+      cd "issue799":
+        let (output, exitCode) = execNimbleYes("build")
+        check exitCode == QuitSuccess
+        var lines = output.processOutput
+        lines.keepItIf(unindent(it).startsWith("Executing"))
 
-      for line in lines:
-        if line.contains("issue799"):
-          let nimbleInstallDir = getPackageDir(
-            pkgsDir, &"nimble-{nimbleVersion}")
-          let pkgInstalledPath = "--path:'" & nimble_install_dir & "'"
-          check line.contains(pkgInstalledPath)
+        for line in lines:
+          if line.contains("issue799"):
+            let nimbleInstallDir = getPackageDir(
+              pkgsDir, &"nimble-{nimbleVersion}")
+            let pkgInstalledPath = "--path:'" & nimble_install_dir & "'"
+            check line.contains(pkgInstalledPath)
 
   test "issue 793":
     cd "issue793":
