@@ -23,6 +23,9 @@ when defined(nimdistros):
 before install:
   exec "nim r src/nimblepkg/private/clone.nim"
 
+before build:
+  exec "nim r src/nimblepkg/private/clone.nim"
+
 task test, "Run the Nimble tester!":
   withDir "tests":
     exec "nim c -r --gc:refc tester"
