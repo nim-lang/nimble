@@ -109,14 +109,14 @@ import system except getCommand, setCommand, switch, `--`, thisDir,
   skipDirs, skipFiles, skipExt, installDirs, installFiles, installExt, bin, foreignDeps,
   requires, task, packageName
 
-const nimbleExe = "$3"
+const nimbleExe = "$1"
 
 import strutils
-import "$1"
-include "$2"
+import "$2"
+include "$3"
 
 onExit()
-""" % [nimscriptApiFile.replace("\\", "/"), scriptName.replace("\\", "/"), getAppFilename()])
+""" % [getAppFilename(), nimscriptApiFile.replace("\\", "/"), scriptName.replace("\\", "/")])
     discard tryRemoveFile(iniFile)
 
   result = nimsFile
