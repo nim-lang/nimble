@@ -109,7 +109,7 @@ import system except getCommand, setCommand, switch, `--`, thisDir,
   skipDirs, skipFiles, skipExt, installDirs, installFiles, installExt, bin, foreignDeps,
   requires, task, packageName
 
-const nimbleExe = "$1"
+const nimbleExe = r"$1"
 
 import strutils
 import "$2"
