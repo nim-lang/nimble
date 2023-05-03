@@ -48,10 +48,9 @@ proc execNimscript(
       else: ""
 
   var cmd = (
-    "$# e $# $# --colors:on $# $# $# $# $#" % [
+    "$# e $# --colors:on $# $# $# $# $#" % [
       getNimBin(options).quoteShell,
       "--hints:off --verbosity:0",
-      "--define:nimbleExe=" & getAppFilename().quoteShell,
       compFlags,
       nimsFile.quoteShell,
       nimbleFile.quoteShell,
@@ -110,12 +109,14 @@ import system except getCommand, setCommand, switch, `--`, thisDir,
   skipDirs, skipFiles, skipExt, installDirs, installFiles, installExt, bin, foreignDeps,
   requires, task, packageName
 
+const nimbleExe = "$3"
+
 import strutils
 import "$1"
 include "$2"
 
 onExit()
-""" % [nimscriptApiFile.replace("\\", "/"), scriptName.replace("\\", "/")])
+""" % [nimscriptApiFile.replace("\\", "/"), scriptName.replace("\\", "/"), getAppFilename()])
     discard tryRemoveFile(iniFile)
 
   result = nimsFile
