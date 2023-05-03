@@ -116,7 +116,7 @@ import "$2"
 include "$3"
 
 onExit()
-""" % [getAppFilename(), nimscriptApiFile.replace("\\", "/"), scriptName.replace("\\", "/")])
+""" % [getAppFilename().replace("\"", "\\\""), nimscriptApiFile.replace("\\", "/"), scriptName.replace("\\", "/")])
     discard tryRemoveFile(iniFile)
 
   result = nimsFile
