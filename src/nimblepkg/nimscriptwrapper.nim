@@ -48,9 +48,10 @@ proc execNimscript(
       else: ""
 
   var cmd = (
-    "$# e $# --colors:on $# $# $# $# $#" % [
+    "$# e $# $# --colors:on $# $# $# $# $#" % [
       getNimBin(options).quoteShell,
       "--hints:off --verbosity:0",
+      "--define:nimbleExe=" & paramStr(0).quoteShell,
       compFlags,
       nimsFile.quoteShell,
       nimbleFile.quoteShell,
@@ -60,7 +61,6 @@ proc execNimscript(
   ).strip()
 
   if isCustomTask:
-    cmd &= " --define:nimbleExe=" & paramStr(0).quoteShell
     for i in options.action.arguments:
       cmd &= " " & i.quoteShell()
     cmd &= " " & join(options.action.custRunFlags, " ")
