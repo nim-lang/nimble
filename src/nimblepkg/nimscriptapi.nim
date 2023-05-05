@@ -233,7 +233,7 @@ template after*(action: untyped, body: untyped): untyped =
     success = true
     retVal = `action After`()
 
-const nimbleBin* {.strdefine.} = "nimble"
+const nimbleExe* {.strdefine.} = "nimble"
 
 proc getPkgDir*(): string =
   ## Returns the package directory containing the .nimble file currently

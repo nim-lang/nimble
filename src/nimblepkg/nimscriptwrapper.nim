@@ -51,7 +51,7 @@ proc execNimscript(
     "$# e $# $# --colors:on $# $# $# $# $#" % [
       getNimBin(options).quoteShell,
       "--hints:off --verbosity:0",
-      "--define:nimbleBin=" & getAppFilename().quoteShell,
+      "--define:nimbleExe=" & getAppFilename().quoteShell,
       compFlags,
       nimsFile.quoteShell,
       nimbleFile.quoteShell,
