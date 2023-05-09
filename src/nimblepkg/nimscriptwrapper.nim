@@ -48,9 +48,10 @@ proc execNimscript(
       else: ""
 
   var cmd = (
-    "$# e $# --colors:on $# $# $# $# $#" % [
+    "$# e $# $# --colors:on $# $# $# $# $#" % [
       getNimBin(options).quoteShell,
       "--hints:off --verbosity:0",
+      "--define:nimbleExe=" & getAppFilename().quoteShell,
       compFlags,
       nimsFile.quoteShell,
       nimbleFile.quoteShell,
