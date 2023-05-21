@@ -96,14 +96,7 @@ proc validatePackageStructure(pkgInfo: PackageInfo, options: Options) =
   ## https://github.com/nim-lang/nimble/issues/144
   let
     realDir = pkgInfo.getRealDir()
-    normalizedBinNames = toSeq(pkgInfo.bin.values).map(
-      (x) => x.changeFileExt("").toLowerAscii()
-    )
-    correctDir =
-      if pkgInfo.basicInfo.name.toLowerAscii() in normalizedBinNames:
-        pkgInfo.basicInfo.name & "pkg"
-      else:
-        pkgInfo.basicInfo.name
+    correctDir = pkgInfo.basicInfo.name
 
   proc onFile(path: string) =
     # Remove the root to leave only the package subdirectories.
