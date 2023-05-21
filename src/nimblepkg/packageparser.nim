@@ -183,10 +183,10 @@ proc validatePackageInfo(pkgInfo: PackageInfo, options: Options) =
     if pkgInfo.backend notin ["c", "cc", "objc", "cpp", "js"]:
       raise validationError("'" & pkgInfo.backend &
           "' is an invalid backend.", false)
-
-  # nim is used for building the project, thus no need to validate its structure.
-  if not pkgInfo.basicInfo.name.isNim:
-    validatePackageStructure(pkginfo, options)
+  if options.action.typ in {actionInstall, actionBuild, actionDevelop, actionCompile, actionCheck}:
+    # nim is used for building the project, thus no need to validate its structure.
+    if not pkgInfo.basicInfo.name.isNim:
+      validatePackageStructure(pkginfo, options)
 
 proc nimScriptHint*(pkgInfo: PackageInfo) =
   if not pkgInfo.isNimScript:
