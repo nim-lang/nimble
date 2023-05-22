@@ -61,7 +61,8 @@ suite "reverse dependencies":
 
     (output, exitCode) = execNimble("uninstall", "nimboost", "nimfp", "-n")
     var lines = output.strip.processOutput()
-    check inLines(lines, "Cannot uninstall nimboost")
+    check inLines(lines, "nimboost-0.5.5-43f6fa8c7b9706c65659ab7c3650c31641a801a5")
+    check inLines(lines, "nimfp-0.4.4-c155c248d1adc5cee881a6f4dd81493639516b9d")
 
     (output, exitCode) = execNimbleYes("uninstall", "nimfp", "nimboost")
     lines = output.strip.processOutput()
