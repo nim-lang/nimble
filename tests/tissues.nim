@@ -330,7 +330,7 @@ suite "issues":
           check lines.hasLineStartingWith(
             "Warning: Package 'y' has an incorrect structure. It should" &
             " contain a single directory hierarchy for source files," &
-            " named 'ypkg', but file 'foobar.nim' is in a directory named" &
+            " named 'y', but file 'foobar.nim' is in a directory named" &
             " 'yWrong' instead.")
         of "z":
           check lines.hasLineStartingWith(
