@@ -342,7 +342,7 @@ proc processAllDependencies(pkgInfo: PackageInfo, options: Options):
     if options.task in pkgInfo.taskRequires:
       result.incl pkgInfo.processFreeDependencies(pkgInfo.taskRequires[options.task], options)
 
-  putEnv(nimblePathsEnv, result.map(dep => dep.getRealDir()).toSeq().join("|"))
+  putEnv(nimblePathsEnv, result.map(dep => dep.getRealDir().quoteShell).toSeq().join("|"))
 
 proc allDependencies(pkgInfo: PackageInfo, options: Options): HashSet[PackageInfo] =
   ## Returns all dependencies for a package (Including tasks)
