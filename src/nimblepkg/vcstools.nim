@@ -344,17 +344,24 @@ proc isVcsRevisionPresentOnSomeRemote*(
 
   let vcsType = path.getVcsType
   if vcsType == vcsTypeGit:
-    for remotePushUrl in path.getRemotesPushUrls:
-      let
-        remotePushUrl = remotePushUrl.quoteShell
-        (_, fetchCmdExitCode) = doCmdEx(&"{git(path)} fetch {remotePushUrl}")
-      if fetchCmdExitCode == QuitFailure:
-        continue
-
+    proc checkContains(): bool =
       let (branchCmdOutput, branchCmdExitCode) = doCmdEx(
         &"{git(path)} branch -r --contains {vcsRevision}")
-      if branchCmdExitCode == QuitSuccess and branchCmdOutput.len > 0:
-        return true
+      result = branchCmdExitCode == QuitSuccess and branchCmdOutput.len > 0
+
+    if checkContains(): return true
+    else:
+      for remotePushUrl in path.getRemotesPushUrls:
+        let
+          remotePushUrl = remotePushUrl.quoteShell
+          (_, fetchCmdExitCode) = doCmdEx(&"{git(path)} fetch {remotePushUrl}")
+        if fetchCmdExitCode == QuitFailure:
+          continue
+        if checkContains(): return true
+
+      discard doCmdEx(&"{git(path)} fetch --all")
+      return checkContains()
+
   elif vcsType == vcsTypeHg:
     for remotePushUrl in path.getRemotesPushUrls:
       let
@@ -878,11 +885,6 @@ username = John Doe <john.doe@example.com>
         remoteUrls.add remoteUrlPath
       check getRemotesPushUrls(testDir) == remoteUrls
 
-    test "isVcsRevisionPresentOnSomeRemote":
-      let vcsRevision = getVcsRevision(testDir)
-      check isVcsRevisionPresentOnSomeRemote(testDir, vcsRevision)
-      check not isVcsRevisionPresentOnSomeRemote(testDir, noSuchVcsRevisionSha1)
-
     test "getCurrentBranch":
       let vcsDefaultBranchName = getVcsDefaultBranchName(vcsType)
       check getCurrentBranch(testDir) == vcsDefaultBranchName
@@ -909,6 +911,7 @@ username = John Doe <john.doe@example.com>
 
       check getBranchesOnWhichVcsRevisionIsPresent(
         testDir, noSuchVcsRevisionSha1) == HashSet[string]()
+
 
     test "isVcsRevisionPresentOnSomeBranch":
       check isVcsRevisionPresentOnSomeBranch(
@@ -1043,6 +1046,11 @@ username = John Doe <john.doe@example.com>
           testDir.fastForwardMerge(remoteNewBranch, newBranchName)
       else:
         skip()
+
+    test "isVcsRevisionPresentOnSomeRemote":
+      let vcsRevision = getVcsRevision(testDir)
+      check isVcsRevisionPresentOnSomeRemote(testDir, vcsRevision)
+      check not isVcsRevisionPresentOnSomeRemote(testDir, noSuchVcsRevisionSha1)
 
     tearDownSuite(testDir)
 
