@@ -80,6 +80,7 @@ type
       devActions*: seq[DevelopAction]
       path*: string
       noRebuild*: bool
+      skipValidation*: bool
       withDependencies*: bool
         ## Whether to put in develop mode also the dependencies of the packages
         ## listed in the develop command.
@@ -152,6 +153,7 @@ Commands:
                                   able to use global develop mode packages.
                                   Nimble uses it as a global develop file if a
                                   local one does not exist.
+         [--skipValidation]       Skip validation of the package structure.
   check                           Verifies the validity of a package in the
                                   current working directory.
   init         [pkgname]          Initializes a new Nimble project in the
@@ -612,6 +614,8 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
         raise nimbleError(multiplePathOptionsGivenMsg)
     of "withdependencies":
       result.action.withDependencies = true
+    of "skipvalidation":
+      result.action.skipValidation = true
     of "g", "global":
       result.action.global = true
     of "developfile":
