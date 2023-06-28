@@ -331,8 +331,7 @@ proc inferInstallRules(pkgInfo: var PackageInfo, options: Options) =
     if fileExists(pkgInfo.getRealDir() / pkgInfo.basicInfo.name.addFileExt("nim")):
       pkgInfo.installFiles.add(pkgInfo.basicInfo.name.addFileExt("nim"))
 
-proc readPackageInfo(nf: NimbleFile, options: Options, onlyMinimalInfo=false):
-    PackageInfo =
+proc readPackageInfo(pkgInfo: var PackageInfo, nf: NimbleFile, options: Options, onlyMinimalInfo=false) =
   ## Reads package info from the specified Nimble file.
   ##
   ## Attempts to read it using the "old" Nimble ini format first, if that
@@ -351,11 +350,11 @@ proc readPackageInfo(nf: NimbleFile, options: Options, onlyMinimalInfo=false):
 
   # Check the cache.
   if options.pkgInfoCache.hasKey(nf):
-    result = options.pkgInfoCache[nf]
+    pkgInfo = options.pkgInfoCache[nf]
     return
 
-  result = initPackageInfo(options, nf)
-  result.isLink = not nf.startsWith(options.getPkgsDir)
+  pkgInfo = initPackageInfo(options, nf)
+  pkgInfo.isLink = not nf.startsWith(options.getPkgsDir)
 
   validatePackageName(nf.splitFile.name)
 
@@ -363,20 +362,20 @@ proc readPackageInfo(nf: NimbleFile, options: Options, onlyMinimalInfo=false):
   var iniError: ref NimbleError
   # Attempt ini-format first.
   try:
-    readPackageInfoFromNimble(nf, result)
+    readPackageInfoFromNimble(nf, pkgInfo)
     success = true
-    result.isNimScript = false
+    pkgInfo.isNimScript = false
   except NimbleError:
     iniError = (ref NimbleError)(getCurrentException())
 
   if not success:
     if onlyMinimalInfo:
-      result.isNimScript = true
-      result.isMinimal = true
+      pkgInfo.isNimScript = true
+      pkgInfo.isMinimal = true
     else:
       try:
-        readPackageInfoFromNims(nf, options, result)
-        result.isNimScript = true
+        readPackageInfoFromNims(nf, options, pkgInfo)
+        pkgInfo.isNimScript = true
       except NimbleError as exc:
         if exc.hint.len > 0:
           raise
@@ -391,46 +390,46 @@ proc readPackageInfo(nf: NimbleFile, options: Options, onlyMinimalInfo=false):
   if not fileDir.startsWith(options.getPkgsDir()):
     # If the `.nimble` file is not in the installation directory we have to get
     # some of the package meta data from its directory.
-    result.basicInfo.checksum = calculateDirSha1Checksum(fileDir)
+    pkgInfo.basicInfo.checksum = calculateDirSha1Checksum(fileDir)
     # By default specialVersion is the same as version.
-    result.metaData.specialVersions.incl result.basicInfo.version
+    pkgInfo.metaData.specialVersions.incl pkgInfo.basicInfo.version
     # If the `fileDir` is a VCS repository we can get some of the package meta
     # data from it.
-    result.metaData.vcsRevision = getVcsRevision(fileDir)
+    pkgInfo.metaData.vcsRevision = getVcsRevision(fileDir)
 
     case getVcsType(fileDir)
-      of vcsTypeGit: result.metaData.downloadMethod = DownloadMethod.git
-      of vcsTypeHg: result.metaData.downloadMethod = DownloadMethod.hg
+      of vcsTypeGit: pkgInfo.metaData.downloadMethod = DownloadMethod.git
+      of vcsTypeHg: pkgInfo.metaData.downloadMethod = DownloadMethod.hg
       of vcsTypeNone: discard
 
     try:
-      result.metaData.url = getRemoteFetchUrl(fileDir,
+      pkgInfo.metaData.url = getRemoteFetchUrl(fileDir,
         getCorrespondingRemoteAndBranch(fileDir).remote)
     except NimbleError:
       discard
   else:
     # Otherwise we have to get its name, special version and checksum from the
     # package directory.
-    setNameVersionChecksum(result, fileDir)
+    setNameVersionChecksum(pkgInfo, fileDir)
 
   # Apply rules to infer which files should/shouldn't be installed. See #469.
-  inferInstallRules(result, options)
+  inferInstallRules(pkgInfo, options)
 
-  if not result.isMinimal:
-    options.pkgInfoCache[nf] = result
+  if not pkgInfo.isMinimal:
+    options.pkgInfoCache[nf] = pkgInfo
 
   # Validate the rest of the package info last.
   if not options.disableValidation:
-    validateVersion($result.basicInfo.version)
-    validatePackageInfo(result, options)
+    validateVersion($pkgInfo.basicInfo.version)
+    validatePackageInfo(pkgInfo, options)
 
 proc getPkgInfoFromFile*(file: NimbleFile, options: Options,
                          forValidation = false): PackageInfo =
   ## Reads the specified .nimble file and returns its data as a PackageInfo
   ## object. Any validation errors are handled and displayed as warnings.
-  var info = initPackageInfo()
+  result = initPackageInfo()
   try:
-    info = readPackageInfo(file, options)
+    readPackageInfo(result, file, options)
   except ValidationError:
     let exc = (ref ValidationError)(getCurrentException())
     if exc.warnAll and not forValidation:
@@ -438,8 +437,6 @@ proc getPkgInfoFromFile*(file: NimbleFile, options: Options,
       display("Hint:", exc.hint, Warning, HighPriority)
     else:
       raise
-  finally:
-    result = info
 
 proc getPkgInfo*(dir: string, options: Options, forValidation = false):
     PackageInfo =
@@ -475,7 +472,7 @@ proc getInstalledPkgs*(libsDir: string, options: Options): seq[PackageInfo] =
       if nimbleFile != "":
         var pkg = initPackageInfo()
         try:
-          pkg = readPackageInfo(nimbleFile, options, onlyMinimalInfo=false)
+          readPackageInfo(pkg, nimbleFile, options, onlyMinimalInfo=false)
           fillMetaData(pkg, path, false)
         except ValidationError:
           let exc = (ref ValidationError)(getCurrentException())
@@ -498,7 +495,9 @@ proc getInstalledPkgs*(libsDir: string, options: Options): seq[PackageInfo] =
         result.add pkg
 
 proc isNimScript*(nf: string, options: Options): bool =
-  readPackageInfo(nf, options).isNimScript
+  var pkg = initPackageInfo()
+  readPackageInfo(pkg, nf, options)
+  result = pkg.isNimScript
 
 proc toFullInfo*(pkg: PackageInfo, options: Options): PackageInfo =
   if pkg.isMinimal:
