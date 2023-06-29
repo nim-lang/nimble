@@ -495,7 +495,7 @@ proc addDevelopPackage(data: var DevelopFileData, path: Path,
   ##     in the develop file or some of its includes.
 
   let (pkgInfo, error) = validatePackage(path, options)
-  if error != nil and not options.action.skipValidation:
+  if error != nil:
     displayError(invalidPkgMsg($path))
     displayDetails(error)
     return false
