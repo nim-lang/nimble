@@ -638,7 +638,7 @@ proc processLockedDependencies(pkgInfo: PackageInfo, options: Options, onlyNim =
   # cache. If a package with required checksum is missing from the local cache
   # installs it by downloading it from its repository.
 
-  let developModeDeps = getDevelopDependencies(pkgInfo, options)
+  let developModeDeps = getDevelopDependencies(pkgInfo, options, raiseOnValidationErrors = false)
 
   for name, dep in pkgInfo.lockedDeps.lockedDepsFor(options):
     if onlyNim and not name.isNim:
@@ -1651,7 +1651,7 @@ proc lock(options: Options) =
   let
     includeNim =
       pkgInfo.lockedDeps.contains("compiler") or
-      pkgInfo.getDevelopDependencies(options).contains("nim")
+      pkgInfo.getDevelopDependencies(options, raiseOnValidationErrors = false).contains("nim")
     deps = pkgInfo.processFreeDependencies(pkgInfo.requires, options, includeNim)
   var fullDeps = deps # Deps shared by base and tasks
 

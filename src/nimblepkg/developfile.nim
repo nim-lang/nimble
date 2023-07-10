@@ -734,14 +734,14 @@ proc processDevelopDependencies*(dependentPkg: PackageInfo, options: Options):
   for _, pkg in data.nameToPkg:
     result.add pkg[]
 
-proc getDevelopDependencies*(dependentPkg: PackageInfo, options: Options):
+proc getDevelopDependencies*(dependentPkg: PackageInfo, options: Options, raiseOnValidationErrors = true):
     Table[string, ref PackageInfo] =
   ## Returns a table with a mapping between names and `PackageInfo`s of develop
   ## mode dependencies of package `dependentPkg` and recursively all of their
   ## develop mode dependencies.
 
   let loadGlobalDeps = not dependentPkg.getPkgDevFilePath.fileExists
-  let data = load(dependentPkg, options, true, true, loadGlobalDeps)
+  let data = load(dependentPkg, options, true, raiseOnValidationErrors, loadGlobalDeps)
   return data.nameToPkg
 
 type
