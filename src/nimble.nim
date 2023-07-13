@@ -1209,7 +1209,7 @@ proc listTasks(options: Options) =
   let nimbleFile = findNimbleFile(getCurrentDir(), true)
   nimscriptwrapper.listTasks(nimbleFile, options)
 
-proc developAllDependencies(pkgInfo: PackageInfo, options: var Options)
+proc developAllDependencies(pkgInfo: PackageInfo, options: var Options, topLevel = false)
 
 proc saveLinkFile(pkgInfo: PackageInfo, options: Options) =
   let
@@ -1226,7 +1226,7 @@ proc saveLinkFile(pkgInfo: PackageInfo, options: Options) =
   writeFile(pkgLinkFilePath, pkgLinkFileContent)
   displaySuccess(pkgLinkFileSavedMsg(pkgLinkFilePath))
 
-proc developFromDir(pkgInfo: PackageInfo, options: var Options) =
+proc developFromDir(pkgInfo: PackageInfo, options: var Options, topLevel = false) =
   assert options.action.typ == actionDevelop,
     "This procedure should be called only when executing develop sub-command."
 
@@ -1251,12 +1251,12 @@ proc developFromDir(pkgInfo: PackageInfo, options: var Options) =
     createDir(optsCopy.getPkgsDir())
     cd dir:
       if options.action.withDependencies:
-        developAllDependencies(pkgInfo, optsCopy)
+        developAllDependencies(pkgInfo, optsCopy, topLevel = topLevel)
       else:
         discard processAllDependencies(pkgInfo, optsCopy)
   else:
     if options.action.withDependencies:
-      developAllDependencies(pkgInfo, options)
+      developAllDependencies(pkgInfo, options, topLevel = topLevel)
     else:
       # Dependencies need to be processed before the creation of the pkg dir.
       discard processAllDependencies(pkgInfo, options)
@@ -1349,14 +1349,14 @@ proc developFreeDependencies(pkgInfo: PackageInfo,
     let pkgInfo = installDevelopPackage(dep, options)
     alreadyDownloaded.incl pkgInfo.metaData.url.removeTrailingGitString
 
-proc developAllDependencies(pkgInfo: PackageInfo, options: var Options) =
+proc developAllDependencies(pkgInfo: PackageInfo, options: var Options, topLevel = false) =
   ## Puts all dependencies of `pkgInfo` (including transitive ones) in develop
   ## mode by cloning their repositories.
 
   var alreadyDownloadedDependencies {.global.}: HashSet[string]
   alreadyDownloadedDependencies.incl pkgInfo.metaData.url.removeTrailingGitString
 
-  if pkgInfo.hasLockedDeps():
+  if pkgInfo.hasLockedDeps() and topLevel:
     pkgInfo.developLockedDependencies(alreadyDownloadedDependencies, options)
   else:
     pkgInfo.developFreeDependencies(alreadyDownloadedDependencies, options)
@@ -1399,7 +1399,7 @@ proc develop(options: var Options) =
     raise nimbleError(pathGivenButNoPkgsToDownloadMsg)
 
   if currentDirPkgInfo.isLoaded and (not hasPackages) and (not hasDevActions):
-    developFromDir(currentDirPkgInfo, options)
+    developFromDir(currentDirPkgInfo, options, topLevel = true)
 
   # Install each package.
   for pkgTup in options.action.packages:
