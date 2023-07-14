@@ -34,5 +34,16 @@ suite "No global nim":
       check exitCodeAfterInstalled == QuitSuccess
       check not outputAfterInstalled.contains("koch")
 
+  test "Nimble install -d works":
+    cd "nimdep":
+      removeDir(nimbleCacheDir)
+      let (output, exitCode) =
+        execCmdEx(nimblePath & " install -d -y --lock-file=nimble-no-global-nim.lock")
+      check exitCode == QuitSuccess
+
+      let usingNim = when defined(Windows): "nim.exe for compilation" else: "bin/nim for compilation"
+      check output.contains(usingNim)
+      check output.contains("koch")
+
   putEnv("PATH", path)
   delEnv("NIMBLE_DIR")
