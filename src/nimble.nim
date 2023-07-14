@@ -2210,6 +2210,8 @@ proc setNimBin*(options: var Options) =
           if isInstalled(name, dep, options):
             options.useLockedNim(getDependencyDir(name, dep, options))
           elif not options.offline:
+            let depsOnly = options.depsOnly
+            options.depsOnly = false
             let
               downloadResult = downloadDependency(name, dep, options, false)
               command = when defined(windows): "build_all.bat" else: "./build_all.sh"
@@ -2218,6 +2220,7 @@ proc setNimBin*(options: var Options) =
             options.useLockedNim(downloadResult.downloadDir)
             let pkgInfo = installDependency(initTable[string, LockFileDep](), downloadResult, options, @[])
             options.useLockedNim(pkgInfo.getRealDir)
+            options.depsOnly = depsOnly
           break
 
     # Search PATH
