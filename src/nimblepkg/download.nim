@@ -498,7 +498,7 @@ proc downloadPkg*(url: string, verRange: VersionRange,
   if validateRange and verRange.kind != verSpecial:
     ## Makes sure that the downloaded package's version satisfies the requested
     ## version range.
-    let pkginfo = getPkgInfo(result[0], options)
+    let pkginfo = getPkgInfo(result.dir, options)
     if pkginfo.basicInfo.version notin verRange:
       raise nimbleError(
         "Downloaded package's version does not satisfy requested version " &

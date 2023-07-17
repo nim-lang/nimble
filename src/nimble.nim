@@ -713,8 +713,16 @@ proc install(packages: seq[PkgTuple], options: Options,
                             preferredPackages = preferredPackages)
   else:
     # Install each package.
+    let installedPackages = getInstalledPkgsMin(options.getPkgsDir(), options)
+
     for pv in packages:
       let (meth, url, metadata) = getDownloadInfo(pv, options, doPrompt)
+      if pv.name.isURL == false and pv.ver.kind != verSpecial:
+        var skeletonInfo = initPackageInfo()
+        skeletonInfo.basicInfo.name = pv.name
+        skeletonInfo.metaData.url = url
+        if findPkg(installedPackages, pv, skeletonInfo):
+          continue
       let subdir = metadata.getOrDefault("subdir")
       let (downloadDir, downloadVersion, vcsRevision) =
         downloadPkg(url, pv.ver, meth, subdir, options,
