@@ -48,6 +48,9 @@ type
     disableLockFile*: bool
     enableTarballs*: bool # Enable downloading of packages as tarballs from GitHub.
     task*: string # Name of the task that is getting ran
+    ## Whether to put in develop mode also the dependencies of the packages
+    ## listed in the develop command.
+    developFile*: string
     package*: string
       # For which package in the dependency tree the command should be executed.
       # If not provided by default it applies to the current directory package.
@@ -68,12 +71,12 @@ type
   Action* = object
     case typ*: ActionType
     of actionNil, actionList, actionPublish, actionTasks, actionCheck,
-       actionLock, actionSetup, actionClean: nil
+       actionSetup, actionClean: nil
     of actionSync:
       listOnly*: bool
     of actionRefresh:
       optionalURL*: string # Overrides default package list.
-    of actionInstall, actionPath, actionUninstall, actionDevelop, actionUpgrade:
+    of actionInstall, actionPath, actionUninstall, actionDevelop, actionUpgrade, actionLock:
       packages*: seq[PkgTuple] # Optional only for actionInstall
                                # and actionDevelop.
       passNimFlags*: seq[string]
@@ -81,9 +84,6 @@ type
       path*: string
       noRebuild*: bool
       withDependencies*: bool
-        ## Whether to put in develop mode also the dependencies of the packages
-        ## listed in the develop command.
-      developFile*: string
       global*: bool
     of actionSearch:
       search*: seq[string] # Search string.
@@ -126,8 +126,6 @@ Commands:
          [--withDependencies]     Puts in develop mode also the dependencies
                                   of the packages in the list or of the current
                                   directory package if the list is empty.
-         [--developFile]          Specifies the name of the develop file which
-                                  to be manipulated. If not present creates it.
          [-p, --path path]        Specifies the path whether the packages should
                                   be cloned.
          [-a, --add path]         Adds a package at given path to a specified
@@ -239,6 +237,8 @@ Nimble Options:
       --noSslCheck                Don't check SSL certificates.
       --lockFile                  Override the lock file name.
       --noLockfile                Ignore the lock file if present.
+      --developFile               Specifies the name of the develop file which
+                                  to be manipulated. If not present creates it.
       --useSystemNim              Use system nim and ignore nim from the lock
                                   file if any
 
@@ -537,6 +537,11 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
   of "package", "p": result.package = val
   of "lockfile": result.lockFileName = val
   of "usesystemnim": result.useSystemNim = true
+  of "developfile":
+    if result.developFile.len == 0:
+      result.developFile = val.normalizedPath
+    else:
+      raise nimbleError(multipleDevelopFileOptionsGivenMsg)
   else: isGlobalFlag = false
 
   var wasFlagHandled = true
@@ -617,11 +622,6 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
       result.action.withDependencies = true
     of "g", "global":
       result.action.global = true
-    of "developfile":
-      if result.action.developFile.len == 0:
-        result.action.developFile = val.normalizedPath
-      else:
-        raise nimbleError(multipleDevelopFileOptionsGivenMsg)
     else:
       wasFlagHandled = false
   of actionSync:

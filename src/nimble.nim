@@ -1393,7 +1393,7 @@ proc develop(options: var Options) =
     hasPackages = options.action.packages.len > 0
     hasPath = options.action.path.len > 0
     hasDevActions = options.action.devActions.len > 0
-    hasDevFile = options.action.developFile.len > 0
+    hasDevFile = options.developFile.len > 0
     withDependencies = options.action.withDependencies
 
   var
@@ -1427,12 +1427,12 @@ proc develop(options: var Options) =
       displayDetails(error)
 
   if currentDirPkgInfo.isLoaded and not hasDevFile:
-    options.action.developFile = developFileName
+    options.developFile = developFileName
 
-  if options.action.developFile.len > 0:
+  if options.developFile.len > 0:
     hasError = not updateDevelopFile(currentDirPkgInfo, options) or hasError
     if currentDirPkgInfo.isLoaded and
-       options.action.developFile == developFileName:
+       options.developFile == developFileName:
       # If we are updated package's develop file we have to update also
       # sync and paths files.
       updateSyncFile(currentDirPkgInfo, options)

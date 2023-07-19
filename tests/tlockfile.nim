@@ -728,3 +728,16 @@ requires "nim >= 1.5.1"
           let res = execNimbleYes("upgrade", fmt "{dep1PkgName}@#HEAD")
           check res.exitCode == QuitSuccess
           check defaultLockFileName.readFile.parseJson{$lfjkPackages}.keys.toSeq == @["dep1"]
+
+  test "can lock with --developFile argument":
+    cleanUp()
+    withPkgListFile:
+      initNewNimblePackage(mainPkgOriginRepoPath,  mainPkgRepoPath,
+                           @[dep1PkgName])
+      initNewNimblePackage(dep1PkgOriginRepoPath, dep1PkgRepoPath)
+      cd mainPkgRepoPath:
+        writeDevelopFile(developFileName, @[], @[dep1PkgRepoPath])
+        moveFile("nimble.develop", "other-name.develop")
+
+        let exitCode = execNimbleYes("lock", "--developFile=" & "other-name.develop").exitCode
+        check exitCode == QuitSuccess
