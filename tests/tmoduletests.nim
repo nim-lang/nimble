@@ -12,5 +12,5 @@ suite "Module tests":
       verify execCmdEx("nim c -r " & modulePath)
 
   for module in walkDir("../src/nimblepkg"):
-    if readFile(module.path).contains("unittest"):
+    if module.kind == pcFile and readFile(module.path).contains("unittest"):
       moduleTest module.path

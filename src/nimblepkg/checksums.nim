@@ -1,8 +1,9 @@
 # Copyright (C) Dominik Picheta. All rights reserved.
 # BSD License. Look at license.txt for more info.
 
-import os, std/sha1, strformat, algorithm
+import os, strformat, algorithm
 import common, version, sha1hashes, vcstools, paths, cli
+import ../../dist/checksums/src/checksums/sha1
 
 type
   ChecksumError* = object of NimbleError

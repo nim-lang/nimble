@@ -233,6 +233,8 @@ template after*(action: untyped, body: untyped): untyped =
     success = true
     retVal = `action After`()
 
+const nimbleExe* {.strdefine.} = "nimble"
+
 proc getPkgDir*(): string =
   ## Returns the package directory containing the .nimble file currently
   ## being evaluated.
@@ -246,4 +248,4 @@ proc getPaths*(): seq[string] =
 
 proc getPathsClause*(): string =
   ## Returns the paths to the dependencies as consumed by the nim compiler.
-  return getPaths().mapIt("--path:" & it.quoteShell).join(" ")
+  return getPaths().mapIt("--path:" & it).join(" ")

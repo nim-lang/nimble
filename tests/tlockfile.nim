@@ -3,7 +3,7 @@
 
 {.used.}
 
-import unittest, os, strformat, json, strutils
+import unittest, os, strformat, json, strutils, sequtils
 
 import testscommon
 
@@ -108,7 +108,7 @@ requires "nim >= 1.5.1"
     tryDoCmdEx("git add " & filesStr)
 
   proc commit(msg: string) =
-    tryDoCmdEx("git commit -m " & msg.quoteShell)
+    tryDoCmdEx("git commit -am " & msg.quoteShell)
 
   proc push(remote: string) =
     tryDoCmdEx(
@@ -192,7 +192,7 @@ requires "nim >= 1.5.1"
       check fileExists(lockFileName)
 
     let (output, exitCode) = if lockFileName == defaultLockFileName:
-        execNimbleYes("lock", "--debug")
+        execNimbleYes("lock")
       else:
         execNimbleYes("--lock-file=" & lockFileName, "lock")
 
@@ -227,6 +227,38 @@ requires "nim >= 1.5.1"
       pkgListFilePath, @[dep1PkgListFileRecord, dep2PkgListFileRecord])
     usePackageListFile pkgListFilePath:
       body
+
+  proc getRepoRevision: string =
+    result = tryDoCmdEx("git rev-parse HEAD").replace("\n", "")
+
+  proc getRevision(dep: string, lockFileName = defaultLockFileName): string =
+    result = lockFileName.readFile.parseJson{$lfjkPackages}{dep}{$lfjkPkgVcsRevision}.str
+
+  proc addAdditionalFileAndPushToRemote(
+      repoPath, remoteName, remotePath, fileContent: string) =
+    cdNewDir remotePath:
+      initRepo(isBare = true)
+    cd repoPath:
+      # Add commit to the dependency.
+      addAdditionalFileToTheRepo("dep1.nim", fileContent)
+      addRemote(remoteName, remotePath)
+      # Push it to the newly added remote to be able to lock.
+      push(remoteName)
+
+  proc testDepsSync =
+    let (output, exitCode) = execNimbleYes("sync")
+    check exitCode == QuitSuccess
+    let lines = output.processOutput
+    check lines.inLines(
+      pkgWorkingCopyIsSyncedMsg(dep1PkgName, dep1PkgRepoPath))
+    check lines.inLines(
+      pkgWorkingCopyIsSyncedMsg(dep2PkgName, dep2PkgRepoPath))
+
+    cd mainPkgRepoPath:
+      # After successful sync the revisions written in the lock file must
+      # match those in the lock file.
+      testLockedVcsRevisions(@[(dep1PkgName, dep1PkgRepoPath),
+                                (dep2PkgName, dep2PkgRepoPath)])
 
   test "can generate lock file":
     cleanUp()
@@ -384,21 +416,6 @@ requires "nim >= 1.5.1"
       check lines.inLines(
         pkgWorkingCopyNeedsSyncingMsg(dep2PkgName, dep2PkgRepoPath))
 
-  proc testDepsSync =
-    let (output, exitCode) = execNimbleYes("sync")
-    check exitCode == QuitSuccess
-    let lines = output.processOutput
-    check lines.inLines(
-      pkgWorkingCopyIsSyncedMsg(dep1PkgName, dep1PkgRepoPath))
-    check lines.inLines(
-      pkgWorkingCopyIsSyncedMsg(dep2PkgName, dep2PkgRepoPath))
-
-    cd mainPkgRepoPath:
-      # After successful sync the revisions written in the lock file must
-      # match those in the lock file.
-      testLockedVcsRevisions(@[(dep1PkgName, dep1PkgRepoPath),
-                                (dep2PkgName, dep2PkgRepoPath)])
-
   test "can sync out of sync develop dependencies":
     outOfSyncDepsTest(""):
       testDepsSync()
@@ -488,17 +505,6 @@ requires "nim >= 1.5.1"
                                   path: dep1PkgRepoPath)
           errorMessage = getValidationErrorMessage(dep1PkgName, error)
         check output.processOutput.inLines(errorMessage)
-
-  proc addAdditionalFileAndPushToRemote(
-      repoPath, remoteName, remotePath, fileContent: string) =
-    cdNewDir remotePath:
-      initRepo(isBare = true)
-    cd repoPath:
-      # Add commit to the dependency.
-      addAdditionalFileToTheRepo("dep1.nim", fileContent)
-      addRemote(remoteName, remotePath)
-      # Push it to the newly added remote to be able to lock.
-      push(remoteName)
 
   test "cannot sync because the working copy needs merge":
     cleanUp()
@@ -591,8 +597,6 @@ requires "nim >= 1.5.1"
         writeDevelopFile(developFileName, @[], @[dep1PkgRepoPath, mainPkgOriginRepoPath])
         let (_, exitCode) = execNimbleYes("--debug", "--verbose", "sync")
         check exitCode == QuitSuccess
-  proc getRevision(dep: string, lockFileName = defaultLockFileName): string =
-    result = lockFileName.readFile.parseJson{$lfjkPackages}{dep}{$lfjkPkgVcsRevision}.str
 
   test "can generate lock file for nim as dep":
     cleanUp()
@@ -601,7 +605,7 @@ requires "nim >= 1.5.1"
       removeFile "nimble.lock"
       removeDir "Nim"
 
-      check execNimbleYes("develop", "nim").exitCode == QuitSuccess
+      check execNimbleYes("-y", "develop", "nim").exitCode == QuitSuccess
       cd "Nim":
         let (_, exitCode) = execNimbleYes("-y", "install")
         check exitCode == QuitSuccess
@@ -628,3 +632,99 @@ requires "nim >= 1.5.1"
     cleanUp()
     cd "lockfile-subdep":
       check execNimbleYes("test").exitCode == QuitSuccess
+
+  test "can upgrade a dependency.":
+    cleanUp()
+    withPkgListFile:
+      initNewNimblePackage(mainPkgOriginRepoPath, mainPkgRepoPath,
+                           @[dep1PkgName])
+      initNewNimblePackage(dep1PkgOriginRepoPath, dep1PkgRepoPath)
+
+      cd mainPkgRepoPath:
+        check execNimbleYes("lock").exitCode == QuitSuccess
+
+      cd dep1PkgOriginRepoPath:
+        addAdditionalFileToTheRepo("dep1.nim", "echo 42")
+        let newRevision = getRepoRevision()
+        cd mainPkgRepoPath:
+          check newRevision != getRevision(dep1PkgName)
+          let res = execNimbleYes("upgrade", fmt "{dep1PkgName}@#{newRevision}")
+          check newRevision == getRevision(dep1PkgName)
+          check res.exitCode == QuitSuccess
+
+  test "can upgrade: the new version of the package has a new dep":
+    cleanUp()
+    withPkgListFile:
+      initNewNimblePackage(mainPkgOriginRepoPath, mainPkgRepoPath, @[dep1PkgName])
+      initNewNimblePackage(dep1PkgOriginRepoPath, dep1PkgRepoPath)
+      initNewNimblePackage(dep2PkgOriginRepoPath, dep2PkgRepoPath)
+
+      cd mainPkgRepoPath:
+        check execNimbleYes("lock").exitCode == QuitSuccess
+
+      cd dep1PkgOriginRepoPath:
+        let nimbleFile = initNewNimbleFile(dep1PkgOriginRepoPath, @[dep2PkgName])
+        addFiles(nimbleFile)
+        commit("Add dependency to pkg2")
+
+        let newRevision = getRepoRevision()
+        cd mainPkgRepoPath:
+          let res = execNimbleYes("upgrade", fmt "{dep1PkgName}@#{newRevision}")
+          check newRevision == getRevision(dep1PkgName)
+          check res.exitCode == QuitSuccess
+
+          testLockedVcsRevisions(@[(dep1PkgName, dep1PkgOriginRepoPath),
+                                   (dep2PkgName, dep2PkgOriginRepoPath)])
+
+  test "can upgrade: upgrade minimal set of deps":
+    cleanUp()
+    withPkgListFile:
+      initNewNimblePackage(mainPkgOriginRepoPath, mainPkgRepoPath,
+                           @[dep1PkgName])
+      initNewNimblePackage(dep1PkgOriginRepoPath, dep1PkgRepoPath, @[dep2PkgName])
+      initNewNimblePackage(dep2PkgOriginRepoPath, dep2PkgRepoPath)
+
+      cd mainPkgRepoPath:
+        check execNimbleYes("lock").exitCode == QuitSuccess
+
+      cd dep1PkgOriginRepoPath:
+        addAdditionalFileToTheRepo("dep1.nim", "echo 1")
+
+      cd dep2PkgOriginRepoPath:
+        let first =  getRepoRevision()
+        addAdditionalFileToTheRepo("dep2.nim", "echo 2")
+        let second = getRepoRevision()
+
+        check execNimbleYes("install").exitCode == QuitSuccess
+
+        cd mainPkgRepoPath:
+          # verify that it won't upgrade version first
+          check execNimbleYes("upgrade", fmt "{dep1PkgName}@#HEAD").exitCode == QuitSuccess
+          check getRevision(dep2PkgName) == first
+
+          check execNimbleYes("upgrade", fmt "{dep2PkgName}@#{second}").exitCode == QuitSuccess
+          check getRevision(dep2PkgName) == second
+
+          # verify that it won't upgrade version second
+          check execNimbleYes("upgrade", fmt "{dep1PkgName}@#HEAD").exitCode == QuitSuccess
+          check getRevision(dep2PkgName) == second
+
+  test "can upgrade: the new version of the package with removed dep":
+    cleanUp()
+    withPkgListFile:
+      initNewNimblePackage(mainPkgOriginRepoPath, mainPkgRepoPath, @[dep1PkgName])
+      initNewNimblePackage(dep1PkgOriginRepoPath, dep1PkgRepoPath, @[dep2PkgName])
+      initNewNimblePackage(dep2PkgOriginRepoPath, dep2PkgRepoPath)
+
+      cd mainPkgRepoPath:
+        check execNimbleYes("lock").exitCode == QuitSuccess
+
+      cd dep1PkgOriginRepoPath:
+        let nimbleFile = initNewNimbleFile(dep1PkgOriginRepoPath)
+        addFiles(nimbleFile)
+        commit("Remove pkg2 dep")
+
+        cd mainPkgRepoPath:
+          let res = execNimbleYes("upgrade", fmt "{dep1PkgName}@#HEAD")
+          check res.exitCode == QuitSuccess
+          check defaultLockFileName.readFile.parseJson{$lfjkPackages}.keys.toSeq == @["dep1"]

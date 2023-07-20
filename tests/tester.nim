@@ -20,6 +20,7 @@ import tnimbledump
 import tnimblerefresh
 import tnimbletasks
 import tnimscript
+import tshellenv
 import tpathcommand
 import treversedeps
 import truncommand

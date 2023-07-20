@@ -1,0 +1,42 @@
+name: Install Nimble
+description: install nimble
+inputs:
+  nimble_version:
+    description: "install nimble"
+    # TODO: make sure to change to tagged release when available
+    default: "latest"
+  os:
+    description: "operating system"
+    default: "linux"
+  cpu:
+    description: "cpu architecture"
+    default: "amd64"
+runs:
+  using: "composite"
+  steps:
+    - uses: actions/checkout@v3
+    - name: Build Nimble
+      shell: bash
+      run: |
+        set -x
+        mkdir -p .nimble
+        cd .nimble
+        if [[ '${{ inputs.cpu }}' == 'amd64' ]]; then
+          CPU=x64
+        elif [[ '${{ inputs.cpu }}' == 'i386' ]]; then
+          CPU=x32
+        else
+          CPU=${{ inputs.cpu }}
+        fi
+
+        if [[ '${{ inputs.os }}' == 'macos' ]]; then
+          OS=apple
+        else
+          OS='${{ inputs.os }}'
+        fi
+        URL=https://github.com/nim-lang/nimble/releases/download/${{ inputs.nimble_version }}/nimble-"$OS"_"$CPU".tar.gz
+        curl -o nimble.tar.gz -L -s -S "$URL"
+        tar -xvf nimble.tar.gz
+    - name: Derive environment variables
+      shell: bash
+      run: echo '${{ github.workspace }}/.nimble/' >> $GITHUB_PATH

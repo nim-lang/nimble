@@ -141,6 +141,7 @@ proc cloneSpecificRevision(downloadMethod: DownloadMethod,
                            url, downloadDir: string,
                            vcsRevision: Sha1Hash) =
   assert vcsRevision != notSetSha1Hash
+
   display("Cloning", "revision: " & $vcsRevision, priority = MediumPriority)
   case downloadMethod
   of DownloadMethod.git:
@@ -417,7 +418,7 @@ proc doDownload(url, downloadDir: string, verRange: VersionRange,
           result.vcsRevision = doDownloadTarball(url, downloadDir, "HEAD", true)
         else:
           # If no commits have been tagged on the repo we just clone HEAD.
-          doClone(downMethod, url, downloadDir) # Grab HEAD.
+          doClone(downMethod, url, downloadDir, onlyTip = not options.forceFullClone) # Grab HEAD.
     of DownloadMethod.hg:
       doClone(downMethod, url, downloadDir,
               onlyTip = not options.forceFullClone)

@@ -41,7 +41,7 @@ type
     dumpMode*: DumpMode
     startDir*: string # Current directory on startup - is top level pkg dir for
                       # some commands, useful when processing deps
-    nim*: string # Nim compiler location
+    nimBin*: string # Nim compiler location. Typically accessed via options.nim.
     localdeps*: bool # True if project local deps mode
     developLocaldeps*: bool # True if local deps + nimble develop pkg1 ...
     disableSslCertCheck*: bool
@@ -54,11 +54,11 @@ type
       # For now, it is used only by the run action and it is ignored by others.
 
   ActionType* = enum
-    actionNil, actionRefresh, actionInit, actionDump, actionPublish,
+    actionNil, actionRefresh, actionInit, actionDump, actionPublish, actionUpgrade
     actionInstall, actionSearch, actionList, actionBuild, actionPath,
     actionUninstall, actionCompile, actionDoc, actionCustom, actionTasks,
     actionDevelop, actionCheck, actionLock, actionRun, actionSync, actionSetup,
-    actionClean, actionDeps
+    actionClean, actionDeps, actionShellEnv, actionShell
 
   DevelopActionType* = enum
     datAdd, datRemoveByPath, datRemoveByName, datInclude, datExclude
@@ -73,7 +73,7 @@ type
       listOnly*: bool
     of actionRefresh:
       optionalURL*: string # Overrides default package list.
-    of actionInstall, actionPath, actionUninstall, actionDevelop:
+    of actionInstall, actionPath, actionUninstall, actionDevelop, actionUpgrade:
       packages*: seq[PkgTuple] # Optional only for actionInstall
                                # and actionDevelop.
       passNimFlags*: seq[string]
@@ -106,6 +106,8 @@ type
       custRunFlags*: seq[string]
     of actionDeps:
       format*: string
+    of actionShellEnv, actionShell:
+      discard
 
 const
   help* = """
@@ -194,6 +196,7 @@ Commands:
                                   the name of an installed package.
                [--ini, --json]    Selects the output format (the default is --ini).
   lock                            Generates or updates a package lock file.
+  upgrade      [pkgname, ...]     Upgrades a list of packages in the lock file.
   deps                            Outputs dependency tree
                [--format type]    Specify the output format. Json is the only supported
                                   format
@@ -205,6 +208,11 @@ Commands:
                                   system paths to the dependencies. Also
                                   includes the paths file in the `config.nims`
                                   file to make them available for the compiler.
+  shell                           Creates a new shell with PATH modified to contain
+                                  the bin folders of the dependencies.
+  shellenv                        Similar to shell command but it returns the script to run in
+                                  order to alter the environment. This is intended to be
+                                  used in scripts.
 
 Nimble Options:
   -h, --help                      Print this help message.
@@ -296,6 +304,8 @@ proc parseActionType*(action: string): ActionType =
     result = actionUninstall
   of "publish":
     result = actionPublish
+  of "upgrade":
+    result = actionUpgrade
   of "tasks":
     result = actionTasks
   of "develop":
@@ -310,6 +320,10 @@ proc parseActionType*(action: string): ActionType =
     result = actionSync
   of "setup":
     result = actionSetup
+  of "shellenv":
+    result = actionShellEnv
+  of "shell":
+    result = actionShell
   else:
     result = actionCustom
 
@@ -351,6 +365,12 @@ proc promptList*(options: Options, question: string, args: openarray[string]): s
   ## The proc will return one of the provided args. If not prompting the first
   ## options is selected.
   return promptList(options.forcePrompts, question, args)
+
+proc nim*(options: Options): string =
+  if options.nimBin.len == 0:
+    raise nimbleError(
+      "Unable to find `nim` binary - add to $PATH or use `--nim`")
+  return options.nimBin
 
 proc getNimbleDir*(options: Options): string =
   return options.nimbleDir
@@ -448,7 +468,7 @@ proc parseArgument*(key: string, result: var Options) =
   case result.action.typ
   of actionNil:
     assert false
-  of actionInstall, actionPath, actionDevelop, actionUninstall:
+  of actionInstall, actionPath, actionDevelop, actionUninstall, actionUpgrade:
     # Parse pkg@verRange
     if '@' in key:
       let i = find(key, '@')
@@ -509,7 +529,7 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
   of "offline": result.offline = true
   of "nocolor": result.noColor = true
   of "disablevalidation": result.disableValidation = true
-  of "nim": result.nim = val
+  of "nim": result.nimBin = val
   of "localdeps", "l": result.localdeps = true
   of "nosslcheck": result.disableSslCertCheck = true
   of "nolockfile": result.disableLockFile = true
