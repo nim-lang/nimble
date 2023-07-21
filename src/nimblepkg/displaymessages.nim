@@ -149,7 +149,7 @@ proc invalidDevelopDependenciesVersionsMsg*(errors: seq[string]): string =
 
 proc pkgAlreadyExistsInTheCacheMsg*(name, version, checksum: string): string =
   &"A package \"{name}@{version}\" with checksum \"{checksum}\" already " &
-   "exists the the cache."
+   "exists in the cache."
 
 proc pkgAlreadyExistsInTheCacheMsg*(pkgInfo: PackageInfo): string =
   pkgAlreadyExistsInTheCacheMsg(
