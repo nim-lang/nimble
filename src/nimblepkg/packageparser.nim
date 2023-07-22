@@ -125,7 +125,7 @@ proc validatePackageStructure(pkgInfo: PackageInfo, options: Options) =
                   "the main module, or if it is one of several " &
                   "modules exposed by '$4', then move it into a '$2' subdirectory. " &
                   "If it's a test file or otherwise not required " &
-                  "to build the the package '$1', prevent its installation " &
+                  "to build the package '$1', prevent its installation " &
                   "by adding `skipFiles = @[\"$3\"]` to the .nimble file. See " &
                   "https://github.com/nim-lang/nimble#libraries for more info.") %
                   [pkgInfo.basicInfo.name & ext, correctDir & DirSep, file & ext, pkgInfo.basicInfo.name]
