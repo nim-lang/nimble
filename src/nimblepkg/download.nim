@@ -495,7 +495,7 @@ proc downloadPkg*(url: string, verRange: VersionRange,
   (result.version, result.vcsRevision) = doDownload(
     modUrl, downloadDir, verRange, downMethod, options, vcsRevision)
 
-  if validateRange and verRange.kind != verSpecial:
+  if validateRange and verRange.kind notin {verSpecial, verAny}:
     ## Makes sure that the downloaded package's version satisfies the requested
     ## version range.
     let pkginfo = getPkgInfo(result[0], options)
