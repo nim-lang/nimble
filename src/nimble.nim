@@ -1655,7 +1655,7 @@ proc check(errors: ValidationErrors, graph: LockFileDeps) =
 proc getDependenciesForLocking(pkgInfo: PackageInfo, options: Options):
     seq[PackageInfo] =
   ## Get all of the dependencies and then force the upgrade spec
-  var res = pkgInfo.processAllDependencies(options).toSeq
+  var res = pkgInfo.processAllDependencies(options).toSeq.mapIt(it.toFullInfo(options))
 
   if pkgInfo.hasLockedDeps():
     # if we are performing lock and there is a lock file we make sure that the
