@@ -2090,9 +2090,6 @@ proc doAction(options: var Options) =
   if options.showVersion:
     writeVersion()
 
-  if options.action.typ in {actionTasks, actionRun, actionBuild, actionCompile}:
-    # Implicitly disable package validation for these commands.
-    options.disableValidation = true
 
   case options.action.typ
   of actionRefresh:
@@ -2289,6 +2286,9 @@ when isMainModule:
     opt = parseCmdLine()
     opt.setNimbleDir
     opt.loadNimbleData
+    if opt.action.typ in {actionTasks, actionRun, actionBuild, actionCompile, actionDevelop}:
+      # Implicitly disable package validation for these commands.
+      opt.disableValidation = true
     opt.setNimBin
     opt.doAction()
   except NimbleQuit as quit:
