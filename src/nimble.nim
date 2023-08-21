@@ -2022,7 +2022,8 @@ proc getAlteredPath(options: Options): string =
       let folder = fullInfo.getOutputDir(bin).parentDir.quoteShell
       paths.add folder
   paths.reverse
-  result = fmt "{paths.join(separator)}{separator}{getEnv(\"PATH\")}"
+
+  result = fmt "{options.nimBin.parentDir}{separator}{paths.join(separator)}{separator}{getEnv(\"PATH\")}"
 
 proc shellenv(options: var Options) =
   setVerbosity(SilentPriority)
