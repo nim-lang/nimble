@@ -1,5 +1,5 @@
-# # Copyright (C) Dominik Picheta. All rights reserved.
-# # BSD License. Look at license.txt for more info.
+# Copyright (C) Dominik Picheta. All rights reserved.
+# BSD License. Look at license.txt for more info.
 
 {.used.}
 
