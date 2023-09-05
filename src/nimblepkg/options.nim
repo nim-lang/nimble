@@ -761,7 +761,7 @@ proc getCompilationFlags*(options: var Options): var seq[string] =
   of actionCustom:
     return options.action.custCompileFlags
   else:
-    assert false
+    raiseAssert "unreachable"
 
 proc getCompilationFlags*(options: Options): seq[string] =
   var opt = options
