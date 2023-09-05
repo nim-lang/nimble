@@ -53,7 +53,7 @@ jobs:
     runs-on: ${{ matrix.builder }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
 
       - uses: jiro4989/setup-nim-action@v1.4.3
         with:
