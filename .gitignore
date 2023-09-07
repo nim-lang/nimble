@@ -3,7 +3,6 @@
 !*.*
 !*/
 
-
 # Any path
 *.swp
 *~
@@ -13,8 +12,12 @@ nimcache/
 /src/babel
 /src/nimble
 
+# Checksums module
+dist/checksums
+
 # executables from test and build
 /nimble
+src/nimble
 src/nimblepkg/checksums
 src/nimblepkg/cli
 src/nimblepkg/common
