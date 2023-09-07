@@ -1,9 +1,8 @@
 # Copyright (C) Dominik Picheta. All rights reserved.
 # BSD License. Look at license.txt for more info.
 
-import strformat, strutils, json,  hashes
+import strformat, strutils, json, hashes, std/sha1
 import common
-import ../../dist/checksums/src/checksums/sha1
 
 type
   InvalidSha1HashError* = object of NimbleError

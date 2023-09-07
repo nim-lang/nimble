@@ -41,9 +41,11 @@ proc cloneDependency(destDirBase: string, url: string, commit = commitHead,
   else:
     quit "FAILURE: " & destdir & " already exists but is not a git repo"
 
-proc command =
+# Removing this as the dependency on this library is gone and is instead replaced with
+# std/sha1
+#[proc command =
   const distDir = "dist"
   const commit = "3fa15df7d27ecef624ed932d60f63d6a8949618d"
   cloneDependency(distDir, "https://github.com/nim-lang/checksums.git", commit)
 
-command()
+command()#]
