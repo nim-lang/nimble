@@ -772,7 +772,7 @@ proc getCompilationBinary*(options: Options, pkgInfo: PackageInfo): Option[strin
   of actionBuild, actionDoc, actionCompile:
     let file = options.action.file.changeFileExt("")
     if file.len > 0:
-      return some(file)
+      return some(pkgInfo.srcDir / file)
   of actionRun:
     let optRunFile = options.action.runFile
     let runFile =
