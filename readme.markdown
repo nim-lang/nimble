@@ -616,7 +616,7 @@ of the Nim compiler required is recommended.
 
 You can also specify multiple dependencies like so:
 
-```ini
+```nim
 # Deps
 
 requires "nim >= 0.10.0", "foobar >= 0.1.0"
@@ -641,7 +641,7 @@ Both operators `^=` and `~=` were not available yet for Nimble 0.13.1 and
 earlier and would cause error messages if used there.
 Other more complex comparison operators that would be available in npm like
 `!=`, `||`, `-`, `*` and `X` are also not available in Nimble.
-```ini
+```nim
 # Examples for selector ^= and ~=
 
 requires "nim ^= 1.2.2" # nim >= 1.2.2 & < 2.0.0
@@ -923,7 +923,7 @@ binary name.
 
 Dependencies are specified using the ``requires`` function. For example:
 
-```ini
+```nim
 # Dependencies
 requires "nim >= 0.10.0", "jester > 0.1 & <= 0.5"
 ```
