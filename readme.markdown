@@ -1024,7 +1024,7 @@ Use dot-separated numbers to represent the release version in the git
 tag label. Nimble will parse these git tag labels to know which
 versions of a package are published.
 
-```sh
+``` text
 v0.2.0        # 0.2.0
 v1            # 1
 v1.2.3-zuzu   # 1.2.3
