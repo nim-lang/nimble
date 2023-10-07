@@ -616,7 +616,7 @@ of the Nim compiler required is recommended.
 
 You can also specify multiple dependencies like so:
 
-```
+```nim
 # Deps
 
 requires "nim >= 0.10.0", "foobar >= 0.1.0"
@@ -641,7 +641,7 @@ Both operators `^=` and `~=` were not available yet for Nimble 0.13.1 and
 earlier and would cause error messages if used there.
 Other more complex comparison operators that would be available in npm like
 `!=`, `||`, `-`, `*` and `X` are also not available in Nimble.
-```
+```nim
 # Examples for selector ^= and ~=
 
 requires "nim ^= 1.2.2" # nim >= 1.2.2 & < 2.0.0
@@ -738,7 +738,7 @@ need to be manually accessed and forwarded in the task.
 
 For a package named "foobar", the recommended project structure is the following:
 
-```
+```sh
 .                   # The root directory of the project
 ├── LICENSE
 ├── README.md
@@ -763,7 +763,7 @@ command takes care of that for you.
 When introducing more modules into your package, you should place them in a
 separate directory named ``foobar`` (i.e. your package's name). For example:
 
-```
+```sh
 .                   # The root directory of the project
 ├── ...
 ├── foobar.nimble   # The project .nimble file
@@ -780,7 +780,7 @@ separate directory named ``foobar`` (i.e. your package's name). For example:
 You may wish to hide certain modules in your package from the users. Create a
 ``private`` directory for that purpose. For example:
 
-```
+```sh
 .                   # The root directory of the project
 ├── ...
 ├── foobar.nimble   # The project .nimble file
@@ -923,7 +923,7 @@ binary name.
 
 Dependencies are specified using the ``requires`` function. For example:
 
-```
+```nim
 # Dependencies
 requires "nim >= 0.10.0", "jester > 0.1 & <= 0.5"
 ```
