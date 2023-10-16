@@ -692,7 +692,7 @@ proc updateDevelopFile*(dependentPkg: PackageInfo, options: Options): bool =
 
   options.assertDevelopActionIsSet
 
-  let developFile = options.action.developFile
+  let developFile = options.developFile
 
   var
     hasError = false

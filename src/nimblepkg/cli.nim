@@ -173,16 +173,21 @@ proc prompt*(forcePrompts: ForcePrompt, question: string): bool =
     display("Prompt:", question & " -> [forced no]", Warning, HighPriority)
     return false
   of dontForcePrompt:
-    display("Prompt:", question & " [y/N]", Warning, HighPriority)
-    displayCategory("Answer:", Warning, HighPriority)
-    let yn = stdin.readLine()
-    case yn.normalize
-    of "y", "yes":
-      return true
-    of "n", "no":
-      return false
+    if globalCLI.level > SilentPriority:
+      display("Prompt:", question & " [y/N]", Warning, HighPriority)
+      displayCategory("Answer:", Warning, HighPriority)
+      let yn = stdin.readLine()
+      case yn.normalize
+      of "y", "yes":
+        return true
+      of "n", "no":
+        return false
+      else:
+        return false
     else:
-      return false
+      # Just say "yes" to every prompt, since we need to be
+      # 100% silent.
+      return true
 
 proc promptCustom*(forcePrompts: ForcePrompt, question, default: string): string =
   case forcePrompts:
