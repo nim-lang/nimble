@@ -86,7 +86,7 @@ jobs:
       contents: write
     steps:
       - name: Download artefacts
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v3
 
       - uses: ncipollo/release-action@v1
         with:
