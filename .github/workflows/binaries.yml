@@ -73,7 +73,7 @@ jobs:
           tar -c -z -v -f ../nimble-${{ matrix.target.name }}.tar.gz `ls nimble{,.exe} 2>/dev/null || true`
 
       - name: Upload the Nim Language Server Binaries
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: nimble-${{ matrix.target.name }}.tar.gz
           path: nimble-${{ matrix.target.name }}.tar.gz
