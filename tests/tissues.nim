@@ -424,3 +424,10 @@ suite "issues":
 
     # Clean up package file
     check execNimble(["refresh"]).exitCode == QuitSuccess
+
+  test "issue #1158":
+    cd "issue1158":
+      let (output, exitCode) = execNimble("--silent", "echoRequires")
+      check:
+        exitCode == QuitSuccess
+        output.strip() == "@[\"nim >= 1.6.16\"]"

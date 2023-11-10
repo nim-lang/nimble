@@ -108,7 +108,7 @@ proc getNimsFile(scriptName: string, options: Options): string =
 import system except getCommand, setCommand, switch, `--`, thisDir,
   packageName, version, author, description, license, srcDir, binDir, backend,
   skipDirs, skipFiles, skipExt, installDirs, installFiles, installExt, bin, foreignDeps,
-  requires, task, packageName
+  requires, requiresData, task, packageName
 
 import strutils
 import "$1"
