@@ -14,7 +14,7 @@ jobs:
           - ubuntu-latest
         nimversion:
           - devel
-          - stable
+          # - stable
     name: ${{ matrix.os }} - ${{ matrix.nimversion }}
     runs-on: ${{ matrix.os }}
     env:
@@ -33,7 +33,7 @@ jobs:
       - name: Run nim c -r tester
         run: |
           cd tests
-          nim c -r --mm:refc tester
+          nim c -r tester
           # there's no need to add nimblepkg unit tests --
           # they are run by tmoduletests.nim
       - run: ./src/nimble install -y

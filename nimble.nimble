@@ -28,4 +28,4 @@ before build:
 
 task test, "Run the Nimble tester!":
   withDir "tests":
-    exec "nim c -r --gc:refc tester"
+    exec "nim c -r tester"
