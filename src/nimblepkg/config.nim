@@ -23,13 +23,8 @@ proc initConfig(): Config =
   result.chcp = true
   result.cloneUsingHttps = true
   result.packageLists["official"] = PackageList(name: "Official", urls: @[
-    "https://raw.githubusercontent.com/nim-lang/packages/master/packages.json"
-    # This URL serves extremely old data, and sometimes when Nimble cannot reach the above URL
-    # it uses this one which causes data that is years old to be used. This means that
-    # approximately 27189 packages will be missing, or roughly 86% of the entirity of Nim
-    # packages as of 9 September, 2023. Either this should be synchronized with the above URL
-    # regularly or permanently removed. It causes a ton of confusion as described in #1129.
-    # "https://nim-lang.org/nimble/packages.json"
+    "https://raw.githubusercontent.com/nim-lang/packages/master/packages.json",
+    "https://nim-lang.org/nimble/packages.json"
   ])
 
 proc clear(pkgList: var PackageList) =
