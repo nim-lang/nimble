@@ -102,7 +102,10 @@ proc topologicalSort*(graph: LockFileDeps):
       "The dependency graph is not a DAG.")
     display("Warning", message, Warning, HighPriority)
 
-  for node, _ in graph:
+  var sortedNames = graph.keys.toSeq
+  sortedNames.sort(cmp)
+
+  for node in sortedNames:
     nodesInfo[node] = (mark: nmNotMarked, cameFrom: "")
 
   proc visit(node: string) =
@@ -125,8 +128,8 @@ proc topologicalSort*(graph: LockFileDeps):
     nodeInfo.mark = nmPermanent
     order.add node
 
-  for node, nodeInfo in nodesInfo:
-    if nodeInfo.mark != nmPermanent:
+  for node in sortedNames:
+    if nodesInfo[node].mark != nmPermanent:
       visit(node)
 
   if cycles.len > 0:
