@@ -193,6 +193,9 @@ proc buildFromDir(pkgInfo: PackageInfo, paths: HashSet[string],
   if options.verbosity == SilentPriority:
     # Hide Nim warnings
     args.add("--warnings:off")
+  if options.noColor:
+    # Disable coloured output
+    args.add("--colors:off")
 
   let binToBuild =
     # Only build binaries specified by user if any, but only if top-level package,
@@ -225,8 +228,8 @@ proc buildFromDir(pkgInfo: PackageInfo, paths: HashSet[string],
     let input = realDir / src.changeFileExt("nim")
     # `quoteShell` would be more robust than `\"` (and avoid quoting when
     # un-necessary) but would require changing `extractBin`
-    let cmd = "$# $# --colors:on --noNimblePath $# $# $#" % [
-      pkgInfo.getNimBin(options).quoteShell, pkgInfo.backend, join(args, " "),
+    let cmd = "$# $# --colors:$# --noNimblePath $# $# $#" % [
+      pkgInfo.getNimBin(options).quoteShell, pkgInfo.backend, if options.noColor: "off" else: "on", join(args, " "),
       outputOpt, input.quoteShell]
     try:
       doCmd(cmd)
