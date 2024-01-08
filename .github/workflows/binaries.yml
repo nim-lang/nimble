@@ -28,7 +28,7 @@ jobs:
             name: linux_armv7l
           - os: macosx
             triple: x86_64-apple-darwin14
-            name: apple_x64
+            name: macosx_x64
           - os: windows
             triple: x86_64-w64-mingw32
             name: windows_x64
