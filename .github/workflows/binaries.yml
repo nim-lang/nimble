@@ -57,7 +57,7 @@ jobs:
 
       - uses: jiro4989/setup-nim-action@v1.4.3
         with:
-          nimversion: ${{ matrix.nim-version }}
+          nim-version: ${{ matrix.nim-version }}
           yes: true
 
       - name: Install checksums
@@ -100,5 +100,6 @@ jobs:
       - name: Delete artefacts
         uses: geekyeggo/delete-artifact@v4
         with:
+          token: ${{ secrets.GITHUB_TOKEN }}
           failOnError: false
           name: "nimble-*"
