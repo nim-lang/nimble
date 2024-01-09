@@ -57,7 +57,7 @@ jobs:
 
       - uses: jiro4989/setup-nim-action@v1.4.3
         with:
-          nim-version: ${{ matrix.nim-version }}
+          nim-version: 'stable'
           yes: true
 
       - name: Install checksums
