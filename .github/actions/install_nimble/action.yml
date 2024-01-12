@@ -30,7 +30,7 @@ runs:
         fi
 
         if [[ '${{ inputs.os }}' == 'macos' ]]; then
-          OS=apple
+          OS=macosx
         else
           OS='${{ inputs.os }}'
         fi
