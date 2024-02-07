@@ -1,0 +1,37 @@
+site_name: Nimble User Guide
+
+theme:
+  name: material
+  features:
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.expand
+    - navigation.sections
+    - toc.integrate
+  palette:
+    primary: teal
+
+markdown_extensions:
+  - admonition
+  - pymdownx.highlight:
+      anchor_linenums: true
+      pygments_lang_class: true
+  - pymdownx.snippets
+  - pymdownx.superfences
+
+
+nav:
+  - Home:
+    - 'index.md'
+    - 'install-nimble.md'
+
+  - Use existing packages:
+    - 'use-packages.md'
+
+  - Create Nimble packages:
+    - 'create-packages.md'
+    - 'package-types.md'
+    - 'nimble-reference.md'
+
+  - Nimble develop workflow:
+    - 'workflow.md'
