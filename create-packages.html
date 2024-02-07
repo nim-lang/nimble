@@ -1,0 +1,1232 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+        <link rel="prev" href="use-packages.html">
+      
+      
+        <link rel="next" href="package-types.html">
+      
+      
+      <link rel="icon" href="assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.5.3, mkdocs-material-9.5.4">
+    
+    
+      
+        <title>Creating Nimble packages - Nimble User Guide</title>
+      
+    
+    
+      <link rel="stylesheet" href="assets/stylesheets/main.50c56a3b.min.css">
+      
+        
+        <link rel="stylesheet" href="assets/stylesheets/palette.06af60db.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL(".",location),__md_hash=e=>[...e].reduce((e,_)=>(e<<5)-e+_.charCodeAt(0),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+  </head>
+  
+  
+    
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="teal" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#creating-nimble-packages" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="." title="Nimble User Guide" class="md-header__button md-logo" aria-label="Nimble User Guide" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54Z"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3V6m0 5h18v2H3v-2m0 5h18v2H3v-2Z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Nimble User Guide
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Creating Nimble packages
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+    
+    
+    
+    
+      <label class="md-header__button md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5Z"/></svg>
+      </label>
+      <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5Z"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12Z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41Z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+    
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="index.html" class="md-tabs__link">
+          
+  
+  Home
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="use-packages.html" class="md-tabs__link">
+          
+  
+  Use existing packages
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="create-packages.html" class="md-tabs__link">
+          
+  
+  Create Nimble packages
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="workflow.html" class="md-tabs__link">
+          
+  
+  Nimble develop workflow
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--lifted md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="." title="Nimble User Guide" class="md-nav__button md-logo" aria-label="Nimble User Guide" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54Z"/></svg>
+
+    </a>
+    Nimble User Guide
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+      
+      
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_1" id="__nav_1_label" tabindex="">
+            
+  
+  <span class="md-ellipsis">
+    Home
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_1">
+            <span class="md-nav__icon md-icon"></span>
+            Home
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="index.html" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Nimble User Guide
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="install-nimble.html" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Installing Nimble
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+      
+      
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  <span class="md-ellipsis">
+    Use existing packages
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            Use existing packages
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="use-packages.html" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Use existing Nimble packages
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+    
+      
+      
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  <span class="md-ellipsis">
+    Create Nimble packages
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            Create Nimble packages
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  <span class="md-ellipsis">
+    Creating Nimble packages
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="create-packages.html" class="md-nav__link md-nav__link--active">
+        
+  
+  <span class="md-ellipsis">
+    Creating Nimble packages
+  </span>
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#nimble-init" class="md-nav__link">
+    <span class="md-ellipsis">
+      nimble init
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#project-structure" class="md-nav__link">
+    <span class="md-ellipsis">
+      Project structure
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#nimble-file" class="md-nav__link">
+    <span class="md-ellipsis">
+      .nimble file
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=".nimble file">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#dependencies" class="md-nav__link">
+    <span class="md-ellipsis">
+      Dependencies
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#nimscript-compatibility" class="md-nav__link">
+    <span class="md-ellipsis">
+      NimScript compatibility
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#nimble-tasks" class="md-nav__link">
+    <span class="md-ellipsis">
+      nimble tasks
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#nimble-test" class="md-nav__link">
+    <span class="md-ellipsis">
+      nimble test
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#nimble-c" class="md-nav__link">
+    <span class="md-ellipsis">
+      nimble c
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#nimble-build" class="md-nav__link">
+    <span class="md-ellipsis">
+      nimble build
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#nimble-run" class="md-nav__link">
+    <span class="md-ellipsis">
+      nimble run
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#nimble-check" class="md-nav__link">
+    <span class="md-ellipsis">
+      nimble check
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#nimble-install" class="md-nav__link">
+    <span class="md-ellipsis">
+      nimble install
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#nimble-publish" class="md-nav__link">
+    <span class="md-ellipsis">
+      nimble publish
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="nimble publish">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#releasing-a-new-version" class="md-nav__link">
+    <span class="md-ellipsis">
+      Releasing a new version
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Releasing a new version">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#git-version-tagging" class="md-nav__link">
+    <span class="md-ellipsis">
+      Git Version Tagging
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="package-types.html" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Nimble package types
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="nimble-reference.html" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    .nimble file reference
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+      
+      
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  <span class="md-ellipsis">
+    Nimble develop workflow
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            Nimble develop workflow
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="workflow.html" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Nimble develop workflow
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+<h1 id="creating-nimble-packages">Creating Nimble packages</h1>
+<p>In this guide you will find the information on how to create and publish new Nimble packages.</p>
+<h2 id="nimble-init"><code>nimble init</code></h2>
+<p>The easiest and recommended way to start a new Nimble project is to run <code>nimble init</code> in the directory in which you want to create a package, and follow the steps in the wizard.</p>
+<div class="language-text highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>$ nimble init
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>      Info: Package initialisation requires info which could not be inferred.
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>        ... Default values are shown in square brackets, press
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>        ... enter to use them.
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>      Using &quot;myPackage&quot; for new package name
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>      Using username for new package author
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>      Using &quot;src&quot; for new package source directory
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    Prompt: Package type?
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>        ... Library - provides functionality for other packages.
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>        ... Binary  - produces an executable for the end-user.
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>        ... Hybrid  - combination of library and binary
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>        ... For more information see https://goo.gl/cm2RX5
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>     Select Cycle with &#39;Tab&#39;, &#39;Enter&#39; when done
+<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>   Choices:&gt; library &lt;
+<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>             binary  
+<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>             hybrid  
+</code></pre></div>
+<p>The first choice you have to make is the type of your package.
+The differences between those three options are outlined in <a href="package-types.html">this document</a>.</p>
+<p>After that, the wizard asks you about the version number of your package (default: 0.1.0), a package description, a license you want to use and the lowest Nim version that your package is compatible with.
+You can press enter to use the provided default answer for each question.</p>
+<div class="language-text highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>    Prompt: Initial version of package? [0.1.0]
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>    Answer: 
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>    Prompt: Package description? [A new awesome nimble package]
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>    Answer: Check if a number is odd.         
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>    Prompt: Package License?
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>        ... This should ideally be a valid SPDX identifier. See https://spdx.org/licenses/.
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>     Select Cycle with &#39;Tab&#39;, &#39;Enter&#39; when done
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>    Answer: MIT
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>    Prompt: Lowest supported Nim version? [2.1.1]
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>    Answer: 2.0.0
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>   Success: Package myPackage created successfully
+</code></pre></div>
+<p>After the wizard completes, the structure of your directory looks like this:</p>
+<div class="language-text highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>.
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>├── myPackage.nimble
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>├── src
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>│   ├── myPackage
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>│   │   └── submodule.nim
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>│   └── myPackage.nim
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>└── tests
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>    ├── config.nims
+<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>    └── test1.nim
+</code></pre></div>
+<p>The answers you provided are stored in the <code>.nimble</code> file:</p>
+<div class="language-ini highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># Package</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="na">version</span><span class="w">       </span><span class="o">=</span><span class="w"> </span><span class="s">&quot;0.1.0&quot;</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="na">author</span><span class="w">        </span><span class="o">=</span><span class="w"> </span><span class="s">&quot;username&quot;</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="na">description</span><span class="w">   </span><span class="o">=</span><span class="w"> </span><span class="s">&quot;Check if a number is odd.&quot;</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="na">license</span><span class="w">       </span><span class="o">=</span><span class="w"> </span><span class="s">&quot;MIT&quot;</span>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="na">srcDir</span><span class="w">        </span><span class="o">=</span><span class="w"> </span><span class="s">&quot;src&quot;</span>
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>
+<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>
+<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="c1"># Dependencies</span>
+<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a>
+<a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a><span class="na">requires &quot;nim &gt;</span><span class="o">=</span><span class="w"> </span><span class="s">2.0.0&quot;</span>
+</code></pre></div>
+<h2 id="project-structure">Project structure</h2>
+<p>For a package named <code>foobar</code>, the recommended project structure is the following:</p>
+<div class="language-sh highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>.<span class="w">                   </span><span class="c1"># The root directory of the project</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>├──<span class="w"> </span>LICENSE
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>├──<span class="w"> </span>README.md
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>├──<span class="w"> </span>foobar.nimble<span class="w">   </span><span class="c1"># The project .nimble file</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>└──<span class="w"> </span>src
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="w">    </span>└──<span class="w"> </span>foobar.nim<span class="w">  </span><span class="c1"># Imported via `import foobar`</span>
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>└──<span class="w"> </span>tests<span class="w">           </span><span class="c1"># Contains the tests</span>
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="w">    </span>├──<span class="w"> </span>config.nims
+<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="w">    </span>├──<span class="w"> </span>tfoo1.nim<span class="w">   </span><span class="c1"># First test</span>
+<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="w">    </span>└──<span class="w"> </span>tfoo2.nim<span class="w">   </span><span class="c1"># Second test</span>
+</code></pre></div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>When source files are placed in a <code>src</code> directory, the <code>.nimble</code> file must contain a <code>srcDir = "src"</code> directive.
+The <code>nimble init</code> command takes care of that for you.</p>
+</div>
+<p>When introducing more modules into your package, you should place them in a separate directory named <code>foobar</code> (i.e. your package's name).
+For example:</p>
+<div class="language-sh highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>.
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>├──<span class="w"> </span>...
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>├──<span class="w"> </span>foobar.nimble
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>├──<span class="w"> </span>src
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>│<span class="w">   </span>├──<span class="w"> </span>foobar
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>│<span class="w">   </span>│<span class="w">   </span>├──<span class="w"> </span>utils.nim<span class="w">   </span><span class="c1"># Imported via `import foobar/utils`</span>
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>│<span class="w">   </span>│<span class="w">   </span>└──<span class="w"> </span>common.nim<span class="w">  </span><span class="c1"># Imported via `import foobar/common`</span>
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>│<span class="w">   </span>└──<span class="w"> </span>foobar.nim<span class="w">      </span><span class="c1"># Imported via `import foobar`</span>
+<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a>└──<span class="w"> </span>...
+</code></pre></div>
+<p>You may wish to hide certain modules in your package from the users. Create a
+<code>private</code> directory for that purpose. For example:</p>
+<div class="language-sh highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>.
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>├──<span class="w"> </span>...
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>├──<span class="w"> </span>foobar.nimble
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>├──<span class="w"> </span>src
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>│<span class="w">   </span>├──<span class="w"> </span>foobar
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>│<span class="w">   </span>│<span class="w">   </span>├──<span class="w"> </span>private
+<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a>│<span class="w">   </span>│<span class="w">   </span>│<span class="w">   </span>└──<span class="w"> </span>hidden.nim<span class="w">  </span><span class="c1"># Imported via `import foobar/private/hidden`</span>
+<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a>│<span class="w">   </span>│<span class="w">   </span>├──<span class="w"> </span>utils.nim
+<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a>│<span class="w">   </span>│<span class="w">   </span>└──<span class="w"> </span>common.nim
+<a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a>│<span class="w">   </span>└──<span class="w"> </span>foobar.nim
+<a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a>└──<span class="w"> </span>...
+</code></pre></div>
+<h2 id="nimble-file"><code>.nimble</code> file</h2>
+<p>As seen above, running <code>nimble init</code> creates a basic <code>.nimble</code> file.
+It can be modified to add more dependencies and/or create custom tasks, etc.</p>
+<h3 id="dependencies">Dependencies</h3>
+<p>If your package relies on other dependencies, you need to add them to the <code>.nimble</code> file.
+Nimble currently supports the installation of packages from a local directory, a Git repository and a mercurial repository. </p>
+<div class="language-ini highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="na">...</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="c1"># Dependencies</span>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="na">requires &quot;nim &gt;</span><span class="o">=</span><span class="w"> </span><span class="s">2.0.0&quot;</span>
+<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="na">requires &quot;fizzbuzz</span><span class="w"> </span><span class="o">=</span><span class="s">= 1.0&quot;</span>
+<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="na">requires &quot;https</span><span class="o">:</span><span class="s">//github.com/user/pkg</span><span class="c1">#5a54b5e&quot;</span>
+<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a><span class="na">requires &quot;foobar#head&quot;</span>
+</code></pre></div>
+<p>Versions of cloned packages via Git or Mercurial are determined through the repository's <em>tags</em>.
+When installing a package that needs to be downloaded, Nimble will check the cloned repository's tags list.</p>
+<ul>
+<li>If no tags exist, Nimble will simply install the <code>HEAD</code> of the repository.</li>
+<li>If tags exist, Nimble will attempt to look for tags that resemble versions (e.g. <code>v0.1</code>) and will then find the latest version out of the available tags, once it does so it will install the package after checking out the latest version.</li>
+</ul>
+<p>You can force the installation of the <code>HEAD</code> of the repository by specifying <code>#head</code> after the package name in your dependency list.</p>
+<p>There are several version selector operators you can use:</p>
+<table>
+<thead>
+<tr>
+<th>Operator</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>==</code></td>
+<td>Install the exact version.</td>
+</tr>
+<tr>
+<td><code>&gt;</code></td>
+<td>Install higher version.</td>
+</tr>
+<tr>
+<td><code>&lt;</code></td>
+<td>Install lower version.</td>
+</tr>
+<tr>
+<td><code>&gt;=</code></td>
+<td>Install <em>at least</em> the provided version.</td>
+</tr>
+<tr>
+<td><code>&lt;=</code></td>
+<td>Install <em>at most</em> the provided version.</td>
+</tr>
+<tr>
+<td><code>^=</code></td>
+<td>Install the latest compatible version according to <a href="https://semver.npmjs.com/">semver</a>.</td>
+</tr>
+<tr>
+<td><code>~=</code></td>
+<td>Install the latest version by increasing the last given digit</td>
+</tr>
+<tr>
+<td>to the highest version.</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<p>Here are some examples of the <code>^=</code> and <code>~=</code> operators:</p>
+<div class="language-nim highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="n">requires</span><span class="w"> </span><span class="s">&quot;nim ^= 1.2.2&quot;</span><span class="w">    </span><span class="c"># nim &gt;= 1.2.2 &amp; &lt; 2.0.0</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="n">requires</span><span class="w"> </span><span class="s">&quot;nim ~= 1.2.2&quot;</span><span class="w">    </span><span class="c"># nim &gt;= 1.2.2 &amp; &lt; 1.3.0</span>
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="n">requires</span><span class="w"> </span><span class="s">&quot;jester ^= 0.4.1&quot;</span><span class="w"> </span><span class="c"># jester &gt;= 0.4.1 &amp; &lt; 0.5.0</span>
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="n">requires</span><span class="w"> </span><span class="s">&quot;jester ~= 0.4.1&quot;</span><span class="w"> </span><span class="c"># jester &gt;= 0.4.1 &amp; &lt; 0.5.0</span>
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="n">requires</span><span class="w"> </span><span class="s">&quot;jester ~= 0.4&quot;</span><span class="w">   </span><span class="c"># jester &gt;= 0.4.0 &amp; &lt; 1.0.0</span>
+<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="n">requires</span><span class="w"> </span><span class="s">&quot;choosenim ~= 0&quot;</span><span class="w">  </span><span class="c"># choosenim &gt;= 0.0.0 &amp; &lt; 1.0.0</span>
+<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="n">requires</span><span class="w"> </span><span class="s">&quot;choosenim ^= 0&quot;</span><span class="w">  </span><span class="c"># choosenim &gt;= 0.0.0 &amp; &lt; 1.0.0</span>
+</code></pre></div>
+<h3 id="nimscript-compatibility">NimScript compatibility</h3>
+<p>The <code>.nimble</code> file is very flexible because it is interpreted using NimScript.</p>
+<p>Because of Nim's flexibility, the definitions remain declarative, with the added ability to use the Nim language to enrich your package specification.
+For example, you can define dependencies for specific platforms using Nim's
+<code>when</code> statement:</p>
+<div class="language-nim highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="k">when</span><span class="w"> </span><span class="n">defined</span><span class="p">(</span><span class="n">macosx</span><span class="p">):</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="w">  </span><span class="n">requires</span><span class="w"> </span><span class="s">&quot;libcurl &gt;= 1.0.0&quot;</span>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="k">when</span><span class="w"> </span><span class="n">defined</span><span class="p">(</span><span class="n">windows</span><span class="p">):</span>
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="w">  </span><span class="n">requires</span><span class="w"> </span><span class="s">&quot;puppy 1.5.4&quot;</span>
+</code></pre></div>
+<h3 id="nimble-tasks"><code>nimble tasks</code></h3>
+<p>Another great feature of <code>.nimble</code> file is the ability to define custom Nimble package-specific commands:</p>
+<div class="language-nim highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="n">task</span><span class="w"> </span><span class="n">hello</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;This is a hello task&quot;</span><span class="p">:</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="w">  </span><span class="n">echo</span><span class="w"> </span><span class="s">&quot;Hello World!&quot;</span>
+</code></pre></div>
+<p>You can then execute <code>nimble hello</code>, which will result in the following
+output:</p>
+<div class="language-sh highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>$<span class="w"> </span>nimble<span class="w"> </span>hello
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="w">  </span>Verifying<span class="w"> </span>dependencies<span class="w"> </span><span class="k">for</span><span class="w"> </span>myPackage@0.1.0
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="w">  </span>Executing<span class="w"> </span>task<span class="w"> </span>hello<span class="w"> </span><span class="k">in</span><span class="w"> </span>/home/username/myPackage/myPackage.nimble
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>Hello<span class="w"> </span>world
+</code></pre></div>
+<p>You can also check what tasks are supported by the package in the current
+directory by using the <code>nimble tasks</code> command, for example:</p>
+<div class="language-sh highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>$<span class="w"> </span>nimble<span class="w"> </span>tasks
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>hello<span class="w">     </span>This<span class="w"> </span>is<span class="w"> </span>a<span class="w"> </span>hello<span class="w"> </span>task
+</code></pre></div>
+<p>You can place any Nim code inside these tasks, as long as that code does not access the FFI. The <a href="https://nim-lang.org/docs/nimscript.html">nimscript module</a> in Nim's standard library defines additional functionality, such as the ability to execute external processes
+which makes this feature very powerful.</p>
+<p>Nimble provides an API that adds even more functionality.
+For example, you can specify pre- and post- hooks for any Nimble command (including commands that you define yourself).
+To do this you can add something like the following:</p>
+<div class="language-nim highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="n">before</span><span class="w"> </span><span class="n">hello</span><span class="p">:</span>
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="w">  </span><span class="n">echo</span><span class="w"> </span><span class="s">&quot;About to call hello!&quot;</span>
+</code></pre></div>
+<p>That will result in the following output when <code>nimble hello</code> is executed:</p>
+<div class="language-text highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>$ nimble hello
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>  Verifying dependencies for myPackage@0.1.0
+<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>About to call hello!
+<a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a>  Executing task hello in /home/username/myPackage/myPackage.nimble
+<a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a>Hello world
+</code></pre></div>
+<p>Similar to this, an <code>after</code> block is also available for post hooks, which are executed after Nimble finished executing a command.
+You can also return <code>false</code> from these blocks to stop further execution.</p>
+<p>Tasks support two kinds of flags: <code>nimble &lt;compflags&gt; task &lt;runflags&gt;</code>.</p>
+<p>Compile flags are those specified before the task name and are forwarded to the Nim compiler that runs the <code>.nimble</code> task.
+This enables setting <code>--define:xxx</code> values that can be checked with <code>when defined(xxx)</code> in the task, and other compiler flags that are applicable in Nimscript mode.</p>
+<p>Run flags are those after the task name and are available as command-line arguments to the task.
+They can be accessed as usual from <code>commandLineParams: seq[string]</code>.</p>
+<p>In order to forward compiler flags to <code>exec("nim ...")</code> calls executed within a custom task, the user needs to specify these flags as run flags which will then need to be manually accessed and forwarded in the task.</p>
+<h2 id="nimble-test"><code>nimble test</code></h2>
+<p>Nimble offers a pre-defined <code>test</code> task that compiles and runs all files
+in the <code>tests</code> directory beginning with letter <code>t</code> in their filename.
+Nim flags provided to <code>nimble test</code> will be forwarded to the compiler when building
+the tests.</p>
+<p>If we run <code>nimble test</code> on our example project created in sections above, the default <code>tests/test1.nim</code> (pre-populated with one test) will run with the following output:</p>
+<div class="language-sh highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>$<span class="w"> </span>nimble<span class="w"> </span><span class="nb">test</span>
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a><span class="w">  </span>Verifying<span class="w"> </span>dependencies<span class="w"> </span><span class="k">for</span><span class="w"> </span>myPackage@0.1.0
+<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a><span class="w">  </span>Compiling<span class="w"> </span>/home/username/myPackage/tests/test1<span class="w"> </span><span class="o">(</span>from<span class="w"> </span>package<span class="w"> </span>myPackage<span class="o">)</span><span class="w"> </span>using<span class="w"> </span>c<span class="w"> </span>backend
+<a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a><span class="o">[</span>OK<span class="o">]</span><span class="w"> </span>can<span class="w"> </span>add
+<a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a><span class="w">   </span>Success:<span class="w"> </span>Execution<span class="w"> </span>finished
+<a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a><span class="w">   </span>Success:<span class="w"> </span>All<span class="w"> </span>tests<span class="w"> </span>passed
+</code></pre></div>
+<p>You may wish to override the default <code>test</code> task in your <code>.nimble</code> file.
+Here is a real-world example of a custom <code>test</code> task, which runs tests from seven different test files:</p>
+<div class="language-nim highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="n">task</span><span class="w"> </span><span class="n">test</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;General tests&quot;</span><span class="p">:</span>
+<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a><span class="w">  </span><span class="k">for</span><span class="w"> </span><span class="n">file</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="o">[</span><span class="s">&quot;tsources.nim&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;tblocks.nim&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;tnimib.nim&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;trenders.nim&quot;</span><span class="o">]</span><span class="p">:</span>
+<a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a><span class="w">    </span><span class="n">exec</span><span class="w"> </span><span class="s">&quot;nim r --hints:off tests/&quot;</span><span class="w"> </span><span class="o">&amp;</span><span class="w"> </span><span class="n">file</span>
+<a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a><span class="w">  </span><span class="k">for</span><span class="w"> </span><span class="n">file</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="o">[</span><span class="s">&quot;tblocks.nim&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;tnimib.nim&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;trenders.nim&quot;</span><span class="o">]</span><span class="p">:</span>
+<a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a><span class="w">    </span><span class="n">exec</span><span class="w"> </span><span class="s">&quot;nim r --hints:off -d:nimibCodeFromAst tests/&quot;</span><span class="w"> </span><span class="o">&amp;</span><span class="w"> </span><span class="n">file</span>
+</code></pre></div>
+<h2 id="nimble-c"><code>nimble c</code></h2>
+<p>The <code>c</code> (or <code>compile</code>, <code>js</code>, <code>cc</code>, <code>cpp</code>) command can be used by developers to compile individual modules inside their package.
+All options passed to Nimble will also be passed to the Nim compiler during compilation.
+For example:</p>
+<p>Nimble will use the backend specified in the package's <code>.nimble</code> file if the command <code>c</code> or <code>compile</code> is specified.
+The more specific <code>js</code>, <code>cc</code>, <code>cpp</code> can be used to override that.</p>
+<h2 id="nimble-build"><code>nimble build</code></h2>
+<p>The <code>build</code> command is mostly used by developers who want to test building their <code>.nimble</code> package.
+This command will build the package with default flags, i.e. a debug build which includes stack traces but no GDB debug information.
+The <code>install</code> command will build the package in release mode instead.</p>
+<p>Nim flags provided to <code>nimble build</code> will be forwarded to the compiler.
+Such compiler flags can be made persistent by using Nim <a href="https://nim-lang.org/docs/nimc.html#compiler-usage-configuration-files">configuration</a> files.</p>
+<h2 id="nimble-run"><code>nimble run</code></h2>
+<p>The <code>run</code> command can be used to build and run any binary specified in your package's <code>bin</code> list.
+The binary needs to be specified after any compilation flags if there are several binaries defined.
+Any flags after the binary or <code>--</code> are passed to the binary when it is run.
+It is possible to run a binary from some dependency package.
+To do this pass the <code>--package, -p</code> option to Nimble.
+For example:</p>
+<div class="language-sh highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>nimble<span class="w"> </span>--package:foo<span class="w"> </span>run<span class="w"> </span>&lt;compilation_flags&gt;<span class="w"> </span>bar<span class="w"> </span>&lt;run_flags&gt;
+</code></pre></div>
+<h2 id="nimble-check"><code>nimble check</code></h2>
+<p>The <code>check</code> command will read your package's <code>.nimble</code> file.
+It will then verify that the package's structure is valid.</p>
+<p>Example:</p>
+<div class="language-text highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>$ nimble check
+<a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a>    Error: Package &#39;x&#39; has an incorrect structure.
+<a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a>    It should contain a single directory hierarchy for source files, named &#39;x&#39;,
+<a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a>    but file &#39;foobar.nim&#39; is in a directory named &#39;incorrect&#39; instead.
+<a id="__codelineno-18-5" name="__codelineno-18-5" href="#__codelineno-18-5"></a>    This will be an error in the future.
+<a id="__codelineno-18-6" name="__codelineno-18-6" href="#__codelineno-18-6"></a>    Hint: If &#39;incorrect&#39; contains source files for building &#39;x&#39;, rename it to &#39;x&#39;.
+<a id="__codelineno-18-7" name="__codelineno-18-7" href="#__codelineno-18-7"></a>    Otherwise, prevent its installation by adding `skipDirs = @[&quot;incorrect&quot;]`
+<a id="__codelineno-18-8" name="__codelineno-18-8" href="#__codelineno-18-8"></a>    to the .nimble file.
+<a id="__codelineno-18-9" name="__codelineno-18-9" href="#__codelineno-18-9"></a>  Failure: Validation failed
+</code></pre></div>
+<p>When using the <code>check</code> command, the development mode dependencies are also validated against the lock file.
+The following reasons for validation failure are possible:</p>
+<ul>
+<li>The package directory is not under version control.</li>
+<li>The package working copy directory is not in clean state.</li>
+<li>Current VCS revision is not pushed on any remote.</li>
+<li>The working copy needs sync.</li>
+<li>The working copy needs lock.</li>
+<li>The working copy needs merge or re-base.</li>
+</ul>
+<h2 id="nimble-install"><code>nimble install</code></h2>
+<p>While <code>nimble install &lt;packageName&gt;</code> is used to download and install an existing package (see <a href="use-packages.html#nimble-install">this guide</a>),
+it can also be used for locally testing or developing a Nimble package by leaving out the package name parameter.
+Your current working directory must be a Nimble package and contain a valid <code>package.nimble</code> file.</p>
+<p>Nimble will install the package residing in the current working directory when you don't specify a package name and the directory contains a <code>package.nimble</code> file.
+This can be useful for developers who are locally testing their <code>.nimble</code> files before submitting them to the official package list.</p>
+<p>Dependencies required for developing or testing a project can be installed by passing <code>--depsOnly</code> without specifying a package name.
+Nimble will then install any missing dependencies listed in the package's <code>package.nimble</code> file in the current working directory.
+Note that dependencies will be installed globally.</p>
+<p>For example, to install the dependencies:</p>
+<div class="language-text highlight"><pre><span></span><code>$ nimble install --depsOnly
+</code></pre></div>
+<h2 id="nimble-publish"><code>nimble publish</code></h2>
+<p>Publishing packages isn't a requirement, but doing so allows people to associate a specific name to a URL pointing to your package.
+This mapping is stored in <a href="https://github.com/nim-lang/packages">the official packages repository</a>.</p>
+<p>This repository contains a <code>packages.json</code> file that lists all the published packages.
+It contains a set of package names with associated metadata.
+You can read more about this metadata in the
+<a href="https://github.com/nim-lang/packages#readme">readme for the packages repository</a>.</p>
+<p>To publish your package, you can do it in two different ways:</p>
+<ul>
+<li>
+<p>Semi-automatically, by running <code>nimble publish</code>, which requires a valid GitHub account with a personal access token.
+   The token is stored in <code>$nimbleDir/github_api_token</code>, which can be replaced if you need to update/replace your token.</p>
+</li>
+<li>
+<p>Manually, by forking the <a href="https://github.com/nim-lang/packages">packages repository</a>, adding an entry into the <code>packages.json</code> file for your packages, and creating a pull request with your changes.</p>
+</li>
+</ul>
+<p>You need to do this only once, i.e. no need to do it every time you increase the version of your package.</p>
+<h3 id="releasing-a-new-version">Releasing a new version</h3>
+<p>Version releases are done by creating a tag in your Git or Mercurial repository.</p>
+<p>Whenever you want to release a new version, you should remember to first increment the version in your <code>.nimble</code> file and commit your changes. Only after that is done should you tag the release.</p>
+<p>To summarize, the steps for release are:</p>
+<ol>
+<li>Increment the version in your <code>.nimble</code> file.</li>
+<li>Commit your changes.</li>
+<li>Tag your release, by for example running <code>git tag v0.2.0</code>.</li>
+<li>Push your tags and commits.</li>
+</ol>
+<p>Once the new tag is in the remote repository, Nimble will be able to detect the new version.</p>
+<h4 id="git-version-tagging">Git Version Tagging</h4>
+<p>Use dot-separated numbers to represent the release version in the git tag label. 
+Nimble will parse these git tag labels to know which versions of a package are published.</p>
+<div class="language-sh highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>v0.2.0<span class="w">        </span><span class="c1"># 0.2.0</span>
+<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a>v1<span class="w">            </span><span class="c1"># 1</span>
+<a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a>v1.2.3-zuzu<span class="w">   </span><span class="c1"># 1.2.3</span>
+<a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a>foo-1.2.3.4<span class="w">   </span><span class="c1"># 1.2.3.4</span>
+</code></pre></div>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    <script id="__config" type="application/json">{"base": ".", "features": ["navigation.tabs", "navigation.tabs.sticky", "navigation.expand", "navigation.sections", "toc.integrate"], "search": "assets/javascripts/workers/search.c011b7c0.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
+    
+    
+      <script src="assets/javascripts/bundle.7389ff0e.min.js"></script>
+      
+    
+  </body>
+</html>
