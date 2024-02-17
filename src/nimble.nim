@@ -164,7 +164,7 @@ proc processFreeDependencies(pkgInfo: PackageInfo,
   for i in reverseDependencies:
     addRevDep(options.nimbleData, i, pkgInfo)
 
-proc buildFromDir(pkgInfo: PackageInfo, paths: HashSet[string],
+proc buildFromDir(pkgInfo: PackageInfo, paths: HashSet[seq[string]],
                   args: seq[string], options: Options) =
   ## Builds a package as specified by ``pkgInfo``.
   # Handle pre-`build` hook.
@@ -186,7 +186,8 @@ proc buildFromDir(pkgInfo: PackageInfo, paths: HashSet[string],
     args = args
   args.add "-d:NimblePkgVersion=" & $pkgInfo.basicInfo.version
   for path in paths:
-    args.add("--path:" & path.quoteShell)
+    for p in path:
+      args.add("--path:" & p.quoteShell)
   if options.verbosity >= HighPriority:
     # Hide Nim hints by default
     args.add("--hints:off")
@@ -336,7 +337,7 @@ proc processLockedDependencies(pkgInfo: PackageInfo, options: Options):
   HashSet[PackageInfo]
 
 proc getDependenciesPaths(pkgInfo: PackageInfo, options: Options):
-    HashSet[string]
+    HashSet[seq[string]]
 
 proc processAllDependencies(pkgInfo: PackageInfo, options: Options):
     HashSet[PackageInfo] =
@@ -354,6 +355,10 @@ proc allDependencies(pkgInfo: PackageInfo, options: Options): HashSet[PackageInf
   result.incl pkgInfo.processFreeDependencies(pkgInfo.requires, options)
   for requires in pkgInfo.taskRequires.values:
     result.incl pkgInfo.processFreeDependencies(requires, options)
+
+proc expandPaths(pkgInfo: PackageInfo, options: Options): seq[string] =
+  var pkgInfo = pkgInfo.toFullInfo(options)
+  return @[pkgInfo.getRealDir()] & pkgInfo.paths.mapIt(pkgInfo.getRealDir() & "/" & it)
 
 proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
                     url: string, first: bool, fromLockFile: bool,
@@ -439,7 +444,7 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
   # if the build fails then the old package will still be installed.
 
   if pkgInfo.bin.len > 0 and not isNimPackage:
-    let paths = result.deps.map(dep => dep.getRealDir())
+    let paths = result.deps.map(dep => dep.expandPaths(options))
     let flags = if options.action.typ in {actionInstall, actionPath, actionUninstall, actionDevelop}:
                   options.action.passNimFlags
                 else:
@@ -780,9 +785,9 @@ proc install(packages: seq[PkgTuple], options: Options,
           raise
 
 proc getDependenciesPaths(pkgInfo: PackageInfo, options: Options):
-    HashSet[string] =
+    HashSet[seq[string]] =
   let deps = pkgInfo.processAllDependencies(options)
-  return deps.map(dep => dep.getRealDir())
+  return deps.map(dep => dep.expandPaths(options))
 
 proc build(pkgInfo: PackageInfo, options: Options) =
   ## Builds the package `pkgInfo`.
@@ -1037,6 +1042,7 @@ proc dump(options: Options) =
   fn "binDir", p.binDir
   fn "srcDir", p.srcDir
   fn "backend", p.backend
+  fn "paths", p.paths
   if json:
     s = j.pretty
   echo s
@@ -1416,7 +1422,8 @@ proc updatePathsFile(pkgInfo: PackageInfo, options: Options) =
   let paths = pkgInfo.getDependenciesPaths(options)
   var pathsFileContent = "--noNimblePath\n"
   for path in paths:
-    pathsFileContent &= &"--path:{path.escape}\n"
+    for p in path:
+      pathsFileContent &= &"--path:{p.escape}\n"
   var action = if fileExists(nimblePathsFileName): "updated" else: "generated"
   writeFile(nimblePathsFileName, pathsFileContent)
   displayInfo(&"\"{nimblePathsFileName}\" is {action}.")
