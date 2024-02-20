@@ -356,10 +356,18 @@ proc allDependencies(pkgInfo: PackageInfo, options: Options): HashSet[PackageInf
   for requires in pkgInfo.taskRequires.values:
     result.incl pkgInfo.processFreeDependencies(requires, options)
 
+proc isSubdirOf(subdir, baseDir: string): bool =
+  subDir.normalizedPath.startsWith(baseDir.normalizedPath)
+
 proc expandPaths(pkgInfo: PackageInfo, options: Options): seq[string] =
   var pkgInfo = pkgInfo.toFullInfo(options)
-  return @[pkgInfo.getRealDir()] & pkgInfo.paths.mapIt(pkgInfo.getRealDir() & "/" & it)
-
+  let baseDir = pkgInfo.getRealDir()
+  result = @[baseDir]
+  for relativePath in pkgInfo.paths:
+    let path = baseDir & "/" & relativePath
+    if path.isSubdirOf(baseDir):
+      result.add path
+ 
 proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
                     url: string, first: bool, fromLockFile: bool,
                     vcsRevision = notSetSha1Hash,
