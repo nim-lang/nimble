@@ -791,6 +791,62 @@ proc build(pkgInfo: PackageInfo, options: Options) =
   var args = options.getCompilationFlags()
   buildFromDir(pkgInfo, paths, args, options)
 
+proc addPackages(packages: seq[PkgTuple], options: var Options) =
+  if packages.len == 0:
+    raise nimbleError(
+      "Expected packages to add to dependencies, got none."
+    )
+  
+  let 
+    dir = findNimbleFile(getCurrentDir(), true)
+    pkgInfo = options.initPackageInfo(dir)
+    pkgList = options.getPackageList()
+
+  var 
+    appendStr: string
+    addedPkgs: seq[string]
+
+  # If the package doesn't exist, raise an error.
+  for apkg in packages:
+    var 
+      exists = false
+      version: string
+
+    let 
+      pUri = parseUri(apkg.name)
+      isValidUrl = pUri.hostname != "" # TODO: use a better way to detect a potential URL
+
+    for pkg in pkgList:
+      if pkg.name == apkg.name:
+        exists = true
+        version = $pkg.version
+        break
+    
+    if not exists and not isValidUrl:
+      raise nimbleError(
+        "No such package \"" & apkg.name & "\" was found in the package list."
+      )
+
+    appendStr &= "requires \"$1$2\"\n" % [
+      apkg.name,
+      if version != "":
+        " >= " & version
+      else:
+        ""
+    ]
+
+    addedPkgs.add(apkg.name)
+
+  let file = open(dir, fmAppend)
+  file.write(appendStr)
+  
+  for added in addedPkgs:
+    display(
+      "Added",
+      "$1 to your project's dependencies" % [added],
+      priority = HighPriority
+    )
+
 proc build(options: var Options) =
   getPkgInfo(getCurrentDir(), options).build(options)
 
@@ -2091,7 +2147,6 @@ proc doAction(options: var Options) =
   if options.showVersion:
     writeVersion()
 
-
   case options.action.typ
   of actionRefresh:
     refresh(options)
@@ -2156,6 +2211,8 @@ proc doAction(options: var Options) =
     shell(options)
   of actionNil:
     assert false
+  of actionAdd:
+    addPackages(options.action.packages, options)
   of actionCustom:
     var optsCopy = options
     optsCopy.task = options.action.command.normalize
