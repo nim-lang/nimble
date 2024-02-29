@@ -819,7 +819,11 @@ proc addPackages(packages: seq[PkgTuple], options: var Options) =
     for pkg in pkgList:
       if pkg.name == apkg.name:
         exists = true
-        version = $pkg.version
+        version = case apkg.ver.kind
+        of verAny:
+          ""
+        else:
+          $apkg.ver
         break
     
     if not exists and not isValidUrl:
