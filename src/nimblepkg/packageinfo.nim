@@ -114,6 +114,7 @@ proc validatePackagesList(path: string): bool =
   ## Determines whether package list at ``path`` is valid.
   try:
     if not path.fileExists:
+      display("Warning:", path & " does not exist.", Warning, HighPriority)
       return false
     let pkgList = parseFile(path)
     if pkgList.kind == JArray:
