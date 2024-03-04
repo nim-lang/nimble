@@ -64,3 +64,7 @@ src/nimblepkg/version
 /buildTests
 /tests/nimdep/nimble.lock
 /tests/nimdep/localnimbledeps/
+
+# Nimble Guide files
+nimble-guide/site/
+!Makefile
