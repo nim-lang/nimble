@@ -20,7 +20,8 @@ import nimblepkg/packageinfotypes, nimblepkg/packageinfo, nimblepkg/version,
        nimblepkg/nimscriptwrapper, nimblepkg/developfile, nimblepkg/paths,
        nimblepkg/nimbledatafile, nimblepkg/packagemetadatafile,
        nimblepkg/displaymessages, nimblepkg/sha1hashes, nimblepkg/syncfile,
-       nimblepkg/deps
+       nimblepkg/deps, nimblepkg/nimblesat
+import sat, satvars
 
 const
   nimblePathsFileName* = "nimble.paths"
@@ -92,9 +93,21 @@ proc processFreeDependencies(pkgInfo: PackageInfo,
   ## during build phase.
   assert not pkgInfo.isMinimal,
          "processFreeDependencies needs pkgInfo.requires"
-
+         
   var pkgList {.global.}: seq[PackageInfo]
-  once: pkgList = initPkgList(pkgInfo, options)
+  once: 
+    pkgList = initPkgList(pkgInfo, options)
+    #At this point we have all the installed packages
+    #If we can solve them all here, we just do it and call it a day. 
+    let allPackages = pkgList.mapIt(it.basicInfo)
+    if requirements.areRequirementsWithinPackages(allPackages):
+      let form = toFormular(requirements, allPackages)      
+      var s = createSolution(form.f)
+      if satisfiable(form.f, s):
+        for pkg in pkgList:
+          result.incl pkg
+        return result
+
   display("Verifying", "dependencies for $1@$2" %
           [pkgInfo.basicInfo.name, $pkgInfo.basicInfo.version],
           priority = HighPriority)
