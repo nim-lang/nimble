@@ -1,11 +1,9 @@
-
-import unittest, os, strutils, osproc
+{.used.}
+import unittest, os
 import testscommon
-from nimble import nimblePathsFileName, nimbleConfigFileName
 from nimblepkg/common import cd
-from nimblepkg/developfile import developFileName
-import std/[tables, sequtils, algorithm]
-import nimblepkg/[version, sha1hashes, packageinfotypes, nimblesat, sat, satvars]
+import std/[tables]
+import nimblepkg/[version, sha1hashes, packageinfotypes, nimblesat, sat]
 
 
 let allPackages: seq[PackageBasicInfo] = @[
