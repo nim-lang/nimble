@@ -4,9 +4,8 @@ import testscommon
 from nimble import nimblePathsFileName, nimbleConfigFileName
 from nimblepkg/common import cd
 from nimblepkg/developfile import developFileName
-import sat, satvars
 import std/[tables, sequtils, algorithm]
-import nimblepkg/[version, sha1hashes, packageinfotypes, nimblesat]
+import nimblepkg/[version, sha1hashes, packageinfotypes, nimblesat, sat, satvars]
 
 
 let allPackages: seq[PackageBasicInfo] = @[
@@ -37,7 +36,6 @@ suite "SAT solver":
     let constraints = @[("c", constraintC), ("b", constraintB), ("b", constraintBC)]
 
     let form = toFormular(constraints, allPackages)
-    echo "Form is ", form
     var s = createSolution(form.f)
     check satisfiable(form.f, s)
     let packages = getPackageVersions(form, s)

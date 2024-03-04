@@ -20,8 +20,7 @@ import nimblepkg/packageinfotypes, nimblepkg/packageinfo, nimblepkg/version,
        nimblepkg/nimscriptwrapper, nimblepkg/developfile, nimblepkg/paths,
        nimblepkg/nimbledatafile, nimblepkg/packagemetadatafile,
        nimblepkg/displaymessages, nimblepkg/sha1hashes, nimblepkg/syncfile,
-       nimblepkg/deps, nimblepkg/nimblesat
-import sat, satvars
+       nimblepkg/deps, nimblepkg/nimblesat, nimblepkg/sat
 
 const
   nimblePathsFileName* = "nimble.paths"
@@ -93,7 +92,7 @@ proc processFreeDependencies(pkgInfo: PackageInfo,
   ## during build phase.
   assert not pkgInfo.isMinimal,
          "processFreeDependencies needs pkgInfo.requires"
-         
+
   var pkgList {.global.}: seq[PackageInfo]
   once: 
     pkgList = initPkgList(pkgInfo, options)
