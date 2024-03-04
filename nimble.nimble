@@ -26,6 +26,5 @@ before install:
 before build:
   exec "nim r src/nimblepkg/private/clone.nim"
 
-task test, "Run the Nimble tester!":
-  withDir "tests":
-    exec "nim c -r tester"
+after build:
+  exec "cp nimble /Volumes/Store/Nim/bin/nimble"

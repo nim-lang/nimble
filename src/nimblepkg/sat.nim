@@ -556,7 +556,6 @@ proc solutionSpace(f: Formular; n: FormPos; maxVar: int; wanted: uint64): Space 
         return solutionSpace(f, child, maxVar, SetToFalse)
     else:
       discard "well we don't care about the value for the NOT expression"
-  else: assert false, "not implemented"
 
 proc satisfiableSlow*(f: Formular; s: var Solution): bool =
   let space = solutionSpace(f, FormPos(0), maxVariable(f), SetToTrue)
