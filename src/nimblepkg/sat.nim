@@ -50,7 +50,7 @@ proc prepare(dest: var Formular; source: Formular; sourcePos: FormPos): PatchPos
   result = PatchPos dest.len
   dest.add source[sourcePos.int]
 
-proc prepare(dest: var Formular; k: FormKind): PatchPos =
+proc prepare*(dest: var Formular; k: FormKind): PatchPos =
   result = PatchPos dest.len
   dest.add newOperation(k, 1)
 
@@ -84,7 +84,7 @@ iterator sons(dest: var Formular; source: Formular; n: FormPos): FormPos =
   for x in sonsReadonly(source, n): yield x
   patch dest, patchPos
 
-proc copyTree(dest: var Formular; source: Formular; n: FormPos) =
+proc copyTree*(dest: var Formular; source: Formular; n: FormPos) =
   let x = source[int n]
   let len = (if x.kind <= VarForm: 1 else: int(intVal(x)))
   for i in 0..<len:
@@ -327,7 +327,7 @@ proc appender(dest: var string; x: int) =
   dest.add 'v'
   dest.addInt x
 
-proc tos(f: Formular; n: FormPos): string =
+proc tos*(f: Formular; n: FormPos): string =
   result = ""
   toString(result, f, n, appender)
 
@@ -419,7 +419,7 @@ proc satisfiable*(f: Formular; sout: var Solution): bool =
     # We have a variable to guess.
     # Construct the two guesses.
     # Return whether either one of them works.
-    let prevValue = s.getVar(v)
+    # let prevValue = s.getVar(v)
     s.setVar(v, SetToFalse)
 
     var falseGuess: Formular
@@ -704,7 +704,7 @@ when isMainModule:
   main2()
 
   const
-    myFormularU = """(&v0 v1 (~v5) (<->v0 (1==v6)) (<->v1 (1==v7 v8)) (<->v2 (1==v9 v10)) (<->v3 (1==v11)) (<->v4 (1==v12 v13)) (<->v14 (1==v8 v7)) (<->v15 (1==v9)) (<->v16 (1==v10 v9)) (<->v17 (1==v11)) (<->v18 (1==v11)) (<->v19 (1==v13)) (|(~v6) v14) (|(~v7) v15) (|(~v8) v16) (|(~v9) v17) (|(~v10) v18) (|(~v11) v19) (|(~v12) v20))"""
+    # myFormularU = """(&v0 v1 (~v5) (<->v0 (1==v6)) (<->v1 (1==v7 v8)) (<->v2 (1==v9 v10)) (<->v3 (1==v11)) (<->v4 (1==v12 v13)) (<->v14 (1==v8 v7)) (<->v15 (1==v9)) (<->v16 (1==v10 v9)) (<->v17 (1==v11)) (<->v18 (1==v11)) (<->v19 (1==v13)) (|(~v6) v14) (|(~v7) v15) (|(~v8) v16) (|(~v9) v17) (|(~v10) v18) (|(~v11) v19) (|(~v12) v20))"""
     myFormular = """(&(1==v0) (1==v1) (1>=v2 v3 v4 v5 v6 v7 v8 v9 v10 v11 v12 v13)
 (1>=v14 v15 v16 v17 v18 v19 v20 v21 v22 v23 v24 v25 v26 v27 v28)
 (1>=v29 v30 v31) (1>=v32)
@@ -724,7 +724,7 @@ when isMainModule:
 (|(~v9) v214) (|(~v14) v215) (|(~v15) v215) (|(~v16) v215) (|(~v17) v215) (|(~v18) v215)
 (|(~v19) v215) (|(~v20) v215) (|(~v21) v216) (|(~v22) v216) (|(~v75) v217))"""
 
-    mySol = @[
+    mySol {.used.} = @[
       SetToTrue, #v0
       SetToFalse, #v1
       SetToTrue, #v2

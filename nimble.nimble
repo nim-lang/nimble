@@ -25,6 +25,3 @@ before install:
 
 before build:
   exec "nim r src/nimblepkg/private/clone.nim"
-
-after build:
-  exec "cp nimble /Volumes/Store/Nim/bin/nimble"

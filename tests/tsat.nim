@@ -53,7 +53,7 @@ suite "SAT solver":
     cd "conflictingdepres":
       #integration version of the test above
       #TODO document folder structure setup so others know how to run similar tests
-      let (output, exitCode) = execNimble("install", "-l")
+      let (_, exitCode) = execNimble("install", "-l")
       check exitCode == QuitSuccess
 
     
