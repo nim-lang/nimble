@@ -1103,6 +1103,7 @@ Nimble includes a ``publish`` command which does this for you automatically.
   listed in ``bin``. Possible values include: ``c``, ``cc``, ``cpp``, ``objc``,
   ``js``.
   **Default**: c
+* ``paths`` - A list of relative paths that will be expanded on `nimble.paths` and the search paths options to the compiler.
 
 ### [Deps]/[Dependencies]
 
