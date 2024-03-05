@@ -11,7 +11,8 @@ installExt = @["nim"]
 
 # Dependencies
 
-requires "nim >= 0.13.0"
+requires "nim >= 0.13.0",
+  "https://github.com/nim-lang/sat"
 
 when defined(nimdistros):
   import distros
@@ -25,3 +26,7 @@ before install:
 
 before build:
   exec "nim r src/nimblepkg/private/clone.nim"
+
+task test, "Run the Nimble tester!":
+  withDir "tests":
+    exec "nim c -r tester"

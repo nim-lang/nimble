@@ -10,7 +10,7 @@ import std/options as std_opt
 
 import strutils except toLower
 from unicode import toLower
-
+import sat/[sat, satvars]
 import nimblepkg/packageinfotypes, nimblepkg/packageinfo, nimblepkg/version,
        nimblepkg/tools, nimblepkg/download, nimblepkg/config, nimblepkg/common,
        nimblepkg/publish, nimblepkg/options, nimblepkg/packageparser,
@@ -20,7 +20,7 @@ import nimblepkg/packageinfotypes, nimblepkg/packageinfo, nimblepkg/version,
        nimblepkg/nimscriptwrapper, nimblepkg/developfile, nimblepkg/paths,
        nimblepkg/nimbledatafile, nimblepkg/packagemetadatafile,
        nimblepkg/displaymessages, nimblepkg/sha1hashes, nimblepkg/syncfile,
-       nimblepkg/deps, nimblepkg/nimblesat, nimblepkg/sat
+       nimblepkg/deps, nimblepkg/nimblesat
 
 const
   nimblePathsFileName* = "nimble.paths"

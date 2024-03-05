@@ -1,5 +1,5 @@
 import std/tables
-import sat, satvars #Notice this two files eventually will be a package. They are copied (untouch) from atlas
+import sat/[sat, satvars] 
 import version, packageinfotypes
 
 type  

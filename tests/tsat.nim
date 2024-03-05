@@ -3,8 +3,8 @@ import unittest, os
 import testscommon
 from nimblepkg/common import cd
 import std/[tables]
-import nimblepkg/[version, sha1hashes, packageinfotypes, nimblesat, sat]
-
+import nimblepkg/[version, sha1hashes, packageinfotypes, nimblesat, ]
+import sat/[sat, satvars] 
 
 let allPackages: seq[PackageBasicInfo] = @[
   (name: "a", version: newVersion "3.0", checksum: Sha1Hash()),
