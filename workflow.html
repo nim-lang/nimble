@@ -9,8 +9,10 @@
       
       
       
-        <link rel="prev" href="nimble-reference.html">
+        <link rel="prev" href="create-packages.html">
       
+      
+        <link rel="next" href="package-types.html">
       
       
       <link rel="icon" href="assets/images/favicon.png">
@@ -229,6 +231,24 @@
           
   
   Nimble develop workflow
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="package-types.html" class="md-tabs__link">
+          
+  
+  Misc
 
         </a>
       </li>
@@ -501,48 +521,6 @@
 
               
             
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="package-types.html" class="md-nav__link">
-        
-  
-  <span class="md-ellipsis">
-    Nimble package types
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="nimble-reference.html" class="md-nav__link">
-        
-  
-  <span class="md-ellipsis">
-    .nimble file reference
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
           </ul>
         </nav>
       
@@ -669,6 +647,21 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="nimble develop">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#nimble-link" class="md-nav__link">
+    <span class="md-ellipsis">
+      .nimble-link
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -693,6 +686,160 @@
   
 </nav>
       
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+      
+      
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+            
+  
+  <span class="md-ellipsis">
+    Misc
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            Misc
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="package-types.html" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Nimble package types
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="config.html" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Configuration
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="nimble-reference.html" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    .nimble file reference
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="folder-structure.html" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Nimble's folder structure and packages
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="troubleshooting.html" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Troubleshooting
+  </span>
+  
+
+      </a>
     </li>
   
 
@@ -830,6 +977,20 @@ It has the following structure:</p>
 <p>Because the develop files are user-specific and they contain local file system
 paths they must not be committed.
 (Running <code>nimble setup</code> takes care of this by adding <code>nimble.develop</code> to the <code>.gitignore</code> file.)</p>
+<h3 id="nimble-link"><code>.nimble-link</code></h3>
+<p>These files are created by Nimble when using the <code>develop</code> command.
+They are very simple and contain two lines.</p>
+<ul>
+<li>
+<p>The first line: Always a path to the <code>.nimble</code> file.</p>
+</li>
+<li>
+<p>The second line: Always a path to the Nimble package's source code.
+  Usually <code>$pkgDir/src</code>, depending on what <code>srcDir</code> is set to.</p>
+</li>
+</ul>
+<p>The paths written by Nimble are always absolute.
+But Nimble (and the Nim compiler) also supports relative paths, which will be read relative to the <code>.nimble-link</code> file.</p>
 <h2 id="nimble-sync"><code>nimble sync</code></h2>
 <p>The <code>nimble sync</code> command will synchronize develop mode dependencies with the content of the lock file.
 If the revision specified in the lock file is not found locally, it tries to fetch it from the configured remotes.
