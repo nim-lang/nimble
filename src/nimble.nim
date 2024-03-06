@@ -799,8 +799,9 @@ proc addPackages(packages: seq[PkgTuple], options: var Options) =
   
   let 
     dir = findNimbleFile(getCurrentDir(), true)
-    pkgInfo = options.initPackageInfo(dir)
+    pkgInfo = getPkgInfo(getCurrentDir(), options)
     pkgList = options.getPackageList()
+    deps = pkgInfo.requires
 
   var 
     appendStr: string
@@ -828,26 +829,41 @@ proc addPackages(packages: seq[PkgTuple], options: var Options) =
     
     if not exists and not isValidUrl:
       raise nimbleError(
-        "No such package \"" & apkg.name & "\" was found in the package list."
+        "No such package \"$1\" was found in the package list." % [apkg.name]
       )
+    
+    var doAppend = true
+    for dep in deps:
+      if dep.name.toLowerAscii() == apkg.name.toLowerAscii():
+        displayWarning(
+          "$1 is already a dependency to $2; ignoring." % [apkg.name, pkgInfo.name]
+        )
+        doAppend = false
+    
+    if not doAppend:
+      continue
 
-    appendStr &= "requires \"$1$2\"\n" % [
+    let prettyStr = case version.len
+      of 0: apkg.name
+      else: apkg.name & '@' & version
+
+    appendStr &= "\nrequires \"$1$2\"" % [
       apkg.name,
       if version != "":
         " >= " & version
       else:
         ""
     ]
-
-    addedPkgs.add(apkg.name)
+    
+    addedPkgs.add(prettyStr)
 
   let file = open(dir, fmAppend)
   file.write(appendStr)
-  
+
   for added in addedPkgs:
     display(
       "Added",
-      "$1 to your project's dependencies" % [added],
+      "$1 as a dependency to $2" % [added, pkgInfo.name],
       priority = HighPriority
     )
 
