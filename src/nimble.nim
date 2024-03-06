@@ -859,6 +859,7 @@ proc addPackages(packages: seq[PkgTuple], options: var Options) =
 
   let file = open(dir, fmAppend)
   file.write(appendStr)
+  file.close()
 
   for added in addedPkgs:
     display(
