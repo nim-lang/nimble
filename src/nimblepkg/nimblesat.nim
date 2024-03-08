@@ -4,14 +4,14 @@ import version, packageinfotypes
 
 type  
   SatVarInfo* = object # attached information for a SAT variable
-    pkg: string
-    version: Version
-    index: int
+    pkg*: string
+    version*: Version
+    index*: int
 
   Form* = object
     f*: Formular
-    mapping: Table[VarId, SatVarInfo]
-    idgen: int32
+    mapping*: Table[VarId, SatVarInfo]
+    idgen*: int32
 
 proc toFormular*(requirements: seq[PkgTuple], allPackages: seq[PackageBasicInfo]): Form =
   var b = Builder()
@@ -46,7 +46,7 @@ proc getPackageVersions*(form: Form, s: var Solution): Table[string, Version] =
 proc areRequirementsWithinPackages*(requirements: seq[PkgTuple], allPackages: seq[PackageBasicInfo]): bool = 
   var found = 0
   for (pkgName, constraint) in requirements:
-    for pgk in allPackages:
+    for pgk in allPackages  :
       if pkgName == pgk.name and pgk.version.withinRange(constraint):
         inc found
         break

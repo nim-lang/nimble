@@ -1,0 +1,832 @@
+{
+  "https://github.com/yyoncho/nim-json-rpc": {
+    "pkgName": "https://github.com/yyoncho/nim-json-rpc",
+    "versions": [
+      {
+        "name": "json_rpc",
+        "version": {
+          "version": "0.0.2"
+        },
+        "requires": [
+          {
+            "name": "nim",
+            "ver": {
+              "kind": 2,
+              "ver": {
+                "version": "1.2.0"
+              }
+            }
+          },
+          {
+            "name": "stew",
+            "ver": {
+              "kind": 8
+            }
+          },
+          {
+            "name": "nimcrypto",
+            "ver": {
+              "kind": 8
+            }
+          },
+          {
+            "name": "stint",
+            "ver": {
+              "kind": 8
+            }
+          },
+          {
+            "name": "chronos",
+            "ver": {
+              "kind": 8
+            }
+          },
+          {
+            "name": "httputils",
+            "ver": {
+              "kind": 8
+            }
+          },
+          {
+            "name": "chronicles",
+            "ver": {
+              "kind": 8
+            }
+          },
+          {
+            "name": "https://github.com/status-im/news",
+            "ver": {
+              "kind": 9,
+              "spe": {
+                "version": "#status"
+              }
+            }
+          },
+          {
+            "name": "websock",
+            "ver": {
+              "kind": 8
+            }
+          },
+          {
+            "name": "https://github.com/yyoncho/asynctools",
+            "ver": {
+              "kind": 9,
+              "spe": {
+                "version": "#non-blocking"
+              }
+            }
+          },
+          {
+            "name": "faststreams",
+            "ver": {
+              "kind": 8
+            }
+          },
+          {
+            "name": "json_serialization",
+            "ver": {
+              "kind": 8
+            }
+          }
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "stew": {
+    "pkgName": "stew",
+    "versions": [
+      {
+        "name": "stew",
+        "version": {
+          "version": "0.1.0"
+        },
+        "requires": [
+          {
+            "name": "nim",
+            "ver": {
+              "kind": 2,
+              "ver": {
+                "version": "1.6.0"
+              }
+            }
+          },
+          {
+            "name": "results",
+            "ver": {
+              "kind": 8
+            }
+          },
+          {
+            "name": "unittest2",
+            "ver": {
+              "kind": 8
+            }
+          }
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "https://github.com/status-im/news": {
+    "pkgName": "https://github.com/status-im/news",
+    "versions": [
+      {
+        "name": "news",
+        "version": {
+          "version": "0.5"
+        },
+        "requires": [
+          {
+            "name": "nim",
+            "ver": {
+              "kind": 2,
+              "ver": {
+                "version": "0.19.0"
+              }
+            }
+          }
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "chronos": {
+    "pkgName": "chronos",
+    "versions": [
+      {
+        "name": "chronos",
+        "version": {
+          "version": "4.0.0"
+        },
+        "requires": [
+          {
+            "name": "nim",
+            "ver": {
+              "kind": 2,
+              "ver": {
+                "version": "1.6.16"
+              }
+            }
+          },
+          {
+            "name": "results",
+            "ver": {
+              "kind": 8
+            }
+          },
+          {
+            "name": "stew",
+            "ver": {
+              "kind": 8
+            }
+          },
+          {
+            "name": "bearssl",
+            "ver": {
+              "kind": 8
+            }
+          },
+          {
+            "name": "httputils",
+            "ver": {
+              "kind": 8
+            }
+          },
+          {
+            "name": "unittest2",
+            "ver": {
+              "kind": 8
+            }
+          }
+        ],
+        "isRoot": false
+      },
+      {
+        "name": "chronos",
+        "version": {
+          "version": "4.0.0"
+        },
+        "requires": [
+          {
+            "name": "nim",
+            "ver": {
+              "kind": 2,
+              "ver": {
+                "version": "1.6.16"
+              }
+            }
+          },
+          {
+            "name": "results",
+            "ver": {
+              "kind": 8
+            }
+          },
+          {
+            "name": "stew",
+            "ver": {
+              "kind": 8
+            }
+          },
+          {
+            "name": "bearssl",
+            "ver": {
+              "kind": 8
+            }
+          },
+          {
+            "name": "httputils",
+            "ver": {
+              "kind": 8
+            }
+          },
+          {
+            "name": "unittest2",
+            "ver": {
+              "kind": 8
+            }
+          }
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "stint": {
+    "pkgName": "stint",
+    "versions": [
+      {
+        "name": "stint",
+        "version": {
+          "version": "2.0.0"
+        },
+        "requires": [
+          {
+            "name": "nim",
+            "ver": {
+              "kind": 2,
+              "ver": {
+                "version": "1.6.12"
+              }
+            }
+          },
+          {
+            "name": "stew",
+            "ver": {
+              "kind": 8
+            }
+          }
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "httputils": {
+    "pkgName": "httputils",
+    "versions": [
+      {
+        "name": "httputils",
+        "version": {
+          "version": "0.3.0"
+        },
+        "requires": [
+          {
+            "name": "nim",
+            "ver": {
+              "kind": 2,
+              "ver": {
+                "version": "1.6.0"
+              }
+            }
+          },
+          {
+            "name": "stew",
+            "ver": {
+              "kind": 8
+            }
+          },
+          {
+            "name": "unittest2",
+            "ver": {
+              "kind": 8
+            }
+          }
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "results": {
+    "pkgName": "results",
+    "versions": [
+      {
+        "name": "results",
+        "version": {
+          "version": "0.4.0"
+        },
+        "requires": [
+          {
+            "name": "nim",
+            "ver": {
+              "kind": 2,
+              "ver": {
+                "version": "1.2"
+              }
+            }
+          }
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "https://github.com/nickysn/asynctools": {
+    "pkgName": "https://github.com/nickysn/asynctools",
+    "versions": [
+      {
+        "name": "asynctools",
+        "version": {
+          "version": "0.1.1"
+        },
+        "requires": [
+          {
+            "name": "nim",
+            "ver": {
+              "kind": 2,
+              "ver": {
+                "version": "0.19.4"
+              }
+            }
+          }
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "unittest2": {
+    "pkgName": "unittest2",
+    "versions": [
+      {
+        "name": "unittest2",
+        "version": {
+          "version": "0.2.1"
+        },
+        "requires": [
+          {
+            "name": "nim",
+            "ver": {
+              "kind": 2,
+              "ver": {
+                "version": "1.6.0"
+              }
+            }
+          }
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "testutils": {
+    "pkgName": "testutils",
+    "versions": [
+      {
+        "name": "testutils",
+        "version": {
+          "version": "0.5.0"
+        },
+        "requires": [
+          {
+            "name": "nim",
+            "ver": {
+              "kind": 2,
+              "ver": {
+                "version": "1.6.0"
+              }
+            }
+          },
+          {
+            "name": "unittest2",
+            "ver": {
+              "kind": 8
+            }
+          }
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "faststreams": {
+    "pkgName": "faststreams",
+    "versions": [
+      {
+        "name": "faststreams",
+        "version": {
+          "version": "0.3.0"
+        },
+        "requires": [
+          {
+            "name": "nim",
+            "ver": {
+              "kind": 2,
+              "ver": {
+                "version": "1.6.0"
+              }
+            }
+          },
+          {
+            "name": "stew",
+            "ver": {
+              "kind": 8
+            }
+          },
+          {
+            "name": "unittest2",
+            "ver": {
+              "kind": 8
+            }
+          }
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "nimcrypto": {
+    "pkgName": "nimcrypto",
+    "versions": [
+      {
+        "name": "nimcrypto",
+        "version": {
+          "version": "0.6.0"
+        },
+        "requires": [
+          {
+            "name": "nim",
+            "ver": {
+              "kind": 2,
+              "ver": {
+                "version": "1.6"
+              }
+            }
+          }
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "bearssl": {
+    "pkgName": "bearssl",
+    "versions": [
+      {
+        "name": "bearssl",
+        "version": {
+          "version": "0.2.2"
+        },
+        "requires": [
+          {
+            "name": "nim",
+            "ver": {
+              "kind": 2,
+              "ver": {
+                "version": "1.6.0"
+              }
+            }
+          },
+          {
+            "name": "unittest2",
+            "ver": {
+              "kind": 8
+            }
+          }
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "websock": {
+    "pkgName": "websock",
+    "versions": [
+      {
+        "name": "websock",
+        "version": {
+          "version": "0.1.0"
+        },
+        "requires": [
+          {
+            "name": "nim",
+            "ver": {
+              "kind": 2,
+              "ver": {
+                "version": "1.6.0"
+              }
+            }
+          },
+          {
+            "name": "chronos",
+            "ver": {
+              "kind": 9,
+              "spe": {
+                "version": "#head"
+              }
+            }
+          },
+          {
+            "name": "httputils",
+            "ver": {
+              "kind": 2,
+              "ver": {
+                "version": "0.2.0"
+              }
+            }
+          },
+          {
+            "name": "chronicles",
+            "ver": {
+              "kind": 2,
+              "ver": {
+                "version": "0.10.2"
+              }
+            }
+          },
+          {
+            "name": "stew",
+            "ver": {
+              "kind": 2,
+              "ver": {
+                "version": "0.1.0"
+              }
+            }
+          },
+          {
+            "name": "nimcrypto",
+            "ver": {
+              "kind": 8
+            }
+          },
+          {
+            "name": "bearssl",
+            "ver": {
+              "kind": 8
+            }
+          },
+          {
+            "name": "zlib",
+            "ver": {
+              "kind": 8
+            }
+          }
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "json_serialization": {
+    "pkgName": "json_serialization",
+    "versions": [
+      {
+        "name": "json_serialization",
+        "version": {
+          "version": "0.2.6"
+        },
+        "requires": [
+          {
+            "name": "nim",
+            "ver": {
+              "kind": 2,
+              "ver": {
+                "version": "1.6.0"
+              }
+            }
+          },
+          {
+            "name": "serialization",
+            "ver": {
+              "kind": 8
+            }
+          },
+          {
+            "name": "stew",
+            "ver": {
+              "kind": 8
+            }
+          }
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "with": {
+    "pkgName": "with",
+    "versions": [
+      {
+        "name": "with",
+        "version": {
+          "version": "0.5.0"
+        },
+        "requires": [
+          {
+            "name": "nim",
+            "ver": {
+              "kind": 2,
+              "ver": {
+                "version": "0.19.0"
+              }
+            }
+          }
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "chronicles": {
+    "pkgName": "chronicles",
+    "versions": [
+      {
+        "name": "chronicles",
+        "version": {
+          "version": "0.10.3"
+        },
+        "requires": [
+          {
+            "name": "nim",
+            "ver": {
+              "kind": 2,
+              "ver": {
+                "version": "1.2.0"
+              }
+            }
+          },
+          {
+            "name": "testutils",
+            "ver": {
+              "kind": 8
+            }
+          },
+          {
+            "name": "json_serialization",
+            "ver": {
+              "kind": 8
+            }
+          }
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "nim": {
+    "pkgName": "nim",
+    "versions": [
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.0.2"
+        },
+        "requires": [],
+        "isRoot": false
+      }
+    ]
+  },
+  "serialization": {
+    "pkgName": "serialization",
+    "versions": [
+      {
+        "name": "serialization",
+        "version": {
+          "version": "0.2.2"
+        },
+        "requires": [
+          {
+            "name": "nim",
+            "ver": {
+              "kind": 2,
+              "ver": {
+                "version": "1.6.0"
+              }
+            }
+          },
+          {
+            "name": "faststreams",
+            "ver": {
+              "kind": 8
+            }
+          },
+          {
+            "name": "unittest2",
+            "ver": {
+              "kind": 8
+            }
+          },
+          {
+            "name": "stew",
+            "ver": {
+              "kind": 8
+            }
+          }
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "zlib": {
+    "pkgName": "zlib",
+    "versions": [
+      {
+        "name": "zlib",
+        "version": {
+          "version": "0.1.0"
+        },
+        "requires": [
+          {
+            "name": "nim",
+            "ver": {
+              "kind": 2,
+              "ver": {
+                "version": "1.6.0"
+              }
+            }
+          },
+          {
+            "name": "stew",
+            "ver": {
+              "kind": 2,
+              "ver": {
+                "version": "0.1.0"
+              }
+            }
+          }
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "nimlangserver": {
+    "pkgName": "nimlangserver",
+    "versions": [
+      {
+        "name": "nimlangserver",
+        "version": {
+          "version": "1.2.0"
+        },
+        "requires": [
+          {
+            "name": "nim",
+            "ver": {
+              "kind": 2,
+              "ver": {
+                "version": "1.0.0"
+              }
+            }
+          },
+      
+          {
+            "name": "with",
+            "ver": {
+              "kind": 8
+            }
+          },
+          {
+            "name": "chronicles",
+            "ver": {
+              "kind": 8
+            }
+          },
+          {
+            "name": "serialization",
+            "ver": {
+              "kind": 8
+            }
+          },
+          {
+            "name": "json_serialization",
+            "ver": {
+              "kind": 8
+            }
+          }
+        ],
+        "isRoot": true
+      }
+    ]
+  },
+  "https://github.com/yyoncho/asynctools": {
+    "pkgName": "https://github.com/yyoncho/asynctools",
+    "versions": [
+      {
+        "name": "asynctools",
+        "version": {
+          "version": "0.1.1"
+        },
+        "requires": [
+          {
+            "name": "nim",
+            "ver": {
+              "kind": 2,
+              "ver": {
+                "version": "0.19.4"
+              }
+            }
+          }
+        ],
+        "isRoot": false
+      }
+    ]
+  }
+}
