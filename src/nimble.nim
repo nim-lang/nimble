@@ -98,14 +98,15 @@ proc processFreeDependencies(pkgInfo: PackageInfo,
     pkgList = initPkgList(pkgInfo, options)
     #At this point we have all the installed packages
     #If we can solve them all here, we just do it and call it a day. 
-    let allPackages = pkgList.mapIt(it.basicInfo)
-    if requirements.areRequirementsWithinPackages(allPackages):
-      let form = toFormular(requirements, allPackages)      
-      var s = createSolution(form.f)
-      if satisfiable(form.f, s):
-        for pkg in pkgList:
-          result.incl pkg
-        return result
+    #TODO REDO with the GraphDep (need to fill the minimal info from the installed packages first)
+    # let allPackages = pkgList.mapIt(it.basicInfo)
+    # if requirements.areRequirementsWithinPackages(allPackages):
+    #   let form = toFormular(requirements, allPackages)      
+    #   var s = createSolution(form.f)
+    #   if satisfiable(form.f, s):
+    #     for pkg in pkgList:
+    #       result.incl pkg
+    #     return result
 
   display("Verifying", "dependencies for $1@$2" %
           [pkgInfo.basicInfo.name, $pkgInfo.basicInfo.version],
