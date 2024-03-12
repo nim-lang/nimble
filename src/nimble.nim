@@ -1,8 +1,6 @@
 # Copyright (C) Dominik Picheta. All rights reserved.
 # BSD License. Look at license.txt for more info.
 
-import system except TResult
-
 import os, tables, strtabs, json, algorithm, sets, uri, sugar, sequtils, osproc,
        strformat
 
@@ -842,15 +840,23 @@ proc addPackages(packages: seq[PkgTuple], options: var Options) =
     
     if not doAppend:
       continue
+  
+    var pSeq = newSeq[PkgTuple](1)
+    pSeq[0] = apkg
 
-    let prettyStr = case version.len
-      of 0: apkg.name
-      else: apkg.name & '@' & version
+    let data = install(pSeq, options, false, false, false)
+
+    let finalVer = if version.len < 1:
+      $data.pkg.basicInfo.version
+    else:
+      version
+
+    let prettyStr = apkg.name & '@' & finalVer
 
     appendStr &= "\nrequires \"$1$2\"" % [
       apkg.name,
-      if version != "":
-        " >= " & version
+      if finalVer != "":
+        " >= " & finalVer
       else:
         ""
     ]
