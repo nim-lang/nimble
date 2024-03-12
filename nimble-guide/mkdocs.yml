@@ -9,7 +9,18 @@ theme:
     - navigation.sections
     - toc.integrate
   palette:
-    primary: teal
+    - scheme: default
+      primary: teal
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: black
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+
+
 
 use_directory_urls: false
 
