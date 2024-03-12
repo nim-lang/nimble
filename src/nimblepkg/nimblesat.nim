@@ -56,6 +56,7 @@ proc getMinimalInfo*(pkg: PackageInfo): PackageMinimalInfo =
   result.version = pkg.basicInfo.version
   result.requires = pkg.requires
 
+
 proc hasVersion*(packageVersions: PackageVersions, pv: PkgTuple): bool =
   for pkg in packageVersions.versions:
     if pkg.name == pv.name and pkg.version.withinRange(pv.ver):
@@ -76,12 +77,6 @@ proc getNimVersion*(pvs: seq[PkgTuple]): Version =
 proc findDependencyForDep(g: DepGraph; dep: string): int {.inline.} =
   assert g.packageToDependency.hasKey(dep), dep & " not found"
   result = g.packageToDependency.getOrDefault(dep)
-
-iterator mvalidVersions*(p: var Dependency; g: var DepGraph): var DependencyVersion =
-  for v in mitems p.versions:
-    # if g.reqs[v.req].status == Normal: yield v
-    yield v #in our case all are valid versions (TODO get rid of this)
-
 
 proc createRequirements(pkg: PackageMinimalInfo): Requirements =
   result.deps = pkg.requires.filterIt(it.name != "nim")
@@ -123,94 +118,74 @@ proc toDepGraph*(versions: Table[string, PackageVersions]): DepGraph =
     result.packageToDependency[result.nodes[i].pkgName] = i
 
 proc toFormular*(g: var DepGraph): Form =
-  # Key idea: use a SAT variable for every `Requirements` object, which are
-  # shared.
+# Key idea: use a SAT variable for every `Requirements` object, which are
+# shared.
   result = Form()
   var b = Builder()
   b.openOpr(AndForm)
 
+  # Assign a variable for each package version
   for p in mitems(g.nodes):
-    # if Package p is installed, pick one of its concrete versions, but not versions
-    # that are errornous:
-    # A -> (exactly one of: A1, A2, A3)
     if p.versions.len == 0: continue
 
     p.versions.sort(cmp)
 
-    var i = 0
     for ver in mitems p.versions:
       ver.v = VarId(result.idgen)
-      result.mapping[ver.v] = SatVarInfo(pkg: p.pkgName, version: ver.version, index: i)
-
+      result.mapping[ver.v] = SatVarInfo(pkg: p.pkgName, version: ver.version, index: result.idgen)
       inc result.idgen
-      inc i
+
+    # Encode the rule: for root packages, exactly one of its versions must be true
     if p.isRoot:
       b.openOpr(ExactlyOneOfForm)
-      for ver in mitems p.versions: b.add ver.v
-      b.closeOpr # ExactlyOneOfForm
+      for ver in mitems p.versions:
+        b.add(ver.v)
+      b.closeOpr()
     else:
-      # Either one version is selected or none:
+      # For non-root packages, either one version is selected or none
       b.openOpr(ZeroOrOneOfForm)
-      for ver in mitems p.versions: b.add ver.v
-      b.closeOpr # ExactlyOneOfForm
+      for ver in mitems p.versions:
+        b.add(ver.v)
+      b.closeOpr()
 
-  # # Model the dependency graph:
+  # Model dependencies and their version constraints
   for p in mitems(g.nodes):
-    for ver in mvalidVersions(p, g):
-      # if isValid(g.reqs[ver.req].v):
-      #   # already covered this sub-formula (ref semantics!)
-      #   continue
+    for ver in p.versions.mitems:
       let eqVar = VarId(result.idgen)
-      g.reqs[ver.req].v = eqVar
+      # Mark the beginning position for a potential reset
+      let beforeDeps = b.getPatchPos()
 
-      if g.reqs[ver.req].deps.len == 0: continue
       inc result.idgen
+      var hasDeps = false
 
-      let beforeEq = b.getPatchPos()
-
-      b.openOpr(OrForm)
-      b.addNegated eqVar
-      if g.reqs[ver.req].deps.len > 1: b.openOpr(AndForm)
-      # if ver.req.deps.len > 1: b.openOpr(AndForm)
-      var elements = 0
       for dep, q in items g.reqs[ver.req].deps:
         let av = g.nodes[findDependencyForDep(g, dep)]
         if av.versions.len == 0: continue
 
-        let beforeExactlyOneOf = b.getPatchPos()
-        b.openOpr(ExactlyOneOfForm)
-        inc elements
-        var matchCounter = 0
+        hasDeps = true
+        b.openOpr(ExactlyOneOfForm)  # Dependency must satisfy at least one of the version constraints
 
-        for j in countup(0, av.versions.len-1):
-          if av.versions[j].version.withinRange(q):
-            b.add av.versions[j].v
-            inc matchCounter
-            break
+        for avVer in av.versions:
+          if avVer.version.withinRange(q):
+            b.add(avVer.v)  # This version of the dependency satisfies the constraint
 
-        b.closeOpr # ExactlyOneOfForm
-        if matchCounter == 0:
-          b.resetToPatchPos beforeExactlyOneOf
-          b.add falseLit()
-        
-      if g.reqs[ver.req].deps.len > 1: b.closeOpr # AndForm
-      b.closeOpr # EqForm
-      if elements == 0:
-        b.resetToPatchPos beforeEq
-       
-  # Model the dependency graph:
-  for p in mitems(g.nodes):
-    for ver in mvalidVersions(p, g):
-      if g.reqs[ver.req].deps.len > 0:
-      # if ver.req.deps.len > 0:
+        b.closeOpr()
+      
+      # If the package version is chosen and it has dependencies, enforce the dependencies' constraints
+      if hasDeps:
         b.openOpr(OrForm)
-        b.addNegated ver.v # if this version is chosen, these are its dependencies
-        b.add g.reqs[ver.req].v
-        # b.add ver.req.v
-        b.closeOpr # OrForm
+        b.addNegated(ver.v)  # If this package version is not chosen, skip the dependencies constraint
+        b.add(eqVar)  # Else, ensure the dependencies' constraints are met
+        b.closeOpr()
 
-  b.closeOpr # AndForm
-  result.f = toForm(b)
+      # If no dependencies were added, reset to beforeDeps to avoid empty or invalid operations
+      if not hasDeps:
+        b.resetToPatchPos(beforeDeps)
+  
+  b.closeOpr()  # Close the main AndForm
+  result.f = toForm(b)  # Convert the builder to a formula
+
+
 
 proc toString(x: SatVarInfo): string =
   "(" & x.pkg & ", " & $x.version & ")"

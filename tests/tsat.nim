@@ -5,7 +5,6 @@ from nimblepkg/common import cd
 import std/[tables, sequtils, algorithm, json, jsonutils, strutils]
 import nimblepkg/[version, sha1hashes, packageinfotypes, nimblesat, options, 
   download, packageinfo, packageparser, config]
-import sat/[sat, satvars] 
 import nimble
 
 
@@ -32,13 +31,18 @@ proc toJsonHook*(src: PkgTuple): JsonNode =
 
 proc collectAllVersions(versions: var Table[string, PackageVersions], package: PackageInfo, options: Options) =
   for pv in package.requires:
-    echo "Collecting versions for ", pv.name, " via ", package.name
+    # echo "Collecting versions for ", pv.name, " and Version: ", $pv.ver, " via ", package.name
+    var pv = pv
     if not hasVersion(versions, pv):  # Not found, meaning this package-version needs to be explored
       let pkgInfo = downloadPkInfoForPv(pv, options)
+      var minimalInfo = pkgInfo.getMinimalInfo()
+      if pv.ver.kind == verSpecial:
+        echo "Special version ", pv, " but it was ", minimalInfo.version
+        minimalInfo.version = newVersion $pv.ver
       if not versions.hasKey(pv.name):
-        versions[pv.name] = PackageVersions(pkgName: pv.name, versions: @[pkgInfo.getMinimalInfo()])
+        versions[pv.name] = PackageVersions(pkgName: pv.name, versions: @[minimalInfo])
       else:
-        versions[pv.name].versions.add pkgInfo.getMinimalInfo()
+        versions[pv.name].versions.addUnique minimalInfo
       collectAllVersions(versions, pkgInfo, options)
 
 
@@ -117,12 +121,40 @@ suite "SAT solver":
   #     check exitCode == QuitSuccess
 
 
+  test "should be able to download a package and select its deps":
+    let pkgName: string = "nimlangserver"
+    let pv: PkgTuple = (pkgName, VersionRange(kind: verAny))
+    var options = initOptions()
+    options.nimBin = "nim"
+    options.config.packageLists["official"] = PackageList(name: "Official", urls: @[
+      "https://raw.githubusercontent.com/nim-lang/packages/master/packages.json",
+      "https://nim-lang.org/nimble/packages.json"
+    ])
+
+    var pkgInfo = downloadPkInfoForPv(pv, options)
+    var root = pkgInfo.getMinimalInfo()
+    root.isRoot = true
+    var pkgVersionTable = initTable[string, PackageVersions]()
+    collectAllVersions(pkgVersionTable, pkgInfo, options)
+    pkgVersionTable[pkgName] = PackageVersions(pkgName: pkgName, versions: @[root])
+
+    var graph = pkgVersionTable.toDepGraph()
+    let form = graph.toFormular()
+    var packages = initTable[string, Version]()
+    solve(graph, form, packages, listVersions= true)
+    check packages.len > 0
+    echo "Packages ", packages
+      
+
+      #Test to also add to the package the json_rpc original and the 
+      #asynctools
   # test "should be able to retrieve the package versions using git":
   #   #[
   #     Testear uno que tenga varios paquetes.
-      
+  #     Head version is producing a duplicated in the versions   
 
   #   ]#
+
   #   let pkgName: string = "nimlangserver"
   #   let pv: PkgTuple = (pkgName, VersionRange(kind: verAny))
   #   var options = initOptions()
@@ -162,5 +194,5 @@ suite "SAT solver":
   #     echo "Packages ", packages
       
 
-      #Test to also add to the package the json_rpc original and the 
-      #asynctools
+  #     #Test to also add to the package the json_rpc original and the 
+  #     #asynctools
