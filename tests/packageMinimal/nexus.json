@@ -1,0 +1,323 @@
+{
+  "nexus": {
+    "pkgName": "nexus",
+    "versions": [
+      {
+        "name": "nexus",
+        "version": {
+          "version": "2.0.0"
+        },
+        "requires": [
+          "nim >= 1.6.0",
+          "argon2",
+          "db_connector",
+          "chronicles",
+          "jester",
+          "karax",
+          "quickjwt",
+          "yaml"
+        ],
+        "isRoot": true
+      }
+    ]
+  },
+  "jester": {
+    "pkgName": "jester",
+    "versions": [
+      {
+        "name": "jester",
+        "version": {
+          "version": "0.6.0"
+        },
+        "requires": [
+          "nim >= 1.0.0",
+          "httpbeast >= 0.4.0"
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "unittest2": {
+    "pkgName": "unittest2",
+    "versions": [
+      {
+        "name": "unittest2",
+        "version": {
+          "version": "0.2.2"
+        },
+        "requires": [
+          "nim >= 1.6.0"
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "nim": {
+    "pkgName": "nim",
+    "versions": [
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.0.2"
+        },
+        "requires": [],
+        "isRoot": false
+      }
+    ]
+  },
+  "serialization": {
+    "pkgName": "serialization",
+    "versions": [
+      {
+        "name": "serialization",
+        "version": {
+          "version": "0.2.2"
+        },
+        "requires": [
+          "nim >= 1.6.0",
+          "faststreams",
+          "unittest2",
+          "stew"
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "httpbeast": {
+    "pkgName": "httpbeast",
+    "versions": [
+      {
+        "name": "httpbeast",
+        "version": {
+          "version": "0.4.1"
+        },
+        "requires": [
+          "nim >= 0.18.0",
+          "asynctools#0e6bdc3ed5bae8c7cc9"
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "ws": {
+    "pkgName": "ws",
+    "versions": [
+      {
+        "name": "ws",
+        "version": {
+          "version": "0.5.0"
+        },
+        "requires": [
+          "nim > 1.0.0"
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "stew": {
+    "pkgName": "stew",
+    "versions": [
+      {
+        "name": "stew",
+        "version": {
+          "version": "0.1.0"
+        },
+        "requires": [
+          "nim >= 1.6.0",
+          "results",
+          "unittest2"
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "yaml": {
+    "pkgName": "yaml",
+    "versions": [
+      {
+        "name": "yaml",
+        "version": {
+          "version": "2.1.1"
+        },
+        "requires": [
+          "nim >= 2.0.0"
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "db_connector": {
+    "pkgName": "db_connector",
+    "versions": [
+      {
+        "name": "db_connector",
+        "version": {
+          "version": "0.1.0"
+        },
+        "requires": [
+          "nim >= 1.7.3"
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "faststreams": {
+    "pkgName": "faststreams",
+    "versions": [
+      {
+        "name": "faststreams",
+        "version": {
+          "version": "0.3.0"
+        },
+        "requires": [
+          "nim >= 1.6.0",
+          "stew",
+          "unittest2"
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "testutils": {
+    "pkgName": "testutils",
+    "versions": [
+      {
+        "name": "testutils",
+        "version": {
+          "version": "0.5.0"
+        },
+        "requires": [
+          "nim >= 1.6.0",
+          "unittest2"
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "results": {
+    "pkgName": "results",
+    "versions": [
+      {
+        "name": "results",
+        "version": {
+          "version": "0.4.0"
+        },
+        "requires": [
+          "nim >= 1.2"
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "argon2": {
+    "pkgName": "argon2",
+    "versions": [
+      {
+        "name": "argon2",
+        "version": {
+          "version": "1.1.0"
+        },
+        "requires": [
+          "nim >= 0.18.0"
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "dotenv": {
+    "pkgName": "dotenv",
+    "versions": [
+      {
+        "name": "dotenv",
+        "version": {
+          "version": "2.0.1"
+        },
+        "requires": [
+          "nim >= 0.16.0"
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "quickjwt": {
+    "pkgName": "quickjwt",
+    "versions": [
+      {
+        "name": "quickjwt",
+        "version": {
+          "version": "0.2.1"
+        },
+        "requires": [
+          "nim >= 1.1.1"
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "json_serialization": {
+    "pkgName": "json_serialization",
+    "versions": [
+      {
+        "name": "json_serialization",
+        "version": {
+          "version": "0.2.6"
+        },
+        "requires": [
+          "nim >= 1.6.0",
+          "serialization",
+          "stew"
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "chronicles": {
+    "pkgName": "chronicles",
+    "versions": [
+      {
+        "name": "chronicles",
+        "version": {
+          "version": "0.10.3"
+        },
+        "requires": [
+          "nim >= 1.2.0",
+          "testutils",
+          "json_serialization"
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "asynctools": {
+    "pkgName": "asynctools",
+    "versions": [
+      {
+        "name": "asynctools",
+        "version": {
+          "version": "#0e6bdc3ed5bae8c7cc9"
+        },
+        "requires": [
+          "nim >= 0.19.4"
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "karax": {
+    "pkgName": "karax",
+    "versions": [
+      {
+        "name": "karax",
+        "version": {
+          "version": "1.3.3"
+        },
+        "requires": [
+          "nim >= 0.18.0",
+          "ws",
+          "dotenv >= 2.0.0"
+        ],
+        "isRoot": false
+      }
+    ]
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "nimsl": {
+    "pkgName": "nimsl",
+    "versions": [
+      {
+        "name": "nimsl",
+        "version": {
+          "version": "0.3.3"
+        },
+        "requires": [],
+        "isRoot": true
+      }
+    ]
+  }
+}

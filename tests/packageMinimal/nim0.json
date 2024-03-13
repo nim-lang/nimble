@@ -1,0 +1,30 @@
+{
+  "nim0": {
+    "pkgName": "nim0",
+    "versions": [
+      {
+        "name": "nim0",
+        "version": {
+          "version": "1.0"
+        },
+        "requires": [
+          "nim >= 1.0.0"
+        ],
+        "isRoot": true
+      }
+    ]
+  },
+  "nim": {
+    "pkgName": "nim",
+    "versions": [
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.0.2"
+        },
+        "requires": [],
+        "isRoot": false
+      }
+    ]
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "nim": {
+    "pkgName": "nim",
+    "versions": [
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.0.2"
+        },
+        "requires": [],
+        "isRoot": false
+      }
+    ]
+  },
+  "drchaos": {
+    "pkgName": "drchaos",
+    "versions": [
+      {
+        "name": "drchaos",
+        "version": {
+          "version": "0.1.9"
+        },
+        "requires": [
+          "nim >= 1.2.0"
+        ],
+        "isRoot": true
+      }
+    ]
+  }
+}

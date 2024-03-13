@@ -1,0 +1,30 @@
+{
+  "nim": {
+    "pkgName": "nim",
+    "versions": [
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.0.2"
+        },
+        "requires": [],
+        "isRoot": false
+      }
+    ]
+  },
+  "libsaedea": {
+    "pkgName": "libsaedea",
+    "versions": [
+      {
+        "name": "libsaedea",
+        "version": {
+          "version": "0.9.81"
+        },
+        "requires": [
+          "nim >= 1.4.0"
+        ],
+        "isRoot": true
+      }
+    ]
+  }
+}

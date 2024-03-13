@@ -1,0 +1,15 @@
+{
+  "sun_moon": {
+    "pkgName": "sun_moon",
+    "versions": [
+      {
+        "name": "sun_moon",
+        "version": {
+          "version": "1.0.0"
+        },
+        "requires": [],
+        "isRoot": true
+      }
+    ]
+  }
+}

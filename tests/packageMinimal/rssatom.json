@@ -1,0 +1,30 @@
+{
+  "rssatom": {
+    "pkgName": "rssatom",
+    "versions": [
+      {
+        "name": "rssatom",
+        "version": {
+          "version": "2.7"
+        },
+        "requires": [
+          "nim >= 1.6.10"
+        ],
+        "isRoot": true
+      }
+    ]
+  },
+  "nim": {
+    "pkgName": "nim",
+    "versions": [
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.0.2"
+        },
+        "requires": [],
+        "isRoot": false
+      }
+    ]
+  }
+}

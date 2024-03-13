@@ -1,0 +1,110 @@
+{
+  "regex": {
+    "pkgName": "regex",
+    "versions": [
+      {
+        "name": "regex",
+        "version": {
+          "version": "0.24.1"
+        },
+        "requires": [
+          "nim >= 1.0.0",
+          "unicodedb >= 0.7.2"
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "unicodedb": {
+    "pkgName": "unicodedb",
+    "versions": [
+      {
+        "name": "unicodedb",
+        "version": {
+          "version": "0.12.0"
+        },
+        "requires": [
+          "nim >= 1.0.0"
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "switch_build": {
+    "pkgName": "switch_build",
+    "versions": [
+      {
+        "name": "switch_build",
+        "version": {
+          "version": "0.1.4"
+        },
+        "requires": [
+          "nim >= 0.18.1"
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "c2nim": {
+    "pkgName": "c2nim",
+    "versions": [
+      {
+        "name": "c2nim",
+        "version": {
+          "version": "0.9.19"
+        },
+        "requires": [
+          "nim >= 1.2.0"
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "nim": {
+    "pkgName": "nim",
+    "versions": [
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.0.2"
+        },
+        "requires": [],
+        "isRoot": false
+      }
+    ]
+  },
+  "libnx": {
+    "pkgName": "libnx",
+    "versions": [
+      {
+        "name": "libnx",
+        "version": {
+          "version": "0.2.1"
+        },
+        "requires": [
+          "nim >= 0.18.1",
+          "nimgen#dc9943a22c9c8f6a5a6a92f0055e1de4dfaf87d2",
+          "switch_build >= 0.1.3"
+        ],
+        "isRoot": true
+      }
+    ]
+  },
+  "nimgen": {
+    "pkgName": "nimgen",
+    "versions": [
+      {
+        "name": "nimgen",
+        "version": {
+          "version": "#dc9943a22c9c8f6a5a6a92f0055e1de4dfaf87d2"
+        },
+        "requires": [
+          "nim >= 0.17.0",
+          "c2nim >= 0.9.13",
+          "regex >= 0.7.1"
+        ],
+        "isRoot": false
+      }
+    ]
+  }
+}

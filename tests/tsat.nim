@@ -46,6 +46,59 @@ proc collectAllVersions(versions: var Table[string, PackageVersions], package: P
       collectAllVersions(versions, pkgInfo, options)
 
 
+#Test utils:
+proc downloadAndStorePackageVersionTableFor(pkgName: string, options: Options) =
+  #Downloads all the dependencies for a given package and store the minimal version of the deps in a json file.
+  var fileName = pkgName
+  if pkgName.startsWith("https://"):
+    let pkgUrl = pkgName
+    fileName = pkgUrl.split("/")[^1].split(".")[0]
+  
+  let path = "packageMinimal" / fileName & ".json"
+  if fileExists(path):
+    return
+  let pv: PkgTuple = (pkgName, VersionRange(kind: verAny))
+  var pkgInfo = downloadPkInfoForPv(pv, options)
+  var root = pkgInfo.getMinimalInfo()
+  root.isRoot = true
+  var pkgVersionTable = initTable[string, PackageVersions]()
+  collectAllVersions(pkgVersionTable, pkgInfo, options)
+  pkgVersionTable[pkgName] = PackageVersions(pkgName: pkgName, versions: @[root])
+  let json = pkgVersionTable.toJson()
+  writeFile(path, json.pretty())
+
+proc downloadAllPackages() = 
+  var options = initOptions()
+  options.nimBin = "nim"
+  # options.config.packageLists["uing"] = PackageList(name: pkgName, urls: @[pkgUrl])
+  options.config.packageLists["official"] = PackageList(name: "Official", urls: @[
+    "https://raw.githubusercontent.com/nim-lang/packages/master/packages.json",
+    "https://nim-lang.org/nimble/packages.json"
+  ])
+
+  let packages = getPackageList(options).mapIt(it.name)
+  let importantPackages = [
+  "alea", "argparse", "arraymancer", "ast_pattern_matching", "asyncftpclient", "asyncthreadpool", "awk", "bigints", "binaryheap", "BipBuffer", "blscurve",
+  "bncurve", "brainfuck", "bump", "c2nim", "cascade", "cello", "checksums", "chroma", "chronicles", "chronos", "cligen", "combparser", "compactdict", 
+  "https://github.com/alehander92/comprehension", "cowstrings", "criterion", "datamancer", "dashing", "delaunay", "docopt", "drchaos", "https://github.com/jackmott/easygl", "elvis", "fidget", "fragments", "fusion", "gara", "glob", "ggplotnim", 
+  "https://github.com/disruptek/gittyup", "gnuplot", "https://github.com/disruptek/gram", "hts", "httpauth", "illwill", "inim", "itertools", "iterutils", "jstin", "karax", "https://github.com/jblindsay/kdtree", "loopfusion", "lockfreequeues", "macroutils", "manu", "markdown", 
+  "measuremancer", "memo", "msgpack4nim", "nake", "https://github.com/nim-lang/neo", "https://github.com/nim-lang/NESM", "netty", "nico", "nicy", "nigui", "nimcrypto", "NimData", "nimes", "nimfp", "nimgame2", "nimgen", "nimib", "nimlsp", "nimly", 
+  "nimongo", "https://github.com/disruptek/nimph", "nimPNG", "nimpy", "nimquery", "nimsl", "nimsvg", "https://github.com/nim-lang/nimterop", "nimwc", "nimx", "https://github.com/zedeus/nitter", "norm", "npeg", "numericalnim", "optionsutils", "ormin", "parsetoml", "patty", "pixie", 
+  "plotly", "pnm", "polypbren", "prologue", "protobuf", "pylib", "rbtree", "react", "regex", "results", "RollingHash", "rosencrantz", "sdl1", "sdl2_nim", "sigv4", "sim", "smtp", "https://github.com/genotrance/snip", "ssostrings", 
+  "stew", "stint", "strslice", "strunicode", "supersnappy", "synthesis", "taskpools", "telebot", "tempdir", "templates", "https://krux02@bitbucket.org/krux02/tensordslnim.git", "terminaltables", "termstyle", "timeit", "timezones", "tiny_sqlite", 
+  "unicodedb", "unicodeplus", "https://github.com/alaviss/union", "unpack", "weave", "websocket", "winim", "with", "ws", "yaml", "zero_functional", "zippy"
+  ]
+  let ignorePackages = ["rpgsheet", 
+  "arturo", "argument_parser", "murmur", "nimgame", "locale", "nim-locale",
+  "nim-ao", "ao", "termbox", "linagl", "kwin", "yahooweather", "noaa",
+  "nimwc",
+  "artemis"]
+  let toDownload = importantPackages.filterIt(it notin ignorePackages)
+  for pkg in toDownload:
+    echo "Downloading ", pkg
+    downloadAndStorePackageVersionTableFor(pkg, options)
+    echo "Done with ", pkg
+
 suite "SAT solver":
   test "can solve simple SAT":
     let pkgVersionTable = {
@@ -120,79 +173,50 @@ suite "SAT solver":
   #     let (_, exitCode) = execNimble("install", "-l")
   #     check exitCode == QuitSuccess
 
+#[
+  Next download all packages store it in a json and solve the dependencies one by one. 
 
-  test "should be able to download a package and select its deps":
-    let pkgName: string = "nimlangserver"
-    let pv: PkgTuple = (pkgName, VersionRange(kind: verAny))
-    var options = initOptions()
-    options.nimBin = "nim"
-    options.config.packageLists["official"] = PackageList(name: "Official", urls: @[
-      "https://raw.githubusercontent.com/nim-lang/packages/master/packages.json",
-      "https://nim-lang.org/nimble/packages.json"
-    ])
+  TODO
+    - Create the table from already downloaded packages.
+    - See if downloads can be cached and reused. 
+    - Review if when downloading a package we could just navigate it to get all versions without triggering another download
+    
+]#
 
-    var pkgInfo = downloadPkInfoForPv(pv, options)
-    var root = pkgInfo.getMinimalInfo()
-    root.isRoot = true
-    var pkgVersionTable = initTable[string, PackageVersions]()
-    collectAllVersions(pkgVersionTable, pkgInfo, options)
-    pkgVersionTable[pkgName] = PackageVersions(pkgName: pkgName, versions: @[root])
-
-    var graph = pkgVersionTable.toDepGraph()
-    let form = graph.toFormular()
-    var packages = initTable[string, Version]()
-    solve(graph, form, packages, listVersions= true)
-    check packages.len > 0
-    echo "Packages ", packages
-      
-
-      #Test to also add to the package the json_rpc original and the 
-      #asynctools
-  # test "should be able to retrieve the package versions using git":
-  #   #[
-  #     Testear uno que tenga varios paquetes.
-  #     Head version is producing a duplicated in the versions   
-
-  #   ]#
+  # test "should be able to download a package and select its deps":
 
   #   let pkgName: string = "nimlangserver"
   #   let pv: PkgTuple = (pkgName, VersionRange(kind: verAny))
   #   var options = initOptions()
   #   options.nimBin = "nim"
-  #   # options.config.packageLists["uing"] = PackageList(name: pkgName, urls: @[pkgUrl])
   #   options.config.packageLists["official"] = PackageList(name: "Official", urls: @[
   #     "https://raw.githubusercontent.com/nim-lang/packages/master/packages.json",
   #     "https://nim-lang.org/nimble/packages.json"
   #   ])
 
-  #   when false:
-  #     var pkgInfo = downloadPkInfoForPv(pv, options)
-  #     var root = pkgInfo.getMinimalInfo()
-  #     # root.requires = root.requires.mapIt(
-  #     #   if  it.name.contains "asynctools": (name: "asynctools", ver: VersionRange(kind: verAny))
-  #     #   elif it.name.contains "nim-json-rpc": (name: "json_rpc", ver:VersionRange(kind: verAny))
-  #     #   else: it
-  #     # )
-  #     root.isRoot = true
-  #     var pkgVersionTable = initTable[string, PackageVersions]()
-  #     collectAllVersions(pkgVersionTable, pkgInfo, options)
-  #     pkgVersionTable[pkgName] = PackageVersions(pkgName: pkgName, versions: @[root])
+  #   var pkgInfo = downloadPkInfoForPv(pv, options)
+  #   var root = pkgInfo.getMinimalInfo()
+  #   root.isRoot = true
+  #   var pkgVersionTable = initTable[string, PackageVersions]()
+  #   collectAllVersions(pkgVersionTable, pkgInfo, options)
+  #   pkgVersionTable[pkgName] = PackageVersions(pkgName: pkgName, versions: @[root])
 
-  #     let json = pkgVersionTable.toJson()
-  #     writeFile("langserverPgkVersionTable.json", json.pretty())
-  #   else:
-  #     let file = readFile("langserverPgkVersionTable.json")
-  #     let pkgVersionTable = parseJson(file).to(Table[string, PackageVersions])
+  #   var graph = pkgVersionTable.toDepGraph()
+  #   let form = graph.toFormular()
+  #   var packages = initTable[string, Version]()
+  #   solve(graph, form, packages, listVersions= true)
+  #   check packages.len > 0
+    
 
-  #     var graph = pkgVersionTable.toDepGraph()
+  test "should be solve all nimble packages":
+    downloadAllPackages() #uncomment this to download all packages. It's better to just keep them cached as it takes a while.
 
-  #     # echo "Graph ", graph
-  #     let form = graph.toFormular()
-  #     var packages = initTable[string, Version]()
-  #     solve(graph, form, packages, listVersions= true)
-  #     check packages.len > 0
-  #     echo "Packages ", packages
-      
+    for jsonFile in walkPattern("packageMinimal/*.json"):
+      var pkgVersionTable = parseJson(readFile(jsonFile)).to(Table[string, PackageVersions])
+      var graph = pkgVersionTable.toDepGraph()
+      let form = toFormular(graph)
+      var packages = initTable[string, Version]()
+      solve(graph, form, packages, listVersions= false)
+      echo "Solved ", jsonFile.extractFilename, " with ", packages.len, " packages"
 
-  #     #Test to also add to the package the json_rpc original and the 
-  #     #asynctools
+      check packages.len > 0

@@ -72,7 +72,15 @@ proc getNimVersion*(pvs: seq[PkgTuple]): Version =
   result = newVersion("0.0.0") #?
   for pv in pvs:
     if pv.name == "nim":
-      return pv.ver.ver
+      case pv.ver.kind:
+      of verLater, verEarlier, verEqLater, verEqEarlier, verEq:
+        result = pv.ver.ver
+      of verSpecial:
+        result = pv.ver.spe
+      else:
+        #TODO range
+        discard
+      
 
 proc findDependencyForDep(g: DepGraph; dep: string): int {.inline.} =
   assert g.packageToDependency.hasKey(dep), dep & " not found"

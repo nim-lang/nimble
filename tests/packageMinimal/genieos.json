@@ -1,0 +1,45 @@
+{
+  "x11": {
+    "pkgName": "x11",
+    "versions": [
+      {
+        "name": "x11",
+        "version": {
+          "version": "1.2"
+        },
+        "requires": [
+          "nim > 0.9.2"
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "nim": {
+    "pkgName": "nim",
+    "versions": [
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.0.2"
+        },
+        "requires": [],
+        "isRoot": false
+      }
+    ]
+  },
+  "genieos": {
+    "pkgName": "genieos",
+    "versions": [
+      {
+        "name": "genieos",
+        "version": {
+          "version": "9.4.2"
+        },
+        "requires": [
+          "x11 >= 1.0"
+        ],
+        "isRoot": true
+      }
+    ]
+  }
+}
