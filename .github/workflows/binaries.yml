@@ -55,7 +55,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - uses: jiro4989/setup-nim-action@v1.4.3
+      - uses: jiro4989/setup-nim-action@v1
         with:
           nim-version: 'stable'
           yes: true
