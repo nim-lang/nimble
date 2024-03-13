@@ -12,9 +12,9 @@ Nimble is the default *package manager* for the
 Interested in how to use Nimble? See the
 [Nimble Guide](https://narimiran.github.io/nimble/index.html),
 where you can learn:
-- [How to install existing packages](https://narimiran.github.io/nimble/use-packages.html)
-- [How to create a Nimble package](https://narimiran.github.io/nimble/create-packages.html)
-- [How to use `nimble develop` workflow](https://narimiran.github.io/nimble/workflow.html)
+- [How to install existing packages](https://nim-lang.github.io/nimble/use-packages.html)
+- [How to create a Nimble package](https://nim-lang.github.io/nimble/create-packages.html)
+- [How to use `nimble develop` workflow](https://nim-lang.github.io/nimble/workflow.html)
 
 
 This documentation is for the latest commit of Nimble.

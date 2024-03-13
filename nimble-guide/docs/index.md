@@ -22,8 +22,7 @@ In case you still want to install Nimble manually, you can follow [these install
 
 Nimble has some runtime dependencies on external tools, these tools are used to download Nimble packages.
 For instance, if a package is hosted on [GitHub](https://github.com), you need to have [git](https://www.git-scm.com) installed and added to your environment ``PATH``.
-The same goes for [Mercurial](http://mercurial.selenic.com) repositories on
-[Bitbucket](https://bitbucket.org).
+The same goes for [Mercurial](http://mercurial.selenic.com) repositories.
 Nimble packages are typically hosted in Git repositories so you may be able to get away without installing Mercurial.
 
 !!! warning

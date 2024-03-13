@@ -11,7 +11,7 @@ publish-guide:
 	cd tmp-book && \
 	git add . && { \
 		git commit -m "make publish-guide $$(git rev-parse --short HEAD)" && \
-		git push miran gh-pages || true; } && \
+		git push origin gh-pages || true; } && \
 	cd .. && \
 	git worktree remove -f tmp-book && \
 	rm -rf tmp-book
