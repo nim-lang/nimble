@@ -39,7 +39,7 @@ proc downloadAndStorePackageVersionTableFor(pkgName: string, options: Options) =
   var root = pkgInfo.getMinimalInfo()
   root.isRoot = true
   var pkgVersionTable = initTable[string, PackageVersions]()
-  collectAllVersions(pkgVersionTable, root, options, downloadMinimalPackage)
+  collectAllVersions(pkgVersionTable, root, options, downloadMinimalPackage, @[])
   pkgVersionTable[pkgName] = PackageVersions(pkgName: pkgName, versions: @[root])
   let json = pkgVersionTable.toJson()
   writeFile(path, json.pretty())
@@ -175,7 +175,7 @@ suite "SAT solver":
   #   check packages.len > 0
     
 
-  test "should be solve all nimble packages":
+  test "should be able to solve all nimble packages":
     # downloadAllPackages() #uncomment this to download all packages. It's better to just keep them cached as it takes a while.
     let now = now()
     var pks = 0
@@ -192,3 +192,36 @@ suite "SAT solver":
     
     let ends = now()
     echo "Solved ", pks, " packages in ", ends - now, " seconds"
+  
+  test "should be able to retrieve the package minimal info from the nimble directory":
+    var options = initOptions()
+    options.nimbleDir = getHomeDir() / ".nimble"
+    options.nimbleDir = getCurrentDir() / "conflictingdepres" / "nimbledeps" 
+    let pkgs = getInstalledPkgsMin(options.getPkgsDir(), options).mapIt(it.getMinimalInfo())
+    var pkgVersionTable = initTable[string, PackageVersions]()
+    let root = 
+        PackageMinimalInfo(
+          name: "a", version: newVersion "3.0", 
+          requires: @[
+          (name:"b", ver: parseVersionRange ">= 0.1.4"),
+          (name:"c", ver: parseVersionRange ">= 0.0.5 & <= 0.1.0")
+        ], 
+        isRoot:true)
+
+    collectAllVersions(pkgVersionTable, root, options, getFromPreferred, pkgs)
+    check pkgVersionTable.hasVersion("b", newVersion "0.1.4")
+    check pkgVersionTable.hasVersion("c", newVersion "0.1.0")
+    check pkgVersionTable.hasVersion("c", newVersion "0.2.1")
+
+    #TODO make the table
+    #[
+      Missing tests
+    - Check the list of packages belong to the same above.
+    - Test it fallbacks to downloading the package if not found in the list of packages
+    - Test it fallbacks to downloading the package if the version is not found in the list of packages
+    - Test next time the package is found in the list of packages without hitting the download.
+    - 
+    ]#
+    
+
+#]

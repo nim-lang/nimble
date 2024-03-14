@@ -50,7 +50,7 @@ type
     reqs*: seq[Requirements]
     packageToDependency*: Table[string, int] #package.name -> index into nodes
     # reqsByDeps: Table[Requirements, int]
-  GetPackageMinimal* = proc (pv: PkgTuple, options: Options): Option[PackageMinimalInfo]
+  GetPackageMinimal* = proc (pv: PkgTuple, options: Options, preferredPackages: seq[PackageMinimalInfo]): Option[PackageMinimalInfo]
 
 proc getMinimalInfo*(pkg: PackageInfo): PackageMinimalInfo =
   result.name = pkg.basicInfo.name
@@ -64,9 +64,16 @@ proc hasVersion*(packageVersions: PackageVersions, pv: PkgTuple): bool =
       return true
   false
 
-proc hasVersion*(packagesVersions: var Table[string, PackageVersions], pv: PkgTuple): bool =
+proc hasVersion*(packagesVersions: Table[string, PackageVersions], pv: PkgTuple): bool =
   if pv.name in packagesVersions:
     return packagesVersions[pv.name].hasVersion(pv)
+  false
+
+proc hasVersion*(packagesVersions: Table[string, PackageVersions], name: string, ver: Version): bool =
+  if name in packagesVersions:
+    for pkg in packagesVersions[name].versions:
+      if pkg.version == ver:
+        return true
   false
 
 proc getNimVersion*(pvs: seq[PkgTuple]): Version =
@@ -262,22 +269,27 @@ proc downloadPkInfoForPv*(pv: PkgTuple, options: Options): PackageInfo  =
                   downloadPath = "", vcsRevision = notSetSha1Hash)
   return getPkgInfo(res.dir, options)
 
-proc downloadMinimalPackage*(pv: PkgTuple, options: Options): Option[PackageMinimalInfo] =
+proc downloadMinimalPackage*(pv: PkgTuple, options: Options, preferredPackages: seq[PackageMinimalInfo]): Option[PackageMinimalInfo] =
   let pkgInfo = downloadPkInfoForPv(pv, options)
   some pkgInfo.getMinimalInfo()
 
-proc collectAllVersions*(versions: var Table[string, PackageVersions], package: PackageMinimalInfo, options: Options, getMinimalPackage: GetPackageMinimal) =
+proc getFromPreferred*(pv: PkgTuple, options: Options, preferredPackages: seq[PackageMinimalInfo]): Option[PackageMinimalInfo] =
+  for pkg in preferredPackages:
+    if pv.name == pkg.name and pkg.version.withinRange(pv.ver):
+      return some pkg
+
+proc collectAllVersions*(versions: var Table[string, PackageVersions], package: PackageMinimalInfo, options: Options, getMinimalPackage: GetPackageMinimal, preferredPackages: seq[PackageMinimalInfo]) =
   ### Collects all the versions of a package and its dependencies and stores them in the versions table
   ### A getMinimalPackage function is passed to get the package
   for pv in package.requires:
     # echo "Collecting versions for ", pv.name, " and Version: ", $pv.ver, " via ", package.name
     var pv = pv
     if not hasVersion(versions, pv):  # Not found, meaning this package-version needs to be explored
-      var pkgMin = getMinimalPackage(pv, options).get() #TODO elegantly fail here
+      var pkgMin = getMinimalPackage(pv, options, preferredPackages).get() #TODO elegantly fail here
       if pv.ver.kind == verSpecial:
         pkgMin.version = newVersion $pv.ver
       if not versions.hasKey(pv.name):
         versions[pv.name] = PackageVersions(pkgName: pv.name, versions: @[pkgMin])
       else:
         versions[pv.name].versions.addUnique pkgMin
-      collectAllVersions(versions, pkgMin, options, getMinimalPackage)
+      collectAllVersions(versions, pkgMin, options, getMinimalPackage, preferredPackages)

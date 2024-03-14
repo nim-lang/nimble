@@ -105,35 +105,19 @@ proc processFreeDependencies(pkgInfo: PackageInfo,
     root.isRoot = true
     var pkgVersionTable = initTable[string, PackageVersions]()
     pkgVersionTable[root.name] = PackageVersions(pkgName: root.name, versions: @[root])
-
-    proc getPackageFromList(pv: PkgTuple, options: Options): Option[PackageMinimalInfo] =
-      for pkg in pkgList:
-        if pkg.basicInfo.name == pv.name and pkg.basicInfo.version.withinRange(pv.ver):
-          return some pkg.getMinimalInfo()
-
-    collectAllVersions(pkgVersionTable, root, options, getPackageFromList)
+    
+    let preferredPackages = root & pkgList.map(getMinimalInfo)
+    collectAllVersions(pkgVersionTable, root, options, getFromPreferred, preferredPackages)
 
     var graph = pkgVersionTable.toDepGraph()
     let form = graph.toFormular()
     var packages = initTable[string, Version]()
-    solve(graph, form, packages, listVersions= true)
+    solve(graph, form, packages, listVersions = true)
     for pkg, ver in packages:
       for pkgInfo in pkgList:
         if pkgInfo.basicInfo.name == pkg and pkgInfo.basicInfo.version == ver:
           result.incl pkgInfo
     if result.len > 0: return result
-      
-      
-
-    #TODO REDO with the GraphDep (need to fill the minimal info from the installed packages first)
-    # let allPackages = pkgList.mapIt(it.basicInfo)
-    # if requirements.areRequirementsWithinPackages(allPackages):
-    #   let form = toFormular(requirements, allPackages)      
-    #   var s = createSolution(form.f)
-    #   if satisfiable(form.f, s):
-    #     for pkg in pkgList:
-    #       result.incl pkg
-    #     return result
 
   display("Verifying", "dependencies for $1@$2" %
           [pkgInfo.basicInfo.name, $pkgInfo.basicInfo.version],

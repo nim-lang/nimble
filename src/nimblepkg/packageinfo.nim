@@ -300,10 +300,13 @@ proc getInstalledPkgsMin*(libsDir: string, options: Options): seq[PackageInfo] =
   ##
   ## ``libsDir`` is in most cases: ~/.nimble/pkgs/ (options.getPkgsDir)
   result = @[]
+  echo "Getting installed packages in ", libsDir
   for kind, path in walkDir(libsDir):
+    echo "Checking ", path
     if kind == pcDir:
       let nimbleFile = findNimbleFile(path, false)
       if nimbleFile != "":
+        echo "Found nimble file: ", nimbleFile
         let pkg = getInstalledPackageMin(options, path, nimbleFile)
         result.add pkg
 
