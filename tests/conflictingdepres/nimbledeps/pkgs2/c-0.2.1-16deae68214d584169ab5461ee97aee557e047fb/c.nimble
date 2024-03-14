@@ -1,6 +1,7 @@
 version       = "0.2.1"
 description   = "c"
 license       = "MIT"
+author        = "Juan M Gomez"
 
 # Dependencies
 

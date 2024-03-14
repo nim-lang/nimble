@@ -6,16 +6,8 @@ import std/[tables, sequtils, algorithm, json, jsonutils, strutils]
 import nimblepkg/[version, sha1hashes, packageinfotypes, nimblesat, options, 
   download, packageinfo, packageparser, config]
 import nimble
+import times
 
-
-proc downloadPkInfoForPv(pv: PkgTuple, options: Options): PackageInfo  =
-  let (meth, url, metadata) = 
-    getDownloadInfo(pv, options, doPrompt = true)
-  let subdir = metadata.getOrDefault("subdir")
-  let res = 
-    downloadPkg(url, pv.ver, meth, subdir, options,
-                  downloadPath = "", vcsRevision = notSetSha1Hash)
-  return getPkgInfo(res.dir, options)
 
 proc initFromJson*(dst: var PkgTuple, jsonNode: JsonNode, jsonPath: var string) =
   dst = parseRequires(jsonNode.str)
@@ -29,21 +21,6 @@ proc toJsonHook*(src: PkgTuple): JsonNode =
   else:
     newJString(src.name & " " & ver)
 
-proc collectAllVersions(versions: var Table[string, PackageVersions], package: PackageInfo, options: Options) =
-  for pv in package.requires:
-    # echo "Collecting versions for ", pv.name, " and Version: ", $pv.ver, " via ", package.name
-    var pv = pv
-    if not hasVersion(versions, pv):  # Not found, meaning this package-version needs to be explored
-      let pkgInfo = downloadPkInfoForPv(pv, options)
-      var minimalInfo = pkgInfo.getMinimalInfo()
-      if pv.ver.kind == verSpecial:
-        echo "Special version ", pv, " but it was ", minimalInfo.version
-        minimalInfo.version = newVersion $pv.ver
-      if not versions.hasKey(pv.name):
-        versions[pv.name] = PackageVersions(pkgName: pv.name, versions: @[minimalInfo])
-      else:
-        versions[pv.name].versions.addUnique minimalInfo
-      collectAllVersions(versions, pkgInfo, options)
 
 
 #Test utils:
@@ -62,7 +39,7 @@ proc downloadAndStorePackageVersionTableFor(pkgName: string, options: Options) =
   var root = pkgInfo.getMinimalInfo()
   root.isRoot = true
   var pkgVersionTable = initTable[string, PackageVersions]()
-  collectAllVersions(pkgVersionTable, pkgInfo, options)
+  collectAllVersions(pkgVersionTable, root, options, downloadMinimalPackage)
   pkgVersionTable[pkgName] = PackageVersions(pkgName: pkgName, versions: @[root])
   let json = pkgVersionTable.toJson()
   writeFile(path, json.pretty())
@@ -166,22 +143,12 @@ suite "SAT solver":
     echo packages
     check packages.len == 0
 
-  # test "issue #1162":
-  #   cd "conflictingdepres":
-  #     #integration version of the test above
-  #     #TODO document folder structure setup so others know how to run similar tests
-  #     let (_, exitCode) = execNimble("install", "-l")
-  #     check exitCode == QuitSuccess
-
-#[
-  Next download all packages store it in a json and solve the dependencies one by one. 
-
-  TODO
-    - Create the table from already downloaded packages.
-    - See if downloads can be cached and reused. 
-    - Review if when downloading a package we could just navigate it to get all versions without triggering another download
-    
-]#
+  test "issue #1162":
+    cd "conflictingdepres":
+      #integration version of the test above
+      #TODO document folder structure setup so others know how to run similar tests
+      let (_, exitCode) = execNimble("install", "-l")
+      check exitCode == QuitSuccess
 
   # test "should be able to download a package and select its deps":
 
@@ -198,7 +165,7 @@ suite "SAT solver":
   #   var root = pkgInfo.getMinimalInfo()
   #   root.isRoot = true
   #   var pkgVersionTable = initTable[string, PackageVersions]()
-  #   collectAllVersions(pkgVersionTable, pkgInfo, options)
+  #   collectAllVersions(pkgVersionTable, root, options, downloadMinimalPackage)
   #   pkgVersionTable[pkgName] = PackageVersions(pkgName: pkgName, versions: @[root])
 
   #   var graph = pkgVersionTable.toDepGraph()
@@ -209,14 +176,19 @@ suite "SAT solver":
     
 
   test "should be solve all nimble packages":
-    downloadAllPackages() #uncomment this to download all packages. It's better to just keep them cached as it takes a while.
-
+    # downloadAllPackages() #uncomment this to download all packages. It's better to just keep them cached as it takes a while.
+    let now = now()
+    var pks = 0
     for jsonFile in walkPattern("packageMinimal/*.json"):
+      inc pks
       var pkgVersionTable = parseJson(readFile(jsonFile)).to(Table[string, PackageVersions])
       var graph = pkgVersionTable.toDepGraph()
       let form = toFormular(graph)
       var packages = initTable[string, Version]()
       solve(graph, form, packages, listVersions= false)
-      echo "Solved ", jsonFile.extractFilename, " with ", packages.len, " packages"
+      # echo "Solved ", jsonFile.extractFilename, " with ", packages.len, " packages"
 
       check packages.len > 0
+    
+    let ends = now()
+    echo "Solved ", pks, " packages in ", ends - now, " seconds"

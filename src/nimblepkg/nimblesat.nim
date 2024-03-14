@@ -1,7 +1,7 @@
 import sat/[sat, satvars] 
 import version, packageinfotypes, download, packageinfo, packageparser, options, sha1hashes
   
-import std/[tables, sequtils, algorithm, json, jsonutils, strutils]
+import std/[tables, sequtils, algorithm, json, jsonutils, strutils, options]
 
 
 type  
@@ -50,6 +50,7 @@ type
     reqs*: seq[Requirements]
     packageToDependency*: Table[string, int] #package.name -> index into nodes
     # reqsByDeps: Table[Requirements, int]
+  GetPackageMinimal* = proc (pv: PkgTuple, options: Options): Option[PackageMinimalInfo]
 
 proc getMinimalInfo*(pkg: PackageInfo): PackageMinimalInfo =
   result.name = pkg.basicInfo.name
@@ -80,7 +81,6 @@ proc getNimVersion*(pvs: seq[PkgTuple]): Version =
       else:
         #TODO range
         discard
-      
 
 proc findDependencyForDep(g: DepGraph; dep: string): int {.inline.} =
   assert g.packageToDependency.hasKey(dep), dep & " not found"
@@ -238,3 +238,46 @@ proc solve*(g: var DepGraph; f: Form, packages: var Table[string, Version], list
               echo item.pkg, "[ ] " & toString item
   else:
     debugFormular(g, f, s)
+
+
+#TODO REVIEW this
+proc getDownloadInfo(pv: PkgTuple, options: Options,
+                      doPrompt: bool, ignorePackageCache = false): (DownloadMethod, string,
+                                        Table[string, string]) =
+  if pv.name.isURL:
+    let (url, metadata) = getUrlData(pv.name)
+    return (checkUrlType(url), url, metadata)
+  else:
+    var pkg = initPackage()
+    if getPackage(pv.name, options, pkg, ignorePackageCache):
+      let (url, metadata) = getUrlData(pkg.url)
+      return (pkg.downloadMethod, url, metadata)
+
+proc downloadPkInfoForPv*(pv: PkgTuple, options: Options): PackageInfo  =
+  let (meth, url, metadata) = 
+    getDownloadInfo(pv, options, doPrompt = true)
+  let subdir = metadata.getOrDefault("subdir")
+  let res = 
+    downloadPkg(url, pv.ver, meth, subdir, options,
+                  downloadPath = "", vcsRevision = notSetSha1Hash)
+  return getPkgInfo(res.dir, options)
+
+proc downloadMinimalPackage*(pv: PkgTuple, options: Options): Option[PackageMinimalInfo] =
+  let pkgInfo = downloadPkInfoForPv(pv, options)
+  some pkgInfo.getMinimalInfo()
+
+proc collectAllVersions*(versions: var Table[string, PackageVersions], package: PackageMinimalInfo, options: Options, getMinimalPackage: GetPackageMinimal) =
+  ### Collects all the versions of a package and its dependencies and stores them in the versions table
+  ### A getMinimalPackage function is passed to get the package
+  for pv in package.requires:
+    # echo "Collecting versions for ", pv.name, " and Version: ", $pv.ver, " via ", package.name
+    var pv = pv
+    if not hasVersion(versions, pv):  # Not found, meaning this package-version needs to be explored
+      var pkgMin = getMinimalPackage(pv, options).get() #TODO elegantly fail here
+      if pv.ver.kind == verSpecial:
+        pkgMin.version = newVersion $pv.ver
+      if not versions.hasKey(pv.name):
+        versions[pv.name] = PackageVersions(pkgName: pv.name, versions: @[pkgMin])
+      else:
+        versions[pv.name].versions.addUnique pkgMin
+      collectAllVersions(versions, pkgMin, options, getMinimalPackage)
