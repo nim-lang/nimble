@@ -1959,9 +1959,9 @@ when withDir(thisDir(), system.fileExists("{nimblePathsFileName}")):
         startIndex = fileContent.find(sectionStart)
         endIndex = fileContent.find(sectionEnd)
       if startIndex >= 0 and endIndex >= 0:
-        fileContent.delete(startIndex..endIndex + sectionEnd.len - 1)
-
-      fileContent.append(configFileContent)
+        fileContent = fileContent[0..<startIndex] & configFileContent[0 ..< ^1] & fileContent[endIndex + sectionEnd.len .. ^1]
+      else:
+        fileContent.append(configFileContent)
       writeFile = true
   else:
     fileContent.append(configFileContent)
