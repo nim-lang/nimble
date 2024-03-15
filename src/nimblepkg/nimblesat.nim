@@ -57,7 +57,6 @@ proc getMinimalInfo*(pkg: PackageInfo): PackageMinimalInfo =
   result.version = pkg.basicInfo.version
   result.requires = pkg.requires
 
-
 proc hasVersion*(packageVersions: PackageVersions, pv: PkgTuple): bool =
   for pkg in packageVersions.versions:
     if pkg.name == pv.name and pkg.version.withinRange(pv.ver):
@@ -127,6 +126,7 @@ proc toDepGraph*(versions: Table[string, PackageVersions]): DepGraph =
       root = pv
     else:
       result.nodes.add toDependency(result, pv)
+  assert root.pkgName != "", "No root package found"
   result.nodes.insert(toDependency(result, root), 0)
   # Fill the other field and I should be good to go?
   for i in countup(0, result.nodes.len-1):
@@ -246,6 +246,12 @@ proc solve*(g: var DepGraph; f: Form, packages: var Table[string, Version], list
   else:
     debugFormular(g, f, s)
 
+proc getSolvedPackages*(pkgVersionTable: Table[string, PackageVersions], listVersions = false): Table[string, Version] =
+  var graph = pkgVersionTable.toDepGraph()
+  let form = toFormular(graph)
+  var packages = initTable[string, Version]()
+  solve(graph, form, packages, listVersions= listVersions)
+  packages
 
 #TODO REVIEW this
 proc getDownloadInfo(pv: PkgTuple, options: Options,
@@ -270,6 +276,7 @@ proc downloadPkInfoForPv*(pv: PkgTuple, options: Options): PackageInfo  =
   return getPkgInfo(res.dir, options)
 
 proc downloadMinimalPackage*(pv: PkgTuple, options: Options, preferredPackages: seq[PackageMinimalInfo]): Option[PackageMinimalInfo] =
+  if pv.name == "": return none(PackageMinimalInfo)
   let pkgInfo = downloadPkInfoForPv(pv, options)
   some pkgInfo.getMinimalInfo()
 
@@ -277,6 +284,17 @@ proc getFromPreferred*(pv: PkgTuple, options: Options, preferredPackages: seq[Pa
   for pkg in preferredPackages:
     if pv.name == pkg.name and pkg.version.withinRange(pv.ver):
       return some pkg
+
+proc fillPackageTableFromPreferred*(packages: var Table[string, PackageVersions], preferredPackages: seq[PackageMinimalInfo]) =
+  for pkg in preferredPackages:
+    if not hasVersion(packages, pkg.name, pkg.version):
+      if not packages.hasKey(pkg.name):
+        packages[pkg.name] = PackageVersions(pkgName: pkg.name, versions: @[pkg])
+      else:
+        packages[pkg.name].versions.add pkg
+
+proc getInstalledMinimalPackages*(options: Options): seq[PackageMinimalInfo] =
+  getInstalledPkgsMin(options.getPkgsDir(), options).mapIt(it.getMinimalInfo())
 
 proc collectAllVersions*(versions: var Table[string, PackageVersions], package: PackageMinimalInfo, options: Options, getMinimalPackage: GetPackageMinimal, preferredPackages: seq[PackageMinimalInfo]) =
   ### Collects all the versions of a package and its dependencies and stores them in the versions table

@@ -194,34 +194,52 @@ suite "SAT solver":
     echo "Solved ", pks, " packages in ", ends - now, " seconds"
   
   test "should be able to retrieve the package minimal info from the nimble directory":
+   
     var options = initOptions()
-    options.nimbleDir = getHomeDir() / ".nimble"
     options.nimbleDir = getCurrentDir() / "conflictingdepres" / "nimbledeps" 
-    let pkgs = getInstalledPkgsMin(options.getPkgsDir(), options).mapIt(it.getMinimalInfo())
+    let pkgs = getInstalledMinimalPackages(options)
     var pkgVersionTable = initTable[string, PackageVersions]()
-    let root = 
-        PackageMinimalInfo(
-          name: "a", version: newVersion "3.0", 
-          requires: @[
-          (name:"b", ver: parseVersionRange ">= 0.1.4"),
-          (name:"c", ver: parseVersionRange ">= 0.0.5 & <= 0.1.0")
-        ], 
-        isRoot:true)
-
-    collectAllVersions(pkgVersionTable, root, options, getFromPreferred, pkgs)
+    fillPackageTableFromPreferred(pkgVersionTable, pkgs)
     check pkgVersionTable.hasVersion("b", newVersion "0.1.4")
     check pkgVersionTable.hasVersion("c", newVersion "0.1.0")
     check pkgVersionTable.hasVersion("c", newVersion "0.2.1")
 
+
+  test "should fallback to the download if the package is not found in the list of packages":
+    let root = 
+      PackageMinimalInfo(
+        name: "a", version: newVersion "3.0", 
+        requires: @[
+        (name:"b", ver: parseVersionRange ">= 0.1.4"),
+        (name:"c", ver: parseVersionRange ">= 0.0.5 & <= 0.1.0"),
+        (name: "random", ver: VersionRange(kind: verAny))
+      ], 
+      isRoot:true)
+   
+    var options = initOptions()
+    options.config.packageLists["official"] = PackageList(name: "Official", urls: @[
+      "https://raw.githubusercontent.com/nim-lang/packages/master/packages.json",
+      "https://nim-lang.org/nimble/packages.json"
+    ])
+    options.nimbleDir = getCurrentDir() / "conflictingdepres" / "nimbledeps" 
+    options.nimBin = "nim"
+    let pkgs = getInstalledMinimalPackages(options)
+    var pkgVersionTable = initTable[string, PackageVersions]()
+    pkgVersionTable["a"] = PackageVersions(pkgName: "a", versions: @[root])
+    fillPackageTableFromPreferred(pkgVersionTable, pkgs)
+    collectAllVersions(pkgVersionTable, root, options, downloadMinimalPackage, @[])
+
+    let solvedPkgs = pkgVersionTable.getSolvedPackages()
+    check solvedPkgs["b"] == newVersion "0.1.4"
+    check solvedPkgs["c"] == newVersion "0.1.0"
+    check "random" in pkgVersionTable
+    #TODO research how to set the download directory so I can remove it here and reuse
     #TODO make the table
     #[
       Missing tests
-    - Check the list of packages belong to the same above.
     - Test it fallbacks to downloading the package if not found in the list of packages
     - Test it fallbacks to downloading the package if the version is not found in the list of packages
     - Test next time the package is found in the list of packages without hitting the download.
     - 
     ]#
-    
 
-#]
