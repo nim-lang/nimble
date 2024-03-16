@@ -79,7 +79,7 @@ jobs:
           path: nimble-${{ matrix.target.name }}.tar.gz
 
   create-github-release:
-    name: Create Github Release
+    name: Create GitHub Release
     needs: [build]
     runs-on: ubuntu-latest
     permissions:
