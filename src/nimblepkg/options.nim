@@ -242,7 +242,7 @@ Nimble Options:
       --useSystemNim              Use system nim and ignore nim from the lock
                                   file if any
 
-For more information read the Github readme:
+For more information read the GitHub readme:
   https://github.com/nim-lang/nimble#readme
 """
 
@@ -328,7 +328,7 @@ proc parseActionType*(action: string): ActionType =
     result = actionCustom
 
 proc initAction*(options: var Options, key: string) =
-  ## Intialises `options.actions` fields based on `options.actions.typ` and
+  ## Initialises `options.actions` fields based on `options.actions.typ` and
   ## `key`.
   let keyNorm = key.normalize()
   case options.action.typ

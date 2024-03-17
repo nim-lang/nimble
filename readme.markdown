@@ -222,7 +222,7 @@ See the [Creating Packages](#creating-packages) section for more info on this.
 Dependencies required for developing or testing a project can be installed by
 passing `--depsOnly` without specifying a package name. Nimble will then install
 any missing dependencies listed in the package's ``package.nimble`` file in the
-current working directoy. Note that dependencies will be installed globally.
+current working directory. Note that dependencies will be installed globally.
 
 For example to install the dependencies for a Nimble project ``myPackage``:
 
@@ -1097,7 +1097,7 @@ Nimble includes a ``publish`` command which does this for you automatically.
   package*, Nimble will build the files specified and install them appropriately.
 * ``namedBin`` - A list of name:value files which should be built with specified
   name, no file extension required. This option turns your package into a *binary
-  package*, Nimble will build the files specified and install them approriately.
+  package*, Nimble will build the files specified and install them appropriately.
   `namedBin` entries override duplicates in `bin`.
 * ``backend`` - Specifies the backend which will be used to build the files
   listed in ``bin``. Possible values include: ``c``, ``cc``, ``cpp``, ``objc``,

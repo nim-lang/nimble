@@ -153,7 +153,7 @@ development and test workflows.
 - CTRL-C is now handled correctly in interactive prompts.
 - Fixed issue where empty package list led to error.
 - Fixed issue where file:// was prepended incorrectly.
-- Fixed miscellaneous issues in version parsing, Github auth and briefClone.
+- Fixed miscellaneous issues in version parsing, GitHub auth and briefClone.
 - Miscellaneous cleanup of deprecated procs.
 
 ----
@@ -347,7 +347,7 @@ This release includes multiple bug fixes.
 * Reverted patch that breaks binary stubs in Git Bash on Windows.
 * The ``nimscriptapi.nim`` file is now statically compiled into the binary.
   This should fix the "could not find nimscriptapi.nim" errors. The file can
-  still be overriden by placing a file named ``nimscriptapi.nim`` inside a
+  still be overridden by placing a file named ``nimscriptapi.nim`` inside a
   ``nimblepkg`` directory that is placed alongside the Nimble binary, or
   by a ``nimscriptapi.nim`` file inside ``~/.nimble/pkgs/nimble-ver/nimblepkg/``.
   For more information see the

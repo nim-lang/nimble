@@ -26,11 +26,11 @@ suite "test command":
       check outp.processOutput.inLines("Failing Second test")
       check(not outp.processOutput.inLines("Third test"))
 
-  test "test command can be overriden":
+  test "test command can be overridden":
     cd "testCommand/testOverride":
       let (outp, exitCode) = execNimble("-d:CUSTOM", "test", "--runflag")
       check exitCode == QuitSuccess
-      check outp.processOutput.inLines("overriden")
+      check outp.processOutput.inLines("overridden")
       check outp.processOutput.inLines("true")
 
   test "certain files are ignored":
