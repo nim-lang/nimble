@@ -14,7 +14,7 @@ from net import SslCVerifyMode, newContext
 type
   Auth = object
     user: string
-    token: string  ## Github access token
+    token: string  ## GitHub access token
     http: HttpClient ## http client for doing API requests
 
 const
@@ -34,7 +34,7 @@ proc createHeaders(a: Auth) =
   })
 
 proc requestNewToken(cfg: Config): string =
-  display("Info:", "Please create a new personal access token on Github in" &
+  display("Info:", "Please create a new personal access token on GitHub in" &
           " order to allow Nimble to fork the packages repository.",
           priority = HighPriority)
   display("Hint:", "Make sure to give the access token access to public repos" &
@@ -167,7 +167,7 @@ proc publish*(p: PackageInfo, o: Options) =
   var pkgsDir = getNimbleUserTempDir() / "nimble-packages-fork"
   if not forkExists(auth):
     createFork(auth)
-    display("Info:", "Waiting 10s to let Github create a fork",
+    display("Info:", "Waiting 10s to let GitHub create a fork",
             priority = HighPriority)
     os.sleep(10_000)
 
@@ -230,7 +230,7 @@ proc publish*(p: PackageInfo, o: Options) =
          "No .git nor .hg directory found. Stopping.")
 
   if url.len == 0:
-    url = promptCustom("Github URL of " & p.basicInfo.name & "?", "")
+    url = promptCustom("GitHub URL of " & p.basicInfo.name & "?", "")
     if url.len == 0: userAborted()
 
   let tags = promptCustom(

@@ -220,7 +220,7 @@ proc processFreeDependencies(pkgInfo: PackageInfo,
 
   # We add the reverse deps to the JSON file here because we don't want
   # them added if the above errorenous condition occurs
-  # (unsatisfiable dependendencies).
+  # (unsatisfiable dependencies).
   # N.B. NimbleData is saved in installFromDir.
   for i in reverseDependencies:
     addRevDep(options.nimbleData, i, pkgInfo)
@@ -1749,10 +1749,10 @@ proc lock(options: Options) =
 
   pkgInfo.validateDevelopDependenciesVersionRanges(baseDeps, options)
 
-  # We need to seperate the graph into seperate tasks later
+  # We need to separate the graph into separate tasks later
   var
     errors = validateDevModeDepsWorkingCopiesBeforeLock(pkgInfo, options)
-    taskDepNames: Table[string, HashSet[string]] # We need to seperate the graph into seperate tasks later
+    taskDepNames: Table[string, HashSet[string]] # We need to separate the graph into separate tasks later
     allDeps = baseDeps.toHashSet
     lockDeps: AllLockFileDeps
 

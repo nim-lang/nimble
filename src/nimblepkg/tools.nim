@@ -86,7 +86,7 @@ proc changeRoot*(origRoot, newRoot, path: string): string =
   ## Return value -> /home/test/bar/blah/2/foo.txt
 
   ## The additional check of `path.samePaths(origRoot)` is necessary to prevent
-  ## a regression, where by ending the `srcDir` defintion in a nimble file in a
+  ## a regression, where by ending the `srcDir` definition in a nimble file in a
   ## trailing separator would cause the `path.startsWith(origRoot)` evaluation to
   ## fail because of the value of `origRoot` would be longer than `path` due to
   ## the trailing separator. This would cause this method to throw during package
@@ -225,7 +225,7 @@ proc newSSLContext*(disabled: bool): SslContext =
 when isMainModule:
   import unittest
 
-  suite "getNameVersionCheksum":
+  suite "getNameVersionChecksum":
     test "directory names without sha1 hashes":
       check getNameVersionChecksum(
         "/home/user/.nimble/libs/packagea-0.1") ==

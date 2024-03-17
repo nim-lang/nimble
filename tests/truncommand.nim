@@ -14,7 +14,7 @@ suite "nimble run":
     cd "run":
       let (output, exitCode) = execNimble(
         "--debug", # Flag to enable debug verbosity in Nimble
-        "run", # Run command invokation
+        "run", # Run command invocation
         "blahblah", # The command to run
       )
       check exitCode == QuitFailure
@@ -25,7 +25,7 @@ suite "nimble run":
     cd "run":
       let (output, exitCode) = execNimble(
         "--debug", # Flag to enable debug verbosity in Nimble
-        "run", # Run command invokation
+        "run", # Run command invocation
         "run", # The command to run
         "--test", # First argument passed to the executed command
         "check" # Second argument passed to the executed command.
@@ -52,7 +52,7 @@ suite "nimble run":
     cd "run":
       let (output, exitCode) = execNimble(
         "--debug", # Flag to enable debug verbosity in Nimble
-        "run", # Run command invokation
+        "run", # Run command invocation
         "--", # Flag to set run file to "" before next argument
         "--test", # First argument passed to the executed command
         "check" # Second argument passed to the executed command.
@@ -80,7 +80,7 @@ suite "nimble run":
   test "Nimble options before executable name":
     cd "run":
       let (output, exitCode) = execNimble(
-        "run", # Run command invokation
+        "run", # Run command invocation
         "--debug", # Flag to enable debug verbosity in Nimble
         "run", # The executable to run
         "--test" # First argument passed to the executed command
@@ -93,7 +93,7 @@ suite "nimble run":
   test "Nimble options flags before --":
     cd "run":
       let (output, exitCode) = execNimble(
-        "run", # Run command invokation
+        "run", # Run command invocation
         "--debug", # Flag to enable debug verbosity in Nimble
         "--", # Separator for arguments
         "--test" # First argument passed to the executed command
@@ -107,7 +107,7 @@ suite "nimble run":
     cd "run":
       let (output, exitCode) = execNimble(
         "-d:sayWhee", # Compile flag to define a conditional symbol
-        "run", # Run command invokation
+        "run", # Run command invocation
         "--debug", # Flag to enable debug verbosity in Nimble
         "--", # Separator for arguments
         "--test" # First argument passed to the executed command
@@ -122,7 +122,7 @@ suite "nimble run":
     cd "run":
       let (output, exitCode) = execNimble(
         "--debug", # Flag to enable debug verbosity in Nimble
-        "run", # Run command invokation
+        "run", # Run command invocation
         "-d:sayWhee", # Compile flag to define a conditional symbol
         "run", # The executable to run
         "--test" # First argument passed to the executed command
@@ -136,7 +136,7 @@ suite "nimble run":
   test "Compilation flags before --":
     cd "run":
       let (output, exitCode) = execNimble(
-        "run", # Run command invokation
+        "run", # Run command invocation
         "-d:sayWhee", # Compile flag to define a conditional symbol
         "--debug", # Flag to enable debug verbosity in Nimble
         "--", # Separator for arguments
@@ -152,7 +152,7 @@ suite "nimble run":
     cd "run":
       let (output, exitCode) = execNimble(
         "-d:compileFlagBeforeRunCommand", # Compile flag to define a conditional symbol
-        "run", # Run command invokation
+        "run", # Run command invocation
         "-d:sayWhee", # Compile flag to define a conditional symbol
         "--debug", # Flag to enable debug verbosity in Nimble
         "--", # Separator for arguments
