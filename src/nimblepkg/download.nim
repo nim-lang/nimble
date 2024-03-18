@@ -471,7 +471,7 @@ proc downloadPkg*(url: string, verRange: VersionRange,
     else:
       downloadPath
 
-  if options.pkgCachePath != "" and dirExists(options.pkgCachePath):
+  if options.pkgCachePath != "" and dirExists(downloadDir):
     #TODO test integrity of the package
     return (dir: downloadDir, version: newVersion getSimpleString(verRange), vcsRevision: notSetSha1Hash)    
 

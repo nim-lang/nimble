@@ -81,7 +81,6 @@ proc checkSatisfied(options: Options, dependencies: seq[PackageInfo]) =
           [pkgInfo.basicInfo.name, $currentVer, $pkgsInPath[pkgInfo.basicInfo.name]])
     pkgsInPath[pkgInfo.basicInfo.name] = currentVer
 
-import nimblepkg/nimblesat
 
 proc processFreeDependencies(pkgInfo: PackageInfo,
                              requirements: seq[PkgTuple],
@@ -100,20 +99,13 @@ proc processFreeDependencies(pkgInfo: PackageInfo,
     pkgList = initPkgList(pkgInfo, options)
     #At this point we have all the installed packages
     #If we can solve them all here, we just do it and call it a day. 
-    #TODO refactor extract function
     var root = pkgInfo.getMinimalInfo()
     root.isRoot = true
     var pkgVersionTable = initTable[string, PackageVersions]()
     pkgVersionTable[root.name] = PackageVersions(pkgName: root.name, versions: @[root])
-    
-    let preferredPackages = root & pkgList.map(getMinimalInfo)
-    collectAllVersions(pkgVersionTable, root, options, getFromPreferred, preferredPackages)
-
-    var graph = pkgVersionTable.toDepGraph()
-    let form = graph.toFormular()
-    var packages = initTable[string, Version]()
-    solve(graph, form, packages, listVersions = true)
-    for pkg, ver in packages:
+    fillPackageTableFromPreferred(pkgVersionTable, pkgList.map(getMinimalInfo))
+    let solvedPkgs = pkgVersionTable.getSolvedPackages()
+    for pkg, ver in solvedPkgs:
       for pkgInfo in pkgList:
         if pkgInfo.basicInfo.name == pkg and pkgInfo.basicInfo.version == ver:
           result.incl pkgInfo

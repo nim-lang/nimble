@@ -39,7 +39,7 @@ proc downloadAndStorePackageVersionTableFor(pkgName: string, options: Options) =
   var root = pkgInfo.getMinimalInfo()
   root.isRoot = true
   var pkgVersionTable = initTable[string, PackageVersions]()
-  collectAllVersions(pkgVersionTable, root, options, downloadMinimalPackage, @[])
+  collectAllVersions(pkgVersionTable, root, options, downloadMinimalPackage)
   pkgVersionTable[pkgName] = PackageVersions(pkgName: pkgName, versions: @[root])
   let json = pkgVersionTable.toJson()
   writeFile(path, json.pretty())
@@ -228,20 +228,13 @@ suite "SAT solver":
     var pkgVersionTable = initTable[string, PackageVersions]()
     pkgVersionTable["a"] = PackageVersions(pkgName: "a", versions: @[root])
     fillPackageTableFromPreferred(pkgVersionTable, pkgs)
-    collectAllVersions(pkgVersionTable, root, options, downloadMinimalPackage, @[])
+    collectAllVersions(pkgVersionTable, root, options, downloadMinimalPackage)
 
     let solvedPkgs = pkgVersionTable.getSolvedPackages()
     check solvedPkgs["b"] == newVersion "0.1.4"
     check solvedPkgs["c"] == newVersion "0.1.0"
     check "random" in pkgVersionTable
+    
     removeDir(options.pkgCachePath)
-    #TODO research how to set the download directory so I can remove it here and reuse
-    #TODO make the table
-    #[
-      Missing tests
-    - Test it fallbacks to downloading the package if not found in the list of packages
-    - Test it fallbacks to downloading the package if the version is not found in the list of packages
-    - Test next time the package is found in the list of packages without hitting the download.
-    - 
-    ]#
+    
 
