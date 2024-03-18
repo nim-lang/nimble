@@ -55,6 +55,7 @@ type
       # For which package in the dependency tree the command should be executed.
       # If not provided by default it applies to the current directory package.
       # For now, it is used only by the run action and it is ignored by others.
+    pkgCachePath*: string # Cache used to store package downloads
 
   ActionType* = enum
     actionNil, actionRefresh, actionInit, actionDump, actionPublish, actionUpgrade

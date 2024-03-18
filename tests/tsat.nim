@@ -212,7 +212,7 @@ suite "SAT solver":
         requires: @[
         (name:"b", ver: parseVersionRange ">= 0.1.4"),
         (name:"c", ver: parseVersionRange ">= 0.0.5 & <= 0.1.0"),
-        (name: "random", ver: VersionRange(kind: verAny))
+        (name: "random", ver: VersionRange(kind: verAny)),
       ], 
       isRoot:true)
    
@@ -223,6 +223,7 @@ suite "SAT solver":
     ])
     options.nimbleDir = getCurrentDir() / "conflictingdepres" / "nimbledeps" 
     options.nimBin = "nim"
+    options.pkgCachePath = getCurrentDir() / "conflictingdepres" / "download"
     let pkgs = getInstalledMinimalPackages(options)
     var pkgVersionTable = initTable[string, PackageVersions]()
     pkgVersionTable["a"] = PackageVersions(pkgName: "a", versions: @[root])
@@ -233,6 +234,7 @@ suite "SAT solver":
     check solvedPkgs["b"] == newVersion "0.1.4"
     check solvedPkgs["c"] == newVersion "0.1.0"
     check "random" in pkgVersionTable
+    removeDir(options.pkgCachePath)
     #TODO research how to set the download directory so I can remove it here and reuse
     #TODO make the table
     #[

@@ -272,7 +272,7 @@ proc downloadPkInfoForPv*(pv: PkgTuple, options: Options): PackageInfo  =
   let subdir = metadata.getOrDefault("subdir")
   let res = 
     downloadPkg(url, pv.ver, meth, subdir, options,
-                  downloadPath = "", vcsRevision = notSetSha1Hash)
+                  "", vcsRevision = notSetSha1Hash)
   return getPkgInfo(res.dir, options)
 
 proc downloadMinimalPackage*(pv: PkgTuple, options: Options, preferredPackages: seq[PackageMinimalInfo]): Option[PackageMinimalInfo] =

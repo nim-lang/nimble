@@ -461,12 +461,19 @@ proc downloadPkg*(url: string, verRange: VersionRange,
 
   if options.offline:
     raise nimbleError("Cannot download in offline mode.")
-
   let downloadDir =
     if downloadPath == "":
-      (getNimbleTempDir() / getDownloadDirName(url, verRange, vcsRevision))
+      let dir = if options.pkgCachePath != "":
+        options.pkgCachePath
+      else:
+        getNimbleTempDir()
+      (dir / getDownloadDirName(url, verRange, vcsRevision))
     else:
       downloadPath
+
+  if options.pkgCachePath != "" and dirExists(options.pkgCachePath):
+    #TODO test integrity of the package
+    return (dir: downloadDir, version: newVersion getSimpleString(verRange), vcsRevision: notSetSha1Hash)    
 
   createDir(downloadDir)
   var modUrl =
