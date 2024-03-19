@@ -104,12 +104,76 @@ proc processFreeDependencies(pkgInfo: PackageInfo,
     var pkgVersionTable = initTable[string, PackageVersions]()
     pkgVersionTable[root.name] = PackageVersions(pkgName: root.name, versions: @[root])
     fillPackageTableFromPreferred(pkgVersionTable, pkgList.map(getMinimalInfo))
-    let solvedPkgs = pkgVersionTable.getSolvedPackages()
+    var solvedPkgs = pkgVersionTable.getSolvedPackages()
+
     for pkg, ver in solvedPkgs:
       for pkgInfo in pkgList:
         if pkgInfo.basicInfo.name == pkg and pkgInfo.basicInfo.version == ver:
           result.incl pkgInfo
     if result.len > 0: return result
+
+
+  var options = options
+  options.pkgCachePath = "/Users/jmgomez/.nimble/cache"
+
+  var root = pkgInfo.getMinimalInfo()
+  root.isRoot = true
+  var pkgVersionTable = initTable[string, PackageVersions]()
+  pkgVersionTable[root.name] = PackageVersions(pkgName: root.name, versions: @[root])
+  collectAllVersions(pkgVersionTable, root, options, downloadMinimalPackage)
+  # echo "!!!!!!!Package version table is: ", pkgVersionTable
+  var solvedPkgs = pkgVersionTable.getSolvedPackages()
+  var pkgsToInstall: seq[(string, Version)] = @[]
+  for solvedPkg, ver in solvedPkgs:
+    if solvedPkg == root.name:
+      continue
+    for pkgInfo in pkgList:
+      if pkgInfo.basicInfo.name == solvedPkg: # and pkgInfo.basicInfo.version.withinRange(ver):
+        result.incl pkgInfo
+      else:
+        pkgsToInstall.addUnique((solvedPkg, ver))
+  if result.len > 0: 
+    echo "SOLVED WITH THE SAT Solver!!!!"
+    if pkgsToInstall.len > 0:
+      echo "But We still need to install: (they are downloaded but not installed) ", pkgsToInstall
+      for pkg in pkgsToInstall:
+        let dep = (name: pkg[0], ver: pkg[1].toVersionRange)
+        let resolvedDep = dep.resolveAlias(options)
+        display("Installing", $resolvedDep, priority = HighPriority)
+        let toInstall = @[(resolvedDep.name, resolvedDep.ver)]
+        let (packages, installedPkg) = install(toInstall, options,
+          doPrompt = false, first = false, fromLockFile = false,
+          preferredPackages = preferredPackages)
+
+        for pkg in packages:
+          if result.contains pkg:
+            # If the result already contains the newly tried to install package
+            # we had to merge its special versions set into the set of the old
+            # one.
+            result[pkg].metaData.specialVersions.incl(
+              pkg.metaData.specialVersions)
+          else:
+            result.incl pkg
+      #Recover the package info from the table needed?
+      #Get the installation directory
+    # for pkg in result:
+    #   echo "SOLVED: ", pkg.basicInfo.name, " ", pkg.basicInfo.version
+    #   var temp = initPackageInfo()
+    #   let resolvedDep = (name: pkg.basicInfo.name, version: pkg.basicInfo.version)
+    #   # let resolvedDep = dep.resolveAlias(options)
+    #   let found = pkg.basicInfo in pkgList.mapIt(it.basicInfo)
+      
+    #   echo "FOUND: ", found, "resolvedDep: ", resolvedDep
+    #   if not found:
+    #     echo "Needs to install ", resolvedDep
+    #     # display("Installing", $resolvedDep, priority = HighPriority)
+    #     # let toInstall = @[(resolvedDep.name, resolvedDep.ver)]
+    #     # let (packages, installedPkg) = install(toInstall, options,
+    #     #   doPrompt = false, first = false, fromLockFile = false,
+    #     #   preferredPackages = preferredPackages)
+    return result
+
+
 
   display("Verifying", "dependencies for $1@$2" %
           [pkgInfo.basicInfo.name, $pkgInfo.basicInfo.version],
@@ -680,7 +744,7 @@ proc processLockedDependencies(pkgInfo: PackageInfo, options: Options):
       raise nimbleError("Unsatisfied dependency: " & pkgInfo.basicInfo.name)
 
   return res.toHashSet
-
+#TODO reuse this one instead
 proc getDownloadInfo*(pv: PkgTuple, options: Options,
                       doPrompt: bool, ignorePackageCache = false): (DownloadMethod, string,
                                         Table[string, string]) =

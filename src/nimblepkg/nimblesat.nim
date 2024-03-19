@@ -1,5 +1,5 @@
 import sat/[sat, satvars] 
-import version, packageinfotypes, download, packageinfo, packageparser, options, sha1hashes
+import version, packageinfotypes, download, packageinfo, packageparser, options, sha1hashes, config
   
 import std/[tables, sequtils, algorithm, json, jsonutils, strutils, options]
 
@@ -248,11 +248,49 @@ proc solve*(g: var DepGraph; f: Form, packages: var Table[string, Version], list
 
 proc getSolvedPackages*(pkgVersionTable: Table[string, PackageVersions], listVersions = false): Table[string, Version] =
   var graph = pkgVersionTable.toDepGraph()
+  #TODO make sure all references are in the graph before calling toFormular
+  for p in graph.nodes:
+    for ver in p.versions.items:
+      for dep, q in items graph.reqs[ver.req].deps:
+        if dep notin graph.packageToDependency:
+          echo "**********Dependency ", dep, " not found in the graph"
+          return initTable[string, Version]()
+    
   let form = toFormular(graph)
   var packages = initTable[string, Version]()
   solve(graph, form, packages, listVersions= listVersions)
   packages
 
+
+
+proc refresh(options: Options) =
+  ## Downloads the package list from the specified URL.
+  ##
+  ## If the download is not successful, an exception is raised.
+  # if options.offline:
+    # raise nimbleError("Cannot refresh package list in offline mode.")
+
+  let parameter =
+    if options.action.typ == actionRefresh:
+      options.action.optionalURL
+    else:
+      ""
+
+  if parameter.len > 0:
+    if parameter.isUrl:
+      let cmdLine = PackageList(name: "commandline", urls: @[parameter])
+      fetchList(cmdLine, options)
+    else:
+      if parameter notin options.config.packageLists:
+        let msg = "Package list with the specified name not found."
+        # raise nimbleError(msg)
+        echo "ERRORRRR"
+
+      fetchList(options.config.packageLists[parameter], options)
+  else:
+    # Try each package list in config
+    for name, list in options.config.packageLists:
+      fetchList(list, options)
 #TODO REVIEW this
 proc getDownloadInfo(pv: PkgTuple, options: Options,
                       doPrompt: bool, ignorePackageCache = false): (DownloadMethod, string,
@@ -264,7 +302,24 @@ proc getDownloadInfo(pv: PkgTuple, options: Options,
     var pkg = initPackage()
     if getPackage(pv.name, options, pkg, ignorePackageCache):
       let (url, metadata) = getUrlData(pkg.url)
+      echo "Pkg: ", pkg, "url ", url, "metadata ", metadata
       return (pkg.downloadMethod, url, metadata)
+    else:
+       # If package is not found give the user a chance to refresh
+      # package.json
+      if doPrompt and not options.offline and
+          options.prompt(pv.name & " not found in any local packages.json, " &
+                         "check internet for updated packages?"):
+        refresh(options)
+
+        # Once we've refreshed, try again, but don't prompt if not found
+        # (as we've already refreshed and a failure means it really
+        # isn't there)
+        # Also ignore the package cache so the old info isn't used
+        return getDownloadInfo(pv, options, false, true)
+      else:
+        echo "ERRORRR"
+        # raise nimbleError(pkgNotFoundMsg(pv))
 
 proc downloadPkInfoForPv*(pv: PkgTuple, options: Options): PackageInfo  =
   let (meth, url, metadata) = 
