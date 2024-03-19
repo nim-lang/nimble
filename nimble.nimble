@@ -11,8 +11,8 @@ installExt = @["nim"]
 
 # Dependencies
 
-requires "nim >= 0.13.0",
-  "https://github.com/nim-lang/sat"
+requires "nim >= 0.13.0", "sat"
+#TODO investigate what's wrong the git url
 
 when defined(nimdistros):
   import distros

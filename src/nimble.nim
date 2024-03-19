@@ -220,7 +220,7 @@ proc processFreeDependencies(pkgInfo: PackageInfo,
 
   # We add the reverse deps to the JSON file here because we don't want
   # them added if the above errorenous condition occurs
-  # (unsatisfiable dependencies).
+  # (unsatisfiable dependendencies).
   # N.B. NimbleData is saved in installFromDir.
   for i in reverseDependencies:
     addRevDep(options.nimbleData, i, pkgInfo)
