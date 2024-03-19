@@ -1,5 +1,6 @@
 import sat/[sat, satvars] 
-import version, packageinfotypes, download, packageinfo, packageparser, options, sha1hashes, config
+import version, packageinfotypes, download, packageinfo, packageparser, options, 
+  sha1hashes, config, common, displaymessages
   
 import std/[tables, sequtils, algorithm, json, jsonutils, strutils, options]
 
@@ -302,24 +303,10 @@ proc getDownloadInfo(pv: PkgTuple, options: Options,
     var pkg = initPackage()
     if getPackage(pv.name, options, pkg, ignorePackageCache):
       let (url, metadata) = getUrlData(pkg.url)
-      echo "Pkg: ", pkg, "url ", url, "metadata ", metadata
+      # echo "Pkg: ", pkg, "url ", url, "metadata ", metadata
       return (pkg.downloadMethod, url, metadata)
     else:
-       # If package is not found give the user a chance to refresh
-      # package.json
-      if doPrompt and not options.offline and
-          options.prompt(pv.name & " not found in any local packages.json, " &
-                         "check internet for updated packages?"):
-        refresh(options)
-
-        # Once we've refreshed, try again, but don't prompt if not found
-        # (as we've already refreshed and a failure means it really
-        # isn't there)
-        # Also ignore the package cache so the old info isn't used
-        return getDownloadInfo(pv, options, false, true)
-      else:
-        echo "ERRORRR"
-        # raise nimbleError(pkgNotFoundMsg(pv))
+      raise nimbleError(pkgNotFoundMsg(pv))
 
 proc downloadPkInfoForPv*(pv: PkgTuple, options: Options): PackageInfo  =
   let (meth, url, metadata) = 
