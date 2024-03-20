@@ -139,7 +139,8 @@ suite "SAT solver":
     var graph = pkgVersionTable.toDepGraph()
     let form = toFormular(graph)
     var packages = initTable[string, Version]()
-    solve(graph, form, packages, verbose=true)
+    solve(graph, form, packages)
+    echo packages
     check packages.len == 0
 
   test "issue #1162":
@@ -170,7 +171,7 @@ suite "SAT solver":
     var graph = pkgVersionTable.toDepGraph()
     let form = graph.toFormular()
     var packages = initTable[string, Version]()
-    solve(graph, form, packages, listVersions= true)
+    solve(graph, form, packages, verbose = true)
     check packages.len > 0
     
 
@@ -184,7 +185,7 @@ suite "SAT solver":
       var graph = pkgVersionTable.toDepGraph()
       let form = toFormular(graph)
       var packages = initTable[string, Version]()
-      solve(graph, form, packages)
+      solve(graph, form, packages, verbose = false)
       # echo "Solved ", jsonFile.extractFilename, " with ", packages.len, " packages"
 
       check packages.len > 0
