@@ -10,7 +10,7 @@ Nimble is the default *package manager* for the
 ## Documentation
 
 Interested in how to use Nimble? See the
-[Nimble Guide](https://narimiran.github.io/nimble/index.html),
+[Nimble Guide](https://nim-lang.github.io/nimble/index.html),
 where you can learn:
 - [How to install existing packages](https://nim-lang.github.io/nimble/use-packages.html)
 - [How to create a Nimble package](https://nim-lang.github.io/nimble/create-packages.html)
