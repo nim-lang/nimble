@@ -2,7 +2,7 @@ import sat/[sat, satvars]
 import version, packageinfotypes, download, packageinfo, packageparser, options, 
   sha1hashes, config, common, displaymessages
   
-import std/[tables, sequtils, algorithm, json, jsonutils, strutils, options]
+import std/[tables, sequtils, algorithm, json, jsonutils, strutils, options, strformat]
 
 
 type  
@@ -219,11 +219,41 @@ proc debugFormular(g: var DepGraph; f: Form; s: Solution) =
     else:
       echo "v", i, ": F"
 
+proc getNodeByReqIdx(g: var DepGraph, reqIdx: int): Option[Dependency] =
+  for n in g.nodes:
+    if n.versions.anyIt(it.req == reqIdx):
+      return some n
+  none(Dependency)
 
-proc solve*(g: var DepGraph; f: Form, packages: var Table[string, Version], listVersions: bool = false) =
+proc generateUnsatisfiableMessage(g: var DepGraph, f: Form, s: Solution): string =
+  var conflicts: seq[string] = @[]
+  for reqIdx, req in g.reqs:
+    if not s.isTrue(req.v):  # Check if the requirement's corresponding variable was not satisfied
+      for dep in req.deps:
+        var dep = dep
+        let depNodeIdx = findDependencyForDep(g, dep.name)
+        let depVersions = g.nodes[depNodeIdx].versions
+        let satisfiableVersions = 
+          depVersions.filterIt(it.version.withinRange(dep.ver) and s.isTrue(it.v))
+        
+        if satisfiableVersions.len == 0:
+          # No version of this dependency could satisfy the requirement
+          # Find which package/version had this requirement
+          let reqNode = g.getNodeByReqIdx(reqIdx)
+          if reqNode.isSome:
+            let pkgName = reqNode.get.pkgName
+            conflicts.add(&"Requirement '{dep.name} {dep.ver}' required by '{pkgName} {req.version}' could not be satisfied.")
+  
+  if conflicts.len == 0:
+    return "Dependency resolution failed due to unsatisfiable dependencies, but specific conflicts could not be determined."
+  else:
+    return "Dependency resolution failed due to the following conflicts:\n" & conflicts.join("\n")
+
+
+
+proc solve*(g: var DepGraph; f: Form, packages: var Table[string, Version], verbose: bool = false) =
   let m = f.idgen
   var s = createSolution(m)
-  #debugFormular c, g, f, s
   if satisfiable(f.f, s):
     for n in mitems g.nodes:
       if n.isRoot: n.active = true
@@ -239,27 +269,29 @@ proc solve*(g: var DepGraph; f: Form, packages: var Table[string, Version], list
           let item = f.mapping[v.v]
           if s.isTrue(v.v):
             packages[item.pkg] = item.version
-            if listVersions:
+            if verbose:
               echo item.pkg, "[x] " & toString item
           else:
-            if listVersions:
+            if verbose:
               echo item.pkg, "[ ] " & toString item
-  else:
-    debugFormular(g, f, s)
+  elif verbose:
+    let errorMsg = generateUnsatisfiableMessage(g, f, s)
+    echo errorMsg
 
-proc getSolvedPackages*(pkgVersionTable: Table[string, PackageVersions], listVersions = false): Table[string, Version] =
+proc getSolvedPackages*(pkgVersionTable: Table[string, PackageVersions], verbose = false): Table[string, Version] =
   var graph = pkgVersionTable.toDepGraph()
   #TODO make sure all references are in the graph before calling toFormular
   for p in graph.nodes:
     for ver in p.versions.items:
       for dep, q in items graph.reqs[ver.req].deps:
         if dep notin graph.packageToDependency:
-          echo "**********Dependency ", dep, " not found in the graph"
+          if verbose:
+            echo "Dependency ", dep, " not found in the graph"
           return initTable[string, Version]()
     
   let form = toFormular(graph)
   var packages = initTable[string, Version]()
-  solve(graph, form, packages, listVersions= listVersions)
+  solve(graph, form, packages, verbose)
   packages
 
 

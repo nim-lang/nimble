@@ -112,7 +112,7 @@ proc processFreeDependencies(pkgInfo: PackageInfo,
           result.incl pkgInfo
     if result.len > 0: return result
 
-
+  #TODO REFACTOR
   var options = options
   options.pkgCachePath = "/Users/jmgomez/.nimble/cache" #TODO set the path to the cache
 
@@ -121,7 +121,7 @@ proc processFreeDependencies(pkgInfo: PackageInfo,
   var pkgVersionTable = initTable[string, PackageVersions]()
   pkgVersionTable[root.name] = PackageVersions(pkgName: root.name, versions: @[root])
   collectAllVersions(pkgVersionTable, root, options, downloadMinimalPackage)
-  var solvedPkgs = pkgVersionTable.getSolvedPackages()
+  var solvedPkgs = pkgVersionTable.getSolvedPackages(verbose = true)
   var pkgsToInstall: seq[(string, Version)] = @[]
   for solvedPkg, ver in solvedPkgs:
     if solvedPkg == root.name: continue
@@ -151,8 +151,10 @@ proc processFreeDependencies(pkgInfo: PackageInfo,
           result.incl pkg
       #Recover the package info from the table needed?
       #Get the installation directory
-    if result.len > 0: 
-      return result
+  if result.len > 0: 
+    return result
+  else:
+    raise nimbleError("Unsatisfiable dependencies")
 
   display("Verifying", "dependencies for $1@$2" %
           [pkgInfo.basicInfo.name, $pkgInfo.basicInfo.version],
