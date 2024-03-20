@@ -135,7 +135,7 @@ proc getUrlData*(url: string): (string, Table[string, string]) =
   return ($uri, {"subdir": subdir}.toTable())
 
 proc isURL*(name: string): bool =
-  name.startsWith(peg" @'://' ")
+  name.startsWith(peg" @'://' ") or name.startsWith(peg"\ident+'@'@':'.+")
 
 proc cloneSpecificRevision(downloadMethod: DownloadMethod,
                            url, downloadDir: string,
