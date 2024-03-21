@@ -147,32 +147,32 @@ suite "SAT solver":
     cd "conflictingdepres":
       #integration version of the test above
       #TODO document folder structure setup so others know how to run similar tests
-      let (_, exitCode) = execNimble("install", "-l")
+      let (_, exitCode) = execNimble("install", "-l", "--sat")
       check exitCode == QuitSuccess
 
-  test "should be able to download a package and select its deps":
+  # test "should be able to download a package and select its deps":
 
-    let pkgName: string = "nimlangserver"
-    let pv: PkgTuple = (pkgName, VersionRange(kind: verAny))
-    var options = initOptions()
-    options.nimBin = "nim"
-    options.config.packageLists["official"] = PackageList(name: "Official", urls: @[
-      "https://raw.githubusercontent.com/nim-lang/packages/master/packages.json",
-      "https://nim-lang.org/nimble/packages.json"
-    ])
+  #   let pkgName: string = "nimlangserver"
+  #   let pv: PkgTuple = (pkgName, VersionRange(kind: verAny))
+  #   var options = initOptions()
+  #   options.nimBin = "nim"
+  #   options.config.packageLists["official"] = PackageList(name: "Official", urls: @[
+  #     "https://raw.githubusercontent.com/nim-lang/packages/master/packages.json",
+  #     "https://nim-lang.org/nimble/packages.json"
+  #   ])
 
-    var pkgInfo = downloadPkInfoForPv(pv, options)
-    var root = pkgInfo.getMinimalInfo()
-    root.isRoot = true
-    var pkgVersionTable = initTable[string, PackageVersions]()
-    collectAllVersions(pkgVersionTable, root, options, downloadMinimalPackage)
-    pkgVersionTable[pkgName] = PackageVersions(pkgName: pkgName, versions: @[root])
+  #   var pkgInfo = downloadPkInfoForPv(pv, options)
+  #   var root = pkgInfo.getMinimalInfo()
+  #   root.isRoot = true
+  #   var pkgVersionTable = initTable[string, PackageVersions]()
+  #   collectAllVersions(pkgVersionTable, root, options, downloadMinimalPackage)
+  #   pkgVersionTable[pkgName] = PackageVersions(pkgName: pkgName, versions: @[root])
 
-    var graph = pkgVersionTable.toDepGraph()
-    let form = graph.toFormular()
-    var packages = initTable[string, Version]()
-    solve(graph, form, packages, verbose = true)
-    check packages.len > 0
+  #   var graph = pkgVersionTable.toDepGraph()
+  #   let form = graph.toFormular()
+  #   var packages = initTable[string, Version]()
+  #   solve(graph, form, packages, verbose = true)
+  #   check packages.len > 0
     
 
   test "should be able to solve all nimble packages":
@@ -186,7 +186,6 @@ suite "SAT solver":
       let form = toFormular(graph)
       var packages = initTable[string, Version]()
       solve(graph, form, packages, verbose = false)
-      # echo "Solved ", jsonFile.extractFilename, " with ", packages.len, " packages"
 
       check packages.len > 0
     

@@ -56,6 +56,7 @@ type
       # If not provided by default it applies to the current directory package.
       # For now, it is used only by the run action and it is ignored by others.
     pkgCachePath*: string # Cache used to store package downloads
+    useSatSolver*: bool
 
   ActionType* = enum
     actionNil, actionRefresh, actionInit, actionDump, actionPublish, actionUpgrade
@@ -433,6 +434,8 @@ proc setNimbleDir*(options: var Options) =
     let pkgsDir = options.getPkgsDir()
     if not dirExists(pkgsDir):
       createDir(pkgsDir)
+  if options.useSatSolver:
+    options.pkgCachePath = options.getNimbleDir() / "pkgcache"
 
 proc parseCommand*(key: string, result: var Options) =
   result.action = Action(typ: parseActionType(key))
@@ -543,6 +546,7 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
       result.developFile = val.normalizedPath
     else:
       raise nimbleError(multipleDevelopFileOptionsGivenMsg)
+  of "sat": result.useSatSolver = true  
   else: isGlobalFlag = false
 
   var wasFlagHandled = true

@@ -10,7 +10,7 @@ import std/options as std_opt
 
 import strutils except toLower
 from unicode import toLower
-import sat/[sat, satvars]
+import sat/sat
 import nimblepkg/packageinfotypes, nimblepkg/packageinfo, nimblepkg/version,
        nimblepkg/tools, nimblepkg/download, nimblepkg/config, nimblepkg/common,
        nimblepkg/publish, nimblepkg/options, nimblepkg/packageparser,
@@ -97,9 +97,10 @@ proc processFreeDependencies(pkgInfo: PackageInfo,
   var pkgList {.global.}: seq[PackageInfo]
   once: 
     pkgList = initPkgList(pkgInfo, options)
-    #At this point we have all the installed packages
-    #If we can solve them all here, we just do it and call it a day. 
-    var root = pkgInfo.getMinimalInfo()
+    if options.useSatSolver:
+      #At this point we have all the installed packages
+      #If we can solve them all here, we just do it and call it a day. 
+      var root = pkgInfo.getMinimalInfo()
     root.isRoot = true
     var pkgVersionTable = initTable[string, PackageVersions]()
     pkgVersionTable[root.name] = PackageVersions(pkgName: root.name, versions: @[root])
@@ -109,16 +110,15 @@ proc processFreeDependencies(pkgInfo: PackageInfo,
     for pkg, ver in solvedPkgs:
       for pkgInfo in pkgList:
         if pkgInfo.basicInfo.name == pkg and pkgInfo.basicInfo.version == ver:
-          result.incl pkgInfo
-    if result.len > 0: return result
+            result.incl pkgInfo
+      if result.len > 0: return result
 
-  #TODO REFACTOR
-  var options = options
-  options.pkgCachePath = "/Users/jmgomez/.nimble/cache" #TODO set the path to the cache
-
-  var root = pkgInfo.getMinimalInfo()
-  root.isRoot = true
-  var pkgVersionTable = initTable[string, PackageVersions]()
+    if options.useSatSolver:
+      #TODO REFACTOR
+      var options = options
+      var root = pkgInfo.getMinimalInfo()
+      root.isRoot = true
+      var pkgVersionTable = initTable[string, PackageVersions]()
   pkgVersionTable[root.name] = PackageVersions(pkgName: root.name, versions: @[root])
   collectAllVersions(pkgVersionTable, root, options, downloadMinimalPackage)
   var solvedPkgs = pkgVersionTable.getSolvedPackages(verbose = true)
