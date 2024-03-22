@@ -150,29 +150,29 @@ suite "SAT solver":
       let (_, exitCode) = execNimble("install", "-l", "--sat")
       check exitCode == QuitSuccess
 
-  # test "should be able to download a package and select its deps":
+  test "should be able to download a package and select its deps":
 
-  #   let pkgName: string = "nimlangserver"
-  #   let pv: PkgTuple = (pkgName, VersionRange(kind: verAny))
-  #   var options = initOptions()
-  #   options.nimBin = "nim"
-  #   options.config.packageLists["official"] = PackageList(name: "Official", urls: @[
-  #     "https://raw.githubusercontent.com/nim-lang/packages/master/packages.json",
-  #     "https://nim-lang.org/nimble/packages.json"
-  #   ])
+    let pkgName: string = "nimlangserver"
+    let pv: PkgTuple = (pkgName, VersionRange(kind: verAny))
+    var options = initOptions()
+    options.nimBin = "nim"
+    options.config.packageLists["official"] = PackageList(name: "Official", urls: @[
+      "https://raw.githubusercontent.com/nim-lang/packages/master/packages.json",
+      "https://nim-lang.org/nimble/packages.json"
+    ])
 
-  #   var pkgInfo = downloadPkInfoForPv(pv, options)
-  #   var root = pkgInfo.getMinimalInfo()
-  #   root.isRoot = true
-  #   var pkgVersionTable = initTable[string, PackageVersions]()
-  #   collectAllVersions(pkgVersionTable, root, options, downloadMinimalPackage)
-  #   pkgVersionTable[pkgName] = PackageVersions(pkgName: pkgName, versions: @[root])
+    var pkgInfo = downloadPkInfoForPv(pv, options)
+    var root = pkgInfo.getMinimalInfo()
+    root.isRoot = true
+    var pkgVersionTable = initTable[string, PackageVersions]()
+    collectAllVersions(pkgVersionTable, root, options, downloadMinimalPackage)
+    pkgVersionTable[pkgName] = PackageVersions(pkgName: pkgName, versions: @[root])
 
-  #   var graph = pkgVersionTable.toDepGraph()
-  #   let form = graph.toFormular()
-  #   var packages = initTable[string, Version]()
-  #   solve(graph, form, packages, verbose = true)
-  #   check packages.len > 0
+    var graph = pkgVersionTable.toDepGraph()
+    let form = graph.toFormular()
+    var packages = initTable[string, Version]()
+    solve(graph, form, packages, verbose = true)
+    check packages.len > 0
     
 
   test "should be able to solve all nimble packages":
@@ -192,8 +192,7 @@ suite "SAT solver":
     let ends = now()
     echo "Solved ", pks, " packages in ", ends - now, " seconds"
   
-  test "should be able to retrieve the package minimal info from the nimble directory":
-   
+  test "should be able to retrieve the package minimal info from the nimble directory": 
     var options = initOptions()
     options.nimbleDir = getCurrentDir() / "conflictingdepres" / "nimbledeps" 
     let pkgs = getInstalledMinimalPackages(options)
@@ -202,7 +201,6 @@ suite "SAT solver":
     check pkgVersionTable.hasVersion("b", newVersion "0.1.4")
     check pkgVersionTable.hasVersion("c", newVersion "0.1.0")
     check pkgVersionTable.hasVersion("c", newVersion "0.2.1")
-
 
   test "should fallback to the download if the package is not found in the list of packages":
     let root = 

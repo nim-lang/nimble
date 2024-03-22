@@ -7,7 +7,7 @@ import parseutils, os, osproc, strutils, tables, pegs, uri, strformat,
 from algorithm import SortOrder, sorted
 
 import packageinfotypes, packageparser, version, tools, common, options, cli,
-       sha1hashes, vcstools
+       sha1hashes, vcstools, displaymessages, packageinfo, config
 
 type
   DownloadPkgResult* = tuple
@@ -550,6 +550,61 @@ proc getDevelopDownloadDir*(url, subdir: string, options: Options): string =
       options.action.path / downloadDirName
     else:
       getCurrentDir() / options.action.path / downloadDirName
+
+proc refresh*(options: Options) =
+  ## Downloads the package list from the specified URL.
+  ##
+  ## If the download is not successful, an exception is raised.
+  if options.offline:
+    raise nimbleError("Cannot refresh package list in offline mode.")
+
+  let parameter =
+    if options.action.typ == actionRefresh:
+      options.action.optionalURL
+    else:
+      ""
+
+  if parameter.len > 0:
+    if parameter.isUrl:
+      let cmdLine = PackageList(name: "commandline", urls: @[parameter])
+      fetchList(cmdLine, options)
+    else:
+      if parameter notin options.config.packageLists:
+        let msg = "Package list with the specified name not found."
+        raise nimbleError(msg)
+
+      fetchList(options.config.packageLists[parameter], options)
+  else:
+    # Try each package list in config
+    for name, list in options.config.packageLists:
+      fetchList(list, options)
+
+proc getDownloadInfo*(pv: PkgTuple, options: Options,
+                      doPrompt: bool, ignorePackageCache = false): (DownloadMethod, string,
+                                        Table[string, string]) =
+  if pv.name.isURL:
+    let (url, metadata) = getUrlData(pv.name)
+    return (checkUrlType(url), url, metadata)
+  else:
+    var pkg = initPackage()
+    if getPackage(pv.name, options, pkg, ignorePackageCache):
+      let (url, metadata) = getUrlData(pkg.url)
+      return (pkg.downloadMethod, url, metadata)
+    else:
+      # If package is not found give the user a chance to refresh
+      # package.json
+      if doPrompt and not options.offline and
+          options.prompt(pv.name & " not found in any local packages.json, " &
+                         "check internet for updated packages?"):
+        refresh(options)
+
+        # Once we've refreshed, try again, but don't prompt if not found
+        # (as we've already refreshed and a failure means it really
+        # isn't there)
+        # Also ignore the package cache so the old info isn't used
+        return getDownloadInfo(pv, options, false, true)
+      else:
+        raise nimbleError(pkgNotFoundMsg(pv))
 
 when isMainModule:
   import unittest

@@ -297,20 +297,20 @@ proc getSolvedPackages*(pkgVersionTable: Table[string, PackageVersions], verbose
   packages
 
 #TODO REVIEW this
-proc getDownloadInfo(pv: PkgTuple, options: Options,
-                      doPrompt: bool, ignorePackageCache = false): (DownloadMethod, string,
-                                        Table[string, string]) =
-  if pv.name.isURL:
-    let (url, metadata) = getUrlData(pv.name)
-    return (checkUrlType(url), url, metadata)
-  else:
-    var pkg = initPackage()
-    if getPackage(pv.name, options, pkg, ignorePackageCache):
-      let (url, metadata) = getUrlData(pkg.url)
-      # echo "Pkg: ", pkg, "url ", url, "metadata ", metadata
-      return (pkg.downloadMethod, url, metadata)
-    else:
-      raise nimbleError(pkgNotFoundMsg(pv))
+# proc getDownloadInfo(pv: PkgTuple, options: Options,
+#                       doPrompt: bool, ignorePackageCache = false): (DownloadMethod, string,
+#                                         Table[string, string]) =
+#   if pv.name.isURL:
+#     let (url, metadata) = getUrlData(pv.name)
+#     return (checkUrlType(url), url, metadata)
+#   else:
+#     var pkg = initPackage()
+#     if getPackage(pv.name, options, pkg, ignorePackageCache):
+#       let (url, metadata) = getUrlData(pkg.url)
+#       # echo "Pkg: ", pkg, "url ", url, "metadata ", metadata
+#       return (pkg.downloadMethod, url, metadata)
+#     else:
+#       raise nimbleError(pkgNotFoundMsg(pv))
 
 proc downloadPkInfoForPv*(pv: PkgTuple, options: Options): PackageInfo  =
   let (meth, url, metadata) = 
