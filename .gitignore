@@ -8,6 +8,7 @@
 *.swp
 *~
 nimcache/
+.venv
 
 # Absolute paths
 /src/babel
@@ -67,4 +68,4 @@ src/nimblepkg/version
 
 # Nimble Guide files
 nimble-guide/site/
-!Makefile
+!nimble-guide/config.nims
