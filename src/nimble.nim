@@ -81,6 +81,47 @@ proc checkSatisfied(options: Options, dependencies: seq[PackageInfo]) =
           [pkgInfo.basicInfo.name, $currentVer, $pkgsInPath[pkgInfo.basicInfo.name]])
     pkgsInPath[pkgInfo.basicInfo.name] = currentVer
 
+proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, pkgList: seq[PackageInfo], options: Options): HashSet[PackageInfo] = 
+  #TODO handle NIM
+  result = solveLocalPackages(rootPkgInfo, pkgList)
+  if result.len > 0: return result
+
+  var reverseDependencies: seq[PackageBasicInfo] = @[]
+  var pkgsToInstall: seq[(string, Version)] = @[]
+  result = solvePackages(rootPkgInfo, pkgList, pkgsToInstall, options)
+  if pkgsToInstall.len > 0:
+    for pkg in pkgsToInstall:
+      let dep = (name: pkg[0], ver: pkg[1].toVersionRange)
+      let resolvedDep = dep.resolveAlias(options)
+      display("Installing", $resolvedDep, priority = HighPriority)
+      let toInstall = @[(resolvedDep.name, resolvedDep.ver)]
+      #TODO install here will download the package again. We could use the already downloaded package 
+      #from the cache
+      let (packages, installedPkg) = install(toInstall, options,
+        doPrompt = false, first = false, fromLockFile = false, preferredPackages = @[])
+
+      for pkg in packages:
+        if result.contains pkg:
+          # If the result already contains the newly tried to install package
+          # we had to merge its special versions set into the set of the old
+          # one.
+          result[pkg].metaData.specialVersions.incl(
+            pkg.metaData.specialVersions)
+        else:
+          result.incl pkg
+        
+        if not pkg.isLink:
+          reverseDependencies.add(pkg.basicInfo)
+    if result.len > 0: 
+      return result
+    else:
+      raise nimbleError("Unsatisfiable dependencies")
+  # We add the reverse deps to the JSON file here because we don't want
+  # them added if the above errorenous condition occurs
+  # (unsatisfiable dependendencies).
+  # N.B. NimbleData is saved in installFromDir.
+  for i in reverseDependencies:
+    addRevDep(options.nimbleData, i, rootPkgInfo)
 
 proc processFreeDependencies(pkgInfo: PackageInfo,
                              requirements: seq[PkgTuple],
@@ -95,66 +136,11 @@ proc processFreeDependencies(pkgInfo: PackageInfo,
          "processFreeDependencies needs pkgInfo.requires"
 
   var pkgList {.global.}: seq[PackageInfo]
+
   once: 
     pkgList = initPkgList(pkgInfo, options)
     if options.useSatSolver:
-      #At this point we have all the installed packages
-      #If we can solve them all here, we just do it and call it a day. 
-      var root = pkgInfo.getMinimalInfo()
-    root.isRoot = true
-    var pkgVersionTable = initTable[string, PackageVersions]()
-    pkgVersionTable[root.name] = PackageVersions(pkgName: root.name, versions: @[root])
-    fillPackageTableFromPreferred(pkgVersionTable, pkgList.map(getMinimalInfo))
-    var solvedPkgs = pkgVersionTable.getSolvedPackages()
-
-    for pkg, ver in solvedPkgs:
-      for pkgInfo in pkgList:
-        if pkgInfo.basicInfo.name == pkg and pkgInfo.basicInfo.version == ver:
-            result.incl pkgInfo
-      if result.len > 0: return result
-
-    if options.useSatSolver:
-      #TODO REFACTOR
-      var options = options
-      var root = pkgInfo.getMinimalInfo()
-      root.isRoot = true
-      var pkgVersionTable = initTable[string, PackageVersions]()
-  pkgVersionTable[root.name] = PackageVersions(pkgName: root.name, versions: @[root])
-  collectAllVersions(pkgVersionTable, root, options, downloadMinimalPackage)
-  var solvedPkgs = pkgVersionTable.getSolvedPackages(verbose = true)
-  var pkgsToInstall: seq[(string, Version)] = @[]
-  for solvedPkg, ver in solvedPkgs:
-    if solvedPkg == root.name: continue
-    for pkgInfo in pkgList:
-      if pkgInfo.basicInfo.name == solvedPkg: # and pkgInfo.basicInfo.version.withinRange(ver):
-        result.incl pkgInfo
-      else:
-        pkgsToInstall.addUnique((solvedPkg, ver))
-  if pkgsToInstall.len > 0:
-    for pkg in pkgsToInstall:
-      let dep = (name: pkg[0], ver: pkg[1].toVersionRange)
-      let resolvedDep = dep.resolveAlias(options)
-      display("Installing", $resolvedDep, priority = HighPriority)
-      let toInstall = @[(resolvedDep.name, resolvedDep.ver)]
-      let (packages, installedPkg) = install(toInstall, options,
-        doPrompt = false, first = false, fromLockFile = false,
-        preferredPackages = preferredPackages)
-
-      for pkg in packages:
-        if result.contains pkg:
-          # If the result already contains the newly tried to install package
-          # we had to merge its special versions set into the set of the old
-          # one.
-          result[pkg].metaData.specialVersions.incl(
-            pkg.metaData.specialVersions)
-        else:
-          result.incl pkg
-      #Recover the package info from the table needed?
-      #Get the installation directory
-  if result.len > 0: 
-    return result
-  else:
-    raise nimbleError("Unsatisfiable dependencies")
+      return processFreeDependenciesSAT(pkgInfo, pkgList, options)
 
   display("Verifying", "dependencies for $1@$2" %
           [pkgInfo.basicInfo.name, $pkgInfo.basicInfo.version],

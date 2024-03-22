@@ -2,7 +2,7 @@ import sat/[sat, satvars]
 import version, packageinfotypes, download, packageinfo, packageparser, options, 
   sha1hashes, config, common, displaymessages
   
-import std/[tables, sequtils, algorithm, json, jsonutils, strutils, options, strformat]
+import std/[tables, sequtils, algorithm, sets, strutils, options, strformat]
 
 
 type  
@@ -269,18 +269,20 @@ proc solve*(g: var DepGraph; f: Form, packages: var Table[string, Version], verb
           let item = f.mapping[v.v]
           if s.isTrue(v.v):
             packages[item.pkg] = item.version
-            if verbose:
-              echo item.pkg, "[x] " & toString item
+            # if verbose:
+            #   echo item.pkg, "[x] " & toString item
           else:
-            if verbose:
-              echo item.pkg, "[ ] " & toString item
+            discard
+            # if verbose:
+            #   echo item.pkg, "[ ] " & toString item
   elif verbose:
     let errorMsg = generateUnsatisfiableMessage(g, f, s)
+    #TODO we could make a permuted version of the requires for the root package and try again
     echo errorMsg
 
 proc getSolvedPackages*(pkgVersionTable: Table[string, PackageVersions], verbose = false): Table[string, Version] =
   var graph = pkgVersionTable.toDepGraph()
-  #TODO make sure all references are in the graph before calling toFormular
+  #Make sure all references are in the graph before calling toFormular
   for p in graph.nodes:
     for ver in p.versions.items:
       for dep, q in items graph.reqs[ver.req].deps:
@@ -294,36 +296,6 @@ proc getSolvedPackages*(pkgVersionTable: Table[string, PackageVersions], verbose
   solve(graph, form, packages, verbose)
   packages
 
-
-
-proc refresh(options: Options) =
-  ## Downloads the package list from the specified URL.
-  ##
-  ## If the download is not successful, an exception is raised.
-  # if options.offline:
-    # raise nimbleError("Cannot refresh package list in offline mode.")
-
-  let parameter =
-    if options.action.typ == actionRefresh:
-      options.action.optionalURL
-    else:
-      ""
-
-  if parameter.len > 0:
-    if parameter.isUrl:
-      let cmdLine = PackageList(name: "commandline", urls: @[parameter])
-      fetchList(cmdLine, options)
-    else:
-      if parameter notin options.config.packageLists:
-        let msg = "Package list with the specified name not found."
-        # raise nimbleError(msg)
-        echo "ERRORRRR"
-
-      fetchList(options.config.packageLists[parameter], options)
-  else:
-    # Try each package list in config
-    for name, list in options.config.packageLists:
-      fetchList(list, options)
 #TODO REVIEW this
 proc getDownloadInfo(pv: PkgTuple, options: Options,
                       doPrompt: bool, ignorePackageCache = false): (DownloadMethod, string,
@@ -351,9 +323,9 @@ proc downloadPkInfoForPv*(pv: PkgTuple, options: Options): PackageInfo  =
 
 proc downloadMinimalPackage*(pv: PkgTuple, options: Options): Option[PackageMinimalInfo] =
   if pv.name == "": return none(PackageMinimalInfo)
+  # echo "Downloading ", pv.name, " ", pv.ver
   let pkgInfo = downloadPkInfoForPv(pv, options)
   some pkgInfo.getMinimalInfo()
-
 
 proc fillPackageTableFromPreferred*(packages: var Table[string, PackageVersions], preferredPackages: seq[PackageMinimalInfo]) =
   for pkg in preferredPackages:
@@ -381,3 +353,32 @@ proc collectAllVersions*(versions: var Table[string, PackageVersions], package: 
       else:
         versions[pv.name].versions.addUnique pkgMin
       collectAllVersions(versions, pkgMin, options, getMinimalPackage)
+
+proc solveLocalPackages*(rootPkgInfo: PackageInfo, pkgList: seq[PackageInfo]): HashSet[PackageInfo] = 
+  var root = rootPkgInfo.getMinimalInfo()
+  root.isRoot = true
+  var pkgVersionTable = initTable[string, PackageVersions]()
+  pkgVersionTable[root.name] = PackageVersions(pkgName: root.name, versions: @[root])
+  fillPackageTableFromPreferred(pkgVersionTable, pkgList.map(getMinimalInfo))
+  var solvedPkgs = pkgVersionTable.getSolvedPackages()
+
+  for pkg, ver in solvedPkgs:
+    for pkgInfo in pkgList:
+      if pkgInfo.basicInfo.name == pkg and pkgInfo.basicInfo.version == ver:
+        result.incl pkgInfo
+
+proc solvePackages*(rootPkg: PackageInfo, pkgList: seq[PackageInfo], pkgsToInstall: var seq[(string, Version)], options: Options): HashSet[PackageInfo] =
+  var root = rootPkg.getMinimalInfo()
+  root.isRoot = true
+  var pkgVersionTable = initTable[string, PackageVersions]()
+  pkgVersionTable[root.name] = PackageVersions(pkgName: root.name, versions: @[root])
+  collectAllVersions(pkgVersionTable, root, options, downloadMinimalPackage)
+  var solvedPkgs = pkgVersionTable.getSolvedPackages(verbose = true)
+  var pkgsToInstall: seq[(string, Version)] = @[]
+  for solvedPkg, ver in solvedPkgs:
+    if solvedPkg == root.name: continue
+    for pkgInfo in pkgList:
+      if pkgInfo.basicInfo.name == solvedPkg: # and pkgInfo.basicInfo.version.withinRange(ver):
+        result.incl pkgInfo
+      else:
+        pkgsToInstall.addUnique((solvedPkg, ver))
