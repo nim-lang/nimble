@@ -30,34 +30,6 @@ const
   nimblePathsEnv = "__NIMBLE_PATHS"
   separator = when defined(windows): ";" else: ":"
 
-proc refresh(options: Options) =
-  ## Downloads the package list from the specified URL.
-  ##
-  ## If the download is not successful, an exception is raised.
-  if options.offline:
-    raise nimbleError("Cannot refresh package list in offline mode.")
-
-  let parameter =
-    if options.action.typ == actionRefresh:
-      options.action.optionalURL
-    else:
-      ""
-
-  if parameter.len > 0:
-    if parameter.isUrl:
-      let cmdLine = PackageList(name: "commandline", urls: @[parameter])
-      fetchList(cmdLine, options)
-    else:
-      if parameter notin options.config.packageLists:
-        let msg = "Package list with the specified name not found."
-        raise nimbleError(msg)
-
-      fetchList(options.config.packageLists[parameter], options)
-  else:
-    # Try each package list in config
-    for name, list in options.config.packageLists:
-      fetchList(list, options)
-
 proc initPkgList(pkgInfo: PackageInfo, options: Options): seq[PackageInfo] =
   let
     installedPkgs = getInstalledPkgsMin(options.getPkgsDir(), options)
@@ -88,7 +60,8 @@ proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, pkgList: seq[PackageIn
 
   var reverseDependencies: seq[PackageBasicInfo] = @[]
   var pkgsToInstall: seq[(string, Version)] = @[]
-  result = solvePackages(rootPkgInfo, pkgList, pkgsToInstall, options)
+  var output = ""
+  result = solvePackages(rootPkgInfo, pkgList, pkgsToInstall, options, output)
   if pkgsToInstall.len > 0:
     for pkg in pkgsToInstall:
       let dep = (name: pkg[0], ver: pkg[1].toVersionRange)
@@ -112,16 +85,18 @@ proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, pkgList: seq[PackageIn
         
         if not pkg.isLink:
           reverseDependencies.add(pkg.basicInfo)
-    if result.len > 0: 
-      return result
-    else:
-      raise nimbleError("Unsatisfiable dependencies")
-  # We add the reverse deps to the JSON file here because we don't want
-  # them added if the above errorenous condition occurs
-  # (unsatisfiable dependendencies).
-  # N.B. NimbleData is saved in installFromDir.
-  for i in reverseDependencies:
-    addRevDep(options.nimbleData, i, rootPkgInfo)
+  if result.len > 0: 
+    # We add the reverse deps to the JSON file here because we don't want
+    # them added if the above errorenous condition occurs
+    # (unsatisfiable dependendencies).
+    # N.B. NimbleData is saved in installFromDir.
+    for i in reverseDependencies:
+      addRevDep(options.nimbleData, i, rootPkgInfo)
+    return result
+  else:
+    display("Error", output, Error, priority = HighPriority)
+    raise nimbleError("Unsatisfiable dependencies")
+  
 
 proc processFreeDependencies(pkgInfo: PackageInfo,
                              requirements: seq[PkgTuple],
@@ -711,33 +686,6 @@ proc processLockedDependencies(pkgInfo: PackageInfo, options: Options):
       raise nimbleError("Unsatisfied dependency: " & pkgInfo.basicInfo.name)
 
   return res.toHashSet
-#TODO reuse this one instead
-proc getDownloadInfo*(pv: PkgTuple, options: Options,
-                      doPrompt: bool, ignorePackageCache = false): (DownloadMethod, string,
-                                        Table[string, string]) =
-  if pv.name.isURL:
-    let (url, metadata) = getUrlData(pv.name)
-    return (checkUrlType(url), url, metadata)
-  else:
-    var pkg = initPackage()
-    if getPackage(pv.name, options, pkg, ignorePackageCache):
-      let (url, metadata) = getUrlData(pkg.url)
-      return (pkg.downloadMethod, url, metadata)
-    else:
-      # If package is not found give the user a chance to refresh
-      # package.json
-      if doPrompt and not options.offline and
-          options.prompt(pv.name & " not found in any local packages.json, " &
-                         "check internet for updated packages?"):
-        refresh(options)
-
-        # Once we've refreshed, try again, but don't prompt if not found
-        # (as we've already refreshed and a failure means it really
-        # isn't there)
-        # Also ignore the package cache so the old info isn't used
-        return getDownloadInfo(pv, options, false, true)
-      else:
-        raise nimbleError(pkgNotFoundMsg(pv))
 
 proc compileNim(realDir: string) =
   let command = when defined(windows): "build_all.bat" else: "./build_all.sh"

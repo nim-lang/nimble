@@ -249,9 +249,8 @@ proc generateUnsatisfiableMessage(g: var DepGraph, f: Form, s: Solution): string
   else:
     return "Dependency resolution failed due to the following conflicts:\n" & conflicts.join("\n")
 
-
-
-proc solve*(g: var DepGraph; f: Form, packages: var Table[string, Version], verbose: bool = false) =
+#It may be better to just use result here
+proc solve*(g: var DepGraph; f: Form, packages: var Table[string, Version], output: var string): bool =
   let m = f.idgen
   var s = createSolution(m)
   if satisfiable(f.f, s):
@@ -269,48 +268,29 @@ proc solve*(g: var DepGraph; f: Form, packages: var Table[string, Version], verb
           let item = f.mapping[v.v]
           if s.isTrue(v.v):
             packages[item.pkg] = item.version
-            # if verbose:
-            #   echo item.pkg, "[x] " & toString item
+            output.add &"item.pkg  [x]  {toString item} \n"
           else:
-            discard
-            # if verbose:
-            #   echo item.pkg, "[ ] " & toString item
-  elif verbose:
-    let errorMsg = generateUnsatisfiableMessage(g, f, s)
+            output.add &"item.pkg  [ ]  {toString item} \n"
+    true
+  else:
     #TODO we could make a permuted version of the requires for the root package and try again
-    echo errorMsg
+    output = generateUnsatisfiableMessage(g, f, s)
+    false
 
-proc getSolvedPackages*(pkgVersionTable: Table[string, PackageVersions], verbose = false): Table[string, Version] =
+proc getSolvedPackages*(pkgVersionTable: Table[string, PackageVersions], output: var string): Table[string, Version] =
   var graph = pkgVersionTable.toDepGraph()
   #Make sure all references are in the graph before calling toFormular
   for p in graph.nodes:
     for ver in p.versions.items:
       for dep, q in items graph.reqs[ver.req].deps:
         if dep notin graph.packageToDependency:
-          if verbose:
-            echo "Dependency ", dep, " not found in the graph"
+          output.add &"Dependency {dep} not found in the graph \n"
           return initTable[string, Version]()
     
   let form = toFormular(graph)
   var packages = initTable[string, Version]()
-  solve(graph, form, packages, verbose)
+  discard solve(graph, form, packages, output)
   packages
-
-#TODO REVIEW this
-# proc getDownloadInfo(pv: PkgTuple, options: Options,
-#                       doPrompt: bool, ignorePackageCache = false): (DownloadMethod, string,
-#                                         Table[string, string]) =
-#   if pv.name.isURL:
-#     let (url, metadata) = getUrlData(pv.name)
-#     return (checkUrlType(url), url, metadata)
-#   else:
-#     var pkg = initPackage()
-#     if getPackage(pv.name, options, pkg, ignorePackageCache):
-#       let (url, metadata) = getUrlData(pkg.url)
-#       # echo "Pkg: ", pkg, "url ", url, "metadata ", metadata
-#       return (pkg.downloadMethod, url, metadata)
-#     else:
-#       raise nimbleError(pkgNotFoundMsg(pv))
 
 proc downloadPkInfoForPv*(pv: PkgTuple, options: Options): PackageInfo  =
   let (meth, url, metadata) = 
@@ -360,20 +340,20 @@ proc solveLocalPackages*(rootPkgInfo: PackageInfo, pkgList: seq[PackageInfo]): H
   var pkgVersionTable = initTable[string, PackageVersions]()
   pkgVersionTable[root.name] = PackageVersions(pkgName: root.name, versions: @[root])
   fillPackageTableFromPreferred(pkgVersionTable, pkgList.map(getMinimalInfo))
-  var solvedPkgs = pkgVersionTable.getSolvedPackages()
-
+  var output = ""
+  var solvedPkgs = pkgVersionTable.getSolvedPackages(output)
   for pkg, ver in solvedPkgs:
     for pkgInfo in pkgList:
       if pkgInfo.basicInfo.name == pkg and pkgInfo.basicInfo.version == ver:
         result.incl pkgInfo
 
-proc solvePackages*(rootPkg: PackageInfo, pkgList: seq[PackageInfo], pkgsToInstall: var seq[(string, Version)], options: Options): HashSet[PackageInfo] =
+proc solvePackages*(rootPkg: PackageInfo, pkgList: seq[PackageInfo], pkgsToInstall: var seq[(string, Version)], options: Options, output: var string): HashSet[PackageInfo] =
   var root = rootPkg.getMinimalInfo()
   root.isRoot = true
   var pkgVersionTable = initTable[string, PackageVersions]()
   pkgVersionTable[root.name] = PackageVersions(pkgName: root.name, versions: @[root])
   collectAllVersions(pkgVersionTable, root, options, downloadMinimalPackage)
-  var solvedPkgs = pkgVersionTable.getSolvedPackages(verbose = true)
+  var solvedPkgs = pkgVersionTable.getSolvedPackages(output)
   var pkgsToInstall: seq[(string, Version)] = @[]
   for solvedPkg, ver in solvedPkgs:
     if solvedPkg == root.name: continue
