@@ -91,7 +91,8 @@ suite "SAT solver":
     var graph = pkgVersionTable.toDepGraph()
     let form = toFormular(graph)
     var packages = initTable[string, Version]()
-    solve(graph, form, packages, true)
+    var output = ""
+    check solve(graph, form, packages, output)
     check packages.len == 2
     check packages["a"] == newVersion "3.0"
     check packages["b"] == newVersion "0.1.0"
@@ -118,7 +119,8 @@ suite "SAT solver":
     var graph = pkgVersionTable.toDepGraph()
     let form = toFormular(graph)
     var packages = initTable[string, Version]()
-    solve(graph, form, packages, true)
+    var output = ""
+    check solve(graph, form, packages, output)
     check packages.len == 3
     check packages["a"] == newVersion "3.0"
     check packages["b"] == newVersion "0.1.4"
@@ -139,8 +141,9 @@ suite "SAT solver":
     var graph = pkgVersionTable.toDepGraph()
     let form = toFormular(graph)
     var packages = initTable[string, Version]()
-    solve(graph, form, packages)
-    echo packages
+    var output = ""
+    check not solve(graph, form, packages, output)
+    echo output
     check packages.len == 0
 
   test "issue #1162":
@@ -171,7 +174,8 @@ suite "SAT solver":
     var graph = pkgVersionTable.toDepGraph()
     let form = graph.toFormular()
     var packages = initTable[string, Version]()
-    solve(graph, form, packages, verbose = true)
+    var output = ""
+    check solve(graph, form, packages, output)
     check packages.len > 0
     
 
@@ -185,8 +189,8 @@ suite "SAT solver":
       var graph = pkgVersionTable.toDepGraph()
       let form = toFormular(graph)
       var packages = initTable[string, Version]()
-      solve(graph, form, packages, verbose = false)
-
+      var output = ""
+      check solve(graph, form, packages, output)
       check packages.len > 0
     
     let ends = now()
@@ -226,8 +230,8 @@ suite "SAT solver":
     pkgVersionTable["a"] = PackageVersions(pkgName: "a", versions: @[root])
     fillPackageTableFromPreferred(pkgVersionTable, pkgs)
     collectAllVersions(pkgVersionTable, root, options, downloadMinimalPackage)
-
-    let solvedPkgs = pkgVersionTable.getSolvedPackages()
+    var output = ""
+    let solvedPkgs = pkgVersionTable.getSolvedPackages(output)
     check solvedPkgs["b"] == newVersion "0.1.4"
     check solvedPkgs["c"] == newVersion "0.1.0"
     check "random" in pkgVersionTable
