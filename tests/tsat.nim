@@ -2,11 +2,9 @@
 import unittest, os
 import testscommon
 from nimblepkg/common import cd
-import std/[tables, sequtils, algorithm, json, jsonutils, strutils]
-import nimblepkg/[version, sha1hashes, packageinfotypes, nimblesat, options, 
-  download, packageinfo, packageparser, config]
-import nimble
-import times
+import std/[tables, sequtils, json, jsonutils, strutils, times]
+import nimblepkg/[version, packageinfotypes, nimblesat, options, 
+  packageinfo, config]
 
 
 proc initFromJson*(dst: var PkgTuple, jsonNode: JsonNode, jsonPath: var string) =

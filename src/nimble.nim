@@ -54,7 +54,6 @@ proc checkSatisfied(options: Options, dependencies: seq[PackageInfo]) =
     pkgsInPath[pkgInfo.basicInfo.name] = currentVer
 
 proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, pkgList: seq[PackageInfo], options: Options): HashSet[PackageInfo] = 
-  #TODO handle NIM
   result = solveLocalPackages(rootPkgInfo, pkgList)
   if result.len > 0: return result
 

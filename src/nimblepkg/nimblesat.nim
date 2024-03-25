@@ -1,6 +1,6 @@
 import sat/[sat, satvars] 
 import version, packageinfotypes, download, packageinfo, packageparser, options, 
-  sha1hashes, config, common, displaymessages
+  sha1hashes
   
 import std/[tables, sequtils, algorithm, sets, strutils, options, strformat]
 
