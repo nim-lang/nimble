@@ -206,7 +206,7 @@ proc toFormular*(g: var DepGraph): Form =
 proc toString(x: SatVarInfo): string =
   "(" & x.pkg & ", " & $x.version & ")"
 
-proc debugFormular(g: var DepGraph; f: Form; s: Solution) =
+proc debugFormular*(g: var DepGraph; f: Form; s: Solution) =
   echo "FORM: ", f.f
   #for n in g.nodes:
   #  echo "v", n.v.int, " ", n.pkg.url

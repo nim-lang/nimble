@@ -42,7 +42,7 @@ proc downloadAndStorePackageVersionTableFor(pkgName: string, options: Options) =
   let json = pkgVersionTable.toJson()
   writeFile(path, json.pretty())
 
-proc downloadAllPackages() = 
+proc downloadAllPackages() {.used.} = 
   var options = initOptions()
   options.nimBin = "nim"
   # options.config.packageLists["uing"] = PackageList(name: pkgName, urls: @[pkgUrl])
@@ -51,7 +51,7 @@ proc downloadAllPackages() =
     "https://nim-lang.org/nimble/packages.json"
   ])
 
-  let packages = getPackageList(options).mapIt(it.name)
+  # let packages = getPackageList(options).mapIt(it.name)
   let importantPackages = [
   "alea", "argparse", "arraymancer", "ast_pattern_matching", "asyncftpclient", "asyncthreadpool", "awk", "bigints", "binaryheap", "BipBuffer", "blscurve",
   "bncurve", "brainfuck", "bump", "c2nim", "cascade", "cello", "checksums", "chroma", "chronicles", "chronos", "cligen", "combparser", "compactdict", 

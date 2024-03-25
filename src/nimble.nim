@@ -12,7 +12,7 @@ import strutils except toLower
 from unicode import toLower
 import sat/sat
 import nimblepkg/packageinfotypes, nimblepkg/packageinfo, nimblepkg/version,
-       nimblepkg/tools, nimblepkg/download, nimblepkg/config, nimblepkg/common,
+       nimblepkg/tools, nimblepkg/download, nimblepkg/common,
        nimblepkg/publish, nimblepkg/options, nimblepkg/packageparser,
        nimblepkg/cli, nimblepkg/packageinstaller, nimblepkg/reversedeps,
        nimblepkg/nimscriptexecutor, nimblepkg/init, nimblepkg/vcstools,
@@ -69,7 +69,7 @@ proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, pkgList: seq[PackageIn
       let toInstall = @[(resolvedDep.name, resolvedDep.ver)]
       #TODO install here will download the package again. We could use the already downloaded package 
       #from the cache
-      let (packages, installedPkg) = install(toInstall, options,
+      let (packages, _) = install(toInstall, options,
         doPrompt = false, first = false, fromLockFile = false, preferredPackages = @[])
 
       for pkg in packages:
