@@ -77,17 +77,21 @@ proc hasVersion*(packagesVersions: Table[string, PackageVersions], name: string,
   false
 
 proc getNimVersion*(pvs: seq[PkgTuple]): Version =
-  result = newVersion("0.0.0") #?
+  proc getVersion(ver: VersionRange): Version =
+    case ver.kind:
+    of verLater, verEarlier, verEqLater, verEqEarlier, verEq:
+      ver.ver
+    of verSpecial:
+      ver.spe
+    of verIntersect, verTilde, verCaret:
+      getVersion(ver.verILeft)
+    of verAny:
+      newVersion "0.0.0"
+
+  result = newVersion("0.0.0")
   for pv in pvs:
     if pv.name == "nim":
-      case pv.ver.kind:
-      of verLater, verEarlier, verEqLater, verEqEarlier, verEq:
-        result = pv.ver.ver
-      of verSpecial:
-        result = pv.ver.spe
-      else:
-        #TODO range
-        discard
+      result = getVersion(pv.ver)
 
 proc findDependencyForDep(g: DepGraph; dep: string): int {.inline.} =
   assert g.packageToDependency.hasKey(dep), dep & " not found"
@@ -139,11 +143,9 @@ proc toFormular*(g: var DepGraph): Form =
   result = Form()
   var b = Builder()
   b.openOpr(AndForm)
-
   # Assign a variable for each package version
   for p in mitems(g.nodes):
     if p.versions.len == 0: continue
-
     p.versions.sort(cmp)
 
     for ver in mitems p.versions:
@@ -200,8 +202,6 @@ proc toFormular*(g: var DepGraph): Form =
   
   b.closeOpr()  # Close the main AndForm
   result.f = toForm(b)  # Convert the builder to a formula
-
-
 
 proc toString(x: SatVarInfo): string =
   "(" & x.pkg & ", " & $x.version & ")"

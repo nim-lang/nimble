@@ -12,7 +12,6 @@ installExt = @["nim"]
 # Dependencies
 
 requires "nim >= 0.13.0", "sat"
-#TODO investigate what's wrong the git url
 
 when defined(nimdistros):
   import distros
@@ -26,9 +25,6 @@ before install:
 
 before build:
   exec "nim r src/nimblepkg/private/clone.nim"
-
-# after build:
-#   exec "cp nimble /Volumes/Store/Nim/bin/nimble"
 
 task test, "Run the Nimble tester!":
   withDir "tests":

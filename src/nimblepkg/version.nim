@@ -29,7 +29,7 @@ type
     of verSpecial:
       spe*: Version
     of verIntersect, verTilde, verCaret:
-      verILeft, verIRight: VersionRange
+      verILeft*, verIRight*: VersionRange
     of verAny:
       nil
 
