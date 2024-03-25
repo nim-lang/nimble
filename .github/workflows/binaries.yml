@@ -4,10 +4,11 @@ on:
     - 'v*' # "v1.2.3"
     branches:
     - master
-    paths-ignore: ['media/**', 'docs/**', '**/*.md']
-    pull_request:
-      paths-ignore: ['media/**', 'docs/**', '**/*.md']
-    workflow_dispatch:
+    paths-ignore: ['nimble-guide/**', '**/*.md']
+  pull_request:
+    paths-ignore: ['nimble-guide/**', '**/*.md']
+  workflow_dispatch:
+
 jobs:
   build:
     strategy:
@@ -79,6 +80,7 @@ jobs:
           path: nimble-${{ matrix.target.name }}.tar.gz
 
   create-github-release:
+    if: github.event_name != 'pull_request'
     name: Create GitHub Release
     needs: [build]
     runs-on: ubuntu-latest

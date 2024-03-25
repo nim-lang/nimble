@@ -1,0 +1,41 @@
+name: GitHub Pages
+
+on:
+  push:
+    paths:
+      - 'nimble-guide/**'
+  workflow_dispatch:
+
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip' # caching pip dependencies
+      - run: pip install -r nimble-guide/requirements.txt
+
+      - name: Build Docs
+        run: mkdocs build -f nimble-guide/mkdocs.yml
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v2
+        with:
+          path: ./nimble-guide/site
+
+  deploy:
+    needs: build
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v2

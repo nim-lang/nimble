@@ -1,6 +1,8 @@
 on:
   push:
+    paths-ignore: ['nimble-guide/**', '**/*.md']
   pull_request:
+    paths-ignore: ['nimble-guide/**', '**/*.md']
   schedule:
   - cron: "0 19 * * *"
 
