@@ -9,7 +9,6 @@ import nimblepkg/[version, nimblesat, options, config]
 proc initFromJson*(dst: var PkgTuple, jsonNode: JsonNode, jsonPath: var string) =
   dst = parseRequires(jsonNode.str)
 
-
 proc toJsonHook*(src: PkgTuple): JsonNode =
   let ver = if src.ver.kind == verAny: "" else: $src.ver
   case src.ver.kind
@@ -17,8 +16,6 @@ proc toJsonHook*(src: PkgTuple): JsonNode =
   of verSpecial: newJString(src.name & ver)
   else:
     newJString(src.name & " " & ver)
-
-
 
 #Test utils:
 proc downloadAndStorePackageVersionTableFor(pkgName: string, options: Options) =
@@ -146,7 +143,12 @@ suite "SAT solver":
   test "issue #1162":
     cd "conflictingdepres":
       #integration version of the test above
-      #TODO document folder structure setup so others know how to run similar tests
+      #[
+        The folder structure of the test is key for the setup:
+          Notice how inside the pkgs2 folder (convention when using local packages) there are 3 folders
+          where c has two versions of the same package. The version is retrieved counterintuitively from 
+          the nimblemeta.json special version field. 
+      ]#
       let (_, exitCode) = execNimble("install", "-l", "--sat")
       check exitCode == QuitSuccess
 
@@ -234,5 +236,3 @@ suite "SAT solver":
     check "random" in pkgVersionTable
     
     removeDir(options.pkgCachePath)
-    
-
