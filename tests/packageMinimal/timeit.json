@@ -1,0 +1,30 @@
+{
+  "nim": {
+    "pkgName": "nim",
+    "versions": [
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.0.2"
+        },
+        "requires": [],
+        "isRoot": false
+      }
+    ]
+  },
+  "timeit": {
+    "pkgName": "timeit",
+    "versions": [
+      {
+        "name": "timeit",
+        "version": {
+          "version": "0.3.6"
+        },
+        "requires": [
+          "nim >= 1.0.0"
+        ],
+        "isRoot": true
+      }
+    ]
+  }
+}

@@ -1,0 +1,62 @@
+{
+  "regex": {
+    "pkgName": "regex",
+    "versions": [
+      {
+        "name": "regex",
+        "version": {
+          "version": "0.24.1"
+        },
+        "requires": [
+          "nim >= 1.0.0",
+          "unicodedb >= 0.7.2"
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "unicodedb": {
+    "pkgName": "unicodedb",
+    "versions": [
+      {
+        "name": "unicodedb",
+        "version": {
+          "version": "0.12.0"
+        },
+        "requires": [
+          "nim >= 1.0.0"
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "nim": {
+    "pkgName": "nim",
+    "versions": [
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.0.2"
+        },
+        "requires": [],
+        "isRoot": false
+      }
+    ]
+  },
+  "glob": {
+    "pkgName": "glob",
+    "versions": [
+      {
+        "name": "glob",
+        "version": {
+          "version": "0.11.3"
+        },
+        "requires": [
+          "nim >= 1.0.0",
+          "regex >= 0.20.0"
+        ],
+        "isRoot": true
+      }
+    ]
+  }
+}

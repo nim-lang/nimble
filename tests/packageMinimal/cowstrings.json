@@ -1,0 +1,30 @@
+{
+  "cowstrings": {
+    "pkgName": "cowstrings",
+    "versions": [
+      {
+        "name": "cowstrings",
+        "version": {
+          "version": "0.5.0"
+        },
+        "requires": [
+          "nim >= 1.7.1"
+        ],
+        "isRoot": true
+      }
+    ]
+  },
+  "nim": {
+    "pkgName": "nim",
+    "versions": [
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.0.2"
+        },
+        "requires": [],
+        "isRoot": false
+      }
+    ]
+  }
+}

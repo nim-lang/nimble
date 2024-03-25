@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "metaData": {
+    "url": "https://github.com/neroist/uing",
+    "downloadMethod": "git",
+    "vcsRevision": "86dc49ed1ca4d926fce0ea4dbad35a9973a02194",
+    "files": [
+    
+    ],
+    "binaries": [],
+    "specialVersions": [
+      "0.1.4"
+    ]
+  }
+}

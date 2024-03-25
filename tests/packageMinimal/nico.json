@@ -1,0 +1,126 @@
+{
+  "x11": {
+    "pkgName": "x11",
+    "versions": [
+      {
+        "name": "x11",
+        "version": {
+          "version": "1.2"
+        },
+        "requires": [
+          "nim > 0.9.2"
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "sdl2_nim": {
+    "pkgName": "sdl2_nim",
+    "versions": [
+      {
+        "name": "sdl2_nim",
+        "version": {
+          "version": "2.0.14.3"
+        },
+        "requires": [
+          "nim >= 0.12.0",
+          "winim >= 3.6.0",
+          "x11 >= 1.1"
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "nim": {
+    "pkgName": "nim",
+    "versions": [
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.0.2"
+        },
+        "requires": [],
+        "isRoot": false
+      }
+    ]
+  },
+  "zippy": {
+    "pkgName": "zippy",
+    "versions": [
+      {
+        "name": "zippy",
+        "version": {
+          "version": "0.10.11"
+        },
+        "requires": [
+          "nim >= 1.0.10"
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "nico": {
+    "pkgName": "nico",
+    "versions": [
+      {
+        "name": "nico",
+        "version": {
+          "version": "0.4.10"
+        },
+        "requires": [
+          "nim >= 1.4.0",
+          "sdl2_nim >= 2.0.14.2",
+          "gifenc >= 0.1.0",
+          "nimPNG >= 0.3.1",
+          "zippy >= 0.5.9"
+        ],
+        "isRoot": true
+      }
+    ]
+  },
+  "winim": {
+    "pkgName": "winim",
+    "versions": [
+      {
+        "name": "winim",
+        "version": {
+          "version": "3.9.2"
+        },
+        "requires": [
+          "nim >= 1.0.0"
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "gifenc": {
+    "pkgName": "gifenc",
+    "versions": [
+      {
+        "name": "gifenc",
+        "version": {
+          "version": "0.1.1"
+        },
+        "requires": [
+          "nim >= 0.16.0"
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "nimPNG": {
+    "pkgName": "nimPNG",
+    "versions": [
+      {
+        "name": "nimPNG",
+        "version": {
+          "version": "0.3.6"
+        },
+        "requires": [
+          "nim >= 1.6.0"
+        ],
+        "isRoot": false
+      }
+    ]
+  }
+}

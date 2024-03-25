@@ -1,0 +1,30 @@
+{
+  "nim": {
+    "pkgName": "nim",
+    "versions": [
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.0.2"
+        },
+        "requires": [],
+        "isRoot": false
+      }
+    ]
+  },
+  "illwill": {
+    "pkgName": "illwill",
+    "versions": [
+      {
+        "name": "illwill",
+        "version": {
+          "version": "0.3.3"
+        },
+        "requires": [
+          "nim >= 1.6.10"
+        ],
+        "isRoot": true
+      }
+    ]
+  }
+}

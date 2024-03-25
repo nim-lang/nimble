@@ -1,0 +1,30 @@
+{
+  "nim": {
+    "pkgName": "nim",
+    "versions": [
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.0.2"
+        },
+        "requires": [],
+        "isRoot": false
+      }
+    ]
+  },
+  "avr_io": {
+    "pkgName": "avr_io",
+    "versions": [
+      {
+        "name": "avr_io",
+        "version": {
+          "version": "0.2.0"
+        },
+        "requires": [
+          "nim >= 1.6.8"
+        ],
+        "isRoot": true
+      }
+    ]
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "criterion": {
+    "pkgName": "criterion",
+    "versions": [
+      {
+        "name": "criterion",
+        "version": {
+          "version": "0.3.0"
+        },
+        "requires": [],
+        "isRoot": true
+      }
+    ]
+  }
+}

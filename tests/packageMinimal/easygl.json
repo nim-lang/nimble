@@ -1,0 +1,110 @@
+{
+  "opengl": {
+    "pkgName": "opengl",
+    "versions": [
+      {
+        "name": "opengl",
+        "version": {
+          "version": "1.2.9"
+        },
+        "requires": [
+          "nim >= 0.11.0",
+          "x11 >= 1.1"
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "x11": {
+    "pkgName": "x11",
+    "versions": [
+      {
+        "name": "x11",
+        "version": {
+          "version": "1.2"
+        },
+        "requires": [
+          "nim > 0.9.2"
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "glm": {
+    "pkgName": "glm",
+    "versions": [
+      {
+        "name": "glm",
+        "version": {
+          "version": "1.1.1"
+        },
+        "requires": [
+          "nim >= 0.17.2"
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "nim": {
+    "pkgName": "nim",
+    "versions": [
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.0.2"
+        },
+        "requires": [],
+        "isRoot": false
+      }
+    ]
+  },
+  "https://github.com/jackmott/easygl": {
+    "pkgName": "https://github.com/jackmott/easygl",
+    "versions": [
+      {
+        "name": "easygl",
+        "version": {
+          "version": "0.1.1"
+        },
+        "requires": [
+          "nim >= 0.20.0",
+          "sdl2",
+          "opengl",
+          "stb_image",
+          "glm"
+        ],
+        "isRoot": true
+      }
+    ]
+  },
+  "sdl2": {
+    "pkgName": "sdl2",
+    "versions": [
+      {
+        "name": "sdl2",
+        "version": {
+          "version": "2.0.5"
+        },
+        "requires": [
+          "nim >= 0.12.0"
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "stb_image": {
+    "pkgName": "stb_image",
+    "versions": [
+      {
+        "name": "stb_image",
+        "version": {
+          "version": "2.5"
+        },
+        "requires": [
+          "nim >= 0.15.0"
+        ],
+        "isRoot": false
+      }
+    ]
+  }
+}

@@ -1,0 +1,303 @@
+{
+  "https://github.com/zedeus/nitter": {
+    "pkgName": "https://github.com/zedeus/nitter",
+    "versions": [
+      {
+        "name": "nitter",
+        "version": {
+          "version": "0.1.0"
+        },
+        "requires": [
+          "nim >= 1.6.10",
+          "jester#baca3f",
+          "karax#5cf360c",
+          "sass#7dfdd03",
+          "nimcrypto#4014ef9",
+          "markdown#158efe3",
+          "packedjson#9e6fbb6",
+          "supersnappy#6c94198",
+          "redpool#8b7c1db",
+          "https://github.com/zedeus/redis#d0a0e6f",
+          "zippy#ca5989a",
+          "flatty#e668085",
+          "jsony#ea811be"
+        ],
+        "isRoot": true
+      }
+    ]
+  },
+  "sass": {
+    "pkgName": "sass",
+    "versions": [
+      {
+        "name": "sass",
+        "version": {
+          "version": "#7dfdd03"
+        },
+        "requires": [
+          "nim >= 0.18.0"
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "jester": {
+    "pkgName": "jester",
+    "versions": [
+      {
+        "name": "jester",
+        "version": {
+          "version": "#baca3f"
+        },
+        "requires": [
+          "nim >= 1.0.0",
+          "httpbeast >= 0.3.0",
+          "https://github.com/timotheecour/asynctools#pr_fix_compilation"
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "jsony": {
+    "pkgName": "jsony",
+    "versions": [
+      {
+        "name": "jsony",
+        "version": {
+          "version": "#ea811be"
+        },
+        "requires": [
+          "nim >= 1.4.0"
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "markdown": {
+    "pkgName": "markdown",
+    "versions": [
+      {
+        "name": "markdown",
+        "version": {
+          "version": "#158efe3"
+        },
+        "requires": [
+          "nim >= 0.19.0"
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "nim": {
+    "pkgName": "nim",
+    "versions": [
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.0.2"
+        },
+        "requires": [],
+        "isRoot": false
+      }
+    ]
+  },
+  "packedjson": {
+    "pkgName": "packedjson",
+    "versions": [
+      {
+        "name": "packedjson",
+        "version": {
+          "version": "#9e6fbb6"
+        },
+        "requires": [
+          "nim >= 0.18.1"
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "zippy": {
+    "pkgName": "zippy",
+    "versions": [
+      {
+        "name": "zippy",
+        "version": {
+          "version": "#ca5989a"
+        },
+        "requires": [
+          "nim >= 1.0.10"
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "flatty": {
+    "pkgName": "flatty",
+    "versions": [
+      {
+        "name": "flatty",
+        "version": {
+          "version": "#e668085"
+        },
+        "requires": [
+          "nim >= 1.0.0"
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "httpbeast": {
+    "pkgName": "httpbeast",
+    "versions": [
+      {
+        "name": "httpbeast",
+        "version": {
+          "version": "0.4.1"
+        },
+        "requires": [
+          "nim >= 0.18.0",
+          "asynctools#0e6bdc3ed5bae8c7cc9"
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "ws": {
+    "pkgName": "ws",
+    "versions": [
+      {
+        "name": "ws",
+        "version": {
+          "version": "0.5.0"
+        },
+        "requires": [
+          "nim > 1.0.0"
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "redpool": {
+    "pkgName": "redpool",
+    "versions": [
+      {
+        "name": "redpool",
+        "version": {
+          "version": "#8b7c1db"
+        },
+        "requires": [
+          "nim >= 1.4.8",
+          "https://github.com/zedeus/redis#d0a0e6f"
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "dotenv": {
+    "pkgName": "dotenv",
+    "versions": [
+      {
+        "name": "dotenv",
+        "version": {
+          "version": "2.0.1"
+        },
+        "requires": [
+          "nim >= 0.16.0"
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "supersnappy": {
+    "pkgName": "supersnappy",
+    "versions": [
+      {
+        "name": "supersnappy",
+        "version": {
+          "version": "#6c94198"
+        },
+        "requires": [
+          "nim >= 1.0.0"
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "nimcrypto": {
+    "pkgName": "nimcrypto",
+    "versions": [
+      {
+        "name": "nimcrypto",
+        "version": {
+          "version": "#4014ef9"
+        },
+        "requires": [
+          "nim > 0.18.0"
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "asynctools": {
+    "pkgName": "asynctools",
+    "versions": [
+      {
+        "name": "asynctools",
+        "version": {
+          "version": "#0e6bdc3ed5bae8c7cc9"
+        },
+        "requires": [
+          "nim >= 0.19.4"
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "karax": {
+    "pkgName": "karax",
+    "versions": [
+      {
+        "name": "karax",
+        "version": {
+          "version": "#5cf360c"
+        },
+        "requires": [
+          "nim >= 0.18.0",
+          "ws",
+          "dotenv >= 2.0.0"
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "https://github.com/zedeus/redis": {
+    "pkgName": "https://github.com/zedeus/redis",
+    "versions": [
+      {
+        "name": "redis",
+        "version": {
+          "version": "#d0a0e6f"
+        },
+        "requires": [
+          "nim >= 0.11.0"
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "https://github.com/timotheecour/asynctools": {
+    "pkgName": "https://github.com/timotheecour/asynctools",
+    "versions": [
+      {
+        "name": "asynctools",
+        "version": {
+          "version": "#pr_fix_compilation"
+        },
+        "requires": [
+          "nim >= 0.19.4"
+        ],
+        "isRoot": false
+      }
+    ]
+  }
+}

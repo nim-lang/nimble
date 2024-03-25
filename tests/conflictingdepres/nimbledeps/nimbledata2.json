@@ -1,0 +1,244 @@
+{
+  "version": 1,
+  "reverseDeps": {
+    "opencl": {
+      "1.0": {
+        "476d7ea9b45e4f8b615a5726ce93badbd5f0cc50": [
+          {
+            "name": "nimcl",
+            "version": "0.1.3",
+            "checksum": "fb304e3b75503fb359ffe649d019a2fac7e2b3dc"
+          },
+          {
+            "name": "clblast",
+            "version": "0.0.2",
+            "checksum": "0b4514b483f83492c49bb0629e5b45ffdf8e7aa3"
+          }
+        ]
+      }
+    },
+    "nimblas": {
+      "0.3.0": {
+        "d5033749759fc7a2a316acf623635dcb6d69d32a": [
+          {
+            "name": "arraymancer",
+            "version": "0.7.28",
+            "checksum": "d4a45ada1c7a6abebe60bcdd5ee2d7c4680799a4"
+          }
+        ]
+      }
+    },
+    "nimlapack": {
+      "0.3.0": {
+        "120adaf15ac47854c560de04c0382296d1b3429e": [
+          {
+            "name": "arraymancer",
+            "version": "0.7.28",
+            "checksum": "d4a45ada1c7a6abebe60bcdd5ee2d7c4680799a4"
+          }
+        ]
+      }
+    },
+    "nimcuda": {
+      "0.1.9": {
+        "9d6c8461e8f6f1acdacc55fe2353c27650be6a10": [
+          {
+            "name": "arraymancer",
+            "version": "0.7.28",
+            "checksum": "d4a45ada1c7a6abebe60bcdd5ee2d7c4680799a4"
+          }
+        ]
+      }
+    },
+    "nimcl": {
+      "0.1.3": {
+        "fb304e3b75503fb359ffe649d019a2fac7e2b3dc": [
+          {
+            "name": "arraymancer",
+            "version": "0.7.28",
+            "checksum": "d4a45ada1c7a6abebe60bcdd5ee2d7c4680799a4"
+          }
+        ]
+      }
+    },
+    "clblast": {
+      "0.0.2": {
+        "0b4514b483f83492c49bb0629e5b45ffdf8e7aa3": [
+          {
+            "name": "arraymancer",
+            "version": "0.7.28",
+            "checksum": "d4a45ada1c7a6abebe60bcdd5ee2d7c4680799a4"
+          }
+        ]
+      }
+    },
+    "stb_image": {
+      "2.5": {
+        "abf5fd03e72ee4c316c50a0538b973e355dcb175": [
+          {
+            "name": "arraymancer",
+            "version": "0.7.28",
+            "checksum": "d4a45ada1c7a6abebe60bcdd5ee2d7c4680799a4"
+          }
+        ]
+      }
+    },
+    "zip": {
+      "0.3.1": {
+        "747aab3c43ecb7b50671cdd0ec3b2edc2c83494c": [
+          {
+            "name": "arraymancer",
+            "version": "0.7.28",
+            "checksum": "d4a45ada1c7a6abebe60bcdd5ee2d7c4680799a4"
+          }
+        ]
+      }
+    },
+    "untar": {
+      "0.1.0": {
+        "ceb12634783156ddd511410242dc7855ae2f4a14": [
+          {
+            "name": "arraymancer",
+            "version": "0.7.28",
+            "checksum": "d4a45ada1c7a6abebe60bcdd5ee2d7c4680799a4"
+          }
+        ]
+      }
+    },
+    "arraymancer": {
+      "0.7.28": {
+        "d4a45ada1c7a6abebe60bcdd5ee2d7c4680799a4": [
+          {
+            "name": "nimplex",
+            "version": "0.5.1",
+            "checksum": "cff3de5f82eafc07c2459e5d640d48278fc66894"
+          },
+          {
+            "name": "nimplex",
+            "version": "0.2.0",
+            "checksum": "6ed3cc42604e916bc790dc36b34ada1d8f67b6c1"
+          }
+        ]
+      }
+    },
+    "nimpy": {
+      "0.2.0": {
+        "fb4ac75c25a76340c14a0d45b356c4598e03aea6": [
+          {
+            "name": "nimplex",
+            "version": "0.5.1",
+            "checksum": "cff3de5f82eafc07c2459e5d640d48278fc66894"
+          }
+        ]
+      }
+    },
+    "nimplex": {
+      "0.5.1": {
+        "cff3de5f82eafc07c2459e5d640d48278fc66894": [
+          {
+            "name": "conflictingdepres",
+            "version": "1.1.0",
+            "checksum": "da39a3ee5e6b4b0d3255bfef95601890afd80709"
+          }
+        ]
+      },
+      "0.2.0": {
+        "6ed3cc42604e916bc790dc36b34ada1d8f67b6c1": [
+          {
+            "name": "conflictingdepres",
+            "version": "1.1.0",
+            "checksum": "da39a3ee5e6b4b0d3255bfef95601890afd80709"
+          }
+        ]
+      }
+    },
+    "a": {
+      "0.2.0": {
+        "e6deae68214d584169ab5461ee97aee557e047fb": [
+          {
+            "name": "conflictingdepres",
+            "version": "1.1.0",
+            "checksum": "da39a3ee5e6b4b0d3255bfef95601890afd80709"
+          }
+        ]
+      },
+      "0.1.0": {
+        "16deae68214d584169ab5461ee97aee557e047fb": [
+          {
+            "name": "conflictingdepres",
+            "version": "1.1.0",
+            "checksum": "da39a3ee5e6b4b0d3255bfef95601890afd80709"
+          }
+        ]
+      }
+    },
+    "c": {
+      "0.1.0": {
+        "16deae68214d584169ab5461ee97aee557e047fb": [
+          {
+            "name": "conflictingdepres",
+            "version": "1.1.0",
+            "checksum": "da39a3ee5e6b4b0d3255bfef95601890afd80709"
+          },
+          {
+            "name": "b",
+            "version": "0.1.4",
+            "checksum": "16deae68214d584169ab5461ee97aee557e047fb"
+          }
+        ]
+      },
+      "0.2.0": {
+        "e6deae68214d584169ab5461ee97aee557e047fb": [
+          {
+            "name": "conflictingdepres",
+            "version": "1.1.0",
+            "checksum": "da39a3ee5e6b4b0d3255bfef95601890afd80709"
+          }
+        ]
+      },
+      "0.2.1": {
+        "16deae68214d584169ab5461ee97aee557e047fb": [
+          {
+            "name": "b",
+            "version": "0.1.4",
+            "checksum": "16deae68214d584169ab5461ee97aee557e047fb"
+          },
+          {
+            "name": "conflictingdepres",
+            "version": "1.1.0",
+            "checksum": "da39a3ee5e6b4b0d3255bfef95601890afd80709"
+          },
+          {
+            "path": "/Volumes/Store/Projects/nim/nimble/tests/conflictingdepres"
+          }
+        ],
+        "e6deae68214d584169ab5461ee97aee557e047fb": [
+          {
+            "name": "b",
+            "version": "0.1.4",
+            "checksum": "16deae68214d584169ab5461ee97aee557e047fb"
+          },
+          {
+            "name": "conflictingdepres",
+            "version": "1.1.0",
+            "checksum": "da39a3ee5e6b4b0d3255bfef95601890afd80709"
+          }
+        ]
+      }
+    },
+    "b": {
+      "0.1.4": {
+        "16deae68214d584169ab5461ee97aee557e047fb": [
+          {
+            "name": "conflictingdepres",
+            "version": "1.1.0",
+            "checksum": "da39a3ee5e6b4b0d3255bfef95601890afd80709"
+          },
+          {
+            "path": "/Volumes/Store/Projects/nim/nimble/tests/conflictingdepres"
+          }
+        ]
+      }
+    }
+  }
+}

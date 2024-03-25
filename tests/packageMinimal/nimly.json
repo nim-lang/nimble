@@ -1,0 +1,46 @@
+{
+  "patty": {
+    "pkgName": "patty",
+    "versions": [
+      {
+        "name": "patty",
+        "version": {
+          "version": "0.3.5"
+        },
+        "requires": [
+          "nim >= 0.14.0"
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "nimly": {
+    "pkgName": "nimly",
+    "versions": [
+      {
+        "name": "nimly",
+        "version": {
+          "version": "0.7.0"
+        },
+        "requires": [
+          "nim >= 1.4.0",
+          "patty >= 0.3.3"
+        ],
+        "isRoot": true
+      }
+    ]
+  },
+  "nim": {
+    "pkgName": "nim",
+    "versions": [
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.0.2"
+        },
+        "requires": [],
+        "isRoot": false
+      }
+    ]
+  }
+}

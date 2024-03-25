@@ -1,0 +1,78 @@
+{
+  "unicodedb": {
+    "pkgName": "unicodedb",
+    "versions": [
+      {
+        "name": "unicodedb",
+        "version": {
+          "version": "0.12.0"
+        },
+        "requires": [
+          "nim >= 1.0.0"
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "nim": {
+    "pkgName": "nim",
+    "versions": [
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.0.2"
+        },
+        "requires": [],
+        "isRoot": false
+      }
+    ]
+  },
+  "strunicode": {
+    "pkgName": "strunicode",
+    "versions": [
+      {
+        "name": "strunicode",
+        "version": {
+          "version": "0.8.0"
+        },
+        "requires": [
+          "nim >= 0.19.0",
+          "normalize >= 0.6.0",
+          "graphemes >= 0.7.0"
+        ],
+        "isRoot": true
+      }
+    ]
+  },
+  "normalize": {
+    "pkgName": "normalize",
+    "versions": [
+      {
+        "name": "normalize",
+        "version": {
+          "version": "0.8.0"
+        },
+        "requires": [
+          "nim >= 0.19.0",
+          "unicodedb >= 0.7"
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "graphemes": {
+    "pkgName": "graphemes",
+    "versions": [
+      {
+        "name": "graphemes",
+        "version": {
+          "version": "0.11.0"
+        },
+        "requires": [
+          "nim >= 1.0.0"
+        ],
+        "isRoot": false
+      }
+    ]
+  }
+}

@@ -1,0 +1,46 @@
+{
+  "polypbren": {
+    "pkgName": "polypbren",
+    "versions": [
+      {
+        "name": "polypbren",
+        "version": {
+          "version": "0.5.1"
+        },
+        "requires": [
+          "nim >= 1.6.12",
+          "https://github.com/mratsim/constantine#f57d071f1192a4039979a3baf6c835b89841bcfa"
+        ],
+        "isRoot": true
+      }
+    ]
+  },
+  "nim": {
+    "pkgName": "nim",
+    "versions": [
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.0.2"
+        },
+        "requires": [],
+        "isRoot": false
+      }
+    ]
+  },
+  "https://github.com/mratsim/constantine": {
+    "pkgName": "https://github.com/mratsim/constantine",
+    "versions": [
+      {
+        "name": "constantine",
+        "version": {
+          "version": "#f57d071f1192a4039979a3baf6c835b89841bcfa"
+        },
+        "requires": [
+          "nim >= 1.6.12"
+        ],
+        "isRoot": false
+      }
+    ]
+  }
+}

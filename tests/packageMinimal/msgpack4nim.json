@@ -1,0 +1,30 @@
+{
+  "nim": {
+    "pkgName": "nim",
+    "versions": [
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.0.2"
+        },
+        "requires": [],
+        "isRoot": false
+      }
+    ]
+  },
+  "msgpack4nim": {
+    "pkgName": "msgpack4nim",
+    "versions": [
+      {
+        "name": "msgpack4nim",
+        "version": {
+          "version": "0.4.4"
+        },
+        "requires": [
+          "nim >= 1.6.0"
+        ],
+        "isRoot": true
+      }
+    ]
+  }
+}

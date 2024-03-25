@@ -32,6 +32,7 @@ jobs:
         run: nim r src/nimblepkg/private/clone.nim
       - name: Run nim c -r tester
         run: |
+          nimble install
           cd tests
           nim c -r tester
           # there's no need to add nimblepkg unit tests --

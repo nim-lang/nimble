@@ -1,0 +1,276 @@
+{
+  "https://github.com/disruptek/ups": {
+    "pkgName": "https://github.com/disruptek/ups",
+    "versions": [
+      {
+        "name": "ups",
+        "version": {
+          "version": "0.4.0"
+        },
+        "requires": [
+          "npeg >= 0.23.2 & < 2.0.0"
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "https://github.com/disruptek/balls": {
+    "pkgName": "https://github.com/disruptek/balls",
+    "versions": [
+      {
+        "name": "balls",
+        "version": {
+          "version": "3.9.11"
+        },
+        "requires": [
+          "https://github.com/disruptek/grok >= 0.5.0 & < 1.0.0",
+          "https://github.com/disruptek/ups < 1.0.0"
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "https://github.com/disruptek/cutelog": {
+    "pkgName": "https://github.com/disruptek/cutelog",
+    "versions": [
+      {
+        "name": "cutelog",
+        "version": {
+          "version": "2.0.1"
+        },
+        "requires": [],
+        "isRoot": false
+      }
+    ]
+  },
+  "https://github.com/disruptek/github": {
+    "pkgName": "https://github.com/disruptek/github",
+    "versions": [
+      {
+        "name": "github",
+        "version": {
+          "version": "3.0.0"
+        },
+        "requires": [
+          "https://github.com/disruptek/rest.git >= 1.0.5 & < 2.0.0"
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "https://github.com/zevv/npeg": {
+    "pkgName": "https://github.com/zevv/npeg",
+    "versions": [
+      {
+        "name": "npeg",
+        "version": {
+          "version": "1.2.1"
+        },
+        "requires": [
+          "nim >= 0.19.0"
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "https://github.com/alaviss/hlibgit2": {
+    "pkgName": "https://github.com/alaviss/hlibgit2",
+    "versions": [
+      {
+        "name": "hlibgit2",
+        "version": {
+          "version": "0.1.7"
+        },
+        "requires": [
+          "https://github.com/haxscramper/hlibssh2.git >= 0.1.4",
+          "nim >= 1.2.0"
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "https://github.com/disruptek/jsonconvert": {
+    "pkgName": "https://github.com/disruptek/jsonconvert",
+    "versions": [
+      {
+        "name": "jsonconvert",
+        "version": {
+          "version": "1.0.2"
+        },
+        "requires": [
+          "nim >= 0.20.0"
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "nim": {
+    "pkgName": "nim",
+    "versions": [
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.0.2"
+        },
+        "requires": [],
+        "isRoot": false
+      }
+    ]
+  },
+  "https://github.com/disruptek/gittyup": {
+    "pkgName": "https://github.com/disruptek/gittyup",
+    "versions": [
+      {
+        "name": "gittyup",
+        "version": {
+          "version": "3.2.2"
+        },
+        "requires": [
+          "https://github.com/disruptek/badresults >= 2.0.0 & < 3.0.0",
+          "https://github.com/alaviss/hlibgit2 >= 0.1.7 & < 1.0.0"
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "npeg": {
+    "pkgName": "npeg",
+    "versions": [
+      {
+        "name": "npeg",
+        "version": {
+          "version": "1.2.1"
+        },
+        "requires": [
+          "nim >= 0.19.0"
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "https://github.com/disruptek/grok": {
+    "pkgName": "https://github.com/disruptek/grok",
+    "versions": [
+      {
+        "name": "grok",
+        "version": {
+          "version": "0.6.4"
+        },
+        "requires": [],
+        "isRoot": false
+      }
+    ]
+  },
+  "https://github.com/disruptek/badresults": {
+    "pkgName": "https://github.com/disruptek/badresults",
+    "versions": [
+      {
+        "name": "badresults",
+        "version": {
+          "version": "2.2.0"
+        },
+        "requires": [],
+        "isRoot": false
+      }
+    ]
+  },
+  "https://github.com/haxscramper/hlibssh2.git": {
+    "pkgName": "https://github.com/haxscramper/hlibssh2.git",
+    "versions": [
+      {
+        "name": "hlibssh2",
+        "version": {
+          "version": "0.1.5"
+        },
+        "requires": [
+          "nim >= 1.2.0"
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "https://github.com/disruptek/rest.git": {
+    "pkgName": "https://github.com/disruptek/rest.git",
+    "versions": [
+      {
+        "name": "rest",
+        "version": {
+          "version": "1.0.5"
+        },
+        "requires": [
+          "nim >= 0.20.0",
+          "foreach >= 1.0.0"
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "https://github.com/disruptek/bump": {
+    "pkgName": "https://github.com/disruptek/bump",
+    "versions": [
+      {
+        "name": "bump",
+        "version": {
+          "version": "1.8.33"
+        },
+        "requires": [
+          "https://github.com/disruptek/cutelog >= 2.0.0 & < 3.0.0",
+          "https://github.com/disruptek/cligen >= 2.0.2 & < 3.0.0"
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "https://github.com/disruptek/cligen": {
+    "pkgName": "https://github.com/disruptek/cligen",
+    "versions": [
+      {
+        "name": "cligen",
+        "version": {
+          "version": "2.0.3"
+        },
+        "requires": [],
+        "isRoot": false
+      }
+    ]
+  },
+  "foreach": {
+    "pkgName": "foreach",
+    "versions": [
+      {
+        "name": "foreach",
+        "version": {
+          "version": "1.0.2"
+        },
+        "requires": [
+          "nim >= 0.20.0"
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "https://github.com/disruptek/nimph": {
+    "pkgName": "https://github.com/disruptek/nimph",
+    "versions": [
+      {
+        "name": "nimph",
+        "version": {
+          "version": "1.1.7"
+        },
+        "requires": [
+          "https://github.com/disruptek/cligen >= 2.0.2 & < 3.0.0",
+          "https://github.com/zevv/npeg >= 0.26.0 & < 2.0.0",
+          "https://github.com/disruptek/bump >= 1.8.31 & < 2.0.0",
+          "https://github.com/disruptek/github >= 3.0.0 & < 4.0.0",
+          "https://github.com/disruptek/jsonconvert < 2.0.0",
+          "https://github.com/disruptek/badresults >= 2.1.2 & < 3.0.0",
+          "https://github.com/disruptek/cutelog >= 2.0.0 & < 3.0.0",
+          "https://github.com/disruptek/gittyup >= 3.2.2 & < 4.0.0",
+          "https://github.com/disruptek/ups >= 0.0.7 & < 1.0.0",
+          "https://github.com/disruptek/balls >= 3.9.10 & < 4.0.0"
+        ],
+        "isRoot": true
+      }
+    ]
+  }
+}

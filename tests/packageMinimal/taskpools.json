@@ -1,0 +1,30 @@
+{
+  "nim": {
+    "pkgName": "nim",
+    "versions": [
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.0.2"
+        },
+        "requires": [],
+        "isRoot": false
+      }
+    ]
+  },
+  "taskpools": {
+    "pkgName": "taskpools",
+    "versions": [
+      {
+        "name": "taskpools",
+        "version": {
+          "version": "0.0.4"
+        },
+        "requires": [
+          "nim >= 1.2.12"
+        ],
+        "isRoot": true
+      }
+    ]
+  }
+}

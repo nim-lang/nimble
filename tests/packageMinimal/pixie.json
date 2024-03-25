@@ -1,0 +1,144 @@
+{
+  "bumpy": {
+    "pkgName": "bumpy",
+    "versions": [
+      {
+        "name": "bumpy",
+        "version": {
+          "version": "1.1.2"
+        },
+        "requires": [
+          "nim >= 1.2.2",
+          "vmath >= 1.1.4"
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "pixie": {
+    "pkgName": "pixie",
+    "versions": [
+      {
+        "name": "pixie",
+        "version": {
+          "version": "5.0.6"
+        },
+        "requires": [
+          "nim >= 1.4.8",
+          "vmath >= 1.1.4",
+          "chroma >= 0.2.6",
+          "zippy >= 0.10.3",
+          "flatty >= 0.3.4",
+          "nimsimd >= 1.2.4",
+          "bumpy >= 1.1.1",
+          "crunchy >= 0.1.0"
+        ],
+        "isRoot": true
+      }
+    ]
+  },
+  "nim": {
+    "pkgName": "nim",
+    "versions": [
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.0.2"
+        },
+        "requires": [],
+        "isRoot": false
+      }
+    ]
+  },
+  "zippy": {
+    "pkgName": "zippy",
+    "versions": [
+      {
+        "name": "zippy",
+        "version": {
+          "version": "0.10.11"
+        },
+        "requires": [
+          "nim >= 1.0.10"
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "flatty": {
+    "pkgName": "flatty",
+    "versions": [
+      {
+        "name": "flatty",
+        "version": {
+          "version": "0.3.4"
+        },
+        "requires": [
+          "nim >= 1.0.0"
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "nimsimd": {
+    "pkgName": "nimsimd",
+    "versions": [
+      {
+        "name": "nimsimd",
+        "version": {
+          "version": "1.2.9"
+        },
+        "requires": [
+          "nim >= 1.0.0"
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "vmath": {
+    "pkgName": "vmath",
+    "versions": [
+      {
+        "name": "vmath",
+        "version": {
+          "version": "2.0.0"
+        },
+        "requires": [
+          "nim >= 1.4.0"
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "crunchy": {
+    "pkgName": "crunchy",
+    "versions": [
+      {
+        "name": "crunchy",
+        "version": {
+          "version": "0.1.11"
+        },
+        "requires": [
+          "nim >= 1.4.8",
+          "nimsimd >= 1.2.4"
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "chroma": {
+    "pkgName": "chroma",
+    "versions": [
+      {
+        "name": "chroma",
+        "version": {
+          "version": "0.2.7"
+        },
+        "requires": [
+          "nim >= 1.0.0"
+        ],
+        "isRoot": false
+      }
+    ]
+  }
+}

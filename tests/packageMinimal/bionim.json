@@ -1,0 +1,94 @@
+{
+  "bitty": {
+    "pkgName": "bitty",
+    "versions": [
+      {
+        "name": "bitty",
+        "version": {
+          "version": "0.1.4"
+        },
+        "requires": [
+          "nim >= 1.2.2"
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "bionim": {
+    "pkgName": "bionim",
+    "versions": [
+      {
+        "name": "bionim",
+        "version": {
+          "version": "0.0.3"
+        },
+        "requires": [
+          "nim >= 1.4.4",
+          "phylogeni >= 0.0.2",
+          "bio_seq >= 0.0.5"
+        ],
+        "isRoot": true
+      }
+    ]
+  },
+  "fusion": {
+    "pkgName": "fusion",
+    "versions": [
+      {
+        "name": "fusion",
+        "version": {
+          "version": "1.2"
+        },
+        "requires": [
+          "nim >= 1.0.0"
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "bio_seq": {
+    "pkgName": "bio_seq",
+    "versions": [
+      {
+        "name": "bioseq",
+        "version": {
+          "version": "0.2.4"
+        },
+        "requires": [
+          "nim >= 1.6.0",
+          "bitty >= 0.1.4",
+          "fusion"
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "nim": {
+    "pkgName": "nim",
+    "versions": [
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.0.2"
+        },
+        "requires": [],
+        "isRoot": false
+      }
+    ]
+  },
+  "phylogeni": {
+    "pkgName": "phylogeni",
+    "versions": [
+      {
+        "name": "phylogeni",
+        "version": {
+          "version": "0.1.0"
+        },
+        "requires": [
+          "nim >= 1.6.0"
+        ],
+        "isRoot": false
+      }
+    ]
+  }
+}

@@ -1,0 +1,75 @@
+{
+  "https://github.com/alaviss/hlibgit2": {
+    "pkgName": "https://github.com/alaviss/hlibgit2",
+    "versions": [
+      {
+        "name": "hlibgit2",
+        "version": {
+          "version": "0.1.7"
+        },
+        "requires": [
+          "https://github.com/haxscramper/hlibssh2.git >= 0.1.4",
+          "nim >= 1.2.0"
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "nim": {
+    "pkgName": "nim",
+    "versions": [
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.0.2"
+        },
+        "requires": [],
+        "isRoot": false
+      }
+    ]
+  },
+  "https://github.com/disruptek/gittyup": {
+    "pkgName": "https://github.com/disruptek/gittyup",
+    "versions": [
+      {
+        "name": "gittyup",
+        "version": {
+          "version": "3.2.2"
+        },
+        "requires": [
+          "https://github.com/disruptek/badresults >= 2.0.0 & < 3.0.0",
+          "https://github.com/alaviss/hlibgit2 >= 0.1.7 & < 1.0.0"
+        ],
+        "isRoot": true
+      }
+    ]
+  },
+  "https://github.com/disruptek/badresults": {
+    "pkgName": "https://github.com/disruptek/badresults",
+    "versions": [
+      {
+        "name": "badresults",
+        "version": {
+          "version": "2.2.0"
+        },
+        "requires": [],
+        "isRoot": false
+      }
+    ]
+  },
+  "https://github.com/haxscramper/hlibssh2.git": {
+    "pkgName": "https://github.com/haxscramper/hlibssh2.git",
+    "versions": [
+      {
+        "name": "hlibssh2",
+        "version": {
+          "version": "0.1.5"
+        },
+        "requires": [
+          "nim >= 1.2.0"
+        ],
+        "isRoot": false
+      }
+    ]
+  }
+}

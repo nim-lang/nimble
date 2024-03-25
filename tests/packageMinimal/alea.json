@@ -1,0 +1,46 @@
+{
+  "alea": {
+    "pkgName": "alea",
+    "versions": [
+      {
+        "name": "alea",
+        "version": {
+          "version": "0.1.7"
+        },
+        "requires": [
+          "nim >= 0.18.0",
+          "random >= 0.5.6"
+        ],
+        "isRoot": true
+      }
+    ]
+  },
+  "nim": {
+    "pkgName": "nim",
+    "versions": [
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.0.2"
+        },
+        "requires": [],
+        "isRoot": false
+      }
+    ]
+  },
+  "random": {
+    "pkgName": "random",
+    "versions": [
+      {
+        "name": "random",
+        "version": {
+          "version": "0.5.7"
+        },
+        "requires": [
+          "nim >= 0.12.0"
+        ],
+        "isRoot": false
+      }
+    ]
+  }
+}

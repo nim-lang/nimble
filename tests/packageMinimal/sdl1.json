@@ -1,0 +1,30 @@
+{
+  "nim": {
+    "pkgName": "nim",
+    "versions": [
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.0.2"
+        },
+        "requires": [],
+        "isRoot": false
+      }
+    ]
+  },
+  "sdl1": {
+    "pkgName": "sdl1",
+    "versions": [
+      {
+        "name": "sdl1",
+        "version": {
+          "version": "1.0.0"
+        },
+        "requires": [
+          "nim >= 0.10.0"
+        ],
+        "isRoot": true
+      }
+    ]
+  }
+}

@@ -1,0 +1,174 @@
+{
+  "regex": {
+    "pkgName": "regex",
+    "versions": [
+      {
+        "name": "regex",
+        "version": {
+          "version": "0.24.1"
+        },
+        "requires": [
+          "nim >= 1.0.0",
+          "unicodedb >= 0.7.2"
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "prologue": {
+    "pkgName": "prologue",
+    "versions": [
+      {
+        "name": "prologue",
+        "version": {
+          "version": "0.6.4"
+        },
+        "requires": [
+          "nim >= 1.6.0",
+          "regex >= 0.20.0",
+          "nimcrypto >= 0.5.4",
+          "cookiejar >= 0.2.0",
+          "httpx >= 0.3.4",
+          "logue >= 0.2.0"
+        ],
+        "isRoot": true
+      }
+    ]
+  },
+  "unicodedb": {
+    "pkgName": "unicodedb",
+    "versions": [
+      {
+        "name": "unicodedb",
+        "version": {
+          "version": "0.12.0"
+        },
+        "requires": [
+          "nim >= 1.0.0"
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "nim": {
+    "pkgName": "nim",
+    "versions": [
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.0.2"
+        },
+        "requires": [],
+        "isRoot": false
+      }
+    ]
+  },
+  "httpx": {
+    "pkgName": "httpx",
+    "versions": [
+      {
+        "name": "httpx",
+        "version": {
+          "version": "0.3.7"
+        },
+        "requires": [
+          "nim >= 1.6.12",
+          "ioselectors >= 0.1.6"
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "logue": {
+    "pkgName": "logue",
+    "versions": [
+      {
+        "name": "logue",
+        "version": {
+          "version": "0.2.4"
+        },
+        "requires": [
+          "nim >= 1.2.6",
+          "cligen >= 1.2.2"
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "wepoll": {
+    "pkgName": "wepoll",
+    "versions": [
+      {
+        "name": "wepoll",
+        "version": {
+          "version": "0.1.0"
+        },
+        "requires": [
+          "nim >= 1.2.0"
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "nimcrypto": {
+    "pkgName": "nimcrypto",
+    "versions": [
+      {
+        "name": "nimcrypto",
+        "version": {
+          "version": "0.6.0"
+        },
+        "requires": [
+          "nim >= 1.6"
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "ioselectors": {
+    "pkgName": "ioselectors",
+    "versions": [
+      {
+        "name": "ioselectors",
+        "version": {
+          "version": "0.1.8"
+        },
+        "requires": [
+          "nim >= 1.2.6",
+          "wepoll >= 0.1.0"
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "cookiejar": {
+    "pkgName": "cookiejar",
+    "versions": [
+      {
+        "name": "cookiejar",
+        "version": {
+          "version": "0.3.0"
+        },
+        "requires": [
+          "nim >= 1.2.6"
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "cligen": {
+    "pkgName": "cligen",
+    "versions": [
+      {
+        "name": "cligen",
+        "version": {
+          "version": "1.7.0"
+        },
+        "requires": [
+          "nim >= 0.20.2"
+        ],
+        "isRoot": false
+      }
+    ]
+  }
+}

@@ -1,0 +1,115 @@
+{
+  "chronos": {
+    "pkgName": "chronos",
+    "versions": [
+      {
+        "name": "chronos",
+        "version": {
+          "version": "4.0.0"
+        },
+        "requires": [
+          "nim >= 1.6.16",
+          "results",
+          "stew",
+          "bearssl",
+          "httputils",
+          "unittest2"
+        ],
+        "isRoot": true
+      }
+    ]
+  },
+  "httputils": {
+    "pkgName": "httputils",
+    "versions": [
+      {
+        "name": "httputils",
+        "version": {
+          "version": "0.3.0"
+        },
+        "requires": [
+          "nim >= 1.6.0",
+          "stew",
+          "unittest2"
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "unittest2": {
+    "pkgName": "unittest2",
+    "versions": [
+      {
+        "name": "unittest2",
+        "version": {
+          "version": "0.2.2"
+        },
+        "requires": [
+          "nim >= 1.6.0"
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "nim": {
+    "pkgName": "nim",
+    "versions": [
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.0.2"
+        },
+        "requires": [],
+        "isRoot": false
+      }
+    ]
+  },
+  "stew": {
+    "pkgName": "stew",
+    "versions": [
+      {
+        "name": "stew",
+        "version": {
+          "version": "0.1.0"
+        },
+        "requires": [
+          "nim >= 1.6.0",
+          "results",
+          "unittest2"
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "results": {
+    "pkgName": "results",
+    "versions": [
+      {
+        "name": "results",
+        "version": {
+          "version": "0.4.0"
+        },
+        "requires": [
+          "nim >= 1.2"
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "bearssl": {
+    "pkgName": "bearssl",
+    "versions": [
+      {
+        "name": "bearssl",
+        "version": {
+          "version": "0.2.2"
+        },
+        "requires": [
+          "nim >= 1.6.0",
+          "unittest2"
+        ],
+        "isRoot": false
+      }
+    ]
+  }
+}

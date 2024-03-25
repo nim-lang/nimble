@@ -1,0 +1,62 @@
+{
+  "nim": {
+    "pkgName": "nim",
+    "versions": [
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.0.2"
+        },
+        "requires": [],
+        "isRoot": false
+      }
+    ]
+  },
+  "zippy": {
+    "pkgName": "zippy",
+    "versions": [
+      {
+        "name": "zippy",
+        "version": {
+          "version": "0.10.11"
+        },
+        "requires": [
+          "nim >= 1.0.10"
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "tagforge": {
+    "pkgName": "tagforge",
+    "versions": [
+      {
+        "name": "tagforge",
+        "version": {
+          "version": "0.1.0"
+        },
+        "requires": [
+          "nim >= 2.0.2",
+          "zippy >= 0.10.11",
+          "https://github.com/Yu-Vitaqua-fer-Chronos/MUTF-8 >= 0.1.0"
+        ],
+        "isRoot": true
+      }
+    ]
+  },
+  "https://github.com/Yu-Vitaqua-fer-Chronos/MUTF-8": {
+    "pkgName": "https://github.com/Yu-Vitaqua-fer-Chronos/MUTF-8",
+    "versions": [
+      {
+        "name": "mutf8",
+        "version": {
+          "version": "0.1.0"
+        },
+        "requires": [
+          "nim >= 1.6.0"
+        ],
+        "isRoot": false
+      }
+    ]
+  }
+}
