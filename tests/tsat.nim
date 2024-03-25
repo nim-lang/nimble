@@ -3,8 +3,7 @@ import unittest, os
 import testscommon
 from nimblepkg/common import cd
 import std/[tables, sequtils, json, jsonutils, strutils, times]
-import nimblepkg/[version, packageinfotypes, nimblesat, options, 
-  packageinfo, config]
+import nimblepkg/[version, nimblesat, options, config]
 
 
 proc initFromJson*(dst: var PkgTuple, jsonNode: JsonNode, jsonPath: var string) =
