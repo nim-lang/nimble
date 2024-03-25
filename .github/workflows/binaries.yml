@@ -99,7 +99,7 @@ jobs:
           tag: latest
 
       - name: Delete artefacts
-        uses: geekyeggo/delete-artifact@v4
+        uses: geekyeggo/delete-artifact@v5
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           failOnError: false
