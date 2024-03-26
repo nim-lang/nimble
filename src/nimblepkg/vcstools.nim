@@ -110,7 +110,13 @@ proc getVcsTypeAndSpecialDirPath*(dir: Path): VcsTypeAndSpecialDirPath =
   else:
     dirIter = dirIter / vcsType.getVcsSpecialDir.Path
 
+  if vcsType == vcsTypeGit:
+    let output = doCmdEx("git rev-parse HEAD")
+    if output.exitCode != QuitSuccess:
+      vcsType = vcsTypeNone
+  
   result = (vcsType, dirIter)
+
   cache[dir] = result
 
 proc getVcsType*(dir: Path): VcsType =
