@@ -28,7 +28,7 @@ import ttestcommand
 import ttwobinaryversions
 import tuninstall
 import ttaskdeps
-
+import tsat
 # nonim tests are very slow and (often) break the CI.
 
 # import tnonim
