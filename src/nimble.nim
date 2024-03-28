@@ -1,8 +1,6 @@
 # Copyright (C) Dominik Picheta. All rights reserved.
 # BSD License. Look at license.txt for more info.
 
-import system except TResult
-
 import os, tables, strtabs, json, algorithm, sets, uri, sugar, sequtils, osproc,
        strformat
 
@@ -793,6 +791,91 @@ proc build(pkgInfo: PackageInfo, options: Options) =
   let paths = pkgInfo.getDependenciesPaths(options)
   var args = options.getCompilationFlags()
   buildFromDir(pkgInfo, paths, args, options)
+
+proc addPackages(packages: seq[PkgTuple], options: var Options) =
+  if packages.len == 0:
+    raise nimbleError(
+      "Expected packages to add to dependencies, got none."
+    )
+  
+  let 
+    dir = findNimbleFile(getCurrentDir(), true)
+    pkgInfo = getPkgInfo(getCurrentDir(), options)
+    pkgList = options.getPackageList()
+    deps = pkgInfo.requires
+
+  var 
+    appendStr: string
+    addedPkgs: seq[string]
+
+  # If the package doesn't exist, raise an error.
+  for apkg in packages:
+    var 
+      exists = false
+      version: string
+
+    let 
+      pUri = parseUri(apkg.name)
+      isValidUrl = pUri.hostname != "" # TODO: use a better way to detect a potential URL
+
+    for pkg in pkgList:
+      if pkg.name == apkg.name:
+        exists = true
+        version = case apkg.ver.kind
+        of verAny:
+          ""
+        else:
+          $apkg.ver
+        break
+    
+    if not exists and not isValidUrl:
+      raise nimbleError(
+        "No such package \"$1\" was found in the package list." % [apkg.name]
+      )
+    
+    var doAppend = true
+    for dep in deps:
+      if dep.name.toLowerAscii() == apkg.name.toLowerAscii():
+        displayWarning(
+          "$1 is already a dependency to $2; ignoring." % [apkg.name, pkgInfo.name]
+        )
+        doAppend = false
+    
+    if not doAppend:
+      continue
+  
+    var pSeq = newSeq[PkgTuple](1)
+    pSeq[0] = apkg
+
+    let data = install(pSeq, options, false, false, false)
+
+    let finalVer = if version.len < 1:
+      $data.pkg.basicInfo.version
+    else:
+      version
+
+    let prettyStr = apkg.name & '@' & finalVer
+
+    appendStr &= "\nrequires \"$1$2\"" % [
+      apkg.name,
+      if finalVer != "":
+        " >= " & finalVer
+      else:
+        ""
+    ]
+    
+    addedPkgs.add(prettyStr)
+
+  let file = open(dir, fmAppend)
+  file.write(appendStr)
+  file.close()
+
+  for added in addedPkgs:
+    display(
+      "Added",
+      "$1 as a dependency to $2" % [added, pkgInfo.name],
+      priority = HighPriority
+    )
 
 proc build(options: var Options) =
   getPkgInfo(getCurrentDir(), options).build(options)
@@ -2094,7 +2177,6 @@ proc doAction(options: var Options) =
   if options.showVersion:
     writeVersion()
 
-
   case options.action.typ
   of actionRefresh:
     refresh(options)
@@ -2159,6 +2241,8 @@ proc doAction(options: var Options) =
     shell(options)
   of actionNil:
     assert false
+  of actionAdd:
+    addPackages(options.action.packages, options)
   of actionCustom:
     var optsCopy = options
     optsCopy.task = options.action.command.normalize
