@@ -1,8 +1,6 @@
 # Copyright (C) Dominik Picheta. All rights reserved.
 # BSD License. Look at license.txt for more info.
 
-import system except TResult
-
 import os, tables, strtabs, json, algorithm, sets, uri, sugar, sequtils, osproc,
        strformat
 
