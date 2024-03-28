@@ -331,7 +331,7 @@ proc parseActionType*(action: string): ActionType =
     result = actionCustom
 
 proc initAction*(options: var Options, key: string) =
-  ## Intialises `options.actions` fields based on `options.actions.typ` and
+  ## Initialises `options.actions` fields based on `options.actions.typ` and
   ## `key`.
   let keyNorm = key.normalize()
   case options.action.typ
@@ -472,9 +472,10 @@ proc parseArgument*(key: string, result: var Options) =
   of actionNil:
     assert false
   of actionInstall, actionPath, actionDevelop, actionUninstall, actionUpgrade, actionAdd:
-    # Parse pkg@verRange
-    if '@' in key:
-      let i = find(key, '@')
+    # Parse pkg@verRange or git@github.com:nim-lang/nimble.git
+    let i = rfind(key, '@')
+    let maybeUrl = rfind(key, {'/', ':'})
+    if i > maybeUrl:
       let (pkgName, pkgVer) = (key[0 .. i-1], key[i+1 .. key.len-1])
       if pkgVer.len == 0:
         raise nimbleError("Version range expected after '@'.")

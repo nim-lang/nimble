@@ -157,7 +157,7 @@ proc processFreeDependencies(pkgInfo: PackageInfo,
 
   # We add the reverse deps to the JSON file here because we don't want
   # them added if the above errorenous condition occurs
-  # (unsatisfiable dependendencies).
+  # (unsatisfiable dependencies).
   # N.B. NimbleData is saved in installFromDir.
   for i in reverseDependencies:
     addRevDep(options.nimbleData, i, pkgInfo)
@@ -191,6 +191,9 @@ proc buildFromDir(pkgInfo: PackageInfo, paths: HashSet[string],
   if options.verbosity == SilentPriority:
     # Hide Nim warnings
     args.add("--warnings:off")
+  if options.noColor:
+    # Disable coloured output
+    args.add("--colors:off")
 
   let binToBuild =
     # Only build binaries specified by user if any, but only if top-level package,
@@ -223,8 +226,8 @@ proc buildFromDir(pkgInfo: PackageInfo, paths: HashSet[string],
     let input = realDir / src.changeFileExt("nim")
     # `quoteShell` would be more robust than `\"` (and avoid quoting when
     # un-necessary) but would require changing `extractBin`
-    let cmd = "$# $# --colors:on --noNimblePath $# $# $#" % [
-      pkgInfo.getNimBin(options).quoteShell, pkgInfo.backend, join(args, " "),
+    let cmd = "$# $# --colors:$# --noNimblePath $# $# $#" % [
+      pkgInfo.getNimBin(options).quoteShell, pkgInfo.backend, if options.noColor: "off" else: "on", join(args, " "),
       outputOpt, input.quoteShell]
     try:
       doCmd(cmd)
@@ -1771,10 +1774,10 @@ proc lock(options: Options) =
 
   pkgInfo.validateDevelopDependenciesVersionRanges(baseDeps, options)
 
-  # We need to seperate the graph into seperate tasks later
+  # We need to separate the graph into separate tasks later
   var
     errors = validateDevModeDepsWorkingCopiesBeforeLock(pkgInfo, options)
-    taskDepNames: Table[string, HashSet[string]] # We need to seperate the graph into seperate tasks later
+    taskDepNames: Table[string, HashSet[string]] # We need to separate the graph into separate tasks later
     allDeps = baseDeps.toHashSet
     lockDeps: AllLockFileDeps
 
@@ -2042,9 +2045,9 @@ when withDir(thisDir(), system.fileExists("{nimblePathsFileName}")):
         startIndex = fileContent.find(sectionStart)
         endIndex = fileContent.find(sectionEnd)
       if startIndex >= 0 and endIndex >= 0:
-        fileContent.delete(startIndex..endIndex + sectionEnd.len - 1)
-
-      fileContent.append(configFileContent)
+        fileContent = fileContent[0..<startIndex] & configFileContent[0 ..< ^1] & fileContent[endIndex + sectionEnd.len .. ^1]
+      else:
+        fileContent.append(configFileContent)
       writeFile = true
   else:
     fileContent.append(configFileContent)
