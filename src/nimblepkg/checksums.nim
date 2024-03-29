@@ -3,7 +3,11 @@
 
 import os, strformat, algorithm
 import common, version, sha1hashes, vcstools, paths, cli
-import ../../dist/checksums/src/checksums/sha1
+
+when defined(nimNimbleBootstrap):
+  import ../../dist/checksums/src/checksums/sha1
+else:
+  import pkg/checksums/sha1
 
 type
   ChecksumError* = object of NimbleError

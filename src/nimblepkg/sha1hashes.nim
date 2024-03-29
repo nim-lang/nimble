@@ -3,7 +3,11 @@
 
 import strformat, strutils, json,  hashes
 import common
-import ../../dist/checksums/src/checksums/sha1
+
+when defined(nimNimbleBootstrap):
+  import ../../dist/checksums/src/checksums/sha1
+else:
+  import pkg/checksums/sha1
 
 type
   InvalidSha1HashError* = object of NimbleError
