@@ -61,7 +61,7 @@ jobs:
           yes: true
 
       - name: Install checksums
-        run: nimble install checksums
+        run: nimble install -y checksums
 
       - name: build nimble
         run: |
