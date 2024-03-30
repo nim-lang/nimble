@@ -9,5 +9,4 @@ bin         = @["issue799"]
 
 # Dependencies
 requires "nim >= 0.16.0"
-requires checksums
 requires "nimble#head"
