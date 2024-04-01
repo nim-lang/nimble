@@ -28,8 +28,8 @@ jobs:
       - name: Install Mercurial on macOS
         if: matrix.os == 'macos-latest'
         run: brew install mercurial
-      - name: Install checksums
-        run: nimble install checksums
+      - name: Install dependencies
+        run: nimble install -y
       - name: Run nim c -r tester
         run: |
           cd tests
@@ -37,3 +37,8 @@ jobs:
           # there's no need to add nimblepkg unit tests --
           # they are run by tmoduletests.nim
       - run: ./src/nimble install -y
+      - name: Build nimble with `-d:nimNimbleBootstrap`
+        run: |
+          nim c -d:release -r tests/private/clone.nim
+          nim c -d:nimNimbleBootstrap -d:release src/nimble.nim
+

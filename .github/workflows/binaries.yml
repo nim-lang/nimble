@@ -60,8 +60,8 @@ jobs:
           nim-version: 'stable'
           yes: true
 
-      - name: Install checksums
-        run: nimble install -y checksums
+      - name: Install dependencies
+        run: nimble install -y
 
       - name: build nimble
         run: |
