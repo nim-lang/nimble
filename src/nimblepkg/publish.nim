@@ -154,7 +154,7 @@ proc editJson(p: PackageInfo; url, tags, downloadMethod: string) =
     "name": p.basicInfo.name,
     "url": url,
     "method": downloadMethod,
-    "tags": tags.split(),
+    "tags": tags.splitWhitespace(),
     "description": p.description,
     "license": p.license,
     "web": url
