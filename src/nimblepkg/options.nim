@@ -61,7 +61,7 @@ type
     actionInstall, actionSearch, actionList, actionBuild, actionPath,
     actionUninstall, actionCompile, actionDoc, actionCustom, actionTasks,
     actionDevelop, actionCheck, actionLock, actionRun, actionSync, actionSetup,
-    actionClean, actionDeps, actionShellEnv, actionShell
+    actionClean, actionDeps, actionShellEnv, actionShell, actionAdd
 
   DevelopActionType* = enum
     datAdd, datRemoveByPath, datRemoveByName, datInclude, datExclude
@@ -76,9 +76,9 @@ type
       listOnly*: bool
     of actionRefresh:
       optionalURL*: string # Overrides default package list.
-    of actionInstall, actionPath, actionUninstall, actionDevelop, actionUpgrade, actionLock:
-      packages*: seq[PkgTuple] # Optional only for actionInstall
-                               # and actionDevelop.
+    of actionInstall, actionPath, actionUninstall, actionDevelop, actionUpgrade, actionLock, actionAdd:
+      packages*: seq[PkgTuple] # Optional only for actionInstall,
+                               # actionDevelop and actionAdd.
       passNimFlags*: seq[string]
       devActions*: seq[DevelopAction]
       path*: string
@@ -164,6 +164,7 @@ Commands:
   build        [opts, ...] [bin]  Builds a package. Passes options to the Nim
                                   compiler.
   clean                           Clean build artifacts.
+  add                             Adds packages to your project's dependencies.
   run          [opts, ...] [bin]  Builds and runs a package.
                                   Binary needs to be specified after any
                                   compilation options if there are several
@@ -242,7 +243,7 @@ Nimble Options:
       --useSystemNim              Use system nim and ignore nim from the lock
                                   file if any
 
-For more information read the Github readme:
+For more information read the GitHub readme:
   https://github.com/nim-lang/nimble#readme
 """
 
@@ -324,11 +325,13 @@ proc parseActionType*(action: string): ActionType =
     result = actionShellEnv
   of "shell":
     result = actionShell
+  of "add":
+    result = actionAdd
   else:
     result = actionCustom
 
 proc initAction*(options: var Options, key: string) =
-  ## Intialises `options.actions` fields based on `options.actions.typ` and
+  ## Initialises `options.actions` fields based on `options.actions.typ` and
   ## `key`.
   let keyNorm = key.normalize()
   case options.action.typ
@@ -468,10 +471,11 @@ proc parseArgument*(key: string, result: var Options) =
   case result.action.typ
   of actionNil:
     assert false
-  of actionInstall, actionPath, actionDevelop, actionUninstall, actionUpgrade:
-    # Parse pkg@verRange
-    if '@' in key:
-      let i = find(key, '@')
+  of actionInstall, actionPath, actionDevelop, actionUninstall, actionUpgrade, actionAdd:
+    # Parse pkg@verRange or git@github.com:nim-lang/nimble.git
+    let i = rfind(key, '@')
+    let maybeUrl = rfind(key, {'/', ':'})
+    if i > maybeUrl:
       let (pkgName, pkgVer) = (key[0 .. i-1], key[i+1 .. key.len-1])
       if pkgVer.len == 0:
         raise nimbleError("Version range expected after '@'.")

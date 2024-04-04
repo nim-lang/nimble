@@ -1,8 +1,6 @@
 # Copyright (C) Dominik Picheta. All rights reserved.
 # BSD License. Look at license.txt for more info.
 
-import system except TResult
-
 import os, tables, strtabs, json, algorithm, sets, uri, sugar, sequtils, osproc,
        strformat
 
@@ -159,7 +157,7 @@ proc processFreeDependencies(pkgInfo: PackageInfo,
 
   # We add the reverse deps to the JSON file here because we don't want
   # them added if the above errorenous condition occurs
-  # (unsatisfiable dependendencies).
+  # (unsatisfiable dependencies).
   # N.B. NimbleData is saved in installFromDir.
   for i in reverseDependencies:
     addRevDep(options.nimbleData, i, pkgInfo)
@@ -194,6 +192,9 @@ proc buildFromDir(pkgInfo: PackageInfo, paths: HashSet[seq[string]],
   if options.verbosity == SilentPriority:
     # Hide Nim warnings
     args.add("--warnings:off")
+  if options.noColor:
+    # Disable coloured output
+    args.add("--colors:off")
 
   let binToBuild =
     # Only build binaries specified by user if any, but only if top-level package,
@@ -226,8 +227,8 @@ proc buildFromDir(pkgInfo: PackageInfo, paths: HashSet[seq[string]],
     let input = realDir / src.changeFileExt("nim")
     # `quoteShell` would be more robust than `\"` (and avoid quoting when
     # un-necessary) but would require changing `extractBin`
-    let cmd = "$# $# --colors:on --noNimblePath $# $# $#" % [
-      pkgInfo.getNimBin(options).quoteShell, pkgInfo.backend, join(args, " "),
+    let cmd = "$# $# --colors:$# --noNimblePath $# $# $#" % [
+      pkgInfo.getNimBin(options).quoteShell, pkgInfo.backend, if options.noColor: "off" else: "on", join(args, " "),
       outputOpt, input.quoteShell]
     try:
       doCmd(cmd)
@@ -810,6 +811,91 @@ proc build(pkgInfo: PackageInfo, options: Options) =
   let paths = pkgInfo.getDependenciesPaths(options)
   var args = options.getCompilationFlags()
   buildFromDir(pkgInfo, paths, args, options)
+
+proc addPackages(packages: seq[PkgTuple], options: var Options) =
+  if packages.len == 0:
+    raise nimbleError(
+      "Expected packages to add to dependencies, got none."
+    )
+  
+  let 
+    dir = findNimbleFile(getCurrentDir(), true)
+    pkgInfo = getPkgInfo(getCurrentDir(), options)
+    pkgList = options.getPackageList()
+    deps = pkgInfo.requires
+
+  var 
+    appendStr: string
+    addedPkgs: seq[string]
+
+  # If the package doesn't exist, raise an error.
+  for apkg in packages:
+    var 
+      exists = false
+      version: string
+
+    let 
+      pUri = parseUri(apkg.name)
+      isValidUrl = pUri.hostname != "" # TODO: use a better way to detect a potential URL
+
+    for pkg in pkgList:
+      if pkg.name == apkg.name:
+        exists = true
+        version = case apkg.ver.kind
+        of verAny:
+          ""
+        else:
+          $apkg.ver
+        break
+    
+    if not exists and not isValidUrl:
+      raise nimbleError(
+        "No such package \"$1\" was found in the package list." % [apkg.name]
+      )
+    
+    var doAppend = true
+    for dep in deps:
+      if dep.name.toLowerAscii() == apkg.name.toLowerAscii():
+        displayWarning(
+          "$1 is already a dependency to $2; ignoring." % [apkg.name, pkgInfo.name]
+        )
+        doAppend = false
+    
+    if not doAppend:
+      continue
+  
+    var pSeq = newSeq[PkgTuple](1)
+    pSeq[0] = apkg
+
+    let data = install(pSeq, options, false, false, false)
+
+    let finalVer = if version.len < 1:
+      $data.pkg.basicInfo.version
+    else:
+      version
+
+    let prettyStr = apkg.name & '@' & finalVer
+
+    appendStr &= "\nrequires \"$1$2\"" % [
+      apkg.name,
+      if finalVer != "":
+        " >= " & finalVer
+      else:
+        ""
+    ]
+    
+    addedPkgs.add(prettyStr)
+
+  let file = open(dir, fmAppend)
+  file.write(appendStr)
+  file.close()
+
+  for added in addedPkgs:
+    display(
+      "Added",
+      "$1 as a dependency to $2" % [added, pkgInfo.name],
+      priority = HighPriority
+    )
 
 proc build(options: var Options) =
   getPkgInfo(getCurrentDir(), options).build(options)
@@ -1710,10 +1796,10 @@ proc lock(options: Options) =
 
   pkgInfo.validateDevelopDependenciesVersionRanges(baseDeps, options)
 
-  # We need to seperate the graph into seperate tasks later
+  # We need to separate the graph into separate tasks later
   var
     errors = validateDevModeDepsWorkingCopiesBeforeLock(pkgInfo, options)
-    taskDepNames: Table[string, HashSet[string]] # We need to seperate the graph into seperate tasks later
+    taskDepNames: Table[string, HashSet[string]] # We need to separate the graph into separate tasks later
     allDeps = baseDeps.toHashSet
     lockDeps: AllLockFileDeps
 
@@ -1981,9 +2067,9 @@ when withDir(thisDir(), system.fileExists("{nimblePathsFileName}")):
         startIndex = fileContent.find(sectionStart)
         endIndex = fileContent.find(sectionEnd)
       if startIndex >= 0 and endIndex >= 0:
-        fileContent.delete(startIndex..endIndex + sectionEnd.len - 1)
-
-      fileContent.append(configFileContent)
+        fileContent = fileContent[0..<startIndex] & configFileContent[0 ..< ^1] & fileContent[endIndex + sectionEnd.len .. ^1]
+      else:
+        fileContent.append(configFileContent)
       writeFile = true
   else:
     fileContent.append(configFileContent)
@@ -2113,7 +2199,6 @@ proc doAction(options: var Options) =
   if options.showVersion:
     writeVersion()
 
-
   case options.action.typ
   of actionRefresh:
     refresh(options)
@@ -2178,6 +2263,8 @@ proc doAction(options: var Options) =
     shell(options)
   of actionNil:
     assert false
+  of actionAdd:
+    addPackages(options.action.packages, options)
   of actionCustom:
     var optsCopy = options
     optsCopy.task = options.action.command.normalize

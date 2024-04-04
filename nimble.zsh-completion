@@ -17,7 +17,7 @@ _nimble() {
     '(-d --depsOnly)'{-d,--depsOnly}'[Install only dependencies]'
 
   if [ $#line -eq 0 ]; then
-    # if the command line is empty and "nimble tasks" is successfull, add custom tasks
+    # if the command line is empty and "nimble tasks" is successful, add custom tasks
     tasks=$(nimble tasks)
     if [ $? -eq 0 ]; then
       compadd - $(echo $tasks | cut -f1 -d" " | tr '\n' ' ')

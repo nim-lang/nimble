@@ -1,0 +1,55 @@
+site_name: Nimble User Guide
+
+theme:
+  name: material
+  features:
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.expand
+    - navigation.sections
+    - toc.integrate
+  palette:
+    - scheme: default
+      primary: teal
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: black
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+
+
+
+use_directory_urls: false
+
+markdown_extensions:
+  - admonition
+  - pymdownx.highlight:
+      anchor_linenums: true
+      pygments_lang_class: true
+  - pymdownx.snippets
+  - pymdownx.superfences
+
+
+nav:
+  - Home:
+    - 'index.md'
+    - 'install-nimble.md'
+
+  - Use existing packages:
+    - 'use-packages.md'
+
+  - Create Nimble packages:
+    - 'create-packages.md'
+
+  - Nimble develop workflow:
+    - 'workflow.md'
+
+  - Misc:
+    - 'package-types.md'
+    - 'config.md'
+    - 'nimble-reference.md'
+    - 'folder-structure.md'
+    - 'troubleshooting.md'

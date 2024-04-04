@@ -31,7 +31,7 @@ proc writeLockFile*(fileName: string, packages: AllLockFileDeps) =
       $lfjkVersion: %lockFileVersion,
       $lfjkPackages: %packages[noTask]
   }
-  # Store task graph seperate
+  # Store task graph separate
   mainJsonNode[$lfjkTasks] = newJObject()
   for task, deps in packages:
     if task != noTask:

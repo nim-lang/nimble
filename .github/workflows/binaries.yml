@@ -55,13 +55,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - uses: jiro4989/setup-nim-action@v1.4.3
+      - uses: jiro4989/setup-nim-action@v1
         with:
           nim-version: 'stable'
           yes: true
 
-      - name: Install checksums
-        run: nim r src/nimblepkg/private/clone.nim
+      - name: Install dependencies
+        run: nimble install -y
 
       - name: build nimble
         run: |
@@ -79,7 +79,7 @@ jobs:
           path: nimble-${{ matrix.target.name }}.tar.gz
 
   create-github-release:
-    name: Create Github Release
+    name: Create GitHub Release
     needs: [build]
     runs-on: ubuntu-latest
     permissions:
@@ -99,7 +99,7 @@ jobs:
           tag: latest
 
       - name: Delete artefacts
-        uses: geekyeggo/delete-artifact@v4
+        uses: geekyeggo/delete-artifact@v5
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           failOnError: false
