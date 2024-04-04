@@ -357,7 +357,14 @@ proc allDependencies(pkgInfo: PackageInfo, options: Options): HashSet[PackageInf
     result.incl pkgInfo.processFreeDependencies(requires, options)
 
 proc isSubdirOf(subdir, baseDir: string): bool =
-  subDir.normalizedPath.startsWith(baseDir.normalizedPath)
+  let
+    normalizedSubdir = subdir.normalizedPath
+    normalizedBaseDir = baseDir.normalizedPath & DirSep
+
+  when defined(windows):
+    normalizedSubdir.toLower.startsWith(normalizedBaseDir.toLower)
+  else:
+    normalizedSubdir.startsWith(normalizedBaseDir)
 
 proc expandPaths(pkgInfo: PackageInfo, options: Options): seq[string] =
   var pkgInfo = pkgInfo.toFullInfo(options)
