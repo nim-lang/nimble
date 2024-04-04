@@ -54,6 +54,7 @@ bin: ""
 binDir: ""
 srcDir: ""
 backend: "c"
+paths: "path"
 """
     let (outp, exitCode) = execNimble("dump", "--ini", "testdump")
     check: exitCode == 0
@@ -77,7 +78,10 @@ backend: "c"
   "bin": [],
   "binDir": "",
   "srcDir": "",
-  "backend": "c"
+  "backend": "c",
+  "paths": [
+    "path"
+  ]
 }
 """
     let (outp, exitCode) = execNimble("dump", "--json", "testdump")
