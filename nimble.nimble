@@ -12,6 +12,7 @@ installExt = @["nim"]
 # Dependencies
 
 requires "nim >= 0.13.0", "sat"
+requires "checksums"
 
 when defined(nimdistros):
   import distros
@@ -19,12 +20,6 @@ when defined(nimdistros):
     foreignDep "libssl-dev"
   else:
     foreignDep "openssl"
-
-before install:
-  exec "nim r src/nimblepkg/private/clone.nim"
-
-before build:
-  exec "nim r src/nimblepkg/private/clone.nim"
 
 task test, "Run the Nimble tester!":
   withDir "tests":

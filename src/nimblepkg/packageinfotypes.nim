@@ -69,7 +69,8 @@ type
     lockedDeps*: AllLockFileDeps
     metaData*: PackageMetaData
     isLink*: bool
-
+    paths*: seq[string] 
+    
   Package* = object ## Definition of package from packages.json.
     # Required fields in a package.
     name*: string

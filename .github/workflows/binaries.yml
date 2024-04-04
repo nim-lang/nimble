@@ -60,8 +60,8 @@ jobs:
           nim-version: 'stable'
           yes: true
 
-      - name: Install checksums
-        run: nim r src/nimblepkg/private/clone.nim
+      - name: Install dependencies
+        run: nimble install -y
 
       - name: build nimble
         run: |
