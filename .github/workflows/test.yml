@@ -32,7 +32,6 @@ jobs:
         run: nimble install -y
       - name: Run nim c -r tester
         run: |
-          nimble install
           cd tests
           nim c -r tester
           # there's no need to add nimblepkg unit tests --
