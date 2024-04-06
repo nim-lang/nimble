@@ -1,0 +1,46 @@
+{
+  "nim": {
+    "pkgName": "nim",
+    "versions": [
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.0.2"
+        },
+        "requires": [],
+        "isRoot": false
+      }
+    ]
+  },
+  "libsodium": {
+    "pkgName": "libsodium",
+    "versions": [
+      {
+        "name": "libsodium",
+        "version": {
+          "version": "0.7.1"
+        },
+        "requires": [
+          "nim >= 0.13.0"
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "httpauth": {
+    "pkgName": "httpauth",
+    "versions": [
+      {
+        "name": "httpauth",
+        "version": {
+          "version": "0.3.0"
+        },
+        "requires": [
+          "nim >= 0.19.0",
+          "libsodium"
+        ],
+        "isRoot": true
+      }
+    ]
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "gsl": {
+    "pkgName": "gsl",
+    "versions": [
+      {
+        "name": "gsl",
+        "version": {
+          "version": "0.1.0"
+        },
+        "requires": [],
+        "isRoot": true
+      }
+    ]
+  }
+}

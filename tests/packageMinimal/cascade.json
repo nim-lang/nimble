@@ -1,0 +1,30 @@
+{
+  "cascade": {
+    "pkgName": "cascade",
+    "versions": [
+      {
+        "name": "cascade",
+        "version": {
+          "version": "1.0.0"
+        },
+        "requires": [
+          "nim >= 1.0.0"
+        ],
+        "isRoot": true
+      }
+    ]
+  },
+  "nim": {
+    "pkgName": "nim",
+    "versions": [
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.0.2"
+        },
+        "requires": [],
+        "isRoot": false
+      }
+    ]
+  }
+}

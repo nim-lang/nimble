@@ -1,0 +1,46 @@
+{
+  "vqsort": {
+    "pkgName": "vqsort",
+    "versions": [
+      {
+        "name": "vqsort",
+        "version": {
+          "version": "0.1.0"
+        },
+        "requires": [
+          "nim >= 2.0.2",
+          "nimsimd >= 1.2.9"
+        ],
+        "isRoot": true
+      }
+    ]
+  },
+  "nim": {
+    "pkgName": "nim",
+    "versions": [
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.0.2"
+        },
+        "requires": [],
+        "isRoot": false
+      }
+    ]
+  },
+  "nimsimd": {
+    "pkgName": "nimsimd",
+    "versions": [
+      {
+        "name": "nimsimd",
+        "version": {
+          "version": "1.2.9"
+        },
+        "requires": [
+          "nim >= 1.0.0"
+        ],
+        "isRoot": false
+      }
+    ]
+  }
+}

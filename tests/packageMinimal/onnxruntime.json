@@ -1,0 +1,15 @@
+{
+  "onnxruntime": {
+    "pkgName": "onnxruntime",
+    "versions": [
+      {
+        "name": "onnxruntime",
+        "version": {
+          "version": "0.1.0"
+        },
+        "requires": [],
+        "isRoot": true
+      }
+    ]
+  }
+}

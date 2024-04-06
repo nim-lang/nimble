@@ -1,0 +1,30 @@
+{
+  "nim": {
+    "pkgName": "nim",
+    "versions": [
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.0.2"
+        },
+        "requires": [],
+        "isRoot": false
+      }
+    ]
+  },
+  "jstin": {
+    "pkgName": "jstin",
+    "versions": [
+      {
+        "name": "jstin",
+        "version": {
+          "version": "0.1.0"
+        },
+        "requires": [
+          "nim >= 0.19.2"
+        ],
+        "isRoot": true
+      }
+    ]
+  }
+}

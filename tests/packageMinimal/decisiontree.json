@@ -1,0 +1,46 @@
+{
+  "nim": {
+    "pkgName": "nim",
+    "versions": [
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.0.2"
+        },
+        "requires": [],
+        "isRoot": false
+      }
+    ]
+  },
+  "sequtils2": {
+    "pkgName": "sequtils2",
+    "versions": [
+      {
+        "name": "sequtils2",
+        "version": {
+          "version": "1.1.0"
+        },
+        "requires": [
+          "nim >= 0.17.3"
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "decisiontree": {
+    "pkgName": "decisiontree",
+    "versions": [
+      {
+        "name": "DecisionTree",
+        "version": {
+          "version": "0.1.1"
+        },
+        "requires": [
+          "nim >= 1.2.0",
+          "sequtils2 >= 1.1.0"
+        ],
+        "isRoot": true
+      }
+    ]
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "clibpp": {
+    "pkgName": "clibpp",
+    "versions": [
+      {
+        "name": "clibpp",
+        "version": {
+          "version": "0.1"
+        },
+        "requires": [],
+        "isRoot": true
+      }
+    ]
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "templates": {
+    "pkgName": "templates",
+    "versions": [
+      {
+        "name": "templates",
+        "version": {
+          "version": "0.5"
+        },
+        "requires": [],
+        "isRoot": true
+      }
+    ]
+  }
+}

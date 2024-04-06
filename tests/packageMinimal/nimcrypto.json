@@ -1,0 +1,30 @@
+{
+  "nim": {
+    "pkgName": "nim",
+    "versions": [
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.0.2"
+        },
+        "requires": [],
+        "isRoot": false
+      }
+    ]
+  },
+  "nimcrypto": {
+    "pkgName": "nimcrypto",
+    "versions": [
+      {
+        "name": "nimcrypto",
+        "version": {
+          "version": "0.6.0"
+        },
+        "requires": [
+          "nim >= 1.6"
+        ],
+        "isRoot": true
+      }
+    ]
+  }
+}

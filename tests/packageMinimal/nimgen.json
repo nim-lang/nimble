@@ -1,0 +1,78 @@
+{
+  "regex": {
+    "pkgName": "regex",
+    "versions": [
+      {
+        "name": "regex",
+        "version": {
+          "version": "0.24.1"
+        },
+        "requires": [
+          "nim >= 1.0.0",
+          "unicodedb >= 0.7.2"
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "unicodedb": {
+    "pkgName": "unicodedb",
+    "versions": [
+      {
+        "name": "unicodedb",
+        "version": {
+          "version": "0.12.0"
+        },
+        "requires": [
+          "nim >= 1.0.0"
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "c2nim": {
+    "pkgName": "c2nim",
+    "versions": [
+      {
+        "name": "c2nim",
+        "version": {
+          "version": "0.9.19"
+        },
+        "requires": [
+          "nim >= 1.2.0"
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "nim": {
+    "pkgName": "nim",
+    "versions": [
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.0.2"
+        },
+        "requires": [],
+        "isRoot": false
+      }
+    ]
+  },
+  "nimgen": {
+    "pkgName": "nimgen",
+    "versions": [
+      {
+        "name": "nimgen",
+        "version": {
+          "version": "0.5.1"
+        },
+        "requires": [
+          "nim >= 0.19.0",
+          "c2nim >= 0.9.14",
+          "regex >= 0.10.0"
+        ],
+        "isRoot": true
+      }
+    ]
+  }
+}

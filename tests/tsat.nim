@@ -2,8 +2,9 @@
 import unittest, os
 import testscommon
 # from nimblepkg/common import cd Used in the commented tests
-import std/[tables, sequtils, json, jsonutils, strutils]
+import std/[tables, sequtils, json, jsonutils, strutils, times]
 import nimblepkg/[version, nimblesat, options, config]
+from nimblepkg/common import cd
 
 
 proc initFromJson*(dst: var PkgTuple, jsonNode: JsonNode, jsonPath: var string) =
@@ -140,18 +141,17 @@ suite "SAT solver":
     echo output
     check packages.len == 0
 
-  #Needs the file structure. Comming in another PR
-  # test "issue #1162":
-  #   cd "conflictingdepres":
-  #     #integration version of the test above
-  #     #[
-  #       The folder structure of the test is key for the setup:
-  #         Notice how inside the pkgs2 folder (convention when using local packages) there are 3 folders
-  #         where c has two versions of the same package. The version is retrieved counterintuitively from 
-  #         the nimblemeta.json special version field. 
-  #     ]#
-  #     let (_, exitCode) = execNimble("install", "-l", "--sat")
-  #     check exitCode == QuitSuccess
+  test "issue #1162":
+    cd "conflictingdepres":
+      #integration version of the test above
+      #[
+        The folder structure of the test is key for the setup:
+          Notice how inside the pkgs2 folder (convention when using local packages) there are 3 folders
+          where c has two versions of the same package. The version is retrieved counterintuitively from 
+          the nimblemeta.json special version field. 
+      ]#
+      let (_, exitCode) = execNimble("install", "-l", "--sat")
+      check exitCode == QuitSuccess
 
   test "should be able to download a package and select its deps":
 
@@ -178,62 +178,61 @@ suite "SAT solver":
     check solve(graph, form, packages, output)
     check packages.len > 0
     
-  #Needs the file structure. Comming in another PR
-  # test "should be able to solve all nimble packages":
-  #   # downloadAllPackages() #uncomment this to download all packages. It's better to just keep them cached as it takes a while.
-  #   let now = now()
-  #   var pks = 0
-  #   for jsonFile in walkPattern("packageMinimal/*.json"):
-  #     inc pks
-  #     var pkgVersionTable = parseJson(readFile(jsonFile)).to(Table[string, PackageVersions])
-  #     var graph = pkgVersionTable.toDepGraph()
-  #     let form = toFormular(graph)
-  #     var packages = initTable[string, Version]()
-  #     var output = ""
-  #     check solve(graph, form, packages, output)
-  #     check packages.len > 0
+  test "should be able to solve all nimble packages":
+    # downloadAllPackages() #uncomment this to download all packages. It's better to just keep them cached as it takes a while.
+    let now = now()
+    var pks = 0
+    for jsonFile in walkPattern("packageMinimal/*.json"):
+      inc pks
+      var pkgVersionTable = parseJson(readFile(jsonFile)).to(Table[string, PackageVersions])
+      var graph = pkgVersionTable.toDepGraph()
+      let form = toFormular(graph)
+      var packages = initTable[string, Version]()
+      var output = ""
+      check solve(graph, form, packages, output)
+      check packages.len > 0
     
-  #   let ends = now()
-  #   echo "Solved ", pks, " packages in ", ends - now, " seconds"
+    let ends = now()
+    echo "Solved ", pks, " packages in ", ends - now, " seconds"
   
-  # test "should be able to retrieve the package minimal info from the nimble directory": 
-  #   var options = initOptions()
-  #   options.nimbleDir = getCurrentDir() / "conflictingdepres" / "nimbledeps" 
-  #   let pkgs = getInstalledMinimalPackages(options)
-  #   var pkgVersionTable = initTable[string, PackageVersions]()
-  #   fillPackageTableFromPreferred(pkgVersionTable, pkgs)
-  #   check pkgVersionTable.hasVersion("b", newVersion "0.1.4")
-  #   check pkgVersionTable.hasVersion("c", newVersion "0.1.0")
-  #   check pkgVersionTable.hasVersion("c", newVersion "0.2.1")
+  test "should be able to retrieve the package minimal info from the nimble directory": 
+    var options = initOptions()
+    options.nimbleDir = getCurrentDir() / "conflictingdepres" / "nimbledeps" 
+    let pkgs = getInstalledMinimalPackages(options)
+    var pkgVersionTable = initTable[string, PackageVersions]()
+    fillPackageTableFromPreferred(pkgVersionTable, pkgs)
+    check pkgVersionTable.hasVersion("b", newVersion "0.1.4")
+    check pkgVersionTable.hasVersion("c", newVersion "0.1.0")
+    check pkgVersionTable.hasVersion("c", newVersion "0.2.1")
 
-  # test "should fallback to the download if the package is not found in the list of packages":
-  #   let root = 
-  #     PackageMinimalInfo(
-  #       name: "a", version: newVersion "3.0", 
-  #       requires: @[
-  #       (name:"b", ver: parseVersionRange ">= 0.1.4"),
-  #       (name:"c", ver: parseVersionRange ">= 0.0.5 & <= 0.1.0"),
-  #       (name: "random", ver: VersionRange(kind: verAny)),
-  #     ], 
-  #     isRoot:true)
+  test "should fallback to the download if the package is not found in the list of packages":
+    let root = 
+      PackageMinimalInfo(
+        name: "a", version: newVersion "3.0", 
+        requires: @[
+        (name:"b", ver: parseVersionRange ">= 0.1.4"),
+        (name:"c", ver: parseVersionRange ">= 0.0.5 & <= 0.1.0"),
+        (name: "random", ver: VersionRange(kind: verAny)),
+      ], 
+      isRoot:true)
    
-  #   var options = initOptions()
-  #   options.config.packageLists["official"] = PackageList(name: "Official", urls: @[
-  #     "https://raw.githubusercontent.com/nim-lang/packages/master/packages.json",
-  #     "https://nim-lang.org/nimble/packages.json"
-  #   ])
-  #   options.nimbleDir = getCurrentDir() / "conflictingdepres" / "nimbledeps" 
-  #   options.nimBin = "nim"
-  #   options.pkgCachePath = getCurrentDir() / "conflictingdepres" / "download"
-  #   let pkgs = getInstalledMinimalPackages(options)
-  #   var pkgVersionTable = initTable[string, PackageVersions]()
-  #   pkgVersionTable["a"] = PackageVersions(pkgName: "a", versions: @[root])
-  #   fillPackageTableFromPreferred(pkgVersionTable, pkgs)
-  #   collectAllVersions(pkgVersionTable, root, options, downloadMinimalPackage)
-  #   var output = ""
-  #   let solvedPkgs = pkgVersionTable.getSolvedPackages(output)
-  #   check solvedPkgs["b"] == newVersion "0.1.4"
-  #   check solvedPkgs["c"] == newVersion "0.1.0"
-  #   check "random" in pkgVersionTable
+    var options = initOptions()
+    options.config.packageLists["official"] = PackageList(name: "Official", urls: @[
+      "https://raw.githubusercontent.com/nim-lang/packages/master/packages.json",
+      "https://nim-lang.org/nimble/packages.json"
+    ])
+    options.nimbleDir = getCurrentDir() / "conflictingdepres" / "nimbledeps" 
+    options.nimBin = "nim"
+    options.pkgCachePath = getCurrentDir() / "conflictingdepres" / "download"
+    let pkgs = getInstalledMinimalPackages(options)
+    var pkgVersionTable = initTable[string, PackageVersions]()
+    pkgVersionTable["a"] = PackageVersions(pkgName: "a", versions: @[root])
+    fillPackageTableFromPreferred(pkgVersionTable, pkgs)
+    collectAllVersions(pkgVersionTable, root, options, downloadMinimalPackage)
+    var output = ""
+    let solvedPkgs = pkgVersionTable.getSolvedPackages(output)
+    check solvedPkgs["b"] == newVersion "0.1.4"
+    check solvedPkgs["c"] == newVersion "0.1.0"
+    check "random" in pkgVersionTable
     
-  #   removeDir(options.pkgCachePath)
+    removeDir(options.pkgCachePath)
