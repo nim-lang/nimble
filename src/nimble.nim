@@ -8,7 +8,10 @@ import std/options as std_opt
 
 import strutils except toLower
 from unicode import toLower
-import sat/sat
+when defined(nimNimbleBootstrap):
+  import ../../dist/sat/src/sat/sat
+else:
+  import sat/sat
 import nimblepkg/packageinfotypes, nimblepkg/packageinfo, nimblepkg/version,
        nimblepkg/tools, nimblepkg/download, nimblepkg/common,
        nimblepkg/publish, nimblepkg/options, nimblepkg/packageparser,
