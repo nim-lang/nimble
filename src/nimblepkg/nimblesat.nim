@@ -1,5 +1,5 @@
 when defined(nimNimbleBootstrap):
-  import ../../dist/sat/src/sat/[sat, sarvars]
+  import ../../dist/sat/src/sat/[sat, satvars]
 else:
   import sat/[sat, satvars] 
 import version, packageinfotypes, download, packageinfo, packageparser, options, 
