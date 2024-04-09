@@ -1,0 +1,30 @@
+{
+  "nim": {
+    "pkgName": "nim",
+    "versions": [
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.0.2"
+        },
+        "requires": [],
+        "isRoot": false
+      }
+    ]
+  },
+  "cligen": {
+    "pkgName": "cligen",
+    "versions": [
+      {
+        "name": "cligen",
+        "version": {
+          "version": "1.7.0"
+        },
+        "requires": [
+          "nim >= 0.20.2"
+        ],
+        "isRoot": true
+      }
+    ]
+  }
+}

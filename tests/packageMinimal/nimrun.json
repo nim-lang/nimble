@@ -1,0 +1,45 @@
+{
+  "nim": {
+    "pkgName": "nim",
+    "versions": [
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.0.2"
+        },
+        "requires": [],
+        "isRoot": false
+      }
+    ]
+  },
+  "tempfile": {
+    "pkgName": "tempfile",
+    "versions": [
+      {
+        "name": "tempfile",
+        "version": {
+          "version": "0.1.7"
+        },
+        "requires": [
+          "nim >= 0.19.0"
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "nimrun": {
+    "pkgName": "nimrun",
+    "versions": [
+      {
+        "name": "nimrun",
+        "version": {
+          "version": "0.1.0"
+        },
+        "requires": [
+          "tempfile"
+        ],
+        "isRoot": true
+      }
+    ]
+  }
+}

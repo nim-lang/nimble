@@ -1,0 +1,30 @@
+{
+  "switch_build": {
+    "pkgName": "switch_build",
+    "versions": [
+      {
+        "name": "switch_build",
+        "version": {
+          "version": "0.1.2"
+        },
+        "requires": [
+          "nim >= 0.18.1"
+        ],
+        "isRoot": true
+      }
+    ]
+  },
+  "nim": {
+    "pkgName": "nim",
+    "versions": [
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.0.2"
+        },
+        "requires": [],
+        "isRoot": false
+      }
+    ]
+  }
+}

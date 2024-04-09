@@ -1,0 +1,46 @@
+{
+  "binstreams": {
+    "pkgName": "binstreams",
+    "versions": [
+      {
+        "name": "binstreams",
+        "version": {
+          "version": "0.2.0"
+        },
+        "requires": [
+          "nim >= 1.6.0"
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "nim": {
+    "pkgName": "nim",
+    "versions": [
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.0.2"
+        },
+        "requires": [],
+        "isRoot": false
+      }
+    ]
+  },
+  "riff": {
+    "pkgName": "riff",
+    "versions": [
+      {
+        "name": "riff",
+        "version": {
+          "version": "0.2.0"
+        },
+        "requires": [
+          "nim >= 1.6.0",
+          "binstreams >= 0.2.0"
+        ],
+        "isRoot": true
+      }
+    ]
+  }
+}

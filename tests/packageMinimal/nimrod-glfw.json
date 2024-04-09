@@ -1,0 +1,15 @@
+{
+  "nimrod-glfw": {
+    "pkgName": "nimrod-glfw",
+    "versions": [
+      {
+        "name": "glfw",
+        "version": {
+          "version": "3.2.1"
+        },
+        "requires": [],
+        "isRoot": true
+      }
+    ]
+  }
+}

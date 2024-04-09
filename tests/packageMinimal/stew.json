@@ -1,0 +1,62 @@
+{
+  "unittest2": {
+    "pkgName": "unittest2",
+    "versions": [
+      {
+        "name": "unittest2",
+        "version": {
+          "version": "0.2.2"
+        },
+        "requires": [
+          "nim >= 1.6.0"
+        ],
+        "isRoot": false
+      }
+    ]
+  },
+  "nim": {
+    "pkgName": "nim",
+    "versions": [
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.0.2"
+        },
+        "requires": [],
+        "isRoot": false
+      }
+    ]
+  },
+  "stew": {
+    "pkgName": "stew",
+    "versions": [
+      {
+        "name": "stew",
+        "version": {
+          "version": "0.1.0"
+        },
+        "requires": [
+          "nim >= 1.6.0",
+          "results",
+          "unittest2"
+        ],
+        "isRoot": true
+      }
+    ]
+  },
+  "results": {
+    "pkgName": "results",
+    "versions": [
+      {
+        "name": "results",
+        "version": {
+          "version": "0.4.0"
+        },
+        "requires": [
+          "nim >= 1.2"
+        ],
+        "isRoot": false
+      }
+    ]
+  }
+}
