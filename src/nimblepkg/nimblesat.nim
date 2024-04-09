@@ -347,18 +347,19 @@ proc solveLocalPackages*(rootPkgInfo: PackageInfo, pkgList: seq[PackageInfo]): H
       if pkgInfo.basicInfo.name == pkg and pkgInfo.basicInfo.version == ver:
         result.incl pkgInfo
 
-proc solvePackages*(rootPkg: PackageInfo, pkgList: seq[PackageInfo], pkgsToInstall: var seq[(string, Version)], options: Options, output: var string): HashSet[PackageInfo] =
+proc solvePackages*(rootPkg: PackageInfo, pkgList: seq[PackageInfo], pkgsToInstall: var seq[(string, Version)], options: Options, output: var string): (bool, HashSet[PackageInfo]) =
   var root = rootPkg.getMinimalInfo()
   root.isRoot = true
   var pkgVersionTable = initTable[string, PackageVersions]()
   pkgVersionTable[root.name] = PackageVersions(pkgName: root.name, versions: @[root])
   collectAllVersions(pkgVersionTable, root, options, downloadMinimalPackage)
   var solvedPkgs = pkgVersionTable.getSolvedPackages(output)
+  result[0] = solvedPkgs.len > 0
   var pkgsToInstall: seq[(string, Version)] = @[]
   for solvedPkg, ver in solvedPkgs:
     if solvedPkg == root.name: continue
     for pkgInfo in pkgList:
       if pkgInfo.basicInfo.name == solvedPkg: # and pkgInfo.basicInfo.version.withinRange(ver):
-        result.incl pkgInfo
+        result[1].incl pkgInfo
       else:
         pkgsToInstall.addUnique((solvedPkg, ver))

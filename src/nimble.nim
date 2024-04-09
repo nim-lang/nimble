@@ -54,11 +54,11 @@ proc checkSatisfied(options: Options, dependencies: seq[PackageInfo]) =
 proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, pkgList: seq[PackageInfo], options: Options): HashSet[PackageInfo] = 
   result = solveLocalPackages(rootPkgInfo, pkgList)
   if result.len > 0: return result
-
   var reverseDependencies: seq[PackageBasicInfo] = @[]
   var pkgsToInstall: seq[(string, Version)] = @[]
   var output = ""
-  result = solvePackages(rootPkgInfo, pkgList, pkgsToInstall, options, output)
+  var solved = false #A pgk can be solved and still dont return a set of PackageInfo
+  (solved, result) = solvePackages(rootPkgInfo, pkgList, pkgsToInstall, options, output)
   if pkgsToInstall.len > 0:
     for pkg in pkgsToInstall:
       let dep = (name: pkg[0], ver: pkg[1].toVersionRange)
@@ -91,8 +91,9 @@ proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, pkgList: seq[PackageIn
       addRevDep(options.nimbleData, i, rootPkgInfo)
     return result
   else:
-    display("Error", output, Error, priority = HighPriority)
-    raise nimbleError("Unsatisfiable dependencies")
+    if not solved:
+      display("Error", output, Error, priority = HighPriority)
+      raise nimbleError("Unsatisfiable dependencies")
   
 
 proc processFreeDependencies(pkgInfo: PackageInfo,
