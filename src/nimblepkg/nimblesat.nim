@@ -1,4 +1,7 @@
-import sat/[sat, satvars] 
+when defined(nimNimbleBootstrap):
+  import ../../dist/sat/src/sat/[sat, satvars]
+else:
+  import sat/[sat, satvars] 
 import version, packageinfotypes, download, packageinfo, packageparser, options, 
   sha1hashes
   
