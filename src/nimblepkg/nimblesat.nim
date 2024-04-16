@@ -422,17 +422,3 @@ proc getPackageInfo*(dep: string, pkgs: seq[PackageInfo]): Option[PackageInfo] =
     for pkg in pkgs:
       if pkg.basicInfo.name.tolower == dep.tolower or pkg.metadata.url == dep:
         return some pkg 
-
-proc getReversedDependencies*(solvedPkgs: seq[SolvedPackage], pkgs: seq[PackageInfo]): Table[string, seq[PackageBasicInfo]] =
-  for pkg in solvedPkgs:
-    for dep in pkg.reverseDependencies:
-      let depBasicInfo = getPackageInfo(dep, pkgs)
-      if depBasicInfo.isNone: continue
-      let pkgName = depBasicInfo.get.basicInfo.name
-      let reverseDep = getPackageInfo(pkg.pkgName, pkgs)
-      if reverseDep.isNone or not reverseDep.get.isLink : 
-        continue
-      if pkgName in result:
-        result[pkgName].add reverseDep.get.basicInfo
-      else:
-        result[pkgName] = @[reverseDep.get.basicInfo]

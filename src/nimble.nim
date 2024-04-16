@@ -95,6 +95,9 @@ proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, pkgList: seq[PackageIn
           result.incl pkg
         
       var allPkgsInfo: seq[PackageInfo] = pkgList & rootPkgInfo
+      for pkg in result:
+        allPkgsInfo.add pkg
+        
       for pkg in solvedPkgs:
         let solvedPkg = getPackageInfo(pkg.pkgName, allPkgsInfo)
         for reverseDepName in pkg.reverseDependencies:
