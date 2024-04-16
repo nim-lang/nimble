@@ -93,24 +93,23 @@ proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, pkgList: seq[PackageIn
             pkg.metaData.specialVersions)
         else:
           result.incl pkg
-        
-      var allPkgsInfo: seq[PackageInfo] = pkgList & rootPkgInfo
-      for pkg in result:
-        allPkgsInfo.add pkg
-        
-      for pkg in solvedPkgs:
-        let solvedPkg = getPackageInfo(pkg.pkgName, allPkgsInfo)
-        for reverseDepName in pkg.reverseDependencies:
-          var reverseDep = getPackageInfo(reverseDepName, allPkgsInfo).get
-          if reverseDep.myPath.parentDir.developFileExists:
-            reverseDep.isLink = true
-          addRevDep(options.nimbleData, solvedPkg.get.basicInfo, reverseDep)
+     
+  var allPkgsInfo: seq[PackageInfo] = pkgList & rootPkgInfo
+  for pkg in result:
+    allPkgsInfo.add pkg
 
-    if not solved:
-      display("Error", output, Error, priority = HighPriority)
-      raise nimbleError("Unsatisfiable dependencies")
+  for pkg in solvedPkgs:
+    let solvedPkg = getPackageInfo(pkg.pkgName, allPkgsInfo)
+    for reverseDepName in pkg.reverseDependencies:
+      var reverseDep = getPackageInfo(reverseDepName, allPkgsInfo).get
+      if reverseDep.myPath.parentDir.developFileExists:
+        reverseDep.isLink = true
+      addRevDep(options.nimbleData, solvedPkg.get.basicInfo, reverseDep)
+
+  if not solved:
+    display("Error", output, Error, priority = HighPriority)
+    raise nimbleError("Unsatisfiable dependencies")
   
-
 proc processFreeDependencies(pkgInfo: PackageInfo,
                              requirements: seq[PkgTuple],
                              options: Options,
