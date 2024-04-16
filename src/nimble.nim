@@ -54,14 +54,25 @@ proc checkSatisfied(options: Options, dependencies: seq[PackageInfo]) =
           [pkgInfo.basicInfo.name, $currentVer, $pkgsInPath[pkgInfo.basicInfo.name]])
     pkgsInPath[pkgInfo.basicInfo.name] = currentVer
 
+proc displaySatisfiedMsg(solvedPkgs: seq[SolvedPackage], pkgToInstall: seq[(string, Version)]) =
+  for pkg in solvedPkgs:
+    if pkg.pkgName notin pkgToInstall.mapIt(it[0]):
+      for req in pkg.requirements:
+        displayInfo(pkgDepsAlreadySatisfiedMsg(req))
+
 proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, pkgList: seq[PackageInfo], options: Options): HashSet[PackageInfo] = 
-  result = solveLocalPackages(rootPkgInfo, pkgList)
-  if result.len > 0: return result
-  var reverseDependencies: seq[PackageBasicInfo] = @[]
+  var solvedPkgs = newSeq[SolvedPackage]()
   var pkgsToInstall: seq[(string, Version)] = @[]
+
+  result = solveLocalPackages(rootPkgInfo, pkgList, solvedPkgs)
+  if solvedPkgs.len > 0: 
+    displaySatisfiedMsg(solvedPkgs, pkgsToInstall)
+    return result
+
   var output = ""
-  var solved = false #A pgk can be solved and still dont return a set of PackageInfo
-  (solved, result) = solvePackages(rootPkgInfo, pkgList, pkgsToInstall, options, output)
+  result = solvePackages(rootPkgInfo, pkgList, pkgsToInstall, options, output, solvedPkgs)
+  displaySatisfiedMsg(solvedPkgs, pkgsToInstall)
+  var solved = solvedPkgs.len > 0 #A pgk can be solved and still dont return a set of PackageInfo
   if pkgsToInstall.len > 0:
     for pkg in pkgsToInstall:
       let dep = (name: pkg[0], ver: pkg[1].toVersionRange)
@@ -83,17 +94,15 @@ proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, pkgList: seq[PackageIn
         else:
           result.incl pkg
         
-        if not pkg.isLink:
-          reverseDependencies.add(pkg.basicInfo)
-  if result.len > 0: 
-    # We add the reverse deps to the JSON file here because we don't want
-    # them added if the above errorenous condition occurs
-    # (unsatisfiable dependendencies).
-    # N.B. NimbleData is saved in installFromDir.
-    for i in reverseDependencies:
-      addRevDep(options.nimbleData, i, rootPkgInfo)
-    return result
-  else:
+      var allPkgsInfo: seq[PackageInfo] = pkgList & rootPkgInfo
+      for pkg in solvedPkgs:
+        let solvedPkg = getPackageInfo(pkg.pkgName, allPkgsInfo)
+        for reverseDepName in pkg.reverseDependencies:
+          var reverseDep = getPackageInfo(reverseDepName, allPkgsInfo).get
+          if reverseDep.myPath.parentDir.developFileExists:
+            reverseDep.isLink = true
+          addRevDep(options.nimbleData, solvedPkg.get.basicInfo, reverseDep)
+
     if not solved:
       display("Error", output, Error, priority = HighPriority)
       raise nimbleError("Unsatisfiable dependencies")

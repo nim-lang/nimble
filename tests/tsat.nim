@@ -231,8 +231,10 @@ suite "SAT solver":
     collectAllVersions(pkgVersionTable, root, options, downloadMinimalPackage)
     var output = ""
     let solvedPkgs = pkgVersionTable.getSolvedPackages(output)
-    check solvedPkgs["b"] == newVersion "0.1.4"
-    check solvedPkgs["c"] == newVersion "0.1.0"
+    let pkgB = solvedPkgs.filterIt(it.pkgName == "b")[0]
+    let pkgC = solvedPkgs.filterIt(it.pkgName == "c")[0]
+    check pkgB.pkgName == "b" and pkgB.version == newVersion "0.1.4"
+    check pkgC.pkgName == "c" and pkgC.version == newVersion "0.1.0"
     check "random" in pkgVersionTable
     
     removeDir(options.pkgCachePath)
