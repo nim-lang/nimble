@@ -77,9 +77,7 @@ proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, pkgList: seq[PackageIn
   result = solveLocalPackages(rootPkgInfo, pkgList, solvedPkgs)
   if solvedPkgs.len > 0: 
     displaySatisfiedMsg(solvedPkgs, pkgsToInstall)
-    for pkg in result:
-      allPkgsInfo.add pkg
-      addReverseDeps(solvedPkgs, allPkgsInfo, options)
+    addReverseDeps(solvedPkgs, allPkgsInfo, options)
     return result
 
   var output = ""
