@@ -60,13 +60,26 @@ proc displaySatisfiedMsg(solvedPkgs: seq[SolvedPackage], pkgToInstall: seq[(stri
       for req in pkg.requirements:
         displayInfo(pkgDepsAlreadySatisfiedMsg(req))
 
+proc addReverseDeps(solvedPkgs: seq[SolvedPackage], allPkgsInfo: seq[PackageInfo], options: Options) = 
+  for pkg in solvedPkgs:
+    let solvedPkg = getPackageInfo(pkg.pkgName, allPkgsInfo)
+    for reverseDepName in pkg.reverseDependencies:
+      var reverseDep = getPackageInfo(reverseDepName, allPkgsInfo).get
+      if reverseDep.myPath.parentDir.developFileExists:
+        reverseDep.isLink = true
+      addRevDep(options.nimbleData, solvedPkg.get.basicInfo, reverseDep)
+
 proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, pkgList: seq[PackageInfo], options: Options): HashSet[PackageInfo] = 
   var solvedPkgs = newSeq[SolvedPackage]()
   var pkgsToInstall: seq[(string, Version)] = @[]
+  var allPkgsInfo: seq[PackageInfo] = pkgList & rootPkgInfo
 
   result = solveLocalPackages(rootPkgInfo, pkgList, solvedPkgs)
   if solvedPkgs.len > 0: 
     displaySatisfiedMsg(solvedPkgs, pkgsToInstall)
+    for pkg in result:
+      allPkgsInfo.add pkg
+      addReverseDeps(solvedPkgs, allPkgsInfo, options)
     return result
 
   var output = ""
@@ -94,17 +107,9 @@ proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, pkgList: seq[PackageIn
         else:
           result.incl pkg
      
-  var allPkgsInfo: seq[PackageInfo] = pkgList & rootPkgInfo
   for pkg in result:
     allPkgsInfo.add pkg
-
-  for pkg in solvedPkgs:
-    let solvedPkg = getPackageInfo(pkg.pkgName, allPkgsInfo)
-    for reverseDepName in pkg.reverseDependencies:
-      var reverseDep = getPackageInfo(reverseDepName, allPkgsInfo).get
-      if reverseDep.myPath.parentDir.developFileExists:
-        reverseDep.isLink = true
-      addRevDep(options.nimbleData, solvedPkg.get.basicInfo, reverseDep)
+  addReverseDeps(solvedPkgs, allPkgsInfo, options)
 
   if not solved:
     display("Error", output, Error, priority = HighPriority)
