@@ -3,9 +3,9 @@ when defined(nimNimbleBootstrap):
 else:
   import sat/[sat, satvars] 
 import version, packageinfotypes, download, packageinfo, packageparser, options, 
-  sha1hashes
+  sha1hashes, tools
   
-import std/[tables, sequtils, algorithm, sets, strutils, options, strformat]
+import std/[tables, sequtils, algorithm, sets, strutils, options, strformat, os]
 
 
 type  
@@ -322,13 +322,17 @@ proc getSolvedPackages*(pkgVersionTable: Table[string, PackageVersions], output:
           requirements: deps, reverseDependencies: collectReverseDependencies(pkg, graph))
         result.add solvedPkg
 
+proc getCacheDownloadDir*(url: string, ver: VersionRange, options: Options): string =
+  options.pkgCachePath / getDownloadDirName(url, ver, notSetSha1Hash)
+
 proc downloadPkInfoForPv*(pv: PkgTuple, options: Options): PackageInfo  =
   let (meth, url, metadata) = 
     getDownloadInfo(pv, options, doPrompt = false, ignorePackageCache = false)
   let subdir = metadata.getOrDefault("subdir")
+  let downloadDir =  getCacheDownloadDir(url, pv.ver, options)
   let res = 
     downloadPkg(url, pv.ver, meth, subdir, options,
-                  "", vcsRevision = notSetSha1Hash)
+                  downloadDir, vcsRevision = notSetSha1Hash)
   return getPkgInfo(res.dir, options)
 
 proc downloadMinimalPackage*(pv: PkgTuple, options: Options): Option[PackageMinimalInfo] =
