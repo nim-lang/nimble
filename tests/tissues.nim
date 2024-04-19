@@ -135,6 +135,7 @@ suite "issues":
   test "issues #308 and #515":
     let
       ext = when defined(Windows): ExeExt else: "out"
+    cleanDir(installDir)
     cd "issue308515" / "v1":
       var (output, exitCode) = execNimble(["run", "binname", "--silent"])
       check exitCode == QuitSuccess
