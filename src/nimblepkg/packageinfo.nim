@@ -180,7 +180,10 @@ proc fetchList*(list: PackageList, options: Options) =
       display("Success", "Package list copied.", Success, HighPriority)
 
   if lastError.len != 0:
-    raise nimbleError("Refresh failed\n" & lastError)
+    if list.name == "local":
+      display("Warning:", lastError & ", discarding.", Warning)
+    else:
+      raise nimbleError("Refresh failed\n" & lastError)
 
   if copyFromPath.len > 0:
     copyFile(copyFromPath,
