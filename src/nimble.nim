@@ -477,7 +477,7 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
     priority = HighPriority)
 
   let oldPkg = pkgInfo.packageExists(options)
-  if oldPkg.isSome:
+  if oldPkg.isSome and not options.useSatSolver:
     # In the case we already have the same package in the cache then only merge
     # the new package special versions to the old one.
     displayWarning(pkgAlreadyExistsInTheCacheMsg(pkgInfo))
