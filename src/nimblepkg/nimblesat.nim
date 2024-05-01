@@ -428,7 +428,7 @@ proc topologicalSort*(solvedPkgs: seq[SolvedPackage]): seq[SolvedPackage] =
 
   # Perform the topological sorting
   while zeroInDegree.len > 0:
-    let current = zeroInDegree.pop()  # Act like dequeue, take from the front
+    let current = zeroInDegree.pop()
     let currentPkg = solvedPkgs.filterIt(it.pkgName == current)[0]
     result.add(currentPkg)
     for neighbor in adjList.getOrDefault(current, @[]):
