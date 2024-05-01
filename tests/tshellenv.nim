@@ -6,6 +6,7 @@
 import unittest, os, osproc, strutils
 import testscommon
 from nimblepkg/common import cd
+import std/sequtils
 
 const
   separator = when defined(windows): ";" else: ":"
@@ -13,7 +14,10 @@ const
 suite "Shell env":
   test "Shell env":
     cd "shellenv":
-      let (output, exitCode) = execCmdEx(nimblePath & " shellenv")
+      var (output, exitCode) = execCmdEx(nimblePath & " shellenv")
+      when not defined windows:
+        #Skips potential linker warning in some MacOs versions 
+        output = output.splitLines.toSeq.filterIt("export" in it)[0]
       check exitCode == QuitSuccess
       let
         prefixValPair = split(output, "=")
