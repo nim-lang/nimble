@@ -39,7 +39,7 @@ proc initPkgList(pkgInfo: PackageInfo, options: Options): seq[PackageInfo] =
 
 proc install(packages: seq[PkgTuple], options: Options,
              doPrompt, first, fromLockFile: bool,
-             preferredPackages: seq[PackageInfo] = @[]): PackageDependenciesInfo
+             preferredPackages: seq[PackageInfo] = @[], fromSat = false): PackageDependenciesInfo
 
 proc checkSatisfied(options: Options, dependencies: seq[PackageInfo]) =
   ## Check if two packages of the same name (but different version) are listed
@@ -72,31 +72,46 @@ proc addReverseDeps(solvedPkgs: seq[SolvedPackage], allPkgsInfo: seq[PackageInfo
         reverseDep.get.isLink = true
       addRevDep(options.nimbleData, solvedPkg.get.basicInfo, reverseDep.get)
 
-proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, pkgList: seq[PackageInfo], options: Options): HashSet[PackageInfo] = 
+var satProccesedPackages: HashSet[PackageInfo]
+proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, options: Options): HashSet[PackageInfo] = 
+  if satProccesedPackages.len > 0:
+    return satProccesedPackages
   var solvedPkgs = newSeq[SolvedPackage]()
   var pkgsToInstall: seq[(string, Version)] = @[]
+  var pkgList = initPkgList(rootPkgInfo, options)
   var allPkgsInfo: seq[PackageInfo] = pkgList & rootPkgInfo
+  var rootPkgInfo = rootPkgInfo
+  #Replace requirements so they are updated as needed 
+  if options.action.typ == actionUpgrade:
+    let toUpgradeNames = options.action.packages.mapIt(it[0])
+    pkgList = pkgList.filterIt(it.basicInfo.name notin toUpgradeNames)
+
+    # rootPkgInfo.requires = rootPkgInfo.requires.filterIt(it.name notin toUpgradeNames)
+    # rootPkgInfo.requires &= options.action.packages
 
   result = solveLocalPackages(rootPkgInfo, pkgList, solvedPkgs)
   if solvedPkgs.len > 0: 
     displaySatisfiedMsg(solvedPkgs, pkgsToInstall)
     addReverseDeps(solvedPkgs, allPkgsInfo, options)
-    return result
+    for pkg in allPkgsInfo:
+      result.incl pkg
+    result = 
+      result.toSeq
+      .deleteStaleDependencies(rootPkgInfo, options)
+      .deduplicate.toHashSet
+    satProccesedPackages = result
+    return
 
   var output = ""
   result = solvePackages(rootPkgInfo, pkgList, pkgsToInstall, options, output, solvedPkgs)
   displaySatisfiedMsg(solvedPkgs, pkgsToInstall)
   var solved = solvedPkgs.len > 0 #A pgk can be solved and still dont return a set of PackageInfo
-  let toInstall = pkgsToInstall
-    .mapIt((name: it[0], ver: it[1].toVersionRange))
-    .mapIt(it.resolveAlias(options))
-    .mapIt((name: it.name, ver: it.ver))
-  
-  if toInstall.len > 0:
-    let (packages, _) = install(toInstall, options,
-      doPrompt = false, first = false, fromLockFile = false, preferredPackages = @[])
+  for (name, ver) in pkgsToInstall:
+    let resolvedDep = ((name: name, ver: ver.toVersionRange)).resolveAlias(options)
+    let (packages, _) = install(@[resolvedDep], options,
+      doPrompt = false, first = false, fromLockFile = false, preferredPackages = @[], fromSat = true)
     for pkg in packages:
-      if result.contains pkg:
+      if pkg in result:
         # If the result already contains the newly tried to install package
         # we had to merge its special versions set into the set of the old
         # one.
@@ -104,15 +119,18 @@ proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, pkgList: seq[PackageIn
           pkg.metaData.specialVersions)
       else:
         result.incl pkg
-     
+
   for pkg in result:
     allPkgsInfo.add pkg
   addReverseDeps(solvedPkgs, allPkgsInfo, options)
 
+  result = deleteStaleDependencies(result.toSeq, rootPkgInfo, options).deduplicate.toHashSet  
+  satProccesedPackages = result
+
   if not solved:
     display("Error", output, Error, priority = HighPriority)
     raise nimbleError("Unsatisfiable dependencies")
-  
+    
 proc processFreeDependencies(pkgInfo: PackageInfo,
                              requirements: seq[PkgTuple],
                              options: Options,
@@ -126,11 +144,10 @@ proc processFreeDependencies(pkgInfo: PackageInfo,
          "processFreeDependencies needs pkgInfo.requires"
 
   var pkgList {.global.}: seq[PackageInfo]
-
   once: 
     pkgList = initPkgList(pkgInfo, options)
     if options.useSatSolver:
-      return processFreeDependenciesSAT(pkgInfo, pkgList, options)
+      return processFreeDependenciesSAT(pkgInfo, options)
 
   display("Verifying", "dependencies for $1@$2" %
           [pkgInfo.basicInfo.name, $pkgInfo.basicInfo.version],
@@ -477,19 +494,20 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
     priority = HighPriority)
 
   let oldPkg = pkgInfo.packageExists(options)
-  if oldPkg.isSome and not options.useSatSolver:
+  if oldPkg.isSome:
     # In the case we already have the same package in the cache then only merge
     # the new package special versions to the old one.
     displayWarning(pkgAlreadyExistsInTheCacheMsg(pkgInfo))
-    var oldPkg = oldPkg.get
-    oldPkg.metaData.specialVersions.incl pkgInfo.metaData.specialVersions
-    saveMetaData(oldPkg.metaData, oldPkg.getNimbleFileDir, changeRoots = false)
-    if result.deps.contains oldPkg:
-      result.deps[oldPkg].metaData.specialVersions.incl(
-        oldPkg.metaData.specialVersions)
-    result.deps.incl oldPkg
-    result.pkg = oldPkg
-    return
+    if not options.useSatSolver: #The dep path is not created when using the sat solver as packages are collected upfront
+      var oldPkg = oldPkg.get
+      oldPkg.metaData.specialVersions.incl pkgInfo.metaData.specialVersions
+      saveMetaData(oldPkg.metaData, oldPkg.getNimbleFileDir, changeRoots = false)
+      if result.deps.contains oldPkg:
+        result.deps[oldPkg].metaData.specialVersions.incl(
+          oldPkg.metaData.specialVersions)
+      result.deps.incl oldPkg
+      result.pkg = oldPkg
+      return
 
   # nim is intended only for local project local usage, so avoid installing it
   # in .nimble/bin
@@ -1792,7 +1810,7 @@ proc getDependenciesForLocking(pkgInfo: PackageInfo, options: Options):
 
       allRequiredPackages = pkgInfo.processFreeDependencies(toUpgrade, options, res).toSeq
       allRequiredNames = allRequiredPackages.mapIt(it.name)
-
+    
     res = res.filterIt(it.name notin allRequiredNames)
     res.add allRequiredPackages
 
@@ -1805,8 +1823,12 @@ proc lock(options: Options) =
     currentDir = getCurrentDir()
     pkgInfo = getPkgInfo(currentDir, options)
     currentLockFile = options.lockFile(currentDir)
-    lockExists = displayLockOperationStart(currentLockFile)
-    baseDeps = pkgInfo.getDependenciesForLocking(options) # Deps shared by base and tasks
+    lockExists = displayLockOperationStart(currentLockFile)      
+    baseDeps = 
+      if options.useSATSolver:
+        processFreeDependenciesSAT(pkgInfo, options).toSeq
+      else:
+        pkgInfo.getDependenciesForLocking(options) # Deps shared by base and tasks  
     baseDepNames: HashSet[string] = baseDeps.mapIt(it.name).toHashSet
 
   pkgInfo.validateDevelopDependenciesVersionRanges(baseDeps, options)

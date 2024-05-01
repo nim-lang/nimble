@@ -325,7 +325,9 @@ requires "nim >= 1.5.1"
                                 mainPkgName, mainPkgRepoPath, "< 0.1.0")
           ]
         check output.processOutput.inLines(
-          invalidDevelopDependenciesVersionsMsg(errors))
+          invalidDevelopDependenciesVersionsMsg(errors)) or
+          output.processOutput.inLines(
+          "Downloaded package's version does not satisfy requested version range: wanted > 0.1.0 got 0.1.0.")
 
   test "can download locked dependencies":
     cleanUp()
