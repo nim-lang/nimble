@@ -98,7 +98,7 @@ proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, options: Options): Has
     result = 
       result.toSeq
       .deleteStaleDependencies(rootPkgInfo, options)
-      .deduplicate.toHashSet
+      .toHashSet
     satProccesedPackages = result
     return result
 
@@ -124,7 +124,7 @@ proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, options: Options): Has
     allPkgsInfo.add pkg
   addReverseDeps(solvedPkgs, allPkgsInfo, options)
 
-  result = deleteStaleDependencies(result.toSeq, rootPkgInfo, options).deduplicate.toHashSet  
+  result = deleteStaleDependencies(result.toSeq, rootPkgInfo, options).toHashSet  
   satProccesedPackages = result
 
   if not solved:
