@@ -39,7 +39,7 @@ proc initPkgList(pkgInfo: PackageInfo, options: Options): seq[PackageInfo] =
 
 proc install(packages: seq[PkgTuple], options: Options,
              doPrompt, first, fromLockFile: bool,
-             preferredPackages: seq[PackageInfo] = @[], fromSat = false): PackageDependenciesInfo
+             preferredPackages: seq[PackageInfo] = @[]): PackageDependenciesInfo
 
 proc checkSatisfied(options: Options, dependencies: seq[PackageInfo]) =
   ## Check if two packages of the same name (but different version) are listed
@@ -109,7 +109,7 @@ proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, options: Options): Has
   for (name, ver) in pkgsToInstall:
     let resolvedDep = ((name: name, ver: ver.toVersionRange)).resolveAlias(options)
     let (packages, _) = install(@[resolvedDep], options,
-      doPrompt = false, first = false, fromLockFile = false, preferredPackages = @[], fromSat = true)
+      doPrompt = false, first = false, fromLockFile = false, preferredPackages = @[])
     for pkg in packages:
       if pkg in result:
         # If the result already contains the newly tried to install package
