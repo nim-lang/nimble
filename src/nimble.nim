@@ -130,7 +130,6 @@ proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, options: Options): Has
   if not solved:
     display("Error", output, Error, priority = HighPriority)
     raise nimbleError("Unsatisfiable dependencies")
-    
 proc processFreeDependencies(pkgInfo: PackageInfo,
                              requirements: seq[PkgTuple],
                              options: Options,
