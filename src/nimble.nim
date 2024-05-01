@@ -100,7 +100,7 @@ proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, options: Options): Has
       .deleteStaleDependencies(rootPkgInfo, options)
       .deduplicate.toHashSet
     satProccesedPackages = result
-    return
+    return result
 
   var output = ""
   result = solvePackages(rootPkgInfo, pkgList, pkgsToInstall, options, output, solvedPkgs)
