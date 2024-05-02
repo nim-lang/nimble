@@ -3,7 +3,7 @@ when defined(nimNimbleBootstrap):
 else:
   import sat/[sat, satvars] 
 import version, packageinfotypes, download, packageinfo, packageparser, options, 
-  sha1hashes, tools
+  sha1hashes#, tools
   
 import std/[tables, sequtils, algorithm, sets, strutils, options, strformat, os]
 
@@ -323,7 +323,8 @@ proc getSolvedPackages*(pkgVersionTable: Table[string, PackageVersions], output:
         result.add solvedPkg
 
 proc getCacheDownloadDir*(url: string, ver: VersionRange, options: Options): string =
-  options.pkgCachePath / getDownloadDirName(url, ver, notSetSha1Hash)
+  return ""
+  # options.pkgCachePath / getDownloadDirName(url, ver, notSetSha1Hash)
 
 proc downloadPkInfoForPv*(pv: PkgTuple, options: Options): PackageInfo  =
   let (meth, url, metadata) = 
@@ -405,13 +406,45 @@ proc solveLocalPackages*(rootPkgInfo: PackageInfo, pkgList: seq[PackageInfo], so
       if pkgInfo.basicInfo.name == solvedPkg.pkgName and pkgInfo.basicInfo.version == solvedPkg.version:
         result.incl pkgInfo
 
+proc topologicalSort*(solvedPkgs: seq[SolvedPackage]): seq[SolvedPackage] =
+  var inDegree = initTable[string, int]()
+  var adjList = initTable[string, seq[string]]()
+  var zeroInDegree: seq[string] = @[]  
+  # Initialize in-degree and adjacency list using requirements
+  for pkg in solvedPkgs:
+    if not inDegree.hasKey(pkg.pkgName):
+      inDegree[pkg.pkgName] = 0  # Ensure every package is in the inDegree table
+    for dep in pkg.requirements:
+      if dep.name notin adjList:
+        adjList[dep.name] = @[pkg.pkgName]  
+      else:
+        adjList[dep.name].add(pkg.pkgName)  
+      inDegree[pkg.pkgName].inc  # Increase in-degree of this pkg since it depends on dep
+
+  # Find all nodes with zero in-degree
+  for (pkgName, degree) in inDegree.pairs:
+    if degree == 0:
+      zeroInDegree.add(pkgName)
+
+  # Perform the topological sorting
+  while zeroInDegree.len > 0:
+    let current = zeroInDegree.pop()
+    let currentPkg = solvedPkgs.filterIt(it.pkgName == current)[0]
+    result.add(currentPkg)
+    for neighbor in adjList.getOrDefault(current, @[]):
+      inDegree[neighbor] -= 1
+      if inDegree[neighbor] == 0:
+        zeroInDegree.add(neighbor) 
+
+
 proc solvePackages*(rootPkg: PackageInfo, pkgList: seq[PackageInfo], pkgsToInstall: var seq[(string, Version)], options: Options, output: var string, solvedPkgs: var seq[SolvedPackage]): HashSet[PackageInfo] =
   var root: PackageMinimalInfo = rootPkg.getMinimalInfo()
   root.isRoot = true
   var pkgVersionTable = initTable[string, PackageVersions]()
   pkgVersionTable[root.name] = PackageVersions(pkgName: root.name, versions: @[root])
   collectAllVersions(pkgVersionTable, root, options, downloadMinimalPackage, pkgList.map(getMinimalInfo))
-  solvedPkgs = pkgVersionTable.getSolvedPackages(output)
+  solvedPkgs = pkgVersionTable.getSolvedPackages(output).topologicalSort()
+
   for solvedPkg in solvedPkgs:
     if solvedPkg.pkgName == root.name: continue
     var foundInList = false

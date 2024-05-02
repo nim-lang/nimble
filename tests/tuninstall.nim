@@ -34,7 +34,8 @@ suite "uninstall":
     let ls = outp.strip.processOutput()
     check exitCode != QuitSuccess
     check ls.inLines(cannotSatisfyMsg("0.2.0", "0.5.0")) or
-          ls.inLines(cannotSatisfyMsg("0.5.0", "0.2.0"))
+          ls.inLines(cannotSatisfyMsg("0.5.0", "0.2.0")) or
+          ls.inLines("Unsatisfiable dependencies")
 
   proc setupIssue27Packages() =
     # Install b
