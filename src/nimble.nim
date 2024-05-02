@@ -506,7 +506,7 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
           oldPkg.metaData.specialVersions)
       result.deps.incl oldPkg
       result.pkg = oldPkg
-      return
+      return result
 
   # nim is intended only for local project local usage, so avoid installing it
   # in .nimble/bin
@@ -1809,7 +1809,6 @@ proc getDependenciesForLocking(pkgInfo: PackageInfo, options: Options):
 
       allRequiredPackages = pkgInfo.processFreeDependencies(toUpgrade, options, res).toSeq
       allRequiredNames = allRequiredPackages.mapIt(it.name)
-    
     res = res.filterIt(it.name notin allRequiredNames)
     res.add allRequiredPackages
 
