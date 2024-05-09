@@ -58,9 +58,26 @@ type
     pkgName*: string
     version*: Version
     requirements*: seq[PkgTuple] 
-    reverseDependencies*: seq[string]  
+    reverseDependencies*: seq[(string, Version)] 
     
   GetPackageMinimal* = proc (pv: PkgTuple, options: Options): Option[PackageMinimalInfo]
+
+#From the STD as it is not available in older Nim versions
+func addUnique*[T](s: var seq[T], x: sink T) =
+  ## Adds `x` to the container `s` if it is not already present. 
+  ## Uses `==` to check if the item is already present.
+  runnableExamples:
+    var a = @[1, 2, 3]
+    a.addUnique(4)
+    a.addUnique(4)
+    assert a == @[1, 2, 3, 4]
+
+  for i in 0..high(s):
+    if s[i] == x: return
+  when declared(ensureMove):
+    s.add ensureMove(x)
+  else:
+    s.add x
 
 proc isNim*(pv: PkgTuple): bool =
   pv.name == "nim" or pv.name == "nimrod"
@@ -289,14 +306,13 @@ proc solve*(g: var DepGraph; f: Form, packages: var Table[string, Version], outp
     output = generateUnsatisfiableMessage(g, f, s)
     false
 
-proc collectReverseDependencies*(targetPkgName: string, graph: DepGraph): seq[string] =
-  var reverseDeps: HashSet[string] = initHashSet[string]()
+proc collectReverseDependencies*(targetPkgName: string, graph: DepGraph): seq[(string, Version)] =
   for node in graph.nodes:
     for version in node.versions:
-      for (depName, _) in graph.reqs[version.req].deps:
+      for (depName, ver) in graph.reqs[version.req].deps:
         if depName == targetPkgName:
-          reverseDeps.incl(node.pkgName)  #
-  reverseDeps.toSeq()
+          let revDep = (node.pkgName, version.version)
+          result.addUnique revDep
 
 proc getSolvedPackages*(pkgVersionTable: Table[string, PackageVersions], output: var string): seq[SolvedPackage] =
   var graph = pkgVersionTable.toDepGraph()
@@ -319,7 +335,9 @@ proc getSolvedPackages*(pkgVersionTable: Table[string, PackageVersions], output:
         let reqIdx = dep.req
         let deps =  graph.reqs[reqIdx].deps
         let solvedPkg = SolvedPackage(pkgName: pkg, version: ver, 
-          requirements: deps, reverseDependencies: collectReverseDependencies(pkg, graph))
+          requirements: deps, 
+          reverseDependencies: collectReverseDependencies(pkg, graph),
+        )
         result.add solvedPkg
 
 proc getCacheDownloadDir*(url: string, ver: VersionRange, options: Options): string =
@@ -353,23 +371,6 @@ proc fillPackageTableFromPreferred*(packages: var Table[string, PackageVersions]
 proc getInstalledMinimalPackages*(options: Options): seq[PackageMinimalInfo] =
   getInstalledPkgsMin(options.getPkgsDir(), options).mapIt(it.getMinimalInfo())
 
-#From the STD as it is not available in older Nim versions
-func addUnique*[T](s: var seq[T], x: sink T) =
-  ## Adds `x` to the container `s` if it is not already present. 
-  ## Uses `==` to check if the item is already present.
-  runnableExamples:
-    var a = @[1, 2, 3]
-    a.addUnique(4)
-    a.addUnique(4)
-    assert a == @[1, 2, 3, 4]
-
-  for i in 0..high(s):
-    if s[i] == x: return
-  when declared(ensureMove):
-    s.add ensureMove(x)
-  else:
-    s.add x
-
 proc collectAllVersions*(versions: var Table[string, PackageVersions], package: PackageMinimalInfo, options: Options, getMinimalPackage: GetPackageMinimal,  preferredPackages: seq[PackageMinimalInfo] = newSeq[PackageMinimalInfo]()) =
   ### Collects all the versions of a package and its dependencies and stores them in the versions table
   ### A getMinimalPackage function is passed to get the package
@@ -392,19 +393,6 @@ proc collectAllVersions*(versions: var Table[string, PackageVersions], package: 
       else:
         versions[pv.name].versions.addUnique pkgMin
       collectAllVersions(versions, pkgMin, options, getMinimalPackage)
-
-proc solveLocalPackages*(rootPkgInfo: PackageInfo, pkgList: seq[PackageInfo], solvedPkgs: var seq[SolvedPackage]): HashSet[PackageInfo] = 
-  var root = rootPkgInfo.getMinimalInfo()
-  root.isRoot = true
-  var pkgVersionTable = initTable[string, PackageVersions]()
-  pkgVersionTable[root.name] = PackageVersions(pkgName: root.name, versions: @[root])
-  fillPackageTableFromPreferred(pkgVersionTable, pkgList.map(getMinimalInfo))
-  var output = ""
-  solvedPkgs = pkgVersionTable.getSolvedPackages(output)
-  for solvedPkg in solvedPkgs:
-    for pkgInfo in pkgList:
-      if pkgInfo.basicInfo.name == solvedPkg.pkgName and pkgInfo.basicInfo.version == solvedPkg.version:
-        result.incl pkgInfo
 
 proc topologicalSort*(solvedPkgs: seq[SolvedPackage]): seq[SolvedPackage] =
   var inDegree = initTable[string, int]()
@@ -436,6 +424,18 @@ proc topologicalSort*(solvedPkgs: seq[SolvedPackage]): seq[SolvedPackage] =
       if inDegree[neighbor] == 0:
         zeroInDegree.add(neighbor) 
 
+proc solveLocalPackages*(rootPkgInfo: PackageInfo, pkgList: seq[PackageInfo], solvedPkgs: var seq[SolvedPackage]): HashSet[PackageInfo] = 
+  var root = rootPkgInfo.getMinimalInfo()
+  root.isRoot = true
+  var pkgVersionTable = initTable[string, PackageVersions]()
+  pkgVersionTable[root.name] = PackageVersions(pkgName: root.name, versions: @[root])
+  fillPackageTableFromPreferred(pkgVersionTable, pkgList.map(getMinimalInfo))
+  var output = ""
+  solvedPkgs = pkgVersionTable.getSolvedPackages(output)
+  for solvedPkg in solvedPkgs:
+    for pkgInfo in pkgList:
+      if pkgInfo.basicInfo.name == solvedPkg.pkgName and pkgInfo.basicInfo.version == solvedPkg.version:
+        result.incl pkgInfo
 
 proc solvePackages*(rootPkg: PackageInfo, pkgList: seq[PackageInfo], pkgsToInstall: var seq[(string, Version)], options: Options, output: var string, solvedPkgs: var seq[SolvedPackage]): HashSet[PackageInfo] =
   var root: PackageMinimalInfo = rootPkg.getMinimalInfo()
@@ -455,7 +455,11 @@ proc solvePackages*(rootPkg: PackageInfo, pkgList: seq[PackageInfo], pkgsToInsta
     if not foundInList:
       pkgsToInstall.addUnique((solvedPkg.pkgName, solvedPkg.version))
 
-proc getPackageInfo*(dep: string, pkgs: seq[PackageInfo]): Option[PackageInfo] =
+proc getPackageInfo*(name: string, pkgs: seq[PackageInfo], version: Option[Version] = none(Version)): Option[PackageInfo] =
     for pkg in pkgs:
-      if pkg.basicInfo.name.tolower == dep.tolower or pkg.metadata.url == dep:
-        return some pkg 
+      if pkg.basicInfo.name.tolower == name.tolower or pkg.metadata.url == name:
+        if version.isSome:
+          if pkg.basicInfo.version == version.get:
+            return some pkg
+        else: #No version passed over first match
+          return some pkg
