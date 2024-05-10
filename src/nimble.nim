@@ -808,7 +808,7 @@ proc install(packages: seq[PkgTuple], options: Options,
       let (meth, url, metadata) = getDownloadInfo(pv, options, doPrompt)
       let subdir = metadata.getOrDefault("subdir")
       var downloadPath = ""
-      if options.useSatSolver:
+      if options.useSatSolver and subdir == "": #Ignore the cache if subdir is set
           downloadPath =  getCacheDownloadDir(url, pv.ver, options)
       let (downloadDir, downloadVersion, vcsRevision) =
          downloadPkg(url, pv.ver, meth, subdir, options,
