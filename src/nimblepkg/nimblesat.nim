@@ -3,7 +3,7 @@ when defined(nimNimbleBootstrap):
 else:
   import sat/[sat, satvars] 
 import version, packageinfotypes, download, packageinfo, packageparser, options, 
-  sha1hashes#, tools
+  sha1hashes, tools
   
 import std/[tables, sequtils, algorithm, sets, strutils, options, strformat, os]
 
@@ -341,8 +341,7 @@ proc getSolvedPackages*(pkgVersionTable: Table[string, PackageVersions], output:
         result.add solvedPkg
 
 proc getCacheDownloadDir*(url: string, ver: VersionRange, options: Options): string =
-  return ""
-  # options.pkgCachePath / getDownloadDirName(url, ver, notSetSha1Hash)
+  options.pkgCachePath / getDownloadDirName(url, ver, notSetSha1Hash)
 
 proc downloadPkInfoForPv*(pv: PkgTuple, options: Options): PackageInfo  =
   let (meth, url, metadata) = 
