@@ -150,7 +150,7 @@ suite "SAT solver":
           where c has two versions of the same package. The version is retrieved counterintuitively from 
           the nimblemeta.json special version field. 
       ]#
-      let (_, exitCode) = execNimble("install", "-l", "--sat")
+      let (_, exitCode) = execNimble("install", "-l", "--solver:sat")
       check exitCode == QuitSuccess
 
   test "should be able to download a package and select its deps":
