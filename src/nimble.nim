@@ -62,12 +62,11 @@ proc displaySatisfiedMsg(solvedPkgs: seq[SolvedPackage], pkgToInstall: seq[(stri
 
 proc addReverseDeps(solvedPkgs: seq[SolvedPackage], allPkgsInfo: seq[PackageInfo], options: Options) = 
   for pkg in solvedPkgs:
-    let solvedPkg = getPackageInfo(pkg.pkgName, allPkgsInfo)
+    let solvedPkg = getPackageInfo(pkg.pkgName, allPkgsInfo, some pkg.version)
     if solvedPkg.isNone: continue
-    for reverseDepName in pkg.reverseDependencies:
-      var reverseDep = getPackageInfo(reverseDepName, allPkgsInfo)
+    for (reverseDepName, ver) in pkg.reverseDependencies:
+      var reverseDep = getPackageInfo(reverseDepName, allPkgsInfo, some ver)
       if reverseDep.isNone: continue
-
       if reverseDep.get.myPath.parentDir.developFileExists:
         reverseDep.get.isLink = true
       addRevDep(options.nimbleData, solvedPkg.get.basicInfo, reverseDep.get)
@@ -78,16 +77,23 @@ proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, options: Options): Has
     return satProccesedPackages
   var solvedPkgs = newSeq[SolvedPackage]()
   var pkgsToInstall: seq[(string, Version)] = @[]
-  var pkgList = initPkgList(rootPkgInfo, options)
+  var pkgList = initPkgList(rootPkgInfo, options).mapIt(it.toFullInfo(options))
   var allPkgsInfo: seq[PackageInfo] = pkgList & rootPkgInfo
-  var rootPkgInfo = rootPkgInfo
-  #Replace requirements so they are updated as needed 
-  if options.action.typ == actionUpgrade:
-    let toUpgradeNames = options.action.packages.mapIt(it[0])
+  #Remove from the pkglist the packages that exists in lock file and has a different vcsRevision
+  var toUpgradeNames: seq[string]
+  var isUpgrading = options.action.typ == actionUpgrade
+  if isUpgrading:
+    toUpgradeNames = options.action.packages.mapIt(it[0])
     pkgList = pkgList.filterIt(it.basicInfo.name notin toUpgradeNames)
-
-    # rootPkgInfo.requires = rootPkgInfo.requires.filterIt(it.name notin toUpgradeNames)
-    # rootPkgInfo.requires &= options.action.packages
+    
+  var toRemoveFromLocked = newSeq[PackageInfo]()
+  if rootPkgInfo.lockedDeps.hasKey(""):
+    for name, lockedPkg in rootPkgInfo.lockedDeps[""]:
+      for pkg in pkgList:
+        if name notin toUpgradeNames and name == pkg.basicInfo.name and 
+         (isUpgrading and lockedPkg.vcsRevision != pkg.metaData.vcsRevision or 
+          not isUpgrading and lockedPkg.vcsRevision == pkg.metaData.vcsRevision):
+              toRemoveFromLocked.add pkg
 
   result = solveLocalPackages(rootPkgInfo, pkgList, solvedPkgs)
   if solvedPkgs.len > 0: 
@@ -95,6 +101,8 @@ proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, options: Options): Has
     addReverseDeps(solvedPkgs, allPkgsInfo, options)
     for pkg in allPkgsInfo:
       result.incl pkg
+    for nonLocked in toRemoveFromLocked:
+      result.excl nonLocked
     result = 
       result.toSeq
       .deleteStaleDependencies(rootPkgInfo, options)
@@ -124,12 +132,16 @@ proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, options: Options): Has
     allPkgsInfo.add pkg
   addReverseDeps(solvedPkgs, allPkgsInfo, options)
 
+  for nonLocked in toRemoveFromLocked:
+    result.excl nonLocked
+
   result = deleteStaleDependencies(result.toSeq, rootPkgInfo, options).toHashSet  
   satProccesedPackages = result
-
+ 
   if not solved:
     display("Error", output, Error, priority = HighPriority)
     raise nimbleError("Unsatisfiable dependencies")
+
 proc processFreeDependencies(pkgInfo: PackageInfo,
                              requirements: seq[PkgTuple],
                              options: Options,
@@ -796,7 +808,7 @@ proc install(packages: seq[PkgTuple], options: Options,
       let (meth, url, metadata) = getDownloadInfo(pv, options, doPrompt)
       let subdir = metadata.getOrDefault("subdir")
       var downloadPath = ""
-      if options.useSatSolver:
+      if options.useSatSolver and subdir == "": #Ignore the cache if subdir is set
           downloadPath =  getCacheDownloadDir(url, pv.ver, options)
       let (downloadDir, downloadVersion, vcsRevision) =
          downloadPkg(url, pv.ver, meth, subdir, options,
