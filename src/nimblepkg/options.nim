@@ -550,7 +550,13 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
       result.developFile = val.normalizedPath
     else:
       raise nimbleError(multipleDevelopFileOptionsGivenMsg)
-  of "sat": result.useSatSolver = true  
+  of "solver": 
+    if val == "sat":
+      result.useSatSolver = true
+    elif val == "legacy":
+      result.useSatSolver = false
+    else:
+      raise nimbleError("Unknown solver option: " & val)
   else: isGlobalFlag = false
 
   var wasFlagHandled = true
