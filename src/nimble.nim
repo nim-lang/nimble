@@ -2240,11 +2240,26 @@ proc run(options: Options) =
   let exitCode = cmd.execCmd
   raise nimbleQuit(exitCode)
 
+proc writeNimDir(options: Options) = 
+  let pkgs = 
+    getInstalledPkgsMin(options.getPkgsDir(), options)
+    .filterIt(it.basicInfo.name == "nim")
+  let nimDir = 
+    if pkgs.len > 0:
+      let nimBin = pkgs[0].getNimBin(options)
+      nimBin.parentDir
+    else:
+      options.nimBin.parentDir
+  echo "nimdir:", nimDir
+  raise nimbleQuit()
+
 proc doAction(options: var Options) =
   if options.showHelp:
     writeHelp()
   if options.showVersion:
     writeVersion()
+  if options.showNimDir:
+    writeNimDir(options)
 
   case options.action.typ
   of actionRefresh:
