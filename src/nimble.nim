@@ -2246,11 +2246,10 @@ proc writeNimDir(options: Options) =
     .filterIt(it.basicInfo.name == "nim")
   let nimDir = 
     if pkgs.len > 0:
-      let nimBin = pkgs[0].getNimBin(options)
-      nimBin.parentDir
+      pkgs[0].getNimBin(options).parentDir
     else:
-      options.nimBin.parentDir
-  echo "nimdir:", nimDir
+      options.nimBin.parentDir  
+  echo "nimdir: " & nimDir
   raise nimbleQuit()
 
 proc doAction(options: var Options) =

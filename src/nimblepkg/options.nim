@@ -453,10 +453,10 @@ proc getNimbleFileDir*(pkgInfo: PackageInfo): string =
 
 proc getNimBin*(pkgInfo: PackageInfo, options: Options): string =
   if pkgInfo.basicInfo.name == "nim":
-    let binaryPath =  when defined(windows):
-        "bin\nim.exe"
-      else:
-        "bin/nim"
+    var binaryPath = "bin" / "nim"
+    when defined(windows):
+      binaryPath &= ".exe"      
+      
     result = pkgInfo.getNimbleFileDir() / binaryPath
     display("Info:", "compiling nim package using $1" % result, priority = HighPriority)
   else:
