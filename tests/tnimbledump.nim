@@ -39,11 +39,12 @@ suite "nimble dump":
 
   test "can dump when explicitly asking for INI format":
     let nimDir = parentDir findExe "nim"
+    let nimblePath = "testdump" / "testdump.nimble"
 
     let outpExpected = &"""
 name: "testdump"
 version: "0.1.0"
-nimblePath: "testdump/testdump.nimble"
+nimblePath: {nimblePath.escape}
 author: "nigredo-tori"
 desc: "Test package for dump command"
 license: "BSD"
@@ -59,7 +60,7 @@ binDir: ""
 srcDir: ""
 backend: "c"
 paths: "path"
-nimDir: "{nimDir}"
+nimDir: {nimDir.escape}
 """
     let (outp, exitCode) = execNimble("dump", "--ini", "testdump")
     check: exitCode == 0
@@ -67,12 +68,13 @@ nimDir: "{nimDir}"
 
   test "can dump in JSON format":
     let nimDir = parentDir findExe "nim"
+    let nimblePath = "testdump" / "testdump.nimble"
 
     let outpExpected = &"""
 {{
   "name": "testdump",
   "version": "0.1.0",
-  "nimblePath": "testdump/testdump.nimble",
+  "nimblePath": {nimblePath.escape},
   "author": "nigredo-tori",
   "desc": "Test package for dump command",
   "license": "BSD",
