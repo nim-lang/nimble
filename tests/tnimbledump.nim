@@ -5,7 +5,7 @@
 
 import unittest, os
 import testscommon
-import std/strformat
+import std/[strformat, strutils]
 from nimblepkg/common import cd
 
 suite "nimble dump":
@@ -90,7 +90,7 @@ nimDir: "{nimDir}"
   "paths": [
     "path"
   ],
-  "nimDir": "{nimDir}"
+  "nimDir": {nimDir.escape}
 }}
 """
     let (outp, exitCode) = execNimble("dump", "--json", "testdump")
