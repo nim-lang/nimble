@@ -30,7 +30,6 @@ type
     lockFileName*: string
     useSystemNim*: bool
     showVersion*: bool
-    showNimDir*: bool
     offline*: bool
     noColor*: bool
     disableValidation*: bool
@@ -246,7 +245,6 @@ Nimble Options:
       --useSystemNim              Use system nim and ignore nim from the lock
                                   file if any
       --solver:sat|legacy         Use the SAT solver or the legacy (default) for dependency resolution.
-      --nimdir                    Shows the directory where the Nim binary used for compiling packages is located.
 
 For more information read the GitHub readme:
   https://github.com/nim-lang/nimble#readme
@@ -548,7 +546,6 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
   of "package", "p": result.package = val
   of "lockfile": result.lockFileName = val
   of "usesystemnim": result.useSystemNim = true
-  of "nimdir": result.showNimDir = true
   of "developfile":
     if result.developFile.len == 0:
       result.developFile = val.normalizedPath
@@ -726,7 +723,7 @@ proc parseCmdLine*(): Options =
   # Parse config.
   result.config = parseConfig()
 
-  if result.action.typ == actionNil and not (result.showVersion or result.showNimDir):
+  if result.action.typ == actionNil and not result.showVersion:
     result.showHelp = true
 
   if result.action.typ != actionNil and result.showVersion:

@@ -1139,6 +1139,16 @@ proc getPackageByPattern(pattern: string, options: Options): PackageInfo =
       )
     result = getPkgInfoFromFile(skeletonInfo.myPath, options)
 
+proc getNimDir(options: Options): string = 
+  let pkgs = 
+    getInstalledPkgsMin(options.getPkgsDir(), options)
+    .filterIt(it.basicInfo.name == "nim")
+  if pkgs.len > 0:
+    let nimBin = pkgs[0].getNimBin(options)
+    nimBin.parentDir
+  else:
+    options.nimBin.parentDir
+
 proc dump(options: Options) =
   cli.setSuppressMessages(true)
   let p = getPackageByPattern(options.action.projName, options)
@@ -1171,6 +1181,7 @@ proc dump(options: Options) =
         s.add val.join(", ").escape
   fn "name", p.basicInfo.name
   fn "version", $p.basicInfo.version
+  fn "nimblePath", p.myPath
   fn "author", p.author
   fn "desc", p.description
   fn "license", p.license
@@ -1188,6 +1199,7 @@ proc dump(options: Options) =
   fn "srcDir", p.srcDir
   fn "backend", p.backend
   fn "paths", p.paths
+  fn "nimDir", getNimDir(options)
   if json:
     s = j.pretty
   echo s
@@ -2240,25 +2252,11 @@ proc run(options: Options) =
   let exitCode = cmd.execCmd
   raise nimbleQuit(exitCode)
 
-proc writeNimDir(options: Options) = 
-  let pkgs = 
-    getInstalledPkgsMin(options.getPkgsDir(), options)
-    .filterIt(it.basicInfo.name == "nim")
-  let nimDir = 
-    if pkgs.len > 0:
-      pkgs[0].getNimBin(options).parentDir
-    else:
-      options.nimBin.parentDir  
-  echo "nimdir: " & nimDir
-  raise nimbleQuit()
-
 proc doAction(options: var Options) =
   if options.showHelp:
     writeHelp()
   if options.showVersion:
     writeVersion()
-  if options.showNimDir:
-    writeNimDir(options)
 
   case options.action.typ
   of actionRefresh:
