@@ -1,8 +1,8 @@
 # Copyright (C) Dominik Picheta. All rights reserved.
 # BSD License. Look at license.txt for more info.
 
-import std/strutils
-import common
+import std/[strutils, uri]
+import common, download
 
 type
   ForgeKind* = enum
@@ -40,7 +40,7 @@ proc expand*(alias: Forge): string {.inline.} =
 proc isForgeAlias*(value: string): bool {.inline.} =
   let splitted = value.split(':')
 
-  splitted.len == 2
+  splitted.len == 2 and not isURL(value)
 
 proc parseForgeKind*(value: string): ForgeKind {.inline.} =
   let splitted = value.split(':')
