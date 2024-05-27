@@ -792,7 +792,6 @@ proc install(packages: seq[PkgTuple], options: Options,
   ##   True if we are installing dependencies from the lock file.
   ## ``preferredPackages``
   ##   Prefer these packages when performing `processFreeDependencies`
-  
   if packages == @[]:
     let currentDir = getCurrentDir()
     if currentDir.developFileExists:
