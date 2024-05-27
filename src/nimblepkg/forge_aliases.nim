@@ -20,7 +20,7 @@ type
     of fgSourceHut:
       shUsername*, shRepo*: string
     of fgCodeberg:
-    cbUsername*, cbRepo*: string
+      cbUsername*, cbRepo*: string
 
 proc expand*(alias: Forge): string {.inline.} =
   var expanded = "https://" # add an option to use http instead?
