@@ -12,28 +12,21 @@ type
     fgCodeberg
 
   Forge* = ref object
-    case kind*: ForgeKind
-    of fgGitHub:
-      ghUsername*, ghRepo*: string
-    of fgGitLab:
-      glUsername*, glRepo*: string
-    of fgSourceHut:
-      shUsername*, shRepo*: string
-    of fgCodeberg:
-      cbUsername*, cbRepo*: string
+    kind*: ForgeKind
+    username*, repo*: string
 
 proc expand*(alias: Forge): string {.inline.} =
   var expanded = "https://" # add an option to use http instead?
 
   case alias.kind
   of fgGitHub:
-    expanded &= "github.com/" & alias.ghUsername & '/' & alias.ghRepo
+    expanded &= "github.com/" & alias.username & '/' & alias.repo
   of fgGitLab:
-    expanded &= "gitlab.com/" & alias.glUsername & '/' & alias.glRepo
+    expanded &= "gitlab.com/" & alias.username & '/' & alias.repo
   of fgSourceHut:
-    expanded &= "git.sr.ht/" & alias.shUsername & '/' & alias.shRepo
+    expanded &= "git.sr.ht/" & alias.username & '/' & alias.repo
   of fgCodeberg:
-    expanded &= "codeberg.org/" & alias.cbRepo & '/' & alias.cbRepo
+    expanded &= "codeberg.org/" & alias.username & '/' & alias.repo
 
   expanded
 
@@ -92,29 +85,9 @@ proc newForge*(value: string): Forge {.inline.} =
   let
     kind = parseForgeKind(value)
     generic = parseGenericAlias(value, kind == fgSourceHut)
-
-  case kind
-  of fgGitHub:
-    return Forge(
-      kind: fgGitHub,
-      ghUsername: generic.username,
-      ghRepo: generic.repo
-    )
-  of fgGitLab:
-    return Forge(
-      kind: fgGitLab,
-      glUsername: generic.username,
-      glRepo: generic.repo
-    )
-  of fgSourceHut:
-    return Forge(
-      kind: fgSourceHut,
-      shUsername: generic.username,
-      shRepo: generic.repo
-    )
-  of fgCodeberg:
-    return Forge(
-      kind: fgCodeberg,
-      cbUsername: generic.username,
-      cbRepo: generic.repo
-    )
+  
+  Forge(
+    kind: kind,
+    username: generic.username,
+    repo: generic.repo
+  )
