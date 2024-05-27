@@ -244,6 +244,7 @@ Nimble Options:
                                   to be manipulated. If not present creates it.
       --useSystemNim              Use system nim and ignore nim from the lock
                                   file if any
+      --solver:sat|legacy         Use the SAT solver or the legacy (default) for dependency resolution.
 
 For more information read the GitHub readme:
   https://github.com/nim-lang/nimble#readme
@@ -450,10 +451,10 @@ proc getNimbleFileDir*(pkgInfo: PackageInfo): string =
 
 proc getNimBin*(pkgInfo: PackageInfo, options: Options): string =
   if pkgInfo.basicInfo.name == "nim":
-    let binaryPath =  when defined(windows):
-        "bin\nim.exe"
-      else:
-        "bin/nim"
+    var binaryPath = "bin" / "nim"
+    when defined(windows):
+      binaryPath &= ".exe"      
+      
     result = pkgInfo.getNimbleFileDir() / binaryPath
     display("Info:", "compiling nim package using $1" % result, priority = HighPriority)
   else:
