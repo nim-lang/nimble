@@ -894,8 +894,7 @@ proc addPackages(packages: seq[PkgTuple], options: var Options) =
       version: string
 
     let 
-      pUri = parseUri(apkg.name)
-      isValidUrl = pUri.hostname != "" # TODO: use a better way to detect a potential URL
+      isValidUrl = isURL(apkg.name)
       isValidAlias = isForgeAlias(apkg.name)
     
     if not isValidAlias:
