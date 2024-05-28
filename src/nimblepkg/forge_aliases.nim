@@ -11,7 +11,7 @@ type
     fgSourceHut
     fgCodeberg
 
-  Forge* = ref object
+  Forge* = object
     kind*: ForgeKind
     username*, repo*: string
 
@@ -46,7 +46,9 @@ proc parseForgeKind*(value: string): ForgeKind {.inline.} =
   else:
     raise nimbleError("Invalid forge alias name: " & value[0])
 
-proc parseGenericAlias*(value: string, appendTilde: bool = false): tuple[username, repo: string] {.inline.} =
+proc parseGenericAlias*(
+  value: string, appendTilde: bool = false
+): tuple[username, repo: string] {.inline.} =
   let splitted = value.split(':')
 
   if splitted[1].len < 1:
