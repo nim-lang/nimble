@@ -21,7 +21,7 @@ import nimblepkg/packageinfotypes, nimblepkg/packageinfo, nimblepkg/version,
        nimblepkg/nimscriptwrapper, nimblepkg/developfile, nimblepkg/paths,
        nimblepkg/nimbledatafile, nimblepkg/packagemetadatafile,
        nimblepkg/displaymessages, nimblepkg/sha1hashes, nimblepkg/syncfile,
-       nimblepkg/deps, nimblepkg/nimblesat
+       nimblepkg/deps, nimblepkg/nimblesat, nimblepkg/forge_aliases
 
 const
   nimblePathsFileName* = "nimble.paths"
@@ -792,7 +792,6 @@ proc install(packages: seq[PkgTuple], options: Options,
   ##   True if we are installing dependencies from the lock file.
   ## ``preferredPackages``
   ##   Prefer these packages when performing `processFreeDependencies`
-
   if packages == @[]:
     let currentDir = getCurrentDir()
     if currentDir.developFileExists:
@@ -804,15 +803,31 @@ proc install(packages: seq[PkgTuple], options: Options,
                             preferredPackages = preferredPackages)
   else:
     # Install each package.
+    
     for pv in packages:
-      let (meth, url, metadata) = getDownloadInfo(pv, options, doPrompt)
+      let isAlias = isForgeAlias(pv.name)
+
+      let (meth, url, metadata) = 
+        if not isAlias:
+          getDownloadInfo(pv, options, doPrompt)
+        else:
+          (git, "", initTable[string, string]())
+
       let subdir = metadata.getOrDefault("subdir")
       var downloadPath = ""
       if options.useSatSolver and subdir == "": #Ignore the cache if subdir is set
           downloadPath =  getCacheDownloadDir(url, pv.ver, options)
+
       let (downloadDir, downloadVersion, vcsRevision) =
-         downloadPkg(url, pv.ver, meth, subdir, options,
+        if not isAlias:
+          downloadPkg(url, pv.ver, meth, subdir, options,
                     downloadPath = downloadPath, vcsRevision = notSetSha1Hash)
+        else:
+          downloadPkg(
+            newForge(pv.name).expand(),
+            pv.ver, meth, subdir, options,
+            downloadPath = downloadPath, vcsRevision = notSetSha1Hash
+          )
       try:
         var opt = options
         if pv.name.isNim:
@@ -872,30 +887,31 @@ proc addPackages(packages: seq[PkgTuple], options: var Options) =
     appendStr: string
     addedPkgs: seq[string]
 
-  # If the package doesn't exist, raise an error.
   for apkg in packages:
     var 
       exists = false
       version: string
 
     let 
-      pUri = parseUri(apkg.name)
-      isValidUrl = pUri.hostname != "" # TODO: use a better way to detect a potential URL
-
-    for pkg in pkgList:
-      if pkg.name == apkg.name:
-        exists = true
-        version = case apkg.ver.kind
-        of verAny:
-          ""
-        else:
-          $apkg.ver
-        break
+      isValidUrl = isURL(apkg.name)
+      isValidAlias = isForgeAlias(apkg.name)
     
-    if not exists and not isValidUrl:
-      raise nimbleError(
-        "No such package \"$1\" was found in the package list." % [apkg.name]
-      )
+    if not isValidAlias:
+      for pkg in pkgList:
+        if pkg.name == apkg.name:
+          exists = true
+          version = case apkg.ver.kind
+          of verAny:
+            ""
+          else:
+            $apkg.ver
+          break
+    
+      if not exists and
+        not isValidUrl:
+        raise nimbleError(
+          "No such package \"$1\" was found in the package list." % [apkg.name]
+        )
     
     var doAppend = true
     for dep in deps:
