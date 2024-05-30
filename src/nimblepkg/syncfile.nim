@@ -48,7 +48,7 @@ proc getSyncFilePath(pkgInfo: PackageInfo): Path =
     raise nimbleError(
       msg  = "Sync file require current working directory to be under some " &
              "supported type of version control.",
-      hint = "Put package's working directory under version control.")
+      hint = "Put package's working directory under version control and create a commit to continue.")
 
   return vcsSpecialDirPath / (pkgInfo.basicInfo.name & syncFileExt).Path
 
