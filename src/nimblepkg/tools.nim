@@ -8,7 +8,7 @@ import osproc, pegs, strutils, os, uri, sets, json, parseutils, strformat,
 from net import SslCVerifyMode, newContext, SslContext
 
 import version, cli, common, packageinfotypes, options, sha1hashes
-from compiler/nimblecmd import getPathVersionChecksum
+from "$nim" / compiler/nimblecmd import getPathVersionChecksum
 
 proc extractBin(cmd: string): string =
   if cmd[0] == '"':
