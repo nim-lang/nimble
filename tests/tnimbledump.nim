@@ -61,6 +61,7 @@ srcDir: ""
 backend: "c"
 paths: "path"
 nimDir: {nimDir.escape}
+entryPoints: "testdump.nim, entrypoint.nim"
 """
     let (outp, exitCode) = execNimble("dump", "--ini", "testdump")
     check: exitCode == 0
@@ -92,7 +93,11 @@ nimDir: {nimDir.escape}
   "paths": [
     "path"
   ],
-  "nimDir": {nimDir.escape}
+  "nimDir": {nimDir.escape},
+  "entryPoints": [
+    "testdump.nim",
+    "entrypoint.nim"
+  ]
 }}
 """
     let (outp, exitCode) = execNimble("dump", "--json", "testdump")

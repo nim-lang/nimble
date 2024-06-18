@@ -70,6 +70,7 @@ type
     metaData*: PackageMetaData
     isLink*: bool
     paths*: seq[string] 
+    entryPoints*: seq[string] #useful for tools like the lsp.
     
   Package* = object ## Definition of package from packages.json.
     # Required fields in a package.

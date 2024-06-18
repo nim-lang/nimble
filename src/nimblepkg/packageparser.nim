@@ -273,6 +273,8 @@ proc readPackageInfoFromNimble(path: string; result: var PackageInfo) =
               result.postHooks.incl(i.normalize)
           of "paths":
             result.paths.add(ev.value.multiSplit)
+          of "entrypoints":
+            result.entryPoints.add(ev.value.multiSplit)
           else:
             raise nimbleError("Invalid field: " & ev.key)
         of "deps", "dependencies":

@@ -54,6 +54,8 @@
 * `backend` - Specifies the backend which will be used to build the files
   listed in `bin`. Possible values include: `c`, `cc`, `cpp`, `objc`,
   `js`.
+* ``paths`` - A list of relative paths that will be expanded on `nimble.paths` and the search paths options to the compiler.
+* ``entryPoints`` - A list of relative paths to nim files that will be used by the `nimlangserver` as project entry points. Useful for test files like `tall.nim`
   **Default**: `c`.
 
 
