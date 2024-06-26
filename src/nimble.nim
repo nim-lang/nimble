@@ -1165,6 +1165,14 @@ proc getNimDir(options: Options): string =
   else:
     options.nimBin.parentDir
 
+proc getEntryPoints(pkgInfo: PackageInfo, options: Options): seq[string] =
+  ## Returns the entry points for a package. 
+  ## This is useful for tools like the lsp.
+  let main = pkgInfo.srcDir / pkgInfo.basicInfo.name & ".nim"
+  result.add main
+  for entry in pkgInfo.entryPoints:
+    result.add if entry.endsWith(".nim"): entry else: entry & ".nim"
+  
 proc dump(options: Options) =
   cli.setSuppressMessages(true)
   let p = getPackageByPattern(options.action.projName, options)
@@ -1216,6 +1224,7 @@ proc dump(options: Options) =
   fn "backend", p.backend
   fn "paths", p.paths
   fn "nimDir", getNimDir(options)
+  fn "entryPoints", p.getEntryPoints(options)
   if json:
     s = j.pretty
   echo s

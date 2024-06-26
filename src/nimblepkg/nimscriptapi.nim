@@ -26,7 +26,7 @@ var
   backend*: string     ## The package's backend.
 
   skipDirs*, skipFiles*, skipExt*, installDirs*, installFiles*,
-    installExt*, bin*, paths*: seq[string] = @[] ## Nimble metadata.
+    installExt*, bin*, paths*, entryPoints*: seq[string] = @[] ## Nimble metadata.
   requiresData*: seq[string] = @[] ## The package's dependencies.
   taskRequiresData*: Table[string, seq[string]] ## Task dependencies
   foreignDeps*: seq[string] = @[] ## The foreign dependencies. Only
@@ -142,6 +142,7 @@ proc printPkgInfo(): string =
   printSeqIfLen installFiles
   printSeqIfLen installExt
   printSeqIfLen paths
+  printSeqIfLen entryPoints
   printSeqIfLen bin
   printSeqIfLen "nimbleTasks", nimbleTasks.unzip()[0]
   printSeqIfLen beforeHooks
