@@ -1170,7 +1170,8 @@ proc getEntryPoints(pkgInfo: PackageInfo, options: Options): seq[string] =
   ## This is useful for tools like the lsp.
   let main = pkgInfo.srcDir / pkgInfo.basicInfo.name & ".nim"
   result.add main
-  for entry in pkgInfo.entryPoints:
+  let entries = pkgInfo.entryPoints & pkgInfo.bin.keys.toSeq
+  for entry in entries:
     result.add if entry.endsWith(".nim"): entry else: entry & ".nim"
   
 proc dump(options: Options) =
