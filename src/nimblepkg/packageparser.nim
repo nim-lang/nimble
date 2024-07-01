@@ -349,14 +349,12 @@ proc readPackageInfo(pkgInfo: var PackageInfo, nf: NimbleFile, options: Options,
   ## This version uses a cache stored in ``options``, so calling it multiple
   ## times on the same ``nf`` shouldn't require re-evaluation of the Nimble
   ## file.
-
   assert fileExists(nf)
 
   # Check the cache.
   if options.pkgInfoCache.hasKey(nf):
     pkgInfo = options.pkgInfoCache[nf]
     return
-
   pkgInfo = initPackageInfo(options, nf)
   pkgInfo.isLink = not nf.startsWith(options.getPkgsDir)
 
@@ -399,7 +397,13 @@ proc readPackageInfo(pkgInfo: var PackageInfo, nf: NimbleFile, options: Options,
     pkgInfo.metaData.specialVersions.incl pkgInfo.basicInfo.version
     # If the `fileDir` is a VCS repository we can get some of the package meta
     # data from it.
-    pkgInfo.metaData.vcsRevision = getVcsRevision(fileDir)
+    try:
+      pkgInfo.metaData.vcsRevision = getVcsRevision(fileDir)
+    except CatchableError:
+      raise nimbleError(
+        msg = "Failed to get VCS revision of your project!",
+        hint = "Try making a commit to your project if you haven't made one yet."
+      )
 
     case getVcsType(fileDir)
       of vcsTypeGit: pkgInfo.metaData.downloadMethod = DownloadMethod.git
