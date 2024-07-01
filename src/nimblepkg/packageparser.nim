@@ -347,14 +347,12 @@ proc readPackageInfo(pkgInfo: var PackageInfo, nf: NimbleFile, options: Options,
   ## This version uses a cache stored in ``options``, so calling it multiple
   ## times on the same ``nf`` shouldn't require re-evaluation of the Nimble
   ## file.
-  
   assert fileExists(nf)
 
   # Check the cache.
   if options.pkgInfoCache.hasKey(nf):
     pkgInfo = options.pkgInfoCache[nf]
     return
-  
   pkgInfo = initPackageInfo(options, nf)
   pkgInfo.isLink = not nf.startsWith(options.getPkgsDir)
 
