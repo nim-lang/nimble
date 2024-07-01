@@ -754,13 +754,121 @@ proc processLockedDependencies(pkgInfo: PackageInfo, options: Options):
 
   return res.toHashSet
 
-proc compileNim(realDir: string) =
-  let command = when defined(windows): "build_all.bat" else: "./build_all.sh"
-  cd realDir:
-    display("Info:", "compiling nim in $1" % realDir, priority = HighPriority)
-    tryDoCmdEx(command)
+when defined(windows):
+  const
+    BatchFile = """
+  @echo off
+  set PATH="$1";%PATH%
+  """
+else:
+  const
+    ShellFile = "export PATH=$1:$$PATH\n"
 
-proc useNimFromDir(options: var Options, realDir: string, tryCompiling = false) =
+const ActivationFile = 
+  when defined(windows): "activate.bat" else: "activate.sh"
+
+proc infoAboutActivation(nimDest, nimVersion: string) =
+  when defined(windows):
+    echo "Info ", nimDest, "installed; activate with 'nim-" & nimVersion & "\\activate.bat'"
+    # info c, nimDest, "RUN\nnim-" & nimVersion & "\\activate.bat"
+  else:
+    echo "Info ", nimDest, "installed; activate with 'source nim-" & nimVersion & "/activate.sh'"
+    # info c, nimDest, "RUN\nsource nim-" & nimVersion & "/activate.sh"
+
+import std/strscans
+proc compileNim2*(nimDest: string, v: VersionRange, keepCsources: bool) =
+  
+  template isDevel(nimVersion: string): bool = nimVersion == "devel"
+
+  template exec(command: string) =
+    let cmd = command # eval once
+    if os.execShellCmd(cmd) != 0:
+      echo "ERROR ", cmd
+      # error c, ("nim-" & nimVersion), "failed: " & cmd
+      return
+  #We could retrieve the verison from the nimDest?
+  let nimVersion = $v.ver #TODO check if it's special version
+
+  # let nimDest = "nim-" & nimVersion
+  let workspace = nimDest.parentDir()
+  if dirExists(workspace / nimDest):
+    if not fileExists(nimDest / ActivationFile):
+      echo "Info ", nimDest, "already exists; remove or rename and try again"
+      # info c, nimDest, "already exists; remove or rename and try again"
+    else:
+      infoAboutActivation nimDest, nimVersion
+    return
+
+  var major, minor, patch: int
+  if nimVersion != "devel": #TODO handle special versions. Assume we are in csources2 when special?
+    #????
+    if not scanf(nimVersion, "$i.$i.$i", major, minor, patch):
+      echo "ERROR ", nimVersion, "cannot parse version requirement"
+      # error c, "nim", "cannot parse version requirement"
+      return
+  let csourcesVersion =
+    if nimVersion.isDevel or (major == 1 and minor >= 9) or major >= 2:
+      # already uses csources_v2
+      "csources_v2"
+    elif major == 0:
+      "csources" # has some chance of working
+    else:
+      "csources_v1"
+  cd workspace:
+    echo "Entering CSOURCES", csourcesVersion, " exists ", dirExists(csourcesVersion)
+    if not dirExists(csourcesVersion):
+      exec "git clone https://github.com/nim-lang/" & csourcesVersion
+
+  cd workspace / csourcesVersion:
+    when defined(windows):
+      exec c, "build.bat"
+    else:
+      let makeExe = findExe("make")
+      if makeExe.len == 0:
+        exec "sh build.sh"
+      else:
+        exec "make"
+  let nimExe0 = ".." / csourcesVersion / "bin" / "nim".addFileExt(ExeExt)
+  cd nimDest:
+    let nimExe = "bin" / "nim".addFileExt(ExeExt)
+    copyFileWithPermissions nimExe0, nimExe
+  #We can safely asume we are already in the right commit?
+  #   let query = createQueryEq(if nimVersion.isDevel: Version"#head" else: Version(nimVersion))
+  #   if not nimVersion.isDevel:
+  #     let commit = versionToCommit(c, SemVer, query)
+  #     if commit.len == 0:
+  #       error c, nimDest, "cannot resolve version to a commit"
+  #       return
+  #     checkoutGitCommit(c, nimdest, commit)
+    exec nimExe & " c --noNimblePath --skipUserCfg --skipParentCfg --hints:off koch"
+    let kochExe = when defined(windows): "koch.exe" else: "./koch"
+    exec kochExe & " boot -d:release --skipUserCfg --skipParentCfg --hints:off"
+    exec kochExe & " tools --skipUserCfg --skipParentCfg --hints:off"
+    # remove any old atlas binary that we now would end up using:
+    if cmpPaths(getAppDir(), workspace / nimDest / "bin") != 0:
+      removeFile "bin" / "atlas".addFileExt(ExeExt)
+    # unless --keep is used delete the csources because it takes up about 2GB and
+    # is not necessary afterwards:
+    if not keepCsources:
+      removeDir workspace / csourcesVersion / "c_code"
+    let pathEntry = workspace / nimDest / "bin"
+    when defined(windows):
+      writeFile "activate.bat", BatchFile % pathEntry.replace('/', '\\')
+    else:
+      writeFile "activate.sh", ShellFile % pathEntry
+    infoAboutActivation nimDest, nimVersion
+
+proc compileNim(realDir: string, v: VersionRange) =
+  writeStackTrace()
+  compileNim2(realDir, v, true)
+  return
+  # quit(&"THIS TESTS IS COMPILING NIIIIIIM {realDir}", 1)
+  # let command = when defined(windows): "build_all.bat" else: "./build_all.sh"
+  # cd realDir:
+  #   display("Info:", "compiling nim in $1" % realDir, priority = HighPriority)
+  #   tryDoCmdEx(command)
+
+proc useNimFromDir(options: var Options, realDir: string, v: VersionRange, tryCompiling = false) =
   const binaryName = when defined(windows): "nim.exe" else: "nim"
 
   let
@@ -769,7 +877,7 @@ proc useNimFromDir(options: var Options, realDir: string, tryCompiling = false) 
 
   if not fileExists(nim):
     if tryCompiling and options.prompt("Develop version of nim was found but it is not compiled. Compile it now?"):
-      compileNim(realDir)
+      compileNim(realDir, v)
     else:
       raise nimbleError("Trying to use nim from $1 " % realDir,
                         "If you are using develop mode nim make sure to compile it.")
@@ -817,6 +925,9 @@ proc install(packages: seq[PkgTuple], options: Options,
       var downloadPath = ""
       if options.useSatSolver and subdir == "": #Ignore the cache if subdir is set
           downloadPath =  getCacheDownloadDir(url, pv.ver, options)
+      # if pv.name.isNim:
+      #   downloadPath = "/Volumes/Store/Projects/nim/nimble/temptest/nimtest"
+
 
       let (downloadDir, downloadVersion, vcsRevision) =
         if not isAlias:
@@ -831,8 +942,8 @@ proc install(packages: seq[PkgTuple], options: Options,
       try:
         var opt = options
         if pv.name.isNim:
-          compileNim(downloadDir)
-          opt.useNimFromDir(downloadDir, true)
+          compileNim(downloadDir, pv.ver)
+          opt.useNimFromDir(downloadDir, pv.ver, true)
         result = installFromDir(downloadDir, pv.ver, opt, url,
                                 first, fromLockFile, vcsRevision,
                                 preferredPackages = preferredPackages)
@@ -2403,16 +2514,18 @@ proc setNimBin*(options: var Options) =
   if lockFile.fileExists and not options.disableLockFile and not options.useSystemNim:
     for name, dep in lockFile.getLockedDependencies.lockedDepsFor(options):
       if name.isNim:
+        let v = dep.version.toVersionRange()
         if isInstalled(name, dep, options):
-          options.useNimFromDir(getDependencyDir(name, dep, options))
+          options.useNimFromDir(getDependencyDir(name, dep, options), v)
         elif not options.offline:
+          #HERE
           let depsOnly = options.depsOnly
           options.depsOnly = false
           let downloadResult = downloadDependency(name, dep, options, false)
-          compileNim(downloadResult.downloadDir)
-          options.useNimFromDir(downloadResult.downloadDir)
+          compileNim(downloadResult.downloadDir, v)
+          options.useNimFromDir(downloadResult.downloadDir, v)
           let pkgInfo = installDependency(initTable[string, LockFileDep](), downloadResult, options, @[])
-          options.useNimFromDir(pkgInfo.getRealDir)
+          options.useNimFromDir(pkgInfo.getRealDir, v)
           options.depsOnly = depsOnly
         break
 
@@ -2429,13 +2542,13 @@ proc setNimBin*(options: var Options) =
     let installedPkgs = getInstalledPkgsMin(options.getPkgsDir(), options)
     var pkg = initPackageInfo()
     if findPkg(installedPkgs, nimVersion, pkg):
-      options.useNimFromDir(pkg.getRealDir)
+      options.useNimFromDir(pkg.getRealDir, pkg.basicInfo.version.toVersionRange())
     else:
       # It still no nim found then download and install one to allow parsing of
       # other packages.
       if options.nimBin.len == 0 and not options.offline and options.prompt("No nim found. Download it now?"):
         for pkg in install(nimVersion, options):
-          options.useNimFromDir(pkg.getRealDir)
+          options.useNimFromDir(pkg.getRealDir, pkg.basicInfo.version.toVersionRange())
 
   if options.nimBin.len == 0:
     raise nimbleError("Unable to find nim")
@@ -2446,7 +2559,7 @@ proc setNimBin*(options: var Options) =
     pkgInfo = getPkgInfo(getCurrentDir(), options)
     for pkg in pkgInfo.processDevelopDependencies(options):
       if pkg.name.isNim:
-        options.useNimFromDir(pkg.getRealDir, true)
+        options.useNimFromDir(pkg.getRealDir, pkg.basicInfo.version.toVersionRange(), true)
         return
     options.pkgInfoCache.clear()
   except NimbleError:
@@ -2464,11 +2577,11 @@ proc setNimBin*(options: var Options) =
       let installedPkgs = getInstalledPkgsMin(options.getPkgsDir(), options)
       var pkg = initPackageInfo()
       if findPkg(installedPkgs, require, pkg):
-        options.useNimFromDir(pkg.getRealDir)
+        options.useNimFromDir(pkg.getRealDir, require.ver)
       else:
         if not options.offline and options.prompt("No nim version matching $1. Download it now?" % $require.ver):
           for pkg in install(require, options):
-            options.useNimFromDir(pkg.getRealDir)
+            options.useNimFromDir(pkg.getRealDir, require.ver)
         else:
           let msg = "Unsatisfied dependency: " & require.name & " (" & $require.ver & ")"
           raise nimbleError(msg)
