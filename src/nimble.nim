@@ -777,37 +777,29 @@ proc infoAboutActivation(nimDest, nimVersion: string) =
 
 import std/strscans
 proc compileNim2*(nimDest: string, v: VersionRange, keepCsources: bool) =
-  
-  template isDevel(nimVersion: string): bool = nimVersion == "devel"
 
   template exec(command: string) =
     let cmd = command # eval once
     if os.execShellCmd(cmd) != 0:
-      echo "ERROR ", cmd
-      # error c, ("nim-" & nimVersion), "failed: " & cmd
+      display("Error", "Failed to execute: $1" % cmd, Error, HighPriority)
       return
-  #We could retrieve the verison from the nimDest?
-  let nimVersion = $v.ver #TODO check if it's special version
-
-  # let nimDest = "nim-" & nimVersion
+  let nimVersion = v.getNimVersion()
   let workspace = nimDest.parentDir()
   if dirExists(workspace / nimDest):
     if not fileExists(nimDest / ActivationFile):
-      echo "Info ", nimDest, "already exists; remove or rename and try again"
-      # info c, nimDest, "already exists; remove or rename and try again"
+      display("Info", &"Directory {nimDest} already exists; remove or rename and try again")
     else:
-      infoAboutActivation nimDest, nimVersion
+      infoAboutActivation nimDest, $nimVersion
     return
 
   var major, minor, patch: int
-  if nimVersion != "devel": #TODO handle special versions. Assume we are in csources2 when special?
-    #????
-    if not scanf(nimVersion, "$i.$i.$i", major, minor, patch):
-      echo "ERROR ", nimVersion, "cannot parse version requirement"
-      # error c, "nim", "cannot parse version requirement"
+  if not nimVersion.isSpecial: 
+    if not scanf($nimVersion, "$i.$i.$i", major, minor, patch):
+      display("Error", "cannot parse version requirement", Error)
       return
   let csourcesVersion =
-    if nimVersion.isDevel or (major == 1 and minor >= 9) or major >= 2:
+    #TODO We could test special against the special versionn-x branch to get the right csources
+    if nimVersion.isSpecial or (major == 1 and minor >= 9) or major >= 2:
       # already uses csources_v2
       "csources_v2"
     elif major == 0:
@@ -821,7 +813,7 @@ proc compileNim2*(nimDest: string, v: VersionRange, keepCsources: bool) =
 
   cd workspace / csourcesVersion:
     when defined(windows):
-      exec c, "build.bat"
+      exec "build.bat"
     else:
       let makeExe = findExe("make")
       if makeExe.len == 0:
@@ -832,21 +824,10 @@ proc compileNim2*(nimDest: string, v: VersionRange, keepCsources: bool) =
   cd nimDest:
     let nimExe = "bin" / "nim".addFileExt(ExeExt)
     copyFileWithPermissions nimExe0, nimExe
-  #We can safely asume we are already in the right commit?
-  #   let query = createQueryEq(if nimVersion.isDevel: Version"#head" else: Version(nimVersion))
-  #   if not nimVersion.isDevel:
-  #     let commit = versionToCommit(c, SemVer, query)
-  #     if commit.len == 0:
-  #       error c, nimDest, "cannot resolve version to a commit"
-  #       return
-  #     checkoutGitCommit(c, nimdest, commit)
     exec nimExe & " c --noNimblePath --skipUserCfg --skipParentCfg --hints:off koch"
     let kochExe = when defined(windows): "koch.exe" else: "./koch"
     exec kochExe & " boot -d:release --skipUserCfg --skipParentCfg --hints:off"
     exec kochExe & " tools --skipUserCfg --skipParentCfg --hints:off"
-    # remove any old atlas binary that we now would end up using:
-    if cmpPaths(getAppDir(), workspace / nimDest / "bin") != 0:
-      removeFile "bin" / "atlas".addFileExt(ExeExt)
     # unless --keep is used delete the csources because it takes up about 2GB and
     # is not necessary afterwards:
     if not keepCsources:
@@ -856,7 +837,7 @@ proc compileNim2*(nimDest: string, v: VersionRange, keepCsources: bool) =
       writeFile "activate.bat", BatchFile % pathEntry.replace('/', '\\')
     else:
       writeFile "activate.sh", ShellFile % pathEntry
-    infoAboutActivation nimDest, nimVersion
+    infoAboutActivation nimDest, $nimVersion
 
 proc compileNim(realDir: string, v: VersionRange) =
   writeStackTrace()
