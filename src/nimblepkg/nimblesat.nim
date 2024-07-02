@@ -105,22 +105,22 @@ proc hasVersion*(packagesVersions: Table[string, PackageVersions], name: string,
         return true
   false
 
-proc getNimVersion*(pvs: seq[PkgTuple]): Version =
-  proc getVersion(ver: VersionRange): Version =
-    case ver.kind:
-    of verLater, verEarlier, verEqLater, verEqEarlier, verEq:
-      ver.ver
-    of verSpecial:
-      ver.spe
-    of verIntersect, verTilde, verCaret:
-      getVersion(ver.verILeft)
-    of verAny:
-      newVersion "0.0.0"
+proc getNimVersion*(ver: VersionRange): Version =
+  case ver.kind:
+  of verLater, verEarlier, verEqLater, verEqEarlier, verEq:
+    ver.ver
+  of verSpecial:
+    ver.spe
+  of verIntersect, verTilde, verCaret:
+    getNimVersion(ver.verILeft)
+  of verAny:
+    newVersion "0.0.0"
 
+proc getNimVersion*(pvs: seq[PkgTuple]): Version =
   result = newVersion("0.0.0")
   for pv in pvs:
     if pv.name == "nim":
-      result = getVersion(pv.ver)
+      result = getNimVersion(pv.ver)
 
 proc findDependencyForDep(g: DepGraph; dep: string): int {.inline.} =
   assert g.packageToDependency.hasKey(dep), dep & " not found"

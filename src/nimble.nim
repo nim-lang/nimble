@@ -21,7 +21,7 @@ import nimblepkg/packageinfotypes, nimblepkg/packageinfo, nimblepkg/version,
        nimblepkg/nimscriptwrapper, nimblepkg/developfile, nimblepkg/paths,
        nimblepkg/nimbledatafile, nimblepkg/packagemetadatafile,
        nimblepkg/displaymessages, nimblepkg/sha1hashes, nimblepkg/syncfile,
-       nimblepkg/deps, nimblepkg/nimblesat, nimblepkg/forge_aliases
+       nimblepkg/deps, nimblepkg/nimblesat, nimblepkg/forge_aliases, nimblepkg/nimenv
 
 const
   nimblePathsFileName* = "nimble.paths"
@@ -754,35 +754,6 @@ proc processLockedDependencies(pkgInfo: PackageInfo, options: Options):
 
   return res.toHashSet
 
-proc compileNim(realDir: string) =
-  let command = when defined(windows): "build_all.bat" else: "./build_all.sh"
-  cd realDir:
-    display("Info:", "compiling nim in $1" % realDir, priority = HighPriority)
-    tryDoCmdEx(command)
-
-proc useNimFromDir(options: var Options, realDir: string, tryCompiling = false) =
-  const binaryName = when defined(windows): "nim.exe" else: "nim"
-
-  let
-    nim = realDir / "bin" / binaryName
-    fileExists = fileExists(options.nimBin)
-
-  if not fileExists(nim):
-    if tryCompiling and options.prompt("Develop version of nim was found but it is not compiled. Compile it now?"):
-      compileNim(realDir)
-    else:
-      raise nimbleError("Trying to use nim from $1 " % realDir,
-                        "If you are using develop mode nim make sure to compile it.")
-
-  options.nimBin = nim
-  let separator = when defined(windows): ";" else: ":"
-
-  putEnv("PATH", realDir / "bin" & separator & getEnv("PATH"))
-  if fileExists:
-    display("Info:", "switching to $1 for compilation" % options.nim, priority = HighPriority)
-  else:
-    display("Info:", "using $1 for compilation" % options.nim, priority = HighPriority)
-
 proc install(packages: seq[PkgTuple], options: Options,
              doPrompt, first, fromLockFile: bool,
              preferredPackages: seq[PackageInfo] = @[]): PackageDependenciesInfo =
@@ -817,6 +788,9 @@ proc install(packages: seq[PkgTuple], options: Options,
       var downloadPath = ""
       if options.useSatSolver and subdir == "": #Ignore the cache if subdir is set
           downloadPath =  getCacheDownloadDir(url, pv.ver, options)
+      # if pv.name.isNim:
+      #   downloadPath = "/Volumes/Store/Projects/nim/nimble/temptest/nimtest"
+
 
       let (downloadDir, downloadVersion, vcsRevision) =
         if not isAlias:
@@ -831,8 +805,8 @@ proc install(packages: seq[PkgTuple], options: Options,
       try:
         var opt = options
         if pv.name.isNim:
-          compileNim(downloadDir)
-          opt.useNimFromDir(downloadDir, true)
+          compileNim(opt, downloadDir, pv.ver)
+          opt.useNimFromDir(downloadDir, pv.ver, true)
         result = installFromDir(downloadDir, pv.ver, opt, url,
                                 first, fromLockFile, vcsRevision,
                                 preferredPackages = preferredPackages)
@@ -2403,16 +2377,17 @@ proc setNimBin*(options: var Options) =
   if lockFile.fileExists and not options.disableLockFile and not options.useSystemNim:
     for name, dep in lockFile.getLockedDependencies.lockedDepsFor(options):
       if name.isNim:
+        let v = dep.version.toVersionRange()
         if isInstalled(name, dep, options):
-          options.useNimFromDir(getDependencyDir(name, dep, options))
+          options.useNimFromDir(getDependencyDir(name, dep, options), v)
         elif not options.offline:
           let depsOnly = options.depsOnly
           options.depsOnly = false
           let downloadResult = downloadDependency(name, dep, options, false)
-          compileNim(downloadResult.downloadDir)
-          options.useNimFromDir(downloadResult.downloadDir)
+          compileNim(options, downloadResult.downloadDir, v)
+          options.useNimFromDir(downloadResult.downloadDir, v)
           let pkgInfo = installDependency(initTable[string, LockFileDep](), downloadResult, options, @[])
-          options.useNimFromDir(pkgInfo.getRealDir)
+          options.useNimFromDir(pkgInfo.getRealDir, v)
           options.depsOnly = depsOnly
         break
 
@@ -2429,13 +2404,13 @@ proc setNimBin*(options: var Options) =
     let installedPkgs = getInstalledPkgsMin(options.getPkgsDir(), options)
     var pkg = initPackageInfo()
     if findPkg(installedPkgs, nimVersion, pkg):
-      options.useNimFromDir(pkg.getRealDir)
+      options.useNimFromDir(pkg.getRealDir, pkg.basicInfo.version.toVersionRange())
     else:
       # It still no nim found then download and install one to allow parsing of
       # other packages.
       if options.nimBin.len == 0 and not options.offline and options.prompt("No nim found. Download it now?"):
         for pkg in install(nimVersion, options):
-          options.useNimFromDir(pkg.getRealDir)
+          options.useNimFromDir(pkg.getRealDir, pkg.basicInfo.version.toVersionRange())
 
   if options.nimBin.len == 0:
     raise nimbleError("Unable to find nim")
@@ -2446,7 +2421,7 @@ proc setNimBin*(options: var Options) =
     pkgInfo = getPkgInfo(getCurrentDir(), options)
     for pkg in pkgInfo.processDevelopDependencies(options):
       if pkg.name.isNim:
-        options.useNimFromDir(pkg.getRealDir, true)
+        options.useNimFromDir(pkg.getRealDir, pkg.basicInfo.version.toVersionRange(), true)
         return
     options.pkgInfoCache.clear()
   except NimbleError:
@@ -2464,11 +2439,11 @@ proc setNimBin*(options: var Options) =
       let installedPkgs = getInstalledPkgsMin(options.getPkgsDir(), options)
       var pkg = initPackageInfo()
       if findPkg(installedPkgs, require, pkg):
-        options.useNimFromDir(pkg.getRealDir)
+        options.useNimFromDir(pkg.getRealDir, require.ver)
       else:
         if not options.offline and options.prompt("No nim version matching $1. Download it now?" % $require.ver):
           for pkg in install(require, options):
-            options.useNimFromDir(pkg.getRealDir)
+            options.useNimFromDir(pkg.getRealDir, require.ver)
         else:
           let msg = "Unsatisfied dependency: " & require.name & " (" & $require.ver & ")"
           raise nimbleError(msg)
