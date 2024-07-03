@@ -1,7 +1,7 @@
 
 {.used.}
 
-import unittest, os, osproc, strutils, sequtils, strscans
+import unittest, os, strutils, sequtils, strscans
 import testscommon
 from nimblepkg/common import cd
 
@@ -26,7 +26,7 @@ suite "Nim install":
         cd nimVerDir:
           let nimVer = nimVerDir.replace("nim", "")
           echo "Checking version ", nimVer
-          let (output, exitCode) = execNimble("install", "-l")
+          let (_, exitCode) = execNimble("install", "-l")
           let pkgPath = getCurrentDir() / "nimbledeps" / "pkgs2"
           check exitCode == QuitSuccess
           check walkDir(pkgPath).toSeq.anyIt(it[1].isNimPkgVer(nimVer))      
