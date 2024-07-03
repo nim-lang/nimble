@@ -390,6 +390,11 @@ proc getPkgsLinksDir*(options: Options): string =
 proc getBinDir*(options: Options): string =
   options.getNimbleDir() / nimbleBinariesDirName
 
+proc setPackageCache(options: var Options, baseDir: string) = 
+  if options.useSatSolver:
+    options.pkgCachePath = baseDir / "pkgcache"
+    display("Info:", "Package cache path " & options.pkgCachePath, priority = HighPriority)
+
 proc setNimbleDir*(options: var Options) =
   var
     nimbleDir = options.config.nimbleDir
@@ -407,6 +412,7 @@ proc setNimbleDir*(options: var Options) =
     # --nimbleDir:<dir> takes priority...
     nimbleDir = options.nimbleDir
     propagate = true
+    setPackageCache(options, nimbleDir)
   else:
     # ...followed by the environment variable.
     let env = getEnv("NIMBLE_DIR")
@@ -414,6 +420,7 @@ proc setNimbleDir*(options: var Options) =
       display("Info:", "Using the environment variable: NIMBLE_DIR='" &
               env & "'", Success, priority = HighPriority)
       nimbleDir = env
+      setPackageCache(options, nimbleDir)
     else:
       # ...followed by project local deps mode
       if dirExists(nimbledeps) or (options.localdeps and not options.developLocaldeps):
@@ -422,6 +429,7 @@ proc setNimbleDir*(options: var Options) =
         nimbleDir = nimbledeps
         options.localdeps = true
         propagate = true
+        setPackageCache(options, options.config.nimbleDir) #We want to use the nimbleDir from the config so it can be shared
 
   options.nimbleDir = expandTilde(nimbleDir).absolutePath()
   if propagate:
@@ -438,8 +446,6 @@ proc setNimbleDir*(options: var Options) =
     let pkgsDir = options.getPkgsDir()
     if not dirExists(pkgsDir):
       createDir(pkgsDir)
-  if options.useSatSolver:
-    options.pkgCachePath = options.getNimbleDir() / "pkgcache"
 
 proc parseCommand*(key: string, result: var Options) =
   result.action = Action(typ: parseActionType(key))
