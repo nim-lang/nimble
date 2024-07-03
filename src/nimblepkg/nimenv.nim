@@ -16,11 +16,9 @@ const ActivationFile =
 
 proc infoAboutActivation(nimDest, nimVersion: string) =
   when defined(windows):
-    echo "Info ", nimDest, "installed; activate with 'nim-" & nimVersion & "\\activate.bat'"
-    # info c, nimDest, "RUN\nnim-" & nimVersion & "\\activate.bat"
+    display("Info", nimDest, "installed; activate with 'nim-" & nimVersion & "\\activate.bat'")
   else:
-    echo "Info ", nimDest, "installed; activate with 'source nim-" & nimVersion & "/activate.sh'"
-    # info c, nimDest, "RUN\nsource nim-" & nimVersion & "/activate.sh"
+    display("Info", nimDest, "installed; activate with 'source nim-" & nimVersion & "/activate.sh'")
 
 proc compileNim*(options: Options, nimDest: string, v: VersionRange) =
   let keepCsources = options.useSatSolver #SAT Solver has a cache instead of a temp dir for downloads
