@@ -77,6 +77,8 @@ proc compileNim*(options: Options, nimDest: string, v: VersionRange) =
     if not keepCsources:
       removeDir workspace / csourcesVersion / "c_code"
     let pathEntry = workspace / nimDest / "bin"
+    #remove nimble so it doesnt interfer with the current one:
+    removeFile "bin" / "nimble".addFileExt(ExeExt)
     when defined(windows):
       writeFile "activate.bat", BatchFile % pathEntry.replace('/', '\\')
     else:
