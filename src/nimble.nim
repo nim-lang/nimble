@@ -2484,7 +2484,8 @@ when isMainModule:
     if opt.action.typ in {actionTasks, actionRun, actionBuild, actionCompile, actionDevelop}:
       # Implicitly disable package validation for these commands.
       opt.disableValidation = true
-    opt.setNimBin
+    if not opt.showVersion and not opt.showHelp:
+      opt.setNimBin
     opt.doAction()
   except NimbleQuit as quit:
     exitCode = quit.exitCode
