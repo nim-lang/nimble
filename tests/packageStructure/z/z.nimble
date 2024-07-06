@@ -2,7 +2,7 @@
 
 version       = "0.1.0"
 author        = "Dominik Picheta"
-description   = "Incorrect package structure Z."
+description   = "Correct package structure Z."
 license       = "MIT"
 
 # Dependencies
