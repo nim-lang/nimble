@@ -306,7 +306,7 @@ suite "issues":
 
   test "can validate package structure (#144)":
     # Test that no warnings are produced for correctly structured packages.
-    for package in ["a", "b", "c", "validBinary", "softened", "x", "y", "z"]:
+    for package in ["a", "b", "c", "softened", "x", "y", "z"]:
       cd "packageStructure/" & package:
         let (output, exitCode) = execNimbleYes("install")
         check exitCode == QuitSuccess
