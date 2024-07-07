@@ -542,7 +542,7 @@ proc getDevelopDownloadDir*(url, subdir: string, options: Options): string =
   result =
     if options.action.path.isAbsolute:
       options.action.path / downloadDirName
-    elif uri.scheme == "file":
+    elif options.action.withDependencies and uri.scheme == "file":
       uri.path
     else:
       getCurrentDir() / options.action.path / downloadDirName
