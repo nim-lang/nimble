@@ -581,6 +581,9 @@ proc getDownloadInfo*(pv: PkgTuple, options: Options,
   if pv.name.isURL:
     let (url, metadata) = getUrlData(pv.name)
     return (checkUrlType(url), url, metadata)
+  elif dirExists(pv.name):
+    let (url, metadata) = getUrlData("file://" & pv.name)
+    return (checkUrlType(url), url, metadata)
   else:
     var pkg = initPackage()
     if getPackage(pv.name, options, pkg, ignorePackageCache):
