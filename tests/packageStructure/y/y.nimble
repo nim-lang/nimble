@@ -2,7 +2,7 @@
 
 version       = "0.1.0"
 author        = "Dominik Picheta"
-description   = "Incorrectly structured package Y"
+description   = "Correctly structured package Y"
 license       = "MIT"
 
 installExt = @["nim"]

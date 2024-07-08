@@ -306,40 +306,12 @@ suite "issues":
 
   test "can validate package structure (#144)":
     # Test that no warnings are produced for correctly structured packages.
-    for package in ["a", "b", "c", "validBinary", "softened"]:
+    for package in ["a", "b", "c", "softened", "x", "y", "z"]:
       cd "packageStructure/" & package:
         let (output, exitCode) = execNimbleYes("install")
         check exitCode == QuitSuccess
         let lines = output.strip.processOutput()
         check(not lines.hasLineStartingWith("Warning:"))
-
-    # Test that warnings are produced for the incorrectly structured packages.
-    for package in ["x", "y", "z"]:
-      cd "packageStructure/" & package:
-        let (output, exitCode) = execNimbleYes("install")
-        check exitCode == QuitSuccess
-        let lines = output.strip.processOutput()
-        checkpoint(output)
-        case package
-        of "x":
-          check lines.hasLineStartingWith(
-            "Warning: Package 'x' has an incorrect structure. It should" &
-            " contain a single directory hierarchy for source files," &
-            " named 'x', but file 'foobar.nim' is in a directory named" &
-            " 'incorrect' instead.")
-        of "y":
-          check lines.hasLineStartingWith(
-            "Warning: Package 'y' has an incorrect structure. It should" &
-            " contain a single directory hierarchy for source files," &
-            " named 'y', but file 'foobar.nim' is in a directory named" &
-            " 'yWrong' instead.")
-        of "z":
-          check lines.hasLineStartingWith(
-            "Warning: Package 'z' has an incorrect structure. The top level" &
-            " of the package source directory should contain at most one module," &
-            " named 'z.nim', but a file named 'incorrect.nim' was found.")
-        else:
-          assert false
 
   test "issue 129 (installing commit hash)":
     cleanDir(installDir)

@@ -90,65 +90,6 @@ proc validateVersion*(ver: string) =
           "Version may only consist of numbers and the '.' character " &
           "but found '" & c & "'.", false)
 
-proc validatePackageStructure(pkgInfo: PackageInfo, options: Options) =
-  ## This ensures that a package's source code does not leak into
-  ## another package's namespace.
-  ## https://github.com/nim-lang/nimble/issues/144
-  let
-    realDir = pkgInfo.getRealDir()
-    correctDir = pkgInfo.basicInfo.name
-
-  proc onFile(path: string) =
-    # Remove the root to leave only the package subdirectories.
-    # ~/package-0.1/package/utils.nim -> package/utils.nim.
-    var trailPath = changeRoot(realDir, "", path)
-    if trailPath.startsWith(DirSep): trailPath = trailPath[1 .. ^1]
-    let (dir, file, ext) = trailPath.splitFile
-    # We're only interested in nim files, because only they can pollute our
-    # namespace.
-    if ext != (ExtSep & "nim"):
-      return
-
-    if dir.len == 0:
-      if file != pkgInfo.basicInfo.name:
-        # A source file was found in the top level of srcDir that doesn't share
-        # a name with the package.
-        let
-          msg = ("Package '$1' has an incorrect structure. " &
-                "The top level of the package source directory " &
-                "should contain at most one module, " &
-                "named '$2', but a file named '$3' was found. This " &
-                "will be an error in the future.") %
-                [pkgInfo.basicInfo.name, pkgInfo.basicInfo.name & ext, file & ext]
-          hint = ("If this is the primary source file in the package, " &
-                  "rename it to '$1'. If it's a source file required by " &
-                  "the main module, or if it is one of several " &
-                  "modules exposed by '$4', then move it into a '$2' subdirectory. " &
-                  "If it's a test file or otherwise not required " &
-                  "to build the package '$1', prevent its installation " &
-                  "by adding `skipFiles = @[\"$3\"]` to the .nimble file. See " &
-                  "https://github.com/nim-lang/nimble#libraries for more info.") %
-                  [pkgInfo.basicInfo.name & ext, correctDir & DirSep, file & ext, pkgInfo.basicInfo.name]
-        raise validationError(msg, true, hint, true)
-    else:
-      assert(not pkgInfo.isMinimal)
-      # On Windows `pkgInfo.bin` has a .exe extension, so we need to normalize.
-      if not (dir.startsWith(correctDir & DirSep) or dir == correctDir):
-        let
-          msg = ("Package '$2' has an incorrect structure. " &
-                "It should contain a single directory hierarchy " &
-                "for source files, named '$3', but file '$1' " &
-                "is in a directory named '$4' instead. " &
-                "This will be an error in the future.") %
-              [file & ext, pkgInfo.basicInfo.name, correctDir, dir]
-          hint = ("If '$1' contains source files for building '$2', rename it " &
-                  "to '$3'. Otherwise, prevent its installation " &
-                  "by adding `skipDirs = @[\"$1\"]` to the .nimble file.") %
-              [dir, pkgInfo.basicInfo.name, correctDir]
-        raise validationError(msg, true, hint, true)
-
-  iterInstallFiles(realDir, pkgInfo, options, onFile)
-
 proc validatePackageInfo(pkgInfo: PackageInfo, options: Options) =
   let path = pkgInfo.myPath
   if pkgInfo.basicInfo.name == "":
@@ -176,10 +117,6 @@ proc validatePackageInfo(pkgInfo: PackageInfo, options: Options) =
     if pkgInfo.backend notin ["c", "cc", "objc", "cpp", "js"]:
       raise validationError("'" & pkgInfo.backend &
           "' is an invalid backend.", false)
-  if options.action.typ in {actionInstall, actionBuild, actionDevelop, actionCompile, actionCheck}:
-    # nim is used for building the project, thus no need to validate its structure.
-    if not pkgInfo.basicInfo.name.isNim:
-      validatePackageStructure(pkginfo, options)
 
 proc nimScriptHint*(pkgInfo: PackageInfo) =
   if not pkgInfo.isNimScript:
