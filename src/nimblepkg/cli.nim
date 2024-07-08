@@ -173,7 +173,7 @@ proc prompt*(forcePrompts: ForcePrompt, question: string): bool =
     display("Prompt:", question & " -> [forced no]", Warning, HighPriority)
     return false
   of dontForcePrompt:
-    if globalCLI.level > SilentPriority:
+    if globalCLI.level < SilentPriority:
       display("Prompt:", question & " [y/N]", Warning, HighPriority)
       displayCategory("Answer:", Warning, HighPriority)
       let yn = stdin.readLine()
