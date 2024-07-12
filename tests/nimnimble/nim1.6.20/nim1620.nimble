@@ -13,4 +13,4 @@ requires "nim == 1.6.20"
 
 after build:
   let (output, _) = gorgeEx "./nim1620"
-  assert output == NimVersion 
+  assert output.strip == NimVersion 
