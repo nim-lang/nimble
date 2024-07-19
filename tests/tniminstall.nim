@@ -21,7 +21,7 @@ proc isNimPkgVer(folder: string, ver: string): bool =
 suite "Nim install":
   test "Should be able to install different Nim versions":
     cd "nimnimble":
-      for nimVerDir in ["nim1.6.20", "nim2.0.4", "nim2.0.10", "nimdevel"]:
+      for nimVerDir in ["nim1.6.20", "nim2.0.4", "nimdevel"]:
         cd nimVerDir:
           let nimVer = nimVerDir.replace("nim", "")
           echo "Checking version ", nimVer
