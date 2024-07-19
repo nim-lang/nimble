@@ -4,12 +4,12 @@ author        = "jmgomez"
 description   = "A new awesome nimble package"
 license       = "MIT"
 srcDir        = "src"
-bin           = @["nim204"]
+bin           = @["nim2010"]
 
 # Dependencies
 
-requires "nim == 2.0.4"
+requires "nim == 2.0.10"
 
 after build:
-  let (output, _) = gorgeEx "./nim204"
+  let (output, _) = gorgeEx "./nim2010"
   assert output.strip == NimVersion 
