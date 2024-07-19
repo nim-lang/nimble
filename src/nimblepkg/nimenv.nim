@@ -58,15 +58,15 @@ proc compileNim*(options: Options, nimDest: string, v: VersionRange) =
   cd workspace / csourcesVersion:
     when defined(windows):
       let cmd = "build.bat"
-      csourcesSucceed = os.execShellCmd(cmd) != 0
+      csourcesSucceed = os.execShellCmd(cmd) == 0
     else:
       let makeExe = findExe("make")
       if makeExe.len == 0:
         let cmd = "sh build.sh"
-        csourcesSucceed = os.execShellCmd(cmd) != 0
+        csourcesSucceed = os.execShellCmd(cmd) == 0
       else:
         let cmd = "make"
-        csourcesSucceed = os.execShellCmd(cmd) != 0
+        csourcesSucceed = os.execShellCmd(cmd) == 0
 
   cd nimDest:
     #Sometimes building from csources fails and we cant do much about it. So we fallback to the slow build_all method
