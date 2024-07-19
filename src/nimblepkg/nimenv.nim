@@ -51,23 +51,34 @@ proc compileNim*(options: Options, nimDest: string, v: VersionRange) =
     else:
       "csources_v1"
   cd workspace:
-    echo "Entering CSOURCES", csourcesVersion, " exists ", dirExists(csourcesVersion)
     if not dirExists(csourcesVersion):
       exec "git clone https://github.com/nim-lang/" & csourcesVersion
 
+  var csourcesSucceed = false
   cd workspace / csourcesVersion:
     when defined(windows):
-      exec "build.bat"
+      let cmd = "build.bat"
+      csourcesSucceed = os.execShellCmd(cmd) != 0
     else:
       let makeExe = findExe("make")
       if makeExe.len == 0:
-        exec "sh build.sh"
+        let cmd = "sh build.sh"
+        csourcesSucceed = os.execShellCmd(cmd) != 0
       else:
-        exec "make"
-  let nimExe0 = ".." / csourcesVersion / "bin" / "nim".addFileExt(ExeExt)
+        let cmd = "make"
+        csourcesSucceed = os.execShellCmd(cmd) != 0
+
   cd nimDest:
+    #Sometimes building from csources fails and we cant do much about it. So we fallback to the slow build_all method
+    if not csourcesSucceed:
+      display("Warning", "Building nim from csources failed. Using `build_all`", Warning, HighPriority)
+      let cmd = 
+        when defined(windows):  "build_all.bat" 
+        else: "sh build_all.sh"
+      exec cmd
     let nimExe = "bin" / "nim".addFileExt(ExeExt)
-    copyFileWithPermissions nimExe0, nimExe
+    when defined(nimExe0):
+      copyFileWithPermissions nimExe0, nimExe
     exec nimExe & " c --noNimblePath --skipUserCfg --skipParentCfg --hints:off koch"
     let kochExe = when defined(windows): "koch.exe" else: "./koch"
     exec kochExe & " boot -d:release --skipUserCfg --skipParentCfg --hints:off"
