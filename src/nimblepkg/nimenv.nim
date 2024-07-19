@@ -77,7 +77,8 @@ proc compileNim*(options: Options, nimDest: string, v: VersionRange) =
         else: "sh build_all.sh"
       exec cmd
     let nimExe = "bin" / "nim".addFileExt(ExeExt)
-    when defined(nimExe0):
+    let nimExe0 = ".." / csourcesVersion / "bin" / "nim".addFileExt(ExeExt)
+    if csourcesSucceed:      
       copyFileWithPermissions nimExe0, nimExe
     exec nimExe & " c --noNimblePath --skipUserCfg --skipParentCfg --hints:off koch"
     let kochExe = when defined(windows): "koch.exe" else: "./koch"
