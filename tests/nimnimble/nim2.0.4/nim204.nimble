@@ -8,7 +8,7 @@ bin           = @["nim204"]
 
 # Dependencies
 
-requires "nim == 2.0.4"
+requires "nim >= 2.0.4 & < 2.1"
 
 after build:
   let (output, _) = gorgeEx "./nim204"
