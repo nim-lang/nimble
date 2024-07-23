@@ -28,5 +28,6 @@ suite "Nim install":
           echo "Checking version ", nimVer
           let (_, exitCode) = execNimble("install", "-l")
           let pkgPath = getCurrentDir() / "nimbledeps" / "pkgs2"
+          echo "Checking ", pkgPath
           check exitCode == QuitSuccess
           check walkDir(pkgPath).toSeq.anyIt(it[1].isNimPkgVer(nimVer))      
