@@ -21,8 +21,15 @@ type
 
   ProcessOutput* = tuple[output: string, exitCode: int]
 
+proc getVersionFromNimble(): string = 
+  const content = staticRead("../../nimble.nimble")
+  for v in content.splitLines:
+    if v.startsWith("version"):
+      return v.split("=")[^1].strip(chars = {' ', '"'})
+  error("Failed to get version from nimble.nimble")
+
 const
-  nimbleVersion* = "0.14.2"
+  nimbleVersion* = getVersionFromNimble()
   nimblePackagesDirName* = "pkgs2"
   nimblePackagesLinksDirName* ="links"
   nimbleBinariesDirName* = "bin"
