@@ -1130,14 +1130,17 @@ proc getPackageByPattern(pattern: string, options: Options): PackageInfo =
     result = getPkgInfoFromFile(skeletonInfo.myPath, options)
 
 proc getNimDir(options: Options): string = 
-  let pkgs = 
-    getInstalledPkgsMin(options.getPkgsDir(), options)
-    .filterIt(it.basicInfo.name == "nim")
-  if pkgs.len > 0:
-    let nimBin = pkgs[0].getNimBin(options)
-    nimBin.parentDir
-  else:
-    options.nimBin.parentDir
+  ## returns the nim directory prioritizing the one used by the project
+  let projectPkg = getPackageByPattern(options.action.projName, options)
+  var nimPkgTupl = projectPkg.requires.filterIt(it.name == "nim")
+  if nimPkgTupl.len > 0:
+    let nimPkgInfo = 
+      getInstalledPkgsMin(options.getPkgsDir(), options)
+        .filterIt(it.basicInfo.name == "nim" and it.withinRange(nimPkgTupl[0].ver))
+    if nimPkgInfo.len > 0:
+      let nimBin = nimPkgInfo[0].getNimBin(options)
+      return nimBin.parentDir
+  options.nimBin.parentDir
 
 proc getEntryPoints(pkgInfo: PackageInfo, options: Options): seq[string] =
   ## Returns the entry points for a package. 
