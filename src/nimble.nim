@@ -1131,7 +1131,7 @@ proc getPackageByPattern(pattern: string, options: Options): PackageInfo =
 
 proc getNimDir(options: Options): string = 
   ## returns the nim directory prioritizing the nimBin one if it satisfais the requirement of the project
-  ## otherwise it returns the major version of the nim installed packages that satisfies the requirement of the project (#TODO)
+  ## otherwise it returns the major version of the nim installed packages that satisfies the requirement of the project
   ## if no nim package satisfies the requirement of the project it returns the nimBin parent directory
   ## only used by the `nimble dump` command which is used to drive the lsp
   let projectPkg = getPackageByPattern(options.action.projName, options)
