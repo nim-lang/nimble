@@ -1,4 +1,4 @@
-import std/[strscans, os, strutils, strformat]
+import std/[strscans, os, osproc, strutils, strformat, options]
 import version, nimblesat, cli, common, options
 
 when defined(windows):
@@ -120,3 +120,13 @@ proc useNimFromDir*(options: var Options, realDir: string, v: VersionRange, tryC
     display("Info:", "switching to $1 for compilation" % options.nim, priority = HighPriority)
   else:
     display("Info:", "using $1 for compilation" % options.nim, priority = HighPriority)
+
+proc getNimVersionFromBin*(nimBin: string): Option[Version] =
+  let cmd = nimBin & " --version"
+  if nimBin.fileExists:
+    let info = execProcess(cmd)
+    var major, minor, patch: int
+    for line in info.splitLines:
+      if scanf(line, "Nim Compiler Version $i.$i.$i", major, minor, patch):
+          let ver = $major & "." & $minor & "." & $patch
+          return some newVersion(ver)

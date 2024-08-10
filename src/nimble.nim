@@ -1130,13 +1130,21 @@ proc getPackageByPattern(pattern: string, options: Options): PackageInfo =
     result = getPkgInfoFromFile(skeletonInfo.myPath, options)
 
 proc getNimDir(options: Options): string = 
-  ## returns the nim directory prioritizing the one used by the project
+  ## returns the nim directory prioritizing the nimBin one if it satisfais the requirement of the project
+  ## otherwise it returns the major version of the nim installed packages that satisfies the requirement of the project (#TODO)
+  ## if no nim package satisfies the requirement of the project it returns the nimBin parent directory
+  ## only used by the `nimble dump` command which is used to drive the lsp
   let projectPkg = getPackageByPattern(options.action.projName, options)
   var nimPkgTupl = projectPkg.requires.filterIt(it.name == "nim")
   if nimPkgTupl.len > 0:
-    let nimPkgInfo = 
+    let reqNimVersion = nimPkgTupl[0].ver
+    let nimBinVersion = options.nimBin.getNimVersionFromBin()
+    if nimBinVersion.isSome and nimBinVersion.get.withinRange(reqNimVersion):
+      return options.nimBin.parentDir
+    var nimPkgInfo = 
       getInstalledPkgsMin(options.getPkgsDir(), options)
-        .filterIt(it.basicInfo.name == "nim" and it.withinRange(nimPkgTupl[0].ver))
+        .filterIt(it.basicInfo.name == "nim" and it.withinRange(reqNimVersion))
+    nimPkgInfo.sort(proc (a, b: PackageInfo): int = cmp(a.basicInfo.version, b.basicInfo.version), Descending)
     if nimPkgInfo.len > 0:
       let nimBin = nimPkgInfo[0].getNimBin(options)
       return nimBin.parentDir
