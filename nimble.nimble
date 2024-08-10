@@ -12,6 +12,7 @@ installExt = @["nim"]
 # Dependencies
 
 requires "nim >= 0.13.0", "sat"
+# requires "nim < 2.0.6", "sat"
 requires "checksums"
 
 when defined(nimdistros):
