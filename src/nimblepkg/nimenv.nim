@@ -128,5 +128,5 @@ proc getNimVersionFromBin*(nimBin: string): Option[Version] =
     var major, minor, patch: int
     for line in info.splitLines:
       if scanf(line, "Nim Compiler Version $i.$i.$i", major, minor, patch):
-          let ver = $major & "." & $minor & "." & $patch
-          return some newVersion(ver)
+        let ver = $major & "." & $minor & "." & $patch
+        return some newVersion(ver)
