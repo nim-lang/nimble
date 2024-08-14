@@ -18,21 +18,6 @@ proc initPackageInfo*(): PackageInfo =
 proc initPackage*(): Package =
   result = Package(version: notSetVersion)
 
-proc `$`*(meth: DonationMethod): string {.inline.} =
-  ## Turns a `DonationMethod` into a pretty string.
-  case meth
-  of DonationMethod.GitHub: "GitHub"
-  of DonationMethod.OpenCollective: "OpenCollective"
-  of DonationMethod.Patreon: "Patreon"
-
-proc parseDonationMethod*(meth: string): DonationMethod {.inline.} =
-  case meth
-  of "github", "gh": return DonationMethod.GitHub
-  of "opencollective": return DonationMethod.OpenCollective
-  of "patreon": return DonationMethod.Patreon
-  else:
-    raise nimbleError("Invalid donation method: " & meth)
-
 proc isLoaded*(pkgInfo: PackageInfo): bool =
   return pkgInfo.myPath.len > 0
 
@@ -116,11 +101,7 @@ proc fromJson(obj: JSonNode): Package =
     
     if "donations" in obj:
       for d in obj.getOrDefault("donations"):
-        result.donations &=
-          Donation(
-            meth: parseDonationMethod(d["meth"].getStr()),
-            username: d["username"].getStr()
-          )
+        result.donations &= parseUri(d.getStr())
     else:
       result.donations = @[]
 
@@ -382,26 +363,6 @@ proc findPkg*(pkglist: seq[PackageInfo], dep: PkgTuple,
         r = pkg
         result = true
 
-proc constructDonationURL*(donation: Donation): string =
-  ## Constructs a donation URL from a `Donation` object that is made via fields in a packages.json file.
-  ## It also performs validation to ensure that an invalid URL cannot be accidentally passed on if data in the packages.json file is malformed.
-  var url = "https://"
-
-  case donation.meth
-  of DonationMethod.GitHub:
-    url &= "github.com/sponsors/" & donation.username
-  of DonationMethod.OpenCollective:
-    url &= "opencollective.com/" & donation.username
-  of DonationMethod.Patreon:
-    url &= "patreon.com/" & donation.username
-  
-  try:
-    let parsed = parseURI(url)
-  except UriParseError as exc:
-    raise nimbleError("Failed to parse URL properly whilst constructing donation URL - please report this to the Nimble developers! (" & exc.msg & ')')
-
-  url
-
 proc findAllPkgs*(pkglist: seq[PackageInfo], dep: PkgTuple): seq[PackageInfo] =
   ## Searches ``pkglist`` for packages of which version is within the range
   ## of ``dep.ver``. This is similar to ``findPkg`` but returns multiple
@@ -443,8 +404,7 @@ proc echoPackage*(pkg: Package) =
     if pkg.donations.len > 0:
       echo("  donations:")
       for i, link in pkg.donations:
-        let url = constructDonationURL(link)
-        echo("    " & $link.meth & ": " & link.username & " (" & url & ')')
+        echo "    " & $(i + 1) & ": " & $link
 
 proc getDownloadDirName*(pkg: Package, verRange: VersionRange): string =
   result = pkg.name

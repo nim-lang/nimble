@@ -2101,12 +2101,7 @@ proc sponsor(options: Options) =
         displayInfo(pkg.name)
 
         for donation in pkg.donations:
-          let url = donation.constructDonationURL()
-          displayInfo(
-            "$1: $2 ($3)" % [
-              $donation.meth, donation.username, url
-            ]
-          )
+          displayInfo($donation)
 
         displayHint("To sponsor this library's developer, run `nimble sponsor " & pkg.name & '`')
         echo('\n')
@@ -2130,14 +2125,10 @@ proc sponsor(options: Options) =
         displayError("You can contact them directly to sponsor them in some other way instead.")
         return
 
-      for donation in pkg.donations:
-        let url = donation.constructDonationURL()
-        displayInfo(
-          "$1: $2 ($3)" % [
-            $donation.meth, donation.username, url
-          ]
-        )
+      for donationUrl in pkg.donations:
+        let url = $donationUrl
 
+        displayInfo(url)
         openDefaultBrowser(url)
       
       return
