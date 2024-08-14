@@ -1,7 +1,7 @@
 # Copyright (C) Dominik Picheta. All rights reserved.
 # BSD License. Look at license.txt for more info.
 
-import os, tables, strtabs, json, algorithm, sets, uri, sugar, sequtils, osproc,
+import os, tables, strtabs, json, math, browsers, algorithm, sets, uri, sugar, sequtils, osproc,
        strformat
 
 import std/options as std_opt
@@ -2087,6 +2087,63 @@ proc sync(options: Options) =
   if errors.len > 0:
     raise validationErrors(errors)
 
+proc sponsor(options: Options) =
+  ## Allows the user to sponsor a package's developer, if they have the fields set-up in their package manifest.
+  ## This is done in a case-sensitive manner and the search terminates upon a single match.
+  let pkgList = getPackageList(options)
+
+  if options.action.optionalPackage.len < 1:
+    var accepting: uint = 0
+
+    for pkg in pkgList:
+      if pkg.donations.len > 0:
+        inc(accepting)
+        displayInfo(pkg.name)
+
+        for donation in pkg.donations:
+          let url = donation.constructDonationURL()
+          displayInfo(
+            "$1: $2 ($3)" % [
+              $donation.meth, donation.username, url
+            ]
+          )
+
+        displayHint("To sponsor this library's developer, run `nimble sponsor " & pkg.name & '`')
+        echo('\n')
+    
+    displayInfo(
+      "$1 $2 $3 accepting donations, amounting to $4% of all packages." % [
+        $accepting,
+        (if accepting == 1: "package" else: "packages"),
+        (if accepting == 1: "is" else: "are"),
+        $round(accepting.int / pkgList.len)
+      ]
+    )
+    return
+
+  for pkg in pkgList:
+    if pkg.name == options.action.optionalPackage:
+      displayInfo("Found package: " & pkg.name)
+
+      if pkg.donations.len < 1:
+        displayError("This package's maintainer has not set up any donation links in the package manifest.")
+        displayError("You can contact them directly to sponsor them in some other way instead.")
+        return
+
+      for donation in pkg.donations:
+        let url = donation.constructDonationURL()
+        displayInfo(
+          "$1: $2 ($3)" % [
+            $donation.meth, donation.username, url
+          ]
+        )
+
+        openDefaultBrowser(url)
+      
+      return
+
+  displayError("No such package by the name of $1 was found." % [options.action.optionalPackage])
+
 proc append(existingContent: var string; newContent: string) =
   ## Appends `newContent` to the `existingContent` on a new line by inserting it
   ## if the new line doesn't already exist.
@@ -2335,6 +2392,8 @@ proc doAction(options: var Options) =
     assert false
   of actionAdd:
     addPackages(options.action.packages, options)
+  of actionSponsor:
+    sponsor(options)
   of actionCustom:
     var optsCopy = options
     optsCopy.task = options.action.command.normalize

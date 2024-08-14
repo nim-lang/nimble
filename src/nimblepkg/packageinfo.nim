@@ -3,7 +3,7 @@
 
 # Stdlib imports
 import system except TResult
-import hashes, json, strutils, os, sets, tables, times, httpclient, strformat
+import hashes, json, strutils, os, sets, tables, uri, times, httpclient, strformat
 from net import SslError
 
 # Local imports
@@ -17,6 +17,21 @@ proc initPackageInfo*(): PackageInfo =
 
 proc initPackage*(): Package =
   result = Package(version: notSetVersion)
+
+proc `$`*(meth: DonationMethod): string {.inline.} =
+  ## Turns a `DonationMethod` into a pretty string.
+  case meth
+  of DonationMethod.GitHub: "GitHub"
+  of DonationMethod.OpenCollective: "OpenCollective"
+  of DonationMethod.Patreon: "Patreon"
+
+proc parseDonationMethod*(meth: string): DonationMethod {.inline.} =
+  case meth
+  of "github", "gh": return DonationMethod.GitHub
+  of "opencollective": return DonationMethod.OpenCollective
+  of "patreon": return DonationMethod.Patreon
+  else:
+    raise nimbleError("Invalid donation method: " & meth)
 
 proc isLoaded*(pkgInfo: PackageInfo): bool =
   return pkgInfo.myPath.len > 0
@@ -98,6 +113,17 @@ proc fromJson(obj: JSonNode): Package =
       result.tags.add(t.str)
     result.description = obj.optionalField("description")
     result.web = obj.optionalField("web")
+    
+    if "donations" in obj:
+      for d in obj.getOrDefault("donations"):
+        result.donations &=
+          Donation(
+            meth: parseDonationMethod(d["meth"].getStr()),
+            username: d["username"].getStr()
+          )
+    else:
+      result.donations = @[]
+
 {.warning[ProveInit]: on.}
 
 proc needsRefresh*(options: Options): bool =
@@ -356,6 +382,26 @@ proc findPkg*(pkglist: seq[PackageInfo], dep: PkgTuple,
         r = pkg
         result = true
 
+proc constructDonationURL*(donation: Donation): string =
+  ## Constructs a donation URL from a `Donation` object that is made via fields in a packages.json file.
+  ## It also performs validation to ensure that an invalid URL cannot be accidentally passed on if data in the packages.json file is malformed.
+  var url = "https://"
+
+  case donation.meth
+  of DonationMethod.GitHub:
+    url &= "github.com/sponsors/" & donation.username
+  of DonationMethod.OpenCollective:
+    url &= "opencollective.com/" & donation.username
+  of DonationMethod.Patreon:
+    url &= "patreon.com/" & donation.username
+  
+  try:
+    let parsed = parseURI(url)
+  except UriParseError as exc:
+    raise nimbleError("Failed to parse URL properly whilst constructing donation URL - please report this to the Nimble developers! (" & exc.msg & ')')
+
+  url
+
 proc findAllPkgs*(pkglist: seq[PackageInfo], dep: PkgTuple): seq[PackageInfo] =
   ## Searches ``pkglist`` for packages of which version is within the range
   ## of ``dep.ver``. This is similar to ``findPkg`` but returns multiple
@@ -366,7 +412,6 @@ proc findAllPkgs*(pkglist: seq[PackageInfo], dep: PkgTuple): seq[PackageInfo] =
        cmpIgnoreStyle(pkg.metaData.url, dep.name) != 0: continue
     if withinRange(pkg, dep.ver):
       result.add pkg
-
 
 proc getRealDir*(pkgInfo: PackageInfo): string =
   ## Returns the directory containing the package source files.
@@ -395,6 +440,11 @@ proc echoPackage*(pkg: Package) =
     echo("  license:     " & pkg.license)
     if pkg.web.len > 0:
       echo("  website:     " & pkg.web)
+    if pkg.donations.len > 0:
+      echo("  donations:")
+      for i, link in pkg.donations:
+        let url = constructDonationURL(link)
+        echo("    " & $link.meth & ": " & link.username & " (" & url & ')')
 
 proc getDownloadDirName*(pkg: Package, verRange: VersionRange): string =
   result = pkg.name

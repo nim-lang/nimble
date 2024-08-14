@@ -8,6 +8,11 @@ type
   DownloadMethod* {.pure.} = enum
     git = "git", hg = "hg"
 
+  DonationMethod* {.pure.} = enum
+    GitHub = "github"
+    OpenCollective = "opencollective"
+    Patreon = "patreon"
+
   Checksums* = object
     sha1*: Sha1Hash
 
@@ -71,7 +76,11 @@ type
     isLink*: bool
     paths*: seq[string] 
     entryPoints*: seq[string] #useful for tools like the lsp.
-    
+  
+  Donation* = object
+    meth*: DonationMethod
+    username*: string
+
   Package* = object ## Definition of package from packages.json.
     # Required fields in a package.
     name*: string
@@ -84,6 +93,7 @@ type
     version*: Version
     dvcsTag*: string
     web*: string # Info url for humans.
+    donations*: seq[Donation] ## A list of donation methods that can be used to support its developer.
     alias*: string ## A name of another package, that this package aliases.
 
   PackageDependenciesInfo* = tuple[deps: HashSet[PackageInfo], pkg: PackageInfo]
