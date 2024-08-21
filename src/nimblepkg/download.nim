@@ -482,6 +482,15 @@ proc downloadPkg*(url: string, verRange: VersionRange,
   let downloadMethod = if downloadTarball(modUrl, options):
     "http" else: $downMethod
 
+  result.dir = downloadDir / subdir
+  #when using a persistent download dir we can skip the download if it's already done
+  try:
+    discard findNimbleFile(result.dir, true)
+    return
+  except NimbleError as e: 
+    #Continue with the download
+    discard    
+  
   if subdir.len > 0:
     display("Downloading", "$1 using $2 (subdir is '$3')" %
                            [modUrl, downloadMethod, subdir],
@@ -490,14 +499,13 @@ proc downloadPkg*(url: string, verRange: VersionRange,
     display("Downloading", "$1 using $2" % [modUrl, downloadMethod],
             priority = HighPriority)
 
-  result.dir = downloadDir / subdir
   (result.version, result.vcsRevision) = doDownload(
     modUrl, downloadDir, verRange, downMethod, options, vcsRevision)
 
   if validateRange and verRange.kind notin {verSpecial, verAny}:
     ## Makes sure that the downloaded package's version satisfies the requested
     ## version range.
-    let pkginfo = getPkgInfo(result[0], options)
+    let pkginfo = getPkgInfo(result.dir, options)
     if pkginfo.basicInfo.version notin verRange:
       raise nimbleError(
         "Downloaded package's version does not satisfy requested version " &
