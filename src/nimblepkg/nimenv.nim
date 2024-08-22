@@ -28,6 +28,7 @@ proc compileNim*(options: Options, nimDest: string, v: VersionRange) =
       display("Error", "Failed to execute: $1" % cmd, Error, HighPriority)
       return
   let nimVersion = v.getNimVersion()
+  let canUseCsources = v.kind != verAny
   let workspace = nimDest.parentDir()
   if dirExists(workspace / nimDest):
     if not fileExists(nimDest / ActivationFile):
@@ -55,18 +56,19 @@ proc compileNim*(options: Options, nimDest: string, v: VersionRange) =
       exec "git clone https://github.com/nim-lang/" & csourcesVersion
 
   var csourcesSucceed = false
-  cd workspace / csourcesVersion:
-    when defined(windows):
-      let cmd = "build.bat"
-      csourcesSucceed = os.execShellCmd(cmd) == 0
-    else:
-      let makeExe = findExe("make")
-      if makeExe.len == 0:
-        let cmd = "sh build.sh"
+  if canUseCsources:
+    cd workspace / csourcesVersion:
+      when defined(windows):
+        let cmd = "build.bat"
         csourcesSucceed = os.execShellCmd(cmd) == 0
       else:
-        let cmd = "make"
-        csourcesSucceed = os.execShellCmd(cmd) == 0
+        let makeExe = findExe("make")
+        if makeExe.len == 0:
+          let cmd = "sh build.sh"
+          csourcesSucceed = os.execShellCmd(cmd) == 0
+        else:
+          let cmd = "make"
+          csourcesSucceed = os.execShellCmd(cmd) == 0
 
   cd nimDest:
     #Sometimes building from csources fails and we cant do much about it. So we fallback to the slow build_all method
