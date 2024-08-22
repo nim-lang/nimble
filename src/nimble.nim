@@ -97,7 +97,7 @@ proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, options: Options): Has
 
   result = solveLocalPackages(rootPkgInfo, pkgList, solvedPkgs)
   if solvedPkgs.len > 0: 
-    displaySatisfiedMsg(solvedPkgs, pkgsToInstall)
+    # displaySatisfiedMsg(solvedPkgs, pkgsToInstall)
     addReverseDeps(solvedPkgs, allPkgsInfo, options)
     for pkg in allPkgsInfo:
       result.incl pkg
@@ -112,7 +112,7 @@ proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, options: Options): Has
 
   var output = ""
   result = solvePackages(rootPkgInfo, pkgList, pkgsToInstall, options, output, solvedPkgs)
-  displaySatisfiedMsg(solvedPkgs, pkgsToInstall)
+  # displaySatisfiedMsg(solvedPkgs, pkgsToInstall)
   var solved = solvedPkgs.len > 0 #A pgk can be solved and still dont return a set of PackageInfo
   for (name, ver) in pkgsToInstall:
     let resolvedDep = ((name: name, ver: ver.toVersionRange)).resolveAlias(options)

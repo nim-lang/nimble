@@ -390,7 +390,7 @@ proc getPkgsLinksDir*(options: Options): string =
 proc getBinDir*(options: Options): string =
   options.getNimbleDir() / nimbleBinariesDirName
 
-proc setPackageCache(options: var Options, baseDir: string) = 
+proc setPackageCache(options: var Options, baseDir: string) =
   if options.useSatSolver:
     options.pkgCachePath = baseDir / "pkgcache"
     display("Info:", "Package cache path " & options.pkgCachePath, priority = HighPriority)
@@ -432,6 +432,8 @@ proc setNimbleDir*(options: var Options) =
         setPackageCache(options, options.config.nimbleDir) #We want to use the nimbleDir from the config so it can be shared
 
   options.nimbleDir = expandTilde(nimbleDir).absolutePath()
+  if options.pkgCachePath == "":
+    setPackageCache(options, options.nimbleDir)    
   if propagate:
     # Propagate custom nimbleDir to child processes
     putEnv("NIMBLE_DIR", options.nimbleDir)
