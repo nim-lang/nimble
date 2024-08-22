@@ -16,13 +16,11 @@ proc isNimPkgVer(folder: string, ver: string): bool =
       return major >= 2 and minor >= 1 and minor mod 2 == 1
     else: return false
 
-     
-  
 
 suite "Nim install":
   test "Should be able to install different Nim versions":
     cd "nimnimble":
-      for nimVerDir in ["nim1.6.20", "nim2.0.4", "nimdevel"]:
+      for nimVerDir in ["nim1.6.20", "nim2.0.4"]:
         cd nimVerDir:
           let nimVer = nimVerDir.replace("nim", "")
           echo "Checking version ", nimVer

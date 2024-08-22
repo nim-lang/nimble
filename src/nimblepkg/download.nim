@@ -487,7 +487,7 @@ proc downloadPkg*(url: string, verRange: VersionRange,
   try:
     discard findNimbleFile(result.dir, true)
     return
-  except NimbleError as e: 
+  except NimbleError: 
     #Continue with the download
     discard    
   
