@@ -57,6 +57,7 @@ type
       # For now, it is used only by the run action and it is ignored by others.
     pkgCachePath*: string # Cache used to store package downloads
     useSatSolver*: bool
+    extraRequires*: seq[PkgTuple] # extra requires parsed from the command line
 
   ActionType* = enum
     actionNil, actionRefresh, actionInit, actionDump, actionPublish, actionUpgrade
@@ -245,6 +246,7 @@ Nimble Options:
       --useSystemNim              Use system nim and ignore nim from the lock
                                   file if any
       --solver:sat|legacy         Use the SAT solver or the legacy (default) for dependency resolution.
+      --requires                  Add extra packages to the dependency resolution. Uses the same syntax as the Nimble file. Example: nimble install --requires "pkg1; pkg2 >= 1.2"
 
 For more information read the GitHub readme:
   https://github.com/nim-lang/nimble#readme
@@ -566,6 +568,8 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
       result.useSatSolver = false
     else:
       raise nimbleError("Unknown solver option: " & val)
+  of "requires":
+    result.extraRequires = val.split(";").mapIt(it.strip.parseRequires())
   else: isGlobalFlag = false
 
   var wasFlagHandled = true
