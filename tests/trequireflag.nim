@@ -1,3 +1,4 @@
+{.used.}
 import unittest, os
 import testscommon
 from nimblepkg/common import cd
