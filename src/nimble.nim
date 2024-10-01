@@ -77,6 +77,8 @@ proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, options: Options): Has
     return satProccesedPackages
   var solvedPkgs = newSeq[SolvedPackage]()
   var pkgsToInstall: seq[(string, Version)] = @[]
+  var rootPkgInfo = rootPkgInfo
+  rootPkgInfo.requires &= options.extraRequires
   var pkgList = initPkgList(rootPkgInfo, options).mapIt(it.toFullInfo(options))
   var allPkgsInfo: seq[PackageInfo] = pkgList & rootPkgInfo
   #Remove from the pkglist the packages that exists in lock file and has a different vcsRevision
@@ -153,12 +155,14 @@ proc processFreeDependencies(pkgInfo: PackageInfo,
   ## during build phase.
   assert not pkgInfo.isMinimal,
          "processFreeDependencies needs pkgInfo.requires"
-
+  var requirements = requirements
   var pkgList {.global.}: seq[PackageInfo]
   once: 
     pkgList = initPkgList(pkgInfo, options)
     if options.useSatSolver:
       return processFreeDependenciesSAT(pkgInfo, options)
+    else:
+      requirements.add options.extraRequires
 
   display("Verifying", "dependencies for $1@$2" %
           [pkgInfo.basicInfo.name, $pkgInfo.basicInfo.version],
