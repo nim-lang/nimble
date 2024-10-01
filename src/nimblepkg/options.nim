@@ -474,13 +474,11 @@ proc getNimBin*(pkgInfo: PackageInfo, options: Options): string =
     when defined(windows):
       binaryPath &= ".exe"      
     result = pkgInfo.getNimbleFileDir() / binaryPath
-
-  #TODO add the solved packages to the options (we need to remove the legacy solver first otherwise it will be messy) or
-  #just pass the solved packages around
-  elif options.useSatSolver and satProccesedPackages.len > 0:
+  #TODO add the solved packages to the options (we need to remove the legacy solver first otherwise it will be messy)
+  elif options.useSatSolver:
     for pkg in satProccesedPackages:
       if pkg.basicInfo.name == "nim":
-        result = pkg.getNimbleFileDir() / "bin" / "nim"
+        result = pkg.getNimBin(options)
         break
   else:
     assert options.nimBin.isSome, "Nim binary not set"
