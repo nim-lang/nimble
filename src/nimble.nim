@@ -132,6 +132,9 @@ proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, options: Options): Has
 
   for pkg in result:
     allPkgsInfo.add pkg
+    #set nim version
+    if pkg.basicInfo.name == "nim":
+      options.nimBin = some makeNimBin(pkg.getRealDir() / "bin" / "nim", some pkg.basicInfo.version)
   addReverseDeps(solvedPkgs, allPkgsInfo, options)
 
   for nonLocked in toRemoveFromLocked:
@@ -139,7 +142,7 @@ proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, options: Options): Has
 
   result = deleteStaleDependencies(result.toSeq, rootPkgInfo, options).toHashSet  
   satProccesedPackages = result
- 
+
   if not solved:
     display("Error", output, Error, priority = HighPriority)
     raise nimbleError("Unsatisfiable dependencies")
@@ -1142,9 +1145,8 @@ proc getNimDir(options: Options): string =
   var nimPkgTupl = projectPkg.requires.filterIt(it.name == "nim")
   if nimPkgTupl.len > 0:
     let reqNimVersion = nimPkgTupl[0].ver
-    let nimBinVersion = options.nimBin.getNimVersionFromBin()
-    if nimBinVersion.isSome and nimBinVersion.get.withinRange(reqNimVersion):
-      return options.nimBin.parentDir
+    if options.nimBin.isSome and options.nimBin.get.version.withinRange(reqNimVersion):
+      return options.nimBin.get.path.parentDir
     var nimPkgInfo = 
       getInstalledPkgsMin(options.getPkgsDir(), options)
         .filterIt(it.basicInfo.name == "nim" and it.withinRange(reqNimVersion))
@@ -1152,7 +1154,7 @@ proc getNimDir(options: Options): string =
     if nimPkgInfo.len > 0:
       let nimBin = nimPkgInfo[0].getNimBin(options)
       return nimBin.parentDir
-  options.nimBin.parentDir
+  return options.nimBin.get(NimBin()).path.parentDir
 
 proc getEntryPoints(pkgInfo: PackageInfo, options: Options): seq[string] =
   ## Returns the entry points for a package. 
@@ -2204,8 +2206,8 @@ proc getAlteredPath(options: Options): string =
       let folder = fullInfo.getOutputDir(bin).parentDir.quoteShell
       paths.add folder
   paths.reverse
-
-  result = fmt "{options.nimBin.parentDir}{separator}{paths.join(separator)}{separator}{getEnv(\"PATH\")}"
+  let parentDir = options.nimBin.get.path.parentDir
+  result = fmt "{parentDir}{separator}{paths.join(separator)}{separator}{getEnv(\"PATH\")}"
 
 proc shellenv(options: var Options) =
   setVerbosity(SilentPriority)
@@ -2369,18 +2371,17 @@ proc doAction(options: var Options) =
 
 proc setNimBin*(options: var Options) =
   # Find nim binary and set into options
-  if options.nimBin.len != 0:
+  if options.nimBin.isSome:
+    let nimBin = options.nimBin.get.path
     # --nim:<path> takes priority...
-    if options.nimBin.splitPath().head.len == 0:
+    if nimBin.splitPath().head.len == 0:
       # Just filename, search in PATH - nim_temp shortcut
-      let pnim = findExe(options.nimBin)
-      if pnim.len != 0: options.nimBin = pnim
-    elif not options.nimBin.isAbsolute():
-      # Relative path
-      options.nimBin = expandTilde(options.nimBin).absolutePath()
+      let pnim = findExe(nimBin)
+      if pnim.len != 0: 
+        options.nimBin = some makeNimBin(pnim)
 
-    if not fileExists(options.nimBin):
-      raise nimbleError("Unable to find `$1`" % options.nimBin)
+    if not fileExists(options.nimBin.get.path):
+      raise nimbleError("Unable to find `$1`" % options.nimBin.get.path)
 
     # when nim is forced via command like don't try to be smart and just return
     # it.
@@ -2407,13 +2408,13 @@ proc setNimBin*(options: var Options) =
         break
 
   # Search PATH to find nim to continue with
-  if options.nimBin.len == 0:
-    options.nimBin = findExe("nim")
+  if options.nimBin.isNone:
+    options.nimBin = some makeNimBin(findExe("nim"))
 
   proc install(package: PkgTuple, options: Options): HashSet[PackageInfo] =
     result = install(@[package], options, doPrompt = false, first = false, fromLockFile = false).deps
 
-  if options.nimBin.len == 0:
+  if options.nimBin.isNone:
     # Search installed packages to continue with
     let nimVersion = ("nim", VersionRange(kind: verAny))
     let installedPkgs = getInstalledPkgsMin(options.getPkgsDir(), options)
@@ -2423,11 +2424,11 @@ proc setNimBin*(options: var Options) =
     else:
       # It still no nim found then download and install one to allow parsing of
       # other packages.
-      if options.nimBin.len == 0 and not options.offline and options.prompt("No nim found. Download it now?"):
+      if options.nimBin.isNone and not options.offline and options.prompt("No nim found. Download it now?"):
         for pkg in install(nimVersion, options):
           options.useNimFromDir(pkg.getRealDir, pkg.basicInfo.version.toVersionRange())
 
-  if options.nimBin.len == 0:
+  if options.nimBin.isNone:
     raise nimbleError("Unable to find nim")
 
   # try to switch to the version that is in the develop file

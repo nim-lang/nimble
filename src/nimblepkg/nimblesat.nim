@@ -127,7 +127,7 @@ proc findDependencyForDep(g: DepGraph; dep: string): int {.inline.} =
   result = g.packageToDependency.getOrDefault(dep)
 
 proc createRequirements(pkg: PackageMinimalInfo): Requirements =
-  result.deps = pkg.requires.filterIt(not it.isNim())
+  result.deps = pkg.requires
   result.version = pkg.version
   result.nimVersion = pkg.requires.getNimVersion()
 

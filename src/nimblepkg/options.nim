@@ -1,7 +1,7 @@
 # Copyright (C) Dominik Picheta. All rights reserved.
 # BSD License. Look at license.txt for more info.
 
-import json, strutils, os, parseopt, uri, tables, terminal
+import json, strutils, os, parseopt, uri, tables, terminal, osproc, strscans, strformat
 import sequtils, sugar
 import std/options as std_opt
 from httpclient import Proxy, newProxy
@@ -13,8 +13,11 @@ const
   defaultLockFileName* = "nimble.lock"
 
 type
+  NimBin* = object
+    path*: string
+    version*: Version
   DumpMode* = enum kdumpIni, kdumpJson
-  Options* = object
+  Options* = ref object
     forcePrompts*: ForcePrompt
     depsOnly*: bool
     uninstallRevDeps*: bool
@@ -41,7 +44,8 @@ type
     dumpMode*: DumpMode
     startDir*: string # Current directory on startup - is top level pkg dir for
                       # some commands, useful when processing deps
-    nimBin*: string # Nim compiler location. Typically accessed via options.nim.
+    # nimBin*: string # Nim compiler location. Typically accessed via options.nim.
+    nimBin*: Option[NimBin]
     localdeps*: bool # True if project local deps mode
     developLocaldeps*: bool # True if local deps + nimble develop pkg1 ...
     disableSslCertCheck*: bool
@@ -375,10 +379,10 @@ proc promptList*(options: Options, question: string, args: openarray[string]): s
   return promptList(options.forcePrompts, question, args)
 
 proc nim*(options: Options): string =
-  if options.nimBin.len == 0:
+  if options.nimBin.isNone:
     raise nimbleError(
       "Unable to find `nim` binary - add to $PATH or use `--nim`")
-  return options.nimBin
+  return options.nimBin.get().path
 
 proc getNimbleDir*(options: Options): string =
   return options.nimbleDir
@@ -459,6 +463,12 @@ proc parseCommand*(key: string, result: var Options) =
 proc getNimbleFileDir*(pkgInfo: PackageInfo): string =
   pkgInfo.myPath.splitFile.dir
 
+proc getRequiredNimVersion*(pkgInfo: PackageInfo): VersionRange =
+  let nimPkgTupl = pkgInfo.requires.filterIt(it.name == "nim")
+  if nimPkgTupl.len > 0:
+    return nimPkgTupl[0].ver
+  return VersionRange(kind: verAny)
+
 proc getNimBin*(pkgInfo: PackageInfo, options: Options): string =
   if pkgInfo.basicInfo.name == "nim":
     var binaryPath = "bin" / "nim"
@@ -467,7 +477,13 @@ proc getNimBin*(pkgInfo: PackageInfo, options: Options): string =
       
     result = pkgInfo.getNimbleFileDir() / binaryPath
     display("Info:", "compiling nim package using $1" % result, priority = HighPriority)
-  else:
+  else: 
+    assert options.nimBin.isSome, "Nim binary not set"
+    #Check if the current nim satisfais the pacakge 
+    let nimVer = options.nimBin.get.version
+    let reqNimVer = pkgInfo.getRequiredNimVersion()
+    if not nimVer.withinRange(reqNimVer):
+      display("Warning:", &"Package requires nim {reqNimVer} but {nimVer} found. Attempting to compile with the current nim version.", Warning, HighPriority)
     result = options.nim
 
 proc getNimBin*(options: Options): string =
@@ -530,6 +546,29 @@ proc getFlagString(kind: CmdLineKind, flag, val: string): string =
   else:
     return prefix & flag & ":" & val
 
+proc getNimVersionFromBin*(nimBin: string): Option[Version] =
+  let cmd = nimBin & " --version"
+  if nimBin.fileExists:
+    let info = execProcess(cmd)
+    var major, minor, patch: int
+    for line in info.splitLines:
+      if scanf(line, "Nim Compiler Version $i.$i.$i", major, minor, patch):
+        let ver = $major & "." & $minor & "." & $patch
+        return some newVersion(ver)
+
+proc makeNimBin*(path: string, version: Option[Version] = none(Version)): NimBin =
+  var path = path
+  if path == "nim":
+    path = findExe("nim")
+  if path == "nim":
+    raise nimbleError("Unable to find `nim` binary - add to $PATH or use `--nim`")
+  if not path.isAbsolute():
+    path = expandTilde(path).absolutePath()  
+  var version = version
+  if version.isNone:
+    version = getNimVersionFromBin(path)
+  return NimBin(path: path, version: version.get())
+
 proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
 
   let f = flag.normalize().replace("-", "")
@@ -548,7 +587,7 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
   of "offline": result.offline = true
   of "nocolor": result.noColor = true
   of "disablevalidation": result.disableValidation = true
-  of "nim": result.nimBin = val
+  of "nim": result.nimBin = some makeNimBin(val)
   of "localdeps", "l": result.localdeps = true
   of "nosslcheck": result.disableSslCertCheck = true
   of "nolockfile": result.disableLockFile = true
