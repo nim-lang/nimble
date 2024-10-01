@@ -159,7 +159,7 @@ proc processFreeDependencies(pkgInfo: PackageInfo,
   var pkgList {.global.}: seq[PackageInfo]
   once: 
     pkgList = initPkgList(pkgInfo, options)
-    if options.useSatSolver:      
+    if options.useSatSolver:
       return processFreeDependenciesSAT(pkgInfo, options)
     else:
       requirements.add options.extraRequires
