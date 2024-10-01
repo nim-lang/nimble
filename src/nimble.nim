@@ -131,6 +131,9 @@ proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, options: Options): Has
 
   for pkg in result:
     allPkgsInfo.add pkg
+    #set nim version
+    if pkg.basicInfo.name == "nim":
+      options.nimBin = some makeNimBin(pkg.getRealDir() / "bin" / "nim", some pkg.basicInfo.version)
   addReverseDeps(solvedPkgs, allPkgsInfo, options)
 
   for nonLocked in toRemoveFromLocked:
