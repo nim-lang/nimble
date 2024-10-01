@@ -71,7 +71,6 @@ proc addReverseDeps(solvedPkgs: seq[SolvedPackage], allPkgsInfo: seq[PackageInfo
         reverseDep.get.isLink = true
       addRevDep(options.nimbleData, solvedPkg.get.basicInfo, reverseDep.get)
 
-var satProccesedPackages: HashSet[PackageInfo]
 proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, options: Options): HashSet[PackageInfo] = 
   if satProccesedPackages.len > 0:
     return satProccesedPackages
@@ -132,9 +131,8 @@ proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, options: Options): Has
 
   for pkg in result:
     allPkgsInfo.add pkg
-    #set nim version
-    if pkg.basicInfo.name == "nim":
-      options.nimBin = some makeNimBin(pkg.getRealDir() / "bin" / "nim", some pkg.basicInfo.version)
+    # if pkg.basicInfo.name == "nim":
+      # options.nimBin = some makeNimBin(pkg.getRealDir() / "bin" / "nim", some pkg.basicInfo.version)
   addReverseDeps(solvedPkgs, allPkgsInfo, options)
 
   for nonLocked in toRemoveFromLocked:
@@ -1681,7 +1679,7 @@ proc test(options: Options) =
     if ext == ".nim" and name[0] == 't' and file.kind in {pcFile, pcLinkToFile}:
       var optsCopy = options
       optsCopy.action = Action(typ: actionCompile)
-      optsCopy.action.file = file.path
+      optsCopy.action.file = file.path      
       optsCopy.action.additionalArguments = options.action.arguments
       optsCopy.action.backend = pkgInfo.backend
       optsCopy.getCompilationFlags() = options.getCompilationFlags()

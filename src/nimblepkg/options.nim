@@ -1,7 +1,7 @@
 # Copyright (C) Dominik Picheta. All rights reserved.
 # BSD License. Look at license.txt for more info.
 
-import json, strutils, os, parseopt, uri, tables, terminal, osproc, strscans, strformat
+import json, strutils, os, parseopt, uri, tables, terminal, osproc, strscans, strformat, sets
 import sequtils, sugar
 import std/options as std_opt
 from httpclient import Proxy, newProxy
@@ -17,7 +17,7 @@ type
     path*: string
     version*: Version
   DumpMode* = enum kdumpIni, kdumpJson
-  Options* = ref object
+  Options* = object
     forcePrompts*: ForcePrompt
     depsOnly*: bool
     uninstallRevDeps*: bool
@@ -44,7 +44,6 @@ type
     dumpMode*: DumpMode
     startDir*: string # Current directory on startup - is top level pkg dir for
                       # some commands, useful when processing deps
-    # nimBin*: string # Nim compiler location. Typically accessed via options.nim.
     nimBin*: Option[NimBin]
     localdeps*: bool # True if project local deps mode
     developLocaldeps*: bool # True if local deps + nimble develop pkg1 ...
@@ -474,10 +473,16 @@ proc getNimBin*(pkgInfo: PackageInfo, options: Options): string =
     var binaryPath = "bin" / "nim"
     when defined(windows):
       binaryPath &= ".exe"      
-      
     result = pkgInfo.getNimbleFileDir() / binaryPath
-    display("Info:", "compiling nim package using $1" % result, priority = HighPriority)
-  else: 
+
+  #TODO add the solved packages to the options (we need to remove the legacy solver first otherwise it will be messy) or
+  #just pass the solved packages around
+  elif options.useSatSolver and satProccesedPackages.len > 0:
+    for pkg in satProccesedPackages:
+      if pkg.basicInfo.name == "nim":
+        result = pkg.getNimbleFileDir() / "bin" / "nim"
+        break
+  else:
     assert options.nimBin.isSome, "Nim binary not set"
     #Check if the current nim satisfais the pacakge 
     let nimVer = options.nimBin.get.version
@@ -485,6 +490,8 @@ proc getNimBin*(pkgInfo: PackageInfo, options: Options): string =
     if not nimVer.withinRange(reqNimVer):
       display("Warning:", &"Package requires nim {reqNimVer} but {nimVer} found. Attempting to compile with the current nim version.", Warning, HighPriority)
     result = options.nim
+  display("Info:", "compiling nim package using $1" % result, priority = HighPriority)
+
 
 proc getNimBin*(options: Options): string =
   return options.nim
