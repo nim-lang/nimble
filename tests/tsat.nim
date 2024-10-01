@@ -2,7 +2,7 @@
 import unittest, os
 import testscommon
 # from nimblepkg/common import cd Used in the commented tests
-import std/[tables, sequtils, json, jsonutils, strutils, times]
+import std/[tables, sequtils, json, jsonutils, strutils, times, options]
 import nimblepkg/[version, nimblesat, options, config]
 from nimblepkg/common import cd
 
@@ -41,7 +41,7 @@ proc downloadAndStorePackageVersionTableFor(pkgName: string, options: Options) =
 
 proc downloadAllPackages() {.used.} = 
   var options = initOptions()
-  options.nimBin = "nim"
+  options.nimBin = some makeNimBin("nim")
   # options.config.packageLists["uing"] = PackageList(name: pkgName, urls: @[pkgUrl])
   options.config.packageLists["official"] = PackageList(name: "Official", urls: @[
     "https://raw.githubusercontent.com/nim-lang/packages/master/packages.json",
@@ -158,7 +158,7 @@ suite "SAT solver":
     let pkgName: string = "nimlangserver"
     let pv: PkgTuple = (pkgName, VersionRange(kind: verAny))
     var options = initOptions()
-    options.nimBin = "nim"
+    options.nimBin = some makeNimBin("nim")
     options.config.packageLists["official"] = PackageList(name: "Official", urls: @[
       "https://raw.githubusercontent.com/nim-lang/packages/master/packages.json",
       "https://nim-lang.org/nimble/packages.json"
@@ -222,7 +222,7 @@ suite "SAT solver":
       "https://nim-lang.org/nimble/packages.json"
     ])
     options.nimbleDir = getCurrentDir() / "conflictingdepres" / "nimbledeps" 
-    options.nimBin = "nim"
+    options.nimBin = some makeNimBin("nim")
     options.pkgCachePath = getCurrentDir() / "conflictingdepres" / "download"
     let pkgs = getInstalledMinimalPackages(options)
     var pkgVersionTable = initTable[string, PackageVersions]()
