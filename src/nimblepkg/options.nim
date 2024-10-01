@@ -17,7 +17,7 @@ type
     path*: string
     version*: Version
   DumpMode* = enum kdumpIni, kdumpJson
-  Options* = ref object
+  Options* = object
     forcePrompts*: ForcePrompt
     depsOnly*: bool
     uninstallRevDeps*: bool
