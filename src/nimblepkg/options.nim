@@ -475,7 +475,7 @@ proc getNimBin*(pkgInfo: PackageInfo, options: Options): string =
       binaryPath &= ".exe"      
     result = pkgInfo.getNimbleFileDir() / binaryPath
   else: 
-    if options.useSatSolver:
+    if options.useSatSolver and not options.useSystemNim:
       #Try to first use nim from the solved packages
       #TODO add the solved packages to the options (we need to remove the legacy solver first otherwise it will be messy)
       for pkg in satProccesedPackages:
