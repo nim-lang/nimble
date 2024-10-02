@@ -131,8 +131,6 @@ proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, options: Options): Has
 
   for pkg in result:
     allPkgsInfo.add pkg
-    # if pkg.basicInfo.name == "nim":
-      # options.nimBin = some makeNimBin(pkg.getRealDir() / "bin" / "nim", some pkg.basicInfo.version)
   addReverseDeps(solvedPkgs, allPkgsInfo, options)
 
   for nonLocked in toRemoveFromLocked:
@@ -1679,7 +1677,7 @@ proc test(options: Options) =
     if ext == ".nim" and name[0] == 't' and file.kind in {pcFile, pcLinkToFile}:
       var optsCopy = options
       optsCopy.action = Action(typ: actionCompile)
-      optsCopy.action.file = file.path      
+      optsCopy.action.file = file.path
       optsCopy.action.additionalArguments = options.action.arguments
       optsCopy.action.backend = pkgInfo.backend
       optsCopy.getCompilationFlags() = options.getCompilationFlags()
@@ -2406,8 +2404,10 @@ proc setNimBin*(options: var Options) =
         break
 
   # Search PATH to find nim to continue with
-  if options.nimBin.isNone:
+  if options.nimBin.isNone or options.useSystemNim:
     options.nimBin = some makeNimBin(findExe("nim"))
+    if options.useSystemNim:
+      return
 
   proc install(package: PkgTuple, options: Options): HashSet[PackageInfo] =
     result = install(@[package], options, doPrompt = false, first = false, fromLockFile = false).deps
