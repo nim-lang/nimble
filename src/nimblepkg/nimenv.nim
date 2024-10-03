@@ -1,4 +1,4 @@
-import std/[strscans, os, osproc, strutils, strformat, options]
+import std/[strscans, os, strutils, strformat, options]
 import version, nimblesat, cli, common, options
 
 when defined(windows):
@@ -105,7 +105,7 @@ proc useNimFromDir*(options: var Options, realDir: string, v: VersionRange, tryC
 
   let
     nim = realDir / "bin" / binaryName
-    fileExists = fileExists(options.nimBin)
+    fileExists = fileExists(options.nimBin.get(NimBin()).path)
 
   if not fileExists(nim):
     if tryCompiling and options.prompt("Develop version of nim was found but it is not compiled. Compile it now?"):
@@ -114,7 +114,7 @@ proc useNimFromDir*(options: var Options, realDir: string, v: VersionRange, tryC
       raise nimbleError("Trying to use nim from $1 " % realDir,
                         "If you are using develop mode nim make sure to compile it.")
 
-  options.nimBin = nim
+  options.nimBin = some makeNimBin(nim)
   let separator = when defined(windows): ";" else: ":"
 
   putEnv("PATH", realDir / "bin" & separator & getEnv("PATH"))
@@ -122,13 +122,3 @@ proc useNimFromDir*(options: var Options, realDir: string, v: VersionRange, tryC
     display("Info:", "switching to $1 for compilation" % options.nim, priority = HighPriority)
   else:
     display("Info:", "using $1 for compilation" % options.nim, priority = HighPriority)
-
-proc getNimVersionFromBin*(nimBin: string): Option[Version] =
-  let cmd = nimBin & " --version"
-  if nimBin.fileExists:
-    let info = execProcess(cmd)
-    var major, minor, patch: int
-    for line in info.splitLines:
-      if scanf(line, "Nim Compiler Version $i.$i.$i", major, minor, patch):
-        let ver = $major & "." & $minor & "." & $patch
-        return some newVersion(ver)

@@ -89,3 +89,4 @@ type
   PackageDependenciesInfo* = tuple[deps: HashSet[PackageInfo], pkg: PackageInfo]
 
 const noTask* = "" # Means that noTask is being ran. Use this as key for base dependencies
+var satProccesedPackages*: HashSet[PackageInfo]
