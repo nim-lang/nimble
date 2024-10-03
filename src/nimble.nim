@@ -2374,7 +2374,7 @@ proc setNimBin*(options: var Options) =
       # Just filename, search in PATH - nim_temp shortcut
       let pnim = findExe(nimBin)
       if pnim.len != 0: 
-        options.nimBin = some makeNimBin(pnim)
+        options.nimBin = some makeNimBin(options, pnim)
 
     if not fileExists(options.nimBin.get.path):
       raise nimbleError("Unable to find `$1`" % options.nimBin.get.path)
@@ -2404,14 +2404,14 @@ proc setNimBin*(options: var Options) =
         break
 
   # Search PATH to find nim to continue with
-  if options.nimBin.isNone or options.useSystemNim:
-    options.nimBin = some makeNimBin(findExe("nim"))
+  let nimBin = findExe("nim")
+  if nimBin != "" or options.useSystemNim: #when using systemNim is on we want to fail if system nim is not found
+    options.nimBin = some makeNimBin(options, nimBin)
     if options.useSystemNim:
       return
 
   proc install(package: PkgTuple, options: Options): HashSet[PackageInfo] =
     result = install(@[package], options, doPrompt = false, first = false, fromLockFile = false).deps
-
   if options.nimBin.isNone:
     # Search installed packages to continue with
     let nimVersion = ("nim", VersionRange(kind: verAny))

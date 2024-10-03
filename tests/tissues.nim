@@ -404,3 +404,13 @@ suite "issues":
       check:
         exitCode == QuitSuccess
         output.strip() == "@[\"nim >= 1.6.16\"]"
+  
+  test "issue #1251. Should use the system nim when --useSystemNim flag is on":
+    createDir("testDir-1251")
+    cd "testDir-1251":
+      let (output, exitCode) = execNimble("--useSystemNim", "-l", "install", "nimlangserver")      
+      let nimBin = findExe("nim")
+      let message = "compiling nim package using " & nimBin
+      check exitCode == QuitSuccess
+      check output.contains(message)
+    removeDir("testDir-1251")

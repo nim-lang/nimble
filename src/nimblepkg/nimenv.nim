@@ -114,7 +114,7 @@ proc useNimFromDir*(options: var Options, realDir: string, v: VersionRange, tryC
       raise nimbleError("Trying to use nim from $1 " % realDir,
                         "If you are using develop mode nim make sure to compile it.")
 
-  options.nimBin = some makeNimBin(nim)
+  options.nimBin = some makeNimBin(options, nim)
   let separator = when defined(windows): ";" else: ":"
 
   putEnv("PATH", realDir / "bin" & separator & getEnv("PATH"))

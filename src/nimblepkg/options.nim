@@ -475,7 +475,7 @@ proc getNimBin*(pkgInfo: PackageInfo, options: Options): string =
       binaryPath &= ".exe"      
     result = pkgInfo.getNimbleFileDir() / binaryPath
   else: 
-    if options.useSatSolver:
+    if options.useSatSolver and not options.useSystemNim:
       #Try to first use nim from the solved packages
       #TODO add the solved packages to the options (we need to remove the legacy solver first otherwise it will be messy)
       for pkg in satProccesedPackages:
@@ -562,18 +562,19 @@ proc getNimVersionFromBin*(nimBin: string): Option[Version] =
         let ver = $major & "." & $minor & "." & $patch
         return some newVersion(ver)
 
-proc makeNimBin*(path: string, version: Option[Version] = none(Version)): NimBin =
+proc makeNimBin*(options: Options, path: string, nimVersion: Option[Version] = none(Version)): NimBin =
   var path = path
   if path == "nim":
     path = findExe("nim")
-  if path == "nim":
+  if path == "":
     raise nimbleError("Unable to find `nim` binary - add to $PATH or use `--nim`")
   if not path.isAbsolute():
     path = expandTilde(path).absolutePath()  
-  var version = version
-  if version.isNone:
-    version = getNimVersionFromBin(path)
-  return NimBin(path: path, version: version.get())
+  var nimVersion = nimVersion
+  if nimVersion.isNone:
+    nimVersion = getNimVersionFromBin(path)
+  
+  return NimBin(path: path, version: nimVersion.get())
 
 proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
 
@@ -593,7 +594,7 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
   of "offline": result.offline = true
   of "nocolor": result.noColor = true
   of "disablevalidation": result.disableValidation = true
-  of "nim": result.nimBin = some makeNimBin(val)
+  of "nim": result.nimBin = some makeNimBin(result, val)
   of "localdeps", "l": result.localdeps = true
   of "nosslcheck": result.disableSslCertCheck = true
   of "nolockfile": result.disableLockFile = true
