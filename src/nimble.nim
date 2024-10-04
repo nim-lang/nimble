@@ -2265,6 +2265,27 @@ proc run(options: Options) =
   let exitCode = cmd.execCmd
   raise nimbleQuit(exitCode)
 
+proc install(options: Options) = 
+  let (_, pkgInfo) = install(options.action.packages, options,
+                               doPrompt = true,
+                               first = true,
+                               fromLockFile = false)
+  if options.action.packages.len == 0:
+    nimScriptHint(pkgInfo)
+  if pkgInfo.foreignDeps.len > 0:
+    display("Hint:", "This package requires some external dependencies.",
+            Warning, HighPriority)
+    display("Hint:", "To install them you may be able to run:",
+            Warning, HighPriority)
+    for i in 0..<pkgInfo.foreignDeps.len:
+      display("Hint:", "  " & pkgInfo.foreignDeps[i], Warning, HighPriority)
+  
+  #Do setup but only when we are in a package
+  try:
+    setup(options)
+  except NimblePackageNotFound:
+    displayHint("Not in a package directory, skipping setup", HighPriority)
+
 proc doAction(options: var Options) =
   if options.showHelp:
     writeHelp()
@@ -2275,19 +2296,7 @@ proc doAction(options: var Options) =
   of actionRefresh:
     refresh(options)
   of actionInstall:
-    let (_, pkgInfo) = install(options.action.packages, options,
-                               doPrompt = true,
-                               first = true,
-                               fromLockFile = false)
-    if options.action.packages.len == 0:
-      nimScriptHint(pkgInfo)
-    if pkgInfo.foreignDeps.len > 0:
-      display("Hint:", "This package requires some external dependencies.",
-              Warning, HighPriority)
-      display("Hint:", "To install them you may be able to run:",
-              Warning, HighPriority)
-      for i in 0..<pkgInfo.foreignDeps.len:
-        display("Hint:", "  " & pkgInfo.foreignDeps[i], Warning, HighPriority)
+    install(options)
   of actionUninstall:
     uninstall(options)
   of actionSearch:
@@ -2328,7 +2337,9 @@ proc doAction(options: var Options) =
   of actionSync:
     sync(options)
   of actionSetup:
-    setup(options)
+    # setup(options)
+    displayWarning("`nimble setup` is deprecated, use `nimble install` instead", HighPriority)
+    install(options)
   of actionShellEnv:
     shellenv(options)
   of actionShell:

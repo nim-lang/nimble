@@ -69,3 +69,5 @@ src/nimblepkg/version
 # Nimble Guide files
 nimble-guide/site/
 !nimble-guide/config.nims
+nimble.develop
+nimble.paths

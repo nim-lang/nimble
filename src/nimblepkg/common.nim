@@ -13,6 +13,8 @@ type
 
   BuildFailed* = object of NimbleError
 
+  NimblePackageNotFound* = object of NimbleError
+
   ## Same as quit(QuitSuccess) or quit(QuitFailure), but allows cleanup.
   ## Inheriting from `Defect` is workaround to avoid accidental catching of
   ## `NimbleQuit` by `CatchableError` handlers.
@@ -43,6 +45,10 @@ proc newNimbleError*[ErrorType](msg: string, hint = "",
 proc nimbleError*(msg: string, hint = "", details: ref CatchableError = nil):
     ref NimbleError =
   newNimbleError[NimbleError](msg, hint, details)
+
+proc nimblePackageNotFound*(msg: string, hint = "", details: ref CatchableError = nil):
+    ref NimblePackageNotFound =
+  newNimbleError[NimblePackageNotFound](msg, hint, details)
 
 proc buildFailed*(msg: string, details: ref CatchableError = nil):
     ref BuildFailed =

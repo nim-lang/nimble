@@ -277,7 +277,7 @@ proc findNimbleFile*(dir: string; error: bool): string =
         "Only one .nimble file should be present in " & dir)
   elif hits == 0:
     if error:
-      raise nimbleError(
+      raise nimblePackageNotFound(
         "Could not find a file with a .nimble extension inside the specified " &
         "directory: $1" % dir)
     else:

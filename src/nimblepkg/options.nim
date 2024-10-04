@@ -76,13 +76,12 @@ type
 
   Action* = object
     case typ*: ActionType
-    of actionNil, actionList, actionPublish, actionTasks, actionCheck,
-       actionSetup, actionClean: nil
+    of actionNil, actionList, actionPublish, actionTasks, actionCheck, actionClean: nil
     of actionSync:
       listOnly*: bool
     of actionRefresh:
       optionalURL*: string # Overrides default package list.
-    of actionInstall, actionPath, actionUninstall, actionDevelop, actionUpgrade, actionLock, actionAdd:
+    of actionInstall, actionSetup, actionPath, actionUninstall, actionDevelop, actionUpgrade, actionLock, actionAdd:
       packages*: seq[PkgTuple] # Optional only for actionInstall,
                                # actionDevelop and actionAdd.
       passNimFlags*: seq[string]
@@ -508,7 +507,7 @@ proc parseArgument*(key: string, result: var Options) =
   case result.action.typ
   of actionNil:
     assert false
-  of actionInstall, actionPath, actionDevelop, actionUninstall, actionUpgrade, actionAdd:
+  of actionInstall, actionSetup, actionPath, actionDevelop, actionUninstall, actionUpgrade, actionAdd:
     # Parse pkg@verRange or git@github.com:nim-lang/nimble.git
     let i = rfind(key, '@')
     let maybeUrl = rfind(key, {'/', ':'})
@@ -635,7 +634,7 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
     of "ini": result.dumpMode = kdumpIni
     else:
       wasFlagHandled = false
-  of actionInstall:
+  of actionInstall, actionSetup:
     case f
     of "depsonly", "d":
       result.depsOnly = true
