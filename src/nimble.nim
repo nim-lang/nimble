@@ -2282,11 +2282,12 @@ proc install(options: Options) =
     for i in 0..<pkgInfo.foreignDeps.len:
       display("Hint:", "  " & pkgInfo.foreignDeps[i], Warning, HighPriority)
   
-  #Do setup but only when we are in a package
-  try:
-    setup(options)
-  except NimblePackageNotFound:
-    displayHint("Not in a package directory, skipping setup", HighPriority)
+  if options.useSatSolver:
+    #Do setup but only when we are in a package
+    try:    
+      setup(options)
+    except NimblePackageNotFound:
+      displayHint("Not in a package directory, skipping setup", HighPriority)
 
 proc doAction(options: var Options) =
   if options.showHelp:
@@ -2339,8 +2340,11 @@ proc doAction(options: var Options) =
   of actionSync:
     sync(options)
   of actionSetup:
-    displayWarning("`nimble setup` is deprecated, use `nimble install` instead", HighPriority)
-    install(options)
+    if options.useSatSolver:
+      displayWarning("`nimble setup` is deprecated, use `nimble install` instead", HighPriority)
+      install(options)
+    else:
+      setup(options)
   of actionShellEnv:
     shellenv(options)
   of actionShell:
