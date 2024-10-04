@@ -2337,7 +2337,6 @@ proc doAction(options: var Options) =
   of actionSync:
     sync(options)
   of actionSetup:
-    # setup(options)
     displayWarning("`nimble setup` is deprecated, use `nimble install` instead", HighPriority)
     install(options)
   of actionShellEnv:
