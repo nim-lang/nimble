@@ -158,10 +158,11 @@ proc processFreeDependencies(pkgInfo: PackageInfo,
   var pkgList {.global.}: seq[PackageInfo]
   once: 
     pkgList = initPkgList(pkgInfo, options)
-    if not options.useSatSolver:
+    if options.useSatSolver:
+      return processFreeDependenciesSAT(pkgInfo, options)
+    else:
       requirements.add options.extraRequires
-  if options.useSatSolver:
-    return processFreeDependenciesSAT(pkgInfo, options)
+ 
   display("Verifying", "dependencies for $1@$2" %
           [pkgInfo.basicInfo.name, $pkgInfo.basicInfo.version],
           priority = HighPriority)
@@ -837,7 +838,9 @@ proc install(packages: seq[PkgTuple], options: Options,
 
 proc getDependenciesPaths(pkgInfo: PackageInfo, options: Options):
     HashSet[seq[string]] =
-  let deps = pkgInfo.processAllDependencies(options)
+  var deps = satProccesedPackages
+  if deps.len == 0:
+    deps = pkgInfo.processAllDependencies(options)
   return deps.map(dep => dep.expandPaths(options))
 
 proc build(pkgInfo: PackageInfo, options: Options) =
