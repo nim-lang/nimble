@@ -54,11 +54,12 @@ proc checkSatisfied(options: Options, dependencies: seq[PackageInfo]) =
           [pkgInfo.basicInfo.name, $currentVer, $pkgsInPath[pkgInfo.basicInfo.name]])
     pkgsInPath[pkgInfo.basicInfo.name] = currentVer
 
-proc displaySatisfiedMsg(solvedPkgs: seq[SolvedPackage], pkgToInstall: seq[(string, Version)]) {.used.}=
-  for pkg in solvedPkgs:
-    if pkg.pkgName notin pkgToInstall.mapIt(it[0]):
-      for req in pkg.requirements:
-        displayInfo(pkgDepsAlreadySatisfiedMsg(req))
+proc displaySatisfiedMsg(solvedPkgs: seq[SolvedPackage], pkgToInstall: seq[(string, Version)], options: Options) =
+  if options.verbosity >= LowPriority:
+    for pkg in solvedPkgs:
+      if pkg.pkgName notin pkgToInstall.mapIt(it[0]):
+        for req in pkg.requirements:
+          displayInfo(pkgDepsAlreadySatisfiedMsg(req))
 
 proc addReverseDeps(solvedPkgs: seq[SolvedPackage], allPkgsInfo: seq[PackageInfo], options: Options) = 
   for pkg in solvedPkgs:
@@ -98,7 +99,7 @@ proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, options: Options): Has
 
   result = solveLocalPackages(rootPkgInfo, pkgList, solvedPkgs)
   if solvedPkgs.len > 0: 
-    # displaySatisfiedMsg(solvedPkgs, pkgsToInstall)
+    displaySatisfiedMsg(solvedPkgs, pkgsToInstall, options)
     addReverseDeps(solvedPkgs, allPkgsInfo, options)
     for pkg in allPkgsInfo:
       result.incl pkg
@@ -113,7 +114,7 @@ proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, options: Options): Has
 
   var output = ""
   result = solvePackages(rootPkgInfo, pkgList, pkgsToInstall, options, output, solvedPkgs)
-  # displaySatisfiedMsg(solvedPkgs, pkgsToInstall)
+  displaySatisfiedMsg(solvedPkgs, pkgsToInstall, options)
   var solved = solvedPkgs.len > 0 #A pgk can be solved and still dont return a set of PackageInfo
   for (name, ver) in pkgsToInstall:
     let resolvedDep = ((name: name, ver: ver.toVersionRange)).resolveAlias(options)
