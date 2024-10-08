@@ -59,7 +59,7 @@ type
       # If not provided by default it applies to the current directory package.
       # For now, it is used only by the run action and it is ignored by others.
     pkgCachePath*: string # Cache used to store package downloads
-    useSatSolver*: bool
+    useSatSolver*: bool = true
     extraRequires*: seq[PkgTuple] # extra requires parsed from the command line
 
   ActionType* = enum
@@ -247,7 +247,7 @@ Nimble Options:
                                   to be manipulated. If not present creates it.
       --useSystemNim              Use system nim and ignore nim from the lock
                                   file if any
-      --solver:sat|legacy         Use the SAT solver or the legacy (default) for dependency resolution.
+      --solver:sat|legacy         Use the SAT solver (default) or the legacy for dependency resolution.
       --requires                  Add extra packages to the dependency resolution. Uses the same syntax as the Nimble file. Example: nimble install --requires "pkg1; pkg2 >= 1.2"
 
 For more information read the GitHub readme:
