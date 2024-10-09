@@ -8,10 +8,10 @@ import testscommon
 # import tinitcommand
 # import tcheckcommand
 # import tcleancommand
-import tdevelopfeature
+# import tdevelopfeature
 # import tissues
 # import tlocaldeps
-# import tlockfile
+import tlockfile
 # import tmisctests
 # import tmoduletests
 # import tmultipkgs
