@@ -82,17 +82,18 @@ proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, options: Options): Has
   var pkgList = initPkgList(rootPkgInfo, options).mapIt(it.toFullInfo(options))
   var allPkgsInfo: seq[PackageInfo] = pkgList & rootPkgInfo
   #Remove from the pkglist the packages that exists in lock file and has a different vcsRevision
-  var toUpgradeNames: seq[string]
+  var upgradeVersions = initTable[string, VersionRange]()
   var isUpgrading = options.action.typ == actionUpgrade
   if isUpgrading:
-    toUpgradeNames = options.action.packages.mapIt(it[0])
-    pkgList = pkgList.filterIt(it.basicInfo.name notin toUpgradeNames)
-    
+    for pkg in options.action.packages:
+      upgradeVersions[pkg.name] = pkg.ver
+    pkgList = pkgList.filterIt(it.basicInfo.name notin upgradeVersions)
+
   var toRemoveFromLocked = newSeq[PackageInfo]()
   if rootPkgInfo.lockedDeps.hasKey(""):
     for name, lockedPkg in rootPkgInfo.lockedDeps[""]:
       for pkg in pkgList:
-        if name notin toUpgradeNames and name == pkg.basicInfo.name and 
+        if name notin upgradeVersions and name == pkg.basicInfo.name and
          (isUpgrading and lockedPkg.vcsRevision != pkg.metaData.vcsRevision or 
           not isUpgrading and lockedPkg.vcsRevision == pkg.metaData.vcsRevision):
               toRemoveFromLocked.add pkg
@@ -117,7 +118,10 @@ proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, options: Options): Has
   displaySatisfiedMsg(solvedPkgs, pkgsToInstall, options)
   var solved = solvedPkgs.len > 0 #A pgk can be solved and still dont return a set of PackageInfo
   for (name, ver) in pkgsToInstall:
-    let resolvedDep = ((name: name, ver: ver.toVersionRange)).resolveAlias(options)
+    var versionRange = ver.toVersionRange
+    if name in upgradeVersions:
+      versionRange = upgradeVersions[name]
+    let resolvedDep = ((name: name, ver: versionRange)).resolveAlias(options)
     let (packages, _) = install(@[resolvedDep], options,
       doPrompt = false, first = false, fromLockFile = false, preferredPackages = @[])
     for pkg in packages:
