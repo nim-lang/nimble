@@ -398,7 +398,8 @@ proc getBinDir*(options: Options): string =
 proc setPackageCache(options: var Options, baseDir: string) =
   if options.useSatSolver:
     options.pkgCachePath = baseDir / "pkgcache"
-    display("Info:", "Package cache path " & options.pkgCachePath, priority = HighPriority)
+    if options.verbosity >= LowPriority:
+      display("Info:", "Package cache path " & options.pkgCachePath, priority = LowPriority)
 
 proc setNimbleDir*(options: var Options) =
   var
