@@ -2283,7 +2283,7 @@ proc install(options: Options) =
     for i in 0..<pkgInfo.foreignDeps.len:
       display("Hint:", "  " & pkgInfo.foreignDeps[i], Warning, HighPriority)
   
-  if options.useSatSolver:
+  if not options.noSetup:
     #Do setup but only when we are in a package
     try:    
       setup(options)

@@ -67,6 +67,7 @@ type
     pkgCachePath*: string # Cache used to store package downloads
     useSatSolver*: bool = true
     extraRequires*: seq[PkgTuple] # extra requires parsed from the command line
+    noSetup*: bool #when on doesnt setup when installing
 
   ActionType* = enum
     actionNil
@@ -242,7 +243,7 @@ Commands:
                                   the content of the lock file.
                [-l, --listOnly]   Only lists the packages which are not synced
                                   without actually performing the sync operation.
-  setup                           Creates `nimble.paths` file containing file
+  setup                           Deprecated. Creates `nimble.paths` file containing file
                                   system paths to the dependencies. Also
                                   includes the paths file in the `config.nims`
                                   file to make them available for the compiler.
@@ -283,6 +284,7 @@ Nimble Options:
                                   file if any
       --solver:sat|legacy         Use the SAT solver (default) or the legacy for dependency resolution.
       --requires                  Add extra packages to the dependency resolution. Uses the same syntax as the Nimble file. Example: nimble install --requires "pkg1; pkg2 >= 1.2"
+      --noSetup                   Don't create `nimble.paths` file containing file system paths to the dependencies.
 
 For more information read the GitHub readme:
   https://github.com/nim-lang/nimble#readme
@@ -677,8 +679,11 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
       result.useSatSolver = true
     elif val == "legacy":
       result.useSatSolver = false
+      result.noSetup = true
     else:
       raise nimbleError("Unknown solver option: " & val)
+  of "nosetup":
+    result.noSetup = true
   of "requires":
     result.extraRequires = val.split(";").mapIt(it.strip.parseRequires())
   else:
