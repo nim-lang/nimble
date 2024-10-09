@@ -646,7 +646,7 @@ suite "develop feature":
 
       cd "pkg1":
         cleanFile "pkg1".addFileExt(ExeExt)
-        let (output, exitCode) = execNimble("run", "-n")
+        let (output, exitCode) = execNimble("run", "-n", "--verbose")
         check exitCode == QuitSuccess
         var lines = output.processOutput
         check lines.inLinesOrdered(
@@ -697,15 +697,15 @@ suite "develop feature":
 
       cd "pkg1":
         cleanFile "pkg1".addFileExt(ExeExt)
-        let (output, exitCode) = execNimble("run", "-n")
+        let (output, exitCode) = execNimble("run", "-n", "--verbose")
         check exitCode == QuitSuccess
         var lines = output.processOutput
         check lines.inLinesOrdered(
+          pkgDepsAlreadySatisfiedMsg(("pkg3", anyVersion)))
+        check lines.inLinesOrdered(
           pkgDepsAlreadySatisfiedMsg(("pkg2", anyVersion)))
         check lines.inLinesOrdered(
-          pkgDepsAlreadySatisfiedMsg(("pkg3", anyVersion)))
-        check lines.inLinesOrdered(
-          pkgDepsAlreadySatisfiedMsg(("pkg3", anyVersion)))
+          pkgDepsAlreadySatisfiedMsg(("pkg3", anyVersion)))       
 
   test "version clash with not used included develop dependencies":
     # +--------------------------+                +--------------------------+
