@@ -27,7 +27,7 @@ suite "develop feature":
     depNameAndVersion = &"{depName}@{depVersion}"
     dep2Path = "../dependency2".normalizedPath
     emptyDevelopFileContent = developFile(@[], @[])
-  
+
   let anyVersion = parseVersionRange("")
 
   # test "can develop from dir with srcDir":
@@ -613,10 +613,7 @@ suite "develop feature":
       echo "********* output *********"
       echo output
       echo "**************************"
-      quit()
       check errorCode == QuitSuccess
-      
-
 
   # test "do not filter not used included develop dependencies":
   #   # +--------------------------+                +--------------------------+
@@ -801,7 +798,7 @@ suite "develop feature":
   #   # Here the build must fail because since "pkg3" is dependency of both "pkg1"
   #   # and "pkg2", both versions coming from "develop1.json" and "develop2.json"
   #   # must be taken into account, but they are different."
-    
+
   #   cd "develop":
   #     const
   #       pkg1DevFilePath = "pkg1" / developFileName

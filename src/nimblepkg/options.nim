@@ -1,7 +1,8 @@
 # Copyright (C) Dominik Picheta. All rights reserved.
 # BSD License. Look at license.txt for more info.
 
-import json, strutils, os, parseopt, uri, tables, terminal, osproc, strscans, strformat, sets
+import
+  json, strutils, os, parseopt, uri, tables, terminal, osproc, strscans, strformat, sets
 import sequtils, sugar
 import std/options as std_opt
 from httpclient import Proxy, newProxy
@@ -16,7 +17,11 @@ type
   NimBin* = object
     path*: string
     version*: Version
-  DumpMode* = enum kdumpIni, kdumpJson
+
+  DumpMode* = enum
+    kdumpIni
+    kdumpJson
+
   Options* = object
     forcePrompts*: ForcePrompt
     depsOnly*: bool
@@ -42,8 +47,9 @@ type
     # Temporary storage of flags that have not been captured by any specific Action.
     unknownFlags*: seq[(CmdLineKind, string, string)]
     dumpMode*: DumpMode
-    startDir*: string # Current directory on startup - is top level pkg dir for
-                      # some commands, useful when processing deps
+    startDir*: string
+      # Current directory on startup - is top level pkg dir for
+      # some commands, useful when processing deps
     nimBin*: Option[NimBin]
     localdeps*: bool # True if project local deps mode
     developLocaldeps*: bool # True if local deps + nimble develop pkg1 ...
@@ -59,18 +65,44 @@ type
       # If not provided by default it applies to the current directory package.
       # For now, it is used only by the run action and it is ignored by others.
     pkgCachePath*: string # Cache used to store package downloads
-    useSatSolver*: bool = false
+    useSatSolver*: bool = true
     extraRequires*: seq[PkgTuple] # extra requires parsed from the command line
 
   ActionType* = enum
-    actionNil, actionRefresh, actionInit, actionDump, actionPublish, actionUpgrade
-    actionInstall, actionSearch, actionList, actionBuild, actionPath,
-    actionUninstall, actionCompile, actionDoc, actionCustom, actionTasks,
-    actionDevelop, actionCheck, actionLock, actionRun, actionSync, actionSetup,
-    actionClean, actionDeps, actionShellEnv, actionShell, actionAdd
+    actionNil
+    actionRefresh
+    actionInit
+    actionDump
+    actionPublish
+    actionUpgrade
+    actionInstall
+    actionSearch
+    actionList
+    actionBuild
+    actionPath
+    actionUninstall
+    actionCompile
+    actionDoc
+    actionCustom
+    actionTasks
+    actionDevelop
+    actionCheck
+    actionLock
+    actionRun
+    actionSync
+    actionSetup
+    actionClean
+    actionDeps
+    actionShellEnv
+    actionShell
+    actionAdd
 
   DevelopActionType* = enum
-    datAdd, datRemoveByPath, datRemoveByName, datInclude, datExclude
+    datAdd
+    datRemoveByPath
+    datRemoveByName
+    datInclude
+    datExclude
 
   DevelopAction* = tuple[actionType: DevelopActionType, argument: string]
 
@@ -81,9 +113,11 @@ type
       listOnly*: bool
     of actionRefresh:
       optionalURL*: string # Overrides default package list.
-    of actionInstall, actionSetup, actionPath, actionUninstall, actionDevelop, actionUpgrade, actionLock, actionAdd:
-      packages*: seq[PkgTuple] # Optional only for actionInstall,
-                               # actionDevelop and actionAdd.
+    of actionInstall, actionSetup, actionPath, actionUninstall, actionDevelop,
+        actionUpgrade, actionLock, actionAdd:
+      packages*: seq[PkgTuple]
+        # Optional only for actionInstall,
+        # actionDevelop and actionAdd.
       passNimFlags*: seq[string]
       devActions*: seq[DevelopAction]
       path*: string
@@ -114,8 +148,8 @@ type
     of actionShellEnv, actionShell:
       discard
 
-const
-  help* = """
+const help* =
+  """
 Usage: nimble [nimbleopts] COMMAND [cmdopts]
 
 Commands:
@@ -256,7 +290,7 @@ For more information read the GitHub readme:
 
 const noHookActions* = {actionCheck}
 
-proc writeHelp*(quit=true) =
+proc writeHelp*(quit = true) =
   echo(help)
   if quit:
     raise nimbleQuit()
@@ -266,19 +300,19 @@ const
   ## sources outside the git tree of Nimble:
   git_revision_override* {.strdefine.} = ""
 
-  gitRevision* = when git_revision_override.len == 0:
-    const execResult = gorgeEx("git rev-parse HEAD")
-    when execResult[0].len > 0 and execResult[1] == QuitSuccess:
-      execResult[0]
+  gitRevision* =
+    when git_revision_override.len == 0:
+      const execResult = gorgeEx("git rev-parse HEAD")
+      when execResult[0].len > 0 and execResult[1] == QuitSuccess:
+        execResult[0]
+      else:
+        {.warning: "Couldn't determine GIT hash: " & execResult[0].}
+        "couldn't determine git hash"
     else:
-      {.warning: "Couldn't determine GIT hash: " & execResult[0].}
-      "couldn't determine git hash"
-  else:
-    git_revision_override
+      git_revision_override
 
 proc writeVersion*() =
-  echo("nimble v$# compiled at $# $#" %
-      [nimbleVersion, CompileDate, CompileTime])
+  echo("nimble v$# compiled at $# $#" % [nimbleVersion, CompileDate, CompileTime])
   echo "git hash: ", gitRevision
   raise nimbleQuit()
 
@@ -378,8 +412,7 @@ proc promptList*(options: Options, question: string, args: openarray[string]): s
 
 proc nim*(options: Options): string =
   if options.nimBin.isNone:
-    raise nimbleError(
-      "Unable to find `nim` binary - add to $PATH or use `--nim`")
+    raise nimbleError("Unable to find `nim` binary - add to $PATH or use `--nim`")
   return options.nimBin.get().path
 
 proc getNimbleDir*(options: Options): string =
@@ -397,7 +430,9 @@ proc getBinDir*(options: Options): string =
 proc setPackageCache(options: var Options, baseDir: string) =
   if options.useSatSolver:
     options.pkgCachePath = baseDir / "pkgcache"
-    display("Info:", "Package cache path " & options.pkgCachePath, priority = HighPriority)
+    display(
+      "Info:", "Package cache path " & options.pkgCachePath, priority = HighPriority
+    )
 
 proc setNimbleDir*(options: var Options) =
   var
@@ -407,8 +442,10 @@ proc setNimbleDir*(options: var Options) =
   if options.action.typ == actionDevelop:
     options.forceFullClone = true
 
-  if (options.localdeps and options.action.typ == actionDevelop and
-      options.action.packages.len != 0):
+  if (
+    options.localdeps and options.action.typ == actionDevelop and
+    options.action.packages.len != 0
+  ):
     # Localdeps + nimble develop pkg1 ...
     options.developLocaldeps = true
 
@@ -421,23 +458,29 @@ proc setNimbleDir*(options: var Options) =
     # ...followed by the environment variable.
     let env = getEnv("NIMBLE_DIR")
     if env.len != 0:
-      display("Info:", "Using the environment variable: NIMBLE_DIR='" &
-              env & "'", Success, priority = HighPriority)
+      display(
+        "Info:",
+        "Using the environment variable: NIMBLE_DIR='" & env & "'",
+        Success,
+        priority = HighPriority,
+      )
       nimbleDir = env
       setPackageCache(options, nimbleDir)
     else:
       # ...followed by project local deps mode
       if dirExists(nimbledeps) or (options.localdeps and not options.developLocaldeps):
-        display("Warning:", "Using project local deps mode", Warning,
-                priority = HighPriority)
+        display(
+          "Warning:", "Using project local deps mode", Warning, priority = HighPriority
+        )
         nimbleDir = nimbledeps
         options.localdeps = true
         propagate = true
-        setPackageCache(options, options.config.nimbleDir) #We want to use the nimbleDir from the config so it can be shared
+        setPackageCache(options, options.config.nimbleDir)
+          #We want to use the nimbleDir from the config so it can be shared
 
   options.nimbleDir = expandTilde(nimbleDir).absolutePath()
   if options.pkgCachePath == "":
-    setPackageCache(options, options.nimbleDir)    
+    setPackageCache(options, options.nimbleDir)
   if propagate:
     # Propagate custom nimbleDir to child processes
     putEnv("NIMBLE_DIR", options.nimbleDir)
@@ -457,7 +500,6 @@ proc parseCommand*(key: string, result: var Options) =
   result.action = Action(typ: parseActionType(key))
   initAction(result, key)
 
-
 proc getNimbleFileDir*(pkgInfo: PackageInfo): string =
   pkgInfo.myPath.splitFile.dir
 
@@ -471,25 +513,29 @@ proc getNimBin*(pkgInfo: PackageInfo, options: Options): string =
   if pkgInfo.basicInfo.name == "nim":
     var binaryPath = "bin" / "nim"
     when defined(windows):
-      binaryPath &= ".exe"      
+      binaryPath &= ".exe"
     result = pkgInfo.getNimbleFileDir() / binaryPath
-  else: 
+  else:
     if options.useSatSolver and not options.useSystemNim:
       #Try to first use nim from the solved packages
       #TODO add the solved packages to the options (we need to remove the legacy solver first otherwise it will be messy)
       for pkg in satProccesedPackages:
         if pkg.basicInfo.name == "nim":
-          return pkg.getNimBin(options)  
+          return pkg.getNimBin(options)
 
     assert options.nimBin.isSome, "Nim binary not set"
     #Check if the current nim satisfais the pacakge 
     let nimVer = options.nimBin.get.version
     let reqNimVer = pkgInfo.getRequiredNimVersion()
     if not nimVer.withinRange(reqNimVer):
-      display("Warning:", &"Package requires nim {reqNimVer} but {nimVer} found. Attempting to compile with the current nim version.", Warning, HighPriority)
+      display(
+        "Warning:",
+        &"Package requires nim {reqNimVer} but {nimVer} found. Attempting to compile with the current nim version.",
+        Warning,
+        HighPriority,
+      )
     result = options.nim
   display("Info:", "compiling nim package using $1" % result, priority = HighPriority)
-
 
 proc getNimBin*(options: Options): string =
   return options.nim
@@ -507,12 +553,13 @@ proc parseArgument*(key: string, result: var Options) =
   case result.action.typ
   of actionNil:
     assert false
-  of actionInstall, actionSetup, actionPath, actionDevelop, actionUninstall, actionUpgrade, actionAdd:
+  of actionInstall, actionSetup, actionPath, actionDevelop, actionUninstall,
+      actionUpgrade, actionAdd:
     # Parse pkg@verRange or git@github.com:nim-lang/nimble.git
     let i = rfind(key, '@')
     let maybeUrl = rfind(key, {'/', ':'})
     if i > maybeUrl:
-      let (pkgName, pkgVer) = (key[0 .. i-1], key[i+1 .. key.len-1])
+      let (pkgName, pkgVer) = (key[0 .. i - 1], key[i + 1 .. key.len - 1])
       if pkgVer.len == 0:
         raise nimbleError("Version range expected after '@'.")
       result.action.packages.add((pkgName, pkgVer.parseVersionRange()))
@@ -524,8 +571,7 @@ proc parseArgument*(key: string, result: var Options) =
     result.action.search.add(key)
   of actionInit, actionDump:
     if result.action.projName != "":
-      raise nimbleError(
-        "Can only perform this action on one package at a time.")
+      raise nimbleError("Can only perform this action on one package at a time.")
     result.action.projName = key
   of actionCompile, actionDoc:
     result.action.file = key
@@ -561,52 +607,72 @@ proc getNimVersionFromBin*(nimBin: string): Option[Version] =
         let ver = $major & "." & $minor & "." & $patch
         return some newVersion(ver)
 
-proc makeNimBin*(options: Options, path: string, nimVersion: Option[Version] = none(Version)): NimBin =
+proc makeNimBin*(
+    options: Options, path: string, nimVersion: Option[Version] = none(Version)
+): NimBin =
   var path = path
   if path == "nim":
     path = findExe("nim")
   if path == "":
     raise nimbleError("Unable to find `nim` binary - add to $PATH or use `--nim`")
   if not path.isAbsolute():
-    path = expandTilde(path).absolutePath()  
+    path = expandTilde(path).absolutePath()
   var nimVersion = nimVersion
   if nimVersion.isNone:
     nimVersion = getNimVersionFromBin(path)
-  
+
   return NimBin(path: path, version: nimVersion.get())
 
 proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
-
   let f = flag.normalize().replace("-", "")
 
   # Global flags.
   var isGlobalFlag = true
   case f
-  of "help", "h": result.showHelp = true
-  of "version", "v": result.showVersion = true
-  of "accept", "y": result.forcePrompts = forcePromptYes
-  of "reject", "n": result.forcePrompts = forcePromptNo
-  of "nimbledir": result.nimbleDir = val
-  of "silent": result.verbosity = SilentPriority
-  of "verbose": result.verbosity = LowPriority
-  of "debug": result.verbosity = DebugPriority
-  of "offline": result.offline = true
-  of "nocolor": result.noColor = true
-  of "disablevalidation": result.disableValidation = true
-  of "nim": result.nimBin = some makeNimBin(result, val)
-  of "localdeps", "l": result.localdeps = true
-  of "nosslcheck": result.disableSslCertCheck = true
-  of "nolockfile": result.disableLockFile = true
-  of "tarballs", "t": result.enableTarballs = true
-  of "package", "p": result.package = val
-  of "lockfile": result.lockFileName = val
-  of "usesystemnim": result.useSystemNim = true
+  of "help", "h":
+    result.showHelp = true
+  of "version", "v":
+    result.showVersion = true
+  of "accept", "y":
+    result.forcePrompts = forcePromptYes
+  of "reject", "n":
+    result.forcePrompts = forcePromptNo
+  of "nimbledir":
+    result.nimbleDir = val
+  of "silent":
+    result.verbosity = SilentPriority
+  of "verbose":
+    result.verbosity = LowPriority
+  of "debug":
+    result.verbosity = DebugPriority
+  of "offline":
+    result.offline = true
+  of "nocolor":
+    result.noColor = true
+  of "disablevalidation":
+    result.disableValidation = true
+  of "nim":
+    result.nimBin = some makeNimBin(result, val)
+  of "localdeps", "l":
+    result.localdeps = true
+  of "nosslcheck":
+    result.disableSslCertCheck = true
+  of "nolockfile":
+    result.disableLockFile = true
+  of "tarballs", "t":
+    result.enableTarballs = true
+  of "package", "p":
+    result.package = val
+  of "lockfile":
+    result.lockFileName = val
+  of "usesystemnim":
+    result.useSystemNim = true
   of "developfile":
     if result.developFile.len == 0:
       result.developFile = val.normalizedPath
     else:
       raise nimbleError(multipleDevelopFileOptionsGivenMsg)
-  of "solver": 
+  of "solver":
     if val == "sat":
       result.useSatSolver = true
     elif val == "legacy":
@@ -615,7 +681,8 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
       raise nimbleError("Unknown solver option: " & val)
   of "requires":
     result.extraRequires = val.split(";").mapIt(it.strip.parseRequires())
-  else: isGlobalFlag = false
+  else:
+    isGlobalFlag = false
 
   var wasFlagHandled = true
   # Action-specific flags.
@@ -630,8 +697,10 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
       wasFlagHandled = false
   of actionDump:
     case f
-    of "json": result.dumpMode = kdumpJson
-    of "ini": result.dumpMode = kdumpIni
+    of "json":
+      result.dumpMode = kdumpJson
+    of "ini":
+      result.dumpMode = kdumpIni
     else:
       wasFlagHandled = false
   of actionInstall, actionSetup:
@@ -750,8 +819,7 @@ proc handleUnknownFlags(options: var Options) =
   # Any unhandled flags?
   if options.unknownFlags.len > 0:
     let flag = options.unknownFlags[0]
-    raise nimbleError("Unknown option: " &
-      getFlagString(flag[0], flag[1], flag[2]))
+    raise nimbleError("Unknown option: " & getFlagString(flag[0], flag[1], flag[2]))
 
 proc parseCmdLine*(): Options =
   result = initOptions()
@@ -766,8 +834,9 @@ proc parseCmdLine*(): Options =
       else:
         parseArgument(key, result)
     of cmdLongOption, cmdShortOption:
-        parseFlag(key, val, result, kind)
-    of cmdEnd: assert(false) # cannot happen
+      parseFlag(key, val, result, kind)
+    of cmdEnd:
+      assert(false) # cannot happen
 
   handleUnknownFlags(result)
 
@@ -804,16 +873,22 @@ proc getProxy*(options: Options): Proxy =
       elif existsEnv("HTTPS_PROXY"):
         url = getEnv("HTTPS_PROXY")
     except ValueError:
-      display("Warning:", "Unable to parse proxy from environment: " &
-          getCurrentExceptionMsg(), Warning, HighPriority)
+      display(
+        "Warning:",
+        "Unable to parse proxy from environment: " & getCurrentExceptionMsg(),
+        Warning,
+        HighPriority,
+      )
 
   if url.len > 0:
     var parsed = parseUri(url)
     if parsed.scheme.len == 0 or parsed.hostname.len == 0:
       parsed = parseUri("http://" & url)
     let auth =
-      if parsed.username.len > 0: parsed.username & ":" & parsed.password
-      else: ""
+      if parsed.username.len > 0:
+        parsed.username & ":" & parsed.password
+      else:
+        ""
     return newProxy($parsed, auth)
   else:
     return nil
@@ -865,10 +940,11 @@ proc isInstallingTopLevel*(options: Options, dir: string): bool =
   return options.startDir == dir
 
 proc lockFile*(options: Options, dir: string): string =
-  let lockFile = if options.lockFileName == default(string):
-    defaultLockFileName
-  else:
-    options.lockFileName
+  let lockFile =
+    if options.lockFileName == default(string):
+      defaultLockFileName
+    else:
+      options.lockFileName
   if lockFile.isAbsolute:
     result = lockFile
   else:
