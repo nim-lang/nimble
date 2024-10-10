@@ -59,7 +59,7 @@ type
       # If not provided by default it applies to the current directory package.
       # For now, it is used only by the run action and it is ignored by others.
     pkgCachePath*: string # Cache used to store package downloads
-    useSatSolver*: bool
+    useSatSolver*: bool = true
     extraRequires*: seq[PkgTuple] # extra requires parsed from the command line
 
   ActionType* = enum
@@ -398,7 +398,8 @@ proc getBinDir*(options: Options): string =
 proc setPackageCache(options: var Options, baseDir: string) =
   if options.useSatSolver:
     options.pkgCachePath = baseDir / "pkgcache"
-    display("Info:", "Package cache path " & options.pkgCachePath, priority = HighPriority)
+    if options.verbosity >= LowPriority:
+      display("Info:", "Package cache path " & options.pkgCachePath, priority = LowPriority)
 
 proc setNimbleDir*(options: var Options) =
   var
