@@ -5,8 +5,8 @@
 
 ## 0.16.2
 
- - Adds `requires` flag which allows to add extra packages to the dependency resolution.
- - Zero to hero: nimble is able to function without `nim` in the path
+ - Adds a `requires` flag which allows to add extra packages to the dependency resolution.
+ - Zero to hero: nimble is able to function without `nim` in the path.
  - The SAT solver is now the default solver.
 
 ## 0.16.1
