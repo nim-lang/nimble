@@ -15,8 +15,8 @@ jobs:
           - macos-latest
           - ubuntu-latest
         nimversion:
-          - devel
-          # - stable
+          # - devel
+          - stable
     name: ${{ matrix.os }} - ${{ matrix.nimversion }}
     runs-on: ${{ matrix.os }}
     env:
