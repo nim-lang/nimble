@@ -3,6 +3,26 @@
 
 # Nimble changelog
 
+## 0.16.2
+
+ - Adds a `requires` flag which allows to add extra packages to the dependency resolution.
+ - Zero to hero: nimble is able to function without `nim` in the path.
+ - The SAT solver is now the default solver.
+
+## 0.16.1
+
+ - Improves `nimDir`'s `nim` selection heuristic.
+ - Fixes a bug where the SAT cache downloaded packages in the wrong directory.
+ - Other fixes and improvements.
+
+## 0.16.0
+
+- Implemented a new experimental SAT solver for dependency resolution.
+- Implemented support for self-bootstrapping when no Nim is present.
+- Added support for package entry points.
+- Improved Nim version management.
+- Other fixes and improvements.
+
 ## 0.14.0
 
 This is a major release containing four new features:
