@@ -66,7 +66,7 @@ proc displayUsingSpecialVersionWarning(solvedPkgs: seq[SolvedPackage], options: 
   for pkg in solvedPkgs:
     for req in pkg.requirements:
       if req.ver.isSpecial:
-        messages.addUnique(&"Package {pkg.pkgName} lists an underspecified version of {req.name} ({req.ver})")
+        nimblesat.addUnique(messages, &"Package {pkg.pkgName} lists an underspecified version of {req.name} ({req.ver})")
   
   for msg in messages:
     displayWarning(msg)
