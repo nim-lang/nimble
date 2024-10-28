@@ -141,8 +141,8 @@ proc withinRange*(ver: Version, ran: VersionRange): bool =
     return ver <= ran.ver
   of verEq:
     return ver == ran.ver
-  of verSpecial:
-    return ver == ran.spe
+  of verSpecial: # special version is always within range
+    return ver.isSpecial and ver == ran.spe or not ver.isSpecial
   of verIntersect, verTilde, verCaret:
     return withinRange(ver, ran.verILeft) and withinRange(ver, ran.verIRight)
   of verAny:
