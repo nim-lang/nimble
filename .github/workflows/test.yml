@@ -15,15 +15,15 @@ jobs:
           - macos-latest
           - ubuntu-latest
         nimversion:
-          - devel
-          # - stable
+          # - devel
+          - stable
     name: ${{ matrix.os }} - ${{ matrix.nimversion }}
     runs-on: ${{ matrix.os }}
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v4
-      - uses: jiro4989/setup-nim-action@v1
+      - uses: jiro4989/setup-nim-action@v2
         with:
           nim-version: ${{ matrix.nimversion }}
       - run: nim --version
