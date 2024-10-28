@@ -61,6 +61,16 @@ proc displaySatisfiedMsg(solvedPkgs: seq[SolvedPackage], pkgToInstall: seq[(stri
         for req in pkg.requirements:
           displayInfo(pkgDepsAlreadySatisfiedMsg(req))
 
+proc displayUsingSpecialVersionWarning(solvedPkgs: seq[SolvedPackage], options: Options) =
+  var messages = newSeq[string]()
+  for pkg in solvedPkgs:
+    for req in pkg.requirements:
+      if req.ver.isSpecial:
+        messages.addUnique(&"Package {pkg.pkgName} lists an underspecified version of {req.name} ({req.ver})")
+  
+  for msg in messages:
+    displayWarning(msg)
+
 proc addReverseDeps(solvedPkgs: seq[SolvedPackage], allPkgsInfo: seq[PackageInfo], options: Options) = 
   for pkg in solvedPkgs:
     let solvedPkg = getPackageInfo(pkg.pkgName, allPkgsInfo, some pkg.version)
@@ -116,6 +126,7 @@ proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, options: Options): Has
   var output = ""
   result = solvePackages(rootPkgInfo, pkgList, pkgsToInstall, options, output, solvedPkgs)
   displaySatisfiedMsg(solvedPkgs, pkgsToInstall, options)
+  displayUsingSpecialVersionWarning(solvedPkgs, options)
   var solved = solvedPkgs.len > 0 #A pgk can be solved and still dont return a set of PackageInfo
   for (name, ver) in pkgsToInstall:
     var versionRange = ver.toVersionRange

@@ -255,6 +255,7 @@ suite "SAT solver":
     var packages = initTable[string, Version]()
     var output = ""
     check solve(graph, form, packages, output)
+    check packages.len == 2
     
   test "should not match other tags":
     let pkgVersionTable = {

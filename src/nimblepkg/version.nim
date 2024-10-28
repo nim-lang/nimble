@@ -65,6 +65,9 @@ proc initFromJson*(dst: var Version, jsonNode: JsonNode, jsonPath: var string) =
 proc isSpecial*(ver: Version): bool =
   return ($ver).len > 0 and ($ver)[0] == '#'
 
+proc isSpecial*(verRange: VersionRange): bool =
+  return verRange.kind == verSpecial
+
 proc `<`*(ver: Version, ver2: Version): bool =
   # Handling for special versions such as "#head" or "#branch".
   if ver.isSpecial or ver2.isSpecial:
