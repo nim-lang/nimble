@@ -302,8 +302,61 @@ proc solve*(g: var DepGraph; f: Form, packages: var Table[string, Version], outp
             output.add &"item.pkg  [ ]  {toString item} \n"
     true
   else:
-    #TODO we could make a permuted version of the requires for the root package and try again
-    output = generateUnsatisfiableMessage(g, f, s)
+    # Try to find minimal failing set by iteratively removing dependencies
+    var minimalFailingSet: seq[PkgTuple] = @[]
+    
+    # collect all dependencies from root package
+    let rootNode = g.nodes[0] 
+    let rootVersion = rootNode.versions[0]  
+    var allDeps = g.reqs[rootVersion.req].deps
+    
+    # Try removing one dependency at a time to see if it makes it satisfiable
+    for i in 0..<allDeps.len:
+      var reducedDeps = allDeps
+      reducedDeps.delete(i)
+      # Create new graph with reduced dependencies
+      var tempGraph = g  
+      tempGraph.reqs[rootVersion.req].deps = reducedDeps
+      let tempForm = toFormular(tempGraph)
+      var tempSolution = createSolution(tempForm.idgen)
+      if not satisfiable(tempForm.f, tempSolution):
+        minimalFailingSet.add(allDeps[i])
+    
+    # Generate more specific error message with minimal failing set
+    if minimalFailingSet.len > 0:
+      output = "Dependency resolution failed. Minimal set of conflicting dependencies:\n"
+      var allRequirements = initTable[string, seq[VersionRange]]()
+      for dep in minimalFailingSet:
+        let depNodeIdx = g.findDependencyForDep(dep.name)
+        if depNodeIdx >= 0:
+          let depNode = g.nodes[depNodeIdx]
+          # Find matching version
+          for ver in depNode.versions:
+            if ver.version.withinRange(dep.ver):
+              let reqs = g.reqs[ver.req].deps
+              for req in reqs:
+                if req.name notin allRequirements:
+                  allRequirements[req.name] = @[]
+                allRequirements[req.name].add(req.ver)
+      
+      # Only show deps that have conflicting requirements
+      for dep in minimalFailingSet:
+        output.add(&" \n + {dep.name} {dep.ver}")
+        let depNodeIdx = g.findDependencyForDep(dep.name)
+        if depNodeIdx >= 0:
+          let depNode = g.nodes[depNodeIdx]
+          var shownReqs = initHashSet[string]()
+          for ver in depNode.versions:
+            if ver.version.withinRange(dep.ver):
+              let reqs = g.reqs[ver.req].deps
+              for req in reqs:
+                # Only show requirement if it has conflicts and hasn't been shown yet
+                let reqKey = req.name & $req.ver
+                if allRequirements[req.name].len > 1 and reqKey notin shownReqs:
+                  output.add(&"\n\t -{req.name} {req.ver}")
+                  shownReqs.incl(reqKey)              
+    else:
+      output = generateUnsatisfiableMessage(g, f, s)
     false
 
 proc collectReverseDependencies*(targetPkgName: string, graph: DepGraph): seq[(string, Version)] =
