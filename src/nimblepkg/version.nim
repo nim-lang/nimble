@@ -65,6 +65,9 @@ proc initFromJson*(dst: var Version, jsonNode: JsonNode, jsonPath: var string) =
 proc isSpecial*(ver: Version): bool =
   return ($ver).len > 0 and ($ver)[0] == '#'
 
+proc isSpecial*(verRange: VersionRange): bool =
+  return verRange.kind == verSpecial
+
 proc `<`*(ver: Version, ver2: Version): bool =
   # Handling for special versions such as "#head" or "#branch".
   if ver.isSpecial or ver2.isSpecial:
@@ -141,8 +144,8 @@ proc withinRange*(ver: Version, ran: VersionRange): bool =
     return ver <= ran.ver
   of verEq:
     return ver == ran.ver
-  of verSpecial:
-    return ver == ran.spe
+  of verSpecial: # special version is always within range
+    return ver.isSpecial and ver == ran.spe or not ver.isSpecial
   of verIntersect, verTilde, verCaret:
     return withinRange(ver, ran.verILeft) and withinRange(ver, ran.verIRight)
   of verAny:

@@ -238,3 +238,38 @@ suite "SAT solver":
     check "random" in pkgVersionTable
     
     removeDir(options.pkgCachePath)
+
+  test "should treat #head and tags as any version":
+    let pkgVersionTable = {
+      "a": PackageVersions(pkgName: "a", versions: @[
+        PackageMinimalInfo(name: "a", version: newVersion "3.0", requires: @[
+          (name:"b", ver: parseVersionRange "#head")
+        ], isRoot:true),
+      ]),
+      "b": PackageVersions(pkgName: "b", versions: @[
+        PackageMinimalInfo(name: "b", version: newVersion "0.1.0")
+      ])
+    }.toTable()
+    var graph = pkgVersionTable.toDepGraph()
+    let form = toFormular(graph)
+    var packages = initTable[string, Version]()
+    var output = ""
+    check solve(graph, form, packages, output)
+    check packages.len == 2
+    
+  test "should not match other tags":
+    let pkgVersionTable = {
+      "a": PackageVersions(pkgName: "a", versions: @[
+        PackageMinimalInfo(name: "a", version: newVersion "3.0", requires: @[
+          (name:"b", ver: parseVersionRange "#head")
+        ], isRoot:true),
+      ]),
+      "b": PackageVersions(pkgName: "b", versions: @[
+        PackageMinimalInfo(name: "b", version: newVersion "#someOtherTag")
+      ])
+    }.toTable()
+    var graph = pkgVersionTable.toDepGraph()
+    let form = toFormular(graph)
+    var packages = initTable[string, Version]()
+    var output = ""
+    check not solve(graph, form, packages, output)
