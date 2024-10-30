@@ -79,13 +79,12 @@ func addUnique*[T](s: var seq[T], x: sink T) =
   else:
     s.add x
 
-proc isNim*(pv: PkgTuple): bool =
-  pv.name == "nim" or pv.name == "nimrod"
+proc isNimrod*(pv: PkgTuple): bool = pv.name == "nimrod"
 
 proc getMinimalInfo*(pkg: PackageInfo): PackageMinimalInfo =
   result.name = pkg.basicInfo.name
   result.version = pkg.basicInfo.version
-  result.requires = pkg.requires
+  result.requires = pkg.requires.filterIt(not it.isNimrod())
 
 proc hasVersion*(packageVersions: PackageVersions, pv: PkgTuple): bool =
   for pkg in packageVersions.versions:
