@@ -85,7 +85,7 @@ proc isNim*(pv: PkgTuple): bool =
 proc getMinimalInfo*(pkg: PackageInfo): PackageMinimalInfo =
   result.name = pkg.basicInfo.name
   result.version = pkg.basicInfo.version
-  result.requires = pkg.requires.filterIt(not it.isNim())
+  result.requires = pkg.requires
 
 proc hasVersion*(packageVersions: PackageVersions, pv: PkgTuple): bool =
   for pkg in packageVersions.versions:
