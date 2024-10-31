@@ -362,7 +362,7 @@ proc downloadMinimalPackage*(pv: PkgTuple, options: Options): Option[PackageMini
   if pv.isNim:
     let currentNim = options.nimBin
     if currentNim.isSome and currentNim.get.version.withinRange(pv.ver):
-      return none(PackageMinimalInfo)
+      return some(PackageMinimalInfo(name: "nim", version: currentNim.get.version))
   let pkgInfo: PackageInfo = downloadPkInfoForPv(pv, options)
   some pkgInfo.getMinimalInfo()
 
