@@ -121,7 +121,7 @@ If present, the validity of the package's develop file is added to the requireme
 
 The `develop` command has a list of options:
 
-* `-p, --path path` - Specifies the path whether the packages should be cloned.
+* `-p, --path path` - Specifies the path where the packages should be cloned.
 * `-c, --create [path]` - Creates an empty develop file with the name `nimble.develop` in the current directory, or, if a path is present, to the given directory with a given name.
 * `-a, --add path` - Adds the package at the given path to the `nimble.develop` file.
 * `-r, --removePath path` - Removes the package at the given path from the `nimble.develop` file.
