@@ -79,12 +79,16 @@ func addUnique*[T](s: var seq[T], x: sink T) =
   else:
     s.add x
 
-proc isNimrod*(pv: PkgTuple): bool = pv.name == "nimrod"
+proc isNim*(pv: PkgTuple): bool = pv.name == "nim" or pv.name == "nimrod"
+
+proc convertNimrodToNim*(pv: PkgTuple): PkgTuple = 
+  if pv.name != "nimrod": pv
+  else: (name: "nim", ver: pv.ver)
 
 proc getMinimalInfo*(pkg: PackageInfo): PackageMinimalInfo =
   result.name = pkg.basicInfo.name
   result.version = pkg.basicInfo.version
-  result.requires = pkg.requires.filterIt(not it.isNimrod())
+  result.requires = pkg.requires.map(convertNimrodToNim)
 
 proc hasVersion*(packageVersions: PackageVersions, pv: PkgTuple): bool =
   for pkg in packageVersions.versions:
@@ -354,8 +358,12 @@ proc downloadPkInfoForPv*(pv: PkgTuple, options: Options): PackageInfo  =
 
 proc downloadMinimalPackage*(pv: PkgTuple, options: Options): Option[PackageMinimalInfo] =
   if pv.name == "": return none(PackageMinimalInfo)
-  # echo "Downloading ", pv.name, " ", pv.ver
-  let pkgInfo = downloadPkInfoForPv(pv, options)
+  #Dont download nim if the current Nim covers it
+  if pv.isNim:
+    let currentNim = options.nimBin
+    if currentNim.isSome and currentNim.get.version.withinRange(pv.ver):
+      return none(PackageMinimalInfo)
+  let pkgInfo: PackageInfo = downloadPkInfoForPv(pv, options)
   some pkgInfo.getMinimalInfo()
 
 proc fillPackageTableFromPreferred*(packages: var Table[string, PackageVersions], preferredPackages: seq[PackageMinimalInfo]) =
