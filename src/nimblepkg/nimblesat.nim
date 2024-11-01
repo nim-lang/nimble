@@ -79,7 +79,7 @@ func addUnique*[T](s: var seq[T], x: sink T) =
   else:
     s.add x
 
-proc isNim*(pv: PkgTuple): bool = pv.name == "nim" or pv.name == "nimrod"
+proc isNim*(pv: PkgTuple): bool = pv.name.isNim
 
 proc convertNimrodToNim*(pv: PkgTuple): PkgTuple = 
   if pv.name != "nimrod": pv
@@ -347,6 +347,12 @@ proc getCacheDownloadDir*(url: string, ver: VersionRange, options: Options): str
   options.pkgCachePath / getDownloadDirName(url, ver, notSetSha1Hash)
 
 proc downloadPkInfoForPv*(pv: PkgTuple, options: Options): PackageInfo  =
+  #Dont download nim if the current Nim covers it
+  if pv.isNim: 
+    let nimPkg = pv.getNimPackageInfoIfVersionMatches(options)
+    if nimPkg.isSome:
+      return nimPkg.get
+
   let (meth, url, metadata) = 
     getDownloadInfo(pv, options, doPrompt = false, ignorePackageCache = false)
   let subdir = metadata.getOrDefault("subdir")
@@ -358,13 +364,9 @@ proc downloadPkInfoForPv*(pv: PkgTuple, options: Options): PackageInfo  =
 
 proc downloadMinimalPackage*(pv: PkgTuple, options: Options): Option[PackageMinimalInfo] =
   if pv.name == "": return none(PackageMinimalInfo)
-  #Dont download nim if the current Nim covers it
-  if pv.isNim:
-    let currentNim = options.nimBin
-    if currentNim.isSome and currentNim.get.version.withinRange(pv.ver):
-      return some(PackageMinimalInfo(name: "nim", version: currentNim.get.version))
-  let pkgInfo: PackageInfo = downloadPkInfoForPv(pv, options)
+  let pkgInfo = downloadPkInfoForPv(pv, options)
   some pkgInfo.getMinimalInfo()
+
 
 proc fillPackageTableFromPreferred*(packages: var Table[string, PackageVersions], preferredPackages: seq[PackageMinimalInfo]) =
   for pkg in preferredPackages:
@@ -398,7 +400,7 @@ proc collectAllVersions*(versions: var Table[string, PackageVersions], package: 
         versions[pv.name] = PackageVersions(pkgName: pv.name, versions: @[pkgMin])
       else:
         versions[pv.name].versions.addUnique pkgMin
-      collectAllVersions(versions, pkgMin, options, getMinimalPackage)
+      collectAllVersions(versions, pkgMin, options, getMinimalPackage, preferredPackages)
 
 proc topologicalSort*(solvedPkgs: seq[SolvedPackage]): seq[SolvedPackage] =
   var inDegree = initTable[string, int]()

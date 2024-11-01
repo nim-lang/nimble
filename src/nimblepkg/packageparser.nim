@@ -6,7 +6,7 @@ from sequtils import apply, map, toSeq
 import common, version, tools, nimscriptwrapper, options, cli, sha1hashes,
        packagemetadatafile, packageinfo, packageinfotypes, checksums, vcstools,
        paths
-
+import std/options
 ## Contains procedures for parsing .nimble files. Moved here from ``packageinfo``
 ## because it depends on ``nimscriptwrapper`` (``nimscriptwrapper`` also
 ## depends on other procedures in ``packageinfo``.
@@ -474,6 +474,14 @@ proc getConcreteVersion*(pkgInfo: PackageInfo, options: Options): Version =
     let pkgInfo = pkgInfo.toFullInfo(options)
     result = pkgInfo.basicInfo.version
   assert not result.isSpecial
+
+proc getNimPackageInfoIfVersionMatches*(pv: PkgTuple, options: Options): Option[PackageInfo] =
+  ## Returns the current Nim package info if the current Nim version is within the range of the specified package version.
+  assert pv.name.isNim
+  let currentNim = options.nimBin
+  if currentNim.isSome and currentNim.get.version.withinRange(pv.ver):
+    return some getPkgInfo(options.nimBin.get.path.parentDir.parentDir, options)
+  return none(PackageInfo)
 
 when isMainModule:
   import unittest
