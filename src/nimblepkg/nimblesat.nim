@@ -3,7 +3,7 @@ when defined(nimNimbleBootstrap):
 else:
   import sat/[sat, satvars] 
 import version, packageinfotypes, download, packageinfo, packageparser, options, 
-  sha1hashes, tools
+  sha1hashes, tools, common
   
 import std/[tables, sequtils, algorithm, sets, strutils, options, strformat, os]
 
@@ -79,13 +79,16 @@ func addUnique*[T](s: var seq[T], x: sink T) =
   else:
     s.add x
 
-proc isNim*(pv: PkgTuple): bool =
-  pv.name == "nim" or pv.name == "nimrod"
+proc isNim*(pv: PkgTuple): bool = pv.name.isNim
+
+proc convertNimrodToNim*(pv: PkgTuple): PkgTuple = 
+  if pv.name != "nimrod": pv
+  else: (name: "nim", ver: pv.ver)
 
 proc getMinimalInfo*(pkg: PackageInfo): PackageMinimalInfo =
   result.name = pkg.basicInfo.name
   result.version = pkg.basicInfo.version
-  result.requires = pkg.requires.filterIt(not it.isNim())
+  result.requires = pkg.requires.map(convertNimrodToNim)
 
 proc hasVersion*(packageVersions: PackageVersions, pv: PkgTuple): bool =
   for pkg in packageVersions.versions:
@@ -300,6 +303,7 @@ proc solve*(g: var DepGraph; f: Form, packages: var Table[string, Version], outp
             output.add &"item.pkg  [x]  {toString item} \n"
           else:
             output.add &"item.pkg  [ ]  {toString item} \n"
+    # echo output
     true
   else:
     #TODO we could make a permuted version of the requires for the root package and try again
@@ -343,21 +347,28 @@ proc getSolvedPackages*(pkgVersionTable: Table[string, PackageVersions], output:
 proc getCacheDownloadDir*(url: string, ver: VersionRange, options: Options): string =
   options.pkgCachePath / getDownloadDirName(url, ver, notSetSha1Hash)
 
-proc downloadPkInfoForPv*(pv: PkgTuple, options: Options): PackageInfo  =
-  let (meth, url, metadata) = 
-    getDownloadInfo(pv, options, doPrompt = false, ignorePackageCache = false)
-  let subdir = metadata.getOrDefault("subdir")
-  let downloadDir =  getCacheDownloadDir(url, pv.ver, options)
-  let res = 
-    downloadPkg(url, pv.ver, meth, subdir, options,
-                  downloadDir, vcsRevision = notSetSha1Hash)
-  return getPkgInfo(res.dir, options)
+proc downloadPkInfoForPv*(pv: PkgTuple, options: Options): PackageInfo  = 
+  try:
+    let (meth, url, metadata) = 
+      getDownloadInfo(pv, options, doPrompt = false, ignorePackageCache = false)
+    let subdir = metadata.getOrDefault("subdir")
+    let downloadDir =  getCacheDownloadDir(url, pv.ver, options)
+    let res = 
+      downloadPkg(url, pv.ver, meth, subdir, options,
+                    downloadDir, vcsRevision = notSetSha1Hash)
+    return getPkgInfo(res.dir, options)
+  except NimbleError as e:
+    if pv.isNim: 
+      let nimPkg = pv.getNimPackageInfoIfVersionMatches(options)
+      if nimPkg.isSome:
+        return nimPkg.get
+    raise e
 
 proc downloadMinimalPackage*(pv: PkgTuple, options: Options): Option[PackageMinimalInfo] =
   if pv.name == "": return none(PackageMinimalInfo)
-  # echo "Downloading ", pv.name, " ", pv.ver
   let pkgInfo = downloadPkInfoForPv(pv, options)
   some pkgInfo.getMinimalInfo()
+
 
 proc fillPackageTableFromPreferred*(packages: var Table[string, PackageVersions], preferredPackages: seq[PackageMinimalInfo]) =
   for pkg in preferredPackages:
@@ -374,8 +385,8 @@ proc collectAllVersions*(versions: var Table[string, PackageVersions], package: 
   ### Collects all the versions of a package and its dependencies and stores them in the versions table
   ### A getMinimalPackage function is passed to get the package
   proc getMinimalFromPreferred(pv: PkgTuple): Option[PackageMinimalInfo] =
-    #Before proceding to download we check if the package is in the preferred packages
-    for pp in preferredPackages:
+    #Before proceding to download we check if the package is in the preferred packages    
+    for pp in preferredPackages:      
       if pp.name == pv.name and pp.version.withinRange(pv.ver):
         return some pp
     getMinimalPackage(pv, options)
@@ -391,7 +402,7 @@ proc collectAllVersions*(versions: var Table[string, PackageVersions], package: 
         versions[pv.name] = PackageVersions(pkgName: pv.name, versions: @[pkgMin])
       else:
         versions[pv.name].versions.addUnique pkgMin
-      collectAllVersions(versions, pkgMin, options, getMinimalPackage)
+      collectAllVersions(versions, pkgMin, options, getMinimalPackage, preferredPackages)
 
 proc topologicalSort*(solvedPkgs: seq[SolvedPackage]): seq[SolvedPackage] =
   var inDegree = initTable[string, int]()
