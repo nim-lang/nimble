@@ -55,7 +55,7 @@ proc checkSatisfied(options: Options, dependencies: seq[PackageInfo]) =
     pkgsInPath[pkgInfo.basicInfo.name] = currentVer
 
 proc displaySatisfiedMsg(solvedPkgs: seq[SolvedPackage], pkgToInstall: seq[(string, Version)], options: Options) =
-  if options.verbosity > MediumPriority:
+  if options.verbosity == LowPriority:
     for pkg in solvedPkgs:
       if pkg.pkgName notin pkgToInstall.mapIt(it[0]):
         for req in pkg.requirements:
@@ -133,12 +133,12 @@ proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, options: Options): Has
     if name in upgradeVersions:
       versionRange = upgradeVersions[name]
     let resolvedDep = ((name: name, ver: versionRange)).resolveAlias(options)
-    #Dont install if the current Nim matches
-    if resolvedDep.name.isNim:
-      let nimPkg = resolvedDep.getNimPackageInfoIfVersionMatches(options)
-      if nimPkg.isSome:
-        result.incl nimPkg.get
-        continue
+    #Dont install if the current Nim matches and we are not in a locked
+    # if resolvedDep.name.isNim:
+    #   let nimPkg = resolvedDep.getNimPackageInfoIfVersionMatches(options)
+    #   if nimPkg.isSome:
+    #     result.incl nimPkg.get
+    #     continue
     let (packages, _) = install(@[resolvedDep], options,
       doPrompt = false, first = false, fromLockFile = false, preferredPackages = @[])
     for pkg in packages:

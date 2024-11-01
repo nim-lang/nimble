@@ -348,11 +348,11 @@ proc getCacheDownloadDir*(url: string, ver: VersionRange, options: Options): str
   options.pkgCachePath / getDownloadDirName(url, ver, notSetSha1Hash)
 
 proc downloadPkInfoForPv*(pv: PkgTuple, options: Options): PackageInfo  =
-  #Dont download nim if the current Nim covers it
-  if pv.isNim: 
-    let nimPkg = pv.getNimPackageInfoIfVersionMatches(options)
-    if nimPkg.isSome:
-      return nimPkg.get
+  # #Dont download nim if the current Nim covers it
+  # if pv.isNim: 
+  #   let nimPkg = pv.getNimPackageInfoIfVersionMatches(options)
+  #   if nimPkg.isSome:
+  #     return nimPkg.get
 
   let (meth, url, metadata) = 
     getDownloadInfo(pv, options, doPrompt = false, ignorePackageCache = false)
