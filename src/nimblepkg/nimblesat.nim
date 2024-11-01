@@ -3,7 +3,7 @@ when defined(nimNimbleBootstrap):
 else:
   import sat/[sat, satvars] 
 import version, packageinfotypes, download, packageinfo, packageparser, options, 
-  sha1hashes, tools
+  sha1hashes, tools, common
   
 import std/[tables, sequtils, algorithm, sets, strutils, options, strformat, os]
 
@@ -347,21 +347,22 @@ proc getSolvedPackages*(pkgVersionTable: Table[string, PackageVersions], output:
 proc getCacheDownloadDir*(url: string, ver: VersionRange, options: Options): string =
   options.pkgCachePath / getDownloadDirName(url, ver, notSetSha1Hash)
 
-proc downloadPkInfoForPv*(pv: PkgTuple, options: Options): PackageInfo  =
-  # #Dont download nim if the current Nim covers it
-  # if pv.isNim: 
-  #   let nimPkg = pv.getNimPackageInfoIfVersionMatches(options)
-  #   if nimPkg.isSome:
-  #     return nimPkg.get
-
-  let (meth, url, metadata) = 
-    getDownloadInfo(pv, options, doPrompt = false, ignorePackageCache = false)
-  let subdir = metadata.getOrDefault("subdir")
-  let downloadDir =  getCacheDownloadDir(url, pv.ver, options)
-  let res = 
-    downloadPkg(url, pv.ver, meth, subdir, options,
-                  downloadDir, vcsRevision = notSetSha1Hash)
-  return getPkgInfo(res.dir, options)
+proc downloadPkInfoForPv*(pv: PkgTuple, options: Options): PackageInfo  = 
+  try:
+    let (meth, url, metadata) = 
+      getDownloadInfo(pv, options, doPrompt = false, ignorePackageCache = false)
+    let subdir = metadata.getOrDefault("subdir")
+    let downloadDir =  getCacheDownloadDir(url, pv.ver, options)
+    let res = 
+      downloadPkg(url, pv.ver, meth, subdir, options,
+                    downloadDir, vcsRevision = notSetSha1Hash)
+    return getPkgInfo(res.dir, options)
+  except NimbleError as e:
+    if pv.isNim: 
+      let nimPkg = pv.getNimPackageInfoIfVersionMatches(options)
+      if nimPkg.isSome:
+        return nimPkg.get
+    raise e
 
 proc downloadMinimalPackage*(pv: PkgTuple, options: Options): Option[PackageMinimalInfo] =
   if pv.name == "": return none(PackageMinimalInfo)
