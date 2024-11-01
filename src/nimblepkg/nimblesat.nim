@@ -303,6 +303,7 @@ proc solve*(g: var DepGraph; f: Form, packages: var Table[string, Version], outp
             output.add &"item.pkg  [x]  {toString item} \n"
           else:
             output.add &"item.pkg  [ ]  {toString item} \n"
+    # echo output
     true
   else:
     #TODO we could make a permuted version of the requires for the root package and try again
@@ -383,8 +384,8 @@ proc collectAllVersions*(versions: var Table[string, PackageVersions], package: 
   ### Collects all the versions of a package and its dependencies and stores them in the versions table
   ### A getMinimalPackage function is passed to get the package
   proc getMinimalFromPreferred(pv: PkgTuple): Option[PackageMinimalInfo] =
-    #Before proceding to download we check if the package is in the preferred packages
-    for pp in preferredPackages:
+    #Before proceding to download we check if the package is in the preferred packages    
+    for pp in preferredPackages:      
       if pp.name == pv.name and pp.version.withinRange(pv.ver):
         return some pp
     getMinimalPackage(pv, options)
