@@ -348,21 +348,14 @@ proc getCacheDownloadDir*(url: string, ver: VersionRange, options: Options): str
   options.pkgCachePath / getDownloadDirName(url, ver, notSetSha1Hash)
 
 proc downloadPkInfoForPv*(pv: PkgTuple, options: Options): PackageInfo  = 
-  try:
-    let (meth, url, metadata) = 
-      getDownloadInfo(pv, options, doPrompt = false, ignorePackageCache = false)
-    let subdir = metadata.getOrDefault("subdir")
-    let downloadDir =  getCacheDownloadDir(url, pv.ver, options)
-    let res = 
-      downloadPkg(url, pv.ver, meth, subdir, options,
-                    downloadDir, vcsRevision = notSetSha1Hash)
-    return getPkgInfo(res.dir, options)
-  except NimbleError as e:
-    if pv.isNim: 
-      let nimPkg = pv.getNimPackageInfoIfVersionMatches(options)
-      if nimPkg.isSome:
-        return nimPkg.get
-    raise e
+  let (meth, url, metadata) = 
+    getDownloadInfo(pv, options, doPrompt = false, ignorePackageCache = false)
+  let subdir = metadata.getOrDefault("subdir")
+  let downloadDir =  getCacheDownloadDir(url, pv.ver, options)
+  let res = 
+    downloadPkg(url, pv.ver, meth, subdir, options,
+                  downloadDir, vcsRevision = notSetSha1Hash)
+  return getPkgInfo(res.dir, options)
 
 proc downloadMinimalPackage*(pv: PkgTuple, options: Options): Option[PackageMinimalInfo] =
   if pv.name == "": return none(PackageMinimalInfo)
