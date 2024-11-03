@@ -606,7 +606,7 @@ suite "develop feature":
       writeFile(developFileName, developFileContent)
       const includeFileContent = developFile(@[], @["./dependency2/"])
       writeFile(includeFilePath, includeFileContent)
-      let (output, errorCode) = execNimble("run", "-y")
+      let (_, errorCode) = execNimble("run", "-y")
       check errorCode == QuitSuccess
 
   test "do not filter not used included develop dependencies":
