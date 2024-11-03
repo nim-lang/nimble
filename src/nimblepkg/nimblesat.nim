@@ -362,7 +362,6 @@ proc downloadMinimalPackage*(pv: PkgTuple, options: Options): Option[PackageMini
   let pkgInfo = downloadPkInfoForPv(pv, options)
   some pkgInfo.getMinimalInfo()
 
-
 proc fillPackageTableFromPreferred*(packages: var Table[string, PackageVersions], preferredPackages: seq[PackageMinimalInfo]) =
   for pkg in preferredPackages:
     if not hasVersion(packages, pkg.name, pkg.version):
@@ -379,7 +378,7 @@ proc collectAllVersions*(versions: var Table[string, PackageVersions], package: 
   ### A getMinimalPackage function is passed to get the package
   proc getMinimalFromPreferred(pv: PkgTuple): Option[PackageMinimalInfo] =
     #Before proceding to download we check if the package is in the preferred packages    
-    for pp in preferredPackages:      
+    for pp in preferredPackages:
       if pp.name == pv.name and pp.version.withinRange(pv.ver):
         return some pp
     getMinimalPackage(pv, options)

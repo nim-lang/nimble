@@ -3,4 +3,4 @@ author        = "Ivan Bobev"
 description   = "test package"
 license       = "MIT"
 
-requires "nim"
+requires "nim >= 1.2.6"

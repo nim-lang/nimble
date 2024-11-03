@@ -133,12 +133,6 @@ proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, options: Options): Has
     if name in upgradeVersions:
       versionRange = upgradeVersions[name]
     let resolvedDep = ((name: name, ver: versionRange)).resolveAlias(options)
-    #Dont install if the current Nim matches and we are not in a locked
-    # if resolvedDep.name.isNim:
-    #   let nimPkg = resolvedDep.getNimPackageInfoIfVersionMatches(options)
-    #   if nimPkg.isSome:
-    #     result.incl nimPkg.get
-    #     continue
     let (packages, _) = install(@[resolvedDep], options,
       doPrompt = false, first = false, fromLockFile = false, preferredPackages = @[])
     for pkg in packages:
