@@ -6,6 +6,7 @@ from sequtils import apply, map, toSeq
 import common, version, tools, nimscriptwrapper, options, cli, sha1hashes,
        packagemetadatafile, packageinfo, packageinfotypes, checksums, vcstools,
        paths
+
 ## Contains procedures for parsing .nimble files. Moved here from ``packageinfo``
 ## because it depends on ``nimscriptwrapper`` (``nimscriptwrapper`` also
 ## depends on other procedures in ``packageinfo``.
