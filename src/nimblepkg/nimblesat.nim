@@ -3,7 +3,7 @@ when defined(nimNimbleBootstrap):
 else:
   import sat/[sat, satvars] 
 import version, packageinfotypes, download, packageinfo, packageparser, options, 
-  sha1hashes, tools, common
+  sha1hashes, tools
   
 import std/[tables, sequtils, algorithm, sets, strutils, options, strformat, os]
 
@@ -347,7 +347,7 @@ proc getSolvedPackages*(pkgVersionTable: Table[string, PackageVersions], output:
 proc getCacheDownloadDir*(url: string, ver: VersionRange, options: Options): string =
   options.pkgCachePath / getDownloadDirName(url, ver, notSetSha1Hash)
 
-proc downloadPkInfoForPv*(pv: PkgTuple, options: Options): PackageInfo  = 
+proc downloadPkInfoForPv*(pv: PkgTuple, options: Options): PackageInfo  =
   let (meth, url, metadata) = 
     getDownloadInfo(pv, options, doPrompt = false, ignorePackageCache = false)
   let subdir = metadata.getOrDefault("subdir")
@@ -377,7 +377,7 @@ proc collectAllVersions*(versions: var Table[string, PackageVersions], package: 
   ### Collects all the versions of a package and its dependencies and stores them in the versions table
   ### A getMinimalPackage function is passed to get the package
   proc getMinimalFromPreferred(pv: PkgTuple): Option[PackageMinimalInfo] =
-    #Before proceding to download we check if the package is in the preferred packages    
+    #Before proceding to download we check if the package is in the preferred packages
     for pp in preferredPackages:
       if pp.name == pv.name and pp.version.withinRange(pv.ver):
         return some pp
