@@ -31,7 +31,7 @@ proc downloadAndStorePackageVersionTableFor(pkgName: string, options: Options) =
     return
   let pv: PkgTuple = (pkgName, VersionRange(kind: verAny))
   var pkgInfo = downloadPkInfoForPv(pv, options)
-  var root = pkgInfo.getMinimalInfo()
+  var root = pkgInfo.getMinimalInfo(options)
   root.isRoot = true
   var pkgVersionTable = initTable[string, PackageVersions]()
   collectAllVersions(pkgVersionTable, root, options, downloadMinimalPackage)
@@ -165,7 +165,7 @@ suite "SAT solver":
     ])
 
     var pkgInfo = downloadPkInfoForPv(pv, options)
-    var root = pkgInfo.getMinimalInfo()
+    var root = pkgInfo.getMinimalInfo(options)
     root.isRoot = true
     var pkgVersionTable = initTable[string, PackageVersions]()
     collectAllVersions(pkgVersionTable, root, options, downloadMinimalPackage)
