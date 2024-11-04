@@ -875,3 +875,6 @@ proc lockFile*(options: Options, dir: string): string =
     result = lockFile
   else:
     result = dir / lockFile
+
+proc lockFileExists*(options: Options, dir: string): bool =
+  return options.lockFile(dir).fileExists

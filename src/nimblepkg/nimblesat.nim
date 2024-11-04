@@ -89,7 +89,7 @@ proc getMinimalInfo*(pkg: PackageInfo, options: Options): PackageMinimalInfo =
   result.name = pkg.basicInfo.name
   result.version = pkg.basicInfo.version
   result.requires = pkg.requires.map(convertNimrodToNim)
-  if options.action.typ in {actionLock, actionDeps}:
+  if options.action.typ in {actionLock, actionDeps} or options.lockFileExists(getCurrentDir()):
     result.requires = result.requires.filterIt(not it.isNim)
 
 proc hasVersion*(packageVersions: PackageVersions, pv: PkgTuple): bool =
