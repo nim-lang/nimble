@@ -108,7 +108,7 @@ proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, options: Options): Has
           not isUpgrading and lockedPkg.vcsRevision == pkg.metaData.vcsRevision):
               toRemoveFromLocked.add pkg
 
-  result = solveLocalPackages(rootPkgInfo, pkgList, solvedPkgs)
+  result = solveLocalPackages(rootPkgInfo, pkgList, solvedPkgs, options)
   if solvedPkgs.len > 0: 
     displaySatisfiedMsg(solvedPkgs, pkgsToInstall, options)
     addReverseDeps(solvedPkgs, allPkgsInfo, options)
