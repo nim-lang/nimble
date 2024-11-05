@@ -55,7 +55,7 @@ proc checkSatisfied(options: Options, dependencies: seq[PackageInfo]) =
     pkgsInPath[pkgInfo.basicInfo.name] = currentVer
 
 proc displaySatisfiedMsg(solvedPkgs: seq[SolvedPackage], pkgToInstall: seq[(string, Version)], options: Options) =
-  if options.verbosity >= LowPriority:
+  if options.verbosity == LowPriority:
     for pkg in solvedPkgs:
       if pkg.pkgName notin pkgToInstall.mapIt(it[0]):
         for req in pkg.requirements:
@@ -108,7 +108,7 @@ proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, options: Options): Has
           not isUpgrading and lockedPkg.vcsRevision == pkg.metaData.vcsRevision):
               toRemoveFromLocked.add pkg
 
-  result = solveLocalPackages(rootPkgInfo, pkgList, solvedPkgs)
+  result = solveLocalPackages(rootPkgInfo, pkgList, solvedPkgs, options)
   if solvedPkgs.len > 0: 
     displaySatisfiedMsg(solvedPkgs, pkgsToInstall, options)
     addReverseDeps(solvedPkgs, allPkgsInfo, options)

@@ -79,13 +79,18 @@ func addUnique*[T](s: var seq[T], x: sink T) =
   else:
     s.add x
 
-proc isNim*(pv: PkgTuple): bool =
-  pv.name == "nim" or pv.name == "nimrod"
+proc isNim*(pv: PkgTuple): bool = pv.name.isNim
 
-proc getMinimalInfo*(pkg: PackageInfo): PackageMinimalInfo =
+proc convertNimrodToNim*(pv: PkgTuple): PkgTuple = 
+  if pv.name != "nimrod": pv
+  else: (name: "nim", ver: pv.ver)
+
+proc getMinimalInfo*(pkg: PackageInfo, options: Options): PackageMinimalInfo =
   result.name = pkg.basicInfo.name
   result.version = pkg.basicInfo.version
-  result.requires = pkg.requires.filterIt(not it.isNim())
+  result.requires = pkg.requires.map(convertNimrodToNim)
+  if options.action.typ in {actionLock, actionDeps} or options.lockFileExists(getCurrentDir()):
+    result.requires = result.requires.filterIt(not it.isNim)
 
 proc hasVersion*(packageVersions: PackageVersions, pv: PkgTuple): bool =
   for pkg in packageVersions.versions:
@@ -300,6 +305,7 @@ proc solve*(g: var DepGraph; f: Form, packages: var Table[string, Version], outp
             output.add &"item.pkg  [x]  {toString item} \n"
           else:
             output.add &"item.pkg  [ ]  {toString item} \n"
+    # echo output
     true
   else:
     #TODO we could make a permuted version of the requires for the root package and try again
@@ -355,9 +361,8 @@ proc downloadPkInfoForPv*(pv: PkgTuple, options: Options): PackageInfo  =
 
 proc downloadMinimalPackage*(pv: PkgTuple, options: Options): Option[PackageMinimalInfo] =
   if pv.name == "": return none(PackageMinimalInfo)
-  # echo "Downloading ", pv.name, " ", pv.ver
   let pkgInfo = downloadPkInfoForPv(pv, options)
-  some pkgInfo.getMinimalInfo()
+  some pkgInfo.getMinimalInfo(options)
 
 proc fillPackageTableFromPreferred*(packages: var Table[string, PackageVersions], preferredPackages: seq[PackageMinimalInfo]) =
   for pkg in preferredPackages:
@@ -368,7 +373,7 @@ proc fillPackageTableFromPreferred*(packages: var Table[string, PackageVersions]
         packages[pkg.name].versions.add pkg
 
 proc getInstalledMinimalPackages*(options: Options): seq[PackageMinimalInfo] =
-  getInstalledPkgsMin(options.getPkgsDir(), options).mapIt(it.getMinimalInfo())
+  getInstalledPkgsMin(options.getPkgsDir(), options).mapIt(it.getMinimalInfo(options))
 
 proc collectAllVersions*(versions: var Table[string, PackageVersions], package: PackageMinimalInfo, options: Options, getMinimalPackage: GetPackageMinimal,  preferredPackages: seq[PackageMinimalInfo] = newSeq[PackageMinimalInfo]()) =
   ### Collects all the versions of a package and its dependencies and stores them in the versions table
@@ -391,7 +396,7 @@ proc collectAllVersions*(versions: var Table[string, PackageVersions], package: 
         versions[pv.name] = PackageVersions(pkgName: pv.name, versions: @[pkgMin])
       else:
         versions[pv.name].versions.addUnique pkgMin
-      collectAllVersions(versions, pkgMin, options, getMinimalPackage)
+      collectAllVersions(versions, pkgMin, options, getMinimalPackage, preferredPackages)
 
 proc topologicalSort*(solvedPkgs: seq[SolvedPackage]): seq[SolvedPackage] =
   var inDegree = initTable[string, int]()
@@ -423,12 +428,12 @@ proc topologicalSort*(solvedPkgs: seq[SolvedPackage]): seq[SolvedPackage] =
       if inDegree[neighbor] == 0:
         zeroInDegree.add(neighbor) 
 
-proc solveLocalPackages*(rootPkgInfo: PackageInfo, pkgList: seq[PackageInfo], solvedPkgs: var seq[SolvedPackage]): HashSet[PackageInfo] = 
-  var root = rootPkgInfo.getMinimalInfo()
+proc solveLocalPackages*(rootPkgInfo: PackageInfo, pkgList: seq[PackageInfo], solvedPkgs: var seq[SolvedPackage], options: Options): HashSet[PackageInfo] = 
+  var root = rootPkgInfo.getMinimalInfo(options)
   root.isRoot = true
   var pkgVersionTable = initTable[string, PackageVersions]()
   pkgVersionTable[root.name] = PackageVersions(pkgName: root.name, versions: @[root])
-  fillPackageTableFromPreferred(pkgVersionTable, pkgList.map(getMinimalInfo))
+  fillPackageTableFromPreferred(pkgVersionTable, pkgList.mapIt(it.getMinimalInfo(options)))
   var output = ""
   solvedPkgs = pkgVersionTable.getSolvedPackages(output)
   for solvedPkg in solvedPkgs:
@@ -437,11 +442,11 @@ proc solveLocalPackages*(rootPkgInfo: PackageInfo, pkgList: seq[PackageInfo], so
         result.incl pkgInfo
 
 proc solvePackages*(rootPkg: PackageInfo, pkgList: seq[PackageInfo], pkgsToInstall: var seq[(string, Version)], options: Options, output: var string, solvedPkgs: var seq[SolvedPackage]): HashSet[PackageInfo] =
-  var root: PackageMinimalInfo = rootPkg.getMinimalInfo()
+  var root: PackageMinimalInfo = rootPkg.getMinimalInfo(options)
   root.isRoot = true
   var pkgVersionTable = initTable[string, PackageVersions]()
   pkgVersionTable[root.name] = PackageVersions(pkgName: root.name, versions: @[root])
-  collectAllVersions(pkgVersionTable, root, options, downloadMinimalPackage, pkgList.map(getMinimalInfo))
+  collectAllVersions(pkgVersionTable, root, options, downloadMinimalPackage, pkgList.mapIt(it.getMinimalInfo(options)))
   solvedPkgs = pkgVersionTable.getSolvedPackages(output).topologicalSort()
 
   for solvedPkg in solvedPkgs:

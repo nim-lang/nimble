@@ -31,7 +31,7 @@ proc downloadAndStorePackageVersionTableFor(pkgName: string, options: Options) =
     return
   let pv: PkgTuple = (pkgName, VersionRange(kind: verAny))
   var pkgInfo = downloadPkInfoForPv(pv, options)
-  var root = pkgInfo.getMinimalInfo()
+  var root = pkgInfo.getMinimalInfo(options)
   root.isRoot = true
   var pkgVersionTable = initTable[string, PackageVersions]()
   collectAllVersions(pkgVersionTable, root, options, downloadMinimalPackage)
@@ -165,7 +165,7 @@ suite "SAT solver":
     ])
 
     var pkgInfo = downloadPkInfoForPv(pv, options)
-    var root = pkgInfo.getMinimalInfo()
+    var root = pkgInfo.getMinimalInfo(options)
     root.isRoot = true
     var pkgVersionTable = initTable[string, PackageVersions]()
     collectAllVersions(pkgVersionTable, root, options, downloadMinimalPackage)
@@ -273,3 +273,25 @@ suite "SAT solver":
     var packages = initTable[string, Version]()
     var output = ""
     check not solve(graph, form, packages, output)
+
+  test "should prioritize exact version matches":
+    let pkgVersionTable = {
+      "a": PackageVersions(pkgName: "a", versions: @[
+        PackageMinimalInfo(name: "a", version: newVersion "3.0", requires: @[
+          (name:"b", ver: parseVersionRange "== 1.0.0"),
+          (name:"b", ver: parseVersionRange ">= 0.5.0")
+        ], isRoot:true),
+      ]),
+      "b": PackageVersions(pkgName: "b", versions: @[
+        PackageMinimalInfo(name: "b", version: newVersion "1.0.0"),
+        PackageMinimalInfo(name: "b", version: newVersion "2.0.0")
+      ])
+    }.toTable()
+    var graph = pkgVersionTable.toDepGraph()
+    let form = toFormular(graph)
+    var packages = initTable[string, Version]()
+    var output = ""
+    check solve(graph, form, packages, output)
+    check packages.len == 2
+    check packages["a"] == newVersion "3.0"
+    check packages["b"] == newVersion "1.0.0"  # Should pick exact version 1.0.0 despite 2.0.0 being available

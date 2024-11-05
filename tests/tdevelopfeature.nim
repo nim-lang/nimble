@@ -568,7 +568,7 @@ suite "develop feature":
       writeFile(pkg2DevFilePath, pkg2DevFileContent)
       cd "pkg1":
         cleanFile "pkg1".addFileExt(ExeExt)
-        let (_, exitCode) = execNimble("run", "-n")
+        let (_, exitCode) = execNimble("run", "-y")
         check exitCode == QuitSuccess
 
   test "version clash from followed develop file":
@@ -606,7 +606,7 @@ suite "develop feature":
       writeFile(developFileName, developFileContent)
       const includeFileContent = developFile(@[], @["./dependency2/"])
       writeFile(includeFilePath, includeFileContent)
-      let (_, errorCode) = execNimble("run", "-n")
+      let (_, errorCode) = execNimble("run", "-y")
       check errorCode == QuitSuccess
 
   test "do not filter not used included develop dependencies":
@@ -646,7 +646,7 @@ suite "develop feature":
 
       cd "pkg1":
         cleanFile "pkg1".addFileExt(ExeExt)
-        let (output, exitCode) = execNimble("run", "-n", "--verbose")
+        let (output, exitCode) = execNimble("run", "-y", "--verbose")
         check exitCode == QuitSuccess
         var lines = output.processOutput
         check lines.inLinesOrdered(
