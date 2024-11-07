@@ -262,7 +262,7 @@ proc getPackageList*(options: Options): seq[Package] =
         result.add(pkg)
         namesAdded.incl(pkg.name)
 
-proc findNimbleFile*(dir: string; error: bool): string =
+proc findNimbleFile*(dir: string; error: bool, options: Options): string =
   var hits = 0
   for kind, path in walkDir(dir):
     if kind in {pcFile, pcLinkToFile}:
@@ -281,7 +281,8 @@ proc findNimbleFile*(dir: string; error: bool): string =
         "Could not find a file with a .nimble extension inside the specified " &
         "directory: $1" % dir)
     else:
-      displayWarning(&"No .nimble file found for {dir}")
+      if not dir.isSubdirOf(options.nimBinariesDir):
+        displayWarning(&"No .nimble file found for {dir}")
 
 proc setNameVersionChecksum*(pkgInfo: var PackageInfo, pkgDir: string) =
   let (name, version, checksum) = getNameVersionChecksum(pkgDir)
@@ -297,7 +298,7 @@ proc getInstalledPackageMin*(options: Options, pkgDir, nimbleFilePath: string): 
   setNameVersionChecksum(result, pkgDir)
   result.isMinimal = true
   result.isInstalled = true
-  fillMetaData(result, pkgDir, false)
+  fillMetaData(result, pkgDir, false, options)
 
 proc getInstalledPkgsMin*(libsDir: string, options: Options): seq[PackageInfo] =
   ## Gets a list of installed packages. The resulting package info is
@@ -308,7 +309,7 @@ proc getInstalledPkgsMin*(libsDir: string, options: Options): seq[PackageInfo] =
   result = @[]
   for kind, path in walkDir(libsDir):
     if kind == pcDir:
-      let nimbleFile = findNimbleFile(path, false)
+      let nimbleFile = findNimbleFile(path, false, options)
       if nimbleFile != "":
         let pkg = getInstalledPackageMin(options, path, nimbleFile)
         result.add pkg

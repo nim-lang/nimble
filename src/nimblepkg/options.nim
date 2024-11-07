@@ -61,6 +61,7 @@ type
     pkgCachePath*: string # Cache used to store package downloads
     useSatSolver*: bool = true
     extraRequires*: seq[PkgTuple] # extra requires parsed from the command line
+    nimBinariesDir*: string # Directory where nim binaries are stored. Separated from nimbleDir as it can be changed by the user/tests
 
   ActionType* = enum
     actionNil, actionRefresh, actionInit, actionDump, actionPublish, actionUpgrade
@@ -561,7 +562,24 @@ proc getNimVersionFromBin*(nimBin: string): Option[Version] =
     for line in info.splitLines:
       if scanf(line, "Nim Compiler Version $i.$i.$i", major, minor, patch):
         let ver = $major & "." & $minor & "." & $patch
-        return some newVersion(ver)
+        return some newVersion(ver)    
+
+proc getNimVersion*(ver: VersionRange): Version =
+  case ver.kind:
+  of verLater, verEarlier, verEqLater, verEqEarlier, verEq:
+    ver.ver
+  of verSpecial:
+    ver.spe
+  of verIntersect, verTilde, verCaret:
+    getNimVersion(ver.verILeft)
+  of verAny:
+    newVersion "0.0.0"
+
+proc getNimVersion*(pvs: seq[PkgTuple]): Version =
+  result = newVersion("0.0.0")
+  for pv in pvs:
+    if pv.name == "nim":
+      result = getNimVersion(pv.ver)  
 
 proc makeNimBin*(options: Options, path: string, nimVersion: Option[Version] = none(Version)): NimBin =
   var path = path
@@ -725,6 +743,7 @@ proc initOptions*(): Options =
     verbosity: HighPriority,
     noColor: not isatty(stdout),
     startDir: getCurrentDir(),
+    nimBinariesDir: getHomeDir() / ".nimble" / "nimbinaries"
   )
 
 proc handleUnknownFlags(options: var Options) =
@@ -878,3 +897,13 @@ proc lockFile*(options: Options, dir: string): string =
 
 proc lockFileExists*(options: Options, dir: string): bool =
   return options.lockFile(dir).fileExists
+
+proc isSubdirOf*(subdir, baseDir: string): bool =
+  let
+    normalizedSubdir = subdir.normalizedPath
+    normalizedBaseDir = baseDir.normalizedPath & DirSep
+
+  when defined(windows):
+    normalizedSubdir.toLower.startsWith(normalizedBaseDir.toLower)
+  else:
+    normalizedSubdir.startsWith(normalizedBaseDir)

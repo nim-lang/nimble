@@ -15,7 +15,7 @@ proc execHook*(options: Options, hookAction: ActionType, before: bool): bool =
 
   var nimbleFile = ""
   try:
-    nimbleFile = findNimbleFile(getCurrentDir(), true)
+    nimbleFile = findNimbleFile(getCurrentDir(), true, options)
   except NimbleError: return true
   # PackageInfos are cached so we can read them as many times as we want.
   let pkgInfo = getPkgInfoFromFile(nimbleFile, options)

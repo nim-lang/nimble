@@ -3,7 +3,7 @@ when defined(nimNimbleBootstrap):
 else:
   import sat/[sat, satvars] 
 import version, packageinfotypes, download, packageinfo, packageparser, options, 
-  sha1hashes, tools
+  sha1hashes, tools, downloadnim
   
 import std/[tables, sequtils, algorithm, sets, strutils, options, strformat, os]
 
@@ -60,7 +60,7 @@ type
     requirements*: seq[PkgTuple] 
     reverseDependencies*: seq[(string, Version)] 
     
-  GetPackageMinimal* = proc (pv: PkgTuple, options: Options): Option[PackageMinimalInfo]
+  GetPackageMinimal* = proc (pv: PkgTuple, options: Options): seq[PackageMinimalInfo]
 
 #From the STD as it is not available in older Nim versions
 func addUnique*[T](s: var seq[T], x: sink T) =
@@ -109,23 +109,6 @@ proc hasVersion*(packagesVersions: Table[string, PackageVersions], name: string,
       if pkg.version == ver:
         return true
   false
-
-proc getNimVersion*(ver: VersionRange): Version =
-  case ver.kind:
-  of verLater, verEarlier, verEqLater, verEqEarlier, verEq:
-    ver.ver
-  of verSpecial:
-    ver.spe
-  of verIntersect, verTilde, verCaret:
-    getNimVersion(ver.verILeft)
-  of verAny:
-    newVersion "0.0.0"
-
-proc getNimVersion*(pvs: seq[PkgTuple]): Version =
-  result = newVersion("0.0.0")
-  for pv in pvs:
-    if pv.name == "nim":
-      result = getNimVersion(pv.ver)
 
 proc findDependencyForDep(g: DepGraph; dep: string): int {.inline.} =
   assert g.packageToDependency.hasKey(dep), dep & " not found"
@@ -359,10 +342,19 @@ proc downloadPkInfoForPv*(pv: PkgTuple, options: Options): PackageInfo  =
                   downloadDir, vcsRevision = notSetSha1Hash)
   return getPkgInfo(res.dir, options)
 
-proc downloadMinimalPackage*(pv: PkgTuple, options: Options): Option[PackageMinimalInfo] =
-  if pv.name == "": return none(PackageMinimalInfo)
+proc getAllNimReleases(options: Options): seq[PackageMinimalInfo] =
+  #TODO cache the call in options
+  let releases = getOfficialReleases(options)
+  for release in releases:
+    result.add PackageMinimalInfo(name: "nim", version: release)
+  
+
+proc downloadMinimalPackage*(pv: PkgTuple, options: Options): seq[PackageMinimalInfo] =
+  if pv.name == "": return newSeq[PackageMinimalInfo]()
+  if pv.isNim: return getAllNimReleases(options)
+
   let pkgInfo = downloadPkInfoForPv(pv, options)
-  some pkgInfo.getMinimalInfo(options)
+  return @[pkgInfo.getMinimalInfo(options)]
 
 proc fillPackageTableFromPreferred*(packages: var Table[string, PackageVersions], preferredPackages: seq[PackageMinimalInfo]) =
   for pkg in preferredPackages:
@@ -378,25 +370,27 @@ proc getInstalledMinimalPackages*(options: Options): seq[PackageMinimalInfo] =
 proc collectAllVersions*(versions: var Table[string, PackageVersions], package: PackageMinimalInfo, options: Options, getMinimalPackage: GetPackageMinimal,  preferredPackages: seq[PackageMinimalInfo] = newSeq[PackageMinimalInfo]()) =
   ### Collects all the versions of a package and its dependencies and stores them in the versions table
   ### A getMinimalPackage function is passed to get the package
-  proc getMinimalFromPreferred(pv: PkgTuple): Option[PackageMinimalInfo] =
+  proc getMinimalFromPreferred(pv: PkgTuple): seq[PackageMinimalInfo] =
     #Before proceding to download we check if the package is in the preferred packages
     for pp in preferredPackages:
       if pp.name == pv.name and pp.version.withinRange(pv.ver):
-        return some pp
+        return @[pp]
     getMinimalPackage(pv, options)
 
   for pv in package.requires:
     # echo "Collecting versions for ", pv.name, " and Version: ", $pv.ver, " via ", package.name
     var pv = pv
     if not hasVersion(versions, pv):  # Not found, meaning this package-version needs to be explored
-      var pkgMin = getMinimalFromPreferred(pv).get()
-      if pv.ver.kind == verSpecial:
-        pkgMin.version = newVersion $pv.ver
-      if not versions.hasKey(pv.name):
-        versions[pv.name] = PackageVersions(pkgName: pv.name, versions: @[pkgMin])
-      else:
-        versions[pv.name].versions.addUnique pkgMin
-      collectAllVersions(versions, pkgMin, options, getMinimalPackage, preferredPackages)
+      var pkgMins = getMinimalFromPreferred(pv)
+      for pkgMin in pkgMins.mitems:
+        if pv.ver.kind == verSpecial:
+          pkgMin.version = newVersion $pv.ver
+        if not versions.hasKey(pv.name):
+          versions[pv.name] = PackageVersions(pkgName: pv.name, versions: @[pkgMin])
+        else:
+          versions[pv.name].versions.addUnique pkgMin
+        #TODO do not enter in the loop until we have collected all the versions?
+        collectAllVersions(versions, pkgMin, options, getMinimalPackage, preferredPackages)
 
 proc topologicalSort*(solvedPkgs: seq[SolvedPackage]): seq[SolvedPackage] =
   var inDegree = initTable[string, int]()
