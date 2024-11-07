@@ -55,17 +55,15 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
 
       - uses: jiro4989/setup-nim-action@v2
         with:
           nim-version: 'stable'
           yes: true
-
-      - name: Update submodules
-        run: |
-          git submodule init
-          git submodule update
-          
+      
       - name: Install dependencies
         run: nimble install -y
 
