@@ -61,6 +61,11 @@ jobs:
           nim-version: 'stable'
           yes: true
 
+      - name: Update submodules
+        run: |
+          git submodule init
+          git submodule update
+          
       - name: Install dependencies
         run: nimble install -y
 
