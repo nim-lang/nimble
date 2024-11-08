@@ -617,7 +617,7 @@ proc getOfficialReleases*(options: Options): seq[Version] =
     parsedContents = parseJson(rawContents)
   except CatchableError:
     display("Warning", "Error getting official releases from github", Warning, HighPriority)
-    #Another temp hack to avoid reaching github api limit
+    #Another temp hack to avoid reaching github api limit when the file doesnt exists
     return @[newVersion("2.2.0"), newVersion("2.0.12"), newVersion("2.0.10"), newVersion("2.0.8"), newVersion("2.0.6"), newVersion("2.0.4"), newVersion("2.0.2"), newVersion("2.0.0"), newVersion("1.6.20"), newVersion("1.6.18"), newVersion("1.6.16"), newVersion("1.6.14"), newVersion("1.6.12"), newVersion("1.6.10"), newVersion("1.6.8"), newVersion("1.6.6"), newVersion("1.6.4"), newVersion("1.6.2"), newVersion("1.6.0"), newVersion("1.4.8"), newVersion("1.4.6"), newVersion("1.4.4"), newVersion("1.4.2"), newVersion("1.4.0"), newVersion("1.2.18"), newVersion("1.2.16"), newVersion("1.2.14"), newVersion("1.2.12"), newVersion("1.2.10"), newVersion("1.2.8")]
   let cutOffVersion = newVersion("0.16.0")
 
