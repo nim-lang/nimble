@@ -283,6 +283,58 @@ proc generateUnsatisfiableMessage(g: var DepGraph, f: Form, s: Solution): string
   else:
     return "Dependency resolution failed due to the following conflicts:\n" & conflicts.join("\n")
 
+proc findMinimalFailingSet*(g: var DepGraph): tuple[failingSet: seq[PkgTuple], output: string] =
+  var minimalFailingSet: seq[PkgTuple] = @[]
+  let rootNode = g.nodes[0]
+  let rootVersion = rootNode.versions[0]
+  var allDeps = g.reqs[rootVersion.req].deps
+  
+  # Try removing one dependency at a time to see if it makes it satisfiable
+  for i in 0..<allDeps.len:
+    var reducedDeps = allDeps
+    reducedDeps.delete(i)
+    var tempGraph = g
+    tempGraph.reqs[rootVersion.req].deps = reducedDeps
+    let tempForm = toFormular(tempGraph)
+    var tempSolution = createSolution(tempForm.idgen)
+    if not satisfiable(tempForm.f, tempSolution):
+      minimalFailingSet.add(allDeps[i])
+  
+  # Generate error message
+  var output = ""
+  if minimalFailingSet.len > 0:
+    output = "Dependency resolution failed. Minimal set of conflicting dependencies:\n"
+    var allRequirements = initTable[string, seq[VersionRange]]()
+    for dep in minimalFailingSet:
+      let depNodeIdx = g.findDependencyForDep(dep.name)
+      if depNodeIdx >= 0:
+        let depNode = g.nodes[depNodeIdx]
+        for ver in depNode.versions:
+          if ver.version.withinRange(dep.ver):
+            let reqs = g.reqs[ver.req].deps
+            for req in reqs:
+              if req.name notin allRequirements:
+                allRequirements[req.name] = @[]
+              allRequirements[req.name].add(req.ver)
+    
+    # Show deps with conflicts
+    for dep in minimalFailingSet:
+      output.add(&" \n + {dep.name} {dep.ver}")
+      let depNodeIdx = g.findDependencyForDep(dep.name)
+      if depNodeIdx >= 0:
+        let depNode = g.nodes[depNodeIdx]
+        var shownReqs = initHashSet[string]()
+        for ver in depNode.versions:
+          if ver.version.withinRange(dep.ver):
+            let reqs = g.reqs[ver.req].deps
+            for req in reqs:
+              let reqKey = req.name & $req.ver
+              if allRequirements[req.name].len > 1 and reqKey notin shownReqs:
+                output.add(&"\n\t -{req.name} {req.ver}")
+                shownReqs.incl(reqKey)
+  
+  (minimalFailingSet, output)
+
 #It may be better to just use result here
 proc solve*(g: var DepGraph; f: Form, packages: var Table[string, Version], output: var string): bool =
   let m = f.idgen
@@ -308,8 +360,11 @@ proc solve*(g: var DepGraph; f: Form, packages: var Table[string, Version], outp
     # echo output
     true
   else:
-    #TODO we could make a permuted version of the requires for the root package and try again
-    output = generateUnsatisfiableMessage(g, f, s)
+    let (failingSet, errorMsg) = findMinimalFailingSet(g)
+    if failingSet.len > 0:
+      output = errorMsg
+    else:
+      output = generateUnsatisfiableMessage(g, f, s)
     false
 
 proc collectReverseDependencies*(targetPkgName: string, graph: DepGraph): seq[(string, Version)] =
