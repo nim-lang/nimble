@@ -363,23 +363,23 @@ proc downloadFileNim(url, outputPath: string) =
 
   client.downloadFile(url, outputPath)
 
-when defined(windows):
-  import puppy
-  proc downloadFilePuppy(url, outputPath: string) =
-    displayDebug("Downloading using Puppy")
-    let req = fetch(
-      Request(
-        url: parseUrl(url),
-        verb: "get",
-        headers: @[Header(key: "User-Agent", value: userAgent)],
-      )
-    )
-    if req.code == 200:
-      writeFile(outputPath, req.body)
-    else:
-      raise newException(
-        HTTPRequestError, "Expected HTTP code $1 got $2" % [$200, $req.code]
-      )
+# when defined(windows):
+#   import puppy
+#   proc downloadFilePuppy(url, outputPath: string) =
+#     displayDebug("Downloading using Puppy")
+#     let req = fetch(
+#       Request(
+#         url: parseUrl(url),
+#         verb: "get",
+#         headers: @[Header(key: "User-Agent", value: userAgent)],
+#       )
+#     )
+#     if req.code == 200:
+#       writeFile(outputPath, req.body)
+#     else:
+#       raise newException(
+#         HTTPRequestError, "Expected HTTP code $1 got $2" % [$200, $req.code]
+#       )
 
 proc downloadFile*(url, outputPath: string) =
   # For debugging.
@@ -394,11 +394,11 @@ proc downloadFile*(url, outputPath: string) =
   # Download to temporary file to prevent problems when choosenim crashes.
   let tempOutputPath = outputPath & "_temp"
   try:
-    when defined(curl):
-      downloadFileCurl(url, tempOutputPath)
-    elif defined(windows):
-      downloadFilePuppy(url, tempOutputPath)
-    else:
+    # when defined(curl):
+    #   downloadFileCurl(url, tempOutputPath)
+    # elif defined(windows):
+    #   downloadFilePuppy(url, tempOutputPath)
+    # else:
       downloadFileNim(url, tempOutputPath)
   except HttpRequestError:
     echo("") # Skip line with progress bar.
@@ -559,49 +559,49 @@ proc downloadDLLs*(options: Options): string =
   return outputPath
 
 proc retrieveUrl*(url: string): string =
-  when defined(curl):
-    display("Curl", "Requesting " & url, priority = DebugPriority)
-    # Based on: https://curl.haxx.se/libcurl/c/simple.html
-    let curl = libcurl.easy_init()
+  # when defined(curl):
+  #   display("Curl", "Requesting " & url, priority = DebugPriority)
+  #   # Based on: https://curl.haxx.se/libcurl/c/simple.html
+  #   let curl = libcurl.easy_init()
 
-    # Set which URL to retrieve and tell curl to follow redirects.
-    checkCurl curl.easy_setopt(OPT_URL, url)
-    checkCurl curl.easy_setopt(OPT_FOLLOWLOCATION, 1)
+  #   # Set which URL to retrieve and tell curl to follow redirects.
+  #   checkCurl curl.easy_setopt(OPT_URL, url)
+  #   checkCurl curl.easy_setopt(OPT_FOLLOWLOCATION, 1)
 
-    var res = ""
-    # Set up write callback.
-    proc onWrite(data: ptr char, size: cint, nmemb: cint, userData: pointer): cint =
-      var res = cast[ptr string](userData)
-      var buffer = newString(size * nmemb)
-      copyMem(addr buffer[0], data, buffer.len)
-      res[].add(buffer)
-      result = buffer.len.cint
+  #   var res = ""
+  #   # Set up write callback.
+  #   proc onWrite(data: ptr char, size: cint, nmemb: cint, userData: pointer): cint =
+  #     var res = cast[ptr string](userData)
+  #     var buffer = newString(size * nmemb)
+  #     copyMem(addr buffer[0], data, buffer.len)
+  #     res[].add(buffer)
+  #     result = buffer.len.cint
 
-    checkCurl curl.easy_setopt(OPT_WRITEFUNCTION, onWrite)
-    checkCurl curl.easy_setopt(OPT_WRITEDATA, addr res)
+  #   checkCurl curl.easy_setopt(OPT_WRITEFUNCTION, onWrite)
+  #   checkCurl curl.easy_setopt(OPT_WRITEDATA, addr res)
 
-    let usrAgentCopy = userAgent
-    checkCurl curl.easy_setopt(OPT_USERAGENT, unsafeAddr usrAgentCopy[0])
+  #   let usrAgentCopy = userAgent
+  #   checkCurl curl.easy_setopt(OPT_USERAGENT, unsafeAddr usrAgentCopy[0])
 
-    # Download the file.
-    checkCurl curl.easy_perform()
+  #   # Download the file.
+  #   checkCurl curl.easy_perform()
 
-    # Verify the response code.
-    var responseCode: int
-    checkCurl curl.easy_getinfo(INFO_RESPONSE_CODE, addr responseCode)
+  #   # Verify the response code.
+  #   var responseCode: int
+  #   checkCurl curl.easy_getinfo(INFO_RESPONSE_CODE, addr responseCode)
 
-    display("Curl", res, priority = DebugPriority)
+  #   display("Curl", res, priority = DebugPriority)
 
-    if responseCode != 200:
-      raise newException(
-        HTTPRequestError,
-        "Expected HTTP code $1 got $2 for $3" % [$200, $responseCode, url],
-      )
+  #   if responseCode != 200:
+  #     raise newException(
+  #       HTTPRequestError,
+  #       "Expected HTTP code $1 got $2 for $3" % [$200, $responseCode, url],
+  #     )
 
-    return res
-  elif defined(windows):
-    return fetch(url, headers = @[Header(key: "User-Agent", value: userAgent)])
-  else:
+  #   return res
+  # elif defined(windows):
+  #   return fetch(url, headers = @[Header(key: "User-Agent", value: userAgent)])
+  # else:
     display("Http", "Requesting " & url, priority = DebugPriority)
     var client = newHttpClient(proxy = getProxy(), userAgent = userAgent)
     return client.getContent(url)
@@ -754,7 +754,7 @@ proc downloadAndExtractNimMatchedVersion*(
 
 type NimInstalled* = tuple[dir: string, ver: Version]
 proc getNimVersion(nimDir: string): Option[Version] =
-  let ver = getNimVersionFromBin(nimDir / "bin" / "nim")
+  let ver = getNimVersionFromBin(nimDir / "bin" / "nim".addFileExt(ExeExt))
   if ver.isSome():
     return ver
 

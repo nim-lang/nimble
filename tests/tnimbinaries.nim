@@ -21,7 +21,7 @@ suite "Nim binaries":
     let version = newVersion("2.0.4")
     let extractDir = downloadAndExtractNim(version, options)
     check extractDir.isSome
-    check fileExists(extractDir.get / "bin" / "nim")
+    check fileExists(extractDir.get / "bin" / "nim".addFileExt(ExeExt))
 
 
   test "Downloading minimal package with Nim should return all the versions":
