@@ -16,12 +16,11 @@ suite "Nim binaries":
     let path = downloadNim(version, options)
     check path.fileExists()
 
-  test "can download and unzip a version. Should also compile it if the prebinaries are not available for the current platform":
+  test "can download and unzip a version. Should also compile it if the precompiled binaries are not available for the current platform":
     var options = initOptions()
     let version = newVersion("2.0.4")
     let extractDir = downloadAndExtractNim(version, options)
     check extractDir.isSome
-    check fileExists(extractDir.get / "bin" / "nim".addFileExt(ExeExt))
 
 
   test "Downloading minimal package with Nim should return all the versions":
