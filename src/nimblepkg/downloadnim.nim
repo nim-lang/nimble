@@ -385,9 +385,6 @@ proc downloadFile*(url, outputPath: string) =
   # For debugging.
   display("GET:", url, priority = DebugPriority)
 
-  # Telemetry
-  let startTime = epochTime()
-
   # Create outputPath's directory if it doesn't exist already.
   createDir(outputPath.splitFile.dir)
 
