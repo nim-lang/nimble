@@ -1,5 +1,5 @@
 import
-  std/[httpclient, strutils, os, osproc, terminal, times, json, uri, sequtils, options]
+  std/[httpclient, strutils, os, osproc, terminal, times, json, uri, sequtils, options, jsonutils]
 import zippy/tarballs as zippy_tarballs
 import zippy/ziparchives as zippy_zips
 
@@ -607,6 +607,11 @@ proc retrieveUrl*(url: string): string =
     return client.getContent(url)
 
 proc getOfficialReleases*(options: Options): seq[Version] =
+  #Temp hack to avoid reaching github api limit. TODO do this better
+  let oficialReleasesCachedFile = options.getPkgsDir().absolutePath() / "official-nim-releases.json"
+  if oficialReleasesCachedFile.fileExists():
+    return oficialReleasesCachedFile.readFile().parseJson().to(seq[Version])
+
   let rawContents = retrieveUrl(githubTagReleasesUrl.addGithubAuthentication())
   let parsedContents = parseJson(rawContents)
   let cutOffVersion = newVersion("0.16.0")
@@ -617,6 +622,8 @@ proc getOfficialReleases*(options: Options): seq[Version] =
     let version = name.newVersion
     if cutOffVersion <= version:
       releases.add(version)
+  createDir(oficialReleasesCachedFile.parentDir)
+  writeFile(oficialReleasesCachedFile, releases.toJson().pretty())
   return releases
 
 template isDevel*(version: Version): bool =
