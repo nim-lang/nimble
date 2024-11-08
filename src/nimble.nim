@@ -798,7 +798,7 @@ proc install(packages: seq[PkgTuple], options: Options,
       if options.useSatSolver and subdir == "": #Ignore the cache if subdir is set
           downloadPath =  getCacheDownloadDir(url, pv.ver, options)
       var nimInstalled = none(NimInstalled)
-      if pv.isNim: #TODO check for the flag and the special verison 
+      if pv.isNim: 
         nimInstalled = installNimFromBinariesDir(pv, options)
        
       let (downloadDir, downloadVersion, vcsRevision) =
@@ -2425,7 +2425,9 @@ proc setNimBin*(options: var Options) =
   if options.nimBin.isNone:
     # Search installed packages to continue with
     let nimVersion = ("nim", VersionRange(kind: verAny))
-    let installedPkgs = getInstalledPkgsMin(options.getPkgsDir(), options) & getInstalledPkgsMin(options.nimBinariesDir, options)
+    let installedPkgs = getInstalledPkgsMin(options.getPkgsDir(), options)
+    #Is this actually needed? If so, guard it with the setNimBinaries flag
+    # & getInstalledPkgsMin(options.nimBinariesDir, options)
     var pkg = initPackageInfo()
     if findPkg(installedPkgs, nimVersion, pkg):
       options.useNimFromDir(pkg.getRealDir, pkg.basicInfo.version.toVersionRange())

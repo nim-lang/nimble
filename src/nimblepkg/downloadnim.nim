@@ -759,6 +759,8 @@ proc getNimVersion(nimDir: string): Option[Version] =
     return ver
 
 proc installNimFromBinariesDir*(require: PkgTuple, options: Options): Option[NimInstalled] =
+  if options.disableNimBinaries:
+    return none(NimInstalled)
   # Check if already installed
   let nimBininstalledPkgs = getInstalledPkgsMin(options.nimBinariesDir, options)
   var pkg = initPackageInfo()

@@ -351,7 +351,7 @@ proc getAllNimReleases(options: Options): seq[PackageMinimalInfo] =
 
 proc downloadMinimalPackage*(pv: PkgTuple, options: Options): seq[PackageMinimalInfo] =
   if pv.name == "": return newSeq[PackageMinimalInfo]()
-  if pv.isNim: return getAllNimReleases(options)
+  if pv.isNim and not options.disableNimBinaries: return getAllNimReleases(options)
 
   let pkgInfo = downloadPkInfoForPv(pv, options)
   return @[pkgInfo.getMinimalInfo(options)]

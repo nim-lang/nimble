@@ -62,6 +62,7 @@ type
     useSatSolver*: bool = true
     extraRequires*: seq[PkgTuple] # extra requires parsed from the command line
     nimBinariesDir*: string # Directory where nim binaries are stored. Separated from nimbleDir as it can be changed by the user/tests
+    disableNimBinaries*: bool # Whether to disable the use of nim binaries
 
   ActionType* = enum
     actionNil, actionRefresh, actionInit, actionDump, actionPublish, actionUpgrade
@@ -251,6 +252,7 @@ Nimble Options:
                                   file if any
       --solver:sat|legacy         Use the SAT solver or the legacy (default) for dependency resolution.
       --requires                  Add extra packages to the dependency resolution. Uses the same syntax as the Nimble file. Example: nimble install --requires "pkg1; pkg2 >= 1.2"
+      --disableNimBinaries        Disable the use of nim precompiled binaries. Note in some platforms precompiled binaries are not available but the flag can still be used to avoid compile the Nim version once and reuse it.
 
 For more information read the GitHub readme:
   https://github.com/nim-lang/nimble#readme
@@ -635,6 +637,8 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
       raise nimbleError("Unknown solver option: " & val)
   of "requires":
     result.extraRequires = val.split(";").mapIt(it.strip.parseRequires())
+  of "disablenimbinaries":
+    result.disableNimBinaries = true
   else: isGlobalFlag = false
 
   var wasFlagHandled = true
