@@ -203,7 +203,7 @@ const
   websiteUrlGz = "https://nim-lang.org/download/nim-$1.tar.gz"
   csourcesUrl = "https://github.com/nim-lang/csources"
   dlArchive = "archive/$1.tar.gz"
-  binaryUrl = "https://nim-lang.org/download/nim-$1$2_x$3" & getBinArchiveFormat()
+  binaryUrl {.used.} = "https://nim-lang.org/download/nim-$1$2_x$3" & getBinArchiveFormat()
   userAgent = "nimble/" & nimbleVersion
 
 const # Windows-only
