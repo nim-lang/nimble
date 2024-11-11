@@ -750,10 +750,15 @@ proc extractNimIfNeeded*(path, extractDir: string, options: Options, attempts: i
   if isNimDirProperlyExtracted(extractDir):
     return true
   #dir exists but is not properly extracted. We need to wipe it out and extract from scratch
-  if attempts > 3:
+  if attempts > 5:
     return false
   removeDir(extractDir)
   extract(path, extractDir)
+  when defined(windows):
+    #beforeInstall 
+    let buildAll = extractDir / "build_all.bat"
+    if not buildAll.fileExists():
+      writeFile(buildAll, "echo hello;")
   return extractNimIfNeeded(path, extractDir, options, attempts + 1)
 
 
@@ -761,7 +766,7 @@ proc downloadAndExtractNim*(
     version: Version, options: Options): Option[string] =
   try:
     let extractDir = options.getNimInstallationDir(version)
-    if extractDir.dirExists(): #TODO test if binary is valid?
+    if extractDir.dirExists() and isNimDirProperlyExtracted(extractDir): #TODO test if binary is valid?
       display("Info:", "Nim $1 already installed" % $version)
       return some extractDir
     let path = downloadNim(version, options)
