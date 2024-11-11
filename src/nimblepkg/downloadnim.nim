@@ -738,6 +738,25 @@ proc extract*(path: string, extractDir: string) =
 proc getNimInstallationDir*(options: Options, version: Version): string =
   return getNimBinariesDir(options) / ("nim-$1" % $version)
 
+proc isNimDirProperlyExtracted*(extractDir: string): bool =
+  let folders = @["lib", "bin"]
+  for folder in folders:
+    if not (extractDir / folder).dirExists():
+      display("Warning", "Nim $1 is not properly extracted" % $extractDir, Warning, HighPriority)
+      return false
+  true
+
+proc extractNimIfNeeded*(path, extractDir: string, options: Options, attempts: int = 0): bool =
+  if isNimDirProperlyExtracted(extractDir):
+    return true
+  #dir exists but is not properly extracted. We need to wipe it out and extract from scratch
+  if attempts > 3:
+    return false
+  removeDir(extractDir)
+  extract(path, extractDir)
+  return extractNimIfNeeded(path, extractDir, options, attempts + 1)
+
+
 proc downloadAndExtractNim*(
     version: Version, options: Options): Option[string] =
   try:
@@ -746,9 +765,11 @@ proc downloadAndExtractNim*(
       display("Info:", "Nim $1 already installed" % $version)
       return some extractDir
     let path = downloadNim(version, options)
-    if not extractDir.dirExists():
-      extract(path, extractDir)
-    return some extractDir
+    let extracted = extractNimIfNeeded(path, extractDir, options)
+    if extracted:
+      return some extractDir
+    else:
+      return none(string)
   except:
     return none(string)
 
@@ -773,11 +794,11 @@ proc installNimFromBinariesDir*(require: PkgTuple, options: Options): Option[Nim
   # Check if already installed
   let nimBininstalledPkgs = getInstalledPkgsMin(options.nimBinariesDir, options)
   var pkg = initPackageInfo()
-  if findPkg(nimBininstalledPkgs, require, pkg):
+  if findPkg(nimBininstalledPkgs, require, pkg) and isNimDirProperlyExtracted(pkg.getRealDir):
     let ver = getNimVersion(pkg.getRealDir)
     if ver.isSome():
       return some (pkg.getRealDir, ver.get())
-
+ 
   # Download if allowed
   if not options.offline and
       options.prompt("No nim version matching $1. Download it now?" % $require.ver):
