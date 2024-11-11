@@ -4,7 +4,7 @@
 import testscommon
 
 # suits imports
-
+import tnimbinaries
 import tinitcommand
 import tcheckcommand
 import tcleancommand
@@ -31,7 +31,6 @@ import ttaskdeps
 import tsat
 import tniminstall
 import trequireflag
-import tnimbinaries
 # nonim tests are very slow and (often) break the CI.
 
 # import tnonim

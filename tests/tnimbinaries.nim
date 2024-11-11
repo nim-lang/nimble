@@ -1,6 +1,6 @@
 {.used.}
 import unittest
-import nimblepkg/[options, downloadnim, version, nimblesat]
+import nimblepkg/[options, downloadnim, version, nimblesat, packageparser]
 import std/[os, options]
 
 suite "Nim binaries":
@@ -41,6 +41,15 @@ suite "Nim binaries":
     let nimInstalled = installNimFromBinariesDir(require, options)
     check nimInstalled.isSome
     check nimInstalled.get().ver == newVersion("2.0.4")
+  
+  test "should be able to get the package info from the nim extracted folder":
+    var options = initOptions()
+    let version = newVersion("2.2.0")
+    let extractDir = downloadAndExtractNim(version, options)    
+    options.nimBin = some options.makeNimBin("nim")
+    check extractDir.isSome
+    let pkgInfo = getPkgInfo(extractDir.get(), options)    
+    check pkgInfo.basicInfo.name == "nim"
 
 #Next steps:
 # - Install a package and test that the binary exists after the installation
