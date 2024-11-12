@@ -1,5 +1,8 @@
 import
-  std/[httpclient, strutils, os, osproc, terminal, times, json, uri, sequtils, options, jsonutils]
+  std/[
+    httpclient, strutils, os, osproc, terminal, times, json, uri, sequtils, options,
+    jsonutils,
+  ]
 import zippy/tarballs as zippy_tarballs
 import zippy/ziparchives as zippy_zips
 
@@ -203,7 +206,8 @@ const
   websiteUrlGz = "https://nim-lang.org/download/nim-$1.tar.gz"
   csourcesUrl = "https://github.com/nim-lang/csources"
   dlArchive = "archive/$1.tar.gz"
-  binaryUrl {.used.} = "https://nim-lang.org/download/nim-$1$2_x$3" & getBinArchiveFormat()
+  binaryUrl {.used.} =
+    "https://nim-lang.org/download/nim-$1$2_x$3" & getBinArchiveFormat()
   userAgent = "nimble/" & nimbleVersion
 
 const # Windows-only
@@ -363,24 +367,6 @@ proc downloadFileNim(url, outputPath: string) =
 
   client.downloadFile(url, outputPath)
 
-# when defined(windows):
-#   import puppy
-#   proc downloadFilePuppy(url, outputPath: string) =
-#     displayDebug("Downloading using Puppy")
-#     let req = fetch(
-#       Request(
-#         url: parseUrl(url),
-#         verb: "get",
-#         headers: @[Header(key: "User-Agent", value: userAgent)],
-#       )
-#     )
-#     if req.code == 200:
-#       writeFile(outputPath, req.body)
-#     else:
-#       raise newException(
-#         HTTPRequestError, "Expected HTTP code $1 got $2" % [$200, $req.code]
-#       )
-
 proc downloadFile*(url, outputPath: string) =
   # For debugging.
   display("GET:", url, priority = DebugPriority)
@@ -391,12 +377,7 @@ proc downloadFile*(url, outputPath: string) =
   # Download to temporary file to prevent problems when choosenim crashes.
   let tempOutputPath = outputPath & "_temp"
   try:
-    # when defined(curl):
-    #   downloadFileCurl(url, tempOutputPath)
-    # elif defined(windows):
-    #   downloadFilePuppy(url, tempOutputPath)
-    # else:
-      downloadFileNim(url, tempOutputPath)
+    downloadFileNim(url, tempOutputPath)
   except HttpRequestError:
     echo("") # Skip line with progress bar.
     let msg =
@@ -505,7 +486,7 @@ proc downloadImpl(version: Version, options: Options): string =
     let hasUnxz = findExe("unxz") != ""
     let url = (if hasUnxz: websiteUrlXz else: websiteUrlGz) % $version
     # let url = binaryUrl % [$version, "-linux", $arch]
-      #Note for macOs its using x86 we need to update the binaries and then the macos url
+    #Note for macOs its using x86 we need to update the binaries and then the macos url
 
     if not needsDownload(url, outputPath, options):
       return outputPath
@@ -556,56 +537,16 @@ proc downloadDLLs*(options: Options): string =
   return outputPath
 
 proc retrieveUrl*(url: string): string =
-  # when defined(curl):
-  #   display("Curl", "Requesting " & url, priority = DebugPriority)
-  #   # Based on: https://curl.haxx.se/libcurl/c/simple.html
-  #   let curl = libcurl.easy_init()
-
-  #   # Set which URL to retrieve and tell curl to follow redirects.
-  #   checkCurl curl.easy_setopt(OPT_URL, url)
-  #   checkCurl curl.easy_setopt(OPT_FOLLOWLOCATION, 1)
-
-  #   var res = ""
-  #   # Set up write callback.
-  #   proc onWrite(data: ptr char, size: cint, nmemb: cint, userData: pointer): cint =
-  #     var res = cast[ptr string](userData)
-  #     var buffer = newString(size * nmemb)
-  #     copyMem(addr buffer[0], data, buffer.len)
-  #     res[].add(buffer)
-  #     result = buffer.len.cint
-
-  #   checkCurl curl.easy_setopt(OPT_WRITEFUNCTION, onWrite)
-  #   checkCurl curl.easy_setopt(OPT_WRITEDATA, addr res)
-
-  #   let usrAgentCopy = userAgent
-  #   checkCurl curl.easy_setopt(OPT_USERAGENT, unsafeAddr usrAgentCopy[0])
-
-  #   # Download the file.
-  #   checkCurl curl.easy_perform()
-
-  #   # Verify the response code.
-  #   var responseCode: int
-  #   checkCurl curl.easy_getinfo(INFO_RESPONSE_CODE, addr responseCode)
-
-  #   display("Curl", res, priority = DebugPriority)
-
-  #   if responseCode != 200:
-  #     raise newException(
-  #       HTTPRequestError,
-  #       "Expected HTTP code $1 got $2 for $3" % [$200, $responseCode, url],
-  #     )
-
-  #   return res
-  # elif defined(windows):
-  #   return fetch(url, headers = @[Header(key: "User-Agent", value: userAgent)])
-  # else:
-    display("Http", "Requesting " & url, priority = DebugPriority)
-    var client = newHttpClient(proxy = getProxy(), userAgent = userAgent)
-    return client.getContent(url)
+  display("Http", "Requesting " & url, priority = DebugPriority)
+  var client = newHttpClient(proxy = getProxy(), userAgent = userAgent)
+  return client.getContent(url)
 
 proc getOfficialReleases*(options: Options): seq[Version] =
-  #Temp hack to avoid reaching github api limit. TODO do this better
-  let oficialReleasesCachedFile = options.getPkgsDir().absolutePath() / "official-nim-releases.json"
+  #Avoid reaching github api limit
+  #Later on, this file will be moved to a new global cache file that we are going to 
+  #introduce when enabling the "enumerate all versions" feature
+  let oficialReleasesCachedFile =
+    options.getPkgsDir().absolutePath() / "official-nim-releases.json"
   if oficialReleasesCachedFile.fileExists():
     return oficialReleasesCachedFile.readFile().parseJson().to(seq[Version])
   var parsedContents: JsonNode
@@ -613,9 +554,43 @@ proc getOfficialReleases*(options: Options): seq[Version] =
     let rawContents = retrieveUrl(githubTagReleasesUrl.addGithubAuthentication())
     parsedContents = parseJson(rawContents)
   except CatchableError:
-    display("Warning", "Error getting official releases from github", Warning, HighPriority)
-    #Another temp hack to avoid reaching github api limit when the file doesnt exists
-    return @[newVersion("2.2.0"), newVersion("2.0.12"), newVersion("2.0.10"), newVersion("2.0.8"), newVersion("2.0.6"), newVersion("2.0.4"), newVersion("2.0.2"), newVersion("2.0.0"), newVersion("1.6.20"), newVersion("1.6.18"), newVersion("1.6.16"), newVersion("1.6.14"), newVersion("1.6.12"), newVersion("1.6.10"), newVersion("1.6.8"), newVersion("1.6.6"), newVersion("1.6.4"), newVersion("1.6.2"), newVersion("1.6.0"), newVersion("1.4.8"), newVersion("1.4.6"), newVersion("1.4.4"), newVersion("1.4.2"), newVersion("1.4.0"), newVersion("1.2.18"), newVersion("1.2.16"), newVersion("1.2.14"), newVersion("1.2.12"), newVersion("1.2.10"), newVersion("1.2.8")]
+    display(
+      "Warning", "Error getting official releases from github", Warning, HighPriority
+    )
+    #Avoid reaching github api limit when the file doesnt exists only expected to be reached in CI
+    return
+      @[
+        newVersion("2.2.0"),
+        newVersion("2.0.12"),
+        newVersion("2.0.10"),
+        newVersion("2.0.8"),
+        newVersion("2.0.6"),
+        newVersion("2.0.4"),
+        newVersion("2.0.2"),
+        newVersion("2.0.0"),
+        newVersion("1.6.20"),
+        newVersion("1.6.18"),
+        newVersion("1.6.16"),
+        newVersion("1.6.14"),
+        newVersion("1.6.12"),
+        newVersion("1.6.10"),
+        newVersion("1.6.8"),
+        newVersion("1.6.6"),
+        newVersion("1.6.4"),
+        newVersion("1.6.2"),
+        newVersion("1.6.0"),
+        newVersion("1.4.8"),
+        newVersion("1.4.6"),
+        newVersion("1.4.4"),
+        newVersion("1.4.2"),
+        newVersion("1.4.0"),
+        newVersion("1.2.18"),
+        newVersion("1.2.16"),
+        newVersion("1.2.14"),
+        newVersion("1.2.12"),
+        newVersion("1.2.10"),
+        newVersion("1.2.8"),
+      ]
   let cutOffVersion = newVersion("0.16.0")
 
   var releases: seq[Version] = @[]
@@ -742,11 +717,18 @@ proc isNimDirProperlyExtracted*(extractDir: string): bool =
   let folders = @["lib", "bin"]
   for folder in folders:
     if not (extractDir / folder).dirExists():
-      display("Warning", "Nim $1 is not properly extracted" % $extractDir, Warning, HighPriority)
+      display(
+        "Warning",
+        "Nim $1 is not properly extracted" % $extractDir,
+        Warning,
+        HighPriority,
+      )
       return false
   true
 
-proc extractNimIfNeeded*(path, extractDir: string, options: Options, attempts: int = 0): bool =
+proc extractNimIfNeeded*(
+    path, extractDir: string, options: Options, attempts: int = 0
+): bool =
   if isNimDirProperlyExtracted(extractDir):
     return true
   #dir exists but is not properly extracted. We need to wipe it out and extract from scratch
@@ -761,12 +743,11 @@ proc extractNimIfNeeded*(path, extractDir: string, options: Options, attempts: i
       writeFile(buildAll, "echo hello;")
   return extractNimIfNeeded(path, extractDir, options, attempts + 1)
 
-
-proc downloadAndExtractNim*(
-    version: Version, options: Options): Option[string] =
+proc downloadAndExtractNim*(version: Version, options: Options): Option[string] =
   try:
     let extractDir = options.getNimInstallationDir(version)
-    if extractDir.dirExists() and isNimDirProperlyExtracted(extractDir): #TODO test if binary is valid?
+    if extractDir.dirExists() and isNimDirProperlyExtracted(extractDir):
+      #TODO test if binary is valid?
       display("Info:", "Nim $1 already installed" % $version)
       return some extractDir
     let path = downloadNim(version, options)
@@ -779,7 +760,8 @@ proc downloadAndExtractNim*(
     return none(string)
 
 proc downloadAndExtractNimMatchedVersion*(
-    ver: VersionRange, options: Options): Option[string] =
+    ver: VersionRange, options: Options
+): Option[string] =
   let releases = getOfficialReleases(options)
     #TODO Use the cached make sure the order is correct
   for releaseVer in releases:
@@ -793,17 +775,20 @@ proc getNimVersion(nimDir: string): Option[Version] =
   if ver.isSome():
     return ver
 
-proc installNimFromBinariesDir*(require: PkgTuple, options: Options): Option[NimInstalled] =
+proc installNimFromBinariesDir*(
+    require: PkgTuple, options: Options
+): Option[NimInstalled] =
   if options.disableNimBinaries:
     return none(NimInstalled)
   # Check if already installed
   let nimBininstalledPkgs = getInstalledPkgsMin(options.nimBinariesDir, options)
   var pkg = initPackageInfo()
-  if findPkg(nimBininstalledPkgs, require, pkg) and isNimDirProperlyExtracted(pkg.getRealDir):
+  if findPkg(nimBininstalledPkgs, require, pkg) and
+      isNimDirProperlyExtracted(pkg.getRealDir):
     let ver = getNimVersion(pkg.getRealDir)
     if ver.isSome():
       return some (pkg.getRealDir, ver.get())
- 
+
   # Download if allowed
   if not options.offline and
       options.prompt("No nim version matching $1. Download it now?" % $require.ver):
@@ -813,7 +798,7 @@ proc installNimFromBinariesDir*(require: PkgTuple, options: Options): Option[Nim
       let ver = getNimVersion(extractedDir.get)
       if ver.isSome():
         return some (extractedDir.get, ver.get)
-        
+
       # Rebuild if necessary
       displayInfo "There is no nim binary in the downloaded directory or it is corrupted. Rebuilding it"
       compileNim(options, extractedDir.get, require.ver)
