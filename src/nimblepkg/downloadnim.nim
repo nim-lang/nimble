@@ -485,9 +485,7 @@ proc downloadImpl(version: Version, options: Options): string =
 
     let hasUnxz = findExe("unxz") != ""
     let url = (if hasUnxz: websiteUrlXz else: websiteUrlGz) % $version
-    # let url = binaryUrl % [$version, "-linux", $arch]
     #Note for macOs its using x86 we need to update the binaries and then the macos url
-
     if not needsDownload(url, outputPath, options):
       return outputPath
     echo "url: ", url

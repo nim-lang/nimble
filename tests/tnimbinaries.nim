@@ -75,8 +75,3 @@ suite "Nim binaries":
         check "iteration: 1" in lines
         check "iteration: 2" in lines
         check exitCode == QuitSuccess
-
-
-# Next steps:
-#   - Clean up downloadnim
-#   - Refactor the cache

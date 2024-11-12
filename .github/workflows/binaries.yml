@@ -1,12 +1,12 @@
 on:
   push:
     tags:
-    - 'v*' # "v1.2.3"
+      - "v*" # "v1.2.3"
     branches:
-    - master
-    paths-ignore: ['nimble-guide/**', '**/*.md']
+      - master
+    paths-ignore: ["nimble-guide/**", "**/*.md"]
   pull_request:
-    paths-ignore: ['nimble-guide/**', '**/*.md']
+    paths-ignore: ["nimble-guide/**", "**/*.md"]
   workflow_dispatch:
 
 jobs:
@@ -50,7 +50,7 @@ jobs:
       run:
         shell: bash
 
-    name: '${{ matrix.target.triple }}'
+    name: "${{ matrix.target.triple }}"
     runs-on: ${{ matrix.builder }}
     steps:
       - name: Checkout
@@ -61,9 +61,9 @@ jobs:
 
       - uses: jiro4989/setup-nim-action@v2
         with:
-          nim-version: 'stable'
+          nim-version: "stable"
           yes: true
-      
+
       - name: Install dependencies
         run: nimble install -y
 

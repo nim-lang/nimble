@@ -387,7 +387,7 @@ proc collectAllVersions*(versions: var Table[string, PackageVersions], package: 
           versions[pv.name] = PackageVersions(pkgName: pv.name, versions: @[pkgMin])
         else:
           versions[pv.name].versions.addUnique pkgMin
-        #TODO do not enter in the loop until we have collected all the versions?
+        #TODO Note for when implementing "enumerate all versions": do not enter in the loop until we have collected all the versions
         collectAllVersions(versions, pkgMin, options, getMinimalPackage, preferredPackages)
 
 proc topologicalSort*(solvedPkgs: seq[SolvedPackage]): seq[SolvedPackage] =

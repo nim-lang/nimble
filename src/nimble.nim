@@ -2465,7 +2465,7 @@ proc setNimBin*(options: var Options) =
       let installedPkgs = getInstalledPkgsMin(options.getPkgsDir(), options)
       var pkg = initPackageInfo()
       if findPkg(installedPkgs, require, pkg):
-        options.useNimFromDir(pkg.getRealDir, require.ver)      
+        options.useNimFromDir(pkg.getRealDir, require.ver)
       else:
         if not options.offline and options.prompt("No nim version matching $1. Download it now?" % $require.ver):
           for pkg in install(require, options):
