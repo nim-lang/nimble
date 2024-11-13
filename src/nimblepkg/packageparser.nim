@@ -386,7 +386,7 @@ proc getPkgInfoFromFile*(file: NimbleFile, options: Options,
 proc getPkgInfo*(dir: string, options: Options, forValidation = false):
     PackageInfo =
   ## Find the .nimble file in ``dir`` and parses it, returning a PackageInfo.
-  let nimbleFile = findNimbleFile(dir, true)
+  let nimbleFile = findNimbleFile(dir, true, options)
   result = getPkgInfoFromFile(nimbleFile, options, forValidation)
 
 proc getInstalledPkgs*(libsDir: string, options: Options): seq[PackageInfo] =
@@ -394,7 +394,7 @@ proc getInstalledPkgs*(libsDir: string, options: Options): seq[PackageInfo] =
   ##
   ## ``libsDir`` is in most cases: ~/.nimble/pkgs/
   const
-    readErrorMsg = "Installed package '$1@$2' is outdated or corrupt."
+    readErrorMsg = "Installed packaged '$1@$2' is outdated or corrupt."
     validationErrorMsg = readErrorMsg & "\nPackage did not pass validation: $3"
     hintMsg = "The corrupted package will need to be removed manually. To fix" &
               " this error message, remove $1."
@@ -413,12 +413,12 @@ proc getInstalledPkgs*(libsDir: string, options: Options): seq[PackageInfo] =
   result = @[]
   for kind, path in walkDir(libsDir):
     if kind == pcDir:
-      let nimbleFile = findNimbleFile(path, false)
+      let nimbleFile = findNimbleFile(path, false, options)
       if nimbleFile != "":
         var pkg = initPackageInfo()
         try:
           readPackageInfo(pkg, nimbleFile, options, onlyMinimalInfo=false)
-          fillMetaData(pkg, path, false)
+          fillMetaData(pkg, path, false, options)
         except ValidationError:
           let exc = (ref ValidationError)(getCurrentException())
           exc.msg = createErrorMsg(validationErrorMsg, path, exc.msg)

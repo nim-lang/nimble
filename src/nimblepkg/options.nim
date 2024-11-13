@@ -61,6 +61,8 @@ type
     pkgCachePath*: string # Cache used to store package downloads
     useSatSolver*: bool = true
     extraRequires*: seq[PkgTuple] # extra requires parsed from the command line
+    nimBinariesDir*: string # Directory where nim binaries are stored. Separated from nimbleDir as it can be changed by the user/tests
+    disableNimBinaries*: bool # Whether to disable the use of nim binaries
 
   ActionType* = enum
     actionNil, actionRefresh, actionInit, actionDump, actionPublish, actionUpgrade
@@ -250,6 +252,7 @@ Nimble Options:
                                   file if any
       --solver:sat|legacy         Use the SAT solver or the legacy (default) for dependency resolution.
       --requires                  Add extra packages to the dependency resolution. Uses the same syntax as the Nimble file. Example: nimble install --requires "pkg1; pkg2 >= 1.2"
+      --disableNimBinaries        Disable the use of nim precompiled binaries. Note in some platforms precompiled binaries are not available but the flag can still be used to avoid compile the Nim version once and reuse it.
 
 For more information read the GitHub readme:
   https://github.com/nim-lang/nimble#readme
@@ -561,7 +564,24 @@ proc getNimVersionFromBin*(nimBin: string): Option[Version] =
     for line in info.splitLines:
       if scanf(line, "Nim Compiler Version $i.$i.$i", major, minor, patch):
         let ver = $major & "." & $minor & "." & $patch
-        return some newVersion(ver)
+        return some newVersion(ver)    
+
+proc getNimVersion*(ver: VersionRange): Version =
+  case ver.kind:
+  of verLater, verEarlier, verEqLater, verEqEarlier, verEq:
+    ver.ver
+  of verSpecial:
+    ver.spe
+  of verIntersect, verTilde, verCaret:
+    getNimVersion(ver.verILeft)
+  of verAny:
+    newVersion "0.0.0"
+
+proc getNimVersion*(pvs: seq[PkgTuple]): Version =
+  result = newVersion("0.0.0")
+  for pv in pvs:
+    if pv.name == "nim":
+      result = getNimVersion(pv.ver)  
 
 proc makeNimBin*(options: Options, path: string, nimVersion: Option[Version] = none(Version)): NimBin =
   var path = path
@@ -617,6 +637,8 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
       raise nimbleError("Unknown solver option: " & val)
   of "requires":
     result.extraRequires = val.split(";").mapIt(it.strip.parseRequires())
+  of "disablenimbinaries":
+    result.disableNimBinaries = true
   else: isGlobalFlag = false
 
   var wasFlagHandled = true
@@ -725,6 +747,7 @@ proc initOptions*(): Options =
     verbosity: HighPriority,
     noColor: not isatty(stdout),
     startDir: getCurrentDir(),
+    nimBinariesDir: getHomeDir() / ".nimble" / "nimbinaries"
   )
 
 proc handleUnknownFlags(options: var Options) =
@@ -878,3 +901,13 @@ proc lockFile*(options: Options, dir: string): string =
 
 proc lockFileExists*(options: Options, dir: string): bool =
   return options.lockFile(dir).fileExists
+
+proc isSubdirOf*(subdir, baseDir: string): bool =
+  let
+    normalizedSubdir = subdir.normalizedPath
+    normalizedBaseDir = baseDir.normalizedPath & DirSep
+
+  when defined(windows):
+    normalizedSubdir.toLower.startsWith(normalizedBaseDir.toLower)
+  else:
+    normalizedSubdir.startsWith(normalizedBaseDir)

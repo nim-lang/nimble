@@ -1,0 +1,3 @@
+[submodule "vendor/zippy"]
+	path = vendor/zippy
+	url = https://github.com/guzba/zippy.git

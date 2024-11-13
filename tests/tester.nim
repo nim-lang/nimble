@@ -4,7 +4,7 @@
 import testscommon
 
 # suits imports
-
+import tnimbinaries
 import tinitcommand
 import tcheckcommand
 import tcleancommand

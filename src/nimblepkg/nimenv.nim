@@ -1,5 +1,5 @@
 import std/[strscans, os, strutils, strformat, options]
-import version, nimblesat, cli, common, options
+import version, cli, common, options
 
 when defined(windows):
   const

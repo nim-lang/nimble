@@ -2,7 +2,7 @@
 # BSD License. Look at license.txt for more info.
 
 import json, os, strformat, sets, sequtils
-import common, version, packageinfotypes, cli, tools, sha1hashes
+import common, version, packageinfotypes, cli, tools, sha1hashes, options
 
 type
   MetaDataError* = object of NimbleError
@@ -53,7 +53,7 @@ proc saveMetaData*(metaData: PackageMetaData, dirName: string,
     $pmdjkMetaData: %metaDataWithChangedPaths}
   writeFile(dirName / packageMetaDataFileName, json.pretty)
 
-proc loadMetaData*(dirName: string, raiseIfNotFound: bool): PackageMetaData =
+proc loadMetaData*(dirName: string, raiseIfNotFound: bool, options: Options): PackageMetaData =
   ## Returns package meta data read from file in package installation directory
   result = initPackageMetaData()
   let fileName = dirName / packageMetaDataFileName
@@ -66,8 +66,9 @@ proc loadMetaData*(dirName: string, raiseIfNotFound: bool): PackageMetaData =
   elif raiseIfNotFound:
     raise metaDataError(&"No {packageMetaDataFileName} file found in {dirName}")
   else:
-    displayWarning(&"No {packageMetaDataFileName} file found in {dirName}")
+    if not dirName.isSubdirOf(options.nimBinariesDir):
+      displayWarning(&"No {packageMetaDataFileName} file found in {dirName}")
 
 proc fillMetaData*(packageInfo: var PackageInfo, dirName: string,
-                   raiseIfNotFound: bool) =
-  packageInfo.metaData = loadMetaData(dirName, raiseIfNotFound)
+                   raiseIfNotFound: bool, options: Options) =
+  packageInfo.metaData = loadMetaData(dirName, raiseIfNotFound, options)

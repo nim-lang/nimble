@@ -485,7 +485,7 @@ proc downloadPkg*(url: string, verRange: VersionRange,
   result.dir = downloadDir / subdir
   #when using a persistent download dir we can skip the download if it's already done
   try:
-    discard findNimbleFile(result.dir, true)
+    discard findNimbleFile(result.dir, true, options)
     return
   except NimbleError: 
     #Continue with the download

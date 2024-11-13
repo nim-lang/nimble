@@ -21,7 +21,8 @@ import nimblepkg/packageinfotypes, nimblepkg/packageinfo, nimblepkg/version,
        nimblepkg/nimscriptwrapper, nimblepkg/developfile, nimblepkg/paths,
        nimblepkg/nimbledatafile, nimblepkg/packagemetadatafile,
        nimblepkg/displaymessages, nimblepkg/sha1hashes, nimblepkg/syncfile,
-       nimblepkg/deps, nimblepkg/nimblesat, nimblepkg/forge_aliases, nimblepkg/nimenv
+       nimblepkg/deps, nimblepkg/nimblesat, nimblepkg/forge_aliases, nimblepkg/nimenv,
+       nimblepkg/downloadnim
 
 const
   nimblePathsFileName* = "nimble.paths"
@@ -224,7 +225,7 @@ proc processFreeDependencies(pkgInfo: PackageInfo,
           result.incl pkg
 
       pkg = installedPkg # For addRevDep
-      fillMetaData(pkg, pkg.getRealDir(), false)
+      fillMetaData(pkg, pkg.getRealDir(), false, options)
 
       # This package has been installed so we add it to our pkgList.
       pkgList.add pkg
@@ -391,7 +392,7 @@ proc removePackage(pkgInfo: PackageInfo, options: Options) =
 
   if not pkgInfo.hasMetaData:
     try:
-      fillMetaData(pkgInfo, pkgDestDir, true)
+      fillMetaData(pkgInfo, pkgDestDir, true, options)
     except MetaDataError, ValueError:
       promptRemoveEntirePackageDir(pkgDestDir, options)
       removeDir(pkgDestDir)
@@ -417,7 +418,7 @@ proc packageExists(pkgInfo: PackageInfo, options: Options):
     except CatchableError as error:
       raise nimbleError(&"The package inside \"{pkgDestDir}\" is invalid.",
                         details = error)
-    fillMetaData(oldPkgInfo, pkgDestDir, true)
+    fillMetaData(oldPkgInfo, pkgDestDir, true, options)
     return some(oldPkgInfo)
 
 proc processLockedDependencies(pkgInfo: PackageInfo, options: Options):
@@ -442,16 +443,6 @@ proc allDependencies(pkgInfo: PackageInfo, options: Options): HashSet[PackageInf
   result.incl pkgInfo.processFreeDependencies(pkgInfo.requires, options)
   for requires in pkgInfo.taskRequires.values:
     result.incl pkgInfo.processFreeDependencies(requires, options)
-
-proc isSubdirOf(subdir, baseDir: string): bool =
-  let
-    normalizedSubdir = subdir.normalizedPath
-    normalizedBaseDir = baseDir.normalizedPath & DirSep
-
-  when defined(windows):
-    normalizedSubdir.toLower.startsWith(normalizedBaseDir.toLower)
-  else:
-    normalizedSubdir.startsWith(normalizedBaseDir)
 
 proc expandPaths(pkgInfo: PackageInfo, options: Options): seq[string] =
   var pkgInfo = pkgInfo.toFullInfo(options)
@@ -649,7 +640,7 @@ proc getDependency(name: string, dep: LockFileDep, options: Options):
   ## Returns a `PackageInfo` for an already installed dependency from the
   ## lock file.
   let depDirName = getDependencyDir(name, dep, options)
-  let nimbleFilePath = findNimbleFile(depDirName, false)
+  let nimbleFilePath = findNimbleFile(depDirName, false, options)
   getInstalledPackageMin(options, depDirName, nimbleFilePath).toFullInfo(options)
 
 type
@@ -793,13 +784,12 @@ proc install(packages: seq[PkgTuple], options: Options,
                             preferredPackages = preferredPackages)
   else:
     # Install each package.
-    
     for pv in packages:
       let isAlias = isForgeAlias(pv.name)
 
       let (meth, url, metadata) = 
         if not isAlias:
-          getDownloadInfo(pv, options, doPrompt)
+          getDownloadInfo(pv, options, doPrompt) #TODO dont download if its nim
         else:
           (git, "", initTable[string, string]())
 
@@ -807,12 +797,14 @@ proc install(packages: seq[PkgTuple], options: Options,
       var downloadPath = ""
       if options.useSatSolver and subdir == "": #Ignore the cache if subdir is set
           downloadPath =  getCacheDownloadDir(url, pv.ver, options)
-      # if pv.name.isNim:
-      #   downloadPath = "/Volumes/Store/Projects/nim/nimble/temptest/nimtest"
-
-
+      var nimInstalled = none(NimInstalled)
+      if pv.isNim: 
+        nimInstalled = installNimFromBinariesDir(pv, options)
+       
       let (downloadDir, downloadVersion, vcsRevision) =
-        if not isAlias:
+        if nimInstalled.isSome():
+          (nimInstalled.get().dir, nimInstalled.get().ver, notSetSha1Hash)
+        elif not isAlias:
           downloadPkg(url, pv.ver, meth, subdir, options,
                     downloadPath = downloadPath, vcsRevision = notSetSha1Hash)
         else:
@@ -824,7 +816,8 @@ proc install(packages: seq[PkgTuple], options: Options,
       try:
         var opt = options
         if pv.name.isNim:
-          compileNim(opt, downloadDir, pv.ver)
+          if not downloadDir.isSubdirOf(options.nimBinariesDir):
+            compileNim(opt, downloadDir, pv.ver)
           opt.useNimFromDir(downloadDir, pv.ver, true)
         result = installFromDir(downloadDir, pv.ver, opt, url,
                                 first, fromLockFile, vcsRevision,
@@ -871,7 +864,7 @@ proc addPackages(packages: seq[PkgTuple], options: var Options) =
     )
   
   let 
-    dir = findNimbleFile(getCurrentDir(), true)
+    dir = findNimbleFile(getCurrentDir(), true, options)
     pkgInfo = getPkgInfo(getCurrentDir(), options)
     pkgList = options.getPackageList()
     deps = pkgInfo.requires
@@ -1445,7 +1438,7 @@ proc uninstall(options: var Options) =
   removePackages(pkgsToDelete, options)
 
 proc listTasks(options: Options) =
-  let nimbleFile = findNimbleFile(getCurrentDir(), true)
+  let nimbleFile = findNimbleFile(getCurrentDir(), true, options)
   nimscriptwrapper.listTasks(nimbleFile, options)
 
 proc developAllDependencies(pkgInfo: PackageInfo, options: var Options, topLevel = false)
@@ -2357,7 +2350,7 @@ proc doAction(options: var Options) =
     var optsCopy = options
     optsCopy.task = options.action.command.normalize
     let
-      nimbleFile = findNimbleFile(getCurrentDir(), true)
+      nimbleFile = findNimbleFile(getCurrentDir(), true, options)
       pkgInfo = getPkgInfoFromFile(nimbleFile, optsCopy)
 
     if optsCopy.task in pkgInfo.nimbleTasks:
@@ -2428,10 +2421,13 @@ proc setNimBin*(options: var Options) =
 
   proc install(package: PkgTuple, options: Options): HashSet[PackageInfo] =
     result = install(@[package], options, doPrompt = false, first = false, fromLockFile = false).deps
+  
   if options.nimBin.isNone:
     # Search installed packages to continue with
     let nimVersion = ("nim", VersionRange(kind: verAny))
     let installedPkgs = getInstalledPkgsMin(options.getPkgsDir(), options)
+    #Is this actually needed? If so, guard it with the setNimBinaries flag
+    # & getInstalledPkgsMin(options.nimBinariesDir, options)
     var pkg = initPackageInfo()
     if findPkg(installedPkgs, nimVersion, pkg):
       options.useNimFromDir(pkg.getRealDir, pkg.basicInfo.version.toVersionRange())
