@@ -544,7 +544,7 @@ proc getOfficialReleases*(options: Options): seq[Version] =
   #Later on, this file will be moved to a new global cache file that we are going to 
   #introduce when enabling the "enumerate all versions" feature
   let oficialReleasesCachedFile =
-    options.getPkgsDir().absolutePath() / "official-nim-releases.json"
+    options.nimbleDir.absolutePath() / "official-nim-releases.json"
   if oficialReleasesCachedFile.fileExists():
     return oficialReleasesCachedFile.readFile().parseJson().to(seq[Version])
   var parsedContents: JsonNode
