@@ -638,10 +638,7 @@ proc fastForwardMerge*(path: Path, remoteBranch, localBranch: string) =
 
 when isMainModule:
   import unittest, sequtils
-  when defined(nimNimbleBootstrap):
-    import ../../dist/checksums/src/checksums/sha1
-  else:
-    import pkg/checksums/sha1
+  import pkg/checksums/sha1
 
   type
     NameToVcsRevision = OrderedTable[string, Sha1Hash]

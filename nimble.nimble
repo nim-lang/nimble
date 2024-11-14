@@ -10,9 +10,7 @@ srcDir = "src"
 installExt = @["nim"]
 
 # Dependencies
-
-requires "nim >= 0.13.0", "sat"
-requires "checksums"
+requires "nim >= 2.0.12"
 
 when defined(nimdistros):
   import distros
