@@ -1,3 +1,9 @@
 [submodule "vendor/zippy"]
 	path = vendor/zippy
 	url = https://github.com/guzba/zippy.git
+[submodule "vendor/sat"]
+	path = vendor/sat
+	url = https://github.com/nim-lang/sat.git
+[submodule "vendor/checksums"]
+	path = vendor/checksums
+	url = https://github.com/nim-lang/checksums.git
