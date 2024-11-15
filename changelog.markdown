@@ -3,6 +3,12 @@
 
 # Nimble changelog
 
+## 0.16.3
+
+- Nim dependencies now use precompiled binaries when available. One can opt-out it by using `--disableNimBinaries`.
+- Improves sat error messages. Making it easier to spot conflicting dependencies.
+- Other fixes and improvements.
+
 ## 0.16.2
 
  - Adds a `requires` flag which allows to add extra packages to the dependency resolution.
