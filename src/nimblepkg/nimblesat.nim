@@ -3,7 +3,7 @@ when defined(nimNimbleBootstrap):
 else:
   import sat/[sat, satvars] 
 import version, packageinfotypes, download, packageinfo, packageparser, options, 
-  sha1hashes, tools, downloadnim
+  sha1hashes, tools, downloadnim, cli
   
 import std/[tables, sequtils, algorithm, sets, strutils, options, strformat, os]
 
@@ -494,6 +494,14 @@ proc solvePackages*(rootPkg: PackageInfo, pkgList: seq[PackageInfo], pkgsToInsta
   var pkgVersionTable = initTable[string, PackageVersions]()
   pkgVersionTable[root.name] = PackageVersions(pkgName: root.name, versions: @[root])
   collectAllVersions(pkgVersionTable, root, options, downloadMinimalPackage, pkgList.mapIt(it.getMinimalInfo(options)))
+  if options.verbosity <= DebugPriority:
+    display("Info", "Collected packages", priority = DebugPriority)
+    for k, v in pkgVersionTable:
+      display("Info", k, priority = DebugPriority)      
+      for ver in v.versions:
+        for dep in ver.requires:
+            display("Info", &"\t {dep.name} {dep.ver}", priority = DebugPriority)
+
   solvedPkgs = pkgVersionTable.getSolvedPackages(output).topologicalSort()
 
   for solvedPkg in solvedPkgs:
