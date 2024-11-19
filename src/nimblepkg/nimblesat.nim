@@ -384,15 +384,16 @@ proc getSolvedPackages*(pkgVersionTable: Table[string, PackageVersions], output:
 proc getCacheDownloadDir*(url: string, ver: VersionRange, options: Options): string =
   options.pkgCachePath / getDownloadDirName(url, ver, notSetSha1Hash)
 
-proc downloadPkInfoForPv*(pv: PkgTuple, options: Options): PackageInfo  =
+proc downloadPkgFromUrl*(pv: PkgTuple, options: Options): DownloadPkgResult = 
   let (meth, url, metadata) = 
-    getDownloadInfo(pv, options, doPrompt = false, ignorePackageCache = false)
+      getDownloadInfo(pv, options, doPrompt = false, ignorePackageCache = false)
   let subdir = metadata.getOrDefault("subdir")
   let downloadDir =  getCacheDownloadDir(url, pv.ver, options)
-  let res = 
-    downloadPkg(url, pv.ver, meth, subdir, options,
-                  downloadDir, vcsRevision = notSetSha1Hash)
-  return getPkgInfo(res.dir, options)
+  downloadPkg(url, pv.ver, meth, subdir, options,
+                downloadDir, vcsRevision = notSetSha1Hash)
+        
+proc downloadPkInfoForPv*(pv: PkgTuple, options: Options): PackageInfo  =
+  downloadPkgFromUrl(pv, options).dir.getPkgInfo(options)
 
 proc getAllNimReleases(options: Options): seq[PackageMinimalInfo] =
   let releases = getOfficialReleases(options)
@@ -511,3 +512,18 @@ proc getPackageInfo*(name: string, pkgs: seq[PackageInfo], version: Option[Versi
             return some pkg
         else: #No version passed over first match
           return some pkg
+
+proc getPackageMinimalVersionsFromRepo*(repoDir, pkgName: string, downloadMethod: DownloadMethod, isRoot: bool, options: Options): seq[PackageMinimalInfo] =
+  gitFetchTags(repoDir, downloadMethod)        
+  let tags = getTagsList(repoDir, downloadMethod).getVersionList()
+  for (ver, tag) in tags.pairs:
+    #For each version, we need to parse the requires so we need to checkout and initialize the repo
+    try:
+      doCheckout(downloadMethod, repoDir, tag)
+      let nimbleFile = findNimbleFile(repoDir, true, options)
+      let pkgInfo = getPkgInfoFromFile(nimbleFile, options, useCache=false)
+      let minimalInfo = pkgInfo.getMinimalInfo(options)
+      result.add minimalInfo
+    except CatchableError as e:
+      displayWarning(&"Error reading tag {tag}: for package {pkgName}. This may not be relevant as it could be an old version of the package. \n {e.msg}", HighPriority)
+  

@@ -272,7 +272,7 @@ proc inferInstallRules(pkgInfo: var PackageInfo, options: Options) =
     if fileExists(pkgInfo.getRealDir() / pkgInfo.basicInfo.name.addFileExt("nim")):
       pkgInfo.installFiles.add(pkgInfo.basicInfo.name.addFileExt("nim"))
 
-proc readPackageInfo(pkgInfo: var PackageInfo, nf: NimbleFile, options: Options, onlyMinimalInfo=false) =
+proc readPackageInfo(pkgInfo: var PackageInfo, nf: NimbleFile, options: Options, onlyMinimalInfo=false, useCache=true) =
   ## Reads package info from the specified Nimble file.
   ##
   ## Attempts to read it using the "old" Nimble ini format first, if that
@@ -289,7 +289,7 @@ proc readPackageInfo(pkgInfo: var PackageInfo, nf: NimbleFile, options: Options,
   assert fileExists(nf)
 
   # Check the cache.
-  if options.pkgInfoCache.hasKey(nf):
+  if useCache and options.pkgInfoCache.hasKey(nf):
     pkgInfo = options.pkgInfoCache[nf]
     return
   pkgInfo = initPackageInfo(options, nf)
@@ -369,12 +369,12 @@ proc readPackageInfo(pkgInfo: var PackageInfo, nf: NimbleFile, options: Options,
     validatePackageInfo(pkgInfo, options)
 
 proc getPkgInfoFromFile*(file: NimbleFile, options: Options,
-                         forValidation = false): PackageInfo =
+                         forValidation = false, useCache = true): PackageInfo =
   ## Reads the specified .nimble file and returns its data as a PackageInfo
   ## object. Any validation errors are handled and displayed as warnings.
   result = initPackageInfo()
   try:
-    readPackageInfo(result, file, options)
+    readPackageInfo(result, file, options, useCache= useCache)
   except ValidationError:
     let exc = (ref ValidationError)(getCurrentException())
     if exc.warnAll and not forValidation:
