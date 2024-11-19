@@ -1,6 +1,6 @@
 import sat/[sat, satvars] 
 import version, packageinfotypes, download, packageinfo, packageparser, options, 
-  sha1hashes, tools, downloadnim
+  sha1hashes, tools, downloadnim, cli
   
 import std/[tables, sequtils, algorithm, sets, strutils, options, strformat, os]
 
@@ -315,10 +315,30 @@ proc findMinimalFailingSet*(g: var DepGraph): tuple[failingSet: seq[PkgTuple], o
   
   (minimalFailingSet, output)
 
-#It may be better to just use result here
+proc filterSatisfiableDeps(g: DepGraph, node: DepNode): seq[DependencyVersion] =
+  ## Returns a sequence of versions from the node that have satisfiable dependencies
+  result = @[]
+  for v in node.versions:
+    let reqs = g.reqs[v.req].deps
+    var hasUnsatisfiableDep = false
+    for req in reqs:
+      let depIdx = findDependencyForDep(g, req.name)
+      if depIdx >= 0:
+        var canSatisfy = false
+        for depVer in g.nodes[depIdx].versions:
+          if depVer.version.withinRange(req.ver):
+            canSatisfy = true
+            break
+        if not canSatisfy:
+          hasUnsatisfiableDep = true
+          break
+    if not hasUnsatisfiableDep:
+      result.add(v)
+
 proc solve*(g: var DepGraph; f: Form, packages: var Table[string, Version], output: var string): bool =
   let m = f.idgen
   var s = createSolution(m)
+  
   if satisfiable(f.f, s):
     for n in mitems g.nodes:
       if n.isRoot: n.active = true
@@ -330,18 +350,27 @@ proc solve*(g: var DepGraph; f: Form, packages: var Table[string, Version], outp
         g.nodes[idx].activeVersion = m.index
 
     for n in items g.nodes:
-        for v in items(n.versions):
-          let item = f.mapping[v.v]
-          if s.isTrue(v.v):
-            packages[item.pkg] = item.version
-            output.add &"item.pkg  [x]  {toString item} \n"
-          else:
-            output.add &"item.pkg  [ ]  {toString item} \n"
-    # echo output
-    true
+      for v in items(n.versions):
+        let item = f.mapping[v.v]
+        if s.isTrue(v.v):
+          packages[item.pkg] = item.version
+          output.add &"item.pkg  [x]  {toString item} \n"
+        else:
+          output.add &"item.pkg  [ ]  {toString item} \n"
+    return true
   else:
     let (failingSet, errorMsg) = findMinimalFailingSet(g)
     if failingSet.len > 0:
+      var newGraph = g
+      for pkg in failingSet:
+        let idx = findDependencyForDep(newGraph, pkg.name)
+        if idx >= 0:
+          let newVersions = filterSatisfiableDeps(newGraph, newGraph.nodes[idx])
+          if newVersions.len > 0:
+            newGraph.nodes[idx].versions = newVersions
+            let newForm = toFormular(newGraph)
+            return solve(newGraph, newForm, packages, output)
+      
       output = errorMsg
     else:
       output = generateUnsatisfiableMessage(g, f, s)
