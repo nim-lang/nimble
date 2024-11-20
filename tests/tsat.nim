@@ -357,11 +357,11 @@ suite "SAT solver":
         check v.versions.len <= options.maxTaggedVersions
       echo &"{k} versions {v.versions.len}"
   
-  test "when disableNimBinaries is used should compile the Nim version": 
+  test "should fallback to a previous version of a dependency when is unsatisfable": 
     #version 0.4.5 of nimfp requires nim as `nim 0.18.0` and other deps require `nim > 0.18.0`
     #version 0.4.4 tags it properly, so we test thats the one used
     #i.e when maxTaggedVersions is 1 it would fail as it would use 0.4.5
     cd "wronglytaggednim": 
       removeDir("nimbledeps")
-      let (output, exitCode) = execNimble("install", "-l")
+      let (_, exitCode) = execNimble("install", "-l")
       check exitCode == QuitSuccess
