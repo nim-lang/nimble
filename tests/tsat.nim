@@ -2,10 +2,9 @@
 import unittest, os
 import testscommon
 # from nimblepkg/common import cd Used in the commented tests
-import std/[tables, sequtils, json, jsonutils, strutils, times, options]
-import nimblepkg/[version, nimblesat, options, config]
+import std/[tables, sequtils, json, jsonutils, strutils, times, options, strformat]
+import nimblepkg/[version, nimblesat, options, config, download, packageparser, packageinfotypes, tools, packageinfo, cli]
 from nimblepkg/common import cd
-
 
 proc initFromJson*(dst: var PkgTuple, jsonNode: JsonNode, jsonPath: var string) =
   dst = parseRequires(jsonNode.str)
@@ -295,3 +294,74 @@ suite "SAT solver":
     check packages.len == 2
     check packages["a"] == newVersion "3.0"
     check packages["b"] == newVersion "1.0.0"  # Should pick exact version 1.0.0 despite 2.0.0 being available
+
+  test "should be able to get all the released PackageVersions from a git local repository":
+    var options = initOptions()
+    options.nimBin = some options.makeNimBin("nim")
+    options.config.packageLists["official"] = PackageList(name: "Official", urls: @[
+    "https://raw.githubusercontent.com/nim-lang/packages/master/packages.json",
+    "https://nim-lang.org/nimble/packages.json"
+    ])
+    let pv = parseRequires("nimfp >= 0.3.4")
+    let repoDir = pv.downloadPkgFromUrl(options).dir #This is just to setup the test. We need a git dir to work on
+    let downloadMethod = DownloadMethod git
+    
+    let packageVersions = getPackageMinimalVersionsFromRepo(repoDir, pv[0], downloadMethod, true, options)
+    
+    #we know these versions are available
+    let availableVersions = @["0.3.4", "0.3.5", "0.3.6", "0.4.5", "0.4.4"].mapIt(newVersion(it))
+    for version in availableVersions:
+      check version in packageVersions.mapIt(it.version)
+
+  test "if a dependency is unsatisfable, it should fallback to the previous version of the depency when available":
+    let pkgVersionTable = {
+      "a": PackageVersions(pkgName: "a", versions: @[
+        PackageMinimalInfo(name: "a", version: newVersion "3.0", requires: @[
+          (name:"b", ver: parseVersionRange ">= 0.5.0")
+        ], isRoot: true),       
+      ]),
+      "b": PackageVersions(pkgName: "b", versions: @[
+        PackageMinimalInfo(name: "b", version: newVersion "0.6.0", requires: @[
+          (name:"c", ver: parseVersionRange ">= 0.0.5")
+        ]),
+        PackageMinimalInfo(name: "b", version: newVersion "0.5.0", requires: @[
+         
+        ]),
+      ]),
+      "c": PackageVersions(pkgName: "c", versions: @[
+        PackageMinimalInfo(name: "c", version: newVersion "0.0.4"),
+      ])
+    }.toTable()
+
+    var graph = pkgVersionTable.toDepGraph()
+    let form = toFormular(graph)
+    var packages = initTable[string, Version]()
+    var output = ""
+    check solve(graph, form, packages, output)
+   
+  test "collectAllVersions should retrieve all releases of a given package":
+    var options = initOptions()
+    options.nimBin = some options.makeNimBin("nim")
+    options.config.packageLists["official"] = PackageList(name: "Official", urls: @[
+    "https://raw.githubusercontent.com/nim-lang/packages/master/packages.json",
+    "https://nim-lang.org/nimble/packages.json"
+    ])
+    let pv = parseRequires("chronos >= 4.0.0")
+    var pkgInfo = downloadPkInfoForPv(pv, options)
+    var root = pkgInfo.getMinimalInfo(options)
+    root.isRoot = true
+    var pkgVersionTable = initTable[string, PackageVersions]()
+    collectAllVersions(pkgVersionTable, root, options, downloadMinimalPackage)
+    for k, v in pkgVersionTable:
+      if not k.isNim:
+        check v.versions.len <= options.maxTaggedVersions
+      echo &"{k} versions {v.versions.len}"
+  
+  test "when disableNimBinaries is used should compile the Nim version": 
+    #version 0.4.5 of nimfp requires nim as `nim 0.18.0` and other deps require `nim > 0.18.0`
+    #version 0.4.4 tags it properly, so we test thats the one used
+    #i.e when maxTaggedVersions is 1 it would fail as it would use 0.4.5
+    cd "wronglytaggednim": 
+      removeDir("nimbledeps")
+      let (output, exitCode) = execNimble("install", "-l")
+      check exitCode == QuitSuccess

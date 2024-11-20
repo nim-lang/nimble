@@ -315,7 +315,7 @@ proc findMinimalFailingSet*(g: var DepGraph): tuple[failingSet: seq[PkgTuple], o
   
   (minimalFailingSet, output)
 
-proc filterSatisfiableDeps(g: DepGraph, node: DepNode): seq[DependencyVersion] =
+proc filterSatisfiableDeps(g: DepGraph, node: Dependency): seq[DependencyVersion] =
   ## Returns a sequence of versions from the node that have satisfiable dependencies
   result = @[]
   for v in node.versions:
@@ -335,7 +335,10 @@ proc filterSatisfiableDeps(g: DepGraph, node: DepNode): seq[DependencyVersion] =
     if not hasUnsatisfiableDep:
       result.add(v)
 
-proc solve*(g: var DepGraph; f: Form, packages: var Table[string, Version], output: var string): bool =
+const MaxSolverRetries = 100
+
+proc solve*(g: var DepGraph; f: Form, packages: var Table[string, Version], output: var string, 
+           retryCount = 0): bool =
   let m = f.idgen
   var s = createSolution(m)
   
@@ -360,16 +363,22 @@ proc solve*(g: var DepGraph; f: Form, packages: var Table[string, Version], outp
     return true
   else:
     let (failingSet, errorMsg) = findMinimalFailingSet(g)
+    if retryCount >= MaxSolverRetries:
+      output = &"Max retry attempts ({MaxSolverRetries}) exceeded while trying to resolve dependencies \n"
+      output.add errorMsg
+      return false
+
     if failingSet.len > 0:
       var newGraph = g
       for pkg in failingSet:
         let idx = findDependencyForDep(newGraph, pkg.name)
         if idx >= 0:
+          # echo "Retry #", retryCount + 1, ": Checking package ", pkg.name, " version ", pkg.ver
           let newVersions = filterSatisfiableDeps(newGraph, newGraph.nodes[idx])
-          if newVersions.len > 0:
+          if newVersions.len > 0 and newVersions != newGraph.nodes[idx].versions:
             newGraph.nodes[idx].versions = newVersions
             let newForm = toFormular(newGraph)
-            return solve(newGraph, newForm, packages, output)
+            return solve(newGraph, newForm, packages, output, retryCount + 1)
       
       output = errorMsg
     else:
@@ -413,28 +422,50 @@ proc getSolvedPackages*(pkgVersionTable: Table[string, PackageVersions], output:
 proc getCacheDownloadDir*(url: string, ver: VersionRange, options: Options): string =
   options.pkgCachePath / getDownloadDirName(url, ver, notSetSha1Hash)
 
-proc downloadPkgFromUrl*(pv: PkgTuple, options: Options): DownloadPkgResult = 
+proc downloadPkgFromUrl*(pv: PkgTuple, options: Options): (DownloadPkgResult, DownloadMethod) = 
   let (meth, url, metadata) = 
       getDownloadInfo(pv, options, doPrompt = false, ignorePackageCache = false)
   let subdir = metadata.getOrDefault("subdir")
   let downloadDir =  getCacheDownloadDir(url, pv.ver, options)
-  downloadPkg(url, pv.ver, meth, subdir, options,
+  let downloadRes = downloadPkg(url, pv.ver, meth, subdir, options,
                 downloadDir, vcsRevision = notSetSha1Hash)
+  (downloadRes, meth)
         
 proc downloadPkInfoForPv*(pv: PkgTuple, options: Options): PackageInfo  =
-  downloadPkgFromUrl(pv, options).dir.getPkgInfo(options)
+  downloadPkgFromUrl(pv, options)[0].dir.getPkgInfo(options)
 
 proc getAllNimReleases(options: Options): seq[PackageMinimalInfo] =
   let releases = getOfficialReleases(options)
   for release in releases:
     result.add PackageMinimalInfo(name: "nim", version: release)
-  
+
+proc getPackageMinimalVersionsFromRepo*(repoDir, pkgName: string, downloadMethod: DownloadMethod, options: Options): seq[PackageMinimalInfo] =
+  #This is expensive. We need to cache it. Potentially it could be also run in parallel
+  # echo &"Discovering version for {pkgName}"
+  gitFetchTags(repoDir, downloadMethod)          
+  let tags = getTagsList(repoDir, downloadMethod).getVersionList()
+  var checkedTags = 0
+  for (ver, tag) in tags.pairs:    
+    if checkedTags >= options.maxTaggedVersions:
+      # echo &"Tag limit reached for {pkgName}"
+      break
+    inc checkedTags
+    #For each version, we need to parse the requires so we need to checkout and initialize the repo
+    try:
+      doCheckout(downloadMethod, repoDir, tag)
+      let nimbleFile = findNimbleFile(repoDir, true, options)
+      let pkgInfo = getPkgInfoFromFile(nimbleFile, options, useCache=false)
+      let minimalInfo = pkgInfo.getMinimalInfo(options)
+      result.add minimalInfo
+    except CatchableError as e:
+      displayWarning(&"Error reading tag {tag}: for package {pkgName}. This may not be relevant as it could be an old version of the package. \n {e.msg}", HighPriority)
+
 proc downloadMinimalPackage*(pv: PkgTuple, options: Options): seq[PackageMinimalInfo] =
   if pv.name == "": return newSeq[PackageMinimalInfo]()
   if pv.isNim and not options.disableNimBinaries: return getAllNimReleases(options)
 
-  let pkgInfo = downloadPkInfoForPv(pv, options)
-  return @[pkgInfo.getMinimalInfo(options)]
+  let (downloadRes, downloadMeth) = downloadPkgFromUrl(pv, options)
+  getPackageMinimalVersionsFromRepo(downloadRes.dir, pv.name, downloadMeth, options)
 
 proc fillPackageTableFromPreferred*(packages: var Table[string, PackageVersions], preferredPackages: seq[PackageMinimalInfo]) =
   for pkg in preferredPackages:
@@ -541,18 +572,3 @@ proc getPackageInfo*(name: string, pkgs: seq[PackageInfo], version: Option[Versi
             return some pkg
         else: #No version passed over first match
           return some pkg
-
-proc getPackageMinimalVersionsFromRepo*(repoDir, pkgName: string, downloadMethod: DownloadMethod, isRoot: bool, options: Options): seq[PackageMinimalInfo] =
-  gitFetchTags(repoDir, downloadMethod)        
-  let tags = getTagsList(repoDir, downloadMethod).getVersionList()
-  for (ver, tag) in tags.pairs:
-    #For each version, we need to parse the requires so we need to checkout and initialize the repo
-    try:
-      doCheckout(downloadMethod, repoDir, tag)
-      let nimbleFile = findNimbleFile(repoDir, true, options)
-      let pkgInfo = getPkgInfoFromFile(nimbleFile, options, useCache=false)
-      let minimalInfo = pkgInfo.getMinimalInfo(options)
-      result.add minimalInfo
-    except CatchableError as e:
-      displayWarning(&"Error reading tag {tag}: for package {pkgName}. This may not be relevant as it could be an old version of the package. \n {e.msg}", HighPriority)
-  
