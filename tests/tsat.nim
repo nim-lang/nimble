@@ -303,10 +303,10 @@ suite "SAT solver":
     "https://nim-lang.org/nimble/packages.json"
     ])
     let pv = parseRequires("nimfp >= 0.3.4")
-    let repoDir = pv.downloadPkgFromUrl(options).dir #This is just to setup the test. We need a git dir to work on
+    let repoDir = pv.downloadPkgFromUrl(options)[0].dir #This is just to setup the test. We need a git dir to work on
     let downloadMethod = DownloadMethod git
     
-    let packageVersions = getPackageMinimalVersionsFromRepo(repoDir, pv[0], downloadMethod, true, options)
+    let packageVersions = getPackageMinimalVersionsFromRepo(repoDir, pv[0], downloadMethod, options)
     
     #we know these versions are available
     let availableVersions = @["0.3.4", "0.3.5", "0.3.6", "0.4.5", "0.4.4"].mapIt(newVersion(it))
