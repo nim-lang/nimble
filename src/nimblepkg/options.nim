@@ -749,7 +749,7 @@ proc initOptions*(): Options =
     noColor: not isatty(stdout),
     startDir: getCurrentDir(),
     nimBinariesDir: getHomeDir() / ".nimble" / "nimbinaries", 
-    maxTaggedVersions: 2 #TODO increase once we have a cache
+    maxTaggedVersions: 0 #TODO increase once we have a cache
   )
 
 proc handleUnknownFlags(options: var Options) =

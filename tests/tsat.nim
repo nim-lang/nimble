@@ -3,7 +3,7 @@ import unittest, os
 import testscommon
 # from nimblepkg/common import cd Used in the commented tests
 import std/[tables, sequtils, json, jsonutils, strutils, times, options, strformat]
-import nimblepkg/[version, nimblesat, options, config, download, packageparser, packageinfotypes, tools, packageinfo, cli]
+import nimblepkg/[version, nimblesat, options, config, download, packageinfotypes, packageinfo]
 from nimblepkg/common import cd
 
 proc initFromJson*(dst: var PkgTuple, jsonNode: JsonNode, jsonPath: var string) =
@@ -365,3 +365,8 @@ suite "SAT solver":
       removeDir("nimbledeps")
       let (_, exitCode) = execNimble("install", "-l")
       check exitCode == QuitSuccess
+
+
+#[
+  - TODO make sure all collected version requires are enumerated (they need to be taken into account in collectAllVersions after the getPackageMinimalVersionsFromRepo call)
+]#

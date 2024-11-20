@@ -400,6 +400,11 @@ proc getSolvedPackages*(pkgVersionTable: Table[string, PackageVersions], output:
     for ver in p.versions.items:
       for dep, q in items graph.reqs[ver.req].deps:
         if dep notin graph.packageToDependency:
+          #debug print. show all packacges in the graph
+          for k, v in pkgVersionTable:
+            output.add &"Package {k} \n"
+            for v in v.versions:
+              output.add &"\t \t Version {v.version} requires: {v.requires} \n" 
           output.add &"Dependency {dep} not found in the graph \n"
           return newSeq[SolvedPackage]()
     
@@ -446,7 +451,7 @@ proc getPackageMinimalVersionsFromRepo*(repoDir, pkgName: string, downloadMethod
   let tags = getTagsList(repoDir, downloadMethod).getVersionList()
   var checkedTags = 0
   for (ver, tag) in tags.pairs:    
-    if checkedTags >= options.maxTaggedVersions:
+    if options.maxTaggedVersions > 0 and checkedTags >= options.maxTaggedVersions:
       # echo &"Tag limit reached for {pkgName}"
       break
     inc checkedTags
@@ -463,7 +468,8 @@ proc getPackageMinimalVersionsFromRepo*(repoDir, pkgName: string, downloadMethod
 proc downloadMinimalPackage*(pv: PkgTuple, options: Options): seq[PackageMinimalInfo] =
   if pv.name == "": return newSeq[PackageMinimalInfo]()
   if pv.isNim and not options.disableNimBinaries: return getAllNimReleases(options)
-
+  if pv.ver.kind == verSpecial:
+    return @[downloadPkInfoForPv(pv, options).getMinimalInfo(options)]
   let (downloadRes, downloadMeth) = downloadPkgFromUrl(pv, options)
   getPackageMinimalVersionsFromRepo(downloadRes.dir, pv.name, downloadMeth, options)
 
