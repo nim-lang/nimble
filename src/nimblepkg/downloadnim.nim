@@ -706,7 +706,7 @@ proc extract*(path: string, extractDir: string) =
     srcDir = contents[0][1]
 
   # Finally copy the directory to what the user specified.
-  copyDir(srcDir, extractDir)
+  copyDirWithPermissions(srcDir, extractDir)
 
 proc getNimInstallationDir*(options: Options, version: Version): string =
   return getNimBinariesDir(options) / ("nim-$1" % $version)
