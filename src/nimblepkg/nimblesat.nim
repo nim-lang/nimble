@@ -470,7 +470,7 @@ proc getPackageMinimalVersionsFromRepo*(repoDir, pkgName: string, downloadMethod
 proc downloadMinimalPackage*(pv: PkgTuple, options: Options): seq[PackageMinimalInfo] =
   if pv.name == "": return newSeq[PackageMinimalInfo]()
   if pv.isNim and not options.disableNimBinaries: return getAllNimReleases(options)
-  if pv.ver.kind == verSpecial:
+  if pv.ver.kind in [verSpecial, verEq]: #if special or equal, we dont retrieve more versions as we only need one.
     result = @[downloadPkInfoForPv(pv, options).getMinimalInfo(options)]
   else:
     let (downloadRes, downloadMeth) = downloadPkgFromUrl(pv, options)
