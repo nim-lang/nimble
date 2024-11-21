@@ -297,6 +297,7 @@ suite "SAT solver":
 
   test "should be able to get all the released PackageVersions from a git local repository":
     var options = initOptions()
+    options.maxTaggedVersions = 0 #all
     options.nimBin = some options.makeNimBin("nim")
     options.config.packageLists["official"] = PackageList(name: "Official", urls: @[
     "https://raw.githubusercontent.com/nim-lang/packages/master/packages.json",
