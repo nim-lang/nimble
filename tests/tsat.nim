@@ -91,7 +91,6 @@ suite "SAT solver":
     check packages["a"] == newVersion "3.0"
     check packages["b"] == newVersion "0.1.0"
 
-
   test "solves 'Conflicting dependency resolution' #1162":
     let pkgVersionTable = {
       "a": PackageVersions(pkgName: "a", versions: @[
@@ -367,7 +366,10 @@ suite "SAT solver":
       let (_, exitCode) = execNimble("install", "-l")
       check exitCode == QuitSuccess
 
-
-#[
-  - TODO make sure all collected version requires are enumerated (they need to be taken into account in collectAllVersions after the getPackageMinimalVersionsFromRepo call)
-]#
+  test "should be able to collect all requires from old versions":
+    #We know this nimble version has additional requirements (new nimble use submodules)
+    #so if the requires are not collected we will not be able solve the package
+    cd "oldnimble": #0.16.2
+      removeDir("nimbledeps")
+      let (_, exitCode) = execNimbleYes("install", "-l")
+      check exitCode == QuitSuccess
