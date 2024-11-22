@@ -250,7 +250,7 @@ Nimble Options:
                                   to be manipulated. If not present creates it.
       --useSystemNim              Use system nim and ignore nim from the lock
                                   file if any
-      --solver:sat|legacy         Use the SAT solver or the legacy (default) for dependency resolution.
+      --solver:sat|legacy         Use the SAT solver (default) or the legacy for dependency resolution.
       --requires                  Add extra packages to the dependency resolution. Uses the same syntax as the Nimble file. Example: nimble install --requires "pkg1; pkg2 >= 1.2"
       --disableNimBinaries        Disable the use of nim precompiled binaries. Note in some platforms precompiled binaries are not available but the flag can still be used to avoid compile the Nim version once and reuse it.
 
