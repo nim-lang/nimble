@@ -63,6 +63,7 @@ type
     extraRequires*: seq[PkgTuple] # extra requires parsed from the command line
     nimBinariesDir*: string # Directory where nim binaries are stored. Separated from nimbleDir as it can be changed by the user/tests
     disableNimBinaries*: bool # Whether to disable the use of nim binaries
+    maxTaggedVersions*: int # Maximum number of tags to check for a package when discovering versions in a local repo
 
   ActionType* = enum
     actionNil, actionRefresh, actionInit, actionDump, actionPublish, actionUpgrade
@@ -747,7 +748,8 @@ proc initOptions*(): Options =
     verbosity: HighPriority,
     noColor: not isatty(stdout),
     startDir: getCurrentDir(),
-    nimBinariesDir: getHomeDir() / ".nimble" / "nimbinaries"
+    nimBinariesDir: getHomeDir() / ".nimble" / "nimbinaries", 
+    maxTaggedVersions: 2 #TODO increase once we have a cache
   )
 
 proc handleUnknownFlags(options: var Options) =

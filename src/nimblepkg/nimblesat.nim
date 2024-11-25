@@ -1,6 +1,6 @@
 import sat/[sat, satvars] 
 import version, packageinfotypes, download, packageinfo, packageparser, options, 
-  sha1hashes, tools, downloadnim
+  sha1hashes, tools, downloadnim, cli
   
 import std/[tables, sequtils, algorithm, sets, strutils, options, strformat, os]
 
@@ -315,10 +315,33 @@ proc findMinimalFailingSet*(g: var DepGraph): tuple[failingSet: seq[PkgTuple], o
   
   (minimalFailingSet, output)
 
-#It may be better to just use result here
-proc solve*(g: var DepGraph; f: Form, packages: var Table[string, Version], output: var string): bool =
+proc filterSatisfiableDeps(g: DepGraph, node: Dependency): seq[DependencyVersion] =
+  ## Returns a sequence of versions from the node that have satisfiable dependencies
+  result = @[]
+  for v in node.versions:
+    let reqs = g.reqs[v.req].deps
+    var hasUnsatisfiableDep = false
+    for req in reqs:
+      let depIdx = findDependencyForDep(g, req.name)
+      if depIdx >= 0:
+        var canSatisfy = false
+        for depVer in g.nodes[depIdx].versions:
+          if depVer.version.withinRange(req.ver):
+            canSatisfy = true
+            break
+        if not canSatisfy:
+          hasUnsatisfiableDep = true
+          break
+    if not hasUnsatisfiableDep:
+      result.add(v)
+
+const MaxSolverRetries = 100
+
+proc solve*(g: var DepGraph; f: Form, packages: var Table[string, Version], output: var string, 
+           retryCount = 0): bool =
   let m = f.idgen
   var s = createSolution(m)
+  
   if satisfiable(f.f, s):
     for n in mitems g.nodes:
       if n.isRoot: n.active = true
@@ -330,18 +353,33 @@ proc solve*(g: var DepGraph; f: Form, packages: var Table[string, Version], outp
         g.nodes[idx].activeVersion = m.index
 
     for n in items g.nodes:
-        for v in items(n.versions):
-          let item = f.mapping[v.v]
-          if s.isTrue(v.v):
-            packages[item.pkg] = item.version
-            output.add &"item.pkg  [x]  {toString item} \n"
-          else:
-            output.add &"item.pkg  [ ]  {toString item} \n"
-    # echo output
-    true
+      for v in items(n.versions):
+        let item = f.mapping[v.v]
+        if s.isTrue(v.v):
+          packages[item.pkg] = item.version
+          output.add &"item.pkg  [x]  {toString item} \n"
+        else:
+          output.add &"item.pkg  [ ]  {toString item} \n"
+    return true
   else:
     let (failingSet, errorMsg) = findMinimalFailingSet(g)
+    if retryCount >= MaxSolverRetries:
+      output = &"Max retry attempts ({MaxSolverRetries}) exceeded while trying to resolve dependencies \n"
+      output.add errorMsg
+      return false
+
     if failingSet.len > 0:
+      var newGraph = g
+      for pkg in failingSet:
+        let idx = findDependencyForDep(newGraph, pkg.name)
+        if idx >= 0:
+          # echo "Retry #", retryCount + 1, ": Checking package ", pkg.name, " version ", pkg.ver
+          let newVersions = filterSatisfiableDeps(newGraph, newGraph.nodes[idx])
+          if newVersions.len > 0 and newVersions != newGraph.nodes[idx].versions:
+            newGraph.nodes[idx].versions = newVersions
+            let newForm = toFormular(newGraph)
+            return solve(newGraph, newForm, packages, output, retryCount + 1)
+      
       output = errorMsg
     else:
       output = generateUnsatisfiableMessage(g, f, s)
@@ -362,7 +400,12 @@ proc getSolvedPackages*(pkgVersionTable: Table[string, PackageVersions], output:
     for ver in p.versions.items:
       for dep, q in items graph.reqs[ver.req].deps:
         if dep notin graph.packageToDependency:
+          #debug print. show all packacges in the graph
           output.add &"Dependency {dep} not found in the graph \n"
+          for k, v in pkgVersionTable:
+            output.add &"Package {k} \n"
+            for v in v.versions:
+              output.add &"\t \t Version {v.version} requires: {v.requires} \n" 
           return newSeq[SolvedPackage]()
     
   let form = toFormular(graph)
@@ -384,27 +427,55 @@ proc getSolvedPackages*(pkgVersionTable: Table[string, PackageVersions], output:
 proc getCacheDownloadDir*(url: string, ver: VersionRange, options: Options): string =
   options.pkgCachePath / getDownloadDirName(url, ver, notSetSha1Hash)
 
-proc downloadPkInfoForPv*(pv: PkgTuple, options: Options): PackageInfo  =
+proc downloadPkgFromUrl*(pv: PkgTuple, options: Options): (DownloadPkgResult, DownloadMethod) = 
   let (meth, url, metadata) = 
-    getDownloadInfo(pv, options, doPrompt = false, ignorePackageCache = false)
+      getDownloadInfo(pv, options, doPrompt = false, ignorePackageCache = false)
   let subdir = metadata.getOrDefault("subdir")
   let downloadDir =  getCacheDownloadDir(url, pv.ver, options)
-  let res = 
-    downloadPkg(url, pv.ver, meth, subdir, options,
-                  downloadDir, vcsRevision = notSetSha1Hash)
-  return getPkgInfo(res.dir, options)
+  let downloadRes = downloadPkg(url, pv.ver, meth, subdir, options,
+                downloadDir, vcsRevision = notSetSha1Hash)
+  (downloadRes, meth)
+        
+proc downloadPkInfoForPv*(pv: PkgTuple, options: Options): PackageInfo  =
+  downloadPkgFromUrl(pv, options)[0].dir.getPkgInfo(options)
 
 proc getAllNimReleases(options: Options): seq[PackageMinimalInfo] =
   let releases = getOfficialReleases(options)
   for release in releases:
     result.add PackageMinimalInfo(name: "nim", version: release)
+
+proc getPackageMinimalVersionsFromRepo*(repoDir, pkgName: string, downloadMethod: DownloadMethod, options: Options): seq[PackageMinimalInfo] =
+  #This is expensive. We need to cache it. Potentially it could be also run in parallel
+  # echo &"Discovering version for {pkgName}"
+  gitFetchTags(repoDir, downloadMethod)       
+  #First package must be the current one
+  result.add getPkgInfo(repoDir, options).getMinimalInfo(options)
+  let tags = getTagsList(repoDir, downloadMethod).getVersionList()
+  var checkedTags = 0
+  for (ver, tag) in tags.pairs:    
+    if options.maxTaggedVersions > 0 and checkedTags >= options.maxTaggedVersions:
+      # echo &"Tag limit reached for {pkgName}"
+      break
+    inc checkedTags
+    #For each version, we need to parse the requires so we need to checkout and initialize the repo
+    try:
+      doCheckout(downloadMethod, repoDir, tag)
+      let nimbleFile = findNimbleFile(repoDir, true, options)
+      let pkgInfo = getPkgInfoFromFile(nimbleFile, options, useCache=false)
+      let minimalInfo = pkgInfo.getMinimalInfo(options)
+      result.addUnique minimalInfo
+    except CatchableError as e:
+      displayWarning(&"Error reading tag {tag}: for package {pkgName}. This may not be relevant as it could be an old version of the package. \n {e.msg}", HighPriority)
   
 proc downloadMinimalPackage*(pv: PkgTuple, options: Options): seq[PackageMinimalInfo] =
   if pv.name == "": return newSeq[PackageMinimalInfo]()
   if pv.isNim and not options.disableNimBinaries: return getAllNimReleases(options)
-
-  let pkgInfo = downloadPkInfoForPv(pv, options)
-  return @[pkgInfo.getMinimalInfo(options)]
+  if pv.ver.kind in [verSpecial, verEq]: #if special or equal, we dont retrieve more versions as we only need one.
+    result = @[downloadPkInfoForPv(pv, options).getMinimalInfo(options)]
+  else:
+    let (downloadRes, downloadMeth) = downloadPkgFromUrl(pv, options)
+    result = getPackageMinimalVersionsFromRepo(downloadRes.dir, pv.name, downloadMeth, options)
+  # echo "Downloading minimal package for ", pv.name, " ", $pv.ver, result
 
 proc fillPackageTableFromPreferred*(packages: var Table[string, PackageVersions], preferredPackages: seq[PackageMinimalInfo]) =
   for pkg in preferredPackages:
@@ -417,20 +488,17 @@ proc fillPackageTableFromPreferred*(packages: var Table[string, PackageVersions]
 proc getInstalledMinimalPackages*(options: Options): seq[PackageMinimalInfo] =
   getInstalledPkgsMin(options.getPkgsDir(), options).mapIt(it.getMinimalInfo(options))
 
-proc collectAllVersions*(versions: var Table[string, PackageVersions], package: PackageMinimalInfo, options: Options, getMinimalPackage: GetPackageMinimal,  preferredPackages: seq[PackageMinimalInfo] = newSeq[PackageMinimalInfo]()) =
-  ### Collects all the versions of a package and its dependencies and stores them in the versions table
-  ### A getMinimalPackage function is passed to get the package
+
+proc collectAllVersions*(versions: var Table[string, PackageVersions], package: PackageMinimalInfo, options: Options, getMinimalPackage: GetPackageMinimal, preferredPackages: seq[PackageMinimalInfo] = newSeq[PackageMinimalInfo]()) =
   proc getMinimalFromPreferred(pv: PkgTuple): seq[PackageMinimalInfo] =
-    #Before proceding to download we check if the package is in the preferred packages
     for pp in preferredPackages:
       if pp.name == pv.name and pp.version.withinRange(pv.ver):
         return @[pp]
+    # echo "Getting minimal from getMinimalPackage for ", pv.name, " ", $pv.ver
     getMinimalPackage(pv, options)
 
-  for pv in package.requires:
-    # echo "Collecting versions for ", pv.name, " and Version: ", $pv.ver, " via ", package.name
-    var pv = pv
-    if not hasVersion(versions, pv):  # Not found, meaning this package-version needs to be explored
+  proc processRequirements(versions: var Table[string, PackageVersions], pv: PkgTuple) =
+    if not hasVersion(versions, pv):
       var pkgMins = getMinimalFromPreferred(pv)
       for pkgMin in pkgMins.mitems:
         if pv.ver.kind == verSpecial:
@@ -439,8 +507,14 @@ proc collectAllVersions*(versions: var Table[string, PackageVersions], package: 
           versions[pv.name] = PackageVersions(pkgName: pv.name, versions: @[pkgMin])
         else:
           versions[pv.name].versions.addUnique pkgMin
-        #TODO Note for when implementing "enumerate all versions": do not enter in the loop until we have collected all the versions
-        collectAllVersions(versions, pkgMin, options, getMinimalPackage, preferredPackages)
+        
+        # Process requirements from both the package and GetMinimalPackage results
+        for req in pkgMin.requires:
+          # echo "Processing requirement: ", req.name, " ", $req.ver
+          processRequirements(versions, req)
+
+  for pv in package.requires:
+    processRequirements(versions, pv)
 
 proc topologicalSort*(solvedPkgs: seq[SolvedPackage]): seq[SolvedPackage] =
   var inDegree = initTable[string, int]()

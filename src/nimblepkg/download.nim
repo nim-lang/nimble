@@ -19,7 +19,7 @@ proc updateSubmodules(dir: string) =
   discard tryDoCmdEx(
     &"git -C {dir} submodule update --init --recursive --depth 1")
 
-proc doCheckout(meth: DownloadMethod, downloadDir, branch: string) =
+proc doCheckout*(meth: DownloadMethod, downloadDir, branch: string) =
   case meth
   of DownloadMethod.git:
     # Force is used here because local changes may appear straight after a clone
@@ -46,7 +46,15 @@ proc doClone(meth: DownloadMethod, url, downloadDir: string, branch = "",
       branchArg = if branch == "": "" else: &"-b {branch}"
     discard tryDoCmdEx(&"hg clone {tipArg} {branchArg} {url} {downloadDir}")
 
-proc getTagsList(dir: string, meth: DownloadMethod): seq[string] =
+proc gitFetchTags*(repoDir: string, downloadMethod: DownloadMethod) =
+  case downloadMethod:
+    of DownloadMethod.git:
+      tryDoCmdEx(&"git -C {repoDir} fetch --tags")
+    of DownloadMethod.hg:
+      assert false, "hg not supported"
+
+
+proc getTagsList*(dir: string, meth: DownloadMethod): seq[string] =
   var output: string
   cd dir:
     case meth
