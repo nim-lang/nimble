@@ -490,7 +490,10 @@ proc getPackageMinimalVersionsFromRepo*(repoDir, pkgName: string, downloadMethod
     return taggedVersions.get.versions
   gitFetchTags(repoDir, downloadMethod)       
   #First package must be the current one
-  result.add getPkgInfo(repoDir, options).getMinimalInfo(options)
+  try:
+    result.add getPkgInfo(repoDir, options).getMinimalInfo(options)
+  except CatchableError as e:
+    displayWarning(&"Error getting package info for {pkgName}: {e.msg}", HighPriority)
   let tags = getTagsList(repoDir, downloadMethod).getVersionList()
   var checkedTags = 0
   for (ver, tag) in tags.pairs:    
