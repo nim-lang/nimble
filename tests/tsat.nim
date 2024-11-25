@@ -6,16 +6,6 @@ import std/[tables, sequtils, json, jsonutils, strutils, times, options, strform
 import nimblepkg/[version, nimblesat, options, config, download, packageinfotypes, packageinfo]
 from nimblepkg/common import cd
 
-proc initFromJson*(dst: var PkgTuple, jsonNode: JsonNode, jsonPath: var string) =
-  dst = parseRequires(jsonNode.str)
-
-proc toJsonHook*(src: PkgTuple): JsonNode =
-  let ver = if src.ver.kind == verAny: "" else: $src.ver
-  case src.ver.kind
-  of verAny: newJString(src.name)
-  of verSpecial: newJString(src.name & ver)
-  else:
-    newJString(src.name & " " & ver)
 
 #Test utils:
 proc downloadAndStorePackageVersionTableFor(pkgName: string, options: Options) =
@@ -305,13 +295,42 @@ suite "SAT solver":
     let pv = parseRequires("nimfp >= 0.3.4")
     let repoDir = pv.downloadPkgFromUrl(options)[0].dir #This is just to setup the test. We need a git dir to work on
     let downloadMethod = DownloadMethod git
-    
     let packageVersions = getPackageMinimalVersionsFromRepo(repoDir, pv[0], downloadMethod, options)
     
     #we know these versions are available
     let availableVersions = @["0.3.4", "0.3.5", "0.3.6", "0.4.5", "0.4.4"].mapIt(newVersion(it))
     for version in availableVersions:
       check version in packageVersions.mapIt(it.version)
+    check fileExists(repoDir / TaggedVersionsFileName)
+  
+  test "should not use the cache when switching versions":
+    var options = initOptions()
+    options.maxTaggedVersions = 0 #all
+    options.nimBin = some options.makeNimBin("nim")
+    options.config.packageLists["official"] = PackageList(name: "Official", urls: @[
+    "https://raw.githubusercontent.com/nim-lang/packages/master/packages.json",
+    "https://nim-lang.org/nimble/packages.json"
+    ])
+    for dir in walkDir(".", true):
+      if dir.kind == PathComponent.pcDir and dir.path.startsWith("githubcom_vegansknimfp"):
+        echo "Removing dir", dir.path
+        removeDir(dir.path)
+
+    let pvPrev = parseRequires("nimfp >= 0.3.4")
+    let repoDirPrev = pvPrev.downloadPkgFromUrl(options)[0].dir 
+    discard getPackageMinimalVersionsFromRepo(repoDirPrev, pvPrev[0], DownloadMethod.git, options)
+    check fileExists(repoDirPrev / TaggedVersionsFileName)
+    
+    let pv = parseRequires("nimfp >= 0.4.4")
+    let repoDir = pv.downloadPkgFromUrl(options)[0].dir 
+    check not fileExists(repoDir / TaggedVersionsFileName)
+
+    let packageVersions = getPackageMinimalVersionsFromRepo(repoDir, pv[0], DownloadMethod.git, options)
+    #we know these versions are available
+    let availableVersions = @["0.4.5", "0.4.4"].mapIt(newVersion(it))
+    for version in availableVersions:
+      check version in packageVersions.mapIt(it.version)
+    check fileExists(repoDir / TaggedVersionsFileName)
 
   test "if a dependency is unsatisfable, it should fallback to the previous version of the depency when available":
     let pkgVersionTable = {
