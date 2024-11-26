@@ -518,10 +518,8 @@ proc getPackageMinimalVersionsFromRepo*(repoDir, pkgName: string, downloadMethod
     for (ver, tag) in tags.pairs:    
       if ver == lastMinimalInfo.get.version:
           doCheckout(downloadMethod, repoDir, tag)
-
-
-
   saveTaggedVersions(repoDir, TaggedPackageVersions(maxTaggedVersions: options.maxTaggedVersions, versions: result))
+
 proc downloadMinimalPackage*(pv: PkgTuple, options: Options): seq[PackageMinimalInfo] =
   if pv.name == "": return newSeq[PackageMinimalInfo]()
   if pv.isNim and not options.disableNimBinaries: return getAllNimReleases(options)
