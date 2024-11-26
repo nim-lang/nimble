@@ -746,6 +746,7 @@ proc processLockedDependencies(pkgInfo: PackageInfo, options: Options):
   var res: seq[PackageInfo]
 
   for name, dep in pkgInfo.lockedDeps.lockedDepsFor(options):
+    if name.isNim and options.useSystemNim: continue
     if developModeDeps.hasKey(name):
       res.add developModeDeps[name][]
     elif isInstalled(name, dep, options):
