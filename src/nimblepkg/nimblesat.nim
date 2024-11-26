@@ -488,10 +488,12 @@ proc getPackageMinimalVersionsFromRepo*(repoDir, pkgName: string, downloadMethod
   let taggedVersions = getTaggedVersions(repoDir, options)
   if taggedVersions.isSome:
     return taggedVersions.get.versions
-  gitFetchTags(repoDir, downloadMethod)       
+  gitFetchTags(repoDir, downloadMethod)    
+  var lastMinimalInfo = none(PackageMinimalInfo)   
   #First package must be the current one
   try:
-    result.add getPkgInfo(repoDir, options).getMinimalInfo(options)
+    lastMinimalInfo = some getPkgInfo(repoDir, options).getMinimalInfo(options)
+    result.add lastMinimalInfo.get
   except CatchableError as e:
     displayWarning(&"Error getting package info for {pkgName}: {e.msg}", HighPriority)
   let tags = getTagsList(repoDir, downloadMethod).getVersionList()
@@ -506,11 +508,19 @@ proc getPackageMinimalVersionsFromRepo*(repoDir, pkgName: string, downloadMethod
       doCheckout(downloadMethod, repoDir, tag)
       let nimbleFile = findNimbleFile(repoDir, true, options)
       let pkgInfo = getPkgInfoFromFile(nimbleFile, options, useCache=false)
-      let minimalInfo = pkgInfo.getMinimalInfo(options)
-      result.addUnique minimalInfo
+      lastMinimalInfo = some pkgInfo.getMinimalInfo(options)
+      result.addUnique lastMinimalInfo.get()
     except CatchableError as e:
       displayWarning(&"Error reading tag {tag}: for package {pkgName}. This may not be relevant as it could be an old version of the package. \n {e.msg}", HighPriority)
   
+  #make sure we let this folder as it was
+  if lastMinimalInfo.isSome:
+    for (ver, tag) in tags.pairs:    
+      if ver == lastMinimalInfo.get.version:
+          doCheckout(downloadMethod, repoDir, tag)
+
+
+
   saveTaggedVersions(repoDir, TaggedPackageVersions(maxTaggedVersions: options.maxTaggedVersions, versions: result))
 proc downloadMinimalPackage*(pv: PkgTuple, options: Options): seq[PackageMinimalInfo] =
   if pv.name == "": return newSeq[PackageMinimalInfo]()
