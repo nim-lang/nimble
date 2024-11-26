@@ -2,7 +2,7 @@ import sat/[sat, satvars]
 import version, packageinfotypes, download, packageinfo, packageparser, options, 
   sha1hashes, tools, downloadnim, cli
   
-import std/[tables, sequtils, algorithm, sets, strutils, options, strformat, os]
+import std/[tables, sequtils, algorithm, sets, strutils, options, strformat, os, json, jsonutils]
 
 
 type  
@@ -58,6 +58,23 @@ type
     reverseDependencies*: seq[(string, Version)] 
     
   GetPackageMinimal* = proc (pv: PkgTuple, options: Options): seq[PackageMinimalInfo]
+
+  TaggedPackageVersions = object
+    maxTaggedVersions: int # Maximum number of tags. When number changes, we invalidate the cache
+    versions: seq[PackageMinimalInfo]
+
+const TaggedVersionsFileName* = "tagged_versions.json"
+
+proc initFromJson*(dst: var PkgTuple, jsonNode: JsonNode, jsonPath: var string) =
+  dst = parseRequires(jsonNode.str)
+
+proc toJsonHook*(src: PkgTuple): JsonNode =
+  let ver = if src.ver.kind == verAny: "" else: $src.ver
+  case src.ver.kind
+  of verAny: newJString(src.name)
+  of verSpecial: newJString(src.name & ver)
+  else:
+    newJString(src.name & " " & ver)
 
 #From the STD as it is not available in older Nim versions
 func addUnique*[T](s: var seq[T], x: sink T) =
@@ -444,12 +461,39 @@ proc getAllNimReleases(options: Options): seq[PackageMinimalInfo] =
   for release in releases:
     result.add PackageMinimalInfo(name: "nim", version: release)
 
+proc getTaggedVersions*(repoDir: string, options: Options): Option[TaggedPackageVersions] =
+  let file = repoDir / TaggedVersionsFileName
+  if file.fileExists:
+    try:
+      let taggedVersions = file.readFile.parseJson().to(TaggedPackageVersions)
+      if taggedVersions.maxTaggedVersions != options.maxTaggedVersions:
+        return none(TaggedPackageVersions)
+      return some taggedVersions
+    except CatchableError as e:
+      displayWarning(&"Error reading tagged versions: {e.msg}", HighPriority)
+      return none(TaggedPackageVersions)
+  else:
+    none(TaggedPackageVersions)
+
+proc saveTaggedVersions*(repoDir: string, taggedVersions: TaggedPackageVersions) =
+  try:
+    let file = repoDir / TaggedVersionsFileName
+    file.writeFile((taggedVersions.toJson()).pretty)
+  except CatchableError as e:
+    displayWarning(&"Error saving tagged versions: {e.msg}", HighPriority)
+
 proc getPackageMinimalVersionsFromRepo*(repoDir, pkgName: string, downloadMethod: DownloadMethod, options: Options): seq[PackageMinimalInfo] =
   #This is expensive. We need to cache it. Potentially it could be also run in parallel
   # echo &"Discovering version for {pkgName}"
+  let taggedVersions = getTaggedVersions(repoDir, options)
+  if taggedVersions.isSome:
+    return taggedVersions.get.versions
   gitFetchTags(repoDir, downloadMethod)       
   #First package must be the current one
-  result.add getPkgInfo(repoDir, options).getMinimalInfo(options)
+  try:
+    result.add getPkgInfo(repoDir, options).getMinimalInfo(options)
+  except CatchableError as e:
+    displayWarning(&"Error getting package info for {pkgName}: {e.msg}", HighPriority)
   let tags = getTagsList(repoDir, downloadMethod).getVersionList()
   var checkedTags = 0
   for (ver, tag) in tags.pairs:    
@@ -467,6 +511,7 @@ proc getPackageMinimalVersionsFromRepo*(repoDir, pkgName: string, downloadMethod
     except CatchableError as e:
       displayWarning(&"Error reading tag {tag}: for package {pkgName}. This may not be relevant as it could be an old version of the package. \n {e.msg}", HighPriority)
   
+  saveTaggedVersions(repoDir, TaggedPackageVersions(maxTaggedVersions: options.maxTaggedVersions, versions: result))
 proc downloadMinimalPackage*(pv: PkgTuple, options: Options): seq[PackageMinimalInfo] =
   if pv.name == "": return newSeq[PackageMinimalInfo]()
   if pv.isNim and not options.disableNimBinaries: return getAllNimReleases(options)
