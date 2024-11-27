@@ -293,9 +293,10 @@ suite "SAT solver":
     "https://nim-lang.org/nimble/packages.json"
     ])
     let pv = parseRequires("nimfp >= 0.3.4")
-    let repoDir = pv.downloadPkgFromUrl(options)[0].dir #This is just to setup the test. We need a git dir to work on
+    let downloadRes = pv.downloadPkgFromUrl(options)[0] #This is just to setup the test. We need a git dir to work on
+    let repoDir = downloadRes.dir
     let downloadMethod = DownloadMethod git
-    let packageVersions = getPackageMinimalVersionsFromRepo(repoDir, pv[0], downloadMethod, options)
+    let packageVersions = getPackageMinimalVersionsFromRepo(repoDir, pv[0], downloadRes.version, downloadMethod, options)
     
     #we know these versions are available
     let availableVersions = @["0.3.4", "0.3.5", "0.3.6", "0.4.5", "0.4.4"].mapIt(newVersion(it))
@@ -317,15 +318,17 @@ suite "SAT solver":
         removeDir(dir.path)
 
     let pvPrev = parseRequires("nimfp >= 0.3.4")
-    let repoDirPrev = pvPrev.downloadPkgFromUrl(options)[0].dir 
-    discard getPackageMinimalVersionsFromRepo(repoDirPrev, pvPrev[0], DownloadMethod.git, options)
+    let downloadResPrev = pvPrev.downloadPkgFromUrl(options)[0]
+    let repoDirPrev = downloadResPrev.dir
+    discard getPackageMinimalVersionsFromRepo(repoDirPrev, pvPrev[0], downloadResPrev.version,  DownloadMethod.git, options)
     check fileExists(repoDirPrev / TaggedVersionsFileName)
     
     let pv = parseRequires("nimfp >= 0.4.4")
-    let repoDir = pv.downloadPkgFromUrl(options)[0].dir 
+    let downloadRes = pv.downloadPkgFromUrl(options)[0]
+    let repoDir = downloadRes.dir 
     check not fileExists(repoDir / TaggedVersionsFileName)
 
-    let packageVersions = getPackageMinimalVersionsFromRepo(repoDir, pv[0], DownloadMethod.git, options)
+    let packageVersions = getPackageMinimalVersionsFromRepo(repoDir, pv[0], downloadRes.version, DownloadMethod.git, options)
     #we know these versions are available
     let availableVersions = @["0.4.5", "0.4.4"].mapIt(newVersion(it))
     for version in availableVersions:
