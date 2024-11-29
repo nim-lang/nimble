@@ -254,7 +254,7 @@ Nimble Options:
       --solver:sat|legacy         Use the SAT solver (default) or the legacy for dependency resolution.
       --requires                  Add extra packages to the dependency resolution. Uses the same syntax as the Nimble file. Example: nimble install --requires "pkg1; pkg2 >= 1.2"
       --disableNimBinaries        Disable the use of nim precompiled binaries. Note in some platforms precompiled binaries are not available but the flag can still be used to avoid compile the Nim version once and reuse it.
-
+      --maximumTaggedVersions     Maximum number of tags to check for a package when discovering versions for the SAT solver. 0 means all. 
 For more information read the GitHub readme:
   https://github.com/nim-lang/nimble#readme
 """
@@ -640,6 +640,11 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
     result.extraRequires = val.split(";").mapIt(it.strip.parseRequires())
   of "disablenimbinaries":
     result.disableNimBinaries = true
+  of "maximumtaggedversions":
+    try: 
+      result.maxTaggedVersions = parseUInt(val).int
+    except ValueError:
+      raise nimbleError(&"{val} is not a valid value")
   else: isGlobalFlag = false
 
   var wasFlagHandled = true
@@ -749,7 +754,7 @@ proc initOptions*(): Options =
     noColor: not isatty(stdout),
     startDir: getCurrentDir(),
     nimBinariesDir: getHomeDir() / ".nimble" / "nimbinaries", 
-    maxTaggedVersions: 2 #TODO increase once we have a cache
+    maxTaggedVersions: 2 
   )
 
 proc handleUnknownFlags(options: var Options) =
