@@ -1,8 +1,8 @@
 # Copyright (C) Dominik Picheta. All rights reserved.
 # BSD License. Look at license.txt for more info.
 
-import parseutils, os, osproc, strutils, tables, pegs, uri, strformat,
-       httpclient, json, sequtils
+import parseutils, os, osproc, strutils, tables, uri, strformat,
+       httpclient, json, sequtils, forge_aliases, urls
 
 from algorithm import SortOrder, sorted
 
@@ -141,9 +141,6 @@ proc getUrlData*(url: string): (string, Table[string, string]) =
 
   uri.query = ""
   return ($uri, {"subdir": subdir}.toTable())
-
-proc isURL*(name: string): bool =
-  name.startsWith(peg" @'://' ") or name.startsWith(peg"\ident+'@'@':'.+")
 
 proc cloneSpecificRevision(downloadMethod: DownloadMethod,
                            url, downloadDir: string,
@@ -593,6 +590,9 @@ proc getDownloadInfo*(pv: PkgTuple, options: Options,
   if pv.name.isURL:
     let (url, metadata) = getUrlData(pv.name)
     return (checkUrlType(url), url, metadata)
+  elif pv.name.isForgeAlias:
+    let url = newForge(pv.name).expand()
+    return (checkUrlType(url), url, default(Table[string, string]))
   else:
     var pkg = initPackage()
     if getPackage(pv.name, options, pkg, ignorePackageCache):
@@ -676,3 +676,5 @@ when isMainModule:
       check getDevelopDownloadDir(
         "https://github.com/nimble-test/multi", "alpha/",
         dummyOptionsWithRelativePath) == getCurrentDir() / "some/dir/alpha"
+
+export urls
