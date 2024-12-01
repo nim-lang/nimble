@@ -789,7 +789,7 @@ proc install(packages: seq[PkgTuple], options: Options,
         if not isAlias:
           getDownloadInfo(pv, options, doPrompt) #TODO dont download if its nim
         else:
-          (git, "", initTable[string, string]())
+          (git, newForge(pv.name).expand(), initTable[string, string]())
 
       let subdir = metadata.getOrDefault("subdir")
       var downloadPath = ""
@@ -917,7 +917,7 @@ proc addPackages(packages: seq[PkgTuple], options: var Options) =
       $data.pkg.basicInfo.version
     else:
       version
-
+    
     let prettyStr = apkg.name & '@' & finalVer
 
     appendStr &= "\nrequires \"$1$2\"" % [
