@@ -364,26 +364,6 @@ proc findMinimalFailingSet*(g: var DepGraph): tuple[failingSet: seq[PkgTuple], o
   
   (minimalFailingSet, output)
 
-proc filterSatisfiableDeps(g: DepGraph, node: Dependency): seq[DependencyVersion] =
-  ## Returns a sequence of versions from the node that have satisfiable dependencies
-  result = @[]
-  for v in node.versions:
-    let reqs = g.reqs[v.req].deps
-    var hasUnsatisfiableDep = false
-    for req in reqs:
-      let depIdx = findDependencyForDep(g, req.name)
-      if depIdx >= 0:
-        var canSatisfy = false
-        for depVer in g.nodes[depIdx].versions:
-          if depVer.version.withinRange(req.ver):
-            canSatisfy = true
-            break
-        if not canSatisfy:
-          hasUnsatisfiableDep = true
-          break
-    if not hasUnsatisfiableDep:
-      result.add(v)
-
 proc solve*(g: var DepGraph; f: Form, packages: var Table[string, Version], output: var string, 
            triedVersions: var seq[VersionAttempt]): bool =
   let m = f.idgen
