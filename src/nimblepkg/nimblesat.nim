@@ -505,8 +505,6 @@ proc getAllNimReleases(options: Options): seq[PackageMinimalInfo] =
   let releases = getOfficialReleases(options)  
   for release in releases:
     result.add PackageMinimalInfo(name: "nim", version: release)
-    if options.maxTaggedVersions > 0 and result.len >= options.maxTaggedVersions:
-      break
 
 proc getTaggedVersions*(repoDir: string, options: Options): Option[TaggedPackageVersions] =
   let file = repoDir / TaggedVersionsFileName
