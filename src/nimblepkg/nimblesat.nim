@@ -177,69 +177,56 @@ proc toFormular*(g: var DepGraph): Form =
   var b = Builder()
   b.openOpr(AndForm)
   
-  # echo "\nEncoding package version constraints:"
-  # First find the Nim package node
-  var nimNode: Option[Dependency]
-  for p in g.nodes:
-    if p.pkgName == "nim":
-      nimNode = some(p)
-      break
-  
   # First pass: Assign variables and encode version selection constraints
   for p in mitems(g.nodes):
     if p.versions.len == 0: continue
     p.versions.sort(cmp)
     
-    # echo &"\nPackage {p.pkgName}:"
-    for ver in mitems p.versions:
-      ver.v = VarId(result.idgen)
-      result.mapping[ver.v] = SatVarInfo(pkg: p.pkgName, version: ver.version, index: result.idgen)
-      # echo &"  v{result.idgen}: {ver.version}"
-      inc result.idgen
-
     # Version selection constraint
     if p.isRoot:
       b.openOpr(ExactlyOneOfForm)
       for ver in mitems p.versions:
+        ver.v = VarId(result.idgen)
+        result.mapping[ver.v] = SatVarInfo(pkg: p.pkgName, version: ver.version, index: result.idgen)
         b.add(ver.v)
+        inc result.idgen
       b.closeOpr()
     else:
-      b.openOpr(ZeroOrOneOfForm)
+      # For non-root packages, assign variables first
       for ver in mitems p.versions:
+        ver.v = VarId(result.idgen)
+        result.mapping[ver.v] = SatVarInfo(pkg: p.pkgName, version: ver.version, index: result.idgen)
+        inc result.idgen
+      
+      # Then add ZeroOrOneOf constraint
+      b.openOpr(ZeroOrOneOfForm)
+      for ver in p.versions:
         b.add(ver.v)
       b.closeOpr()
 
+  # Second pass: Encode dependency implications
   for p in mitems(g.nodes):
     for ver in p.versions.mitems:
-      # echo &"\nChecking dependencies for {p.pkgName} {ver.version}:"
-      
-      # For each dependency of this version
       for dep, q in items g.reqs[ver.req].deps:
         let depIdx = findDependencyForDep(g, dep)
         if depIdx < 0: continue
         let depNode = g.nodes[depIdx]
+        
         # Find compatible versions
         var compatibleVersions: seq[VarId] = @[]
         for depVer in depNode.versions:
           if depVer.version.withinRange(q):
-            # if dep == "nim":
-            #   echo &"  [NIM COMPAT] Compatible nim version: {depVer.version}"
-            # else:
-            #   echo &"  {dep} {q} -> compatible: {depVer.version}"
             compatibleVersions.add(depVer.v)
         
         if compatibleVersions.len > 0:
-          # Encode "if ver is selected then one of compatibleVersions must be selected"
+          # If this version is selected, at least one compatible version must be selected
           b.openOpr(OrForm)
-          b.addNegated(ver.v)
-          b.openOpr(OrForm)
+          b.addNegated(ver.v)  # not A
+          b.openOpr(OrForm)    # or (B1 or B2 or ...)
           for compatVer in compatibleVersions:
             b.add(compatVer)
           b.closeOpr()
           b.closeOpr()
-        else:
-          # If no compatible versions exist, this version cannot be selected
-          b.addNegated(ver.v)
   
   b.closeOpr()
   result.f = toForm(b)
