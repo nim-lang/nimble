@@ -207,26 +207,48 @@ proc toFormular*(g: var DepGraph): Form =
   # Second pass: Encode dependency implications
   for p in mitems(g.nodes):
     for ver in p.versions.mitems:
+      var allDepsCompatible = true
+      
+      # First check if all dependencies can be satisfied
       for dep, q in items g.reqs[ver.req].deps:
         let depIdx = findDependencyForDep(g, dep)
         if depIdx < 0: continue
         let depNode = g.nodes[depIdx]
         
-        # Find compatible versions
+        var hasCompatible = false
+        for depVer in depNode.versions:
+          if depVer.version.withinRange(q):
+            hasCompatible = true
+            break
+        
+        if not hasCompatible:
+          allDepsCompatible = false
+          break
+
+      # If any dependency can't be satisfied, make this version unsatisfiable
+      if not allDepsCompatible:
+        b.addNegated(ver.v)
+        continue
+
+      # Add implications for each dependency
+      for dep, q in items g.reqs[ver.req].deps:
+        let depIdx = findDependencyForDep(g, dep)
+        if depIdx < 0: continue
+        let depNode = g.nodes[depIdx]
+        
         var compatibleVersions: seq[VarId] = @[]
         for depVer in depNode.versions:
           if depVer.version.withinRange(q):
             compatibleVersions.add(depVer.v)
         
-        if compatibleVersions.len > 0:
-          # If this version is selected, at least one compatible version must be selected
-          b.openOpr(OrForm)
-          b.addNegated(ver.v)  # not A
-          b.openOpr(OrForm)    # or (B1 or B2 or ...)
-          for compatVer in compatibleVersions:
-            b.add(compatVer)
-          b.closeOpr()
-          b.closeOpr()
+        # Add implication: if this version is selected, one of its compatible deps must be selected
+        b.openOpr(OrForm)
+        b.addNegated(ver.v)  # not A
+        b.openOpr(OrForm)    # or (B1 or B2 or ...)
+        for compatVer in compatibleVersions:
+          b.add(compatVer)
+        b.closeOpr()
+        b.closeOpr()
   
   b.closeOpr()
   result.f = toForm(b)
