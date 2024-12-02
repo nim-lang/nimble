@@ -62,6 +62,10 @@ type
   TaggedPackageVersions = object
     maxTaggedVersions: int # Maximum number of tags. When number changes, we invalidate the cache
     versions: seq[PackageMinimalInfo]
+  
+  VersionAttempt = tuple[pkgName: string, version: Version]
+
+
 
 const TaggedVersionsFileName* = "tagged_versions.json"
 
@@ -169,70 +173,76 @@ proc toDepGraph*(versions: Table[string, PackageVersions]): DepGraph =
     result.packageToDependency[result.nodes[i].pkgName] = i
 
 proc toFormular*(g: var DepGraph): Form =
-# Key idea: use a SAT variable for every `Requirements` object, which are
-# shared.
   result = Form()
   var b = Builder()
   b.openOpr(AndForm)
-  # Assign a variable for each package version
+  
+  # echo "\nEncoding package version constraints:"
+  # First find the Nim package node
+  var nimNode: Option[Dependency]
+  for p in g.nodes:
+    if p.pkgName == "nim":
+      nimNode = some(p)
+      break
+  
+  # First pass: Assign variables and encode version selection constraints
   for p in mitems(g.nodes):
     if p.versions.len == 0: continue
     p.versions.sort(cmp)
-
+    
+    # echo &"\nPackage {p.pkgName}:"
     for ver in mitems p.versions:
       ver.v = VarId(result.idgen)
       result.mapping[ver.v] = SatVarInfo(pkg: p.pkgName, version: ver.version, index: result.idgen)
+      # echo &"  v{result.idgen}: {ver.version}"
       inc result.idgen
 
-    # Encode the rule: for root packages, exactly one of its versions must be true
+    # Version selection constraint
     if p.isRoot:
       b.openOpr(ExactlyOneOfForm)
       for ver in mitems p.versions:
         b.add(ver.v)
       b.closeOpr()
     else:
-      # For non-root packages, either one version is selected or none
       b.openOpr(ZeroOrOneOfForm)
       for ver in mitems p.versions:
         b.add(ver.v)
       b.closeOpr()
 
-  # Model dependencies and their version constraints
   for p in mitems(g.nodes):
     for ver in p.versions.mitems:
-      let eqVar = VarId(result.idgen)
-      # Mark the beginning position for a potential reset
-      let beforeDeps = b.getPatchPos()
-
-      inc result.idgen
-      var hasDeps = false
-
-      for dep, q in items g.reqs[ver.req].deps:
-        let av = g.nodes[findDependencyForDep(g, dep)]
-        if av.versions.len == 0: continue
-
-        hasDeps = true
-        b.openOpr(ExactlyOneOfForm)  # Dependency must satisfy at least one of the version constraints
-
-        for avVer in av.versions:
-          if avVer.version.withinRange(q):
-            b.add(avVer.v)  # This version of the dependency satisfies the constraint
-
-        b.closeOpr()
+      # echo &"\nChecking dependencies for {p.pkgName} {ver.version}:"
       
-      # If the package version is chosen and it has dependencies, enforce the dependencies' constraints
-      if hasDeps:
-        b.openOpr(OrForm)
-        b.addNegated(ver.v)  # If this package version is not chosen, skip the dependencies constraint
-        b.add(eqVar)  # Else, ensure the dependencies' constraints are met
-        b.closeOpr()
-
-      # If no dependencies were added, reset to beforeDeps to avoid empty or invalid operations
-      if not hasDeps:
-        b.resetToPatchPos(beforeDeps)
+      # For each dependency of this version
+      for dep, q in items g.reqs[ver.req].deps:
+        let depIdx = findDependencyForDep(g, dep)
+        if depIdx < 0: continue
+        let depNode = g.nodes[depIdx]
+        # Find compatible versions
+        var compatibleVersions: seq[VarId] = @[]
+        for depVer in depNode.versions:
+          if depVer.version.withinRange(q):
+            # if dep == "nim":
+            #   echo &"  [NIM COMPAT] Compatible nim version: {depVer.version}"
+            # else:
+            #   echo &"  {dep} {q} -> compatible: {depVer.version}"
+            compatibleVersions.add(depVer.v)
+        
+        if compatibleVersions.len > 0:
+          # Encode "if ver is selected then one of compatibleVersions must be selected"
+          b.openOpr(OrForm)
+          b.addNegated(ver.v)
+          b.openOpr(OrForm)
+          for compatVer in compatibleVersions:
+            b.add(compatVer)
+          b.closeOpr()
+          b.closeOpr()
+        else:
+          # If no compatible versions exist, this version cannot be selected
+          b.addNegated(ver.v)
   
-  b.closeOpr()  # Close the main AndForm
-  result.f = toForm(b)  # Convert the builder to a formula
+  b.closeOpr()
+  result.f = toForm(b)
 
 proc toString(x: SatVarInfo): string =
   "(" & x.pkg & ", " & $x.version & ")"
@@ -255,6 +265,28 @@ proc getNodeByReqIdx(g: var DepGraph, reqIdx: int): Option[Dependency] =
     if n.versions.anyIt(it.req == reqIdx):
       return some n
   none(Dependency)
+
+proc analyzeVersionSelection(g: DepGraph, f: Form, s: Solution): string =
+  result = "Version selection analysis:\n"
+  
+  # Check which versions were selected
+  for node in g.nodes:
+    result.add &"\nPackage {node.pkgName}:"
+    var selectedVersion: Option[Version]
+    for ver in node.versions:
+      if s.isTrue(ver.v):
+        selectedVersion = some(ver.version)
+        result.add &"\n  Selected: {ver.version}"
+        # Show requirements for selected version
+        let reqs = g.reqs[ver.req].deps
+        result.add "\n  Requirements:"
+        for req in reqs:
+          result.add &"\n    {req.name} {req.ver}"
+    if selectedVersion.isNone:
+      result.add "\n  No version selected!"
+      result.add "\n  Available versions:"
+      for ver in node.versions:
+        result.add &"\n    {ver.version}"
 
 proc generateUnsatisfiableMessage(g: var DepGraph, f: Form, s: Solution): string =
   var conflicts: seq[string] = @[]
@@ -352,14 +384,13 @@ proc filterSatisfiableDeps(g: DepGraph, node: Dependency): seq[DependencyVersion
     if not hasUnsatisfiableDep:
       result.add(v)
 
-const MaxSolverRetries = 100
-
 proc solve*(g: var DepGraph; f: Form, packages: var Table[string, Version], output: var string, 
-           retryCount = 0): bool =
+           triedVersions: var seq[VersionAttempt]): bool =
   let m = f.idgen
   var s = createSolution(m)
   
   if satisfiable(f.f, s):
+    # output.add analyzeVersionSelection(g, f, s)
     for n in mitems g.nodes:
       if n.isRoot: n.active = true
     for i in 0 ..< m:
@@ -379,28 +410,41 @@ proc solve*(g: var DepGraph; f: Form, packages: var Table[string, Version], outp
           output.add &"item.pkg  [ ]  {toString item} \n"
     return true
   else:
+    output.add "\nFailed to find satisfiable solution:\n"
+    output.add analyzeVersionSelection(g, f, s)
     let (failingSet, errorMsg) = findMinimalFailingSet(g)
-    if retryCount >= MaxSolverRetries:
-      output = &"Max retry attempts ({MaxSolverRetries}) exceeded while trying to resolve dependencies \n"
-      output.add errorMsg
-      return false
-
     if failingSet.len > 0:
       var newGraph = g
+      
+      # Try each failing package
       for pkg in failingSet:
         let idx = findDependencyForDep(newGraph, pkg.name)
         if idx >= 0:
-          # echo "Retry #", retryCount + 1, ": Checking package ", pkg.name, " version ", pkg.ver
-          let newVersions = filterSatisfiableDeps(newGraph, newGraph.nodes[idx])
-          if newVersions.len > 0 and newVersions != newGraph.nodes[idx].versions:
-            newGraph.nodes[idx].versions = newVersions
-            let newForm = toFormular(newGraph)
-            return solve(newGraph, newForm, packages, output, retryCount + 1)
+          let originalVersions = newGraph.nodes[idx].versions
+          # Try each version once, from newest to oldest
+          for ver in originalVersions:
+            let attempt = (pkgName: pkg.name, version: ver.version)
+            if attempt notin triedVersions:
+              triedVersions.add(attempt)
+              # echo "Trying package ", pkg.name, " version ", ver.version
+              newGraph.nodes[idx].versions = @[ver]  # Try just this version
+              let newForm = toFormular(newGraph)
+              if solve(newGraph, newForm, packages, output, triedVersions):
+                return true
+          # Restore original versions if no solution found
+          newGraph.nodes[idx].versions = originalVersions
       
-      output = errorMsg
+      output.add "\n\nFinal error message:\n"  # Add a separator
+      output.add errorMsg
     else:
-      output = generateUnsatisfiableMessage(g, f, s)
+      output.add "\n\nFinal error message:\n"  # Add a separator
+      output.add generateUnsatisfiableMessage(g, f, s)
     false
+
+
+proc solve*(g: var DepGraph; f: Form, packages: var Table[string, Version], output: var string): bool =
+  var triedVersions = newSeq[VersionAttempt]()
+  solve(g, f, packages, output, triedVersions)
 
 proc collectReverseDependencies*(targetPkgName: string, graph: DepGraph): seq[(string, Version)] =
   for node in graph.nodes:
@@ -427,7 +471,8 @@ proc getSolvedPackages*(pkgVersionTable: Table[string, PackageVersions], output:
     
   let form = toFormular(graph)
   var packages = initTable[string, Version]()
-  discard solve(graph, form, packages, output)
+  var triedVersions: seq[VersionAttempt] = @[]
+  discard solve(graph, form, packages, output, triedVersions)
   
   for pkg, ver in packages:
     let nodeIdx = graph.packageToDependency[pkg]
@@ -457,9 +502,11 @@ proc downloadPkInfoForPv*(pv: PkgTuple, options: Options): PackageInfo  =
   downloadPkgFromUrl(pv, options)[0].dir.getPkgInfo(options)
 
 proc getAllNimReleases(options: Options): seq[PackageMinimalInfo] =
-  let releases = getOfficialReleases(options)
+  let releases = getOfficialReleases(options)  
   for release in releases:
     result.add PackageMinimalInfo(name: "nim", version: release)
+    if options.maxTaggedVersions > 0 and result.len >= options.maxTaggedVersions:
+      break
 
 proc getTaggedVersions*(repoDir: string, options: Options): Option[TaggedPackageVersions] =
   let file = repoDir / TaggedVersionsFileName
@@ -635,3 +682,4 @@ proc getPackageInfo*(name: string, pkgs: seq[PackageInfo], version: Option[Versi
             return some pkg
         else: #No version passed over first match
           return some pkg
+
