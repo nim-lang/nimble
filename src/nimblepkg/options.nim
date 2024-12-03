@@ -70,7 +70,7 @@ type
     actionInstall, actionSearch, actionList, actionBuild, actionPath,
     actionUninstall, actionCompile, actionDoc, actionCustom, actionTasks,
     actionDevelop, actionCheck, actionLock, actionRun, actionSync, actionSetup,
-    actionClean, actionDeps, actionShellEnv, actionShell, actionAdd
+    actionClean, actionDeps, actionShellEnv, actionShell, actionAdd, actionSponsor
 
   DevelopActionType* = enum
     datAdd, datRemoveByPath, datRemoveByName, datInclude, datExclude
@@ -115,6 +115,8 @@ type
       custRunFlags*: seq[string]
     of actionDeps:
       format*: string
+    of actionSponsor:
+      optionalPackage*: string
     of actionShellEnv, actionShell:
       discard
 
@@ -339,6 +341,8 @@ proc parseActionType*(action: string): ActionType =
     result = actionShell
   of "add":
     result = actionAdd
+  of "sponsor":
+    result = actionSponsor
   else:
     result = actionCustom
 
@@ -541,6 +545,8 @@ proc parseArgument*(key: string, result: var Options) =
     result.action.file = key
   of actionRun:
     result.setRunOptions(key, key, true)
+  of actionSponsor:
+    result.action.optionalPackage = key
   of actionCustom:
     result.action.arguments.add(key)
   else:

@@ -1,7 +1,7 @@
 # Copyright (C) Dominik Picheta. All rights reserved.
 # BSD License. Look at license.txt for more info.
 
-import sets, tables
+import sets, tables, uri
 import version, sha1hashes
 
 type
@@ -71,7 +71,9 @@ type
     isLink*: bool
     paths*: seq[string] 
     entryPoints*: seq[string] #useful for tools like the lsp.
-    
+  
+  DonationLink* = URI
+
   Package* = object ## Definition of package from packages.json.
     # Required fields in a package.
     name*: string
@@ -84,6 +86,7 @@ type
     version*: Version
     dvcsTag*: string
     web*: string # Info url for humans.
+    donations*: seq[DonationLink] ## A list of donation website URIs that can be used to support its developer.
     alias*: string ## A name of another package, that this package aliases.
 
   PackageDependenciesInfo* = tuple[deps: HashSet[PackageInfo], pkg: PackageInfo]

@@ -3,7 +3,7 @@
 
 # Stdlib imports
 import system except TResult
-import hashes, json, strutils, os, sets, tables, times, httpclient, strformat
+import hashes, json, strutils, os, sets, tables, uri, times, httpclient, strformat
 from net import SslError
 
 # Local imports
@@ -98,6 +98,13 @@ proc fromJson(obj: JSonNode): Package =
       result.tags.add(t.str)
     result.description = obj.optionalField("description")
     result.web = obj.optionalField("web")
+    
+    if "donations" in obj:
+      for d in obj.getOrDefault("donations"):
+        result.donations &= parseUri(d.getStr())
+    else:
+      result.donations = @[]
+
 {.warning[ProveInit]: on.}
 
 proc needsRefresh*(options: Options): bool =
@@ -368,7 +375,6 @@ proc findAllPkgs*(pkglist: seq[PackageInfo], dep: PkgTuple): seq[PackageInfo] =
     if withinRange(pkg, dep.ver):
       result.add pkg
 
-
 proc getRealDir*(pkgInfo: PackageInfo): string =
   ## Returns the directory containing the package source files.
   if pkgInfo.srcDir != "" and (not pkgInfo.isInstalled or pkgInfo.isLink):
@@ -396,6 +402,10 @@ proc echoPackage*(pkg: Package) =
     echo("  license:     " & pkg.license)
     if pkg.web.len > 0:
       echo("  website:     " & pkg.web)
+    if pkg.donations.len > 0:
+      echo("  donations:")
+      for i, link in pkg.donations:
+        echo "    " & $(i + 1) & ": " & $link
 
 proc getDownloadDirName*(pkg: Package, verRange: VersionRange): string =
   result = pkg.name
