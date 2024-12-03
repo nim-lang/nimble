@@ -106,20 +106,20 @@ proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, options: Options): Has
           not isUpgrading and lockedPkg.vcsRevision == pkg.metaData.vcsRevision):
               toRemoveFromLocked.add pkg
 
-  result = solveLocalPackages(rootPkgInfo, pkgList, solvedPkgs, options)
-  if solvedPkgs.len > 0: 
-    displaySatisfiedMsg(solvedPkgs, pkgsToInstall, options)
-    addReverseDeps(solvedPkgs, allPkgsInfo, options)
-    for pkg in allPkgsInfo:
-      result.incl pkg
-    for nonLocked in toRemoveFromLocked:
-      result.excl nonLocked
-    result = 
-      result.toSeq
-      .deleteStaleDependencies(rootPkgInfo, options)
-      .toHashSet
-    satProccesedPackages = result
-    return result
+  # result = solveLocalPackages(rootPkgInfo, pkgList, solvedPkgs, options)
+  # if solvedPkgs.len > 0: 
+  #   displaySatisfiedMsg(solvedPkgs, pkgsToInstall, options)
+  #   addReverseDeps(solvedPkgs, allPkgsInfo, options)
+  #   for pkg in allPkgsInfo:
+  #     result.incl pkg
+  #   for nonLocked in toRemoveFromLocked:
+  #     result.excl nonLocked
+  #   result = 
+  #     result.toSeq
+  #     .deleteStaleDependencies(rootPkgInfo, options)
+  #     .toHashSet
+  #   satProccesedPackages = result
+  #   return result
 
   var output = ""
   result = solvePackages(rootPkgInfo, pkgList, pkgsToInstall, options, output, solvedPkgs)
@@ -2393,7 +2393,7 @@ proc setNimBin*(options: var Options) =
   # first try lock file
   let lockFile = options.lockFile(getCurrentDir())
 
-  if lockFile.fileExists and not options.disableLockFile and not options.useSystemNim:
+  if options.hasNimInLockFile():
     for name, dep in lockFile.getLockedDependencies.lockedDepsFor(options):
       if name.isNim:
         let v = dep.version.toVersionRange()
@@ -2414,8 +2414,7 @@ proc setNimBin*(options: var Options) =
   let nimBin = findExe("nim")
   if nimBin != "" or options.useSystemNim: #when using systemNim is on we want to fail if system nim is not found
     options.nimBin = some makeNimBin(options, nimBin)
-    if options.useSystemNim:
-      return
+    return #Prioritize Nim in path
 
   proc install(package: PkgTuple, options: Options): HashSet[PackageInfo] =
     result = install(@[package], options, doPrompt = false, first = false, fromLockFile = false).deps
