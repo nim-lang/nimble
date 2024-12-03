@@ -547,15 +547,19 @@ proc getDevelopDownloadDir*(url, subdir: string, options: Options): string =
   let url = url.removeTrailingSlash
   let subdir = subdir.removeTrailingSlash
 
+  let uri = parseUri(url)
+
   let downloadDirName =
     if subdir.len == 0:
-      parseUri(url).path.splitFile.name
+      uri.path.splitFile.name
     else:
       subdir.splitFile.name
 
   result =
     if options.action.path.isAbsolute:
       options.action.path / downloadDirName
+    elif options.action.withDependencies and uri.scheme == "file":
+      uri.path
     else:
       getCurrentDir() / options.action.path / downloadDirName
 
@@ -592,6 +596,9 @@ proc getDownloadInfo*(pv: PkgTuple, options: Options,
                                         Table[string, string]) =
   if pv.name.isURL:
     let (url, metadata) = getUrlData(pv.name)
+    return (checkUrlType(url), url, metadata)
+  elif dirExists(pv.name):
+    let (url, metadata) = getUrlData("file://" & expandFilename(pv.name))
     return (checkUrlType(url), url, metadata)
   else:
     var pkg = initPackage()
