@@ -1,8 +1,5 @@
-# Copyright (C) Dominik Picheta. All rights reserved.
-# BSD License. Look at license.txt for more info.
-
 import std/[strutils]
-import common, download
+import common, urls
 
 type
   ForgeKind* = enum
