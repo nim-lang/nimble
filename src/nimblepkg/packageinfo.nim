@@ -412,7 +412,7 @@ proc checkInstallFile(pkgInfo: PackageInfo,
   for ignoreFile in pkgInfo.skipFiles:
     if ignoreFile.endswith("nimble"):
       raise nimbleError(ignoreFile & " must be installed.")
-    if samePaths(file, origDir / ignoreFile):
+    if file == absolutePath(ignoreFile):
       result = true
       break
 
