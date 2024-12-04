@@ -634,8 +634,8 @@ proc topologicalSort*(solvedPkgs: seq[SolvedPackage]): seq[SolvedPackage] =
       if inDegree[neighbor] == 0:
         zeroInDegree.add(neighbor) 
 
-proc areSystemNimCompatible*(solvedPkgs: seq[SolvedPackage], options: Options): bool =
-  if options.hasNimInLockFile():
+proc isSystemNimCompatible*(solvedPkgs: seq[SolvedPackage], options: Options): bool =
+  if options.action.typ in {actionLock, actionDeps} or options.hasNimInLockFile():
     return false
   for solvedPkg in solvedPkgs:
     for req in solvedPkg.requirements:
@@ -651,7 +651,7 @@ proc solveLocalPackages*(rootPkgInfo: PackageInfo, pkgList: seq[PackageInfo], so
   fillPackageTableFromPreferred(pkgVersionTable, pkgList.mapIt(it.getMinimalInfo(options)))
   var output = ""
   solvedPkgs = pkgVersionTable.getSolvedPackages(output)
-  systemNimCompatible = solvedPkgs.areSystemNimCompatible(options)
+  systemNimCompatible = solvedPkgs.isSystemNimCompatible(options)
   
   for solvedPkg in solvedPkgs:
     if solvedPkg.pkgName.isNim and systemNimCompatible:     
@@ -667,7 +667,7 @@ proc solvePackages*(rootPkg: PackageInfo, pkgList: seq[PackageInfo], pkgsToInsta
   pkgVersionTable[root.name] = PackageVersions(pkgName: root.name, versions: @[root])
   collectAllVersions(pkgVersionTable, root, options, downloadMinimalPackage, pkgList.mapIt(it.getMinimalInfo(options)))
   solvedPkgs = pkgVersionTable.getSolvedPackages(output).topologicalSort()
-  let systemNimCompatible = solvedPkgs.areSystemNimCompatible(options)
+  let systemNimCompatible = solvedPkgs.isSystemNimCompatible(options)
   
   for solvedPkg in solvedPkgs:
     if solvedPkg.pkgName == root.name: continue    
