@@ -106,20 +106,23 @@ proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, options: Options): Has
           not isUpgrading and lockedPkg.vcsRevision == pkg.metaData.vcsRevision):
               toRemoveFromLocked.add pkg
 
-  # result = solveLocalPackages(rootPkgInfo, pkgList, solvedPkgs, options)
-  # if solvedPkgs.len > 0: 
-  #   displaySatisfiedMsg(solvedPkgs, pkgsToInstall, options)
-  #   addReverseDeps(solvedPkgs, allPkgsInfo, options)
-  #   for pkg in allPkgsInfo:
-  #     result.incl pkg
-  #   for nonLocked in toRemoveFromLocked:
-  #     result.excl nonLocked
-  #   result = 
-  #     result.toSeq
-  #     .deleteStaleDependencies(rootPkgInfo, options)
-  #     .toHashSet
-  #   satProccesedPackages = result
-  #   return result
+  var systemNimCompatible = options.nimBin.isSome
+  result = solveLocalPackages(rootPkgInfo, pkgList, solvedPkgs, systemNimCompatible,  options)
+  if solvedPkgs.len > 0: 
+    displaySatisfiedMsg(solvedPkgs, pkgsToInstall, options)
+    addReverseDeps(solvedPkgs, allPkgsInfo, options)
+    for pkg in allPkgsInfo:
+      if pkg.basicInfo.name.isNim and systemNimCompatible:
+        continue #Dont add nim from the solution as we will use system nim
+      result.incl pkg
+    for nonLocked in toRemoveFromLocked:
+      result.excl nonLocked
+    result = 
+      result.toSeq
+      .deleteStaleDependencies(rootPkgInfo, options)
+      .toHashSet
+    satProccesedPackages = result
+    return result
 
   var output = ""
   result = solvePackages(rootPkgInfo, pkgList, pkgsToInstall, options, output, solvedPkgs)

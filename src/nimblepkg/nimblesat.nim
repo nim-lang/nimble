@@ -641,7 +641,14 @@ proc topologicalSort*(solvedPkgs: seq[SolvedPackage]): seq[SolvedPackage] =
       if inDegree[neighbor] == 0:
         zeroInDegree.add(neighbor) 
 
-proc solveLocalPackages*(rootPkgInfo: PackageInfo, pkgList: seq[PackageInfo], solvedPkgs: var seq[SolvedPackage], options: Options): HashSet[PackageInfo] = 
+proc areSystemNimCompatible*(solvedPkgs: seq[SolvedPackage], options: Options): bool =
+  for solvedPkg in solvedPkgs:
+    for req in solvedPkg.requirements:
+      if req.isNim and options.nimBin.isSome and not options.nimBin.get.version.withinRange(req.ver):
+        return false
+  true
+
+proc solveLocalPackages*(rootPkgInfo: PackageInfo, pkgList: seq[PackageInfo], solvedPkgs: var seq[SolvedPackage], systemNimCompatible: var bool, options: Options): HashSet[PackageInfo] = 
   var root = rootPkgInfo.getMinimalInfo(options)
   root.isRoot = true
   var pkgVersionTable = initTable[string, PackageVersions]()
@@ -649,23 +656,13 @@ proc solveLocalPackages*(rootPkgInfo: PackageInfo, pkgList: seq[PackageInfo], so
   fillPackageTableFromPreferred(pkgVersionTable, pkgList.mapIt(it.getMinimalInfo(options)))
   var output = ""
   solvedPkgs = pkgVersionTable.getSolvedPackages(output)
-  #Verify that system Nim is compatible with all selected packages
-  var systemNimCompatible = true
+  systemNimCompatible = solvedPkgs.areSystemNimCompatible(options)
+  
   for solvedPkg in solvedPkgs:
-    var isPkgCompatibleWithNim = false
-    if solvedPkg.pkgName.isNim and options.nimBin.isSome:
-      for req in solvedPkg.requirements:
-        if req.isNim and options.nimBin.get.version.withinRange(req.ver):
-          isPkgCompatibleWithNim = true
-    if not isPkgCompatibleWithNim:
-      systemNimCompatible = false
-      break
-
-  for solvedPkg in solvedPkgs:
+    if solvedPkg.pkgName.isNim and systemNimCompatible:     
+      continue #Dont add nim from the solution as we will use system nim
     for pkgInfo in pkgList:
       if pkgInfo.basicInfo.name == solvedPkg.pkgName and pkgInfo.basicInfo.version == solvedPkg.version:
-        if solvedPkg.pkgName.isNim and systemNimCompatible:
-          continue
         result.incl pkgInfo
 
 proc solvePackages*(rootPkg: PackageInfo, pkgList: seq[PackageInfo], pkgsToInstall: var seq[(string, Version)], options: Options, output: var string, solvedPkgs: var seq[SolvedPackage]): HashSet[PackageInfo] =
@@ -675,7 +672,8 @@ proc solvePackages*(rootPkg: PackageInfo, pkgList: seq[PackageInfo], pkgsToInsta
   pkgVersionTable[root.name] = PackageVersions(pkgName: root.name, versions: @[root])
   collectAllVersions(pkgVersionTable, root, options, downloadMinimalPackage, pkgList.mapIt(it.getMinimalInfo(options)))
   solvedPkgs = pkgVersionTable.getSolvedPackages(output).topologicalSort()
-
+  let systemNimCompatible = solvedPkgs.areSystemNimCompatible(options)
+  
   for solvedPkg in solvedPkgs:
     if solvedPkg.pkgName == root.name: continue    
     var foundInList = false
@@ -684,8 +682,8 @@ proc solvePackages*(rootPkg: PackageInfo, pkgList: seq[PackageInfo], pkgsToInsta
         result.incl pkgInfo
         foundInList = true
     if not foundInList:
-      if solvedPkg.pkgName.isNim and options.nimBin.isSome and options.nimBin.get.version == solvedPkg.version:
-        continue #Skip systemnim as its already installed
+      if solvedPkg.pkgName.isNim and systemNimCompatible:
+        continue #Skips systemNim
       pkgsToInstall.addUnique((solvedPkg.pkgName, solvedPkg.version))
 
 proc getPackageInfo*(name: string, pkgs: seq[PackageInfo], version: Option[Version] = none(Version)): Option[PackageInfo] =
