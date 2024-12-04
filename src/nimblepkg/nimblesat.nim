@@ -634,6 +634,8 @@ proc topologicalSort*(solvedPkgs: seq[SolvedPackage]): seq[SolvedPackage] =
         zeroInDegree.add(neighbor) 
 
 proc isSystemNimCompatible*(solvedPkgs: seq[SolvedPackage], options: Options): bool =
+  if options.action.typ in {actionLock, actionDeps} or options.hasNimInLockFile():
+    return false
   for solvedPkg in solvedPkgs:
     for req in solvedPkg.requirements:
       if req.isNim and options.nimBin.isSome and not options.nimBin.get.version.withinRange(req.ver):
