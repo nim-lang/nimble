@@ -108,13 +108,6 @@ proc getMinimalInfo*(pkg: PackageInfo, options: Options): PackageMinimalInfo =
   result.version = pkg.basicInfo.version
   result.requires = pkg.requires.map(convertNimrodToNim)
   var addNimRequire = options.action.typ notin {actionLock, actionDeps} and not options.hasNimInLockFile()
-  # if addNimRequire and options.nimBin.isSome:
-  #   let nimRequire = result.requires.filterIt(it.isNim)
-  #   if nimRequire.len > 0:
-  #     let isSystemNimCompatible = options.nimBin.get.version.withinRange(nimRequire[0].ver)
-  #     # echo result.name, "isSystemNimCompatible: ", isSystemNimCompatible, " for ", nimRequire[0], " Nim Version: ", options.nimBin.get.version
-  #     addNimRequire = not isSystemNimCompatible
-  
   if addNimRequire:
     result.requires = result.requires.filterIt(not it.isNim)
 
@@ -642,6 +635,8 @@ proc topologicalSort*(solvedPkgs: seq[SolvedPackage]): seq[SolvedPackage] =
         zeroInDegree.add(neighbor) 
 
 proc areSystemNimCompatible*(solvedPkgs: seq[SolvedPackage], options: Options): bool =
+  if options.hasNimInLockFile():
+    return false
   for solvedPkg in solvedPkgs:
     for req in solvedPkg.requirements:
       if req.isNim and options.nimBin.isSome and not options.nimBin.get.version.withinRange(req.ver):
