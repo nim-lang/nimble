@@ -4,7 +4,6 @@ import version, packageinfotypes, download, packageinfo, packageparser, options,
   
 import std/[tables, sequtils, algorithm, sets, strutils, options, strformat, os, json, jsonutils]
 
-
 type  
   SatVarInfo* = object # attached information for a SAT variable
     pkg*: string
@@ -64,7 +63,6 @@ type
     versions: seq[PackageMinimalInfo]
   
   VersionAttempt = tuple[pkgName: string, version: Version]
-
 
 
 const TaggedVersionsFileName* = "tagged_versions.json"
@@ -688,4 +686,3 @@ proc getPackageInfo*(name: string, pkgs: seq[PackageInfo], version: Option[Versi
             return some pkg
         else: #No version passed over first match
           return some pkg
-
