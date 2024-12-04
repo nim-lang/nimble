@@ -107,8 +107,7 @@ proc getMinimalInfo*(pkg: PackageInfo, options: Options): PackageMinimalInfo =
   result.name = pkg.basicInfo.name
   result.version = pkg.basicInfo.version
   result.requires = pkg.requires.map(convertNimrodToNim)
-  var addNimRequire = options.action.typ notin {actionLock, actionDeps} and not options.hasNimInLockFile()
-  if addNimRequire:
+  if options.action.typ in {actionLock, actionDeps} or options.hasNimInLockFile():
     result.requires = result.requires.filterIt(not it.isNim)
 
 proc hasVersion*(packageVersions: PackageVersions, pv: PkgTuple): bool =
@@ -635,8 +634,6 @@ proc topologicalSort*(solvedPkgs: seq[SolvedPackage]): seq[SolvedPackage] =
         zeroInDegree.add(neighbor) 
 
 proc isSystemNimCompatible*(solvedPkgs: seq[SolvedPackage], options: Options): bool =
-  if options.action.typ in {actionLock, actionDeps} or options.hasNimInLockFile():
-    return false
   for solvedPkg in solvedPkgs:
     for req in solvedPkg.requirements:
       if req.isNim and options.nimBin.isSome and not options.nimBin.get.version.withinRange(req.ver):
