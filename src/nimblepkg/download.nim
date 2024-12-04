@@ -495,7 +495,7 @@ proc downloadPkg*(url: string, verRange: VersionRange,
   except NimbleError: 
     #Continue with the download
     discard    
-  
+
   if subdir.len > 0:
     display("Downloading", "$1 using $2 (subdir is '$3')" %
                            [modUrl, downloadMethod, subdir],
