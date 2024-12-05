@@ -4,7 +4,6 @@ import version, packageinfotypes, download, packageinfo, packageparser, options,
   
 import std/[tables, sequtils, algorithm, sets, strutils, options, strformat, os, json, jsonutils]
 
-
 type  
   SatVarInfo* = object # attached information for a SAT variable
     pkg*: string
@@ -66,7 +65,6 @@ type
   VersionAttempt = tuple[pkgName: string, version: Version]
 
 
-
 const TaggedVersionsFileName* = "tagged_versions.json"
 
 proc initFromJson*(dst: var PkgTuple, jsonNode: JsonNode, jsonPath: var string) =
@@ -107,7 +105,7 @@ proc getMinimalInfo*(pkg: PackageInfo, options: Options): PackageMinimalInfo =
   result.name = pkg.basicInfo.name
   result.version = pkg.basicInfo.version
   result.requires = pkg.requires.map(convertNimrodToNim)
-  if options.action.typ in {actionLock, actionDeps} or options.lockFileExists(getCurrentDir()):
+  if options.action.typ in {actionLock, actionDeps} or options.hasNimInLockFile():
     result.requires = result.requires.filterIt(not it.isNim)
 
 proc hasVersion*(packageVersions: PackageVersions, pv: PkgTuple): bool =
@@ -494,6 +492,9 @@ proc getAllNimReleases(options: Options): seq[PackageMinimalInfo] =
   let releases = getOfficialReleases(options)  
   for release in releases:
     result.add PackageMinimalInfo(name: "nim", version: release)
+  
+  if options.nimBin.isSome:
+    result.addUnique PackageMinimalInfo(name: "nim", version: options.nimBin.get.version)
 
 proc getTaggedVersions*(repoDir: string, options: Options): Option[TaggedPackageVersions] =
   let file = repoDir / TaggedVersionsFileName
@@ -556,7 +557,7 @@ proc downloadMinimalPackage*(pv: PkgTuple, options: Options): seq[PackageMinimal
   if pv.isNim and not options.disableNimBinaries: return getAllNimReleases(options)
   if pv.ver.kind in [verSpecial, verEq]: #if special or equal, we dont retrieve more versions as we only need one.
     result = @[downloadPkInfoForPv(pv, options).getMinimalInfo(options)]
-  else:
+  else:    
     let (downloadRes, downloadMeth) = downloadPkgFromUrl(pv, options)
     result = getPackageMinimalVersionsFromRepo(downloadRes.dir, pv.name, downloadRes.version, downloadMeth, options)
   # echo "Downloading minimal package for ", pv.name, " ", $pv.ver, result
@@ -630,7 +631,16 @@ proc topologicalSort*(solvedPkgs: seq[SolvedPackage]): seq[SolvedPackage] =
       if inDegree[neighbor] == 0:
         zeroInDegree.add(neighbor) 
 
-proc solveLocalPackages*(rootPkgInfo: PackageInfo, pkgList: seq[PackageInfo], solvedPkgs: var seq[SolvedPackage], options: Options): HashSet[PackageInfo] = 
+proc isSystemNimCompatible*(solvedPkgs: seq[SolvedPackage], options: Options): bool =
+  if options.action.typ in {actionLock, actionDeps} or options.hasNimInLockFile():
+    return false
+  for solvedPkg in solvedPkgs:
+    for req in solvedPkg.requirements:
+      if req.isNim and options.nimBin.isSome and not options.nimBin.get.version.withinRange(req.ver):
+        return false
+  true
+
+proc solveLocalPackages*(rootPkgInfo: PackageInfo, pkgList: seq[PackageInfo], solvedPkgs: var seq[SolvedPackage], systemNimCompatible: var bool, options: Options): HashSet[PackageInfo] = 
   var root = rootPkgInfo.getMinimalInfo(options)
   root.isRoot = true
   var pkgVersionTable = initTable[string, PackageVersions]()
@@ -638,7 +648,11 @@ proc solveLocalPackages*(rootPkgInfo: PackageInfo, pkgList: seq[PackageInfo], so
   fillPackageTableFromPreferred(pkgVersionTable, pkgList.mapIt(it.getMinimalInfo(options)))
   var output = ""
   solvedPkgs = pkgVersionTable.getSolvedPackages(output)
+  systemNimCompatible = solvedPkgs.isSystemNimCompatible(options)
+  
   for solvedPkg in solvedPkgs:
+    if solvedPkg.pkgName.isNim and systemNimCompatible:     
+      continue #Dont add nim from the solution as we will use system nim
     for pkgInfo in pkgList:
       if pkgInfo.basicInfo.name == solvedPkg.pkgName and pkgInfo.basicInfo.version == solvedPkg.version:
         result.incl pkgInfo
@@ -650,15 +664,18 @@ proc solvePackages*(rootPkg: PackageInfo, pkgList: seq[PackageInfo], pkgsToInsta
   pkgVersionTable[root.name] = PackageVersions(pkgName: root.name, versions: @[root])
   collectAllVersions(pkgVersionTable, root, options, downloadMinimalPackage, pkgList.mapIt(it.getMinimalInfo(options)))
   solvedPkgs = pkgVersionTable.getSolvedPackages(output).topologicalSort()
-
+  let systemNimCompatible = solvedPkgs.isSystemNimCompatible(options)
+  
   for solvedPkg in solvedPkgs:
-    if solvedPkg.pkgName == root.name: continue
+    if solvedPkg.pkgName == root.name: continue    
     var foundInList = false
     for pkgInfo in pkgList:
       if pkgInfo.basicInfo.name == solvedPkg.pkgName and pkgInfo.basicInfo.version == solvedPkg.version:
         result.incl pkgInfo
         foundInList = true
     if not foundInList:
+      if solvedPkg.pkgName.isNim and systemNimCompatible:
+        continue #Skips systemNim
       pkgsToInstall.addUnique((solvedPkg.pkgName, solvedPkg.version))
 
 proc getPackageInfo*(name: string, pkgs: seq[PackageInfo], version: Option[Version] = none(Version)): Option[PackageInfo] =
@@ -669,4 +686,3 @@ proc getPackageInfo*(name: string, pkgs: seq[PackageInfo], version: Option[Versi
             return some pkg
         else: #No version passed over first match
           return some pkg
-

@@ -64,14 +64,3 @@ suite "Nim binaries":
         check "iteration: 1" notin lines
         check "iteration: 2" notin lines
         check exitCode == QuitSuccess
-
-  test "when disableNimBinaries is used should compile the Nim version":
-    cd "nimnimble":
-      let nimVerDir = "nim2.0.4"
-      cd nimVerDir:
-        removeDir("nimbledeps")
-        let (output, exitCode) = execNimble("install", "-l", "--disableNimBinaries")
-        var lines = output.processOutput
-        check "iteration: 1" in lines
-        check "iteration: 2" in lines
-        check exitCode == QuitSuccess

@@ -569,6 +569,14 @@ proc getNameAndVersion*(pkgInfo: PackageInfo): string =
 proc isNim*(name: string): bool =
   result = name == "nim" or name == "nimrod" or name == "compiler"
 
+proc hasNimInLockFile*(options: Options): bool =
+  let lockFile = options.lockFile(getCurrentDir())
+  if options.useSystemNim or options.disableLockFile or not lockFile.fileExists:
+    return false
+  for name, dep in lockFile.getLockedDependencies.lockedDepsFor(options):
+    if name.isNim:
+      return true
+
 when isMainModule:
   import unittest
 
