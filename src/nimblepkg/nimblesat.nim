@@ -663,6 +663,14 @@ proc solvePackages*(rootPkg: PackageInfo, pkgList: seq[PackageInfo], pkgsToInsta
   var pkgVersionTable = initTable[string, PackageVersions]()
   pkgVersionTable[root.name] = PackageVersions(pkgName: root.name, versions: @[root])
   collectAllVersions(pkgVersionTable, root, options, downloadMinimalPackage, pkgList.mapIt(it.getMinimalInfo(options)))
+  if options.verbosity <= DebugPriority:
+    display("Info", "Collected packages", priority = DebugPriority)
+    for k, v in pkgVersionTable:
+      display("Info", k, priority = DebugPriority)      
+      for ver in v.versions:
+        for dep in ver.requires:
+            display("Info", &"\t {dep.name} {dep.ver}", priority = DebugPriority)
+
   solvedPkgs = pkgVersionTable.getSolvedPackages(output).topologicalSort()
   let systemNimCompatible = solvedPkgs.isSystemNimCompatible(options)
   
