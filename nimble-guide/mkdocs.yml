@@ -11,17 +11,27 @@ theme:
     - navigation.sections
     - toc.integrate
   palette:
-    - scheme: default
-      primary: teal
+    # Palette toggle for automatic mode
+    - media: "(prefers-color-scheme)"
+      toggle:
+        icon: material/brightness-auto
+        name: Switch to light mode
+
+    # Palette toggle for light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: black
       toggle:
         icon: material/brightness-7
         name: Switch to dark mode
-    - scheme: slate
+
+    # Palette toggle for dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
       primary: black
       toggle:
         icon: material/brightness-4
-        name: Switch to light mode
-
+        name: Switch to system preference
 
 
 use_directory_urls: false
