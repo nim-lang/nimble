@@ -68,7 +68,6 @@ jobs:
         run: nimble install -y
 
       - name: build nimble
-        env: ${{ matrix.target.env }}
         run: >-
           if [[ "${{ matrix.target.triple }}" == "x86_64-apple-darwin14" ]]; then
             nim c -d:release
