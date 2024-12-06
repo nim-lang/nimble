@@ -70,3 +70,4 @@ src/nimblepkg/version
 nimble-guide/site/
 !nimble-guide/config.nims
 githubcom_*
+nimbledeps
