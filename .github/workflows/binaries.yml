@@ -69,15 +69,15 @@ jobs:
 
       - name: build nimble
         env: ${{ matrix.target.env }}
-        run: |
+        run: >-
           if [[ "${{ matrix.target.triple }}" == "x86_64-apple-darwin14" ]]; then
-            nim c -d:release \
-              -d:zippyNoSimd \
-              --passL:"-target x86_64-apple-macos10.15" \
-              --passC:"-target x86_64-apple-macos10.15" \
-              src/nimble.nim
+            nim c -d:release
+            -d:zippyNoSimd
+            --passL:"-target x86_64-apple-macos10.15"
+            --passC:"-target x86_64-apple-macos10.15"
+            src/nimble.nim;
           else
-            nim -d:release c src/nimble.nim
+            nim -d:release c src/nimble.nim;
           fi
 
       - name: Compress the Nim Language Server binaries
