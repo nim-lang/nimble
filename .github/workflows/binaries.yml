@@ -43,10 +43,6 @@ jobs:
           - target:
               os: macosx
             builder: macos-14
-            env:
-              ARCHFLAGS: "-arch x86_64"
-              DEVELOPER_DIR: "/Applications/Xcode.app/Contents/Developer"
-              MACOSX_DEPLOYMENT_TARGET: "10.15"
           - target:
               os: windows
             builder: windows-2019
