@@ -1,4 +1,6 @@
 site_name: Nimble User Guide
+repo_url: https://github.com/nim-lang/nimble
+repo_name: nim-lang/nimble
 
 theme:
   name: material
