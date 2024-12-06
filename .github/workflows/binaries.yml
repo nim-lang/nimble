@@ -43,6 +43,10 @@ jobs:
           - target:
               os: macosx
             builder: macos-14
+            env:
+              ARCHFLAGS: "-arch x86_64"
+              DEVELOPER_DIR: "/Applications/Xcode.app/Contents/Developer"
+              MACOSX_DEPLOYMENT_TARGET: "10.15"
           - target:
               os: windows
             builder: windows-2019
@@ -68,8 +72,17 @@ jobs:
         run: nimble install -y
 
       - name: build nimble
+        env: ${{ matrix.target.env }}
         run: |
-          nim -d:release c src/nimble.nim
+          if [[ "${{ matrix.target.triple }}" == "x86_64-apple-darwin14" ]]; then
+            nim c -d:release \
+              -d:zippyNoSimd \
+              --passL:"-target x86_64-apple-macos10.15" \
+              --passC:"-target x86_64-apple-macos10.15" \
+              src/nimble.nim
+          else
+            nim -d:release c src/nimble.nim
+          fi
 
       - name: Compress the Nim Language Server binaries
         run: |
