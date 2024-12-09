@@ -59,7 +59,7 @@ type
       # If not provided by default it applies to the current directory package.
       # For now, it is used only by the run action and it is ignored by others.
     pkgCachePath*: string # Cache used to store package downloads
-    useSatSolver*: bool = true
+    useSatSolver*: bool
     extraRequires*: seq[PkgTuple] # extra requires parsed from the command line
     nimBinariesDir*: string # Directory where nim binaries are stored. Separated from nimbleDir as it can be changed by the user/tests
     disableNimBinaries*: bool # Whether to disable the use of nim binaries
@@ -754,7 +754,8 @@ proc initOptions*(): Options =
     noColor: not isatty(stdout),
     startDir: getCurrentDir(),
     nimBinariesDir: getHomeDir() / ".nimble" / "nimbinaries", 
-    maxTaggedVersions: 4
+    maxTaggedVersions: 4,
+    useSatSolver: true
   )
 
 proc handleUnknownFlags(options: var Options) =
