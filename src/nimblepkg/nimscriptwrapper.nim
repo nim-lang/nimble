@@ -47,11 +47,16 @@ proc execNimscript(
     compFlags = if isCustomTask: join(options.getCompilationFlags(), " ")
       else: ""
 
+  let nimbleVersion = common.nimbleVersion.split(".")
   var cmd = (
-    "$# e $# $# --colors:on $# $# $# $# $#" % [
+    "$# e $# $# --colors:on $# $# $# $# $# $# $# $# $#" % [
       getNimBin(options).quoteShell,
       "--hints:off --verbosity:0",
       "--define:nimbleExe=" & getAppFilename().quoteShell,
+      "--define:NimbleVersion=" & common.nimbleVersion,
+      "--define:NimbleMajor=" & nimbleVersion[0],
+      "--define:NimbleMinor=" & nimbleVersion[1],
+      "--define:NimblePatch=" & nimbleVersion[2],
       compFlags,
       nimsFile.quoteShell,
       nimbleFile.quoteShell,
