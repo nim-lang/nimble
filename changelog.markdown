@@ -3,6 +3,13 @@
 
 # Nimble changelog
 
+## 0.16.4
+
+- SAT solver now fallbacks to the previous version if the latest version of the packages involved in the resolution are unsatisfiable.
+- Improves Nim version selection by giving priority to the user system Nim version when it is compatible with the package requirements.
+- Caches tagged packages.
+- Other fixes and improvements.
+
 ## 0.16.3
 
 - Nim dependencies now use precompiled binaries when available. One can opt-out it by using `--disableNimBinaries`.
