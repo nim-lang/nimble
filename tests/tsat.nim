@@ -410,3 +410,9 @@ suite "SAT solver":
       removeDir("nimbledeps")
       let (_, exitCode) = execNimbleYes("install", "-l")
       check exitCode == QuitSuccess
+
+  test "should be able to solve complex dep graphs":
+    cd "sattests" / "mgtest":
+      removeDir("nimbledeps")
+      let (_, exitCode) = execNimbleYes("install", "-l")
+      check exitCode == QuitSuccess
