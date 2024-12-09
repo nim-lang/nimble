@@ -80,6 +80,10 @@ proc getParams(): tuple[scriptFile, projectFile, outFile, actionName: string,
 const
   # Command line values are const so that thisDir() works at compile time
   (scriptFile, projectFile, outFile, actionName, commandLineParams*) = getParams()
+  NimbleVersion* {.strdefine.} = ""
+  NimbleMajor* {.intdefine.} = 0
+  NimbleMinor* {.intdefine.} = 0
+  NimblePatch* {.intdefine.} = 0
 
 proc getCommand*(): string =
   return command
