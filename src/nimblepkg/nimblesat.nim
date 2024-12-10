@@ -496,8 +496,12 @@ proc getAllNimReleases(options: Options): seq[PackageMinimalInfo] =
   if options.nimBin.isSome:
     result.addUnique PackageMinimalInfo(name: "nim", version: options.nimBin.get.version)
 
-proc getTaggedVersions*(repoDir: string, options: Options): Option[TaggedPackageVersions] =
-  let file = repoDir / TaggedVersionsFileName
+proc getTaggedVersions*(repoDir, pkgName: string, options: Options): Option[TaggedPackageVersions] =
+  var file: string
+  if options.localDeps:
+    file = options.getNimbleDir / "pkgcache" / "tagged" / pkgName & ".json"
+  else: 
+    file = repoDir / TaggedVersionsFileName
   if file.fileExists:
     try:
       let taggedVersions = file.readFile.parseJson().to(TaggedPackageVersions)
@@ -510,9 +514,14 @@ proc getTaggedVersions*(repoDir: string, options: Options): Option[TaggedPackage
   else:
     none(TaggedPackageVersions)
 
-proc saveTaggedVersions*(repoDir: string, taggedVersions: TaggedPackageVersions) =
+proc saveTaggedVersions*(repoDir, pkgName: string, taggedVersions: TaggedPackageVersions, options: Options) =
+  var file: string
+  if options.localDeps:
+    file = options.getNimbleDir / "pkgcache" / "tagged" / pkgName & ".json"
+  else: 
+    file = repoDir / TaggedVersionsFileName
   try:
-    let file = repoDir / TaggedVersionsFileName
+    createDir(file.parentDir)
     file.writeFile((taggedVersions.toJson()).pretty)
   except CatchableError as e:
     displayWarning(&"Error saving tagged versions: {e.msg}", HighPriority)
@@ -520,16 +529,28 @@ proc saveTaggedVersions*(repoDir: string, taggedVersions: TaggedPackageVersions)
 proc getPackageMinimalVersionsFromRepo*(repoDir: string, name: string, version: Version, downloadMethod: DownloadMethod, options: Options): seq[PackageMinimalInfo] =
   #This is expensive. We need to cache it. Potentially it could be also run in parallel
   # echo &"Discovering version for {pkgName}"
-  let taggedVersions = getTaggedVersions(repoDir, options)
+  gitFetchTags(repoDir, downloadMethod)    
+  let tags = getTagsList(repoDir, downloadMethod).getVersionList()
+  template checkoutCurrentVersion() = 
+    if version.isSpecial:
+      let specialVersion = substr($version, 1)
+      doCheckout(downloadMethod, repoDir, specialVersion)
+    else:
+      for (ver, tag) in tags.pairs:    
+        if ver == version:
+          doCheckout(downloadMethod, repoDir, tag)
+
+  result = newSeq[PackageMinimalInfo]()
+  checkoutCurrentVersion()
+  let taggedVersions = getTaggedVersions(repoDir, name, options)
   if taggedVersions.isSome:
     return taggedVersions.get.versions
-  gitFetchTags(repoDir, downloadMethod)    
+
   #First package must be the current one
   try:
-    result.add getPkgInfo(repoDir, options).getMinimalInfo(options)
+    result.add getPkgInfo(repoDir, options).getMinimalInfo(options)   
   except CatchableError as e:
     displayWarning(&"Error getting package info for {name}: {e.msg}", HighPriority)
-  let tags = getTagsList(repoDir, downloadMethod).getVersionList()
   var checkedTags = 0
   for (ver, tag) in tags.pairs:    
     if options.maxTaggedVersions > 0 and checkedTags >= options.maxTaggedVersions:
@@ -545,12 +566,9 @@ proc getPackageMinimalVersionsFromRepo*(repoDir: string, name: string, version: 
     except CatchableError as e:
       displayWarning(&"Error reading tag {tag}: for package {name}. This may not be relevant as it could be an old version of the package. \n {e.msg}", HighPriority)
   
-  #make sure we let this folder as it was
-  for (ver, tag) in tags.pairs:    
-    if ver == version:
-      doCheckout(downloadMethod, repoDir, tag)
+    checkoutCurrentVersion()
 
-  saveTaggedVersions(repoDir, TaggedPackageVersions(maxTaggedVersions: options.maxTaggedVersions, versions: result))
+  saveTaggedVersions(repoDir, name, TaggedPackageVersions(maxTaggedVersions: options.maxTaggedVersions, versions: result), options)
 
 proc downloadMinimalPackage*(pv: PkgTuple, options: Options): seq[PackageMinimalInfo] =
   if pv.name == "": return newSeq[PackageMinimalInfo]()
