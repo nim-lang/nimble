@@ -535,7 +535,7 @@ proc getPackageMinimalVersionsFromRepo*(repoDir: string, name: string, version: 
     if version.isSpecial:
       var specialVersion = substr($version, 1)
       if specialVersion == "head":
-        specialVersion = "HEAD^"
+        specialVersion = "HEAD"
       doCheckout(downloadMethod, repoDir, specialVersion)
     else:
       for (ver, tag) in tags.pairs:    
