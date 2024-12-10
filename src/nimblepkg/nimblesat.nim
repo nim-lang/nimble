@@ -533,7 +533,9 @@ proc getPackageMinimalVersionsFromRepo*(repoDir: string, name: string, version: 
   let tags = getTagsList(repoDir, downloadMethod).getVersionList()
   template checkoutCurrentVersion() = 
     if version.isSpecial:
-      let specialVersion = substr($version, 1)
+      var specialVersion = substr($version, 1)
+      if specialVersion == "head":
+        specialVersion = "HEAD^"
       doCheckout(downloadMethod, repoDir, specialVersion)
     else:
       for (ver, tag) in tags.pairs:    
