@@ -24,7 +24,7 @@ suite "Nim install":
         cd nimVerDir:
           let nimVer = nimVerDir.replace("nim", "")
           echo "Checking version ", nimVer
-          let (_, exitCode) = execNimble("install", "-l")
+          let (_, exitCode) = execNimble("install", "-l", "--disableNimBinaries")
           let pkgPath = getCurrentDir() / "nimbledeps" / "pkgs2"
           echo "Checking ", pkgPath
           check exitCode == QuitSuccess
