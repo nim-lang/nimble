@@ -335,6 +335,30 @@ suite "SAT solver":
       check version in packageVersions.mapIt(it.version)
     check fileExists(repoDir / TaggedVersionsFileName)
 
+  test "should not use the global tagged cache when in local but a local one":
+    var options = initOptions()
+    options.localDeps = true
+    options.maxTaggedVersions = 0 #all
+    options.nimBin = some options.makeNimBin("nim")
+    options.config.packageLists["official"] = PackageList(name: "Official", urls: @[
+    "https://raw.githubusercontent.com/nim-lang/packages/master/packages.json",
+    "https://nim-lang.org/nimble/packages.json"
+    ])
+    options.setNimbleDir()
+    echo "NIMBLE DIR", options.getNimbleDir()
+    for dir in walkDir(".", true):
+      if dir.kind == PathComponent.pcDir and dir.path.startsWith("githubcom_vegansknimfp"):
+        echo "Removing dir", dir.path
+        removeDir(dir.path)
+    
+    let pvPrev = parseRequires("nimfp >= 0.3.4")
+    let downloadResPrev = pvPrev.downloadPkgFromUrl(options)[0]
+    let repoDirPrev = downloadResPrev.dir
+    discard getPackageMinimalVersionsFromRepo(repoDirPrev, pvPrev[0], downloadResPrev.version,  DownloadMethod.git, options)
+    check not fileExists(repoDirPrev / TaggedVersionsFileName)
+
+    check fileExists("nimbledeps" / "pkgcache" / "tagged" / "nimfp.json")
+
   test "if a dependency is unsatisfable, it should fallback to the previous version of the depency when available":
     let pkgVersionTable = {
       "a": PackageVersions(pkgName: "a", versions: @[
