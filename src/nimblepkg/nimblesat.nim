@@ -559,9 +559,9 @@ proc getPackageMinimalVersionsFromRepo*(repoDir: string, name: string, version: 
         let pkgInfo = getPkgInfoFromFile(nimbleFile, options, useCache=false)
         result.addUnique pkgInfo.getMinimalInfo(options)
       except CatchableError as e:
-        displayWarning(&"Error reading tag {tag}: for package {name}. " & 
-                      "This may not be relevant as it could be an old version of the package. \n" & 
-                      e.msg, HighPriority)
+        displayWarning(
+          &"Error reading tag {tag}: for package {name}. This may not be relevant as it could be an old version of the package. \n {e.msg}",
+           HighPriority)
   
     saveTaggedVersions(repoDir, name, 
                       TaggedPackageVersions(
