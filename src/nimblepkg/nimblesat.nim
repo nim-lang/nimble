@@ -550,7 +550,7 @@ proc getPackageMinimalVersionsFromRepo*(repoDir: string, name: string, version: 
 
   #First package must be the current one
   try:
-    result.add getPkgInfo(repoDir, options).getMinimalInfo(options)   
+    result.add getPkgInfo(repoDir, options).getMinimalInfo(options)
   except CatchableError as e:
     displayWarning(&"Error getting package info for {name}: {e.msg}", HighPriority)
   var checkedTags = 0
