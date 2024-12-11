@@ -527,50 +527,52 @@ proc saveTaggedVersions*(repoDir, pkgName: string, taggedVersions: TaggedPackage
     displayWarning(&"Error saving tagged versions: {e.msg}", HighPriority)
 
 proc getPackageMinimalVersionsFromRepo*(repoDir: string, name: string, version: Version, downloadMethod: DownloadMethod, options: Options): seq[PackageMinimalInfo] =
-  #This is expensive. We need to cache it. Potentially it could be also run in parallel
-  # echo &"Discovering version for {pkgName}"
-  gitFetchTags(repoDir, downloadMethod)    
-  let tags = getTagsList(repoDir, downloadMethod).getVersionList()
-  template checkoutCurrentVersion() = 
-    if version.isSpecial:
-      var specialVersion = substr($version, 1)
-      if specialVersion == "head":
-        specialVersion = "HEAD"
-      doCheckout(downloadMethod, repoDir, specialVersion)
-    else:
-      for (ver, tag) in tags.pairs:    
-        if ver == version:
-          doCheckout(downloadMethod, repoDir, tag)
-
   result = newSeq[PackageMinimalInfo]()
-  checkoutCurrentVersion()
+  
   let taggedVersions = getTaggedVersions(repoDir, name, options)
   if taggedVersions.isSome:
     return taggedVersions.get.versions
 
-  #First package must be the current one
+  let tempDir = repoDir & "_versions"
   try:
-    result.add getPkgInfo(repoDir, options).getMinimalInfo(options)
-  except CatchableError as e:
-    displayWarning(&"Error getting package info for {name}: {e.msg}", HighPriority)
-  var checkedTags = 0
-  for (ver, tag) in tags.pairs:    
-    if options.maxTaggedVersions > 0 and checkedTags >= options.maxTaggedVersions:
-      # echo &"Tag limit reached for {pkgName}"
-      break
-    inc checkedTags
-    #For each version, we need to parse the requires so we need to checkout and initialize the repo
+    removeDir(tempDir) 
+    copyDir(repoDir, tempDir)
+    
+    gitFetchTags(tempDir, downloadMethod)    
+    let tags = getTagsList(tempDir, downloadMethod).getVersionList()
+    
     try:
-      doCheckout(downloadMethod, repoDir, tag)
-      let nimbleFile = findNimbleFile(repoDir, true, options)
-      let pkgInfo = getPkgInfoFromFile(nimbleFile, options, useCache=false)
-      result.addUnique  pkgInfo.getMinimalInfo(options)
+      result.add getPkgInfo(repoDir, options).getMinimalInfo(options)   
     except CatchableError as e:
-      displayWarning(&"Error reading tag {tag}: for package {name}. This may not be relevant as it could be an old version of the package. \n {e.msg}", HighPriority)
+      displayWarning(&"Error getting package info for {name}: {e.msg}", HighPriority)
+    
+    # Process tagged versions in the temporary copy
+    var checkedTags = 0
+    for (ver, tag) in tags.pairs:    
+      if options.maxTaggedVersions > 0 and checkedTags >= options.maxTaggedVersions:
+        break
+      inc checkedTags
+      
+      try:
+        doCheckout(downloadMethod, tempDir, tag)
+        let nimbleFile = findNimbleFile(tempDir, true, options)
+        let pkgInfo = getPkgInfoFromFile(nimbleFile, options, useCache=false)
+        result.addUnique pkgInfo.getMinimalInfo(options)
+      except CatchableError as e:
+        displayWarning(
+          &"Error reading tag {tag}: for package {name}. This may not be relevant as it could be an old version of the package. \n {e.msg}",
+           HighPriority)
   
-    checkoutCurrentVersion()
-
-  saveTaggedVersions(repoDir, name, TaggedPackageVersions(maxTaggedVersions: options.maxTaggedVersions, versions: result), options)
+    saveTaggedVersions(repoDir, name, 
+                      TaggedPackageVersions(
+                        maxTaggedVersions: options.maxTaggedVersions, 
+                        versions: result
+                      ), options)
+  finally:
+    try:
+      removeDir(tempDir)
+    except CatchableError as e:
+      displayWarning(&"Error cleaning up temporary directory {tempDir}: {e.msg}", LowPriority)
 
 proc downloadMinimalPackage*(pv: PkgTuple, options: Options): seq[PackageMinimalInfo] =
   if pv.name == "": return newSeq[PackageMinimalInfo]()
