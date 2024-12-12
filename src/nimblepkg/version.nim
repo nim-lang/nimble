@@ -465,3 +465,5 @@ when isMainModule:
     test "convert version to version range":
       check toVersionRange(newVersion("#head")).kind == verSpecial
       check toVersionRange(newVersion("0.2.0")).kind == verEq
+
+proc hash*(pv: PkgTuple): Hash = hash($pv)
