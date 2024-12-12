@@ -432,7 +432,7 @@ suite "SAT solver":
     ]#
     cd "libp2pconflict": #0.16.2
       removeDir("nimbledeps")
-      let (_, exitCode) = execNimbleYes("install", "-l")
+      let (_, exitCode) = execNimbleYes("install", "--maximumTaggedVersions=0", "-l")
       check exitCode == QuitSuccess
 
   test "should be able to solve complex dep graphs":
