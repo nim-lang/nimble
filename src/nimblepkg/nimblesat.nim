@@ -537,9 +537,12 @@ proc getPackageMinimalVersionsFromRepo*(repoDir: string, name: string, version: 
   try:
     removeDir(tempDir) 
     copyDir(repoDir, tempDir)
-    
-    gitFetchTags(tempDir, downloadMethod)    
-    let tags = getTagsList(tempDir, downloadMethod).getVersionList()
+    var tags = initOrderedTable[Version, string]()
+    try:
+      gitFetchTags(tempDir, downloadMethod)    
+      tags = getTagsList(tempDir, downloadMethod).getVersionList()
+    except CatchableError as e:
+      displayWarning(&"Error fetching tags for {name}: {e.msg}", HighPriority)
     
     try:
       result.add getPkgInfo(repoDir, options).getMinimalInfo(options)   
