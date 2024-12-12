@@ -102,6 +102,7 @@ jobs:
       - name: Download artefacts
         uses: actions/download-artifact@v4
 
+      # Create/update the "latest" release
       - uses: ncipollo/release-action@v1
         with:
           name: Latest Nimble Binaries
@@ -110,6 +111,17 @@ jobs:
           makeLatest: true
           prerelease: true
           tag: latest
+
+      # Create a versioned release if this is a tag push
+      - if: startsWith(github.ref, 'refs/tags/v')
+        uses: ncipollo/release-action@v1
+        with:
+          name: Nimble ${{ github.ref_name }}
+          artifacts: "*/*"
+          allowUpdates: true
+          makeLatest: true
+          prerelease: false
+          tag: ${{ github.ref_name }}
 
       - name: Delete artefacts
         uses: geekyeggo/delete-artifact@v5
