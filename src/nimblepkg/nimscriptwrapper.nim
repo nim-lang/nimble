@@ -70,7 +70,7 @@ proc execNimscript(
       cmd &= " " & i.quoteShell()
     cmd &= " " & join(options.action.custRunFlags, " ")
 
-  displayDebug("Executing " & cmd)
+  displayDebug("Executing", cmd)
 
   if needsLiveOutput(actionName, options, isHook):
     result.exitCode = execCmd(cmd)
