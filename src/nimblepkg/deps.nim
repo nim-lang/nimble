@@ -78,16 +78,10 @@ proc printDepsHumanReadable*(pkgInfo: PackageInfo,
   if levelInfos.len() == 0:
     displayFormatted(Hint, "\n")
 
-type
-  InvertedPkgInfo = object
-    dep: string
-    src: string
-    ver: VersionRange
-
 proc printDepsHumanReadableInverted*(pkgInfo: PackageInfo,
                              dependencies: seq[PackageInfo],
                              errors: ValidationErrors,
-                             pkgs = newTable[string, seq[InvertedPkgInfo]](),
+                             pkgs = newTable[string, TableRef[string, VersionRange]](),
                              ) =
   ## print human readable tree deps
   ## 
@@ -108,9 +102,8 @@ proc printDepsHumanReadableInverted*(pkgInfo: PackageInfo,
     let
       found = dependencies.findPkg((name, ver), depPkgInfo)
       packageName = if found: depPkgInfo.basicInfo.name else: name
-      info = InvertedPkgInfo(dep: packageName, src: parent, ver: ver)
 
-    pkgs.mgetOrPut(packageName, newSeq[InvertedPkgInfo]()).add(info)
+    pkgs.mgetOrPut(packageName, newTable[string, VersionRange]())[parent] = ver
 
     if found:
       printDepsHumanReadableInverted(depPkgInfo, dependencies, errors, pkgs)
@@ -119,7 +112,7 @@ proc printDepsHumanReadableInverted*(pkgInfo: PackageInfo,
     # for pkg, info in pkgs:
     for idx, name in pkgs.keys().toSeq().sorted():
       let
-        infos = pkgs[name]
+        info = pkgs[name]
         isOuterLast = idx == pkgs.len() - 1
       if not isOuterLast:
         displayFormatted(Hint, "├── ")
@@ -135,10 +128,10 @@ proc printDepsHumanReadableInverted*(pkgInfo: PackageInfo,
           displayFormatted(Hint, "│   ")
         else:
           displayFormatted(Hint, "    ")
-      for idx, info in infos.sorted(proc (x, y: InvertedPkgInfo): int = system.cmp(x.src, y.src)):
+      for idx, source in info.keys().toSeq().sorted():
         let
-          ver = info.ver
-          isLast = idx == infos.len() - 1
+          ver = info[source]
+          isLast = idx == info.len() - 1
 
         if not isLast:
           printOuter()
@@ -148,7 +141,7 @@ proc printDepsHumanReadableInverted*(pkgInfo: PackageInfo,
           displayFormatted(Warning, "╙── ")
         displayFormatted(Warning, if ver.kind == verAny: "@any" else: $ver)
         displayFormatted(Hint, " ")
-        displayFormatted(Message, info.src)
+        displayFormatted(Message, source)
         displayFormatted(Hint, "\n")
     displayFormatted(Hint, "\n")
 
