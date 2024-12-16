@@ -35,11 +35,10 @@ proc depsRecursive*(pkgInfo: PackageInfo,
 proc printDepsHumanReadable*(pkgInfo: PackageInfo,
                              dependencies: seq[PackageInfo],
                              errors: ValidationErrors,
-                             level = 1,
                              levelSkips: seq[bool] = @[]
                              ) =
   # [fgRed, fgYellow, fgBlue, fgWhite, fgCyan, fgGreen]
-  if level == 1:
+  if levelSkips.len() == 0:
     displayFormatted(Hint, "\n")
     displayFormatted(Message, pkgInfo.basicInfo.name, " ")
     displayFormatted(Success, "(@", $pkgInfo.basicInfo.version, ")")
@@ -73,7 +72,7 @@ proc printDepsHumanReadable*(pkgInfo: PackageInfo,
     if found:
       var levelSkips = levelSkips
       levelSkips.add(isLast)
-      printDepsHumanReadable(depPkgInfo, dependencies, errors, level + 1, levelSkips)
-  if level == 1:
+      printDepsHumanReadable(depPkgInfo, dependencies, errors, levelSkips)
+  if levelSkips.len() == 0:
     displayFormatted(Hint, "\n")
 
