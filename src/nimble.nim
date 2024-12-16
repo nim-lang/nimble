@@ -1944,6 +1944,8 @@ proc depsTree(options: Options) =
 
   if options.action.format == "json":
     echo (%depsRecursive(pkgInfo, dependencies, errors)).pretty
+  if options.action.format == "inverted":
+    printDepsHumanReadableInverted(pkgInfo, dependencies, errors)
   else:
     printDepsHumanReadable(pkgInfo, dependencies, errors)
 

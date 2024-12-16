@@ -77,3 +77,27 @@ proc printDepsHumanReadable*(pkgInfo: PackageInfo,
   if levelInfos.len() == 0:
     displayFormatted(Hint, "\n")
 
+proc printDepsHumanReadableInverted*(pkgInfo: PackageInfo,
+                             dependencies: seq[PackageInfo],
+                             errors: ValidationErrors,
+                             parent = ""
+                             ) =
+  ## print human readable tree deps
+  ## 
+  var pkgs: TableRef[string, TableRef[string, VersionRange]]
+
+  for idx, (name, ver) in pkgInfo.requires:
+    var depPkgInfo = initPackageInfo()
+    let
+      isLast = idx == pkgInfo.requires.len() - 1
+      found = dependencies.findPkg((name, ver), depPkgInfo)
+      packageName = if found: depPkgInfo.basicInfo.name else: name
+
+    pkgs.mgetOrPut(parent, newTable[string, VersionRange]())[parent] = ver
+
+    if found:
+      printDepsHumanReadableInverted(depPkgInfo, dependencies, errors, parent = packageName)
+
+  if parent == "":
+    displayFormatted(Hint, "\n")
+
