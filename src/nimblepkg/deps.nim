@@ -35,21 +35,32 @@ proc depsRecursive*(pkgInfo: PackageInfo,
 proc printDepsHumanReadable*(pkgInfo: PackageInfo,
                              dependencies: seq[PackageInfo],
                              errors: ValidationErrors,
-                             level: int = 1) =
+                             level = 1,
+                             levelSkips: seq[bool] = @[]
+                             ) =
   # [fgRed, fgYellow, fgBlue, fgWhite, fgCyan, fgGreen]
   if level == 1:
     displayFormatted(Hint, "\n")
     displayFormatted(Message, pkgInfo.basicInfo.name, " ")
-    displayFormatted(Success, "@", $pkgInfo.basicInfo.version)
+    displayFormatted(Success, "(@", $pkgInfo.basicInfo.version, ")")
 
-  for (name, ver) in pkgInfo.requires:
+  for idx, (name, ver) in pkgInfo.requires:
     var depPkgInfo = initPackageInfo()
     let
+      isLast = idx == pkgInfo.requires.len() - 1
       found = dependencies.findPkg((name, ver), depPkgInfo)
       packageName = if found: depPkgInfo.basicInfo.name else: name
 
     displayFormatted(Hint, "\n")
-    displayFormatted(Hint, " ".repeat(level * 2))
+    for levelSkip in levelSkips:
+      if levelSkip:
+        displayFormatted(Hint, "    ")
+      else:
+        displayFormatted(Hint, "│   ")
+    if not isLast:
+      displayFormatted(Hint, "├── ")
+    else:
+      displayFormatted(Hint, "└── ")
     displayFormatted(Message, packageName)
     displayFormatted(Hint, " ")
     displayFormatted(Warning, if ver.kind == verAny: "@any" else: $ver)
@@ -60,7 +71,9 @@ proc printDepsHumanReadable*(pkgInfo: PackageInfo,
       let errMsg = getValidationErrorMessage(packageName, errors.getOrDefault packageName)
       displayFormatted(Error, fmt" - error: {errMsg}")
     if found:
-      printDepsHumanReadable(depPkgInfo, dependencies, errors, level + 1)
+      var levelSkips = levelSkips
+      levelSkips.add(isLast)
+      printDepsHumanReadable(depPkgInfo, dependencies, errors, level + 1, levelSkips)
   if level == 1:
     displayFormatted(Hint, "\n")
 
