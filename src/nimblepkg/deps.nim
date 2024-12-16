@@ -1,4 +1,5 @@
-import packageinfotypes, developfile, packageinfo, version, tables, strformat, strutils
+import tables, strformat, strutils, terminal, cli
+import packageinfotypes, developfile, packageinfo, version
 
 type
   DependencyNode = ref object of RootObj
@@ -33,21 +34,37 @@ proc depsRecursive*(pkgInfo: PackageInfo,
 
 proc printDepsHumanReadable*(pkgInfo: PackageInfo,
                              dependencies: seq[PackageInfo],
-                             level: int,
-                             errors: ValidationErrors) =
-  echo pkgInfo.basicInfo.name
+                             errors: ValidationErrors,
+                             level: int = 1) =
+  # [fgRed, fgYellow, fgBlue, fgWhite, fgCyan, fgGreen]
+  if level == 1:
+    stdout.styledWrite("\n")
+    stdout.styledWriteLine(
+      fgGreen, styleBright, pkgInfo.basicInfo.name,
+      " ",
+      fgCyan, $pkgInfo.basicInfo.version
+    )
   for (name, ver) in pkgInfo.requires:
     var depPkgInfo = initPackageInfo()
     let
       found = dependencies.findPkg((name, ver), depPkgInfo)
       packageName = if found: depPkgInfo.basicInfo.name else: name
 
-    echo " ".repeat(level * 2),
+    stdout.styledWriteLine(
+      " ".repeat(level * 2),
+      fgCyan, styleBright,
       packageName,
-      if ver.kind == verAny: "@any" else: " " & $ver,
-      if found: fmt "(resolved {depPkgInfo.basicInfo.version})" else: "",
+      resetStyle, fgGreen,
+      if found: fmt " {depPkgInfo.basicInfo.version}" else: "",
+      resetStyle, fgBlue, 
+      " ",
+      resetStyle, fgYellow,
+      "(requires ", if ver.kind == verAny: "@any" else: $ver, ")",
+      fgRed, styleBright,
       if errors.contains(packageName):
         " - error: " & getValidationErrorMessage(packageName, errors.getOrDefault packageName)
       else:
         ""
-    if found: printDepsHumanReadable(depPkgInfo, dependencies, level + 1, errors)
+    )
+    if found:
+      printDepsHumanReadable(depPkgInfo, dependencies, errors, level + 1)

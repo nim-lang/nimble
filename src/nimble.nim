@@ -1945,7 +1945,7 @@ proc depsTree(options: Options) =
   if options.action.format == "json":
     echo (%depsRecursive(pkgInfo, dependencies, errors)).pretty
   else:
-    printDepsHumanReadable(pkgInfo, dependencies, 1, errors)
+    printDepsHumanReadable(pkgInfo, dependencies, errors)
 
 proc syncWorkingCopy(name: string, path: Path, dependentPkg: PackageInfo,
                      options: Options) =
