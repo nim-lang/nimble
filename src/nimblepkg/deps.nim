@@ -35,6 +35,7 @@ proc printDepsHumanReadable*(pkgInfo: PackageInfo,
                              dependencies: seq[PackageInfo],
                              level: int,
                              errors: ValidationErrors) =
+  echo pkgInfo.basicInfo.name
   for (name, ver) in pkgInfo.requires:
     var depPkgInfo = initPackageInfo()
     let
