@@ -92,6 +92,9 @@ proc printDepsHumanReadableInverted*(pkgInfo: PackageInfo,
     displayInfo("Dependency tree format: {PackageName} (@{Resolved Version})")
     displayInfo("Dependency tree format:    {Source Package} {Source Requirements}")
     displayFormatted(Hint, "\n")
+    displayFormatted(Message, pkgInfo.basicInfo.name, " ")
+    displayFormatted(Success, "(@", $pkgInfo.basicInfo.version, ")")
+    displayFormatted(Hint, "\n")
 
   for (name, ver) in pkgInfo.requires:
     var depPkgInfo = initPackageInfo()
@@ -106,22 +109,35 @@ proc printDepsHumanReadableInverted*(pkgInfo: PackageInfo,
 
   if isRoot:
     # for pkg, info in pkgs:
-    for name in pkgs.keys().toSeq().sorted():
-      let info = pkgs[name]
-      displayFormatted(Details, " + ")
-      displayFormatted(Message, name)
+    for idx, name in pkgs.keys().toSeq().sorted():
+      let
+        info = pkgs[name]
+        isOuterLast = idx == pkgs.len() - 1
+      if not isOuterLast:
+        displayFormatted(Hint, "├── ")
+      else:
+        displayFormatted(Hint, "└── ")
+      displayFormatted(Message, name, " ")
       displayFormatted(Success, "(@", $pkgInfo.basicInfo.version, ")")
       displayFormatted(Hint, "\n")
       # echo "name: ", pkg, " info: ", $info
       # for idx, (source, ver) in info.pairs().toSeq():
+      proc printOuter() =
+        if not isOuterLast:
+          displayFormatted(Hint, "│   ")
+        else:
+          displayFormatted(Hint, "    ")
       for idx, source in info.keys().toSeq().sorted():
         let
           ver = info[source]
           isLast = idx == info.len() - 1
+
         if not isLast:
-          displayFormatted(Hint, " ├── ")
+          printOuter()
+          displayFormatted(Warning, " ├── ")
         else:
-          displayFormatted(Hint, " └── ")
+          printOuter()
+          displayFormatted(Warning, " └── ")
         displayFormatted(Message, source, " ")
         displayFormatted(Warning, if ver.kind == verAny: "@any" else: $ver)
         displayFormatted(Hint, "\n")
