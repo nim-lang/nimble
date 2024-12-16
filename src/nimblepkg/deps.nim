@@ -114,9 +114,9 @@ proc printDepsHumanReadableInverted*(pkgInfo: PackageInfo,
         info = pkgs[name]
         isOuterLast = idx == pkgs.len() - 1
       if not isOuterLast:
-        displayFormatted(Hint, "├── ")
+        displayFormatted(Hint, "╠══ ")
       else:
-        displayFormatted(Hint, "└── ")
+        displayFormatted(Hint, "╚══ ")
       displayFormatted(Message, name, " ")
       displayFormatted(Success, "(@", $pkgInfo.basicInfo.version, ")")
       displayFormatted(Hint, "\n")
@@ -124,7 +124,7 @@ proc printDepsHumanReadableInverted*(pkgInfo: PackageInfo,
       # for idx, (source, ver) in info.pairs().toSeq():
       proc printOuter() =
         if not isOuterLast:
-          displayFormatted(Hint, "│   ")
+          displayFormatted(Hint, "║   ")
         else:
           displayFormatted(Hint, "    ")
       printOuter()
@@ -136,10 +136,10 @@ proc printDepsHumanReadableInverted*(pkgInfo: PackageInfo,
 
         if not isLast:
           printOuter()
-          displayFormatted(Warning, "├── ")
+          displayFormatted(Warning, "╠══ ")
         else:
           printOuter()
-          displayFormatted(Warning, "└── ")
+          displayFormatted(Warning, "╚══ ")
         displayFormatted(Message, source, " ")
         displayFormatted(Warning, if ver.kind == verAny: "@any" else: $ver)
         displayFormatted(Hint, "\n")
