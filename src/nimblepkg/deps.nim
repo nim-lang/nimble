@@ -40,7 +40,7 @@ proc printDepsHumanReadable*(pkgInfo: PackageInfo,
   if level == 1:
     displayFormatted(Hint, "\n")
     displayFormatted(Message, pkgInfo.basicInfo.name, " ")
-    displayFormatted(Success, $pkgInfo.basicInfo.version)
+    displayFormatted(Success, "@", $pkgInfo.basicInfo.version)
 
   for (name, ver) in pkgInfo.requires:
     var depPkgInfo = initPackageInfo()
