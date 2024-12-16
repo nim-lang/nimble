@@ -1,4 +1,5 @@
-import packageinfotypes, developfile, packageinfo, version, tables, strformat, strutils
+import tables, strformat, strutils, terminal
+import packageinfotypes, developfile, packageinfo, cli, version
 
 type
   DependencyNode = ref object of RootObj
@@ -35,6 +36,9 @@ proc printDepsHumanReadable*(pkgInfo: PackageInfo,
                              dependencies: seq[PackageInfo],
                              level: int,
                              errors: ValidationErrors) =
+  displayLineReset()
+  echo pkgInfo.basicInfo.name
+
   for (name, ver) in pkgInfo.requires:
     var depPkgInfo = initPackageInfo()
     let
