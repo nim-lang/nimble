@@ -1,4 +1,4 @@
-import tables, strformat, strutils, terminal, cli
+import tables, strformat, sequtils, algorithm, strutils, terminal, cli
 import packageinfotypes, developfile, packageinfo, version
 
 type
@@ -80,16 +80,22 @@ proc printDepsHumanReadable*(pkgInfo: PackageInfo,
 proc printDepsHumanReadableInverted*(pkgInfo: PackageInfo,
                              dependencies: seq[PackageInfo],
                              errors: ValidationErrors,
-                             pkgs = newTable[string, TableRef[string, VersionRange]]()
+                             pkgs = newTable[string, TableRef[string, VersionRange]](),
                              ) =
   ## print human readable tree deps
   ## 
-  let parent = pkgInfo.basicInfo.name
+  let
+    parent = pkgInfo.basicInfo.name
+    isRoot = pkgs.len() == 0
 
-  for idx, (name, ver) in pkgInfo.requires:
+  if isRoot:
+    displayInfo("Dependency tree format: {PackageName} (@{Resolved Version})")
+    displayInfo("Dependency tree format:    {Source Package} {Source Requirements}")
+    displayFormatted(Hint, "\n")
+
+  for (name, ver) in pkgInfo.requires:
     var depPkgInfo = initPackageInfo()
     let
-      isLast = idx == pkgInfo.requires.len() - 1
       found = dependencies.findPkg((name, ver), depPkgInfo)
       packageName = if found: depPkgInfo.basicInfo.name else: name
 
@@ -98,9 +104,26 @@ proc printDepsHumanReadableInverted*(pkgInfo: PackageInfo,
     if found:
       printDepsHumanReadableInverted(depPkgInfo, dependencies, errors, pkgs)
 
-  # if parent == "":
-  #   echo "table:"
-  #   for pkg, info in pkgs:
-  #     echo "name: ", pkg, " info: ", $info
-  #   displayFormatted(Hint, "\n")
+  if isRoot:
+    # for pkg, info in pkgs:
+    for name in pkgs.keys().toSeq().sorted():
+      let info = pkgs[name]
+      displayFormatted(Details, " + ")
+      displayFormatted(Message, name)
+      displayFormatted(Success, "(@", $pkgInfo.basicInfo.version, ")")
+      displayFormatted(Hint, "\n")
+      # echo "name: ", pkg, " info: ", $info
+      # for idx, (source, ver) in info.pairs().toSeq():
+      for idx, source in info.keys().toSeq().sorted():
+        let
+          ver = info[source]
+          isLast = idx == info.len() - 1
+        if not isLast:
+          displayFormatted(Hint, " ├── ")
+        else:
+          displayFormatted(Hint, " └── ")
+        displayFormatted(Message, source, " ")
+        displayFormatted(Warning, if ver.kind == verAny: "@any" else: $ver)
+        displayFormatted(Hint, "\n")
+    displayFormatted(Hint, "\n")
 
