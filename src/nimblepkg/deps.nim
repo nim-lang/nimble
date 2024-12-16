@@ -43,8 +43,8 @@ proc printDepsHumanReadable*(pkgInfo: PackageInfo,
 
     echo " ".repeat(level * 2),
       packageName,
-      if ver.kind == verAny: "@any" else: " " & $ver,
-      if found: fmt "(resolved {depPkgInfo.basicInfo.version})" else: "",
+      if ver.kind == verAny: "@any" else: $ver,
+      if found: fmt " (resolved {depPkgInfo.basicInfo.version})" else: "",
       if errors.contains(packageName):
         " - error: " & getValidationErrorMessage(packageName, errors.getOrDefault packageName)
       else:
