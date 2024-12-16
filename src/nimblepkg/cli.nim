@@ -135,11 +135,9 @@ proc display*(category, msg: string, displayType = Message,
       globalCLI.suppressionCount.inc
     if globalCLI.showColor:
       # some heuristics here
-      if msg.startsWith("Executing") and msg.endsWith("printPkgInfo"):
+      if category == "Executing" and msg.endsWith("printPkgInfo"):
         displayLine("Scanning", "", Progress, HighPriority)
-      elif category == "Copying":
-        displayLine("Copying", "", Progress, HighPriority)
-      elif msg.startsWith("git ls-remote"):
+      elif msg.startsWith("git"):
         displayLine("Updating", "", Progress, HighPriority)
       else:
         displayLine("Working", "", Progress, HighPriority)
