@@ -35,10 +35,11 @@ proc depsRecursive*(pkgInfo: PackageInfo,
 proc printDepsHumanReadable*(pkgInfo: PackageInfo,
                              dependencies: seq[PackageInfo],
                              errors: ValidationErrors,
-                             levelSkips: seq[bool] = @[]
+                             levelInfos: seq[tuple[skip: bool]] = @[]
                              ) =
-  # [fgRed, fgYellow, fgBlue, fgWhite, fgCyan, fgGreen]
-  if levelSkips.len() == 0:
+  ## print human readable tree deps
+  ## 
+  if levelInfos.len() == 0:
     displayFormatted(Hint, "\n")
     displayFormatted(Message, pkgInfo.basicInfo.name, " ")
     displayFormatted(Success, "(@", $pkgInfo.basicInfo.version, ")")
@@ -51,8 +52,8 @@ proc printDepsHumanReadable*(pkgInfo: PackageInfo,
       packageName = if found: depPkgInfo.basicInfo.name else: name
 
     displayFormatted(Hint, "\n")
-    for levelSkip in levelSkips:
-      if levelSkip:
+    for levelInfo in levelInfos:
+      if levelInfo.skip:
         displayFormatted(Hint, "    ")
       else:
         displayFormatted(Hint, "│   ")
@@ -70,9 +71,8 @@ proc printDepsHumanReadable*(pkgInfo: PackageInfo,
       let errMsg = getValidationErrorMessage(packageName, errors.getOrDefault packageName)
       displayFormatted(Error, fmt" - error: {errMsg}")
     if found:
-      var levelSkips = levelSkips
-      levelSkips.add(isLast)
-      printDepsHumanReadable(depPkgInfo, dependencies, errors, levelSkips)
-  if levelSkips.len() == 0:
+      var levelInfos = levelInfos & @[(skip: isLast)]
+      printDepsHumanReadable(depPkgInfo, dependencies, errors, levelInfos)
+  if levelInfos.len() == 0:
     displayFormatted(Hint, "\n")
 
