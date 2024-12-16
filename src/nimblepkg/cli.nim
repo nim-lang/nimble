@@ -113,7 +113,7 @@ proc displayLine(category, line: string, displayType: DisplayType,
     echo(line)
   else:
     # displayCategory("Executing", Warning, HighPriority)
-    stdout.write(line, spinChars[lastCharidx])
+    stdout.write(spinChars[lastCharidx], " ", line)
     lastCharidx = (lastCharidx + 1) mod spinChars.len()
     stdout.flushFile()
     lastWasDot = true
@@ -134,7 +134,15 @@ proc display*(category, msg: string, displayType = Message,
     if priority != DebugPriority:
       globalCLI.suppressionCount.inc
     if globalCLI.showColor:
-      displayLine("Working", "", Progress, HighPriority)
+      # some heuristics here
+      if msg.startsWith("Executing") and msg.endsWith("printPkgInfo"):
+        displayLine("Scanning", "", Progress, HighPriority)
+      elif category == "Copying":
+        displayLine("Copying", "", Progress, HighPriority)
+      elif msg.startsWith("git ls-remote"):
+        displayLine("Updating", "", Progress, HighPriority)
+      else:
+        displayLine("Working", "", Progress, HighPriority)
     return
 
   # Display each line in the message.
