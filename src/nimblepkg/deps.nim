@@ -80,11 +80,11 @@ proc printDepsHumanReadable*(pkgInfo: PackageInfo,
 proc printDepsHumanReadableInverted*(pkgInfo: PackageInfo,
                              dependencies: seq[PackageInfo],
                              errors: ValidationErrors,
-                             parent = ""
+                             pkgs = newTable[string, TableRef[string, VersionRange]]()
                              ) =
   ## print human readable tree deps
   ## 
-  var pkgs: TableRef[string, TableRef[string, VersionRange]]
+  let parent = pkgInfo.basicInfo.name
 
   for idx, (name, ver) in pkgInfo.requires:
     var depPkgInfo = initPackageInfo()
@@ -93,11 +93,14 @@ proc printDepsHumanReadableInverted*(pkgInfo: PackageInfo,
       found = dependencies.findPkg((name, ver), depPkgInfo)
       packageName = if found: depPkgInfo.basicInfo.name else: name
 
-    pkgs.mgetOrPut(parent, newTable[string, VersionRange]())[parent] = ver
+    pkgs.mgetOrPut(packageName, newTable[string, VersionRange]())[parent] = ver
 
     if found:
-      printDepsHumanReadableInverted(depPkgInfo, dependencies, errors, parent = packageName)
+      printDepsHumanReadableInverted(depPkgInfo, dependencies, errors, pkgs)
 
-  if parent == "":
-    displayFormatted(Hint, "\n")
+  # if parent == "":
+  #   echo "table:"
+  #   for pkg, info in pkgs:
+  #     echo "name: ", pkg, " info: ", $info
+  #   displayFormatted(Hint, "\n")
 
