@@ -40,9 +40,10 @@ proc printDepsHumanReadable*(pkgInfo: PackageInfo,
   if level == 1:
     stdout.styledWrite("\n")
     stdout.styledWriteLine(
-      fgGreen, styleBright, pkgInfo.basicInfo.name,
+      fgCyan, styleBright, pkgInfo.basicInfo.name,
       " ",
-      fgCyan, $pkgInfo.basicInfo.version
+      fgGreen,
+      $pkgInfo.basicInfo.version
     )
   for (name, ver) in pkgInfo.requires:
     var depPkgInfo = initPackageInfo()
