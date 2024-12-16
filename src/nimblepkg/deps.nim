@@ -46,12 +46,20 @@ proc printDepsHumanReadable*(pkgInfo: PackageInfo,
     displayFormatted(Message, pkgInfo.basicInfo.name, " ")
     displayFormatted(Success, "(@", $pkgInfo.basicInfo.version, ")")
 
-  for idx, (name, ver) in pkgInfo.requires:
+  var requires: seq[(string, VersionRange, bool, PackageInfo)]
+  for idx, (name, ver) in pkgInfo.requires.sorted():
     var depPkgInfo = initPackageInfo()
     let
-      isLast = idx == pkgInfo.requires.len() - 1
       found = dependencies.findPkg((name, ver), depPkgInfo)
       packageName = if found: depPkgInfo.basicInfo.name else: name
+    requires.add((packageName, ver, found, depPkgInfo))
+
+  proc reqCmp[T](x, y: T): int = cmp(x[0], y[0])
+  requires.sort(reqCmp)
+
+  for idx, (packageName, ver, found, depPkgInfo) in requires:
+    let
+      isLast = idx == pkgInfo.requires.len() - 1
 
     displayFormatted(Hint, "\n")
     for levelInfo in levelInfos:
