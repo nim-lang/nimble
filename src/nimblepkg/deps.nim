@@ -1,10 +1,5 @@
-<<<<<<< HEAD
-import tables, strformat, strutils, terminal
-import packageinfotypes, developfile, packageinfo, cli, version
-=======
 import tables, strformat, sequtils, algorithm, strutils, terminal, cli
 import packageinfotypes, developfile, packageinfo, version
->>>>>>> improve-deps-human-format
 
 type
   DependencyNode = ref object of RootObj
@@ -108,14 +103,6 @@ proc printDepsHumanReadableInverted*(pkgInfo: PackageInfo,
       found = dependencies.findPkg((name, ver), depPkgInfo)
       packageName = if found: depPkgInfo.basicInfo.name else: name
 
-<<<<<<< HEAD
-    echo " ".repeat(level * 2),
-      packageName,
-      if ver.kind == verAny: "@any" else: $ver,
-      if found: fmt " (resolved {depPkgInfo.basicInfo.version})" else: "",
-      if errors.contains(packageName):
-        " - error: " & getValidationErrorMessage(packageName, errors.getOrDefault packageName)
-=======
     pkgs.mgetOrPut(packageName, newTable[string, VersionRange]())[parent] = ver
 
     if found:
@@ -129,7 +116,6 @@ proc printDepsHumanReadableInverted*(pkgInfo: PackageInfo,
         isOuterLast = idx == pkgs.len() - 1
       if not isOuterLast:
         displayFormatted(Hint, "├── ")
->>>>>>> improve-deps-human-format
       else:
         displayFormatted(Hint, "└── ")
       displayFormatted(Message, name, " ")
