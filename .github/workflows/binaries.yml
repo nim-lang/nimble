@@ -67,6 +67,10 @@ jobs:
       - name: Install dependencies
         run: nimble install -y
 
+      - name: Install zip
+        if: matrix.target.os == 'windows'
+        run: sudo apt-get install -y zip
+
       - name: build nimble
         run: |
           if [[ "${{ matrix.target.triple }}" == "x86_64-apple-darwin14" ]]; then
