@@ -40,6 +40,7 @@ proc printDepsHumanReadable*(pkgInfo: PackageInfo,
   ## print human readable tree deps
   ## 
   if levelInfos.len() == 0:
+    displayInfo("Dependency tree format: {PackageName} {Requirements} (@{Resolved Version})")
     displayFormatted(Hint, "\n")
     displayFormatted(Message, pkgInfo.basicInfo.name, " ")
     displayFormatted(Success, "(@", $pkgInfo.basicInfo.version, ")")
