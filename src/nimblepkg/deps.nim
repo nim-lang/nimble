@@ -135,12 +135,12 @@ proc printDepsHumanReadableInverted*(pkgInfo: PackageInfo,
 
         if not isLast:
           printOuter()
-          displayFormatted(Warning, "╟── ")
+          displayFormatted(Hint, "╟── ")
         else:
           printOuter()
-          displayFormatted(Warning, "╙── ")
+          displayFormatted(Hint, "╙── ")
         displayFormatted(Warning, if ver.kind == verAny: "@any" else: $ver)
-        displayFormatted(Hint, " ")
+        displayFormatted(Hint, "\t")
         displayFormatted(Message, source)
         displayFormatted(Hint, "\n")
     displayFormatted(Hint, "\n")
