@@ -1944,8 +1944,10 @@ proc depsTree(options: Options) =
 
   if options.action.format == "json":
     echo (%depsRecursive(pkgInfo, dependencies, errors)).pretty
+  if options.action.format == "inverted":
+    printDepsHumanReadableInverted(pkgInfo, dependencies, errors)
   else:
-    printDepsHumanReadable(pkgInfo, dependencies, 1, errors)
+    printDepsHumanReadable(pkgInfo, dependencies, errors)
 
 proc syncWorkingCopy(name: string, path: Path, dependentPkg: PackageInfo,
                      options: Options) =
