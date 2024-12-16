@@ -61,6 +61,13 @@ proc isSuppressed(displayType: DisplayType): bool =
      globalCLI.level == HighPriority:
     return true
 
+proc displayFormatted*(displayType: DisplayType, msgs: varargs[string]) =
+  for msg in msgs:
+    if globalCLI.showColor:
+      stdout.styledWrite(foregrounds[displayType], msg)
+    else:
+      stdout.write(msg)
+
 proc displayCategory(category: string, displayType: DisplayType,
                      priority: Priority) =
   if isSuppressed(displayType):

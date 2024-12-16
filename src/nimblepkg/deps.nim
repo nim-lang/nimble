@@ -38,39 +38,26 @@ proc printDepsHumanReadable*(pkgInfo: PackageInfo,
                              level: int = 1) =
   # [fgRed, fgYellow, fgBlue, fgWhite, fgCyan, fgGreen]
   if level == 1:
-    stdout.styledWrite("\n")
-    stdout.styledWriteLine(
-      fgCyan, styleBright, pkgInfo.basicInfo.name,
-      " ",
-      fgGreen,
-      $pkgInfo.basicInfo.version
-    )
+    displayFormatted(Hint, "\n")
+    displayFormatted(Message, pkgInfo.basicInfo.name, " ")
+    displayFormatted(Success, $pkgInfo.basicInfo.version)
+
   for (name, ver) in pkgInfo.requires:
     var depPkgInfo = initPackageInfo()
     let
       found = dependencies.findPkg((name, ver), depPkgInfo)
       packageName = if found: depPkgInfo.basicInfo.name else: name
 
-    stdout.styledWriteLine(
-      " ".repeat(level * 2),
-      fgCyan, styleBright,
-      packageName,
-      resetStyle,
-      " ",
-      fgYellow,
-      if ver.kind == verAny: "@any" else: $ver,
-      " ",
-      fgGreen,
-      "(",
-      if found: fmt "selected {depPkgInfo.basicInfo.version}" else: "",
-      ")",
-      fgBlue, 
-      " ",
-      fgRed, styleBright,
-      if errors.contains(packageName):
-        " - error: " & getValidationErrorMessage(packageName, errors.getOrDefault packageName)
-      else:
-        ""
-    )
+    displayFormatted(Hint, "\n")
+    displayFormatted(Hint, " ".repeat(level * 2))
+    displayFormatted(Message, packageName)
+    displayFormatted(Hint, " ")
+    displayFormatted(Warning, if ver.kind == verAny: "@any" else: $ver)
+    displayFormatted(Hint, " ")
+    if found:
+      displayFormatted(Details, fmt"(resolved {depPkgInfo.basicInfo.version})")
+    if errors.contains(packageName):
+      let errMsg = getValidationErrorMessage(packageName, errors.getOrDefault packageName)
+      displayFormatted(Error, fmt" - error: {errMsg}")
     if found:
       printDepsHumanReadable(depPkgInfo, dependencies, errors, level + 1)
