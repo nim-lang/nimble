@@ -79,16 +79,29 @@ jobs:
             nim -d:release c src/nimble.nim;
           fi
 
-      - name: Compress the Nim Language Server binaries
+      - name: Compress binaries
         run: |
           cd src
-          tar -c -z -v -f ../nimble-${{ matrix.target.name }}.tar.gz `ls nimble{,.exe} 2>/dev/null || true`
+          if [[ "${{ matrix.target.os }}" == "windows" ]]; then
+            # Create both formats for Windows
+            tar -c -z -v -f ../nimble-${{ matrix.target.name }}.tar.gz nimble.exe
+            zip ../nimble-${{ matrix.target.name }}.zip nimble.exe
+          else
+            tar -c -z -v -f ../nimble-${{ matrix.target.name }}.tar.gz nimble
+          fi
 
-      - name: Upload the Nim Language Server Binaries
+      - name: Upload tar.gz artifact
         uses: actions/upload-artifact@v4
         with:
           name: nimble-${{ matrix.target.name }}.tar.gz
           path: nimble-${{ matrix.target.name }}.tar.gz
+
+      - name: Upload zip artifact (Windows only)
+        if: matrix.target.os == 'windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: nimble-${{ matrix.target.name }}.zip
+          path: nimble-${{ matrix.target.name }}.zip
 
   create-github-release:
     if: github.event_name != 'pull_request'
