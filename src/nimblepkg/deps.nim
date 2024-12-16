@@ -38,7 +38,6 @@ proc printDepsHumanReadable*(pkgInfo: PackageInfo,
                              errors: ValidationErrors) =
   displayLineReset()
   echo pkgInfo.basicInfo.name
-
   for (name, ver) in pkgInfo.requires:
     var depPkgInfo = initPackageInfo()
     let
