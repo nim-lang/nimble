@@ -55,9 +55,12 @@ proc printDepsHumanReadable*(pkgInfo: PackageInfo,
     displayFormatted(Warning, if ver.kind == verAny: "@any" else: $ver)
     displayFormatted(Hint, " ")
     if found:
-      displayFormatted(Details, fmt"(resolved {depPkgInfo.basicInfo.version})")
+      displayFormatted(Success, fmt"(@{depPkgInfo.basicInfo.version})")
     if errors.contains(packageName):
       let errMsg = getValidationErrorMessage(packageName, errors.getOrDefault packageName)
       displayFormatted(Error, fmt" - error: {errMsg}")
     if found:
       printDepsHumanReadable(depPkgInfo, dependencies, errors, level + 1)
+  if level == 1:
+    displayFormatted(Hint, "\n")
+
