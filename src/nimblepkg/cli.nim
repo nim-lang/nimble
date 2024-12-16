@@ -126,8 +126,8 @@ proc display*(category, msg: string, displayType = Message,
   if priority < globalCLI.level:
     if priority != DebugPriority:
       globalCLI.suppressionCount.inc
-    if globalCLI.showColor and msg.startsWith("Executing"):
-      displayLine("Working", " ", Progress, HighPriority)
+    if globalCLI.showColor:
+      displayLine("Working", "", Progress, HighPriority)
     return
 
   # Display each line in the message.
