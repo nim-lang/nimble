@@ -31,9 +31,11 @@ suite "project local deps mode":
       check output.contains("Succeeded")
 
   test "localdeps develop":
+    cleanDir("nimbledeps")
     cleanDir("packagea")
     let (_, exitCode) = execCmdEx(nimblePath &
       &" develop {pkgAUrl} --localdeps -y")
+    discard execCmd("find packagea")
     check exitCode == QuitSuccess
     check dirExists("packagea" / "nimbledeps")
     check not dirExists("nimbledeps")
