@@ -1,5 +1,5 @@
 {.used.}
-import unittest, os
+import unittest, os, osproc
 import testscommon
 # from nimblepkg/common import cd Used in the commented tests
 import std/[tables, sequtils, json, jsonutils, strutils, times, options, strformat]
