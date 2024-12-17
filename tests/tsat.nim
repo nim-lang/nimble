@@ -130,6 +130,10 @@ suite "SAT solver":
     check packages.len == 0
 
   test "issue #1162":
+    removeDir("conflictingdepres")
+    let exitCode1 = execCmd("git checkout conflictingdepres/")
+    check exitCode1 == QuitSuccess
+
     cd "conflictingdepres":
       #integration version of the test above
       #[
@@ -141,9 +145,9 @@ suite "SAT solver":
       let (_, exitCode) = execNimble("install", "-l", "--solver:sat")
       check exitCode == QuitSuccess
 
-      removeDir("conflictingdepres")
-      let exitCode1 = execCmd("git checkout conflictingdepres/")
-      check exitCode1 == QuitSuccess
+    removeDir("conflictingdepres")
+    let exitCode2 = execCmd("git checkout conflictingdepres/")
+    check exitCode2 == QuitSuccess
 
 
   test "should be able to download a package and select its deps":
