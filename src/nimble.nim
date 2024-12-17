@@ -2383,7 +2383,9 @@ proc doAction(options: var Options) =
       raise nimbleError(msg = "Could not find task $1 in $2" %
                               [options.action.command, nimbleFile],
                         hint = "Run `nimble --help` and/or `nimble tasks` for" &
-                               " a list of possible commands.")
+                               " a list of possible commands." & '\n' &
+                               "If you want a tutorial on how to use Nimble, run `nimble guide`."
+                       )
 
 proc setNimBin*(options: var Options) =
   # Find nim binary and set into options
