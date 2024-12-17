@@ -5,6 +5,8 @@ edit_uri: edit/master/nimble-guide/docs/
 
 theme:
   name: material
+  logo: assets/logo.svg
+  favicon: assets/logo.svg
   features:
     - navigation.tabs
     - navigation.tabs.sticky
