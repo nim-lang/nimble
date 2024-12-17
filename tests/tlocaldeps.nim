@@ -8,6 +8,11 @@ import testscommon
 from nimblepkg/common import cd
 
 suite "project local deps mode":
+  setup:
+    # do this to prevent non-deterministic (random?) setting of the NIMBLE_DIR 
+    # which messes up this test sometime
+    delEnv("NIMBLE_DIR")
+
   test "nimbledeps exists":
     cd "localdeps":
       cleanDir("nimbledeps")
