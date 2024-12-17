@@ -1,4 +1,4 @@
-import tables, strformat, sequtils, algorithm
+import tables, strformat, sequtils, algorithm, cli
 import packageinfotypes, developfile, packageinfo, version
 
 type
