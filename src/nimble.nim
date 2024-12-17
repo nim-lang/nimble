@@ -1,7 +1,7 @@
 # Copyright (C) Dominik Picheta. All rights reserved.
 # BSD License. Look at license.txt for more info.
 
-import os, tables, strtabs, json, algorithm, sets, uri, sugar, sequtils, osproc,
+import os, tables, strtabs, json, browsers, algorithm, sets, uri, sugar, sequtils, osproc,
        strformat
 
 import std/options as std_opt
@@ -2275,6 +2275,14 @@ proc run(options: Options) =
   let exitCode = cmd.execCmd
   raise nimbleQuit(exitCode)
 
+proc openNimbleManual =
+  const NimbleGuideURL = "https://nim-lang.github.io/nimble/index.html"
+  display(
+    "Opened", "the Nimble guide in your default browser."
+  )
+  displayInfo("If it did not open, you can try going to the link manually: " & NimbleGuideURL)
+  openDefaultBrowser(NimbleGuideURL)
+
 proc doAction(options: var Options) =
   if options.showHelp:
     writeHelp()
@@ -2347,6 +2355,8 @@ proc doAction(options: var Options) =
     assert false
   of actionAdd:
     addPackages(options.action.packages, options)
+  of actionManual:
+    openNimbleManual()
   of actionCustom:
     var optsCopy = options
     optsCopy.task = options.action.command.normalize
