@@ -1,6 +1,7 @@
 site_name: Nimble User Guide
 repo_url: https://github.com/nim-lang/nimble
 repo_name: nim-lang/nimble
+edit_uri: edit/master/nimble-guide/docs/
 
 theme:
   name: material
@@ -10,6 +11,7 @@ theme:
     - navigation.expand
     - navigation.sections
     - toc.integrate
+    - content.action.edit
   palette:
     # Palette toggle for automatic mode
     - media: "(prefers-color-scheme)"
