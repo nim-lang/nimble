@@ -141,6 +141,11 @@ suite "SAT solver":
       let (_, exitCode) = execNimble("install", "-l", "--solver:sat")
       check exitCode == QuitSuccess
 
+      removeDir("conflictingdepres")
+      let exitCode1 = execCmd("git checkout conflictingdepres/")
+      check exitCode1 == QuitSuccess
+
+
   test "should be able to download a package and select its deps":
 
     let pkgName: string = "nimlangserver"
