@@ -182,7 +182,7 @@ template cleanDir*(dirName: string) =
 
 template createTempDir*(dirName: string) =
   createDir dirName
-defer: removeDir dirName
+  defer: removeDir dirName
 
 template cdCleanDir*(dirName: string, body: untyped) =
   cleanDir dirName
