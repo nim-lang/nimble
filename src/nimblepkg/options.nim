@@ -173,6 +173,7 @@ Commands:
   build        [opts, ...] [bin]  Builds a package. Passes options to the Nim
                                   compiler.
   clean                           Clean build artifacts.
+  guide                           Open the Nimble User Guide in your preferred browser.
   add                             Adds packages to your project's dependencies.
   run          [opts, ...] [bin]  Builds and runs a package.
                                   Binary needs to be specified after any
