@@ -95,7 +95,10 @@ var
 
 proc displayLineReset*() =
   if lastWasDot:
-    stdout.eraseLine()
+    try:
+      stdout.eraseLine()
+    except OSError:
+      discard # this breaks on windows a lot so we ignore it
     lastWasDot = false
 
 proc displayLine(category, line: string, displayType: DisplayType,
