@@ -133,7 +133,7 @@ proc display*(category, msg: string, displayType = Message,
   if priority < globalCLI.level:
     if priority != DebugPriority:
       globalCLI.suppressionCount.inc
-    if globalCLI.showColor:
+    if globalCLI.showColor and globalCLI.level != SilentPriority:
       # some heuristics here
       if category == "Executing" and msg.endsWith("printPkgInfo"):
         displayLine("Scanning", "", Progress, HighPriority)
