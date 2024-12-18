@@ -298,7 +298,10 @@ proc getInstalledPackageMin*(options: Options, pkgDir, nimbleFilePath: string): 
   setNameVersionChecksum(result, pkgDir)
   result.isMinimal = true
   result.isInstalled = true
-  fillMetaData(result, pkgDir, false, options)
+  try:
+    fillMetaData(result, pkgDir, true, options)
+  except MetaDataError:
+    discard
 
 proc getInstalledPkgsMin*(libsDir: string, options: Options): seq[PackageInfo] =
   ## Gets a list of installed packages. The resulting package info is
