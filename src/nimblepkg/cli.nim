@@ -96,6 +96,7 @@ var
 proc displayLineReset*() =
   if lastWasDot:
     try:
+      stdout.cursorUp(1)
       stdout.eraseLine()
     except OSError:
       discard # this breaks on windows a lot so we ignore it
@@ -116,7 +117,7 @@ proc displayLine(category, line: string, displayType: DisplayType,
     echo(line)
   else:
     # displayCategory("Executing", Warning, HighPriority)
-    stdout.write(spinChars[lastCharidx], " ", line)
+    stdout.write(spinChars[lastCharidx], " ", line, "\n")
     lastCharidx = (lastCharidx + 1) mod spinChars.len()
     stdout.flushFile()
     lastWasDot = true
