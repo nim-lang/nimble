@@ -70,7 +70,7 @@ type
     actionInstall, actionSearch, actionList, actionBuild, actionPath,
     actionUninstall, actionCompile, actionDoc, actionCustom, actionTasks,
     actionDevelop, actionCheck, actionLock, actionRun, actionSync, actionSetup,
-    actionClean, actionDeps, actionShellEnv, actionShell, actionAdd
+    actionClean, actionDeps, actionShellEnv, actionShell, actionAdd, actionManual
 
   DevelopActionType* = enum
     datAdd, datRemoveByPath, datRemoveByName, datInclude, datExclude
@@ -80,7 +80,7 @@ type
   Action* = object
     case typ*: ActionType
     of actionNil, actionList, actionPublish, actionTasks, actionCheck,
-       actionSetup, actionClean: nil
+       actionSetup, actionClean, actionManual: nil
     of actionSync:
       listOnly*: bool
     of actionRefresh:
@@ -173,6 +173,7 @@ Commands:
   build        [opts, ...] [bin]  Builds a package. Passes options to the Nim
                                   compiler.
   clean                           Clean build artifacts.
+  guide                           Open the Nimble User Guide in your preferred browser.
   add                             Adds packages to your project's dependencies.
   run          [opts, ...] [bin]  Builds and runs a package.
                                   Binary needs to be specified after any
@@ -339,6 +340,8 @@ proc parseActionType*(action: string): ActionType =
     result = actionShell
   of "add":
     result = actionAdd
+  of "manual", "guide":
+    result = actionManual
   else:
     result = actionCustom
 
