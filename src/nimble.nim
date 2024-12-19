@@ -1944,9 +1944,10 @@ proc depsTree(options: Options) =
 
   if options.action.format == "json":
     echo (%depsRecursive(pkgInfo, dependencies, errors)).pretty
+  elif options.action.format == "inverted":
+    printDepsHumanReadableInverted(pkgInfo, dependencies, errors)
   else:
-    echo pkgInfo.basicInfo.name
-    printDepsHumanReadable(pkgInfo, dependencies, 1, errors)
+    printDepsHumanReadable(pkgInfo, dependencies, errors)
 
 proc syncWorkingCopy(name: string, path: Path, dependentPkg: PackageInfo,
                      options: Options) =
@@ -2511,4 +2512,5 @@ when isMainModule:
       displayError(&"Couldn't save \"{nimbleDataFileName}\".")
       displayDetails(error)
 
+  displayLineReset()
   quit(exitCode)

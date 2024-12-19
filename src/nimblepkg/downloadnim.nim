@@ -785,6 +785,8 @@ proc installNimFromBinariesDir*(
       isNimDirProperlyExtracted(pkg.getRealDir):
     let ver = getNimVersion(pkg.getRealDir)
     if ver.isSome():
+      if pkg.basicInfo.version != ver.get():
+        displayWarning("Nim binary version doesn't match the package info version for Nim located at: " & pkg.getRealDir)
       return some (pkg.getRealDir, ver.get())
 
   # Download if allowed

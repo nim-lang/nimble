@@ -30,15 +30,15 @@ type
     DebugPriority, LowPriority, MediumPriority, HighPriority, SilentPriority
 
   DisplayType* = enum
-    Error, Warning, Details, Hint, Message, Success
+    Error, Warning, Details, Hint, Message, Success, Progress 
 
   ForcePrompt* = enum
     dontForcePrompt, forcePromptYes, forcePromptNo
 
 const
   longestCategory = len("Downloading")
-  foregrounds: array[Error .. Success, ForegroundColor] =
-    [fgRed, fgYellow, fgBlue, fgWhite, fgCyan, fgGreen]
+  foregrounds: array[Error .. Progress, ForegroundColor] =
+    [fgRed, fgYellow, fgBlue, fgWhite, fgCyan, fgGreen, fgMagenta]
   styles: array[DebugPriority .. HighPriority, set[Style]] =
     [{styleDim}, {styleDim}, {}, {styleBright}]
 
@@ -61,6 +61,13 @@ proc isSuppressed(displayType: DisplayType): bool =
      globalCLI.level == HighPriority:
     return true
 
+proc displayFormatted*(displayType: DisplayType, msgs: varargs[string]) =
+  for msg in msgs:
+    if globalCLI.showColor:
+      stdout.styledWrite(foregrounds[displayType], msg)
+    else:
+      stdout.write(msg)
+
 proc displayCategory(category: string, displayType: DisplayType,
                      priority: Priority) =
   if isSuppressed(displayType):
@@ -80,15 +87,40 @@ proc displayCategory(category: string, displayType: DisplayType,
   else:
     stdout.write(text)
 
+const
+  spinChars = ["⣷","⣯","⣟","⡿","⢿","⣻","⣽","⣾"]
+var
+  lastWasDot = false
+  lastCharidx = 0
+
+proc displayLineReset*() =
+  if lastWasDot:
+    try:
+      stdout.cursorUp(1)
+      stdout.eraseLine()
+    except OSError:
+      discard # this breaks on windows a lot so we ignore it
+    lastWasDot = false
+
 proc displayLine(category, line: string, displayType: DisplayType,
                  priority: Priority) =
+  displayLineReset()
+
   if isSuppressed(displayType):
+    stdout.write "+"
     return
 
   displayCategory(category, displayType, priority)
 
   # Display the message.
-  echo(line)
+  if displayType != Progress:
+    echo(line)
+  else:
+    # displayCategory("Executing", Warning, HighPriority)
+    stdout.write(spinChars[lastCharidx], " ", line, "\n")
+    lastCharidx = (lastCharidx + 1) mod spinChars.len()
+    stdout.flushFile()
+    lastWasDot = true
 
 proc display*(category, msg: string, displayType = Message,
               priority = MediumPriority) =
@@ -105,9 +137,18 @@ proc display*(category, msg: string, displayType = Message,
   if priority < globalCLI.level:
     if priority != DebugPriority:
       globalCLI.suppressionCount.inc
+    if globalCLI.showColor and globalCLI.level != SilentPriority:
+      # some heuristics here
+      if category == "Executing" and msg.endsWith("printPkgInfo"):
+        displayLine("Scanning", "", Progress, HighPriority)
+      elif msg.startsWith("git"):
+        displayLine("Updating", "", Progress, HighPriority)
+      else:
+        displayLine("Working", "", Progress, HighPriority)
     return
 
   # Display each line in the message.
+
   var i = 0
   for line in msg.splitLines():
     if len(line) == 0: continue

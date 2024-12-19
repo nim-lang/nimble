@@ -14,7 +14,7 @@ suite "nimble deps":
       check exitCode == QuitSuccess
       check output.contains("""
 deps
-  timezones 0.5.4(resolved 0.5.4)
+  timezones 0.5.4 (resolved 0.5.4)
     nim >= 0.19.9
 """)
 

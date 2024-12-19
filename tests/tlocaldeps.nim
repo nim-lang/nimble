@@ -8,6 +8,11 @@ import testscommon
 from nimblepkg/common import cd
 
 suite "project local deps mode":
+  setup:
+    # do this to prevent non-deterministic (random?) setting of the NIMBLE_DIR 
+    # which messes up this test sometime
+    delEnv("NIMBLE_DIR")
+
   test "nimbledeps exists":
     cd "localdeps":
       cleanDir("nimbledeps")
@@ -26,9 +31,11 @@ suite "project local deps mode":
       check output.contains("Succeeded")
 
   test "localdeps develop":
+    cleanDir("nimbledeps")
     cleanDir("packagea")
     let (_, exitCode) = execCmdEx(nimblePath &
       &" develop {pkgAUrl} --localdeps -y")
+    discard execCmd("find packagea")
     check exitCode == QuitSuccess
     check dirExists("packagea" / "nimbledeps")
     check not dirExists("nimbledeps")

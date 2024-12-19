@@ -37,6 +37,7 @@
 /issue793/src/htmldocs/
 /localdeps/localdeps
 /localdeps/nimbledeps/
+/official-nim-releases.json
 
 # occurs on multiple levels
 nimbleDir/
