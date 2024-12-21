@@ -114,7 +114,11 @@ suite "develop feature":
         check execNimble("develop", pkgBName).exitCode == QuitSuccess
         let (output, exitCode) = execNimble("remove", pkgAName)
         check exitCode == QuitFailure
+        echo "cannotUninstallPkgMsg: ", cannotUninstallPkgMsg(pkgAName, newVersion("0.2.0"), @[installDir / pkgBName])
+        echo "cannotUninstallPkgMsg:lines: "
         var lines = output.processOutput
+        for line in lines:
+          echo "\tlines: ", line
         check lines.inLinesOrdered(
           cannotUninstallPkgMsg(pkgAName, newVersion("0.2.0"),
           @[installDir / pkgBName]))

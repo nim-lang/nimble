@@ -142,6 +142,8 @@ proc display*(category, msg: string, displayType = Message,
       if category == "Executing" and msg.endsWith("printPkgInfo"):
         displayLine("Scanning", "", Progress, HighPriority)
       elif msg.startsWith("git"):
+        # echo "GIT: ", msg
+        # echo "GIT:\n", getStackTrace()
         displayLine("Updating", "", Progress, HighPriority)
       else:
         displayLine("Working", "", Progress, HighPriority)

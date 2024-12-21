@@ -483,6 +483,9 @@ proc downloadPkgFromUrl*(pv: PkgTuple, options: Options): (DownloadPkgResult, Do
   let downloadDir =  getCacheDownloadDir(url, pv.ver, options)
   let downloadRes = downloadPkg(url, pv.ver, meth, subdir, options,
                 downloadDir, vcsRevision = notSetSha1Hash)
+  if metadata.hasKey("urlOnly"):
+    let pi = downloadRes.dir.getPkgInfo(options)
+    updateCachedPackageList(pi, options)
   (downloadRes, meth)
         
 proc downloadPkInfoForPv*(pv: PkgTuple, options: Options): PackageInfo  =

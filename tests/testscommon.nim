@@ -29,9 +29,10 @@ let
 
 proc execNimble*(args: varargs[string]): ProcessOutput =
   var quotedArgs = @args
+  quotedArgs.insert("--info")
+  quotedArgs.insert("--noColor")
   if not args.anyIt("--nimbleDir:" in it or "-l"  == it or "--local" == it):
     quotedArgs.insert("--nimbleDir:" & installDir)
-  quotedArgs.insert("--noColor")
   quotedArgs.insert(nimblePath)
   quotedArgs = quotedArgs.map((x: string) => x.quoteShell)
 

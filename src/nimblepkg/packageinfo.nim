@@ -8,7 +8,7 @@ from net import SslError
 
 # Local imports
 import version, tools, common, options, cli, config, lockfile, packageinfotypes,
-       packagemetadatafile, sha1hashes
+       packagemetadatafile, sha1hashes, urls
 
 proc initPackageInfo*(): PackageInfo =
   result = PackageInfo(
@@ -79,7 +79,7 @@ proc parseDownloadMethod*(meth: string): DownloadMethod =
     raise nimbleError("Invalid download method: " & meth)
 
 {.warning[ProveInit]: off.}
-proc fromJson(obj: JSonNode): Package =
+proc fromJson(obj: JsonNode): Package =
   ## Constructs a Package object from a JSON node.
   ##
   ## Aborts execution if the JSON node doesn't contain the required fields.
@@ -99,6 +99,17 @@ proc fromJson(obj: JSonNode): Package =
     result.description = obj.optionalField("description")
     result.web = obj.optionalField("web")
 {.warning[ProveInit]: on.}
+
+proc toJson(pi: PackageInfo): JsonNode =
+  ## Serialize PackageInfo to a JsonNode for NimbleCached PkgList
+  ##
+  result = %* {
+    "name": pi.basicInfo.name,
+    "url": pi.metaData.url,
+    "license": "unknown",
+    "tags": [],
+    "method": pi.metaData.downloadMethod
+  }
 
 proc needsRefresh*(options: Options): bool =
   ## Determines whether a ``nimble refresh`` is needed.
@@ -214,6 +225,19 @@ proc readPackageList(name: string, options: Options, ignorePackageCache = false)
     gPackageJson[name] = newJArray()
   return gPackageJson[name]
 
+proc updateCachedPackageList*(pkgInfo: PackageInfo, options: Options) =
+  ## updates the local nimble metadata cache
+  let name = cachedPkgListName
+  var cachedPkgList = gPackageJson[name]
+  let obj = pkgInfo.toJson()
+  cachedPkgList.add(obj)
+  gPackageJson[name] = cachedPkgList
+
+  let file = options.getNimbleDir() / "packages_" & name.toLowerAscii() & ".json"
+  writeFile(file, cachedPkgList.pretty)
+  display("Saved", "$1 package list" % name, priority = LowPriority)
+
+
 proc getPackage*(pkg: string, options: Options, resPkg: var Package, ignorePackageCache = false): bool
 proc resolveAlias(pkg: Package, options: Options): Package =
   result = pkg
@@ -234,11 +258,16 @@ proc getPackage*(pkg: string, options: Options, resPkg: var Package, ignorePacka
   ## successfully filled with good data.
   ##
   ## Aliases are handled and resolved.
+  let (pkg, pkgIsUrl) =
+    if pkg.isUrl: (pkg.modifyUrl(true), true)
+    else: (pkg, false)
+
   for name, list in options.config.packageLists:
     display("Reading", "$1 package list" % name, priority = LowPriority)
     let packages = readPackageList(name, options, ignorePackageCache)
     for p in packages:
-      if normalize(p["name"].str) == normalize(pkg):
+      if (pkgIsUrl and p.hasKey("url") and p["url"].str == pkg) or
+          (normalize(p["name"].str) == normalize(pkg)):
         resPkg = p.fromJson()
         resPkg = resolveAlias(resPkg, options)
         return true

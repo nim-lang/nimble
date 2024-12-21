@@ -17,6 +17,9 @@ type
     urls*: seq[string]
     path*: string
 
+const 
+  cachedPkgListName* = "nimblecached"
+
 proc initConfig(): Config =
   result.nimbleDir = getHomeDir() / ".nimble"
   result.httpProxy = initUri()
@@ -26,6 +29,7 @@ proc initConfig(): Config =
     "https://raw.githubusercontent.com/nim-lang/packages/master/packages.json",
     "https://nim-lang.org/nimble/packages.json"
   ])
+  result.packageLists[cachedPkgListName] = PackageList(name: "NimbleCached", urls: @[])
 
 proc clear(pkgList: var PackageList) =
   pkgList.name = ""
@@ -41,14 +45,6 @@ proc parseConfig*(): Config =
   var confFile = getConfigDir() / "nimble" / "nimble.ini"
 
   var f = newFileStream(confFile, fmRead)
-  if f == nil:
-    # Try the old deprecated babel.ini
-    # TODO: This can be removed.
-    confFile = getConfigDir() / "babel" / "babel.ini"
-    f = newFileStream(confFile, fmRead)
-    if f != nil:
-      display("Warning", "Using deprecated config file at " & confFile,
-              Warning, HighPriority)
   if f != nil:
     display("Reading", "config file at " & confFile, priority = LowPriority)
     var p: CfgParser
