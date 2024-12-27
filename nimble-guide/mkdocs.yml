@@ -48,6 +48,8 @@ markdown_extensions:
   - pymdownx.snippets
   - pymdownx.superfences
 
+plugins:
+  - git-revision-date-localized
 
 nav:
   - Home:
