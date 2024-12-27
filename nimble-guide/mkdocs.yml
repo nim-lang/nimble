@@ -49,6 +49,7 @@ markdown_extensions:
   - pymdownx.superfences
 
 plugins:
+  - search
   - git-revision-date-localized
 
 nav:
