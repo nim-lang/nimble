@@ -21,6 +21,11 @@ proc infoAboutActivation(nimDest, nimVersion: string) =
     display("Info", nimDest & "installed; activate with 'source nim-" & nimVersion & "activate.sh'")
 
 proc compileNim*(options: Options, nimDest: string, v: VersionRange) =
+  #Most of the time we dont need to recompile, if we can get the nim version from the binary . 
+  let nimCompVersion = getNimVersionFromBin(nimDest / "bin" / "nim".addFileExt(ExeExt))
+  if nimCompVersion.isSome() and nimCompVersion.get.withinRange(v):
+    return
+
   let keepCsources = options.useSatSolver #SAT Solver has a cache instead of a temp dir for downloads
   template exec(command: string) =
     let cmd = command # eval once
