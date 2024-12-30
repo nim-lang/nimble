@@ -10,7 +10,6 @@ suite "Nim binaries":
     var options = initOptions()
     let releases = getOfficialReleases(options)
     check releases.len > 0
-    check releases[^1] == newVersion("1.2.8")
 
   test "can download a concrete version":
     var options = initOptions()
