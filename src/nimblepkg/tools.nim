@@ -31,7 +31,8 @@ proc doCmd*(cmd: string) =
     # Show no command line and --hints:off output by default for calls
     # to Nim, command line and standard output with --verbose.
     display("Executing", cmd, priority = MediumPriority)
-    let exitCode = execCmd(cmd)
+    let (output, exitCode) = execCmdEx(cmd)
+    display("Nim Output", output, priority = HighPriority)
     if exitCode != QuitSuccess:
       raise nimbleError(
         "Execution failed with exit code $1\nCommand: $2" %
