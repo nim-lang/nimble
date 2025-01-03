@@ -97,14 +97,16 @@ func addUnique*[T](s: var seq[T], x: sink T) =
 
 proc isNim*(pv: PkgTuple): bool = pv.name.isNim
 
-proc convertNimrodToNim*(pv: PkgTuple): PkgTuple = 
-  if pv.name != "nimrod": pv
+proc convertNimAliasToNim*(pv: PkgTuple): PkgTuple = 
+  #Compiler needs to be treated as Nim as long as it isnt a separated package. See https://github.com/nim-lang/Nim/issues/23049
+  #Also notice compiler and nim are aliases.
+  if pv.name notin ["nimrod", "compiler"]: pv
   else: (name: "nim", ver: pv.ver)
 
 proc getMinimalInfo*(pkg: PackageInfo, options: Options): PackageMinimalInfo =
-  result.name = pkg.basicInfo.name
+  result.name = if pkg.basicInfo.name.isNim: "nim" else: pkg.basicInfo.name
   result.version = pkg.basicInfo.version
-  result.requires = pkg.requires.map(convertNimrodToNim)
+  result.requires = pkg.requires.map(convertNimAliasToNim)
   if options.action.typ in {actionLock, actionDeps} or options.hasNimInLockFile():
     result.requires = result.requires.filterIt(not it.isNim)
 
