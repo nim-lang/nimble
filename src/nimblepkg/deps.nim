@@ -1,4 +1,4 @@
-import tables, strformat, sequtils, algorithm, cli
+import tables, strformat, sequtils, algorithm, cli, options
 import packageinfotypes, developfile, packageinfo, version
 
 type
@@ -11,13 +11,15 @@ type
 
 proc depsRecursive*(pkgInfo: PackageInfo,
                     dependencies: seq[PackageInfo],
-                    errors: ValidationErrors): seq[DependencyNode] =
+                    errors: ValidationErrors,
+                    options: Options
+                    ): seq[DependencyNode] =
   result = @[]
 
   for (name, ver) in pkgInfo.fullRequirements:
     var depPkgInfo = initPackageInfo()
     let
-      found = dependencies.findPkg((name, ver), depPkgInfo)
+      found = dependencies.findPkg((name, ver), depPkgInfo, options)
       packageName = if found: depPkgInfo.basicInfo.name else: name
 
     let node = DependencyNode(name: packageName)
@@ -30,12 +32,14 @@ proc depsRecursive*(pkgInfo: PackageInfo,
     else: ""
 
     if found:
-      node.dependencies = depsRecursive(depPkgInfo, dependencies, errors)
+      node.dependencies = depsRecursive(depPkgInfo, dependencies, errors, options)
 
 proc printDepsHumanReadable*(pkgInfo: PackageInfo,
                              dependencies: seq[PackageInfo],
                              errors: ValidationErrors,
-                             levelInfos: seq[tuple[skip: bool]] = @[]
+                             options: Options,
+                             directOnly = false,
+                             levelInfos: seq[tuple[skip: bool]] = @[],
                              ) =
   ## print human readable tree deps
   ## 
@@ -50,7 +54,7 @@ proc printDepsHumanReadable*(pkgInfo: PackageInfo,
   for idx, (name, ver) in pkgInfo.requires.sorted():
     var depPkgInfo = initPackageInfo()
     let
-      found = dependencies.findPkg((name, ver), depPkgInfo)
+      found = dependencies.findPkg((name, ver), depPkgInfo, options)
       packageName = if found: depPkgInfo.basicInfo.name else: name
     requires.add((packageName, ver, found, depPkgInfo))
 
@@ -82,13 +86,15 @@ proc printDepsHumanReadable*(pkgInfo: PackageInfo,
       displayFormatted(Error, fmt" - error: {errMsg}")
     if found:
       var levelInfos = levelInfos & @[(skip: isLast)]
-      printDepsHumanReadable(depPkgInfo, dependencies, errors, levelInfos)
+      if not directOnly:
+        printDepsHumanReadable(depPkgInfo, dependencies, errors, options, directOnly, levelInfos)
   if levelInfos.len() == 0:
     displayFormatted(Hint, "\n")
 
 proc printDepsHumanReadableInverted*(pkgInfo: PackageInfo,
                              dependencies: seq[PackageInfo],
                              errors: ValidationErrors,
+                             options: Options,
                              pkgs = newTable[string, TableRef[string, VersionRange]](),
                              ) =
   ## print human readable tree deps
@@ -108,13 +114,13 @@ proc printDepsHumanReadableInverted*(pkgInfo: PackageInfo,
   for (name, ver) in pkgInfo.requires:
     var depPkgInfo = initPackageInfo()
     let
-      found = dependencies.findPkg((name, ver), depPkgInfo)
+      found = dependencies.findPkg((name, ver), depPkgInfo, options)
       packageName = if found: depPkgInfo.basicInfo.name else: name
 
     pkgs.mgetOrPut(packageName, newTable[string, VersionRange]())[parent] = ver
 
     if found:
-      printDepsHumanReadableInverted(depPkgInfo, dependencies, errors, pkgs)
+      printDepsHumanReadableInverted(depPkgInfo, dependencies, errors, options, pkgs)
 
   if isRoot:
     # for pkg, info in pkgs:

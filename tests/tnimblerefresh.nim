@@ -46,6 +46,9 @@ suite "nimble refresh":
         [PackageList]
         name = "local"
         path = "$1"
+        [UrlMapping]
+        source = "https://github.com/babel-test/packagea.git"
+        target = "https://github.com/nimble-test/packagea.git"
       """.unindent % (getCurrentDir() / "issue368" / "packages.json").replace(
         "\\", "\\\\"))
       let (output, exitCode) = execNimble(["refresh", "--verbose"])

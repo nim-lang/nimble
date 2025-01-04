@@ -8,7 +8,7 @@ from net import SslError
 
 # Local imports
 import version, tools, common, options, cli, config, lockfile, packageinfotypes,
-       packagemetadatafile, sha1hashes
+       packagemetadatafile, sha1hashes, urls
 
 proc initPackageInfo*(): PackageInfo =
   result = PackageInfo(
@@ -79,7 +79,7 @@ proc parseDownloadMethod*(meth: string): DownloadMethod =
     raise nimbleError("Invalid download method: " & meth)
 
 {.warning[ProveInit]: off.}
-proc fromJson(obj: JSonNode): Package =
+proc fromJson(obj: JsonNode, options: Options): Package =
   ## Constructs a Package object from a JSON node.
   ##
   ## Aborts execution if the JSON node doesn't contain the required fields.
@@ -89,7 +89,7 @@ proc fromJson(obj: JSonNode): Package =
   else:
     result.alias = ""
     result.version = newVersion(obj.optionalField("version"))
-    result.url = obj.requiredField("url")
+    result.url = obj.requiredField("url").getUrl(options)
     result.downloadMethod = obj.requiredField("method").parseDownloadMethod
     result.dvcsTag = obj.optionalField("dvcs-tag")
     result.license = obj.requiredField("license")
@@ -99,6 +99,17 @@ proc fromJson(obj: JSonNode): Package =
     result.description = obj.optionalField("description")
     result.web = obj.optionalField("web")
 {.warning[ProveInit]: on.}
+
+proc toJson(pi: PackageInfo): JsonNode =
+  ## Serialize PackageInfo to a JsonNode for NimbleCached PkgList
+  ##
+  result = %* {
+    "name": pi.basicInfo.name,
+    "url": pi.metaData.url,
+    "license": "unknown",
+    "tags": [],
+    "method": pi.metaData.downloadMethod
+  }
 
 proc needsRefresh*(options: Options): bool =
   ## Determines whether a ``nimble refresh`` is needed.
@@ -214,6 +225,19 @@ proc readPackageList(name: string, options: Options, ignorePackageCache = false)
     gPackageJson[name] = newJArray()
   return gPackageJson[name]
 
+proc updateCachedPackageList*(pkgInfo: PackageInfo, options: Options) =
+  ## updates the local nimble metadata cache
+  let name = cachedPkgListName
+  var cachedPkgList = gPackageJson[name]
+  let obj = pkgInfo.toJson()
+  cachedPkgList.add(obj)
+  gPackageJson[name] = cachedPkgList
+
+  let file = options.getNimbleDir() / "packages_" & name.toLowerAscii() & ".json"
+  writeFile(file, cachedPkgList.pretty)
+  display("Saved", "$1 package list" % name, priority = LowPriority)
+
+
 proc getPackage*(pkg: string, options: Options, resPkg: var Package, ignorePackageCache = false): bool
 proc resolveAlias(pkg: Package, options: Options): Package =
   result = pkg
@@ -234,12 +258,17 @@ proc getPackage*(pkg: string, options: Options, resPkg: var Package, ignorePacka
   ## successfully filled with good data.
   ##
   ## Aliases are handled and resolved.
+  let (pkg, pkgIsUrl) =
+    if pkg.isUrl: (pkg.modifyUrl(true), true)
+    else: (pkg, false)
+
   for name, list in options.config.packageLists:
     display("Reading", "$1 package list" % name, priority = LowPriority)
     let packages = readPackageList(name, options, ignorePackageCache)
     for p in packages:
-      if normalize(p["name"].str) == normalize(pkg):
-        resPkg = p.fromJson()
+      if (pkgIsUrl and p.hasKey("url") and p["url"].str == pkg) or
+          (normalize(p["name"].str) == normalize(pkg)):
+        resPkg = p.fromJson(options)
         resPkg = resolveAlias(resPkg, options)
         return true
 
@@ -257,7 +286,7 @@ proc getPackageList*(options: Options): seq[Package] =
   for name, list in options.config.packageLists:
     let packages = readPackageList(name, options)
     for p in packages:
-      let pkg: Package = p.fromJson()
+      let pkg: Package = p.fromJson(options)
       if pkg.name notin namesAdded:
         result.add(pkg)
         namesAdded.incl(pkg.name)
@@ -335,7 +364,7 @@ proc resolveAlias*(dep: PkgTuple, options: Options): PkgTuple =
     result.name = pkg.name
 
 proc findPkg*(pkglist: seq[PackageInfo], dep: PkgTuple,
-              r: var PackageInfo): bool =
+              r: var PackageInfo, options: Options): bool =
   ## Searches ``pkglist`` for a package of which version is within the range
   ## of ``dep.ver``. ``True`` is returned if a package is found. If multiple
   ## packages are found the newest one is returned (the one with the highest
@@ -345,9 +374,12 @@ proc findPkg*(pkglist: seq[PackageInfo], dep: PkgTuple,
   ## highest priority.
   ##
   ## **Note**: dep.name here could be a URL, hence the need for pkglist.meta.
+  let name = dep.name.getUrl(options)
   for pkg in pkglist:
-    if cmpIgnoreStyle(pkg.basicInfo.name, dep.name) != 0 and
-       cmpIgnoreStyle(pkg.metaData.url, dep.name) != 0: continue
+    # echo "PKG:name: ", pkg.basicInfo.name 
+    # echo "PKG:url: ", pkg.metaData.url 
+    if cmpIgnoreStyle(pkg.basicInfo.name, name) != 0 and
+       cmpIgnoreStyle(pkg.metaData.url, name) != 0: continue
     if pkg.isLink:
       # If `pkg.isLink` this is a develop mode package and develop mode packages
       # are always with higher priority than installed packages. Version range

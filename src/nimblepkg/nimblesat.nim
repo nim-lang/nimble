@@ -485,6 +485,9 @@ proc downloadPkgFromUrl*(pv: PkgTuple, options: Options): (DownloadPkgResult, Do
   let downloadDir =  getCacheDownloadDir(url, pv.ver, options)
   let downloadRes = downloadPkg(url, pv.ver, meth, subdir, options,
                 downloadDir, vcsRevision = notSetSha1Hash)
+  if metadata.hasKey("urlOnly"):
+    let pi = downloadRes.dir.getPkgInfo(options)
+    updateCachedPackageList(pi, options)
   (downloadRes, meth)
         
 proc downloadPkInfoForPv*(pv: PkgTuple, options: Options): PackageInfo  =
@@ -709,9 +712,10 @@ proc solvePackages*(rootPkg: PackageInfo, pkgList: seq[PackageInfo], pkgsToInsta
         continue #Skips systemNim
       pkgsToInstall.addUnique((solvedPkg.pkgName, solvedPkg.version))
 
-proc getPackageInfo*(name: string, pkgs: seq[PackageInfo], version: Option[Version] = none(Version)): Option[PackageInfo] =
+proc getPackageInfo*(name: string, pkgs: seq[PackageInfo], options: Options, version: Option[Version] = none(Version)): Option[PackageInfo] =
+    let name = name.getUrl(options)
     for pkg in pkgs:
-      if pkg.basicInfo.name.tolower == name.tolower or pkg.metadata.url == name:
+      if pkg.basicInfo.name.tolower == name.tolower or pkg.metadata.url.getUrl(options) == name:
         if version.isSome:
           if pkg.basicInfo.version == version.get:
             return some pkg

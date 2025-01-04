@@ -349,7 +349,7 @@ proc readPackageInfo(pkgInfo: var PackageInfo, nf: NimbleFile, options: Options,
 
     try:
       pkgInfo.metaData.url = getRemoteFetchUrl(fileDir,
-        getCorrespondingRemoteAndBranch(fileDir).remote)
+        getCorrespondingRemoteAndBranch(fileDir).remote).getUrl(options)
     except NimbleError:
       discard
   else:

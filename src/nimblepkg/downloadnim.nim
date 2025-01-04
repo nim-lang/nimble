@@ -784,7 +784,7 @@ proc installNimFromBinariesDir*(
   # Check if already installed
   let nimBininstalledPkgs = getInstalledPkgsMin(options.nimBinariesDir, options)
   var pkg = initPackageInfo()
-  if findPkg(nimBininstalledPkgs, require, pkg) and
+  if findPkg(nimBininstalledPkgs, require, pkg, options) and
       isNimDirProperlyExtracted(pkg.getRealDir):
     let ver = getNimVersion(pkg.getRealDir)
     if ver.isSome():

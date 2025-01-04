@@ -40,7 +40,7 @@ suite "issues":
         if line.contains("issue799"):
           let nimbleInstallDir = getPackageDir(
             pkgsDir, &"nimble-{nimbleVersion}")
-          let pkgInstalledPath = "--path:'" & nimble_install_dir & "'"
+          let pkgInstalledPath = "--path:" & nimbleInstallDir.quoteShell & ""
           check line.contains(pkgInstalledPath)
 
   test "issue 793":
@@ -401,6 +401,7 @@ suite "issues":
   test "issue #1158":
     cd "issue1158":
       let (output, exitCode) = execNimble("--silent", "echoRequires")
+      echo "issue1158: ", output
       check:
         exitCode == QuitSuccess
         output.strip() == "@[\"nim >= 1.6.16\"]"

@@ -14,10 +14,10 @@ proc getDependencies(packages: seq[PackageInfo], requires: seq[PkgTuple],
     if dep.name.isNim:
       continue
     var depPkgInfo = initPackageInfo()
-    var found = findPkg(packages, dep, depPkgInfo)
+    var found = findPkg(packages, dep, depPkgInfo, options)
     if not found:
       let resolvedDep = dep.resolveAlias(options)
-      found = findPkg(packages, resolvedDep, depPkgInfo)
+      found = findPkg(packages, resolvedDep, depPkgInfo, options)
       if not found:
         raise nimbleError(
            "Cannot build the dependency graph.\n" &
@@ -27,12 +27,12 @@ proc getDependencies(packages: seq[PackageInfo], requires: seq[PkgTuple],
 proc allDependencies(requires: seq[PkgTuple], packages: seq[PackageInfo], options: Options): seq[string] =
   for dep in requires:
     var depPkgInfo = initPackageInfo()
-    if findPkg(packages, dep, depPkgInfo):
+    if findPkg(packages, dep, depPkgInfo, options):
       result.add depPkgInfo.name
       result.add allDependencies(depPkgInfo.requires, packages, options)
     else:
       let resolvedDep = dep.resolveAlias(options)
-      if findPkg(packages, resolvedDep, depPkgInfo):
+      if findPkg(packages, resolvedDep, depPkgInfo, options):
         result.add depPkgInfo.name
         result.add allDependencies(depPkgInfo.requires, packages, options)
 
