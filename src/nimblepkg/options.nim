@@ -676,7 +676,7 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
     case f
     of "installed", "i":
       result.action.onlyInstalled = true
-    of "versions":
+    of "versions", "ver":
       result.action.showVersions = true
     else:
       wasFlagHandled = false
