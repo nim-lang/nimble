@@ -97,11 +97,11 @@ type
       global*: bool
     of actionSearch:
       search*: seq[string] # Search string.
-      showVersions*: bool
+      showSearchVersions*: bool
     of actionList:
       onlyNimBinaries*: bool
       onlyInstalled*: bool
-      listVersions*: bool
+      showListVersions*: bool
     of actionInit, actionDump:
       projName*: string
       vcsOption*: string
@@ -669,7 +669,7 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
     of "installed", "i":
       result.action.onlyInstalled = true
     of "versions", "ver":
-      result.action.showVersions = true
+      result.action.showSearchVersions = true
     else:
       wasFlagHandled = false
   of actionList:
@@ -677,7 +677,7 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
     of "installed", "i":
       result.action.onlyInstalled = true
     of "versions", "ver":
-      result.action.showVersions = true
+      result.action.showListVersions = true
     else:
       wasFlagHandled = false
   of actionDump:
