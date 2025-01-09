@@ -202,8 +202,8 @@ Commands:
                                   performed by tag and by name.
                [--ver]            Queries remote server for package version.
   list                            Lists all packages.
-               [--ver]            Queries remote server for package version.
                [-i, --installed]  Lists all installed packages.
+               [--ver, --version] Also display versions for packages.
   tasks                           Lists the tasks specified in the Nimble
                                   package's Nimble file.
   path         pkgname ...        Shows absolute path to the installed packages
