@@ -1076,16 +1076,17 @@ proc listInstalled(options: Options) =
   for k in keys(vers):
     displayFormatted(Message, k)
     displayFormatted(Hint, "\n")
-    for idx, item in vers[k]:
-      if idx == vers[k].len() - 1:
-        displayFormatted(Hint, "└── ")
-      else:
-        displayFormatted(Hint, "├── ")
-      displayFormatted(Success, "@", $item.version)
-      displayFormatted(Hint, " ")
-      displayFormatted(Details, fmt"({item.checksum})")
-      displayFormatted(Hint, "\n")
-      # "  [" & vers[k].join(", ") & "]"
+    if options.action.showListVersions:
+      for idx, item in vers[k]:
+        if idx == vers[k].len() - 1:
+          displayFormatted(Hint, "└── ")
+        else:
+          displayFormatted(Hint, "├── ")
+        displayFormatted(Success, "@", $item.version)
+        displayFormatted(Hint, " ")
+        displayFormatted(Details, fmt"({item.checksum})")
+        displayFormatted(Hint, "\n")
+        # "  [" & vers[k].join(", ") & "]"
 
 type VersionAndPath = tuple[version: Version, path: string]
 
