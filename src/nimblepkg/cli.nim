@@ -62,11 +62,17 @@ proc isSuppressed(displayType: DisplayType): bool =
     return true
 
 proc displayFormatted*(displayType: DisplayType, msgs: varargs[string]) =
+  ## for styling outputs lines using the DisplayTypes
   for msg in msgs:
     if globalCLI.showColor:
       stdout.styledWrite(foregrounds[displayType], msg)
     else:
       stdout.write(msg)
+
+proc displayInfoLine*(field, msg: string) =
+  displayFormatted(Success, field)
+  displayFormatted(Details, msg)
+  displayFormatted(Hint, "\n")
 
 proc displayCategory(category: string, displayType: DisplayType,
                      priority: Priority) =

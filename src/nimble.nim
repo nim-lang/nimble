@@ -1053,6 +1053,21 @@ proc list(options: Options) =
       echoPackageVersions(pkg)
     echo(" ")
 
+proc listNimBinaries(options: Options) =
+  let nimBininstalledPkgs = getInstalledPkgsMin(options.nimBinariesDir, options)
+  displayFormatted(Message, "nim")
+  displayFormatted(Hint, "\n")
+  for idx, pkg in nimBininstalledPkgs:
+    assert pkg.basicInfo.name == "nim"
+    if idx == nimBininstalledPkgs.len() - 1:
+      displayFormatted(Hint, "└── ")
+    else:
+      displayFormatted(Hint, "├── ")
+    displayFormatted(Success, "version ")
+    displayFormatted(Details, $pkg.basicInfo.version)
+    displayFormatted(Hint, "\n")
+      # echoPackageVersions(pkg)
+
 proc listInstalled(options: Options) =
   type
     VersionChecksumTuple = tuple[version: Version, checksum: Sha1Hash]
@@ -1072,7 +1087,8 @@ proc listInstalled(options: Options) =
     cmpIgnoreCase(a[0], b[0]))
 
   displayInfo("Package list format: {PackageName} ")
-  displayInfo("                           {Version} ({CheckSum})")
+  displayInfo("  {PackageName} ")
+  displayInfo("     {Version} ({CheckSum})")
   for k in keys(vers):
     displayFormatted(Message, k)
     displayFormatted(Hint, "\n")
@@ -2343,6 +2359,8 @@ proc doAction(options: var Options) =
   of actionList:
     if options.action.onlyInstalled:
       listInstalled(options)
+    elif options.action.onlyNimBinaries:
+      listNimBinaries(options)
     else:
       list(options)
   of actionPath:

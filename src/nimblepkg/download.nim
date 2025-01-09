@@ -526,11 +526,6 @@ proc downloadPkg*(url: string, verRange: VersionRange,
         [$verRange, $pkginfo.basicInfo.version])
 
 proc echoPackageVersions*(pkg: Package) =
-  proc displayInfoLine(field, msg: string) =
-      displayFormatted(Success, field)
-      displayFormatted(Warning, msg)
-      displayFormatted(Hint, "\n")
-
   let downMethod = pkg.downloadMethod
   case downMethod
   of DownloadMethod.git:

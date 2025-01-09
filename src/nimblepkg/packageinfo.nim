@@ -392,11 +392,6 @@ proc echoPackage*(pkg: Package) =
   displayFormatted(Message, pkg.name & ":")
   displayFormatted(Hint, "\n")
 
-  proc displayInfoLine(field, msg: string) =
-      displayFormatted(Success, field)
-      displayFormatted(Details, msg)
-      displayFormatted(Hint, "\n")
-
   if pkg.alias.len > 0:
     displayFormatted(Warning, "  Alias for ", pkg.alias)
     displayFormatted(Hint, "\n")
@@ -408,12 +403,10 @@ proc echoPackage*(pkg: Package) =
     if pkg.web.len > 0:
       displayInfoLine("  website:     ", pkg.web)
 
-proc getDownloadDirName*(pkg: Package, verRange: VersionRange): string =
-  result = pkg.name
-  let verSimple = getSimpleString(verRange)
-  if verSimple != "":
-    result.add "_"
-    result.add verSimple
+proc echoPackage*(pkg: PackageInfo) =
+  displayFormatted(Message, pkg.basicInfo.name & ":")
+  displayFormatted(Hint, "\n")
+
 
 proc checkInstallFile(pkgInfo: PackageInfo,
                       origDir, file: string): bool =
