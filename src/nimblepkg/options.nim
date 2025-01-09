@@ -181,7 +181,7 @@ Commands:
                                   The current working directory needs to be the
                                   top level directory of the Nimble package.
   publishTags                     Finds and publishes new tags based on the
-                                  commits where the packages Nimble file changed.
+                                  commits where a package's Nimble file changed.
                [-l, --listOnly]   Only list the tags and versions which are found without
                                   actually performing tag or publishing them.
   uninstall    [pkgname, ...]     Uninstalls a list of packages.
