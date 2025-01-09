@@ -389,16 +389,24 @@ proc getOutputDir*(pkgInfo: PackageInfo, bin: string): string =
     result &= ".out"
 
 proc echoPackage*(pkg: Package) =
-  echo(pkg.name & ":")
+  displayFormatted(Message, pkg.name & ":")
+  displayFormatted(Hint, "\n")
+
+  proc displayInfoLine(field, msg: string) =
+      displayFormatted(Success, field)
+      displayFormatted(Details, msg)
+      displayFormatted(Hint, "\n")
+
   if pkg.alias.len > 0:
-    echo("  Alias for ", pkg.alias)
+    displayFormatted(Warning, "  Alias for ", pkg.alias)
+    displayFormatted(Hint, "\n")
   else:
-    echo("  url:         " & pkg.url & " (" & $pkg.downloadMethod & ")")
-    echo("  tags:        " & pkg.tags.join(", "))
-    echo("  description: " & pkg.description)
-    echo("  license:     " & pkg.license)
+    displayInfoLine("  url:         ", pkg.url & " (" & $pkg.downloadMethod & ")")
+    displayInfoLine("  tags:        ", pkg.tags.join(", "))
+    displayInfoLine("  description: ", pkg.description)
+    displayInfoLine("  license:     ", pkg.license)
     if pkg.web.len > 0:
-      echo("  website:     " & pkg.web)
+      displayInfoLine("  website:     ", pkg.web)
 
 proc getDownloadDirName*(pkg: Package, verRange: VersionRange): string =
   result = pkg.name
