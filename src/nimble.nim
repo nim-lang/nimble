@@ -1925,7 +1925,7 @@ proc lock(options: Options) =
   updateSyncFile(pkgInfo, options)
   displayLockOperationFinish(lockExists)
 
-proc depsTree(options: Options,
+proc depsPrint(options: Options,
               pkgInfo: PackageInfo,
               dependencies: seq[PackageInfo],
               errors: ValidationErrors) =
@@ -1959,7 +1959,7 @@ proc deps(options: Options) =
       errors.del name
 
   if options.action.depsAction in ["", "tree", "inverted"]:
-    depsTree(options, pkgInfo, dependencies, errors)
+    depsPrint(options, pkgInfo, dependencies, errors)
   else:
     raise nimbleError("Unknown deps flag: " & options.action.depsAction)
 
