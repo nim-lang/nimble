@@ -338,7 +338,7 @@ proc parseActionType*(action: string): ActionType =
     result = actionUninstall
   of "publish":
     result = actionPublish
-  of "publishTags":
+  of "publishtags":
     result = actionPublishTags
   of "upgrade":
     result = actionUpgrade
