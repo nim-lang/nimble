@@ -282,7 +282,7 @@ proc createTag*(tag: string, commit: Sha1Hash, message, repoDir, nimbleFile: str
     of DownloadMethod.hg:
       assert false, "hg not supported"
   
-proc findVersions(commits: seq[(Sha1Hash, string)], projdir, nimbleFile: string, downloadMethod: DownloadMethod) =
+proc findVersions(commits: seq[(Sha1Hash, string)], projdir, nimbleFile: string, downloadMethod: DownloadMethod, options: Options) =
   ## parse the versions
   var
     versions: HashSet[Version]
@@ -308,15 +308,17 @@ proc findVersions(commits: seq[(Sha1Hash, string)], projdir, nimbleFile: string,
             displayInfo(&"Found existing tag for version {version}", HighPriority)
           else:
             displayInfo(&"Found new version {version} at {commit}", HighPriority)
-            let res = createTag(&"v{version}", commit, message, projdir, nimbleFile, downloadMethod)
-            if not res:
-              displayError(&"Unable to create tag {version}", HighPriority)
+            if not options.action.onlyListTags:
+              displayInfo(&"Creating tag for new version {version} at {commit}", HighPriority)
+              let res = createTag(&"v{version}", commit, message, projdir, nimbleFile, downloadMethod)
+              if not res:
+                displayError(&"Unable to create tag {version}", HighPriority)
 
-proc publishTags*(p: PackageInfo, o: Options) =
+proc publishTags*(p: PackageInfo, options: Options) =
   displayInfo(&"Searcing for new tags for {$p.basicInfo.name} @{$p.basicInfo.version}", HighPriority)
   let (projdir, file, ext) = p.myPath.splitFile()
   let nimblefile = file & ext
   let dlmethod = p.metadata.downloadMethod
   let commits = vcsFindCommits(projdir, nimbleFile, dlmethod)
 
-  findVersions(commits, projdir, nimbleFile, dlmethod)
+  findVersions(commits, projdir, nimbleFile, dlmethod, options)

@@ -2381,10 +2381,10 @@ proc doAction(options: var Options) =
     init(options)
   of actionPublish:
     var pkgInfo = getPkgInfo(getCurrentDir(), options)
-    if options.action.publishAction == "tags":
-      publishTags(pkgInfo, options)
-    else:
-      publish(pkgInfo, options)
+    publish(pkgInfo, options)
+  of actionPublishTags:
+    var pkgInfo = getPkgInfo(getCurrentDir(), options)
+    publishTags(pkgInfo, options)
   of actionDump:
     dump(options)
   of actionTasks:

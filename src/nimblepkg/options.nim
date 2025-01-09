@@ -125,6 +125,8 @@ type
       depsAction*: string
     of actionPublish:
       publishAction*: string
+    of actionPublishTags:
+      onlyListTags*: bool
     of actionShellEnv, actionShell:
       discard
 
@@ -180,6 +182,8 @@ Commands:
                                   top level directory of the Nimble package.
   publishTags                     Finds and publishes new tags based on the
                                   commits where the packages Nimble file changed.
+               [-l, --listOnly]   Only list the tags and versions which are found without
+                                  actually performing tag or publishing them.
   uninstall    [pkgname, ...]     Uninstalls a list of packages.
                [-i, --inclDeps]   Uninstalls package and dependent package(s).
   build        [opts, ...] [bin]  Builds a package. Passes options to the Nim
@@ -765,6 +769,12 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
     case f
     of "tags":
       result.action.publishAction = "tags"
+    else:
+      wasFlagHandled = false
+  of actionPublishTags:
+    case f
+    of "l", "listonly":
+      result.action.onlyListTags = true
     else:
       wasFlagHandled = false
   of actionDeps:
