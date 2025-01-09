@@ -1065,7 +1065,7 @@ proc listNimBinaries(options: Options) =
       displayFormatted(Hint, "├── ")
     displayFormatted(Success, "@" & $pkg.basicInfo.version)
     displayFormatted(Hint, " ")
-    displayFormatted(Details, fmt"({pkg.myPath})")
+    displayFormatted(Details, fmt"({pkg.myPath.splitPath().head})")
     displayFormatted(Hint, "\n")
   displayFormatted(Hint, "\n")
 
