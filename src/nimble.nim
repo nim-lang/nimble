@@ -1063,10 +1063,11 @@ proc listNimBinaries(options: Options) =
       displayFormatted(Hint, "└── ")
     else:
       displayFormatted(Hint, "├── ")
-    displayFormatted(Success, "version ")
-    displayFormatted(Details, $pkg.basicInfo.version)
+    displayFormatted(Success, "@" & $pkg.basicInfo.version)
+    displayFormatted(Hint, " ")
+    displayFormatted(Details, fmt"({pkg.myPath})")
     displayFormatted(Hint, "\n")
-      # echoPackageVersions(pkg)
+  displayFormatted(Hint, "\n")
 
 proc listInstalled(options: Options) =
   type
