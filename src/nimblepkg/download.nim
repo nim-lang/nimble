@@ -445,31 +445,6 @@ proc doDownload(url, downloadDir: string, verRange: VersionRange,
     result.vcsRevision = downloadDir.getVcsRevision
 {.warning[ProveInit]: on.}
 
-proc pkgDirHasNimble*(dir: string, options: Options): bool =
-  try:
-    discard findNimbleFile(dir, true, options)
-    return true
-  except NimbleError: 
-    #Continue with the download
-    discard
-
-proc downloadPkgDir*(url: string,
-                     verRange: VersionRange,
-                     subdir: string,
-                     options: Options,
-                     vcsRevision: Sha1Hash = notSetSha1Hash,
-                     downloadPath: string = ""
-): (string, string) =
-  let downloadDir =
-    if downloadPath == "":
-      (getNimbleTempDir() / getDownloadDirName(url, verRange, vcsRevision))
-    else:
-      downloadPath
-
-  createDir(downloadDir)
-
-  result = (downloadDir, downloadDir / subdir)
-
 proc downloadPkg*(url: string, verRange: VersionRange,
                   downMethod: DownloadMethod,
                   subdir: string,
@@ -489,20 +464,37 @@ proc downloadPkg*(url: string, verRange: VersionRange,
   ##   If specified this parameter will cause specific VCS revision to be
   ##   checked out.
 
-  let (downloadDir, pkgDir) = downloadPkgDir(url, verRange, subdir, options, vcsRevision, downloadPath)
-  result.dir = pkgDir
-
-  #when using a persistent download dir we can skip the download if it's already done
-  if pkgDirHasNimble(result.dir, options):
-    return # already downloaded, skipping
-
   if options.offline:
     raise nimbleError("Cannot download in offline mode.")
+  let downloadDir =
+    if downloadPath == "":
+      (getNimbleTempDir() / getDownloadDirName(url, verRange, vcsRevision))
+    else:
+      downloadPath
+    
+  createDir(downloadDir)
+  var modUrl =
+    if url.startsWith("git://") and options.config.cloneUsingHttps:
+      "https://" & url[6 .. ^1]
+    else: url
 
-  let modUrl = modifyUrl(url, options.config.cloneUsingHttps)
+  # Fixes issue #204
+  # github + https + trailing url slash causes a
+  # checkout/ls-remote to fail with Repository not found
+  if modUrl.contains("github.com") and modUrl.endswith("/"):
+    modUrl = modUrl[0 .. ^2]
 
   let downloadMethod = if downloadTarball(modUrl, options):
     "http" else: $downMethod
+
+  result.dir = downloadDir / subdir
+  #when using a persistent download dir we can skip the download if it's already done
+  try:
+    discard findNimbleFile(result.dir, true, options)
+    return
+  except NimbleError: 
+    #Continue with the download
+    discard    
 
   if subdir.len > 0:
     display("Downloading", "$1 using $2 (subdir is '$3')" %
@@ -592,46 +584,35 @@ proc refresh*(options: Options) =
     for name, list in options.config.packageLists:
       fetchList(list, options)
 
-proc getDownloadInfo*(
-    pv: PkgTuple, options: Options,
-    doPrompt: bool,
-    ignorePackageCache = false,
-): (DownloadMethod, string, Table[string, string]) =
-
-  # echo "getDownloadInfo:pv.name: ", $pv.name
-  var pkg = initPackage()
-  if getPackage(pv.name, options, pkg, ignorePackageCache):
-    let (url, metadata) = getUrlData(pkg.url)
-    result = (pkg.downloadMethod, url, metadata)
-    # echo "getDownloadInfo:getPackage: ", $result
-    return
-  elif pv.name.isURL:
-    # echo "getDownloadInfo:isURL:name: ", $pv.name
-    # echo "getDownloadInfo:isURL:options.nimbleData: ", $options.nimbleData
-    let (url, urlmeta) = getUrlData(pv.name)
-    var metadata = urlmeta
-    metadata["urlOnly"] = "true"
-    result = (checkUrlType(url), url, metadata)
-    # echo "getDownloadInfo:isURL: ", $result
-    return
+proc getDownloadInfo*(pv: PkgTuple, options: Options,
+                      doPrompt: bool, ignorePackageCache = false): (DownloadMethod, string,
+                                        Table[string, string]) =
+  if pv.name.isURL:
+    let (url, metadata) = getUrlData(pv.name)
+    return (checkUrlType(url), url, metadata)
   elif pv.name.isForgeAlias:
     let url = newForge(pv.name).expand()
     return (checkUrlType(url), url, default(Table[string, string]))
   else:
-    # If package is not found give the user a chance to refresh
-    # package.json
-    if doPrompt and not options.offline and
-        options.prompt(pv.name & " not found in any local packages.json, " &
-                        "check internet for updated packages?"):
-      refresh(options)
-
-      # Once we've refreshed, try again, but don't prompt if not found
-      # (as we've already refreshed and a failure means it really
-      # isn't there)
-      # Also ignore the package cache so the old info isn't used
-      return getDownloadInfo(pv, options, false, true)
+    var pkg = initPackage()
+    if getPackage(pv.name, options, pkg, ignorePackageCache):
+      let (url, metadata) = getUrlData(pkg.url)
+      return (pkg.downloadMethod, url, metadata)
     else:
-      raise nimbleError(pkgNotFoundMsg(pv))
+      # If package is not found give the user a chance to refresh
+      # package.json
+      if doPrompt and not options.offline and
+          options.prompt(pv.name & " not found in any local packages.json, " &
+                         "check internet for updated packages?"):
+        refresh(options)
+
+        # Once we've refreshed, try again, but don't prompt if not found
+        # (as we've already refreshed and a failure means it really
+        # isn't there)
+        # Also ignore the package cache so the old info isn't used
+        return getDownloadInfo(pv, options, false, true)
+      else:
+        raise nimbleError(pkgNotFoundMsg(pv))
 
 when isMainModule:
   import unittest
