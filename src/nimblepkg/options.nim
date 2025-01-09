@@ -675,6 +675,8 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
     case f
     of "installed", "i":
       result.action.onlyInstalled = true
+    of "nimbinaries", "n":
+      result.action.onlyNimBinaries = true
     of "versions", "ver":
       result.action.showListVersions = true
     else:
