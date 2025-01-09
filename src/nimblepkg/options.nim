@@ -200,7 +200,7 @@ Commands:
                                   can be optionally specified.
   search       pkg/tag            Searches for a specified package. Search is
                                   performed by tag and by name.
-               [--ver]            Queries remote server for package version.
+               [--ver, --version] Queries remote server for package version.
   list                            Lists all packages.
                [-i, --installed]  Lists all installed packages.
                [--ver, --version] Also display versions for packages.
