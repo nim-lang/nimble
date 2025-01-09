@@ -546,7 +546,10 @@ proc getOfficialReleases*(options: Options): seq[Version] =
   let oficialReleasesCachedFile =
     options.nimbleDir.absolutePath() / "official-nim-releases.json"
   if oficialReleasesCachedFile.fileExists():
-    return oficialReleasesCachedFile.readFile().parseJson().to(seq[Version])
+    #We only store the file for a day. 
+    let fileCreation = getTime() - getFileInfo(oficialReleasesCachedFile).lastWriteTime
+    if fileCreation.inDays <= 1:
+      return oficialReleasesCachedFile.readFile().parseJson().to(seq[Version])
   var parsedContents: JsonNode
   try:
     let rawContents = retrieveUrl(githubTagReleasesUrl.addGithubAuthentication())
