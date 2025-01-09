@@ -666,8 +666,6 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
   case result.action.typ
   of actionSearch:
     case f
-    of "installed", "i":
-      result.action.onlyInstalled = true
     of "versions", "ver":
       result.action.showSearchVersions = true
     else:
