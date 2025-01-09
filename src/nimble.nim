@@ -57,7 +57,7 @@ proc displaySatisfiedMsg(solvedPkgs: seq[SolvedPackage], pkgToInstall: seq[(stri
     for pkg in solvedPkgs:
       if pkg.pkgName notin pkgToInstall.mapIt(it[0]):
         for req in pkg.requirements:
-          displayInfo(pkgDepsAlreadySatisfiedMsg(req))
+          displayInfo(pkgDepsAlreadySatisfiedMsg(req), MediumPriority)
 
 proc displayUsingSpecialVersionWarning(solvedPkgs: seq[SolvedPackage], options: Options) =
   var messages = newSeq[string]()
@@ -182,7 +182,7 @@ proc processFreeDependencies(pkgInfo: PackageInfo,
 
   display("Verifying", "dependencies for $1@$2" %
           [pkgInfo.basicInfo.name, $pkgInfo.basicInfo.version],
-          priority = HighPriority)
+          priority = LowPriority)
 
   var reverseDependencies: seq[PackageBasicInfo] = @[]
 
@@ -208,7 +208,7 @@ proc processFreeDependencies(pkgInfo: PackageInfo,
                        resolvedDep.name)
 
     if not found:
-      display("Installing", $resolvedDep, priority = HighPriority)
+      display("Installing", $resolvedDep, priority = MediumPriority)
       let toInstall = @[(resolvedDep.name, resolvedDep.ver)]
       let (packages, installedPkg) = install(toInstall, options,
         doPrompt = false, first = false, fromLockFile = false,
@@ -230,7 +230,7 @@ proc processFreeDependencies(pkgInfo: PackageInfo,
       # This package has been installed so we add it to our pkgList.
       pkgList.add pkg
     else:
-      displayInfo(pkgDepsAlreadySatisfiedMsg(dep))
+      displayInfo(pkgDepsAlreadySatisfiedMsg(dep), MediumPriority)
       result.incl pkg
       # Process the dependencies of this dependency.
       let fullInfo = pkg.toFullInfo(options)
@@ -512,13 +512,13 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
 
   display("Installing", "$1@$2" %
     [pkginfo.basicInfo.name, $pkginfo.basicInfo.version],
-    priority = HighPriority)
+    priority = MediumPriority)
 
   let oldPkg = pkgInfo.packageExists(options)
   if oldPkg.isSome:
     # In the case we already have the same package in the cache then only merge
     # the new package special versions to the old one.
-    displayWarning(pkgAlreadyExistsInTheCacheMsg(pkgInfo))
+    displayWarning(pkgAlreadyExistsInTheCacheMsg(pkgInfo), MediumPriority)
     if not options.useSatSolver: #The dep path is not created when using the sat solver as packages are collected upfront
       var oldPkg = oldPkg.get
       oldPkg.metaData.specialVersions.incl pkgInfo.metaData.specialVersions
@@ -615,7 +615,7 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
 
   pkgInfo.isInstalled = true
 
-  displaySuccess(pkgInstalledMsg(pkgInfo.basicInfo.name))
+  displaySuccess(pkgInstalledMsg(pkgInfo.basicInfo.name), MediumPriority)
 
   result.deps.incl pkgInfo
   result.pkg = pkgInfo
@@ -1925,9 +1925,25 @@ proc lock(options: Options) =
   updateSyncFile(pkgInfo, options)
   displayLockOperationFinish(lockExists)
 
-proc depsTree(options: Options) =
+proc depsTree(options: Options,
+              pkgInfo: PackageInfo,
+              dependencies: seq[PackageInfo],
+              errors: ValidationErrors) =
   ## Prints the dependency tree
 
+  if options.action.format == "json":
+    if options.action.depsAction == "inverted":
+      raise nimbleError("Deps JSON format does not support inverted tree")
+    echo (%depsRecursive(pkgInfo, dependencies, errors, options)).pretty
+  elif options.action.depsAction == "inverted":
+    printDepsHumanReadableInverted(pkgInfo, dependencies, errors, options)
+  elif options.action.depsAction == "tree":
+    printDepsHumanReadable(pkgInfo, dependencies, errors, options)
+  else:
+    printDepsHumanReadable(pkgInfo, dependencies, errors, options, true)
+
+proc deps(options: Options) =
+  ## handles deps actions
   let pkgInfo = getPkgInfo(getCurrentDir(), options)
 
   var errors = validateDevModeDepsWorkingCopiesBeforeLock(pkgInfo, options)
@@ -1942,12 +1958,10 @@ proc depsTree(options: Options) =
     if not dependencyGraph.contains name:
       errors.del name
 
-  if options.action.format == "json":
-    echo (%depsRecursive(pkgInfo, dependencies, errors)).pretty
-  elif options.action.format == "inverted":
-    printDepsHumanReadableInverted(pkgInfo, dependencies, errors)
+  if options.action.depsAction in ["", "tree", "inverted"]:
+    depsTree(options, pkgInfo, dependencies, errors)
   else:
-    printDepsHumanReadable(pkgInfo, dependencies, errors)
+    raise nimbleError("Unknown deps flag: " & options.action.depsAction)
 
 proc syncWorkingCopy(name: string, path: Path, dependentPkg: PackageInfo,
                      options: Options) =
@@ -2331,7 +2345,10 @@ proc doAction(options: var Options) =
     init(options)
   of actionPublish:
     var pkgInfo = getPkgInfo(getCurrentDir(), options)
-    publish(pkgInfo, options)
+    if options.action.publishAction == "tags":
+      publishTags(pkgInfo, options)
+    else:
+      publish(pkgInfo, options)
   of actionDump:
     dump(options)
   of actionTasks:
@@ -2343,7 +2360,7 @@ proc doAction(options: var Options) =
   of actionLock:
     lock(options)
   of actionDeps:
-    depsTree(options)
+    deps(options)
   of actionSync:
     sync(options)
   of actionSetup:
@@ -2493,8 +2510,8 @@ when isMainModule:
   var opt: Options
   try:
     opt = parseCmdLine()
-    opt.setNimbleDir
-    opt.loadNimbleData
+    opt.setNimbleDir()
+    opt.loadNimbleData()
     if opt.action.typ in {actionTasks, actionRun, actionBuild, actionCompile, actionDevelop}:
       # Implicitly disable package validation for these commands.
       opt.disableValidation = true

@@ -79,7 +79,7 @@ type
 
   Action* = object
     case typ*: ActionType
-    of actionNil, actionList, actionPublish, actionTasks, actionCheck,
+    of actionNil, actionList, actionTasks, actionCheck,
        actionSetup, actionClean, actionManual: nil
     of actionSync:
       listOnly*: bool
@@ -115,6 +115,9 @@ type
       custRunFlags*: seq[string]
     of actionDeps:
       format*: string
+      depsAction*: string
+    of actionPublish:
+      publishAction*: string
     of actionShellEnv, actionShell:
       discard
 
@@ -239,9 +242,10 @@ Nimble Options:
       --ver                       Query remote server for package version
                                   information when searching or listing packages.
       --nimbleDir:dirname         Set the Nimble directory.
-      --nim:path                  Use specified path for Nim compiler
-      --silent                    Hide all Nimble and Nim output
-      --verbose                   Show all non-debug output.
+      --nim:path                  Use specified path for Nim compiler.
+      --silent                    Hide all Nimble and Nim output.
+      --info                      Show some informative output.
+      --verbose                   Show extra non-debugging output.
       --debug                     Show all output including debug messages.
       --offline                   Don't use network.
       --noColor                   Don't colorise output.
@@ -251,11 +255,11 @@ Nimble Options:
       --developFile               Specifies the name of the develop file which
                                   to be manipulated. If not present creates it.
       --useSystemNim              Use system nim and ignore nim from the lock
-                                  file if any
+                                  file if any.
       --solver:sat|legacy         Use the SAT solver (default) or the legacy for dependency resolution.
-      --requires                  Add extra packages to the dependency resolution. Uses the same syntax as the Nimble file. Example: nimble install --requires "pkg1; pkg2 >= 1.2"
+      --requires                  Add extra packages to the dependency resolution. Uses the same syntax as the Nimble file. Example: nimble install --requires "pkg1; pkg2 >= 1.2".
       --disableNimBinaries        Disable the use of nim precompiled binaries. Note in some platforms precompiled binaries are not available but the flag can still be used to avoid compile the Nim version once and reuse it.
-      --maximumTaggedVersions     Maximum number of tags to check for a package when discovering versions for the SAT solver. 0 means all. 
+      --maximumTaggedVersions     Maximum number of tags to check for a package when discovering versions for the SAT solver. 0 means all.
 For more information read the GitHub readme:
   https://github.com/nim-lang/nimble#readme
 """
@@ -614,6 +618,7 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
   of "reject", "n": result.forcePrompts = forcePromptNo
   of "nimbledir": result.nimbleDir = val
   of "silent": result.verbosity = SilentPriority
+  of "info": result.verbosity = MediumPriority
   of "verbose": result.verbosity = LowPriority
   of "debug": result.verbosity = DebugPriority
   of "offline": result.offline = true
@@ -736,10 +741,20 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
       result.action.listOnly = true
     else:
       wasFlagHandled = false
+  of actionPublish:
+    case f
+    of "tags":
+      result.action.publishAction = "tags"
+    else:
+      wasFlagHandled = false
   of actionDeps:
     case f
     of "format":
       result.action.format = val
+    of "tree":
+      result.action.depsAction = "tree"
+    of "inverted":
+      result.action.depsAction = "inverted"
     else:
       wasFlagHandled = false
   else:
