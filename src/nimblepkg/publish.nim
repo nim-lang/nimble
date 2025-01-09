@@ -305,11 +305,11 @@ proc findVersions(commits: seq[(Sha1Hash, string)], projdir, nimbleFile: string,
         if version notin versions: 
           versions.incl(version)
           if version in existingTags:
-            displayInfo(&"Found existing tag for version {version}", HighPriority)
+            displayInfo(&"Found existing tag for version {version} at commit {commit}", HighPriority)
           else:
             displayInfo(&"Found new version {version} at {commit}", HighPriority)
             if not options.action.onlyListTags:
-              displayInfo(&"Creating tag for new version {version} at {commit}", HighPriority)
+              displayWarning(&"Creating tag for new version {version} at {commit}", HighPriority)
               let res = createTag(&"v{version}", commit, message, projdir, nimbleFile, downloadMethod)
               if not res:
                 displayError(&"Unable to create tag {version}", HighPriority)
