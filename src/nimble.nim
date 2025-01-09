@@ -182,7 +182,7 @@ proc processFreeDependencies(pkgInfo: PackageInfo,
 
   display("Verifying", "dependencies for $1@$2" %
           [pkgInfo.basicInfo.name, $pkgInfo.basicInfo.version],
-          priority = LowPriority)
+          priority = MediumPriority)
 
   var reverseDependencies: seq[PackageBasicInfo] = @[]
 

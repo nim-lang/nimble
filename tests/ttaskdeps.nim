@@ -119,6 +119,7 @@ suite "Task level dependencies":
   test "Dependencies aren't verified twice":
     inDir:
       let (output, _) = execNimbleYes("test")
+      checkpoint("Failed test output: \n>>>" & output.replace("\n", "\n>>> "))
       check output.count("dependencies for unittest2@0.0.4") == 1
 
   test "Requirements for tasks in dependencies aren't used":
