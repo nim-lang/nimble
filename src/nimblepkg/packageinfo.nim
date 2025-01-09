@@ -389,23 +389,24 @@ proc getOutputDir*(pkgInfo: PackageInfo, bin: string): string =
     result &= ".out"
 
 proc echoPackage*(pkg: Package) =
-  echo(pkg.name & ":")
-  if pkg.alias.len > 0:
-    echo("  Alias for ", pkg.alias)
-  else:
-    echo("  url:         " & pkg.url & " (" & $pkg.downloadMethod & ")")
-    echo("  tags:        " & pkg.tags.join(", "))
-    echo("  description: " & pkg.description)
-    echo("  license:     " & pkg.license)
-    if pkg.web.len > 0:
-      echo("  website:     " & pkg.web)
+  displayFormatted(Message, pkg.name & ":")
+  displayFormatted(Hint, "\n")
 
-proc getDownloadDirName*(pkg: Package, verRange: VersionRange): string =
-  result = pkg.name
-  let verSimple = getSimpleString(verRange)
-  if verSimple != "":
-    result.add "_"
-    result.add verSimple
+  if pkg.alias.len > 0:
+    displayFormatted(Warning, "  Alias for ", pkg.alias)
+    displayFormatted(Hint, "\n")
+  else:
+    displayInfoLine("  url:         ", pkg.url & " (" & $pkg.downloadMethod & ")")
+    displayInfoLine("  tags:        ", pkg.tags.join(", "))
+    displayInfoLine("  description: ", pkg.description)
+    displayInfoLine("  license:     ", pkg.license)
+    if pkg.web.len > 0:
+      displayInfoLine("  website:     ", pkg.web)
+
+proc echoPackage*(pkg: PackageInfo) =
+  displayFormatted(Message, pkg.basicInfo.name & ":")
+  displayFormatted(Hint, "\n")
+
 
 proc checkInstallFile(pkgInfo: PackageInfo,
                       origDir, file: string): bool =

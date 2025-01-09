@@ -40,7 +40,7 @@ suite "issues":
         if line.contains("issue799"):
           let nimbleInstallDir = getPackageDir(
             pkgsDir, &"nimble-{nimbleVersion}")
-          let pkgInstalledPath = "--path:'" & nimble_install_dir & "'"
+          let pkgInstalledPath = "--path:" & nimbleInstallDir.quoteShell & ""
           check line.contains(pkgInstalledPath)
 
   test "issue 793":

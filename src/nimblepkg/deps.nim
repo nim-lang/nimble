@@ -35,7 +35,8 @@ proc depsRecursive*(pkgInfo: PackageInfo,
 proc printDepsHumanReadable*(pkgInfo: PackageInfo,
                              dependencies: seq[PackageInfo],
                              errors: ValidationErrors,
-                             levelInfos: seq[tuple[skip: bool]] = @[]
+                             directOnly = false,
+                             levelInfos: seq[tuple[skip: bool]] = @[],
                              ) =
   ## print human readable tree deps
   ## 
@@ -82,7 +83,8 @@ proc printDepsHumanReadable*(pkgInfo: PackageInfo,
       displayFormatted(Error, fmt" - error: {errMsg}")
     if found:
       var levelInfos = levelInfos & @[(skip: isLast)]
-      printDepsHumanReadable(depPkgInfo, dependencies, errors, levelInfos)
+      if not directOnly:
+        printDepsHumanReadable(depPkgInfo, dependencies, errors, directOnly, levelInfos)
   if levelInfos.len() == 0:
     displayFormatted(Hint, "\n")
 

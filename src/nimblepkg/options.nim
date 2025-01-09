@@ -16,13 +16,13 @@ type
   NimBin* = object
     path*: string
     version*: Version
+
   DumpMode* = enum kdumpIni, kdumpJson
+
   Options* = object
     forcePrompts*: ForcePrompt
     depsOnly*: bool
     uninstallRevDeps*: bool
-    queryVersions*: bool
-    queryInstalled*: bool
     nimbleDir*: string
     verbosity*: cli.Priority
     action*: Action
@@ -79,8 +79,9 @@ type
 
   Action* = object
     case typ*: ActionType
-    of actionNil, actionList, actionPublish, actionTasks, actionCheck,
-       actionSetup, actionClean, actionManual: nil
+    of actionNil, actionTasks, actionCheck,
+       actionSetup, actionClean, actionManual:
+      discard
     of actionSync:
       listOnly*: bool
     of actionRefresh:
@@ -96,6 +97,11 @@ type
       global*: bool
     of actionSearch:
       search*: seq[string] # Search string.
+      showSearchVersions*: bool
+    of actionList:
+      onlyNimBinaries*: bool
+      onlyInstalled*: bool
+      showListVersions*: bool
     of actionInit, actionDump:
       projName*: string
       vcsOption*: string
@@ -115,6 +121,9 @@ type
       custRunFlags*: seq[string]
     of actionDeps:
       format*: string
+      depsAction*: string
+    of actionPublish:
+      publishAction*: string
     of actionShellEnv, actionShell:
       discard
 
@@ -191,10 +200,11 @@ Commands:
                                   can be optionally specified.
   search       pkg/tag            Searches for a specified package. Search is
                                   performed by tag and by name.
-               [--ver]            Queries remote server for package version.
+               [--ver, --version] Queries remote server for package version.
   list                            Lists all packages.
-               [--ver]            Queries remote server for package version.
                [-i, --installed]  Lists all installed packages.
+               [--ver, --version] Also display versions for packages.
+               [-n, --nimbinaries]  Lists all installed packages.
   tasks                           Lists the tasks specified in the Nimble
                                   package's Nimble file.
   path         pkgname ...        Shows absolute path to the installed packages
@@ -239,9 +249,10 @@ Nimble Options:
       --ver                       Query remote server for package version
                                   information when searching or listing packages.
       --nimbleDir:dirname         Set the Nimble directory.
-      --nim:path                  Use specified path for Nim compiler
-      --silent                    Hide all Nimble and Nim output
-      --verbose                   Show all non-debug output.
+      --nim:path                  Use specified path for Nim compiler.
+      --silent                    Hide all Nimble and Nim output.
+      --info                      Show some informative output.
+      --verbose                   Show extra non-debugging output.
       --debug                     Show all output including debug messages.
       --offline                   Don't use network.
       --noColor                   Don't colorise output.
@@ -251,11 +262,11 @@ Nimble Options:
       --developFile               Specifies the name of the develop file which
                                   to be manipulated. If not present creates it.
       --useSystemNim              Use system nim and ignore nim from the lock
-                                  file if any
+                                  file if any.
       --solver:sat|legacy         Use the SAT solver (default) or the legacy for dependency resolution.
-      --requires                  Add extra packages to the dependency resolution. Uses the same syntax as the Nimble file. Example: nimble install --requires "pkg1; pkg2 >= 1.2"
+      --requires                  Add extra packages to the dependency resolution. Uses the same syntax as the Nimble file. Example: nimble install --requires "pkg1; pkg2 >= 1.2".
       --disableNimBinaries        Disable the use of nim precompiled binaries. Note in some platforms precompiled binaries are not available but the flag can still be used to avoid compile the Nim version once and reuse it.
-      --maximumTaggedVersions     Maximum number of tags to check for a package when discovering versions for the SAT solver. 0 means all. 
+      --maximumTaggedVersions     Maximum number of tags to check for a package when discovering versions for the SAT solver. 0 means all.
 For more information read the GitHub readme:
   https://github.com/nim-lang/nimble#readme
 """
@@ -614,6 +625,7 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
   of "reject", "n": result.forcePrompts = forcePromptNo
   of "nimbledir": result.nimbleDir = val
   of "silent": result.verbosity = SilentPriority
+  of "info": result.verbosity = MediumPriority
   of "verbose": result.verbosity = LowPriority
   of "debug": result.verbosity = DebugPriority
   of "offline": result.offline = true
@@ -653,12 +665,20 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
   var wasFlagHandled = true
   # Action-specific flags.
   case result.action.typ
-  of actionSearch, actionList:
+  of actionSearch:
+    case f
+    of "versions", "ver":
+      result.action.showSearchVersions = true
+    else:
+      wasFlagHandled = false
+  of actionList:
     case f
     of "installed", "i":
-      result.queryInstalled = true
-    of "ver":
-      result.queryVersions = true
+      result.action.onlyInstalled = true
+    of "nimbinaries", "n":
+      result.action.onlyNimBinaries = true
+    of "versions", "ver":
+      result.action.showListVersions = true
     else:
       wasFlagHandled = false
   of actionDump:
@@ -669,7 +689,7 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
       wasFlagHandled = false
   of actionInstall:
     case f
-    of "depsonly", "d":
+    of "depsonly", "deps", "d":
       result.depsOnly = true
     of "norebuild":
       result.action.noRebuild = true
@@ -736,10 +756,20 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
       result.action.listOnly = true
     else:
       wasFlagHandled = false
+  of actionPublish:
+    case f
+    of "tags":
+      result.action.publishAction = "tags"
+    else:
+      wasFlagHandled = false
   of actionDeps:
     case f
     of "format":
       result.action.format = val
+    of "tree":
+      result.action.depsAction = "tree"
+    of "inverted":
+      result.action.depsAction = "inverted"
     else:
       wasFlagHandled = false
   else:

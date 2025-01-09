@@ -57,7 +57,7 @@ proc displaySatisfiedMsg(solvedPkgs: seq[SolvedPackage], pkgToInstall: seq[(stri
     for pkg in solvedPkgs:
       if pkg.pkgName notin pkgToInstall.mapIt(it[0]):
         for req in pkg.requirements:
-          displayInfo(pkgDepsAlreadySatisfiedMsg(req))
+          displayInfo(pkgDepsAlreadySatisfiedMsg(req), MediumPriority)
 
 proc displayUsingSpecialVersionWarning(solvedPkgs: seq[SolvedPackage], options: Options) =
   var messages = newSeq[string]()
@@ -182,7 +182,7 @@ proc processFreeDependencies(pkgInfo: PackageInfo,
 
   display("Verifying", "dependencies for $1@$2" %
           [pkgInfo.basicInfo.name, $pkgInfo.basicInfo.version],
-          priority = HighPriority)
+          priority = MediumPriority)
 
   var reverseDependencies: seq[PackageBasicInfo] = @[]
 
@@ -208,7 +208,7 @@ proc processFreeDependencies(pkgInfo: PackageInfo,
                        resolvedDep.name)
 
     if not found:
-      display("Installing", $resolvedDep, priority = HighPriority)
+      display("Installing", $resolvedDep, priority = MediumPriority)
       let toInstall = @[(resolvedDep.name, resolvedDep.ver)]
       let (packages, installedPkg) = install(toInstall, options,
         doPrompt = false, first = false, fromLockFile = false,
@@ -230,7 +230,7 @@ proc processFreeDependencies(pkgInfo: PackageInfo,
       # This package has been installed so we add it to our pkgList.
       pkgList.add pkg
     else:
-      displayInfo(pkgDepsAlreadySatisfiedMsg(dep))
+      displayInfo(pkgDepsAlreadySatisfiedMsg(dep), MediumPriority)
       result.incl pkg
       # Process the dependencies of this dependency.
       let fullInfo = pkg.toFullInfo(options)
@@ -512,13 +512,13 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
 
   display("Installing", "$1@$2" %
     [pkginfo.basicInfo.name, $pkginfo.basicInfo.version],
-    priority = HighPriority)
+    priority = MediumPriority)
 
   let oldPkg = pkgInfo.packageExists(options)
   if oldPkg.isSome:
     # In the case we already have the same package in the cache then only merge
     # the new package special versions to the old one.
-    displayWarning(pkgAlreadyExistsInTheCacheMsg(pkgInfo))
+    displayWarning(pkgAlreadyExistsInTheCacheMsg(pkgInfo), MediumPriority)
     if not options.useSatSolver: #The dep path is not created when using the sat solver as packages are collected upfront
       var oldPkg = oldPkg.get
       oldPkg.metaData.specialVersions.incl pkgInfo.metaData.specialVersions
@@ -615,7 +615,7 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
 
   pkgInfo.isInstalled = true
 
-  displaySuccess(pkgInstalledMsg(pkgInfo.basicInfo.name))
+  displaySuccess(pkgInstalledMsg(pkgInfo.basicInfo.name), MediumPriority)
 
   result.deps.incl pkgInfo
   result.pkg = pkgInfo
@@ -1023,7 +1023,7 @@ proc search(options: Options) =
   var found = false
   template onFound {.dirty.} =
     echoPackage(pkg)
-    if pkg.alias.len == 0 and options.queryVersions:
+    if pkg.alias.len == 0 and options.action.showSearchVersions:
       echoPackageVersions(pkg)
     echo(" ")
     found = true
@@ -1049,29 +1049,61 @@ proc list(options: Options) =
   let pkgList = getPackageList(options)
   for pkg in pkgList:
     echoPackage(pkg)
-    if pkg.alias.len == 0 and options.queryVersions:
+    if pkg.alias.len == 0 and options.action.showListVersions:
       echoPackageVersions(pkg)
     echo(" ")
+
+proc listNimBinaries(options: Options) =
+  let nimBininstalledPkgs = getInstalledPkgsMin(options.nimBinariesDir, options)
+  displayFormatted(Message, "nim")
+  displayFormatted(Hint, "\n")
+  for idx, pkg in nimBininstalledPkgs:
+    assert pkg.basicInfo.name == "nim"
+    if idx == nimBininstalledPkgs.len() - 1:
+      displayFormatted(Hint, "└── ")
+    else:
+      displayFormatted(Hint, "├── ")
+    displayFormatted(Success, "@" & $pkg.basicInfo.version)
+    displayFormatted(Hint, " ")
+    displayFormatted(Details, fmt"({pkg.myPath.splitPath().head})")
+    displayFormatted(Hint, "\n")
+  displayFormatted(Hint, "\n")
 
 proc listInstalled(options: Options) =
   type
     VersionChecksumTuple = tuple[version: Version, checksum: Sha1Hash]
-  var h: OrderedTable[string, seq[VersionChecksumTuple]]
+  var vers: OrderedTable[string, seq[VersionChecksumTuple]]
   let pkgs = getInstalledPkgsMin(options.getPkgsDir(), options)
   for pkg in pkgs:
     let
       pName = pkg.basicInfo.name
       pVersion = pkg.basicInfo.version
       pChecksum = pkg.basicInfo.checksum
-    if not h.hasKey(pName): h[pName] = @[]
-    var s = h[pName]
+    if not vers.hasKey(pName): vers[pName] = @[]
+    var s = vers[pName]
     add(s, (pVersion, pChecksum))
-    h[pName] = s
+    vers[pName] = s
 
-  h.sort(proc (a, b: (string, seq[VersionChecksumTuple])): int =
+  vers.sort(proc (a, b: (string, seq[VersionChecksumTuple])): int =
     cmpIgnoreCase(a[0], b[0]))
-  for k in keys(h):
-    echo k & "  [" & h[k].join(", ") & "]"
+
+  displayInfo("Package list format: {PackageName} ")
+  displayInfo("  {PackageName} ")
+  displayInfo("     {Version} ({CheckSum})")
+  for k in keys(vers):
+    displayFormatted(Message, k)
+    displayFormatted(Hint, "\n")
+    if options.action.showListVersions:
+      for idx, item in vers[k]:
+        if idx == vers[k].len() - 1:
+          displayFormatted(Hint, "└── ")
+        else:
+          displayFormatted(Hint, "├── ")
+        displayFormatted(Success, "@", $item.version)
+        displayFormatted(Hint, " ")
+        displayFormatted(Details, fmt"({item.checksum})")
+        displayFormatted(Hint, "\n")
+        # "  [" & vers[k].join(", ") & "]"
 
 type VersionAndPath = tuple[version: Version, path: string]
 
@@ -1925,9 +1957,25 @@ proc lock(options: Options) =
   updateSyncFile(pkgInfo, options)
   displayLockOperationFinish(lockExists)
 
-proc depsTree(options: Options) =
+proc depsPrint(options: Options,
+              pkgInfo: PackageInfo,
+              dependencies: seq[PackageInfo],
+              errors: ValidationErrors) =
   ## Prints the dependency tree
 
+  if options.action.format == "json":
+    if options.action.depsAction == "inverted":
+      raise nimbleError("Deps JSON format does not support inverted tree")
+    echo (%depsRecursive(pkgInfo, dependencies, errors)).pretty
+  elif options.action.depsAction == "inverted":
+    printDepsHumanReadableInverted(pkgInfo, dependencies, errors)
+  elif options.action.depsAction == "tree":
+    printDepsHumanReadable(pkgInfo, dependencies, errors)
+  else:
+    printDepsHumanReadable(pkgInfo, dependencies, errors, true)
+
+proc deps(options: Options) =
+  ## handles deps actions
   let pkgInfo = getPkgInfo(getCurrentDir(), options)
 
   var errors = validateDevModeDepsWorkingCopiesBeforeLock(pkgInfo, options)
@@ -1942,12 +1990,10 @@ proc depsTree(options: Options) =
     if not dependencyGraph.contains name:
       errors.del name
 
-  if options.action.format == "json":
-    echo (%depsRecursive(pkgInfo, dependencies, errors)).pretty
-  elif options.action.format == "inverted":
-    printDepsHumanReadableInverted(pkgInfo, dependencies, errors)
+  if options.action.depsAction in ["", "tree", "inverted"]:
+    depsPrint(options, pkgInfo, dependencies, errors)
   else:
-    printDepsHumanReadable(pkgInfo, dependencies, errors)
+    raise nimbleError("Unknown deps flag: " & options.action.depsAction)
 
 proc syncWorkingCopy(name: string, path: Path, dependentPkg: PackageInfo,
                      options: Options) =
@@ -2312,8 +2358,12 @@ proc doAction(options: var Options) =
   of actionSearch:
     search(options)
   of actionList:
-    if options.queryInstalled: listInstalled(options)
-    else: list(options)
+    if options.action.onlyInstalled:
+      listInstalled(options)
+    elif options.action.onlyNimBinaries:
+      listNimBinaries(options)
+    else:
+      list(options)
   of actionPath:
     listPaths(options)
   of actionBuild:
@@ -2331,7 +2381,10 @@ proc doAction(options: var Options) =
     init(options)
   of actionPublish:
     var pkgInfo = getPkgInfo(getCurrentDir(), options)
-    publish(pkgInfo, options)
+    if options.action.publishAction == "tags":
+      publishTags(pkgInfo, options)
+    else:
+      publish(pkgInfo, options)
   of actionDump:
     dump(options)
   of actionTasks:
@@ -2343,7 +2396,7 @@ proc doAction(options: var Options) =
   of actionLock:
     lock(options)
   of actionDeps:
-    depsTree(options)
+    deps(options)
   of actionSync:
     sync(options)
   of actionSetup:
@@ -2493,8 +2546,8 @@ when isMainModule:
   var opt: Options
   try:
     opt = parseCmdLine()
-    opt.setNimbleDir
-    opt.loadNimbleData
+    opt.setNimbleDir()
+    opt.loadNimbleData()
     if opt.action.typ in {actionTasks, actionRun, actionBuild, actionCompile, actionDevelop}:
       # Implicitly disable package validation for these commands.
       opt.disableValidation = true
