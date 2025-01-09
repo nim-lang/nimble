@@ -282,7 +282,7 @@ proc createTag*(tag: string, commit: Sha1Hash, message, repoDir, nimbleFile: str
     of DownloadMethod.hg:
       assert false, "hg not supported"
   
-proc findVersions(commits: seq[(Sha1Hash, string)], projdir, nimbleFile: string, downloadMethod: DownloadMethod) =
+proc findVersions(commits: seq[(Sha1Hash, string)], projdir, nimbleFile: string, downloadMethod: DownloadMethod, options: Options) =
   ## parse the versions
   var
     versions: HashSet[Version]
@@ -305,23 +305,20 @@ proc findVersions(commits: seq[(Sha1Hash, string)], projdir, nimbleFile: string,
         if version notin versions: 
           versions.incl(version)
           if version in existingTags:
-            displayInfo(&"Found existing tag for version {version}", MediumPriority)
+            displayInfo(&"Found existing tag for version {version} at commit {commit}", HighPriority)
           else:
-            displayInfo(&"Found new version {version} at {commit}", MediumPriority)
-            let res = createTag(&"v{version}", commit, message, projdir, nimbleFile, downloadMethod)
-            if not res:
-              displayError(&"Unable to create tag {version}")
+            displayInfo(&"Found new version {version} at {commit}", HighPriority)
+            if not options.action.onlyListTags:
+              displayWarning(&"Creating tag for new version {version} at {commit}", HighPriority)
+              let res = createTag(&"v{version}", commit, message, projdir, nimbleFile, downloadMethod)
+              if not res:
+                displayError(&"Unable to create tag {version}", HighPriority)
 
-proc publishTags*(p: PackageInfo, o: Options) =
-  discard
-  echo "publishTags:myPath: ", $p.myPath
-  echo "publishTags:basic: ", $p.basicInfo
-  # echo "publishTags: ", $p
+proc publishTags*(p: PackageInfo, options: Options) =
+  displayInfo(&"Searcing for new tags for {$p.basicInfo.name} @{$p.basicInfo.version}", HighPriority)
   let (projdir, file, ext) = p.myPath.splitFile()
   let nimblefile = file & ext
   let dlmethod = p.metadata.downloadMethod
   let commits = vcsFindCommits(projdir, nimbleFile, dlmethod)
-  echo "publishTags:commits: ", $commits.len()
 
-  findVersions(commits, projdir, nimbleFile, dlmethod)
-  echo ""
+  findVersions(commits, projdir, nimbleFile, dlmethod, options)
