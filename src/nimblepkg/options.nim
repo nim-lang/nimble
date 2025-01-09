@@ -70,7 +70,8 @@ type
     actionInstall, actionSearch, actionList, actionBuild, actionPath,
     actionUninstall, actionCompile, actionDoc, actionCustom, actionTasks,
     actionDevelop, actionCheck, actionLock, actionRun, actionSync, actionSetup,
-    actionClean, actionDeps, actionShellEnv, actionShell, actionAdd, actionManual
+    actionClean, actionDeps, actionShellEnv, actionShell, actionAdd, actionManual,
+    actionPublishTags
 
   DevelopActionType* = enum
     datAdd, datRemoveByPath, datRemoveByName, datInclude, datExclude
@@ -177,6 +178,8 @@ Commands:
   publish                         Publishes a package on nim-lang/packages.
                                   The current working directory needs to be the
                                   top level directory of the Nimble package.
+  publishTags                     Finds and publishes new tags based on the
+                                  commits where the packages Nimble file changed.
   uninstall    [pkgname, ...]     Uninstalls a list of packages.
                [-i, --inclDeps]   Uninstalls package and dependent package(s).
   build        [opts, ...] [bin]  Builds a package. Passes options to the Nim
@@ -216,9 +219,11 @@ Commands:
                [--ini, --json]    Selects the output format (the default is --ini).
   lock                            Generates or updates a package lock file.
   upgrade      [pkgname, ...]     Upgrades a list of packages in the lock file.
-  deps                            Outputs dependency tree
+  deps                            Outputs dependencies for current package.
+               [--tree]           Outputs dependency tree.
+               [--inverted]       Outputs inverted (reversed) dependency tree.
                [--format type]    Specify the output format. Json is the only supported
-                                  format
+                                  format. Only some commands support it.
   sync                            Synchronizes develop mode dependencies with
                                   the content of the lock file.
                [-l, --listOnly]   Only lists the packages which are not synced

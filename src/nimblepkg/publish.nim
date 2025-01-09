@@ -305,23 +305,18 @@ proc findVersions(commits: seq[(Sha1Hash, string)], projdir, nimbleFile: string,
         if version notin versions: 
           versions.incl(version)
           if version in existingTags:
-            displayInfo(&"Found existing tag for version {version}", MediumPriority)
+            displayInfo(&"Found existing tag for version {version}", HighPriority)
           else:
-            displayInfo(&"Found new version {version} at {commit}", MediumPriority)
+            displayInfo(&"Found new version {version} at {commit}", HighPriority)
             let res = createTag(&"v{version}", commit, message, projdir, nimbleFile, downloadMethod)
             if not res:
-              displayError(&"Unable to create tag {version}")
+              displayError(&"Unable to create tag {version}", HighPriority)
 
 proc publishTags*(p: PackageInfo, o: Options) =
-  discard
-  echo "publishTags:myPath: ", $p.myPath
-  echo "publishTags:basic: ", $p.basicInfo
-  # echo "publishTags: ", $p
+  displayInfo(&"Searcing for new tags for {$p.basicInfo.name} @{$p.basicInfo.version}", HighPriority)
   let (projdir, file, ext) = p.myPath.splitFile()
   let nimblefile = file & ext
   let dlmethod = p.metadata.downloadMethod
   let commits = vcsFindCommits(projdir, nimbleFile, dlmethod)
-  echo "publishTags:commits: ", $commits.len()
 
   findVersions(commits, projdir, nimbleFile, dlmethod)
-  echo ""
