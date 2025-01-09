@@ -526,6 +526,11 @@ proc downloadPkg*(url: string, verRange: VersionRange,
         [$verRange, $pkginfo.basicInfo.version])
 
 proc echoPackageVersions*(pkg: Package) =
+  proc displayInfoLine(field, msg: string) =
+      displayFormatted(Success, field)
+      displayFormatted(Details, msg)
+      displayFormatted(Hint, "\n")
+
   let downMethod = pkg.downloadMethod
   case downMethod
   of DownloadMethod.git:
@@ -533,14 +538,16 @@ proc echoPackageVersions*(pkg: Package) =
       let versions = getTagsListRemote(pkg.url, downMethod).getVersionList()
       if versions.len > 0:
         let sortedVersions = toSeq(values(versions))
-        echo("  versions:    " & join(sortedVersions, ", "))
+        displayInfoLine("  versions:    ", join(sortedVersions, ", "))
       else:
-        echo("  versions:    (No versions tagged in the remote repository)")
+        displayInfoLine("  versions:    ", "(No versions tagged in the remote repository)")
     except CatchableError:
-      echo(getCurrentExceptionMsg())
+      displayFormatted(Error, "  Error: ")
+      displayFormatted(Error, getCurrentExceptionMsg())
+      displayFormatted(Hint, "\n")
   of DownloadMethod.hg:
-    echo("  versions:    (Remote tag retrieval not supported by " &
-        $pkg.downloadMethod & ")")
+    displayInfoLine("  versions:    ", "(Remote tag retrieval not supported by " &
+                                        $pkg.downloadMethod & ")")
 
 proc removeTrailingSlash(s: string): string =
   s.strip(chars = {'/'}, leading = false)
