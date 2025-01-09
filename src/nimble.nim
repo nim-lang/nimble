@@ -1023,7 +1023,7 @@ proc search(options: Options) =
   var found = false
   template onFound {.dirty.} =
     echoPackage(pkg)
-    if pkg.alias.len == 0 and options.queryVersions:
+    if pkg.alias.len == 0 and options.action.showVersions:
       echoPackageVersions(pkg)
     echo(" ")
     found = true
@@ -1049,7 +1049,7 @@ proc list(options: Options) =
   let pkgList = getPackageList(options)
   for pkg in pkgList:
     echoPackage(pkg)
-    if pkg.alias.len == 0 and options.queryVersions:
+    if pkg.alias.len == 0 and options.action.listVersions:
       echoPackageVersions(pkg)
     echo(" ")
 
@@ -2326,8 +2326,10 @@ proc doAction(options: var Options) =
   of actionSearch:
     search(options)
   of actionList:
-    if options.queryInstalled: listInstalled(options)
-    else: list(options)
+    if options.action.onlyInstalled:
+      listInstalled(options)
+    else:
+      list(options)
   of actionPath:
     listPaths(options)
   of actionBuild:

@@ -16,13 +16,13 @@ type
   NimBin* = object
     path*: string
     version*: Version
+
   DumpMode* = enum kdumpIni, kdumpJson
+
   Options* = object
     forcePrompts*: ForcePrompt
     depsOnly*: bool
     uninstallRevDeps*: bool
-    queryVersions*: bool
-    queryInstalled*: bool
     nimbleDir*: string
     verbosity*: cli.Priority
     action*: Action
@@ -79,8 +79,9 @@ type
 
   Action* = object
     case typ*: ActionType
-    of actionNil, actionList, actionTasks, actionCheck,
-       actionSetup, actionClean, actionManual: nil
+    of actionNil, actionTasks, actionCheck,
+       actionSetup, actionClean, actionManual:
+      discard
     of actionSync:
       listOnly*: bool
     of actionRefresh:
@@ -96,6 +97,11 @@ type
       global*: bool
     of actionSearch:
       search*: seq[string] # Search string.
+      showVersions*: bool
+    of actionList:
+      onlyNimBinaries*: bool
+      onlyInstalled*: bool
+      listVersions*: bool
     of actionInit, actionDump:
       projName*: string
       vcsOption*: string
@@ -658,12 +664,20 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
   var wasFlagHandled = true
   # Action-specific flags.
   case result.action.typ
-  of actionSearch, actionList:
+  of actionSearch:
     case f
     of "installed", "i":
-      result.queryInstalled = true
-    of "ver":
-      result.queryVersions = true
+      result.action.onlyInstalled = true
+    of "versions", "ver":
+      result.action.showVersions = true
+    else:
+      wasFlagHandled = false
+  of actionList:
+    case f
+    of "installed", "i":
+      result.action.onlyInstalled = true
+    of "versions":
+      result.action.showVersions = true
     else:
       wasFlagHandled = false
   of actionDump:
@@ -674,7 +688,7 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
       wasFlagHandled = false
   of actionInstall:
     case f
-    of "depsonly", "d":
+    of "depsonly", "deps", "d":
       result.depsOnly = true
     of "norebuild":
       result.action.noRebuild = true
