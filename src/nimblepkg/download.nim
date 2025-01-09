@@ -528,7 +528,7 @@ proc downloadPkg*(url: string, verRange: VersionRange,
 proc echoPackageVersions*(pkg: Package) =
   proc displayInfoLine(field, msg: string) =
       displayFormatted(Success, field)
-      displayFormatted(Details, msg)
+      displayFormatted(Warning, msg)
       displayFormatted(Hint, "\n")
 
   let downMethod = pkg.downloadMethod
