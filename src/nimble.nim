@@ -1056,22 +1056,36 @@ proc list(options: Options) =
 proc listInstalled(options: Options) =
   type
     VersionChecksumTuple = tuple[version: Version, checksum: Sha1Hash]
-  var h: OrderedTable[string, seq[VersionChecksumTuple]]
+  var vers: OrderedTable[string, seq[VersionChecksumTuple]]
   let pkgs = getInstalledPkgsMin(options.getPkgsDir(), options)
   for pkg in pkgs:
     let
       pName = pkg.basicInfo.name
       pVersion = pkg.basicInfo.version
       pChecksum = pkg.basicInfo.checksum
-    if not h.hasKey(pName): h[pName] = @[]
-    var s = h[pName]
+    if not vers.hasKey(pName): vers[pName] = @[]
+    var s = vers[pName]
     add(s, (pVersion, pChecksum))
-    h[pName] = s
+    vers[pName] = s
 
-  h.sort(proc (a, b: (string, seq[VersionChecksumTuple])): int =
+  vers.sort(proc (a, b: (string, seq[VersionChecksumTuple])): int =
     cmpIgnoreCase(a[0], b[0]))
-  for k in keys(h):
-    echo k & "  [" & h[k].join(", ") & "]"
+
+  displayInfo("Package list format: {PackageName} ")
+  displayInfo("                           {Version} ({CheckSum})")
+  for k in keys(vers):
+    displayFormatted(Message, k)
+    displayFormatted(Hint, "\n")
+    for idx, item in vers[k]:
+      if idx == vers[k].len() - 1:
+        displayFormatted(Hint, "└── ")
+      else:
+        displayFormatted(Hint, "├── ")
+      displayFormatted(Success, "@", $item.version)
+      displayFormatted(Hint, " ")
+      displayFormatted(Details, fmt"({item.checksum})")
+      displayFormatted(Hint, "\n")
+      # "  [" & vers[k].join(", ") & "]"
 
 type VersionAndPath = tuple[version: Version, path: string]
 
