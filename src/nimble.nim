@@ -1934,13 +1934,13 @@ proc depsTree(options: Options,
   if options.action.format == "json":
     if options.action.depsAction == "inverted":
       raise nimbleError("Deps JSON format does not support inverted tree")
-    echo (%depsRecursive(pkgInfo, dependencies, errors, options)).pretty
+    echo (%depsRecursive(pkgInfo, dependencies, errors)).pretty
   elif options.action.depsAction == "inverted":
-    printDepsHumanReadableInverted(pkgInfo, dependencies, errors, options)
+    printDepsHumanReadableInverted(pkgInfo, dependencies, errors)
   elif options.action.depsAction == "tree":
-    printDepsHumanReadable(pkgInfo, dependencies, errors, options)
+    printDepsHumanReadable(pkgInfo, dependencies, errors)
   else:
-    printDepsHumanReadable(pkgInfo, dependencies, errors, options, true)
+    printDepsHumanReadable(pkgInfo, dependencies, errors, true)
 
 proc deps(options: Options) =
   ## handles deps actions
