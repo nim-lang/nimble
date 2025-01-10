@@ -46,7 +46,8 @@ proc printDepsHumanReadable*(pkgInfo: PackageInfo,
     displayFormatted(Hint, "\n")
     displayFormatted(Message, pkgInfo.basicInfo.name, " ")
     displayFormatted(Success, "(@", $pkgInfo.basicInfo.version, ")")
-    displayFormatted(Details, " [", pkgInfo.metaData.vcsRevision.shortId(), "]")
+    displayFormatted(Details, " [vcs: ", pkgInfo.metaData.vcsRevision.shortId(),
+                              " checksum: ", pkgInfo.basicInfo.checksum.shortId(), "]")
 
   var requires: seq[(string, VersionRange, bool, PackageInfo)]
   for idx, (name, ver) in pkgInfo.requires.sorted():
@@ -79,7 +80,8 @@ proc printDepsHumanReadable*(pkgInfo: PackageInfo,
     displayFormatted(Hint, " ")
     if found:
       displayFormatted(Success, fmt"(@{depPkgInfo.basicInfo.version})")
-      displayFormatted(Details, " [", pkgInfo.metaData.vcsRevision.shortId(), "]")
+      displayFormatted(Details, " [vcs: ", depPkgInfo.metaData.vcsRevision.shortId(),
+                                " checksum: ", depPkgInfo.basicInfo.checksum.shortId(), "]")
     if errors.contains(packageName):
       let errMsg = getValidationErrorMessage(packageName, errors.getOrDefault packageName)
       displayFormatted(Error, fmt" - error: {errMsg}")
@@ -107,7 +109,8 @@ proc printDepsHumanReadableInverted*(pkgInfo: PackageInfo,
     displayFormatted(Hint, "\n")
     displayFormatted(Message, pkgInfo.basicInfo.name, " ")
     displayFormatted(Success, "(@", $pkgInfo.basicInfo.version, ")")
-    displayFormatted(Details, " [#", pkgInfo.metaData.vcsRevision.shortId(), "]")
+    displayFormatted(Details, " [vcs: ", pkgInfo.metaData.vcsRevision.shortId(),
+                              " checksum: ", pkgInfo.basicInfo.checksum.shortId(), "]")
     displayFormatted(Hint, "\n")
 
   for (name, ver) in pkgInfo.requires:
@@ -131,9 +134,7 @@ proc printDepsHumanReadableInverted*(pkgInfo: PackageInfo,
         displayFormatted(Hint, "├── ")
       else:
         displayFormatted(Hint, "└── ")
-      displayFormatted(Message, name, " ")
-      displayFormatted(Success, "(@", $pkgInfo.basicInfo.version, ")")
-      displayFormatted(Details, " [", pkgInfo.metaData.vcsRevision.shortId(), "]")
+      displayFormatted(Message, name)
       displayFormatted(Hint, "\n")
       # echo "name: ", pkg, " info: ", $info
       # for idx, (source, ver) in info.pairs().toSeq():
