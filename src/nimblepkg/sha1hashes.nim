@@ -21,6 +21,7 @@ template `$`*(sha1Hash: Sha1Hash): string = sha1Hash.hashValue
 template `%`*(sha1Hash: Sha1Hash): JsonNode = %sha1Hash.hashValue
 template `==`*(lhs, rhs: Sha1Hash): bool = lhs.hashValue == rhs.hashValue
 template hash*(sha1Hash: Sha1Hash): Hash = sha1Hash.hashValue.hash
+template shortId*(sha1Hash: Sha1Hash): string = sha1Hash.hashValue[0..8]
 
 proc invalidSha1Hash(value: string): ref InvalidSha1HashError =
   ## Creates a new exception object for an invalid sha1 hash value.
