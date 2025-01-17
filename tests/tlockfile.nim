@@ -84,7 +84,7 @@ license       = "MIT"
 requires "nim >= 1.5.1"
 """
     additionalFileContent = "proc foo() =\n  echo \"foo\"\n"
-    alternativeAdditionalFileContent = "proc bar() =\n  echo \"bar\"\n"
+    # alternativeAdditionalFileContent  = "proc bar() =\n  echo \"bar\"\n"
 
   definePackageConstants(PkgIdent.main)
   definePackageConstants(PkgIdent.dep1)
@@ -235,7 +235,7 @@ requires "nim >= 1.5.1"
     result = lockFileName.readFile.parseJson{$lfjkPackages}{dep}{$lfjkPkgVcsRevision}.str
 
   proc addAdditionalFileAndPushToRemote(
-      repoPath, remoteName, remotePath, fileContent: string) =
+      repoPath, remoteName, remotePath, fileContent: string) {.used.} =
     cdNewDir remotePath:
       initRepo(isBare = true)
     cd repoPath:

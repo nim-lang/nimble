@@ -1906,7 +1906,9 @@ proc lock(options: Options) =
   var 
     baseDeps = 
       if options.useSATSolver:
-        processFreeDependenciesSAT(pkgInfo, options, fromLock = true).toSeq        
+        #only if we are actually locking (not upgrading)
+        let fromLock = options.action.typ == actionLock
+        processFreeDependenciesSAT(pkgInfo, options, fromLock).toSeq        
       else:
         pkgInfo.getDependenciesForLocking(options) # Deps shared by base and tasks  
   
