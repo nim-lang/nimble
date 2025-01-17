@@ -28,9 +28,7 @@ suite "Shell env":
 
       when defined windows:
         check prefix == "set PATH"
-        const extension = ".exe"
       else:
-        const extension = ""
         check prefix == "export PATH"
 
 
