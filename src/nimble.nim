@@ -1924,8 +1924,6 @@ proc lock(options: Options) =
     lockDeps: AllLockFileDeps
 
   lockDeps[noTask] = LockFileDeps()
-  if lockExists:
-    removeFile(currentLockFile)
   # Add each individual tasks as partial sub graphs
   for task in pkgInfo.taskRequires.keys:
     var taskOptions = options
