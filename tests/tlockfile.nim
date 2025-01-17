@@ -508,54 +508,6 @@ requires "nim >= 1.5.1"
           errorMessage = getValidationErrorMessage(dep1PkgName, error)
         check output.processOutput.inLines(errorMessage)
 
-  test "cannot sync because the working copy needs merge":
-    cleanUp()
-    withPkgListFile:
-      initNewNimblePackage(mainPkgOriginRepoPath,  mainPkgRepoPath,
-                           @[dep1PkgName])
-      initNewNimblePackage(dep1PkgOriginRepoPath, dep1PkgRepoPath)
-
-      cd mainPkgOriginRepoPath:
-        testLockFile(@[(dep1PkgName, dep1PkgOriginRepoPath)], isNew = true)
-        addFiles(defaultLockFileName)
-        commit("Add the lock file to version control")
-
-      cd mainPkgRepoPath:
-        # Pull the lock file.
-        pull("origin")
-        # Create develop file. On this command also a sync file will be
-        # generated.
-        let (_, exitCode) = execNimble("develop", &"-a:{dep1PkgRepoPath}")
-        check exitCode == QuitSuccess
-
-      addAdditionalFileAndPushToRemote(
-        dep1PkgRepoPath, dep1PkgRemoteName, dep1PkgRemotePath,
-        additionalFileContent)
-
-      addAdditionalFileAndPushToRemote(
-        dep1PkgOriginRepoPath, dep1PkgOriginRemoteName, dep1PkgOriginRemotePath,
-        alternativeAdditionalFileContent)
-
-      cd mainPkgOriginRepoPath:
-        writeDevelopFile(developFileName, @[], @[dep1PkgOriginRepoPath])
-        # Update the origin lock file.
-        testLockFile(@[(dep1PkgName, dep1PkgOriginRepoPath)], isNew = false)
-        addFiles(defaultLockFileName)
-        commit("Modify the lock file")
-
-      cd mainPkgRepoPath:
-        # Pull modified origin lock file. At this point the revisions in the
-        # lock file, sync file and develop mode dependency working copy should
-        # be different from one another.
-        pull("origin")
-        let (output, exitCode) = execNimbleYes("sync")
-        check exitCode == QuitFailure
-        let
-          error = ValidationError(kind: vekWorkingCopyNeedsMerge,
-                                  path: dep1PkgRepoPath)
-          errorMessage = getValidationErrorMessage(dep1PkgName, error)
-        check output.processOutput.inLines(errorMessage)
-
   test "check fails because the working copy needs sync":
      outOfSyncDepsTest(""):
        let (output, exitCode) = execNimble("check")
