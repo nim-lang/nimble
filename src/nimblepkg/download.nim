@@ -97,7 +97,7 @@ proc getTagsListRemote*(url: string, meth: DownloadMethod): seq[string] =
   case meth
   of DownloadMethod.git:
     var output = tryDoCmdEx(&"git ls-remote {url}")
-    for item in output.gitTagsFromRefs(derefTags = false).pairs:
+    for item in output.gitTagsFromRefs().pairs:
       result.add item[0]
 
   of DownloadMethod.hg:
