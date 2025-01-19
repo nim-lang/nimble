@@ -294,7 +294,7 @@ proc pushTags*(tags: seq[string], repoDir: string, downloadMethod: DownloadMetho
     of DownloadMethod.hg:
       assert false, "hg not supported"
   
-const tagVersionFmt = "v$1"
+const TagVersionFmt = "v$1"
 
 proc findExistingTags(projdir: string, downloadMethod: DownloadMethod): HashSet[Version] =
   for tag in getTagsList(projdir, downloadMethod):
@@ -345,14 +345,14 @@ proc findVersions(commits: seq[(Sha1Hash, string)], projdir, nimbleFile: string,
         prevMonotonicsOk = monotonics.mapIt(ver < it).all(proc (x: bool): bool = x)
 
       if ver < prev[0] and prevMonotonicsOk:
-        displayHint(&"Versions monotonic between tag {ver}@{info.commit} " &
-                      &" and previous tag of {prev[0]}@{prev[1].commit}", MediumPriority)
+        displayHint(&"Versions monotonic between tag {TagVersionFmt % $ver}@{info.commit} " &
+                      &" and previous tag of {TagVersionFmt % $prev[0]}@{prev[1].commit}", MediumPriority)
       else:
         if prev[0] notin nonMonotonicVers:
           monotonics.add(prev[0]) # track last largest monotonic so we can check, e.g. 0.2, 3.0, 0.3 and not 0.2, 3.0, 0.2 
         nonMonotonicVers[ver] = info.commit
-        displayError(&"Non-monotonic (decreasing) version found between tag {ver}@{info.commit}" &
-                     &" and the previous tag {prev[0]}@{prev[1].commit}", HighPriority)
+        displayError(&"Non-monotonic (decreasing) version found between tag {TagVersionFmt % $ver}@{info.commit}" &
+                     &" and the previous tag {TagVersionFmt % $prev[0]}@{prev[1].commit}", HighPriority)
         displayWarning(&"Version {ver} will be skipped. Please tag it manually if the version is correct." , HighPriority)
         displayHint(&"Note that versions are checked from larget to smallest" , HighPriority)
         displayHint(&"Note later smaller versions are always peferred. Please manually review your tags before pushing." , HighPriority)
@@ -363,11 +363,11 @@ proc findVersions(commits: seq[(Sha1Hash, string)], projdir, nimbleFile: string,
       if version in nonMonotonicVers:
         displayWarning(&"Skipping creating tag for non-monotonic {version} at {info.commit}", HighPriority)
       else:
-        let tag = tagVersionFmt % [$version]
+        let tag = TagVersionFmt % [$version]
         displayWarning(&"Creating tag for new version {version} at {info.commit}", HighPriority)
         let res = createTag(tag, info.commit, info.message, projdir, nimbleFile, downloadMethod)
         if not res:
-          displayError(&"Unable to create tag {version}", HighPriority)
+          displayError(&"Unable to create tag {TagVersionFmt % $version}", HighPriority)
         else:
           newTags.incl(tag)
 

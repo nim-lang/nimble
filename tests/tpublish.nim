@@ -232,7 +232,7 @@ requires "nim >= 1.5.1"
 
       let (output, exitCode) = execNimbleYes("-y", "publishVersions")
 
-      check output.contains("Non-monotonic (decreasing) version found between tag 2.1.0")
+      check output.contains("Non-monotonic (decreasing) version found between tag v2.1.0")
 
       check exitCode == QuitSuccess
       for version in versions[1..^1]:
@@ -248,7 +248,7 @@ requires "nim >= 1.5.1"
 
       let (output, exitCode) = execNimbleYes("publishVersions", "--create")
 
-      check output.contains("Non-monotonic (decreasing) version found between tag 2.1.0")
+      check output.contains("Non-monotonic (decreasing) version found between tag v2.1.0")
 
       check exitCode == QuitSuccess
       for version in versions[1..^1]:
@@ -266,8 +266,8 @@ requires "nim >= 1.5.1"
 
       let (output, exitCode) = execNimbleYes("publishVersions", "--create")
 
-      check output.contains("Non-monotonic (decreasing) version found between tag 2.1.0")
-      check output.contains("Non-monotonic (decreasing) version found between tag 0.2.3")
+      check output.contains("Non-monotonic (decreasing) version found between tag v2.1.0")
+      check output.contains("Non-monotonic (decreasing) version found between tag v0.2.3")
 
       for line in output.splitLines():
         echo ">>> ", line
