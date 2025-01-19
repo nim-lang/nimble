@@ -127,6 +127,7 @@ type
       publishAction*: string
     of actionPublishVersions:
       createTags*: bool
+      pushTags*: bool
     of actionShellEnv, actionShell:
       discard
 
@@ -777,6 +778,8 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
     case f
     of "c", "create":
       result.action.createTags = true
+    of "p", "push":
+      result.action.pushTags = true
     else:
       wasFlagHandled = false
   of actionDeps:

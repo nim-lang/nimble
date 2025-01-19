@@ -282,6 +282,20 @@ proc createTag*(tag: string, commit: Sha1Hash, message, repoDir, nimbleFile: str
     of DownloadMethod.hg:
       assert false, "hg not supported"
   
+proc pushTags*(tags: seq[string], repoDir: string, downloadMethod: DownloadMethod): bool =
+  case downloadMethod:
+    of DownloadMethod.git:
+      # git push origin tag experiment-0.8.1
+      let tags = tags.mapIt(it.quoteShell()).join(" ")
+      let (output, code) = doCmdEx(&"git -C {repoDir} push origin tag {tags} ")
+      result = code == QuitSuccess
+      if not result:
+        displayError(&"Failed to push tag {tags} with error {output}")
+    of DownloadMethod.hg:
+      assert false, "hg not supported"
+  
+const tagVersionFmt = "v$1"
+
 proc findVersions(commits: seq[(Sha1Hash, string)], projdir, nimbleFile: string, downloadMethod: DownloadMethod, options: Options) =
   ## parse the versions
   var
@@ -338,9 +352,16 @@ proc findVersions(commits: seq[(Sha1Hash, string)], projdir, nimbleFile: string,
         displayWarning(&"Skipping creating tag for non-monotonic {version} at {info.commit}", HighPriority)
       else:
         displayWarning(&"Creating tag for new version {version} at {info.commit}", HighPriority)
-        let res = createTag(&"v{version}", info.commit, info.message, projdir, nimbleFile, downloadMethod)
+        let res = createTag(tagVersionFmt % [$version], info.commit, info.message, projdir, nimbleFile, downloadMethod)
         if not res:
           displayError(&"Unable to create tag {version}", HighPriority)
+
+  if options.action.pushTags:
+    var tags: seq[string]
+    for (version, info) in versions.pairs:
+      if version in nonMonotonicVers:
+        tags.add(tagVersionFmt % [$version])
+    let res = pushTags(tags, projdir, downloadMethod)
 
 proc publishVersions*(p: PackageInfo, options: Options) =
   displayInfo(&"Searcing for new tags for {$p.basicInfo.name} @{$p.basicInfo.version}", HighPriority)
