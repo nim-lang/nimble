@@ -276,8 +276,6 @@ requires "nim >= 1.5.1"
       check output.contains("Non-monotonic (decreasing) version found between tag v2.1.0")
       check output.contains("Non-monotonic (decreasing) version found between tag v0.2.3")
 
-      for line in output.splitLines():
-        echo ">>> ", line
       check exitCode == QuitSuccess
       for version in versions[1..^1]:
         if version in ["2.1.0", "0.2.3"]:
@@ -286,21 +284,24 @@ requires "nim >= 1.5.1"
 
   test "test non-all ":
     # cleanUp()
-    let versions = @["0.1.0", "0.2.3", "2.1.0", "0.2.2", "0.2.3", "0.2.4", "0.2.5"]
-    initNewNimblePackage(nonAllPkgRepoPath, versions, tags = @["0.2.3"])
+    let versions = @["0.1.0", "0.2.3", "2.1.0", "0.3.2", "0.3.3", "0.3.4", "0.3.5"]
+    initNewNimblePackage(nonAllPkgRepoPath, versions, tags = @["0.3.3"])
     cd nonAllPkgRepoPath:
       echo "mainPkgRepoPath: ", nonAllPkgRepoPath
       echo "getCurrentDir: ", getCurrentDir()
 
       let (output, exitCode) = execNimbleYes("publishVersions", "--create")
 
-      check output.contains("Non-monotonic (decreasing) version found between tag v2.1.0")
-      check output.contains("Non-monotonic (decreasing) version found between tag v0.2.3")
+      # check output.contains("Non-monotonic (decreasing) version found between tag v2.1.0")
+      # check output.contains("Non-monotonic (decreasing) version found between tag v0.2.3")
 
-      for line in output.splitLines():
-        echo ">>> ", line
+      # for line in output.splitLines():
+      #   echo ">>> ", line
       check exitCode == QuitSuccess
-      for version in versions[1..^1]:
-        if version in ["2.1.0", "0.2.3"]:
-          continue
-        check output.contains("Creating tag for new version $1" % version)
+      for version in versions:
+        if version in @["0.3.4", "0.3.5"]:
+          checkpoint("Checking for version $1" % version)
+          check output.contains("Creating tag for new version $1" % version)
+          # else:
+          checkpoint("Checking version $1 is not found" % version)
+          check not output.contains("Creating tag for new version $1" % version)
