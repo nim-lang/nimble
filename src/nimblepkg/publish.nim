@@ -345,6 +345,8 @@ proc findVersions(commits: seq[(Sha1Hash, string)], projdir, nimbleFile: string,
 
   if options.action.pushTags:
     let res = pushTags(newTags.toSeq(), projdir, downloadMethod)
+    if not res:
+      displayError(&"Error pushing tags", HighPriority)
 
 proc publishVersions*(p: PackageInfo, options: Options) =
   displayInfo(&"Searcing for new tags for {$p.basicInfo.name} @{$p.basicInfo.version}", HighPriority)
