@@ -73,7 +73,7 @@ proc getTagsList*(dir: string, meth: DownloadMethod): seq[string] =
   cd dir:
     case meth
     of DownloadMethod.git:
-      output = tryDoCmdEx("git tag")
+      output = tryDoCmdEx(&"git show-ref --dereference")
     of DownloadMethod.hg:
       output = tryDoCmdEx("hg tags")
   if output.len > 0:
@@ -124,7 +124,7 @@ proc gitTagCommits*(repoDir: string, downloadMethod: DownloadMethod): Table[stri
   ## Return a table of tag -> commit
   case downloadMethod:
     of DownloadMethod.git:
-      let output = tryDoCmdEx(&"git -C {repoDir} show-ref")
+      let output = tryDoCmdEx(&"git -C {repoDir} show-ref --dereference")
       for item in output.gitTagsFromRefs().pairs:
         result[item[0]] = item[1]
     of DownloadMethod.hg:
