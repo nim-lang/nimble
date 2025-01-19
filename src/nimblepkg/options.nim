@@ -128,6 +128,7 @@ type
     of actionPublishVersions:
       createTags*: bool
       pushTags*: bool
+      all*: bool
     of actionShellEnv, actionShell:
       discard
 

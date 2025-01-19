@@ -348,22 +348,22 @@ proc findVersions(commits: seq[(Sha1Hash, string)], projdir, nimbleFile: string,
         displayHint(&"Note that versions are checked from larget to smallest" , HighPriority)
         displayHint(&"Note later smaller versions are always peferred. Please manually review your tags before pushing." , HighPriority)
 
+  var newTags: HashSet[string]
   if options.action.createTags:
     for (version, info) in versions.pairs:
       if version in nonMonotonicVers:
         displayWarning(&"Skipping creating tag for non-monotonic {version} at {info.commit}", HighPriority)
       else:
+        let tag = tagVersionFmt % [$version]
         displayWarning(&"Creating tag for new version {version} at {info.commit}", HighPriority)
-        let res = createTag(tagVersionFmt % [$version], info.commit, info.message, projdir, nimbleFile, downloadMethod)
+        let res = createTag(tag, info.commit, info.message, projdir, nimbleFile, downloadMethod)
         if not res:
           displayError(&"Unable to create tag {version}", HighPriority)
+        else:
+          newTags.add(tag)
 
   if options.action.pushTags:
-    var tags: seq[string]
-    for (version, info) in versions.pairs:
-      if version in nonMonotonicVers:
-        tags.add(tagVersionFmt % [$version])
-    let res = pushTags(tags, projdir, downloadMethod)
+    let res = pushTags(tags.toSeq(), projdir, downloadMethod)
 
 proc publishVersions*(p: PackageInfo, options: Options) =
   displayInfo(&"Searcing for new tags for {$p.basicInfo.name} @{$p.basicInfo.version}", HighPriority)
