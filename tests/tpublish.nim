@@ -292,16 +292,35 @@ requires "nim >= 1.5.1"
 
       let (output, exitCode) = execNimbleYes("publishVersions", "--create")
 
-      # check output.contains("Non-monotonic (decreasing) version found between tag v2.1.0")
-      # check output.contains("Non-monotonic (decreasing) version found between tag v0.2.3")
+      check not output.contains("Non-monotonic (decreasing) version found between tag v2.1.0")
+      check not output.contains("Non-monotonic (decreasing) version found between tag v0.2.3")
 
-      # for line in output.splitLines():
-      #   echo ">>> ", line
       check exitCode == QuitSuccess
       for version in versions:
         if version in @["0.3.4", "0.3.5"]:
           checkpoint("Checking for version $1" % version)
           check output.contains("Creating tag for new version $1" % version)
-          # else:
+        else:
           checkpoint("Checking version $1 is not found" % version)
           check not output.contains("Creating tag for new version $1" % version)
+
+  test "test all":
+    # cleanUp()
+    let versions = @["0.1.0", "0.2.3", "2.1.0", "0.3.2", "0.3.3", "0.3.4", "0.3.5"]
+    cd nonAllPkgRepoPath:
+      echo "mainPkgRepoPath: ", nonAllPkgRepoPath
+      echo "getCurrentDir: ", getCurrentDir()
+
+      let (output, exitCode) = execNimbleYes("publishVersions", "--create", "--all")
+
+      check output.contains("Non-monotonic (decreasing) version found between tag v2.1.0")
+      check output.contains("Non-monotonic (decreasing) version found between tag v0.2.3")
+
+      check exitCode == QuitSuccess
+      for version in versions:
+        if version in @["0.3.4", "0.3.5"]:
+          checkpoint("Checking version $1 is not found" % version)
+          check not output.contains("Creating tag for new version $1" % version)
+        else:
+          checkpoint("Checking for version $1" % version)
+          check output.contains("Creating tag for new version $1" % version)
