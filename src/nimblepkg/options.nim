@@ -182,8 +182,9 @@ Commands:
   publish                         Publishes a package on nim-lang/packages.
                                   The current working directory needs to be the
                                   top level directory of the Nimble package.
-  publishVersions                 Lists package versions based on commits
-                                  where the package's Nimble version changed.
+  versions                        Lists package versions based on commits in the
+                                  current branch where the package's Nimble version
+                                  was changed.
                [-c, --create]     Creates tags for missing versions.
                [-p, --push]       Push only tagged versions (tags) to VCS.
   uninstall    [pkgname, ...]     Uninstalls a list of packages.
@@ -340,7 +341,7 @@ proc parseActionType*(action: string): ActionType =
     result = actionUninstall
   of "publish":
     result = actionPublish
-  of "publishversions":
+  of "versions", "publishversions":
     result = actionPublishVersions
   of "upgrade":
     result = actionUpgrade

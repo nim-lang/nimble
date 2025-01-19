@@ -6,7 +6,7 @@
 
 import system except TResult
 import httpclient, strutils, json, os, browsers, times, uri
-import common, tools, cli, config, options, packageinfotypes, sha1hashes, version, download
+import common, tools, cli, config, options, packageinfotypes, vcstools, sha1hashes, version, download
 import strformat, sequtils, pegs, sets, tables, algorithm
 {.warning[UnusedImport]: off.}
 from net import SslCVerifyMode, newContext
@@ -309,6 +309,13 @@ proc findVersions(commits: seq[(Sha1Hash, string)], projdir, nimbleFile: string,
   var
     versions: OrderedTable[Version, tuple[commit: Sha1Hash, message: string]]
     existingTags = findExistingTags(projdir, downloadMethod)
+
+  let currBranch = getCurrentBranch(projdir)
+  if currBranch notin ["main", "master"]:
+    displayWarning(&"Note runnig this command on a non-standard primary branch `{currBranch}` may have unintened consequences", HighPriority)
+
+  for ver in existingTags.toSeq().sorted():
+    displayInfo(&"Existing tag for version {ver} ", HighPriority)
 
   # adapted from @beef331's algorithm https://github.com/beef331/graffiti/blob/master/src/graffiti.nim
   block outer:
