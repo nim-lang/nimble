@@ -35,7 +35,7 @@ suite "publish":
     PkgIdent {.pure.} = enum
       main = "main"
       bad1 = "bad1"
-      dep2 = "dep2"
+      bad2 = "bad2"
 
   template definePackageConstants(pkgName: PkgIdent) =
     ## By given dependency number defines all relevant constants for it.
@@ -87,7 +87,7 @@ requires "nim >= 1.5.1"
 
   definePackageConstants(PkgIdent.main)
   definePackageConstants(PkgIdent.bad1)
-  definePackageConstants(PkgIdent.dep2)
+  definePackageConstants(PkgIdent.bad2)
 
   proc newNimbleFileContent(fileTemplate: string,
                             version: string): string =
@@ -143,21 +143,23 @@ requires "nim >= 1.5.1"
     writeFile(nimbleFileName, nimbleFileContent)
     return nimbleFileName
 
+  proc addAdditionalFileToTheRepo(fileName, fileContent: string) =
+    writeFile(fileName, fileContent)
+    addFiles(fileName)
+    commit("Add additional file")
+
   proc initNewNimblePackage(dir: string, versions: seq[string] = @[]) =
     cdNewDir dir:
       initRepo()
       echo "created repo at: ", dir
-      for version in versions:
+      for idx, version in versions:
         let nimbleFileName = dir.initNewNimbleFile(version)
         addFiles(nimbleFileName)
         commit("commit $1" % version)
         echo "created package version ", version
         echo ""
-
-  proc addAdditionalFileToTheRepo(fileName, fileContent: string) =
-    writeFile(fileName, fileContent)
-    addFiles(fileName)
-    commit("Add additional file")
+        if idx in [0, 1, versions.len() - 2]:
+          addAdditionalFileToTheRepo("test.txt", $idx)
 
   proc testLockedVcsRevisions(deps: seq[tuple[name, path: string]], lockFileName = defaultLockFileName) =
     check lockFileName.fileExists
@@ -221,9 +223,9 @@ requires "nim >= 1.5.1"
       for version in versions[1..^1]:
         check output.contains("Found new version $1" % version)
 
-  test "test publishVersions basic find versions":
+  test "test warning publishVersions non-monotonic versions":
     # cleanUp()
-    let versions = @["0.1.0", "0.1.1", "2.1.0", "0.2.1", "1.0.0"]
+    let versions = @["0.1.0", "0.1.1", "0.1.2", "2.1.0", "0.2.1", "1.0.0"]
     initNewNimblePackage(bad1PkgRepoPath, versions)
     cd bad1PkgRepoPath:
       echo "mainPkgRepoPath: ", bad1PkgRepoPath
@@ -239,3 +241,24 @@ requires "nim >= 1.5.1"
       check exitCode == QuitSuccess
       for version in versions[1..^1]:
         check output.contains("Found new version $1" % version)
+
+  test "test skipping publishVersions non-monotonic versions":
+    # cleanUp()
+    let versions = @["0.1.0", "0.1.1", "2.1.0", "0.2.1", "1.0.0"]
+    # initNewNimblePackage(bad1PkgRepoPath, versions)
+    cd bad1PkgRepoPath:
+      echo "mainPkgRepoPath: ", bad1PkgRepoPath
+      echo "getCurrentDir: ", getCurrentDir()
+
+      let (output, exitCode) = execNimbleYes("publishVersions", "--create")
+
+      echo "output: "
+      for line in output.splitLines():
+        echo line
+      check output.contains("Non-monotonic (decreasing) version found between tag 2.1.0")
+
+      check exitCode == QuitSuccess
+      for version in versions[1..^1]:
+        if version == "2.1.0":
+          continue
+        check output.contains("Creating tag for new version $1" % version)
