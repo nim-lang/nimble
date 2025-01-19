@@ -89,16 +89,9 @@ requires "nim >= 1.5.1"
   definePackageConstants(PkgIdent.dep1)
   definePackageConstants(PkgIdent.dep2)
 
-  proc newNimbleFileContent(pkgName, fileTemplate: string,
-                            deps: seq[string]): string =
-    result = fileTemplate % pkgName
-    if deps.len == 0:
-      return
-    result &= "requires "
-    for i, dep in deps:
-      result &= &"\"{dep}\""
-      if i != deps.len - 1:
-        result &= ","
+  proc newNimbleFileContent(fileTemplate: string,
+                            version: string): string =
+    result = fileTemplate % [version]
 
   proc addFiles(files: varargs[string]) =
     var filesStr = ""
@@ -143,22 +136,23 @@ requires "nim >= 1.5.1"
       branch(branchName)
       checkout(branchName)
 
-  proc initNewNimbleFile(dir: string, deps: seq[string] = @[]): string =
+  proc initNewNimbleFile(dir: string, version: string): string =
     let pkgName = dir.splitPath.tail
     let nimbleFileName = pkgName & ".nimble"
-    let nimbleFileContent = newNimbleFileContent(
-      pkgName, nimbleFileTemplate, deps)
+    let nimbleFileContent = newNimbleFileContent(nimbleFileTemplate, version)
     writeFile(nimbleFileName, nimbleFileContent)
     return nimbleFileName
 
-  proc initNewNimblePackage(dir, clonePath: string, deps: seq[string] = @[]) =
+  proc initNewNimblePackage(dir, clonePath: string, versions: seq[string] = @[]) =
     cdNewDir dir:
       initRepo()
-      let nimbleFileName = dir.initNewNimbleFile(deps)
-      addFiles(nimbleFileName)
-      commit("Initial commit")
-
-    clone(dir, clonePath)
+      echo "created repo at: ", getCurrentDir()
+      for version in versions:
+        let nimbleFileName = dir.initNewNimbleFile(version)
+        addFiles(nimbleFileName)
+        commit("Initial commit")
+        echo "created package version ", version
+        echo ""
 
   proc addAdditionalFileToTheRepo(fileName, fileContent: string) =
     writeFile(fileName, fileContent)
@@ -214,10 +208,12 @@ requires "nim >= 1.5.1"
       push(remoteName)
 
   test "test publishVersions":
-    cleanUp()
+    # cleanUp()
     initNewNimblePackage(mainPkgOriginRepoPath, mainPkgRepoPath,
-                          @[dep1PkgName])
+                          @["0.1.0", "0.1.1", "0.1.2", "0.2.1", "1.0"])
     cd mainPkgRepoPath:
+      echo "mainPkgRepoPath: ", mainPkgRepoPath
+      echo "getCurrentDir: ", getCurrentDir()
 
       let (output, res) = execNimbleYes("-y", "publishVersions")
 

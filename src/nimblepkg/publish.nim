@@ -320,7 +320,7 @@ proc findVersions(commits: seq[(Sha1Hash, string)], projdir, nimbleFile: string,
         prevMonotonicsOk = monotonics.mapIt(ver < it).all(proc (x: bool): bool = x)
 
       if ver < prev[0] and prevMonotonicsOk:
-        displayDetails(&"versions ok at tags {ver}@{info.commit} and previous tag of {prev[0]}@{prev[1]}", HighPriority)
+        displaySuccess(&"versions ok at tags {ver}@{info.commit} and previous tag of {prev[0]}@{prev[1]}", HighPriority)
       else:
         if prev[0] notin nonMonotonicVers:
           monotonics.add(prev[0]) # track last largest monotonic so we can check, e.g. 0.2, 3.0, 0.3 and not 0.2, 3.0, 0.2 
