@@ -229,11 +229,13 @@ requires "nim >= 1.5.1"
       echo "mainPkgRepoPath: ", bad1PkgRepoPath
       echo "getCurrentDir: ", getCurrentDir()
 
-      let (output, res) = execNimbleYes("-y", "publishVersions")
+      let (output, exitCode) = execNimbleYes("-y", "publishVersions")
 
       echo "output: "
       for line in output.splitLines():
         echo line
-      # check exitCodeInstall == QuitSuccess
-      # for version in versions[1..^1]:
-      #   check output.contains("Found new version $1" % version)
+      check output.contains("Non-monotonic (decreasing) version found between tag 2.1.0")
+
+      check exitCode == QuitSuccess
+      for version in versions[1..^1]:
+        check output.contains("Found new version $1" % version)
