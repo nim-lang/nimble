@@ -207,9 +207,23 @@ requires "nim >= 1.5.1"
       # Push it to the newly added remote to be able to lock.
       push(remoteName)
 
-  test "test publishVersions":
+  test "test publishVersions basic find versions":
     # cleanUp()
     let versions = @["0.1.0", "0.1.1", "0.1.2", "0.2.1", "1.0.0"]
+    initNewNimblePackage(mainPkgRepoPath, versions)
+    cd mainPkgRepoPath:
+      echo "mainPkgRepoPath: ", mainPkgRepoPath
+      echo "getCurrentDir: ", getCurrentDir()
+
+      let (output, exitCode) = execNimbleYes("-y", "publishVersions")
+
+      check exitCode == QuitSuccess
+      for version in versions[1..^1]:
+        check output.contains("Found new version $1" % version)
+
+  test "test publishVersions basic find versions":
+    # cleanUp()
+    let versions = @["0.1.0", "0.1.1", "2.1.0", "0.2.1", "1.0.0"]
     initNewNimblePackage(mainPkgRepoPath, versions)
     cd mainPkgRepoPath:
       echo "mainPkgRepoPath: ", mainPkgRepoPath
@@ -218,6 +232,5 @@ requires "nim >= 1.5.1"
       let (output, res) = execNimbleYes("-y", "publishVersions")
 
       # check exitCodeInstall == QuitSuccess
-      for version in versions[1..^1]:
-        check output.contains("Found new version $1" % version)
-
+      # for version in versions[1..^1]:
+      #   check output.contains("Found new version $1" % version)
