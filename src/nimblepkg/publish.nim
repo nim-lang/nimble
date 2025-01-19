@@ -320,15 +320,14 @@ proc findVersions(commits: seq[(Sha1Hash, string)], projdir, nimbleFile: string,
         if line.find(peg"'+version' \s* '=' \s* {[\34\39]} {@} $1", matches) > -1:
           let ver = newVersion(matches[1])
           if ver notin versions:
-            versions[ver] = (commit: commit, message: message)
             if ver in existingTags:
-              if not options.action.allTags:
-                break outer
-              else:
+              if options.action.allTags:
                 displayInfo(&"Found existing tag for version {ver} at commit {commit}", HighPriority)
+              else:
+                break outer
             else:
               displayInfo(&"Found new version {ver} at {commit}", HighPriority)
-  echo "FIRST TAG DONE "
+              versions[ver] = (commit: commit, message: message)
 
   var nonMonotonicVers: Table[Version, Sha1Hash]
   if versions.len() >= 2:
@@ -351,7 +350,7 @@ proc findVersions(commits: seq[(Sha1Hash, string)], projdir, nimbleFile: string,
                      &" and the previous tag {TagVersionFmt % $prev[0]}@{prev[1].commit}", HighPriority)
         displayWarning(&"Version {ver} will be skipped. Please tag it manually if the version is correct." , HighPriority)
         displayHint(&"Note that versions are checked from larget to smallest" , HighPriority)
-        displayHint(&"Note later smaller versions are always peferred. Please manually review your tags before pushing." , HighPriority)
+        displayHint(&"Note smaller versions later in history are always peferred. Please manually review your tags before pushing." , HighPriority)
 
   var newTags: HashSet[string]
   if options.action.createTags:
