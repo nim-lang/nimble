@@ -248,30 +248,6 @@ proc publish*(p: PackageInfo, o: Options) =
     let prUrl = createPullRequest(auth, p, url, branchName)
     display("Success:", "Pull request successful, check at " & prUrl , Success, HighPriority)
 
-proc vcsFindCommits*(repoDir, nimbleFile: string, downloadMethod: DownloadMethod): seq[(Sha1Hash, string)] =
-  var output: string
-  case downloadMethod:
-    of DownloadMethod.git:
-      output = tryDoCmdEx(&"git -C {repoDir} log --format=\"%H %s\" -- $2")
-    of DownloadMethod.hg:
-      assert false, "hg not supported"
-  
-  for line in output.splitLines():
-    let line = line.strip()
-    if line != "":
-      result.add((line[0..39].initSha1Hash(), line[40..^1]))
-
-proc vcsDiff*(commit: Sha1Hash, repoDir, nimbleFile: string, downloadMethod: DownloadMethod): seq[string] =
-  case downloadMethod:
-    of DownloadMethod.git:
-      let (output, exitCode) = doCmdEx(&"git -C {repoDir} diff {commit}~ {commit} {nimbleFile}")
-      if exitCode != QuitSuccess:
-        return @[]
-      else:
-        return output.splitLines()
-    of DownloadMethod.hg:
-      assert false, "hg not supported"
-  
 proc createTag*(tag: string, commit: Sha1Hash, message, repoDir, nimbleFile: string, downloadMethod: DownloadMethod): bool =
   case downloadMethod:
     of DownloadMethod.git:

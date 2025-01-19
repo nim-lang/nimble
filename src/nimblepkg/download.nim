@@ -53,7 +53,7 @@ proc gitFetchTags*(repoDir: string, downloadMethod: DownloadMethod) =
     of DownloadMethod.hg:
       assert false, "hg not supported"
 
-iterator gitTagsFromRefs(output: string): tuple[tag: string, commit: Sha1Hash] =
+proc gitTagsFromRefs(output: string, derefTags = true): OrderedTable[string, Sha1Hash] =
   for line in output.splitLines():
     let refStart = line.find("refs/tags/")
     # git outputs warnings, empty lines, etc
@@ -63,8 +63,10 @@ iterator gitTagsFromRefs(output: string): tuple[tag: string, commit: Sha1Hash] =
     let start = refStart+"refs/tags/".len
     let tag = line[start .. line.len-1]
     let hash = initSha1Hash(hashStr)
-    if not tag.endswith("^{}"):
-      yield (tag, hash)
+    if tag.endswith("^{}") and derefTags:
+      result[tag] = hash
+    else:
+      result[tag] = hash
 
 proc getTagsList*(dir: string, meth: DownloadMethod): seq[string] =
   var output: string
@@ -78,8 +80,8 @@ proc getTagsList*(dir: string, meth: DownloadMethod): seq[string] =
     case meth
     of DownloadMethod.git:
       result = @[]
-      for item in output.gitTagsFromRefs():
-        result.add(item.tag)
+      for item in output.gitTagsFromRefs().pairs:
+        result.add(item[0])
     of DownloadMethod.hg:
       result = @[]
       for i in output.splitLines():
@@ -95,8 +97,8 @@ proc getTagsListRemote*(url: string, meth: DownloadMethod): seq[string] =
   case meth
   of DownloadMethod.git:
     var output = tryDoCmdEx(&"git ls-remote {url}")
-    for item in output.gitTagsFromRefs():
-      result.add item.tag
+    for item in output.gitTagsFromRefs().pairs:
+      result.add item[0]
 
   of DownloadMethod.hg:
     # http://stackoverflow.com/questions/2039150/show-tags-for-remote-hg-repository
@@ -123,8 +125,32 @@ proc gitTagCommits*(repoDir: string, downloadMethod: DownloadMethod): Table[stri
   case downloadMethod:
     of DownloadMethod.git:
       let output = tryDoCmdEx(&"git -C {repoDir} show-ref")
-      for item in output.gitTagsFromRefs():
-        result[item.tag] = item.commit
+      for item in output.gitTagsFromRefs().pairs:
+        result[item[0]] = item[1]
+    of DownloadMethod.hg:
+      assert false, "hg not supported"
+
+proc vcsFindCommits*(repoDir, nimbleFile: string, downloadMethod: DownloadMethod): seq[(Sha1Hash, string)] =
+  var output: string
+  case downloadMethod:
+    of DownloadMethod.git:
+      output = tryDoCmdEx(&"git -C {repoDir} log --format=\"%H %s\" -- $2")
+    of DownloadMethod.hg:
+      assert false, "hg not supported"
+  
+  for line in output.splitLines():
+    let line = line.strip()
+    if line != "":
+      result.add((line[0..39].initSha1Hash(), line[40..^1]))
+
+proc vcsDiff*(commit: Sha1Hash, repoDir, nimbleFile: string, downloadMethod: DownloadMethod): seq[string] =
+  case downloadMethod:
+    of DownloadMethod.git:
+      let (output, exitCode) = doCmdEx(&"git -C {repoDir} diff {commit}~ {commit} {nimbleFile}")
+      if exitCode != QuitSuccess:
+        return @[]
+      else:
+        return output.splitLines()
     of DownloadMethod.hg:
       assert false, "hg not supported"
 
