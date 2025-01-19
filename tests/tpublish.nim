@@ -21,11 +21,60 @@ from nimblepkg/developfile import ValidationError, ValidationErrorKind,
   developFileName, getValidationErrorMessage
 
 suite "publish":
+  type
+    PackagesListFileRecord = object
+      name: string
+      url: string
+      `method`: DownloadMethod
+      tags: seq[string]
+      description: string
+      license: string
+
+    PackagesListFileContent = seq[PackagesListFileRecord]
+
+    PkgIdent {.pure.} = enum
+      main = "main"
+      dep1 = "dep1"
+      dep2 = "dep2"
+
+  template definePackageConstants(pkgName: PkgIdent) =
+    ## By given dependency number defines all relevant constants for it.
+
+    const
+      `pkgName"PkgName"` {.used, inject.} = $pkgName
+      `pkgName"PkgNimbleFileName"` {.used, inject.} =
+        `pkgName"PkgName"` & ".nimble"
+      `pkgName"PkgRepoPath"` {.used, inject.} = tempDir / `pkgName"PkgName"`
+      `pkgName"PkgOriginRepoPath"`{.used, inject.} =
+        originsDirPath / `pkgName"PkgName"`
+      `pkgName"PkgRemoteName"` {.used, inject.} =
+        `pkgName"PkgName"` & "Remote"
+      `pkgName"PkgRemotePath"` {.used, inject.} =
+        additionalRemotesDirPath / `pkgName"PkgRemoteName"`
+      `pkgName"PkgOriginRemoteName"` {.used, inject.} =
+        `pkgName"PkgName"` & "OriginRemote"
+      `pkgName"PkgOriginRemotePath"` {.used, inject.} =
+        additionalRemotesDirPath / `pkgName"PkgOriginRemoteName"`
+
+      `pkgName"PkgListFileRecord"` {.used, inject.} = PackagesListFileRecord(
+        name: `pkgName"PkgName"`,
+        url: `pkgName"PkgOriginRepoPath"`,
+        `method`: DownloadMethod.git,
+        tags: @["test"],
+        description: "This is a test package.",
+        license: "MIT")
+
   const
-    tempDir = getTempDir() / "tpublish"
+    tempDir = getTempDir() / "tlockfile"
 
     originsDirName = "origins"
     originsDirPath = tempDir / originsDirName
+
+    additionalRemotesDirName = "remotes"
+    additionalRemotesDirPath = tempDir / additionalRemotesDirName
+
+    pkgListFileName = "packages.json"
+    pkgListFilePath = tempDir / pkgListFileName
 
     nimbleFileTemplate = """
 
@@ -35,6 +84,10 @@ description   = "A new awesome nimble package"
 license       = "MIT"
 requires "nim >= 1.5.1"
 """
+
+  definePackageConstants(PkgIdent.main)
+  definePackageConstants(PkgIdent.dep1)
+  definePackageConstants(PkgIdent.dep2)
 
   proc newNimbleFileContent(pkgName, fileTemplate: string,
                             deps: seq[string]): string =
@@ -160,35 +213,14 @@ requires "nim >= 1.5.1"
       # Push it to the newly added remote to be able to lock.
       push(remoteName)
 
-  proc testDepsSync =
-    let (output, exitCode) = execNimbleYes("sync")
-    check exitCode == QuitSuccess
-    let lines = output.processOutput
-    check lines.inLines(
-      pkgWorkingCopyIsSyncedMsg(dep1PkgName, dep1PkgRepoPath))
-    check lines.inLines(
-      pkgWorkingCopyIsSyncedMsg(dep2PkgName, dep2PkgRepoPath))
-
-    cd mainPkgRepoPath:
-      # After successful sync the revisions written in the lock file must
-      # match those in the lock file.
-      testLockedVcsRevisions(@[(dep1PkgName, dep1PkgRepoPath),
-                                (dep2PkgName, dep2PkgRepoPath)])
-
   test "test publishVersions":
     cleanUp()
-    cd "nimdep":
+    initNewNimblePackage(mainPkgOriginRepoPath, mainPkgRepoPath,
+                          @[dep1PkgName])
+    cd mainPkgRepoPath:
 
       let (output, res) = execNimbleYes("-y", "publishVersions")
 
-      check exitCodeInstall == QuitSuccess
-      let usingNim = when defined(Windows): "nim.exe for compilation" else: "bin/nim for compilation"
-      check output.contains(usingNim)
+      # check exitCodeInstall == QuitSuccess
+      check output.contains("something...")
 
-      # check the nim version
-      let (outputVersion, _) = execNimble("version")
-      check outputVersion.contains(getRevision("nim"))
-
-      let (outputGlobalNim, exitCodeGlobalNim) = execNimbleYes("-y", "--use-system-nim", "build")
-      check exitCodeGlobalNim == QuitSuccess
-      check not outputGlobalNim.contains(usingNim)
