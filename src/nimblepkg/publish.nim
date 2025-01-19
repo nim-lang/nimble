@@ -299,7 +299,7 @@ proc findVersions(commits: seq[(Sha1Hash, string)], projdir, nimbleFile: string,
           if ver notin versions:
             if ver in existingVers:
               if options.action.allTags:
-                displayInfo(&"Skipping historical version {ver} at commit {commit} that has an existing tag", HighPriority)
+                displayWarning(&"Skipping historical version {ver} at commit {commit} that has an existing tag", HighPriority)
               else:
                 break outer
             else:
