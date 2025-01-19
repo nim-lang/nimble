@@ -123,37 +123,6 @@ requires "nim >= 1.5.1"
         json{$lfjkPackages}{depName}{$lfjkPkgVcsRevision}.str.initSha1Hash
       check lockedVcsRevision == expectedVcsRevision
 
-  proc testLockFile(deps: seq[tuple[name, path: string]], isNew: bool, lockFileName = defaultLockFileName) =
-    ## Generates or updates a lock file and tests whether it contains
-    ## dependencies with given names at given repository paths and whether their
-    ## VCS revisions match the written in the lock file ones.
-    ##
-    ## `isNew` - indicates whether it is expected a new lock file to be
-    ## generated if its value is `true` or already existing lock file to be
-    ## updated otherwise.
-
-    if isNew:
-      check not fileExists(lockFileName)
-    else:
-      check fileExists(lockFileName)
-
-    let (output, exitCode) = if lockFileName == defaultLockFileName:
-        execNimbleYes("lock")
-      else:
-        execNimbleYes("--lock-file=" & lockFileName, "lock")
-
-    check exitCode == QuitSuccess
-
-    var lines = output.processOutput
-    if isNew:
-      check lines.inLinesOrdered(generatingTheLockFileMsg)
-      check lines.inLinesOrdered(lockFileIsGeneratedMsg)
-    else:
-      check lines.inLinesOrdered(updatingTheLockFileMsg)
-      check lines.inLinesOrdered(lockFileIsUpdatedMsg)
-
-    testLockedVcsRevisions(deps, lockFileName)
-
   template filesAndDirsToRemove() =
     removeFile pkgListFilePath
     removeDir installDir
@@ -209,21 +178,9 @@ requires "nim >= 1.5.1"
   test "test publishVersions":
     cleanUp()
     cd "nimdep":
-      removeFile "nimble.develop"
-      removeFile "nimble.lock"
-      removeDir "Nim"
 
-      check execNimbleYes("-y", "develop", "nim").exitCode == QuitSuccess
-      cd "Nim":
-        let (_, exitCode) = execNimbleYes("-y", "install")
-        check exitCode == QuitSuccess
+      let (output, res) = execNimbleYes("-y", "publishVersions")
 
-      # check if the compiler version will be used when doing build
-      testLockFile(@[("nim", "Nim")], isNew = true)
-      removeFile "nimble.develop"
-      removeDir "Nim"
-
-      let (output, exitCodeInstall) = execNimbleYes("-y", "build")
       check exitCodeInstall == QuitSuccess
       let usingNim = when defined(Windows): "nim.exe for compilation" else: "bin/nim for compilation"
       check output.contains(usingNim)

@@ -7,7 +7,7 @@
 import system except TResult
 import httpclient, strutils, json, os, browsers, times, uri
 import common, tools, cli, config, options, packageinfotypes, sha1hashes, version, download
-import strformat, sequtils, pegs, sets, tables
+import strformat, sequtils, pegs, sets, tables, algorithm
 {.warning[UnusedImport]: off.}
 from net import SslCVerifyMode, newContext
 
@@ -309,16 +309,23 @@ proc findVersions(commits: seq[(Sha1Hash, string)], projdir, nimbleFile: string,
           else:
             displayInfo(&"Found new version {ver} at {commit}", HighPriority)
 
+  var nonMonotonicVers: Table[Version, Sha1Hash]
   if versions.len() >= 2:
     let versions = versions.pairs().toSeq()
-    var badVersions: seq[int]
-    var prev = versions[0]
+    var monotonics: seq[Version]
     for idx in 1 ..< versions.len() - 1:
       let
+        prev = versions[idx-1]
         (ver, info) = versions[idx]
-      
-      if ver <= prev[0]:
-        displayError(&"bad version found at tags {ver}@{info.commit} and previous tag at {prev[0]}@{prev[1]}", HighPriority)
+        prevMonotonicsOk = monotonics.mapIt(ver < it).all(proc (x: bool): bool = x)
+
+      if ver < prev[0] and prevMonotonicsOk:
+        displayDetails(&"versions ok at tags {ver}@{info.commit} and previous tag of {prev[0]}@{prev[1]}", HighPriority)
+      else:
+        if prev[0] notin nonMonotonicVers:
+          monotonics.add(prev[0]) # track last largest monotonic so we can check, e.g. 0.2, 3.0, 0.3 and not 0.2, 3.0, 0.2 
+        nonMonotonicVers[ver] = info.commit
+        displayError(&"bad version found with tag {ver}@{info.commit} and previous tag at {prev[0]}@{prev[1]}", HighPriority)
 
   for (version, info) in versions.pairs:
     if options.action.createTags:
