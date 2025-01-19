@@ -64,7 +64,7 @@ proc gitTagsFromRefs(output: string, derefTags = true): OrderedTable[string, Sha
     let tag = line[start .. line.len-1]
     let hash = initSha1Hash(hashStr)
     if tag.endswith("^{}") and derefTags:
-      result[tag] = hash
+      result[tag[0..^4]] = hash
     elif not tag.endswith("^{}"):
       result[tag] = hash
 
@@ -97,7 +97,7 @@ proc getTagsListRemote*(url: string, meth: DownloadMethod): seq[string] =
   case meth
   of DownloadMethod.git:
     var output = tryDoCmdEx(&"git ls-remote {url}")
-    for item in output.gitTagsFromRefs().pairs:
+    for item in output.gitTagsFromRefs(derefTags = false).pairs:
       result.add item[0]
 
   of DownloadMethod.hg:
