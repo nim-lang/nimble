@@ -307,9 +307,9 @@ proc findVersions(commits: seq[(Sha1Hash, string)], projdir, nimbleFile: string,
   if currBranch notin ["main", "master"]:
     displayWarning(&"Note runnig this command on a non-standard primary branch `{currBranch}` may have unintened consequences", HighPriority)
 
-  for tag in existingTags.keys().toSeq().sorted():
+  for ver, tag in existingVers.pairs():
     let commit = existingTags[tag]
-    displayInfo(&"Existing version {tag}@{$commit} ", HighPriority)
+    displayInfo(&"Existing version {ver} with tag {tag} at commit {$commit} ", HighPriority)
 
   # adapted from @beef331's algorithm https://github.com/beef331/graffiti/blob/master/src/graffiti.nim
   block outer:
