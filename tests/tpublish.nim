@@ -314,13 +314,15 @@ requires "nim >= 1.5.1"
       let (output, exitCode) = execNimbleYes("publishVersions", "--create", "--all")
 
       check output.contains("Non-monotonic (decreasing) version found between tag v2.1.0")
-      check output.contains("Non-monotonic (decreasing) version found between tag v0.2.3")
+      check output.contains("Skipping creating tag for non-monotonic 2.1.0")
 
       check exitCode == QuitSuccess
-      for version in versions:
-        if version in @["0.3.4", "0.3.5"]:
+      for version in versions[1..^1]:
+        if version in ["0.3.3", "0.3.4", "0.3.5"]:
           checkpoint("Checking version $1 is not found" % version)
           check not output.contains("Creating tag for new version $1" % version)
+        elif version in ["2.1.0"]:
+          discard
         else:
           checkpoint("Checking for version $1" % version)
           check output.contains("Creating tag for new version $1" % version)
