@@ -53,6 +53,18 @@ proc gitFetchTags*(repoDir: string, downloadMethod: DownloadMethod) =
     of DownloadMethod.hg:
       assert false, "hg not supported"
 
+iterator gitTagsFromRefs(output: string): tuple[tag: string, commit: Sha1Hash] =
+  for line in output.splitLines():
+    let refStart = line.find("refs/tags/")
+    # git outputs warnings, empty lines, etc
+    if refStart == -1: continue
+    if line.len() < 50: continue
+    let hashStr = line[0..<40]
+    let start = refStart+"refs/tags/".len
+    let tag = line[start .. line.len-1]
+    let hash = initSha1Hash(hashStr)
+    if not tag.endswith("^{}"):
+      yield (tag, hash)
 
 proc getTagsList*(dir: string, meth: DownloadMethod): seq[string] =
   var output: string
@@ -66,9 +78,8 @@ proc getTagsList*(dir: string, meth: DownloadMethod): seq[string] =
     case meth
     of DownloadMethod.git:
       result = @[]
-      for i in output.splitLines():
-        if i == "": continue
-        result.add(i)
+      for item in output.gitTagsFromRefs():
+        result.add(item.tag)
     of DownloadMethod.hg:
       result = @[]
       for i in output.splitLines():
@@ -81,20 +92,11 @@ proc getTagsList*(dir: string, meth: DownloadMethod): seq[string] =
     result = @[]
 
 proc getTagsListRemote*(url: string, meth: DownloadMethod): seq[string] =
-  result = @[]
   case meth
   of DownloadMethod.git:
-    var (output, exitCode) = doCmdEx(&"git ls-remote --tags {url}")
-    if exitCode != QuitSuccess:
-      raise nimbleError("Unable to query remote tags for " & url &
-                        ". Git returned: " & output)
-    for i in output.splitLines():
-      let refStart = i.find("refs/tags/")
-      # git outputs warnings, empty lines, etc
-      if refStart == -1: continue
-      let start = refStart+"refs/tags/".len
-      let tag = i[start .. i.len-1]
-      if not tag.endswith("^{}"): result.add(tag)
+    var output = tryDoCmdEx(&"git ls-remote {url}")
+    for item in output.gitTagsFromRefs():
+      result.add item.tag
 
   of DownloadMethod.hg:
     # http://stackoverflow.com/questions/2039150/show-tags-for-remote-hg-repository
@@ -115,6 +117,16 @@ proc getVersionList*(tags: seq[string]): OrderedTable[Version, string] =
       .sorted(proc(a, b: (Version, string)): int = cmp(a[0], b[0]),
               SortOrder.Descending)
   result = toOrderedTable[Version, string](taggedVers)
+
+proc gitTagCommits*(repoDir: string, downloadMethod: DownloadMethod): Table[string, Sha1Hash] =
+  ## Return a table of tag -> commit
+  case downloadMethod:
+    of DownloadMethod.git:
+      let output = tryDoCmdEx(&"git -C {repoDir} show-ref")
+      for item in output.gitTagsFromRefs():
+        result[item.tag] = item.commit
+    of DownloadMethod.hg:
+      assert false, "hg not supported"
 
 proc getHeadName*(meth: DownloadMethod): Version =
   ## Returns the name of the download method specific head. i.e. for git

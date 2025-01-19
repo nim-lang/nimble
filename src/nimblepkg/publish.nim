@@ -296,26 +296,20 @@ proc pushTags*(tags: seq[string], repoDir: string, downloadMethod: DownloadMetho
   
 const TagVersionFmt = "v$1"
 
-proc findExistingTags(projdir: string, downloadMethod: DownloadMethod): HashSet[Version] =
-  for tag in getTagsList(projdir, downloadMethod):
-    let tag = tag.strip(leading=true, chars={'v'})
-    try:
-      result.incl(newVersion(tag))
-    except ParseVersionError:
-      discard
-
 proc findVersions(commits: seq[(Sha1Hash, string)], projdir, nimbleFile: string, downloadMethod: DownloadMethod, options: Options) =
   ## parse the versions
   var
     versions: OrderedTable[Version, tuple[commit: Sha1Hash, message: string]]
-    existingTags = findExistingTags(projdir, downloadMethod)
+    existingTags = gitTagCommits(projdir, downloadMethod)
+    existingVers = existingTags.keys().toSeq().getVersionList()
 
   let currBranch = getCurrentBranch(projdir)
   if currBranch notin ["main", "master"]:
     displayWarning(&"Note runnig this command on a non-standard primary branch `{currBranch}` may have unintened consequences", HighPriority)
 
-  for ver in existingTags.toSeq().sorted():
-    displayInfo(&"Existing tag for version {ver} ", HighPriority)
+  for tag in existingTags.keys().toSeq().sorted():
+    # let commit = getVersionList(tag)
+    displayInfo(&"Existing version {tag} ", HighPriority)
 
   # adapted from @beef331's algorithm https://github.com/beef331/graffiti/blob/master/src/graffiti.nim
   block outer:
@@ -327,7 +321,7 @@ proc findVersions(commits: seq[(Sha1Hash, string)], projdir, nimbleFile: string,
         if line.find(peg"'+version' \s* '=' \s* {[\34\39]} {@} $1", matches) > -1:
           let ver = newVersion(matches[1])
           if ver notin versions:
-            if ver in existingTags:
+            if ver in existingVers:
               if options.action.allTags:
                 displayInfo(&"Found existing tag for version {ver} at commit {commit}", HighPriority)
               else:
