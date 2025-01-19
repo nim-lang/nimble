@@ -2382,9 +2382,9 @@ proc doAction(options: var Options) =
   of actionPublish:
     var pkgInfo = getPkgInfo(getCurrentDir(), options)
     publish(pkgInfo, options)
-  of actionPublishTags:
+  of actionPublishVersions:
     var pkgInfo = getPkgInfo(getCurrentDir(), options)
-    publishTags(pkgInfo, options)
+    publishVersions(pkgInfo, options)
   of actionDump:
     dump(options)
   of actionTasks:

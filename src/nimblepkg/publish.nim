@@ -7,7 +7,7 @@
 import system except TResult
 import httpclient, strutils, json, os, browsers, times, uri
 import common, tools, cli, config, options, packageinfotypes, sha1hashes, version, download
-import strformat, sequtils, pegs, sets
+import strformat, sequtils, pegs, sets, tables
 {.warning[UnusedImport]: off.}
 from net import SslCVerifyMode, newContext
 
@@ -285,7 +285,7 @@ proc createTag*(tag: string, commit: Sha1Hash, message, repoDir, nimbleFile: str
 proc findVersions(commits: seq[(Sha1Hash, string)], projdir, nimbleFile: string, downloadMethod: DownloadMethod, options: Options) =
   ## parse the versions
   var
-    versions: HashSet[Version]
+    versions: OrderedTable[Version, tuple[commit: Sha1Hash, message: string]]
     existingTags: HashSet[Version]
   for tag in getTagsList(projdir, downloadMethod):
     let tag = tag.strip(leading=true, chars={'v'})
@@ -301,20 +301,33 @@ proc findVersions(commits: seq[(Sha1Hash, string)], projdir, nimbleFile: string,
     for line in diffs:
       var matches: array[0..MaxSubpatterns, string]
       if line.find(peg"'+version' \s* '=' \s* {[\34\39]} {@} $1", matches) > -1:
-        let version = newVersion(matches[1])
-        if version notin versions: 
-          versions.incl(version)
-          if version in existingTags:
-            displayInfo(&"Found existing tag for version {version} at commit {commit}", HighPriority)
+        let ver = newVersion(matches[1])
+        if ver notin versions:
+          versions[ver] = (commit: commit, message: message)
+          if ver in existingTags:
+            displayInfo(&"Found existing tag for version {ver} at commit {commit}", HighPriority)
           else:
-            displayInfo(&"Found new version {version} at {commit}", HighPriority)
-            if not options.action.onlyListTags:
-              displayWarning(&"Creating tag for new version {version} at {commit}", HighPriority)
-              let res = createTag(&"v{version}", commit, message, projdir, nimbleFile, downloadMethod)
-              if not res:
-                displayError(&"Unable to create tag {version}", HighPriority)
+            displayInfo(&"Found new version {ver} at {commit}", HighPriority)
 
-proc publishTags*(p: PackageInfo, options: Options) =
+  if versions.len() >= 2:
+    let versions = versions.pairs().toSeq()
+    var badVersions: seq[int]
+    var prev = versions[0]
+    for idx in 1 ..< versions.len() - 1:
+      let
+        (ver, info) = versions[idx]
+      
+      if ver <= prev[0]:
+        displayError(&"bad version found at tags {ver}@{info.commit} and previous tag at {prev[0]}@{prev[1]}", HighPriority)
+
+  for (version, info) in versions.pairs:
+    if options.action.createTags:
+      displayWarning(&"Creating tag for new version {version} at {info.commit}", HighPriority)
+      let res = createTag(&"v{version}", info.commit, info.message, projdir, nimbleFile, downloadMethod)
+      if not res:
+        displayError(&"Unable to create tag {version}", HighPriority)
+
+proc publishVersions*(p: PackageInfo, options: Options) =
   displayInfo(&"Searcing for new tags for {$p.basicInfo.name} @{$p.basicInfo.version}", HighPriority)
   let (projdir, file, ext) = p.myPath.splitFile()
   let nimblefile = file & ext
