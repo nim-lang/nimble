@@ -3,22 +3,17 @@
 
 {.used.}
 
-import unittest, os, strformat, json, strutils, sequtils
+import unittest, os, strformat, json, strutils
 
 import testscommon
 
-import nimblepkg/displaymessages
 import nimblepkg/sha1hashes
 import nimblepkg/paths
-import nimblepkg/vcstools
 
 from nimblepkg/common import cd, dump, cdNewDir
 from nimblepkg/tools import tryDoCmdEx, doCmdEx
 from nimblepkg/packageinfotypes import DownloadMethod
 from nimblepkg/lockfile import LockFileJsonKeys
-from nimblepkg/options import defaultLockFileName
-from nimblepkg/developfile import ValidationError, ValidationErrorKind,
-  developFileName, getValidationErrorMessage
 
 suite "publish":
   type
@@ -30,7 +25,7 @@ suite "publish":
       description: string
       license: string
 
-    PackagesListFileContent = seq[PackagesListFileRecord]
+    # PackagesListFileContent = seq[PackagesListFileRecord]
 
     PkgIdent {.pure.} = enum
       main = "main"
@@ -74,8 +69,8 @@ suite "publish":
     additionalRemotesDirName = "remotes"
     additionalRemotesDirPath = tempDir / additionalRemotesDirName
 
-    pkgListFileName = "packages.json"
-    pkgListFilePath = tempDir / pkgListFileName
+    # pkgListFileName = "packages.json"
+    # pkgListFilePath = tempDir / pkgListFileName
 
     nimbleFileTemplate = """
 
@@ -104,16 +99,6 @@ requires "nim >= 1.5.1"
   proc commit(msg: string) =
     tryDoCmdEx("git commit -am " & msg.quoteShell)
 
-  proc push(remote: string) =
-    tryDoCmdEx(
-      &"git push --set-upstream {remote} {vcsTypeGit.getVcsDefaultBranchName}")
-
-  proc pull(remote: string) =
-    tryDoCmdEx("git pull " & remote)
-
-  proc addRemote(remoteName, remoteUrl: string) =
-    tryDoCmdEx(&"git remote add {remoteName} {remoteUrl}")
-
   proc configUserAndEmail =
     tryDoCmdEx("git config user.name \"John Doe\"")
     tryDoCmdEx("git config user.email \"john.doe@example.com\"")
@@ -123,26 +108,8 @@ requires "nim >= 1.5.1"
     tryDoCmdEx("git init " & bare)
     configUserAndEmail()
 
-  proc clone(urlFrom, pathTo: string) =
-    tryDoCmdEx(&"git clone {urlFrom} {pathTo}")
-    cd pathTo: configUserAndEmail()
-
-  proc branch(branchName: string) =
-    tryDoCmdEx(&"git branch {branchName}")
-
-  proc checkout(what: string) =
-    tryDoCmdEx(&"git checkout {what}")
-
   proc getRepoRevision: string =
     result = tryDoCmdEx("git rev-parse HEAD").replace("\n", "")
-
-  proc getRevision(dep: string, lockFileName = defaultLockFileName): string =
-    result = lockFileName.readFile.parseJson{$lfjkPackages}{dep}{$lfjkPkgVcsRevision}.str
-
-  proc createBranchAndSwitchToIt(branchName: string) =
-    if branchName.len > 0:
-      branch(branchName)
-      checkout(branchName)
 
   proc initNewNimbleFile(dir: string, version: string): string =
     let pkgName = dir.splitPath.tail
@@ -173,47 +140,14 @@ requires "nim >= 1.5.1"
           addAdditionalFileToTheRepo("test.txt", $idx)
           
 
-  proc testLockedVcsRevisions(deps: seq[tuple[name, path: string]], lockFileName = defaultLockFileName) =
-    check lockFileName.fileExists
+  # template filesAndDirsToRemove() =
+  #   removeFile pkgListFilePath
+  #   removeDir installDir
+  #   removeDir tempDir
 
-    let json = lockFileName.readFile.parseJson
-    for (depName, depPath) in deps:
-      let expectedVcsRevision = depPath.getVcsRevision
-      check depName in json{$lfjkPackages}
-      let lockedVcsRevision =
-        json{$lfjkPackages}{depName}{$lfjkPkgVcsRevision}.str.initSha1Hash
-      check lockedVcsRevision == expectedVcsRevision
-
-  template filesAndDirsToRemove() =
-    removeFile pkgListFilePath
-    removeDir installDir
-    removeDir tempDir
-
-  template cleanUp() =
-    filesAndDirsToRemove()
-    defer: filesAndDirsToRemove()
-
-  proc writePackageListFile(path: string, content: PackagesListFileContent) =
-    let dir = path.splitPath.head
-    createDir dir
-    writeFile(path, (%content).pretty)
-
-  template withPkgListFile(body: untyped) =
-    writePackageListFile(
-      pkgListFilePath, @[bad1PkgListFileRecord, dep2PkgListFileRecord])
-    usePackageListFile pkgListFilePath:
-      body
-
-  proc addAdditionalFileAndPushToRemote(
-      repoPath, remoteName, remotePath, fileContent: string) =
-    cdNewDir remotePath:
-      initRepo(isBare = true)
-    cd repoPath:
-      # Add commit to the dependency.
-      addAdditionalFileToTheRepo("dep1.nim", fileContent)
-      addRemote(remoteName, remotePath)
-      # Push it to the newly added remote to be able to lock.
-      push(remoteName)
+  # template cleanUp() =
+  #   filesAndDirsToRemove()
+  #   defer: filesAndDirsToRemove()
 
   test "test publishVersions basic find versions":
     # cleanUp()
