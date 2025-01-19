@@ -181,10 +181,10 @@ Commands:
   publish                         Publishes a package on nim-lang/packages.
                                   The current working directory needs to be the
                                   top level directory of the Nimble package.
-  publishVersions                 Finds package versions based on commits
+  publishVersions                 Lists package versions based on commits
                                   where the package's Nimble version changed.
-               [-c, --create]     Only list the tags and versions which are found without
-                                  actually performing tag or publishing them.
+               [-c, --create]     Creates tags for missing versions.
+               [-p, --push]       Push only tagged versions (tags) to VCS.
   uninstall    [pkgname, ...]     Uninstalls a list of packages.
                [-i, --inclDeps]   Uninstalls package and dependent package(s).
   build        [opts, ...] [bin]  Builds a package. Passes options to the Nim

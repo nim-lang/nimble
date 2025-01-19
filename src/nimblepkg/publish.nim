@@ -296,17 +296,19 @@ proc pushTags*(tags: seq[string], repoDir: string, downloadMethod: DownloadMetho
   
 const tagVersionFmt = "v$1"
 
+proc findExistingTags(projdir: string, downloadMethod: DownloadMethod): HashSet[Version] =
+  for tag in getTagsList(projdir, downloadMethod):
+    let tag = tag.strip(leading=true, chars={'v'})
+    try:
+      result.incl(newVersion(tag))
+    except ParseVersionError:
+      discard
+
 proc findVersions(commits: seq[(Sha1Hash, string)], projdir, nimbleFile: string, downloadMethod: DownloadMethod, options: Options) =
   ## parse the versions
   var
     versions: OrderedTable[Version, tuple[commit: Sha1Hash, message: string]]
-    existingTags: HashSet[Version]
-  for tag in getTagsList(projdir, downloadMethod):
-    let tag = tag.strip(leading=true, chars={'v'})
-    try:
-      existingTags.incl(newVersion(tag))
-    except ParseVersionError:
-      discard
+    existingTags = findExistingTags(projdir, downloadMethod)
 
   # adapted from @beef331's algorithm https://github.com/beef331/graffiti/blob/master/src/graffiti.nim
   for (commit, message) in commits:
