@@ -13,7 +13,6 @@ import nimblepkg/paths
 from nimblepkg/common import cd, dump, cdNewDir
 from nimblepkg/tools import tryDoCmdEx, doCmdEx
 from nimblepkg/packageinfotypes import DownloadMethod
-from nimblepkg/lockfile import LockFileJsonKeys
 
 suite "publish":
   type
