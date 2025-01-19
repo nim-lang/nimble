@@ -262,3 +262,25 @@ requires "nim >= 1.5.1"
         if version == "2.1.0":
           continue
         check output.contains("Creating tag for new version $1" % version)
+
+  test "test skipping publishVersions non-monotonic versions 2 ":
+    # cleanUp()
+    let versions = @["0.1.0", "0.1.1", "0.2.3", "2.1.0", "0.2.2", "0.2.4"]
+    initNewNimblePackage(bad2PkgRepoPath, versions)
+    cd bad2PkgRepoPath:
+      echo "mainPkgRepoPath: ", bad2PkgRepoPath
+      echo "getCurrentDir: ", getCurrentDir()
+
+      let (output, exitCode) = execNimbleYes("publishVersions", "--create")
+
+      echo "output: "
+      for line in output.splitLines():
+        echo line
+      check output.contains("Non-monotonic (decreasing) version found between tag 2.1.0")
+      check output.contains("Non-monotonic (decreasing) version found between tag 0.2.2")
+
+      check exitCode == QuitSuccess
+      for version in versions[1..^1]:
+        if version in ["2.1.0", "0.2.2"]:
+          continue
+        check output.contains("Creating tag for new version $1" % version)

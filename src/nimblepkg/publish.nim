@@ -334,7 +334,7 @@ proc findVersions(commits: seq[(Sha1Hash, string)], projdir, nimbleFile: string,
   if options.action.createTags:
     for (version, info) in versions.pairs:
       if version in nonMonotonicVers:
-        displayWarning(&"Skipping creating tag for new version {version} at {info.commit}", HighPriority)
+        displayWarning(&"Skipping creating tag for non-monotonic {version} at {info.commit}", HighPriority)
       else:
         displayWarning(&"Creating tag for new version {version} at {info.commit}", HighPriority)
         let res = createTag(&"v{version}", info.commit, info.message, projdir, nimbleFile, downloadMethod)
