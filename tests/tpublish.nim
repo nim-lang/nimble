@@ -36,6 +36,7 @@ suite "publish":
       main = "main"
       bad1 = "bad1"
       bad2 = "bad2"
+      nonAll = "nonAll"
 
   template definePackageConstants(pkgName: PkgIdent) =
     ## By given dependency number defines all relevant constants for it.
@@ -88,6 +89,7 @@ requires "nim >= 1.5.1"
   definePackageConstants(PkgIdent.main)
   definePackageConstants(PkgIdent.bad1)
   definePackageConstants(PkgIdent.bad2)
+  definePackageConstants(PkgIdent.nonAll)
 
   proc newNimbleFileContent(fileTemplate: string,
                             version: string): string =
@@ -131,6 +133,12 @@ requires "nim >= 1.5.1"
   proc checkout(what: string) =
     tryDoCmdEx(&"git checkout {what}")
 
+  proc getRepoRevision: string =
+    result = tryDoCmdEx("git rev-parse HEAD").replace("\n", "")
+
+  proc getRevision(dep: string, lockFileName = defaultLockFileName): string =
+    result = lockFileName.readFile.parseJson{$lfjkPackages}{dep}{$lfjkPkgVcsRevision}.str
+
   proc createBranchAndSwitchToIt(branchName: string) =
     if branchName.len > 0:
       branch(branchName)
@@ -148,7 +156,7 @@ requires "nim >= 1.5.1"
     addFiles(fileName)
     commit("Add additional file")
 
-  proc initNewNimblePackage(dir: string, versions: seq[string] = @[]) =
+  proc initNewNimblePackage(dir: string, versions: seq[string], tags: seq[string] = @[]) =
     cdNewDir dir:
       initRepo()
       echo "created repo at: ", dir
@@ -157,8 +165,13 @@ requires "nim >= 1.5.1"
         addFiles(nimbleFileName)
         commit("commit $1" % version)
         echo "created package version ", version
+        let commit = getRepoRevision()
+        if version in tags:
+          echo "tagging version ", version, " tag ", commit
+          tryDoCmdEx("git tag " & "v$1" % version.quoteShell())
         if idx in [0, 1, versions.len() - 2]:
           addAdditionalFileToTheRepo("test.txt", $idx)
+          
 
   proc testLockedVcsRevisions(deps: seq[tuple[name, path: string]], lockFileName = defaultLockFileName) =
     check lockFileName.fileExists
@@ -190,12 +203,6 @@ requires "nim >= 1.5.1"
       pkgListFilePath, @[bad1PkgListFileRecord, dep2PkgListFileRecord])
     usePackageListFile pkgListFilePath:
       body
-
-  proc getRepoRevision: string =
-    result = tryDoCmdEx("git rev-parse HEAD").replace("\n", "")
-
-  proc getRevision(dep: string, lockFileName = defaultLockFileName): string =
-    result = lockFileName.readFile.parseJson{$lfjkPackages}{dep}{$lfjkPkgVcsRevision}.str
 
   proc addAdditionalFileAndPushToRemote(
       repoPath, remoteName, remotePath, fileContent: string) =
@@ -262,6 +269,27 @@ requires "nim >= 1.5.1"
     initNewNimblePackage(bad2PkgRepoPath, versions)
     cd bad2PkgRepoPath:
       echo "mainPkgRepoPath: ", bad2PkgRepoPath
+      echo "getCurrentDir: ", getCurrentDir()
+
+      let (output, exitCode) = execNimbleYes("publishVersions", "--create")
+
+      check output.contains("Non-monotonic (decreasing) version found between tag v2.1.0")
+      check output.contains("Non-monotonic (decreasing) version found between tag v0.2.3")
+
+      for line in output.splitLines():
+        echo ">>> ", line
+      check exitCode == QuitSuccess
+      for version in versions[1..^1]:
+        if version in ["2.1.0", "0.2.3"]:
+          continue
+        check output.contains("Creating tag for new version $1" % version)
+
+  test "test non-all ":
+    # cleanUp()
+    let versions = @["0.1.0", "0.2.3", "2.1.0", "0.2.2", "0.2.3", "0.2.4", "0.2.5"]
+    initNewNimblePackage(nonAllPkgRepoPath, versions, tags = @["0.2.3"])
+    cd nonAllPkgRepoPath:
+      echo "mainPkgRepoPath: ", nonAllPkgRepoPath
       echo "getCurrentDir: ", getCurrentDir()
 
       let (output, exitCode) = execNimbleYes("publishVersions", "--create")
