@@ -65,7 +65,7 @@ proc gitTagsFromRefs(output: string, derefTags = true): OrderedTable[string, Sha
     let hash = initSha1Hash(hashStr)
     if tag.endswith("^{}") and derefTags:
       result[tag] = hash
-    else:
+    elif not tag.endswith("^{}"):
       result[tag] = hash
 
 proc getTagsList*(dir: string, meth: DownloadMethod): seq[string] =
