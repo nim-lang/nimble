@@ -309,21 +309,30 @@ proc findVersions(commits: seq[(Sha1Hash, string)], projdir, nimbleFile: string,
   var
     versions: OrderedTable[Version, tuple[commit: Sha1Hash, message: string]]
     existingTags = findExistingTags(projdir, downloadMethod)
+    firstTag = newVersion("0.0.0")
+  if existingTags.len() > 0:
+    firstTag = existingTags.toSeq().sorted()[0]
 
+  echo "FIRST TAG: ", firstTag
   # adapted from @beef331's algorithm https://github.com/beef331/graffiti/blob/master/src/graffiti.nim
-  for (commit, message) in commits:
-    # echo "commit: ", commit
-    let diffs = vcsDiff(commit, projdir, nimbleFile, downloadMethod)
-    for line in diffs:
-      var matches: array[0..MaxSubpatterns, string]
-      if line.find(peg"'+version' \s* '=' \s* {[\34\39]} {@} $1", matches) > -1:
-        let ver = newVersion(matches[1])
-        if ver notin versions:
-          versions[ver] = (commit: commit, message: message)
-          if ver in existingTags:
-            displayInfo(&"Found existing tag for version {ver} at commit {commit}", HighPriority)
-          else:
-            displayInfo(&"Found new version {ver} at {commit}", HighPriority)
+  block outer:
+    for (commit, message) in commits:
+      # echo "commit: ", commit
+      let diffs = vcsDiff(commit, projdir, nimbleFile, downloadMethod)
+      for line in diffs:
+        var matches: array[0..MaxSubpatterns, string]
+        if line.find(peg"'+version' \s* '=' \s* {[\34\39]} {@} $1", matches) > -1:
+          let ver = newVersion(matches[1])
+          if ver <= firstTag:
+            echo "FIRST TAG PASSED "
+            break outer
+          if ver notin versions:
+            versions[ver] = (commit: commit, message: message)
+            if ver in existingTags:
+              displayInfo(&"Found existing tag for version {ver} at commit {commit}", HighPriority)
+            else:
+              displayInfo(&"Found new version {ver} at {commit}", HighPriority)
+  echo "FIRST TAG DONE "
 
   var nonMonotonicVers: Table[Version, Sha1Hash]
   if versions.len() >= 2:
@@ -360,10 +369,10 @@ proc findVersions(commits: seq[(Sha1Hash, string)], projdir, nimbleFile: string,
         if not res:
           displayError(&"Unable to create tag {version}", HighPriority)
         else:
-          newTags.add(tag)
+          newTags.incl(tag)
 
   if options.action.pushTags:
-    let res = pushTags(tags.toSeq(), projdir, downloadMethod)
+    let res = pushTags(newTags.toSeq(), projdir, downloadMethod)
 
 proc publishVersions*(p: PackageInfo, options: Options) =
   displayInfo(&"Searcing for new tags for {$p.basicInfo.name} @{$p.basicInfo.version}", HighPriority)

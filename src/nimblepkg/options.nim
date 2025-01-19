@@ -128,7 +128,7 @@ type
     of actionPublishVersions:
       createTags*: bool
       pushTags*: bool
-      all*: bool
+      allTags*: bool
     of actionShellEnv, actionShell:
       discard
 
@@ -781,6 +781,8 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
       result.action.createTags = true
     of "p", "push":
       result.action.pushTags = true
+    of "a", "all":
+      result.action.allTags = true
     else:
       wasFlagHandled = false
   of actionDeps:
