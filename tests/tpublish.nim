@@ -143,7 +143,7 @@ requires "nim >= 1.5.1"
     writeFile(nimbleFileName, nimbleFileContent)
     return nimbleFileName
 
-  proc initNewNimblePackage(dir, clonePath: string, versions: seq[string] = @[]) =
+  proc initNewNimblePackage(dir: string, versions: seq[string] = @[]) =
     cdNewDir dir:
       initRepo()
       echo "created repo at: ", getCurrentDir()
@@ -209,8 +209,8 @@ requires "nim >= 1.5.1"
 
   test "test publishVersions":
     # cleanUp()
-    initNewNimblePackage(mainPkgOriginRepoPath, mainPkgRepoPath,
-                          @["0.1.0", "0.1.1", "0.1.2", "0.2.1", "1.0"])
+    let versions = @["0.1.0", "0.1.1", "0.1.2", "0.2.1", "1.0.0"]
+    initNewNimblePackage(mainPkgRepoPath, versions)
     cd mainPkgRepoPath:
       echo "mainPkgRepoPath: ", mainPkgRepoPath
       echo "getCurrentDir: ", getCurrentDir()
@@ -218,5 +218,6 @@ requires "nim >= 1.5.1"
       let (output, res) = execNimbleYes("-y", "publishVersions")
 
       # check exitCodeInstall == QuitSuccess
-      check output.contains("something...")
+      for version in versions[1..^1]:
+        check output.contains("Found new version $1" % version)
 
