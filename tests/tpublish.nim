@@ -146,11 +146,11 @@ requires "nim >= 1.5.1"
   proc initNewNimblePackage(dir: string, versions: seq[string] = @[]) =
     cdNewDir dir:
       initRepo()
-      echo "created repo at: ", dir, " cwd: ", getCurrentDir()
+      echo "created repo at: ", dir
       for version in versions:
         let nimbleFileName = dir.initNewNimbleFile(version)
         addFiles(nimbleFileName)
-        commit("Initial commit")
+        commit("commit $1" % version)
         echo "created package version ", version
         echo ""
 
@@ -231,6 +231,9 @@ requires "nim >= 1.5.1"
 
       let (output, res) = execNimbleYes("-y", "publishVersions")
 
+      echo "output: "
+      for line in output.splitLines():
+        echo line
       # check exitCodeInstall == QuitSuccess
       # for version in versions[1..^1]:
       #   check output.contains("Found new version $1" % version)
