@@ -34,7 +34,7 @@ suite "publish":
 
     PkgIdent {.pure.} = enum
       main = "main"
-      dep1 = "dep1"
+      bad1 = "bad1"
       dep2 = "dep2"
 
   template definePackageConstants(pkgName: PkgIdent) =
@@ -86,7 +86,7 @@ requires "nim >= 1.5.1"
 """
 
   definePackageConstants(PkgIdent.main)
-  definePackageConstants(PkgIdent.dep1)
+  definePackageConstants(PkgIdent.bad1)
   definePackageConstants(PkgIdent.dep2)
 
   proc newNimbleFileContent(fileTemplate: string,
@@ -146,7 +146,7 @@ requires "nim >= 1.5.1"
   proc initNewNimblePackage(dir: string, versions: seq[string] = @[]) =
     cdNewDir dir:
       initRepo()
-      echo "created repo at: ", getCurrentDir()
+      echo "created repo at: ", dir, " cwd: ", getCurrentDir()
       for version in versions:
         let nimbleFileName = dir.initNewNimbleFile(version)
         addFiles(nimbleFileName)
@@ -186,7 +186,7 @@ requires "nim >= 1.5.1"
 
   template withPkgListFile(body: untyped) =
     writePackageListFile(
-      pkgListFilePath, @[dep1PkgListFileRecord, dep2PkgListFileRecord])
+      pkgListFilePath, @[bad1PkgListFileRecord, dep2PkgListFileRecord])
     usePackageListFile pkgListFilePath:
       body
 
@@ -224,9 +224,9 @@ requires "nim >= 1.5.1"
   test "test publishVersions basic find versions":
     # cleanUp()
     let versions = @["0.1.0", "0.1.1", "2.1.0", "0.2.1", "1.0.0"]
-    initNewNimblePackage(mainPkgRepoPath, versions)
-    cd mainPkgRepoPath:
-      echo "mainPkgRepoPath: ", mainPkgRepoPath
+    initNewNimblePackage(bad1PkgRepoPath, versions)
+    cd bad1PkgRepoPath:
+      echo "mainPkgRepoPath: ", bad1PkgRepoPath
       echo "getCurrentDir: ", getCurrentDir()
 
       let (output, res) = execNimbleYes("-y", "publishVersions")
