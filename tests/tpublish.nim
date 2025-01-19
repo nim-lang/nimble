@@ -233,9 +233,6 @@ requires "nim >= 1.5.1"
 
       let (output, exitCode) = execNimbleYes("-y", "publishVersions")
 
-      echo "output: "
-      for line in output.splitLines():
-        echo line
       check output.contains("Non-monotonic (decreasing) version found between tag 2.1.0")
 
       check exitCode == QuitSuccess
@@ -252,9 +249,6 @@ requires "nim >= 1.5.1"
 
       let (output, exitCode) = execNimbleYes("publishVersions", "--create")
 
-      echo "output: "
-      for line in output.splitLines():
-        echo line
       check output.contains("Non-monotonic (decreasing) version found between tag 2.1.0")
 
       check exitCode == QuitSuccess
@@ -273,14 +267,11 @@ requires "nim >= 1.5.1"
 
       let (output, exitCode) = execNimbleYes("publishVersions", "--create")
 
-      echo "output: "
-      for line in output.splitLines():
-        echo line
       check output.contains("Non-monotonic (decreasing) version found between tag 2.1.0")
       check output.contains("Non-monotonic (decreasing) version found between tag 0.2.2")
 
       check exitCode == QuitSuccess
       for version in versions[1..^1]:
-        if version in ["2.1.0", "0.2.2"]:
+        if version in ["2.1.0", "0.2.3"]:
           continue
         check output.contains("Creating tag for new version $1" % version)
