@@ -268,7 +268,7 @@ requires "nim >= 1.5.1"
       let (output, exitCode) = execNimbleYes("publishVersions", "--create")
 
       check output.contains("Non-monotonic (decreasing) version found between tag 2.1.0")
-      check output.contains("Non-monotonic (decreasing) version found between tag 0.2.2")
+      check output.contains("Non-monotonic (decreasing) version found between tag 0.2.3")
 
       check exitCode == QuitSuccess
       for version in versions[1..^1]:

@@ -330,6 +330,7 @@ proc findVersions(commits: seq[(Sha1Hash, string)], projdir, nimbleFile: string,
                      &" and the previous tag {prev[0]}@{prev[1].commit}", HighPriority)
         displayWarning(&"Version {ver} will be skipped. Please tag it manually if the version is correct." , HighPriority)
         displayHint(&"Note that versions are checked from larget to smallest" , HighPriority)
+        displayHint(&"Note later smaller versions are always peferred. Please manually review your tags before pushing." , HighPriority)
 
   if options.action.createTags:
     for (version, info) in versions.pairs:
