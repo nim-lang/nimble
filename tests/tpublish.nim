@@ -164,7 +164,7 @@ requires "nim >= 1.5.1"
         let nimbleFileName = dir.initNewNimbleFile(version)
         addFiles(nimbleFileName)
         commit("commit $1" % version)
-        echo "created package version ", version
+        # echo "created package version ", version
         let commit = getRepoRevision()
         if version in tags:
           echo "tagging version ", version, " tag ", commit
