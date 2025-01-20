@@ -168,7 +168,9 @@ requires "nim >= 1.5.1"
 
   proc testLockedVcsRevisions(deps: seq[tuple[name, path: string]], lockFileName = defaultLockFileName) =
     check lockFileName.fileExists
-
+    echo "TEST LOCKED VCS REVISIONS START STACKTRACE"
+    writeStackTrace()
+    echo "TEST LOCKED VCS REVISIONS END STACKTRACE"
     let json = lockFileName.readFile.parseJson
     for (depName, depPath) in deps:
       let expectedVcsRevision = depPath.getVcsRevision
