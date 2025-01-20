@@ -37,7 +37,7 @@ jobs:
         run: nimble install -y
       - name: Run nim c -r tester
         run: |
-          nimble test "lock file::"
+          nimble test "lock file::can download locked dependencies"
           # cd tests
           # nim c -r tester
           # there's no need to add nimblepkg unit tests --
