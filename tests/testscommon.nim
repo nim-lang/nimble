@@ -6,6 +6,7 @@
 import sequtils, strutils, strformat, os, osproc, sugar, unittest, macros
 import pkg/checksums/sha1
 
+import nimblepkg/cli
 from nimblepkg/common import cd, nimblePackagesDirName, ProcessOutput
 from nimblepkg/developfile import developFileVersion
 
@@ -70,7 +71,8 @@ template verify*(res: (string, int)) =
   check r[1] == QuitSuccess
 
 proc processOutput*(output: string): seq[string] =
-  output.strip.splitLines().filter(
+  checkpoint(output)
+  result = output.strip.splitLines().filter(
     (x: string) => (
       x.len > 0 and
       "Using env var NIM_LIB_PREFIX" notin x
@@ -206,6 +208,9 @@ proc writeDevelopFile*(path: string, includes: seq[string],
 
 # Set env var to propagate nimble binary path
 putEnv("NIMBLE_TEST_BINARY_PATH", nimblePath)
+
+setVerbosity(MediumPriority)
+setShowColor(false)
 
 # Always recompile.
 block:
