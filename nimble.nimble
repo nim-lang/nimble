@@ -23,5 +23,12 @@ before install:
   exec "git submodule update --init"
 
 task test, "Run the Nimble tester!":
-  withDir "tests":
-    exec "nim c -r tester"
+  #Find params that are a test name
+  var extraParams = ""
+  for i in 0 .. paramCount():
+    if "::" in paramStr(i):
+      extraParams = "test " 
+      extraParams.addQuoted paramStr(i)
+
+  withDir "tests":  
+    exec "nim c -r tester " & extraParams
