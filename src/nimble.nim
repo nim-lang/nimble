@@ -80,7 +80,7 @@ proc addReverseDeps(solvedPkgs: seq[SolvedPackage], allPkgsInfo: seq[PackageInfo
         reverseDep.get.isLink = true
       addRevDep(options.nimbleData, solvedPkg.get.basicInfo, reverseDep.get)
 
-proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, options: Options, fromLock: bool = false): HashSet[PackageInfo] = 
+proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, options: Options): HashSet[PackageInfo] = 
   if satProccesedPackages.len > 0:
     return satProccesedPackages
   var solvedPkgs = newSeq[SolvedPackage]()
@@ -98,14 +98,13 @@ proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, options: Options, from
     pkgList = pkgList.filterIt(it.basicInfo.name notin upgradeVersions)
 
   var toRemoveFromLocked = newSeq[PackageInfo]()
-  if not fromLock:
-    if rootPkgInfo.lockedDeps.hasKey(""):
-      for name, lockedPkg in rootPkgInfo.lockedDeps[""]:
-        for pkg in pkgList:
-          if name notin upgradeVersions and name == pkg.basicInfo.name and
-          (isUpgrading and lockedPkg.vcsRevision != pkg.metaData.vcsRevision or 
-            not isUpgrading and lockedPkg.vcsRevision == pkg.metaData.vcsRevision):
-                toRemoveFromLocked.add pkg
+  if rootPkgInfo.lockedDeps.hasKey(""):
+    for name, lockedPkg in rootPkgInfo.lockedDeps[""]:
+      for pkg in pkgList:
+        if name notin upgradeVersions and name == pkg.basicInfo.name and
+        (isUpgrading and lockedPkg.vcsRevision != pkg.metaData.vcsRevision or 
+          not isUpgrading and lockedPkg.vcsRevision == pkg.metaData.vcsRevision):
+              toRemoveFromLocked.add pkg
 
   var systemNimCompatible = options.nimBin.isSome
   result = solveLocalPackages(rootPkgInfo, pkgList, solvedPkgs, systemNimCompatible,  options)
@@ -117,7 +116,10 @@ proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, options: Options, from
         continue #Dont add nim from the solution as we will use system nim
       result.incl pkg
     for nonLocked in toRemoveFromLocked:
-      result.excl nonLocked
+      #only remove if the vcsRevision is different
+      for pkg in result:
+        if pkg.basicInfo.name == nonLocked.basicInfo.name and pkg.metaData.vcsRevision != nonLocked.metaData.vcsRevision:
+          result.excl nonLocked
     result = 
       result.toSeq
       .deleteStaleDependencies(rootPkgInfo, options)
