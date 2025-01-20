@@ -37,8 +37,9 @@ jobs:
         run: nimble install -y
       - name: Run nim c -r tester
         run: |
-          cd tests
-          nim c -r tester
+          nimble test "lock file::"
+          # cd tests
+          # nim c -r tester
           # there's no need to add nimblepkg unit tests --
           # they are run by tmoduletests.nim
       - run: ./src/nimble install -y
