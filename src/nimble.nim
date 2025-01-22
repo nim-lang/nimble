@@ -102,7 +102,7 @@ proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, options: Options): Has
     for name, lockedPkg in rootPkgInfo.lockedDeps[""]:
       for pkg in pkgList:
         if name notin upgradeVersions and name == pkg.basicInfo.name and
-         (isUpgrading and lockedPkg.vcsRevision != pkg.metaData.vcsRevision or 
+        (isUpgrading and lockedPkg.vcsRevision != pkg.metaData.vcsRevision or 
           not isUpgrading and lockedPkg.vcsRevision == pkg.metaData.vcsRevision):
               toRemoveFromLocked.add pkg
 
@@ -116,7 +116,10 @@ proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, options: Options): Has
         continue #Dont add nim from the solution as we will use system nim
       result.incl pkg
     for nonLocked in toRemoveFromLocked:
-      result.excl nonLocked
+      #only remove if the vcsRevision is different
+      for pkg in result:
+        if pkg.basicInfo.name == nonLocked.basicInfo.name and pkg.metaData.vcsRevision != nonLocked.metaData.vcsRevision:
+          result.excl nonLocked
     result = 
       result.toSeq
       .deleteStaleDependencies(rootPkgInfo, options)
@@ -1895,21 +1898,26 @@ proc getDependenciesForLocking(pkgInfo: PackageInfo, options: Options):
 
 proc lock(options: Options) =
   ## Generates a lock file for the package in the current directory or updates
-  ## it if it already exists.
+  ## it if it already exists.  
   let
     currentDir = getCurrentDir()
     pkgInfo = getPkgInfo(currentDir, options)
     currentLockFile = options.lockFile(currentDir)
     lockExists = displayLockOperationStart(currentLockFile)      
+  
+  var 
     baseDeps = 
       if options.useSATSolver:
-        processFreeDependenciesSAT(pkgInfo, options).toSeq
+        processFreeDependenciesSAT(pkgInfo, options).toSeq        
       else:
         pkgInfo.getDependenciesForLocking(options) # Deps shared by base and tasks  
-    baseDepNames: HashSet[string] = baseDeps.mapIt(it.name).toHashSet
+  
+  if options.useSystemNim:
+    baseDeps = baseDeps.filterIt(not it.name.isNim)
 
+  let baseDepNames: HashSet[string] = baseDeps.mapIt(it.name).toHashSet
   pkgInfo.validateDevelopDependenciesVersionRanges(baseDeps, options)
-
+  
   # We need to separate the graph into separate tasks later
   var
     errors = validateDevModeDepsWorkingCopiesBeforeLock(pkgInfo, options)
@@ -1918,7 +1926,6 @@ proc lock(options: Options) =
     lockDeps: AllLockFileDeps
 
   lockDeps[noTask] = LockFileDeps()
-
   # Add each individual tasks as partial sub graphs
   for task in pkgInfo.taskRequires.keys:
     var taskOptions = options
