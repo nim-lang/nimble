@@ -64,6 +64,7 @@ type
     nimBinariesDir*: string # Directory where nim binaries are stored. Separated from nimbleDir as it can be changed by the user/tests
     disableNimBinaries*: bool # Whether to disable the use of nim binaries
     maxTaggedVersions*: int # Maximum number of tags to check for a package when discovering versions in a local repo
+    useDeclarativeParser*: bool # Whether to use the declarative parser for parsing nimble files (only when solver is SAT)
 
   ActionType* = enum
     actionNil, actionRefresh, actionInit, actionDump, actionPublish, actionUpgrade

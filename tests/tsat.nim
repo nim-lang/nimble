@@ -160,6 +160,7 @@ suite "SAT solver":
       "https://raw.githubusercontent.com/nim-lang/packages/master/packages.json",
       "https://nim-lang.org/nimble/packages.json"
     ])
+    options.pkgCachePath = "./nimbleDir/pkgcache"
 
     var pkgInfo = downloadPkInfoForPv(pv, options)
     var root = pkgInfo.getMinimalInfo(options)
@@ -301,6 +302,7 @@ suite "SAT solver":
     "https://raw.githubusercontent.com/nim-lang/packages/master/packages.json",
     "https://nim-lang.org/nimble/packages.json"
     ])
+    options.pkgCachePath = "./nimbleDir/pkgcache"
     let pv = parseRequires("nimfp >= 0.3.4")
     let downloadRes = pv.downloadPkgFromUrl(options)[0] #This is just to setup the test. We need a git dir to work on
     let repoDir = downloadRes.dir

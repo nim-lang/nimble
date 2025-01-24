@@ -166,9 +166,8 @@ iterator tokenizeRequires*(s: string): string =
     start = token(s, start, tok)
     yield tok
 
-proc getRequires*(nimbleFile: string): seq[PkgTuple] =
-  let requires = extractRequiresInfo(nimbleFile)
-  for require in requires.requires:
+proc getRequires*(nimbleFileInfo: NimbleFileInfo): seq[PkgTuple] =
+  for require in nimbleFileInfo.requires:
     result.add(parseRequires(require))
 
 when isMainModule:
