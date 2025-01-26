@@ -694,3 +694,9 @@ requires "nim >= 1.5.1"
 
         let exitCode = execNimbleYes("lock", "--developFile=" & "other-name.develop").exitCode
         check exitCode == QuitSuccess
+  test "Forge alias is generated inside lockfile":
+    cleanup()
+    cd "forgealias001":
+      testLockFile(@{
+        "librng": "librng"
+      },isNew=true)
