@@ -100,6 +100,7 @@ proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, options: Options): Has
   if rootPkgInfo.lockedDeps.hasKey(""):
     for name, lockedPkg in rootPkgInfo.lockedDeps[""]:
       for pkg in pkgList:
+        var pkg = pkg.toFullInfo(options)
         if name notin upgradeVersions and name == pkg.basicInfo.name and
         (isUpgrading and lockedPkg.vcsRevision != pkg.metaData.vcsRevision or 
           not isUpgrading and lockedPkg.vcsRevision == pkg.metaData.vcsRevision):
