@@ -63,10 +63,29 @@ type
     versions: seq[PackageMinimalInfo]
   
   VersionAttempt = tuple[pkgName: string, version: Version]
+  SATState* = object
+    pkgList*: seq[PackageInfo]
+    pkgVersions*: Table[string, PackageVersions]
+    solvedPkgs*: seq[SolvedPackage]
+    solution*: HashSet[PackageInfo]    
+    pkgToInstall*: seq[(string, Version)]
+    output*: string
 
 
 const TaggedVersionsFileName* = "tagged_versions.json"
 
+proc initSATState*(pkgList: seq[PackageInfo]): SATState =
+  result.pkgList = pkgList
+  result.pkgVersions = initTable[string, PackageVersions]()
+  result.solvedPkgs = @[]
+  result.solution = initHashSet[PackageInfo]()
+  result.pkgToInstall = @[]
+  result.output = ""
+
+
+proc foundSolution*(state: SATState): bool =
+  state.solvedPkgs.len > 0 #TODO add a flag as well to make sure it ran
+ 
 proc initFromJson*(dst: var PkgTuple, jsonNode: JsonNode, jsonPath: var string) =
   dst = parseRequires(jsonNode.str)
 
@@ -684,43 +703,40 @@ proc isSystemNimCompatible*(solvedPkgs: seq[SolvedPackage], options: Options): b
         return false
   true
 
-proc solveLocalPackages*(rootPkgInfo: PackageInfo, pkgList: seq[PackageInfo], solvedPkgs: var seq[SolvedPackage], systemNimCompatible: var bool, options: Options): HashSet[PackageInfo] = 
+proc solveLocalPackages*(rootPkgInfo: PackageInfo, state: var SATState, systemNimCompatible: var bool, options: Options) = 
   var root = rootPkgInfo.getMinimalInfo(options)
   root.isRoot = true
-  var pkgVersionTable = initTable[string, PackageVersions]()
-  pkgVersionTable[root.name] = PackageVersions(pkgName: root.name, versions: @[root])
-  fillPackageTableFromPreferred(pkgVersionTable, pkgList.mapIt(it.getMinimalInfo(options)))
-  var output = ""
-  solvedPkgs = pkgVersionTable.getSolvedPackages(output)
-  systemNimCompatible = solvedPkgs.isSystemNimCompatible(options)
+  state.pkgVersions[root.name] = PackageVersions(pkgName: root.name, versions: @[root])
+  fillPackageTableFromPreferred(state.pkgVersions, state.pkgList.mapIt(it.getMinimalInfo(options)))
+  state.solvedPkgs = state.pkgVersions.getSolvedPackages(state.output)
+  systemNimCompatible = state.solvedPkgs.isSystemNimCompatible(options)
   
-  for solvedPkg in solvedPkgs:
+  for solvedPkg in state.solvedPkgs:
     if solvedPkg.pkgName.isNim and systemNimCompatible:     
       continue #Dont add nim from the solution as we will use system nim
-    for pkgInfo in pkgList:
+    for pkgInfo in state.pkgList:
       if pkgInfo.basicInfo.name == solvedPkg.pkgName and pkgInfo.basicInfo.version == solvedPkg.version:
-        result.incl pkgInfo
+        state.solution.incl pkgInfo
 
-proc solvePackages*(rootPkg: PackageInfo, pkgList: seq[PackageInfo], pkgsToInstall: var seq[(string, Version)], options: Options, output: var string, solvedPkgs: var seq[SolvedPackage]): HashSet[PackageInfo] =
+proc solvePackages*(rootPkg: PackageInfo, state: var SATState, options: Options) =
   var root: PackageMinimalInfo = rootPkg.getMinimalInfo(options)
   root.isRoot = true
-  var pkgVersionTable = initTable[string, PackageVersions]()
-  pkgVersionTable[root.name] = PackageVersions(pkgName: root.name, versions: @[root])
-  collectAllVersions(pkgVersionTable, root, options, downloadMinimalPackage, pkgList.mapIt(it.getMinimalInfo(options)))
-  solvedPkgs = pkgVersionTable.getSolvedPackages(output).topologicalSort()
-  let systemNimCompatible = solvedPkgs.isSystemNimCompatible(options)
+  state.pkgVersions[root.name] = PackageVersions(pkgName: root.name, versions: @[root])
+  collectAllVersions(state.pkgVersions, root, options, downloadMinimalPackage, state.pkgList.mapIt(it.getMinimalInfo(options)))
+  state.solvedPkgs = state.pkgVersions.getSolvedPackages(state.output).topologicalSort()
+  let systemNimCompatible = state.solvedPkgs.isSystemNimCompatible(options)
   
-  for solvedPkg in solvedPkgs:
+  for solvedPkg in state.solvedPkgs:
     if solvedPkg.pkgName == root.name: continue    
     var foundInList = false
-    for pkgInfo in pkgList:
+    for pkgInfo in state.pkgList:
       if pkgInfo.basicInfo.name == solvedPkg.pkgName and pkgInfo.basicInfo.version == solvedPkg.version:
-        result.incl pkgInfo
+        state.solution.incl pkgInfo
         foundInList = true
     if not foundInList:
       if solvedPkg.pkgName.isNim and systemNimCompatible:
         continue #Skips systemNim
-      pkgsToInstall.addUnique((solvedPkg.pkgName, solvedPkg.version))
+      state.pkgToInstall.addUnique((solvedPkg.pkgName, solvedPkg.version))
 
 proc getPackageInfo*(name: string, pkgs: seq[PackageInfo], version: Option[Version] = none(Version)): Option[PackageInfo] =
     for pkg in pkgs:

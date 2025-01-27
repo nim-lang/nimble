@@ -83,11 +83,10 @@ proc addReverseDeps(solvedPkgs: seq[SolvedPackage], allPkgsInfo: seq[PackageInfo
 proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, options: Options): HashSet[PackageInfo] = 
   if satProccesedPackages.len > 0:
     return satProccesedPackages
-  var solvedPkgs = newSeq[SolvedPackage]()
-  var pkgsToInstall: seq[(string, Version)] = @[]
   var rootPkgInfo = rootPkgInfo
   rootPkgInfo.requires &= options.extraRequires
   var pkgList = initPkgList(rootPkgInfo, options).mapIt(it.toFullInfo(options))
+  var state = initSATState(pkgList)
   var allPkgsInfo: seq[PackageInfo] = pkgList & rootPkgInfo
   #Remove from the pkglist the packages that exists in lock file and has a different vcsRevision
   var upgradeVersions = initTable[string, VersionRange]()
@@ -107,14 +106,15 @@ proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, options: Options): Has
               toRemoveFromLocked.add pkg
 
   var systemNimCompatible = options.nimBin.isSome
-  result = solveLocalPackages(rootPkgInfo, pkgList, solvedPkgs, systemNimCompatible,  options)
-  if solvedPkgs.len > 0: 
-    displaySatisfiedMsg(solvedPkgs, pkgsToInstall, options)
-    addReverseDeps(solvedPkgs, allPkgsInfo, options)
+  solveLocalPackages(rootPkgInfo, state, systemNimCompatible,  options)
+  result = state.solution
+  if state.foundSolution(): 
+    displaySatisfiedMsg(state.solvedPkgs, state.pkgToInstall, options)
+    addReverseDeps(state.solvedPkgs, allPkgsInfo, options)
     for pkg in allPkgsInfo:
       if pkg.basicInfo.name.isNim and systemNimCompatible:
         continue #Dont add nim from the solution as we will use system nim
-      result.incl pkg
+      result.incl pkg #TODO likely this is only adding root. But review later
     for nonLocked in toRemoveFromLocked:
       #only remove if the vcsRevision is different
       for pkg in result:
@@ -126,13 +126,14 @@ proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, options: Options): Has
       .toHashSet
     satProccesedPackages = result
     return result
-
-  var output = ""
-  result = solvePackages(rootPkgInfo, pkgList, pkgsToInstall, options, output, solvedPkgs)
-  displaySatisfiedMsg(solvedPkgs, pkgsToInstall, options)
-  displayUsingSpecialVersionWarning(solvedPkgs, options)
-  var solved = solvedPkgs.len > 0 #A pgk can be solved and still dont return a set of PackageInfo
-  for (name, ver) in pkgsToInstall:
+  
+  state = initSATState(pkgList)
+  solvePackages(rootPkgInfo, state, options)
+  result = state.solution
+  displaySatisfiedMsg(state.solvedPkgs, state.pkgToInstall, options)
+  displayUsingSpecialVersionWarning(state.solvedPkgs, options)
+  var solved = state.foundSolution() #A pgk can be solved and still dont return a set of PackageInfo  
+  for (name, ver) in state.pkgToInstall:
     var versionRange = ver.toVersionRange
     if name in upgradeVersions:
       versionRange = upgradeVersions[name]
@@ -151,7 +152,7 @@ proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, options: Options): Has
 
   for pkg in result:
     allPkgsInfo.add pkg
-  addReverseDeps(solvedPkgs, allPkgsInfo, options)
+  addReverseDeps(state.solvedPkgs, allPkgsInfo, options)
 
   for nonLocked in toRemoveFromLocked:
     result.excl nonLocked
@@ -160,7 +161,7 @@ proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, options: Options): Has
   satProccesedPackages = result
 
   if not solved:
-    display("Error", output, Error, priority = HighPriority)
+    display("Error", state.output, Error, priority = HighPriority)
     raise nimbleError("Unsatisfiable dependencies")
 
 proc processFreeDependencies(pkgInfo: PackageInfo,
