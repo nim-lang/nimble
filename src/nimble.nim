@@ -90,17 +90,20 @@ proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, options: Options): Has
   var allPkgsInfo: seq[PackageInfo] = pkgList & rootPkgInfo
   #Remove from the pkglist the packages that exists in lock file and has a different vcsRevision
   var upgradeVersions = initTable[string, VersionRange]()
-  var isUpgrading = options.action.typ == actionUpgrade
+  let isUpgrading = options.action.typ == actionUpgrade  
+  let isLocking = options.action.typ == actionLock
   if isUpgrading:
     for pkg in options.action.packages:
       upgradeVersions[pkg.name] = pkg.ver
     pkgList = pkgList.filterIt(it.basicInfo.name notin upgradeVersions)
+  
+  if isUpgrading or isLocking: #We only need to access the pkg.metadata if we are upgrading or locking
+    pkgList = pkgList.mapIt(it.toFullInfo(options))
 
   var toRemoveFromLocked = newSeq[PackageInfo]()
   if rootPkgInfo.lockedDeps.hasKey(""):
     for name, lockedPkg in rootPkgInfo.lockedDeps[""]:
       for pkg in pkgList:
-        var pkg = pkg.toFullInfo(options)
         if name notin upgradeVersions and name == pkg.basicInfo.name and
         (isUpgrading and lockedPkg.vcsRevision != pkg.metaData.vcsRevision or 
           not isUpgrading and lockedPkg.vcsRevision == pkg.metaData.vcsRevision):
@@ -125,6 +128,7 @@ proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, options: Options): Has
       result.toSeq
       .deleteStaleDependencies(rootPkgInfo, options)
       .toHashSet
+    
     satProccesedPackages = result
     return result
   
