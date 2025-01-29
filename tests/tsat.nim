@@ -403,6 +403,8 @@ suite "SAT solver":
     "https://raw.githubusercontent.com/nim-lang/packages/master/packages.json",
     "https://nim-lang.org/nimble/packages.json"
     ])
+    options.nimbleDir = getCurrentDir() / "nimbleDir"
+    options.pkgCachePath = getCurrentDir() / "nimbleDir" / "pkgcache"
     let pv = parseRequires("chronos >= 4.0.0")
     var pkgInfo = downloadPkInfoForPv(pv, options)
     var root = pkgInfo.getMinimalInfo(options)

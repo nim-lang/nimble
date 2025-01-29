@@ -632,9 +632,9 @@ proc getPackageMinimalVersionsFromRepo*(repoDir: string, name: string, version: 
       displayWarning(&"Error getting package info for {name}: {e.msg}", HighPriority)
     
     # Process tagged versions in the temporary copy
-    var checkedTags = 0
+    var checkedTags = 1
     for (ver, tag) in tags.pairs:    
-      if options.maxTaggedVersions > 0 and checkedTags >= options.maxTaggedVersions:
+      if options.maxTaggedVersions > 0 and checkedTags == options.maxTaggedVersions:
         break
       inc checkedTags
       
