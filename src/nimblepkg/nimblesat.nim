@@ -65,10 +65,11 @@ type
   
   VersionAttempt = tuple[pkgName: string, version: Version]
   SATState* = object
+    root*: PackageMinimalInfo
     pkgList*: seq[PackageInfo] #TODO convert this to PackageMinimalInfo
     pkgVersions*: Table[string, PackageVersions]
     solvedPkgs*: seq[SolvedPackage]
-    solution*: HashSet[PackageMinimalInfo]        
+    solution*: HashSet[PackageInfo]        
     pkgToInstall*: seq[(string, Version)]
     pkgInfoInstalled*: HashSet[PackageInfo]
     pkgInfoCache*: HashSet[PackageInfo] #Ideally this is only hit for the declarative parser when getting the solution. The VM parser may use it as well for the initial package list.
@@ -77,13 +78,17 @@ type
 
 const TaggedVersionsFileName* = "tagged_versions.json"
 
-proc initSATState*(pkgList: seq[PackageInfo]): SATState =
+proc initSATState*(root: PackageMinimalInfo, pkgList: seq[PackageInfo], options: Options): SATState =
+  result.root = root
   result.pkgList = pkgList
   result.pkgVersions = initTable[string, PackageVersions]()
+  result.pkgVersions[result.root.name] = PackageVersions(pkgName: result.root.name, versions: @[result.root])
   result.solvedPkgs = @[]
-  result.solution = initHashSet[PackageMinimalInfo]()
+  result.solution = initHashSet[PackageInfo]()
   result.pkgToInstall = @[]
   result.pkgInfoCache = initHashSet[PackageInfo]()
+  # for pkg in pkgList:
+  #   result.pkgInfoCache.incl pkg
   result.output = ""
 
 
@@ -145,7 +150,6 @@ proc getMinimalInfo*(nimbleFile: string, pkgName: string, options: Options): Pac
     result.requires = result.requires.filterIt(not it.isNim)
   result.nimbleFile = some nimbleFile
 
-
 proc getPackageInfo*(state: var SATState, pkgMin: PackageMinimalInfo, options: Options): PackageInfo =
   for pkg in state.pkgInfoCache:
     if pkg.basicInfo.name == pkgMin.name and pkg.basicInfo.version == pkgMin.version:
@@ -161,12 +165,34 @@ proc getPackageInfo*(state: var SATState, pkgMin: PackageMinimalInfo, options: O
     state.pkgInfoCache.incl pkgInfo
     return pkgInfo
   else:
-    assert false, &"PackageInfo `{pkgMin.name}@{pkgMin.version}` not found in cache"
+    assert false, &"PackageInfo `{pkgMin.name}@{pkgMin.version}` not found in cache, installed and dont have a nimble file"
+
+proc isSystemNimCompatible*(solvedPkgs: seq[SolvedPackage], options: Options): bool =
+  if options.action.typ in {actionLock, actionDeps} or options.hasNimInLockFile():
+    return false
+  for solvedPkg in solvedPkgs:
+    for req in solvedPkg.requirements:
+      if req.isNim and options.nimBin.isSome and not options.nimBin.get.version.withinRange(req.ver):
+        return false
+  true
 
 proc solutionAsPackageInfo*(state: var SATState, options: Options): HashSet[PackageInfo] =
   #TODO maybe here we should control Nim actually has a nimble file. At this point, it should be installed? So maybe we can have a list of actualled installed packages and gather the pkginfo from there?
-  for pkgMin in state.solution:
-    result.incl getPackageInfo(state, pkgMin, options)
+  # for pkgMin in state.solution:
+  #   result.incl getPackageInfo(state, pkgMin, options)
+  # state.solution  
+  let systemNimCompatible = state.solvedPkgs.isSystemNimCompatible(options)
+  for solvedPkg in state.solvedPkgs:
+    if solvedPkg.pkgName == state.root.name: continue    
+    var foundInList = false
+    for pkgInfo in state.pkgList:
+      if pkgInfo.basicInfo.name == solvedPkg.pkgName and pkgInfo.basicInfo.version == solvedPkg.version:        
+        result.incl pkgInfo#.getMinimalInfo(options)
+        foundInList = true
+    if not foundInList:
+      if solvedPkg.pkgName.isNim and systemNimCompatible:
+        continue #Skips systemNim
+      state.pkgToInstall.addUnique((solvedPkg.pkgName, solvedPkg.version))
 
 proc hasVersion*(packageVersions: PackageVersions, pv: PkgTuple): bool =
   for pkg in packageVersions.versions:
@@ -723,55 +749,21 @@ proc topologicalSort*(solvedPkgs: seq[SolvedPackage]): seq[SolvedPackage] =
       if inDegree[neighbor] == 0:
         zeroInDegree.add(neighbor) 
 
-proc isSystemNimCompatible*(solvedPkgs: seq[SolvedPackage], options: Options): bool =
-  if options.action.typ in {actionLock, actionDeps} or options.hasNimInLockFile():
-    return false
-  for solvedPkg in solvedPkgs:
-    for req in solvedPkg.requirements:
-      if req.isNim and options.nimBin.isSome and not options.nimBin.get.version.withinRange(req.ver):
-        return false
-  true
 
 proc solveLocalPackages*(rootPkgInfo: PackageInfo, state: var SATState, systemNimCompatible: var bool, options: Options) = 
-  var root = rootPkgInfo.getMinimalInfo(options)
-  root.isRoot = true
-  state.pkgVersions[root.name] = PackageVersions(pkgName: root.name, versions: @[root])
   fillPackageTableFromPreferred(state.pkgVersions, state.pkgList.mapIt(it.getMinimalInfo(options)))
-  state.solvedPkgs = state.pkgVersions.getSolvedPackages(state.output)
-  systemNimCompatible = state.solvedPkgs.isSystemNimCompatible(options)
-  
-  for solvedPkg in state.solvedPkgs:
-    if solvedPkg.pkgName.isNim and systemNimCompatible:     
-      continue #Dont add nim from the solution as we will use system nim
-    for pkgInfo in state.pkgList:
-      if pkgInfo.basicInfo.name == solvedPkg.pkgName and pkgInfo.basicInfo.version == solvedPkg.version:
-        state.solution.incl pkgInfo.getMinimalInfo(options)
+  state.solvedPkgs = state.pkgVersions.getSolvedPackages(state.output).topologicalSort()
 
 proc solvePackages*(rootPkg: PackageInfo, state: var SATState, options: Options) =
-  var root: PackageMinimalInfo = rootPkg.getMinimalInfo(options)
-  root.isRoot = true
-  state.pkgVersions[root.name] = PackageVersions(pkgName: root.name, versions: @[root])
-  collectAllVersions(state.pkgVersions, root, options, downloadMinimalPackage, state.pkgList.mapIt(it.getMinimalInfo(options)))
+  collectAllVersions(state.pkgVersions, state.root, options, downloadMinimalPackage, state.pkgList.mapIt(it.getMinimalInfo(options)))
   state.solvedPkgs = state.pkgVersions.getSolvedPackages(state.output).topologicalSort()
-  let systemNimCompatible = state.solvedPkgs.isSystemNimCompatible(options)
   
-  for solvedPkg in state.solvedPkgs:
-    if solvedPkg.pkgName == root.name: continue    
-    var foundInList = false
-    for pkgInfo in state.pkgList:
-      if pkgInfo.basicInfo.name == solvedPkg.pkgName and pkgInfo.basicInfo.version == solvedPkg.version:
-        state.solution.incl pkgInfo.getMinimalInfo(options)
-        foundInList = true
-    if not foundInList:
-      if solvedPkg.pkgName.isNim and systemNimCompatible:
-        continue #Skips systemNim
-      state.pkgToInstall.addUnique((solvedPkg.pkgName, solvedPkg.version))
 
 proc getPackageInfo*(name: string, pkgs: seq[PackageInfo], version: Option[Version] = none(Version)): Option[PackageInfo] =
-    for pkg in pkgs:
-      if pkg.basicInfo.name.tolower == name.tolower or pkg.metadata.url == name:
-        if version.isSome:
-          if pkg.basicInfo.version == version.get:
-            return some pkg
-        else: #No version passed over first match
+  for pkg in pkgs:
+    if pkg.basicInfo.name.tolower == name.tolower or pkg.metadata.url == name:
+      if version.isSome:
+        if pkg.basicInfo.version == version.get:
           return some pkg
+      else: #No version passed over first match
+        return some pkg

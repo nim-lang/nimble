@@ -85,8 +85,11 @@ proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, options: Options): Has
     return satProccesedPackages
   var rootPkgInfo = rootPkgInfo
   rootPkgInfo.requires &= options.extraRequires
+  var rootMin = rootPkgInfo.getMinimalInfo(options)
+  rootMin.isRoot = true
+  
   var pkgList = initPkgList(rootPkgInfo, options)#.mapIt(it.toFullInfo(options))
-  var state = initSATState(pkgList)
+  var state = initSATState(rootMin, pkgList, options)
   var allPkgsInfo: seq[PackageInfo] = pkgList & rootPkgInfo
   #Remove from the pkglist the packages that exists in lock file and has a different vcsRevision
   var upgradeVersions = initTable[string, VersionRange]()
@@ -132,7 +135,7 @@ proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, options: Options): Has
     satProccesedPackages = result
     return result
   
-  state = initSATState(pkgList)
+  state = initSATState(rootMin, pkgList, options)
   solvePackages(rootPkgInfo, state, options)
   result = state.solutionAsPackageInfo(options)
   displaySatisfiedMsg(state.solvedPkgs, state.pkgToInstall, options)
