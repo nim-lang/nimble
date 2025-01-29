@@ -67,6 +67,6 @@ suite "Declarative parsing":
     check fileExists(repoDir / TaggedVersionsFileName)
 
 #[NEXT STEPS:
- - Localise all places where the vm is used (start getMinimalInfo) but then go into download, etc.
+ - Change processFreeDependenciesSAT to dont use PackageInfo until the last step.
 ]#
 echo "end"

@@ -20,6 +20,7 @@ type
     version*: Version
     requires*: seq[PkgTuple]
     isRoot*: bool
+    nimbleFile*: Option[string] #Some packages may not have the nimble file (i.e. nim releases that are not downloaded)
 
   PackageVersions* = object
     pkgName*: string
@@ -64,11 +65,12 @@ type
   
   VersionAttempt = tuple[pkgName: string, version: Version]
   SATState* = object
-    pkgList*: seq[PackageInfo]
+    pkgList*: seq[PackageInfo] #TODO convert this to PackageMinimalInfo
     pkgVersions*: Table[string, PackageVersions]
     solvedPkgs*: seq[SolvedPackage]
-    solution*: HashSet[PackageInfo]    
+    solution*: HashSet[PackageMinimalInfo]        
     pkgToInstall*: seq[(string, Version)]
+    pkgInfoCache*: HashSet[PackageInfo] #Ideally this is only hit for the declarative parser when getting the solution. The VM parser may use it as well for the initial package list.
     output*: string
 
 
@@ -78,8 +80,9 @@ proc initSATState*(pkgList: seq[PackageInfo]): SATState =
   result.pkgList = pkgList
   result.pkgVersions = initTable[string, PackageVersions]()
   result.solvedPkgs = @[]
-  result.solution = initHashSet[PackageInfo]()
+  result.solution = initHashSet[PackageMinimalInfo]()
   result.pkgToInstall = @[]
+  result.pkgInfoCache = initHashSet[PackageInfo]()
   result.output = ""
 
 
@@ -128,6 +131,7 @@ proc getMinimalInfo*(pkg: PackageInfo, options: Options): PackageMinimalInfo =
   result.requires = pkg.requires.map(convertNimAliasToNim)
   if options.action.typ in {actionLock, actionDeps} or options.hasNimInLockFile():
     result.requires = result.requires.filterIt(not it.isNim)
+  result.nimbleFile = some pkg.myPath
 
 proc getMinimalInfo*(nimbleFile: string, pkgName: string, options: Options): PackageMinimalInfo =
   assert options.useDeclarativeParser, "useDeclarativeParser must be set"
@@ -138,7 +142,26 @@ proc getMinimalInfo*(nimbleFile: string, pkgName: string, options: Options): Pac
   result.requires = nimbleFileInfo.getRequires()
   if options.action.typ in {actionLock, actionDeps} or options.hasNimInLockFile():
     result.requires = result.requires.filterIt(not it.isNim)
+  result.nimbleFile = some nimbleFile
+
+
+proc getPackageInfo*(state: var SATState, pkgMin: PackageMinimalInfo, options: Options): PackageInfo =
+  for pkg in state.pkgInfoCache:
+    if pkg.basicInfo.name == pkgMin.name and pkg.basicInfo.version == pkgMin.version:
+      return pkg
   
+  if pkgMin.nimbleFile.isSome:
+    let pkgInfo = getPkgInfoFromFile(pkgMin.nimbleFile.get, options, false, false)
+    state.pkgInfoCache.incl pkgInfo
+    return pkgInfo
+  else:
+    assert false, &"PackageInfo `{pkgMin.name}@{pkgMin.version}` not found in cache"
+
+proc solutionAsPackageInfo*(state: var SATState, options: Options): HashSet[PackageInfo] =
+  #TODO maybe here we should control Nim actually has a nimble file. At this point, it should be installed? So maybe we can have a list of actualled installed packages and gather the pkginfo from there?
+  for pkgMin in state.solution:
+    result.incl getPackageInfo(state, pkgMin, options)
+
 proc hasVersion*(packageVersions: PackageVersions, pv: PkgTuple): bool =
   for pkg in packageVersions.versions:
     if pkg.name == pv.name and pkg.version.withinRange(pv.ver):
@@ -716,7 +739,7 @@ proc solveLocalPackages*(rootPkgInfo: PackageInfo, state: var SATState, systemNi
       continue #Dont add nim from the solution as we will use system nim
     for pkgInfo in state.pkgList:
       if pkgInfo.basicInfo.name == solvedPkg.pkgName and pkgInfo.basicInfo.version == solvedPkg.version:
-        state.solution.incl pkgInfo
+        state.solution.incl pkgInfo.getMinimalInfo(options)
 
 proc solvePackages*(rootPkg: PackageInfo, state: var SATState, options: Options) =
   var root: PackageMinimalInfo = rootPkg.getMinimalInfo(options)
@@ -731,7 +754,7 @@ proc solvePackages*(rootPkg: PackageInfo, state: var SATState, options: Options)
     var foundInList = false
     for pkgInfo in state.pkgList:
       if pkgInfo.basicInfo.name == solvedPkg.pkgName and pkgInfo.basicInfo.version == solvedPkg.version:
-        state.solution.incl pkgInfo
+        state.solution.incl pkgInfo.getMinimalInfo(options)
         foundInList = true
     if not foundInList:
       if solvedPkg.pkgName.isNim and systemNimCompatible:
