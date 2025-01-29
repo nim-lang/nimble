@@ -114,7 +114,7 @@ proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, options: Options): Has
 
   var systemNimCompatible = options.nimBin.isSome
   solveLocalPackages(rootPkgInfo, state, systemNimCompatible,  options)
-  result = state.solutionAsPackageInfo(options)
+  result = state.solutionAsPackageInfo(options).toHashSet
   if state.foundSolution(): 
     displaySatisfiedMsg(state.solvedPkgs, state.pkgToInstall, options)
     addReverseDeps(state.solvedPkgs, allPkgsInfo, options)
@@ -137,7 +137,7 @@ proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, options: Options): Has
   
   state = initSATState(rootMin, pkgList, options)
   solvePackages(rootPkgInfo, state, options)
-  result = state.solutionAsPackageInfo(options)
+  result = state.solutionAsPackageInfo(options).toHashSet
   displaySatisfiedMsg(state.solvedPkgs, state.pkgToInstall, options)
   displayUsingSpecialVersionWarning(state.solvedPkgs, options)
   var solved = state.foundSolution() #A pgk can be solved and still dont return a set of PackageInfo  
