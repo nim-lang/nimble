@@ -70,6 +70,7 @@ type
     solvedPkgs*: seq[SolvedPackage]
     solution*: HashSet[PackageMinimalInfo]        
     pkgToInstall*: seq[(string, Version)]
+    pkgInfoInstalled*: HashSet[PackageInfo]
     pkgInfoCache*: HashSet[PackageInfo] #Ideally this is only hit for the declarative parser when getting the solution. The VM parser may use it as well for the initial package list.
     output*: string
 
@@ -150,6 +151,11 @@ proc getPackageInfo*(state: var SATState, pkgMin: PackageMinimalInfo, options: O
     if pkg.basicInfo.name == pkgMin.name and pkg.basicInfo.version == pkgMin.version:
       return pkg
   
+  for pkg in state.pkgInfoInstalled:
+    if pkg.basicInfo.name == pkgMin.name and pkg.basicInfo.version == pkgMin.version:
+      state.pkgInfoCache.incl pkg
+      return pkg
+
   if pkgMin.nimbleFile.isSome:
     let pkgInfo = getPkgInfoFromFile(pkgMin.nimbleFile.get, options, false, false)
     state.pkgInfoCache.incl pkgInfo

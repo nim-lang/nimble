@@ -154,6 +154,7 @@ proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, options: Options): Has
           pkg.metaData.specialVersions)
       else:
         result.incl pkg
+    state.pkgInfoInstalled.incl pkg
 
   for pkg in result:
     allPkgsInfo.add pkg
