@@ -99,7 +99,6 @@ proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, options: Options): Has
   #Remove from the pkglist the packages that exists in lock file and has a different vcsRevision
   var upgradeVersions = initTable[string, VersionRange]()
   let isUpgrading = options.action.typ == actionUpgrade  
-  let isLocking = options.action.typ == actionLock
   if isUpgrading:
     for pkg in options.action.packages:
       upgradeVersions[pkg.name] = pkg.ver
