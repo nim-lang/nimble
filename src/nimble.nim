@@ -19,7 +19,7 @@ import nimblepkg/packageinfotypes, nimblepkg/packageinfo, nimblepkg/version,
        nimblepkg/nimbledatafile, nimblepkg/packagemetadatafile,
        nimblepkg/displaymessages, nimblepkg/sha1hashes, nimblepkg/syncfile,
        nimblepkg/deps, nimblepkg/nimblesat, nimblepkg/forge_aliases, nimblepkg/nimenv,
-       nimblepkg/downloadnim
+       nimblepkg/downloadnim, nimblepkg/declarativeparser
 
 const
   nimblePathsFileName* = "nimble.paths"
@@ -32,7 +32,7 @@ const
 proc initPkgList(pkgInfo: PackageInfo, options: Options): seq[PackageInfo] =
   let
     installedPkgs = getInstalledPkgsMin(options.getPkgsDir(), options)
-    developPkgs = processDevelopDependencies(pkgInfo, options)
+    developPkgs = processDevelopDependencies(pkgInfo, options)  
   result = concat(installedPkgs, developPkgs)
 
 proc install(packages: seq[PkgTuple], options: Options,
@@ -89,6 +89,11 @@ proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, options: Options): Has
   rootMin.isRoot = true
   
   var pkgList = initPkgList(rootPkgInfo, options)#.mapIt(it.toFullInfo(options))
+  if options.useDeclarativeParser:
+    pkgList = pkgList.mapIt(it.toRequiresInfo())
+  else:
+    pkgList = pkgList.mapIt(it.toFullInfo(options))
+  
   var state = initSATState(rootMin, pkgList, options)
   var allPkgsInfo: seq[PackageInfo] = pkgList & rootPkgInfo
   #Remove from the pkglist the packages that exists in lock file and has a different vcsRevision
@@ -100,9 +105,6 @@ proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, options: Options): Has
       upgradeVersions[pkg.name] = pkg.ver
     pkgList = pkgList.filterIt(it.basicInfo.name notin upgradeVersions)
   
-  if isUpgrading or isLocking: #We only need to access the pkg.metadata if we are upgrading or locking
-    pkgList = pkgList.mapIt(it.toFullInfo(options))
-
   var toRemoveFromLocked = newSeq[PackageInfo]()
   if rootPkgInfo.lockedDeps.hasKey(""):
     for name, lockedPkg in rootPkgInfo.lockedDeps[""]:

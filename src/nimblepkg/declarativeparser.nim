@@ -4,7 +4,7 @@
 import std/strutils
 
 import compiler/[ast, idents, msgs, syntaxes, options, pathutils, lineinfos]
-import version
+import version, packageinfotypes
 
 type NimbleFileInfo* = object
   requires*: seq[string]
@@ -170,6 +170,13 @@ proc getRequires*(nimbleFileInfo: NimbleFileInfo): seq[PkgTuple] =
   for require in nimbleFileInfo.requires:
     result.add(parseRequires(require))
 
+proc toRequiresInfo*(pkgInfo: PackageInfo): PackageInfo =
+  let nimbleFileInfo = extractRequiresInfo(pkgInfo.myPath)
+  result = pkgInfo
+  result.requires = getRequires(nimbleFileInfo)
+  result.infoKind = pikRequires
+
 when isMainModule:
   for x in tokenizeRequires("jester@#head >= 1.5 & <= 1.8"):
     echo x
+

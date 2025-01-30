@@ -296,7 +296,7 @@ proc setNameVersionChecksum*(pkgInfo: var PackageInfo, pkgDir: string) =
 proc getInstalledPackageMin*(options: Options, pkgDir, nimbleFilePath: string): PackageInfo =
   result = initPackageInfo(options, nimbleFilePath)
   setNameVersionChecksum(result, pkgDir)
-  result.isMinimal = true
+  result.infoKind = pikMinimal
   result.isInstalled = true
   try:
     fillMetaData(result, pkgDir, true, options)

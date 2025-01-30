@@ -69,10 +69,8 @@ type
     pkgList*: seq[PackageInfo] #TODO convert this to PackageMinimalInfo
     pkgVersions*: Table[string, PackageVersions]
     solvedPkgs*: seq[SolvedPackage]
-    # solution*: HashSet[PackageInfo]        
     pkgToInstall*: seq[(string, Version)]
     pkgInfoInstalled*: HashSet[PackageInfo]
-    # pkgInfoCache*: HashSet[PackageInfo] #Ideally this is only hit for the declarative parser when getting the solution. The VM parser may use it as well for the initial package list.
     output*: string
 
 
@@ -84,11 +82,7 @@ proc initSATState*(root: PackageMinimalInfo, pkgList: seq[PackageInfo], options:
   result.pkgVersions = initTable[string, PackageVersions]()
   result.pkgVersions[result.root.name] = PackageVersions(pkgName: result.root.name, versions: @[result.root])
   result.solvedPkgs = @[]
-  # result.solution = initHashSet[PackageInfo]()
   result.pkgToInstall = @[]
-  # result.pkgInfoCache = initHashSet[PackageInfo]()
-  # for pkg in pkgList:
-  #   result.pkgInfoCache.incl pkg
   result.output = ""
 
 
@@ -149,23 +143,6 @@ proc getMinimalInfo*(nimbleFile: string, pkgName: string, options: Options): Pac
   if options.action.typ in {actionLock, actionDeps} or options.hasNimInLockFile():
     result.requires = result.requires.filterIt(not it.isNim)
   result.nimbleFile = some nimbleFile
-
-# proc getPackageInfo*(state: var SATState, pkgMin: PackageMinimalInfo, options: Options): PackageInfo =
-#   for pkg in state.pkgInfoCache:
-#     if pkg.basicInfo.name == pkgMin.name and pkg.basicInfo.version == pkgMin.version:
-#       return pkg
-  
-#   for pkg in state.pkgInfoInstalled:
-#     if pkg.basicInfo.name == pkgMin.name and pkg.basicInfo.version == pkgMin.version:
-#       state.pkgInfoCache.incl pkg
-#       return pkg
-
-#   if pkgMin.nimbleFile.isSome:
-#     let pkgInfo = getPkgInfoFromFile(pkgMin.nimbleFile.get, options, false, false)
-#     state.pkgInfoCache.incl pkgInfo
-#     return pkgInfo
-#   else:
-#     assert false, &"PackageInfo `{pkgMin.name}@{pkgMin.version}` not found in cache, installed and dont have a nimble file"
 
 proc isSystemNimCompatible*(solvedPkgs: seq[SolvedPackage], options: Options): bool =
   if options.action.typ in {actionLock, actionDeps} or options.hasNimInLockFile():
