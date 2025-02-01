@@ -129,7 +129,7 @@ proc getMinimalInfo*(pkg: PackageInfo, options: Options): PackageMinimalInfo =
   result.name = if pkg.basicInfo.name.isNim: "nim" else: pkg.basicInfo.name
   result.version = pkg.basicInfo.version
   result.requires = pkg.requires.map(convertNimAliasToNim)
-  if options.action.typ in {actionLock, actionDeps} or options.hasNimInLockFile():
+  if options.action.typ in {actionDeps}:
     result.requires = result.requires.filterIt(not it.isNim)
   result.nimbleFile = some pkg.myPath
 
@@ -140,7 +140,7 @@ proc getMinimalInfo*(nimbleFile: string, pkgName: string, options: Options): Pac
   result.name = if pkgName.isNim: "nim" else: pkgName
   result.version = nimbleFileInfo.version.newVersion()
   result.requires = nimbleFileInfo.getRequires()
-  if options.action.typ in {actionLock, actionDeps} or options.hasNimInLockFile():
+  if options.action.typ in {actionDeps}:
     result.requires = result.requires.filterIt(not it.isNim)
   result.nimbleFile = some nimbleFile
 
