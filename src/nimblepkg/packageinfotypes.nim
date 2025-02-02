@@ -41,10 +41,16 @@ type
     version: Version
     checksum: Sha1Hash
 
+  PackageInfoKind* = enum
+    pikNone #No info
+    pikMinimal #Minimal info, previous isMinimal
+    pikRequires #Declarative parser only Minimal + requires (No vm involved)
+    pikFull #Full info
+
   PackageInfo* = object
     myPath*: string ## The path of this .nimble file
     isNimScript*: bool ## Determines if this pkg info was read from a nims file
-    isMinimal*: bool
+    infoKind*: PackageInfoKind
     isInstalled*: bool ## Determines if the pkg this info belongs to is installed
     nimbleTasks*: HashSet[string] ## All tasks defined in the Nimble file
     postHooks*: HashSet[string] ## Useful to know so that Nimble doesn't execHook unnecessarily
@@ -87,6 +93,9 @@ type
     alias*: string ## A name of another package, that this package aliases.
 
   PackageDependenciesInfo* = tuple[deps: HashSet[PackageInfo], pkg: PackageInfo]
+
+proc isMinimal*(pkg: PackageInfo): bool =
+  pkg.infoKind == pikMinimal
 
 const noTask* = "" # Means that noTask is being ran. Use this as key for base dependencies
 var satProccesedPackages*: HashSet[PackageInfo]

@@ -19,7 +19,7 @@ import nimblepkg/packageinfotypes, nimblepkg/packageinfo, nimblepkg/version,
        nimblepkg/nimbledatafile, nimblepkg/packagemetadatafile,
        nimblepkg/displaymessages, nimblepkg/sha1hashes, nimblepkg/syncfile,
        nimblepkg/deps, nimblepkg/nimblesat, nimblepkg/forge_aliases, nimblepkg/nimenv,
-       nimblepkg/downloadnim
+       nimblepkg/downloadnim, nimblepkg/declarativeparser
 
 const
   nimblePathsFileName* = "nimble.paths"
@@ -87,7 +87,11 @@ proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, options: Options): Has
   var pkgsToInstall: seq[(string, Version)] = @[]
   var rootPkgInfo = rootPkgInfo
   rootPkgInfo.requires &= options.extraRequires
-  var pkgList = initPkgList(rootPkgInfo, options).mapIt(it.toFullInfo(options))
+  var pkgList = initPkgList(rootPkgInfo, options)
+  if options.useDeclarativeParser:
+    pkgList = pkgList.mapIt(it.toRequiresInfo(options))
+  else:
+    pkgList = pkgList.mapIt(it.toFullInfo(options))
   var allPkgsInfo: seq[PackageInfo] = pkgList & rootPkgInfo
   #Remove from the pkglist the packages that exists in lock file and has a different vcsRevision
   var upgradeVersions = initTable[string, VersionRange]()
