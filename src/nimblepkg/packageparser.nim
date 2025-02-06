@@ -310,7 +310,7 @@ proc readPackageInfo(pkgInfo: var PackageInfo, nf: NimbleFile, options: Options,
   if not success:
     if onlyMinimalInfo:
       pkgInfo.isNimScript = true
-      pkgInfo.isMinimal = true
+      pkgInfo.infoKind = pikMinimal
     else:
       try:
         readPackageInfoFromNims(nf, options, pkgInfo)

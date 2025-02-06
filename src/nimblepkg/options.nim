@@ -64,6 +64,7 @@ type
     nimBinariesDir*: string # Directory where nim binaries are stored. Separated from nimbleDir as it can be changed by the user/tests
     disableNimBinaries*: bool # Whether to disable the use of nim binaries
     maxTaggedVersions*: int # Maximum number of tags to check for a package when discovering versions in a local repo
+    useDeclarativeParser*: bool # Whether to use the declarative parser for parsing nimble files (only when solver is SAT)
 
   ActionType* = enum
     actionNil, actionRefresh, actionInit, actionDump, actionPublish, actionUpgrade
@@ -276,6 +277,7 @@ Nimble Options:
       --requires                  Add extra packages to the dependency resolution. Uses the same syntax as the Nimble file. Example: nimble install --requires "pkg1; pkg2 >= 1.2".
       --disableNimBinaries        Disable the use of nim precompiled binaries. Note in some platforms precompiled binaries are not available but the flag can still be used to avoid compile the Nim version once and reuse it.
       --maximumTaggedVersions     Maximum number of tags to check for a package when discovering versions for the SAT solver. 0 means all.
+      --parser:declarative|nimvm  Use the declarative parser or the nimvm parser (default).
 For more information read the GitHub readme:
   https://github.com/nim-lang/nimble#readme
 """
@@ -662,6 +664,13 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
       result.useSatSolver = false
     else:
       raise nimbleError("Unknown solver option: " & val)
+  of "parser":
+    if val == "declarative":
+      result.useDeclarativeParser = true
+    elif val == "nimvm":
+      result.useDeclarativeParser = false
+    else:
+      raise nimbleError("Unknown parser option: " & val)
   of "requires":
     result.extraRequires = val.split(";").mapIt(it.strip.parseRequires())
   of "disablenimbinaries":

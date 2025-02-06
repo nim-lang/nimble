@@ -1,6 +1,6 @@
 import sat/[sat, satvars] 
 import version, packageinfotypes, download, packageinfo, packageparser, options, 
-  sha1hashes, tools, downloadnim, cli
+  sha1hashes, tools, downloadnim, cli, declarativeparser
   
 import std/[tables, sequtils, algorithm, sets, strutils, options, strformat, os, json, jsonutils]
 
@@ -107,6 +107,15 @@ proc getMinimalInfo*(pkg: PackageInfo, options: Options): PackageMinimalInfo =
   result.name = if pkg.basicInfo.name.isNim: "nim" else: pkg.basicInfo.name
   result.version = pkg.basicInfo.version
   result.requires = pkg.requires.map(convertNimAliasToNim)
+  if options.action.typ in {actionLock, actionDeps} or options.hasNimInLockFile():
+    result.requires = result.requires.filterIt(not it.isNim)
+
+proc getMinimalInfo*(nimbleFile: string, pkgName: string, options: Options): PackageMinimalInfo =
+  assert options.useDeclarativeParser, "useDeclarativeParser must be set"
+  let nimbleFileInfo = extractRequiresInfo(nimbleFile)
+  result.name =  if pkgName.isNim: "nim" else: pkgName
+  result.version = nimbleFileInfo.version.newVersion()
+  result.requires = nimbleFileInfo.getRequires() #TODO if package is Nim do not parse the file. Just get the version from the binary.
   if options.action.typ in {actionLock, actionDeps} or options.hasNimInLockFile():
     result.requires = result.requires.filterIt(not it.isNim)
 
@@ -561,8 +570,11 @@ proc getPackageMinimalVersionsFromRepo*(repoDir: string, name: string, version: 
       try:
         doCheckout(downloadMethod, tempDir, tag)
         let nimbleFile = findNimbleFile(tempDir, true, options)
-        let pkgInfo = getPkgInfoFromFile(nimbleFile, options, useCache=false)
-        result.addUnique pkgInfo.getMinimalInfo(options)
+        if options.useDeclarativeParser:
+          result.addUnique getMinimalInfo(nimbleFile, name, options)
+        else:
+          let pkgInfo = getPkgInfoFromFile(nimbleFile, options, useCache=false)
+          result.addUnique pkgInfo.getMinimalInfo(options)
       except CatchableError as e:
         displayWarning(
           &"Error reading tag {tag}: for package {name}. This may not be relevant as it could be an old version of the package. \n {e.msg}",
