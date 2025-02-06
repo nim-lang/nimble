@@ -12,6 +12,7 @@ import tdevelopfeature
 import tissues
 import tlocaldeps
 import tlockfile
+import tpublish
 import tmisctests
 import tmoduletests
 import tmultipkgs
