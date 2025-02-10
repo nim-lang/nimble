@@ -1794,6 +1794,22 @@ proc validateDevelopDependenciesVersionRanges(dependentPkg: PackageInfo,
   if errors.len > 0:
     raise nimbleError(invalidDevelopDependenciesVersionsMsg(errors))
 
+proc validateParsedDependencies(pkgInfo: PackageInfo, options: Options) =
+  displayInfo(&"Validating dependencies for pkgInfo {pkgInfo.infoKind}", HighPriority)
+  var options = options
+  options.useDeclarativeParser = true
+  let declDeps = pkgInfo.toRequiresInfo(options).requires
+  displayInfo("Declarative dependencies:", HighPriority)
+  displayInfo(declDeps.mapIt(&"{it.name} {it.ver}").join(", "), HighPriority)
+
+  options.useDeclarativeParser = false
+  let vmDeps = pkgInfo.toFullInfo(options).requires
+  displayInfo("VM dependencies:", HighPriority)
+  displayInfo(vmDeps.mapIt(&"{it.name} {it.ver}").join(", "), HighPriority)
+
+  if declDeps != vmDeps:
+    raise nimbleError("Declarative and VM dependencies are not the same")
+
 proc check(options: Options) =
   try:
     let currentDir = getCurrentDir()
@@ -1801,6 +1817,7 @@ proc check(options: Options) =
     validateDevelopFile(pkgInfo, options)
     let dependencies = pkgInfo.processAllDependencies(options).toSeq
     validateDevelopDependenciesVersionRanges(pkgInfo, dependencies, options)
+    validateParsedDependencies(pkgInfo, options)
     displaySuccess(&"The package \"{pkgInfo.basicInfo.name}\" is valid.")
   except CatchableError as error:
     displayError(error)

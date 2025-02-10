@@ -38,3 +38,9 @@ suite "check command":
       check exitCode == QuitSuccess
       check outp.processOutput.inLines("success")
       check outp.processOutput.inLines("\"x\" is valid")
+
+  test "should fail if parsers parse different dependencies":
+    cd "inconsistentdeps":
+      let (outp, exitCode) = execNimble("check")
+      check exitCode == QuitFailure
+      check outp.processOutput.inLines("Error:  Declarative and VM dependencies are not the same")
