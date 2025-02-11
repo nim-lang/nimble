@@ -43,4 +43,4 @@ suite "check command":
     cd "inconsistentdeps":
       let (outp, exitCode) = execNimble("check")
       check exitCode == QuitFailure
-      check outp.processOutput.inLines("Error:  Declarative and VM dependencies are not the same")
+      check outp.processOutput.inLines("Parsed declarative and VM dependencies are not the same: @[results@any version] != @[results@any version, stew@any version]")
