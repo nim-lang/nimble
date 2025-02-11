@@ -123,10 +123,12 @@ proc getGccArch*(options: Options): int =
     return when defined(windows): 32 else: 64
 
 proc isRosetta*(): bool =
-  let res = gorgeEx("sysctl -in sysctl.proc_translated")
-  if res.exitCode == 0:
-    return res.output.strip() == "1"
-  return false
+  try:
+    let res = execCmdEx("sysctl -in sysctl.proc_translated")
+    if res.exitCode == 0:
+      return res.output.strip() == "1"
+  except CatchableError as e:
+    return false
 
 proc getNightliesUrl*(parsedContents: JsonNode, arch: int): (string, string) =
   let os =
@@ -181,7 +183,7 @@ proc doCmdRaw*(cmd: string) =
   stdout.flushFile()
   stderr.flushFile()
 
-  if defined(macosx):
+  if defined(macosx) and isRosetta():
     command = "arch -arm64 " & command
 
   displayDebug("Executing", command)
