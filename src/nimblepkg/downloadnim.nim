@@ -181,7 +181,7 @@ proc doCmdRaw*(cmd: string) =
   stdout.flushFile()
   stderr.flushFile()
 
-  if defined(macosx) and isRosetta():
+  if defined(macosx):
     command = "arch -arm64 " & command
 
   displayDebug("Executing", command)
