@@ -127,7 +127,7 @@ proc isRosetta*(): bool =
     let res = execCmdEx("sysctl -in sysctl.proc_translated")
     if res.exitCode == 0:
       return res.output.strip() == "1"
-  except CatchableError as e:
+  except CatchableError:
     return false
 
 proc getNightliesUrl*(parsedContents: JsonNode, arch: int): (string, string) =
