@@ -1799,16 +1799,12 @@ proc validateParsedDependencies(pkgInfo: PackageInfo, options: Options) =
   var options = options
   options.useDeclarativeParser = true
   let declDeps = pkgInfo.toRequiresInfo(options).requires
-  displayInfo("Declarative dependencies:", HighPriority)
-  displayInfo(declDeps.mapIt(&"{it.name} {it.ver}").join(", "), HighPriority)
 
   options.useDeclarativeParser = false
   let vmDeps = pkgInfo.toFullInfo(options).requires
-  displayInfo("VM dependencies:", HighPriority)
-  displayInfo(vmDeps.mapIt(&"{it.name} {it.ver}").join(", "), HighPriority)
 
   if declDeps != vmDeps:
-    raise nimbleError("Declarative and VM dependencies are not the same")
+    raise nimbleError(&"Parsed declarative and VM dependencies are not the same: {declDeps} != {vmDeps}")
 
 proc check(options: Options) =
   try:
