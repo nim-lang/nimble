@@ -89,11 +89,11 @@ proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, options: Options): Has
   rootPkgInfo.requires &= options.extraRequires
   if options.useDeclarativeParser:
     rootPkgInfo = rootPkgInfo.toRequiresInfo(options)
-    displayInfo(&"Features: options: {options.features} pkg: {rootPkgInfo.features}", HighPriority)
+    # displayInfo(&"Features: options: {options.features} pkg: {rootPkgInfo.features}", HighPriority)
     for feature in options.features:
       if feature in rootPkgInfo.features:
         rootPkgInfo.requires &= rootPkgInfo.features[feature]
-        displayInfo(&"Feature {feature} activated", HighPriority)
+        # displayInfo(&"Feature {feature} activated", LowPriority)
     
   var pkgList = initPkgList(rootPkgInfo, options)
   if options.useDeclarativeParser:
