@@ -5,17 +5,30 @@ import std/strutils
 
 import compiler/[ast, idents, msgs, syntaxes, options, pathutils, lineinfos]
 import version, packageinfotypes, packageinfo, options, packageparser
+import std/[tables, sequtils]
 
 type NimbleFileInfo* = object
   requires*: seq[string]
   srcDir*: string
   version*: string
   tasks*: seq[(string, string)]
+  features*: Table[string, seq[string]]
   hasInstallHooks*: bool
   hasErrors*: bool
 
 proc eqIdent(a, b: string): bool {.inline.} =
   cmpIgnoreCase(a, b) == 0 and a[0] == b[0]
+
+proc extractRequires(n: PNode, conf: ConfigRef, result: var seq[string], hasErrors: var bool) =
+  for i in 1 ..< n.len:
+    var ch: PNode = n[i]
+    while ch.kind in {nkStmtListExpr, nkStmtList} and ch.len > 0:
+      ch = ch.lastSon
+    if ch.kind in {nkStrLit .. nkTripleStrLit}:
+      result.add ch.strVal
+    else:
+      localError(conf, ch.info, "'requires' takes string literals")
+      hasErrors = true
 
 proc extract(n: PNode, conf: ConfigRef, result: var NimbleFileInfo) =
   case n.kind
@@ -26,15 +39,19 @@ proc extract(n: PNode, conf: ConfigRef, result: var NimbleFileInfo) =
     if n[0].kind == nkIdent:
       case n[0].ident.s
       of "requires":
-        for i in 1 ..< n.len:
-          var ch = n[i]
-          while ch.kind in {nkStmtListExpr, nkStmtList} and ch.len > 0:
-            ch = ch.lastSon
-          if ch.kind in {nkStrLit .. nkTripleStrLit}:
-            result.requires.add ch.strVal
-          else:
-            localError(conf, ch.info, "'requires' takes string literals")
-            result.hasErrors = true
+        extractRequires(n, conf, result.requires, result.hasErrors)
+      of "feature":
+        if n.len >= 3 and n[1].kind in {nkStrLit .. nkTripleStrLit}:
+          let featureName = n[1].strVal
+          if not result.features.hasKey(featureName):
+            result.features[featureName] = @[]
+          if n[2].kind in {nkStmtList, nkStmtListExpr}:
+            for stmt in n[2]:
+              if stmt.kind in nkCallKinds and stmt[0].kind == nkIdent and 
+                 stmt[0].ident.s == "requires":
+                var requires: seq[string]
+                extractRequires(stmt, conf, requires, result.hasErrors)
+                result.features[featureName].add requires
       of "task":
         if n.len >= 3 and n[1].kind == nkIdent and
             n[2].kind in {nkStrLit .. nkTripleStrLit}:
@@ -170,16 +187,23 @@ proc getRequires*(nimbleFileInfo: NimbleFileInfo): seq[PkgTuple] =
   for require in nimbleFileInfo.requires:
     result.add(parseRequires(require))
 
+proc getFeatures*(nimbleFileInfo: NimbleFileInfo): Table[string, seq[PkgTuple]] =
+  result = initTable[string, seq[PkgTuple]]()
+  for feature, requires in nimbleFileInfo.features:
+    result[feature] = requires.map(parseRequires)    
+
 proc toRequiresInfo*(pkgInfo: PackageInfo, options: Options): PackageInfo =
   #For nim we only need the version. Since version is usually in the form of `version = $NimMajor & "." & $NimMinor & "." & $NimPatch
   #we need to use the vm to get the version. Another option could be to use the binary and ask for the version
   if pkgInfo.basicInfo.name.isNim:
     return pkgInfo.toFullInfo(options)
-    
+        
   let nimbleFileInfo = extractRequiresInfo(pkgInfo.myPath)
   result = pkgInfo
   result.requires = getRequires(nimbleFileInfo)
-  result.infoKind = pikRequires
+  if pkgInfo.infoKind != pikFull: #dont update as full implies pik requires
+    result.infoKind = pikRequires
+  result.features = getFeatures(nimbleFileInfo)
 
 when isMainModule:
   for x in tokenizeRequires("jester@#head >= 1.5 & <= 1.8"):
