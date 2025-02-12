@@ -70,3 +70,6 @@ suite "Declarative parsing":
     let (output, exitCode) = execNimble("--parser:declarative", "install", "nimlangserver")
     echo output
     check exitCode == QuitSuccess
+
+
+  # suite "Declarative parser features":
