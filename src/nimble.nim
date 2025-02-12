@@ -87,6 +87,14 @@ proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, options: Options): Has
   var pkgsToInstall: seq[(string, Version)] = @[]
   var rootPkgInfo = rootPkgInfo
   rootPkgInfo.requires &= options.extraRequires
+  if options.useDeclarativeParser:
+    rootPkgInfo = rootPkgInfo.toRequiresInfo(options)
+    displayInfo(&"Features: options: {options.features} pkg: {rootPkgInfo.features}", HighPriority)
+    for feature in options.features:
+      if feature in rootPkgInfo.features:
+        rootPkgInfo.requires &= rootPkgInfo.features[feature]
+        displayInfo(&"Feature {feature} activated", HighPriority)
+    
   var pkgList = initPkgList(rootPkgInfo, options)
   if options.useDeclarativeParser:
     pkgList = pkgList.mapIt(it.toRequiresInfo(options))
@@ -289,6 +297,10 @@ proc buildFromDir(pkgInfo: PackageInfo, paths: HashSet[seq[string]],
   if options.noColor:
     # Disable coloured output
     args.add("--colors:off")
+
+  for feature in options.features:
+    let featureStr = &"features.{pkgInfo.basicInfo.name}.{feature}"
+    args.add &"-d:{featureStr}"
 
   let binToBuild =
     # Only build binaries specified by user if any, but only if top-level package,
@@ -1802,7 +1814,8 @@ proc validateParsedDependencies(pkgInfo: PackageInfo, options: Options) =
 
   options.useDeclarativeParser = false
   let vmDeps = pkgInfo.toFullInfo(options).requires
-
+  displayInfo(&"Parsed declarative dependencies: {declDeps}", HighPriority)
+  displayInfo(&"Parsed VM dependencies: {vmDeps}", HighPriority)
   if declDeps != vmDeps:
     raise nimbleError(&"Parsed declarative and VM dependencies are not the same: {declDeps} != {vmDeps}")
 
