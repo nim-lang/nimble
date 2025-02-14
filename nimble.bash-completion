@@ -1,46 +1,552 @@
-# vim: filetype=sh
+# bash completion for nim                             -*- shell-script -*-
 
-_nimble()
+__is_short_or_long()
 {
-    local cur=${COMP_WORDS[COMP_CWORD]}
-    local prev=${COMP_WORDS[COMP_CWORD-1]}
-    COMPREPLY=()
+    local actual short long
+    actual="$1"
+    short="$2"
+    long="$3"
+    [[ ! -z $short && $actual == $short ]] && return 0
+    [[ ! -z $long && $actual == $long ]] && return 0
+    return 1
+}
 
-    if declare -F _init_completions >/dev/null 2>&1; then
-        _init_completion || return
+__ask_for_subcmd()
+{
+    local args cmd words len ilast ilastlast word_first word_last sub_words sub_len
+    local i ele
+    args=("$@")
+    cmd="${args[0]}"
+    ilast="${args[1]}"
+    words=("${args[@]:2}")
+    len=${#words[@]}
+    ilastlast=$((ilast - 1))
+    word_first=${words[0]}
+    word_last=${words[ilast]}
+    sub_words=("${words[@]:1:ilastlast}") # start at 1 hence lastlast
+    sub_len=${#words[@]}
+
+    # printf "\n[DBUG] word_first:${word_first}|word_last:${word_last}|sub_words(${#sub_words[*]}):${sub_words[*]}\n"
+
+    if [[ $word_first != $cmd || $word_last =~ ^- ]]
+    then
+	return 1
     fi
+    
+    i=0
+    while [[ $i -lt $sub_len ]]
+    do
+	ele=${sub_words[i]}
+	if [[ ! -z $ele && ! $ele =~ ^[-:] ]]
+	then
+	    return 1
+	fi
+	if [[ $ele =~ ^: ]]
+	then
+	    ((i+=1))
+	fi
+	((i+=1))
+    done
 
-    case "$prev" in
-    init|update|refresh|publish|search|build)
-        # no needed or available completion
-        ;;
-    c|cc|js)
-        _filedir '@(nim)'
-        ;;
-    install)
-        COMPREPLY=( $( nimble list 2> /dev/null | grep "^$cur" | grep -v '^ ' | tr -d ':') )
-        ;;
-    path)
-        COMPREPLY=( $( nimble list -i 2> /dev/null | cut -d' ' -f1 | grep "^$cur" ) )
-        ;;
-    uninstall)
-        COMPREPLY=( $( nimble list -i 2> /dev/null | awk -F'( |\\[|\\])' '{ f=4; while($f) { l=length($f); if(substr($f, l, l)==",") { $f=substr($f, 0, l-1) }; print $1 "@" $f; f++; }}' | sort -f | grep "^$cur" ) )
-            ;;
-    list)
-        COMPREPLY=( $( compgen -W '--ver -i --installed' -- $cur ) )
-        ;;
-    *)
-        # no $prev: suggest commands or flags
-        if [[ "$cur" == -* ]]; then
-            kw="-h -v -y -n --reject --version --accept --ver --help"
-        else
-            kw="install init publish uninstall build c cc js refresh search list path"
-        fi
-        COMPREPLY=( $( compgen -W "${kw}" -- $cur ) )
-        ;;
-    esac;
+    if [[ $word_last == : ]]
+    then
+	return 1
+    fi
 
     return 0
 }
 
-complete -F _nimble nimble
+__ask_for_subcmd_opts()
+{
+    local args cmd subcmd words len ilast sub_words sub_len word_first n_nopts
+    local i ele
+    args=("$@")
+    cmd="${args[0]}"
+    subcmd="${args[1]}"
+    ilast="${args[2]}"
+    words=("${args[@]:3}")
+    len=${#words[@]}
+    sub_words=("${words[@]:0:ilast}")
+    sub_len=${#sub_words[@]}
+    word_first=${words[0]}
+    n_nopts=0
+
+    # printf "\n[DBUG] word_first:${word_first}|words(${len}):${words[*]}|sub_words(${sub_len}):${sub_words[*]}\n"
+
+    if [[ $word_first != $cmd ]]
+    then
+	return 1
+    fi
+
+    i=0
+    while [[ $i -lt $sub_len ]]
+    do
+	ele=${sub_words[i]}
+	if [[ ! $ele =~ ^- ]]
+	then
+	    if [[ $ele == $cmd || $ele == $subcmd ]]
+	    then
+		((n_nopts+=1))
+	    elif [[ $ele =~ ^: ]]
+	    then
+		((i+=1))
+	    else
+		return 1
+	    fi
+	fi
+	((i+=1))
+    done
+
+    if [[ n_nopts -ne 2 ]]
+    then
+	return 1
+    fi
+
+    return 0
+}
+
+_nimble()
+{
+    local i_curr n_words i_prev i_prevprev curr prev prevprev words
+    COMPREPLY=()
+    i_curr=$COMP_CWORD
+    n_words=$((i_curr+1))
+    i_prev=$((i_curr-1))
+    i_prevprev=$((i_curr-2))
+    curr="${COMP_WORDS[i_curr]}"
+    prev="${COMP_WORDS[i_prev]}"
+    prevprev="${COMP_WORDS[i_prevprev]}"
+    words=("${COMP_WORDS[@]:0:n_words}")
+
+    local subcmds opts candids
+    # printf "\n[DBUG] i_curr:$i_curr|curr:$curr|prev:$prev|words(${#words[*]}):${words[*]}\n"
+
+    # Asking for a subcommand
+    if __ask_for_subcmd nimble $i_curr "${words[@]}"
+    then
+        subcmds=""
+	subcmds="${subcmds} install"
+	subcmds="${subcmds} develop"
+	subcmds="${subcmds} check"
+	subcmds="${subcmds} init"
+	subcmds="${subcmds} publish"
+	subcmds="${subcmds} publishTags"
+	subcmds="${subcmds} uninstall"
+	subcmds="${subcmds} build"
+	subcmds="${subcmds} clean"
+	subcmds="${subcmds} guide"
+	subcmds="${subcmds} add"
+	subcmds="${subcmds} run"
+	subcmds="${subcmds} c cc js"
+	subcmds="${subcmds} test"
+	subcmds="${subcmds} doc doc2"
+	subcmds="${subcmds} refresh"
+	subcmds="${subcmds} search"
+	subcmds="${subcmds} list"
+	subcmds="${subcmds} tasks"
+	subcmds="${subcmds} path"
+	subcmds="${subcmds} dump"
+	subcmds="${subcmds} lock"
+	subcmds="${subcmds} search"
+	subcmds="${subcmds} upgrade"
+	subcmds="${subcmds} deps"
+	subcmds="${subcmds} sync"
+	subcmds="${subcmds} setup"
+	subcmds="${subcmds} shell"
+	subcmds="${subcmds} shellenv"
+	subcmds="${subcmds} upgrade"
+	COMPREPLY=( $( compgen -W "${subcmds}" -- ${curr}) )
+	return 0
+    fi
+
+    # Priorize subcmd over opt
+    if false
+    then
+	return 124
+    elif __ask_for_subcmd_opts nimble install $i_curr "${words[@]}"
+    then
+	opts=() \
+	    && candids=()
+	opts+=("-d" "--depsOnly" "") \
+	    && candids+=(${opts[$((${#opts[@]}-3))]} ${opts[$((${#opts[@]}-2))]})
+	opts+=("-p" "--passNim" "") \
+	    && candids+=(${opts[$((${#opts[@]}-3))]} ${opts[$((${#opts[@]}-2))]})
+	opts+=("" "--noRebuild" "") \
+	    && candids+=(${opts[$((${#opts[@]}-3))]} ${opts[$((${#opts[@]}-2))]})
+
+    elif  __ask_for_subcmd_opts nimble develop $i_curr "${words[@]}"
+    then
+	opts=() \
+	    && candids=()
+	opts+=("" "--withDependencies" "") \
+	    && candids+=(${opts[$((${#opts[@]}-3))]} ${opts[$((${#opts[@]}-2))]})
+	opts+=("-p" "--patch" "PATH") \
+	    && candids+=(${opts[$((${#opts[@]}-3))]} ${opts[$((${#opts[@]}-2))]})
+	opts+=("-a" "--add" "PATH") \
+	    && candids+=(${opts[$((${#opts[@]}-3))]} ${opts[$((${#opts[@]}-2))]})
+	opts+=("-r" "--removePath" "PATH") \
+	    && candids+=(${opts[$((${#opts[@]}-3))]} ${opts[$((${#opts[@]}-2))]})
+	opts+=("-n" "--removeName" "NAME") \
+	    && candids+=(${opts[$((${#opts[@]}-3))]} ${opts[$((${#opts[@]}-2))]})
+	opts+=("-i" "--include" "FILE") \
+	    && candids+=(${opts[$((${#opts[@]}-3))]} ${opts[$((${#opts[@]}-2))]})
+	opts+=("-e" "--exclude" "FILE") \
+	    && candids+=(${opts[$((${#opts[@]}-3))]} ${opts[$((${#opts[@]}-2))]})
+	opts+=("-g" "--global" "") \
+	    && candids+=(${opts[$((${#opts[@]}-3))]} ${opts[$((${#opts[@]}-2))]})
+
+    elif  __ask_for_subcmd_opts nimble check $i_curr "${words[@]}"
+    then
+	opts=() \
+	    && candids=()
+
+    elif  __ask_for_subcmd_opts nimble publish $i_curr "${words[@]}"
+    then
+	opts=() \
+	    && candids=()
+
+    elif  __ask_for_subcmd_opts nimble init $i_curr "${words[@]}"
+    then
+	opts=() \
+	    && candids=()
+	opts+=("" "--git" "") \
+	    && candids+=(${opts[$((${#opts[@]}-3))]} ${opts[$((${#opts[@]}-2))]})
+	opts+=("" "--hg" "") \
+	    && candids+=(${opts[$((${#opts[@]}-3))]} ${opts[$((${#opts[@]}-2))]})
+
+    elif  __ask_for_subcmd_opts nimble publish $i_curr "${words[@]}"
+    then
+	opts=() \
+	    && candids=()
+
+    elif  __ask_for_subcmd_opts nimble publishTags $i_curr "${words[@]}"
+    then
+	opts=() \
+	    && candids=()
+	opts+=("-l" "--listOnly" "") \
+	    && candids+=(${opts[$((${#opts[@]}-3))]} ${opts[$((${#opts[@]}-2))]})
+
+    elif  __ask_for_subcmd_opts nimble uninstall $i_curr "${words[@]}"
+    then
+	opts=() \
+	    && candids=()
+	opts+=("-i" "--inclDeps" "") \
+	    && candids+=(${opts[$((${#opts[@]}-3))]} ${opts[$((${#opts[@]}-2))]})
+
+    elif  __ask_for_subcmd_opts nimble build $i_curr "${words[@]}"
+    then
+	opts=() \
+	    && candids=()
+
+    elif  __ask_for_subcmd_opts nimble clean $i_curr "${words[@]}"
+    then
+	opts=() \
+	    && candids=()
+
+    elif  __ask_for_subcmd_opts nimble guide $i_curr "${words[@]}"
+    then
+	opts=() \
+	    && candids=()
+
+    elif  __ask_for_subcmd_opts nimble add $i_curr "${words[@]}"
+    then
+	opts=() \
+	    && candids=()
+
+    elif  __ask_for_subcmd_opts nimble run $i_curr "${words[@]}"
+    then
+	opts=() \
+	    && candids=()
+
+    elif  __ask_for_subcmd_opts nimble c $i_curr "${words[@]}"
+    then
+	opts=() \
+	    && candids=()
+
+    elif  __ask_for_subcmd_opts nimble cc $i_curr "${words[@]}"
+    then
+	opts=() \
+	    && candids=()
+
+    elif  __ask_for_subcmd_opts nimble js $i_curr "${words[@]}"
+    then
+	opts=() \
+	    && candids=()
+
+    elif  __ask_for_subcmd_opts nimble test $i_curr "${words[@]}"
+    then
+	opts=() \
+	    && candids=()
+	opts+=("-c" "--continue" "") \
+	    && candids+=(${opts[$((${#opts[@]}-3))]} ${opts[$((${#opts[@]}-2))]})
+
+    elif  __ask_for_subcmd_opts nimble doc $i_curr "${words[@]}"
+    then
+	opts=() \
+	    && candids=()
+
+    elif  __ask_for_subcmd_opts nimble doc2 $i_curr "${words[@]}"
+    then
+	opts=() \
+	    && candids=()
+
+    elif  __ask_for_subcmd_opts nimble refresh $i_curr "${words[@]}"
+    then
+	opts=() \
+	    && candids=()
+
+    elif  __ask_for_subcmd_opts nimble search $i_curr "${words[@]}"
+    then
+	opts=() \
+	    && candids=()
+	opts+=("" "--ver" "") \
+	    && candids+=(${opts[$((${#opts[@]}-3))]} ${opts[$((${#opts[@]}-2))]})
+	opts+=("" "--version" "") \
+	    && candids+=(${opts[$((${#opts[@]}-3))]} ${opts[$((${#opts[@]}-2))]})
+
+    elif  __ask_for_subcmd_opts nimble list $i_curr "${words[@]}"
+    then
+	opts=() \
+	    && candids=()
+	opts+=("-i" "--installed" "") \
+	    && candids+=(${opts[$((${#opts[@]}-3))]} ${opts[$((${#opts[@]}-2))]})
+	opts+=("" "--ver" "") \
+	    && candids+=(${opts[$((${#opts[@]}-3))]} ${opts[$((${#opts[@]}-2))]})
+	opts+=("" "--version" "") \
+	    && candids+=(${opts[$((${#opts[@]}-3))]} ${opts[$((${#opts[@]}-2))]})
+	opts+=("-n" "--nimbinaries" "") \
+	    && candids+=(${opts[$((${#opts[@]}-3))]} ${opts[$((${#opts[@]}-2))]})
+
+    elif  __ask_for_subcmd_opts nimble tasks $i_curr "${words[@]}"
+    then
+	opts=() \
+	    && candids=()
+
+    elif  __ask_for_subcmd_opts nimble path $i_curr "${words[@]}"
+    then
+	opts=() \
+	    && candids=()
+
+    elif  __ask_for_subcmd_opts nimble dump $i_curr "${words[@]}"
+    then
+	opts=() \
+	    && candids=()
+	opts+=("" "--ini" "") \
+	    && candids+=(${opts[$((${#opts[@]}-3))]} ${opts[$((${#opts[@]}-2))]})
+	opts+=("" "--json" "") \
+	    && candids+=(${opts[$((${#opts[@]}-3))]} ${opts[$((${#opts[@]}-2))]})
+
+    elif  __ask_for_subcmd_opts nimble lock $i_curr "${words[@]}"
+    then
+	opts=() \
+	    && candids=()
+
+    elif  __ask_for_subcmd_opts nimble upgrade $i_curr "${words[@]}"
+    then
+	opts=() \
+	    && candids=()
+
+    elif  __ask_for_subcmd_opts nimble deps $i_curr "${words[@]}"
+    then
+	opts=() \
+	    && candids=()
+	opts+=("" "--tree" "") \
+	    && candids+=(${opts[$((${#opts[@]}-3))]} ${opts[$((${#opts[@]}-2))]})
+	opts+=("" "--inverted" "") \
+	    && candids+=(${opts[$((${#opts[@]}-3))]} ${opts[$((${#opts[@]}-2))]})
+	opts+=("" "--format" "TYPE") \
+	    && candids+=(${opts[$((${#opts[@]}-3))]} ${opts[$((${#opts[@]}-2))]})
+
+    elif  __ask_for_subcmd_opts nimble sync $i_curr "${words[@]}"
+    then
+	opts=() \
+	    && candids=()
+	opts+=("-l" "--listOnly" "") \
+	    && candids+=(${opts[$((${#opts[@]}-3))]} ${opts[$((${#opts[@]}-2))]})
+
+    elif  __ask_for_subcmd_opts nimble setup $i_curr "${words[@]}"
+    then
+	opts=() \
+	    && candids=()
+
+    elif  __ask_for_subcmd_opts nimble shell $i_curr "${words[@]}"
+    then
+	opts=() \
+	    && candids=()
+
+    elif  __ask_for_subcmd_opts nimble shellenv $i_curr "${words[@]}"
+    then
+	opts=() \
+	    && candids=()
+
+    else
+	opts=() \
+	    && candids=()
+	opts+=("-h" "--help" "") \
+	    && candids+=(${opts[$((${#opts[@]}-3))]} ${opts[$((${#opts[@]}-2))]})
+	opts+=("-v" "--version" "") \
+	    && candids+=(${opts[$((${#opts[@]}-3))]} ${opts[$((${#opts[@]}-2))]})
+	opts+=("-y" "--accept" "") \
+	    && candids+=(${opts[$((${#opts[@]}-3))]} ${opts[$((${#opts[@]}-2))]})
+	opts+=("-n" "--reject" "") \
+	    && candids+=(${opts[$((${#opts[@]}-3))]} ${opts[$((${#opts[@]}-2))]})
+	opts+=("-l" "--localdeps" "") \
+	    && candids+=(${opts[$((${#opts[@]}-3))]} ${opts[$((${#opts[@]}-2))]})
+	opts+=("-p" "--package" "") \
+	    && candids+=(${opts[$((${#opts[@]}-3))]} ${opts[$((${#opts[@]}-2))]})
+	opts+=("-t" "--tarballs" "") \
+	    && candids+=(${opts[$((${#opts[@]}-3))]} ${opts[$((${#opts[@]}-2))]})
+	opts+=("" "--ver" "") \
+	    && candids+=(${opts[$((${#opts[@]}-3))]} ${opts[$((${#opts[@]}-2))]})
+	opts+=("" "--nimbleDir" "DIRNAME") \
+	    && candids+=(${opts[$((${#opts[@]}-3))]} ${opts[$((${#opts[@]}-2))]})
+	opts+=("" "--nim" "PATH") \
+	    && candids+=(${opts[$((${#opts[@]}-3))]} ${opts[$((${#opts[@]}-2))]})
+	opts+=("" "--silent" "") \
+	    && candids+=(${opts[$((${#opts[@]}-3))]} ${opts[$((${#opts[@]}-2))]})
+	opts+=("" "--info" "") \
+	    && candids+=(${opts[$((${#opts[@]}-3))]} ${opts[$((${#opts[@]}-2))]})
+	opts+=("" "--verbose" "") \
+	    && candids+=(${opts[$((${#opts[@]}-3))]} ${opts[$((${#opts[@]}-2))]})
+	opts+=("" "--debug" "") \
+	    && candids+=(${opts[$((${#opts[@]}-3))]} ${opts[$((${#opts[@]}-2))]})
+	opts+=("" "--offline" "") \
+	    && candids+=(${opts[$((${#opts[@]}-3))]} ${opts[$((${#opts[@]}-2))]})
+	opts+=("" "--noColor" "") \
+	    && candids+=(${opts[$((${#opts[@]}-3))]} ${opts[$((${#opts[@]}-2))]})
+	opts+=("" "--noSslCheck" "") \
+	    && candids+=(${opts[$((${#opts[@]}-3))]} ${opts[$((${#opts[@]}-2))]})
+	opts+=("" "--lockFile" "") \
+	    && candids+=(${opts[$((${#opts[@]}-3))]} ${opts[$((${#opts[@]}-2))]})
+	opts+=("" "--noLockFile" "") \
+	    && candids+=(${opts[$((${#opts[@]}-3))]} ${opts[$((${#opts[@]}-2))]})
+	opts+=("" "--developFile" "") \
+	    && candids+=(${opts[$((${#opts[@]}-3))]} ${opts[$((${#opts[@]}-2))]})
+	opts+=("" "--useSystemNim" "") \
+	    && candids+=(${opts[$((${#opts[@]}-3))]} ${opts[$((${#opts[@]}-2))]})
+	opts+=("" "--solver" "sat legacy") \
+	    && candids+=(${opts[$((${#opts[@]}-3))]} ${opts[$((${#opts[@]}-2))]})
+	opts+=("" "--requires" "") \
+	    && candids+=(${opts[$((${#opts[@]}-3))]} ${opts[$((${#opts[@]}-2))]})
+	opts+=("" "--disableNimBinaries" "") \
+	    && candids+=(${opts[$((${#opts[@]}-3))]} ${opts[$((${#opts[@]}-2))]})
+	opts+=("" "--maximumTaggedVersions" "") \
+	    && candids+=(${opts[$((${#opts[@]}-3))]} ${opts[$((${#opts[@]}-2))]})
+	opts+=("" "--parser" "declarative nimvm") \
+	    && candids+=(${opts[$((${#opts[@]}-3))]} ${opts[$((${#opts[@]}-2))]})
+    fi
+
+    local len i idx0 idx1 idx2 c_short c_long c_accvals
+
+    case $curr in
+	# Asking for accepted optvalues, e.g., `out:`
+	:)
+	    len=${#opts[@]}
+	    i=0
+
+	    while [[ $i -lt $len ]]
+	    do
+		idx0=$((i / 3 * 3))
+	        idx1=$((idx0 + 1))
+		idx2=$((idx1 + 1))
+		c_short=${opts[idx0]}
+		c_long=${opts[idx1]}
+		c_accvals=${opts[idx2]}
+		(false \
+		     || __is_short_or_long $prev ${c_short} ${c_long} \
+		     || false) \
+		    && COMPREPLY=( $(compgen -W "${c_accvals}" --) ) \
+		    && return 0
+		((i+=3))
+	    done
+	    return 124
+	    ;;
+
+	*)
+	    # When in a incomplete opt value, e.g., `--check:of`
+	    if [[ $prev == : ]]
+	    then
+		len=${#opts[@]}
+		i=0
+		while [[ $i -lt $len ]]
+		do
+		    idx0=$((i / 3 * 3))
+		    idx1=$((idx0 + 1))
+		    idx2=$((idx1 + 1))
+		    c_short=${opts[idx0]}
+		    c_long=${opts[idx1]}
+		    c_accvals=${opts[idx2]}
+		    (false \
+			 || __is_short_or_long $prevprev ${c_short} ${c_long} \
+			 || false) \
+			&& COMPREPLY=( $(compgen -W "${c_accvals}" -- ${curr}) ) \
+			&& return 0
+		    ((i+=3))
+		done
+		return 124
+	    fi
+
+	    # When in a complete optname, might need optvalue, e.g., `--check`
+	    if [[ $curr =~ ^--?[:()a-zA-Z]+$ ]]
+	    then
+	        len=${#opts[@]}
+		i=0
+		while [[ $i -lt $len ]]
+		do
+		    idx0=$(((i / 3 * 3)))
+		    idx1=$((idx0 + 1))
+		    idx2=$((idx1 + 1))
+		    c_short=${opts[idx0]}
+		    c_long=${opts[idx1]}
+		    c_accvals=${opts[idx2]}
+
+		    if __is_short_or_long $curr ${c_short} ${c_long}
+		    then
+			if [[ ! -z $c_accvals ]]
+			then
+			    COMPREPLY=( $(compgen -W "${curr}:" -- ${curr}) ) \
+				&& compopt -o nospace \
+				&& return 0
+			else
+			    COMPREPLY=( $(compgen -W "${curr}" -- ${curr}) ) \
+				&& return 0
+			fi
+		    fi
+
+		    ((i+=3))
+		done # while
+
+		if true
+		then
+		    COMPREPLY=( $(compgen -W "${candids[*]}" -- "$curr") )
+		    compopt -o nospace
+		    return 0
+		fi
+
+		# When in an incomplete optname, e.g., `--chec`
+	    elif [[ $curr =~ ^--?[^:]* ]]
+	    then
+		if true
+		then
+		    COMPREPLY=( $(compgen -W "${candids[*]}" -- "$curr") )
+		    compopt -o nospace
+		    return 0
+		fi
+	    fi
+
+	    if true
+	    then
+		compopt -o filenames
+		COMPREPLY=( $(compgen -f -- "$curr") )
+		compopt -o nospace
+		return 0
+	    fi
+
+	    ;;
+    esac
+    return 0
+
+} &&
+    complete -F _nimble nimble
+
+# ex: filetype=sh
