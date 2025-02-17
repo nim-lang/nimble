@@ -305,7 +305,7 @@ suite "SAT solver":
     let downloadRes = pv.downloadPkgFromUrl(options)[0] #This is just to setup the test. We need a git dir to work on
     let repoDir = downloadRes.dir
     let downloadMethod = DownloadMethod git
-    let packageVersions = getPackageMinimalVersionsFromRepo(repoDir, pv[0], downloadRes.version, downloadMethod, options)
+    let packageVersions = getPackageMinimalVersionsFromRepo(repoDir, pv, downloadRes.version, downloadMethod, options)
     
     #we know these versions are available
     let availableVersions = @["0.3.4", "0.3.5", "0.3.6", "0.4.5", "0.4.4"].mapIt(newVersion(it))
@@ -329,7 +329,7 @@ suite "SAT solver":
     let pvPrev = parseRequires("nimfp >= 0.3.4")
     let downloadResPrev = pvPrev.downloadPkgFromUrl(options)[0]
     let repoDirPrev = downloadResPrev.dir
-    discard getPackageMinimalVersionsFromRepo(repoDirPrev, pvPrev[0], downloadResPrev.version,  DownloadMethod.git, options)
+    discard getPackageMinimalVersionsFromRepo(repoDirPrev, pvPrev, downloadResPrev.version,  DownloadMethod.git, options)
     check fileExists(repoDirPrev / TaggedVersionsFileName)
     
     let pv = parseRequires("nimfp >= 0.4.4")
@@ -337,7 +337,7 @@ suite "SAT solver":
     let repoDir = downloadRes.dir 
     check not fileExists(repoDir / TaggedVersionsFileName)
 
-    let packageVersions = getPackageMinimalVersionsFromRepo(repoDir, pv[0], downloadRes.version, DownloadMethod.git, options)
+    let packageVersions = getPackageMinimalVersionsFromRepo(repoDir, pv, downloadRes.version, DownloadMethod.git, options)
     #we know these versions are available
     let availableVersions = @["0.4.5", "0.4.4"].mapIt(newVersion(it))
     for version in availableVersions:
@@ -363,7 +363,7 @@ suite "SAT solver":
     let pvPrev = parseRequires("nimfp >= 0.3.4")
     let downloadResPrev = pvPrev.downloadPkgFromUrl(options)[0]
     let repoDirPrev = downloadResPrev.dir
-    discard getPackageMinimalVersionsFromRepo(repoDirPrev, pvPrev[0], downloadResPrev.version,  DownloadMethod.git, options)
+    discard getPackageMinimalVersionsFromRepo(repoDirPrev, pvPrev, downloadResPrev.version,  DownloadMethod.git, options)
     check not fileExists(repoDirPrev / TaggedVersionsFileName)
 
     check fileExists("nimbledeps" / "pkgcache" / "tagged" / "nimfp.json")

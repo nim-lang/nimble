@@ -537,9 +537,10 @@ proc saveTaggedVersions*(repoDir, pkgName: string, taggedVersions: TaggedPackage
   except CatchableError as e:
     displayWarning(&"Error saving tagged versions: {e.msg}", HighPriority)
 
-proc getPackageMinimalVersionsFromRepo*(repoDir: string, name: string, version: Version, downloadMethod: DownloadMethod, options: Options): seq[PackageMinimalInfo] =
+proc getPackageMinimalVersionsFromRepo*(repoDir: string, pkg: PkgTuple, version: Version, downloadMethod: DownloadMethod, options: Options): seq[PackageMinimalInfo] =
   result = newSeq[PackageMinimalInfo]()
   
+  let name = pkg[0]
   let taggedVersions = getTaggedVersions(repoDir, name, options)
   if taggedVersions.isSome:
     return taggedVersions.get.versions
@@ -568,6 +569,12 @@ proc getPackageMinimalVersionsFromRepo*(repoDir: string, name: string, version: 
       inc checkedTags
       
       try:
+        let tagVersion = newVersion($ver)
+
+        if not tagVersion.withinRange(pkg[1]):
+          displayInfo(&"Ignoring {tagVersion} because out of range {pkg[1]}")
+          break
+
         doCheckout(downloadMethod, tempDir, tag)
         let nimbleFile = findNimbleFile(tempDir, true, options)
         if options.useDeclarativeParser:
@@ -598,7 +605,7 @@ proc downloadMinimalPackage*(pv: PkgTuple, options: Options): seq[PackageMinimal
     result = @[downloadPkInfoForPv(pv, options).getMinimalInfo(options)]
   else:    
     let (downloadRes, downloadMeth) = downloadPkgFromUrl(pv, options)
-    result = getPackageMinimalVersionsFromRepo(downloadRes.dir, pv.name, downloadRes.version, downloadMeth, options)
+    result = getPackageMinimalVersionsFromRepo(downloadRes.dir, pv, downloadRes.version, downloadMeth, options)
   # echo "Downloading minimal package for ", pv.name, " ", $pv.ver, result
 
 proc fillPackageTableFromPreferred*(packages: var Table[string, PackageVersions], preferredPackages: seq[PackageMinimalInfo]) =

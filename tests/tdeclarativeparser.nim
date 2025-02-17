@@ -56,7 +56,7 @@ suite "Declarative parsing":
     let repoDir = downloadRes.dir
     let downloadMethod = DownloadMethod git
     let packageVersions = getPackageMinimalVersionsFromRepo(
-      repoDir, pv[0], downloadRes.version, downloadMethod, options
+      repoDir, pv, downloadRes.version, downloadMethod, options
     )
 
     #we know these versions are available
