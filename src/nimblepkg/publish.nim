@@ -6,8 +6,8 @@
 
 import system except TResult
 import httpclient, strutils, json, os, browsers, times, uri
-import common, tools, cli, config, options, packageinfotypes, sha1hashes, version, download
-import strformat, sequtils, pegs, sets
+import common, tools, cli, config, options, packageinfotypes, vcstools, sha1hashes, version, download
+import strformat, sequtils, pegs, sets, tables, algorithm
 {.warning[UnusedImport]: off.}
 from net import SslCVerifyMode, newContext
 
@@ -248,30 +248,6 @@ proc publish*(p: PackageInfo, o: Options) =
     let prUrl = createPullRequest(auth, p, url, branchName)
     display("Success:", "Pull request successful, check at " & prUrl , Success, HighPriority)
 
-proc vcsFindCommits*(repoDir, nimbleFile: string, downloadMethod: DownloadMethod): seq[(Sha1Hash, string)] =
-  var output: string
-  case downloadMethod:
-    of DownloadMethod.git:
-      output = tryDoCmdEx(&"git -C {repoDir} log --format=\"%H %s\" -- $2")
-    of DownloadMethod.hg:
-      assert false, "hg not supported"
-  
-  for line in output.splitLines():
-    let line = line.strip()
-    if line != "":
-      result.add((line[0..39].initSha1Hash(), line[40..^1]))
-
-proc vcsDiff*(commit: Sha1Hash, repoDir, nimbleFile: string, downloadMethod: DownloadMethod): seq[string] =
-  case downloadMethod:
-    of DownloadMethod.git:
-      let (output, exitCode) = doCmdEx(&"git -C {repoDir} diff {commit}~ {commit} {nimbleFile}")
-      if exitCode != QuitSuccess:
-        return @[]
-      else:
-        return output.splitLines()
-    of DownloadMethod.hg:
-      assert false, "hg not supported"
-  
 proc createTag*(tag: string, commit: Sha1Hash, message, repoDir, nimbleFile: string, downloadMethod: DownloadMethod): bool =
   case downloadMethod:
     of DownloadMethod.git:
@@ -282,39 +258,97 @@ proc createTag*(tag: string, commit: Sha1Hash, message, repoDir, nimbleFile: str
     of DownloadMethod.hg:
       assert false, "hg not supported"
   
+proc pushTags*(tags: seq[string], repoDir: string, downloadMethod: DownloadMethod): bool =
+  case downloadMethod:
+    of DownloadMethod.git:
+      # git push origin tag experiment-0.8.1
+      let tags = tags.mapIt(it.quoteShell()).join(" ")
+      let (output, code) = doCmdEx(&"git -C {repoDir} push origin tag {tags} ")
+      result = code == QuitSuccess
+      if not result:
+        displayError(&"Failed to push tag {tags} with error {output}")
+    of DownloadMethod.hg:
+      assert false, "hg not supported"
+  
+const TagVersionFmt = "v$1"
+
 proc findVersions(commits: seq[(Sha1Hash, string)], projdir, nimbleFile: string, downloadMethod: DownloadMethod, options: Options) =
   ## parse the versions
   var
-    versions: HashSet[Version]
-    existingTags: HashSet[Version]
-  for tag in getTagsList(projdir, downloadMethod):
-    let tag = tag.strip(leading=true, chars={'v'})
-    try:
-      existingTags.incl(newVersion(tag))
-    except ParseVersionError:
-      discard
+    versions: OrderedTable[Version, tuple[commit: Sha1Hash, message: string]]
+    existingTags = gitTagCommits(projdir, downloadMethod)
+    existingVers = existingTags.keys().toSeq().getVersionList()
+
+  let currBranch = getCurrentBranch(projdir)
+  if currBranch notin ["main", "master"]:
+    displayWarning(&"Note runnig this command on a non-standard primary branch `{currBranch}` may have unintened consequences", HighPriority)
+
+  for ver, tag in existingVers.pairs():
+    let commit = existingTags[tag]
+    displayInfo(&"Existing version {ver} with tag {tag} at commit {$commit} ", HighPriority)
 
   # adapted from @beef331's algorithm https://github.com/beef331/graffiti/blob/master/src/graffiti.nim
-  for (commit, message) in commits:
-    # echo "commit: ", commit
-    let diffs = vcsDiff(commit, projdir, nimbleFile, downloadMethod)
-    for line in diffs:
-      var matches: array[0..MaxSubpatterns, string]
-      if line.find(peg"'+version' \s* '=' \s* {[\34\39]} {@} $1", matches) > -1:
-        let version = newVersion(matches[1])
-        if version notin versions: 
-          versions.incl(version)
-          if version in existingTags:
-            displayInfo(&"Found existing tag for version {version} at commit {commit}", HighPriority)
-          else:
-            displayInfo(&"Found new version {version} at {commit}", HighPriority)
-            if not options.action.onlyListTags:
-              displayWarning(&"Creating tag for new version {version} at {commit}", HighPriority)
-              let res = createTag(&"v{version}", commit, message, projdir, nimbleFile, downloadMethod)
-              if not res:
-                displayError(&"Unable to create tag {version}", HighPriority)
+  block outer:
+    for (commit, message) in commits:
+      # echo "commit: ", commit
+      let diffs = vcsDiff(commit, projdir, nimbleFile, downloadMethod)
+      for line in diffs:
+        var matches: array[0..MaxSubpatterns, string]
+        if line.find(peg"'+version' \s* '=' \s* {[\34\39]} {@} $1", matches) > -1:
+          let ver = newVersion(matches[1])
+          if ver notin versions:
+            if ver in existingVers:
+              if options.action.allTags:
+                displayWarning(&"Skipping historical version {ver} at commit {commit} that has an existing tag", HighPriority)
+              else:
+                break outer
+            else:
+              displayInfo(&"Found new version {ver} at {commit}", HighPriority)
+              versions[ver] = (commit: commit, message: message)
 
-proc publishTags*(p: PackageInfo, options: Options) =
+  var nonMonotonicVers: Table[Version, Sha1Hash]
+  if versions.len() >= 2:
+    let versions = versions.pairs().toSeq()
+    var monotonics: seq[Version]
+    for idx in 1 ..< versions.len() - 1:
+      let
+        prev = versions[idx-1]
+        (ver, info) = versions[idx]
+        prevMonotonicsOk = monotonics.mapIt(ver < it).all(proc (x: bool): bool = x)
+
+      if ver < prev[0] and prevMonotonicsOk:
+        displayHint(&"Versions monotonic between tag {TagVersionFmt % $ver}@{info.commit} " &
+                      &" and previous tag of {TagVersionFmt % $prev[0]}@{prev[1].commit}", MediumPriority)
+      else:
+        if prev[0] notin nonMonotonicVers:
+          monotonics.add(prev[0]) # track last largest monotonic so we can check, e.g. 0.2, 3.0, 0.3 and not 0.2, 3.0, 0.2 
+        nonMonotonicVers[ver] = info.commit
+        displayError(&"Non-monotonic (decreasing) version found between tag {TagVersionFmt % $ver}@{info.commit}" &
+                     &" and the previous tag {TagVersionFmt % $prev[0]}@{prev[1].commit}", HighPriority)
+        displayWarning(&"Version {ver} will be skipped. Please tag it manually if the version is correct." , HighPriority)
+        displayHint(&"Note that versions are checked from larget to smallest" , HighPriority)
+        displayHint(&"Note smaller versions later in history are always peferred. Please manually review your tags before pushing." , HighPriority)
+
+  var newTags: HashSet[string]
+  if options.action.createTags:
+    for (version, info) in versions.pairs:
+      if version in nonMonotonicVers:
+        displayWarning(&"Skipping creating tag for non-monotonic {version} at {info.commit}", HighPriority)
+      else:
+        let tag = TagVersionFmt % [$version]
+        displayWarning(&"Creating tag for new version {version} at {info.commit}", HighPriority)
+        let res = createTag(tag, info.commit, info.message, projdir, nimbleFile, downloadMethod)
+        if not res:
+          displayError(&"Unable to create tag {TagVersionFmt % $version}", HighPriority)
+        else:
+          newTags.incl(tag)
+
+  if options.action.pushTags:
+    let res = pushTags(newTags.toSeq(), projdir, downloadMethod)
+    if not res:
+      displayError(&"Error pushing tags", HighPriority)
+
+proc publishVersions*(p: PackageInfo, options: Options) =
   displayInfo(&"Searcing for new tags for {$p.basicInfo.name} @{$p.basicInfo.version}", HighPriority)
   let (projdir, file, ext) = p.myPath.splitFile()
   let nimblefile = file & ext
