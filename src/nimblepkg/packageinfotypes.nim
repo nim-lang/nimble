@@ -1,7 +1,7 @@
 # Copyright (C) Dominik Picheta. All rights reserved.
 # BSD License. Look at license.txt for more info.
 
-import sets, tables
+import sets, tables, strformat
 import version, sha1hashes
 
 type
@@ -77,8 +77,9 @@ type
     isLink*: bool
     paths*: seq[string] 
     entryPoints*: seq[string] #useful for tools like the lsp.
-    features*: Table[string, seq[PkgTuple]] #features requires defined in the nimble file. Declarative parser + SAT solver only
-    
+    features*: Table[string, seq[PkgTuple]] #features requires defined in the nimble file. Declarative parser + SAT solver only.
+    activeFeatures*: Table[PkgTuple, seq[string]] #features that dependencies of this package have activated. #i.e. requires package[feature1, feature2]
+  
   Package* = object ## Definition of package from packages.json.
     # Required fields in a package.
     name*: string
@@ -100,3 +101,20 @@ proc isMinimal*(pkg: PackageInfo): bool =
 
 const noTask* = "" # Means that noTask is being ran. Use this as key for base dependencies
 var satProccesedPackages*: HashSet[PackageInfo]
+#Package name -> features. When a package requires a feature, it is added to this table. 
+#For instance, if a dependency of a package requires the feature "feature1", it will be added to this table although the root package may not explicitly require it.
+var globallyActiveFeatures: Table[string, seq[string]] = initTable[string, seq[string]]()
+
+proc appendGloballyActiveFeatures*(pkgName: string, features: seq[string]) =
+  if pkgName notin globallyActiveFeatures:
+    globallyActiveFeatures[pkgName] = features
+  else:
+    for feature in features:
+      globallyActiveFeatures[pkgName].add(feature)
+
+proc getGloballyActiveFeatures*(): seq[string] = 
+  #returns features.{pkgName}.{feature}
+  for pkgName, features in globallyActiveFeatures:
+    for feature in features:
+      result.add(&"features.{pkgName}.{feature}")
+  

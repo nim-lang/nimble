@@ -4,7 +4,7 @@
 ## Module for handling versions and version ranges such as ``>= 1.0 & <= 1.5``
 import json, sets
 import common, strutils, tables, hashes, parseutils
-
+import std/[strscans]
 type
   Version* = object
     version: string
@@ -280,7 +280,13 @@ proc toVersionRange*(ver: Version): VersionRange =
     else:
       VersionRange(kind: verEq, ver: ver)
 
+proc discardFeatures*(req: string): string =
+  #Remove the features from the string
+  result = req
+  discard scanf(result, "$*[", result)
+
 proc parseRequires*(req: string): PkgTuple =
+  var req = discardFeatures(req)
   try:
     if ' ' in req:
       var i = skipUntil(req, Whitespace)
