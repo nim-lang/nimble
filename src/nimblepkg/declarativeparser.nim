@@ -4,8 +4,8 @@
 import std/strutils
 
 import compiler/[ast, idents, msgs, syntaxes, options, pathutils, lineinfos]
-import version, packageinfotypes, packageinfo, options, packageparser
-import std/[tables, sequtils]
+import version, packageinfotypes, packageinfo, options, packageparser, cli
+import std/[tables, sequtils, strformat, strscans]
 
 type NimbleFileInfo* = object
   requires*: seq[string]
@@ -183,9 +183,25 @@ iterator tokenizeRequires*(s: string): string =
     start = token(s, start, tok)
     yield tok
 
-proc getRequires*(nimbleFileInfo: NimbleFileInfo): seq[PkgTuple] =
+
+proc parseRequiresWithFeatures(require: string): (PkgTuple, seq[string]) =
+  #features are expressed like this: require[feature1, feature2]
+  var featuresStr: string
+  var requireStr: string
+  var features = newSeq[string]()
+  if scanf(require, "$*[$*]", requireStr, featuresStr):
+    features = featuresStr.split(",")
+    return (parseRequires(requireStr), features)
+  else:
+    return (parseRequires(require), @[])
+
+proc getRequires*(nimbleFileInfo: NimbleFileInfo, activeFeatures: var Table[PkgTuple, seq[string]]): seq[PkgTuple] =
   for require in nimbleFileInfo.requires:
-    result.add(parseRequires(require))
+    let (pkgTuple, features) = parseRequiresWithFeatures(require)
+    if features.len > 0:      
+      displayInfo &"Found features {features} for {pkgTuple.name}", priority = HighPriority
+      activeFeatures[pkgTuple] = features
+    result.add(pkgTuple)
 
 proc getFeatures*(nimbleFileInfo: NimbleFileInfo): Table[string, seq[PkgTuple]] =
   result = initTable[string, seq[PkgTuple]]()
@@ -200,11 +216,11 @@ proc toRequiresInfo*(pkgInfo: PackageInfo, options: Options): PackageInfo =
         
   let nimbleFileInfo = extractRequiresInfo(pkgInfo.myPath)
   result = pkgInfo
-  result.requires = getRequires(nimbleFileInfo)
+  result.requires = getRequires(nimbleFileInfo, result.activeFeatures)
   if pkgInfo.infoKind != pikFull: #dont update as full implies pik requires
     result.infoKind = pikRequires
   result.features = getFeatures(nimbleFileInfo)
-
+  
 when isMainModule:
   for x in tokenizeRequires("jester@#head >= 1.5 & <= 1.8"):
     echo x

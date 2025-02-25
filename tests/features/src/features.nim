@@ -15,4 +15,12 @@ when defined(features.features.feature1):
 else:
   echo "feature1 is disabled"
 
+
+
+when defined(features.result.resultfeature):
+ echo "resultfeature is enabled"
+else:
+ echo "resultfeature is disabled"
+
+
 echo ""

@@ -115,7 +115,8 @@ proc getMinimalInfo*(nimbleFile: string, pkgName: string, options: Options): Pac
   let nimbleFileInfo = extractRequiresInfo(nimbleFile)
   result.name =  if pkgName.isNim: "nim" else: pkgName
   result.version = nimbleFileInfo.version.newVersion()
-  result.requires = nimbleFileInfo.getRequires() #TODO if package is Nim do not parse the file. Just get the version from the binary.
+  var activeFeatures = initTable[PkgTuple, seq[string]]() #we can ignore features here as we are solving at this point requires for these features should already be taken into account
+  result.requires = nimbleFileInfo.getRequires(activeFeatures) #TODO if package is Nim do not parse the file. Just get the version from the binary.
   if options.action.typ in {actionLock, actionDeps} or options.hasNimInLockFile():
     result.requires = result.requires.filterIt(not it.isNim)
 
