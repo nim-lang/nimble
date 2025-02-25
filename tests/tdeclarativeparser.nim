@@ -3,7 +3,7 @@ import unittest
 import testscommon
 import std/[options, tables, sequtils, os]
 import
-  nimblepkg/[packageinfotypes, version, options, config, nimblesat, declarativeparser, cli]
+  nimblepkg/[packageinfotypes, version, options, config, nimblesat, declarativeparser, cli, common]
 
 proc getNimbleFileFromPkgNameHelper(pkgName: string): string =
   let pv: PkgTuple = (pkgName, VersionRange(kind: verAny))
@@ -72,4 +72,35 @@ suite "Declarative parsing":
     check exitCode == QuitSuccess
 
 
-  # suite "Declarative parser features":
+suite "Declarative parser features":
+  test "should be able to parse features from a nimble file":
+    let nimbleFile =  "./features/features.nimble"
+    let nimbleFileInfo = extractRequiresInfo(nimbleFile)
+    let features = nimbleFileInfo.features
+    check features.len == 1
+    check features["feature1"] == @["stew"]
+
+  test "should be able to install a package using the declarative parser with a feature":
+    cd "features":
+      #notice it imports stew, which will fail to compile if feature1 is not activated although it only imports it in the when part
+      let (output, exitCode) = execNimble("--parser:declarative", "--features:feature1", "run")      
+      check exitCode == QuitSuccess
+      check output.processOutput.inLines("feature1 is enabled")
+
+  test "should not enable features if not specified":
+    cd "features":
+      let (output, exitCode) = execNimble("run")
+      check exitCode == QuitSuccess
+      check output.processOutput.inLines("feature1 is disabled")
+
+
+  #[NEXT Tests:
+
+    TODO:
+    - compile time nimble parser detection so we can warn when using the vm parser with features
+    - add enable features to nimble.paths
+    - dependencies syntax i.e. requires "stew > 0.3.4[feature1; feature2]"
+
+
+]#
+

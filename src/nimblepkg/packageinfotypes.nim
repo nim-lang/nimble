@@ -77,6 +77,7 @@ type
     isLink*: bool
     paths*: seq[string] 
     entryPoints*: seq[string] #useful for tools like the lsp.
+    features*: Table[string, seq[PkgTuple]] #features requires defined in the nimble file. Declarative parser + SAT solver only
     
   Package* = object ## Definition of package from packages.json.
     # Required fields in a package.
