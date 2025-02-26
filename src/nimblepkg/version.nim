@@ -282,8 +282,9 @@ proc toVersionRange*(ver: Version): VersionRange =
 
 proc discardFeatures*(req: string): string =
   #Remove the features from the string
-  result = req
-  discard scanf(result, "$*[", result)
+  result = ""
+  var ignore = ""
+  discard scanf(req, "$*[$*]", result, ignore)
 
 proc parseRequires*(req: string): PkgTuple =
   var req = discardFeatures(req)
