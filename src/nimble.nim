@@ -80,6 +80,20 @@ proc addReverseDeps(solvedPkgs: seq[SolvedPackage], allPkgsInfo: seq[PackageInfo
         reverseDep.get.isLink = true
       addRevDep(options.nimbleData, solvedPkg.get.basicInfo, reverseDep.get)
 
+proc activateSolvedPkgFeatures(solvedPkgs: seq[SolvedPackage], allPkgsInfo: seq[PackageInfo], options: Options) =
+  for solved in solvedPkgs:
+    let pkg = getPackageInfo(solved.pkgName, allPkgsInfo, some solved.version)
+    if pkg.isNone: 
+      displayError &"Package {solved.pkgName} not found", priority = HighPriority
+      continue
+    for pkgTuple, activeFeatures in pkg.get.activeFeatures:
+      let pkgWithFeature = getPackageInfo(pkgTuple[0], allPkgsInfo, none(Version))
+      if pkgWithFeature.isNone:
+        displayError &"Package {pkgTuple[0]} not found", priority = HighPriority
+        continue
+
+      appendGloballyActiveFeatures(pkgWithFeature.get.basicInfo.name, activeFeatures)
+
 proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, options: Options): HashSet[PackageInfo] = 
   if satProccesedPackages.len > 0:
     return satProccesedPackages
@@ -124,6 +138,7 @@ proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, options: Options): Has
   if solvedPkgs.len > 0: 
     displaySatisfiedMsg(solvedPkgs, pkgsToInstall, options)
     addReverseDeps(solvedPkgs, allPkgsInfo, options)
+    activateSolvedPkgFeatures(solvedPkgs, allPkgsInfo, options)
     for pkg in allPkgsInfo:
       if pkg.basicInfo.name.isNim and systemNimCompatible:
         continue #Dont add nim from the solution as we will use system nim
@@ -144,6 +159,7 @@ proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, options: Options): Has
   result = solvePackages(rootPkgInfo, pkgList, pkgsToInstall, options, output, solvedPkgs)
   displaySatisfiedMsg(solvedPkgs, pkgsToInstall, options)
   displayUsingSpecialVersionWarning(solvedPkgs, options)
+  activateSolvedPkgFeatures(solvedPkgs, allPkgsInfo, options)
   var solved = solvedPkgs.len > 0 #A pgk can be solved and still dont return a set of PackageInfo
   for (name, ver) in pkgsToInstall:
     var versionRange = ver.toVersionRange
@@ -304,8 +320,10 @@ proc buildFromDir(pkgInfo: PackageInfo, paths: HashSet[seq[string]],
 
   for feature in options.features: #Features enabled with the cli    
     let featureStr = &"features.{pkgInfo.basicInfo.name}.{feature}"
+    displayInfo &"Adding feature {featureStr}", priority = HighPriority
     args.add &"-d:{featureStr}"
   
+  displayInfo &"All active features: {getGloballyActiveFeatures()}", priority = HighPriority
   for featureStr in getGloballyActiveFeatures():
     args.add &"-d:{featureStr}"
 
