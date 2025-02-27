@@ -25,7 +25,8 @@ suite "Declarative parsing":
   test "should parse requires from a nimble file":
     let nimbleFile = getNimbleFileFromPkgNameHelper("nimlangserver")
     let nimbleFileInfo = extractRequiresInfo(nimbleFile)
-    let requires = nimbleFileInfo.getRequires()
+    var activeFeatures = initTable[PkgTuple, seq[string]]()
+    let requires = nimbleFileInfo.getRequires(activeFeatures)
 
     let expectedPkgs =
       @["nim", "json_rpc", "with", "chronicles", "serialization", "stew", "regex"]
@@ -93,13 +94,24 @@ suite "Declarative parser features":
       check exitCode == QuitSuccess
       check output.processOutput.inLines("feature1 is disabled")
 
+  test "should globally activate features specified in `requires`":
+    cd "features":
+      let (output, exitCode) = execNimble("--parser:declarative", "run")
+      check exitCode == QuitSuccess
+      check output.processOutput.inLines("resultfeature is enabled")
+
+  test "should ignore features specified in `requires` when using the vmparser":
+    cd "features":
+      let (output, exitCode) = execNimble("--parser:nimvm", "run")
+      check exitCode == QuitSuccess
+      check output.processOutput.inLines("resultfeature is disabled")
+
 
   #[NEXT Tests:
 
     TODO:
     - compile time nimble parser detection so we can warn when using the vm parser with features
     - add enable features to nimble.paths
-    - dependencies syntax i.e. requires "stew > 0.3.4[feature1; feature2]"
 
 
 ]#

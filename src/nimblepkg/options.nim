@@ -521,7 +521,7 @@ proc getNimBin*(pkgInfo: PackageInfo, options: Options): string =
     let nimVer = options.nimBin.get.version
     let reqNimVer = pkgInfo.getRequiredNimVersion()
     if not nimVer.withinRange(reqNimVer):
-      display("Warning:", &"Package requires nim {reqNimVer} but {nimVer} found. Attempting to compile with the current nim version.", Warning, HighPriority)
+      display("Warning:", &"Package requires nim {reqNimVer} but {nimVer}. Attempting to compile with the current nim version.", Warning, HighPriority)
     result = options.nim
   display("Info:", "compiling nim package using $1" % result, priority = HighPriority)
 

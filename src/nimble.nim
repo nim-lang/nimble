@@ -93,7 +93,8 @@ proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, options: Options): Has
     for feature in options.features:
       if feature in rootPkgInfo.features:
         rootPkgInfo.requires &= rootPkgInfo.features[feature]
-        # displayInfo(&"Feature {feature} activated", LowPriority)
+    for pkgName, activeFeatures in rootPkgInfo.activeFeatures:
+      appendGloballyActiveFeatures(pkgName[0], activeFeatures)
     
   var pkgList = initPkgList(rootPkgInfo, options)
   if options.useDeclarativeParser:
@@ -298,8 +299,14 @@ proc buildFromDir(pkgInfo: PackageInfo, paths: HashSet[seq[string]],
     # Disable coloured output
     args.add("--colors:off")
 
-  for feature in options.features:
+  if options.features.len > 0 and not options.useDeclarativeParser:
+    raise nimbleError("Features are only supported when using the declarative parser")
+
+  for feature in options.features: #Features enabled with the cli    
     let featureStr = &"features.{pkgInfo.basicInfo.name}.{feature}"
+    args.add &"-d:{featureStr}"
+  
+  for featureStr in getGloballyActiveFeatures():
     args.add &"-d:{featureStr}"
 
   let binToBuild =
