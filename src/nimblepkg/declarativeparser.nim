@@ -8,6 +8,7 @@ import version, packageinfotypes, packageinfo, options, packageparser, cli
 import std/[tables, sequtils, strformat, strscans]
 
 type NimbleFileInfo* = object
+  nimbleFile*: string
   requires*: seq[string]
   srcDir*: string
   version*: string
@@ -91,6 +92,7 @@ proc extractRequiresInfo*(nimbleFile: string): NimbleFileInfo =
   ## formatted as the Nim compiler does it. The parser uses the Nim compiler
   ## as an API. The result can be empty, this is not an error, only parsing
   ## errors are reported.
+  result.nimbleFile = nimbleFile
   var conf = newConfigRef()
   conf.foreignPackageNotes = {}
   conf.notes = {}
@@ -195,12 +197,13 @@ proc parseRequiresWithFeatures(require: string): (PkgTuple, seq[string]) =
   else:
     return (parseRequires(require), @[])
 
-proc getRequires*(nimbleFileInfo: NimbleFileInfo, activeFeatures: var Table[PkgTuple, seq[string]]): seq[PkgTuple] =
+proc getRequires*(nimbleFileInfo: NimbleFileInfo, pkgActiveFeatures: var Table[PkgTuple, seq[string]]): seq[PkgTuple] =
   for require in nimbleFileInfo.requires:
-    let (pkgTuple, features) = parseRequiresWithFeatures(require)
-    if features.len > 0:      
-      displayInfo &"Found features {features} for {pkgTuple.name}", priority = HighPriority
-      activeFeatures[pkgTuple] = features
+    let (pkgTuple, activeFeatures) = parseRequiresWithFeatures(require)
+    if activeFeatures.len > 0:      
+      displayInfo &"Package {nimbleFileInfo.nimbleFile} Found active features {activeFeatures} for {pkgTuple}", priority = HighPriority
+      pkgActiveFeatures[pkgTuple] = activeFeatures
+
     result.add(pkgTuple)
 
 proc getFeatures*(nimbleFileInfo: NimbleFileInfo): Table[string, seq[PkgTuple]] =
