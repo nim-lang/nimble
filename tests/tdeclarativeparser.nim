@@ -108,14 +108,14 @@ suite "Declarative parser features":
 
   test "should activate transitive features specified in `requires`":
     cd "features-deps":
-      let (output, exitCode) = execNimble("--parser:declarative", "--features:ver1", "run")
+      let (output, exitCode) = execNimble("--parser:declarative", "--features:ver1", "-l", "run")      
       check exitCode == QuitSuccess
       check output.processOutput.inLines("Feature ver1 activated")      
       check output.processOutput.inLines("Feature1 activated")
 
   test "should not activate transitive features specified in `requires` when using a dependency that do not enable them":
     cd "features-deps":
-      let (output, exitCode) = execNimble("--parser:declarative", "--features:ver2", "run")
+      let (output, exitCode) = execNimble("--parser:declarative", "--features:ver2", "-l", "run")
       check exitCode == QuitSuccess
       check output.processOutput.inLines("Feature ver2 activated")
       check output.processOutput.inLines("Feature1 deactivated")
