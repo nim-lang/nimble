@@ -320,10 +320,10 @@ proc buildFromDir(pkgInfo: PackageInfo, paths: HashSet[seq[string]],
 
   for feature in options.features: #Features enabled with the cli    
     let featureStr = &"features.{pkgInfo.basicInfo.name}.{feature}"
-    displayInfo &"Adding feature {featureStr}", priority = HighPriority
+    # displayInfo &"Adding feature {featureStr}", priority = HighPriority
     args.add &"-d:{featureStr}"
   
-  displayInfo &"All active features: {getGloballyActiveFeatures()}", priority = HighPriority
+  # displayInfo &"All active features: {getGloballyActiveFeatures()}", priority = HighPriority
   for featureStr in getGloballyActiveFeatures():
     args.add &"-d:{featureStr}"
 

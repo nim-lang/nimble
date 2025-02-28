@@ -94,7 +94,7 @@ suite "Declarative parser features":
       check exitCode == QuitSuccess
       check output.processOutput.inLines("feature1 is disabled")
 
-  test "should globally activate features specified in `requires`":
+  test "should globally activate features specified in requires":
     cd "features":
       let (output, exitCode) = execNimble("--parser:declarative", "run")
       check exitCode == QuitSuccess
@@ -107,14 +107,14 @@ suite "Declarative parser features":
       check output.processOutput.inLines("resultfeature is disabled")
 
   test "should activate transitive features specified in `requires`":
-    cd "features":
+    cd "features-deps":
       let (output, exitCode) = execNimble("--parser:declarative", "--features:ver1", "run")
       check exitCode == QuitSuccess
-      check output.processOutput.inLines("Feature ver1 activated")
+      check output.processOutput.inLines("Feature ver1 activated")      
       check output.processOutput.inLines("Feature1 activated")
 
   test "should not activate transitive features specified in `requires` when using a dependency that do not enable them":
-    cd "features":
+    cd "features-deps":
       let (output, exitCode) = execNimble("--parser:declarative", "--features:ver2", "run")
       check exitCode == QuitSuccess
       check output.processOutput.inLines("Feature ver2 activated")
@@ -126,6 +126,6 @@ suite "Declarative parser features":
     - compile time nimble parser detection so we can warn when using the vm parser with features
     - add enable features to nimble.paths
 
-
 ]#
 
+echo ""
