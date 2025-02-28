@@ -82,16 +82,17 @@ proc addReverseDeps(solvedPkgs: seq[SolvedPackage], allPkgsInfo: seq[PackageInfo
 
 proc activateSolvedPkgFeatures(solvedPkgs: seq[SolvedPackage], allPkgsInfo: seq[PackageInfo], options: Options) =
   for solved in solvedPkgs:
-    let pkg = getPackageInfo(solved.pkgName, allPkgsInfo, some solved.version)
+    var pkg = getPackageInfo(solved.pkgName, allPkgsInfo, some solved.version)
     if pkg.isNone: 
-      displayError &"Package {solved.pkgName} not found", priority = HighPriority
+      displayError &"PackageInfo {solved.pkgName} not found", priority = LowPriority
       continue
+    if pkg.get.activeFeatures.len == 0:      
+      pkg = some pkg.get.toRequiresInfo(options)
     for pkgTuple, activeFeatures in pkg.get.activeFeatures:
       let pkgWithFeature = getPackageInfo(pkgTuple[0], allPkgsInfo, none(Version))
       if pkgWithFeature.isNone:
-        displayError &"Package {pkgTuple[0]} not found", priority = HighPriority
+        displayError &"Active PackageInfo {pkgTuple[0]} not found", priority = HighPriority
         continue
-
       appendGloballyActiveFeatures(pkgWithFeature.get.basicInfo.name, activeFeatures)
 
 proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, options: Options): HashSet[PackageInfo] = 
@@ -159,7 +160,6 @@ proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, options: Options): Has
   result = solvePackages(rootPkgInfo, pkgList, pkgsToInstall, options, output, solvedPkgs)
   displaySatisfiedMsg(solvedPkgs, pkgsToInstall, options)
   displayUsingSpecialVersionWarning(solvedPkgs, options)
-  activateSolvedPkgFeatures(solvedPkgs, allPkgsInfo, options)
   var solved = solvedPkgs.len > 0 #A pgk can be solved and still dont return a set of PackageInfo
   for (name, ver) in pkgsToInstall:
     var versionRange = ver.toVersionRange
@@ -181,6 +181,8 @@ proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, options: Options): Has
   for pkg in result:
     allPkgsInfo.add pkg
   addReverseDeps(solvedPkgs, allPkgsInfo, options)
+  activateSolvedPkgFeatures(solvedPkgs, allPkgsInfo, options)
+
 
   for nonLocked in toRemoveFromLocked:
     result.excl nonLocked
