@@ -69,3 +69,18 @@ suite "setup command":
       check configFileContent.contains("--noNimblePath")
 
       cleanFiles nimblePathsFileName, nimbleConfigFileName, "nimble.lock", ".gitignore"
+    
+  test "should add feature requirements to the nimble.paths file when activating the feature":
+    cd "features":
+      let (_, exitCode) = execNimble("--parser:declarative", "--features:feature1", "setup")
+      check exitCode == QuitSuccess
+      let nimblePathsFileContent = nimblePathsFileName.readFile
+      check nimblePathsFileContent.contains("stew")
+  
+  test "should not add feature requirements to the nimble.paths file when not activating the feature":
+    cd "features":
+      let (_, exitCode) = execNimble("--parser:declarative", "setup")
+      check exitCode == QuitSuccess
+      let nimblePathsFileContent = nimblePathsFileName.readFile
+      check not nimblePathsFileContent.contains("stew")
+
