@@ -74,42 +74,42 @@ suite "Declarative parsing":
 
 
 suite "Declarative parser features":
-  # test "should be able to parse features from a nimble file":
-  #   let nimbleFile =  "./features/features.nimble"
-  #   let nimbleFileInfo = extractRequiresInfo(nimbleFile)
-  #   let features = nimbleFileInfo.features
-  #   check features.len == 1
-  #   check features["feature1"] == @["stew"]
+  test "should be able to parse features from a nimble file":
+    let nimbleFile =  "./features/features.nimble"
+    let nimbleFileInfo = extractRequiresInfo(nimbleFile)
+    let features = nimbleFileInfo.features
+    check features.len == 1
+    check features["feature1"] == @["stew"]
 
-  # test "should be able to install a package using the declarative parser with a feature":
-  #   cd "features":
-  #     #notice it imports stew, which will fail to compile if feature1 is not activated although it only imports it in the when part
-  #     let (output, exitCode) = execNimble("--parser:declarative", "--features:feature1", "run")      
-  #     check exitCode == QuitSuccess
-  #     check output.processOutput.inLines("feature1 is enabled")
+  test "should be able to install a package using the declarative parser with a feature":
+    cd "features":
+      #notice it imports stew, which will fail to compile if feature1 is not activated although it only imports it in the when part
+      let (output, exitCode) = execNimble("--parser:declarative", "--features:feature1", "run")      
+      check exitCode == QuitSuccess
+      check output.processOutput.inLines("feature1 is enabled")
 
-  # test "should not enable features if not specified":
-  #   cd "features":
-  #     let (output, exitCode) = execNimble("run")
-  #     check exitCode == QuitSuccess
-  #     check output.processOutput.inLines("feature1 is disabled")
+  test "should not enable features if not specified":
+    cd "features":
+      let (output, exitCode) = execNimble("run")
+      check exitCode == QuitSuccess
+      check output.processOutput.inLines("feature1 is disabled")
 
-  # test "should globally activate features specified in requires":
-  #   cd "features":
-  #     let (output, exitCode) = execNimble("--parser:declarative", "run")
-  #     check exitCode == QuitSuccess
-  #     check output.processOutput.inLines("resultfeature is enabled")
+  test "should globally activate features specified in requires":
+    cd "features":
+      let (output, exitCode) = execNimble("--parser:declarative", "run")
+      check exitCode == QuitSuccess
+      check output.processOutput.inLines("resultfeature is enabled")
 
-  # test "should ignore features specified in `requires` when using the vmparser":
-  #   cd "features":
-  #     let (output, exitCode) = execNimble("--parser:nimvm", "run")
-  #     check exitCode == QuitSuccess
-  #     check output.processOutput.inLines("resultfeature is disabled")
+  test "should ignore features specified in `requires` when using the vmparser":
+    cd "features":
+      let (output, exitCode) = execNimble("--parser:nimvm", "run")
+      check exitCode == QuitSuccess
+      check output.processOutput.inLines("resultfeature is disabled")
 
   test "should activate transitive features specified in `requires`":
     cd "features-deps":
       removeDir("nimbledeps")
-      let (output, exitCode) = execNimble("--parser:declarative", "--features:ver1", "-l", "run")      
+      let (output, exitCode) = execNimble("--parser:declarative", "--features:ver1", "run")      
       check exitCode == QuitSuccess
       check output.processOutput.inLines("Feature ver1 activated")      
       check output.processOutput.inLines("Feature1 activated")
@@ -117,7 +117,7 @@ suite "Declarative parser features":
   test "should not activate transitive features specified in `requires` when using a dependency that do not enable them":
     cd "features-deps":
       removeDir("nimbledeps")
-      let (output, exitCode) = execNimble("--parser:declarative", "--features:ver2", "-l", "run")
+      let (output, exitCode) = execNimble("--parser:declarative", "--features:ver2", "run")
       check exitCode == QuitSuccess
       check output.processOutput.inLines("Feature ver2 activated")
       check output.processOutput.inLines("Feature1 deactivated")
@@ -130,4 +130,3 @@ suite "Declarative parser features":
 
 ]#
 
-echo ""
