@@ -80,6 +80,23 @@ proc addReverseDeps(solvedPkgs: seq[SolvedPackage], allPkgsInfo: seq[PackageInfo
         reverseDep.get.isLink = true
       addRevDep(options.nimbleData, solvedPkg.get.basicInfo, reverseDep.get)
 
+proc activateSolvedPkgFeatures(solvedPkgs: seq[SolvedPackage], allPkgsInfo: seq[PackageInfo], options: Options) =
+  if not options.useDeclarativeParser:
+    return
+  for solved in solvedPkgs:
+    var pkg = getPackageInfo(solved.pkgName, allPkgsInfo, some solved.version)
+    if pkg.isNone: 
+      displayError &"PackageInfo {solved.pkgName} not found", priority = LowPriority
+      continue
+    if pkg.get.activeFeatures.len == 0:      
+      pkg = some pkg.get.toRequiresInfo(options)
+    for pkgTuple, activeFeatures in pkg.get.activeFeatures:
+      let pkgWithFeature = getPackageInfo(pkgTuple[0], allPkgsInfo, none(Version))
+      if pkgWithFeature.isNone:
+        displayError &"Active PackageInfo {pkgTuple[0]} not found", priority = HighPriority
+        continue
+      appendGloballyActiveFeatures(pkgWithFeature.get.basicInfo.name, activeFeatures)
+
 proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, options: Options): HashSet[PackageInfo] = 
   if satProccesedPackages.len > 0:
     return satProccesedPackages
@@ -124,6 +141,7 @@ proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, options: Options): Has
   if solvedPkgs.len > 0: 
     displaySatisfiedMsg(solvedPkgs, pkgsToInstall, options)
     addReverseDeps(solvedPkgs, allPkgsInfo, options)
+    activateSolvedPkgFeatures(solvedPkgs, allPkgsInfo, options)
     for pkg in allPkgsInfo:
       if pkg.basicInfo.name.isNim and systemNimCompatible:
         continue #Dont add nim from the solution as we will use system nim
@@ -165,6 +183,8 @@ proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, options: Options): Has
   for pkg in result:
     allPkgsInfo.add pkg
   addReverseDeps(solvedPkgs, allPkgsInfo, options)
+  activateSolvedPkgFeatures(solvedPkgs, allPkgsInfo, options)
+
 
   for nonLocked in toRemoveFromLocked:
     result.excl nonLocked
@@ -304,8 +324,10 @@ proc buildFromDir(pkgInfo: PackageInfo, paths: HashSet[seq[string]],
 
   for feature in options.features: #Features enabled with the cli    
     let featureStr = &"features.{pkgInfo.basicInfo.name}.{feature}"
+    # displayInfo &"Adding feature {featureStr}", priority = HighPriority
     args.add &"-d:{featureStr}"
   
+  # displayInfo &"All active features: {getGloballyActiveFeatures()}", priority = HighPriority
   for featureStr in getGloballyActiveFeatures():
     args.add &"-d:{featureStr}"
 
