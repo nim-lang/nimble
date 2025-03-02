@@ -81,6 +81,8 @@ proc addReverseDeps(solvedPkgs: seq[SolvedPackage], allPkgsInfo: seq[PackageInfo
       addRevDep(options.nimbleData, solvedPkg.get.basicInfo, reverseDep.get)
 
 proc activateSolvedPkgFeatures(solvedPkgs: seq[SolvedPackage], allPkgsInfo: seq[PackageInfo], options: Options) =
+  if not options.useDeclarativeParser:
+    return
   for solved in solvedPkgs:
     var pkg = getPackageInfo(solved.pkgName, allPkgsInfo, some solved.version)
     if pkg.isNone: 
