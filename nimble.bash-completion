@@ -1,5 +1,9 @@
 # bash completion for nim                             -*- shell-script -*-
 
+# (NOTE) The following functions SHOULD be identical to those
+# in nim source tree: __is_short_or_long, __ask_for_subcmd_or_subopts,
+# __ask_for_subcmd, __ask_for_subcmd_opts
+
 __is_short_or_long()
 {
     local actual short long
@@ -11,67 +15,27 @@ __is_short_or_long()
     return 1
 }
 
-__ask_for_subcmd()
+__ask_for_subcmd_or_subopts()
 {
-    local args cmd words len ilast ilastlast word_first word_last sub_words sub_len
-    local i ele
+    local args cmd subcmd words sub_words word_first word_last word_lastlast
+    local len ilast ilastlast i ele sub_len n_nopts
+    
     args=("$@")
-    cmd="${args[0]}"
-    ilast="${args[1]}"
-    words=("${args[@]:2}")
+    ask_for_what="${args[0]}"
+    cmd="${args[1]}"
+    subcmd="${args[2]}"
+    ilast="${args[3]}"
+    words=("${args[@]:4}")
     len=${#words[@]}
     ilastlast=$((ilast - 1))
-    word_first=${words[0]}
-    word_last=${words[ilast]}
-    sub_words=("${words[@]:1:ilastlast}") # start at 1 hence lastlast
-    sub_len=${#words[@]}
-
-    # printf "\n[DBUG] word_first:${word_first}|word_last:${word_last}|sub_words(${#sub_words[*]}):${sub_words[*]}\n"
-
-    if [[ $word_first != $cmd || $word_last =~ ^- ]]
-    then
-	return 1
-    fi
-    
-    i=0
-    while [[ $i -lt $sub_len ]]
-    do
-	ele=${sub_words[i]}
-	if [[ ! -z $ele && ! $ele =~ ^[-:] ]]
-	then
-	    return 1
-	fi
-	if [[ $ele =~ ^: ]]
-	then
-	    ((i+=1))
-	fi
-	((i+=1))
-    done
-
-    if [[ $word_last == : ]]
-    then
-	return 1
-    fi
-
-    return 0
-}
-
-__ask_for_subcmd_opts()
-{
-    local args cmd subcmd words len ilast sub_words sub_len word_first n_nopts
-    local i ele
-    args=("$@")
-    cmd="${args[0]}"
-    subcmd="${args[1]}"
-    ilast="${args[2]}"
-    words=("${args[@]:3}")
-    len=${#words[@]}
     sub_words=("${words[@]:0:ilast}")
     sub_len=${#sub_words[@]}
     word_first=${words[0]}
+    word_last=${words[ilast]}
+    word_lastlast=${words[ilastlast]}
     n_nopts=0
 
-    # printf "\n[DBUG] word_first:${word_first}|words(${len}):${words[*]}|sub_words(${sub_len}):${sub_words[*]}\n"
+    # printf "\n[DBUG] word_first:${word_first}|ilast:${ilast}|words(${len}):${words[*]}|sub_words(${sub_len}):${sub_words[*]}\n"
 
     if [[ $word_first != $cmd ]]
     then
@@ -79,14 +43,20 @@ __ask_for_subcmd_opts()
     fi
 
     i=0
-    while [[ $i -lt $sub_len ]]
+    while [[ $i -lt $len ]]
     do
-	ele=${sub_words[i]}
+	ele=${words[i]}
 	if [[ ! $ele =~ ^- ]]
 	then
 	    if [[ $ele == $cmd || $ele == $subcmd ]]
 	    then
 		((n_nopts+=1))
+	    elif [[ $i -eq $ilast && $ele =~ ^[a-zA-Z] ]]
+	    then
+	        ((i=i))
+	    elif [[ -z $ele ]]
+	    then
+	        ((i=i))
 	    elif [[ $ele =~ ^: ]]
 	    then
 		((i+=1))
@@ -97,12 +67,37 @@ __ask_for_subcmd_opts()
 	((i+=1))
     done
 
-    if [[ n_nopts -ne 2 ]]
-    then
-	return 1
-    fi
+    case $ask_for_what in
+	1)
+	    if [[ n_nopts -eq 1 ]]
+	    then
+		if [[ -z $word_last || $word_last =~ ^[a-zA-Z] ]] && [[ $word_lastlast != : ]]
+		then
+		    return 0
+		fi
+	    fi
+	    ;;
+	2)
+	    if [[ n_nopts -eq 2 ]]
+	    then
+		if [[ -z $word_last ]] || [[ $word_last =~ ^[-:] ]]
+		then
+		    return 0
+		fi
+	    fi
+    esac
 
-    return 0
+    return 1
+}
+
+__ask_for_subcmd()
+{
+    __ask_for_subcmd_or_subopts 1 "$@"
+}
+
+__ask_for_subcmd_opts()
+{
+    __ask_for_subcmd_or_subopts 2 "$@"
 }
 
 _nimble()
@@ -122,7 +117,7 @@ _nimble()
     # printf "\n[DBUG] i_curr:$i_curr|curr:$curr|prev:$prev|words(${#words[*]}):${words[*]}\n"
 
     # Asking for a subcommand
-    if __ask_for_subcmd nimble $i_curr "${words[@]}"
+    if __ask_for_subcmd nimble nimble $i_curr "${words[@]}"
     then
         subcmds=""
 	subcmds="${subcmds} install"
