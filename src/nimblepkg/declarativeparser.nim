@@ -4,8 +4,8 @@
 import std/strutils
 
 import compiler/[ast, idents, msgs, syntaxes, options, pathutils, lineinfos]
-import version, packageinfotypes, packageinfo, options, packageparser, cli
-import std/[tables, sequtils, strformat, strscans]
+import version, packageinfotypes, packageinfo, options, packageparser
+import std/[tables, sequtils, strscans]
 
 type NimbleFileInfo* = object
   nimbleFile*: string
