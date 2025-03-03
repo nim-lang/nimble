@@ -717,7 +717,6 @@ proc solvePackages*(rootPkg: PackageInfo, pkgList: seq[PackageInfo], pkgsToInsta
   collectAllVersions(pkgVersionTable, root, options, downloadMinimalPackage, pkgList.mapIt(it.getMinimalInfo(options)))
   solvedPkgs = pkgVersionTable.getSolvedPackages(output).topologicalSort()
   let systemNimCompatible = solvedPkgs.isSystemNimCompatible(options)
-  displayInfo(&"PkgList {pkgList.mapIt(it.basicInfo.name)}", priority = HighPriority)
   
   for solvedPkg in solvedPkgs:
     if solvedPkg.pkgName == root.name: continue    
