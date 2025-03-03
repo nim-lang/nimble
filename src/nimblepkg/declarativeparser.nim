@@ -201,7 +201,7 @@ proc getRequires*(nimbleFileInfo: NimbleFileInfo, pkgActiveFeatures: var Table[P
   for require in nimbleFileInfo.requires:
     let (pkgTuple, activeFeatures) = parseRequiresWithFeatures(require)
     if activeFeatures.len > 0:      
-      displayInfo &"Package {nimbleFileInfo.nimbleFile} Found active features {activeFeatures} for {pkgTuple}", priority = HighPriority
+      # displayInfo &"Package {nimbleFileInfo.nimbleFile} Found active features {activeFeatures} for {pkgTuple}", priority = HighPriority
       pkgActiveFeatures[pkgTuple] = activeFeatures
 
     result.add(pkgTuple)

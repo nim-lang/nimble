@@ -573,7 +573,7 @@ proc getPackageMinimalVersionsFromRepo*(repoDir: string, pkg: PkgTuple, version:
         let tagVersion = newVersion($ver)
 
         if not tagVersion.withinRange(pkg[1]):
-          displayInfo(&"Ignoring {tagVersion} because out of range {pkg[1]}")
+          displayInfo(&"Ignoring {name}:{tagVersion} because out of range {pkg[1]}")
           break
 
         doCheckout(downloadMethod, tempDir, tag)
