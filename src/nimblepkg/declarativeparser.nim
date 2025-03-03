@@ -4,8 +4,8 @@
 import std/strutils
 
 import compiler/[ast, idents, msgs, syntaxes, options, pathutils, lineinfos]
-import version, packageinfotypes, packageinfo, options, packageparser, cli
-import std/[tables, sequtils, strformat, strscans]
+import version, packageinfotypes, packageinfo, options, packageparser
+import std/[tables, sequtils, strscans]
 
 type NimbleFileInfo* = object
   nimbleFile*: string
@@ -201,7 +201,7 @@ proc getRequires*(nimbleFileInfo: NimbleFileInfo, pkgActiveFeatures: var Table[P
   for require in nimbleFileInfo.requires:
     let (pkgTuple, activeFeatures) = parseRequiresWithFeatures(require)
     if activeFeatures.len > 0:      
-      displayInfo &"Package {nimbleFileInfo.nimbleFile} Found active features {activeFeatures} for {pkgTuple}", priority = HighPriority
+      # displayInfo &"Package {nimbleFileInfo.nimbleFile} Found active features {activeFeatures} for {pkgTuple}", priority = HighPriority
       pkgActiveFeatures[pkgTuple] = activeFeatures
 
     result.add(pkgTuple)
