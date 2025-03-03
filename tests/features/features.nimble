@@ -9,7 +9,7 @@ bin = @["features"]
 
 # Dependencies
 
-requires "nim", "result[resultfeature]"
+requires "nim", "results[resultfeature]"
 
 feature "feature1":
   requires "stew"
