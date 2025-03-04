@@ -727,7 +727,7 @@ proc solvePackages*(rootPkg: PackageInfo, pkgList: seq[PackageInfo], pkgsToInsta
           result.incl pkgInfo
           foundInList = true
     if not foundInList:
-      displayInfo(&"Coudlnt find {solvedPkg.pkgName}", priority = HighPriority)
+      # displayInfo(&"Coudlnt find {solvedPkg.pkgName}", priority = HighPriority)
       if solvedPkg.pkgName.isNim and systemNimCompatible:
         continue #Skips systemNim
       pkgsToInstall.addUnique((solvedPkg.pkgName, solvedPkg.version))
