@@ -5,7 +5,7 @@ import std/strutils
 
 import compiler/[ast, idents, msgs, syntaxes, options, pathutils, lineinfos]
 import version, packageinfotypes, packageinfo, options, packageparser
-import std/[tables, sequtils, strscans]
+import std/[tables, sequtils, strscans, strformat]
 
 type NimbleFileInfo* = object
   nimbleFile*: string
@@ -14,6 +14,7 @@ type NimbleFileInfo* = object
   version*: string
   tasks*: seq[(string, string)]
   features*: Table[string, seq[string]]
+  bin*: Table[string, string]
   hasInstallHooks*: bool
   hasErrors*: bool
 
@@ -30,6 +31,20 @@ proc extractRequires(n: PNode, conf: ConfigRef, result: var seq[string], hasErro
     else:
       localError(conf, ch.info, "'requires' takes string literals")
       hasErrors = true
+
+proc extractSeqLiteral(n: PNode, conf: ConfigRef, varName: string): seq[string] =
+  ## Extracts a sequence literal of the form @["item1", "item2"]
+  if n.kind == nkPrefix and n[0].kind == nkIdent and n[0].ident.s == "@":
+    if n[1].kind == nkBracket:
+      for item in n[1]:
+        if item.kind in {nkStrLit .. nkTripleStrLit}:
+          result.add item.strVal
+        else:
+          localError(conf, item.info, &"'{varName}' sequence items must be string literals")
+    else:
+      localError(conf, n.info, &"'{varName}' must be assigned a sequence of strings")
+  else:
+    localError(conf, n.info, &"'{varName}' must be assigned a sequence with @ prefix")
 
 proc extract(n: PNode, conf: ConfigRef, result: var NimbleFileInfo) =
   case n.kind
@@ -83,6 +98,12 @@ proc extract(n: PNode, conf: ConfigRef, result: var NimbleFileInfo) =
       else:
         localError(conf, n[1].info, "assignments to 'version' must be string literals")
         result.hasErrors = true
+    elif n[0].kind == nkIdent and eqIdent(n[0].ident.s, "bin"):
+      let binSeq = extractSeqLiteral(n[1], conf, "bin")
+      for bin in binSeq:
+        result.bin[bin] = bin
+    else:
+      discard
   else:
     discard
 
@@ -216,13 +237,14 @@ proc toRequiresInfo*(pkgInfo: PackageInfo, options: Options): PackageInfo =
   #we need to use the vm to get the version. Another option could be to use the binary and ask for the version
   if pkgInfo.basicInfo.name.isNim:
     return pkgInfo.toFullInfo(options)
-        
+  
   let nimbleFileInfo = extractRequiresInfo(pkgInfo.myPath)
   result = pkgInfo
   result.requires = getRequires(nimbleFileInfo, result.activeFeatures)
   if pkgInfo.infoKind != pikFull: #dont update as full implies pik requires
     result.infoKind = pikRequires
   result.features = getFeatures(nimbleFileInfo)
+  result.bin = nimbleFileInfo.bin
   
 when isMainModule:
   for x in tokenizeRequires("jester@#head >= 1.5 & <= 1.8"):
