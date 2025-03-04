@@ -32,6 +32,12 @@ suite "Declarative parsing":
       @["nim", "json_rpc", "with", "chronicles", "serialization", "stew", "regex"]
     for pkg in expectedPkgs:
       check pkg in requires.mapIt(it[0])
+  
+  test "should parse bin from a nimble file":
+    let nimbleFile = getNimbleFileFromPkgNameHelper("nimlangserver")
+    let nimbleFileInfo = extractRequiresInfo(nimbleFile)
+    check nimbleFileInfo.bin.len == 1
+    check nimbleFileInfo.bin["nimlangserver"] == "nimlangserver"
 
   test "should be able to get all the released PackageVersions from a git local repository using the declarative parser":
     var options = initOptions()
