@@ -705,8 +705,9 @@ proc solveLocalPackages*(rootPkgInfo: PackageInfo, pkgList: seq[PackageInfo], so
     if solvedPkg.pkgName.isNim and systemNimCompatible:     
       continue #Dont add nim from the solution as we will use system nim
     for pkgInfo in pkgList:
-      if pkgInfo.basicInfo.name == solvedPkg.pkgName and pkgInfo.basicInfo.version == solvedPkg.version:
-        result.incl pkgInfo
+      if (pkgInfo.basicInfo.name == solvedPkg.pkgName or pkgInfo.metadata.url == solvedPkg.pkgName) and 
+        (pkgInfo.basicInfo.version == solvedPkg.version or solvedPkg.version in pkgInfo.metadata.specialVersions):
+          result.incl pkgInfo
 
 proc solvePackages*(rootPkg: PackageInfo, pkgList: seq[PackageInfo], pkgsToInstall: var seq[(string, Version)], options: Options, output: var string, solvedPkgs: var seq[SolvedPackage]): HashSet[PackageInfo] =
   var root: PackageMinimalInfo = rootPkg.getMinimalInfo(options)
@@ -721,10 +722,12 @@ proc solvePackages*(rootPkg: PackageInfo, pkgList: seq[PackageInfo], pkgsToInsta
     if solvedPkg.pkgName == root.name: continue    
     var foundInList = false
     for pkgInfo in pkgList:
-      if pkgInfo.basicInfo.name == solvedPkg.pkgName and pkgInfo.basicInfo.version == solvedPkg.version:
-        result.incl pkgInfo
-        foundInList = true
+      if (pkgInfo.basicInfo.name == solvedPkg.pkgName or pkgInfo.metadata.url == solvedPkg.pkgName) and 
+        (pkgInfo.basicInfo.version == solvedPkg.version or solvedPkg.version in pkgInfo.metadata.specialVersions):
+          result.incl pkgInfo
+          foundInList = true
     if not foundInList:
+      # displayInfo(&"Coudlnt find {solvedPkg.pkgName}", priority = HighPriority)
       if solvedPkg.pkgName.isNim and systemNimCompatible:
         continue #Skips systemNim
       pkgsToInstall.addUnique((solvedPkg.pkgName, solvedPkg.version))
