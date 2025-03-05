@@ -2326,7 +2326,7 @@ proc getAlteredPath(options: Options): string =
       paths.add folder
   paths.reverse
   let parentDir = options.nimBin.get.path.parentDir
-  result = fmt "{paths.join(separator)}{separator}{parentDir}{separator}{getEnv(\"PATH\")}"
+  result = fmt "{getAppDir()}{separator}{paths.join(separator)}{separator}{parentDir}{separator}{getEnv(\"PATH\")}"
 
 proc shellenv(options: var Options) =
   setVerbosity(SilentPriority)
