@@ -818,7 +818,8 @@ proc initOptions*(): Options =
     startDir: getCurrentDir(),
     nimBinariesDir: getHomeDir() / ".nimble" / "nimbinaries", 
     maxTaggedVersions: 4,
-    useSatSolver: true
+    useSatSolver: true,
+    useDeclarativeParser: false
   )
 
 proc handleUnknownFlags(options: var Options) =

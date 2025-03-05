@@ -4,8 +4,8 @@
 import std/strutils
 
 import compiler/[ast, idents, msgs, syntaxes, options, pathutils, lineinfos]
-import version, packageinfotypes, packageinfo, options, packageparser
-import std/[tables, sequtils, strscans, strformat]
+import version, packageinfotypes, packageinfo, options, packageparser, cli
+import std/[tables, sequtils, strscans, strformat, os]
 
 type NimbleFileInfo* = object
   nimbleFile*: string
@@ -207,25 +207,27 @@ iterator tokenizeRequires*(s: string): string =
     yield tok
 
 
-proc parseRequiresWithFeatures(require: string): (PkgTuple, seq[string]) =
+proc parseRequiresWithFeatures(require: string): seq[(PkgTuple, seq[string])] =
   #features are expressed like this: require[feature1, feature2]
-  var featuresStr: string
-  var requireStr: string
-  var features = newSeq[string]()
-  if scanf(require, "$*[$*]", requireStr, featuresStr):
-    features = featuresStr.split(",")
-    return (parseRequires(requireStr), features)
-  else:
-    return (parseRequires(require), @[])
+  result = newSeq[(PkgTuple, seq[string])]()
+  for req in require.split(",").mapIt(it.strip):
+    var featuresStr: string
+    var requireStr: string
+    var features = newSeq[string]()
+    if scanf(req, "$*[$*]", requireStr, featuresStr):
+      features = featuresStr.split(",")
+      result.add((parseRequires(requireStr), features))
+    else:
+      result.add((parseRequires(req), @[]))
 
 proc getRequires*(nimbleFileInfo: NimbleFileInfo, pkgActiveFeatures: var Table[PkgTuple, seq[string]]): seq[PkgTuple] =
   for require in nimbleFileInfo.requires:
-    let (pkgTuple, activeFeatures) = parseRequiresWithFeatures(require)
-    if activeFeatures.len > 0:      
-      # displayInfo &"Package {nimbleFileInfo.nimbleFile} Found active features {activeFeatures} for {pkgTuple}", priority = HighPriority
-      pkgActiveFeatures[pkgTuple] = activeFeatures
+    for (pkgTuple, activeFeatures) in parseRequiresWithFeatures(require):
+      if activeFeatures.len > 0:      
+        # displayInfo &"Package {nimbleFileInfo.nimbleFile} Found active features {activeFeatures} for {pkgTuple}", priority = HighPriority
+        pkgActiveFeatures[pkgTuple] = activeFeatures
 
-    result.add(pkgTuple)
+      result.add(pkgTuple)
 
 proc getFeatures*(nimbleFileInfo: NimbleFileInfo): Table[string, seq[PkgTuple]] =
   result = initTable[string, seq[PkgTuple]]()
@@ -238,6 +240,10 @@ proc toRequiresInfo*(pkgInfo: PackageInfo, options: Options): PackageInfo =
   if pkgInfo.basicInfo.name.isNim:
     return pkgInfo.toFullInfo(options)
   
+  if pkgInfo.myPath.splitFile.ext == ".babel":
+    displayWarning &"Package {pkgInfo.basicInfo.name} is a babel package, skipping declarative parser", priority = HighPriority
+    return pkgInfo.toFullInfo(options)
+
   let nimbleFileInfo = extractRequiresInfo(pkgInfo.myPath)
   result = pkgInfo
   result.requires = getRequires(nimbleFileInfo, result.activeFeatures)
