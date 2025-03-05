@@ -9,4 +9,4 @@ srcDir        = "src"
 
 # Dependencies
 
-requires "https://github.com/disruptek/frosty"
+requires "nim", "https://github.com/disruptek/frosty"
