@@ -103,7 +103,6 @@ proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, options: Options): Has
   var solvedPkgs = newSeq[SolvedPackage]()
   var pkgsToInstall: seq[(string, Version)] = @[]
   var rootPkgInfo = rootPkgInfo
-  rootPkgInfo.requires &= options.extraRequires
   if options.useDeclarativeParser:
     rootPkgInfo = rootPkgInfo.toRequiresInfo(options)
     # displayInfo(&"Features: options: {options.features} pkg: {rootPkgInfo.features}", HighPriority)
@@ -112,6 +111,8 @@ proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, options: Options): Has
         rootPkgInfo.requires &= rootPkgInfo.features[feature]
     for pkgName, activeFeatures in rootPkgInfo.activeFeatures:
       appendGloballyActiveFeatures(pkgName[0], activeFeatures)
+      
+  rootPkgInfo.requires &= options.extraRequires
     
   var pkgList = initPkgList(rootPkgInfo, options)
   if options.useDeclarativeParser:
