@@ -101,7 +101,11 @@ proc extract(n: PNode, conf: ConfigRef, result: var NimbleFileInfo) =
     elif n[0].kind == nkIdent and eqIdent(n[0].ident.s, "bin"):
       let binSeq = extractSeqLiteral(n[1], conf, "bin")
       for bin in binSeq:
-        result.bin[bin] = bin
+        when defined(windows):
+          var bin = bin & ".exe"
+          result.bin[bin] = bin 
+        else:
+          result.bin[bin] = bin        
     else:
       discard
   else:
