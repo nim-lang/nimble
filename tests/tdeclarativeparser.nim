@@ -37,7 +37,10 @@ suite "Declarative parsing":
     let nimbleFile = getNimbleFileFromPkgNameHelper("nimlangserver")
     let nimbleFileInfo = extractRequiresInfo(nimbleFile)
     check nimbleFileInfo.bin.len == 1
-    check nimbleFileInfo.bin["nimlangserver"] == "nimlangserver"
+    when defined(windows):
+      check nimbleFileInfo.bin["nimlangserver.exe"] == "nimlangserver.exe"
+    else:
+      check nimbleFileInfo.bin["nimlangserver"] == "nimlangserver"
 
   test "should be able to get all the released PackageVersions from a git local repository using the declarative parser":
     var options = initOptions()
