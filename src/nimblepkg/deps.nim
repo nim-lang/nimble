@@ -1,5 +1,5 @@
 import tables, strformat, sequtils, algorithm, cli
-import packageinfotypes, developfile, packageinfo, version
+import packageinfotypes, developfile, packageinfo, sha1hashes, version
 
 type
   DependencyNode = ref object of RootObj
@@ -42,10 +42,12 @@ proc printDepsHumanReadable*(pkgInfo: PackageInfo,
   ## 
   if levelInfos.len() == 0:
     displayLineReset()
-    displayInfo("Dependency tree format: {PackageName} {Requirements} (@{Resolved Version})")
+    displayInfo("Dependency tree format: {PackageName} {Requirements} (@{Resolved Version} commit {short-hash-id})")
     displayFormatted(Hint, "\n")
     displayFormatted(Message, pkgInfo.basicInfo.name, " ")
     displayFormatted(Success, "(@", $pkgInfo.basicInfo.version, ")")
+    displayFormatted(Details, " [vcs: ", pkgInfo.metaData.vcsRevision.shortId(),
+                              " checksum: ", pkgInfo.basicInfo.checksum.shortId(), "]")
 
   var requires: seq[(string, VersionRange, bool, PackageInfo)]
   for idx, (name, ver) in pkgInfo.requires.sorted():
@@ -78,6 +80,8 @@ proc printDepsHumanReadable*(pkgInfo: PackageInfo,
     displayFormatted(Hint, " ")
     if found:
       displayFormatted(Success, fmt"(@{depPkgInfo.basicInfo.version})")
+      displayFormatted(Details, " [vcs: ", depPkgInfo.metaData.vcsRevision.shortId(),
+                                " checksum: ", depPkgInfo.basicInfo.checksum.shortId(), "]")
     if errors.contains(packageName):
       let errMsg = getValidationErrorMessage(packageName, errors.getOrDefault packageName)
       displayFormatted(Error, fmt" - error: {errMsg}")
@@ -100,11 +104,13 @@ proc printDepsHumanReadableInverted*(pkgInfo: PackageInfo,
     isRoot = pkgs.len() == 0
 
   if isRoot:
-    displayInfo("Dependency tree format: {PackageName} (@{Resolved Version})")
+    displayInfo("Dependency tree format: {PackageName} (@{Resolved Version} commit {short-hash-id})")
     displayInfo("Dependency tree format:    {Source Package} {Source Requirements}")
     displayFormatted(Hint, "\n")
     displayFormatted(Message, pkgInfo.basicInfo.name, " ")
     displayFormatted(Success, "(@", $pkgInfo.basicInfo.version, ")")
+    displayFormatted(Details, " [vcs: ", pkgInfo.metaData.vcsRevision.shortId(),
+                              " checksum: ", pkgInfo.basicInfo.checksum.shortId(), "]")
     displayFormatted(Hint, "\n")
 
   for (name, ver) in pkgInfo.requires:
@@ -128,8 +134,7 @@ proc printDepsHumanReadableInverted*(pkgInfo: PackageInfo,
         displayFormatted(Hint, "├── ")
       else:
         displayFormatted(Hint, "└── ")
-      displayFormatted(Message, name, " ")
-      displayFormatted(Success, "(@", $pkgInfo.basicInfo.version, ")")
+      displayFormatted(Message, name)
       displayFormatted(Hint, "\n")
       # echo "name: ", pkg, " info: ", $info
       # for idx, (source, ver) in info.pairs().toSeq():
