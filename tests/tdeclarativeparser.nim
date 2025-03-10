@@ -131,11 +131,17 @@ suite "Declarative parser features":
       check output.processOutput.inLines("Feature ver2 activated")
       check output.processOutput.inLines("Feature1 deactivated")
 
+  test "should activate dev feature if the root package is a development package":
+    cd "features":
+      let (output, exitCode) = execNimble("--parser:declarative", "run")
+      check exitCode == QuitSuccess
+      check output.processOutput.inLines("dev is enabled")
+
+
   #[NEXT Tests:
 
     TODO:
     - compile time nimble parser detection so we can warn when using the vm parser with features
-    - add enable features to nimble.paths
 
 ]#
 

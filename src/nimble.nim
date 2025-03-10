@@ -111,7 +111,11 @@ proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, options: Options): Has
         rootPkgInfo.requires &= rootPkgInfo.features[feature]
     for pkgName, activeFeatures in rootPkgInfo.activeFeatures:
       appendGloballyActiveFeatures(pkgName[0], activeFeatures)
-      
+    
+    #If root is a development package, we need to activate it as well:
+    if rootPkgInfo.isDevelopment(options):
+      rootPkgInfo.requires &= rootPkgInfo.features["dev"]
+      appendGloballyActiveFeatures(rootPkgInfo.basicInfo.name, @["dev"])
   rootPkgInfo.requires &= options.extraRequires
     
   var pkgList = initPkgList(rootPkgInfo, options)
