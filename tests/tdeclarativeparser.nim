@@ -36,7 +36,7 @@ suite "Declarative parsing":
   test "should parse bin from a nimble file":
     let nimbleFile = getNimbleFileFromPkgNameHelper("nimlangserver")
     let nimbleFileInfo = extractRequiresInfo(nimbleFile)
-    check nimbleFileInfo.bin.len == 1
+    check nimbleFileInfo.bin.len == 2 #we need to account for the default 'dev' feature
     when defined(windows):
       check nimbleFileInfo.bin["nimlangserver.exe"] == "nimlangserver.exe"
     else:
@@ -131,11 +131,18 @@ suite "Declarative parser features":
       check output.processOutput.inLines("Feature ver2 activated")
       check output.processOutput.inLines("Feature1 deactivated")
 
+  test "should activate dev feature if the root package is a development package":
+    cd "features":
+      let (output, exitCode) = execNimble("--parser:declarative", "run")
+      check exitCode == QuitSuccess
+      check output.processOutput.inLines("dev is enabled")
+
+
   #[NEXT Tests:
 
     TODO:
     - compile time nimble parser detection so we can warn when using the vm parser with features
-    - add enable features to nimble.paths
 
 ]#
 
+echo ""

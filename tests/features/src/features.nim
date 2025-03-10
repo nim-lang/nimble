@@ -23,4 +23,12 @@ else:
  echo "resultfeature is disabled"
 
 
+when defined(features.features.dev):
+  echo "dev is enabled"
+  import unittest
+else:
+  echo "dev is disabled"
+
+
+
 echo ""

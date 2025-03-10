@@ -983,3 +983,8 @@ proc isSubdirOf*(subdir, baseDir: string): bool =
     normalizedSubdir.toLower.startsWith(normalizedBaseDir.toLower)
   else:
     normalizedSubdir.startsWith(normalizedBaseDir)
+
+proc isDevelopment*(pkg: PackageInfo, options: Options): bool =
+  ### Returns true if the package is a development package. 
+  ### A development package is a root package that is not installed.
+  not pkg.myPath.parentDir.startsWith(options.getPkgsDir())
