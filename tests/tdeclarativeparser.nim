@@ -36,7 +36,7 @@ suite "Declarative parsing":
   test "should parse bin from a nimble file":
     let nimbleFile = getNimbleFileFromPkgNameHelper("nimlangserver")
     let nimbleFileInfo = extractRequiresInfo(nimbleFile)
-    check nimbleFileInfo.bin.len == 2 #we need to account for the default 'dev' feature
+    check nimbleFileInfo.bin.len == 1
     when defined(windows):
       check nimbleFileInfo.bin["nimlangserver.exe"] == "nimlangserver.exe"
     else:
@@ -87,7 +87,7 @@ suite "Declarative parser features":
     let nimbleFile =  "./features/features.nimble"
     let nimbleFileInfo = extractRequiresInfo(nimbleFile)
     let features = nimbleFileInfo.features
-    check features.len == 1
+    check features.len == 2 #we need to account for the default 'dev' feature
     check features["feature1"] == @["stew"]
 
   test "should be able to install a package using the declarative parser with a feature":
