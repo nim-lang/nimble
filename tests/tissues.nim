@@ -414,3 +414,4 @@ suite "issues":
       check exitCode == QuitSuccess
       check output.contains(message)
     removeDir("testDir-1251")
+    

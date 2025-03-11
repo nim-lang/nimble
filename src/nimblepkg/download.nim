@@ -19,37 +19,41 @@ proc updateSubmodules(dir: string) =
   discard tryDoCmdEx(
     &"git -C {dir} submodule update --init --recursive --depth 1")
 
-proc doCheckout*(meth: DownloadMethod, downloadDir, branch: string) =
+proc doCheckout*(meth: DownloadMethod, downloadDir, branch: string, options: Options) =
   case meth
   of DownloadMethod.git:
     # Force is used here because local changes may appear straight after a clone
     # has happened. Like in the case of git on Windows where it messes up the
     # damn line endings.
     discard tryDoCmdEx(&"git -C {downloadDir} checkout --force {branch}")
-    downloadDir.updateSubmodules
+    if not options.ignoreSubmodules:
+      echo "Updating submodules"
+      downloadDir.updateSubmodules
   of DownloadMethod.hg:
     discard tryDoCmdEx(&"hg --cwd {downloadDir} checkout {branch}")
 
 proc doClone(meth: DownloadMethod, url, downloadDir: string, branch = "",
-             onlyTip = true) =
+             onlyTip = true, options: Options) =
   case meth
   of DownloadMethod.git:
     let
+      submoduleFlag = if not options.ignoreSubmodules: " --recurse-submodules" else: ""
       depthArg = if onlyTip: "--depth 1" else: ""
       branchArg = if branch == "": "" else: &"-b {branch}"
     discard tryDoCmdEx(
-       "git clone --config core.autocrlf=false --config core.eol=lf --recursive " &
-      &"{depthArg} {branchArg} {url} {downloadDir}")
+       "git clone --config core.autocrlf=false --config core.eol=lf " &
+      &"{submoduleFlag} {depthArg} {branchArg} {url} {downloadDir}")
   of DownloadMethod.hg:
     let
       tipArg = if onlyTip: "-r tip " else: ""
       branchArg = if branch == "": "" else: &"-b {branch}"
     discard tryDoCmdEx(&"hg clone {tipArg} {branchArg} {url} {downloadDir}")
 
-proc gitFetchTags*(repoDir: string, downloadMethod: DownloadMethod) =
+proc gitFetchTags*(repoDir: string, downloadMethod: DownloadMethod, options: Options) =
   case downloadMethod:
     of DownloadMethod.git:
-      tryDoCmdEx(&"git -C {repoDir} fetch --tags")
+      let submoduleFlag = if not options.ignoreSubmodules: " --recurse-submodules" else: ""
+      tryDoCmdEx(&"git -C {repoDir} fetch --tags" & submoduleFlag)
     of DownloadMethod.hg:
       assert false, "hg not supported"
 
@@ -144,7 +148,7 @@ proc getUrlData*(url: string): (string, Table[string, string]) =
 
 proc cloneSpecificRevision(downloadMethod: DownloadMethod,
                            url, downloadDir: string,
-                           vcsRevision: Sha1Hash) =
+                           vcsRevision: Sha1Hash, options: Options) =
   assert vcsRevision != notSetSha1Hash
 
   display("Cloning", "revision: " & $vcsRevision, priority = MediumPriority)
@@ -158,7 +162,8 @@ proc cloneSpecificRevision(downloadMethod: DownloadMethod,
     discard tryDoCmdEx(
       &"git -C {downloadDir} fetch --depth 1 origin {vcsRevision}")
     discard tryDoCmdEx(&"git -C {downloadDir} reset --hard FETCH_HEAD")
-    downloadDir.updateSubmodules
+    if not options.ignoreSubmodules:
+      downloadDir.updateSubmodules
   of DownloadMethod.hg:
     discard tryDoCmdEx(&"hg clone {url} -r {vcsRevision}")
 
@@ -372,7 +377,7 @@ proc doDownload(url, downloadDir: string, verRange: VersionRange,
     if downloadTarball(url, options):
       discard doDownloadTarball(url, downloadDir, $vcsRevision, false)
     else:
-      cloneSpecificRevision(downMethod, url, downloadDir, vcsRevision)
+      cloneSpecificRevision(downMethod, url, downloadDir, vcsRevision, options)
     result.vcsRevision = vcsRevision
   elif verRange.kind == verSpecial:
     # We want a specific commit/branch/tag here.
@@ -382,7 +387,7 @@ proc doDownload(url, downloadDir: string, verRange: VersionRange,
         result.vcsRevision = doDownloadTarball(url, downloadDir, "HEAD", true)
       else:
         doClone(downMethod, url, downloadDir,
-                onlyTip = not options.forceFullClone)
+                onlyTip = not options.forceFullClone, options = options)
     else:
       assert ($verRange.spe)[0] == '#',
              "The special version must start with '#'."
@@ -392,10 +397,10 @@ proc doDownload(url, downloadDir: string, verRange: VersionRange,
           url, downloadDir, specialVersion, true)
       else:
         # Grab the full repo.
-        doClone(downMethod, url, downloadDir, onlyTip = false)
+        doClone(downMethod, url, downloadDir, onlyTip = false, options = options)
         # Then perform a checkout operation to get the specified branch/commit.
         # `spe` starts with '#', trim it.
-        doCheckout(downMethod, downloadDir, specialVersion)
+        doCheckout(downMethod, downloadDir, specialVersion, options = options)
     result.version = verRange.spe
   else:
     case downMethod
@@ -415,7 +420,7 @@ proc doDownload(url, downloadDir: string, verRange: VersionRange,
             display("Cloning", "latest tagged version: " & latest.tag,
                     priority = MediumPriority)
             doClone(downMethod, url, downloadDir, latest.tag,
-                    onlyTip = not options.forceFullClone)
+                    onlyTip = not options.forceFullClone, options = options)
       else:
         display("Warning:", "The package has no tagged releases, downloading HEAD instead.", Warning,
                 priority = HighPriority)
@@ -423,10 +428,10 @@ proc doDownload(url, downloadDir: string, verRange: VersionRange,
           result.vcsRevision = doDownloadTarball(url, downloadDir, "HEAD", true)
         else:
           # If no commits have been tagged on the repo we just clone HEAD.
-          doClone(downMethod, url, downloadDir, onlyTip = not options.forceFullClone) # Grab HEAD.
+          doClone(downMethod, url, downloadDir, onlyTip = not options.forceFullClone, options = options) # Grab HEAD.
     of DownloadMethod.hg:
       doClone(downMethod, url, downloadDir,
-              onlyTip = not options.forceFullClone)
+              onlyTip = not options.forceFullClone, options = options)
       result.version = getHeadName(downMethod)
       let versions = getTagsList(downloadDir, downMethod).getVersionList()
 
@@ -434,7 +439,7 @@ proc doDownload(url, downloadDir: string, verRange: VersionRange,
         getLatestByTag:
           display("Switching", "to latest tagged version: " & latest.tag,
                   priority = MediumPriority)
-          doCheckout(downMethod, downloadDir, latest.tag)
+          doCheckout(downMethod, downloadDir, latest.tag, options = options)
       else:
         display("Warning:", "The package has no tagged releases, downloading HEAD instead.", Warning,
                   priority = HighPriority)

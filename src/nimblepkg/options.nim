@@ -66,6 +66,7 @@ type
     maxTaggedVersions*: int # Maximum number of tags to check for a package when discovering versions in a local repo
     useDeclarativeParser*: bool # Whether to use the declarative parser for parsing nimble files (only when solver is SAT)
     features*: seq[string] # Features to be activated. Only used when using the declarative parser
+    ignoreSubmodules*: bool # Whether to ignore submodules when cloning a repository
 
   ActionType* = enum
     actionNil, actionRefresh, actionInit, actionDump, actionPublish, actionUpgrade
@@ -280,6 +281,7 @@ Nimble Options:
       --maximumTaggedVersions     Maximum number of tags to check for a package when discovering versions for the SAT solver. 0 means all.
       --parser:declarative|nimvm  Use the declarative parser or the nimvm parser (default).
       --features                  Activate features. Only used when using the declarative parser.
+      --ignoreSubmodules          Ignore submodules when cloning a repository.
 For more information read the GitHub readme:
   https://github.com/nim-lang/nimble#readme
 """
@@ -684,6 +686,8 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
       raise nimbleError(&"{val} is not a valid value")
   of "features":
     result.features = val.split(";").mapIt(it.strip)
+  of "ignoresubmodules":
+    result.ignoreSubmodules = true
   else: isGlobalFlag = false
 
   var wasFlagHandled = true

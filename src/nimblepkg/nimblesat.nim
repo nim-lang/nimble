@@ -524,7 +524,7 @@ proc getTaggedVersions*(repoDir, pkgName: string, options: Options): Option[Tagg
       displayWarning(&"Error reading tagged versions: {e.msg}", HighPriority)
       return none(TaggedPackageVersions)
   else:
-    none(TaggedPackageVersions)
+    return none(TaggedPackageVersions)
 
 proc saveTaggedVersions*(repoDir, pkgName: string, taggedVersions: TaggedPackageVersions, options: Options) =
   var file: string
@@ -552,7 +552,7 @@ proc getPackageMinimalVersionsFromRepo*(repoDir: string, pkg: PkgTuple, version:
     copyDir(repoDir, tempDir)
     var tags = initOrderedTable[Version, string]()
     try:
-      gitFetchTags(tempDir, downloadMethod)    
+      gitFetchTags(tempDir, downloadMethod, options)    
       tags = getTagsList(tempDir, downloadMethod).getVersionList()
     except CatchableError as e:
       displayWarning(&"Error fetching tags for {name}: {e.msg}", HighPriority)
@@ -576,7 +576,7 @@ proc getPackageMinimalVersionsFromRepo*(repoDir: string, pkg: PkgTuple, version:
           displayInfo(&"Ignoring {name}:{tagVersion} because out of range {pkg[1]}")
           break
 
-        doCheckout(downloadMethod, tempDir, tag)
+        doCheckout(downloadMethod, tempDir, tag, options)
         let nimbleFile = findNimbleFile(tempDir, true, options)
         if options.useDeclarativeParser:
           result.addUnique getMinimalInfo(nimbleFile, name, options)
