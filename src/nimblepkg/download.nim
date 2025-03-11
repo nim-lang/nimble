@@ -27,7 +27,6 @@ proc doCheckout*(meth: DownloadMethod, downloadDir, branch: string, options: Opt
     # damn line endings.
     discard tryDoCmdEx(&"git -C {downloadDir} checkout --force {branch}")
     if not options.ignoreSubmodules:
-      echo "Updating submodules"
       downloadDir.updateSubmodules
   of DownloadMethod.hg:
     discard tryDoCmdEx(&"hg --cwd {downloadDir} checkout {branch}")
