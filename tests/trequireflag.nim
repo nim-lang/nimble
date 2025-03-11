@@ -31,5 +31,5 @@ suite "requires flag":
       check exitCode == QuitSuccess
       echo "OUTPUT is", output
       check output.processOutput.inLines("Success:  nimqml installed successfully.")
-      check output.processOutput.inLines("nim-2.0.0/bin/nim for compilation")
+      check output.processOutput.inLines("Installing nim@2.0.0")
 
