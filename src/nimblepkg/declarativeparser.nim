@@ -46,6 +46,16 @@ proc extractSeqLiteral(n: PNode, conf: ConfigRef, varName: string): seq[string] 
   else:
     localError(conf, n.info, &"'{varName}' must be assigned a sequence with @ prefix")
 
+proc extractFeatures(featureNode: PNode, conf: ConfigRef, hasErrors: var bool): seq[string] =
+  ## Extracts requirements from a feature declaration
+  if featureNode.kind in {nkStmtList, nkStmtListExpr}:
+    for stmt in featureNode:
+      if stmt.kind in nkCallKinds and stmt[0].kind == nkIdent and 
+         stmt[0].ident.s == "requires":
+        var requires: seq[string]
+        extractRequires(stmt, conf, requires, hasErrors)
+        result.add requires
+
 proc extract(n: PNode, conf: ConfigRef, result: var NimbleFileInfo) =
   case n.kind
   of nkStmtList, nkStmtListExpr:
@@ -61,13 +71,12 @@ proc extract(n: PNode, conf: ConfigRef, result: var NimbleFileInfo) =
           let featureName = n[1].strVal
           if not result.features.hasKey(featureName):
             result.features[featureName] = @[]
-          if n[2].kind in {nkStmtList, nkStmtListExpr}:
-            for stmt in n[2]:
-              if stmt.kind in nkCallKinds and stmt[0].kind == nkIdent and 
-                 stmt[0].ident.s == "requires":
-                var requires: seq[string]
-                extractRequires(stmt, conf, requires, result.hasErrors)
-                result.features[featureName].add requires
+          result.features[featureName] = extractFeatures(n[2], conf, result.hasErrors)
+      of "dev":
+        let featureName = "dev"
+        if not result.features.hasKey(featureName):
+          result.features[featureName] = @[]
+        result.features[featureName] = extractFeatures(n[1], conf, result.hasErrors)
       of "task":
         if n.len >= 3 and n[1].kind == nkIdent and
             n[2].kind in {nkStrLit .. nkTripleStrLit}:

@@ -87,7 +87,7 @@ suite "Declarative parser features":
     let nimbleFile =  "./features/features.nimble"
     let nimbleFileInfo = extractRequiresInfo(nimbleFile)
     let features = nimbleFileInfo.features
-    check features.len == 1
+    check features.len == 2 #we need to account for the default 'dev' feature
     check features["feature1"] == @["stew"]
 
   test "should be able to install a package using the declarative parser with a feature":
@@ -131,11 +131,18 @@ suite "Declarative parser features":
       check output.processOutput.inLines("Feature ver2 activated")
       check output.processOutput.inLines("Feature1 deactivated")
 
+  test "should activate dev feature if the root package is a development package":
+    cd "features":
+      let (output, exitCode) = execNimble("--parser:declarative", "run")
+      check exitCode == QuitSuccess
+      check output.processOutput.inLines("dev is enabled")
+
+
   #[NEXT Tests:
 
     TODO:
     - compile time nimble parser detection so we can warn when using the vm parser with features
-    - add enable features to nimble.paths
 
 ]#
 
+echo ""

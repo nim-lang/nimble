@@ -13,3 +13,6 @@ requires "nim", "result[resultfeature]"
 
 feature "feature1":
   requires "stew"
+
+dev:
+  requires "unittest2"

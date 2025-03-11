@@ -258,3 +258,6 @@ proc getPathsClause*(): string =
 
 template feature*(name: string, body: untyped): untyped =
   discard
+
+template dev*(body: untyped): untyped =
+  discard
