@@ -134,7 +134,12 @@ proc extract(n: PNode, conf: ConfigRef, result: var NimbleFileInfo) =
         else:
           result.bin[bin] = bin
     elif n[0].kind == nkIdent and eqIdent(n[0].ident.s, "namedBin"):
-      result.bin = extractTableLiteral(n[1], conf)
+      when defined(Windows):
+        for key, value in extractTableLiteral(n[1], conf):
+          result.bin[key] = value & ".exe"
+      else:
+        result.bin = extractTableLiteral(n[1], conf)
+
     else:
       discard
   else:
