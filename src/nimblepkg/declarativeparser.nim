@@ -56,6 +56,24 @@ proc extractFeatures(featureNode: PNode, conf: ConfigRef, hasErrors: var bool): 
         extractRequires(stmt, conf, requires, hasErrors)
         result.add requires
 
+proc extractTableLiteral(n: PNode, conf: ConfigRef): Table[string, string] =
+  ## Extracts a table literal of the form {"key": "value"} or {"key": "value"}.toTable()
+  result = initTable[string, string]()
+  let tableNode = if n.kind == nkCall and n.len == 1 and 
+                    n[0].kind == nkDotExpr and n[0].len == 2 and
+                    n[0][1].kind == nkIdent and n[0][1].ident.s == "toTable":
+    n[0][0]  
+  else:
+    n    
+  if tableNode.kind == nkTableConstr:
+    for child in tableNode:
+      if child.kind == nkExprColonExpr and 
+         child[0].kind in {nkStrLit..nkTripleStrLit} and 
+         child[1].kind in {nkStrLit..nkTripleStrLit}:
+        result[child[0].strVal] = child[1].strVal
+      else:
+        localError(conf, child.info, "table entries must be string literal pairs")
+
 proc extract(n: PNode, conf: ConfigRef, result: var NimbleFileInfo) =
   case n.kind
   of nkStmtList, nkStmtListExpr:
@@ -114,7 +132,9 @@ proc extract(n: PNode, conf: ConfigRef, result: var NimbleFileInfo) =
           var bin = bin & ".exe"
           result.bin[bin] = bin 
         else:
-          result.bin[bin] = bin        
+          result.bin[bin] = bin
+    elif n[0].kind == nkIdent and eqIdent(n[0].ident.s, "namedBin"):
+      result.bin = extractTableLiteral(n[1], conf)
     else:
       discard
   else:
