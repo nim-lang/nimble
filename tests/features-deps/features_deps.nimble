@@ -10,7 +10,7 @@ import std/tables
 
 
 namedBin      = {
-  "features_deps_binary": "features_deps"
+  "features_deps": "features_deps"
 }.toTable()
 
 # Dependencies
