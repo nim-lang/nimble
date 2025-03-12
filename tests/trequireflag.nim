@@ -1,5 +1,5 @@
 {.used.}
-import unittest, os
+import unittest, os, strformat, osproc
 import testscommon
 from nimblepkg/common import cd
 
@@ -19,3 +19,17 @@ suite "requires flag":
       check exitCode == QuitSuccess
       check outp.processOutput.inLines("Success:  results installed successfully.")
       check outp.processOutput.inLines("Success:  stew installed successfully.")
+  
+  test "should be able to override the nim version":
+    let nimqmlDir = getTempDir() / "nimqml"
+    removeDir(nimqmlDir)
+    echo "NIMQML DIR is ", nimqmlDir
+    let cloneCmd = &"git clone https://github.com/seaqt/nimqml-seaqt.git {nimqmlDir}"
+    check execCmd(cloneCmd) == 0
+    cd nimqmlDir:
+      let (output, exitCode) = execNimble("--requires: nim == 2.0.0", "install", "-l")
+      check exitCode == QuitSuccess
+      echo "OUTPUT is", output
+      check output.processOutput.inLines("Success:  nimqml installed successfully.")
+      check output.processOutput.inLines("Installing nim@2.0.0")
+
