@@ -5,8 +5,13 @@ author        = "jmgomez"
 description   = "A new awesome nimble package"
 license       = "MIT"
 srcDir        = "src"
-bin           = @["features_deps"]
 
+import std/tables
+
+
+namedBin      = {
+  "features_deps_binary": "features_deps"
+}.toTable()
 
 # Dependencies
 

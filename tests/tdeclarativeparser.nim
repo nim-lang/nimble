@@ -41,6 +41,15 @@ suite "Declarative parsing":
       check nimbleFileInfo.bin["nimlangserver.exe"] == "nimlangserver.exe"
     else:
       check nimbleFileInfo.bin["nimlangserver"] == "nimlangserver"
+  
+  test "should parse namedBin from a nimble file":
+    let nimbleFile = "features-deps/features_deps.nimble"
+    let nimbleFileInfo = extractRequiresInfo(nimbleFile)
+    check nimbleFileInfo.bin.len == 1
+    when defined(windows):
+      check nimbleFileInfo.bin["features_deps_binary"] == "features_deps.exe"
+    else:
+      check nimbleFileInfo.bin["features_deps_binary"] == "features_deps"
 
   test "should be able to get all the released PackageVersions from a git local repository using the declarative parser":
     var options = initOptions()
