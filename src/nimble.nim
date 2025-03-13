@@ -98,6 +98,8 @@ proc activateSolvedPkgFeatures(solvedPkgs: seq[SolvedPackage], allPkgsInfo: seq[
       appendGloballyActiveFeatures(pkgWithFeature.get.basicInfo.name, activeFeatures)
 
 proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, options: Options): HashSet[PackageInfo] = 
+  if rootPkgInfo.basicInfo.name.isNim: #Nim has no deps
+    return initHashSet[PackageInfo]()
   if satProccesedPackages.len > 0:
     return satProccesedPackages
   var solvedPkgs = newSeq[SolvedPackage]()
