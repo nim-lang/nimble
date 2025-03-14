@@ -74,7 +74,7 @@ type
     actionUninstall, actionCompile, actionDoc, actionCustom, actionTasks,
     actionDevelop, actionCheck, actionLock, actionRun, actionSync, actionSetup,
     actionClean, actionDeps, actionShellEnv, actionShell, actionAdd, actionManual,
-    actionPublishTags
+    actionPublishVersions
 
   DevelopActionType* = enum
     datAdd, datRemoveByPath, datRemoveByName, datInclude, datExclude
@@ -128,8 +128,10 @@ type
       depsAction*: string
     of actionPublish:
       publishAction*: string
-    of actionPublishTags:
-      onlyListTags*: bool
+    of actionPublishVersions:
+      createTags*: bool
+      pushTags*: bool
+      allTags*: bool
     of actionShellEnv, actionShell:
       discard
 
@@ -183,10 +185,11 @@ Commands:
   publish                         Publishes a package on nim-lang/packages.
                                   The current working directory needs to be the
                                   top level directory of the Nimble package.
-  publishTags                     Finds and publishes new tags based on the
-                                  commits where a package's Nimble file changed.
-               [-l, --listOnly]   Only list the tags and versions which are found without
-                                  actually performing tag or publishing them.
+  versions                        Lists package versions based on commits in the
+                                  current branch where the package's Nimble version
+                                  was changed.
+               [-c, --create]     Creates tags for missing versions.
+               [-p, --push]       Push only tagged versions (tags) to VCS.
   uninstall    [pkgname, ...]     Uninstalls a list of packages.
                [-i, --inclDeps]   Uninstalls package and dependent package(s).
   build        [opts, ...] [bin]  Builds a package. Passes options to the Nim
@@ -344,8 +347,8 @@ proc parseActionType*(action: string): ActionType =
     result = actionUninstall
   of "publish":
     result = actionPublish
-  of "publishtags":
-    result = actionPublishTags
+  of "versions", "publishversions":
+    result = actionPublishVersions
   of "upgrade":
     result = actionUpgrade
   of "tasks":
@@ -790,10 +793,14 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
       result.action.publishAction = "tags"
     else:
       wasFlagHandled = false
-  of actionPublishTags:
+  of actionPublishVersions:
     case f
-    of "l", "listonly":
-      result.action.onlyListTags = true
+    of "c", "create":
+      result.action.createTags = true
+    of "p", "push":
+      result.action.pushTags = true
+    of "a", "all":
+      result.action.allTags = true
     else:
       wasFlagHandled = false
   of actionDeps:
