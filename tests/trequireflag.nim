@@ -27,7 +27,7 @@ suite "requires flag":
     let cloneCmd = &"git clone https://github.com/seaqt/nimqml-seaqt.git {nimqmlDir}"
     check execCmd(cloneCmd) == 0
     cd nimqmlDir:
-      let (output, exitCode) = execNimble("--requires: nim == 2.0.0", "install", "-l")
+      let (output, exitCode) = execNimble("--requires: nim == 2.0.0; https://github.com/seaqt/nim-seaqt.git#qt-6.4", "install", "-l")
       check exitCode == QuitSuccess
       echo "OUTPUT is", output
       check output.processOutput.inLines("Success:  nimqml installed successfully.")
