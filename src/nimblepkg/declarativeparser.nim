@@ -58,11 +58,15 @@ proc extractFeatures(featureNode: PNode, conf: ConfigRef, hasErrors: var bool): 
 
 proc extractTableLiteral(n: PNode, conf: ConfigRef): Table[string, string] =
   ## Extracts a table literal of the form {"key": "value"} or {"key": "value"}.toTable()
+  ## or toTable({"key": "value"})
   result = initTable[string, string]()
   let tableNode = if n.kind == nkCall and n.len == 1 and 
                     n[0].kind == nkDotExpr and n[0].len == 2 and
                     n[0][1].kind == nkIdent and n[0][1].ident.s == "toTable":
     n[0][0]  
+  elif n.kind == nkCall and n.len == 2 and 
+       n[0].kind == nkIdent and n[0].ident.s == "toTable":
+    n[1]
   else:
     n    
   if tableNode.kind == nkTableConstr:
