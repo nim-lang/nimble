@@ -233,7 +233,7 @@ A library may support both, but ideally, `chronos` should not be included in dep
 This can be achieved as follows:
 
 ```nim
-features "chronos":
+feature "chronos":
   require "chronos"
 ```
 
