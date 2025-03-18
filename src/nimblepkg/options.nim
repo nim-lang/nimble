@@ -73,8 +73,7 @@ type
     actionInstall, actionSearch, actionList, actionBuild, actionPath,
     actionUninstall, actionCompile, actionDoc, actionCustom, actionTasks,
     actionDevelop, actionCheck, actionLock, actionRun, actionSync, actionSetup,
-    actionClean, actionDeps, actionShellEnv, actionShell, actionAdd, actionManual,
-    actionPublishTags
+    actionClean, actionDeps, actionShellEnv, actionShell, actionAdd, actionManual
 
   DevelopActionType* = enum
     datAdd, datRemoveByPath, datRemoveByName, datInclude, datExclude
@@ -128,8 +127,6 @@ type
       depsAction*: string
     of actionPublish:
       publishAction*: string
-    of actionPublishTags:
-      onlyListTags*: bool
     of actionShellEnv, actionShell:
       discard
 
@@ -183,10 +180,6 @@ Commands:
   publish                         Publishes a package on nim-lang/packages.
                                   The current working directory needs to be the
                                   top level directory of the Nimble package.
-  publishTags                     Finds and publishes new tags based on the
-                                  commits where a package's Nimble file changed.
-               [-l, --listOnly]   Only list the tags and versions which are found without
-                                  actually performing tag or publishing them.
   uninstall    [pkgname, ...]     Uninstalls a list of packages.
                [-i, --inclDeps]   Uninstalls package and dependent package(s).
   build        [opts, ...] [bin]  Builds a package. Passes options to the Nim
@@ -344,8 +337,6 @@ proc parseActionType*(action: string): ActionType =
     result = actionUninstall
   of "publish":
     result = actionPublish
-  of "publishtags":
-    result = actionPublishTags
   of "upgrade":
     result = actionUpgrade
   of "tasks":
@@ -788,12 +779,6 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
     case f
     of "tags":
       result.action.publishAction = "tags"
-    else:
-      wasFlagHandled = false
-  of actionPublishTags:
-    case f
-    of "l", "listonly":
-      result.action.onlyListTags = true
     else:
       wasFlagHandled = false
   of actionDeps:

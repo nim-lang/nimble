@@ -214,6 +214,76 @@ when defined(windows):
   requires "puppy 1.5.4"
 ```
 
+### Declarative Parser (Experimental)
+
+Starting in `nimble 0.18.0`, the declarative parser can be used.  
+It can be activated using the flag `--parser:declarative` and will become the default parser in the future.  
+
+The main advantage of the declarative parser is deterministic dependencies, allowing `nimble` to build a reliable cache.  
+Another benefit is improved speed, as there is no need to spin up the Nim VM for every dependency.
+
+---
+
+### Features (Experimental)
+
+To support conditional dependencies when using the declarative parser, the `feature` block can be used.  
+
+For example, Nim has two `async` backends: `std/asyncdispatch`, which ships with Nim, and `chronos`.  
+A library may support both, but ideally, `chronos` should not be included in dependency resolution when using `asyncdispatch`.  
+This can be achieved as follows:
+
+```nim
+feature "chronos":
+  require "chronos"
+```
+
+In this example, `chronos` will only be installed when the `chronos` feature is activated.  
+
+There are two ways to activate a feature:  
+
+1. By passing a flag to the root package:  
+   ```sh
+   nimble --feature:"chronos" install
+   ```
+2. By activating it in a dependency using the `[]` operator:  
+   ```nim
+   require "awesomeAsyncPackage[chronos]"
+   ```
+
+Multiple features can be activated for a package as follows:  
+```nim
+require "awesomeAsyncPackage[chronos, feature2]"
+```
+
+#### Checking Active Features in Code
+
+In Nim code, you can check if a given feature is activated using the `when` operator:
+
+```nim
+when defined(feature.awesomeAsyncPackage.chronos):
+  import chronos
+```
+
+The format follows: `feature.packageName.featureName`.
+
+---
+
+### The `dev` Feature
+
+An implicit feature, `dev`, is always activated when developing a package.  
+It is useful for requiring development-specific dependencies.  
+
+For example:
+```nim
+feature "dev":
+  require "unittest2"
+```
+
+Since the `dev` feature is used frequently, an alias is available:
+```nim
+dev:
+  require "unittest2"
+
 
 
 ### `nimble tasks`
