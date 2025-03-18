@@ -31,7 +31,7 @@ suite "issues":
     # path that they get permanently installed at.
     cleanDir installDir
     cd "issue799":
-      let (output, exitCode) = execNimbleYes("build")
+      let (output, exitCode) = execNimbleYes("build")    
       check exitCode == QuitSuccess
       var lines = output.processOutput
       lines.keepItIf(unindent(it).startsWith("Executing"))
@@ -39,7 +39,7 @@ suite "issues":
       for line in lines:
         if line.contains("issue799"):
           let nimbleInstallDir = getPackageDir(
-            pkgsDir, &"nimble-{nimbleVersion}")
+            pkgsDir, &"nimble-0.16.4")
           let pkgInstalledPath = "--path:" & nimbleInstallDir.quoteShell & ""
           check line.contains(pkgInstalledPath)
 

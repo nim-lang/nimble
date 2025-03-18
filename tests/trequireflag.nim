@@ -33,3 +33,4 @@ suite "requires flag":
   #     check output.processOutput.inLines("Success:  nimqml installed successfully.")
   #     check output.processOutput.inLines("Installing nim@2.0.0")
 
+
