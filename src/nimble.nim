@@ -2455,9 +2455,6 @@ proc doAction(options: var Options) =
   of actionPublish:
     var pkgInfo = getPkgInfo(getCurrentDir(), options)
     publish(pkgInfo, options)
-  of actionPublishTags:
-    var pkgInfo = getPkgInfo(getCurrentDir(), options)
-    publishTags(pkgInfo, options)
   of actionDump:
     dump(options)
   of actionTasks:
