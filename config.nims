@@ -7,3 +7,4 @@ switch("path", "vendor" / "zippy" / "src")
 switch("path", "vendor" / "sat" / "src")
 switch("path", "vendor" / "checksums" / "src")
 switch("define", "zippyNoSimd")
+

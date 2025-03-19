@@ -124,4 +124,5 @@ suite "misc tests":
   test "config file should end with a newline":
     let configFile = readFile("../config.nims")
     let content = configFile.splitLines.toSeq()
+    check content[^2].strip() == ""
     check content[^1].strip() == ""
