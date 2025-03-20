@@ -282,7 +282,7 @@ proc createTag*(tag: string, commit: Sha1Hash, message, repoDir, nimbleFile: str
     of DownloadMethod.hg:
       assert false, "hg not supported"
   
-proc findVersions(commits: seq[(Sha1Hash, string)], projdir, nimbleFile: string, downloadMethod: DownloadMethod, options: Options) =
+proc findVersions*(commits: seq[(Sha1Hash, string)], projdir, nimbleFile: string, downloadMethod: DownloadMethod, options: Options) =
   ## parse the versions
   var
     versions: HashSet[Version]
