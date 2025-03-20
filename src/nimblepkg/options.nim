@@ -465,8 +465,9 @@ proc setNimbleDir*(options: var Options) =
     else:
       # ...followed by project local deps mode
       if dirExists(nimbledeps) or (options.localdeps and not options.developLocaldeps):
-        display("Warning:", "Using project local deps mode", Warning,
-                priority = HighPriority)
+        if not options.showVersion:
+          display("Warning:", "Using project local deps mode", Warning,
+                  priority = HighPriority)
         nimbleDir = nimbledeps
         options.localdeps = true
         propagate = true
@@ -637,7 +638,9 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
   var isGlobalFlag = true
   case f
   of "help", "h": result.showHelp = true
-  of "version", "v": result.showVersion = true
+  of "version", "v": 
+    result.showVersion = true
+    result.noColor = true
   of "accept", "y": result.forcePrompts = forcePromptYes
   of "reject", "n": result.forcePrompts = forcePromptNo
   of "nimbledir": result.nimbleDir = val
