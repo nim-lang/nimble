@@ -1,5 +1,5 @@
 {.used.}
-import unittest, os, strformat, osproc
+import unittest, os#, strformat, osproc
 import testscommon
 from nimblepkg/common import cd
 
