@@ -496,30 +496,6 @@ proc getRequiredNimVersion*(pkgInfo: PackageInfo): VersionRange =
     return nimPkgTupl[0].ver
   return VersionRange(kind: verAny)
 
-proc getNimBin*(pkgInfo: PackageInfo, options: Options): string =
-  if pkgInfo.basicInfo.name == "nim":
-    var binaryPath = "bin" / "nim"
-    when defined(windows):
-      binaryPath &= ".exe"      
-    result = pkgInfo.getNimbleFileDir() / binaryPath
-  else: 
-    if options.useSatSolver and not options.useSystemNim:
-      #Try to first use nim from the solved packages
-      #TODO add the solved packages to the options (we need to remove the legacy solver first otherwise it will be messy)
-      for pkg in satProccesedPackages:
-        if pkg.basicInfo.name == "nim":
-          return pkg.getNimBin(options)  
-
-    assert options.nimBin.isSome, "Nim binary not set"
-    #Check if the current nim satisfais the pacakge 
-    let nimVer = options.nimBin.get.version
-    let reqNimVer = pkgInfo.getRequiredNimVersion()
-    if not nimVer.withinRange(reqNimVer):
-      display("Warning:", &"Package requires nim {reqNimVer} but {nimVer}. Attempting to compile with the current nim version.", Warning, HighPriority)
-    result = options.nim
-  display("Info:", "compiling nim package using $1" % result, priority = HighPriority)
-
-
 proc getNimBin*(options: Options): string =
   return options.nim
 

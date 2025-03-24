@@ -99,9 +99,9 @@ proc activateSolvedPkgFeatures(solvedPkgs: seq[SolvedPackage], allPkgsInfo: seq[
 
 proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, options: Options): HashSet[PackageInfo] = 
   if rootPkgInfo.basicInfo.name.isNim: #Nim has no deps
-    return initHashSet[PackageInfo]()
-  if satProccesedPackages.len > 0:
-    return satProccesedPackages
+    return initHashSet[PackageInfo]()  
+  if satProccesedPackages.isSome:
+    return satProccesedPackages.get
   var solvedPkgs = newSeq[SolvedPackage]()
   var pkgsToInstall: seq[(string, Version)] = @[]
   var rootPkgInfo = rootPkgInfo
@@ -155,14 +155,16 @@ proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, options: Options): Has
       result.incl pkg
     for nonLocked in toRemoveFromLocked:
       #only remove if the vcsRevision is different
+      var toRemove: HashSet[PackageInfo] = initHashSet[PackageInfo]()
       for pkg in result:
         if pkg.basicInfo.name == nonLocked.basicInfo.name and pkg.metaData.vcsRevision != nonLocked.metaData.vcsRevision:
-          result.excl nonLocked
+          toRemove.incl nonLocked
+      result.excl toRemove
     result = 
       result.toSeq
       .deleteStaleDependencies(rootPkgInfo, options)
       .toHashSet
-    satProccesedPackages = result
+    satProccesedPackages = some result
     return result
 
   var output = ""
@@ -170,6 +172,7 @@ proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, options: Options): Has
   displaySatisfiedMsg(solvedPkgs, pkgsToInstall, options)
   displayUsingSpecialVersionWarning(solvedPkgs, options)
   var solved = solvedPkgs.len > 0 #A pgk can be solved and still dont return a set of PackageInfo
+  
   for (name, ver) in pkgsToInstall:
     var versionRange = ver.toVersionRange
     if name in upgradeVersions:
@@ -197,11 +200,44 @@ proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, options: Options): Has
     result.excl nonLocked
 
   result = deleteStaleDependencies(result.toSeq, rootPkgInfo, options).toHashSet  
-  satProccesedPackages = result
+  satProccesedPackages = some result
 
   if not solved:
     display("Error", output, Error, priority = HighPriority)
     raise nimbleError("Unsatisfiable dependencies")
+
+
+
+proc getNimBin*(pkgInfo: PackageInfo, options: Options): string =
+  if pkgInfo.basicInfo.name == "nim":
+    var binaryPath = "bin" / "nim"
+    when defined(windows):
+      binaryPath &= ".exe"      
+    result = pkgInfo.getNimbleFileDir() / binaryPath
+  else: 
+    if options.useSatSolver and not options.useSystemNim:
+      #Try to first use nim from the solved packages
+      #TODO add the solved packages to the options (we need to remove the legacy solver first otherwise it will be messy)
+      #If there is not nimble file in the current package we are trying to install, means we are installing a binary in the global directory
+      #Sometimes, like when installing a package globally without being in a nimble package, sat is not ran at this point. 
+      #We need to run it here to get the correct nim bin
+      #In the future, when the declarative parser is the default, we will run for getting Nim much early (right now we need a nim to parse the deps)
+      if satProccesedPackages.isNone:        
+        discard processFreeDependenciesSAT(pkgInfo, options)
+      if satProccesedPackages.isSome:
+        for pkg in satProccesedPackages.get:
+          if pkg.basicInfo.name == "nim":
+            return pkg.getNimBin(options)  
+
+    assert options.nimBin.isSome, "Nim binary not set"
+    #Check if the current nim satisfais the pacakge 
+    let nimVer = options.nimBin.get.version
+    let reqNimVer = pkgInfo.getRequiredNimVersion()
+    
+    if not nimVer.withinRange(reqNimVer):
+      display("Warning:", &"Package requires nim {reqNimVer} but {nimVer}. Attempting to compile with the current nim version.", Warning, HighPriority)
+    result = options.nim
+  display("Info:", "compiling nim package using $1" % result, priority = HighPriority)
 
 proc processFreeDependencies(pkgInfo: PackageInfo,
                              requirements: seq[PkgTuple],
