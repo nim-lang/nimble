@@ -283,7 +283,7 @@ Since the `dev` feature is used frequently, an alias is available:
 ```nim
 dev:
   require "unittest2"
-
+```
 
 
 ### `nimble tasks`
