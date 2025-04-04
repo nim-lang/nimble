@@ -41,8 +41,8 @@ You should place them in a `PackageName/private` directory.
 Your modules may then import these private modules with `import PackageName/private/module`.
 This directory structure may be enforced in the future.
 
-All files and folders in the directory where the `.nimble`` file resides will be copied as-is.
-You can however skip some directories or files by setting the `skipDirs`, `skipFiles` or `skipExt` options in your .nimble file.
+All files and folders in the directory where the `.nimble` file resides will be copied as-is.
+You can however skip some directories or files by setting the `skipDirs`, `skipFiles` or `skipExt` options in your `.nimble` file.
 Directories and files can also be specified on a *whitelist* basis.
 If you specify either of `installDirs`, `installFiles` or `installExt`, then
 Nimble will *only* install the files specified.
@@ -82,7 +82,7 @@ It's a good idea to test that the dependencies you specified are correct by runn
 
 ## Hybrids
 
-Binary packages will not install .nim files so include `installExt = @["nim"]`
+Binary packages will not install `.nim` files so include `installExt = @["nim"]`
 in your `.nimble` file if you intend for your package to be a hybrid binary/library
 combo.
 
