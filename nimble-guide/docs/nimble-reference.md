@@ -56,6 +56,7 @@
   `js`.
 * ``paths`` - A list of relative paths that will be expanded on `nimble.paths` and the search paths options to the compiler.
 * ``entryPoints`` - A list of relative paths to nim files that will be used by the `nimlangserver` as project entry points. Useful for test files like `tall.nim`
+*``testEntryPoint`` - A relative path to the test file that contains imported tests (i.e. `tall.nim`). 
   **Default**: `c`.
 
 

@@ -79,7 +79,8 @@ type
     entryPoints*: seq[string] #useful for tools like the lsp.
     features*: Table[string, seq[PkgTuple]] #features requires defined in the nimble file. Declarative parser + SAT solver only.
     activeFeatures*: Table[PkgTuple, seq[string]] #features that dependencies of this package have activated. #i.e. requires package[feature1, feature2]
-  
+    testEntryPoint*: string ## The entry point for the test task.
+
   Package* = object ## Definition of package from packages.json.
     # Required fields in a package.
     name*: string
