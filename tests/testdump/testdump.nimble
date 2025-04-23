@@ -4,3 +4,4 @@ author = "nigredo-tori"
 license = "BSD"
 paths = @["path"]
 entryPoints = @["entrypoint.nim"]
+testEntryPoint = "tests/tall.nim"
