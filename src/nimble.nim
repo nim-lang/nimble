@@ -1796,6 +1796,13 @@ proc test(options: Options) =
     files = toSeq(walkDir(getCurrentDir() / "tests"))
     tests, failures: int
 
+  if pkgInfo.testEntryPoint != "" :
+    if fileExists(pkgInfo.testEntryPoint):
+      displayInfo("Using test entry point: " & pkgInfo.testEntryPoint, HighPriority)
+      files = @[(kind: pcFile, path: pkgInfo.testEntryPoint)]
+    else:
+      raise nimbleError("Test entry point not found: " & pkgInfo.testEntryPoint)
+
   if files.len < 1:
     display("Warning:", "No tests found!", Warning, HighPriority)
     return

@@ -24,6 +24,7 @@ var
   srcDir*: string      ## The package's source directory.
   binDir*: string      ## The package's binary directory.
   backend*: string     ## The package's backend.
+  testEntryPoint*: string ## The package's test entry point.
 
   skipDirs*, skipFiles*, skipExt*, installDirs*, installFiles*,
     installExt*, bin*, paths*, entryPoints*: seq[string] = @[] ## Nimble metadata.
@@ -117,6 +118,8 @@ template printSeqIfLen(varName) =
   printSeqIfLen(astToStr(varName), varName)
 
 proc printPkgInfo(): string =
+  #Notice this functions is called by the wrapper to store the package info as a ini file.
+  #We should instead just use the declarative parser to parse the variables of the nimble file. 
   if backend.len == 0:
     backend = "c"
 
@@ -138,7 +141,7 @@ proc printPkgInfo(): string =
   printIfLen srcDir
   printIfLen binDir
   printIfLen backend
-
+  printIfLen testEntryPoint
   printSeqIfLen skipDirs
   printSeqIfLen skipFiles
   printSeqIfLen skipExt
