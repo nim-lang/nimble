@@ -1346,6 +1346,7 @@ proc dump(options: Options) =
   fn "paths", p.paths
   fn "nimDir", getNimDir(options)
   fn "entryPoints", p.getEntryPoints(options)
+  fn "testEntryPoint", p.testEntryPoint
   if json:
     s = j.pretty
   echo s
