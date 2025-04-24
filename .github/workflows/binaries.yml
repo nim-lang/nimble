@@ -39,7 +39,7 @@ jobs:
         include:
           - target:
               os: linux
-            builder: ubuntu-20.04
+            builder: ubuntu-22.04
           - target:
               os: macosx
             builder: macos-14
