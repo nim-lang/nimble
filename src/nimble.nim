@@ -18,7 +18,7 @@ import nimblepkg/packageinfotypes, nimblepkg/packageinfo, nimblepkg/version,
        nimblepkg/nimscriptwrapper, nimblepkg/developfile, nimblepkg/paths,
        nimblepkg/nimbledatafile, nimblepkg/packagemetadatafile,
        nimblepkg/displaymessages, nimblepkg/sha1hashes, nimblepkg/syncfile,
-       nimblepkg/deps, nimblepkg/nimblesat, nimblepkg/forge_aliases, nimblepkg/nimenv,
+       nimblepkg/deps, nimblepkg/nimblesat, nimblepkg/nimenv,
        nimblepkg/downloadnim, nimblepkg/declarativeparser
 
 const
@@ -958,26 +958,22 @@ proc addPackages(packages: seq[PkgTuple], options: var Options) =
       exists = false
       version: string
 
-    let 
-      isValidUrl = isURL(apkg.name)
-      isValidAlias = isForgeAlias(apkg.name)
+    let isValidUrl = isURL(apkg.name)
     
-    if not isValidAlias:
-      for pkg in pkgList:
-        if pkg.name == apkg.name:
-          exists = true
-          version = case apkg.ver.kind
-          of verAny:
-            ""
-          else:
-            $apkg.ver
-          break
+    for pkg in pkgList:
+      if pkg.name == apkg.name:
+        exists = true
+        version = case apkg.ver.kind
+        of verAny:
+          ""
+        else:
+          $apkg.ver
+        break
     
-      if not exists and
-        not isValidUrl:
-        raise nimbleError(
-          "No such package \"$1\" was found in the package list." % [apkg.name]
-        )
+    if not exists and not isValidUrl:
+      raise nimbleError(
+        "No such package \"$1\" was found in the package list." % [apkg.name]
+      )
     
     var doAppend = true
     for dep in deps:
