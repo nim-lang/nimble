@@ -877,13 +877,7 @@ proc install(packages: seq[PkgTuple], options: Options,
   else:
     # Install each package.
     for pv in packages:
-      let isAlias = isForgeAlias(pv.name)
-
-      let (meth, url, metadata) = 
-        if not isAlias:
-          getDownloadInfo(pv, options, doPrompt) #TODO dont download if its nim
-        else:
-          (git, newForge(pv.name).expand(), initTable[string, string]())
+      let (meth, url, metadata) = getDownloadInfo(pv, options, doPrompt) #TODO dont download if its nim
 
       let subdir = metadata.getOrDefault("subdir")
       var downloadPath = ""
@@ -896,15 +890,9 @@ proc install(packages: seq[PkgTuple], options: Options,
       let (downloadDir, downloadVersion, vcsRevision) =
         if nimInstalled.isSome():
           (nimInstalled.get().dir, nimInstalled.get().ver, notSetSha1Hash)
-        elif not isAlias:
+        else:
           downloadPkg(url, pv.ver, meth, subdir, options,
                     downloadPath = downloadPath, vcsRevision = notSetSha1Hash)
-        else:
-          downloadPkg(
-            newForge(pv.name).expand(),
-            pv.ver, meth, subdir, options,
-            downloadPath = downloadPath, vcsRevision = notSetSha1Hash
-          )
       try:
         var opt = options
         if pv.name.isNim:
