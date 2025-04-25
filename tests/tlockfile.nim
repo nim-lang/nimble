@@ -696,7 +696,8 @@ requires "nim >= 1.5.1"
         check exitCode == QuitSuccess
   test "Forge alias is generated inside lockfile":
     cleanup()
-    cd "forgealias001":
-      testLockFile(@{
-        "librng": "librng"
-      },isNew=true)
+    withPkgListFile:
+      cd "forgealias001":
+        testLockFile(@{
+          "librng": "librng"
+        },isNew=true)
