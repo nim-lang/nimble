@@ -2,7 +2,7 @@
 # BSD License. Look at license.txt for more info.
 
 {.used.}
-import std/[unittest, os]
+import std/unittest
 import nimblepkg/forge_aliases
 
 let 
