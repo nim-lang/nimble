@@ -32,6 +32,7 @@ import tsat
 import tniminstall
 import trequireflag
 import tdeclarativeparser
+import tforgeinstall
 # nonim tests are very slow and (often) break the CI.
 
 # import tnonim
