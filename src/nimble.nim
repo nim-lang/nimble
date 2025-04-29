@@ -18,7 +18,7 @@ import nimblepkg/packageinfotypes, nimblepkg/packageinfo, nimblepkg/version,
        nimblepkg/nimscriptwrapper, nimblepkg/developfile, nimblepkg/paths,
        nimblepkg/nimbledatafile, nimblepkg/packagemetadatafile,
        nimblepkg/displaymessages, nimblepkg/sha1hashes, nimblepkg/syncfile,
-       nimblepkg/deps, nimblepkg/nimblesat, nimblepkg/forge_aliases, nimblepkg/nimenv,
+       nimblepkg/deps, nimblepkg/nimblesat, nimblepkg/nimenv,
        nimblepkg/downloadnim, nimblepkg/declarativeparser
 
 const
@@ -877,13 +877,7 @@ proc install(packages: seq[PkgTuple], options: Options,
   else:
     # Install each package.
     for pv in packages:
-      let isAlias = isForgeAlias(pv.name)
-
-      let (meth, url, metadata) = 
-        if not isAlias:
-          getDownloadInfo(pv, options, doPrompt) #TODO dont download if its nim
-        else:
-          (git, newForge(pv.name).expand(), initTable[string, string]())
+      let (meth, url, metadata) = getDownloadInfo(pv, options, doPrompt) #TODO dont download if its nim
 
       let subdir = metadata.getOrDefault("subdir")
       var downloadPath = ""
@@ -896,15 +890,9 @@ proc install(packages: seq[PkgTuple], options: Options,
       let (downloadDir, downloadVersion, vcsRevision) =
         if nimInstalled.isSome():
           (nimInstalled.get().dir, nimInstalled.get().ver, notSetSha1Hash)
-        elif not isAlias:
+        else:
           downloadPkg(url, pv.ver, meth, subdir, options,
                     downloadPath = downloadPath, vcsRevision = notSetSha1Hash)
-        else:
-          downloadPkg(
-            newForge(pv.name).expand(),
-            pv.ver, meth, subdir, options,
-            downloadPath = downloadPath, vcsRevision = notSetSha1Hash
-          )
       try:
         var opt = options
         if pv.name.isNim:
@@ -970,26 +958,22 @@ proc addPackages(packages: seq[PkgTuple], options: var Options) =
       exists = false
       version: string
 
-    let 
-      isValidUrl = isURL(apkg.name)
-      isValidAlias = isForgeAlias(apkg.name)
+    let isValidUrl = isURL(apkg.name)
     
-    if not isValidAlias:
-      for pkg in pkgList:
-        if pkg.name == apkg.name:
-          exists = true
-          version = case apkg.ver.kind
-          of verAny:
-            ""
-          else:
-            $apkg.ver
-          break
+    for pkg in pkgList:
+      if pkg.name == apkg.name:
+        exists = true
+        version = case apkg.ver.kind
+        of verAny:
+          ""
+        else:
+          $apkg.ver
+        break
     
-      if not exists and
-        not isValidUrl:
-        raise nimbleError(
-          "No such package \"$1\" was found in the package list." % [apkg.name]
-        )
+    if not exists and not isValidUrl:
+      raise nimbleError(
+        "No such package \"$1\" was found in the package list." % [apkg.name]
+      )
     
     var doAppend = true
     for dep in deps:

@@ -2,7 +2,7 @@
 # BSD License. Look at license.txt for more info.
 
 import parseutils, os, osproc, strutils, tables, uri, strformat,
-       httpclient, json, sequtils, forge_aliases, urls
+       httpclient, json, sequtils, urls
 
 from algorithm import SortOrder, sorted
 
@@ -620,9 +620,6 @@ proc getDownloadInfo*(
     result = (checkUrlType(url), url, metadata)
     # echo "getDownloadInfo:isURL: ", $result
     return
-  elif pv.name.isForgeAlias:
-    let url = newForge(pv.name).expand()
-    return (checkUrlType(url), url, default(Table[string, string]))
   else:
     # If package is not found give the user a chance to refresh
     # package.json

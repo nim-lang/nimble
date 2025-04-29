@@ -694,3 +694,18 @@ requires "nim >= 1.5.1"
 
         let exitCode = execNimbleYes("lock", "--developFile=" & "other-name.develop").exitCode
         check exitCode == QuitSuccess
+  test "Forge alias is generated inside lockfile":
+    cleanup()
+
+    withPkgListFile:
+      cd "forgealias001":
+        removeFile defaultLockFileName
+
+        let (_, exitCode) = execNimbleYes("lock")
+        check exitCode == QuitSuccess
+
+        # Check the dependency appears in the lock file, and its expanded
+        check defaultLockFileName.fileExists
+        let json = defaultLockFileName.readFile.parseJson
+        check json{$lfjkPackages, "librng", "url"}.str == "https://github.com/xTrayambak/librng"
+
