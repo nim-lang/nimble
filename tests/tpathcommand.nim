@@ -22,3 +22,17 @@ suite "path command":
       check exitCode == QuitSuccess
     check execNimble("path", "srcdirtest@1.0").exitCode == QuitSuccess
     check execNimble("path", "srcdirtest@2.0").exitCode != QuitSuccess
+
+  test "Use current nimble package to determine path when possible":
+    cd "deps":
+      check execNimbleYes("install").exitCode == QuitSuccess
+      let (output, exitCode) = execNimble("path", "timezones")
+      check(exitCode == QuitSuccess)
+      check output.strip() == getPackageDir(pkgsDir, "timezones-0.5.4")
+
+  test "Respect develop overrides for nimble packages":
+    cd "pathWithDevelop":
+      let (output, exitCode) = execNimble("path", "deps")
+      check(exitCode == QuitSuccess)
+      checkpoint "Nimble path output was: " & output
+      check output.startsWith(expandFilename("../deps"))
