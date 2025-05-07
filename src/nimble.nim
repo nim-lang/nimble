@@ -2493,6 +2493,7 @@ proc doAction(options: var Options) =
     check(options)
   of actionLock:
     lock(options)
+    setup(options)
   of actionDeps:
     deps(options)
   of actionSync:
