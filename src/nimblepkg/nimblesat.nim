@@ -769,7 +769,7 @@ proc dumpSolvedPackages*(pkgInfo: PackageInfo, pkgList: seq[PackageInfo], option
   var pkgToInstall: seq[(string, Version)] = @[]
   var output = ""
   var solvedPkgs: seq[SolvedPackage] = @[]
-  let result = solvePackages(pkgInfo, pkgList, pkgToInstall, options, output, solvedPkgs)
+  discard solvePackages(pkgInfo, pkgList, pkgToInstall, options, output, solvedPkgs)
 
   echo "PACKAGE".alignLeft(maxPkgNameDisplayWidth), "VERSION".alignLeft(maxVersionDisplayWidth), "REQUIREMENTS"
   echo "-".repeat(maxPkgNameDisplayWidth + maxVersionDisplayWidth + 4)
