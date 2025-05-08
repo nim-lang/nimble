@@ -1279,8 +1279,16 @@ proc getEntryPoints(pkgInfo: PackageInfo, options: Options): seq[string] =
     result.add if entry.endsWith(".nim"): entry else: entry & ".nim"
   
 proc dump(options: Options) =
-  cli.setSuppressMessages(true)
   let p = getPackageByPattern(options.action.projName, options)
+  if options.action.collect or options.action.solve:
+    let pkgList = initPkgList(p, options).toSeq()
+    if options.action.collect:
+      dumpPackageVersionTable(p, pkgList.toSeq(), options)
+    else:
+      dumpSolvedPackages(p, pkgList, options)
+    quit()
+
+  cli.setSuppressMessages(true)
   var j: JsonNode
   var s: string
   let json = options.dumpMode == kdumpJson

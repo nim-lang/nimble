@@ -521,7 +521,7 @@ proc getTaggedVersions*(repoDir, pkgName: string, options: Options): Option[Tagg
         return none(TaggedPackageVersions)
       return some taggedVersions
     except CatchableError as e:
-      displayWarning(&"Error reading tagged versions: {e.msg}", HighPriority)
+      displayWarning(&"Error reading tagged versions: {e.msg} for {pkgName}", HighPriority)
       return none(TaggedPackageVersions)
   else:
     return none(TaggedPackageVersions)
@@ -740,3 +740,216 @@ proc getPackageInfo*(name: string, pkgs: seq[PackageInfo], version: Option[Versi
             return some pkg
         else: #No version passed over first match
           return some pkg
+
+proc getPkgVersionTable*(pkgInfo: PackageInfo, pkgList: seq[PackageInfo], options: Options): Table[string, PackageVersions] =
+  result = initTable[string, PackageVersions]()
+  var root = pkgInfo.getMinimalInfo(options)
+  root.isRoot = true
+  result[root.name] = PackageVersions(pkgName: root.name, versions: @[root])
+  collectAllVersions(result, root, options, downloadMinimalPackage, pkgList.mapIt(it.getMinimalInfo(options)))
+
+
+const maxPkgNameDisplayWidth = 40  # Cap package name width
+const maxVersionDisplayWidth = 10  # Cap version width
+
+proc formatPkgName(pkgName: string, maxWidth = maxPkgNameDisplayWidth): string =
+  result = pkgName
+  if result.startsWith("https:"):
+    let parts = result.split('/')
+    result = parts[^1]
+  # Handle git repo names with extension
+  if result.endsWith(".git"):
+    result = result[0..^5]  # Remove .git suffix
+  
+  # Truncate if still too long
+  if result.len > maxWidth - 3:
+    result = result[0..<(maxWidth - 3)] & "..."
+
+proc dumpSolvedPackages*(pkgInfo: PackageInfo, pkgList: seq[PackageInfo], options: Options) =
+  var pkgToInstall: seq[(string, Version)] = @[]
+  var output = ""
+  var solvedPkgs: seq[SolvedPackage] = @[]
+  discard solvePackages(pkgInfo, pkgList, pkgToInstall, options, output, solvedPkgs)
+
+  echo "PACKAGE".alignLeft(maxPkgNameDisplayWidth), "VERSION".alignLeft(maxVersionDisplayWidth), "REQUIREMENTS"
+  echo "-".repeat(maxPkgNameDisplayWidth + maxVersionDisplayWidth + 4)
+  
+  # Sort packages alphabetically
+  var sortedPackages = solvedPkgs
+  sortedPackages.sort(proc(a, b: SolvedPackage): int =
+    result = cmp(a.pkgName, b.pkgName)
+    if result == 0:
+      result = cmp(a.version, b.version)
+  )
+  
+  # Find the pkgInfo package in the solved packages and move it to the front
+  for i, pkg in sortedPackages:
+    if pkg.pkgName == pkgInfo.basicInfo.name:
+      let rootPkg = sortedPackages[i]
+      sortedPackages.delete(i)
+      sortedPackages.insert(rootPkg, 0)
+      break
+  
+  # Display each package
+  for i, pkg in sortedPackages:
+    var displayName = formatPkgName(pkg.pkgName)
+    
+    # Mark root package with an asterisk (either it's the first package after sorting, or it's pkgInfo)
+    let rootMarker = if pkg.pkgName == pkgInfo.basicInfo.name: "*" else: " "
+    
+    # Format requirements
+    var reqStr = ""
+    for i, req in pkg.requirements:
+      if i > 0: reqStr.add ", "
+      
+      var reqName = formatPkgName(req.name)
+      reqStr.add reqName
+      if req.ver.kind != verAny:
+        reqStr.add " " & $req.ver
+    
+    # Display package line
+    echo rootMarker, " ", 
+         displayName.alignLeft(maxPkgNameDisplayWidth - 1), 
+         $pkg.version.version.alignLeft(maxVersionDisplayWidth), 
+         if reqStr.len > 0: reqStr.splitLines()[0] else: ""
+    
+    # If requirements were long, display them on additional indented lines
+    if reqStr.len > 0 and (reqStr.contains('\n') or reqStr.len > 80):
+      let lines = reqStr.split(", ")
+      var currentLine = ""
+      for i, req in lines:
+        if currentLine.len + req.len + 2 > 80:  # +2 for ", "
+          if currentLine.len > 0:
+            echo " ".repeat(maxPkgNameDisplayWidth + maxVersionDisplayWidth + 3), currentLine
+          currentLine = req
+        else:
+          if currentLine.len > 0:
+            currentLine.add ", "
+          currentLine.add req
+      
+      if currentLine.len > 0:
+        echo " ".repeat(maxPkgNameDisplayWidth + maxVersionDisplayWidth + 3), currentLine
+    
+    # Show reverse dependencies indented underneath - UPDATED to group by package name
+    if pkg.reverseDependencies.len > 0:
+      var depStr = "Required by: "
+      
+      # Group dependencies by package name
+      var depGroups = initTable[string, seq[Version]]()
+      for revDep in pkg.reverseDependencies:
+        var depName = revDep[0].formatPkgName()
+        
+        if not depGroups.hasKey(depName):
+          depGroups[depName] = @[]
+        depGroups[depName].add(revDep[1])
+      
+      var depNames = toSeq(depGroups.keys)
+      depNames.sort()
+      
+      # Format each dependency group
+      var currentLine = depStr
+      var lineLen = depStr.len
+      
+      for i, depName in depNames:
+        var versions = depGroups[depName]
+        
+        # Sort versions in descending order
+        versions.sort(proc(a, b: Version): int = 
+          if a > b: -1
+          elif a < b: 1
+          else: 0
+        )
+        
+        # Format versions as a compact list
+        var versionStr = ""
+        if versions.len == 1:
+          versionStr = $versions[0].version
+        else:
+          versionStr = "v(" & versions.mapIt($it.version).join(", ") & ")"
+        
+        let depEntry = depName & " " & versionStr
+        
+        if i > 0:
+          if lineLen + 2 + depEntry.len > 80:
+            echo " ".repeat(maxPkgNameDisplayWidth + maxVersionDisplayWidth + 3), currentLine
+            currentLine = "            " & depEntry
+            lineLen = 12 + depEntry.len
+          else:
+            currentLine.add ", " & depEntry
+            lineLen += 2 + depEntry.len
+        else:
+          currentLine.add depEntry
+          lineLen += depEntry.len
+      
+      echo " ".repeat(maxPkgNameDisplayWidth + maxVersionDisplayWidth + 3), currentLine
+
+proc dumpPackageVersionTable*(pkg: PackageInfo, pkgList: seq[PackageInfo], options: Options) =
+  let pkgVersionTable = getPkgVersionTable(pkg, pkgList, options)
+
+  # Display header
+  echo "PACKAGE".alignLeft(maxPkgNameDisplayWidth), "VERSION".alignLeft(maxVersionDisplayWidth), "REQUIREMENTS"
+  echo "-".repeat(maxPkgNameDisplayWidth + maxVersionDisplayWidth + 4)
+  
+  var sortedPackages = toSeq(pkgVersionTable.keys)
+  sortedPackages.sort()
+  
+  if pkg.basicInfo.name in sortedPackages:
+    sortedPackages.delete(sortedPackages.find(pkg.basicInfo.name))
+    sortedPackages.insert(pkg.basicInfo.name, 0)
+  
+  # Display each package and its versions
+  for pkgName in sortedPackages:
+    let pkgVersions = pkgVersionTable[pkgName]
+    var isFirstVersion = true
+    
+    # Sort versions in descending order (newest first)
+    var sortedVersions = pkgVersions.versions
+    sortedVersions.sort(proc(a, b: PackageMinimalInfo): int = 
+      if a.version > b.version: -1
+      elif a.version < b.version: 1
+      else: 0
+    )
+    
+    for version in sortedVersions:
+      # Format package name - extract repo name for GitHub URLs
+      var displayName = formatPkgName(pkgName)
+      
+      # Only show package name for first version
+      let name = if isFirstVersion: displayName else: ""
+      let rootMarker = if version.isRoot: "*" else: " "
+      
+      # Format requirements
+      var reqStr = ""
+      for i, req in version.requires:
+        if i > 0: reqStr.add ", "
+        
+        var reqName = formatPkgName(req.name)
+        
+        reqStr.add reqName
+        if req.ver.kind != verAny:
+          reqStr.add " " & $req.ver
+      
+      # Display version line
+      echo rootMarker, " ", 
+           name.alignLeft(maxPkgNameDisplayWidth - 1), 
+           $version.version.version.alignLeft(maxVersionDisplayWidth), 
+           if reqStr.len > 0: reqStr.splitLines()[0] else: ""
+      
+      # If requirements were long, display them on additional indented lines
+      if reqStr.len > 0 and (reqStr.contains('\n') or reqStr.len > 80):
+        let lines = reqStr.split(", ")
+        var currentLine = ""
+        for i, req in lines:
+          if currentLine.len + req.len + 2 > 80:  # +2 for ", "
+            if currentLine.len > 0:
+              echo " ".repeat(maxPkgNameDisplayWidth + maxVersionDisplayWidth + 3), currentLine
+            currentLine = req
+          else:
+            if currentLine.len > 0:
+              currentLine.add ", "
+            currentLine.add req
+        
+        if currentLine.len > 0:
+          echo " ".repeat(maxPkgNameDisplayWidth + maxVersionDisplayWidth + 3), currentLine
+      
+      isFirstVersion = false
