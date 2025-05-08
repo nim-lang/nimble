@@ -108,6 +108,8 @@ type
     of actionInit, actionDump:
       projName*: string
       vcsOption*: string
+      collect*: bool
+      solve*: bool
     of actionCompile, actionDoc, actionBuild:
       file*: string
       backend*: string
@@ -216,7 +218,9 @@ Commands:
                                   external tools. The argument can be a
                                   .nimble file, a project directory or
                                   the name of an installed package.
-               [--ini, --json]    Selects the output format (the default is --ini).
+               [--ini, --json]    Selects the output format (the default is --ini). Only applicable to package information.
+               [--collect]        Collects all the packages in the dependency tree of the given package and shows the result in the console.
+               [--solve]          Solves the dependency tree of the given package and shows the result in the console.
   lock                            Generates or updates a package lock file.
   upgrade      [pkgname, ...]     Upgrades a list of packages in the lock file.
   deps                            Outputs dependencies for current package.
@@ -683,6 +687,8 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
     case f
     of "json": result.dumpMode = kdumpJson
     of "ini": result.dumpMode = kdumpIni
+    of "collect": result.action.collect = true
+    of "solve": result.action.solve = true
     else:
       wasFlagHandled = false
   of actionInstall:

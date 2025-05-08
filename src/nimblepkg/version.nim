@@ -7,7 +7,7 @@ import common, strutils, tables, hashes, parseutils, forge_aliases
 import std/[strscans]
 type
   Version* = object
-    version: string
+    version*: string
 
   VersionRangeEnum* = enum
     verLater, # > V
