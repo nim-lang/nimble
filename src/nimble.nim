@@ -24,6 +24,7 @@ import nimblepkg/packageinfotypes, nimblepkg/packageinfo, nimblepkg/version,
 const
   nimblePathsFileName* = "nimble.paths"
   nimbleConfigFileName* = "config.nims"
+  nimbledepsFolderName = "nimbledeps"
   gitIgnoreFileName = ".gitignore"
   hgIgnoreFileName = ".hgignore"
   nimblePathsEnv = "__NIMBLE_PATHS"
@@ -2344,9 +2345,13 @@ proc setupVcsIgnoreFile =
     if not fileContent.contains(nimblePathsFileName):
       fileContent.append(nimblePathsFileName)
       writeFile = true
+    if not fileContent.contains(nimbledepsFolderName):  
+      fileContent.append(nimbledepsFolderName)
+      writeFile = true
   else:
     fileContent.append(developFileName)
     fileContent.append(nimblePathsFileName)
+    fileContent.append(nimbledepsFolderName)
     writeFile = true
 
   if writeFile:
