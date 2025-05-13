@@ -54,8 +54,8 @@ proc gitFetchTags*(repoDir: string, downloadMethod: DownloadMethod, options: Opt
       let submoduleFlag = if not options.ignoreSubmodules: " --recurse-submodules" else: ""
       tryDoCmdEx(&"git -C {repoDir} fetch --tags" & submoduleFlag)
     of DownloadMethod.hg:
-      assert false, "hg not supported"
-
+      # In Mercurial, pulling updates also fetches all remote tags
+      tryDoCmdEx(&"hg --cwd {repoDir} pull")
 
 proc getTagsList*(dir: string, meth: DownloadMethod): seq[string] =
   var output: string
