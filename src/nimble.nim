@@ -1725,14 +1725,13 @@ proc updatePathsFile(pkgInfo: PackageInfo, options: Options) =
   displayInfo(&"\"{nimblePathsFileName}\" is {action}.")
 
 proc develop(options: var Options) =
-  let defaultPath = "vendor"
   if options.action.path.len == 0:
     # If no path is provided, use the vendor folder as default
-    options.action.path = defaultPath
+    options.action.path = defaultDevelopPath
   let
     hasPackages = options.action.packages.len > 0
     hasPath = options.action.path.len > 0
-    isDefaultPath = options.action.path == defaultPath
+    isDefaultPath = options.action.path == defaultDevelopPath
     hasDevActions = options.action.devActions.len > 0
     hasDevFile = options.developFile.len > 0
     withDependencies = options.action.withDependencies    

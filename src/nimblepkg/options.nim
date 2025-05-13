@@ -11,6 +11,7 @@ import config, version, common, cli, packageinfotypes, displaymessages
 const
   nimbledeps* = "nimbledeps"
   defaultLockFileName* = "nimble.lock"
+  defaultDevelopPath* = "vendor"
 
 type
   NimBin* = object
