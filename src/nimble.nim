@@ -1725,15 +1725,17 @@ proc updatePathsFile(pkgInfo: PackageInfo, options: Options) =
   displayInfo(&"\"{nimblePathsFileName}\" is {action}.")
 
 proc develop(options: var Options) =
+  let defaultPath = "vendor"
   if options.action.path.len == 0:
     # If no path is provided, use the vendor folder as default
-    options.action.path = "vendor"
+    options.action.path = defaultPath
   let
     hasPackages = options.action.packages.len > 0
     hasPath = options.action.path.len > 0
+    isDefaultPath = options.action.path == defaultPath
     hasDevActions = options.action.devActions.len > 0
     hasDevFile = options.developFile.len > 0
-    withDependencies = options.action.withDependencies
+    withDependencies = options.action.withDependencies    
 
   var
     currentDirPkgInfo = initPackageInfo()
@@ -1749,7 +1751,7 @@ proc develop(options: var Options) =
   if withDependencies and not hasPackages and not currentDirPkgInfo.isLoaded:
     raise nimbleError(developWithDependenciesWithoutPackagesMsg)
 
-  if hasPath and not hasPackages and
+  if hasPath and not isDefaultPath and not hasPackages and
      (not currentDirPkgInfo.isLoaded or not withDependencies):
     raise nimbleError(pathGivenButNoPkgsToDownloadMsg)
 
