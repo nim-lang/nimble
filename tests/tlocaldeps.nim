@@ -34,7 +34,7 @@ suite "project local deps mode":
   test "localdeps develop":
     cleanDir("nimbledeps")
     cleanDir(defaultDevelopPath)
-    let (output, exitCode) = execCmdEx(nimblePath &
+    let (_, exitCode) = execCmdEx(nimblePath &
       &" develop {pkgAUrl} --localdeps -y")
     check exitCode == QuitSuccess
     check dirExists(defaultDevelopPath / "packagea" / "nimbledeps")
