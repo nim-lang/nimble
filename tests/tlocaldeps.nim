@@ -6,6 +6,7 @@
 import unittest, os, osproc, strutils, strformat
 import testscommon
 from nimblepkg/common import cd
+import nimblepkg/options
 
 suite "project local deps mode":
   setup:
@@ -32,10 +33,9 @@ suite "project local deps mode":
 
   test "localdeps develop":
     cleanDir("nimbledeps")
-    cleanDir("packagea")
+    cleanDir(defaultDevelopPath)
     let (_, exitCode) = execCmdEx(nimblePath &
       &" develop {pkgAUrl} --localdeps -y")
-    discard execCmd("find packagea")
     check exitCode == QuitSuccess
-    check dirExists("packagea" / "nimbledeps")
+    check dirExists(defaultDevelopPath / "packagea" / "nimbledeps")
     check not dirExists("nimbledeps")

@@ -16,7 +16,7 @@ from nimblepkg/common import cd, dump, cdNewDir
 from nimblepkg/tools import tryDoCmdEx, doCmdEx
 from nimblepkg/packageinfotypes import DownloadMethod
 from nimblepkg/lockfile import LockFileJsonKeys
-from nimblepkg/options import defaultLockFileName
+from nimblepkg/options import defaultLockFileName, defaultDevelopPath
 from nimblepkg/developfile import ValidationError, ValidationErrorKind,
   developFileName, getValidationErrorMessage
 
@@ -553,20 +553,20 @@ requires "nim >= 1.5.1"
 
   test "can generate lock file for nim as dep":
     cleanUp()
+    let nimDir = defaultDevelopPath / "Nim"
     cd "nimdep":
       removeFile "nimble.develop"
       removeFile "nimble.lock"
-      removeDir "Nim"
-
+      removeDir nimDir
       check execNimbleYes("-y", "develop", "nim").exitCode == QuitSuccess
-      cd "Nim":
+      cd nimDir:
         let (_, exitCode) = execNimbleYes("-y", "install")
         check exitCode == QuitSuccess
 
       # check if the compiler version will be used when doing build
-      testLockFile(@[("nim", "Nim")], isNew = true)
+      testLockFile(@[("nim", nimDir)], isNew = true)
       removeFile "nimble.develop"
-      removeDir "Nim"
+      removeDir nimDir
 
       let (output, exitCodeInstall) = execNimbleYes("-y", "build")
       check exitCodeInstall == QuitSuccess

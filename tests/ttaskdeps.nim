@@ -104,14 +104,14 @@ suite "Task level dependencies":
   test "Develop file is used":
     inDir:
       defer:
-        removeDir("nim-unittest2")
+        removeDir("vendor")
         removeFile("nimble.develop")
 
       verify execNimbleYes("develop", "unittest2")
       # Add in a file to the develop file
       # We will then try and import this
-      createDir "nim-unittest2/unittest2"
-      "nim-unittest2/unittest2/customFile.nim".writeFile("")
+      createDir "vendor/nim-unittest2/unittest2"
+      "vendor/nim-unittest2/unittest2/customFile.nim".writeFile("")
       let (output, exitCode) = execNimbleYes("-d:useDevelop", "test")
       check exitCode == QuitSuccess
       check "Using custom file" in output

@@ -27,6 +27,7 @@ suite "develop feature":
     depNameAndVersion = &"{depName}@{depVersion}"
     dep2Path = "../dependency2".normalizedPath
     emptyDevelopFileContent = developFile(@[], @[])
+    defaultPath = "vendor"
   
   let anyVersion = parseVersionRange("")
 
@@ -44,7 +45,7 @@ suite "develop feature":
       let (output, exitCode) = execNimble("develop", pkgAUrl)
       check exitCode == QuitSuccess
       check output.processOutput.inLines(
-        pkgSetupInDevModeMsg(pkgAName, installDir / pkgAName))
+        pkgSetupInDevModeMsg(pkgAName, installDir / defaultPath / pkgAName))
 
   test "can develop from package name":
     cdCleanDir installDir:
@@ -54,7 +55,7 @@ suite "develop feature":
         var lines = output.processOutput
         check lines.inLinesOrdered(pkgInstalledMsg(pkgAName))
         check lines.inLinesOrdered(
-          pkgSetupInDevModeMsg(pkgBName, installDir / pkgBName))
+          pkgSetupInDevModeMsg(pkgBName, installDir / defaultPath / pkgBName))
 
   test "can develop with dependencies":
     cdCleanDir installDir:
@@ -64,9 +65,9 @@ suite "develop feature":
         check exitCode == QuitSuccess
         var lines = output.processOutput
         check lines.inLinesOrdered(
-          pkgSetupInDevModeMsg(pkgAName, installDir / pkgAName))
+          pkgSetupInDevModeMsg(pkgAName, installDir / defaultPath / pkgAName))
         check lines.inLinesOrdered(
-          pkgSetupInDevModeMsg(pkgBName, installDir / pkgBName))
+          pkgSetupInDevModeMsg(pkgBName, installDir / defaultPath / pkgBName))
 
   test "can develop list of packages":
     cdCleanDir installDir:
@@ -76,10 +77,10 @@ suite "develop feature":
         check exitCode == QuitSuccess
         var lines = output.processOutput
         check lines.inLinesOrdered(pkgSetupInDevModeMsg(
-          pkgAName, installDir / pkgAName))
+          pkgAName, installDir / defaultPath / pkgAName))
         check lines.inLinesOrdered(pkgInstalledMsg(pkgAName))
         check lines.inLinesOrdered(pkgSetupInDevModeMsg(
-          pkgBName, installDir / pkgBName))
+          pkgBName, installDir / defaultPath / pkgBName))
 
   test "can develop global":
     cleanDir installDir
@@ -95,7 +96,7 @@ suite "develop feature":
                            depName.getLinkFileName
         check lines.inLinesOrdered(pkgLinkFileSavedMsg(linkFilePath))
         check lines.inLinesOrdered(pkgSetupInDevModeMsg(
-          depName, dependencyPath))
+          depName, dependencyPath ))
         check linkFilePath.fileExists
         let linkFileLines = linkFilePath.readFile.split('\n')
         let expectedLinkNimbleFilePath = dependencyPath / depName & ".nimble"
@@ -117,7 +118,7 @@ suite "develop feature":
         var lines = output.processOutput
         check lines.inLinesOrdered(
           cannotUninstallPkgMsg(pkgAName, newVersion("0.2.0"),
-          @[installDir / pkgBName]))
+          @[installDir / defaultPath / pkgBName]))
 
   test "can develop binary packages":
     cd "develop/binary":
@@ -879,8 +880,8 @@ suite "develop feature":
           "--with-dependencies", &"--develop-file:{developFile}", pkgBName)
         check exitCode == QuitSuccess
         let 
-          pkgAPath = installDir / pkgAName.toLower
-          pkgBPath = installDir / pkgBName.toLower
+          pkgAPath = installDir / defaultPath / pkgAName.toLower
+          pkgBPath = installDir / defaultPath / pkgBName.toLower
         var lines = output.processOutput
         check lines.inLinesOrdered(pkgSetupInDevModeMsg(pkgAName, pkgAPath))
         check lines.inLinesOrdered(pkgSetupInDevModeMsg(pkgBName, pkgBPath))
