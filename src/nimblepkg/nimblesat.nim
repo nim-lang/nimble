@@ -562,7 +562,10 @@ proc getPackageMinimalVersionsFromRepo*(repoDir: string, pkg: PkgTuple, version:
       displayWarning(&"Error fetching tags for {name}: {e.msg}", HighPriority)
     
     try:
-      result.add getPkgInfo(repoDir, options).getMinimalInfo(options)   
+      if options.firstSatPass:
+        result.add getPkgInfoFromDirWithDeclarativeParser(repoDir, options, forceDeclarativeOnly = true).getMinimalInfo(options)   
+      else:
+        result.add getPkgInfo(repoDir, options).getMinimalInfo(options)   
     except CatchableError as e:
       displayWarning(&"Error getting package info for {name}: {e.msg}", HighPriority)
     

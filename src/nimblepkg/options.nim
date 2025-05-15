@@ -787,6 +787,10 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
 
   if not wasFlagHandled and not isGlobalFlag:
     result.unknownFlags.add((kind, flag, val))
+  
+  if result.useVNext:
+    displayInfo("vNext is enabled, using declarative parser")
+    result.useDeclarativeParser = true
 
 proc initOptions*(): Options =
   # Exported for choosenim

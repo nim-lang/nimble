@@ -7,7 +7,7 @@ import parseutils, os, osproc, strutils, tables, uri, strformat,
 from algorithm import SortOrder, sorted
 
 import packageinfotypes, packageparser, version, tools, common, options, cli,
-       sha1hashes, vcstools, displaymessages, packageinfo, config
+       sha1hashes, vcstools, displaymessages, packageinfo, config, declarativeparser
 
 type
   DownloadPkgResult* = tuple
@@ -522,7 +522,10 @@ proc downloadPkg*(url: string, verRange: VersionRange,
   if validateRange and verRange.kind notin {verSpecial, verAny}:
     ## Makes sure that the downloaded package's version satisfies the requested
     ## version range.
-    let pkginfo = getPkgInfo(result.dir, options)
+    let pkginfo = if options.firstSatPass:
+      getPkgInfoFromDirWithDeclarativeParser(result.dir, options, forceDeclarativeOnly = true)
+    else:
+      getPkgInfo(result.dir, options)
     if pkginfo.basicInfo.version notin verRange:
       raise nimbleError(
         "Downloaded package's version does not satisfy requested version " &

@@ -362,7 +362,7 @@ proc toRequiresInfo*(pkgInfo: PackageInfo, options: Options, forceDeclarativeOnl
       return pkgInfo.toFullInfo(options)
   
   if pkgInfo.myPath.splitFile.ext == ".babel":
-    if not forceDeclarativeOnly:
+    if forceDeclarativeOnly:
       raise newNimbleError[NimbleError]("Package " & pkgInfo.basicInfo.name & " is a babel package, skipping declarative parser")
     else:
       displayWarning &"Package {pkgInfo.basicInfo.name} is a babel package, skipping declarative parser", priority = HighPriority
