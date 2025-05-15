@@ -68,6 +68,8 @@ type
     useDeclarativeParser*: bool # Whether to use the declarative parser for parsing nimble files (only when solver is SAT)
     features*: seq[string] # Features to be activated. Only used when using the declarative parser
     ignoreSubmodules*: bool # Whether to ignore submodules when cloning a repository
+    useVNext*: bool # Whether to use the vnext code path
+    firstSatPass*: bool #Are we in the first sat pass (aka solving the nim version)?
 
   ActionType* = enum
     actionNil, actionRefresh, actionInit, actionDump, actionPublish, actionUpgrade
@@ -280,6 +282,7 @@ Nimble Options:
       --parser:declarative|nimvm  Use the declarative parser or the nimvm parser (default).
       --features                  Activate features. Only used when using the declarative parser.
       --ignoreSubmodules          Ignore submodules when cloning a repository.
+      --vnext                     Temporary flag (not shipped) to use the new code path where we assume solver is SAT and declarative parser are enabled. Later on, when both are enabled `vnext` code path will be used.
 For more information read the GitHub readme:
   https://github.com/nim-lang/nimble#readme
 """
@@ -663,6 +666,8 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
     result.features = val.split(";").mapIt(it.strip)
   of "ignoresubmodules":
     result.ignoreSubmodules = true
+  of "vnext":
+    result.useVNext = true
   else: isGlobalFlag = false
 
   var wasFlagHandled = true
@@ -963,3 +968,6 @@ proc isDevelopment*(pkg: PackageInfo, options: Options): bool =
   ### Returns true if the package is a development package. 
   ### A development package is a root package that is not installed.
   not pkg.myPath.parentDir.startsWith(options.getPkgsDir())
+
+proc isVNext*(options: Options): bool =
+  options.useVNext

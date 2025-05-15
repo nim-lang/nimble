@@ -498,7 +498,11 @@ proc downloadPkgFromUrl*(pv: PkgTuple, options: Options): (DownloadPkgResult, Do
   (downloadRes, meth)
         
 proc downloadPkInfoForPv*(pv: PkgTuple, options: Options): PackageInfo  =
-  downloadPkgFromUrl(pv, options)[0].dir.getPkgInfo(options)
+  let downloadRes = downloadPkgFromUrl(pv, options)
+  if options.firstSatPass:
+    getPkgInfoFromDirWithDeclarativeParser(downloadRes[0].dir, options, forceDeclarativeOnly = true)
+  else:
+    downloadRes[0].dir.getPkgInfo(options)
 
 proc getAllNimReleases(options: Options): seq[PackageMinimalInfo] =
   let releases = getOfficialReleases(options)  
