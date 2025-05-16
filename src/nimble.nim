@@ -2469,11 +2469,16 @@ proc doAction(options: var Options) =
       if resolvedNim.pkg.isNone:
         #we need to install it
         let nimPkg = (name: "nim", ver: parseVersionRange(resolvedNim.version))
-        #Prompt?
-        let (_, pkgInfo) = install(@[nimPkg], options, doPrompt = true, first = true, fromLockFile = false)
-        resolvedNim.pkg = some(pkgInfo)
+        #TODO handle the case where the user doesnt want to reuse nim binaries
+        let nimInstalled = installNimFromBinariesDir(nimPkg, options)
+        if nimInstalled.isSome:
+          resolvedNim.pkg = some getPkgInfoFromDirWithDeclarativeParser(nimInstalled.get.dir, options, forceDeclarativeOnly = true)
+          resolvedNim.version = nimInstalled.get.ver
+        else:
+          raise nimbleError("Failed to install nim")
 
       resolvedNim.pkg.get.setNimBin(options)
+      options.firstSatPass = false
       return
     let (_, pkgInfo) = install(options.action.packages, options,
                                doPrompt = true,

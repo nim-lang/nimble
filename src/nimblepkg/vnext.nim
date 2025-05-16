@@ -14,36 +14,69 @@ Steps:
   - Once we have the graph solved. We can proceed with the action.
 
 ]#
-import std/[sequtils, sets, options, strformat]
+import std/[sequtils, sets, options, os]
 import nimblesat, packageinfotypes, options, version, declarativeparser, packageinfo, common,
-  nimenv, cli
+  nimenv
 
 type 
   NimResolved* = object
     pkg*: Option[PackageInfo] #when none, we need to install it
     version*: Version
 
+proc getNimFromSystem*(options: Options): Option[PackageInfo] =
+  # --nim:<path> takes priority over system nim but its only forced if we also specify useSystemNim
+  # Just filename, search in PATH - nim_temp shortcut
+  var pnim = ""
+  if options.nimBin.isSome:
+    pnim = findExe(options.nimBin.get.path)
+  else:
+    pnim = findExe("nim")
+  if pnim != "": 
+    let dir = pnim.parentDir.parentDir
+    return some getPkgInfoFromDirWithDeclarativeParser(dir, options, forceDeclarativeOnly = true)
+  return none(PackageInfo)
+
 proc resolveNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo], options: var Options): NimResolved =
-  #TODO when useSystemNim is true, we should just return the nim from the system and fails is there is no nim
-  #TODO Add the user Nim in path to the pkgList
   #TODO when there is a lock file, we should just assume its correct and use it straight away. 
   #TODO if we are able to resolve the packages in one go, we should not re-run the solver in the next step.
+  #TODO handle undecideble cases
+  #TODO Introduce the concept of bootstrap nimble where we detect a failure in the declarative parser and fallback to a concrete nim version to re-run the nim selection with the vm parser
+  let systemNimPkg = getNimFromSystem(options)
+  if options.useSystemNim:
+    if systemNimPkg.isSome:
+      return NimResolved(pkg: some(systemNimPkg.get), version: systemNimPkg.get.basicInfo.version)
+    else:
+      raise newNimbleError[NimbleError]("No system nim found") 
+  
   options.firstSatPass = true
   var pkgsToInstall = newSeq[(string, Version)]()
   var output = ""
   var solvedPkgs = newSeq[SolvedPackage]()
   #We assume we dont have an available nim yet  
-  let pkgListDecl = 
+  var pkgListDecl = 
     pkgList
     .mapIt(it.toRequiresInfo(options, forceDeclarativeOnly = true))
+  if systemNimPkg.isSome:
+    pkgListDecl.add(systemNimPkg.get)
+  
   var pkgs = solvePackages(rootPackage, pkgListDecl, pkgsToInstall, options, output, solvedPkgs)
+  # echo "Pgs result nims ", pkgs.mapIt(it.basicInfo.name).filterIt(it.isNim)
+  # echo "SolvedPkgs nims ", solvedPkgs.mapIt(it.pkgName).filterIt(it.isNim)
+
   var nims = pkgs.toSeq.filterIt(it.basicInfo.name.isNim)
   if nims.len == 0:
     let solvedNim = solvedPkgs.toSeq.filterIt(it.pkgName.isNim)
     if solvedNim.len > 0:
+      # echo "Solved nim ", solvedNim[0].version
       return NimResolved(version: solvedNim[0].version)
 
-  if nims.len == 0:
+    # echo "Pgs result ", pkgs.mapIt(it.basicInfo.name)
+    # echo "SolvedPkgs ", solvedPkgs
+    # echo "PkgsToInstall ", pkgsToInstall
+    # echo "Root package ", rootPackage.basicInfo, " requires ", rootPackage.requires
+    # echo "PkglistDecl ", pkgListDecl.mapIt(it.basicInfo.name)
+    # echo output
+    # echo ""
     #TODO if we ever reach this point, we should just download the latest nim release
     raise newNimbleError[NimbleError]("No Nim found") 
   if nims.len > 1:    
@@ -52,9 +85,7 @@ proc resolveNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo], options: v
     if versions.deduplicate().len > 1:
       raise newNimbleError[NimbleError]("Multiple Nims found " & $nims.mapIt(it.basicInfo)) #TODO this cant be reached
   result = NimResolved(pkg: some(nims[0]), version: nims[0].basicInfo.version)
-  options.firstSatPass = false
 
 proc setNimBin*(pkgInfo: PackageInfo, options: var Options) =
   assert pkgInfo.basicInfo.name.isNim
   options.useNimFromDir(pkgInfo.getRealDir, pkgInfo.basicInfo.version.toVersionRange())
-  displayInfo(&"Nim version used from now on {pkgInfo.basicInfo.version}")

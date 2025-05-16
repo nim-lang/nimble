@@ -120,29 +120,10 @@ proc extract(n: PNode, conf: ConfigRef, result: var NimbleFileInfo) =
   else:
     discard
 
-proc extractRequiresInfo*(nimbleFile: string): NimbleFileInfo =
-  ## Extract the `requires` information from a Nimble file. This does **not**
-  ## evaluate the Nimble file. Errors are produced on stderr/stdout and are
-  ## formatted as the Nim compiler does it. The parser uses the Nim compiler
-  ## as an API. The result can be empty, this is not an error, only parsing
-  ## errors are reported.
-  result.nimbleFile = nimbleFile
-  var conf = newConfigRef()
-  conf.foreignPackageNotes = {}
-  conf.notes = {}
-  conf.mainPackageNotes = {}
-  conf.errorMax = high(int)
-  conf.structuredErrorHook = proc(
-      config: ConfigRef, info: TLineInfo, msg: string, severity: Severity
-  ) {.gcsafe.} =
-    localError(config, info, warnUser, msg)
-
-  let fileIdx = fileInfoIdx(conf, AbsoluteFile nimbleFile)
-  var parser: Parser
-  if setupParser(parser, fileIdx, newIdentCache(), conf):
-    extract(parseAll(parser), conf, result)
-    closeParser(parser)
-  result.hasErrors = result.hasErrors or conf.errorCounter > 0
+proc isNimbleFileNim(nimbleFilePath: string): bool =
+  let file = nimbleFilePath.splitFile
+  let nimbleFile = file.name & file.ext
+  nimbleFile == "nim.nimble"
 
 proc getNimCompilationPath*(nimbleFile: string): string =
   ## Extracts the path to the Nim compilation.nim file from the nimble file
@@ -177,7 +158,6 @@ proc getNimCompilationPath*(nimbleFile: string): string =
   if includePath.len > 0:
     if includePath.contains("compilation.nim"):
       result = nimbleFile.parentDir / includePath
-    
 
 proc extractNimVersion*(nimbleFile: string): string =
   ## Extracts Nim version numbers from the system's compilation.nim file
@@ -244,6 +224,34 @@ proc extractNimVersion*(nimbleFile: string): string =
     closeParser(parser)
   # echo "Extracted version: ", major, ".", minor, ".", patch
   return &"{major}.{minor}.{patch}"
+
+proc extractRequiresInfo*(nimbleFile: string): NimbleFileInfo =
+  ## Extract the `requires` information from a Nimble file. This does **not**
+  ## evaluate the Nimble file. Errors are produced on stderr/stdout and are
+  ## formatted as the Nim compiler does it. The parser uses the Nim compiler
+  ## as an API. The result can be empty, this is not an error, only parsing
+  ## errors are reported.
+  result.nimbleFile = nimbleFile
+  if isNimbleFileNim(nimbleFile):
+    let nimVersion = extractNimVersion(nimbleFile)
+    result.version = nimVersion
+    return result
+  var conf = newConfigRef()
+  conf.foreignPackageNotes = {}
+  conf.notes = {}
+  conf.mainPackageNotes = {}
+  conf.errorMax = high(int)
+  conf.structuredErrorHook = proc(
+      config: ConfigRef, info: TLineInfo, msg: string, severity: Severity
+  ) {.gcsafe.} =
+    localError(config, info, warnUser, msg)
+
+  let fileIdx = fileInfoIdx(conf, AbsoluteFile nimbleFile)
+  var parser: Parser
+  if setupParser(parser, fileIdx, newIdentCache(), conf):
+    extract(parseAll(parser), conf, result)
+    closeParser(parser)
+  result.hasErrors = result.hasErrors or conf.errorCounter > 0
 
 type PluginInfo* = object
   builderPatterns*: seq[(string, string)]
@@ -353,14 +361,6 @@ proc toRequiresInfo*(pkgInfo: PackageInfo, options: Options, forceDeclarativeOnl
   #we need to use the vm to get the version. Another option could be to use the binary and ask for the version
   # echo "toRequiresInfo: ", $pkgInfo.basicInfo, $pkgInfo.requires
   result = pkgInfo
-  if pkgInfo.basicInfo.name.isNim: #Nim is a special case due to the version being defined as version = $NimMajor & "." & $NimMinor & "." & $NimPatch
-    if forceDeclarativeOnly:
-      let nimVersion = extractNimVersion(pkgInfo.myPath)
-      result.basicInfo.version = newVersion(nimVersion)
-      return result
-    else: #we have access to the vm parser so we can load the full info. TODO improve this and use it as a fallback only in case we cant do the above
-      return pkgInfo.toFullInfo(options)
-  
   if pkgInfo.myPath.splitFile.ext == ".babel":
     if forceDeclarativeOnly:
       raise newNimbleError[NimbleError]("Package " & pkgInfo.basicInfo.name & " is a babel package, skipping declarative parser")
@@ -370,6 +370,8 @@ proc toRequiresInfo*(pkgInfo: PackageInfo, options: Options, forceDeclarativeOnl
 
   let nimbleFileInfo = nimbleFileInfo.get(extractRequiresInfo(pkgInfo.myPath))
   result.requires = getRequires(nimbleFileInfo, result.activeFeatures)
+  if pkgInfo.basicInfo.name.isNim: 
+    return result
   if pkgInfo.infoKind != pikFull: #dont update as full implies pik requires
     result.infoKind = pikRequires
   result.features = getFeatures(nimbleFileInfo)

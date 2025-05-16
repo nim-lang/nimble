@@ -499,6 +499,7 @@ proc downloadPkgFromUrl*(pv: PkgTuple, options: Options): (DownloadPkgResult, Do
         
 proc downloadPkInfoForPv*(pv: PkgTuple, options: Options): PackageInfo  =
   let downloadRes = downloadPkgFromUrl(pv, options)
+  echo "Downloaded package ", pv.name, " ", $pv.ver, " to ", downloadRes[0].dir
   if options.firstSatPass:
     getPkgInfoFromDirWithDeclarativeParser(downloadRes[0].dir, options, forceDeclarativeOnly = true)
   else:
@@ -654,7 +655,6 @@ proc processRequirements(versions: var Table[string, PackageVersions], pv: PkgTu
         processRequirements(versions, req, visited, getMinimalPackage, preferredPackages, options)
 
 proc collectAllVersions*(versions: var Table[string, PackageVersions], package: PackageMinimalInfo, options: Options, getMinimalPackage: GetPackageMinimal, preferredPackages: seq[PackageMinimalInfo] = newSeq[PackageMinimalInfo]()) =
-
   var visited = initHashSet[PkgTuple]()
   for pv in package.requires:
     processRequirements(versions, pv, visited, getMinimalPackage, preferredPackages, options)
