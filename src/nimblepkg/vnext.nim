@@ -19,9 +19,21 @@ import nimblesat, packageinfotypes, options, version, declarativeparser, package
   nimenv, lockfile, cli, downloadnim
 
 type 
-  NimResolved* = object
-    pkg*: Option[PackageInfo] #when none, we need to install it
-    version*: Version
+  SATPass* = enum
+    satNone
+    satNimSelection
+
+  SATResult* = object
+    pkgsToInstall*: seq[(string, Version)]
+    solvedPkgs*: seq[SolvedPackage]
+    output*: string
+    pkgs*: HashSet[PackageInfo]
+    pass*: SATPass
+    
+  NimResolved = object
+    pkg: Option[PackageInfo] #when none, we need to install it
+    version: Version
+    satResult*: SATResult
 
 proc getNimFromSystem*(options: Options): Option[PackageInfo] =
   # --nim:<path> takes priority over system nim but its only forced if we also specify useSystemNim
@@ -46,10 +58,8 @@ proc resolveNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo], options: v
     else:
       raise newNimbleError[NimbleError]("No system nim found") 
   
-  options.firstSatPass = true
-  var pkgsToInstall = newSeq[(string, Version)]()
-  var output = ""
-  var solvedPkgs = newSeq[SolvedPackage]()
+  options.firstSatPass = true #Todo change the options so it uses the SATPass enum
+  result.satResult.pass = satNone
   #We assume we dont have an available nim yet  
   var pkgListDecl = 
     pkgList
@@ -61,22 +71,21 @@ proc resolveNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo], options: v
   let lockFile = options.lockFile(getCurrentDir())
   if options.hasNimInLockFile():
     if options.useSystemNim and systemNimPkg.isSome:
-      return NimResolved(pkg: some(systemNimPkg.get), version: systemNimPkg.get.basicInfo.version)
+      return NimResolved(pkg: some(systemNimPkg.get), version: systemNimPkg.get.basicInfo.version, satResult: result.satResult)
     else:
       for name, dep in lockFile.getLockedDependencies.lockedDepsFor(options):
         if name.isNim:
-          return NimResolved(version: dep.version)
+          return NimResolved(version: dep.version, satResult: result.satResult)
     
-  var pkgs = solvePackages(rootPackage, pkgListDecl, pkgsToInstall, options, output, solvedPkgs)
-  if solvedPkgs.len == 0:
-    displayError(output)
+  result.satResult.pass = satNimSelection
+  var pkgs = solvePackages(rootPackage, pkgListDecl, result.satResult.pkgsToInstall, options, result.satResult.output, result.satResult.solvedPkgs)
+  if result.satResult.solvedPkgs.len == 0:
+    displayError(result.satResult.output)
     raise newNimbleError[NimbleError]("Couldnt find a solution for the packages. Check there is no contradictory dependencies.")
-  # echo "Pgs result nims ", pkgs.mapIt(it.basicInfo.name).filterIt(it.isNim)
-  # echo "SolvedPkgs nims ", solvedPkgs.mapIt(it.pkgName).filterIt(it.isNim)
 
   var nims = pkgs.toSeq.filterIt(it.basicInfo.name.isNim)
   if nims.len == 0:
-    let solvedNim = solvedPkgs.toSeq.filterIt(it.pkgName.isNim)
+    let solvedNim = result.satResult.solvedPkgs.filterIt(it.pkgName.isNim)
     if solvedNim.len > 0:
       # echo "Solved nim ", solvedNim[0].version
       return NimResolved(version: solvedNim[0].version)
@@ -88,14 +97,14 @@ proc resolveNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo], options: v
       if bestNim.isNone or pkg.basicInfo.version > bestNim.get.basicInfo.version:
         bestNim = some(pkg)
     if bestNim.isSome:
-      return NimResolved(pkg: some(bestNim.get), version: bestNim.get.basicInfo.version)
+      return NimResolved(pkg: some(bestNim.get), version: bestNim.get.basicInfo.version, satResult: result.satResult)
 
-    echo "Pgs result ", pkgs.mapIt(it.basicInfo.name)
-    echo "SolvedPkgs ", solvedPkgs
-    echo "PkgsToInstall ", pkgsToInstall
+    echo "SAT result ", result.satResult.pkgs.mapIt(it.basicInfo.name)
+    echo "SolvedPkgs ", result.satResult.solvedPkgs
+    echo "PkgsToInstall ", result.satResult.pkgsToInstall
     echo "Root package ", rootPackage.basicInfo, " requires ", rootPackage.requires
     echo "PkglistDecl ", pkgListDecl.mapIt(it.basicInfo.name & " " & $it.basicInfo.version)
-    echo output
+    echo result.satResult.output
     # echo ""
     #TODO if we ever reach this point, we should just download the latest nim release
     raise newNimbleError[NimbleError]("No Nim found") 
@@ -104,13 +113,20 @@ proc resolveNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo], options: v
     var versions = nims.mapIt(it.basicInfo.version)
     if versions.deduplicate().len > 1:
       raise newNimbleError[NimbleError]("Multiple Nims found " & $nims.mapIt(it.basicInfo)) #TODO this cant be reached
-  result = NimResolved(pkg: some(nims[0]), version: nims[0].basicInfo.version)
+  
+  echo "Pgs result ", result.satResult.pkgs.mapIt(it.basicInfo.name)
+  echo "SolvedPkgs ", result.satResult.solvedPkgs.mapIt(it.pkgName)
+  echo "PkgsToInstall ", result.satResult.pkgsToInstall
+  echo "Root package ", rootPackage.basicInfo, " requires ", rootPackage.requires
+  echo "PkglistDecl ", pkgListDecl.mapIt(it.basicInfo.name & " " & $it.basicInfo.version)
+  result.pkg = some(nims[0])
+  result.version = nims[0].basicInfo.version
 
-proc setNimBin*(pkgInfo: PackageInfo, options: var Options) =
+proc setNimBin(pkgInfo: PackageInfo, options: var Options) =
   assert pkgInfo.basicInfo.name.isNim
   options.useNimFromDir(pkgInfo.getRealDir, pkgInfo.basicInfo.version.toVersionRange())
 
-proc selectNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo], options: var Options) =
+proc selectNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo], options: var Options): SATResult =
   var resolvedNim = resolveNim(rootPackage, pkgList, options)
   if resolvedNim.pkg.isNone:
     #we need to install it
@@ -127,3 +143,18 @@ proc selectNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo], options: va
 
   resolvedNim.pkg.get.setNimBin(options)
   options.firstSatPass = false
+  resolvedNim.satResult
+
+proc installPkgs*(satResult: SATResult, options: Options) =
+  #At this point the packages are already downloaded. 
+  #We still need to install them aka copy them from the cache to the nimbleDir
+  echo "Installing packages"
+  for (name, ver) in satResult.pkgsToInstall:
+    let pv = (name: name, ver: ver.toVersionRange())
+    let dlInfo = getPackageDownloadInfo(pv, options)
+    #TODO TO FIX next there is a potential bug in the download function. 
+    #Constraints shouldnt be stored in the download cache but the actual package version
+    # assert dirExists(dlInfo.downloadDir)
+    echo "Download info ", dlInfo
+
+  echo ""

@@ -64,6 +64,11 @@ type
   
   VersionAttempt = tuple[pkgName: string, version: Version]
 
+  PackageDownloadInfo* = object
+    meth*: DownloadMethod
+    url*: string
+    subdir*: string
+    downloadDir*: string
 
 const TaggedVersionsFileName* = "tagged_versions.json"
 
@@ -488,14 +493,18 @@ proc getSolvedPackages*(pkgVersionTable: Table[string, PackageVersions], output:
 proc getCacheDownloadDir*(url: string, ver: VersionRange, options: Options): string =
   options.pkgCachePath / getDownloadDirName(url, ver, notSetSha1Hash)
 
-proc downloadPkgFromUrl*(pv: PkgTuple, options: Options): (DownloadPkgResult, DownloadMethod) = 
+proc getPackageDownloadInfo*(pv: PkgTuple, options: Options): PackageDownloadInfo =
   let (meth, url, metadata) = 
       getDownloadInfo(pv, options, doPrompt = false, ignorePackageCache = false)
   let subdir = metadata.getOrDefault("subdir")
-  let downloadDir =  getCacheDownloadDir(url, pv.ver, options)
-  let downloadRes = downloadPkg(url, pv.ver, meth, subdir, options,
-                downloadDir, vcsRevision = notSetSha1Hash)
-  (downloadRes, meth)
+  let downloadDir = getCacheDownloadDir(url, pv.ver, options)
+  PackageDownloadInfo(meth: meth, url: url, subdir: subdir, downloadDir: downloadDir)
+
+proc downloadPkgFromUrl*(pv: PkgTuple, options: Options): (DownloadPkgResult, DownloadMethod) = 
+  let dlInfo = getPackageDownloadInfo(pv, options)
+  let downloadRes = downloadPkg(dlInfo.url, pv.ver, dlInfo.meth, dlInfo.subdir, options,
+                dlInfo.downloadDir, vcsRevision = notSetSha1Hash)
+  (downloadRes, dlInfo.meth)
         
 proc downloadPkInfoForPv*(pv: PkgTuple, options: Options): PackageInfo  =
   let downloadRes = downloadPkgFromUrl(pv, options)

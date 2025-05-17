@@ -2468,10 +2468,13 @@ proc doAction(options: var Options) =
       var rootPackage = getPkgInfoFromDirWithDeclarativeParser(getCurrentDir(), options, forceDeclarativeOnly = true)
       rootPackage.requires.add(options.action.packages)
       let pkgList = getInstalledPkgsMin(options.getPkgsDir(), options)
-      selectNim(rootPackage, pkgList, options)
+      let satResult = selectNim(rootPackage, pkgList, options)
+      satResult.installPkgs(options)
       #Next step is to install the packages. 
       #We need to extract a install from dir function that assumes the packages are already 
-      #in the package cache and dependencies are already solved.
+      #in the package cache and dependencies are already solved. So basically what we need to do is 
+      #to get the packagesToInstall collection and install them with the new installFromDir function
+      #this will require a way to retireve the packageToInstall from the pkgcache
       #Then, we should flag the binaries and do another pass to install each package binary (or maybe this is only done when building?)
       return
     let (_, pkgInfo) = install(options.action.packages, options,
