@@ -2460,9 +2460,17 @@ proc doAction(options: var Options) =
     refresh(options)
   of actionInstall:
     if options.isVNext:
+      let thereIsNimbleFile = findNimbleFile(getCurrentDir(), error = false, options) != ""
+      echo "Nimble file is ", thereIsNimbleFile
+      #TODO when there is no nimble file we should download the package to the cache and select nim from there?
+      #Do first the install part to remove moving pieces.
       echo "Packages: ", $options.action.packages
       #assume we are in a directory: 
-      let rootPackage = getPkgInfoFromDirWithDeclarativeParser(getCurrentDir(), options, forceDeclarativeOnly = true)
+      var rootPackage = getPkgInfoFromDirWithDeclarativeParser(getCurrentDir(), options, forceDeclarativeOnly = true)
+      rootPackage.requires.add(options.action.packages)
+      echo "RootPackage ", rootPackage
+      echo ""
+
       let pkgList = getInstalledPkgsMin(options.getPkgsDir(), options)
       
       var resolvedNim = resolveNim(rootPackage, pkgList, options)

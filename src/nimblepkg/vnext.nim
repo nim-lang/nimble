@@ -16,7 +16,7 @@ Steps:
 ]#
 import std/[sequtils, sets, options, os]
 import nimblesat, packageinfotypes, options, version, declarativeparser, packageinfo, common,
-  nimenv, lockfile
+  nimenv, lockfile, cli
 
 type 
   NimResolved* = object
@@ -37,7 +37,6 @@ proc getNimFromSystem*(options: Options): Option[PackageInfo] =
   return none(PackageInfo)
 
 proc resolveNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo], options: var Options): NimResolved =
-  #TODO handle undecideble cases
   #TODO if we are able to resolve the packages in one go, we should not re-run the solver in the next step.
   #TODO Introduce the concept of bootstrap nimble where we detect a failure in the declarative parser and fallback to a concrete nim version to re-run the nim selection with the vm parser
   let systemNimPkg = getNimFromSystem(options)
@@ -69,6 +68,9 @@ proc resolveNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo], options: v
           return NimResolved(version: dep.version)
     
   var pkgs = solvePackages(rootPackage, pkgListDecl, pkgsToInstall, options, output, solvedPkgs)
+  if solvedPkgs.len == 0:
+    displayError(output)
+    raise newNimbleError[NimbleError]("Couldnt find a solution for the packages. Check there is no contradictory dependencies.")
   # echo "Pgs result nims ", pkgs.mapIt(it.basicInfo.name).filterIt(it.isNim)
   # echo "SolvedPkgs nims ", solvedPkgs.mapIt(it.pkgName).filterIt(it.isNim)
 
