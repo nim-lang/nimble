@@ -126,7 +126,7 @@ proc setNimBin(pkgInfo: PackageInfo, options: var Options) =
   assert pkgInfo.basicInfo.name.isNim
   options.useNimFromDir(pkgInfo.getRealDir, pkgInfo.basicInfo.version.toVersionRange())
 
-proc selectNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo], options: var Options): SATResult =
+proc resolveAndConfigureNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo], options: var Options): SATResult =
   var resolvedNim = resolveNim(rootPackage, pkgList, options)
   if resolvedNim.pkg.isNone:
     #we need to install it
@@ -152,9 +152,7 @@ proc installPkgs*(satResult: SATResult, options: Options) =
   for (name, ver) in satResult.pkgsToInstall:
     let pv = (name: name, ver: ver.toVersionRange())
     let dlInfo = getPackageDownloadInfo(pv, options)
-    #TODO TO FIX next there is a potential bug in the download function. 
-    #Constraints shouldnt be stored in the download cache but the actual package version
-    # assert dirExists(dlInfo.downloadDir)
+    assert dirExists(dlInfo.downloadDir)
     echo "Download info ", dlInfo
 
   echo ""

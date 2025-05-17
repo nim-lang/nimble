@@ -518,11 +518,12 @@ proc downloadPkg*(url: string, verRange: VersionRange,
 
   (result.version, result.vcsRevision) = doDownload(
     modUrl, downloadDir, verRange, downMethod, options, vcsRevision)
-
-  if validateRange and verRange.kind notin {verSpecial, verAny}:
+  
+  var pkgInfo: PackageInfo
+  if validateRange and verRange.kind notin {verSpecial, verAny} or options.isVNext:
     ## Makes sure that the downloaded package's version satisfies the requested
     ## version range.
-    let pkginfo = if options.firstSatPass:
+    pkginfo = if options.firstSatPass:
       getPkgInfoFromDirWithDeclarativeParser(result.dir, options, forceDeclarativeOnly = true)
     else:
       getPkgInfo(result.dir, options)
@@ -531,6 +532,18 @@ proc downloadPkg*(url: string, verRange: VersionRange,
         "Downloaded package's version does not satisfy requested version " &
         "range: wanted $1 got $2." %
         [$verRange, $pkginfo.basicInfo.version])
+
+    if options.isVNext:
+      # Rename the download directory to use actual version if it's different from the version range
+      # as constraints shouldnt be stored in the download cache but the actual package version
+      # theorically this means that subsequent downloads of unconstraines packages will be re-download
+      # but this shouldnt be an issue since when a package is installed we dont reach this point anymore
+      let newDownloadDir = options.pkgCachePath / getDownloadDirName(url, pkginfo.basicInfo.version.toVersionRange(), notSetSha1Hash)
+      if downloadDir != newDownloadDir:
+        if dirExists(newDownloadDir):
+          removeDir(newDownloadDir)  
+        moveDir(downloadDir, newDownloadDir)
+        result.dir = newDownloadDir / subdir
 
 proc echoPackageVersions*(pkg: Package) =
   let downMethod = pkg.downloadMethod
