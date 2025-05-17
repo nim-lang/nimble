@@ -4,8 +4,8 @@
 import std/strutils
 
 import compiler/[ast, idents, msgs, syntaxes, options, pathutils, lineinfos]
-import version, packageinfotypes, packageinfo, options, packageparser, cli
-import std/[tables, sequtils, strscans, strformat, os]
+import version, packageinfotypes, packageinfo, options, packageparser, cli, common
+import std/[tables, sequtils, strscans, strformat, os, options]
 
 type NimbleFileInfo* = object
   nimbleFile*: string
@@ -120,6 +120,111 @@ proc extract(n: PNode, conf: ConfigRef, result: var NimbleFileInfo) =
   else:
     discard
 
+proc isNimbleFileNim(nimbleFilePath: string): bool =
+  let file = nimbleFilePath.splitFile
+  let nimbleFile = file.name & file.ext
+  nimbleFile == "nim.nimble"
+
+proc getNimCompilationPath*(nimbleFile: string): string =
+  ## Extracts the path to the Nim compilation.nim file from the nimble file
+  var conf = newConfigRef()
+  conf.foreignPackageNotes = {}
+  conf.notes = {}
+  conf.mainPackageNotes = {}
+  conf.errorMax = high(int)
+  
+  let fileIdx = fileInfoIdx(conf, AbsoluteFile nimbleFile)
+  var parser: Parser
+  var includePath = ""
+  if setupParser(parser, fileIdx, newIdentCache(), conf):
+    let ast = parseAll(parser)
+    proc findIncludePath(n: PNode) =
+      case n.kind
+      of nkStmtList, nkStmtListExpr:
+        for child in n:
+          findIncludePath(child)
+      of nkIncludeStmt:
+        # Found an include statement
+        if n.len > 0 and n[0].kind in {nkStrLit..nkTripleStrLit}:
+          includePath = n[0].strVal
+          # echo "Found include: ", includePath
+      else:
+        for i in 0..<n.safeLen:
+          findIncludePath(n[i])
+    
+    findIncludePath(ast)
+    closeParser(parser)
+  
+  if includePath.len > 0:
+    if includePath.contains("compilation.nim"):
+      result = nimbleFile.parentDir / includePath
+
+proc extractNimVersion*(nimbleFile: string): string =
+  ## Extracts Nim version numbers from the system's compilation.nim file
+  ## using the compiler API.
+  var compilationPath = getNimCompilationPath(nimbleFile)
+  
+  if not fileExists(compilationPath):
+    return ""  
+  # Now parse the compilation.nim file to get version numbers
+  var major, minor, patch = 0
+  
+  var conf = newConfigRef()
+  conf.foreignPackageNotes = {}
+  conf.notes = {}
+  conf.mainPackageNotes = {}
+  conf.errorMax = high(int)
+  
+  let compFileIdx = fileInfoIdx(conf, AbsoluteFile compilationPath)
+  var parser: Parser
+
+  if setupParser(parser, compFileIdx, newIdentCache(), conf):
+    let ast = parseAll(parser)
+    
+    # Process AST to find NimMajor, NimMinor, NimPatch definitions
+    proc processNode(n: PNode) =
+      case n.kind
+      of nkStmtList, nkStmtListExpr:
+        for child in n:
+          processNode(child)
+      of nkConstSection:
+        for child in n:
+          if child.kind == nkConstDef:
+            var identName = ""
+            case child[0].kind
+            of nkPostfix:
+              if child[0][1].kind == nkIdent:
+                identName = child[0][1].ident.s
+            of nkIdent:
+              identName = child[0].ident.s
+            of nkPragmaExpr:
+              # Handle pragma expression (like NimMajor* {.intdefine.})
+              if child[0][0].kind == nkIdent:
+                identName = child[0][0].ident.s
+              elif child[0][0].kind == nkPostfix and child[0][0][1].kind == nkIdent:
+                identName = child[0][0][1].ident.s
+            else: discard
+              # echo "Unhandled node kind for const name: ", child[0].kind
+            # Extract value
+            if child.len > 2:
+              case child[2].kind
+              of nkIntLit:
+                let value = child[2].intVal.int
+                case identName
+                of "NimMajor": major = value
+                of "NimMinor": minor = value
+                of "NimPatch": patch = value
+                else: discard
+              else:
+                discard
+      else:
+        discard
+    
+    processNode(ast)
+    closeParser(parser)
+  # echo "Extracted version: ", major, ".", minor, ".", patch
+  return &"{major}.{minor}.{patch}"
+
 proc extractRequiresInfo*(nimbleFile: string): NimbleFileInfo =
   ## Extract the `requires` information from a Nimble file. This does **not**
   ## evaluate the Nimble file. Errors are produced on stderr/stdout and are
@@ -127,6 +232,10 @@ proc extractRequiresInfo*(nimbleFile: string): NimbleFileInfo =
   ## as an API. The result can be empty, this is not an error, only parsing
   ## errors are reported.
   result.nimbleFile = nimbleFile
+  if isNimbleFileNim(nimbleFile):
+    let nimVersion = extractNimVersion(nimbleFile)
+    result.version = nimVersion
+    return result
   var conf = newConfigRef()
   conf.foreignPackageNotes = {}
   conf.notes = {}
@@ -247,24 +356,40 @@ proc getFeatures*(nimbleFileInfo: NimbleFileInfo): Table[string, seq[PkgTuple]] 
   for feature, requires in nimbleFileInfo.features:
     result[feature] = requires.map(parseRequires)    
 
-proc toRequiresInfo*(pkgInfo: PackageInfo, options: Options): PackageInfo =
+proc toRequiresInfo*(pkgInfo: PackageInfo, options: Options, forceDeclarativeOnly: bool, nimbleFileInfo: Option[NimbleFileInfo] = none(NimbleFileInfo)): PackageInfo =
   #For nim we only need the version. Since version is usually in the form of `version = $NimMajor & "." & $NimMinor & "." & $NimPatch
   #we need to use the vm to get the version. Another option could be to use the binary and ask for the version
-  if pkgInfo.basicInfo.name.isNim:
-    return pkgInfo.toFullInfo(options)
-  
-  if pkgInfo.myPath.splitFile.ext == ".babel":
-    displayWarning &"Package {pkgInfo.basicInfo.name} is a babel package, skipping declarative parser", priority = HighPriority
-    return pkgInfo.toFullInfo(options)
-
-  let nimbleFileInfo = extractRequiresInfo(pkgInfo.myPath)
+  # echo "toRequiresInfo: ", $pkgInfo.basicInfo, $pkgInfo.requires
   result = pkgInfo
+  if pkgInfo.myPath.splitFile.ext == ".babel":
+    if forceDeclarativeOnly:
+      raise newNimbleError[NimbleError]("Package " & pkgInfo.basicInfo.name & " is a babel package, skipping declarative parser")
+    else:
+      displayWarning &"Package {pkgInfo.basicInfo.name} is a babel package, skipping declarative parser", priority = HighPriority
+      return pkgInfo.toFullInfo(options)
+
+  let nimbleFileInfo = nimbleFileInfo.get(extractRequiresInfo(pkgInfo.myPath))
   result.requires = getRequires(nimbleFileInfo, result.activeFeatures)
+  if pkgInfo.basicInfo.name.isNim: 
+    return result
   if pkgInfo.infoKind != pikFull: #dont update as full implies pik requires
     result.infoKind = pikRequires
   result.features = getFeatures(nimbleFileInfo)
   result.bin = nimbleFileInfo.bin
   
+proc fillPkgBasicInfo(pkgInfo: var PackageInfo, nimbleFileInfo: NimbleFileInfo) =
+  #TODO something may be missing here
+  pkgInfo.basicInfo.name = nimbleFileInfo.nimbleFile.splitFile.name
+  pkgInfo.basicInfo.version = newVersion nimbleFileInfo.version
+  pkgInfo.myPath = nimbleFileInfo.nimbleFile
+
+proc getPkgInfoFromDirWithDeclarativeParser*(dir: string, options: Options, forceDeclarativeOnly: bool): PackageInfo =
+  let nimbleFile = findNimbleFile(dir, true, options)
+  let nimbleFileInfo = extractRequiresInfo(nimbleFile)
+  result = initPackageInfo()
+  fillPkgBasicInfo(result, nimbleFileInfo)
+  result = toRequiresInfo(result, options, forceDeclarativeOnly, some nimbleFileInfo)
+
 when isMainModule:
   for x in tokenizeRequires("jester@#head >= 1.5 & <= 1.8"):
     echo x

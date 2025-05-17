@@ -19,7 +19,8 @@ import nimblepkg/packageinfotypes, nimblepkg/packageinfo, nimblepkg/version,
        nimblepkg/nimbledatafile, nimblepkg/packagemetadatafile,
        nimblepkg/displaymessages, nimblepkg/sha1hashes, nimblepkg/syncfile,
        nimblepkg/deps, nimblepkg/nimblesat, nimblepkg/nimenv,
-       nimblepkg/downloadnim, nimblepkg/declarativeparser
+       nimblepkg/downloadnim, nimblepkg/declarativeparser,
+       nimblepkg/vnext
 
 const
   nimblePathsFileName* = "nimble.paths"
@@ -90,7 +91,7 @@ proc activateSolvedPkgFeatures(solvedPkgs: seq[SolvedPackage], allPkgsInfo: seq[
       displayError &"PackageInfo {solved.pkgName} not found", priority = LowPriority
       continue
     if pkg.get.activeFeatures.len == 0:      
-      pkg = some pkg.get.toRequiresInfo(options)
+      pkg = some pkg.get.toRequiresInfo(options, forceDeclarativeOnly = false)
     for pkgTuple, activeFeatures in pkg.get.activeFeatures:
       let pkgWithFeature = getPackageInfo(pkgTuple[0], allPkgsInfo, none(Version))
       if pkgWithFeature.isNone:
@@ -107,7 +108,7 @@ proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, options: Options): Has
   var pkgsToInstall: seq[(string, Version)] = @[]
   var rootPkgInfo = rootPkgInfo
   if options.useDeclarativeParser:
-    rootPkgInfo = rootPkgInfo.toRequiresInfo(options)
+    rootPkgInfo = rootPkgInfo.toRequiresInfo(options, forceDeclarativeOnly = false)
     # displayInfo(&"Features: options: {options.features} pkg: {rootPkgInfo.features}", HighPriority)
     for feature in options.features:
       if feature in rootPkgInfo.features:
@@ -123,7 +124,7 @@ proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, options: Options): Has
     
   var pkgList = initPkgList(rootPkgInfo, options)
   if options.useDeclarativeParser:
-    pkgList = pkgList.mapIt(it.toRequiresInfo(options))
+    pkgList = pkgList.mapIt(it.toRequiresInfo(options, forceDeclarativeOnly = false))
   else:
     pkgList = pkgList.mapIt(it.toFullInfo(options))
   var allPkgsInfo: seq[PackageInfo] = pkgList & rootPkgInfo
@@ -1887,7 +1888,7 @@ proc validateParsedDependencies(pkgInfo: PackageInfo, options: Options) =
   displayInfo(&"Validating dependencies for pkgInfo {pkgInfo.infoKind}", HighPriority)
   var options = options
   options.useDeclarativeParser = true
-  let declDeps = pkgInfo.toRequiresInfo(options).requires
+  let declDeps = pkgInfo.toRequiresInfo(options, forceDeclarativeOnly = false).requires
 
   options.useDeclarativeParser = false
   let vmDeps = pkgInfo.toFullInfo(options).requires
@@ -2458,6 +2459,24 @@ proc doAction(options: var Options) =
   of actionRefresh:
     refresh(options)
   of actionInstall:
+    if options.isVNext:
+      let thereIsNimbleFile = findNimbleFile(getCurrentDir(), error = false, options) != ""
+      echo "Nimble file is ", thereIsNimbleFile
+      #TODO when there is no nimble file we should download the package to the cache and select nim from there?
+      #Do first the install part to remove moving pieces.
+      #assume we are in a directory: 
+      var rootPackage = getPkgInfoFromDirWithDeclarativeParser(getCurrentDir(), options, forceDeclarativeOnly = true)
+      rootPackage.requires.add(options.action.packages)
+      let pkgList: seq[PackageInfo] = getInstalledPkgsMin(options.getPkgsDir(), options)
+      let satResult = resolveAndConfigureNim(rootPackage, pkgList, options)
+      satResult.installPkgs(options)
+      #Next step is to install the packages. 
+      #We need to extract a install from dir function that assumes the packages are already 
+      #in the package cache and dependencies are already solved. So basically what we need to do is 
+      #to get the packagesToInstall collection and install them with the new installFromDir function
+      #this will require a way to retireve the packageToInstall from the pkgcache
+      #Then, we should flag the binaries and do another pass to install each package binary (or maybe this is only done when building?)
+      return
     let (_, pkgInfo) = install(options.action.packages, options,
                                doPrompt = true,
                                first = true,
@@ -2667,8 +2686,9 @@ when isMainModule:
     if opt.action.typ in {actionTasks, actionRun, actionBuild, actionCompile, actionDevelop}:
       # Implicitly disable package validation for these commands.
       opt.disableValidation = true
-    if not opt.showVersion and not opt.showHelp:
+    if not opt.showVersion and not opt.showHelp and not opt.isVNext:
       opt.setNimBin
+    #TODO later on when in vnext, we solve the packages before running the action
     opt.doAction()
   except NimbleQuit as quit:
     exitCode = quit.exitCode

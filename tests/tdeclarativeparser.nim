@@ -5,8 +5,8 @@ import std/[options, tables, sequtils, os]
 import
   nimblepkg/[packageinfotypes, version, options, config, nimblesat, declarativeparser, cli, common]
 
-proc getNimbleFileFromPkgNameHelper(pkgName: string): string =
-  let pv: PkgTuple = (pkgName, VersionRange(kind: verAny))
+proc getNimbleFileFromPkgNameHelper(pkgName: string, ver = VersionRange(kind: verAny)): string =
+  let pv: PkgTuple = (pkgName, ver)
   var options = initOptions()
   options.nimBin = some options.makeNimBin("nim")
   options.config.packageLists["official"] = PackageList(
@@ -81,6 +81,12 @@ suite "Declarative parsing":
     echo output
     check exitCode == QuitSuccess
 
+  test "should be able to retrieve the nim info from a nim directory":
+    let versions = @["1.6.12", "2.2.0"]
+    for ver in versions:
+      let nimbleFile = getNimbleFileFromPkgNameHelper("nim", parseVersionRange(ver))
+      check extractNimVersion(nimbleFile) == ver
+    echo ""
 
 suite "Declarative parser features":
   test "should be able to parse features from a nimble file":
@@ -136,7 +142,6 @@ suite "Declarative parser features":
       let (output, exitCode) = execNimble("--parser:declarative", "run")
       check exitCode == QuitSuccess
       check output.processOutput.inLines("dev is enabled")
-
 
   #[NEXT Tests:
 

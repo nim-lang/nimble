@@ -64,6 +64,11 @@ type
   
   VersionAttempt = tuple[pkgName: string, version: Version]
 
+  PackageDownloadInfo* = object
+    meth*: DownloadMethod
+    url*: string
+    subdir*: string
+    downloadDir*: string
 
 const TaggedVersionsFileName* = "tagged_versions.json"
 
@@ -488,17 +493,26 @@ proc getSolvedPackages*(pkgVersionTable: Table[string, PackageVersions], output:
 proc getCacheDownloadDir*(url: string, ver: VersionRange, options: Options): string =
   options.pkgCachePath / getDownloadDirName(url, ver, notSetSha1Hash)
 
-proc downloadPkgFromUrl*(pv: PkgTuple, options: Options): (DownloadPkgResult, DownloadMethod) = 
+proc getPackageDownloadInfo*(pv: PkgTuple, options: Options): PackageDownloadInfo =
   let (meth, url, metadata) = 
       getDownloadInfo(pv, options, doPrompt = false, ignorePackageCache = false)
   let subdir = metadata.getOrDefault("subdir")
-  let downloadDir =  getCacheDownloadDir(url, pv.ver, options)
-  let downloadRes = downloadPkg(url, pv.ver, meth, subdir, options,
-                downloadDir, vcsRevision = notSetSha1Hash)
-  (downloadRes, meth)
+  let downloadDir = getCacheDownloadDir(url, pv.ver, options)
+  PackageDownloadInfo(meth: meth, url: url, subdir: subdir, downloadDir: downloadDir)
+
+proc downloadPkgFromUrl*(pv: PkgTuple, options: Options): (DownloadPkgResult, DownloadMethod) = 
+  let dlInfo = getPackageDownloadInfo(pv, options)
+  let downloadRes = downloadPkg(dlInfo.url, pv.ver, dlInfo.meth, dlInfo.subdir, options,
+                dlInfo.downloadDir, vcsRevision = notSetSha1Hash)
+  (downloadRes, dlInfo.meth)
         
 proc downloadPkInfoForPv*(pv: PkgTuple, options: Options): PackageInfo  =
-  downloadPkgFromUrl(pv, options)[0].dir.getPkgInfo(options)
+  let downloadRes = downloadPkgFromUrl(pv, options)
+  echo "Downloaded package ", pv.name, " ", $pv.ver, " to ", downloadRes[0].dir
+  if options.firstSatPass:
+    getPkgInfoFromDirWithDeclarativeParser(downloadRes[0].dir, options, forceDeclarativeOnly = true)
+  else:
+    downloadRes[0].dir.getPkgInfo(options)
 
 proc getAllNimReleases(options: Options): seq[PackageMinimalInfo] =
   let releases = getOfficialReleases(options)  
@@ -558,7 +572,10 @@ proc getPackageMinimalVersionsFromRepo*(repoDir: string, pkg: PkgTuple, version:
       displayWarning(&"Error fetching tags for {name}: {e.msg}", HighPriority)
     
     try:
-      result.add getPkgInfo(repoDir, options).getMinimalInfo(options)   
+      if options.firstSatPass:
+        result.add getPkgInfoFromDirWithDeclarativeParser(repoDir, options, forceDeclarativeOnly = true).getMinimalInfo(options)   
+      else:
+        result.add getPkgInfo(repoDir, options).getMinimalInfo(options)   
     except CatchableError as e:
       displayWarning(&"Error getting package info for {name}: {e.msg}", HighPriority)
     
@@ -647,7 +664,6 @@ proc processRequirements(versions: var Table[string, PackageVersions], pv: PkgTu
         processRequirements(versions, req, visited, getMinimalPackage, preferredPackages, options)
 
 proc collectAllVersions*(versions: var Table[string, PackageVersions], package: PackageMinimalInfo, options: Options, getMinimalPackage: GetPackageMinimal, preferredPackages: seq[PackageMinimalInfo] = newSeq[PackageMinimalInfo]()) =
-
   var visited = initHashSet[PkgTuple]()
   for pv in package.requires:
     processRequirements(versions, pv, visited, getMinimalPackage, preferredPackages, options)
