@@ -16,7 +16,7 @@ Steps:
 ]#
 import std/[sequtils, sets, options, os]
 import nimblesat, packageinfotypes, options, version, declarativeparser, packageinfo, common,
-  nimenv, lockfile, cli
+  nimenv, lockfile, cli, downloadnim
 
 type 
   NimResolved* = object
@@ -109,3 +109,21 @@ proc resolveNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo], options: v
 proc setNimBin*(pkgInfo: PackageInfo, options: var Options) =
   assert pkgInfo.basicInfo.name.isNim
   options.useNimFromDir(pkgInfo.getRealDir, pkgInfo.basicInfo.version.toVersionRange())
+
+proc selectNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo], options: var Options) =
+  var resolvedNim = resolveNim(rootPackage, pkgList, options)
+  if resolvedNim.pkg.isNone:
+    #we need to install it
+    let nimPkg = (name: "nim", ver: parseVersionRange(resolvedNim.version))
+    #TODO handle the case where the user doesnt want to reuse nim binaries 
+    #It can be done inside the installNimFromBinariesDir function to simplify things out by
+    #forcing a recompilation of nim.
+    let nimInstalled = installNimFromBinariesDir(nimPkg, options)
+    if nimInstalled.isSome:
+      resolvedNim.pkg = some getPkgInfoFromDirWithDeclarativeParser(nimInstalled.get.dir, options, forceDeclarativeOnly = true)
+      resolvedNim.version = nimInstalled.get.ver
+    else:
+      raise nimbleError("Failed to install nim")
+
+  resolvedNim.pkg.get.setNimBin(options)
+  options.firstSatPass = false

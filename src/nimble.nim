@@ -2464,29 +2464,15 @@ proc doAction(options: var Options) =
       echo "Nimble file is ", thereIsNimbleFile
       #TODO when there is no nimble file we should download the package to the cache and select nim from there?
       #Do first the install part to remove moving pieces.
-      echo "Packages: ", $options.action.packages
       #assume we are in a directory: 
       var rootPackage = getPkgInfoFromDirWithDeclarativeParser(getCurrentDir(), options, forceDeclarativeOnly = true)
       rootPackage.requires.add(options.action.packages)
-      echo "RootPackage ", rootPackage
-      echo ""
-
       let pkgList = getInstalledPkgsMin(options.getPkgsDir(), options)
-      
-      var resolvedNim = resolveNim(rootPackage, pkgList, options)
-      if resolvedNim.pkg.isNone:
-        #we need to install it
-        let nimPkg = (name: "nim", ver: parseVersionRange(resolvedNim.version))
-        #TODO handle the case where the user doesnt want to reuse nim binaries
-        let nimInstalled = installNimFromBinariesDir(nimPkg, options)
-        if nimInstalled.isSome:
-          resolvedNim.pkg = some getPkgInfoFromDirWithDeclarativeParser(nimInstalled.get.dir, options, forceDeclarativeOnly = true)
-          resolvedNim.version = nimInstalled.get.ver
-        else:
-          raise nimbleError("Failed to install nim")
-
-      resolvedNim.pkg.get.setNimBin(options)
-      options.firstSatPass = false
+      selectNim(rootPackage, pkgList, options)
+      #Next step is to install the packages. 
+      #We need to extract a install from dir function that assumes the packages are already 
+      #in the package cache and dependencies are already solved.
+      #Then, we should flag the binaries and do another pass to install each package binary (or maybe this is only done when building?)
       return
     let (_, pkgInfo) = install(options.action.packages, options,
                                doPrompt = true,
