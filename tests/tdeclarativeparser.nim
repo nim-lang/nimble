@@ -33,6 +33,13 @@ suite "Declarative parsing":
     for pkg in expectedPkgs:
       check pkg in requires.mapIt(it[0])
   
+  test "should detect nested requires and fail":
+    let nimbleFile = getNimbleFileFromPkgNameHelper("jester")
+    let nimbleFileInfo = extractRequiresInfo(nimbleFile)
+
+    check nimbleFileInfo.nestedRequires
+  
+  
   test "should parse bin from a nimble file":
     let nimbleFile = getNimbleFileFromPkgNameHelper("nimlangserver")
     let nimbleFileInfo = extractRequiresInfo(nimbleFile)

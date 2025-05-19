@@ -4,6 +4,7 @@
 import std/strutils
 
 import compiler/[ast, idents, msgs, syntaxes, options, pathutils, lineinfos]
+import compiler/[renderer]
 import version, packageinfotypes, packageinfo, options, packageparser, cli, common
 import std/[tables, sequtils, strscans, strformat, os, options]
 
@@ -17,20 +18,45 @@ type NimbleFileInfo* = object
   bin*: Table[string, string]
   hasInstallHooks*: bool
   hasErrors*: bool
+  nestedRequires*: bool #if true, the requires section contains nested requires meaning that the package is incorrectly defined
+  #In vnext this means that we will need to re-run sat after selecting nim to get the correct requires
 
 proc eqIdent(a, b: string): bool {.inline.} =
   cmpIgnoreCase(a, b) == 0 and a[0] == b[0]
 
-proc extractRequires(n: PNode, conf: ConfigRef, result: var seq[string], hasErrors: var bool) =
-  for i in 1 ..< n.len:
-    var ch: PNode = n[i]
-    while ch.kind in {nkStmtListExpr, nkStmtList} and ch.len > 0:
-      ch = ch.lastSon
-    if ch.kind in {nkStrLit .. nkTripleStrLit}:
-      result.add ch.strVal
+proc extractRequiresFromNode(n: PNode, conf: ConfigRef, result: var seq[string], hasErrors: var bool, inControlFlow: bool, nestedRequires: var bool) =
+  # Recursively traverse the AST to find requires
+  case n.kind
+  of nkStmtList, nkStmtListExpr:
+    for child in n:
+      extractRequiresFromNode(child, conf, result, hasErrors, inControlFlow, nestedRequires)
+  of nkWhenStmt, nkIfStmt, nkIfExpr, nkElifBranch, nkElse, nkElifExpr, nkElseExpr:
+    # Entering control flow
+    for child in n:
+      extractRequiresFromNode(child, conf, result, hasErrors, true, nestedRequires)
+  of nkCallKinds:
+    if n[0].kind == nkIdent and n[0].ident.s == "requires":
+      if inControlFlow:
+        nestedRequires = true
+        let lineInfo = n.info
+        localError(conf, n.info, &"'requires' cannot be nested inside when/if statements")
+        hasErrors = true
+      else:
+        for i in 1 ..< n.len:
+          var ch = n[i]
+          while ch.kind in {nkStmtListExpr, nkStmtList} and ch.len > 0:
+            ch = ch.lastSon
+          if ch.kind in {nkStrLit .. nkTripleStrLit}:
+            result.add ch.strVal
+          else:
+            localError(conf, ch.info, "'requires' takes string literals")
+            hasErrors = true
     else:
-      localError(conf, ch.info, "'requires' takes string literals")
-      hasErrors = true
+      for child in n:
+        extractRequiresFromNode(child, conf, result, hasErrors, inControlFlow, nestedRequires)
+  else:
+    discard
+
 
 proc extractSeqLiteral(n: PNode, conf: ConfigRef, varName: string): seq[string] =
   ## Extracts a sequence literal of the form @["item1", "item2"]
@@ -46,17 +72,18 @@ proc extractSeqLiteral(n: PNode, conf: ConfigRef, varName: string): seq[string] 
   else:
     localError(conf, n.info, &"'{varName}' must be assigned a sequence with @ prefix")
 
-proc extractFeatures(featureNode: PNode, conf: ConfigRef, hasErrors: var bool): seq[string] =
+proc extractFeatures(featureNode: PNode, conf: ConfigRef, hasErrors: var bool, nestedRequires: var bool): seq[string] =
   ## Extracts requirements from a feature declaration
   if featureNode.kind in {nkStmtList, nkStmtListExpr}:
     for stmt in featureNode:
       if stmt.kind in nkCallKinds and stmt[0].kind == nkIdent and 
          stmt[0].ident.s == "requires":
         var requires: seq[string]
-        extractRequires(stmt, conf, requires, hasErrors)
+        extractRequiresFromNode(stmt, conf, requires, hasErrors, false, nestedRequires)
         result.add requires
 
 proc extract(n: PNode, conf: ConfigRef, result: var NimbleFileInfo) =
+  extractRequiresFromNode(n, conf, result.requires, result.hasErrors, false, result.nestedRequires)
   case n.kind
   of nkStmtList, nkStmtListExpr:
     for child in n:
@@ -64,32 +91,22 @@ proc extract(n: PNode, conf: ConfigRef, result: var NimbleFileInfo) =
   of nkCallKinds:
     if n[0].kind == nkIdent:
       case n[0].ident.s
-      of "requires":
-        extractRequires(n, conf, result.requires, result.hasErrors)
       of "feature":
         if n.len >= 3 and n[1].kind in {nkStrLit .. nkTripleStrLit}:
           let featureName = n[1].strVal
           if not result.features.hasKey(featureName):
             result.features[featureName] = @[]
-          result.features[featureName] = extractFeatures(n[2], conf, result.hasErrors)
+          result.features[featureName] = extractFeatures(n[2], conf, result.hasErrors, result.nestedRequires)
       of "dev":
         let featureName = "dev"
         if not result.features.hasKey(featureName):
           result.features[featureName] = @[]
-        result.features[featureName] = extractFeatures(n[1], conf, result.hasErrors)
+        result.features[featureName] = extractFeatures(n[1], conf, result.hasErrors, result.nestedRequires)
       of "task":
         if n.len >= 3 and n[1].kind == nkIdent and
             n[2].kind in {nkStrLit .. nkTripleStrLit}:
           result.tasks.add((n[1].ident.s, n[2].strVal))
       of "before", "after":
-        #[
-          before install do:
-            exec "git submodule update --init"
-            var make = "make"
-            when defined(windows):
-              make = "mingw32-make"
-            exec make
-        ]#
         if n.len >= 3 and n[1].kind == nkIdent and n[1].ident.s == "install":
           result.hasInstallHooks = true
       else:
