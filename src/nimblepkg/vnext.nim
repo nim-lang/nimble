@@ -284,6 +284,14 @@ proc installPkgs*(satResult: var SATResult, options: Options) =
   for (name, ver) in satResult.pkgsToInstall:
     let pv = (name: name, ver: ver.toVersionRange())
     let dlInfo = getPackageDownloadInfo(pv, options)
+    if not dirExists(dlInfo.downloadDir):
+      #The reason for this is that the download cache may have a constrained version
+      #this could be improved by creating a copy of the package in the cache dir when downloading
+      #and also when enumerating. 
+      #Instead of redownload the actual version of the package here. Not important as this only happens per 
+      #package once across all nimble projects (even in local mode)
+      discard downloadFromDownloadInfo(dlInfo, options)
+  
     assert dirExists(dlInfo.downloadDir)
     #TODO this needs to be improved as we are redonwloading certain packages
     let pkgInfo = installFromDirDownloadInfo(dlInfo, options)

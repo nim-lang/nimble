@@ -69,6 +69,7 @@ type
     url*: string
     subdir*: string
     downloadDir*: string
+    pv*: PkgTuple #Require request
 
 const TaggedVersionsFileName* = "tagged_versions.json"
 
@@ -498,13 +499,16 @@ proc getPackageDownloadInfo*(pv: PkgTuple, options: Options): PackageDownloadInf
       getDownloadInfo(pv, options, doPrompt = false, ignorePackageCache = false)
   let subdir = metadata.getOrDefault("subdir")
   let downloadDir = getCacheDownloadDir(url, pv.ver, options)
-  PackageDownloadInfo(meth: meth, url: url, subdir: subdir, downloadDir: downloadDir)
+  PackageDownloadInfo(meth: meth, url: url, subdir: subdir, downloadDir: downloadDir, pv: pv)
+
+proc downloadFromDownloadInfo*(dlInfo: PackageDownloadInfo, options: Options): (DownloadPkgResult, DownloadMethod) = 
+  let downloadRes = downloadPkg(dlInfo.url, dlInfo.pv.ver, dlInfo.meth, dlInfo.subdir, options,
+                dlInfo.downloadDir, vcsRevision = notSetSha1Hash)
+  (downloadRes, dlInfo.meth)
 
 proc downloadPkgFromUrl*(pv: PkgTuple, options: Options): (DownloadPkgResult, DownloadMethod) = 
   let dlInfo = getPackageDownloadInfo(pv, options)
-  let downloadRes = downloadPkg(dlInfo.url, pv.ver, dlInfo.meth, dlInfo.subdir, options,
-                dlInfo.downloadDir, vcsRevision = notSetSha1Hash)
-  (downloadRes, dlInfo.meth)
+  downloadFromDownloadInfo(dlInfo, options)
         
 proc downloadPkInfoForPv*(pv: PkgTuple, options: Options): PackageInfo  =
   let downloadRes = downloadPkgFromUrl(pv, options)
