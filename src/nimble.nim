@@ -2468,7 +2468,7 @@ proc doAction(options: var Options) =
       var rootPackage = getPkgInfoFromDirWithDeclarativeParser(getCurrentDir(), options, forceDeclarativeOnly = true)
       rootPackage.requires.add(options.action.packages)
       let pkgList: seq[PackageInfo] = getInstalledPkgsMin(options.getPkgsDir(), options)
-      let satResult = resolveAndConfigureNim(rootPackage, pkgList, options)
+      var satResult = resolveAndConfigureNim(rootPackage, pkgList, options)
       satResult.installPkgs(options)
       #Next step is to install the packages. 
       #We need to extract a install from dir function that assumes the packages are already 

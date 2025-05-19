@@ -14,9 +14,10 @@ Steps:
   - Once we have the graph solved. We can proceed with the action.
 
 ]#
-import std/[sequtils, sets, options, os]
+import std/[sequtils, sets, options, os, strutils]
 import nimblesat, packageinfotypes, options, version, declarativeparser, packageinfo, common,
-  nimenv, lockfile, cli, downloadnim
+  nimenv, lockfile, cli, downloadnim, packageparser, tools, nimscriptexecutor, packagemetadatafile,
+  displaymessages
 
 type 
   SATPass* = enum
@@ -29,6 +30,7 @@ type
     output*: string
     pkgs*: HashSet[PackageInfo]
     pass*: SATPass
+    installedPkgs*: seq[PackageInfo] #Packages installed in the current pass
     
   NimResolved = object
     pkg: Option[PackageInfo] #when none, we need to install it
@@ -99,11 +101,11 @@ proc resolveNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo], options: v
     if bestNim.isSome:
       return NimResolved(pkg: some(bestNim.get), version: bestNim.get.basicInfo.version, satResult: result.satResult)
 
-    echo "SAT result ", result.satResult.pkgs.mapIt(it.basicInfo.name)
-    echo "SolvedPkgs ", result.satResult.solvedPkgs
-    echo "PkgsToInstall ", result.satResult.pkgsToInstall
-    echo "Root package ", rootPackage.basicInfo, " requires ", rootPackage.requires
-    echo "PkglistDecl ", pkgListDecl.mapIt(it.basicInfo.name & " " & $it.basicInfo.version)
+    # echo "SAT result ", result.satResult.pkgs.mapIt(it.basicInfo.name)
+    # echo "SolvedPkgs ", result.satResult.solvedPkgs
+    # echo "PkgsToInstall ", result.satResult.pkgsToInstall
+    # echo "Root package ", rootPackage.basicInfo, " requires ", rootPackage.requires
+    # echo "PkglistDecl ", pkgListDecl.mapIt(it.basicInfo.name & " " & $it.basicInfo.version)
     echo result.satResult.output
     # echo ""
     #TODO if we ever reach this point, we should just download the latest nim release
@@ -114,11 +116,11 @@ proc resolveNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo], options: v
     if versions.deduplicate().len > 1:
       raise newNimbleError[NimbleError]("Multiple Nims found " & $nims.mapIt(it.basicInfo)) #TODO this cant be reached
   
-  echo "Pgs result ", result.satResult.pkgs.mapIt(it.basicInfo.name)
-  echo "SolvedPkgs ", result.satResult.solvedPkgs.mapIt(it.pkgName)
-  echo "PkgsToInstall ", result.satResult.pkgsToInstall
-  echo "Root package ", rootPackage.basicInfo, " requires ", rootPackage.requires
-  echo "PkglistDecl ", pkgListDecl.mapIt(it.basicInfo.name & " " & $it.basicInfo.version)
+  # echo "Pgs result ", result.satResult.pkgs.mapIt(it.basicInfo.name)
+  # echo "SolvedPkgs ", result.satResult.solvedPkgs.mapIt(it.pkgName)
+  # echo "PkgsToInstall ", result.satResult.pkgsToInstall
+  # echo "Root package ", rootPackage.basicInfo, " requires ", rootPackage.requires
+  # echo "PkglistDecl ", pkgListDecl.mapIt(it.basicInfo.name & " " & $it.basicInfo.version)
   result.pkg = some(nims[0])
   result.version = nims[0].basicInfo.version
 
@@ -145,14 +147,148 @@ proc resolveAndConfigureNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo]
   options.firstSatPass = false
   resolvedNim.satResult
 
-proc installPkgs*(satResult: SATResult, options: Options) =
+proc executeHook(dir: string, options: Options, action: ActionType, before: bool) =
+  cd dir: # Make sure `execHook` executes the correct .nimble file.
+    if not execHook(options, action, before):
+      if before:
+        raise nimbleError("Pre-hook prevented further execution.")
+      else:
+        raise nimbleError("Post-hook prevented further execution.")
+
+proc installFromDirDownloadInfo(dl: PackageDownloadInfo, options: Options): PackageInfo = 
+  let dir = dl.downloadDir
+  # Handle pre-`install` hook.
+  executeHook(dir, options, actionInstall, before = true)
+
+  var pkgInfo = getPkgInfo(dir, options)
+  # Set the flag that the package is not in develop mode before saving it to the
+  # reverse dependencies.
+  pkgInfo.isLink = false
+  # if vcsRevision != notSetSha1Hash: #TODO review this
+  #   ## In the case we downloaded the package as tarball we have to set the VCS
+  #   ## revision returned by download procedure because it cannot be queried from
+  #   ## the package directory.
+  #   pkgInfo.metaData.vcsRevision = vcsRevision
+
+  let realDir = pkgInfo.getRealDir()
+  let binDir = options.getBinDir()
+  var depsOptions = options
+  depsOptions.depsOnly = false
+
+  display("Installing", "$1@$2" %
+    [pkgInfo.basicInfo.name, $pkgInfo.basicInfo.version],
+    priority = MediumPriority)
+
+  #TODO review this as we may want to this not hold anymore (i.e nimble install nim could replace choosenim)
+  # nim is intended only for local project local usage, so avoid installing it
+  # in .nimble/bin
+  let isNimPackage = pkgInfo.basicInfo.name.isNim
+
+  # Build before removing an existing package (if one exists). This way
+  # if the build fails then the old package will still be installed.
+
+  #TODO Review this and build later in the pipeline
+  # if pkgInfo.bin.len > 0 and not isNimPackage:
+  #   let paths = result.deps.map(dep => dep.expandPaths(options))
+  #   let flags = if options.action.typ in {actionInstall, actionPath, actionUninstall, actionDevelop}:
+  #                 options.action.passNimFlags
+  #               else:
+  #                 @[]
+
+  #   try:
+  #     buildFromDir(pkgInfo, paths, "-d:release" & flags, options)
+  #   except CatchableError:
+  #     removeRevDep(options.nimbleData, pkgInfo)
+  #     raise
+
+  let pkgDestDir = pkgInfo.getPkgDest(options)
+
+  # Fill package Meta data
+  pkgInfo.metaData.url = dl.url
+  pkgInfo.isLink = false
+
+  # Don't copy artifacts if project local deps mode and "installing" the top
+  # level package.
+  if not (options.localdeps and options.isInstallingTopLevel(dir)): #Unnecesary check
+    createDir(pkgDestDir)
+    # Copy this package's files based on the preferences specified in PkgInfo.
+    var filesInstalled: HashSet[string]
+    iterInstallFiles(realDir, pkgInfo, options,
+      proc (file: string) =
+        createDir(changeRoot(realDir, pkgDestDir, file.splitFile.dir))
+        let dest = changeRoot(realDir, pkgDestDir, file)
+        filesInstalled.incl copyFileD(file, dest)
+    )
+
+    # Copy the .nimble file.
+    let dest = changeRoot(pkgInfo.myPath.splitFile.dir, pkgDestDir,
+                          pkgInfo.myPath)
+    filesInstalled.incl copyFileD(pkgInfo.myPath, dest)
+
+    #TODO Binary handling
+    # var binariesInstalled: HashSet[string]
+    # if pkgInfo.bin.len > 0 and not pkgInfo.basicInfo.name.isNim:
+    #   # Make sure ~/.nimble/bin directory is created.
+    #   createDir(binDir)
+    #   # Set file permissions to +x for all binaries built,
+    #   # and symlink them on *nix OS' to $nimbleDir/bin/
+    #   for bin, src in pkgInfo.bin:
+    #     let binDest =
+    #       # Issue #308
+    #       if dirExists(pkgDestDir / bin):
+    #         bin & ".out"
+    #       else: bin
+
+    #     if fileExists(pkgDestDir / binDest):
+    #       display("Warning:", ("Binary '$1' was already installed from source" &
+    #                           " directory. Will be overwritten.") % bin, Warning,
+    #               MediumPriority)
+
+    #     # Copy the binary file.
+    #     createDir((pkgDestDir / binDest).parentDir())
+    #     filesInstalled.incl copyFileD(pkgInfo.getOutputDir(bin),
+    #                                   pkgDestDir / binDest)
+
+    #     # Set up a symlink.
+    #     let symlinkDest = pkgDestDir / binDest
+    #     let symlinkFilename = options.getBinDir() / bin.extractFilename
+    #     binariesInstalled.incl(
+    #       setupBinSymlink(symlinkDest, symlinkFilename, options))
+
+    # Update package path to point to installed directory rather than the temp
+    # directory.
+    pkgInfo.myPath = dest
+    pkgInfo.metaData.files = filesInstalled.toSeq
+    # pkgInfo.metaData.binaries = binariesInstalled.toSeq
+
+    saveMetaData(pkgInfo.metaData, pkgDestDir)
+  else:
+    display("Warning:", "Skipped copy in project local deps mode", Warning)
+
+  pkgInfo.isInstalled = true
+
+  displaySuccess(pkgInstalledMsg(pkgInfo.basicInfo.name), MediumPriority)
+
+  # Run post-install hook now that package is installed. The `execHook` proc
+  # executes the hook defined in the CWD, so we set it to where the package
+  # has been installed.
+  executeHook(pkgInfo.myPath.splitFile.dir, options, actionInstall, before = false)
+
+  pkgInfo
+
+proc installPkgs*(satResult: var SATResult, options: Options) =
   #At this point the packages are already downloaded. 
-  #We still need to install them aka copy them from the cache to the nimbleDir
-  echo "Installing packages"
+  #We still need to install them aka copy them from the cache to the nimbleDir + run preInstall and postInstall scripts
+  #preInstall hook is always executed for the current directory
+  executeHook(getCurrentDir(), options, actionInstall, before = true)
   for (name, ver) in satResult.pkgsToInstall:
     let pv = (name: name, ver: ver.toVersionRange())
     let dlInfo = getPackageDownloadInfo(pv, options)
     assert dirExists(dlInfo.downloadDir)
-    echo "Download info ", dlInfo
+    #TODO this needs to be improved as we are redonwloading certain packages
+    let pkgInfo = installFromDirDownloadInfo(dlInfo, options)
+    satResult.installedPkgs.add(pkgInfo)
 
+  #postInstall hook is always executed for the current directory
+  executeHook(getCurrentDir(), options, actionInstall, before = false)
   echo ""
