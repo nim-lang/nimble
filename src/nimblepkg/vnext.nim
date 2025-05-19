@@ -171,7 +171,7 @@ proc installFromDirDownloadInfo(dl: PackageDownloadInfo, options: Options): Pack
   #   pkgInfo.metaData.vcsRevision = vcsRevision
 
   let realDir = pkgInfo.getRealDir()
-  let binDir = options.getBinDir()
+  # let binDir = options.getBinDir()
   var depsOptions = options
   depsOptions.depsOnly = false
 
@@ -182,7 +182,7 @@ proc installFromDirDownloadInfo(dl: PackageDownloadInfo, options: Options): Pack
   #TODO review this as we may want to this not hold anymore (i.e nimble install nim could replace choosenim)
   # nim is intended only for local project local usage, so avoid installing it
   # in .nimble/bin
-  let isNimPackage = pkgInfo.basicInfo.name.isNim
+  # let isNimPackage = pkgInfo.basicInfo.name.isNim
 
   # Build before removing an existing package (if one exists). This way
   # if the build fails then the old package will still be installed.
