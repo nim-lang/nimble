@@ -102,6 +102,7 @@ suite "Declarative parser features":
     let features = nimbleFileInfo.features
     check features.len == 2 #we need to account for the default 'dev' feature
     check features["feature1"] == @["stew"]
+    check nimbleFileInfo.requires == @["nim", "result[resultfeature]"]
 
   test "should be able to install a package using the declarative parser with a feature":
     cd "features":

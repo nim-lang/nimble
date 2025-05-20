@@ -24,39 +24,44 @@ type NimbleFileInfo* = object
 proc eqIdent(a, b: string): bool {.inline.} =
   cmpIgnoreCase(a, b) == 0 and a[0] == b[0]
 
-proc extractRequiresFromNode(n: PNode, conf: ConfigRef, result: var seq[string], hasErrors: var bool, inControlFlow: bool, nestedRequires: var bool) =
-  # Recursively traverse the AST to find requires
+proc collectRequiresFromNode(n: PNode, result: var seq[string]) =
   case n.kind
   of nkStmtList, nkStmtListExpr:
     for child in n:
-      extractRequiresFromNode(child, conf, result, hasErrors, inControlFlow, nestedRequires)
-  of nkWhenStmt, nkIfStmt, nkIfExpr, nkElifBranch, nkElse, nkElifExpr, nkElseExpr:
-    # Entering control flow
+      collectRequiresFromNode(child, result)
+  of nkCallKinds:
+    if n[0].kind == nkIdent and n[0].ident.s == "requires":
+      for i in 1 ..< n.len:
+        var ch = n[i]
+        while ch.kind in {nkStmtListExpr, nkStmtList} and ch.len > 0:
+          ch = ch.lastSon
+        if ch.kind in {nkStrLit .. nkTripleStrLit}:
+          result.add ch.strVal
+    else:
+      for child in n:
+        collectRequiresFromNode(child, result)
+  else:
+    discard
+
+proc validateNoNestedRequires(n: PNode, conf: ConfigRef, hasErrors: var bool, nestedRequires: var bool, inControlFlow: bool = false) =
+  case n.kind
+  of nkStmtList, nkStmtListExpr:
     for child in n:
-      extractRequiresFromNode(child, conf, result, hasErrors, true, nestedRequires)
+      validateNoNestedRequires(child, conf, hasErrors, nestedRequires, inControlFlow)
+  of nkWhenStmt, nkIfStmt, nkIfExpr, nkElifBranch, nkElse, nkElifExpr, nkElseExpr:
+    for child in n:
+      validateNoNestedRequires(child, conf, hasErrors, nestedRequires, true)
   of nkCallKinds:
     if n[0].kind == nkIdent and n[0].ident.s == "requires":
       if inControlFlow:
         nestedRequires = true
-        let lineInfo = n.info
-        localError(conf, n.info, &"'requires' cannot be nested inside when/if statements")
+        localError(conf, n.info, &"'requires' cannot be nested inside control flow statements")
         hasErrors = true
-      else:
-        for i in 1 ..< n.len:
-          var ch = n[i]
-          while ch.kind in {nkStmtListExpr, nkStmtList} and ch.len > 0:
-            ch = ch.lastSon
-          if ch.kind in {nkStrLit .. nkTripleStrLit}:
-            result.add ch.strVal
-          else:
-            localError(conf, ch.info, "'requires' takes string literals")
-            hasErrors = true
     else:
       for child in n:
-        extractRequiresFromNode(child, conf, result, hasErrors, inControlFlow, nestedRequires)
+        validateNoNestedRequires(child, conf, hasErrors, nestedRequires, inControlFlow)
   else:
     discard
-
 
 proc extractSeqLiteral(n: PNode, conf: ConfigRef, varName: string): seq[string] =
   ## Extracts a sequence literal of the form @["item1", "item2"]
@@ -79,11 +84,11 @@ proc extractFeatures(featureNode: PNode, conf: ConfigRef, hasErrors: var bool, n
       if stmt.kind in nkCallKinds and stmt[0].kind == nkIdent and 
          stmt[0].ident.s == "requires":
         var requires: seq[string]
-        extractRequiresFromNode(stmt, conf, requires, hasErrors, false, nestedRequires)
+        collectRequiresFromNode(stmt, requires)
         result.add requires
 
 proc extract(n: PNode, conf: ConfigRef, result: var NimbleFileInfo) =
-  extractRequiresFromNode(n, conf, result.requires, result.hasErrors, false, result.nestedRequires)
+  validateNoNestedRequires(n, conf, result.hasErrors, result.nestedRequires)
   case n.kind
   of nkStmtList, nkStmtListExpr:
     for child in n:
@@ -91,6 +96,8 @@ proc extract(n: PNode, conf: ConfigRef, result: var NimbleFileInfo) =
   of nkCallKinds:
     if n[0].kind == nkIdent:
       case n[0].ident.s
+      of "requires":
+        collectRequiresFromNode(n, result.requires)
       of "feature":
         if n.len >= 3 and n[1].kind in {nkStrLit .. nkTripleStrLit}:
           let featureName = n[1].strVal
@@ -266,7 +273,8 @@ proc extractRequiresInfo*(nimbleFile: string): NimbleFileInfo =
   let fileIdx = fileInfoIdx(conf, AbsoluteFile nimbleFile)
   var parser: Parser
   if setupParser(parser, fileIdx, newIdentCache(), conf):
-    extract(parseAll(parser), conf, result)
+    let ast = parseAll(parser)
+    extract(ast, conf, result)
     closeParser(parser)
   result.hasErrors = result.hasErrors or conf.errorCounter > 0
 
