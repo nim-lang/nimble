@@ -2465,17 +2465,18 @@ proc doAction(options: var Options) =
       #TODO when there is no nimble file we should download the package to the cache and select nim from there?
       #Do first the install part to remove moving pieces.
       #assume we are in a directory: 
+      options.satResult.pass = satNimSelection
       var rootPackage = getPkgInfoFromDirWithDeclarativeParser(getCurrentDir(), options, forceDeclarativeOnly = true)
       rootPackage.requires.add(options.action.packages)
       let pkgList: seq[PackageInfo] = getInstalledPkgsMin(options.getPkgsDir(), options)
-      var satResult = resolveAndConfigureNim(rootPackage, pkgList, options)
-      satResult.installPkgs(options)
+      resolveAndConfigureNim(rootPackage, pkgList, options)
+      options.satResult.pass = satDone #Before this we shoudl make sure we actually correctly completed the satNimSelection pass
+      if options.satResult.declarativeParseFailed:
+        raise newNimbleError[NimbleError]("Declarative parser failed. Please check logs to see what nimble file caused it.")
+      options.satResult.installPkgs(options)
       #Next step is to install the packages. 
-      #We need to extract a install from dir function that assumes the packages are already 
-      #in the package cache and dependencies are already solved. So basically what we need to do is 
-      #to get the packagesToInstall collection and install them with the new installFromDir function
-      #this will require a way to retireve the packageToInstall from the pkgcache
-      #Then, we should flag the binaries and do another pass to install each package binary (or maybe this is only done when building?)
+      #(remove logs and test adding the satResult to options and reproduce the error again)
+      #once thats done, its time to work in the second pass to fix the failure of the declarative parser
       return
     let (_, pkgInfo) = install(options.action.packages, options,
                                doPrompt = true,
