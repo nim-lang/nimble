@@ -17,25 +17,13 @@ Steps:
 import std/[sequtils, sets, options, os, strutils]
 import nimblesat, packageinfotypes, options, version, declarativeparser, packageinfo, common,
   nimenv, lockfile, cli, downloadnim, packageparser, tools, nimscriptexecutor, packagemetadatafile,
-  displaymessages
+  displaymessages, packageinfotypes
 
 type 
-  SATPass* = enum
-    satNone
-    satNimSelection
-
-  SATResult* = object
-    pkgsToInstall*: seq[(string, Version)]
-    solvedPkgs*: seq[SolvedPackage]
-    output*: string
-    pkgs*: HashSet[PackageInfo]
-    pass*: SATPass
-    installedPkgs*: seq[PackageInfo] #Packages installed in the current pass
     
   NimResolved = object
     pkg: Option[PackageInfo] #when none, we need to install it
     version: Version
-    satResult*: SATResult
 
 proc getNimFromSystem*(options: Options): Option[PackageInfo] =
   # --nim:<path> takes priority over system nim but its only forced if we also specify useSystemNim
@@ -60,8 +48,6 @@ proc resolveNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo], options: v
     else:
       raise newNimbleError[NimbleError]("No system nim found") 
   
-  options.firstSatPass = true #Todo change the options so it uses the SATPass enum
-  result.satResult.pass = satNone
   #We assume we dont have an available nim yet  
   var pkgListDecl = 
     pkgList
@@ -73,21 +59,20 @@ proc resolveNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo], options: v
   let lockFile = options.lockFile(getCurrentDir())
   if options.hasNimInLockFile():
     if options.useSystemNim and systemNimPkg.isSome:
-      return NimResolved(pkg: some(systemNimPkg.get), version: systemNimPkg.get.basicInfo.version, satResult: result.satResult)
+      return NimResolved(pkg: some(systemNimPkg.get), version: systemNimPkg.get.basicInfo.version)
     else:
       for name, dep in lockFile.getLockedDependencies.lockedDepsFor(options):
         if name.isNim:
-          return NimResolved(version: dep.version, satResult: result.satResult)
+          return NimResolved(version: dep.version)
     
-  result.satResult.pass = satNimSelection
-  var pkgs = solvePackages(rootPackage, pkgListDecl, result.satResult.pkgsToInstall, options, result.satResult.output, result.satResult.solvedPkgs)
-  if result.satResult.solvedPkgs.len == 0:
-    displayError(result.satResult.output)
+  var pkgs = solvePackages(rootPackage, pkgListDecl, options.satResult.pkgsToInstall, options, options.satResult.output, options.satResult.solvedPkgs)
+  if options.satResult.solvedPkgs.len == 0:
+    displayError(options.satResult.output)
     raise newNimbleError[NimbleError]("Couldnt find a solution for the packages. Check there is no contradictory dependencies.")
 
   var nims = pkgs.toSeq.filterIt(it.basicInfo.name.isNim)
   if nims.len == 0:
-    let solvedNim = result.satResult.solvedPkgs.filterIt(it.pkgName.isNim)
+    let solvedNim = options.satResult.solvedPkgs.filterIt(it.pkgName.isNim)
     if solvedNim.len > 0:
       # echo "Solved nim ", solvedNim[0].version
       return NimResolved(version: solvedNim[0].version)
@@ -99,14 +84,14 @@ proc resolveNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo], options: v
       if bestNim.isNone or pkg.basicInfo.version > bestNim.get.basicInfo.version:
         bestNim = some(pkg)
     if bestNim.isSome:
-      return NimResolved(pkg: some(bestNim.get), version: bestNim.get.basicInfo.version, satResult: result.satResult)
+      return NimResolved(pkg: some(bestNim.get), version: bestNim.get.basicInfo.version)
 
     # echo "SAT result ", result.satResult.pkgs.mapIt(it.basicInfo.name)
     # echo "SolvedPkgs ", result.satResult.solvedPkgs
     # echo "PkgsToInstall ", result.satResult.pkgsToInstall
     # echo "Root package ", rootPackage.basicInfo, " requires ", rootPackage.requires
     # echo "PkglistDecl ", pkgListDecl.mapIt(it.basicInfo.name & " " & $it.basicInfo.version)
-    echo result.satResult.output
+    echo options.satResult.output
     # echo ""
     #TODO if we ever reach this point, we should just download the latest nim release
     raise newNimbleError[NimbleError]("No Nim found") 
@@ -128,7 +113,7 @@ proc setNimBin(pkgInfo: PackageInfo, options: var Options) =
   assert pkgInfo.basicInfo.name.isNim
   options.useNimFromDir(pkgInfo.getRealDir, pkgInfo.basicInfo.version.toVersionRange())
 
-proc resolveAndConfigureNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo], options: var Options): SATResult =
+proc resolveAndConfigureNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo], options: var Options) =
   var resolvedNim = resolveNim(rootPackage, pkgList, options)
   if resolvedNim.pkg.isNone:
     #we need to install it
@@ -144,8 +129,7 @@ proc resolveAndConfigureNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo]
       raise nimbleError("Failed to install nim")
 
   resolvedNim.pkg.get.setNimBin(options)
-  options.firstSatPass = false
-  resolvedNim.satResult
+#Make it fail before it gets installed. Something is going on. 
 
 proc executeHook(dir: string, options: Options, action: ActionType, before: bool) =
   cd dir: # Make sure `execHook` executes the correct .nimble file.
@@ -156,6 +140,7 @@ proc executeHook(dir: string, options: Options, action: ActionType, before: bool
         raise nimbleError("Post-hook prevented further execution.")
 
 proc installFromDirDownloadInfo(dl: PackageDownloadInfo, options: Options): PackageInfo = 
+
   let dir = dl.downloadDir
   # Handle pre-`install` hook.
   executeHook(dir, options, actionInstall, before = true)

@@ -14,6 +14,7 @@ const
   defaultDevelopPath* = "vendor"
 
 type
+
   NimBin* = object
     path*: string
     version*: Version
@@ -69,7 +70,7 @@ type
     features*: seq[string] # Features to be activated. Only used when using the declarative parser
     ignoreSubmodules*: bool # Whether to ignore submodules when cloning a repository
     useVNext*: bool # Whether to use the vnext code path
-    firstSatPass*: bool #Are we in the first sat pass (aka solving the nim version)?
+    satResult*: SatResult
 
   ActionType* = enum
     actionNil, actionRefresh, actionInit, actionDump, actionPublish, actionUpgrade
@@ -803,7 +804,8 @@ proc initOptions*(): Options =
     nimBinariesDir: getHomeDir() / ".nimble" / "nimbinaries", 
     maxTaggedVersions: 4,
     useSatSolver: true,
-    useDeclarativeParser: false
+    useDeclarativeParser: false,
+    satResult: SatResult()
   )
 
 proc handleUnknownFlags(options: var Options) =

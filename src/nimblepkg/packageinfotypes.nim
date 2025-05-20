@@ -97,6 +97,26 @@ type
 
   PackageDependenciesInfo* = tuple[deps: HashSet[PackageInfo], pkg: PackageInfo]
 
+  SolvedPackage* = object
+    pkgName*: string
+    version*: Version
+    requirements*: seq[PkgTuple] 
+    reverseDependencies*: seq[(string, Version)] 
+
+  SATPass* = enum
+    satNone
+    satNimSelection
+    satDone
+
+  SATResult* = ref object
+    pkgsToInstall*: seq[(string, Version)]
+    solvedPkgs*: seq[SolvedPackage]
+    output*: string
+    pkgs*: HashSet[PackageInfo]
+    pass*: SATPass
+    installedPkgs*: seq[PackageInfo] #Packages installed in the current pass
+    declarativeParseFailed*: bool
+
 proc isMinimal*(pkg: PackageInfo): bool =
   pkg.infoKind == pikMinimal
 

@@ -401,6 +401,9 @@ proc toRequiresInfo*(pkgInfo: PackageInfo, options: Options, forceDeclarativeOnl
     result.infoKind = pikRequires
   result.features = getFeatures(nimbleFileInfo)
   result.bin = nimbleFileInfo.bin
+  #TODO fallback to vm parser when we are not in the satNimSelection pass
+  if options.satResult.pass == satNimSelection and nimbleFileInfo.nestedRequires:
+    options.satResult.declarativeParseFailed = true 
   
 proc fillPkgBasicInfo(pkgInfo: var PackageInfo, nimbleFileInfo: NimbleFileInfo) =
   #TODO something may be missing here
