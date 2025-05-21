@@ -274,11 +274,19 @@ proc installFromDirDownloadInfo(dl: PackageDownloadInfo, options: Options): Pack
   pkgInfo
 
 proc installPkgs*(satResult: var SATResult, options: Options) =
+  let isInRootDir = satResult.rootPackage.myPath.parentDir == getCurrentDir()
   #At this point the packages are already downloaded. 
   #We still need to install them aka copy them from the cache to the nimbleDir + run preInstall and postInstall scripts
   #preInstall hook is always executed for the current directory
-  executeHook(getCurrentDir(), options, actionInstall, before = true)
-  for (name, ver) in satResult.pkgsToInstall:
+  if isInRootDir:
+    executeHook(getCurrentDir(), options, actionInstall, before = true) #likely incorrect if we are not in a nimble dir
+  var pkgsToInstall = satResult.pkgsToInstall
+   #If we are not in the root folder, means user is installing a package globally so we need to install root
+  if not isInRootDir: #TODO only install if not already installed
+    echo "Installing root package ", satResult.rootPackage.basicInfo.name, " ", satResult.rootPackage.basicInfo.version
+    pkgsToInstall.add((name: satResult.rootPackage.basicInfo.name, ver: satResult.rootPackage.basicInfo.version))
+  
+  for (name, ver) in pkgsToInstall:
     let pv = (name: name, ver: ver.toVersionRange())
     let dlInfo = getPackageDownloadInfo(pv, options)
     if not dirExists(dlInfo.downloadDir):
@@ -292,8 +300,8 @@ proc installPkgs*(satResult: var SATResult, options: Options) =
     assert dirExists(dlInfo.downloadDir)
     #TODO this needs to be improved as we are redonwloading certain packages
     let pkgInfo = installFromDirDownloadInfo(dlInfo, options)
-    satResult.installedPkgs.add(pkgInfo)
-
-  #postInstall hook is always executed for the current directory
-  executeHook(getCurrentDir(), options, actionInstall, before = false)
-  echo ""
+    
+ 
+  if isInRootDir:
+    #postInstall hook is always executed for the current directory
+    executeHook(getCurrentDir(), options, actionInstall, before = false)

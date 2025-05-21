@@ -2461,25 +2461,32 @@ proc doAction(options: var Options) =
   of actionInstall:
     if options.isVNext:
       let thereIsNimbleFile = findNimbleFile(getCurrentDir(), error = false, options) != ""
-      echo "Nimble file is ", thereIsNimbleFile
-      #TODO when there is no nimble file we should download the package to the cache and select nim from there?
-      #Do first the install part to remove moving pieces.
-      #assume we are in a directory: 
-      options.satResult.pass = satNimSelection
-      var rootPackage = getPkgInfoFromDirWithDeclarativeParser(getCurrentDir(), options)
-      rootPackage.requires.add(options.action.packages)
+      options.satResult = initSATResult(satNimSelection)
+      #Lets assume there is only one package
+      if thereIsNimbleFile:
+        options.satResult.rootPackage = getPkgInfoFromDirWithDeclarativeParser(getCurrentDir(), options)
+        options.satResult.rootPackage.requires.add(options.action.packages)
+      else: #TODO allow for installing multiple packages globally (re run sat for each package)
+        echo "No nimble file found. Downloading package to the cache."
+        #Download the package to the cache TODO Handle a list of packages
+        options.satResult.rootPackage = downloadPkInfoForPv(options.action.packages[0], options)
+        echo "Downloaded package to the cache."
+        echo "Root package: ", options.satResult.rootPackage.basicInfo.name, " with version ", options.satResult.rootPackage.basicInfo.version, " and path ", options.satResult.rootPackage.getRealDir
+
       let pkgList: seq[PackageInfo] = getInstalledPkgsMin(options.getPkgsDir(), options)
-      let resolvedNim = resolveAndConfigureNim(rootPackage, pkgList, options)
+      let resolvedNim = resolveAndConfigureNim(options.satResult.rootPackage, pkgList, options)
       if options.satResult.declarativeParseFailed:
         displayWarning("Declarative parser failed. Will rerun SAT with the VM parser. Please fix your nimble file.")
         for line in options.satResult.declarativeParserErrorLines:
           displayWarning(line)
-        options.satResult.declarativeParseFailed = false
+        options.satResult = initSATResult(satFallbackToVmParser)
         #Declarative parser failed. So we need to rerun the solver but this time, we allow the parser
         #to fallback to the vm parser
-        options.satResult.pass = satFallbackToVmParser
-        solvePkgsWithVmParserAllowingFallback(rootPackage, resolvedNim, pkgList, options)
+        solvePkgsWithVmParserAllowingFallback(options.satResult.rootPackage, resolvedNim, pkgList, options)
 
+      echo "Solved packages: ", options.satResult.solvedPkgs.mapIt(it.pkgName)
+      echo "Packages to install: ", options.satResult.pkgsToInstall
+      echo "Packages: ", options.satResult.pkgs.mapIt(it.basicInfo.name)
       options.satResult.pass = satDone #Before this we shoudl make sure we actually correctly completed the satNimSelection pass
       options.satResult.installPkgs(options)
       #Next step is to install the packages. 

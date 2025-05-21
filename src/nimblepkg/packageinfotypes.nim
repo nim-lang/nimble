@@ -110,6 +110,7 @@ type
     satDone
 
   SATResult* = ref object
+    rootPackage*: PackageInfo
     pkgsToInstall*: seq[(string, Version)]
     solvedPkgs*: seq[SolvedPackage]
     output*: string
@@ -141,3 +142,5 @@ proc getGloballyActiveFeatures*(): seq[string] =
     for feature in features:
       result.add(&"features.{pkgName}.{feature}")
   
+proc initSATResult*(pass: SATPass): SATResult =
+  SATResult(pkgsToInstall: @[], solvedPkgs: @[], output: "", pkgs: initHashSet[PackageInfo](), pass: pass, installedPkgs: @[], declarativeParseFailed: false, declarativeParserErrorLines: @[])
