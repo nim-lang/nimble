@@ -2472,12 +2472,14 @@ proc doAction(options: var Options) =
       let resolvedNim = resolveAndConfigureNim(rootPackage, pkgList, options)
       if options.satResult.declarativeParseFailed:
         displayWarning("Declarative parser failed. Will rerun SAT with the VM parser. Please fix your nimble file.")
+        for line in options.satResult.declarativeParserErrorLines:
+          displayWarning(line)
         options.satResult.declarativeParseFailed = false
         #Declarative parser failed. So we need to rerun the solver but this time, we allow the parser
         #to fallback to the vm parser
         options.satResult.pass = satFallbackToVmParser
         solvePkgsWithVmParserAllowingFallback(rootPackage, resolvedNim, pkgList, options)
-     
+
       options.satResult.pass = satDone #Before this we shoudl make sure we actually correctly completed the satNimSelection pass
       options.satResult.installPkgs(options)
       #Next step is to install the packages. 

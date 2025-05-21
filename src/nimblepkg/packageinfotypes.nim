@@ -117,6 +117,7 @@ type
     pass*: SATPass
     installedPkgs*: seq[PackageInfo] #Packages installed in the current pass
     declarativeParseFailed*: bool
+    declarativeParserErrorLines*: seq[string]
 
 proc isMinimal*(pkg: PackageInfo): bool =
   pkg.infoKind == pikMinimal

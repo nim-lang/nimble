@@ -19,6 +19,7 @@ type NimbleFileInfo* = object
   hasInstallHooks*: bool
   hasErrors*: bool
   nestedRequires*: bool #if true, the requires section contains nested requires meaning that the package is incorrectly defined
+  declarativeParserErrorLines*: seq[string]
   #In vnext this means that we will need to re-run sat after selecting nim to get the correct requires
 
 proc eqIdent(a, b: string): bool {.inline.} =
@@ -43,23 +44,24 @@ proc collectRequiresFromNode(n: PNode, result: var seq[string]) =
   else:
     discard
 
-proc validateNoNestedRequires(n: PNode, conf: ConfigRef, hasErrors: var bool, nestedRequires: var bool, inControlFlow: bool = false) =
+proc validateNoNestedRequires(nfl: var NimbleFileInfo, n: PNode, conf: ConfigRef, hasErrors: var bool, nestedRequires: var bool, inControlFlow: bool = false) =
   case n.kind
   of nkStmtList, nkStmtListExpr:
     for child in n:
-      validateNoNestedRequires(child, conf, hasErrors, nestedRequires, inControlFlow)
+      validateNoNestedRequires(nfl, child, conf, hasErrors, nestedRequires, inControlFlow)
   of nkWhenStmt, nkIfStmt, nkIfExpr, nkElifBranch, nkElse, nkElifExpr, nkElseExpr:
     for child in n:
-      validateNoNestedRequires(child, conf, hasErrors, nestedRequires, true)
+      validateNoNestedRequires(nfl, child, conf, hasErrors, nestedRequires, true)
   of nkCallKinds:
     if n[0].kind == nkIdent and n[0].ident.s == "requires":
       if inControlFlow:
         nestedRequires = true
-        localError(conf, n.info, &"'requires' cannot be nested inside control flow statements")
+        let errorLine = &"{nfl.nimbleFile}({n.info.line}, {n.info.col}) 'requires' cannot be nested inside control flow statements"
+        nfl.declarativeParserErrorLines.add errorLine
         hasErrors = true
     else:
       for child in n:
-        validateNoNestedRequires(child, conf, hasErrors, nestedRequires, inControlFlow)
+        validateNoNestedRequires(nfl, child, conf, hasErrors, nestedRequires, inControlFlow)
   else:
     discard
 
@@ -88,7 +90,7 @@ proc extractFeatures(featureNode: PNode, conf: ConfigRef, hasErrors: var bool, n
         result.add requires
 
 proc extract(n: PNode, conf: ConfigRef, result: var NimbleFileInfo) =
-  validateNoNestedRequires(n, conf, result.hasErrors, result.nestedRequires)
+  validateNoNestedRequires(result, n, conf, result.hasErrors, result.nestedRequires)
   case n.kind
   of nkStmtList, nkStmtListExpr:
     for child in n:
@@ -406,6 +408,7 @@ proc toRequiresInfo*(pkgInfo: PackageInfo, options: Options, nimbleFileInfo: Opt
     case options.satResult.pass
     of satNimSelection:
       options.satResult.declarativeParseFailed = true
+      options.satResult.declarativeParserErrorLines = nimbleFileInfo.declarativeParserErrorLines
     of satFallbackToVmParser, satNone:
       result.infoKind = pikMinimal
       result = result.toFullInfo(options)
