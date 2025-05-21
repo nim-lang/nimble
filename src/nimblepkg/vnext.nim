@@ -111,6 +111,8 @@ proc resolveNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo], options: v
 
 proc setNimBin(pkgInfo: PackageInfo, options: var Options) =
   assert pkgInfo.basicInfo.name.isNim
+  if options.nimBin.isSome and options.nimBin.get.path == pkgInfo.getRealDir / "bin" / "nim":
+    return #We dont want to set the same Nim twice. Notice, this can only happen when installing multiple packages outside of the project dir i.e nimble install pkg1 pkg2
   options.useNimFromDir(pkgInfo.getRealDir, pkgInfo.basicInfo.version.toVersionRange())
 
 proc resolveAndConfigureNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo], options: var Options): NimResolved =
@@ -282,11 +284,13 @@ proc installPkgs*(satResult: var SATResult, options: Options) =
     executeHook(getCurrentDir(), options, actionInstall, before = true) #likely incorrect if we are not in a nimble dir
   var pkgsToInstall = satResult.pkgsToInstall
    #If we are not in the root folder, means user is installing a package globally so we need to install root
-  if not isInRootDir: #TODO only install if not already installed
-    echo "Installing root package ", satResult.rootPackage.basicInfo.name, " ", satResult.rootPackage.basicInfo.version
+  if not isInRootDir: #TODO only install if not already installed    
+    #TODO but only if the package is not already installed    
+    #TODO there is an issue when intalling wrongly parsed packages in a global dir
     pkgsToInstall.add((name: satResult.rootPackage.basicInfo.name, ver: satResult.rootPackage.basicInfo.version))
   
   for (name, ver) in pkgsToInstall:
+    # echo "Installing package: ", name, " ", ver
     let pv = (name: name, ver: ver.toVersionRange())
     let dlInfo = getPackageDownloadInfo(pv, options)
     if not dirExists(dlInfo.downloadDir):

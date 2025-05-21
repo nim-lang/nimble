@@ -2449,6 +2449,27 @@ proc openNimbleManual =
   displayInfo("If it did not open, you can try going to the link manually: " & NimbleGuideURL)
   openDefaultBrowser(NimbleGuideURL)
 
+proc solvePkgs(rootPackage: PackageInfo, options: var Options) =
+  options.satResult = initSATResult(satNimSelection)
+  options.satResult.rootPackage = rootPackage
+  let pkgList: seq[PackageInfo] = getInstalledPkgsMin(options.getPkgsDir(), options)
+  let resolvedNim = resolveAndConfigureNim(options.satResult.rootPackage, pkgList, options)
+  if options.satResult.declarativeParseFailed:
+    displayWarning("Declarative parser failed. Will rerun SAT with the VM parser. Please fix your nimble file.")
+    for line in options.satResult.declarativeParserErrorLines:
+      displayWarning(line)
+    options.satResult = initSATResult(satFallbackToVmParser)
+    #Declarative parser failed. So we need to rerun the solver but this time, we allow the parser
+    #to fallback to the vm parser
+    solvePkgsWithVmParserAllowingFallback(options.satResult.rootPackage, resolvedNim, pkgList, options)
+
+  # echo "Solved packages: ", options.satResult.solvedPkgs.mapIt(it.pkgName)
+  # echo "Packages to install: ", options.satResult.pkgsToInstall
+  # echo "Packages: ", options.satResult.pkgs.mapIt(it.basicInfo.name)
+  options.satResult.pass = satDone 
+  options.satResult.installPkgs(options)
+
+
 proc doAction(options: var Options) =
   if options.showHelp:
     writeHelp()
@@ -2461,37 +2482,18 @@ proc doAction(options: var Options) =
   of actionInstall:
     if options.isVNext:
       let thereIsNimbleFile = findNimbleFile(getCurrentDir(), error = false, options) != ""
-      options.satResult = initSATResult(satNimSelection)
-      #Lets assume there is only one package
       if thereIsNimbleFile:
-        options.satResult.rootPackage = getPkgInfoFromDirWithDeclarativeParser(getCurrentDir(), options)
-        options.satResult.rootPackage.requires.add(options.action.packages)
-      else: #TODO allow for installing multiple packages globally (re run sat for each package)
-        echo "No nimble file found. Downloading package to the cache."
-        #Download the package to the cache TODO Handle a list of packages
-        options.satResult.rootPackage = downloadPkInfoForPv(options.action.packages[0], options)
-        echo "Downloaded package to the cache."
-        echo "Root package: ", options.satResult.rootPackage.basicInfo.name, " with version ", options.satResult.rootPackage.basicInfo.version, " and path ", options.satResult.rootPackage.getRealDir
+        var rootPackage = getPkgInfoFromDirWithDeclarativeParser(getCurrentDir(), options)
+        rootPackage.requires.add(options.action.packages)
+        solvePkgs(rootPackage, options)
+      else: 
+        #Global install        
+        for pkg in options.action.packages:          
+          options.satResult = initSATResult(satNimSelection)      
+          var rootPackage = downloadPkInfoForPv(pkg, options)
+          solvePkgs(rootPackage, options)
 
-      let pkgList: seq[PackageInfo] = getInstalledPkgsMin(options.getPkgsDir(), options)
-      let resolvedNim = resolveAndConfigureNim(options.satResult.rootPackage, pkgList, options)
-      if options.satResult.declarativeParseFailed:
-        displayWarning("Declarative parser failed. Will rerun SAT with the VM parser. Please fix your nimble file.")
-        for line in options.satResult.declarativeParserErrorLines:
-          displayWarning(line)
-        options.satResult = initSATResult(satFallbackToVmParser)
-        #Declarative parser failed. So we need to rerun the solver but this time, we allow the parser
-        #to fallback to the vm parser
-        solvePkgsWithVmParserAllowingFallback(options.satResult.rootPackage, resolvedNim, pkgList, options)
-
-      echo "Solved packages: ", options.satResult.solvedPkgs.mapIt(it.pkgName)
-      echo "Packages to install: ", options.satResult.pkgsToInstall
-      echo "Packages: ", options.satResult.pkgs.mapIt(it.basicInfo.name)
-      options.satResult.pass = satDone #Before this we shoudl make sure we actually correctly completed the satNimSelection pass
-      options.satResult.installPkgs(options)
-      #Next step is to install the packages. 
-      #(remove logs and test adding the satResult to options and reproduce the error again)
-      #once thats done, its time to work in the second pass to fix the failure of the declarative parser
+      
       return
     let (_, pkgInfo) = install(options.action.packages, options,
                                doPrompt = true,
