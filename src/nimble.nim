@@ -91,7 +91,7 @@ proc activateSolvedPkgFeatures(solvedPkgs: seq[SolvedPackage], allPkgsInfo: seq[
       displayError &"PackageInfo {solved.pkgName} not found", priority = LowPriority
       continue
     if pkg.get.activeFeatures.len == 0:      
-      pkg = some pkg.get.toRequiresInfo(options, forceDeclarativeOnly = false)
+      pkg = some pkg.get.toRequiresInfo(options)
     for pkgTuple, activeFeatures in pkg.get.activeFeatures:
       let pkgWithFeature = getPackageInfo(pkgTuple[0], allPkgsInfo, none(Version))
       if pkgWithFeature.isNone:
@@ -108,7 +108,7 @@ proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, options: Options): Has
   var pkgsToInstall: seq[(string, Version)] = @[]
   var rootPkgInfo = rootPkgInfo
   if options.useDeclarativeParser:
-    rootPkgInfo = rootPkgInfo.toRequiresInfo(options, forceDeclarativeOnly = false)
+    rootPkgInfo = rootPkgInfo.toRequiresInfo(options)
     # displayInfo(&"Features: options: {options.features} pkg: {rootPkgInfo.features}", HighPriority)
     for feature in options.features:
       if feature in rootPkgInfo.features:
@@ -124,7 +124,7 @@ proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, options: Options): Has
     
   var pkgList = initPkgList(rootPkgInfo, options)
   if options.useDeclarativeParser:
-    pkgList = pkgList.mapIt(it.toRequiresInfo(options, forceDeclarativeOnly = false))
+    pkgList = pkgList.mapIt(it.toRequiresInfo(options))
   else:
     pkgList = pkgList.mapIt(it.toFullInfo(options))
   var allPkgsInfo: seq[PackageInfo] = pkgList & rootPkgInfo
@@ -1888,7 +1888,7 @@ proc validateParsedDependencies(pkgInfo: PackageInfo, options: Options) =
   displayInfo(&"Validating dependencies for pkgInfo {pkgInfo.infoKind}", HighPriority)
   var options = options
   options.useDeclarativeParser = true
-  let declDeps = pkgInfo.toRequiresInfo(options, forceDeclarativeOnly = false).requires
+  let declDeps = pkgInfo.toRequiresInfo(options).requires
 
   options.useDeclarativeParser = false
   let vmDeps = pkgInfo.toFullInfo(options).requires
@@ -2466,13 +2466,19 @@ proc doAction(options: var Options) =
       #Do first the install part to remove moving pieces.
       #assume we are in a directory: 
       options.satResult.pass = satNimSelection
-      var rootPackage = getPkgInfoFromDirWithDeclarativeParser(getCurrentDir(), options, forceDeclarativeOnly = true)
+      var rootPackage = getPkgInfoFromDirWithDeclarativeParser(getCurrentDir(), options)
       rootPackage.requires.add(options.action.packages)
       let pkgList: seq[PackageInfo] = getInstalledPkgsMin(options.getPkgsDir(), options)
-      resolveAndConfigureNim(rootPackage, pkgList, options)
-      options.satResult.pass = satDone #Before this we shoudl make sure we actually correctly completed the satNimSelection pass
+      let resolvedNim = resolveAndConfigureNim(rootPackage, pkgList, options)
       if options.satResult.declarativeParseFailed:
-        raise newNimbleError[NimbleError]("Declarative parser failed. Please check logs to see what nimble file caused it.")
+        displayWarning("Declarative parser failed. Will rerun SAT with the VM parser. Please fix your nimble file.")
+        options.satResult.declarativeParseFailed = false
+        #Declarative parser failed. So we need to rerun the solver but this time, we allow the parser
+        #to fallback to the vm parser
+        options.satResult.pass = satFallbackToVmParser
+        solvePkgsWithVmParserAllowingFallback(rootPackage, resolvedNim, pkgList, options)
+     
+      options.satResult.pass = satDone #Before this we shoudl make sure we actually correctly completed the satNimSelection pass
       options.satResult.installPkgs(options)
       #Next step is to install the packages. 
       #(remove logs and test adding the satResult to options and reproduce the error again)

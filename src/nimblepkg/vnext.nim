@@ -17,11 +17,11 @@ Steps:
 import std/[sequtils, sets, options, os, strutils]
 import nimblesat, packageinfotypes, options, version, declarativeparser, packageinfo, common,
   nimenv, lockfile, cli, downloadnim, packageparser, tools, nimscriptexecutor, packagemetadatafile,
-  displaymessages, packageinfotypes
+  displaymessages
 
 type 
     
-  NimResolved = object
+  NimResolved* = object
     pkg: Option[PackageInfo] #when none, we need to install it
     version: Version
 
@@ -35,7 +35,7 @@ proc getNimFromSystem*(options: Options): Option[PackageInfo] =
     pnim = findExe("nim")
   if pnim != "": 
     let dir = pnim.parentDir.parentDir
-    return some getPkgInfoFromDirWithDeclarativeParser(dir, options, forceDeclarativeOnly = true)
+    return some getPkgInfoFromDirWithDeclarativeParser(dir, options)
   return none(PackageInfo)
 
 proc resolveNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo], options: var Options): NimResolved =
@@ -51,7 +51,7 @@ proc resolveNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo], options: v
   #We assume we dont have an available nim yet  
   var pkgListDecl = 
     pkgList
-    .mapIt(it.toRequiresInfo(options, forceDeclarativeOnly = true))
+    .mapIt(it.toRequiresInfo(options))
   if systemNimPkg.isSome:
     pkgListDecl.add(systemNimPkg.get)
   
@@ -65,12 +65,12 @@ proc resolveNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo], options: v
         if name.isNim:
           return NimResolved(version: dep.version)
     
-  var pkgs = solvePackages(rootPackage, pkgListDecl, options.satResult.pkgsToInstall, options, options.satResult.output, options.satResult.solvedPkgs)
+  options.satResult.pkgs = solvePackages(rootPackage, pkgListDecl, options.satResult.pkgsToInstall, options, options.satResult.output, options.satResult.solvedPkgs)
   if options.satResult.solvedPkgs.len == 0:
     displayError(options.satResult.output)
     raise newNimbleError[NimbleError]("Couldnt find a solution for the packages. Check there is no contradictory dependencies.")
 
-  var nims = pkgs.toSeq.filterIt(it.basicInfo.name.isNim)
+  var nims = options.satResult.pkgs.toSeq.filterIt(it.basicInfo.name.isNim)
   if nims.len == 0:
     let solvedNim = options.satResult.solvedPkgs.filterIt(it.pkgName.isNim)
     if solvedNim.len > 0:
@@ -113,7 +113,7 @@ proc setNimBin(pkgInfo: PackageInfo, options: var Options) =
   assert pkgInfo.basicInfo.name.isNim
   options.useNimFromDir(pkgInfo.getRealDir, pkgInfo.basicInfo.version.toVersionRange())
 
-proc resolveAndConfigureNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo], options: var Options) =
+proc resolveAndConfigureNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo], options: var Options): NimResolved =
   var resolvedNim = resolveNim(rootPackage, pkgList, options)
   if resolvedNim.pkg.isNone:
     #we need to install it
@@ -123,13 +123,25 @@ proc resolveAndConfigureNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo]
     #forcing a recompilation of nim.
     let nimInstalled = installNimFromBinariesDir(nimPkg, options)
     if nimInstalled.isSome:
-      resolvedNim.pkg = some getPkgInfoFromDirWithDeclarativeParser(nimInstalled.get.dir, options, forceDeclarativeOnly = true)
+      resolvedNim.pkg = some getPkgInfoFromDirWithDeclarativeParser(nimInstalled.get.dir, options)
       resolvedNim.version = nimInstalled.get.ver
     else:
       raise nimbleError("Failed to install nim")
 
   resolvedNim.pkg.get.setNimBin(options)
-#Make it fail before it gets installed. Something is going on. 
+  return resolvedNim
+
+proc solvePkgsWithVmParserAllowingFallback*(rootPackage: PackageInfo, resolvedNim: NimResolved, pkgList: seq[PackageInfo], options: var Options)=
+  #TODO implement
+  var pkgList = 
+    pkgList
+    .mapIt(it.toRequiresInfo(options))
+  pkgList.add(resolvedNim.pkg.get)
+
+  options.satResult.pkgs = solvePackages(rootPackage, pkgList, options.satResult.pkgsToInstall, options, options.satResult.output, options.satResult.solvedPkgs)
+  if options.satResult.solvedPkgs.len == 0:
+    displayError(options.satResult.output)
+    raise newNimbleError[NimbleError]("Couldnt find a solution for the packages. Check there is no contradictory dependencies.")
 
 proc executeHook(dir: string, options: Options, action: ActionType, before: bool) =
   cd dir: # Make sure `execHook` executes the correct .nimble file.

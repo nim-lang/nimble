@@ -381,13 +381,14 @@ proc getFeatures*(nimbleFileInfo: NimbleFileInfo): Table[string, seq[PkgTuple]] 
   for feature, requires in nimbleFileInfo.features:
     result[feature] = requires.map(parseRequires)    
 
-proc toRequiresInfo*(pkgInfo: PackageInfo, options: Options, forceDeclarativeOnly: bool, nimbleFileInfo: Option[NimbleFileInfo] = none(NimbleFileInfo)): PackageInfo =
+proc toRequiresInfo*(pkgInfo: PackageInfo, options: Options, nimbleFileInfo: Option[NimbleFileInfo] = none(NimbleFileInfo)): PackageInfo =
   #For nim we only need the version. Since version is usually in the form of `version = $NimMajor & "." & $NimMinor & "." & $NimPatch
   #we need to use the vm to get the version. Another option could be to use the binary and ask for the version
   # echo "toRequiresInfo: ", $pkgInfo.basicInfo, $pkgInfo.requires
   result = pkgInfo
+  let forceDeclarativeOnly = options.satResult.pass == satNimSelection
   if pkgInfo.myPath.splitFile.ext == ".babel":
-    if forceDeclarativeOnly:
+    if forceDeclarativeOnly: #TODO mark the pass as failed via declarativeParseFailed and continue
       raise newNimbleError[NimbleError]("Package " & pkgInfo.basicInfo.name & " is a babel package, skipping declarative parser")
     else:
       displayWarning &"Package {pkgInfo.basicInfo.name} is a babel package, skipping declarative parser", priority = HighPriority
@@ -401,9 +402,15 @@ proc toRequiresInfo*(pkgInfo: PackageInfo, options: Options, forceDeclarativeOnl
     result.infoKind = pikRequires
   result.features = getFeatures(nimbleFileInfo)
   result.bin = nimbleFileInfo.bin
-  #TODO fallback to vm parser when we are not in the satNimSelection pass
-  if options.satResult.pass == satNimSelection and nimbleFileInfo.nestedRequires:
-    options.satResult.declarativeParseFailed = true 
+  if nimbleFileInfo.nestedRequires:
+    case options.satResult.pass
+    of satNimSelection:
+      options.satResult.declarativeParseFailed = true
+    of satFallbackToVmParser:
+      result = pkgInfo.toFullInfo(options)
+    else:
+      #TODO this is vnext only but we should also make vnext the default when the declarative parser 
+      raise newNimbleError[NimbleError]("Invalid sat pass: " & $options.satResult.pass)
   
 proc fillPkgBasicInfo(pkgInfo: var PackageInfo, nimbleFileInfo: NimbleFileInfo) =
   #TODO something may be missing here
@@ -411,12 +418,12 @@ proc fillPkgBasicInfo(pkgInfo: var PackageInfo, nimbleFileInfo: NimbleFileInfo) 
   pkgInfo.basicInfo.version = newVersion nimbleFileInfo.version
   pkgInfo.myPath = nimbleFileInfo.nimbleFile
 
-proc getPkgInfoFromDirWithDeclarativeParser*(dir: string, options: Options, forceDeclarativeOnly: bool): PackageInfo =
+proc getPkgInfoFromDirWithDeclarativeParser*(dir: string, options: Options): PackageInfo =
   let nimbleFile = findNimbleFile(dir, true, options)
   let nimbleFileInfo = extractRequiresInfo(nimbleFile)
   result = initPackageInfo()
   fillPkgBasicInfo(result, nimbleFileInfo)
-  result = toRequiresInfo(result, options, forceDeclarativeOnly, some nimbleFileInfo)
+  result = toRequiresInfo(result, options, some nimbleFileInfo)
 
 when isMainModule:
   for x in tokenizeRequires("jester@#head >= 1.5 & <= 1.8"):

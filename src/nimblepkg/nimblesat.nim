@@ -509,8 +509,8 @@ proc downloadPkgFromUrl*(pv: PkgTuple, options: Options): (DownloadPkgResult, Do
         
 proc downloadPkInfoForPv*(pv: PkgTuple, options: Options): PackageInfo  =
   let downloadRes = downloadPkgFromUrl(pv, options)
-  if options.satResult.pass == satNimSelection:
-    getPkgInfoFromDirWithDeclarativeParser(downloadRes[0].dir, options, forceDeclarativeOnly = true)
+  if options.satResult.pass in {satNimSelection, satFallbackToVmParser}:
+    getPkgInfoFromDirWithDeclarativeParser(downloadRes[0].dir, options)
   else:
     downloadRes[0].dir.getPkgInfo(options)
 
@@ -572,8 +572,8 @@ proc getPackageMinimalVersionsFromRepo*(repoDir: string, pkg: PkgTuple, version:
       displayWarning(&"Error fetching tags for {name}: {e.msg}", HighPriority)
     
     try:
-      if options.satResult.pass == satNimSelection:
-        result.add getPkgInfoFromDirWithDeclarativeParser(repoDir, options, forceDeclarativeOnly = true).getMinimalInfo(options)   
+      if options.satResult.pass in {satNimSelection, satFallbackToVmParser}:
+        result.add getPkgInfoFromDirWithDeclarativeParser(repoDir, options).getMinimalInfo(options)   
       else:
         result.add getPkgInfo(repoDir, options).getMinimalInfo(options)   
     except CatchableError as e:

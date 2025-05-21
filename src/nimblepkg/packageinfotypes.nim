@@ -105,7 +105,8 @@ type
 
   SATPass* = enum
     satNone
-    satNimSelection
+    satNimSelection #Declarative parser only. Ideally this is the only pass that is used.
+    satFallbackToVmParser #A package that has a control flow require was found.
     satDone
 
   SATResult* = ref object

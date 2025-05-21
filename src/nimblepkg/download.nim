@@ -523,8 +523,8 @@ proc downloadPkg*(url: string, verRange: VersionRange,
   if validateRange and verRange.kind notin {verSpecial, verAny} or options.isVNext:
     ## Makes sure that the downloaded package's version satisfies the requested
     ## version range.
-    pkginfo = if options.satResult.pass == satNimSelection: #TODO later when in vnext we should just use this code path and fallback inside the toRequires if we can
-      getPkgInfoFromDirWithDeclarativeParser(result.dir, options, forceDeclarativeOnly = true)
+    pkginfo = if options.satResult.pass in {satNimSelection, satFallbackToVmParser}: #TODO later when in vnext we should just use this code path and fallback inside the toRequires if we can
+      getPkgInfoFromDirWithDeclarativeParser(result.dir, options)
     else:
       getPkgInfo(result.dir, options)
     if pkginfo.basicInfo.version notin verRange:
