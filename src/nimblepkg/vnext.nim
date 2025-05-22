@@ -304,6 +304,7 @@ proc installPkgs*(satResult: var SATResult, options: Options) =
     assert dirExists(dlInfo.downloadDir)
     #TODO this needs to be improved as we are redonwloading certain packages
     let pkgInfo = installFromDirDownloadInfo(dlInfo, options)
+    satResult.pkgs.incl(pkgInfo)
     
  
   if isInRootDir:

@@ -573,6 +573,7 @@ proc getPackageMinimalVersionsFromRepo*(repoDir: string, pkg: PkgTuple, version:
     
     try:
       if options.satResult.pass in {satNimSelection, satFallbackToVmParser}:
+        #TODO test this code path
         result.add getPkgInfoFromDirWithDeclarativeParser(repoDir, options).getMinimalInfo(options)   
       else:
         result.add getPkgInfo(repoDir, options).getMinimalInfo(options)   
@@ -595,9 +596,10 @@ proc getPackageMinimalVersionsFromRepo*(repoDir: string, pkg: PkgTuple, version:
 
         doCheckout(downloadMethod, tempDir, tag, options)
         let nimbleFile = findNimbleFile(tempDir, true, options)
-        if options.useDeclarativeParser:
-          # result.addUnique getMinimalInfo(nimbleFile, name, options)
+        if options.satResult.pass in {satNimSelection, satFallbackToVmParser}:
           result.addUnique getPkgInfoFromDirWithDeclarativeParser(repoDir, options).getMinimalInfo(options)  
+        elif options.useDeclarativeParser:
+          result.addUnique getMinimalInfo(nimbleFile, name, options)
         else:
           let pkgInfo = getPkgInfoFromFile(nimbleFile, options, useCache=false)
           result.addUnique pkgInfo.getMinimalInfo(options)

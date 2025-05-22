@@ -404,7 +404,7 @@ proc toRequiresInfo*(pkgInfo: PackageInfo, options: Options, nimbleFileInfo: Opt
     result.infoKind = pikRequires
   result.features = getFeatures(nimbleFileInfo)
   result.bin = nimbleFileInfo.bin
-  if nimbleFileInfo.nestedRequires:
+  if nimbleFileInfo.nestedRequires and options.action.typ != actionCheck: #When checking we want to fail on porpuse
     case options.satResult.pass
     of satNimSelection:
       options.satResult.declarativeParseFailed = true
