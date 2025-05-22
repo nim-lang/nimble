@@ -2450,9 +2450,8 @@ proc openNimbleManual =
   openDefaultBrowser(NimbleGuideURL)
 
 proc solvePkgs(rootPackage: PackageInfo, options: var Options) =
-  options.satResult = initSATResult(satNimSelection)
   options.satResult.rootPackage = rootPackage
-  let pkgList: seq[PackageInfo] = getInstalledPkgsMin(options.getPkgsDir(), options)
+  let pkgList = getInstalledPkgsMin(options.getPkgsDir(), options)
   let resolvedNim = resolveAndConfigureNim(options.satResult.rootPackage, pkgList, options)
   if options.satResult.declarativeParseFailed:
     displayWarning("Declarative parser failed. Will rerun SAT with the VM parser. Please fix your nimble file.")
@@ -2461,11 +2460,12 @@ proc solvePkgs(rootPackage: PackageInfo, options: var Options) =
     options.satResult = initSATResult(satFallbackToVmParser)
     #Declarative parser failed. So we need to rerun the solver but this time, we allow the parser
     #to fallback to the vm parser
+    options.satResult.rootPackage = rootPackage
     solvePkgsWithVmParserAllowingFallback(options.satResult.rootPackage, resolvedNim, pkgList, options)
 
-  # echo "Solved packages: ", options.satResult.solvedPkgs.mapIt(it.pkgName)
-  # echo "Packages to install: ", options.satResult.pkgsToInstall
-  # echo "Packages: ", options.satResult.pkgs.mapIt(it.basicInfo.name)
+  echo "Solved packages: ", options.satResult.solvedPkgs.mapIt(it.pkgName)
+  echo "Packages to install: ", options.satResult.pkgsToInstall
+  echo "Packages: ", options.satResult.pkgs.mapIt(it.basicInfo.name)
   options.satResult.pass = satDone 
   options.satResult.installPkgs(options)
 
@@ -2483,6 +2483,7 @@ proc doAction(options: var Options) =
     if options.isVNext:
       let thereIsNimbleFile = findNimbleFile(getCurrentDir(), error = false, options) != ""
       if thereIsNimbleFile:
+        options.satResult = initSATResult(satNimSelection)
         var rootPackage = getPkgInfoFromDirWithDeclarativeParser(getCurrentDir(), options)
         rootPackage.requires.add(options.action.packages)
         solvePkgs(rootPackage, options)

@@ -410,8 +410,7 @@ proc toRequiresInfo*(pkgInfo: PackageInfo, options: Options, nimbleFileInfo: Opt
       options.satResult.declarativeParseFailed = true
       options.satResult.declarativeParserErrorLines = nimbleFileInfo.declarativeParserErrorLines
     of satFallbackToVmParser, satNone:
-      result.infoKind = pikMinimal
-      result = result.toFullInfo(options)
+      result = getPkgInfo(result.myPath.parentDir, options)
       # echo " to fullinfo Requires: ", result.requires
       # echo readFile(pkgInfo.myPath)
 

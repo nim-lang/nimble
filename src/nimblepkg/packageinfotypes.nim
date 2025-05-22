@@ -110,11 +110,12 @@ type
     satDone
 
   SATResult* = ref object
-    rootPackage*: PackageInfo
-    pkgsToInstall*: seq[(string, Version)]
-    solvedPkgs*: seq[SolvedPackage]
+    rootPackage*: PackageInfo 
+    pkgsToInstall*: seq[(string, Version)] #Packages to install
+    solvedPkgs*: seq[SolvedPackage] #SAT solution
+    pkgList*: HashSet[PackageInfo] #Original package list the user has installed
     output*: string
-    pkgs*: HashSet[PackageInfo]
+    pkgs*: HashSet[PackageInfo] #Packages from solution + new installs
     pass*: SATPass
     installedPkgs*: seq[PackageInfo] #Packages installed in the current pass
     declarativeParseFailed*: bool

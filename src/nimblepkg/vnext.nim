@@ -54,6 +54,8 @@ proc resolveNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo], options: v
     .mapIt(it.toRequiresInfo(options))
   if systemNimPkg.isSome:
     pkgListDecl.add(systemNimPkg.get)
+
+  options.satResult.pkgList = pkgListDecl.toHashSet()
   
   #If there is a lock file we should use it straight away (if the user didnt specify --useSystemNim)
   let lockFile = options.lockFile(getCurrentDir())
@@ -134,11 +136,14 @@ proc resolveAndConfigureNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo]
   return resolvedNim
 
 proc solvePkgsWithVmParserAllowingFallback*(rootPackage: PackageInfo, resolvedNim: NimResolved, pkgList: seq[PackageInfo], options: var Options)=
-  #TODO implement
+  var rootPackage = getPkgInfo(rootPackage.myPath.parentDir, options)
+  options.satResult.rootPackage = rootPackage
+  # echo "***Root package: ", options.satResult.rootPackage.basicInfo.name, " requires: ", options.satResult.rootPackage.requires
   var pkgList = 
     pkgList
     .mapIt(it.toRequiresInfo(options))
   pkgList.add(resolvedNim.pkg.get)
+  options.satResult.pkgList = pkgList.toHashSet()
 
   options.satResult.pkgs = solvePackages(rootPackage, pkgList, options.satResult.pkgsToInstall, options, options.satResult.output, options.satResult.solvedPkgs)
   if options.satResult.solvedPkgs.len == 0:
@@ -285,10 +290,8 @@ proc installPkgs*(satResult: var SATResult, options: Options) =
   var pkgsToInstall = satResult.pkgsToInstall
    #If we are not in the root folder, means user is installing a package globally so we need to install root
   if not isInRootDir: #TODO only install if not already installed    
-    #TODO but only if the package is not already installed    
-    #TODO there is an issue when intalling wrongly parsed packages in a global dir
     pkgsToInstall.add((name: satResult.rootPackage.basicInfo.name, ver: satResult.rootPackage.basicInfo.version))
-  
+
   for (name, ver) in pkgsToInstall:
     # echo "Installing package: ", name, " ", ver
     let pv = (name: name, ver: ver.toVersionRange())
