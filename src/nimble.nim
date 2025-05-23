@@ -398,8 +398,7 @@ proc buildFromDir(pkgInfo: PackageInfo, paths: HashSet[seq[string]],
           binariesBuilt.inc()
           continue
     else:
-      createDir(outputDir)
-
+      createDir(outputDir) 
     let outputOpt = "-o:" & pkgInfo.getOutputDir(bin).quoteShell
     display("Building", "$1/$2 using $3 backend" %
             [pkginfo.basicInfo.name, bin, pkgInfo.backend], priority = HighPriority)
@@ -536,15 +535,6 @@ proc allDependencies(pkgInfo: PackageInfo, options: Options): HashSet[PackageInf
   result.incl pkgInfo.processFreeDependencies(pkgInfo.requires, options)
   for requires in pkgInfo.taskRequires.values:
     result.incl pkgInfo.processFreeDependencies(requires, options)
-
-proc expandPaths(pkgInfo: PackageInfo, options: Options): seq[string] =
-  var pkgInfo = pkgInfo.toFullInfo(options)
-  let baseDir = pkgInfo.getRealDir()
-  result = @[baseDir]
-  for relativePath in pkgInfo.paths:
-    let path = baseDir & "/" & relativePath
-    if path.isSubdirOf(baseDir):
-      result.add path
  
 proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
                     url: string, first: bool, fromLockFile: bool,
@@ -2463,10 +2453,11 @@ proc solvePkgs(rootPackage: PackageInfo, options: var Options) =
     options.satResult.rootPackage = rootPackage
     solvePkgsWithVmParserAllowingFallback(options.satResult.rootPackage, resolvedNim, pkgList, options)
 
-  echo "Solved packages: ", options.satResult.solvedPkgs.mapIt(it.pkgName)
-  echo "Packages to install: ", options.satResult.pkgsToInstall
-  echo "Packages: ", options.satResult.pkgs.mapIt(it.basicInfo.name)
+  # echo "Solved packages: ", options.satResult.solvedPkgs.mapIt(it.pkgName)
+  # echo "Packages to install: ", options.satResult.pkgsToInstall
+  # echo "Packages: ", options.satResult.pkgs.mapIt(it.basicInfo.name)
   options.satResult.pass = satDone 
+  options.satResult.solutionToFullInfo(options)
   options.satResult.installPkgs(options)
 
 
@@ -2493,8 +2484,6 @@ proc doAction(options: var Options) =
           options.satResult = initSATResult(satNimSelection)      
           var rootPackage = downloadPkInfoForPv(pkg, options)
           solvePkgs(rootPackage, options)
-
-      
       return
     let (_, pkgInfo) = install(options.action.packages, options,
                                doPrompt = true,

@@ -14,7 +14,7 @@ Steps:
   - Once we have the graph solved. We can proceed with the action.
 
 ]#
-import std/[sequtils, sets, options, os, strutils]
+import std/[sequtils, sets, options, os, strutils, tables, strformat]
 import nimblesat, packageinfotypes, options, version, declarativeparser, packageinfo, common,
   nimenv, lockfile, cli, downloadnim, packageparser, tools, nimscriptexecutor, packagemetadatafile,
   displaymessages
@@ -280,6 +280,149 @@ proc installFromDirDownloadInfo(dl: PackageDownloadInfo, options: Options): Pack
 
   pkgInfo
 
+proc getSolvedPkg(satResult: SATResult, pkgInfo: PackageInfo): SolvedPackage =
+  for solvedPkg in satResult.solvedPkgs:
+    if solvedPkg.pkgName == pkgInfo.basicInfo.name and solvedPkg.version == pkgInfo.basicInfo.version:
+      return solvedPkg
+  raise newNimbleError[NimbleError]("Package not found in solution: " & $pkgInfo.basicInfo.name & " " & $pkgInfo.basicInfo.version)
+
+proc getPkgInfoFromSolution(satResult: SATResult, pv: PkgTuple): PackageInfo =
+  for pkg in satResult.pkgs:
+    if pkg.basicInfo.name == pv.name and pkg.basicInfo.version.withinRange(pv.ver):
+      return pkg
+  raise newNimbleError[NimbleError]("Package not found in solution: " & $pv)
+
+#We could cache this info in the satResult (if called multiple times down the road)
+proc getDepsPkgInfo(satResult: SATResult, pkgInfo: PackageInfo): seq[PackageInfo] = 
+  for solvedPkg in pkgInfo.requires:
+    let depInfo = getPkgInfoFromSolution(satResult, solvedPkg)
+    result.add(depInfo)
+
+proc expandPaths*(pkgInfo: PackageInfo, options: Options): seq[string] =
+  var pkgInfo = pkgInfo.toFullInfo(options)
+  let baseDir = pkgInfo.getRealDir()
+  result = @[baseDir]
+  for relativePath in pkgInfo.paths:
+    let path = baseDir & "/" & relativePath
+    if path.isSubdirOf(baseDir):
+      result.add path
+
+proc getPathsToBuildFor(satResult: SATResult, pkgInfo: PackageInfo, options: Options): HashSet[string] =
+  for depInfo in getDepsPkgInfo(satResult, pkgInfo):
+    for path in depInfo.expandPaths(options):
+      result.incl(path)
+
+proc getNimBin(satResult: SATResult): string =
+  for pkg in satResult.pkgs:
+    if pkg.basicInfo.name.isNim:
+      var binaryPath = "bin" / "nim"
+      when defined(windows):
+        binaryPath &= ".exe" 
+      return pkg.getNimbleFileDir() / binaryPath
+  raise newNimbleError[NimbleError]("No Nim found")
+
+proc buildFromDir(pkgInfo: PackageInfo, paths: HashSet[string],
+                  args: seq[string], options: Options) =
+  ## Builds a package as specified by ``pkgInfo``.
+  # Handle pre-`build` hook.
+  let
+    realDir = pkgInfo.getRealDir()
+    pkgDir = pkgInfo.myPath.parentDir()
+
+  cd pkgDir: # Make sure `execHook` executes the correct .nimble file.
+    if not execHook(options, actionBuild, true):
+      raise nimbleError("Pre-hook prevented further execution.")
+
+  if pkgInfo.bin.len == 0:
+    raise nimbleError(
+        "Nothing to build. Did you specify a module to build using the" &
+        " `bin` key in your .nimble file?")
+
+  var
+    binariesBuilt = 0
+    args = args
+  args.add "-d:NimblePkgVersion=" & $pkgInfo.basicInfo.version
+  for path in paths:
+      args.add("--path:" & path.quoteShell)
+  if options.verbosity >= HighPriority:
+    # Hide Nim hints by default
+    args.add("--hints:off")
+  if options.verbosity == SilentPriority:
+    # Hide Nim warnings
+    args.add("--warnings:off")
+  if options.noColor:
+    # Disable coloured output
+    args.add("--colors:off")
+
+  if options.features.len > 0 and not options.useDeclarativeParser:
+    raise nimbleError("Features are only supported when using the declarative parser")
+
+  for feature in options.features: #Features enabled with the cli    
+    let featureStr = &"features.{pkgInfo.basicInfo.name}.{feature}"
+    # displayInfo &"Adding feature {featureStr}", priority = HighPriority
+    args.add &"-d:{featureStr}"
+  
+  # displayInfo &"All active features: {getGloballyActiveFeatures()}", priority = HighPriority
+  for featureStr in getGloballyActiveFeatures():
+    args.add &"-d:{featureStr}"
+
+  let binToBuild = #THIS MAY NOT BE LONGER CORRECT FOR VNEXT
+    # Only build binaries specified by user if any, but only if top-level package,
+    # dependencies should have every binary built.
+    if options.isInstallingTopLevel(pkgInfo.myPath.parentDir()):
+      options.getCompilationBinary(pkgInfo).get("")
+    else: ""
+
+  for bin, src in pkgInfo.bin:
+    # Check if this is the only binary that we want to build.
+    if binToBuild.len != 0 and binToBuild != bin:
+      if bin.extractFilename().changeFileExt("") != binToBuild:
+        continue
+
+    let outputDir = pkgInfo.getOutputDir("")
+    if dirExists(outputDir):
+      if fileExists(outputDir / bin):
+        if not pkgInfo.needsRebuild(outputDir / bin, realDir, options):
+          display("Skipping", "$1/$2 (up-to-date)" %
+                  [pkginfo.basicInfo.name, bin], priority = HighPriority)
+          binariesBuilt.inc()
+          continue
+    else:
+      createDir(outputDir)
+
+    let outputOpt = "-o:" & pkgInfo.getOutputDir(bin).quoteShell
+    display("Building", "$1/$2 using $3 backend" %
+            [pkginfo.basicInfo.name, bin, pkgInfo.backend], priority = HighPriority)
+
+    let input = realDir / src.changeFileExt("nim")
+    # `quoteShell` would be more robust than `\"` (and avoid quoting when
+    # un-necessary) but would require changing `extractBin`
+    let cmd = "$# $# --colors:$# --noNimblePath $# $# $#" % [
+      options.satResult.getNimBin().quoteShell, pkgInfo.backend, if options.noColor: "off" else: "on", join(args, " "),
+      outputOpt, input.quoteShell]
+    try:
+      doCmd(cmd)
+      binariesBuilt.inc()
+    except CatchableError as error:
+      raise buildFailed(
+        &"Build failed for the package: {pkgInfo.basicInfo.name}", details = error)
+
+  if binariesBuilt == 0:
+    raise nimbleError(
+      "No binaries built, did you specify a valid binary name?"
+    )
+
+  # Handle post-`build` hook.
+  cd pkgDir: # Make sure `execHook` executes the correct .nimble file.
+    discard execHook(options, actionBuild, false)
+
+proc solutionToFullInfo*(satResult: SATResult, options: Options) =
+  for pkg in satResult.pkgs:
+    if pkg.infoKind != pikFull:   
+      satResult.pkgs.incl(getPkgInfo(pkg.getNimbleFileDir, options))
+  if satResult.rootPackage.infoKind != pikFull:
+    satResult.rootPackage = getPkgInfo(satResult.rootPackage.getNimbleFileDir, options)
+
 proc installPkgs*(satResult: var SATResult, options: Options) =
   let isInRootDir = satResult.rootPackage.myPath.parentDir == getCurrentDir()
   #At this point the packages are already downloaded. 
@@ -291,7 +434,8 @@ proc installPkgs*(satResult: var SATResult, options: Options) =
    #If we are not in the root folder, means user is installing a package globally so we need to install root
   if not isInRootDir: #TODO only install if not already installed    
     pkgsToInstall.add((name: satResult.rootPackage.basicInfo.name, ver: satResult.rootPackage.basicInfo.version))
-
+  
+  var installedPkgs = @[satResult.rootPackage].toHashSet()
   for (name, ver) in pkgsToInstall:
     # echo "Installing package: ", name, " ", ver
     let pv = (name: name, ver: ver.toVersionRange())
@@ -308,8 +452,23 @@ proc installPkgs*(satResult: var SATResult, options: Options) =
     #TODO this needs to be improved as we are redonwloading certain packages
     let pkgInfo = installFromDirDownloadInfo(dlInfo, options)
     satResult.pkgs.incl(pkgInfo)
-    
+    installedPkgs.incl(pkgInfo)
+
  
+  for pkgToBuild in installedPkgs:
+    let solvedPkg = getSolvedPkg(satResult, pkgToBuild)
+    let paths = getPathsToBuildFor(satResult, pkgToBuild, options)
+    let flags = if options.action.typ in {actionInstall, actionPath, actionUninstall, actionDevelop}:
+                  options.action.passNimFlags
+                else:
+                  @[]
+    buildFromDir(pkgToBuild, paths, "-d:release" & flags, options)
+
+    #TODO build package
+    #Build binaries
+  echo "End building"
+
+  satResult.installedPkgs = installedPkgs.toSeq()
   if isInRootDir:
     #postInstall hook is always executed for the current directory
     executeHook(getCurrentDir(), options, actionInstall, before = false)
