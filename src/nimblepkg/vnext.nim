@@ -456,7 +456,6 @@ proc installPkgs*(satResult: var SATResult, options: Options) =
 
  
   for pkgToBuild in installedPkgs:
-    let solvedPkg = getSolvedPkg(satResult, pkgToBuild)
     let paths = getPathsToBuildFor(satResult, pkgToBuild, options)
     let flags = if options.action.typ in {actionInstall, actionPath, actionUninstall, actionDevelop}:
                   options.action.passNimFlags
