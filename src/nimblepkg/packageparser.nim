@@ -371,12 +371,12 @@ proc readPackageInfo(pkgInfo: var PackageInfo, nf: NimbleFile, options: Options,
     validatePackageInfo(pkgInfo, options)
 
 proc getPkgInfoFromFile*(file: NimbleFile, options: Options,
-                         forValidation = false, useCache = true): PackageInfo =
+                         forValidation = false, useCache = true, onlyMinimalInfo = false): PackageInfo =
   ## Reads the specified .nimble file and returns its data as a PackageInfo
   ## object. Any validation errors are handled and displayed as warnings.
   result = initPackageInfo()
   try:
-    readPackageInfo(result, file, options, useCache= useCache)
+    readPackageInfo(result, file, options, onlyMinimalInfo = onlyMinimalInfo, useCache= useCache)
   except ValidationError:
     let exc = (ref ValidationError)(getCurrentException())
     if exc.warnAll and not forValidation:
@@ -385,11 +385,11 @@ proc getPkgInfoFromFile*(file: NimbleFile, options: Options,
     else:
       raise
 
-proc getPkgInfo*(dir: string, options: Options, forValidation = false):
+proc getPkgInfo*(dir: string, options: Options, forValidation = false, onlyMinimalInfo = false):
     PackageInfo =
   ## Find the .nimble file in ``dir`` and parses it, returning a PackageInfo.
   let nimbleFile = findNimbleFile(dir, true, options)
-  result = getPkgInfoFromFile(nimbleFile, options, forValidation)
+  result = getPkgInfoFromFile(nimbleFile, options, forValidation, onlyMinimalInfo = onlyMinimalInfo)
 
 proc getInstalledPkgs*(libsDir: string, options: Options): seq[PackageInfo] =
   ## Gets a list of installed packages.

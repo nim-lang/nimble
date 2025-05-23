@@ -19,7 +19,8 @@ import nimblepkg/packageinfotypes, nimblepkg/packageinfo, nimblepkg/version,
        nimblepkg/nimbledatafile, nimblepkg/packagemetadatafile,
        nimblepkg/displaymessages, nimblepkg/sha1hashes, nimblepkg/syncfile,
        nimblepkg/deps, nimblepkg/nimblesat, nimblepkg/nimenv,
-       nimblepkg/downloadnim, nimblepkg/declarativeparser
+       nimblepkg/downloadnim, nimblepkg/declarativeparser,
+       nimblepkg/vnext
 
 const
   nimblePathsFileName* = "nimble.paths"
@@ -397,8 +398,7 @@ proc buildFromDir(pkgInfo: PackageInfo, paths: HashSet[seq[string]],
           binariesBuilt.inc()
           continue
     else:
-      createDir(outputDir)
-
+      createDir(outputDir) 
     let outputOpt = "-o:" & pkgInfo.getOutputDir(bin).quoteShell
     display("Building", "$1/$2 using $3 backend" %
             [pkginfo.basicInfo.name, bin, pkgInfo.backend], priority = HighPriority)
@@ -535,15 +535,6 @@ proc allDependencies(pkgInfo: PackageInfo, options: Options): HashSet[PackageInf
   result.incl pkgInfo.processFreeDependencies(pkgInfo.requires, options)
   for requires in pkgInfo.taskRequires.values:
     result.incl pkgInfo.processFreeDependencies(requires, options)
-
-proc expandPaths(pkgInfo: PackageInfo, options: Options): seq[string] =
-  var pkgInfo = pkgInfo.toFullInfo(options)
-  let baseDir = pkgInfo.getRealDir()
-  result = @[baseDir]
-  for relativePath in pkgInfo.paths:
-    let path = baseDir & "/" & relativePath
-    if path.isSubdirOf(baseDir):
-      result.add path
  
 proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
                     url: string, first: bool, fromLockFile: bool,
@@ -2448,6 +2439,28 @@ proc openNimbleManual =
   displayInfo("If it did not open, you can try going to the link manually: " & NimbleGuideURL)
   openDefaultBrowser(NimbleGuideURL)
 
+proc solvePkgs(rootPackage: PackageInfo, options: var Options) =
+  options.satResult.rootPackage = rootPackage
+  let pkgList = getInstalledPkgsMin(options.getPkgsDir(), options)
+  let resolvedNim = resolveAndConfigureNim(options.satResult.rootPackage, pkgList, options)
+  if options.satResult.declarativeParseFailed:
+    displayWarning("Declarative parser failed. Will rerun SAT with the VM parser. Please fix your nimble file.")
+    for line in options.satResult.declarativeParserErrorLines:
+      displayWarning(line)
+    options.satResult = initSATResult(satFallbackToVmParser)
+    #Declarative parser failed. So we need to rerun the solver but this time, we allow the parser
+    #to fallback to the vm parser
+    options.satResult.rootPackage = rootPackage
+    solvePkgsWithVmParserAllowingFallback(options.satResult.rootPackage, resolvedNim, pkgList, options)
+
+  # echo "Solved packages: ", options.satResult.solvedPkgs.mapIt(it.pkgName)
+  # echo "Packages to install: ", options.satResult.pkgsToInstall
+  # echo "Packages: ", options.satResult.pkgs.mapIt(it.basicInfo.name)
+  options.satResult.pass = satDone 
+  options.satResult.solutionToFullInfo(options)
+  options.satResult.installPkgs(options)
+
+
 proc doAction(options: var Options) =
   if options.showHelp:
     writeHelp()
@@ -2458,6 +2471,20 @@ proc doAction(options: var Options) =
   of actionRefresh:
     refresh(options)
   of actionInstall:
+    if options.isVNext:
+      let thereIsNimbleFile = findNimbleFile(getCurrentDir(), error = false, options) != ""
+      if thereIsNimbleFile:
+        options.satResult = initSATResult(satNimSelection)
+        var rootPackage = getPkgInfoFromDirWithDeclarativeParser(getCurrentDir(), options)
+        rootPackage.requires.add(options.action.packages)
+        solvePkgs(rootPackage, options)
+      else: 
+        #Global install        
+        for pkg in options.action.packages:          
+          options.satResult = initSATResult(satNimSelection)      
+          var rootPackage = downloadPkInfoForPv(pkg, options)
+          solvePkgs(rootPackage, options)
+      return
     let (_, pkgInfo) = install(options.action.packages, options,
                                doPrompt = true,
                                first = true,
@@ -2667,8 +2694,9 @@ when isMainModule:
     if opt.action.typ in {actionTasks, actionRun, actionBuild, actionCompile, actionDevelop}:
       # Implicitly disable package validation for these commands.
       opt.disableValidation = true
-    if not opt.showVersion and not opt.showHelp:
+    if not opt.showVersion and not opt.showHelp and not opt.isVNext:
       opt.setNimBin
+    #TODO later on when in vnext, we solve the packages before running the action
     opt.doAction()
   except NimbleQuit as quit:
     exitCode = quit.exitCode
