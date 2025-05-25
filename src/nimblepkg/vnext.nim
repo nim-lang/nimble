@@ -419,7 +419,6 @@ proc createBinSymlink(pkgInfo: PackageInfo, options: Options) =
       binariesInstalled.incl(
         setupBinSymlink(symlinkDest, symlinkFilename, options))
 
-
 proc solutionToFullInfo*(satResult: SATResult, options: Options) =
   for pkg in satResult.pkgs:
     if pkg.infoKind != pikFull:   
@@ -427,7 +426,7 @@ proc solutionToFullInfo*(satResult: SATResult, options: Options) =
   if satResult.rootPackage.infoKind != pikFull:
     satResult.rootPackage = getPkgInfo(satResult.rootPackage.getNimbleFileDir, options)
 
-proc buildPkg(pkgToBuild: PackageInfo, options: Options) =
+proc buildPkg(pkgToBuild: PackageInfo, isRootInRootDir: bool, options: Options) =
   let paths = getPathsToBuildFor(options.satResult, pkgToBuild, options)
   let flags = if options.action.typ in {actionInstall, actionPath, actionUninstall, actionDevelop}:
                 options.action.passNimFlags
@@ -438,10 +437,10 @@ proc buildPkg(pkgToBuild: PackageInfo, options: Options) =
   #In general for nim we should not create them if we are not in the local mode
   #But if we are installing only nim (i.e nim is root) we should create them which will
   #convert nimble a choosenim replacement
-  createBinSymlink(pkgToBuild, options)
+  if not isRootInRootDir: #Dont create symlinks for the root package
+    createBinSymlink(pkgToBuild, options)
 
-proc installPkgs*(satResult: var SATResult, options: Options) =
-  let isInRootDir = satResult.rootPackage.myPath.parentDir == getCurrentDir()
+proc installPkgs*(satResult: var SATResult, isInRootDir: bool, options: Options) =
   #At this point the packages are already downloaded. 
   #We still need to install them aka copy them from the cache to the nimbleDir + run preInstall and postInstall scripts
   #preInstall hook is always executed for the current directory
@@ -473,7 +472,9 @@ proc installPkgs*(satResult: var SATResult, options: Options) =
 
 
   for pkgToBuild in installedPkgs:
-    buildPkg(pkgToBuild, options)
+    echo "Building package: ", pkgToBuild.basicInfo.name
+    let isRoot = pkgToBuild.basicInfo.name == satResult.rootPackage.basicInfo.name and isInRootDir
+    buildPkg(pkgToBuild, isRoot, options)
 
   satResult.installedPkgs = installedPkgs.toSeq()
   if isInRootDir:

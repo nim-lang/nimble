@@ -2458,8 +2458,26 @@ proc solvePkgs(rootPackage: PackageInfo, options: var Options) =
   # echo "Packages: ", options.satResult.pkgs.mapIt(it.basicInfo.name)
   options.satResult.pass = satDone 
   options.satResult.solutionToFullInfo(options)
-  options.satResult.installPkgs(options)
 
+proc runVNext(options: var Options) =
+  #Install and in consequence builds the packages
+  let thereIsNimbleFile = findNimbleFile(getCurrentDir(), error = false, options) != ""
+  if thereIsNimbleFile:
+    options.satResult = initSATResult(satNimSelection)
+    var rootPackage = getPkgInfoFromDirWithDeclarativeParser(getCurrentDir(), options)
+    if options.action.typ == actionInstall:
+      rootPackage.requires.add(options.action.packages)
+    solvePkgs(rootPackage, options)
+  elif options.action.typ == actionInstall:
+    #Global install        
+    for pkg in options.action.packages:          
+      options.satResult = initSATResult(satNimSelection)      
+      var rootPackage = downloadPkInfoForPv(pkg, options)
+      solvePkgs(rootPackage, options)
+
+  options.satResult.installPkgs(isInRootDir = thereIsNimbleFile, options)
+
+  #HANDLE ERROR no nimble file?
 
 proc doAction(options: var Options) =
   if options.showHelp:
@@ -2472,32 +2490,21 @@ proc doAction(options: var Options) =
     refresh(options)
   of actionInstall:
     if options.isVNext:
-      let thereIsNimbleFile = findNimbleFile(getCurrentDir(), error = false, options) != ""
-      if thereIsNimbleFile:
-        options.satResult = initSATResult(satNimSelection)
-        var rootPackage = getPkgInfoFromDirWithDeclarativeParser(getCurrentDir(), options)
-        rootPackage.requires.add(options.action.packages)
-        solvePkgs(rootPackage, options)
-      else: 
-        #Global install        
-        for pkg in options.action.packages:          
-          options.satResult = initSATResult(satNimSelection)      
-          var rootPackage = downloadPkInfoForPv(pkg, options)
-          solvePkgs(rootPackage, options)
-      return
-    let (_, pkgInfo) = install(options.action.packages, options,
-                               doPrompt = true,
-                               first = true,
-                               fromLockFile = false)
-    if options.action.packages.len == 0:
-      nimScriptHint(pkgInfo)
-    if pkgInfo.foreignDeps.len > 0:
-      display("Hint:", "This package requires some external dependencies.",
-              Warning, HighPriority)
-      display("Hint:", "To install them you may be able to run:",
-              Warning, HighPriority)
-      for i in 0..<pkgInfo.foreignDeps.len:
-        display("Hint:", "  " & pkgInfo.foreignDeps[i], Warning, HighPriority)
+      runVNext(options)
+    else:
+      let (_, pkgInfo) = install(options.action.packages, options,
+                                doPrompt = true,
+                                first = true,
+                                fromLockFile = false)
+      if options.action.packages.len == 0:
+        nimScriptHint(pkgInfo)
+      if pkgInfo.foreignDeps.len > 0:
+        display("Hint:", "This package requires some external dependencies.",
+                Warning, HighPriority)
+        display("Hint:", "To install them you may be able to run:",
+                Warning, HighPriority)
+        for i in 0..<pkgInfo.foreignDeps.len:
+          display("Hint:", "  " & pkgInfo.foreignDeps[i], Warning, HighPriority)
   of actionUninstall:
     uninstall(options)
   of actionSearch:
@@ -2512,7 +2519,10 @@ proc doAction(options: var Options) =
   of actionPath:
     listPaths(options)
   of actionBuild:
-    build(options)
+    if options.isVNext:
+      runVNext(options)
+    else:
+      build(options)
   of actionClean:
     clean(options)
   of actionRun:
