@@ -17,7 +17,7 @@ Steps:
 import std/[sequtils, sets, options, os, strutils, tables, strformat]
 import nimblesat, packageinfotypes, options, version, declarativeparser, packageinfo, common,
   nimenv, lockfile, cli, downloadnim, packageparser, tools, nimscriptexecutor, packagemetadatafile,
-  displaymessages
+  displaymessages, packageinstaller
 
 type 
     
@@ -175,7 +175,6 @@ proc installFromDirDownloadInfo(dl: PackageDownloadInfo, options: Options): Pack
   #   pkgInfo.metaData.vcsRevision = vcsRevision
 
   let realDir = pkgInfo.getRealDir()
-  # let binDir = options.getBinDir()
   var depsOptions = options
   depsOptions.depsOnly = false
 
@@ -229,36 +228,6 @@ proc installFromDirDownloadInfo(dl: PackageDownloadInfo, options: Options): Pack
                           pkgInfo.myPath)
     filesInstalled.incl copyFileD(pkgInfo.myPath, dest)
 
-    #TODO Binary handling
-    # var binariesInstalled: HashSet[string]
-    # if pkgInfo.bin.len > 0 and not pkgInfo.basicInfo.name.isNim:
-    #   # Make sure ~/.nimble/bin directory is created.
-    #   createDir(binDir)
-    #   # Set file permissions to +x for all binaries built,
-    #   # and symlink them on *nix OS' to $nimbleDir/bin/
-    #   for bin, src in pkgInfo.bin:
-    #     let binDest =
-    #       # Issue #308
-    #       if dirExists(pkgDestDir / bin):
-    #         bin & ".out"
-    #       else: bin
-
-    #     if fileExists(pkgDestDir / binDest):
-    #       display("Warning:", ("Binary '$1' was already installed from source" &
-    #                           " directory. Will be overwritten.") % bin, Warning,
-    #               MediumPriority)
-
-    #     # Copy the binary file.
-    #     createDir((pkgDestDir / binDest).parentDir())
-    #     filesInstalled.incl copyFileD(pkgInfo.getOutputDir(bin),
-    #                                   pkgDestDir / binDest)
-
-    #     # Set up a symlink.
-    #     let symlinkDest = pkgDestDir / binDest
-    #     let symlinkFilename = options.getBinDir() / bin.extractFilename
-    #     binariesInstalled.incl(
-    #       setupBinSymlink(symlinkDest, symlinkFilename, options))
-
     # Update package path to point to installed directory rather than the temp
     # directory.
     pkgInfo.myPath = dest
@@ -280,7 +249,7 @@ proc installFromDirDownloadInfo(dl: PackageDownloadInfo, options: Options): Pack
 
   pkgInfo
 
-proc getSolvedPkg(satResult: SATResult, pkgInfo: PackageInfo): SolvedPackage =
+proc getSolvedPkg*(satResult: SATResult, pkgInfo: PackageInfo): SolvedPackage =
   for solvedPkg in satResult.solvedPkgs:
     if solvedPkg.pkgName == pkgInfo.basicInfo.name and solvedPkg.version == pkgInfo.basicInfo.version:
       return solvedPkg
@@ -311,6 +280,7 @@ proc getPathsToBuildFor(satResult: SATResult, pkgInfo: PackageInfo, options: Opt
   for depInfo in getDepsPkgInfo(satResult, pkgInfo):
     for path in depInfo.expandPaths(options):
       result.incl(path)
+  result.incl(pkgInfo.expandPaths(options))
 
 proc getNimBin(satResult: SATResult): string =
   for pkg in satResult.pkgs:
@@ -416,12 +386,59 @@ proc buildFromDir(pkgInfo: PackageInfo, paths: HashSet[string],
   cd pkgDir: # Make sure `execHook` executes the correct .nimble file.
     discard execHook(options, actionBuild, false)
 
+proc createBinSymlink(pkgInfo: PackageInfo, options: Options) =
+  var binariesInstalled: HashSet[string]
+  let binDir = options.getBinDir()
+  let pkgDestDir = pkgInfo.getPkgDest(options)
+  if pkgInfo.bin.len > 0 and not pkgInfo.basicInfo.name.isNim:
+    # Make sure ~/.nimble/bin directory is created.
+    createDir(binDir)
+    # Set file permissions to +x for all binaries built,
+    # and symlink them on *nix OS' to $nimbleDir/bin/
+    for bin, src in pkgInfo.bin:
+      let binDest =
+        # Issue #308
+        if dirExists(pkgDestDir / bin):
+          bin & ".out"
+        else: bin
+
+      if fileExists(pkgDestDir / binDest):
+        display("Warning:", ("Binary '$1' was already installed from source" &
+                            " directory. Will be overwritten.") % bin, Warning,
+                MediumPriority)
+
+      # Copy the binary file.
+      createDir((pkgDestDir / binDest).parentDir())
+      var filesInstalled: HashSet[string]
+      filesInstalled.incl copyFileD(pkgInfo.getOutputDir(bin),
+                                    pkgDestDir / binDest)
+
+      # Set up a symlink.
+      let symlinkDest = pkgDestDir / binDest
+      let symlinkFilename = options.getBinDir() / bin.extractFilename
+      binariesInstalled.incl(
+        setupBinSymlink(symlinkDest, symlinkFilename, options))
+
+
 proc solutionToFullInfo*(satResult: SATResult, options: Options) =
   for pkg in satResult.pkgs:
     if pkg.infoKind != pikFull:   
       satResult.pkgs.incl(getPkgInfo(pkg.getNimbleFileDir, options))
   if satResult.rootPackage.infoKind != pikFull:
     satResult.rootPackage = getPkgInfo(satResult.rootPackage.getNimbleFileDir, options)
+
+proc buildPkg(pkgToBuild: PackageInfo, options: Options) =
+  let paths = getPathsToBuildFor(options.satResult, pkgToBuild, options)
+  let flags = if options.action.typ in {actionInstall, actionPath, actionUninstall, actionDevelop}:
+                options.action.passNimFlags
+              else:
+                @[]
+  buildFromDir(pkgToBuild, paths, "-d:release" & flags, options)
+  #Should we create symlinks for the root package? Before behavior was to dont create them
+  #In general for nim we should not create them if we are not in the local mode
+  #But if we are installing only nim (i.e nim is root) we should create them which will
+  #convert nimble a choosenim replacement
+  createBinSymlink(pkgToBuild, options)
 
 proc installPkgs*(satResult: var SATResult, options: Options) =
   let isInRootDir = satResult.rootPackage.myPath.parentDir == getCurrentDir()
@@ -454,18 +471,9 @@ proc installPkgs*(satResult: var SATResult, options: Options) =
     satResult.pkgs.incl(pkgInfo)
     installedPkgs.incl(pkgInfo)
 
- 
-  for pkgToBuild in installedPkgs:
-    let paths = getPathsToBuildFor(satResult, pkgToBuild, options)
-    let flags = if options.action.typ in {actionInstall, actionPath, actionUninstall, actionDevelop}:
-                  options.action.passNimFlags
-                else:
-                  @[]
-    buildFromDir(pkgToBuild, paths, "-d:release" & flags, options)
 
-    #TODO build package
-    #Build binaries
-  echo "End building"
+  for pkgToBuild in installedPkgs:
+    buildPkg(pkgToBuild, options)
 
   satResult.installedPkgs = installedPkgs.toSeq()
   if isInRootDir:
