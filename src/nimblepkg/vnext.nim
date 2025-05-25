@@ -276,10 +276,13 @@ proc expandPaths*(pkgInfo: PackageInfo, options: Options): seq[string] =
     if path.isSubdirOf(baseDir):
       result.add path
 
-proc getPathsToBuildFor(satResult: SATResult, pkgInfo: PackageInfo, options: Options): HashSet[string] =
+proc getPathsToBuildFor*(satResult: SATResult, pkgInfo: PackageInfo, recursive: bool, options: Options): HashSet[string] =
   for depInfo in getDepsPkgInfo(satResult, pkgInfo):
     for path in depInfo.expandPaths(options):
       result.incl(path)
+    if recursive:
+      for path in satResult.getPathsToBuildFor(depInfo, recursive = true, options):
+        result.incl(path)
   result.incl(pkgInfo.expandPaths(options))
 
 proc getNimBin(satResult: SATResult): string =
@@ -426,8 +429,11 @@ proc solutionToFullInfo*(satResult: SATResult, options: Options) =
   if satResult.rootPackage.infoKind != pikFull:
     satResult.rootPackage = getPkgInfo(satResult.rootPackage.getNimbleFileDir, options)
 
-proc buildPkg(pkgToBuild: PackageInfo, isRootInRootDir: bool, options: Options) =
-  let paths = getPathsToBuildFor(options.satResult, pkgToBuild, options)
+proc isRoot(pkgInfo: PackageInfo, satResult: SATResult): bool =
+  pkgInfo.basicInfo.name == satResult.rootPackage.basicInfo.name and pkgInfo.basicInfo.version == satResult.rootPackage.basicInfo.version
+
+proc buildPkg(pkgToBuild: PackageInfo, rootDir: bool, options: Options) =
+  let paths = getPathsToBuildFor(options.satResult, pkgToBuild, recursive = false, options)
   let flags = if options.action.typ in {actionInstall, actionPath, actionUninstall, actionDevelop}:
                 options.action.passNimFlags
               else:
@@ -437,7 +443,8 @@ proc buildPkg(pkgToBuild: PackageInfo, isRootInRootDir: bool, options: Options) 
   #In general for nim we should not create them if we are not in the local mode
   #But if we are installing only nim (i.e nim is root) we should create them which will
   #convert nimble a choosenim replacement
-  if not isRootInRootDir: #Dont create symlinks for the root package
+  let isRootInRootDir = pkgToBuild.isRoot(options.satResult) and rootDir
+  if not isRootInRootDir : #Dont create symlinks for the root package
     createBinSymlink(pkgToBuild, options)
 
 proc installPkgs*(satResult: var SATResult, isInRootDir: bool, options: Options) =
@@ -453,7 +460,9 @@ proc installPkgs*(satResult: var SATResult, isInRootDir: bool, options: Options)
   
   var installedPkgs = @[satResult.rootPackage].toHashSet()
   for (name, ver) in pkgsToInstall:
-    # echo "Installing package: ", name, " ", ver
+    if isInRootDir and name == satResult.rootPackage.basicInfo.name:
+      continue
+    echo "Installing package: ", name, " ", ver
     let pv = (name: name, ver: ver.toVersionRange())
     let dlInfo = getPackageDownloadInfo(pv, options)
     if not dirExists(dlInfo.downloadDir):
@@ -470,11 +479,12 @@ proc installPkgs*(satResult: var SATResult, isInRootDir: bool, options: Options)
     satResult.pkgs.incl(pkgInfo)
     installedPkgs.incl(pkgInfo)
 
-
   for pkgToBuild in installedPkgs:
     echo "Building package: ", pkgToBuild.basicInfo.name
-    let isRoot = pkgToBuild.basicInfo.name == satResult.rootPackage.basicInfo.name and isInRootDir
-    buildPkg(pkgToBuild, isRoot, options)
+    let isRoot = pkgToBuild.isRoot(options.satResult) and isInRootDir
+    if options.action.typ in { actionInstall, actionBuild }:
+      #Only build root for install and build actions. ie. setup should not build root
+      buildPkg(pkgToBuild, isRoot, options)
 
   satResult.installedPkgs = installedPkgs.toSeq()
   if isInRootDir:
