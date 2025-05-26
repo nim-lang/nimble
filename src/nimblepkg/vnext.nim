@@ -339,7 +339,7 @@ proc buildFromDir(pkgInfo: PackageInfo, paths: HashSet[string],
   for featureStr in getGloballyActiveFeatures():
     args.add &"-d:{featureStr}"
 
-  let binToBuild = #THIS MAY NOT BE LONGER CORRECT FOR VNEXT
+  let binToBuild =
     # Only build binaries specified by user if any, but only if top-level package,
     # dependencies should have every binary built.
     if options.isInstallingTopLevel(pkgInfo.myPath.parentDir()):
@@ -423,10 +423,10 @@ proc createBinSymlink(pkgInfo: PackageInfo, options: Options) =
         setupBinSymlink(symlinkDest, symlinkFilename, options))
 
 proc solutionToFullInfo*(satResult: SATResult, options: Options) =
-  for pkg in satResult.pkgs:
-    if pkg.infoKind != pikFull:   
-      satResult.pkgs.incl(getPkgInfo(pkg.getNimbleFileDir, options))
-  if satResult.rootPackage.infoKind != pikFull:
+  # for pkg in satResult.pkgs:
+  #   if pkg.infoKind != pikFull:   
+  #     satResult.pkgs.incl(getPkgInfo(pkg.getNimbleFileDir, options))
+  if satResult.rootPackage.infoKind != pikFull: #Likely only needed for the root package
     satResult.rootPackage = getPkgInfo(satResult.rootPackage.getNimbleFileDir, options)
 
 proc isRoot(pkgInfo: PackageInfo, satResult: SATResult): bool =
@@ -451,7 +451,7 @@ proc installPkgs*(satResult: var SATResult, isInRootDir: bool, options: Options)
   #At this point the packages are already downloaded. 
   #We still need to install them aka copy them from the cache to the nimbleDir + run preInstall and postInstall scripts
   #preInstall hook is always executed for the current directory
-  if isInRootDir:
+  if isInRootDir and options.action.typ == actionInstall:
     executeHook(getCurrentDir(), options, actionInstall, before = true) #likely incorrect if we are not in a nimble dir
   var pkgsToInstall = satResult.pkgsToInstall
    #If we are not in the root folder, means user is installing a package globally so we need to install root
@@ -479,14 +479,14 @@ proc installPkgs*(satResult: var SATResult, isInRootDir: bool, options: Options)
     satResult.pkgs.incl(pkgInfo)
     installedPkgs.incl(pkgInfo)
 
+  let buildActions = { actionInstall, actionBuild, actionRun }
   for pkgToBuild in installedPkgs:
     echo "Building package: ", pkgToBuild.basicInfo.name
     let isRoot = pkgToBuild.isRoot(options.satResult) and isInRootDir
-    if options.action.typ in { actionInstall, actionBuild }:
-      #Only build root for install and build actions. ie. setup should not build root
+    if options.action.typ in buildActions:
       buildPkg(pkgToBuild, isRoot, options)
 
   satResult.installedPkgs = installedPkgs.toSeq()
-  if isInRootDir:
+  if isInRootDir and options.action.typ == actionInstall:
     #postInstall hook is always executed for the current directory
     executeHook(getCurrentDir(), options, actionInstall, before = false)
