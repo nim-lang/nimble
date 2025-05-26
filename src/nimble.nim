@@ -2471,11 +2471,10 @@ proc solvePkgs(rootPackage: PackageInfo, options: var Options) =
   
   options.satResult.nimResolved = resolvedNim #TODO maybe we should consider the sat fallback pass. Not sure if we should just warn the user so the packages are corrected
   options.satResult.pkgs.incl(resolvedNim.pkg.get) #Make sure its in the solution
-  # echo "Solved packages: ", options.satResult.solvedPkgs.mapIt(it.pkgName)
-  # echo "Packages to install: ", options.satResult.pkgsToInstall
-  # echo "Packages: ", options.satResult.pkgs.mapIt(it.basicInfo.name)
+  echo "Solved packages: ", options.satResult.solvedPkgs.mapIt(it.pkgName)
+  echo "Packages to install: ", options.satResult.pkgsToInstall
+  echo "Packages: ", options.satResult.pkgs.mapIt(it.basicInfo.name)
   options.satResult.pass = satDone 
-  options.satResult.solutionToFullInfo(options)
 
 proc runVNext(options: var Options) =
   #Install and in consequence builds the packages
@@ -2494,6 +2493,7 @@ proc runVNext(options: var Options) =
       var rootPackage = downloadPkInfoForPv(pkg, options)
       solvePkgs(rootPackage, options)
   echo "Installing packages"
+  options.satResult.solutionToFullInfo(options)
   options.satResult.installPkgs(isInRootDir = thereIsNimbleFile, options)
   echo "Installed packages"
 

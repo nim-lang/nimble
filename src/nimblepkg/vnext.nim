@@ -35,10 +35,14 @@ proc getNimFromSystem*(options: Options): Option[PackageInfo] =
 proc enableFeatures*(rootPackage: var PackageInfo, options: var Options) =
   for feature in options.features:
     if feature in rootPackage.features:
-      echo "Enabling feature ", feature
       rootPackage.requires &= rootPackage.features[feature]
   for pkgName, activeFeatures in rootPackage.activeFeatures:
     appendGloballyActiveFeatures(pkgName[0], activeFeatures)
+  
+  #If root is a development package, we need to activate it as well:
+  if rootPackage.isDevelopment(options) and "dev" in rootPackage.features:
+    rootPackage.requires &= rootPackage.features["dev"]
+    appendGloballyActiveFeatures(rootPackage.basicInfo.name, @["dev"])
 
 proc resolveNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo], options: var Options): NimResolved =
   #TODO if we are able to resolve the packages in one go, we should not re-run the solver in the next step.
@@ -428,18 +432,26 @@ proc createBinSymlink(pkgInfo: PackageInfo, options: Options) =
       binariesInstalled.incl(
         setupBinSymlink(symlinkDest, symlinkFilename, options))
 
-proc solutionToFullInfo*(satResult: SATResult, options: Options) =
+proc solutionToFullInfo*(satResult: SATResult, options: var Options) =
   # for pkg in satResult.pkgs:
   #   if pkg.infoKind != pikFull:   
   #     satResult.pkgs.incl(getPkgInfo(pkg.getNimbleFileDir, options))
   if satResult.rootPackage.infoKind != pikFull: #Likely only needed for the root package
     satResult.rootPackage = getPkgInfo(satResult.rootPackage.getNimbleFileDir, options)
+    #getPkgInfo should retrieve the features as well? what happens if we fail to parse requires with the declarative parser when the package was already with the full requires?
+    #we could just compare the requires and fail here. After all, its the root package the one that can be problematic in this case and features was never intended 
+    #to work with the vm parser anyways (as in incentive for transitioning)
+    satResult.rootPackage = satResult.rootPackage.toRequiresInfo(options) 
+    satResult.rootPackage.enableFeatures(options)
 
 proc isRoot(pkgInfo: PackageInfo, satResult: SATResult): bool =
   pkgInfo.basicInfo.name == satResult.rootPackage.basicInfo.name and pkgInfo.basicInfo.version == satResult.rootPackage.basicInfo.version
 
 proc buildPkg(pkgToBuild: PackageInfo, rootDir: bool, options: Options) =
   let paths = getPathsToBuildFor(options.satResult, pkgToBuild, recursive = true, options)
+  # echo "Paths ", paths
+  # echo "Requires ", pkgToBuild.requires
+  # echo "Package ", pkgToBuild.basicInfo.name
   let flags = if options.action.typ in {actionInstall, actionPath, actionUninstall, actionDevelop}:
                 options.action.passNimFlags
               else:
