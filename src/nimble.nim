@@ -2483,6 +2483,7 @@ proc runVNext(options: var Options) =
   if thereIsNimbleFile:
     options.satResult = initSATResult(satNimSelection)
     var rootPackage = getPkgInfoFromDirWithDeclarativeParser(getCurrentDir(), options)
+    rootPackage.enableFeatures(options)
     if options.action.typ == actionInstall:
       rootPackage.requires.add(options.action.packages)
     solvePkgs(rootPackage, options)

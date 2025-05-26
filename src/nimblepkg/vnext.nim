@@ -32,6 +32,14 @@ proc getNimFromSystem*(options: Options): Option[PackageInfo] =
     return some getPkgInfoFromDirWithDeclarativeParser(dir, options)
   return none(PackageInfo)
 
+proc enableFeatures*(rootPackage: var PackageInfo, options: var Options) =
+  for feature in options.features:
+    if feature in rootPackage.features:
+      echo "Enabling feature ", feature
+      rootPackage.requires &= rootPackage.features[feature]
+  for pkgName, activeFeatures in rootPackage.activeFeatures:
+    appendGloballyActiveFeatures(pkgName[0], activeFeatures)
+
 proc resolveNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo], options: var Options): NimResolved =
   #TODO if we are able to resolve the packages in one go, we should not re-run the solver in the next step.
   #TODO Introduce the concept of bootstrap nimble where we detect a failure in the declarative parser and fallback to a concrete nim version to re-run the nim selection with the vm parser
@@ -60,7 +68,8 @@ proc resolveNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo], options: v
       for name, dep in lockFile.getLockedDependencies.lockedDepsFor(options):
         if name.isNim:
           return NimResolved(version: dep.version)
-    
+  
+  var rootPackage = rootPackage
   options.satResult.pkgs = solvePackages(rootPackage, pkgListDecl, options.satResult.pkgsToInstall, options, options.satResult.output, options.satResult.solvedPkgs)
   if options.satResult.solvedPkgs.len == 0:
     displayError(options.satResult.output)
@@ -140,7 +149,6 @@ proc solvePkgsWithVmParserAllowingFallback*(rootPackage: PackageInfo, resolvedNi
     .mapIt(it.toRequiresInfo(options))
   pkgList.add(resolvedNim.pkg.get)
   options.satResult.pkgList = pkgList.toHashSet()
-
   options.satResult.pkgs = solvePackages(rootPackage, pkgList, options.satResult.pkgsToInstall, options, options.satResult.output, options.satResult.solvedPkgs)
   if options.satResult.solvedPkgs.len == 0:
     displayError(options.satResult.output)
@@ -251,16 +259,16 @@ proc getSolvedPkg*(satResult: SATResult, pkgInfo: PackageInfo): SolvedPackage =
       return solvedPkg
   raise newNimbleError[NimbleError]("Package not found in solution: " & $pkgInfo.basicInfo.name & " " & $pkgInfo.basicInfo.version)
 
-proc getPkgInfoFromSolution(satResult: SATResult, pv: PkgTuple): PackageInfo =
+proc getPkgInfoFromSolution(satResult: SATResult, pv: PkgTuple, options: Options): PackageInfo =
   for pkg in satResult.pkgs:
-    if pkg.basicInfo.name == pv.name and pkg.basicInfo.version.withinRange(pv.ver):
+    if pkg.basicInfo.name == pv.resolveAlias(options).name and pkg.basicInfo.version.withinRange(pv.ver):
       return pkg
   raise newNimbleError[NimbleError]("Package not found in solution: " & $pv)
 
 #We could cache this info in the satResult (if called multiple times down the road)
-proc getDepsPkgInfo(satResult: SATResult, pkgInfo: PackageInfo): seq[PackageInfo] = 
+proc getDepsPkgInfo(satResult: SATResult, pkgInfo: PackageInfo, options: Options): seq[PackageInfo] = 
   for solvedPkg in pkgInfo.requires:
-    let depInfo = getPkgInfoFromSolution(satResult, solvedPkg)
+    let depInfo = getPkgInfoFromSolution(satResult, solvedPkg, options)
     result.add(depInfo)
 
 proc expandPaths*(pkgInfo: PackageInfo, options: Options): seq[string] =
@@ -273,7 +281,7 @@ proc expandPaths*(pkgInfo: PackageInfo, options: Options): seq[string] =
       result.add path
 
 proc getPathsToBuildFor*(satResult: SATResult, pkgInfo: PackageInfo, recursive: bool, options: Options): HashSet[string] =
-  for depInfo in getDepsPkgInfo(satResult, pkgInfo):
+  for depInfo in getDepsPkgInfo(satResult, pkgInfo, options):
     for path in depInfo.expandPaths(options):
       result.incl(path)
     if recursive:
