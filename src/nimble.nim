@@ -2422,7 +2422,7 @@ proc run(options: Options) =
   else:
     pkgInfo = getPkgInfo(getCurrentDir(), options)
     pkgInfo = getPackageForAction(pkgInfo, options)
-    if pkgInfo.isLink: #TODO review this code path for vnext
+    if pkgInfo.isLink: #TODO review this code path for vnext. isLink is related to develop mode
       # If this is not installed package then build the binary.
       pkgInfo.build(options)
     elif options.getCompilationFlags.len > 0:
@@ -2456,6 +2456,7 @@ proc solvePkgs(rootPackage: PackageInfo, options: var Options) =
   let pkgList = getInstalledPkgsMin(options.getPkgsDir(), options)
   echo "Solving nim..."
   let resolvedNim = resolveAndConfigureNim(options.satResult.rootPackage, pkgList, options)
+  setNimBin(resolvedNim.pkg.get, options)
   echo "Resolved nim"
   if options.satResult.declarativeParseFailed:
     displayWarning("Declarative parser failed. Will rerun SAT with the VM parser. Please fix your nimble file.")
@@ -2467,11 +2468,12 @@ proc solvePkgs(rootPackage: PackageInfo, options: var Options) =
     options.satResult.rootPackage = rootPackage
     solvePkgsWithVmParserAllowingFallback(options.satResult.rootPackage, resolvedNim, pkgList, options)
   
+  options.satResult.nimResolved = resolvedNim #TODO maybe we should consider the sat fallback pass. Not sure if we should just warn the user so the packages are corrected
+  options.satResult.pkgs.incl(resolvedNim.pkg.get) #Make sure its in the solution
   # echo "Solved packages: ", options.satResult.solvedPkgs.mapIt(it.pkgName)
   # echo "Packages to install: ", options.satResult.pkgsToInstall
   # echo "Packages: ", options.satResult.pkgs.mapIt(it.basicInfo.name)
   options.satResult.pass = satDone 
-  echo "SAT DONE"
   options.satResult.solutionToFullInfo(options)
 
 proc runVNext(options: var Options) =

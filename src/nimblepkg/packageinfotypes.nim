@@ -109,6 +109,10 @@ type
     satFallbackToVmParser #A package that has a control flow require was found.
     satDone
 
+  NimResolved* = object
+    pkg*: Option[PackageInfo] #when none, we need to install it
+    version*: Version
+
   SATResult* = ref object
     rootPackage*: PackageInfo 
     pkgsToInstall*: seq[(string, Version)] #Packages to install
@@ -120,6 +124,7 @@ type
     installedPkgs*: seq[PackageInfo] #Packages installed in the current pass
     declarativeParseFailed*: bool
     declarativeParserErrorLines*: seq[string]
+    nimResolved*: NimResolved
 
 proc isMinimal*(pkg: PackageInfo): bool =
   pkg.infoKind == pikMinimal

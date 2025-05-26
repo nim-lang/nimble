@@ -19,12 +19,6 @@ import nimblesat, packageinfotypes, options, version, declarativeparser, package
   nimenv, lockfile, cli, downloadnim, packageparser, tools, nimscriptexecutor, packagemetadatafile,
   displaymessages, packageinstaller
 
-type 
-    
-  NimResolved* = object
-    pkg: Option[PackageInfo] #when none, we need to install it
-    version: Version
-
 proc getNimFromSystem*(options: Options): Option[PackageInfo] =
   # --nim:<path> takes priority over system nim but its only forced if we also specify useSystemNim
   # Just filename, search in PATH - nim_temp shortcut
@@ -88,11 +82,11 @@ proc resolveNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo], options: v
     if bestNim.isSome:
       return NimResolved(pkg: some(bestNim.get), version: bestNim.get.basicInfo.version)
 
-    # echo "SAT result ", result.satResult.pkgs.mapIt(it.basicInfo.name)
-    # echo "SolvedPkgs ", result.satResult.solvedPkgs
-    # echo "PkgsToInstall ", result.satResult.pkgsToInstall
-    # echo "Root package ", rootPackage.basicInfo, " requires ", rootPackage.requires
-    # echo "PkglistDecl ", pkgListDecl.mapIt(it.basicInfo.name & " " & $it.basicInfo.version)
+    echo "SAT result ", options.satResult.pkgs.mapIt(it.basicInfo.name)
+    echo "SolvedPkgs ", options.satResult.solvedPkgs
+    echo "PkgsToInstall ", options.satResult.pkgsToInstall
+    echo "Root package ", rootPackage.basicInfo, " requires ", rootPackage.requires
+    echo "PkglistDecl ", pkgListDecl.mapIt(it.basicInfo.name & " " & $it.basicInfo.version)
     echo options.satResult.output
     # echo ""
     #TODO if we ever reach this point, we should just download the latest nim release
@@ -111,7 +105,7 @@ proc resolveNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo], options: v
   result.pkg = some(nims[0])
   result.version = nims[0].basicInfo.version
 
-proc setNimBin(pkgInfo: PackageInfo, options: var Options) =
+proc setNimBin*(pkgInfo: PackageInfo, options: var Options) =
   assert pkgInfo.basicInfo.name.isNim
   if options.nimBin.isSome and options.nimBin.get.path == pkgInfo.getRealDir / "bin" / "nim":
     return #We dont want to set the same Nim twice. Notice, this can only happen when installing multiple packages outside of the project dir i.e nimble install pkg1 pkg2
@@ -132,7 +126,9 @@ proc resolveAndConfigureNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo]
     else:
       raise nimbleError("Failed to install nim")
 
-  resolvedNim.pkg.get.setNimBin(options)
+  # resolvedNim.pkg.get.setNimBin(options)
+  echo "Resolved nim ", resolvedNim.pkg.get.basicInfo.name, " ", resolvedNim.pkg.get.basicInfo.version
+
   return resolvedNim
 
 proc solvePkgsWithVmParserAllowingFallback*(rootPackage: PackageInfo, resolvedNim: NimResolved, pkgList: seq[PackageInfo], options: var Options)=
@@ -286,13 +282,15 @@ proc getPathsToBuildFor*(satResult: SATResult, pkgInfo: PackageInfo, recursive: 
   result.incl(pkgInfo.expandPaths(options))
 
 proc getNimBin(satResult: SATResult): string =
-  for pkg in satResult.pkgs:
-    if pkg.basicInfo.name.isNim:
-      var binaryPath = "bin" / "nim"
-      when defined(windows):
-        binaryPath &= ".exe" 
-      return pkg.getNimbleFileDir() / binaryPath
-  raise newNimbleError[NimbleError]("No Nim found")
+  #TODO change this so nim is passed as a parameter but we also need to change getPkgInfo so for the time being its also in options
+  if satResult.nimResolved.pkg.isSome:
+    let nimPkgInfo = satResult.nimResolved.pkg.get
+    var binaryPath = "bin" / "nim"
+    when defined(windows):
+      binaryPath &= ".exe" 
+    return nimPkgInfo.getNimbleFileDir() / binaryPath
+  else:
+    raise newNimbleError[NimbleError]("No Nim found")
 
 proc buildFromDir(pkgInfo: PackageInfo, paths: HashSet[string],
                   args: seq[string], options: Options) =
@@ -433,7 +431,7 @@ proc isRoot(pkgInfo: PackageInfo, satResult: SATResult): bool =
   pkgInfo.basicInfo.name == satResult.rootPackage.basicInfo.name and pkgInfo.basicInfo.version == satResult.rootPackage.basicInfo.version
 
 proc buildPkg(pkgToBuild: PackageInfo, rootDir: bool, options: Options) =
-  let paths = getPathsToBuildFor(options.satResult, pkgToBuild, recursive = false, options)
+  let paths = getPathsToBuildFor(options.satResult, pkgToBuild, recursive = true, options)
   let flags = if options.action.typ in {actionInstall, actionPath, actionUninstall, actionDevelop}:
                 options.action.passNimFlags
               else:
@@ -481,6 +479,9 @@ proc installPkgs*(satResult: var SATResult, isInRootDir: bool, options: Options)
 
   let buildActions = { actionInstall, actionBuild, actionRun }
   for pkgToBuild in installedPkgs:
+    if pkgToBuild.bin.len == 0:
+      continue
+
     echo "Building package: ", pkgToBuild.basicInfo.name
     let isRoot = pkgToBuild.isRoot(options.satResult) and isInRootDir
     if options.action.typ in buildActions:
