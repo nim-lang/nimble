@@ -2422,11 +2422,6 @@ proc run(options: Options) =
   else:
     pkgInfo = getPkgInfo(getCurrentDir(), options)
     pkgInfo = getPackageForAction(pkgInfo, options)
-    if pkgInfo.isLink: #TODO review this code path for vnext. isLink is related to develop mode
-      # If this is not installed package then build the binary.
-      pkgInfo.build(options)
-    elif options.getCompilationFlags.len > 0:
-      displayWarning(ignoringCompilationFlagsMsg)
 
   let binary = options.getCompilationBinary(pkgInfo).get("")
   if binary.len == 0:
@@ -2435,6 +2430,12 @@ proc run(options: Options) =
   if binary notin pkgInfo.bin:
     raise nimbleError(binaryNotDefinedInPkgMsg(binary, pkgInfo.basicInfo.name))
 
+  if not options.isVNext:
+    if pkgInfo.isLink: #TODO review this code path for vnext. isLink is related to develop mode
+      # If this is not installed package then build the binary.
+      pkgInfo.build(options)
+    elif options.getCompilationFlags.len > 0:
+      displayWarning(ignoringCompilationFlagsMsg)
 
   let binaryPath = pkgInfo.getOutputDir(binary)
   let cmd = quoteShellCommand(binaryPath & options.action.runFlags)
