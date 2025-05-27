@@ -302,6 +302,11 @@ proc getPathsToBuildFor*(satResult: SATResult, pkgInfo: PackageInfo, recursive: 
         result.incl(path)
   result.incl(pkgInfo.expandPaths(options))
 
+proc getPathsAllPkgs*(satResult: SATResult, options: Options): HashSet[string] =
+  for pkg in satResult.pkgs:
+    for path in pkg.expandPaths(options):
+      result.incl(path)
+
 proc getNimBin(satResult: SATResult): string =
   #TODO change this so nim is passed as a parameter but we also need to change getPkgInfo so for the time being its also in options
   if satResult.nimResolved.pkg.isSome:

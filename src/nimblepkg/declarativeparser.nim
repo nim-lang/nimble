@@ -391,7 +391,10 @@ proc toRequiresInfo*(pkgInfo: PackageInfo, options: Options, nimbleFileInfo: Opt
   let forceDeclarativeOnly = options.satResult.pass == satNimSelection
   if pkgInfo.myPath.splitFile.ext == ".babel":
     if forceDeclarativeOnly: #TODO mark the pass as failed via declarativeParseFailed and continue
-      raise newNimbleError[NimbleError]("Package " & pkgInfo.basicInfo.name & " is a babel package, skipping declarative parser")
+      let error = "Package " & pkgInfo.basicInfo.name & " is a babel package, skipping declarative parser"
+      options.satResult.declarativeParseFailed = true
+      options.satResult.declarativeParserErrorLines = @[error]
+      return result
     else:
       displayWarning &"Package {pkgInfo.basicInfo.name} is a babel package, skipping declarative parser", priority = HighPriority
       return pkgInfo.toFullInfo(options)

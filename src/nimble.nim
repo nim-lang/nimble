@@ -1711,7 +1711,7 @@ proc updatePathsFile(pkgInfo: PackageInfo, options: Options) =
     if options.isVNext: 
       #TODO improve this (or better the alternative, getDependenciesPaths, so it returns the same type)
       var pathsPaths = initHashSet[seq[string]]()
-      for path in options.satResult.getPathsToBuildFor(pkgInfo, recursive = true, options):
+      for path in options.satResult.getPathsAllPkgs(options):
           pathsPaths.incl @[path]
       pathsPaths
     else:
