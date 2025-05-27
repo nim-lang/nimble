@@ -650,6 +650,7 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
   of "parser":
     if val == "declarative":
       result.useDeclarativeParser = true
+      result.useVNext = true
     elif val == "nimvm":
       result.useDeclarativeParser = false
     else:
