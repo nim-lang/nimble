@@ -2466,7 +2466,8 @@ proc solvePkgs(rootPackage: PackageInfo, options: var Options) =
       displayWarning(line)
     options.satResult = initSATResult(satFallbackToVmParser)
     options.satResult.rootPackage = rootPackage
-    options.satResult.rootPackage.enableFeatures(options)
+    options.satResult.rootPackage = getPkgInfo(options.satResult.rootPackage.getNimbleFileDir, options).toRequiresInfo(options)
+    options.satResult.rootPackage.enableFeatures(options) 
     #Declarative parser failed. So we need to rerun the solver but this time, we allow the parser
     #to fallback to the vm parser
     solvePkgsWithVmParserAllowingFallback(options.satResult.rootPackage, resolvedNim, pkgList, options)
@@ -2476,6 +2477,7 @@ proc solvePkgs(rootPackage: PackageInfo, options: var Options) =
   echo "Solved packages: ", options.satResult.solvedPkgs.mapIt(it.pkgName)
   echo "Packages to install: ", options.satResult.pkgsToInstall
   echo "Packages: ", options.satResult.pkgs.mapIt(it.basicInfo.name)
+  options.satResult.solutionToFullInfo(options)
   options.satResult.pass = satDone 
 
 proc runVNext(options: var Options) =
@@ -2494,7 +2496,6 @@ proc runVNext(options: var Options) =
       var rootPackage = downloadPkInfoForPv(pkg, options)
       solvePkgs(rootPackage, options)
   echo "Installing packages"
-  options.satResult.solutionToFullInfo(options)
   echo "Root requires ", options.satResult.rootPackage.requires
   options.satResult.installPkgs(isInRootDir = thereIsNimbleFile, options)
   echo "Installed packages"

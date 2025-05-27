@@ -446,11 +446,7 @@ proc solutionToFullInfo*(satResult: SATResult, options: var Options) =
   #   if pkg.infoKind != pikFull:   
   #     satResult.pkgs.incl(getPkgInfo(pkg.getNimbleFileDir, options))
   if satResult.rootPackage.infoKind != pikFull: #Likely only needed for the root package
-    satResult.rootPackage = getPkgInfo(satResult.rootPackage.getNimbleFileDir, options)
-    #getPkgInfo should retrieve the features as well? what happens if we fail to parse requires with the declarative parser when the package was already with the full requires?
-    #we could just compare the requires and fail here. After all, its the root package the one that can be problematic in this case and features was never intended 
-    #to work with the vm parser anyways (as in incentive for transitioning)
-    satResult.rootPackage = satResult.rootPackage.toRequiresInfo(options) 
+    satResult.rootPackage = getPkgInfo(satResult.rootPackage.getNimbleFileDir, options).toRequiresInfo(options)
     satResult.rootPackage.enableFeatures(options)
 
 proc isRoot(pkgInfo: PackageInfo, satResult: SATResult): bool =

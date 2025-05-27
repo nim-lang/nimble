@@ -409,7 +409,7 @@ proc toRequiresInfo*(pkgInfo: PackageInfo, options: Options, nimbleFileInfo: Opt
     of satNimSelection:
       options.satResult.declarativeParseFailed = true
       options.satResult.declarativeParserErrorLines = nimbleFileInfo.declarativeParserErrorLines
-    of satFallbackToVmParser, satNone:
+    of satFallbackToVmParser, satNone, satDone:
       result = getPkgInfo(result.myPath.parentDir, options)
       # echo " to fullinfo Requires: ", result.requires
       # echo readFile(pkgInfo.myPath)
@@ -417,10 +417,7 @@ proc toRequiresInfo*(pkgInfo: PackageInfo, options: Options, nimbleFileInfo: Opt
       # result.requires.add (name: "httpbeast", ver: VersionRange(kind: verAny))
       # echo "Fallback to VM parser for package: ", pkgInfo.basicInfo.name
       # echo "Requires: ", result.requires
-    else:
-      #TODO this is vnext only but we should also make vnext the default when the declarative parser 
-      raise newNimbleError[NimbleError]("Invalid sat pass: " & $options.satResult.pass)
-  
+    
 proc fillPkgBasicInfo(pkgInfo: var PackageInfo, nimbleFileInfo: NimbleFileInfo) =
   #TODO something may be missing here
   pkgInfo.basicInfo.name = nimbleFileInfo.nimbleFile.splitFile.name
