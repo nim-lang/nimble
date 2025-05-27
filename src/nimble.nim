@@ -2454,6 +2454,7 @@ proc openNimbleManual =
 
 proc solvePkgs(rootPackage: PackageInfo, options: var Options) =
   options.satResult.rootPackage = rootPackage
+  options.satResult.rootPackage.enableFeatures(options)
   let pkgList = getInstalledPkgsMin(options.getPkgsDir(), options)
   echo "Solving nim..."
   let resolvedNim = resolveAndConfigureNim(options.satResult.rootPackage, pkgList, options)
@@ -2464,9 +2465,10 @@ proc solvePkgs(rootPackage: PackageInfo, options: var Options) =
     for line in options.satResult.declarativeParserErrorLines:
       displayWarning(line)
     options.satResult = initSATResult(satFallbackToVmParser)
+    options.satResult.rootPackage = rootPackage
+    options.satResult.rootPackage.enableFeatures(options)
     #Declarative parser failed. So we need to rerun the solver but this time, we allow the parser
     #to fallback to the vm parser
-    options.satResult.rootPackage = rootPackage
     solvePkgsWithVmParserAllowingFallback(options.satResult.rootPackage, resolvedNim, pkgList, options)
   
   options.satResult.nimResolved = resolvedNim #TODO maybe we should consider the sat fallback pass. Not sure if we should just warn the user so the packages are corrected
@@ -2482,7 +2484,6 @@ proc runVNext(options: var Options) =
   if thereIsNimbleFile:
     options.satResult = initSATResult(satNimSelection)
     var rootPackage = getPkgInfoFromDirWithDeclarativeParser(getCurrentDir(), options)
-    rootPackage.enableFeatures(options)
     if options.action.typ == actionInstall:
       rootPackage.requires.add(options.action.packages)
     solvePkgs(rootPackage, options)
@@ -2494,6 +2495,7 @@ proc runVNext(options: var Options) =
       solvePkgs(rootPackage, options)
   echo "Installing packages"
   options.satResult.solutionToFullInfo(options)
+  echo "Root requires ", options.satResult.rootPackage.requires
   options.satResult.installPkgs(isInRootDir = thereIsNimbleFile, options)
   echo "Installed packages"
 

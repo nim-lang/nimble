@@ -145,8 +145,6 @@ proc resolveAndConfigureNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo]
   return resolvedNim
 
 proc solvePkgsWithVmParserAllowingFallback*(rootPackage: PackageInfo, resolvedNim: NimResolved, pkgList: seq[PackageInfo], options: var Options)=
-  var rootPackage = getPkgInfo(rootPackage.myPath.parentDir, options)
-  options.satResult.rootPackage = rootPackage
   # echo "***Root package: ", options.satResult.rootPackage.basicInfo.name, " requires: ", options.satResult.rootPackage.requires
   var pkgList = 
     pkgList
@@ -257,17 +255,28 @@ proc installFromDirDownloadInfo(dl: PackageDownloadInfo, options: Options): Pack
 
   pkgInfo
 
+proc nameMatches(pkg: PackageInfo, pv: PkgTuple, options: Options): bool =
+  pkg.basicInfo.name == pv.resolveAlias(options).name or pkg.metaData.url == pv.name
+
 proc getSolvedPkg*(satResult: SATResult, pkgInfo: PackageInfo): SolvedPackage =
   for solvedPkg in satResult.solvedPkgs:
-    if solvedPkg.pkgName == pkgInfo.basicInfo.name and solvedPkg.version == pkgInfo.basicInfo.version:
+    if pkgInfo.basicInfo.name == solvedPkg.pkgName and pkgInfo.basicInfo.version == solvedPkg.version:
       return solvedPkg
   raise newNimbleError[NimbleError]("Package not found in solution: " & $pkgInfo.basicInfo.name & " " & $pkgInfo.basicInfo.version)
 
 proc getPkgInfoFromSolution(satResult: SATResult, pv: PkgTuple, options: Options): PackageInfo =
   for pkg in satResult.pkgs:
-    if pkg.basicInfo.name == pv.resolveAlias(options).name and pkg.basicInfo.version.withinRange(pv.ver):
+    if nameMatches(pkg, pv, options) and pkg.basicInfo.version.withinRange(pv.ver):
       return pkg
   raise newNimbleError[NimbleError]("Package not found in solution: " & $pv)
+
+
+proc activateSolvedPkgFeatures*(satResult: SATResult, options: Options) =
+  for pkg in satResult.pkgs:
+    echo "Activating features for ", pkg.basicInfo.name, " ", pkg.activeFeatures
+    for pkgTuple, activeFeatures in pkg.activeFeatures:
+      let pkgWithFeature = satResult.getPkgInfoFromSolution(pkgTuple, options)
+      appendGloballyActiveFeatures(pkgWithFeature.basicInfo.name, activeFeatures)
 
 #We could cache this info in the satResult (if called multiple times down the road)
 proc getDepsPkgInfo(satResult: SATResult, pkgInfo: PackageInfo, options: Options): seq[PackageInfo] = 
@@ -493,9 +502,15 @@ proc installPkgs*(satResult: var SATResult, isInRootDir: bool, options: Options)
   
     assert dirExists(dlInfo.downloadDir)
     #TODO this needs to be improved as we are redonwloading certain packages
-    let pkgInfo = installFromDirDownloadInfo(dlInfo, options)
+    let pkgInfo = installFromDirDownloadInfo(dlInfo, options).toRequiresInfo(options)
+
     satResult.pkgs.incl(pkgInfo)
     installedPkgs.incl(pkgInfo)
+  
+  #we need to activate the features for the recently installed package
+  #so they are activated in the build step
+  options.satResult.activateSolvedPkgFeatures(options)
+
 
   let buildActions = { actionInstall, actionBuild, actionRun }
   for pkgToBuild in installedPkgs:
