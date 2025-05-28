@@ -6,11 +6,9 @@ After we resolve nim, we try to resolve the dependencies for a root package. Roo
 ]#
 
 #[
-Steps:
-  - toRequiresInfo should accept an additional argument so we can decide to dont fallback to the vm parser when the declarative parser fails.
+  - toRequiresInfo marks the pass as failed if it founds a require inside a control flow statement (or if babel is used)
   - isolate nim selection
-  - if nim cant be decided, we should stop (for now. Later on we can 1. see if there is a nim in the path. 2 See if there is a nim in the pkgklist. 3 Download latest nim release)
-  - After we have nim, we can try to resolve the dependencies (later on, only re-run the solver if we needed nim in the step above)
+   - After we have nim, we can try to resolve the dependencies (later on, only re-run the solver if we needed nim in the step above)
   - Once we have the graph solved. We can proceed with the action.
 
 ]#
@@ -95,12 +93,12 @@ proc resolveNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo], options: v
     if bestNim.isSome:
       return NimResolved(pkg: some(bestNim.get), version: bestNim.get.basicInfo.version)
 
-    echo "SAT result ", options.satResult.pkgs.mapIt(it.basicInfo.name)
-    echo "SolvedPkgs ", options.satResult.solvedPkgs
-    echo "PkgsToInstall ", options.satResult.pkgsToInstall
-    echo "Root package ", rootPackage.basicInfo, " requires ", rootPackage.requires
-    echo "PkglistDecl ", pkgListDecl.mapIt(it.basicInfo.name & " " & $it.basicInfo.version)
-    echo options.satResult.output
+    # echo "SAT result ", options.satResult.pkgs.mapIt(it.basicInfo.name)
+    # echo "SolvedPkgs ", options.satResult.solvedPkgs
+    # echo "PkgsToInstall ", options.satResult.pkgsToInstall
+    # echo "Root package ", rootPackage.basicInfo, " requires ", rootPackage.requires
+    # echo "PkglistDecl ", pkgListDecl.mapIt(it.basicInfo.name & " " & $it.basicInfo.version)
+    # echo options.satResult.output
     # echo ""
     #TODO if we ever reach this point, we should just download the latest nim release
     raise newNimbleError[NimbleError]("No Nim found") 
@@ -121,7 +119,7 @@ proc resolveNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo], options: v
 proc setNimBin*(pkgInfo: PackageInfo, options: var Options) =
   assert pkgInfo.basicInfo.name.isNim
   if options.nimBin.isSome and options.nimBin.get.path == pkgInfo.getRealDir / "bin" / "nim":
-    return #We dont want to set the same Nim twice. Notice, this can only happen when installing multiple packages outside of the project dir i.e nimble install pkg1 pkg2
+    return #We dont want to set the same Nim twice. Notice, this can only happen when installing multiple packages outside of the project dir i.e nimble install pkg1 pkg2 if voth
   options.useNimFromDir(pkgInfo.getRealDir, pkgInfo.basicInfo.version.toVersionRange())
 
 proc resolveAndConfigureNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo], options: var Options): NimResolved =
@@ -138,9 +136,6 @@ proc resolveAndConfigureNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo]
       resolvedNim.version = nimInstalled.get.ver
     else:
       raise nimbleError("Failed to install nim")
-
-  # resolvedNim.pkg.get.setNimBin(options)
-  echo "Resolved nim ", resolvedNim.pkg.get.basicInfo.name, " ", resolvedNim.pkg.get.basicInfo.version
 
   return resolvedNim
 
@@ -238,7 +233,7 @@ proc installFromDirDownloadInfo(dl: PackageDownloadInfo, options: Options): Pack
     # directory.
     pkgInfo.myPath = dest
     pkgInfo.metaData.files = filesInstalled.toSeq
-    # pkgInfo.metaData.binaries = binariesInstalled.toSeq
+    # pkgInfo.metaData.binaries = binariesInstalled.toSeq #TODO update the metadata after the build step
 
     saveMetaData(pkgInfo.metaData, pkgDestDir)
   else:

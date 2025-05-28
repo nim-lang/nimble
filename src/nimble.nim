@@ -2456,10 +2456,10 @@ proc solvePkgs(rootPackage: PackageInfo, options: var Options) =
   options.satResult.rootPackage = rootPackage
   options.satResult.rootPackage.enableFeatures(options)
   let pkgList = getInstalledPkgsMin(options.getPkgsDir(), options)
-  echo "Solving nim..."
   let resolvedNim = resolveAndConfigureNim(options.satResult.rootPackage, pkgList, options)
+  #We set nim in the options here as it is used to get the full info of the packages.
+  #Its kinda a big refactor getPkgInfo to parametrize it. At some point we will do it. 
   setNimBin(resolvedNim.pkg.get, options)
-  echo "Resolved nim"
   if options.satResult.declarativeParseFailed:
     displayWarning("Declarative parser failed. Will rerun SAT with the VM parser. Please fix your nimble file.")
     for line in options.satResult.declarativeParserErrorLines:
@@ -2471,12 +2471,12 @@ proc solvePkgs(rootPackage: PackageInfo, options: var Options) =
     #Declarative parser failed. So we need to rerun the solver but this time, we allow the parser
     #to fallback to the vm parser
     solvePkgsWithVmParserAllowingFallback(options.satResult.rootPackage, resolvedNim, pkgList, options)
-  
+  #Nim used in the new code path (mainly building, except in getPkgInfo) is set here
   options.satResult.nimResolved = resolvedNim #TODO maybe we should consider the sat fallback pass. Not sure if we should just warn the user so the packages are corrected
   options.satResult.pkgs.incl(resolvedNim.pkg.get) #Make sure its in the solution
-  echo "Solved packages: ", options.satResult.solvedPkgs.mapIt(it.pkgName)
-  echo "Packages to install: ", options.satResult.pkgsToInstall
-  echo "Packages: ", options.satResult.pkgs.mapIt(it.basicInfo.name)
+  # echo "Solved packages: ", options.satResult.solvedPkgs.mapIt(it.pkgName)
+  # echo "Packages to install: ", options.satResult.pkgsToInstall
+  # echo "Packages: ", options.satResult.pkgs.mapIt(it.basicInfo.name)
   options.satResult.solutionToFullInfo(options)
   options.satResult.pass = satDone 
 
@@ -2495,26 +2495,25 @@ proc runVNext(options: var Options) =
       options.satResult = initSATResult(satNimSelection)      
       var rootPackage = downloadPkInfoForPv(pkg, options)
       solvePkgs(rootPackage, options)
-  echo "Installing packages"
-  echo "Root requires ", options.satResult.rootPackage.requires
   options.satResult.installPkgs(isInRootDir = thereIsNimbleFile, options)
-  echo "Installed packages"
-
-  #HANDLE ERROR no nimble file?
-
+  
 proc doAction(options: var Options) =
   if options.showHelp:
     writeHelp()
   if options.showVersion:
     writeVersion()
+  
+  #Notice some actions dont need to be touched in vnext. Some other partially incercepted (setup) and some others fully changed (i.e build, install)
+  const vNextSupportedActions = { actionInstall, actionBuild, actionSetup, actionRun }
 
+  if options.isVNext and options.action.typ in vNextSupportedActions:
+    runVNext(options)
+  
   case options.action.typ
   of actionRefresh:
     refresh(options)
   of actionInstall:
-    if options.isVNext:
-      runVNext(options)
-    else:
+    if not options.isVNext:
       let (_, pkgInfo) = install(options.action.packages, options,
                                 doPrompt = true,
                                 first = true,
@@ -2542,15 +2541,11 @@ proc doAction(options: var Options) =
   of actionPath:
     listPaths(options)
   of actionBuild:
-    if options.isVNext:
-      runVNext(options)
-    else:
+    if not options.isVNext:
       build(options)
   of actionClean:
     clean(options)
   of actionRun:
-    if options.isVNext:
-      runVNext(options)
     run(options)
   of actionUpgrade:
     lock(options)
@@ -2578,9 +2573,6 @@ proc doAction(options: var Options) =
   of actionSync:
     sync(options)
   of actionSetup:
-    if options.isVNext: #TODO unify runVNext as we implement more actions
-      runVNext(options)
-    
     setup(options)
   of actionShellEnv:
     shellenv(options)

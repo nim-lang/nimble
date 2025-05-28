@@ -66,10 +66,9 @@ type
     nimBinariesDir*: string # Directory where nim binaries are stored. Separated from nimbleDir as it can be changed by the user/tests
     disableNimBinaries*: bool # Whether to disable the use of nim binaries
     maxTaggedVersions*: int # Maximum number of tags to check for a package when discovering versions in a local repo
-    useDeclarativeParser*: bool # Whether to use the declarative parser for parsing nimble files (only when solver is SAT)
+    useDeclarativeParser*: bool # Whether to use the declarative parser for parsing nimble files (only when solver is SAT). A new code path is used when declarative is on.
     features*: seq[string] # Features to be activated. Only used when using the declarative parser
     ignoreSubmodules*: bool # Whether to ignore submodules when cloning a repository
-    useVNext*: bool # Whether to use the vnext code path
     satResult*: SatResult
 
   ActionType* = enum
@@ -650,7 +649,6 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
   of "parser":
     if val == "declarative":
       result.useDeclarativeParser = true
-      result.useVNext = true
     elif val == "nimvm":
       result.useDeclarativeParser = false
     else:
@@ -668,8 +666,6 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
     result.features = val.split(";").mapIt(it.strip)
   of "ignoresubmodules":
     result.ignoreSubmodules = true
-  of "vnext":
-    result.useVNext = true
   else: isGlobalFlag = false
 
   var wasFlagHandled = true
@@ -790,10 +786,6 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
   if not wasFlagHandled and not isGlobalFlag:
     result.unknownFlags.add((kind, flag, val))
   
-  if result.useVNext:
-    displayInfo("vNext is enabled, using declarative parser")
-    result.useDeclarativeParser = true
-
 proc initOptions*(): Options =
   # Exported for choosenim
   Options(
@@ -977,4 +969,4 @@ proc isDevelopment*(pkg: PackageInfo, options: Options): bool =
   not pkg.myPath.parentDir.startsWith(options.getPkgsDir())
 
 proc isVNext*(options: Options): bool =
-  options.useVNext
+  options.useDeclarativeParser

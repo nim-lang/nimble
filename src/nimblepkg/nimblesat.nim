@@ -607,7 +607,7 @@ proc getPackageMinimalVersionsFromRepo*(repoDir: string, pkg: PkgTuple, version:
         displayWarning(
           &"Error reading tag {tag}: for package {name}. This may not be relevant as it could be an old version of the package. \n {e.msg}",
            HighPriority)
-    if not (options.useVNext and options.satResult.pass == satNimSelection and options.satResult.declarativeParseFailed):
+    if not (options.isVNext and options.satResult.pass == satNimSelection and options.satResult.declarativeParseFailed):
       #Dont save tagged versions if we are in vNext and the declarative parser failed as this could cache the incorrect versions.
       #its suboptimal in the sense that next packages after failure wont be saved in the first past but there is a guarantee that there is a second pass in the case 
       #the declarative parser fails so they will be saved then.
