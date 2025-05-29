@@ -268,7 +268,6 @@ proc getPkgInfoFromSolution(satResult: SATResult, pv: PkgTuple, options: Options
 
 proc activateSolvedPkgFeatures*(satResult: SATResult, options: Options) =
   for pkg in satResult.pkgs:
-    echo "Activating features for ", pkg.basicInfo.name, " ", pkg.activeFeatures
     for pkgTuple, activeFeatures in pkg.activeFeatures:
       let pkgWithFeature = satResult.getPkgInfoFromSolution(pkgTuple, options)
       appendGloballyActiveFeatures(pkgWithFeature.basicInfo.name, activeFeatures)
@@ -428,14 +427,8 @@ proc createBinSymlink(pkgInfo: PackageInfo, options: Options) =
         display("Warning:", ("Binary '$1' was already installed from source" &
                             " directory. Will be overwritten.") % bin, Warning,
                 MediumPriority)
-
-      # Copy the binary file.
-      createDir((pkgDestDir / binDest).parentDir())
-      var filesInstalled: HashSet[string]
-      filesInstalled.incl copyFileD(pkgInfo.getOutputDir(bin),
-                                    pkgDestDir / binDest)
-
-      # Set up a symlink.
+      
+      createDir((pkgDestDir / binDest).parentDir())  # Set up a symlink.
       let symlinkDest = pkgDestDir / binDest
       let symlinkFilename = options.getBinDir() / bin.extractFilename
       binariesInstalled.incl(
