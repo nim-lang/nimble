@@ -2693,5 +2693,4 @@ when isMainModule:
       displayError(&"Couldn't save \"{nimbleDataFileName}\".")
       displayDetails(error)
 
-  displayLineReset()
   quit(exitCode)
