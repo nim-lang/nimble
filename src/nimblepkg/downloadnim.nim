@@ -142,6 +142,8 @@ proc getNightliesUrl*(parsedContents: JsonNode, arch: int): (string, string) =
       "freebsd"
     elif defined(openbsd):
       "openbsd"
+    elif defined(haiku):
+      "haiku"
   for jn in parsedContents.getElems():
     if jn["name"].getStr().contains("devel"):
       let tagName = jn{"tag_name"}.getStr("")

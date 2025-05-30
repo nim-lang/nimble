@@ -41,7 +41,6 @@ proc printDepsHumanReadable*(pkgInfo: PackageInfo,
   ## print human readable tree deps
   ## 
   if levelInfos.len() == 0:
-    displayLineReset()
     displayInfo("Dependency tree format: {PackageName} {Requirements} (@{Resolved Version})")
     displayFormatted(Hint, "\n")
     displayFormatted(Message, pkgInfo.basicInfo.name, " ")
