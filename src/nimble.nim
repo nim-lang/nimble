@@ -19,7 +19,8 @@ import nimblepkg/packageinfotypes, nimblepkg/packageinfo, nimblepkg/version,
        nimblepkg/nimbledatafile, nimblepkg/packagemetadatafile,
        nimblepkg/displaymessages, nimblepkg/sha1hashes, nimblepkg/syncfile,
        nimblepkg/deps, nimblepkg/nimblesat, nimblepkg/nimenv,
-       nimblepkg/downloadnim, nimblepkg/declarativeparser
+       nimblepkg/downloadnim, nimblepkg/declarativeparser,
+       nimblepkg/vnext
 
 const
   nimblePathsFileName* = "nimble.paths"
@@ -397,8 +398,7 @@ proc buildFromDir(pkgInfo: PackageInfo, paths: HashSet[seq[string]],
           binariesBuilt.inc()
           continue
     else:
-      createDir(outputDir)
-
+      createDir(outputDir) 
     let outputOpt = "-o:" & pkgInfo.getOutputDir(bin).quoteShell
     display("Building", "$1/$2 using $3 backend" %
             [pkginfo.basicInfo.name, bin, pkgInfo.backend], priority = HighPriority)
@@ -535,15 +535,6 @@ proc allDependencies(pkgInfo: PackageInfo, options: Options): HashSet[PackageInf
   result.incl pkgInfo.processFreeDependencies(pkgInfo.requires, options)
   for requires in pkgInfo.taskRequires.values:
     result.incl pkgInfo.processFreeDependencies(requires, options)
-
-proc expandPaths(pkgInfo: PackageInfo, options: Options): seq[string] =
-  var pkgInfo = pkgInfo.toFullInfo(options)
-  let baseDir = pkgInfo.getRealDir()
-  result = @[baseDir]
-  for relativePath in pkgInfo.paths:
-    let path = baseDir & "/" & relativePath
-    if path.isSubdirOf(baseDir):
-      result.add path
  
 proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
                     url: string, first: bool, fromLockFile: bool,
@@ -1716,7 +1707,15 @@ proc developAllDependencies(pkgInfo: PackageInfo, options: var Options, topLevel
 proc updateSyncFile(dependentPkg: PackageInfo, options: Options)
 
 proc updatePathsFile(pkgInfo: PackageInfo, options: Options) =
-  let paths = pkgInfo.getDependenciesPaths(options)
+  let paths = 
+    if options.isVNext: 
+      #TODO improve this (or better the alternative, getDependenciesPaths, so it returns the same type)
+      var pathsPaths = initHashSet[seq[string]]()
+      for path in options.satResult.getPathsAllPkgs(options):
+          pathsPaths.incl @[path]
+      pathsPaths
+    else:
+      pkgInfo.getDependenciesPaths(options)
   var pathsFileContent = "--noNimblePath\n"
   for path in paths:
     for p in path:
@@ -2417,8 +2416,12 @@ proc getPackageForAction(pkgInfo: PackageInfo, options: Options): PackageInfo =
   raise nimbleError(notFoundPkgWithNameInPkgDepTree(options.package))
 
 proc run(options: Options) =
-  var pkgInfo = getPkgInfo(getCurrentDir(), options)
-  pkgInfo = getPackageForAction(pkgInfo, options)
+  var pkgInfo: PackageInfo
+  if options.isVNext: #At this point we already ran the solver
+    pkgInfo = options.satResult.rootPackage
+  else:
+    pkgInfo = getPkgInfo(getCurrentDir(), options)
+    pkgInfo = getPackageForAction(pkgInfo, options)
 
   let binary = options.getCompilationBinary(pkgInfo).get("")
   if binary.len == 0:
@@ -2427,11 +2430,12 @@ proc run(options: Options) =
   if binary notin pkgInfo.bin:
     raise nimbleError(binaryNotDefinedInPkgMsg(binary, pkgInfo.basicInfo.name))
 
-  if pkgInfo.isLink:
-    # If this is not installed package then build the binary.
-    pkgInfo.build(options)
-  elif options.getCompilationFlags.len > 0:
-    displayWarning(ignoringCompilationFlagsMsg)
+  if not options.isVNext:
+    if pkgInfo.isLink: #TODO review this code path for vnext. isLink is related to develop mode
+      # If this is not installed package then build the binary.
+      pkgInfo.build(options)
+    elif options.getCompilationFlags.len > 0:
+      displayWarning(ignoringCompilationFlagsMsg)
 
   let binaryPath = pkgInfo.getOutputDir(binary)
   let cmd = quoteShellCommand(binaryPath & options.action.runFlags)
@@ -2448,29 +2452,81 @@ proc openNimbleManual =
   displayInfo("If it did not open, you can try going to the link manually: " & NimbleGuideURL)
   openDefaultBrowser(NimbleGuideURL)
 
+proc solvePkgs(rootPackage: PackageInfo, options: var Options) =
+  options.satResult.rootPackage = rootPackage
+  options.satResult.rootPackage.enableFeatures(options)
+  let pkgList = getInstalledPkgsMin(options.getPkgsDir(), options)
+  let resolvedNim = resolveAndConfigureNim(options.satResult.rootPackage, pkgList, options)
+  #We set nim in the options here as it is used to get the full info of the packages.
+  #Its kinda a big refactor getPkgInfo to parametrize it. At some point we will do it. 
+  setNimBin(resolvedNim.pkg.get, options)
+  if options.satResult.declarativeParseFailed:
+    displayWarning("Declarative parser failed. Will rerun SAT with the VM parser. Please fix your nimble file.")
+    for line in options.satResult.declarativeParserErrorLines:
+      displayWarning(line)
+    options.satResult = initSATResult(satFallbackToVmParser)
+    options.satResult.rootPackage = rootPackage
+    options.satResult.rootPackage = getPkgInfo(options.satResult.rootPackage.getNimbleFileDir, options).toRequiresInfo(options)
+    options.satResult.rootPackage.enableFeatures(options) 
+    #Declarative parser failed. So we need to rerun the solver but this time, we allow the parser
+    #to fallback to the vm parser
+    solvePkgsWithVmParserAllowingFallback(options.satResult.rootPackage, resolvedNim, pkgList, options)
+  #Nim used in the new code path (mainly building, except in getPkgInfo) is set here
+  options.satResult.nimResolved = resolvedNim #TODO maybe we should consider the sat fallback pass. Not sure if we should just warn the user so the packages are corrected
+  options.satResult.pkgs.incl(resolvedNim.pkg.get) #Make sure its in the solution
+  # echo "Solved packages: ", options.satResult.solvedPkgs.mapIt(it.pkgName)
+  # echo "Packages to install: ", options.satResult.pkgsToInstall
+  # echo "Packages: ", options.satResult.pkgs.mapIt(it.basicInfo.name)
+  options.satResult.solutionToFullInfo(options)
+  options.satResult.pass = satDone 
+
+proc runVNext(options: var Options) =
+  #Install and in consequence builds the packages
+  let thereIsNimbleFile = findNimbleFile(getCurrentDir(), error = false, options) != ""
+  if thereIsNimbleFile:
+    options.satResult = initSATResult(satNimSelection)
+    var rootPackage = getPkgInfoFromDirWithDeclarativeParser(getCurrentDir(), options)
+    if options.action.typ == actionInstall:
+      rootPackage.requires.add(options.action.packages)
+    solvePkgs(rootPackage, options)
+  elif options.action.typ == actionInstall:
+    #Global install        
+    for pkg in options.action.packages:          
+      options.satResult = initSATResult(satNimSelection)      
+      var rootPackage = downloadPkInfoForPv(pkg, options)
+      solvePkgs(rootPackage, options)
+  options.satResult.installPkgs(isInRootDir = thereIsNimbleFile, options)
+  
 proc doAction(options: var Options) =
   if options.showHelp:
     writeHelp()
   if options.showVersion:
     writeVersion()
+  
+  #Notice some actions dont need to be touched in vnext. Some other partially incercepted (setup) and some others fully changed (i.e build, install)
+  const vNextSupportedActions = { actionInstall, actionBuild, actionSetup, actionRun }
 
+  if options.isVNext and options.action.typ in vNextSupportedActions:
+    runVNext(options)
+  
   case options.action.typ
   of actionRefresh:
     refresh(options)
   of actionInstall:
-    let (_, pkgInfo) = install(options.action.packages, options,
-                               doPrompt = true,
-                               first = true,
-                               fromLockFile = false)
-    if options.action.packages.len == 0:
-      nimScriptHint(pkgInfo)
-    if pkgInfo.foreignDeps.len > 0:
-      display("Hint:", "This package requires some external dependencies.",
-              Warning, HighPriority)
-      display("Hint:", "To install them you may be able to run:",
-              Warning, HighPriority)
-      for i in 0..<pkgInfo.foreignDeps.len:
-        display("Hint:", "  " & pkgInfo.foreignDeps[i], Warning, HighPriority)
+    if not options.isVNext:
+      let (_, pkgInfo) = install(options.action.packages, options,
+                                doPrompt = true,
+                                first = true,
+                                fromLockFile = false)
+      if options.action.packages.len == 0:
+        nimScriptHint(pkgInfo)
+      if pkgInfo.foreignDeps.len > 0:
+        display("Hint:", "This package requires some external dependencies.",
+                Warning, HighPriority)
+        display("Hint:", "To install them you may be able to run:",
+                Warning, HighPriority)
+        for i in 0..<pkgInfo.foreignDeps.len:
+          display("Hint:", "  " & pkgInfo.foreignDeps[i], Warning, HighPriority)
   of actionUninstall:
     uninstall(options)
   of actionSearch:
@@ -2485,7 +2541,8 @@ proc doAction(options: var Options) =
   of actionPath:
     listPaths(options)
   of actionBuild:
-    build(options)
+    if not options.isVNext:
+      build(options)
   of actionClean:
     clean(options)
   of actionRun:
@@ -2667,8 +2724,9 @@ when isMainModule:
     if opt.action.typ in {actionTasks, actionRun, actionBuild, actionCompile, actionDevelop}:
       # Implicitly disable package validation for these commands.
       opt.disableValidation = true
-    if not opt.showVersion and not opt.showHelp:
+    if not opt.showVersion and not opt.showHelp and not opt.isVNext:
       opt.setNimBin
+    #TODO later on when in vnext, we solve the packages before running the action
     opt.doAction()
   except NimbleQuit as quit:
     exitCode = quit.exitCode

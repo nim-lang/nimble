@@ -97,6 +97,35 @@ type
 
   PackageDependenciesInfo* = tuple[deps: HashSet[PackageInfo], pkg: PackageInfo]
 
+  SolvedPackage* = object
+    pkgName*: string
+    version*: Version
+    requirements*: seq[PkgTuple] 
+    reverseDependencies*: seq[(string, Version)] 
+
+  SATPass* = enum
+    satNone
+    satNimSelection #Declarative parser only. Ideally this is the only pass that is used.
+    satFallbackToVmParser #A package that has a control flow require was found.
+    satDone
+
+  NimResolved* = object
+    pkg*: Option[PackageInfo] #when none, we need to install it
+    version*: Version
+
+  SATResult* = ref object
+    rootPackage*: PackageInfo 
+    pkgsToInstall*: seq[(string, Version)] #Packages to install
+    solvedPkgs*: seq[SolvedPackage] #SAT solution
+    pkgList*: HashSet[PackageInfo] #Original package list the user has installed
+    output*: string
+    pkgs*: HashSet[PackageInfo] #Packages from solution + new installs
+    pass*: SATPass
+    installedPkgs*: seq[PackageInfo] #Packages installed in the current pass
+    declarativeParseFailed*: bool
+    declarativeParserErrorLines*: seq[string]
+    nimResolved*: NimResolved
+
 proc isMinimal*(pkg: PackageInfo): bool =
   pkg.infoKind == pikMinimal
 
@@ -119,3 +148,5 @@ proc getGloballyActiveFeatures*(): seq[string] =
     for feature in features:
       result.add(&"features.{pkgName}.{feature}")
   
+proc initSATResult*(pass: SATPass): SATResult =
+  SATResult(pkgsToInstall: @[], solvedPkgs: @[], output: "", pkgs: initHashSet[PackageInfo](), pass: pass, installedPkgs: @[], declarativeParseFailed: false, declarativeParserErrorLines: @[])

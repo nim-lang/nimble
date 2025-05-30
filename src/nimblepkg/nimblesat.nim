@@ -50,11 +50,7 @@ type
     reqs*: seq[Requirements]
     packageToDependency*: Table[string, int] #package.name -> index into nodes
     # reqsByDeps: Table[Requirements, int]
-  SolvedPackage* = object
-    pkgName*: string
-    version*: Version
-    requirements*: seq[PkgTuple] 
-    reverseDependencies*: seq[(string, Version)] 
+
     
   GetPackageMinimal* = proc (pv: PkgTuple, options: Options): seq[PackageMinimalInfo]
 
@@ -64,6 +60,12 @@ type
   
   VersionAttempt = tuple[pkgName: string, version: Version]
 
+  PackageDownloadInfo* = object
+    meth*: DownloadMethod
+    url*: string
+    subdir*: string
+    downloadDir*: string
+    pv*: PkgTuple #Require request
 
 const TaggedVersionsFileName* = "tagged_versions.json"
 
@@ -111,6 +113,7 @@ proc getMinimalInfo*(pkg: PackageInfo, options: Options): PackageMinimalInfo =
     result.requires = result.requires.filterIt(not it.isNim)
 
 proc getMinimalInfo*(nimbleFile: string, pkgName: string, options: Options): PackageMinimalInfo =
+  #TODO we can use the new getPkgInfoFromDirWithDeclarativeParser to get the minimal info and add the features to the packageinfo type so this whole function can be removed
   assert options.useDeclarativeParser, "useDeclarativeParser must be set"
   let nimbleFileInfo = extractRequiresInfo(nimbleFile)
   result.name =  if pkgName.isNim: "nim" else: pkgName
@@ -488,17 +491,28 @@ proc getSolvedPackages*(pkgVersionTable: Table[string, PackageVersions], output:
 proc getCacheDownloadDir*(url: string, ver: VersionRange, options: Options): string =
   options.pkgCachePath / getDownloadDirName(url, ver, notSetSha1Hash)
 
-proc downloadPkgFromUrl*(pv: PkgTuple, options: Options): (DownloadPkgResult, DownloadMethod) = 
+proc getPackageDownloadInfo*(pv: PkgTuple, options: Options): PackageDownloadInfo =
   let (meth, url, metadata) = 
       getDownloadInfo(pv, options, doPrompt = false, ignorePackageCache = false)
   let subdir = metadata.getOrDefault("subdir")
-  let downloadDir =  getCacheDownloadDir(url, pv.ver, options)
-  let downloadRes = downloadPkg(url, pv.ver, meth, subdir, options,
-                downloadDir, vcsRevision = notSetSha1Hash)
-  (downloadRes, meth)
+  let downloadDir = getCacheDownloadDir(url, pv.ver, options)
+  PackageDownloadInfo(meth: meth, url: url, subdir: subdir, downloadDir: downloadDir, pv: pv)
+
+proc downloadFromDownloadInfo*(dlInfo: PackageDownloadInfo, options: Options): (DownloadPkgResult, DownloadMethod) = 
+  let downloadRes = downloadPkg(dlInfo.url, dlInfo.pv.ver, dlInfo.meth, dlInfo.subdir, options,
+                dlInfo.downloadDir, vcsRevision = notSetSha1Hash)
+  (downloadRes, dlInfo.meth)
+
+proc downloadPkgFromUrl*(pv: PkgTuple, options: Options): (DownloadPkgResult, DownloadMethod) = 
+  let dlInfo = getPackageDownloadInfo(pv, options)
+  downloadFromDownloadInfo(dlInfo, options)
         
 proc downloadPkInfoForPv*(pv: PkgTuple, options: Options): PackageInfo  =
-  downloadPkgFromUrl(pv, options)[0].dir.getPkgInfo(options)
+  let downloadRes = downloadPkgFromUrl(pv, options)
+  if options.satResult.pass in {satNimSelection, satFallbackToVmParser}:
+    getPkgInfoFromDirWithDeclarativeParser(downloadRes[0].dir, options)
+  else:
+    downloadRes[0].dir.getPkgInfo(options)
 
 proc getAllNimReleases(options: Options): seq[PackageMinimalInfo] =
   let releases = getOfficialReleases(options)  
@@ -558,7 +572,11 @@ proc getPackageMinimalVersionsFromRepo*(repoDir: string, pkg: PkgTuple, version:
       displayWarning(&"Error fetching tags for {name}: {e.msg}", HighPriority)
     
     try:
-      result.add getPkgInfo(repoDir, options).getMinimalInfo(options)   
+      if options.satResult.pass in {satNimSelection, satFallbackToVmParser}:
+        #TODO test this code path
+        result.add getPkgInfoFromDirWithDeclarativeParser(repoDir, options).getMinimalInfo(options)   
+      else:
+        result.add getPkgInfo(repoDir, options).getMinimalInfo(options)   
     except CatchableError as e:
       displayWarning(&"Error getting package info for {name}: {e.msg}", HighPriority)
     
@@ -578,7 +596,9 @@ proc getPackageMinimalVersionsFromRepo*(repoDir: string, pkg: PkgTuple, version:
 
         doCheckout(downloadMethod, tempDir, tag, options)
         let nimbleFile = findNimbleFile(tempDir, true, options)
-        if options.useDeclarativeParser:
+        if options.satResult.pass in {satNimSelection, satFallbackToVmParser}:
+          result.addUnique getPkgInfoFromDirWithDeclarativeParser(repoDir, options).getMinimalInfo(options)  
+        elif options.useDeclarativeParser:
           result.addUnique getMinimalInfo(nimbleFile, name, options)
         else:
           let pkgInfo = getPkgInfoFromFile(nimbleFile, options, useCache=false)
@@ -587,12 +607,15 @@ proc getPackageMinimalVersionsFromRepo*(repoDir: string, pkg: PkgTuple, version:
         displayWarning(
           &"Error reading tag {tag}: for package {name}. This may not be relevant as it could be an old version of the package. \n {e.msg}",
            HighPriority)
-  
-    saveTaggedVersions(repoDir, name, 
-                      TaggedPackageVersions(
-                        maxTaggedVersions: options.maxTaggedVersions, 
-                        versions: result
-                      ), options)
+    if not (options.isVNext and options.satResult.pass == satNimSelection and options.satResult.declarativeParseFailed):
+      #Dont save tagged versions if we are in vNext and the declarative parser failed as this could cache the incorrect versions.
+      #its suboptimal in the sense that next packages after failure wont be saved in the first past but there is a guarantee that there is a second pass in the case 
+      #the declarative parser fails so they will be saved then.
+      saveTaggedVersions(repoDir, name, 
+                        TaggedPackageVersions(
+                          maxTaggedVersions: options.maxTaggedVersions, 
+                          versions: result
+                        ), options)
   finally:
     try:
       removeDir(tempDir)
@@ -642,12 +665,10 @@ proc processRequirements(versions: var Table[string, PackageVersions], pv: PkgTu
       else:
         versions[pv.name].versions.addUnique pkgMin
       
-      # Process requirements
       for req in pkgMin.requires:
         processRequirements(versions, req, visited, getMinimalPackage, preferredPackages, options)
 
 proc collectAllVersions*(versions: var Table[string, PackageVersions], package: PackageMinimalInfo, options: Options, getMinimalPackage: GetPackageMinimal, preferredPackages: seq[PackageMinimalInfo] = newSeq[PackageMinimalInfo]()) =
-
   var visited = initHashSet[PkgTuple]()
   for pv in package.requires:
     processRequirements(versions, pv, visited, getMinimalPackage, preferredPackages, options)

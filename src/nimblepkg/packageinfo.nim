@@ -465,10 +465,14 @@ proc iterInstallFiles*(realDir: string, pkgInfo: PackageInfo,
                        options: Options, action: proc (f: string)) =
   ## Runs `action` for each file within the ``realDir`` that should be
   ## installed.
-  let whitelistMode =
+  var whitelistMode =
           pkgInfo.installDirs.len != 0 or
           pkgInfo.installFiles.len != 0 or
-          pkgInfo.installExt.len != 0
+          pkgInfo.installExt.len != 0    
+  if options.isVNext:
+    #in vnext we dont use the whitelist mode as we install all files since we want to build the package in the 
+    #install dir.
+    whitelistMode = false
   if whitelistMode:
     for file in pkgInfo.installFiles:
       let src = realDir / file
