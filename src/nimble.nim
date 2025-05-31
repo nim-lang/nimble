@@ -2013,7 +2013,9 @@ proc lock(options: Options) =
   
   var 
     baseDeps = 
-      if options.useSATSolver:
+      if options.isVNext:
+        options.satResult.pkgs.toSeq
+      elif options.useSATSolver:
         processFreeDependenciesSAT(pkgInfo, options).toSeq        
       else:
         pkgInfo.getDependenciesForLocking(options) # Deps shared by base and tasks  
@@ -2487,6 +2489,9 @@ proc solvePkgs(rootPackage: PackageInfo, options: var Options) =
   # echo "Packages: ", options.satResult.pkgs.mapIt(it.basicInfo.name)
 
 proc runVNext(options: var Options) =
+  #if the action is lock, we first remove the lock file so we can recalculate the deps. 
+  if options.action.typ == actionLock:
+    removeFile(options.lockFile(getCurrentDir()))
   #Install and in consequence builds the packages
   let thereIsNimbleFile = findNimbleFile(getCurrentDir(), error = false, options) != ""
   if thereIsNimbleFile:
@@ -2510,7 +2515,7 @@ proc doAction(options: var Options) =
     writeVersion()
   
   #Notice some actions dont need to be touched in vnext. Some other partially incercepted (setup) and some others fully changed (i.e build, install)
-  const vNextSupportedActions = { actionInstall, actionBuild, actionSetup, actionRun }
+  const vNextSupportedActions = { actionInstall, actionBuild, actionSetup, actionRun, actionLock }
 
   if options.isVNext and options.action.typ in vNextSupportedActions:
     runVNext(options)

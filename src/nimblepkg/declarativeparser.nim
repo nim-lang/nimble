@@ -412,10 +412,9 @@ proc toRequiresInfo*(pkgInfo: PackageInfo, options: Options, nimbleFileInfo: Opt
     of satNimSelection:
       options.satResult.declarativeParseFailed = true
       options.satResult.declarativeParserErrorLines = nimbleFileInfo.declarativeParserErrorLines
-    of satFallbackToVmParser, satNone, satDone:
-      result = getPkgInfo(result.myPath.parentDir, options)
     else:
-      raise nimbleError("Invalid SAT pass: " & $options.satResult.pass)
+      result = getPkgInfo(result.myPath.parentDir, options)
+      # raise nimbleError("Invalid SAT pass: " & $options.satResult.pass)
       # echo " to fullinfo Requires: ", result.requires
       # echo readFile(pkgInfo.myPath)
 
