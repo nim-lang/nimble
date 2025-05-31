@@ -15,7 +15,7 @@ After we resolve nim, we try to resolve the dependencies for a root package. Roo
 import std/[sequtils, sets, options, os, strutils, tables, strformat]
 import nimblesat, packageinfotypes, options, version, declarativeparser, packageinfo, common,
   nimenv, lockfile, cli, downloadnim, packageparser, tools, nimscriptexecutor, packagemetadatafile,
-  displaymessages, packageinstaller, lockfile
+  displaymessages, packageinstaller
 
 proc getNimFromSystem*(options: Options): Option[PackageInfo] =
   # --nim:<path> takes priority over system nim but its only forced if we also specify useSystemNim
