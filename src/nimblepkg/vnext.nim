@@ -15,7 +15,7 @@ After we resolve nim, we try to resolve the dependencies for a root package. Roo
 import std/[sequtils, sets, options, os, strutils, tables, strformat]
 import nimblesat, packageinfotypes, options, version, declarativeparser, packageinfo, common,
   nimenv, lockfile, cli, downloadnim, packageparser, tools, nimscriptexecutor, packagemetadatafile,
-  displaymessages, packageinstaller
+  displaymessages, packageinstaller, lockfile
 
 proc getNimFromSystem*(options: Options): Option[PackageInfo] =
   # --nim:<path> takes priority over system nim but its only forced if we also specify useSystemNim
@@ -62,15 +62,36 @@ proc resolveNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo], options: v
   options.satResult.pkgList = pkgListDecl.toHashSet()
   
   #If there is a lock file we should use it straight away (if the user didnt specify --useSystemNim)
-  let lockFile = options.lockFile(getCurrentDir())
-  if options.hasNimInLockFile():
+  let lockFile = options.lockFile(rootPackage.myPath.parentDir())
+
+  if options.hasNimInLockFile(rootPackage.myPath.parentDir()):
     if options.useSystemNim and systemNimPkg.isSome:
       return NimResolved(pkg: some(systemNimPkg.get), version: systemNimPkg.get.basicInfo.version)
     else:
       for name, dep in lockFile.getLockedDependencies.lockedDepsFor(options):
         if name.isNim:
+          echo "Found Nim in lock file: ", name, " ", dep.version
+          #Test if the version in the lock is the same as in the system nim (in case devel is set in the lock file and system nim is devel)
+          if systemNimPkg.isSome and dep.version == systemNimPkg.get.basicInfo.version:
+            return NimResolved(pkg: some(systemNimPkg.get), version: systemNimPkg.get.basicInfo.version)
           return NimResolved(version: dep.version)
   
+  let runSolver = options.satResult.pass notin [satLockFile]
+  if not runSolver:
+    #We come from a lock file with no Nim so we can use any Nim.
+    #First system nim
+    if systemNimPkg.isSome:
+      return NimResolved(pkg: some(systemNimPkg.get), version: systemNimPkg.get.basicInfo.version)
+    
+    #TODO look in the installed binaries dir
+    #If none is found return the latest version by looking at getOfficialReleases
+    raise newNimbleError[NimbleError]("No Nim found in lock file and no Nim in the system")
+
+    #Then latest nim release
+    # let latestNim = getLatestNimRelease()
+    # if latestNim.isSome:
+    #   return NimResolved(version: latestNim.get)
+
   var rootPackage = rootPackage
   options.satResult.pkgs = solvePackages(rootPackage, pkgListDecl, options.satResult.pkgsToInstall, options, options.satResult.output, options.satResult.solvedPkgs)
   if options.satResult.solvedPkgs.len == 0:
@@ -115,6 +136,26 @@ proc resolveNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo], options: v
   # echo "PkglistDecl ", pkgListDecl.mapIt(it.basicInfo.name & " " & $it.basicInfo.version)
   result.pkg = some(nims[0])
   result.version = nims[0].basicInfo.version
+
+proc getSolvedPkgFromInstalledPkgs*(satResult: SATResult, solvedPkg: SolvedPackage, options: Options): Option[PackageInfo] =
+  for pkg in satResult.pkgList:
+    if pkg.basicInfo.name == solvedPkg.pkgName and pkg.basicInfo.version == solvedPkg.version:
+      return some(pkg)
+  echo "Couldnt find ", solvedPkg.pkgName, " ", solvedPkg.version, " in installed pkgs"
+  return none(PackageInfo)
+
+proc getLockedDependencies*(satResult: var SATResult, options: Options) = 
+  #TODO develop mode has to be taken into account
+  let lockFile = options.lockFile(satResult.rootPackage.myPath.parentDir())
+  for name, dep in lockFile.getLockedDependencies.lockedDepsFor(options):
+    if name.isNim: continue #Nim is already handled. 
+    let solvedPkg = SolvedPackage(pkgName: name, version: dep.version) #TODO what about the other fields? Should we mark it as from lock file?
+    satResult.solvedPkgs.add(solvedPkg)
+    let depInfo = satResult.getSolvedPkgFromInstalledPkgs(solvedPkg, options)
+    if depInfo.isSome:
+      satResult.pkgs.incl(depInfo.get)
+    else:
+      satResult.pkgsToInstall.add((name, dep.version))
 
 proc setNimBin*(pkgInfo: PackageInfo, options: var Options) =
   assert pkgInfo.basicInfo.name.isNim
@@ -463,6 +504,15 @@ proc buildPkg(pkgToBuild: PackageInfo, rootDir: bool, options: Options) =
   if not isRootInRootDir : #Dont create symlinks for the root package
     createBinSymlink(pkgToBuild, options)
 
+proc getVersionRangeFoPkgToInstall(satResult: SATResult, name: string, ver: Version): VersionRange =
+  if satResult.rootPackage.basicInfo.name == name and satResult.rootPackage.basicInfo.version == ver:
+    #It could be the case that we are installing a special version of a root package
+    if name == satResult.rootPackage.basicInfo.name and ver == satResult.rootPackage.basicInfo.version:
+      let specialVersion = satResult.rootPackage.getNimbleFileDir().lastPathPart().split("_")[^1]
+      if "#" in specialVersion:
+        return parseVersionRange(specialVersion)  
+  return ver.toVersionRange()
+ 
 proc installPkgs*(satResult: var SATResult, isInRootDir: bool, options: Options) =
   #At this point the packages are already downloaded. 
   #We still need to install them aka copy them from the cache to the nimbleDir + run preInstall and postInstall scripts
@@ -471,15 +521,18 @@ proc installPkgs*(satResult: var SATResult, isInRootDir: bool, options: Options)
     executeHook(getCurrentDir(), options, actionInstall, before = true) #likely incorrect if we are not in a nimble dir
   var pkgsToInstall = satResult.pkgsToInstall
    #If we are not in the root folder, means user is installing a package globally so we need to install root
+  var installedPkgs = initHashSet[PackageInfo]()
+  
   if not isInRootDir: #TODO only install if not already installed    
     pkgsToInstall.add((name: satResult.rootPackage.basicInfo.name, ver: satResult.rootPackage.basicInfo.version))
+  else:
+    installedPkgs.incl(satResult.rootPackage)
   
-  var installedPkgs = @[satResult.rootPackage].toHashSet()
   for (name, ver) in pkgsToInstall:
     if isInRootDir and name == satResult.rootPackage.basicInfo.name:
       continue
-    echo "Installing package: ", name, " ", ver
-    let pv = (name: name, ver: ver.toVersionRange())
+    let verRange = satResult.getVersionRangeFoPkgToInstall(name, ver)
+    let pv = (name: name, ver: verRange)
     let dlInfo = getPackageDownloadInfo(pv, options)
     if not dirExists(dlInfo.downloadDir):
       #The reason for this is that the download cache may have a constrained version
@@ -487,10 +540,11 @@ proc installPkgs*(satResult: var SATResult, isInRootDir: bool, options: Options)
       #and also when enumerating. 
       #Instead of redownload the actual version of the package here. Not important as this only happens per 
       #package once across all nimble projects (even in local mode)
+      #But it would still be needed for the lock file case, although we could constraint it. 
       discard downloadFromDownloadInfo(dlInfo, options)
   
     assert dirExists(dlInfo.downloadDir)
-    #TODO this needs to be improved as we are redonwloading certain packages
+    #TODO this : PackageInfoneeds to be improved as we are redonwloading certain packages
     let pkgInfo = installFromDirDownloadInfo(dlInfo, options).toRequiresInfo(options)
 
     satResult.pkgs.incl(pkgInfo)

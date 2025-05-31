@@ -5,7 +5,7 @@ import std/strutils
 
 import compiler/[ast, idents, msgs, syntaxes, options, pathutils, lineinfos]
 import compiler/[renderer]
-import version, packageinfotypes, packageinfo, options, packageparser, cli
+import version, packageinfotypes, packageinfo, options, packageparser, cli, common
 import std/[tables, sequtils, strscans, strformat, os, options]
 
 type NimbleFileInfo* = object
@@ -414,6 +414,8 @@ proc toRequiresInfo*(pkgInfo: PackageInfo, options: Options, nimbleFileInfo: Opt
       options.satResult.declarativeParserErrorLines = nimbleFileInfo.declarativeParserErrorLines
     of satFallbackToVmParser, satNone, satDone:
       result = getPkgInfo(result.myPath.parentDir, options)
+    else:
+      raise nimbleError("Invalid SAT pass: " & $options.satResult.pass)
       # echo " to fullinfo Requires: ", result.requires
       # echo readFile(pkgInfo.myPath)
 
@@ -424,8 +426,8 @@ proc toRequiresInfo*(pkgInfo: PackageInfo, options: Options, nimbleFileInfo: Opt
 proc fillPkgBasicInfo(pkgInfo: var PackageInfo, nimbleFileInfo: NimbleFileInfo) =
   #TODO something may be missing here
   pkgInfo.basicInfo.name = nimbleFileInfo.nimbleFile.splitFile.name
-  pkgInfo.basicInfo.version = newVersion nimbleFileInfo.version
   pkgInfo.myPath = nimbleFileInfo.nimbleFile
+  pkgInfo.basicInfo.version = newVersion nimbleFileInfo.version
 
 proc getPkgInfoFromDirWithDeclarativeParser*(dir: string, options: Options): PackageInfo =
   let nimbleFile = findNimbleFile(dir, true, options)

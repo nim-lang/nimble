@@ -2454,8 +2454,10 @@ proc openNimbleManual =
 
 proc solvePkgs(rootPackage: PackageInfo, options: var Options) =
   options.satResult.rootPackage = rootPackage
-  options.satResult.rootPackage.enableFeatures(options)
   let pkgList = getInstalledPkgsMin(options.getPkgsDir(), options)
+  options.satResult.rootPackage.enableFeatures(options)
+  if rootPackage.hasLockFile(options):
+    options.satResult.pass = satLockFile
   let resolvedNim = resolveAndConfigureNim(options.satResult.rootPackage, pkgList, options)
   #We set nim in the options here as it is used to get the full info of the packages.
   #Its kinda a big refactor getPkgInfo to parametrize it. At some point we will do it. 
@@ -2474,11 +2476,15 @@ proc solvePkgs(rootPackage: PackageInfo, options: var Options) =
   #Nim used in the new code path (mainly building, except in getPkgInfo) is set here
   options.satResult.nimResolved = resolvedNim #TODO maybe we should consider the sat fallback pass. Not sure if we should just warn the user so the packages are corrected
   options.satResult.pkgs.incl(resolvedNim.pkg.get) #Make sure its in the solution
+  options.satResult.solutionToFullInfo(options)
+  options.satResult.pass = satDone 
+  if rootPackage.hasLockFile(options): 
+    #RENAME TO SOLVELOCK DEPS OR SOMETHING LIKE THAT
+    options.satResult.getLockedDependencies(options)
+  
   # echo "Solved packages: ", options.satResult.solvedPkgs.mapIt(it.pkgName)
   # echo "Packages to install: ", options.satResult.pkgsToInstall
   # echo "Packages: ", options.satResult.pkgs.mapIt(it.basicInfo.name)
-  options.satResult.solutionToFullInfo(options)
-  options.satResult.pass = satDone 
 
 proc runVNext(options: var Options) =
   #Install and in consequence builds the packages

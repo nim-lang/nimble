@@ -577,8 +577,11 @@ proc getNameAndVersion*(pkgInfo: PackageInfo): string =
 proc isNim*(name: string): bool =
   result = name == "nim" or name == "nimrod" or name == "compiler"
 
-proc hasNimInLockFile*(options: Options): bool =
-  let lockFile = options.lockFile(getCurrentDir())
+proc hasLockFile*(pkgInfo: PackageInfo, options: Options): bool =
+  return options.lockFile(pkgInfo.myPath.parentDir()).fileExists
+
+proc hasNimInLockFile*(options: Options, dir: string = ""): bool =
+  let lockFile = options.lockFile(if dir == "": getCurrentDir() else: dir)
   if options.useSystemNim or options.disableLockFile or not lockFile.fileExists:
     return false
   for name, dep in lockFile.getLockedDependencies.lockedDepsFor(options):
