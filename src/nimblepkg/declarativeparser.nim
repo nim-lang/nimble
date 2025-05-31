@@ -412,8 +412,9 @@ proc toRequiresInfo*(pkgInfo: PackageInfo, options: Options, nimbleFileInfo: Opt
     of satNimSelection:
       options.satResult.declarativeParseFailed = true
       options.satResult.declarativeParserErrorLines = nimbleFileInfo.declarativeParserErrorLines
-    of satFallbackToVmParser, satNone, satDone:
+    else:
       result = getPkgInfo(result.myPath.parentDir, options)
+      # raise nimbleError("Invalid SAT pass: " & $options.satResult.pass)
       # echo " to fullinfo Requires: ", result.requires
       # echo readFile(pkgInfo.myPath)
 
@@ -424,8 +425,8 @@ proc toRequiresInfo*(pkgInfo: PackageInfo, options: Options, nimbleFileInfo: Opt
 proc fillPkgBasicInfo(pkgInfo: var PackageInfo, nimbleFileInfo: NimbleFileInfo) =
   #TODO something may be missing here
   pkgInfo.basicInfo.name = nimbleFileInfo.nimbleFile.splitFile.name
-  pkgInfo.basicInfo.version = newVersion nimbleFileInfo.version
   pkgInfo.myPath = nimbleFileInfo.nimbleFile
+  pkgInfo.basicInfo.version = newVersion nimbleFileInfo.version
 
 proc getPkgInfoFromDirWithDeclarativeParser*(dir: string, options: Options): PackageInfo =
   let nimbleFile = findNimbleFile(dir, true, options)
