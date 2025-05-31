@@ -70,7 +70,7 @@ proc resolveNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo], options: v
     else:
       for name, dep in lockFile.getLockedDependencies.lockedDepsFor(options):
         if name.isNim:
-          echo "Found Nim in lock file: ", name, " ", dep.version
+          # echo "Found Nim in lock file: ", name, " ", dep.version
           #Test if the version in the lock is the same as in the system nim (in case devel is set in the lock file and system nim is devel)
           if systemNimPkg.isSome and dep.version == systemNimPkg.get.basicInfo.version:
             return NimResolved(pkg: some(systemNimPkg.get), version: systemNimPkg.get.basicInfo.version)
@@ -144,7 +144,7 @@ proc getSolvedPkgFromInstalledPkgs*(satResult: SATResult, solvedPkg: SolvedPacka
   echo "Couldnt find ", solvedPkg.pkgName, " ", solvedPkg.version, " in installed pkgs"
   return none(PackageInfo)
 
-proc getLockedDependencies*(satResult: var SATResult, options: Options) = 
+proc solveLockFileDeps*(satResult: var SATResult, options: Options) = 
   #TODO develop mode has to be taken into account
   let lockFile = options.lockFile(satResult.rootPackage.myPath.parentDir())
   for name, dep in lockFile.getLockedDependencies.lockedDepsFor(options):

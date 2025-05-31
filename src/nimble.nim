@@ -2481,8 +2481,7 @@ proc solvePkgs(rootPackage: PackageInfo, options: var Options) =
   options.satResult.solutionToFullInfo(options)
   options.satResult.pass = satDone 
   if rootPackage.hasLockFile(options): 
-    #RENAME TO SOLVELOCK DEPS OR SOMETHING LIKE THAT
-    options.satResult.getLockedDependencies(options)
+    options.satResult.solveLockFileDeps(options)
   
   # echo "Solved packages: ", options.satResult.solvedPkgs.mapIt(it.pkgName)
   # echo "Packages to install: ", options.satResult.pkgsToInstall
