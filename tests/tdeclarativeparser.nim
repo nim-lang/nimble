@@ -83,10 +83,10 @@ suite "Declarative parsing":
       check version in packageVersions.mapIt(it.version)
     check fileExists(repoDir / TaggedVersionsFileName)
 
-  # test "should be able to install a package using the declarative parser":
-  #   let (output, exitCode) = execNimble("--parser:declarative", "install", "nimlangserver")
-  #   echo output
-  #   check exitCode == QuitSuccess
+  test "should be able to install a package using the declarative parser":
+    let (output, exitCode) = execNimble("--parser:declarative", "install", "nimlangserver@#head")
+    echo output
+    check exitCode == QuitSuccess
 
   test "should be able to retrieve the nim info from a nim directory":
     let versions = @["1.6.12", "2.2.0"]

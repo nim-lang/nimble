@@ -105,6 +105,7 @@ type
 
   SATPass* = enum
     satNone
+    satLockFile #From a lock file. SAT is not ran.
     satNimSelection #Declarative parser only. Ideally this is the only pass that is used.
     satFallbackToVmParser #A package that has a control flow require was found.
     satDone
