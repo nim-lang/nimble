@@ -200,9 +200,9 @@ proc executeHook(dir: string, options: Options, action: ActionType, before: bool
       else:
         raise nimbleError("Post-hook prevented further execution.")
 
-proc installFromDirDownloadInfo(dl: PackageDownloadInfo, options: Options): PackageInfo = 
+proc installFromDirDownloadInfo(downloadDir: string, url: string, options: Options): PackageInfo = 
 
-  let dir = dl.downloadDir
+  let dir = downloadDir
   # Handle pre-`install` hook.
   executeHook(dir, options, actionInstall, before = true)
 
@@ -249,7 +249,7 @@ proc installFromDirDownloadInfo(dl: PackageDownloadInfo, options: Options): Pack
   let pkgDestDir = pkgInfo.getPkgDest(options)
 
   # Fill package Meta data
-  pkgInfo.metaData.url = dl.url
+  pkgInfo.metaData.url = url
   pkgInfo.isLink = false
 
   # Don't copy artifacts if project local deps mode and "installing" the top
@@ -302,6 +302,7 @@ proc getSolvedPkg*(satResult: SATResult, pkgInfo: PackageInfo): SolvedPackage =
 
 proc getPkgInfoFromSolution(satResult: SATResult, pv: PkgTuple, options: Options): PackageInfo =
   for pkg in satResult.pkgs:
+    if pv.isNim and pkg.basicInfo.name.isNim and pkg.basicInfo.version.withinRange(pv.ver): return pkg 
     if nameMatches(pkg, pv, options) and pkg.basicInfo.version.withinRange(pv.ver):
       return pkg
   raise newNimbleError[NimbleError]("Package not found in solution: " & $pv)
@@ -532,23 +533,27 @@ proc installPkgs*(satResult: var SATResult, isInRootDir: bool, options: Options)
     if isInRootDir and name == satResult.rootPackage.basicInfo.name:
       continue
     let verRange = satResult.getVersionRangeFoPkgToInstall(name, ver)
-    let pv = (name: name, ver: verRange)
-    let dlInfo = getPackageDownloadInfo(pv, options)
-    if not dirExists(dlInfo.downloadDir):
-      #The reason for this is that the download cache may have a constrained version
-      #this could be improved by creating a copy of the package in the cache dir when downloading
-      #and also when enumerating. 
-      #Instead of redownload the actual version of the package here. Not important as this only happens per 
-      #package once across all nimble projects (even in local mode)
-      #But it would still be needed for the lock file case, although we could constraint it. 
-      discard downloadFromDownloadInfo(dlInfo, options)
-  
-    assert dirExists(dlInfo.downloadDir)
-    #TODO this : PackageInfoneeds to be improved as we are redonwloading certain packages
-    let pkgInfo = installFromDirDownloadInfo(dlInfo, options).toRequiresInfo(options)
+    var pv = (name: name, ver: verRange)
+    var installedPkgInfo: PackageInfo
+    let root = satResult.rootPackage
+    if pv.name == root.basicInfo.name and root.basicInfo.version.withinRange(pv.ver): 
+      installedPkgInfo = installFromDirDownloadInfo(root.getNimbleFileDir(), root.metaData.url, options).toRequiresInfo(options)
+    else:
+      let dlInfo = getPackageDownloadInfo(pv, options)
+      if not dirExists(dlInfo.downloadDir):
+        #The reason for this is that the download cache may have a constrained version
+        #this could be improved by creating a copy of the package in the cache dir when downloading
+        #and also when enumerating. 
+        #Instead of redownload the actual version of the package here. Not important as this only happens per 
+        #package once across all nimble projects (even in local mode)
+        #But it would still be needed for the lock file case, although we could constraint it. 
+        discard downloadFromDownloadInfo(dlInfo, options)
+      assert dirExists(dlInfo.downloadDir)
+      #TODO this : PackageInfoneeds to be improved as we are redonwloading certain packages
+      installedPkgInfo = installFromDirDownloadInfo(dlInfo.downloadDir, dlInfo.url, options).toRequiresInfo(options)
 
-    satResult.pkgs.incl(pkgInfo)
-    installedPkgs.incl(pkgInfo)
+    satResult.pkgs.incl(installedPkgInfo)
+    installedPkgs.incl(installedPkgInfo)
   
   #we need to activate the features for the recently installed package
   #so they are activated in the build step
