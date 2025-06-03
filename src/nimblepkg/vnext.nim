@@ -96,7 +96,7 @@ proc resolveNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo], options: v
   options.satResult.pkgs = solvePackages(rootPackage, pkgListDecl, options.satResult.pkgsToInstall, options, options.satResult.output, options.satResult.solvedPkgs)
   if options.satResult.solvedPkgs.len == 0:
     displayError(options.satResult.output)
-    raise newNimbleError[NimbleError]("Couldnt find a solution for the packages. Check there is no contradictory dependencies.")
+    raise newNimbleError[NimbleError]("Couldnt find a solution for the packages. Unsatisfiable dependencies. Check there is no contradictory dependencies.")
 
   var nims = options.satResult.pkgs.toSeq.filterIt(it.basicInfo.name.isNim)
   if nims.len == 0:
@@ -188,9 +188,14 @@ proc solvePkgsWithVmParserAllowingFallback*(rootPackage: PackageInfo, resolvedNi
   pkgList.add(resolvedNim.pkg.get)
   options.satResult.pkgList = pkgList.toHashSet()
   options.satResult.pkgs = solvePackages(rootPackage, pkgList, options.satResult.pkgsToInstall, options, options.satResult.output, options.satResult.solvedPkgs)
+  # echo "SAT RESULT IS ", options.satResult.output
+  # for solvedPkg in options.satResult.solvedPkgs:
+  #   echo "SOLVED PKG IS ", solvedPkg.pkgName, " ", solvedPkg.version, " requires ", solvedPkg.requirements.mapIt(it.name & " " & $it.ver)
+  # for pkg in options.satResult.pkgs:
+  #   echo "PKG IS ", pkg.basicInfo.name, " ", pkg.basicInfo.version, " requires ", pkg.requires.mapIt(it.name & " " & $it.ver)
   if options.satResult.solvedPkgs.len == 0:
     displayError(options.satResult.output)
-    raise newNimbleError[NimbleError]("Couldnt find a solution for the packages. Check there is no contradictory dependencies.")
+    raise newNimbleError[NimbleError]("Couldnt find a solution for the packages. Unsatisfiable dependencies. Check there is no contradictory dependencies.")
 
 proc executeHook(dir: string, options: Options, action: ActionType, before: bool) =
   cd dir: # Make sure `execHook` executes the correct .nimble file.
@@ -524,14 +529,12 @@ proc installPkgs*(satResult: var SATResult, isInRootDir: bool, options: Options)
    #If we are not in the root folder, means user is installing a package globally so we need to install root
   var installedPkgs = initHashSet[PackageInfo]()
   
-  if not isInRootDir: #TODO only install if not already installed    
+  if not isInRootDir or not options.localdeps: #skip root when in localdeps mode and in rootdir
     pkgsToInstall.add((name: satResult.rootPackage.basicInfo.name, ver: satResult.rootPackage.basicInfo.version))
   else:
     installedPkgs.incl(satResult.rootPackage)
-  
+
   for (name, ver) in pkgsToInstall:
-    if isInRootDir and name == satResult.rootPackage.basicInfo.name:
-      continue
     let verRange = satResult.getVersionRangeFoPkgToInstall(name, ver)
     var pv = (name: name, ver: verRange)
     var installedPkgInfo: PackageInfo
