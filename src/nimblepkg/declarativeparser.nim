@@ -397,7 +397,7 @@ proc toRequiresInfo*(pkgInfo: PackageInfo, options: Options, nimbleFileInfo: Opt
       return result
     else:
       displayWarning &"Package {pkgInfo.basicInfo.name} is a babel package, skipping declarative parser", priority = HighPriority
-      return pkgInfo.toFullInfo(options)
+      return getPkgInfo(pkgInfo.myPath.parentDir, options)
 
   let nimbleFileInfo = nimbleFileInfo.get(extractRequiresInfo(pkgInfo.myPath))
   result.requires = getRequires(nimbleFileInfo, result.activeFeatures)
