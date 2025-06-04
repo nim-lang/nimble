@@ -15,7 +15,7 @@ After we resolve nim, we try to resolve the dependencies for a root package. Roo
 import std/[sequtils, sets, options, os, strutils, tables, strformat]
 import nimblesat, packageinfotypes, options, version, declarativeparser, packageinfo, common,
   nimenv, lockfile, cli, downloadnim, packageparser, tools, nimscriptexecutor, packagemetadatafile,
-  displaymessages, packageinstaller
+  displaymessages, packageinstaller, reversedeps, developfile
 
 proc getNimFromSystem*(options: Options): Option[PackageInfo] =
   # --nim:<path> takes priority over system nim but its only forced if we also specify useSystemNim
@@ -197,6 +197,24 @@ proc solvePkgsWithVmParserAllowingFallback*(rootPackage: PackageInfo, resolvedNi
     displayError(options.satResult.output)
     raise newNimbleError[NimbleError]("Couldnt find a solution for the packages. Unsatisfiable dependencies. Check there is no contradictory dependencies.")
 
+proc addReverseDeps*(solvedPkgs: seq[SolvedPackage], allPkgsInfo: seq[PackageInfo], options: Options) = 
+  for pkg in solvedPkgs:
+    if pkg.pkgName.isNim: continue 
+    let solvedPkg = getPackageInfo(pkg.pkgName, allPkgsInfo, some pkg.version)
+    if solvedPkg.isNone:
+      continue
+    for (reverseDepName, ver) in pkg.reverseDependencies:
+      var reverseDep = getPackageInfo(reverseDepName, allPkgsInfo, some ver)
+      if reverseDep.isNone: continue
+      if reverseDepName.isNim: continue #Nim is already handled. 
+      if reverseDep.get.myPath.parentDir.developFileExists:
+        echo "Setting link for ", reverseDep.get.basicInfo.name, " ", reverseDep.get.basicInfo.version
+        reverseDep.get.isLink = true
+      else:
+        echo "No develop file for so no link ", reverseDep.get.basicInfo.name, " ", reverseDep.get.basicInfo.version
+        echo "Link is ", reverseDep.get.isLink
+      addRevDep(options.nimbleData, solvedPkg.get.basicInfo, reverseDep.get)
+
 proc executeHook(dir: string, options: Options, action: ActionType, before: bool) =
   cd dir: # Make sure `execHook` executes the correct .nimble file.
     if not execHook(options, action, before):
@@ -310,6 +328,7 @@ proc getPkgInfoFromSolution(satResult: SATResult, pv: PkgTuple, options: Options
     if pv.isNim and pkg.basicInfo.name.isNim and pkg.basicInfo.version.withinRange(pv.ver): return pkg 
     if nameMatches(pkg, pv, options) and pkg.basicInfo.version.withinRange(pv.ver):
       return pkg
+
   raise newNimbleError[NimbleError]("Package not found in solution: " & $pv)
 
 
@@ -493,7 +512,8 @@ proc isRoot(pkgInfo: PackageInfo, satResult: SATResult): bool =
   pkgInfo.basicInfo.name == satResult.rootPackage.basicInfo.name and pkgInfo.basicInfo.version == satResult.rootPackage.basicInfo.version
 
 proc buildPkg(pkgToBuild: PackageInfo, rootDir: bool, options: Options) =
-  let paths = getPathsToBuildFor(options.satResult, pkgToBuild, recursive = true, options)
+  # let paths = getPathsToBuildFor(options.satResult, pkgToBuild, recursive = true, options)
+  let paths = getPathsAllPkgs(options.satResult, options)
   # echo "Paths ", paths
   # echo "Requires ", pkgToBuild.requires
   # echo "Package ", pkgToBuild.basicInfo.name
