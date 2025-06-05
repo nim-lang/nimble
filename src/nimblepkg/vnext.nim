@@ -549,10 +549,11 @@ proc installPkgs*(satResult: var SATResult, options: Options) =
   var pkgsToInstall = satResult.pkgsToInstall
    #If we are not in the root folder, means user is installing a package globally so we need to install root
   var installedPkgs = initHashSet[PackageInfo]()
-  echo "isInRootDir ", isInRootDir, " startDir ", options.startDir, " rootDir ", satResult.rootPackage.myPath.parentDir
-  if not isInRootDir: #skip root when in localdeps mode and in rootdir
+  # echo "isInRootDir ", isInRootDir, " startDir ", options.startDir, " rootDir ", satResult.rootPackage.myPath.parentDir
+  if options.action.typ == actionInstall: #only install action install the root package: #skip root when in localdeps mode and in rootdir
     pkgsToInstall.add((name: satResult.rootPackage.basicInfo.name, ver: satResult.rootPackage.basicInfo.version))
   else:
+    #Root can be assumed as installed as the only global action one can do is install
     installedPkgs.incl(satResult.rootPackage)
 
   for (name, ver) in pkgsToInstall:
@@ -560,7 +561,7 @@ proc installPkgs*(satResult: var SATResult, options: Options) =
     var pv = (name: name, ver: verRange)
     var installedPkgInfo: PackageInfo
     let root = satResult.rootPackage
-    if root notin installedPkgs and pv.name == root.basicInfo.name and root.basicInfo.version.withinRange(pv.ver) and options.startDir != root.myPath.parentDir: 
+    if root notin installedPkgs and pv.name == root.basicInfo.name and root.basicInfo.version.withinRange(pv.ver): 
       installedPkgInfo = installFromDirDownloadInfo(root.getNimbleFileDir(), root.metaData.url, options).toRequiresInfo(options)
     else:
       var dlInfo = getPackageDownloadInfo(pv, options)

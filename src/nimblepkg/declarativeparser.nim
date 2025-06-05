@@ -405,8 +405,7 @@ proc toRequiresInfo*(pkgInfo: PackageInfo, options: Options, nimbleFileInfo: Opt
     return result
   if pkgInfo.infoKind != pikFull: #dont update as full implies pik requires
     result.infoKind = pikRequires
-  result.features = getFeatures(nimbleFileInfo)
-  result.bin = nimbleFileInfo.bin
+  
   if nimbleFileInfo.nestedRequires and options.action.typ != actionCheck: #When checking we want to fail on porpuse
     case options.satResult.pass
     of satNimSelection:
@@ -421,7 +420,10 @@ proc toRequiresInfo*(pkgInfo: PackageInfo, options: Options, nimbleFileInfo: Opt
       # result.requires.add (name: "httpbeast", ver: VersionRange(kind: verAny))
       # echo "Fallback to VM parser for package: ", pkgInfo.basicInfo.name
       # echo "Requires: ", result.requires
-    
+  result.features = getFeatures(nimbleFileInfo)
+  if pkgInfo.infoKind == pikRequires:
+    result.bin = nimbleFileInfo.bin #Noted that we are not parsing namedBins here, they are only parsed wit full info
+
 proc fillPkgBasicInfo(pkgInfo: var PackageInfo, nimbleFileInfo: NimbleFileInfo) =
   #TODO something may be missing here
   pkgInfo.basicInfo.name = nimbleFileInfo.nimbleFile.splitFile.name
