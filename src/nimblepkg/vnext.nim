@@ -563,7 +563,9 @@ proc installPkgs*(satResult: var SATResult, options: Options) =
     if root notin installedPkgs and pv.name == root.basicInfo.name and root.basicInfo.version.withinRange(pv.ver) and options.startDir != root.myPath.parentDir: 
       installedPkgInfo = installFromDirDownloadInfo(root.getNimbleFileDir(), root.metaData.url, options).toRequiresInfo(options)
     else:
-      let dlInfo = getPackageDownloadInfo(pv, options)
+      var dlInfo = getPackageDownloadInfo(pv, options)
+      let downloadDir = dlInfo.downloadDir / dlInfo.subdir 
+      # echo "DL INFO IS ", dlInfo
       if not dirExists(dlInfo.downloadDir):
         #The reason for this is that the download cache may have a constrained version
         #this could be improved by creating a copy of the package in the cache dir when downloading
@@ -572,9 +574,10 @@ proc installPkgs*(satResult: var SATResult, options: Options) =
         #package once across all nimble projects (even in local mode)
         #But it would still be needed for the lock file case, although we could constraint it. 
         discard downloadFromDownloadInfo(dlInfo, options)
-      assert dirExists(dlInfo.downloadDir)
+        # dlInfo.downloadDir = downloadPkgResult.dir 
+      assert dirExists(downloadDir)
       #TODO this : PackageInfoneeds to be improved as we are redonwloading certain packages
-      installedPkgInfo = installFromDirDownloadInfo(dlInfo.downloadDir, dlInfo.url, options).toRequiresInfo(options)
+      installedPkgInfo = installFromDirDownloadInfo(downloadDir, dlInfo.url, options).toRequiresInfo(options)
 
     satResult.pkgs.incl(installedPkgInfo)
     installedPkgs.incl(installedPkgInfo)

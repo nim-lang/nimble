@@ -2510,14 +2510,6 @@ proc doAction(options: var Options) =
     writeHelp()
   if options.showVersion:
     writeVersion()
-  echo "ACTION IS ", options.action.typ
-  #Notice some actions dont need to be touched in vnext. Some other partially incercepted (setup) and some others fully changed (i.e build, install)
-  const vNextSupportedActions = { actionInstall, actionBuild, 
-    actionSetup, actionRun, actionLock, actionCustom }
-
-  if options.isVNext and options.action.typ in vNextSupportedActions:
-    runVNext(options)
-  
   case options.action.typ
   of actionRefresh:
     refresh(options)
@@ -2733,9 +2725,20 @@ when isMainModule:
     if opt.action.typ in {actionTasks, actionRun, actionBuild, actionCompile, actionDevelop}:
       # Implicitly disable package validation for these commands.
       opt.disableValidation = true
-    if not opt.showVersion and not opt.showHelp and not opt.isVNext:
-      opt.setNimBin
-    #TODO later on when in vnext, we solve the packages before running the action
+    
+    
+    echo "ACTION IS ", opt.action.typ
+    #Notice some actions dont need to be touched in vnext. Some other partially incercepted (setup) and some others fully changed (i.e build, install)
+    const vNextSupportedActions = { actionInstall, actionBuild, 
+      actionSetup, actionRun, actionLock, actionCustom }
+
+    if opt.isVNext and opt.action.typ in vNextSupportedActions:
+      runVNext(opt)
+    elif not opt.showVersion and not opt.showHelp: 
+      #Even in vnext some actions need to have set Nim the old way i.e. initAction 
+      #TODO review this and write specific logic to set Nim in this scenario.
+      opt.setNimBin()
+    
     opt.doAction()
   except NimbleQuit as quit:
     exitCode = quit.exitCode
