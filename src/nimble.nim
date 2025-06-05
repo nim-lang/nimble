@@ -71,17 +71,6 @@ proc displayUsingSpecialVersionWarning(solvedPkgs: seq[SolvedPackage], options: 
   for msg in messages:
     displayWarning(msg)
 
-proc addReverseDeps(solvedPkgs: seq[SolvedPackage], allPkgsInfo: seq[PackageInfo], options: Options) = 
-  for pkg in solvedPkgs:
-    let solvedPkg = getPackageInfo(pkg.pkgName, allPkgsInfo, some pkg.version)
-    if solvedPkg.isNone: continue
-    for (reverseDepName, ver) in pkg.reverseDependencies:
-      var reverseDep = getPackageInfo(reverseDepName, allPkgsInfo, some ver)
-      if reverseDep.isNone: continue
-      if reverseDep.get.myPath.parentDir.developFileExists:
-        reverseDep.get.isLink = true
-      addRevDep(options.nimbleData, solvedPkg.get.basicInfo, reverseDep.get)
-
 proc activateSolvedPkgFeatures(solvedPkgs: seq[SolvedPackage], allPkgsInfo: seq[PackageInfo], options: Options) =
   if not options.useDeclarativeParser:
     return
@@ -2483,9 +2472,9 @@ proc solvePkgs(rootPackage: PackageInfo, options: var Options) =
   if rootPackage.hasLockFile(options): 
     options.satResult.solveLockFileDeps(options)
   
-  # echo "Solved packages: ", options.satResult.solvedPkgs.mapIt(it.pkgName)
-  # echo "Packages to install: ", options.satResult.pkgsToInstall
-  # echo "Packages: ", options.satResult.pkgs.mapIt(it.basicInfo.name)
+  echo "Solved packages: ", options.satResult.solvedPkgs.mapIt(it.pkgName)
+  echo "Packages to install: ", options.satResult.pkgsToInstall
+  echo "Packages: ", options.satResult.pkgs.mapIt(it.basicInfo.name)
 
 proc runVNext(options: var Options) =
   #if the action is lock, we first remove the lock file so we can recalculate the deps. 
@@ -2505,7 +2494,15 @@ proc runVNext(options: var Options) =
       options.satResult = initSATResult(satNimSelection)      
       var rootPackage = downloadPkInfoForPv(pkg, options)
       solvePkgs(rootPackage, options)
-  options.satResult.installPkgs(isInRootDir = thereIsNimbleFile, options)
+  var pkgList = options.satResult.pkgList.toSeq & options.satResult.pkgs.toSeq
+  options.satResult.installPkgs(options)
+  pkgList = pkgList.filterIt(not it.basicInfo.name.isNim)
+  # pkgList.add initPkgList(options.satResult.rootPackage, options) 
+  #TODO IMPORTANT 
+  #we need the list of develop packages above (uninstall test will fail)
+  #we also may need to hook it in somwhere else as isLink is hardcoded to false in the installation process.
+  #review how this was done with the legacy parser. In the old code path it was called twice. 
+  addReverseDeps(options.satResult.solvedPkgs, pkgList, options)
   
 proc doAction(options: var Options) =
   if options.showHelp:

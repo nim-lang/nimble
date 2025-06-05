@@ -539,17 +539,18 @@ proc getVersionRangeFoPkgToInstall(satResult: SATResult, name: string, ver: Vers
         return parseVersionRange(specialVersion)  
   return ver.toVersionRange()
  
-proc installPkgs*(satResult: var SATResult, isInRootDir: bool, options: Options) =
+proc installPkgs*(satResult: var SATResult, options: Options) =
   #At this point the packages are already downloaded. 
   #We still need to install them aka copy them from the cache to the nimbleDir + run preInstall and postInstall scripts
   #preInstall hook is always executed for the current directory
+  let isInRootDir = options.startDir == satResult.rootPackage.myPath.parentDir
   if isInRootDir and options.action.typ == actionInstall:
     executeHook(getCurrentDir(), options, actionInstall, before = true) #likely incorrect if we are not in a nimble dir
   var pkgsToInstall = satResult.pkgsToInstall
    #If we are not in the root folder, means user is installing a package globally so we need to install root
   var installedPkgs = initHashSet[PackageInfo]()
-  
-  if not isInRootDir or not options.localdeps: #skip root when in localdeps mode and in rootdir
+  echo "isInRootDir ", isInRootDir, " startDir ", options.startDir, " rootDir ", satResult.rootPackage.myPath.parentDir
+  if not isInRootDir: #skip root when in localdeps mode and in rootdir
     pkgsToInstall.add((name: satResult.rootPackage.basicInfo.name, ver: satResult.rootPackage.basicInfo.version))
   else:
     installedPkgs.incl(satResult.rootPackage)
@@ -559,7 +560,7 @@ proc installPkgs*(satResult: var SATResult, isInRootDir: bool, options: Options)
     var pv = (name: name, ver: verRange)
     var installedPkgInfo: PackageInfo
     let root = satResult.rootPackage
-    if pv.name == root.basicInfo.name and root.basicInfo.version.withinRange(pv.ver): 
+    if root notin installedPkgs and pv.name == root.basicInfo.name and root.basicInfo.version.withinRange(pv.ver) and options.startDir != root.myPath.parentDir: 
       installedPkgInfo = installFromDirDownloadInfo(root.getNimbleFileDir(), root.metaData.url, options).toRequiresInfo(options)
     else:
       let dlInfo = getPackageDownloadInfo(pv, options)
