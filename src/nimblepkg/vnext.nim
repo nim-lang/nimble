@@ -208,11 +208,7 @@ proc addReverseDeps*(solvedPkgs: seq[SolvedPackage], allPkgsInfo: seq[PackageInf
       if reverseDep.isNone: continue
       if reverseDepName.isNim: continue #Nim is already handled. 
       if reverseDep.get.myPath.parentDir.developFileExists:
-        echo "Setting link for ", reverseDep.get.basicInfo.name, " ", reverseDep.get.basicInfo.version
         reverseDep.get.isLink = true
-      else:
-        echo "No develop file for so no link ", reverseDep.get.basicInfo.name, " ", reverseDep.get.basicInfo.version
-        echo "Link is ", reverseDep.get.isLink
       addRevDep(options.nimbleData, solvedPkg.get.basicInfo, reverseDep.get)
 
 proc executeHook(dir: string, options: Options, action: ActionType, before: bool) =
