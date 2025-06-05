@@ -2445,6 +2445,7 @@ proc openNimbleManual =
 
 proc solvePkgs(rootPackage: PackageInfo, options: var Options) =
   options.satResult.rootPackage = rootPackage
+  options.satResult.rootPackage.requires &= options.extraRequires
   let pkgList = getInstalledPkgsMin(options.getPkgsDir(), options)
   options.satResult.rootPackage.enableFeatures(options)
   if rootPackage.hasLockFile(options):
@@ -2509,9 +2510,10 @@ proc doAction(options: var Options) =
     writeHelp()
   if options.showVersion:
     writeVersion()
-  
+  echo "ACTION IS ", options.action.typ
   #Notice some actions dont need to be touched in vnext. Some other partially incercepted (setup) and some others fully changed (i.e build, install)
-  const vNextSupportedActions = { actionInstall, actionBuild, actionSetup, actionRun, actionLock }
+  const vNextSupportedActions = { actionInstall, actionBuild, 
+    actionSetup, actionRun, actionLock, actionCustom }
 
   if options.isVNext and options.action.typ in vNextSupportedActions:
     runVNext(options)
