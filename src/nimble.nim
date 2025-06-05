@@ -2726,11 +2726,12 @@ when isMainModule:
       # Implicitly disable package validation for these commands.
       opt.disableValidation = true
     
-    
-    echo "ACTION IS ", opt.action.typ
     #Notice some actions dont need to be touched in vnext. Some other partially incercepted (setup) and some others fully changed (i.e build, install)
     const vNextSupportedActions = { actionInstall, actionBuild, 
       actionSetup, actionRun, actionLock, actionCustom }
+
+    if opt.isVNext:
+      echo "ACTION IS ", opt.action.typ
 
     if opt.isVNext and opt.action.typ in vNextSupportedActions:
       runVNext(opt)
