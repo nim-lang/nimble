@@ -2476,8 +2476,9 @@ proc solvePkgs(rootPackage: PackageInfo, options: var Options) =
   echo "Solved packages: ", options.satResult.solvedPkgs.mapIt(it.pkgName)
   echo "Packages to install: ", options.satResult.pkgsToInstall
   echo "Packages: ", options.satResult.pkgs.mapIt(it.basicInfo.name)
+  echo "Package list: ", options.satResult.pkgList.mapIt(it.basicInfo.name)
 
-proc runVNext(options: var Options) =
+proc runVNext*(options: var Options) =
   #if the action is lock, we first remove the lock file so we can recalculate the deps. 
   if options.action.typ == actionLock:
     removeFile(options.lockFile(getCurrentDir()))
