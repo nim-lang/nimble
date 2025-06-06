@@ -256,10 +256,10 @@ proc processFreeDependencies(pkgInfo: PackageInfo,
   var pkgList {.global.}: seq[PackageInfo]
   once: 
     pkgList = initPkgList(pkgInfo, options)
-    if options.useSatSolver:
-      return processFreeDependenciesSAT(pkgInfo, options)
-    else:
-      requirements.add options.extraRequires
+  if options.useSatSolver:
+    return processFreeDependenciesSAT(pkgInfo, options)
+  else:
+    requirements.add options.extraRequires
 
   display("Verifying", "dependencies for $1@$2" %
           [pkgInfo.basicInfo.name, $pkgInfo.basicInfo.version],
