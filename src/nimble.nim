@@ -287,7 +287,14 @@ proc processFreeDependencies(pkgInfo: PackageInfo,
       if found:
         displayWarning(&"Installed package {dep.name} should be renamed to " &
                        resolvedDep.name)
-
+    if not found and options.useSatSolver:
+      # check if SAT already installed the needed packages.
+      if satProccesedPackages.isSome:
+        for satPkg in satProccesedPackages.get:
+          if satPkg.basicInfo.name == dep.name:
+            found = true
+            pkg = satPkg
+            break
     if not found:
       display("Installing", $resolvedDep, priority = MediumPriority)
       let toInstall = @[(resolvedDep.name, resolvedDep.ver)]
@@ -320,8 +327,8 @@ proc processFreeDependencies(pkgInfo: PackageInfo,
 
     if not pkg.isLink:
       reverseDependencies.add(pkg.basicInfo)
-
-  options.checkSatisfied(result.toSeq)
+  if not options.useSatSolver: #SAT already checks if the dependencies are satisfied
+    options.checkSatisfied(result.toSeq)
 
   # We add the reverse deps to the JSON file here because we don't want
   # them added if the above errorenous condition occurs
@@ -583,11 +590,9 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
   # Dependencies need to be processed before the creation of the pkg dir.
   if first and pkgInfo.hasLockedDeps():
     result.deps = pkgInfo.processLockedDependencies(depsOptions)
-  elif not fromLockFile and satProccesedPackages.isNone:
+  elif not fromLockFile:
     result.deps = pkgInfo.processFreeDependencies(pkgInfo.requires, depsOptions,
                                                   preferredPackages = preferredPackages)
-  elif satProccesedPackages.isSome and not pkgInfo.basicInfo.name.isNim:
-    result.deps = satProccesedPackages.get
   else:
     result.deps = deps.toHashSet
 
