@@ -583,9 +583,11 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
   # Dependencies need to be processed before the creation of the pkg dir.
   if first and pkgInfo.hasLockedDeps():
     result.deps = pkgInfo.processLockedDependencies(depsOptions)
-  elif not fromLockFile:
+  elif not fromLockFile and satProccesedPackages.isNone:
     result.deps = pkgInfo.processFreeDependencies(pkgInfo.requires, depsOptions,
                                                   preferredPackages = preferredPackages)
+  elif satProccesedPackages.isSome and not pkgInfo.basicInfo.name.isNim:
+    result.deps = satProccesedPackages.get
   else:
     result.deps = deps.toHashSet
 
