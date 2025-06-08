@@ -15,7 +15,7 @@ After we resolve nim, we try to resolve the dependencies for a root package. Roo
 import std/[sequtils, sets, options, os, strutils, tables, strformat]
 import nimblesat, packageinfotypes, options, version, declarativeparser, packageinfo, common,
   nimenv, lockfile, cli, downloadnim, packageparser, tools, nimscriptexecutor, packagemetadatafile,
-  displaymessages, packageinstaller, reversedeps, developfile
+  displaymessages, packageinstaller, reversedeps
 
 
 proc nameMatches(pkg: PackageInfo, pv: PkgTuple, options: Options): bool =
