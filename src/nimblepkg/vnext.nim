@@ -24,6 +24,9 @@ proc nameMatches(pkg: PackageInfo, pv: PkgTuple, options: Options): bool =
 proc nameMatches*(pkg: PackageInfo, name: string, options: Options): bool =
   pkg.basicInfo.name.toLowerAscii() == resolveAlias(name, options).toLowerAscii() or pkg.metaData.url == name
 
+proc nameMatches*(pkg: PackageInfo, name: string, options: Options): bool =
+  pkg.basicInfo.name == resolveAlias(name, options) or pkg.metaData.url == name
+
 proc getSolvedPkg*(satResult: SATResult, pkgInfo: PackageInfo): SolvedPackage =
   for solvedPkg in satResult.solvedPkgs:
     if pkgInfo.basicInfo.name.toLowerAscii() == solvedPkg.pkgName.toLowerAscii(): #No need to check version as they should match by design
