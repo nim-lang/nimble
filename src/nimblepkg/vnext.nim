@@ -21,6 +21,9 @@ import nimblesat, packageinfotypes, options, version, declarativeparser, package
 proc nameMatches(pkg: PackageInfo, pv: PkgTuple, options: Options): bool =
   pkg.basicInfo.name == pv.resolveAlias(options).name or pkg.metaData.url == pv.name
 
+proc nameMatches*(pkg: PackageInfo, name: string, options: Options): bool =
+  pkg.basicInfo.name == resolveAlias(name, options) or pkg.metaData.url == name
+
 proc getSolvedPkg*(satResult: SATResult, pkgInfo: PackageInfo): SolvedPackage =
   for solvedPkg in satResult.solvedPkgs:
     if pkgInfo.basicInfo.name == solvedPkg.pkgName: #No need to check version as they should match by design
@@ -37,7 +40,7 @@ proc getPkgInfoFromSolution(satResult: SATResult, pv: PkgTuple, options: Options
 
 proc getPkgInfoFromSolved*(satResult: SATResult, solvedPkg: SolvedPackage, options: Options): PackageInfo =
   for pkg in satResult.pkgs:
-    if pkg.basicInfo.name == solvedPkg.pkgName: #No need to check version as they should match by design
+    if nameMatches(pkg, solvedPkg.pkgName, options) and pkg.basicInfo.version == solvedPkg.version: #No need to check version as they should match by design
       return pkg
   raise newNimbleError[NimbleError]("Package not found in solution: " & $solvedPkg.pkgName & " " & $solvedPkg.version)
 

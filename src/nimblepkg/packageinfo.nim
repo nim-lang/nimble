@@ -334,6 +334,12 @@ proc resolveAlias*(dep: PkgTuple, options: Options): PkgTuple =
     # no alias is present.
     result.name = pkg.name
 
+proc resolveAlias*(depName: string, options: Options): string =
+  var pkg = initPackage()
+  if getPackage(depName, options, pkg):
+    return pkg.name
+  return depName
+
 proc findPkg*(pkglist: seq[PackageInfo], dep: PkgTuple,
               r: var PackageInfo): bool =
   ## Searches ``pkglist`` for a package of which version is within the range
