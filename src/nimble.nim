@@ -88,6 +88,21 @@ proc activateSolvedPkgFeatures(solvedPkgs: seq[SolvedPackage], allPkgsInfo: seq[
         continue
       appendGloballyActiveFeatures(pkgWithFeature.get.basicInfo.name, activeFeatures)
 
+proc addReverseDeps*(solvedPkgs: seq[SolvedPackage], allPkgsInfo: seq[PackageInfo], options: Options) = 
+  for pkg in solvedPkgs:
+    if pkg.pkgName.isNim: continue 
+    let solvedPkg = getPackageInfo(pkg.pkgName, allPkgsInfo, some pkg.version)
+    if solvedPkg.isNone:
+      continue
+    for (reverseDepName, ver) in pkg.reverseDependencies:
+      var reverseDep = getPackageInfo(reverseDepName, allPkgsInfo, some ver)
+      if reverseDep.isNone: 
+        continue
+      if reverseDepName.isNim: continue #Nim is already handled. 
+      if reverseDep.get.myPath.parentDir.developFileExists:
+        reverseDep.get.isLink = true
+      addRevDep(options.nimbleData, solvedPkg.get.basicInfo, reverseDep.get)
+
 proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, options: Options): HashSet[PackageInfo] = 
   if rootPkgInfo.basicInfo.name.isNim: #Nim has no deps
     return initHashSet[PackageInfo]()  
@@ -2473,7 +2488,7 @@ proc solvePkgs(rootPackage: PackageInfo, options: var Options) =
   if rootPackage.hasLockFile(options): 
     options.satResult.solveLockFileDeps(options)
   
-  echo "Solved packages: ", options.satResult.solvedPkgs.mapIt(it.pkgName)
+  echo "Solved packages: ", options.satResult.solvedPkgs.mapIt(it.pkgName & " " & $it.deps.mapIt(it.pkgName))
   echo "Packages to install: ", options.satResult.pkgsToInstall
   echo "Packages: ", options.satResult.pkgs.mapIt(it.basicInfo.name)
   echo "Package list: ", options.satResult.pkgList.mapIt(it.basicInfo.name)
@@ -2496,15 +2511,9 @@ proc runVNext*(options: var Options) =
       options.satResult = initSATResult(satNimSelection)      
       var rootPackage = downloadPkInfoForPv(pkg, options)
       solvePkgs(rootPackage, options)
-  var pkgList = options.satResult.pkgList.toSeq & options.satResult.pkgs.toSeq
   options.satResult.installPkgs(options)
-  pkgList = pkgList.filterIt(not it.basicInfo.name.isNim)
-  # pkgList.add initPkgList(options.satResult.rootPackage, options) 
-  #TODO IMPORTANT 
-  #we need the list of develop packages above (uninstall test will fail)
-  #we also may need to hook it in somwhere else as isLink is hardcoded to false in the installation process.
-  #review how this was done with the legacy parser. In the old code path it was called twice. 
-  addReverseDeps(options.satResult.solvedPkgs, pkgList, options)
+  echo "PKG solution after install: ", options.satResult.pkgs.mapIt(it.basicInfo.name)
+  options.satResult.addReverseDeps(options)
   
 proc doAction(options: var Options) =
   if options.showHelp:
