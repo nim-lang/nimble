@@ -2461,7 +2461,7 @@ proc openNimbleManual =
 proc solvePkgs(rootPackage: PackageInfo, options: var Options) =
   options.satResult.rootPackage = rootPackage
   options.satResult.rootPackage.requires &= options.extraRequires
-  let pkgList = getInstalledPkgsMin(options.getPkgsDir(), options)
+  let pkgList = initPkgList(options.satResult.rootPackage, options)
   options.satResult.rootPackage.enableFeatures(options)
   if rootPackage.hasLockFile(options):
     options.satResult.pass = satLockFile
