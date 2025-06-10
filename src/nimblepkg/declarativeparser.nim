@@ -425,7 +425,7 @@ proc toRequiresInfo*(pkgInfo: PackageInfo, options: Options, nimbleFileInfo: Opt
     result.bin = nimbleFileInfo.bin #Noted that we are not parsing namedBins here, they are only parsed wit full info
 
 proc fillPkgBasicInfo(pkgInfo: var PackageInfo, nimbleFileInfo: NimbleFileInfo) =
-  let (name, version, checksum) = getNameVersionChecksum(nimbleFileInfo.nimbleFile)
+  let (_, _, checksum) = getNameVersionChecksum(nimbleFileInfo.nimbleFile)
   pkgInfo.basicInfo.name = nimbleFileInfo.nimbleFile.splitFile.name
   pkgInfo.basicInfo.checksum = checksum
   pkgInfo.myPath = nimbleFileInfo.nimbleFile
