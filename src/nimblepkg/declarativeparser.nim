@@ -426,7 +426,7 @@ proc toRequiresInfo*(pkgInfo: PackageInfo, options: Options, nimbleFileInfo: Opt
 
 proc fillPkgBasicInfo(pkgInfo: var PackageInfo, nimbleFileInfo: NimbleFileInfo) =
   let (name, version, checksum) = getNameVersionChecksum(nimbleFileInfo.nimbleFile)
-  pkgInfo.basicInfo.name = name
+  pkgInfo.basicInfo.name = nimbleFileInfo.nimbleFile.splitFile.name
   pkgInfo.basicInfo.checksum = checksum
   pkgInfo.myPath = nimbleFileInfo.nimbleFile
   pkgInfo.basicInfo.version = newVersion nimbleFileInfo.version
