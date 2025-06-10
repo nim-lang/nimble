@@ -5,7 +5,10 @@ import std/strutils
 
 import compiler/[ast, idents, msgs, syntaxes, options, pathutils, lineinfos]
 import compiler/[renderer]
-import version, packageinfotypes, packageinfo, options, packageparser, cli, tools
+from compiler/nimblecmd import getPathVersionChecksum
+
+import version, packageinfotypes, packageinfo, options, packageparser, cli
+import sha1hashes
 import std/[tables, sequtils, strscans, strformat, os, options]
 
 type NimbleFileInfo* = object
@@ -425,9 +428,14 @@ proc toRequiresInfo*(pkgInfo: PackageInfo, options: Options, nimbleFileInfo: Opt
     result.bin = nimbleFileInfo.bin #Noted that we are not parsing namedBins here, they are only parsed wit full info
 
 proc fillPkgBasicInfo(pkgInfo: var PackageInfo, nimbleFileInfo: NimbleFileInfo) =
-  let (_, _, checksum) = getNameVersionChecksum(nimbleFileInfo.nimbleFile)
+  let (_, _, checksum) = getPathVersionChecksum(nimbleFileInfo.nimbleFile.splitPath.tail)
+  let sha1Checksum = 
+    try:
+      initSha1Hash(checksum)
+    except InvalidSha1HashError:
+      notSetSha1Hash
   pkgInfo.basicInfo.name = nimbleFileInfo.nimbleFile.splitFile.name
-  pkgInfo.basicInfo.checksum = checksum
+  pkgInfo.basicInfo.checksum = sha1Checksum
   pkgInfo.myPath = nimbleFileInfo.nimbleFile
   pkgInfo.basicInfo.version = newVersion nimbleFileInfo.version
 
