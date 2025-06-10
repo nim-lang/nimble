@@ -54,13 +54,6 @@ proc checkSatisfied(options: Options, dependencies: seq[PackageInfo]) =
           [pkgInfo.basicInfo.name, $currentVer, $pkgsInPath[pkgInfo.basicInfo.name]])
     pkgsInPath[pkgInfo.basicInfo.name] = currentVer
 
-proc displaySatisfiedMsg(solvedPkgs: seq[SolvedPackage], pkgToInstall: seq[(string, Version)], options: Options) =
-  if options.verbosity == LowPriority:
-    for pkg in solvedPkgs:
-      if pkg.pkgName notin pkgToInstall.mapIt(it[0]):
-        for req in pkg.requirements:
-          displayInfo(pkgDepsAlreadySatisfiedMsg(req), MediumPriority)
-
 proc displayUsingSpecialVersionWarning(solvedPkgs: seq[SolvedPackage], options: Options) =
   var messages = newSeq[string]()
   for pkg in solvedPkgs:
@@ -2487,11 +2480,12 @@ proc solvePkgs(rootPackage: PackageInfo, options: var Options) =
   options.satResult.pass = satDone 
   if rootPackage.hasLockFile(options): 
     options.satResult.solveLockFileDeps(options)
-  
+  echo "Root package: ", options.satResult.rootPackage.basicInfo.name, " ", options.satResult.rootPackage.basicInfo.version
   echo "Solved packages: ", options.satResult.solvedPkgs.mapIt(it.pkgName & " " & $it.deps.mapIt(it.pkgName))
   echo "Packages to install: ", options.satResult.pkgsToInstall
   echo "Packages: ", options.satResult.pkgs.mapIt(it.basicInfo.name)
   echo "Package list: ", options.satResult.pkgList.mapIt(it.basicInfo.name)
+  echo "PkgList path: ", options.satResult.pkgList.mapIt(it.myPath.parentDir)
 
 proc runVNext*(options: var Options) =
   #if the action is lock, we first remove the lock file so we can recalculate the deps. 

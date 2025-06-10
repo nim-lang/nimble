@@ -46,6 +46,13 @@ proc getPkgInfoFromSolved*(satResult: SATResult, solvedPkg: SolvedPackage, optio
       return pkg
   raise newNimbleError[NimbleError]("Package not found in solution: " & $solvedPkg.pkgName & " " & $solvedPkg.version)
 
+proc displaySatisfiedMsg*(solvedPkgs: seq[SolvedPackage], pkgToInstall: seq[(string, Version)], options: Options) =
+  if options.verbosity == LowPriority:
+    for pkg in solvedPkgs:
+      if pkg.pkgName notin pkgToInstall.mapIt(it[0]):
+        for req in pkg.requirements:
+          displayInfo(pkgDepsAlreadySatisfiedMsg(req), MediumPriority)
+
 proc getNimFromSystem*(options: Options): Option[PackageInfo] =
   # --nim:<path> takes priority over system nim but its only forced if we also specify useSystemNim
   # Just filename, search in PATH - nim_temp shortcut
@@ -563,7 +570,8 @@ proc installPkgs*(satResult: var SATResult, options: Options) =
   else:
     #Root can be assumed as installed as the only global action one can do is install
     installedPkgs.incl(satResult.rootPackage)
-
+    
+  displaySatisfiedMsg(satResult.solvedPkgs, pkgsToInstall, options)
   #If package is in develop mode, we dont need to install it.
   for (name, ver) in pkgsToInstall:
     let verRange = satResult.getVersionRangeFoPkgToInstall(name, ver)
