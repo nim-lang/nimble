@@ -15,18 +15,18 @@ After we resolve nim, we try to resolve the dependencies for a root package. Roo
 import std/[sequtils, sets, options, os, strutils, tables, strformat]
 import nimblesat, packageinfotypes, options, version, declarativeparser, packageinfo, common,
   nimenv, lockfile, cli, downloadnim, packageparser, tools, nimscriptexecutor, packagemetadatafile,
-  displaymessages, packageinstaller, reversedeps
+  displaymessages, packageinstaller, reversedeps, developfile
 
 
 proc nameMatches(pkg: PackageInfo, pv: PkgTuple, options: Options): bool =
-  pkg.basicInfo.name == pv.resolveAlias(options).name or pkg.metaData.url == pv.name
+  pkg.basicInfo.name.toLowerAscii() == pv.resolveAlias(options).name.toLowerAscii() or pkg.metaData.url == pv.name
 
 proc nameMatches*(pkg: PackageInfo, name: string, options: Options): bool =
-  pkg.basicInfo.name == resolveAlias(name, options) or pkg.metaData.url == name
+  pkg.basicInfo.name.toLowerAscii() == resolveAlias(name, options).toLowerAscii() or pkg.metaData.url == name
 
 proc getSolvedPkg*(satResult: SATResult, pkgInfo: PackageInfo): SolvedPackage =
   for solvedPkg in satResult.solvedPkgs:
-    if pkgInfo.basicInfo.name == solvedPkg.pkgName: #No need to check version as they should match by design
+    if pkgInfo.basicInfo.name.toLowerAscii() == solvedPkg.pkgName.toLowerAscii(): #No need to check version as they should match by design
       return solvedPkg
   raise newNimbleError[NimbleError]("Package not found in solution: " & $pkgInfo.basicInfo.name & " " & $pkgInfo.basicInfo.version)
 
@@ -39,8 +39,10 @@ proc getPkgInfoFromSolution(satResult: SATResult, pv: PkgTuple, options: Options
   raise newNimbleError[NimbleError]("Package not found in solution: " & $pv)
 
 proc getPkgInfoFromSolved*(satResult: SATResult, solvedPkg: SolvedPackage, options: Options): PackageInfo =
-  for pkg in satResult.pkgs:
-    if nameMatches(pkg, solvedPkg.pkgName, options) and pkg.basicInfo.version == solvedPkg.version: #No need to check version as they should match by design
+  let allPkgs = satResult.pkgs.toSeq & satResult.pkgList.toSeq
+  for pkg in allPkgs:
+    # echo "Checking ", pkg.basicInfo.name, " ", pkg.basicInfo.version, " against ", solvedPkg.pkgName, " ", solvedPkg.version
+    if nameMatches(pkg, solvedPkg.pkgName, options) and pkg.basicInfo.version == solvedPkg.version:
       return pkg
   raise newNimbleError[NimbleError]("Package not found in solution: " & $solvedPkg.pkgName & " " & $solvedPkg.version)
 
@@ -227,11 +229,16 @@ proc solvePkgsWithVmParserAllowingFallback*(rootPackage: PackageInfo, resolvedNi
 proc addReverseDeps*(satResult: SATResult, options: Options) = 
   for solvedPkg in satResult.solvedPkgs:
     if solvedPkg.pkgName.isNim: continue 
-    let reverseDepPkg = satResult.getPkgInfoFromSolved(solvedPkg, options)
+    var reverseDepPkg = satResult.getPkgInfoFromSolved(solvedPkg, options)
+    # Check if THIS package (the one that depends on others) is a development package
+    if reverseDepPkg.developFileExists or not reverseDepPkg.myPath.startsWith(options.getPkgsDir):
+      reverseDepPkg.isLink = true
+    
     for dep in solvedPkg.deps:
       if dep.pkgName.isNim: continue 
       let depPkg = satResult.getPkgInfoFromSolved(dep, options)
-      # echo "Adding reverse dep ", depPkg.basicInfo.name, " ", depPkg.basicInfo.version, " to ", reverseDepPkg.basicInfo.name, " ", reverseDepPkg.basicInfo.version
+      # echo "Checking ", depPkg.basicInfo.name, " ", depPkg.basicInfo.version, " ", depPkg.myPath.parentDir
+      
       addRevDep(options.nimbleData, depPkg.basicInfo, reverseDepPkg)
 
 proc executeHook(dir: string, options: Options, action: ActionType, before: bool) =
@@ -557,7 +564,7 @@ proc installPkgs*(satResult: var SATResult, options: Options) =
     #Root can be assumed as installed as the only global action one can do is install
     installedPkgs.incl(satResult.rootPackage)
 
-
+  #If package is in develop mode, we dont need to install it.
   for (name, ver) in pkgsToInstall:
     let verRange = satResult.getVersionRangeFoPkgToInstall(name, ver)
     var pv = (name: name, ver: verRange)
@@ -590,6 +597,8 @@ proc installPkgs*(satResult: var SATResult, options: Options) =
   options.satResult.activateSolvedPkgFeatures(options)
 
   for pkg in installedPkgs:
+    var pkg = pkg
+    fillMetaData(pkg, pkg.getRealDir(), false, options)
     options.satResult.pkgs.incl pkg 
 
   let buildActions = { actionInstall, actionBuild, actionRun }

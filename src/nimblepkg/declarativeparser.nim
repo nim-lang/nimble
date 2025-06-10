@@ -5,7 +5,7 @@ import std/strutils
 
 import compiler/[ast, idents, msgs, syntaxes, options, pathutils, lineinfos]
 import compiler/[renderer]
-import version, packageinfotypes, packageinfo, options, packageparser, cli
+import version, packageinfotypes, packageinfo, options, packageparser, cli, tools
 import std/[tables, sequtils, strscans, strformat, os, options]
 
 type NimbleFileInfo* = object
@@ -425,8 +425,9 @@ proc toRequiresInfo*(pkgInfo: PackageInfo, options: Options, nimbleFileInfo: Opt
     result.bin = nimbleFileInfo.bin #Noted that we are not parsing namedBins here, they are only parsed wit full info
 
 proc fillPkgBasicInfo(pkgInfo: var PackageInfo, nimbleFileInfo: NimbleFileInfo) =
-  #TODO something may be missing here
-  pkgInfo.basicInfo.name = nimbleFileInfo.nimbleFile.splitFile.name
+  let (name, version, checksum) = getNameVersionChecksum(nimbleFileInfo.nimbleFile)
+  pkgInfo.basicInfo.name = name
+  pkgInfo.basicInfo.checksum = checksum
   pkgInfo.myPath = nimbleFileInfo.nimbleFile
   pkgInfo.basicInfo.version = newVersion nimbleFileInfo.version
 
