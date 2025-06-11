@@ -334,6 +334,12 @@ proc resolveAlias*(dep: PkgTuple, options: Options): PkgTuple =
     # no alias is present.
     result.name = pkg.name
 
+proc resolveAlias*(depName: string, options: Options): string =
+  var pkg = initPackage()
+  if getPackage(depName, options, pkg):
+    return pkg.name
+  return depName
+
 proc findPkg*(pkglist: seq[PackageInfo], dep: PkgTuple,
               r: var PackageInfo): bool =
   ## Searches ``pkglist`` for a package of which version is within the range
@@ -469,10 +475,34 @@ proc iterInstallFiles*(realDir: string, pkgInfo: PackageInfo,
           pkgInfo.installDirs.len != 0 or
           pkgInfo.installFiles.len != 0 or
           pkgInfo.installExt.len != 0    
+  
+  
+  # Create a mapping of lowercase filesystem names to metadata names
+  var metadataNameMap: Table[string, string]
   if options.isVNext:
     #in vnext we dont use the whitelist mode as we install all files since we want to build the package in the 
-    #install dir.
+    #install dir. BUT we need to respect package metadata naming for specific files.
     whitelistMode = false
+    
+    # Map installFiles
+    for metadataFile in pkgInfo.installFiles:
+      let normalizedKey = metadataFile.toLowerAscii()
+      metadataNameMap[normalizedKey] = metadataFile
+    
+    # Map files from installDirs  
+    for dir in pkgInfo.installDirs:
+      let dirPath = realDir / dir
+      if dirExists(dirPath):
+        for kind, path in walkDir(dirPath):
+          if kind == pcFile:
+            let relativePath = path.relativePath(realDir)
+            let normalizedKey = relativePath.toLowerAscii()
+            metadataNameMap[normalizedKey] = relativePath
+    
+    let mainModuleFile = pkgInfo.basicInfo.name.addFileExt("nim")
+    let mainModuleNormalized = mainModuleFile.toLowerAscii()
+    metadataNameMap[mainModuleNormalized] = mainModuleFile
+    
   if whitelistMode:
     for file in pkgInfo.installFiles:
       let src = realDir / file
@@ -508,8 +538,19 @@ proc iterInstallFiles*(realDir: string, pkgInfo: PackageInfo,
       else:
         let skip = pkgInfo.checkInstallFile(realDir, file)
         if skip: continue
+        # For vnext: Check if we should use metadata name instead of filesystem name
+        if options.isVNext and metadataNameMap.len > 0:
+          let relativePath = file.relativePath(realDir)
+          let normalizedPath = relativePath.toLowerAscii()
+          if metadataNameMap.hasKey(normalizedPath):
+            # Use the metadata name instead of filesystem name
+            let metadataPath = realDir / metadataNameMap[normalizedPath]
+            action(metadataPath)
+          else:
+            action(file)
+        else:
+          action(file)
 
-        action(file)
 
 proc needsRebuild*(pkgInfo: PackageInfo, bin: string, dir: string, options: Options): bool =
   if options.action.typ != actionInstall:

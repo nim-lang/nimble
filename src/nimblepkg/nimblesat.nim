@@ -488,6 +488,14 @@ proc getSolvedPackages*(pkgVersionTable: Table[string, PackageVersions], output:
         )
         result.add solvedPkg
 
+  # Collect the deps for every solved package
+  for solvedPkg in result.mitems:
+    for (depName, depVer) in solvedPkg.requirements:
+      for otherPkg in result:
+        if otherPkg.pkgName == depName and otherPkg.version.withinRange(depVer):
+          solvedPkg.deps.add(otherPkg)
+          break
+
 proc getCacheDownloadDir*(url: string, ver: VersionRange, options: Options): string =
   options.pkgCachePath / getDownloadDirName(url, ver, notSetSha1Hash)
 

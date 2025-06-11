@@ -11,7 +11,7 @@ import typetraits except distinctBase
 
 import common, cli, packageinfotypes, packageinfo, packageparser, options,
        version, paths, displaymessages, sha1hashes,
-       tools, vcstools, syncfile, lockfile
+       tools, vcstools, syncfile, lockfile, declarativeparser
 
 type
   DevelopFileJsonData = object
@@ -172,7 +172,10 @@ proc validatePackage(pkgPath: Path, options: Options):
   ##                 not a valid package directory.
 
   try:
-    result.pkgInfo = getPkgInfo(string(pkgPath), options, true)
+    if options.isVnext: #TODO add and test fallback to nimVM parser (i.e. dev pkgList would need to be reloaded)
+      result.pkgInfo = getPkgInfoFromDirWithDeclarativeParser(string(pkgPath), options)
+    else:
+      result.pkgInfo = getPkgInfo(string(pkgPath), options, true)
   except CatchableError as error:
     result.error = error
 

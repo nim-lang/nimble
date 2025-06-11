@@ -5,7 +5,10 @@ import std/strutils
 
 import compiler/[ast, idents, msgs, syntaxes, options, pathutils, lineinfos]
 import compiler/[renderer]
+from compiler/nimblecmd import getPathVersionChecksum
+
 import version, packageinfotypes, packageinfo, options, packageparser, cli
+import sha1hashes
 import std/[tables, sequtils, strscans, strformat, os, options]
 
 type NimbleFileInfo* = object
@@ -397,7 +400,7 @@ proc toRequiresInfo*(pkgInfo: PackageInfo, options: Options, nimbleFileInfo: Opt
       return result
     else:
       displayWarning &"Package {pkgInfo.basicInfo.name} is a babel package, skipping declarative parser", priority = HighPriority
-      return pkgInfo.toFullInfo(options)
+      return getPkgInfo(pkgInfo.myPath.parentDir, options)
 
   let nimbleFileInfo = nimbleFileInfo.get(extractRequiresInfo(pkgInfo.myPath))
   result.requires = getRequires(nimbleFileInfo, result.activeFeatures)
@@ -405,8 +408,7 @@ proc toRequiresInfo*(pkgInfo: PackageInfo, options: Options, nimbleFileInfo: Opt
     return result
   if pkgInfo.infoKind != pikFull: #dont update as full implies pik requires
     result.infoKind = pikRequires
-  result.features = getFeatures(nimbleFileInfo)
-  result.bin = nimbleFileInfo.bin
+  
   if nimbleFileInfo.nestedRequires and options.action.typ != actionCheck: #When checking we want to fail on porpuse
     case options.satResult.pass
     of satNimSelection:
@@ -421,10 +423,19 @@ proc toRequiresInfo*(pkgInfo: PackageInfo, options: Options, nimbleFileInfo: Opt
       # result.requires.add (name: "httpbeast", ver: VersionRange(kind: verAny))
       # echo "Fallback to VM parser for package: ", pkgInfo.basicInfo.name
       # echo "Requires: ", result.requires
-    
+  result.features = getFeatures(nimbleFileInfo)
+  if pkgInfo.infoKind == pikRequires:
+    result.bin = nimbleFileInfo.bin #Noted that we are not parsing namedBins here, they are only parsed wit full info
+
 proc fillPkgBasicInfo(pkgInfo: var PackageInfo, nimbleFileInfo: NimbleFileInfo) =
-  #TODO something may be missing here
+  let (_, _, checksum) = getPathVersionChecksum(nimbleFileInfo.nimbleFile.splitPath.tail)
+  let sha1Checksum = 
+    try:
+      initSha1Hash(checksum)
+    except InvalidSha1HashError:
+      notSetSha1Hash
   pkgInfo.basicInfo.name = nimbleFileInfo.nimbleFile.splitFile.name
+  pkgInfo.basicInfo.checksum = sha1Checksum
   pkgInfo.myPath = nimbleFileInfo.nimbleFile
   pkgInfo.basicInfo.version = newVersion nimbleFileInfo.version
 

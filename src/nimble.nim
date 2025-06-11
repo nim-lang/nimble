@@ -54,13 +54,6 @@ proc checkSatisfied(options: Options, dependencies: seq[PackageInfo]) =
           [pkgInfo.basicInfo.name, $currentVer, $pkgsInPath[pkgInfo.basicInfo.name]])
     pkgsInPath[pkgInfo.basicInfo.name] = currentVer
 
-proc displaySatisfiedMsg(solvedPkgs: seq[SolvedPackage], pkgToInstall: seq[(string, Version)], options: Options) =
-  if options.verbosity == LowPriority:
-    for pkg in solvedPkgs:
-      if pkg.pkgName notin pkgToInstall.mapIt(it[0]):
-        for req in pkg.requirements:
-          displayInfo(pkgDepsAlreadySatisfiedMsg(req), MediumPriority)
-
 proc displayUsingSpecialVersionWarning(solvedPkgs: seq[SolvedPackage], options: Options) =
   var messages = newSeq[string]()
   for pkg in solvedPkgs:
@@ -70,17 +63,6 @@ proc displayUsingSpecialVersionWarning(solvedPkgs: seq[SolvedPackage], options: 
   
   for msg in messages:
     displayWarning(msg)
-
-proc addReverseDeps(solvedPkgs: seq[SolvedPackage], allPkgsInfo: seq[PackageInfo], options: Options) = 
-  for pkg in solvedPkgs:
-    let solvedPkg = getPackageInfo(pkg.pkgName, allPkgsInfo, some pkg.version)
-    if solvedPkg.isNone: continue
-    for (reverseDepName, ver) in pkg.reverseDependencies:
-      var reverseDep = getPackageInfo(reverseDepName, allPkgsInfo, some ver)
-      if reverseDep.isNone: continue
-      if reverseDep.get.myPath.parentDir.developFileExists:
-        reverseDep.get.isLink = true
-      addRevDep(options.nimbleData, solvedPkg.get.basicInfo, reverseDep.get)
 
 proc activateSolvedPkgFeatures(solvedPkgs: seq[SolvedPackage], allPkgsInfo: seq[PackageInfo], options: Options) =
   if not options.useDeclarativeParser:
@@ -98,6 +80,21 @@ proc activateSolvedPkgFeatures(solvedPkgs: seq[SolvedPackage], allPkgsInfo: seq[
         displayError &"Active PackageInfo {pkgTuple[0]} not found", priority = HighPriority
         continue
       appendGloballyActiveFeatures(pkgWithFeature.get.basicInfo.name, activeFeatures)
+
+proc addReverseDeps*(solvedPkgs: seq[SolvedPackage], allPkgsInfo: seq[PackageInfo], options: Options) = 
+  for pkg in solvedPkgs:
+    if pkg.pkgName.isNim: continue 
+    let solvedPkg = getPackageInfo(pkg.pkgName, allPkgsInfo, some pkg.version)
+    if solvedPkg.isNone:
+      continue
+    for (reverseDepName, ver) in pkg.reverseDependencies:
+      var reverseDep = getPackageInfo(reverseDepName, allPkgsInfo, some ver)
+      if reverseDep.isNone: 
+        continue
+      if reverseDepName.isNim: continue #Nim is already handled. 
+      if reverseDep.get.myPath.parentDir.developFileExists:
+        reverseDep.get.isLink = true
+      addRevDep(options.nimbleData, solvedPkg.get.basicInfo, reverseDep.get)
 
 proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, options: Options): HashSet[PackageInfo] = 
   if rootPkgInfo.basicInfo.name.isNim: #Nim has no deps
@@ -2463,7 +2460,8 @@ proc openNimbleManual =
 
 proc solvePkgs(rootPackage: PackageInfo, options: var Options) =
   options.satResult.rootPackage = rootPackage
-  let pkgList = getInstalledPkgsMin(options.getPkgsDir(), options)
+  options.satResult.rootPackage.requires &= options.extraRequires
+  let pkgList = initPkgList(options.satResult.rootPackage, options)
   options.satResult.rootPackage.enableFeatures(options)
   if rootPackage.hasLockFile(options):
     options.satResult.pass = satLockFile
@@ -2489,12 +2487,8 @@ proc solvePkgs(rootPackage: PackageInfo, options: var Options) =
   options.satResult.pass = satDone 
   if rootPackage.hasLockFile(options): 
     options.satResult.solveLockFileDeps(options)
-  
-  # echo "Solved packages: ", options.satResult.solvedPkgs.mapIt(it.pkgName)
-  # echo "Packages to install: ", options.satResult.pkgsToInstall
-  # echo "Packages: ", options.satResult.pkgs.mapIt(it.basicInfo.name)
 
-proc runVNext(options: var Options) =
+proc runVNext*(options: var Options) =
   #if the action is lock, we first remove the lock file so we can recalculate the deps. 
   if options.action.typ == actionLock:
     removeFile(options.lockFile(getCurrentDir()))
@@ -2512,20 +2506,15 @@ proc runVNext(options: var Options) =
       options.satResult = initSATResult(satNimSelection)      
       var rootPackage = downloadPkInfoForPv(pkg, options)
       solvePkgs(rootPackage, options)
-  options.satResult.installPkgs(isInRootDir = thereIsNimbleFile, options)
+  options.satResult.installPkgs(options)
+  echo "PKG solution after install: ", options.satResult.pkgs.mapIt(it.basicInfo.name)
+  options.satResult.addReverseDeps(options)
   
 proc doAction(options: var Options) =
   if options.showHelp:
     writeHelp()
   if options.showVersion:
     writeVersion()
-  
-  #Notice some actions dont need to be touched in vnext. Some other partially incercepted (setup) and some others fully changed (i.e build, install)
-  const vNextSupportedActions = { actionInstall, actionBuild, actionSetup, actionRun, actionLock }
-
-  if options.isVNext and options.action.typ in vNextSupportedActions:
-    runVNext(options)
-  
   case options.action.typ
   of actionRefresh:
     refresh(options)
@@ -2741,9 +2730,21 @@ when isMainModule:
     if opt.action.typ in {actionTasks, actionRun, actionBuild, actionCompile, actionDevelop}:
       # Implicitly disable package validation for these commands.
       opt.disableValidation = true
-    if not opt.showVersion and not opt.showHelp and not opt.isVNext:
-      opt.setNimBin
-    #TODO later on when in vnext, we solve the packages before running the action
+    
+    #Notice some actions dont need to be touched in vnext. Some other partially incercepted (setup) and some others fully changed (i.e build, install)
+    const vNextSupportedActions = { actionInstall, actionBuild, 
+      actionSetup, actionRun, actionLock, actionCustom }
+
+    # if opt.isVNext:
+    #   echo "ACTION IS ", opt.action.typ
+
+    if opt.isVNext and opt.action.typ in vNextSupportedActions:
+      runVNext(opt)
+    elif not opt.showVersion and not opt.showHelp: 
+      #Even in vnext some actions need to have set Nim the old way i.e. initAction 
+      #TODO review this and write specific logic to set Nim in this scenario.
+      opt.setNimBin()
+    
     opt.doAction()
   except NimbleQuit as quit:
     exitCode = quit.exitCode
