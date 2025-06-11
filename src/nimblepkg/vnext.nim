@@ -55,10 +55,8 @@ proc getPkgInfoFromSolution(satResult: SATResult, pv: PkgTuple, options: Options
 proc getPkgInfoFromSolved*(satResult: SATResult, solvedPkg: SolvedPackage, options: Options): PackageInfo =
   let allPkgs = satResult.pkgs.toSeq & satResult.pkgList.toSeq
   for pkg in allPkgs:
-    # echo "Checking ", pkg.basicInfo.name, " ", pkg.basicInfo.version, " against ", solvedPkg.pkgName, " ", solvedPkg.version
     if nameMatches(pkg, solvedPkg.pkgName, options) and pkg.basicInfo.version == solvedPkg.version:
       return pkg
-  satResult.debug()
   raise newNimbleError[NimbleError]("Package not found in solution: " & $solvedPkg.pkgName & " " & $solvedPkg.version)
 
 proc displaySatisfiedMsg*(solvedPkgs: seq[SolvedPackage], pkgToInstall: seq[(string, Version)], options: Options) =
@@ -351,7 +349,6 @@ proc installFromDirDownloadInfo(downloadDir: string, url: string, options: Optio
   else:
     display("Warning:", "Skipped copy in project local deps mode", Warning)
 
-  pkgInfo.isInstalled = true
 
   displaySuccess(pkgInstalledMsg(pkgInfo.basicInfo.name), MediumPriority)
 
@@ -635,6 +632,9 @@ proc installPkgs*(satResult: var SATResult, options: Options) =
       buildPkg(pkgToBuild, isRoot, options)
 
   satResult.installedPkgs = installedPkgs.toSeq()
+  for pkg in satResult.installedPkgs.mitems:
+    pkg.isInstalled = true
+    satResult.pkgs.incl pkg
     
   if isInRootDir and options.action.typ == actionInstall:
     #postInstall hook is always executed for the current directory
