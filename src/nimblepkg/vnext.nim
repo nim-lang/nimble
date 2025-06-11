@@ -15,14 +15,25 @@ After we resolve nim, we try to resolve the dependencies for a root package. Roo
 import std/[sequtils, sets, options, os, strutils, tables, strformat]
 import nimblesat, packageinfotypes, options, version, declarativeparser, packageinfo, common,
   nimenv, lockfile, cli, downloadnim, packageparser, tools, nimscriptexecutor, packagemetadatafile,
-  displaymessages, packageinstaller, reversedeps, developfile
+  displaymessages, packageinstaller, reversedeps, developfile, urls
 
+proc debug*(satResult: SATResult) =
+  echo "--------------------------------"
+  echo "Pass: ", satResult.pass
+  echo "Root package: ", satResult.rootPackage.basicInfo.name, " ", satResult.rootPackage.basicInfo.version
+  echo "Solved packages: ", satResult.solvedPkgs.mapIt(it.pkgName & " " & $it.deps.mapIt(it.pkgName))
+  echo "Packages to install: ", satResult.pkgsToInstall
+  echo "Packages: ", satResult.pkgs.mapIt(it.basicInfo.name)
+  echo "Packages url: ", satResult.pkgs.mapIt(it.metaData.url)
+  echo "Package list: ", satResult.pkgList.mapIt(it.basicInfo.name)
+  echo "PkgList path: ", satResult.pkgList.mapIt(it.myPath.parentDir)
+  echo "--------------------------------"
 
 proc nameMatches(pkg: PackageInfo, pv: PkgTuple, options: Options): bool =
   pkg.basicInfo.name.toLowerAscii() == pv.resolveAlias(options).name.toLowerAscii() or pkg.metaData.url == pv.name
 
 proc nameMatches*(pkg: PackageInfo, name: string, options: Options): bool =
-  pkg.basicInfo.name.toLowerAscii() == resolveAlias(name, options).toLowerAscii() or pkg.metaData.url == name
+  pkg.basicInfo.name.toLowerAscii() == resolveAlias(name, options).toLowerAscii() or pkg.metaData.url.toLowerAscii() == name.toLowerAscii()
 
 proc nameMatches*(pkg: PackageInfo, name: string, options: Options): bool =
   pkg.basicInfo.name.toLowerAscii() == resolveAlias(name, options).toLowerAscii() or pkg.metaData.url == name
@@ -47,6 +58,7 @@ proc getPkgInfoFromSolved*(satResult: SATResult, solvedPkg: SolvedPackage, optio
     # echo "Checking ", pkg.basicInfo.name, " ", pkg.basicInfo.version, " against ", solvedPkg.pkgName, " ", solvedPkg.version
     if nameMatches(pkg, solvedPkg.pkgName, options) and pkg.basicInfo.version == solvedPkg.version:
       return pkg
+  satResult.debug()
   raise newNimbleError[NimbleError]("Package not found in solution: " & $solvedPkg.pkgName & " " & $solvedPkg.version)
 
 proc displaySatisfiedMsg*(solvedPkgs: seq[SolvedPackage], pkgToInstall: seq[(string, Version)], options: Options) =
@@ -609,7 +621,7 @@ proc installPkgs*(satResult: var SATResult, options: Options) =
 
   for pkg in installedPkgs:
     var pkg = pkg
-    fillMetaData(pkg, pkg.getRealDir(), false, options)
+    # fillMetaData(pkg, pkg.getRealDir(), false, options)
     options.satResult.pkgs.incl pkg 
 
   let buildActions = { actionInstall, actionBuild, actionRun }
