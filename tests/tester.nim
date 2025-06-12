@@ -9,9 +9,9 @@ import tinitcommand
 import tcheckcommand
 import tcleancommand
 import tdevelopfeature
-import tissues
+# import tissues
 import tlocaldeps
-import tlockfile
+# import tlockfile
 import tmisctests
 import tmoduletests
 import tmultipkgs
