@@ -384,7 +384,7 @@ proc getRealDir*(pkgInfo: PackageInfo): string =
     result = pkgInfo.getNimbleFileDir() / pkgInfo.srcDir
   else:
     result = pkgInfo.getNimbleFileDir()
-
+  
 proc getOutputDir*(pkgInfo: PackageInfo, bin: string): string =
   ## Returns a binary output dir for the package.
   if pkgInfo.binDir != "":

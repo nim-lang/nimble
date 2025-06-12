@@ -536,7 +536,7 @@ proc solutionToFullInfo*(satResult: SATResult, options: var Options) =
 proc isRoot(pkgInfo: PackageInfo, satResult: SATResult): bool =
   pkgInfo.basicInfo.name == satResult.rootPackage.basicInfo.name and pkgInfo.basicInfo.version == satResult.rootPackage.basicInfo.version
 
-proc buildPkg(pkgToBuild: PackageInfo, rootDir: bool, options: Options) =
+proc buildPkg(pkgToBuild: PackageInfo, isRootInRootDir: bool, options: Options) =
   # let paths = getPathsToBuildFor(options.satResult, pkgToBuild, recursive = true, options)
   let paths = getPathsAllPkgs(options.satResult, options)
   # echo "Paths ", paths
@@ -546,12 +546,14 @@ proc buildPkg(pkgToBuild: PackageInfo, rootDir: bool, options: Options) =
                 options.action.passNimFlags
               else:
                 @[]
+  var pkgToBuild = pkgToBuild
+  if isRootInRootDir:
+    pkgToBuild.isInstalled = false
   buildFromDir(pkgToBuild, paths, "-d:release" & flags, options)
   #Should we create symlinks for the root package? Before behavior was to dont create them
   #In general for nim we should not create them if we are not in the local mode
   #But if we are installing only nim (i.e nim is root) we should create them which will
   #convert nimble a choosenim replacement
-  let isRootInRootDir = pkgToBuild.isRoot(options.satResult) and rootDir
   if not isRootInRootDir : #Dont create symlinks for the root package
     createBinSymlink(pkgToBuild, options)
 
