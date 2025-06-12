@@ -622,8 +622,12 @@ proc installPkgs*(satResult: var SATResult, options: Options) =
   let buildActions = { actionInstall, actionBuild, actionRun }
   for pkgToBuild in installedPkgs:
     if pkgToBuild.bin.len == 0:
-      continue
-
+      if options.action.typ == actionBuild:
+        raise nimbleError(
+          "Nothing to build. Did you specify a module to build using the" &
+          " `bin` key in your .nimble file?")
+      else:
+        continue
     echo "Building package: ", pkgToBuild.basicInfo.name
     let isRoot = pkgToBuild.isRoot(options.satResult) and isInRootDir
     if options.action.typ in buildActions:
