@@ -591,7 +591,7 @@ proc installPkgs*(satResult: var SATResult, options: Options) =
     if root notin installedPkgs and pv.name == root.basicInfo.name and root.basicInfo.version.withinRange(pv.ver): 
       installedPkgInfo = installFromDirDownloadInfo(root.getNimbleFileDir(), root.metaData.url, options).toRequiresInfo(options)
     else:
-      var dlInfo = getPackageDownloadInfo(pv, options)
+      var dlInfo = getPackageDownloadInfo(pv, options, doPrompt = true)
       let downloadDir = dlInfo.downloadDir / dlInfo.subdir 
       # echo "DL INFO IS ", dlInfo
       if not dirExists(dlInfo.downloadDir):
