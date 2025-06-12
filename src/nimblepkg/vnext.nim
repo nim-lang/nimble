@@ -39,6 +39,7 @@ proc getSolvedPkg*(satResult: SATResult, pkgInfo: PackageInfo): SolvedPackage =
   for solvedPkg in satResult.solvedPkgs:
     if pkgInfo.basicInfo.name.toLowerAscii() == solvedPkg.pkgName.toLowerAscii(): #No need to check version as they should match by design
       return solvedPkg
+  satResult.debug()
   raise newNimbleError[NimbleError]("Package not found in solution: " & $pkgInfo.basicInfo.name & " " & $pkgInfo.basicInfo.version)
 
 proc getPkgInfoFromSolution(satResult: SATResult, pv: PkgTuple, options: Options): PackageInfo =
@@ -353,7 +354,7 @@ proc installFromDirDownloadInfo(downloadDir: string, url: string, options: Optio
   # executes the hook defined in the CWD, so we set it to where the package
   # has been installed.
   executeHook(pkgInfo.myPath.splitFile.dir, options, actionInstall, before = false)
-
+  pkgInfo.isInstalled = true
   pkgInfo
 
 proc activateSolvedPkgFeatures*(satResult: SATResult, options: Options) =
@@ -630,7 +631,6 @@ proc installPkgs*(satResult: var SATResult, options: Options) =
 
   satResult.installedPkgs = installedPkgs.toSeq()
   for pkg in satResult.installedPkgs.mitems:
-    pkg.isInstalled = true
     satResult.pkgs.incl pkg
     
   if isInRootDir and options.action.typ == actionInstall:
