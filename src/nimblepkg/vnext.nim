@@ -329,10 +329,10 @@ proc installFromDirDownloadInfo(downloadDir: string, url: string, options: Optio
     createDir(pkgDestDir)
     # Copy this package's files based on the preferences specified in PkgInfo.
     var filesInstalled: HashSet[string]
-    iterInstallFiles(realDir, pkgInfo, options,
+    iterInstallFiles(pkgInfo.getNimbleFileDir(), pkgInfo, options,
       proc (file: string) =
-        createDir(changeRoot(realDir, pkgDestDir, file.splitFile.dir))
-        let dest = changeRoot(realDir, pkgDestDir, file)
+        createDir(changeRoot(pkgInfo.getNimbleFileDir(), pkgDestDir, file.splitFile.dir))
+        let dest = changeRoot(pkgInfo.getNimbleFileDir(), pkgDestDir, file)
         filesInstalled.incl copyFileD(file, dest)
     )
 

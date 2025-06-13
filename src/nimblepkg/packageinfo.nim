@@ -555,18 +555,36 @@ proc iterInstallFiles*(realDir: string, pkgInfo: PackageInfo,
 proc needsRebuild*(pkgInfo: PackageInfo, bin: string, dir: string, options: Options): bool =
   if options.action.typ != actionInstall:
     return true
-  if not options.action.noRebuild:
-    return true
+  
+  if options.isVNext:
+    if options.action.noRebuild:
+      if not fileExists(bin):
+        return true  
+      
+      let binTimestamp = getFileInfo(bin).lastWriteTime
+      var rebuild = false
+      iterFilesWithExt(dir, pkgInfo,
+        proc (file: string) =
+          let srcTimestamp = getFileInfo(file).lastWriteTime
+          if binTimestamp < srcTimestamp:
+            rebuild = true
+      )
+      return rebuild
+    else:
+      return true
+  else:
+    if not options.action.noRebuild:
+      return true
 
-  let binTimestamp = getFileInfo(bin).lastWriteTime
-  var rebuild = false
-  iterFilesWithExt(dir, pkgInfo,
-    proc (file: string) =
-      let srcTimestamp = getFileInfo(file).lastWriteTime
-      if binTimestamp < srcTimestamp:
-        rebuild = true
-  )
-  return rebuild
+    let binTimestamp = getFileInfo(bin).lastWriteTime
+    var rebuild = false
+    iterFilesWithExt(dir, pkgInfo,
+      proc (file: string) =
+        let srcTimestamp = getFileInfo(file).lastWriteTime
+        if binTimestamp < srcTimestamp:
+          rebuild = true
+    )
+    return rebuild
 
 proc getCacheDir*(pkgInfo: PackageBasicInfo): string =
   &"{pkgInfo.name}-{pkgInfo.version}-{$pkgInfo.checksum}"
