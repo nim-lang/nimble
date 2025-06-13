@@ -51,7 +51,6 @@ proc getPkgInfoFromSolution(satResult: SATResult, pv: PkgTuple, options: Options
   raise newNimbleError[NimbleError]("Package not found in solution: " & $pv)
 
 proc getPkgInfoFromSolved*(satResult: SATResult, solvedPkg: SolvedPackage, options: Options): PackageInfo =
-  let allPkgs = satResult.pkgs.toSeq & satResult.pkgList.toSeq
   for pkg in satResult.pkgs.toSeq: #Package in the solution matches the verison implicitly
     if nameMatches(pkg, solvedPkg.pkgName, options): 
       return pkg
@@ -287,7 +286,7 @@ proc installFromDirDownloadInfo(downloadDir: string, url: string, options: Optio
   #   ## the package directory.
   #   pkgInfo.metaData.vcsRevision = vcsRevision
 
-  let realDir = pkgInfo.getRealDir()
+  # let realDir = pkgInfo.getRealDir()
   var depsOptions = options
   depsOptions.depsOnly = false
 
@@ -480,9 +479,15 @@ proc buildFromDir(pkgInfo: PackageInfo, paths: HashSet[string],
     display("Building", "$1/$2 using $3 backend" %
             [pkginfo.basicInfo.name, bin, pkgInfo.backend], priority = HighPriority)
 
-    let input = realDir / src.changeFileExt("nim")
-    # `quoteShell` would be more robust than `\"` (and avoid quoting when
-    # un-necessary) but would require changing `extractBin`
+    # For installed packages, we need to handle srcDir correctly
+    let input = 
+      if pkgInfo.isInstalled and not pkgInfo.isLink and pkgInfo.srcDir != "":
+        # For installed packages with srcDir, the source file is in srcDir
+        realDir / pkgInfo.srcDir / src.changeFileExt("nim")
+      else:
+        # For non-installed packages or packages without srcDir, use realDir directly
+        realDir / src.changeFileExt("nim")
+
     let cmd = "$# $# --colors:$# --noNimblePath $# $# $#" % [
       options.satResult.getNimBin().quoteShell, pkgInfo.backend, if options.noColor: "off" else: "on", join(args, " "),
       outputOpt, input.quoteShell]

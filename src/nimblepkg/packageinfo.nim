@@ -538,6 +538,20 @@ proc iterInstallFiles*(realDir: string, pkgInfo: PackageInfo,
       else:
         let skip = pkgInfo.checkInstallFile(realDir, file)
         if skip: continue
+        
+        # In vnext mode, skip binary files that match package binary names to avoid conflicts
+        if options.isVNext:
+          let fileName = file.splitFile.name
+          let fileExt = file.splitFile.ext
+          var skipBinary = false
+          # Only skip if it's not a source file (i.e., doesn't have .nim extension)
+          if fileExt != ".nim":
+            for binName, _ in pkgInfo.bin:
+              if fileName == binName:
+                skipBinary = true
+                break
+          if skipBinary: continue
+        
         # For vnext: Check if we should use metadata name instead of filesystem name
         if options.isVNext and metadataNameMap.len > 0:
           let relativePath = file.relativePath(realDir)
