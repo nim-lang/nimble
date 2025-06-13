@@ -52,9 +52,13 @@ proc getPkgInfoFromSolution(satResult: SATResult, pv: PkgTuple, options: Options
 
 proc getPkgInfoFromSolved*(satResult: SATResult, solvedPkg: SolvedPackage, options: Options): PackageInfo =
   let allPkgs = satResult.pkgs.toSeq & satResult.pkgList.toSeq
-  for pkg in allPkgs:
-    if nameMatches(pkg, solvedPkg.pkgName, options) and pkg.basicInfo.version == solvedPkg.version:
+  for pkg in satResult.pkgs.toSeq: #Package in the solution matches the verison implicitly
+    if nameMatches(pkg, solvedPkg.pkgName, options): 
       return pkg
+  for pkg in satResult.pkgList.toSeq: #For the pkg list we need to check the version as there may be multiple versions of the same package
+    if nameMatches(pkg, solvedPkg.pkgName, options) and pkg.basicInfo.version == solvedPkg.version: 
+      return pkg
+  satResult.debug()
   raise newNimbleError[NimbleError]("Package not found in solution: " & $solvedPkg.pkgName & " " & $solvedPkg.version)
 
 proc displaySatisfiedMsg*(solvedPkgs: seq[SolvedPackage], pkgToInstall: seq[(string, Version)], options: Options) =
