@@ -276,7 +276,7 @@ proc installFromDirDownloadInfo(downloadDir: string, url: string, options: Optio
   var pkgInfo = getPkgInfo(dir, options)
   # Set the flag that the package is not in develop mode before saving it to the
   # reverse dependencies.
-  pkgInfo.isLink = false
+  # pkgInfo.isLink = false
   # if vcsRevision != notSetSha1Hash: #TODO review this
   #   ## In the case we downloaded the package as tarball we have to set the VCS
   #   ## revision returned by download procedure because it cannot be queried from
@@ -591,7 +591,13 @@ proc installPkgs*(satResult: var SATResult, options: Options) =
     var installedPkgInfo: PackageInfo
     let root = satResult.rootPackage
     if root notin installedPkgs and pv.name == root.basicInfo.name and root.basicInfo.version.withinRange(pv.ver): 
-      installedPkgInfo = installFromDirDownloadInfo(root.getNimbleFileDir(), root.metaData.url, options).toRequiresInfo(options)
+      if root.developFileExists:
+        satResult.rootPackage.isInstalled = false
+        satResult.rootPackage.isLink = true
+        installedPkgInfo = satResult.rootPackage
+      else:
+        installedPkgInfo = installFromDirDownloadInfo(root.getNimbleFileDir(), root.metaData.url, options).toRequiresInfo(options)
+    
     else:
       var dlInfo = getPackageDownloadInfo(pv, options, doPrompt = true)
       let downloadDir = dlInfo.downloadDir / dlInfo.subdir 
