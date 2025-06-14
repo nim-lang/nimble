@@ -19,6 +19,9 @@ suite "project local deps mode":
       cleanDir("nimbledeps")
       createDir("nimbledeps")
       let (output, exitCode) = execCmdEx(nimblePath & " install -y")
+      echo "BEGIN OUTPUT"
+      echo output
+      echo "END OUTPUT"
       check exitCode == QuitSuccess
       check output.contains("project local deps mode")
       check output.contains("Succeeded")

@@ -7,7 +7,8 @@ import compiler/[ast, idents, msgs, syntaxes, options, pathutils, lineinfos]
 import compiler/[renderer]
 from compiler/nimblecmd import getPathVersionChecksum
 
-import version, packageinfotypes, packageinfo, options, packageparser, cli
+import version, packageinfotypes, packageinfo, options, packageparser, cli,
+  packagemetadatafile
 import sha1hashes
 import std/[tables, sequtils, strscans, strformat, os, options]
 
@@ -400,7 +401,9 @@ proc toRequiresInfo*(pkgInfo: PackageInfo, options: Options, nimbleFileInfo: Opt
       return result
     else:
       displayWarning &"Package {pkgInfo.basicInfo.name} is a babel package, skipping declarative parser", priority = HighPriority
-      return getPkgInfo(pkgInfo.myPath.parentDir, options)
+      result = getPkgInfo(pkgInfo.myPath.parentDir, options)
+      fillMetaData(result, result.getRealDir(), false, options)
+      return result
 
   let nimbleFileInfo = nimbleFileInfo.get(extractRequiresInfo(pkgInfo.myPath))
   result.requires = getRequires(nimbleFileInfo, result.activeFeatures)
@@ -424,6 +427,7 @@ proc toRequiresInfo*(pkgInfo: PackageInfo, options: Options, nimbleFileInfo: Opt
       # echo "Fallback to VM parser for package: ", pkgInfo.basicInfo.name
       # echo "Requires: ", result.requires
   result.features = getFeatures(nimbleFileInfo)
+  fillMetaData(result, result.getRealDir(), false, options)
   if pkgInfo.infoKind == pikRequires:
     result.bin = nimbleFileInfo.bin #Noted that we are not parsing namedBins here, they are only parsed wit full info
 
@@ -445,7 +449,3 @@ proc getPkgInfoFromDirWithDeclarativeParser*(dir: string, options: Options): Pac
   result = initPackageInfo()
   fillPkgBasicInfo(result, nimbleFileInfo)
   result = toRequiresInfo(result, options, some nimbleFileInfo)
-
-when isMainModule:
-  for x in tokenizeRequires("jester@#head >= 1.5 & <= 1.8"):
-    echo x

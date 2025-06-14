@@ -2504,7 +2504,7 @@ proc runVNext*(options: var Options) =
     #Global install        
     for pkg in options.action.packages:          
       options.satResult = initSATResult(satNimSelection)      
-      var rootPackage = downloadPkInfoForPv(pkg, options)
+      var rootPackage = downloadPkInfoForPv(pkg, options, doPrompt = true)
       solvePkgs(rootPackage, options)
   options.satResult.installPkgs(options)
   echo "PKG solution after install: ", options.satResult.pkgs.mapIt(it.basicInfo.name)
