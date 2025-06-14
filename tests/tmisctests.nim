@@ -54,10 +54,9 @@ suite "misc tests":
     cleanDir(installDir)
     cd "run":
       check execNimbleYes("build").exitCode == QuitSuccess
-
       let (output, exitCode) = execNimbleYes("install", "--noRebuild")
       check exitCode == QuitSuccess
-      check output.contains("Skipping")
+      check output.contains("Skipping") #TODO: This is not working as expected
 
   test "NimbleVersion is defined":
     cd "nimbleVersionDefine":

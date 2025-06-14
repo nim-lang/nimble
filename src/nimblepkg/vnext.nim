@@ -481,10 +481,8 @@ proc buildFromDir(pkgInfo: PackageInfo, paths: HashSet[string],
       # When installing from a local directory, check for binary in the original directory
       let sourceBinary = 
         if options.startDir != pkgDir:
-          # We're building an installed package, but check original directory for existing binary
           options.startDir / bin
         else:
-          # Normal case - check in the package directory
           pkgDir / bin
       
       if fileExists(sourceBinary):
