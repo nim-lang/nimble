@@ -475,6 +475,31 @@ proc buildFromDir(pkgInfo: PackageInfo, paths: HashSet[string],
     else:
       createDir(outputDir)
 
+    # Check if we can copy an existing binary from source directory when --noRebuild is used
+    if options.action.typ in {actionInstall, actionPath, actionUninstall, actionDevelop, actionUpgrade, actionLock, actionAdd} and 
+       options.action.noRebuild:
+      # When installing from a local directory, check for binary in the original directory
+      let sourceBinary = 
+        if options.startDir != pkgDir:
+          # We're building an installed package, but check original directory for existing binary
+          options.startDir / bin
+        else:
+          # Normal case - check in the package directory
+          pkgDir / bin
+      
+      if fileExists(sourceBinary):
+        # Check if the source binary is up-to-date
+        if not pkgInfo.needsRebuild(sourceBinary, realDir, options):
+          let targetBinary = outputDir / bin
+          display("Skipping", "$1/$2 (up-to-date)" %
+                  [pkginfo.basicInfo.name, bin], priority = HighPriority)
+          copyFile(sourceBinary, targetBinary)
+          when not defined(windows):
+            # Preserve executable permissions
+            setFilePermissions(targetBinary, getFilePermissions(sourceBinary))
+          binariesBuilt.inc()
+          continue
+
     let outputOpt = "-o:" & pkgInfo.getOutputDir(bin).quoteShell
     display("Building", "$1/$2 using $3 backend" %
             [pkginfo.basicInfo.name, bin, pkgInfo.backend], priority = HighPriority)
@@ -605,8 +630,7 @@ proc installPkgs*(satResult: var SATResult, options: Options) =
         satResult.rootPackage.isLink = true
         installedPkgInfo = satResult.rootPackage
       else:
-        installedPkgInfo = installFromDirDownloadInfo(root.getNimbleFileDir(), root.metaData.url, options).toRequiresInfo(options)
-    
+        installedPkgInfo = installFromDirDownloadInfo(root.getNimbleFileDir(), root.metaData.url, options).toRequiresInfo(options) 
     else:
       var dlInfo = getPackageDownloadInfo(pv, options, doPrompt = true)
       let downloadDir = dlInfo.downloadDir / dlInfo.subdir 
