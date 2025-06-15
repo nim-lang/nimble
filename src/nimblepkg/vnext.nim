@@ -23,6 +23,7 @@ proc debug*(satResult: SATResult) =
   echo "Root package: ", satResult.rootPackage.basicInfo.name, " ", satResult.rootPackage.basicInfo.version
   echo "Solved packages: ", satResult.solvedPkgs.mapIt(it.pkgName & " " & $it.deps.mapIt(it.pkgName))
   echo "Packages to install: ", satResult.pkgsToInstall
+  echo "Build pkgs: ", satResult.buildPkgs.mapIt(it.basicInfo.name)
   echo "Packages: ", satResult.pkgs.mapIt(it.basicInfo.name)
   echo "Packages url: ", satResult.pkgs.mapIt(it.metaData.url)
   echo "Package list: ", satResult.pkgList.mapIt(it.basicInfo.name)
@@ -350,14 +351,8 @@ proc installFromDirDownloadInfo(downloadDir: string, url: string, options: Optio
   else:
     display("Warning:", "Skipped copy in project local deps mode", Warning)
 
-
-  displaySuccess(pkgInstalledMsg(pkgInfo.basicInfo.name), MediumPriority)
-
-  # Run post-install hook now that package is installed. The `execHook` proc
-  # executes the hook defined in the CWD, so we set it to where the package
-  # has been installed.
-  executeHook(pkgInfo.myPath.splitFile.dir, options, actionInstall, before = false)
   pkgInfo.isInstalled = true
+  displaySuccess(pkgInstalledMsg(pkgInfo.basicInfo.name), MediumPriority)
   pkgInfo
 
 proc activateSolvedPkgFeatures*(satResult: SATResult, options: Options) =
@@ -515,6 +510,7 @@ proc buildFromDir(pkgInfo: PackageInfo, paths: HashSet[string],
       options.satResult.getNimBin().quoteShell, pkgInfo.backend, if options.noColor: "off" else: "on", join(args, " "),
       outputOpt, input.quoteShell]
     try:
+      echo "***Executing cmd: ", cmd
       doCmd(cmd)
       binariesBuilt.inc()
     except CatchableError as error:
@@ -582,11 +578,7 @@ proc buildPkg(pkgToBuild: PackageInfo, isRootInRootDir: bool, options: Options) 
   if isRootInRootDir:
     pkgToBuild.isInstalled = false
   buildFromDir(pkgToBuild, paths, "-d:release" & flags, options)
-  #Should we create symlinks for the root package? Before behavior was to dont create them
-  #In general for nim we should not create them if we are not in the local mode
-  #But if we are installing only nim (i.e nim is root) we should create them which will
-  #convert nimble a choosenim replacement
-  if not isRootInRootDir : #Dont create symlinks for the root package
+  if not isRootInRootDir : #Dont create symlinks for the root package if we are in the root dir (not installing globally)
     createBinSymlink(pkgToBuild, options)
 
 proc getVersionRangeFoPkgToInstall(satResult: SATResult, name: string, ver: Version): VersionRange =
@@ -665,17 +657,22 @@ proc installPkgs*(satResult: var SATResult, options: Options) =
         raise nimbleError(
           "Nothing to build. Did you specify a module to build using the" &
           " `bin` key in your .nimble file?")
-      else:
+      else: #Skips building the package if it has no binaries
         continue
-    echo "Building package: ", pkgToBuild.basicInfo.name
+    echo "Building package: ", pkgToBuild.basicInfo.name, " at ", pkgToBuild.myPath, " binaries: ", pkgToBuild.bin
     let isRoot = pkgToBuild.isRoot(options.satResult) and isInRootDir
     if options.action.typ in buildActions:
       buildPkg(pkgToBuild, isRoot, options)
+      satResult.buildPkgs.add(pkgToBuild)
 
   satResult.installedPkgs = installedPkgs.toSeq()
   for pkg in satResult.installedPkgs.mitems:
     satResult.pkgs.incl pkg
     
-  if isInRootDir and options.action.typ == actionInstall:
-    #postInstall hook is always executed for the current directory
-    executeHook(getCurrentDir(), options, actionInstall, before = false)
+  for pkgInfo in satResult.installedPkgs:
+    # Run post-install hook now that package is installed. The `execHook` proc
+    # executes the hook defined in the CWD, so we set it to where the package
+    # has been installed. Notice for legacy reasons this needs to happen after the build step
+    # TODO investigate where it should happen before or after the after build step, I think after is better
+    executeHook(pkgInfo.myPath.splitFile.dir, options, actionInstall, before = false)
+    

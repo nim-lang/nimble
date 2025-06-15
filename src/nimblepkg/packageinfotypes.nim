@@ -124,6 +124,7 @@ type
     pkgs*: HashSet[PackageInfo] #Packages from solution + new installs
     pass*: SATPass
     installedPkgs*: seq[PackageInfo] #Packages installed in the current pass
+    buildPkgs*: seq[PackageInfo] #Packages that were built in the current pass
     declarativeParseFailed*: bool
     declarativeParserErrorLines*: seq[string]
     nimResolved*: NimResolved

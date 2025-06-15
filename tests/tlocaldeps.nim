@@ -16,18 +16,17 @@ suite "project local deps mode":
 
   test "nimbledeps exists":
     cd "localdeps":
+      removeFile("localdeps")
       cleanDir("nimbledeps")
       createDir("nimbledeps")
       let (output, exitCode) = execCmdEx(nimblePath & " install -y")
-      echo "BEGIN OUTPUT"
-      echo output
-      echo "END OUTPUT"
       check exitCode == QuitSuccess
       check output.contains("project local deps mode")
       check output.contains("Succeeded")
 
   test "--localdeps flag":
     cd "localdeps":
+      removeFile("localdeps")
       cleanDir("nimbledeps")
       let (output, exitCode) = execCmdEx(nimblePath & " install -y -l")
       check exitCode == QuitSuccess

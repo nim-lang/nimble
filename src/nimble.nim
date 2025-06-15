@@ -2506,8 +2506,11 @@ proc runVNext*(options: var Options) =
       options.satResult = initSATResult(satNimSelection)      
       var rootPackage = downloadPkInfoForPv(pkg, options, doPrompt = true)
       solvePkgs(rootPackage, options)
+  echo "DEGUG BEFORE INSTALL PKGS"
+  options.satResult.debug
   options.satResult.installPkgs(options)
-  echo "PKG solution after install: ", options.satResult.pkgs.mapIt(it.basicInfo.name)
+  echo "DEGUG AFTER INSTALL PKGS"
+  options.satResult.debug
   options.satResult.addReverseDeps(options)
   
 proc doAction(options: var Options) =
@@ -2740,7 +2743,7 @@ when isMainModule:
 
     if opt.isVNext and opt.action.typ in vNextSupportedActions:
       runVNext(opt)
-    elif not opt.showVersion and not opt.showHelp: 
+    elif not opt.showVersion and not opt.showHelp:
       #Even in vnext some actions need to have set Nim the old way i.e. initAction 
       #TODO review this and write specific logic to set Nim in this scenario.
       opt.setNimBin()
