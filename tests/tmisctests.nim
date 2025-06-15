@@ -51,12 +51,12 @@ suite "misc tests":
       check exitCode == QuitSuccess
 
   test "install with --noRebuild flag":
+    cleanDir(installDir)
     cd "run":
       check execNimbleYes("build").exitCode == QuitSuccess
-
       let (output, exitCode) = execNimbleYes("install", "--noRebuild")
       check exitCode == QuitSuccess
-      check output.contains("Skipping")
+      check output.contains("Skipping") #TODO: This is not working as expected
 
   test "NimbleVersion is defined":
     cd "nimbleVersionDefine":
@@ -115,12 +115,15 @@ suite "misc tests":
     check execNimble("list", "-i").exitCode == QuitSuccess
 
   test "should not install submodules when --ignoreSubmodules flag is on":
+    cleanDir(installDir)
     let (_, exitCode) = execNimble("--ignoreSubmodules", "install", "https://github.com/jmgomez/submodule_package")
     check exitCode == QuitFailure
 
   test "should install submodules when --ignoreSubmodules flag is off":
+    cleanDir(installDir)
     let (_, exitCode) = execNimble("install", "https://github.com/jmgomez/submodule_package")
     check exitCode == QuitSuccess
+  
   test "config file should end with a newline":
     let configFile = readFile("../config.nims")
     let content = configFile.splitLines.toSeq()
