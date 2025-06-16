@@ -2418,7 +2418,11 @@ proc getPackageForAction(pkgInfo: PackageInfo, options: Options): PackageInfo =
     # Search through the SAT result packages as the packages are already solved
     for pkg in options.satResult.pkgs:
       if pkg.basicInfo.name == options.package:
-        return getPkgInfo(pkg.getRealDir(), options)
+        var fullPkg = getPkgInfo(pkg.getRealDir(), options)
+        # Explicitly check for develop mode conditions in vnext
+        if fullPkg.developFileExists or not fullPkg.myPath.startsWith(options.getPkgsDir):
+          fullPkg.isLink = true
+        return fullPkg
   else:
     let deps = pkgInfo.processAllDependencies(options)
     for dep in deps:
@@ -2443,9 +2447,17 @@ proc run(options: Options) =
   if binary notin pkgInfo.bin:
     raise nimbleError(binaryNotDefinedInPkgMsg(binary, pkgInfo.basicInfo.name))
 
-  if options.isVNext and options.getCompilationFlags.len > 0:
-    displayWarning(ignoringCompilationFlagsMsg)
-  elif not options.isVNext:
+  if options.isVNext:
+    # In vnext path, build develop mode packages (similar to old code path)
+    if pkgInfo.isLink:
+      # Use vnext buildPkg for develop mode packages
+      let isInRootDir = options.startDir == pkgInfo.myPath.parentDir and 
+        options.satResult.rootPackage.basicInfo.name == pkgInfo.basicInfo.name
+      buildPkg(pkgInfo, isInRootDir, options)
+    
+    if options.getCompilationFlags.len > 0:
+      displayWarning(ignoringCompilationFlagsMsg)
+  else:
     if pkgInfo.isLink: #TODO review this code path for vnext. isLink is related to develop mode
       # If this is not installed package then build the binary.
       pkgInfo.build(options)

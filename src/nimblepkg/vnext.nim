@@ -577,13 +577,25 @@ proc createBinSymlink(pkgInfo: PackageInfo, options: Options) =
           bin & ".out"
         else: bin
 
-      if fileExists(pkgDestDir / binDest):
-        display("Warning:", ("Binary '$1' was already installed from source" &
-                            " directory. Will be overwritten.") % bin, Warning,
-                MediumPriority)
+      # For develop mode packages, the binary is in the source directory, not installed directory
+      let symlinkDest = 
+        if pkgInfo.isLink:
+          # Develop mode: binary is in the source directory
+          pkgInfo.getOutputDir(bin)
+        else:
+          # Installed package: binary is in the installed directory
+          pkgDestDir / binDest
+
+      if fileExists(symlinkDest):
+        if not pkgInfo.isLink:
+          display("Warning:", ("Binary '$1' was already installed from source" &
+                              " directory. Will be overwritten.") % bin, Warning,
+                  MediumPriority)
+      else:
+        raise nimbleError(&"Binary '{bin}' was not found at expected location: {symlinkDest}")
       
-      createDir((pkgDestDir / binDest).parentDir())  # Set up a symlink.
-      let symlinkDest = pkgDestDir / binDest
+      if not pkgInfo.isLink:
+        createDir((pkgDestDir / binDest).parentDir())
       let symlinkFilename = options.getBinDir() / bin.extractFilename
       binariesInstalled.incl(
         setupBinSymlink(symlinkDest, symlinkFilename, options))
@@ -599,7 +611,7 @@ proc solutionToFullInfo*(satResult: SATResult, options: var Options) =
 proc isRoot(pkgInfo: PackageInfo, satResult: SATResult): bool =
   pkgInfo.basicInfo.name == satResult.rootPackage.basicInfo.name and pkgInfo.basicInfo.version == satResult.rootPackage.basicInfo.version
 
-proc buildPkg(pkgToBuild: PackageInfo, isRootInRootDir: bool, options: Options) =
+proc buildPkg*(pkgToBuild: PackageInfo, isRootInRootDir: bool, options: Options) =
   # let paths = getPathsToBuildFor(options.satResult, pkgToBuild, recursive = true, options)
   let paths = getPathsAllPkgs(options.satResult, options)
   # echo "Paths ", paths
