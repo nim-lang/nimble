@@ -271,6 +271,27 @@ proc executeHook(dir: string, options: Options, action: ActionType, before: bool
       else:
         raise nimbleError("Post-hook prevented further execution.")
 
+
+proc packageExists(pkgInfo: PackageInfo, options: Options):
+    Option[PackageInfo] =
+  ## Checks whether a package `pkgInfo` already exists in the Nimble cache. If a
+  ## package already exists returns the `PackageInfo` of the package in the
+  ## cache otherwise returns `none`. Raises a `NimbleError` in the case the
+  ## package exists in the cache but it is not valid.
+  let pkgDestDir = pkgInfo.getPkgDest(options)
+  if not fileExists(pkgDestDir / packageMetaDataFileName):
+    return none[PackageInfo]()
+  else:
+    var oldPkgInfo = initPackageInfo()
+    try:
+      oldPkgInfo = pkgDestDir.getPkgInfo(options)
+    except CatchableError as error:
+      raise nimbleError(&"The package inside \"{pkgDestDir}\" is invalid.",
+                        details = error)
+    fillMetaData(oldPkgInfo, pkgDestDir, true, options)
+    return some(oldPkgInfo)
+
+
 proc installFromDirDownloadInfo(downloadDir: string, url: string, options: Options): PackageInfo = 
 
   let dir = downloadDir
@@ -295,6 +316,16 @@ proc installFromDirDownloadInfo(downloadDir: string, url: string, options: Optio
     [pkgInfo.basicInfo.name, $pkgInfo.basicInfo.version],
     priority = MediumPriority)
 
+  let oldPkg = pkgInfo.packageExists(options)
+  if oldPkg.isSome:
+    # In the case we already have the same package in the cache then only merge
+    # the new package special versions to the old one.
+    displayWarning(pkgAlreadyExistsInTheCacheMsg(pkgInfo), MediumPriority)
+    # if not options.useSatSolver: #The dep path is not created when using the sat solver as packages are collected upfront
+    var oldPkg = oldPkg.get
+    oldPkg.metaData.specialVersions.incl pkgInfo.metaData.specialVersions
+    saveMetaData(oldPkg.metaData, oldPkg.getNimbleFileDir, changeRoots = false)
+    return oldPkg
   #TODO review this as we may want to this not hold anymore (i.e nimble install nim could replace choosenim)
   # nim is intended only for local project local usage, so avoid installing it
   # in .nimble/bin
