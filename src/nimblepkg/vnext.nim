@@ -541,7 +541,7 @@ proc buildFromDir(pkgInfo: PackageInfo, paths: HashSet[string],
       options.satResult.getNimBin().quoteShell, pkgInfo.backend, if options.noColor: "off" else: "on", join(args, " "),
       outputOpt, input.quoteShell]
     try:
-      echo "***Executing cmd: ", cmd
+      # echo "***Executing cmd: ", cmd
       doCmd(cmd)
       binariesBuilt.inc()
     except CatchableError as error:
@@ -549,6 +549,10 @@ proc buildFromDir(pkgInfo: PackageInfo, paths: HashSet[string],
         &"Build failed for the package: {pkgInfo.basicInfo.name}", details = error)
 
   if binariesBuilt == 0:
+    let binary = options.getCompilationBinary(pkgInfo).get("")
+    if binary != "":
+      raise nimbleError(binaryNotDefinedInPkgMsg(binary, pkgInfo.basicInfo.name))
+
     raise nimbleError(
       "No binaries built, did you specify a valid binary name?"
     )
@@ -603,6 +607,8 @@ proc buildPkg(pkgToBuild: PackageInfo, isRootInRootDir: bool, options: Options) 
   # echo "Package ", pkgToBuild.basicInfo.name
   let flags = if options.action.typ in {actionInstall, actionPath, actionUninstall, actionDevelop}:
                 options.action.passNimFlags
+              elif options.action.typ in { actionRun, actionBuild, actionDoc, actionCompile, actionCustom }:
+                options.getCompilationFlags()
               else:
                 @[]
   var pkgToBuild = pkgToBuild
