@@ -2414,10 +2414,16 @@ proc getPackageForAction(pkgInfo: PackageInfo, options: Options): PackageInfo =
   if options.package.len == 0 or pkgInfo.basicInfo.name == options.package:
     return pkgInfo
 
-  let deps = pkgInfo.processAllDependencies(options)
-  for dep in deps:
-    if dep.basicInfo.name == options.package:
-      return dep.toFullInfo(options)
+  if options.isVNext:
+    # Search through the SAT result packages as the packages are already solved
+    for pkg in options.satResult.pkgs:
+      if pkg.basicInfo.name == options.package:
+        return getPkgInfo(pkg.getRealDir(), options)
+  else:
+    let deps = pkgInfo.processAllDependencies(options)
+    for dep in deps:
+      if dep.basicInfo.name == options.package:
+        return dep.toFullInfo(options)
 
   raise nimbleError(notFoundPkgWithNameInPkgDepTree(options.package))
 
@@ -2425,6 +2431,7 @@ proc run(options: Options) =
   var pkgInfo: PackageInfo
   if options.isVNext: #At this point we already ran the solver
     pkgInfo = options.satResult.rootPackage
+    pkgInfo = getPackageForAction(pkgInfo, options)
   else:
     pkgInfo = getPkgInfo(getCurrentDir(), options)
     pkgInfo = getPackageForAction(pkgInfo, options)
@@ -2436,13 +2443,15 @@ proc run(options: Options) =
   if binary notin pkgInfo.bin:
     raise nimbleError(binaryNotDefinedInPkgMsg(binary, pkgInfo.basicInfo.name))
 
-  if not options.isVNext:
+  if options.isVNext and options.getCompilationFlags.len > 0:
+    displayWarning(ignoringCompilationFlagsMsg)
+  elif not options.isVNext:
     if pkgInfo.isLink: #TODO review this code path for vnext. isLink is related to develop mode
       # If this is not installed package then build the binary.
       pkgInfo.build(options)
     elif options.getCompilationFlags.len > 0:
       displayWarning(ignoringCompilationFlagsMsg)
-
+  
   let binaryPath = pkgInfo.getOutputDir(binary)
   let cmd = quoteShellCommand(binaryPath & options.action.runFlags)
   displayDebug("Executing", cmd)
@@ -2506,11 +2515,11 @@ proc runVNext*(options: var Options) =
       options.satResult = initSATResult(satNimSelection)      
       var rootPackage = downloadPkInfoForPv(pkg, options, doPrompt = true)
       solvePkgs(rootPackage, options)
-  echo "DEGUG BEFORE INSTALL PKGS"
-  options.satResult.debug
+  # echo "DEGUG BEFORE INSTALL PKGS"
+  # options.satResult.debug
   options.satResult.installPkgs(options)
-  echo "DEGUG AFTER INSTALL PKGS"
-  options.satResult.debug
+  # echo "DEGUG AFTER INSTALL PKGS"
+  # options.satResult.debug
   options.satResult.addReverseDeps(options)
   
 proc doAction(options: var Options) =
