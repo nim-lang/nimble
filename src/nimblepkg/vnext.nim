@@ -586,13 +586,13 @@ proc createBinSymlink(pkgInfo: PackageInfo, options: Options) =
           # Installed package: binary is in the installed directory
           pkgDestDir / binDest
 
-      if fileExists(symlinkDest):
-        if not pkgInfo.isLink:
-          display("Warning:", ("Binary '$1' was already installed from source" &
-                              " directory. Will be overwritten.") % bin, Warning,
-                  MediumPriority)
-      else:
+      if not fileExists(symlinkDest):
         raise nimbleError(&"Binary '{bin}' was not found at expected location: {symlinkDest}")
+      
+      if fileExists(symlinkDest) and not pkgInfo.isLink:
+        display("Warning:", ("Binary '$1' was already installed from source" &
+                            " directory. Will be overwritten.") % bin, Warning,
+                MediumPriority)
       
       if not pkgInfo.isLink:
         createDir((pkgDestDir / binDest).parentDir())
@@ -627,7 +627,10 @@ proc buildPkg*(pkgToBuild: PackageInfo, isRootInRootDir: bool, options: Options)
   if isRootInRootDir:
     pkgToBuild.isInstalled = false
   buildFromDir(pkgToBuild, paths, "-d:release" & flags, options)
-  if not isRootInRootDir : #Dont create symlinks for the root package if we are in the root dir (not installing globally)
+  # For globally installed packages, always create symlinks
+  # Only skip symlinks if we're building the root package in its own directory
+  let shouldCreateSymlinks = not isRootInRootDir or options.action.typ == actionInstall
+  if shouldCreateSymlinks:
     createBinSymlink(pkgToBuild, options)
 
 proc getVersionRangeFoPkgToInstall(satResult: SATResult, name: string, ver: Version): VersionRange =
