@@ -2486,6 +2486,10 @@ proc openNimbleManual =
 proc solvePkgs(rootPackage: PackageInfo, options: var Options) =
   options.satResult.rootPackage = rootPackage
   options.satResult.rootPackage.requires &= options.extraRequires
+  # Add task-specific requirements if a task is being executed
+  #Note this wont work until we support taskRequires in the declarative parser
+  if options.task.len > 0 and options.task in rootPackage.taskRequires:
+    options.satResult.rootPackage.requires &= rootPackage.taskRequires[options.task]
   let pkgList = initPkgList(options.satResult.rootPackage, options)
   options.satResult.rootPackage.enableFeatures(options)
   if rootPackage.hasLockFile(options):
@@ -2502,6 +2506,9 @@ proc solvePkgs(rootPackage: PackageInfo, options: var Options) =
     options.satResult.rootPackage = rootPackage
     options.satResult.rootPackage = getPkgInfo(options.satResult.rootPackage.getNimbleFileDir, options).toRequiresInfo(options)
     options.satResult.rootPackage.enableFeatures(options) 
+    # Add task-specific requirements if a task is being executed (fallback path)
+    if options.task.len > 0 and options.task in options.satResult.rootPackage.taskRequires:
+      options.satResult.rootPackage.requires &= options.satResult.rootPackage.taskRequires[options.task]
     #Declarative parser failed. So we need to rerun the solver but this time, we allow the parser
     #to fallback to the vm parser
     solvePkgsWithVmParserAllowingFallback(options.satResult.rootPackage, resolvedNim, pkgList, options)
@@ -2768,6 +2775,9 @@ when isMainModule:
       echo "ACTION IS ", opt.action.typ
 
     if opt.isVNext and opt.action.typ in vNextSupportedActions:
+      # For actionCustom, set the task name before calling runVNext
+      if opt.action.typ == actionCustom:
+        opt.task = opt.action.command.normalize
       runVNext(opt)
     elif not opt.showVersion and not opt.showHelp:
       #Even in vnext some actions need to have set Nim the old way i.e. initAction 

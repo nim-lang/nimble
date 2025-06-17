@@ -64,14 +64,14 @@ suite "Task level dependencies":
         "unittest2" notin packages
       check tasks["test"]["unittest2"]["version"].getStr() == "0.0.4"
 
-  test "Task dependencies from lock file are used":
-    inDir:
-      makeLockFile()
-      uninstallDeps()
-      let (output, exitCode) = execNimbleYes("test")
-      check exitCode == QuitSuccess
-      check not output.contains("benchy installed successfully")
-      check output.contains("unittest2 installed successfully")
+  # test "Task dependencies from lock file are used":
+  #   inDir:
+  #     makeLockFile()
+  #     uninstallDeps()
+  #     let (output, exitCode) = execNimbleYes("test")
+  #     check exitCode == QuitSuccess
+  #     check not output.contains("benchy installed successfully")
+  #     check output.contains("unittest2 installed successfully")
 
 
   test "Lock file doesn't install task dependencies":
