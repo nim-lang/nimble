@@ -34,7 +34,20 @@ proc nameMatches(pkg: PackageInfo, pv: PkgTuple, options: Options): bool =
   pkg.basicInfo.name.toLowerAscii() == pv.resolveAlias(options).name.toLowerAscii() or pkg.metaData.url == pv.name
 
 proc nameMatches*(pkg: PackageInfo, name: string, options: Options): bool =
-  pkg.basicInfo.name.toLowerAscii() == resolveAlias(name, options).toLowerAscii() or pkg.metaData.url.toLowerAscii() == name.toLowerAscii()
+  let resolvedName = resolveAlias(name, options).toLowerAscii()
+  let pkgName = pkg.basicInfo.name.toLowerAscii()
+  let pkgUrl = pkg.metaData.url.toLowerAscii()
+  
+  if pkgName == resolvedName or pkgUrl == name.toLowerAscii():
+    return true
+  
+  # For GitHub URLs, extract repository name and match
+  if name.contains("github.com/") and name.contains("/"):
+    let repoName = name.split("/")[^1].replace(".git", "").toLowerAscii()
+    if pkgName == repoName:
+      return true
+  
+  return false
 
 proc getSolvedPkg*(satResult: SATResult, pkgInfo: PackageInfo): SolvedPackage =
   for solvedPkg in satResult.solvedPkgs:
@@ -52,12 +65,14 @@ proc getPkgInfoFromSolution(satResult: SATResult, pv: PkgTuple, options: Options
   raise newNimbleError[NimbleError]("Package not found in solution: " & $pv)
 
 proc getPkgInfoFromSolved*(satResult: SATResult, solvedPkg: SolvedPackage, options: Options): PackageInfo =
-  for pkg in satResult.pkgs.toSeq: #Package in the solution matches the verison implicitly
-    if nameMatches(pkg, solvedPkg.pkgName, options): 
+  for pkg in satResult.pkgs.toSeq:
+    if nameMatches(pkg, solvedPkg.pkgName, options):
       return pkg
-  for pkg in satResult.pkgList.toSeq: #For the pkg list we need to check the version as there may be multiple versions of the same package
-    if nameMatches(pkg, solvedPkg.pkgName, options) and pkg.basicInfo.version == solvedPkg.version: 
+  for pkg in satResult.pkgList.toSeq: 
+    #For the pkg list we need to check the version as there may be multiple versions of the same package
+    if nameMatches(pkg, solvedPkg.pkgName, options) and pkg.basicInfo.version == solvedPkg.version:
       return pkg
+  
   satResult.debug()
   raise newNimbleError[NimbleError]("Package not found in solution: " & $solvedPkg.pkgName & " " & $solvedPkg.version)
 
