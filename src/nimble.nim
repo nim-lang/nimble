@@ -1039,7 +1039,11 @@ proc execBackend(pkgInfo: PackageInfo, options: Options) =
   let pkgInfo = getPkgInfo(getCurrentDir(), options)
   nimScriptHint(pkgInfo)
 
-  let deps = pkgInfo.processAllDependencies(options)
+  let deps = 
+    if options.isVNext:
+      options.satResult.pkgs
+    else:
+      pkgInfo.processAllDependencies(options)
   if not execHook(options, options.action.typ, true):
     raise nimbleError("Pre-hook prevented further execution.")
 
@@ -2625,7 +2629,8 @@ proc doAction(options: var Options) =
       # Make sure we have dependencies for the task.
       # We do that here to make sure that any binaries from dependencies
       # are installed
-      discard pkgInfo.processAllDependencies(optsCopy)
+      if not optsCopy.isVNext:
+        discard pkgInfo.processAllDependencies(optsCopy)
       # If valid task defined in nimscript, run it
       var execResult: ExecutionResult[bool]
       if execCustom(nimbleFile, optsCopy, execResult):
@@ -2759,8 +2764,8 @@ when isMainModule:
     const vNextSupportedActions = { actionInstall, actionBuild, 
       actionSetup, actionRun, actionLock, actionCustom }
 
-    # if opt.isVNext:
-    #   echo "ACTION IS ", opt.action.typ
+    if opt.isVNext:
+      echo "ACTION IS ", opt.action.typ
 
     if opt.isVNext and opt.action.typ in vNextSupportedActions:
       runVNext(opt)

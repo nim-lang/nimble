@@ -57,12 +57,22 @@ proc validateNoNestedRequires(nfl: var NimbleFileInfo, n: PNode, conf: ConfigRef
     for child in n:
       validateNoNestedRequires(nfl, child, conf, hasErrors, nestedRequires, true)
   of nkCallKinds:
-    if n[0].kind == nkIdent and n[0].ident.s == "requires":
-      if inControlFlow:
+    if n[0].kind == nkIdent:
+      if n[0].ident.s == "requires":
+        if inControlFlow:
+          nestedRequires = true
+          let errorLine = &"{nfl.nimbleFile}({n.info.line}, {n.info.col}) 'requires' cannot be nested inside control flow statements"
+          nfl.declarativeParserErrorLines.add errorLine
+          hasErrors = true
+      elif n[0].ident.s == "taskRequires":
+        # taskRequires is not supported in declarative parser yet
         nestedRequires = true
-        let errorLine = &"{nfl.nimbleFile}({n.info.line}, {n.info.col}) 'requires' cannot be nested inside control flow statements"
+        let errorLine = &"{nfl.nimbleFile}({n.info.line}, {n.info.col}) 'taskRequires' is not supported in declarative parser"
         nfl.declarativeParserErrorLines.add errorLine
         hasErrors = true
+      else:
+        for child in n:
+          validateNoNestedRequires(nfl, child, conf, hasErrors, nestedRequires, inControlFlow)
     else:
       for child in n:
         validateNoNestedRequires(nfl, child, conf, hasErrors, nestedRequires, inControlFlow)
