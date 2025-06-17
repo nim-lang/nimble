@@ -24,7 +24,7 @@ suite "nimscript":
       check output.contains("After build")
       let lines = output.strip.processOutput()
       for line in lines:
-        if lines[3].startsWith("Before PkgDir:"):
+        if line.startsWith("Before PkgDir:"):
           check line.endsWith("tests" / "nimscript")
       let afterPkgDirLine = lines.filterIt(it.startsWith("After PkgDir:"))[0]
       check afterPkgDirLine.startsWith("After PkgDir:")
