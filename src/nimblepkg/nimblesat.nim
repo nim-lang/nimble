@@ -600,12 +600,12 @@ proc getPackageMinimalVersionsFromRepo*(repoDir: string, pkg: PkgTuple, version:
 
         if not tagVersion.withinRange(pkg[1]):
           displayInfo(&"Ignoring {name}:{tagVersion} because out of range {pkg[1]}")
-          break
+          continue
 
         doCheckout(downloadMethod, tempDir, tag, options)
         let nimbleFile = findNimbleFile(tempDir, true, options)
         if options.satResult.pass in {satNimSelection, satFallbackToVmParser}:
-          result.addUnique getPkgInfoFromDirWithDeclarativeParser(repoDir, options).getMinimalInfo(options)  
+          result.addUnique getPkgInfoFromDirWithDeclarativeParser(tempDir, options).getMinimalInfo(options)  
         elif options.useDeclarativeParser:
           result.addUnique getMinimalInfo(nimbleFile, name, options)
         else:
