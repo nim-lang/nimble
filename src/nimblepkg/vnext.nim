@@ -682,7 +682,8 @@ proc installPkgs*(satResult: var SATResult, options: Options) =
     var installedPkgInfo: PackageInfo
     let root = satResult.rootPackage
     if root notin installedPkgs and pv.name == root.basicInfo.name and root.basicInfo.version.withinRange(pv.ver): 
-      if root.developFileExists:
+      if root.developFileExists or options.localdeps:
+        # Treat as link package if in develop mode OR local deps mode
         satResult.rootPackage.isInstalled = false
         satResult.rootPackage.isLink = true
         installedPkgInfo = satResult.rootPackage
