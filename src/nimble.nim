@@ -2771,9 +2771,6 @@ when isMainModule:
     const vNextSupportedActions = { actionInstall, actionBuild, 
       actionSetup, actionRun, actionLock, actionCustom }
 
-    if opt.isVNext:
-      echo "ACTION IS ", opt.action.typ
-
     if opt.isVNext and opt.action.typ in vNextSupportedActions:
       # For actionCustom, set the task name before calling runVNext
       if opt.action.typ == actionCustom:
