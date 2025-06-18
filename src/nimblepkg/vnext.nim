@@ -719,7 +719,14 @@ proc installPkgs*(satResult: var SATResult, options: Options) =
     options.satResult.pkgs.incl pkg 
 
   let buildActions = { actionInstall, actionBuild, actionRun }
-  for pkgToBuild in installedPkgs:
+  
+  # For build action, only build the root package
+  let pkgsToBuild = if options.action.typ == actionBuild:
+    installedPkgs.toSeq.filterIt(it.isRoot(options.satResult))
+  else:
+    installedPkgs.toSeq
+  
+  for pkgToBuild in pkgsToBuild:
     if pkgToBuild.bin.len == 0:
       if options.action.typ == actionBuild:
         raise nimbleError(
