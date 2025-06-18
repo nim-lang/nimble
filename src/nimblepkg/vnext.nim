@@ -20,6 +20,10 @@ import nimblesat, packageinfotypes, options, version, declarativeparser, package
 proc debug*(satResult: SATResult) =
   echo "--------------------------------"
   echo "Pass: ", satResult.pass
+  if satResult.nimResolved.pkg.isSome:
+    echo "Selected Nim: ", satResult.nimResolved.pkg.get.basicInfo.name, " ", satResult.nimResolved.version
+  else:
+    echo "No Nim selected"
   echo "Root package: ", satResult.rootPackage.basicInfo.name, " ", satResult.rootPackage.basicInfo.version
   echo "Solved packages: ", satResult.solvedPkgs.mapIt(it.pkgName & " " & $it.deps.mapIt(it.pkgName))
   echo "Packages to install: ", satResult.pkgsToInstall
@@ -417,6 +421,13 @@ proc expandPaths*(pkgInfo: PackageInfo, options: Options): seq[string] =
   var pkgInfo = pkgInfo.toFullInfo(options)
   let baseDir = pkgInfo.getRealDir()
   result = @[baseDir]
+  
+  # Also add srcDir if it exists and is different from baseDir
+  if pkgInfo.srcDir != "":
+    let srcPath = pkgInfo.getNimbleFileDir() / pkgInfo.srcDir
+    if srcPath != baseDir and dirExists(srcPath):
+      result.add srcPath
+  
   for relativePath in pkgInfo.paths:
     let path = baseDir & "/" & relativePath
     if path.isSubdirOf(baseDir):
