@@ -676,10 +676,12 @@ proc installPkgs*(satResult: var SATResult, options: Options) =
     
   displaySatisfiedMsg(satResult.solvedPkgs, pkgsToInstall, options)
   #If package is in develop mode, we dont need to install it.
+  var newlyInstalledPkgs = initHashSet[PackageInfo]()
   for (name, ver) in pkgsToInstall:
     let verRange = satResult.getVersionRangeFoPkgToInstall(name, ver)
     var pv = (name: name, ver: verRange)
     var installedPkgInfo: PackageInfo
+    var wasNewlyInstalled = false
     let root = satResult.rootPackage
     if root notin installedPkgs and pv.name == root.basicInfo.name and root.basicInfo.version.withinRange(pv.ver): 
       if root.developFileExists or options.localdeps:
@@ -687,8 +689,13 @@ proc installPkgs*(satResult: var SATResult, options: Options) =
         satResult.rootPackage.isInstalled = false
         satResult.rootPackage.isLink = true
         installedPkgInfo = satResult.rootPackage
+        wasNewlyInstalled = true
       else:
-        installedPkgInfo = installFromDirDownloadInfo(root.getNimbleFileDir(), root.metaData.url, options).toRequiresInfo(options) 
+        # Check if package already exists before installing
+        let tempPkgInfo = getPkgInfo(root.getNimbleFileDir(), options)
+        let oldPkg = tempPkgInfo.packageExists(options)
+        installedPkgInfo = installFromDirDownloadInfo(root.getNimbleFileDir(), root.metaData.url, options).toRequiresInfo(options)
+        wasNewlyInstalled = oldPkg.isNone
     else:
       var dlInfo = getPackageDownloadInfo(pv, options, doPrompt = true)
       let downloadDir = dlInfo.downloadDir / dlInfo.subdir 
@@ -704,10 +711,16 @@ proc installPkgs*(satResult: var SATResult, options: Options) =
         # dlInfo.downloadDir = downloadPkgResult.dir 
       assert dirExists(downloadDir)
       #TODO this : PackageInfoneeds to be improved as we are redonwloading certain packages
+      # Check if package already exists before installing
+      let tempPkgInfo = getPkgInfo(downloadDir, options)
+      let oldPkg = tempPkgInfo.packageExists(options)
       installedPkgInfo = installFromDirDownloadInfo(downloadDir, dlInfo.url, options).toRequiresInfo(options)
+      wasNewlyInstalled = oldPkg.isNone
 
     satResult.pkgs.incl(installedPkgInfo)
     installedPkgs.incl(installedPkgInfo)
+    if wasNewlyInstalled:
+      newlyInstalledPkgs.incl(installedPkgInfo)
   
   #we need to activate the features for the recently installed package
   #so they are activated in the build step
@@ -721,10 +734,12 @@ proc installPkgs*(satResult: var SATResult, options: Options) =
   let buildActions = { actionInstall, actionBuild, actionRun }
   
   # For build action, only build the root package
+  # For install action, only build newly installed packages
   let pkgsToBuild = if options.action.typ == actionBuild:
     installedPkgs.toSeq.filterIt(it.isRoot(options.satResult))
   else:
-    installedPkgs.toSeq
+    # Only build packages that were newly installed in this session
+    newlyInstalledPkgs.toSeq
   
   for pkgToBuild in pkgsToBuild:
     if pkgToBuild.bin.len == 0:
