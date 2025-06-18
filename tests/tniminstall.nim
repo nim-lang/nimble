@@ -1,10 +1,9 @@
 
 {.used.}
 
-import unittest, os, strutils, sequtils
+import unittest, os, strutils
 import testscommon
 from nimblepkg/common import cd
-import nimblepkg/[declarativeparser, options, version]
 
 
 # proc isNimPkgVer(folder: string, ver: string): bool = 
