@@ -28,10 +28,10 @@ proc debugSATResult*(options: Options) =
   echo "Root package: ", satResult.rootPackage.basicInfo.name, " ", satResult.rootPackage.basicInfo.version
   echo "Root requires: ", satResult.rootPackage.requires.mapIt(it.name & " " & $it.ver)
   echo "Solved packages: ", satResult.solvedPkgs.mapIt(it.pkgName & " " & $it.deps.mapIt(it.pkgName))
+  echo "Solution as Packages Info: ", satResult.pkgs.mapIt(it.basicInfo.name)
   echo "Packages to install: ", satResult.pkgsToInstall
   echo "Installed pkgs: ", satResult.pkgs.mapIt(it.basicInfo.name)
   echo "Build pkgs: ", satResult.buildPkgs.mapIt(it.basicInfo.name)
-  echo "Packages: ", satResult.pkgs.mapIt(it.basicInfo.name)
   echo "Packages url: ", satResult.pkgs.mapIt(it.metaData.url)
   echo "Package list: ", satResult.pkgList.mapIt(it.basicInfo.name)
   echo "PkgList path: ", satResult.pkgList.mapIt(it.myPath.parentDir)
@@ -260,6 +260,7 @@ proc solvePkgsWithVmParserAllowingFallback*(rootPackage: PackageInfo, resolvedNi
   pkgList.add(resolvedNim.pkg.get)
   options.satResult.pkgList = pkgList.toHashSet()
   options.satResult.pkgs = solvePackages(rootPackage, pkgList, options.satResult.pkgsToInstall, options, options.satResult.output, options.satResult.solvedPkgs)
+
   # echo "SAT RESULT IS ", options.satResult.output
   # for solvedPkg in options.satResult.solvedPkgs:
   #   echo "SOLVED PKG IS ", solvedPkg.pkgName, " ", solvedPkg.version, " requires ", solvedPkg.requirements.mapIt(it.name & " " & $it.ver)
@@ -420,10 +421,11 @@ proc getDepsPkgInfo(satResult: SATResult, pkgInfo: PackageInfo, options: Options
     result.add(depInfo)
 
 proc expandPaths*(pkgInfo: PackageInfo, options: Options): seq[string] =
-  var pkgInfo = pkgInfo.toFullInfo(options)
+  var pkgInfo = pkgInfo.toFullInfo(options) #TODO is this needed in VNEXT? I dont think so
+  if options.isVNext: 
+    pkgInfo = pkgInfo.toRequiresInfo(options)
   let baseDir = pkgInfo.getRealDir()
   result = @[baseDir]
-  
   # Also add srcDir if it exists and is different from baseDir
   if pkgInfo.srcDir != "":
     let srcPath = pkgInfo.getNimbleFileDir() / pkgInfo.srcDir
@@ -444,7 +446,8 @@ proc getPathsToBuildFor*(satResult: SATResult, pkgInfo: PackageInfo, recursive: 
         result.incl(path)
   result.incl(pkgInfo.expandPaths(options))
 
-proc getPathsAllPkgs*(satResult: SATResult, options: Options): HashSet[string] =
+proc getPathsAllPkgs*(options: Options): HashSet[string] =
+  let satResult = options.satResult
   for pkg in satResult.pkgs:
     for path in pkg.expandPaths(options):
       result.incl(path)
@@ -641,7 +644,7 @@ proc isRoot(pkgInfo: PackageInfo, satResult: SATResult): bool =
 
 proc buildPkg*(pkgToBuild: PackageInfo, isRootInRootDir: bool, options: Options) =
   # let paths = getPathsToBuildFor(options.satResult, pkgToBuild, recursive = true, options)
-  let paths = getPathsAllPkgs(options.satResult, options)
+  let paths = getPathsAllPkgs(options)
   # echo "Paths ", paths
   # echo "Requires ", pkgToBuild.requires
   # echo "Package ", pkgToBuild.basicInfo.name
@@ -691,6 +694,7 @@ proc installPkgs*(satResult: var SATResult, options: Options) =
   #If package is in develop mode, we dont need to install it.
   var newlyInstalledPkgs = initHashSet[PackageInfo]()
   let rootName = satResult.rootPackage.basicInfo.name
+  # options.debugSATResult()
   for (name, ver) in pkgsToInstall:
     let verRange = satResult.getVersionRangeFoPkgToInstall(name, ver)
     var pv = (name: name, ver: verRange)

@@ -1048,8 +1048,12 @@ proc execBackend(pkgInfo: PackageInfo, options: Options) =
     raise nimbleError("Pre-hook prevented further execution.")
 
   var args = @["-d:NimblePkgVersion=" & $pkgInfo.basicInfo.version]
-  for dep in deps:
-    args.add("--path:" & dep.getRealDir().quoteShell)
+  if options.isVNext:
+    for path in options.getPathsAllPkgs():
+      args.add("--path:" & path.quoteShell)
+  else:
+    for dep in deps:
+      args.add("--path:" & dep.getRealDir().quoteShell)
   if options.verbosity >= HighPriority:
     # Hide Nim hints by default
     args.add("--hints:off")
@@ -1719,7 +1723,7 @@ proc updatePathsFile(pkgInfo: PackageInfo, options: Options) =
     if options.isVNext: 
       #TODO improve this (or better the alternative, getDependenciesPaths, so it returns the same type)
       var pathsPaths = initHashSet[seq[string]]()
-      for path in options.satResult.getPathsAllPkgs(options):
+      for path in options.getPathsAllPkgs():
           pathsPaths.incl @[path]
       pathsPaths
     else:

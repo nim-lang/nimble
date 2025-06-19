@@ -437,6 +437,7 @@ proc toRequiresInfo*(pkgInfo: PackageInfo, options: Options, nimbleFileInfo: Opt
       # echo "Fallback to VM parser for package: ", pkgInfo.basicInfo.name
       # echo "Requires: ", result.requires
   result.features = getFeatures(nimbleFileInfo)
+  result.srcDir = nimbleFileInfo.srcDir
   fillMetaData(result, result.getRealDir(), false, options)
   if pkgInfo.infoKind == pikRequires:
     result.bin = nimbleFileInfo.bin #Noted that we are not parsing namedBins here, they are only parsed wit full info
@@ -452,6 +453,7 @@ proc fillPkgBasicInfo(pkgInfo: var PackageInfo, nimbleFileInfo: NimbleFileInfo) 
   pkgInfo.basicInfo.checksum = sha1Checksum
   pkgInfo.myPath = nimbleFileInfo.nimbleFile
   pkgInfo.basicInfo.version = newVersion nimbleFileInfo.version
+  pkgInfo.srcDir = nimbleFileInfo.srcDir
 
 proc getPkgInfoFromDirWithDeclarativeParser*(dir: string, options: Options): PackageInfo =
   let nimbleFile = findNimbleFile(dir, true, options)
