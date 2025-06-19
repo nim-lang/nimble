@@ -17,7 +17,8 @@ import nimblesat, packageinfotypes, options, version, declarativeparser, package
   nimenv, lockfile, cli, downloadnim, packageparser, tools, nimscriptexecutor, packagemetadatafile,
   displaymessages, packageinstaller, reversedeps, developfile
 
-proc debug*(satResult: SATResult) =
+proc debugSATResult*(options: Options) =
+  let satResult = options.satResult
   echo "--------------------------------"
   echo "Pass: ", satResult.pass
   if satResult.nimResolved.pkg.isSome:
@@ -25,13 +26,16 @@ proc debug*(satResult: SATResult) =
   else:
     echo "No Nim selected"
   echo "Root package: ", satResult.rootPackage.basicInfo.name, " ", satResult.rootPackage.basicInfo.version
+  echo "Root requires: ", satResult.rootPackage.requires.mapIt(it.name & " " & $it.ver)
   echo "Solved packages: ", satResult.solvedPkgs.mapIt(it.pkgName & " " & $it.deps.mapIt(it.pkgName))
   echo "Packages to install: ", satResult.pkgsToInstall
+  echo "Installed pkgs: ", satResult.pkgs.mapIt(it.basicInfo.name)
   echo "Build pkgs: ", satResult.buildPkgs.mapIt(it.basicInfo.name)
   echo "Packages: ", satResult.pkgs.mapIt(it.basicInfo.name)
   echo "Packages url: ", satResult.pkgs.mapIt(it.metaData.url)
   echo "Package list: ", satResult.pkgList.mapIt(it.basicInfo.name)
   echo "PkgList path: ", satResult.pkgList.mapIt(it.myPath.parentDir)
+  echo "Nimbledir: ", options.getNimbleDir()
   echo "--------------------------------"
 
 proc nameMatches(pkg: PackageInfo, pv: PkgTuple, options: Options): bool =
@@ -57,7 +61,6 @@ proc getSolvedPkg*(satResult: SATResult, pkgInfo: PackageInfo): SolvedPackage =
   for solvedPkg in satResult.solvedPkgs:
     if pkgInfo.basicInfo.name.toLowerAscii() == solvedPkg.pkgName.toLowerAscii(): #No need to check version as they should match by design
       return solvedPkg
-  satResult.debug()
   raise newNimbleError[NimbleError]("Package not found in solution: " & $pkgInfo.basicInfo.name & " " & $pkgInfo.basicInfo.version)
 
 proc getPkgInfoFromSolution(satResult: SATResult, pv: PkgTuple, options: Options): PackageInfo =
@@ -65,7 +68,7 @@ proc getPkgInfoFromSolution(satResult: SATResult, pv: PkgTuple, options: Options
     if pv.isNim and pkg.basicInfo.name.isNim and pkg.basicInfo.version.withinRange(pv.ver): return pkg 
     if nameMatches(pkg, pv, options) and pkg.basicInfo.version.withinRange(pv.ver):
       return pkg
-  satResult.debug()
+  options.debugSATResult()
   raise newNimbleError[NimbleError]("Package not found in solution: " & $pv)
 
 proc getPkgInfoFromSolved*(satResult: SATResult, solvedPkg: SolvedPackage, options: Options): PackageInfo =
@@ -77,7 +80,7 @@ proc getPkgInfoFromSolved*(satResult: SATResult, solvedPkg: SolvedPackage, optio
     if nameMatches(pkg, solvedPkg.pkgName, options) and pkg.basicInfo.version == solvedPkg.version:
       return pkg
   
-  satResult.debug()
+  options.debugSATResult()
   raise newNimbleError[NimbleError]("Package not found in solution: " & $solvedPkg.pkgName & " " & $solvedPkg.version)
 
 proc displaySatisfiedMsg*(solvedPkgs: seq[SolvedPackage], pkgToInstall: seq[(string, Version)], options: Options) =
@@ -211,7 +214,6 @@ proc getSolvedPkgFromInstalledPkgs*(satResult: SATResult, solvedPkg: SolvedPacka
   for pkg in satResult.pkgList:
     if pkg.basicInfo.name == solvedPkg.pkgName and pkg.basicInfo.version == solvedPkg.version:
       return some(pkg)
-  echo "Couldnt find ", solvedPkg.pkgName, " ", solvedPkg.version, " in installed pkgs"
   return none(PackageInfo)
 
 proc solveLockFileDeps*(satResult: var SATResult, options: Options) = 
@@ -688,14 +690,15 @@ proc installPkgs*(satResult: var SATResult, options: Options) =
   displaySatisfiedMsg(satResult.solvedPkgs, pkgsToInstall, options)
   #If package is in develop mode, we dont need to install it.
   var newlyInstalledPkgs = initHashSet[PackageInfo]()
+  let rootName = satResult.rootPackage.basicInfo.name
   for (name, ver) in pkgsToInstall:
     let verRange = satResult.getVersionRangeFoPkgToInstall(name, ver)
     var pv = (name: name, ver: verRange)
     var installedPkgInfo: PackageInfo
     var wasNewlyInstalled = false
     let root = satResult.rootPackage
-    if root notin installedPkgs and pv.name == root.basicInfo.name and root.basicInfo.version.withinRange(pv.ver): 
-      if root.developFileExists or options.localdeps:
+    if pv.name == rootName and (rootName notin installedPkgs.mapIt(it.basicInfo.name) or satResult.rootPackage.hasLockFile(options)): 
+      if satResult.rootPackage.developFileExists or options.localdeps:
         # Treat as link package if in develop mode OR local deps mode
         satResult.rootPackage.isInstalled = false
         satResult.rootPackage.isLink = true
@@ -703,9 +706,9 @@ proc installPkgs*(satResult: var SATResult, options: Options) =
         wasNewlyInstalled = true
       else:
         # Check if package already exists before installing
-        let tempPkgInfo = getPkgInfo(root.getNimbleFileDir(), options)
+        let tempPkgInfo = getPkgInfo(satResult.rootPackage.getNimbleFileDir(), options)
         let oldPkg = tempPkgInfo.packageExists(options)
-        installedPkgInfo = installFromDirDownloadInfo(root.getNimbleFileDir(), root.metaData.url, options).toRequiresInfo(options)
+        installedPkgInfo = installFromDirDownloadInfo(satResult.rootPackage.getNimbleFileDir(), satResult.rootPackage.metaData.url, options).toRequiresInfo(options)
         wasNewlyInstalled = oldPkg.isNone
     else:
       var dlInfo = getPackageDownloadInfo(pv, options, doPrompt = true)
