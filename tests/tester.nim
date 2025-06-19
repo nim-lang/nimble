@@ -8,7 +8,7 @@ import tnimbinaries
 import tinitcommand
 import tcheckcommand
 import tcleancommand
-# import tdevelopfeature
+import tdevelopfeature
 # import tissues
 import tlocaldeps
 # import tlockfile
