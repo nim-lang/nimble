@@ -700,7 +700,6 @@ proc installPkgs*(satResult: var SATResult, options: Options) =
     var pv = (name: name, ver: verRange)
     var installedPkgInfo: PackageInfo
     var wasNewlyInstalled = false
-    let root = satResult.rootPackage
     if pv.name == rootName and (rootName notin installedPkgs.mapIt(it.basicInfo.name) or satResult.rootPackage.hasLockFile(options)): 
       if satResult.rootPackage.developFileExists or options.localdeps:
         # Treat as link package if in develop mode OR local deps mode

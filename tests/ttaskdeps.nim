@@ -45,7 +45,7 @@ suite "Task level dependencies":
 
   test "Dependency can be defined for test task":
     inDir:
-      let (output, exitCode) = execNimbleYes("test")
+      let (_, exitCode) = execNimbleYes("test")
       check exitCode == QuitSuccess
       check packageDirExists(pkgsDir, "unittest2-0.0.4")
 
@@ -68,7 +68,7 @@ suite "Task level dependencies":
     inDir:
       makeLockFile()
       uninstallDeps()
-      let (output, exitCode) = execNimbleYes("test")
+      let (_, exitCode) = execNimbleYes("test")
       check exitCode == QuitSuccess
       #vnext install taskRequires 
       check packageDirExists(pkgsDir, "unittest2-0.0.4")
