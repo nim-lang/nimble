@@ -31,7 +31,7 @@ suite "Task level dependencies":
 
   test "Dependency is used when running task":
     inDir:
-      let (output, exitCode) = execNimbleYes("benchmark")
+      let (_, exitCode) = execNimbleYes("benchmark")
       check exitCode == QuitSuccess
       check packageDirExists(pkgsDir, "benchy-0.0.1")
 
