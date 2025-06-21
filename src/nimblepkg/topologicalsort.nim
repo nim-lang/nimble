@@ -1,8 +1,8 @@
 # Copyright (C) Dominik Picheta. All rights reserved.
 # BSD License. Look at license.txt for more info.
 
-import sequtils, tables, strformat, algorithm, sets
-import common, packageinfotypes, packageinfo, options, cli, version
+import sequtils, tables, strformat, algorithm, sets, os
+import common, packageinfotypes, packageinfo, options, cli, version, vcstools, sha1hashes
 
 proc getDependencies(packages: seq[PackageInfo], requires: seq[PkgTuple],
                      options: Options):
@@ -39,19 +39,54 @@ proc allDependencies(requires: seq[PkgTuple], packages: seq[PackageInfo], option
 proc deleteStaleDependencies*(packages: seq[PackageInfo],
                       rootPackage: PackageInfo,
                       options: Options): seq[PackageInfo] =
+  # For lock operations in vnext mode, only include packages that are actual dependencies
+  # This filters out packages in the develop file that are not real dependencies
+  # Only apply this filtering for direct lock operations (no packages specified), not for upgrade operations
+  if options.action.typ == actionLock and options.isVNext and options.action.packages.len == 0:
+    let all = allDependencies(concat(rootPackage.requires,
+                                     rootPackage.taskRequires.getOrDefault(options.task)),
+                              packages,
+                              options)
+    let requiredNames = concat(rootPackage.requires,
+                               rootPackage.taskRequires.getOrDefault(options.task)).mapIt(it.name)
+    
+    # Only filter if there are packages that are neither in allDependencies nor in requiredNames
+    # This prevents filtering when all packages are legitimate dependencies
+    let packagesToFilter = packages.filterIt(not all.contains(it.name) and not requiredNames.contains(it.name))
+    
+    if packagesToFilter.len > 0:
+      # Include packages that are either found by allDependencies or are directly required
+      # This handles the case where develop mode dependencies are not found by findPkg
+      result = packages.filterIt(all.contains(it.name) or requiredNames.contains(it.name))
+      return result
+    else:
+      return packages
+    
   let all = allDependencies(concat(rootPackage.requires,
                                    rootPackage.taskRequires.getOrDefault(options.task)),
                             packages,
                             options)
-  result = packages.filterIt(all.contains(it.name))
+  # Don't filter out develop mode dependencies (link packages) that are actual dependencies
+  result = packages.filterIt(all.contains(it.name) or it.isLink)
 
 proc buildDependencyGraph*(packages: seq[PackageInfo], options: Options):
     LockFileDeps =
   ## Creates records which will be saved to the lock file.
   for pkgInfo in packages:
+    var vcsRevision = pkgInfo.metaData.vcsRevision
+    
+    # For develop mode dependencies, ensure VCS revision is set
+    # Check both isLink and if the package has an empty VCS revision but exists locally
+    if (pkgInfo.isLink or (vcsRevision == notSetSha1Hash and pkgInfo.getRealDir().dirExists())) and vcsRevision == notSetSha1Hash:
+      try:
+        vcsRevision = getVcsRevision(pkgInfo.getRealDir())
+      except CatchableError as e:
+        # If we can't get VCS revision, leave it as notSetSha1Hash
+        discard
+    
     result[pkgInfo.basicInfo.name] = LockFileDep(
       version: pkgInfo.basicInfo.version,
-      vcsRevision: pkgInfo.metaData.vcsRevision,
+      vcsRevision: vcsRevision,
       url: pkgInfo.metaData.url,
       downloadMethod: pkgInfo.metaData.downloadMethod,
       dependencies: getDependencies(packages, pkgInfo.requires, options),

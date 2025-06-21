@@ -9,7 +9,7 @@ from compiler/nimblecmd import getPathVersionChecksum
 
 import version, packageinfotypes, packageinfo, options, packageparser, cli,
   packagemetadatafile
-import sha1hashes
+import sha1hashes, vcstools
 import std/[tables, sequtils, strscans, strformat, os, options]
 
 type NimbleFileInfo* = object
@@ -439,6 +439,15 @@ proc toRequiresInfo*(pkgInfo: PackageInfo, options: Options, nimbleFileInfo: Opt
   result.features = getFeatures(nimbleFileInfo)
   result.srcDir = nimbleFileInfo.srcDir
   fillMetaData(result, result.getRealDir(), false, options)
+  
+  # For develop mode dependencies, ensure VCS revision is set
+  if result.isLink and result.metaData.vcsRevision == notSetSha1Hash:
+    try:
+      result.metaData.vcsRevision = getVcsRevision(result.getRealDir())
+    except CatchableError as e:
+      # If we can't get VCS revision, leave it as notSetSha1Hash
+      discard
+  
   if pkgInfo.infoKind == pikRequires:
     result.bin = nimbleFileInfo.bin #Noted that we are not parsing namedBins here, they are only parsed wit full info
 

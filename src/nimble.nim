@@ -1879,11 +1879,12 @@ proc validateDevelopDependenciesVersionRanges(dependentPkg: PackageInfo,
   var errors: seq[string]
   for pkg in allPackages:
     for dep in pkg.requires:
-      if dep.ver.kind == verSpecial:
+      if dep.ver.kind == verSpecial or dep.ver.kind == verAny:
         # Develop packages versions are not being validated against the special
         # versions in the Nimble files requires clauses, because there is no
         # special versions for develop mode packages. If special version is
         # required then any version for the develop package is allowed.
+        # Also skip validation for verAny (any version) requirements.
         continue
       var depPkg = initPackageInfo()
       if not findPkg(developDependencies, dep, depPkg):
@@ -2025,13 +2026,17 @@ proc lock(options: Options) =
   
   var 
     baseDeps = 
-      if options.isVNext:
-        options.satResult.pkgs.toSeq
+      if options.isVNext and options.action.typ in {actionLock}:
+        # For vnext lock operations, use the traditional dependency resolution
+        # because satResult.pkgs doesn't include develop mode dependencies properly
+        pkgInfo.getDependenciesForLocking(options)
       elif options.useSATSolver:
         processFreeDependenciesSAT(pkgInfo, options).toSeq        
       else:
         pkgInfo.getDependenciesForLocking(options) # Deps shared by base and tasks  
-  
+  if options.isVNext and options.action.typ in {actionLock}:
+    baseDeps = baseDeps.deleteStaleDependencies(pkgInfo, options)
+
   if options.useSystemNim:
     baseDeps = baseDeps.filterIt(not it.name.isNim)
 
@@ -2525,16 +2530,35 @@ proc solvePkgs(rootPackage: PackageInfo, options: var Options) =
     options.satResult.solveLockFileDeps(options)
 
 proc runVNext*(options: var Options) =
-  #if the action is lock, we first remove the lock file so we can recalculate the deps. 
-  if options.action.typ == actionLock:
-    removeFile(options.lockFile(getCurrentDir()))
   #Install and in consequence builds the packages
+  
+  # Handle sync action specially - prepare the SAT result with lock file dependencies
+  if options.action.typ == actionSync:
+    let currentDir = getCurrentDir()
+    let pkgInfo = getPkgInfo(currentDir, options)
+    
+    if not pkgInfo.areLockedDepsLoaded:
+      raise nimbleError("Cannot execute `sync` when lock file is missing.")
+    
+    if options.offline:
+      raise nimbleError("Cannot execute `sync` in offline mode.")
+    
+    # Initialize SAT result for sync operation with lock file dependencies
+    options.satResult = initSATResult(satLockFile)
+    options.satResult.rootPackage = pkgInfo
+    solveLockFileDeps(options.satResult, options)
+    return
+
   let thereIsNimbleFile = findNimbleFile(getCurrentDir(), error = false, options) != ""
   if thereIsNimbleFile:
     options.satResult = initSATResult(satNimSelection)
     var rootPackage = getPkgInfoFromDirWithDeclarativeParser(getCurrentDir(), options)
     if options.action.typ == actionInstall:
       rootPackage.requires.add(options.action.packages)
+    elif options.action.typ == actionLock:
+      # For lock operations, we need to solve the dependencies to populate satResult.pkgs
+      solvePkgs(rootPackage, options)
+      return # Let the normal lock function handle the rest
     solvePkgs(rootPackage, options)
   elif options.action.typ == actionInstall:
     #Global install        
@@ -2773,7 +2797,7 @@ when isMainModule:
     
     #Notice some actions dont need to be touched in vnext. Some other partially incercepted (setup) and some others fully changed (i.e build, install)
     const vNextSupportedActions = { actionInstall, actionBuild, 
-      actionSetup, actionRun, actionLock, actionCustom }
+      actionSetup, actionRun, actionLock, actionCustom, actionSync, actionDevelop }
 
     if opt.isVNext and opt.action.typ in vNextSupportedActions:
       # For actionCustom, set the task name before calling runVNext
