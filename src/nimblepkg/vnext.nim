@@ -17,12 +17,45 @@ import nimblesat, packageinfotypes, options, version, declarativeparser, package
   nimenv, lockfile, cli, downloadnim, packageparser, tools, nimscriptexecutor, packagemetadatafile,
   displaymessages, packageinstaller, reversedeps, developfile
 
+proc debugSATResult*(options: Options) =
+  let satResult = options.satResult
+  echo "--------------------------------"
+  echo "Pass: ", satResult.pass
+  if satResult.nimResolved.pkg.isSome:
+    echo "Selected Nim: ", satResult.nimResolved.pkg.get.basicInfo.name, " ", satResult.nimResolved.version
+  else:
+    echo "No Nim selected"
+  echo "Root package: ", satResult.rootPackage.basicInfo.name, " ", satResult.rootPackage.basicInfo.version
+  echo "Root requires: ", satResult.rootPackage.requires.mapIt(it.name & " " & $it.ver)
+  echo "Solved packages: ", satResult.solvedPkgs.mapIt(it.pkgName & " " & $it.deps.mapIt(it.pkgName))
+  echo "Solution as Packages Info: ", satResult.pkgs.mapIt(it.basicInfo.name)
+  echo "Packages to install: ", satResult.pkgsToInstall
+  echo "Installed pkgs: ", satResult.pkgs.mapIt(it.basicInfo.name)
+  echo "Build pkgs: ", satResult.buildPkgs.mapIt(it.basicInfo.name)
+  echo "Packages url: ", satResult.pkgs.mapIt(it.metaData.url)
+  echo "Package list: ", satResult.pkgList.mapIt(it.basicInfo.name)
+  echo "PkgList path: ", satResult.pkgList.mapIt(it.myPath.parentDir)
+  echo "Nimbledir: ", options.getNimbleDir()
+  echo "--------------------------------"
 
 proc nameMatches(pkg: PackageInfo, pv: PkgTuple, options: Options): bool =
   pkg.basicInfo.name.toLowerAscii() == pv.resolveAlias(options).name.toLowerAscii() or pkg.metaData.url == pv.name
 
 proc nameMatches*(pkg: PackageInfo, name: string, options: Options): bool =
-  pkg.basicInfo.name.toLowerAscii() == resolveAlias(name, options).toLowerAscii() or pkg.metaData.url == name
+  let resolvedName = resolveAlias(name, options).toLowerAscii()
+  let pkgName = pkg.basicInfo.name.toLowerAscii()
+  let pkgUrl = pkg.metaData.url.toLowerAscii()
+  
+  if pkgName == resolvedName or pkgUrl == name.toLowerAscii():
+    return true
+  
+  # For GitHub URLs, extract repository name and match
+  if name.contains("github.com/") and name.contains("/"):
+    let repoName = name.split("/")[^1].replace(".git", "").toLowerAscii()
+    if pkgName == repoName:
+      return true
+  
+  return false
 
 proc getSolvedPkg*(satResult: SATResult, pkgInfo: PackageInfo): SolvedPackage =
   for solvedPkg in satResult.solvedPkgs:
@@ -35,15 +68,19 @@ proc getPkgInfoFromSolution(satResult: SATResult, pv: PkgTuple, options: Options
     if pv.isNim and pkg.basicInfo.name.isNim and pkg.basicInfo.version.withinRange(pv.ver): return pkg 
     if nameMatches(pkg, pv, options) and pkg.basicInfo.version.withinRange(pv.ver):
       return pkg
-
+  options.debugSATResult()
   raise newNimbleError[NimbleError]("Package not found in solution: " & $pv)
 
 proc getPkgInfoFromSolved*(satResult: SATResult, solvedPkg: SolvedPackage, options: Options): PackageInfo =
-  let allPkgs = satResult.pkgs.toSeq & satResult.pkgList.toSeq
-  for pkg in allPkgs:
-    # echo "Checking ", pkg.basicInfo.name, " ", pkg.basicInfo.version, " against ", solvedPkg.pkgName, " ", solvedPkg.version
+  for pkg in satResult.pkgs.toSeq:
+    if nameMatches(pkg, solvedPkg.pkgName, options):
+      return pkg
+  for pkg in satResult.pkgList.toSeq: 
+    #For the pkg list we need to check the version as there may be multiple versions of the same package
     if nameMatches(pkg, solvedPkg.pkgName, options) and pkg.basicInfo.version == solvedPkg.version:
       return pkg
+  
+  options.debugSATResult()
   raise newNimbleError[NimbleError]("Package not found in solution: " & $solvedPkg.pkgName & " " & $solvedPkg.version)
 
 proc displaySatisfiedMsg*(solvedPkgs: seq[SolvedPackage], pkgToInstall: seq[(string, Version)], options: Options) =
@@ -177,7 +214,6 @@ proc getSolvedPkgFromInstalledPkgs*(satResult: SATResult, solvedPkg: SolvedPacka
   for pkg in satResult.pkgList:
     if pkg.basicInfo.name == solvedPkg.pkgName and pkg.basicInfo.version == solvedPkg.version:
       return some(pkg)
-  echo "Couldnt find ", solvedPkg.pkgName, " ", solvedPkg.version, " in installed pkgs"
   return none(PackageInfo)
 
 proc solveLockFileDeps*(satResult: var SATResult, options: Options) = 
@@ -224,6 +260,7 @@ proc solvePkgsWithVmParserAllowingFallback*(rootPackage: PackageInfo, resolvedNi
   pkgList.add(resolvedNim.pkg.get)
   options.satResult.pkgList = pkgList.toHashSet()
   options.satResult.pkgs = solvePackages(rootPackage, pkgList, options.satResult.pkgsToInstall, options, options.satResult.output, options.satResult.solvedPkgs)
+
   # echo "SAT RESULT IS ", options.satResult.output
   # for solvedPkg in options.satResult.solvedPkgs:
   #   echo "SOLVED PKG IS ", solvedPkg.pkgName, " ", solvedPkg.version, " requires ", solvedPkg.requirements.mapIt(it.name & " " & $it.ver)
@@ -256,6 +293,27 @@ proc executeHook(dir: string, options: Options, action: ActionType, before: bool
       else:
         raise nimbleError("Post-hook prevented further execution.")
 
+
+proc packageExists(pkgInfo: PackageInfo, options: Options):
+    Option[PackageInfo] =
+  ## Checks whether a package `pkgInfo` already exists in the Nimble cache. If a
+  ## package already exists returns the `PackageInfo` of the package in the
+  ## cache otherwise returns `none`. Raises a `NimbleError` in the case the
+  ## package exists in the cache but it is not valid.
+  let pkgDestDir = pkgInfo.getPkgDest(options)
+  if not fileExists(pkgDestDir / packageMetaDataFileName):
+    return none[PackageInfo]()
+  else:
+    var oldPkgInfo = initPackageInfo()
+    try:
+      oldPkgInfo = pkgDestDir.getPkgInfo(options)
+    except CatchableError as error:
+      raise nimbleError(&"The package inside \"{pkgDestDir}\" is invalid.",
+                        details = error)
+    fillMetaData(oldPkgInfo, pkgDestDir, true, options)
+    return some(oldPkgInfo)
+
+
 proc installFromDirDownloadInfo(downloadDir: string, url: string, options: Options): PackageInfo = 
 
   let dir = downloadDir
@@ -265,14 +323,14 @@ proc installFromDirDownloadInfo(downloadDir: string, url: string, options: Optio
   var pkgInfo = getPkgInfo(dir, options)
   # Set the flag that the package is not in develop mode before saving it to the
   # reverse dependencies.
-  pkgInfo.isLink = false
+  # pkgInfo.isLink = false
   # if vcsRevision != notSetSha1Hash: #TODO review this
   #   ## In the case we downloaded the package as tarball we have to set the VCS
   #   ## revision returned by download procedure because it cannot be queried from
   #   ## the package directory.
   #   pkgInfo.metaData.vcsRevision = vcsRevision
 
-  let realDir = pkgInfo.getRealDir()
+  # let realDir = pkgInfo.getRealDir()
   var depsOptions = options
   depsOptions.depsOnly = false
 
@@ -280,6 +338,16 @@ proc installFromDirDownloadInfo(downloadDir: string, url: string, options: Optio
     [pkgInfo.basicInfo.name, $pkgInfo.basicInfo.version],
     priority = MediumPriority)
 
+  let oldPkg = pkgInfo.packageExists(options)
+  if oldPkg.isSome:
+    # In the case we already have the same package in the cache then only merge
+    # the new package special versions to the old one.
+    displayWarning(pkgAlreadyExistsInTheCacheMsg(pkgInfo), MediumPriority)
+    # if not options.useSatSolver: #The dep path is not created when using the sat solver as packages are collected upfront
+    var oldPkg = oldPkg.get
+    oldPkg.metaData.specialVersions.incl pkgInfo.metaData.specialVersions
+    saveMetaData(oldPkg.metaData, oldPkg.getNimbleFileDir, changeRoots = false)
+    return oldPkg
   #TODO review this as we may want to this not hold anymore (i.e nimble install nim could replace choosenim)
   # nim is intended only for local project local usage, so avoid installing it
   # in .nimble/bin
@@ -314,10 +382,10 @@ proc installFromDirDownloadInfo(downloadDir: string, url: string, options: Optio
     createDir(pkgDestDir)
     # Copy this package's files based on the preferences specified in PkgInfo.
     var filesInstalled: HashSet[string]
-    iterInstallFiles(realDir, pkgInfo, options,
+    iterInstallFiles(pkgInfo.getNimbleFileDir(), pkgInfo, options,
       proc (file: string) =
-        createDir(changeRoot(realDir, pkgDestDir, file.splitFile.dir))
-        let dest = changeRoot(realDir, pkgDestDir, file)
+        createDir(changeRoot(pkgInfo.getNimbleFileDir(), pkgDestDir, file.splitFile.dir))
+        let dest = changeRoot(pkgInfo.getNimbleFileDir(), pkgDestDir, file)
         filesInstalled.incl copyFileD(file, dest)
     )
 
@@ -337,14 +405,7 @@ proc installFromDirDownloadInfo(downloadDir: string, url: string, options: Optio
     display("Warning:", "Skipped copy in project local deps mode", Warning)
 
   pkgInfo.isInstalled = true
-
   displaySuccess(pkgInstalledMsg(pkgInfo.basicInfo.name), MediumPriority)
-
-  # Run post-install hook now that package is installed. The `execHook` proc
-  # executes the hook defined in the CWD, so we set it to where the package
-  # has been installed.
-  executeHook(pkgInfo.myPath.splitFile.dir, options, actionInstall, before = false)
-
   pkgInfo
 
 proc activateSolvedPkgFeatures*(satResult: SATResult, options: Options) =
@@ -360,9 +421,17 @@ proc getDepsPkgInfo(satResult: SATResult, pkgInfo: PackageInfo, options: Options
     result.add(depInfo)
 
 proc expandPaths*(pkgInfo: PackageInfo, options: Options): seq[string] =
-  var pkgInfo = pkgInfo.toFullInfo(options)
+  var pkgInfo = pkgInfo.toFullInfo(options) #TODO is this needed in VNEXT? I dont think so
+  if options.isVNext: 
+    pkgInfo = pkgInfo.toRequiresInfo(options)
   let baseDir = pkgInfo.getRealDir()
   result = @[baseDir]
+  # Also add srcDir if it exists and is different from baseDir
+  if pkgInfo.srcDir != "":
+    let srcPath = pkgInfo.getNimbleFileDir() / pkgInfo.srcDir
+    if srcPath != baseDir and dirExists(srcPath):
+      result.add srcPath
+  
   for relativePath in pkgInfo.paths:
     let path = baseDir & "/" & relativePath
     if path.isSubdirOf(baseDir):
@@ -377,7 +446,8 @@ proc getPathsToBuildFor*(satResult: SATResult, pkgInfo: PackageInfo, recursive: 
         result.incl(path)
   result.incl(pkgInfo.expandPaths(options))
 
-proc getPathsAllPkgs*(satResult: SATResult, options: Options): HashSet[string] =
+proc getPathsAllPkgs*(options: Options): HashSet[string] =
+  let satResult = options.satResult
   for pkg in satResult.pkgs:
     for path in pkg.expandPaths(options):
       result.incl(path)
@@ -462,17 +532,47 @@ proc buildFromDir(pkgInfo: PackageInfo, paths: HashSet[string],
     else:
       createDir(outputDir)
 
+    # Check if we can copy an existing binary from source directory when --noRebuild is used
+    if options.action.typ in {actionInstall, actionPath, actionUninstall, actionDevelop, actionUpgrade, actionLock, actionAdd} and 
+       options.action.noRebuild:
+      # When installing from a local directory, check for binary in the original directory
+      let sourceBinary = 
+        if options.startDir != pkgDir:
+          options.startDir / bin
+        else:
+          pkgDir / bin
+      
+      if fileExists(sourceBinary):
+        # Check if the source binary is up-to-date
+        if not pkgInfo.needsRebuild(sourceBinary, realDir, options):
+          let targetBinary = outputDir / bin
+          display("Skipping", "$1/$2 (up-to-date)" %
+                  [pkginfo.basicInfo.name, bin], priority = HighPriority)
+          copyFile(sourceBinary, targetBinary)
+          when not defined(windows):
+            # Preserve executable permissions
+            setFilePermissions(targetBinary, getFilePermissions(sourceBinary))
+          binariesBuilt.inc()
+          continue
+
     let outputOpt = "-o:" & pkgInfo.getOutputDir(bin).quoteShell
     display("Building", "$1/$2 using $3 backend" %
             [pkginfo.basicInfo.name, bin, pkgInfo.backend], priority = HighPriority)
 
-    let input = realDir / src.changeFileExt("nim")
-    # `quoteShell` would be more robust than `\"` (and avoid quoting when
-    # un-necessary) but would require changing `extractBin`
+    # For installed packages, we need to handle srcDir correctly
+    let input = 
+      if pkgInfo.isInstalled and not pkgInfo.isLink and pkgInfo.srcDir != "":
+        # For installed packages with srcDir, the source file is in srcDir
+        realDir / pkgInfo.srcDir / src.changeFileExt("nim")
+      else:
+        # For non-installed packages or packages without srcDir, use realDir directly
+        realDir / src.changeFileExt("nim")
+
     let cmd = "$# $# --colors:$# --noNimblePath $# $# $#" % [
       options.satResult.getNimBin().quoteShell, pkgInfo.backend, if options.noColor: "off" else: "on", join(args, " "),
       outputOpt, input.quoteShell]
     try:
+      # echo "***Executing cmd: ", cmd
       doCmd(cmd)
       binariesBuilt.inc()
     except CatchableError as error:
@@ -480,6 +580,10 @@ proc buildFromDir(pkgInfo: PackageInfo, paths: HashSet[string],
         &"Build failed for the package: {pkgInfo.basicInfo.name}", details = error)
 
   if binariesBuilt == 0:
+    let binary = options.getCompilationBinary(pkgInfo).get("")
+    if binary != "":
+      raise nimbleError(binaryNotDefinedInPkgMsg(binary, pkgInfo.basicInfo.name))
+
     raise nimbleError(
       "No binaries built, did you specify a valid binary name?"
     )
@@ -504,13 +608,25 @@ proc createBinSymlink(pkgInfo: PackageInfo, options: Options) =
           bin & ".out"
         else: bin
 
-      if fileExists(pkgDestDir / binDest):
+      # For develop mode packages, the binary is in the source directory, not installed directory
+      let symlinkDest = 
+        if pkgInfo.isLink:
+          # Develop mode: binary is in the source directory
+          pkgInfo.getOutputDir(bin)
+        else:
+          # Installed package: binary is in the installed directory
+          pkgDestDir / binDest
+
+      if not fileExists(symlinkDest):
+        raise nimbleError(&"Binary '{bin}' was not found at expected location: {symlinkDest}")
+      
+      if fileExists(symlinkDest) and not pkgInfo.isLink:
         display("Warning:", ("Binary '$1' was already installed from source" &
                             " directory. Will be overwritten.") % bin, Warning,
                 MediumPriority)
       
-      createDir((pkgDestDir / binDest).parentDir())  # Set up a symlink.
-      let symlinkDest = pkgDestDir / binDest
+      if not pkgInfo.isLink:
+        createDir((pkgDestDir / binDest).parentDir())
       let symlinkFilename = options.getBinDir() / bin.extractFilename
       binariesInstalled.incl(
         setupBinSymlink(symlinkDest, symlinkFilename, options))
@@ -526,23 +642,26 @@ proc solutionToFullInfo*(satResult: SATResult, options: var Options) =
 proc isRoot(pkgInfo: PackageInfo, satResult: SATResult): bool =
   pkgInfo.basicInfo.name == satResult.rootPackage.basicInfo.name and pkgInfo.basicInfo.version == satResult.rootPackage.basicInfo.version
 
-proc buildPkg(pkgToBuild: PackageInfo, rootDir: bool, options: Options) =
+proc buildPkg*(pkgToBuild: PackageInfo, isRootInRootDir: bool, options: Options) =
   # let paths = getPathsToBuildFor(options.satResult, pkgToBuild, recursive = true, options)
-  let paths = getPathsAllPkgs(options.satResult, options)
+  let paths = getPathsAllPkgs(options)
   # echo "Paths ", paths
   # echo "Requires ", pkgToBuild.requires
   # echo "Package ", pkgToBuild.basicInfo.name
   let flags = if options.action.typ in {actionInstall, actionPath, actionUninstall, actionDevelop}:
                 options.action.passNimFlags
+              elif options.action.typ in { actionRun, actionBuild, actionDoc, actionCompile, actionCustom }:
+                options.getCompilationFlags()
               else:
                 @[]
+  var pkgToBuild = pkgToBuild
+  if isRootInRootDir:
+    pkgToBuild.isInstalled = false
   buildFromDir(pkgToBuild, paths, "-d:release" & flags, options)
-  #Should we create symlinks for the root package? Before behavior was to dont create them
-  #In general for nim we should not create them if we are not in the local mode
-  #But if we are installing only nim (i.e nim is root) we should create them which will
-  #convert nimble a choosenim replacement
-  let isRootInRootDir = pkgToBuild.isRoot(options.satResult) and rootDir
-  if not isRootInRootDir : #Dont create symlinks for the root package
+  # For globally installed packages, always create symlinks
+  # Only skip symlinks if we're building the root package in its own directory
+  let shouldCreateSymlinks = not isRootInRootDir or options.action.typ == actionInstall
+  if shouldCreateSymlinks:
     createBinSymlink(pkgToBuild, options)
 
 proc getVersionRangeFoPkgToInstall(satResult: SATResult, name: string, ver: Version): VersionRange =
@@ -573,15 +692,29 @@ proc installPkgs*(satResult: var SATResult, options: Options) =
     
   displaySatisfiedMsg(satResult.solvedPkgs, pkgsToInstall, options)
   #If package is in develop mode, we dont need to install it.
+  var newlyInstalledPkgs = initHashSet[PackageInfo]()
+  let rootName = satResult.rootPackage.basicInfo.name
+  # options.debugSATResult()
   for (name, ver) in pkgsToInstall:
     let verRange = satResult.getVersionRangeFoPkgToInstall(name, ver)
     var pv = (name: name, ver: verRange)
     var installedPkgInfo: PackageInfo
-    let root = satResult.rootPackage
-    if root notin installedPkgs and pv.name == root.basicInfo.name and root.basicInfo.version.withinRange(pv.ver): 
-      installedPkgInfo = installFromDirDownloadInfo(root.getNimbleFileDir(), root.metaData.url, options).toRequiresInfo(options)
+    var wasNewlyInstalled = false
+    if pv.name == rootName and (rootName notin installedPkgs.mapIt(it.basicInfo.name) or satResult.rootPackage.hasLockFile(options)): 
+      if satResult.rootPackage.developFileExists or options.localdeps:
+        # Treat as link package if in develop mode OR local deps mode
+        satResult.rootPackage.isInstalled = false
+        satResult.rootPackage.isLink = true
+        installedPkgInfo = satResult.rootPackage
+        wasNewlyInstalled = true
+      else:
+        # Check if package already exists before installing
+        let tempPkgInfo = getPkgInfo(satResult.rootPackage.getNimbleFileDir(), options)
+        let oldPkg = tempPkgInfo.packageExists(options)
+        installedPkgInfo = installFromDirDownloadInfo(satResult.rootPackage.getNimbleFileDir(), satResult.rootPackage.metaData.url, options).toRequiresInfo(options)
+        wasNewlyInstalled = oldPkg.isNone
     else:
-      var dlInfo = getPackageDownloadInfo(pv, options)
+      var dlInfo = getPackageDownloadInfo(pv, options, doPrompt = true)
       let downloadDir = dlInfo.downloadDir / dlInfo.subdir 
       # echo "DL INFO IS ", dlInfo
       if not dirExists(dlInfo.downloadDir):
@@ -595,10 +728,16 @@ proc installPkgs*(satResult: var SATResult, options: Options) =
         # dlInfo.downloadDir = downloadPkgResult.dir 
       assert dirExists(downloadDir)
       #TODO this : PackageInfoneeds to be improved as we are redonwloading certain packages
+      # Check if package already exists before installing
+      let tempPkgInfo = getPkgInfo(downloadDir, options)
+      let oldPkg = tempPkgInfo.packageExists(options)
       installedPkgInfo = installFromDirDownloadInfo(downloadDir, dlInfo.url, options).toRequiresInfo(options)
+      wasNewlyInstalled = oldPkg.isNone
 
     satResult.pkgs.incl(installedPkgInfo)
     installedPkgs.incl(installedPkgInfo)
+    if wasNewlyInstalled:
+      newlyInstalledPkgs.incl(installedPkgInfo)
   
   #we need to activate the features for the recently installed package
   #so they are activated in the build step
@@ -606,21 +745,41 @@ proc installPkgs*(satResult: var SATResult, options: Options) =
 
   for pkg in installedPkgs:
     var pkg = pkg
-    fillMetaData(pkg, pkg.getRealDir(), false, options)
+    # fillMetaData(pkg, pkg.getRealDir(), false, options)
     options.satResult.pkgs.incl pkg 
 
   let buildActions = { actionInstall, actionBuild, actionRun }
-  for pkgToBuild in installedPkgs:
+  
+  # For build action, only build the root package
+  # For install action, only build newly installed packages
+  let pkgsToBuild = if options.action.typ == actionBuild:
+    installedPkgs.toSeq.filterIt(it.isRoot(options.satResult))
+  else:
+    # Only build packages that were newly installed in this session
+    newlyInstalledPkgs.toSeq
+  
+  for pkgToBuild in pkgsToBuild:
     if pkgToBuild.bin.len == 0:
-      continue
-
-    echo "Building package: ", pkgToBuild.basicInfo.name
+      if options.action.typ == actionBuild:
+        raise nimbleError(
+          "Nothing to build. Did you specify a module to build using the" &
+          " `bin` key in your .nimble file?")
+      else: #Skips building the package if it has no binaries
+        continue
+    echo "Building package: ", pkgToBuild.basicInfo.name, " at ", pkgToBuild.myPath, " binaries: ", pkgToBuild.bin
     let isRoot = pkgToBuild.isRoot(options.satResult) and isInRootDir
     if options.action.typ in buildActions:
       buildPkg(pkgToBuild, isRoot, options)
+      satResult.buildPkgs.add(pkgToBuild)
 
   satResult.installedPkgs = installedPkgs.toSeq()
+  for pkg in satResult.installedPkgs.mitems:
+    satResult.pkgs.incl pkg
     
-  if isInRootDir and options.action.typ == actionInstall:
-    #postInstall hook is always executed for the current directory
-    executeHook(getCurrentDir(), options, actionInstall, before = false)
+  for pkgInfo in satResult.installedPkgs:
+    # Run post-install hook now that package is installed. The `execHook` proc
+    # executes the hook defined in the CWD, so we set it to where the package
+    # has been installed. Notice for legacy reasons this needs to happen after the build step
+    # TODO investigate where it should happen before or after the after build step, I think after is better
+    executeHook(pkgInfo.myPath.splitFile.dir, options, actionInstall, before = false)
+    

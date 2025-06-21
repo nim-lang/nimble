@@ -384,7 +384,7 @@ proc getRealDir*(pkgInfo: PackageInfo): string =
     result = pkgInfo.getNimbleFileDir() / pkgInfo.srcDir
   else:
     result = pkgInfo.getNimbleFileDir()
-
+  
 proc getOutputDir*(pkgInfo: PackageInfo, bin: string): string =
   ## Returns a binary output dir for the package.
   if pkgInfo.binDir != "":
@@ -538,6 +538,20 @@ proc iterInstallFiles*(realDir: string, pkgInfo: PackageInfo,
       else:
         let skip = pkgInfo.checkInstallFile(realDir, file)
         if skip: continue
+        
+        # In vnext mode, skip binary files that match package binary names to avoid conflicts
+        if options.isVNext:
+          let fileName = file.splitFile.name
+          let fileExt = file.splitFile.ext
+          var skipBinary = false
+          # Only skip if it's not a source file (i.e., doesn't have .nim extension)
+          if fileExt != ".nim":
+            for binName, _ in pkgInfo.bin:
+              if fileName == binName:
+                skipBinary = true
+                break
+          if skipBinary: continue
+        
         # For vnext: Check if we should use metadata name instead of filesystem name
         if options.isVNext and metadataNameMap.len > 0:
           let relativePath = file.relativePath(realDir)
@@ -555,18 +569,36 @@ proc iterInstallFiles*(realDir: string, pkgInfo: PackageInfo,
 proc needsRebuild*(pkgInfo: PackageInfo, bin: string, dir: string, options: Options): bool =
   if options.action.typ != actionInstall:
     return true
-  if not options.action.noRebuild:
-    return true
+  
+  if options.isVNext:
+    if options.action.noRebuild:
+      if not fileExists(bin):
+        return true  
+      
+      let binTimestamp = getFileInfo(bin).lastWriteTime
+      var rebuild = false
+      iterFilesWithExt(dir, pkgInfo,
+        proc (file: string) =
+          let srcTimestamp = getFileInfo(file).lastWriteTime
+          if binTimestamp < srcTimestamp:
+            rebuild = true
+      )
+      return rebuild
+    else:
+      return true
+  else:
+    if not options.action.noRebuild:
+      return true
 
-  let binTimestamp = getFileInfo(bin).lastWriteTime
-  var rebuild = false
-  iterFilesWithExt(dir, pkgInfo,
-    proc (file: string) =
-      let srcTimestamp = getFileInfo(file).lastWriteTime
-      if binTimestamp < srcTimestamp:
-        rebuild = true
-  )
-  return rebuild
+    let binTimestamp = getFileInfo(bin).lastWriteTime
+    var rebuild = false
+    iterFilesWithExt(dir, pkgInfo,
+      proc (file: string) =
+        let srcTimestamp = getFileInfo(file).lastWriteTime
+        if binTimestamp < srcTimestamp:
+          rebuild = true
+    )
+    return rebuild
 
 proc getCacheDir*(pkgInfo: PackageBasicInfo): string =
   &"{pkgInfo.name}-{pkgInfo.version}-{$pkgInfo.checksum}"

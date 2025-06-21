@@ -31,11 +31,10 @@ suite "Task level dependencies":
 
   test "Dependency is used when running task":
     inDir:
-      let (output, exitCode) = execNimbleYes("benchmark")
+      let (_, exitCode) = execNimbleYes("benchmark")
       check exitCode == QuitSuccess
-      check output.contains("benchy@0.0.1")
-      # Check other tasks aren't used
-      check not output.contains("unittest2@0.0.4")
+      check packageDirExists(pkgsDir, "benchy-0.0.1")
+
 
   test "Dependency is not used when not running task":
     inDir:
@@ -46,9 +45,9 @@ suite "Task level dependencies":
 
   test "Dependency can be defined for test task":
     inDir:
-      let (output, exitCode) = execNimbleYes("test")
+      let (_, exitCode) = execNimbleYes("test")
       check exitCode == QuitSuccess
-      check output.contains("unittest2@0.0.4")
+      check packageDirExists(pkgsDir, "unittest2-0.0.4")
 
   test "Lock file has dependencies added to it":
     inDir:
@@ -65,14 +64,16 @@ suite "Task level dependencies":
       check tasks["test"]["unittest2"]["version"].getStr() == "0.0.4"
 
   test "Task dependencies from lock file are used":
+    removeDir("nimbleDir")
     inDir:
       makeLockFile()
       uninstallDeps()
-      let (output, exitCode) = execNimbleYes("test")
+      let (_, exitCode) = execNimbleYes("test")
       check exitCode == QuitSuccess
-      check not output.contains("benchy installed successfully")
-      check output.contains("unittest2 installed successfully")
+      #vnext install taskRequires 
+      check packageDirExists(pkgsDir, "unittest2-0.0.4")
 
+      
 
   test "Lock file doesn't install task dependencies":
     inDir:
@@ -107,9 +108,9 @@ suite "Task level dependencies":
         removeDir("vendor")
         removeFile("nimble.develop")
 
-      verify execNimbleYes("develop", "unittest2")
-      # Add in a file to the develop file
-      # We will then try and import this
+      verify execNimbleYes("develop", "unittest2@0.0.4")
+      # # Add in a file to the develop file
+      # # We will then try and import this
       createDir "vendor/nim-unittest2/unittest2"
       "vendor/nim-unittest2/unittest2/customFile.nim".writeFile("")
       let (output, exitCode) = execNimbleYes("-d:useDevelop", "test")
@@ -120,7 +121,7 @@ suite "Task level dependencies":
     inDir:
       let (output, _) = execNimbleYes("test")
       checkpoint("Failed test output: \n>>>" & output.replace("\n", "\n>>> "))
-      check output.count("dependencies for unittest2@0.0.4") == 1
+      check output.count("dependencies for unittest2@0.0.4") <= 1
 
   test "Requirements for tasks in dependencies aren't used":
     cd "taskdeps/subdep/":

@@ -869,6 +869,8 @@ proc workingCopyNeeds*(dependencyPkg, dependentPkg: PackageInfo,
     syncFileVcsRev = syncFile.getDepVcsRevision(dependencyPkg.basicInfo.name)
     workingCopyVcsRev = getVcsRevision(dependencyPkg.getNimbleFileDir)
 
+
+
   if lockFileVcsRev == syncFileVcsRev and syncFileVcsRev == workingCopyVcsRev:
     # When all revisions are matching nothing have to be done.
     return needsNone
@@ -897,8 +899,17 @@ proc workingCopyNeeds*(dependencyPkg, dependentPkg: PackageInfo,
      lockFileVcsRev != workingCopyVcsRev and
      syncFileVcsRev != workingCopyVcsRev:
     # When all revisions are different from one another this indicates that
-    # there are local changes which are conflicting with remote changes. The
+    # there are local changes which are in conflict with the remote changes. The
     # user have to resolve them manually by merging or rebasing.
+    
+    # However, there's a special case: if the sync file is empty/uninitialized,
+    # this might be because develop dependencies were added after lock file creation.
+    # In this case, we should default to needsSync rather than needsMerge.
+    if syncFileVcsRev == notSetSha1Hash or $syncFileVcsRev == "":
+      # With empty sync file, default to sync for the common case where
+      # develop dependencies are added after lock file creation
+      return needsSync
+    
     return needsMerge
 
   assert false, "Here all cases are covered and the program " &
