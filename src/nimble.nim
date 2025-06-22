@@ -2297,7 +2297,8 @@ proc sync(options: Options) =
   if not options.action.listOnly:
     # On `sync` we also want to update Nimble cache with the dependencies'
     # versions from the lock file.
-    discard processLockedDependencies(pkgInfo, options)
+    if not options.isVNext:
+      discard processLockedDependencies(pkgInfo, options)
     if fileExists(nimblePathsFileName):
       updatePathsFile(pkgInfo, options)
 
