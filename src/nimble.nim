@@ -2085,22 +2085,49 @@ proc lock(options: var Options) =
     # Now build graph for all dependencies
     taskOptions.checkSatisfied(taskDeps)
 
-  let graph = buildDependencyGraph(allDeps.toSeq, options)
-  errors.check(graph)
+  if options.isVNext:
+    # vnext path: generate lockfile from solved packages
+    for solvedPkg in options.satResult.solvedPkgs:
+      if solvedPkg.pkgName.isNim: continue
+      
+      # Get the PackageInfo for this solved package
+      let pkgInfo = options.satResult.getPkgInfoFromSolved(solvedPkg, options)
+      var vcsRevision = pkgInfo.metaData.vcsRevision
+      
+      # For develop mode dependencies, ensure VCS revision is set from working copy
+      if (pkgInfo.isLink or (vcsRevision == notSetSha1Hash and pkgInfo.getRealDir().dirExists())) and vcsRevision == notSetSha1Hash:
+        try:
+          vcsRevision = getVcsRevision(pkgInfo.getRealDir())
+        except CatchableError as e:
+          discard
+      
+      lockDeps[noTask][solvedPkg.pkgName] = LockFileDep(
+        version: solvedPkg.version,
+        vcsRevision: vcsRevision,
+        url: pkgInfo.metaData.url,
+        downloadMethod: pkgInfo.metaData.downloadMethod,
+        dependencies: solvedPkg.requirements.mapIt(it.name), 
+        checksums: Checksums(sha1: pkgInfo.basicInfo.checksum))
+    
+    writeLockFile(currentLockFile, lockDeps)
+  else:
+    # traditional path: use dependency graph
+    let graph = buildDependencyGraph(allDeps.toSeq, options)
+    errors.check(graph)
 
-  for task in pkgInfo.taskRequires.keys:
-    lockDeps[task] = LockFileDeps()
+    for task in pkgInfo.taskRequires.keys:
+      lockDeps[task] = LockFileDeps()
 
-  for dep in topologicalSort(graph).order:
-    if dep in baseDepNames:
-      lockDeps[noTask][dep] = graph[dep]
-    else:
-      # Add the dependency for any task that requires it
-      for task in pkgInfo.taskRequires.keys:
-        if dep in taskDepNames[task]:
-          lockDeps[task][dep] = graph[dep]
+    for dep in topologicalSort(graph).order:
+      if dep in baseDepNames:
+        lockDeps[noTask][dep] = graph[dep]
+      else:
+        # Add the dependency for any task that requires it
+        for task in pkgInfo.taskRequires.keys:
+          if dep in taskDepNames[task]:
+            lockDeps[task][dep] = graph[dep]
 
-  writeLockFile(currentLockFile, lockDeps)
+    writeLockFile(currentLockFile, lockDeps)
   updateSyncFile(pkgInfo, options)
   displayLockOperationFinish(lockExists)
 
