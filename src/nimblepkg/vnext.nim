@@ -18,6 +18,8 @@ import nimblesat, packageinfotypes, options, version, declarativeparser, package
   displaymessages, packageinstaller, reversedeps, developfile
 
 proc debugSATResult*(options: Options) =
+  # return
+  echo "=== DEBUG SAT RESULT ==="
   let satResult = options.satResult
   echo "--------------------------------"
   echo "Pass: ", satResult.pass
@@ -25,7 +27,13 @@ proc debugSATResult*(options: Options) =
     echo "Selected Nim: ", satResult.nimResolved.pkg.get.basicInfo.name, " ", satResult.nimResolved.version
   else:
     echo "No Nim selected"
-  echo "Root package: ", satResult.rootPackage.basicInfo.name, " ", satResult.rootPackage.basicInfo.version
+  echo "Declarative parser failed: ", satResult.declarativeParseFailed
+ 
+  if satResult.rootPackage.hasLockFile(options):
+    echo "Root package has lock file: ", satResult.rootPackage.myPath.parentDir() / "nimble.lock"
+  else:
+    echo "Root package does not have lock file"
+  echo "Root package: ", satResult.rootPackage.basicInfo.name, " ", satResult.rootPackage.basicInfo.version, " ", satResult.rootPackage.myPath
   echo "Root requires: ", satResult.rootPackage.requires.mapIt(it.name & " " & $it.ver)
   echo "Solved packages: ", satResult.solvedPkgs.mapIt(it.pkgName & " " & $it.deps.mapIt(it.pkgName))
   echo "Solution as Packages Info: ", satResult.pkgs.mapIt(it.basicInfo.name)
@@ -36,6 +44,7 @@ proc debugSATResult*(options: Options) =
   echo "Package list: ", satResult.pkgList.mapIt(it.basicInfo.name)
   echo "PkgList path: ", satResult.pkgList.mapIt(it.myPath.parentDir)
   echo "Nimbledir: ", options.getNimbleDir()
+  echo "Nimble Action: ", options.action.typ
   echo "--------------------------------"
 
 proc nameMatches(pkg: PackageInfo, pv: PkgTuple, options: Options): bool =
@@ -216,18 +225,58 @@ proc getSolvedPkgFromInstalledPkgs*(satResult: SATResult, solvedPkg: SolvedPacka
       return some(pkg)
   return none(PackageInfo)
 
-proc solveLockFileDeps*(satResult: var SATResult, options: Options) = 
-  #TODO develop mode has to be taken into account
+proc solveLockFileDeps*(satResult: var SATResult, pkgList: seq[PackageInfo], options: Options) = 
   let lockFile = options.lockFile(satResult.rootPackage.myPath.parentDir())
+  let currentRequires = satResult.rootPackage.requires
+  var existingRequires = newSeq[(string, Version)]()
   for name, dep in lockFile.getLockedDependencies.lockedDepsFor(options):
-    if name.isNim: continue #Nim is already handled. 
-    let solvedPkg = SolvedPackage(pkgName: name, version: dep.version) #TODO what about the other fields? Should we mark it as from lock file?
-    satResult.solvedPkgs.add(solvedPkg)
-    let depInfo = satResult.getSolvedPkgFromInstalledPkgs(solvedPkg, options)
-    if depInfo.isSome:
-      satResult.pkgs.incl(depInfo.get)
-    else:
-      satResult.pkgsToInstall.add((name, dep.version))
+    existingRequires.add((name, dep.version))
+  
+  # Check for new requirements not in lock file
+  # let newRequirements = currentRequires - existingDeps - ["nim"].toHashSet()
+  var shouldSolve = false
+  for current in currentRequires:
+    let currentName = current.name.resolveAlias(options).toLowerAscii()
+    var found = false
+    for existing in existingRequires:
+      let existingName = existing[0].resolveAlias(options).toLowerAscii()
+      if currentName == existingName and existing[1].withinRange(current.ver):
+        found = true
+        break
+    if not found:
+      echo "New requirement detected: ", current.name, " ", current.ver
+      shouldSolve = true
+      break
+        
+  
+  if shouldSolve:
+    echo "New requirements detected, solving ALL requirements fresh: "
+    # Create fresh package list and solve ALL requirements
+    let pkgListDecl = pkgList.mapIt(it.toRequiresInfo(options))
+    
+    satResult.pkgs = solvePackages(
+      satResult.rootPackage, 
+      pkgListDecl, 
+      satResult.pkgsToInstall, 
+      options, 
+      satResult.output, 
+      satResult.solvedPkgs
+    )
+    
+    if satResult.solvedPkgs.len == 0:
+      displayError(satResult.output)
+      raise newNimbleError[NimbleError]("Couldn't find a solution for the packages.")
+  else:
+    # No new requirements, use existing lock file approach
+    for name, dep in lockFile.getLockedDependencies.lockedDepsFor(options):
+      if name.isNim: continue
+      let solvedPkg = SolvedPackage(pkgName: name, version: dep.version)
+      satResult.solvedPkgs.add(solvedPkg)
+      let depInfo = satResult.getSolvedPkgFromInstalledPkgs(solvedPkg, options)
+      if depInfo.isSome:
+        satResult.pkgs.incl(depInfo.get)
+      else:
+        satResult.pkgsToInstall.add((name, dep.version))
 
 proc setNimBin*(pkgInfo: PackageInfo, options: var Options) =
   assert pkgInfo.basicInfo.name.isNim

@@ -35,6 +35,7 @@ proc initPkgList(pkgInfo: PackageInfo, options: Options): seq[PackageInfo] =
   let
     installedPkgs = getInstalledPkgsMin(options.getPkgsDir(), options)
     developPkgs = processDevelopDependencies(pkgInfo, options)
+  
   result = concat(installedPkgs, developPkgs)
 
 proc install(packages: seq[PkgTuple], options: Options,
@@ -118,8 +119,8 @@ proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, options: Options): Has
       rootPkgInfo.requires &= rootPkgInfo.features["dev"]
       appendGloballyActiveFeatures(rootPkgInfo.basicInfo.name, @["dev"])
   rootPkgInfo.requires &= options.extraRequires
-    
   var pkgList = initPkgList(rootPkgInfo, options)
+  echo "+++++INIT PKG LIST: ", $pkgList.mapIt(it.basicInfo.name)
   if options.useDeclarativeParser:
     pkgList = pkgList.mapIt(it.toRequiresInfo(options))
   else:
@@ -142,6 +143,7 @@ proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, options: Options): Has
           not isUpgrading and lockedPkg.vcsRevision == pkg.metaData.vcsRevision):
               toRemoveFromLocked.add pkg
 
+  echo "*******PKG LIST: ", $pkgList.mapIt(it.basicInfo.name)
   var systemNimCompatible = options.nimBin.isSome
   result = solveLocalPackages(rootPkgInfo, pkgList, solvedPkgs, systemNimCompatible,  options)
   if solvedPkgs.len > 0: 
@@ -165,14 +167,14 @@ proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, options: Options): Has
       .toHashSet
     satProccesedPackages = some result
     return result
-
   var output = ""
   result = solvePackages(rootPkgInfo, pkgList, pkgsToInstall, options, output, solvedPkgs)
   displaySatisfiedMsg(solvedPkgs, pkgsToInstall, options)
   displayUsingSpecialVersionWarning(solvedPkgs, options)
   var solved = solvedPkgs.len > 0 #A pgk can be solved and still dont return a set of PackageInfo
-  
+  echo "!!!!!!!!!!!****pkgsToInstall: ", $pkgsToInstall
   for (name, ver) in pkgsToInstall:
+    echo "INSTALLING: ", name, " ", ver
     var versionRange = ver.toVersionRange
     if name in upgradeVersions:
       versionRange = upgradeVersions[name]
@@ -2015,27 +2017,40 @@ proc getDependenciesForLocking(pkgInfo: PackageInfo, options: Options):
 
   result = res.deleteStaleDependencies(pkgInfo, options).deduplicate
 
-proc lock(options: Options) =
+proc lock(options: var Options) =
   ## Generates a lock file for the package in the current directory or updates
   ## it if it already exists.  
+  let currentDir = getCurrentDir()
+  
+  # Clear package info cache to ensure we read the latest nimble file
+  # This is important when the nimble file has been modified since the last read
+  # In vnext mode, the cache clearing is done before runVNext is called
+  if not options.isVNext:
+    options.pkgInfoCache.clear()
+    # Clear SAT solver results cache to ensure we re-run the solver with updated package info
+    # This is important when the nimble file has been modified since the last SAT solver run
+    options.satResult = SatResult()
+  
   let
-    currentDir = getCurrentDir()
-    pkgInfo = getPkgInfo(currentDir, options)
+    pkgInfo = if options.isVNext:
+      options.satResult.rootPackage
+    else:
+      getPkgInfo(currentDir, options)
     currentLockFile = options.lockFile(currentDir)
     lockExists = displayLockOperationStart(currentLockFile)      
   
   var 
-    baseDeps = 
-      if options.isVNext and options.action.typ in {actionLock}:
-        # For vnext lock operations, use the traditional dependency resolution
-        # because satResult.pkgs doesn't include develop mode dependencies properly
-        pkgInfo.getDependenciesForLocking(options)
+     baseDeps =       
+      if options.isVNext:
+        options.satResult.pkgs.toSeq
       elif options.useSATSolver:
         processFreeDependenciesSAT(pkgInfo, options).toSeq        
       else:
         pkgInfo.getDependenciesForLocking(options) # Deps shared by base and tasks  
-  if options.isVNext and options.action.typ in {actionLock}:
-    baseDeps = baseDeps.deleteStaleDependencies(pkgInfo, options)
+
+  # Apply filtering for vnext code path - this is now redundant since we do it above
+  # if options.isVNext and options.action.typ in {actionLock}:
+  #   baseDeps = baseDeps.deleteStaleDependencies(pkgInfo, options)
 
   if options.useSystemNim:
     baseDeps = baseDeps.filterIt(not it.name.isNim)
@@ -2501,9 +2516,15 @@ proc solvePkgs(rootPackage: PackageInfo, options: var Options) =
     options.satResult.rootPackage.requires &= rootPackage.taskRequires[options.task]
   let pkgList = initPkgList(options.satResult.rootPackage, options)
   options.satResult.rootPackage.enableFeatures(options)
-  if rootPackage.hasLockFile(options):
-    options.satResult.pass = satLockFile
+  # echo "BEFORE FIRST PASS"
+  # options.debugSATResult()
+  # For lock action, always read from nimble file, not from lockfile
+  # if rootPackage.hasLockFile(options) and options.action.typ != actionLock:
+  #   options.satResult.pass = satLockFile
+  
   let resolvedNim = resolveAndConfigureNim(options.satResult.rootPackage, pkgList, options)
+  # echo "AFTER FIRST PASS"
+  # options.debugSATResult()
   #We set nim in the options here as it is used to get the full info of the packages.
   #Its kinda a big refactor getPkgInfo to parametrize it. At some point we will do it. 
   setNimBin(resolvedNim.pkg.get, options)
@@ -2527,12 +2548,13 @@ proc solvePkgs(rootPackage: PackageInfo, options: var Options) =
   options.satResult.solutionToFullInfo(options)
   options.satResult.pass = satDone 
   if rootPackage.hasLockFile(options): 
-    options.satResult.solveLockFileDeps(options)
+    options.satResult.solveLockFileDeps(pkgList, options)
 
 proc runVNext*(options: var Options) =
   #Install and in consequence builds the packages
   
   # Handle sync action specially - prepare the SAT result with lock file dependencies
+  #TODO rework this
   if options.action.typ == actionSync:
     let currentDir = getCurrentDir()
     let pkgInfo = getPkgInfo(currentDir, options)
@@ -2546,26 +2568,23 @@ proc runVNext*(options: var Options) =
     # Initialize SAT result for sync operation with lock file dependencies
     options.satResult = initSATResult(satLockFile)
     options.satResult.rootPackage = pkgInfo
-    solveLockFileDeps(options.satResult, options)
-    return
-
-  let thereIsNimbleFile = findNimbleFile(getCurrentDir(), error = false, options) != ""
-  if thereIsNimbleFile:
-    options.satResult = initSATResult(satNimSelection)
-    var rootPackage = getPkgInfoFromDirWithDeclarativeParser(getCurrentDir(), options)
-    if options.action.typ == actionInstall:
-      rootPackage.requires.add(options.action.packages)
-    elif options.action.typ == actionLock:
-      # For lock operations, we need to solve the dependencies to populate satResult.pkgs
+    let pkgList = initPkgList(options.satResult.rootPackage, options)
+    solveLockFileDeps(options.satResult, pkgList, options)
+  else:
+    let thereIsNimbleFile = findNimbleFile(getCurrentDir(), error = false, options) != ""
+    if thereIsNimbleFile:
+      options.satResult = initSATResult(satNimSelection)
+      var rootPackage = getPkgInfoFromDirWithDeclarativeParser(getCurrentDir(), options)
+      if options.action.typ == actionInstall:
+        rootPackage.requires.add(options.action.packages)
       solvePkgs(rootPackage, options)
-      return # Let the normal lock function handle the rest
-    solvePkgs(rootPackage, options)
-  elif options.action.typ == actionInstall:
-    #Global install        
-    for pkg in options.action.packages:          
-      options.satResult = initSATResult(satNimSelection)      
-      var rootPackage = downloadPkInfoForPv(pkg, options, doPrompt = true)
-      solvePkgs(rootPackage, options)
+        # return
+    elif options.action.typ == actionInstall:
+      #Global install        
+      for pkg in options.action.packages:          
+        options.satResult = initSATResult(satNimSelection)      
+        var rootPackage = downloadPkInfoForPv(pkg, options, doPrompt = true)
+        solvePkgs(rootPackage, options)
   # echo "DEGUG BEFORE INSTALL PKGS"
   # options.satResult.debug
   options.satResult.installPkgs(options)
@@ -2800,6 +2819,11 @@ when isMainModule:
       actionSetup, actionRun, actionLock, actionCustom, actionSync, actionDevelop }
 
     if opt.isVNext and opt.action.typ in vNextSupportedActions:
+      # Clear caches before running vnext to ensure fresh package info
+      if opt.action.typ == actionLock:
+        opt.pkgInfoCache.clear()
+        opt.satResult = SatResult()
+      
       # For actionCustom, set the task name before calling runVNext
       if opt.action.typ == actionCustom:
         opt.task = opt.action.command.normalize
