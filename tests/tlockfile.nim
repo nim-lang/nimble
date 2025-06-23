@@ -421,12 +421,12 @@ requires "nim >= 1.5.1"
     outOfSyncDepsTest(""):
       testDepsSync()
 
-  # test "can switch to another branch when syncing":
-  #   const newBranchName = "new-branch"
-  #   outOfSyncDepsTest(newBranchName):
-  #     testDepsSync()
-  #     check dep1PkgRepoPath.getCurrentBranch == newBranchName
-  #     check dep2PkgRepoPath.getCurrentBranch == newBranchName
+  test "can switch to another branch when syncing":
+    const newBranchName = "new-branch"
+    outOfSyncDepsTest(newBranchName):
+      testDepsSync()
+      check dep1PkgRepoPath.getCurrentBranch == newBranchName
+      check dep2PkgRepoPath.getCurrentBranch == newBranchName
 
   test "cannot lock because the directory is not under version control":
     cleanUp()
@@ -538,18 +538,18 @@ requires "nim >= 1.5.1"
         writeDevelopFile(developFileName, @[],
                          @[dep2PkgRepoPath, mainPkgRepoPath, dep1PkgRepoPath])
         testLockFile(@[(dep1PkgName, dep1PkgRepoPath)], isNew = true)
-#_++
-  # test "can sync ignoring deps not present in lock file even if they are in develop file":
-  #   cleanUp()
-  #   withPkgListFile:
-  #     initNewNimblePackage(mainPkgOriginRepoPath, mainPkgRepoPath,
-  #                          @[dep1PkgName])
-  #     initNewNimblePackage(dep1PkgOriginRepoPath, dep1PkgRepoPath)
-  #     cd mainPkgRepoPath:
-  #       testLockFile(@[(dep1PkgName, dep1PkgRepoPath)], isNew = true)
-  #       writeDevelopFile(developFileName, @[], @[dep1PkgRepoPath, mainPkgOriginRepoPath])
-  #       let (_, exitCode) = execNimbleYes("--debug", "--verbose", "sync")
-  #       check exitCode == QuitSuccess
+
+  test "can sync ignoring deps not present in lock file even if they are in develop file":
+    cleanUp()
+    withPkgListFile:
+      initNewNimblePackage(mainPkgOriginRepoPath, mainPkgRepoPath,
+                           @[dep1PkgName])
+      initNewNimblePackage(dep1PkgOriginRepoPath, dep1PkgRepoPath)
+      cd mainPkgRepoPath:
+        testLockFile(@[(dep1PkgName, dep1PkgRepoPath)], isNew = true)
+        writeDevelopFile(developFileName, @[], @[dep1PkgRepoPath, mainPkgOriginRepoPath])
+        let (_, exitCode) = execNimbleYes("--debug", "--verbose", "sync")
+        check exitCode == QuitSuccess
 
   # test "can generate lock file for nim as dep":
   #   cleanUp()
@@ -581,29 +581,29 @@ requires "nim >= 1.5.1"
   #     check exitCodeGlobalNim == QuitSuccess
   #     check not outputGlobalNim.contains(usingNim)
 
-  # test "can install task level deps when dep has subdeb":
-  #   cleanUp()
-  #   cd "lockfile-subdep":
-  #     check execNimbleYes("test").exitCode == QuitSuccess
+  test "can install task level deps when dep has subdeb":
+    cleanUp()
+    cd "lockfile-subdep":
+      check execNimbleYes("test").exitCode == QuitSuccess
 
-  # test "can upgrade a dependency.":
-  #   cleanUp()
-  #   withPkgListFile:
-  #     initNewNimblePackage(mainPkgOriginRepoPath, mainPkgRepoPath,
-  #                          @[dep1PkgName])
-  #     initNewNimblePackage(dep1PkgOriginRepoPath, dep1PkgRepoPath)
+  test "can upgrade a dependency.":
+    cleanUp()
+    withPkgListFile:
+      initNewNimblePackage(mainPkgOriginRepoPath, mainPkgRepoPath,
+                           @[dep1PkgName])
+      initNewNimblePackage(dep1PkgOriginRepoPath, dep1PkgRepoPath)
 
-  #     cd mainPkgRepoPath:
-  #       check execNimbleYes("lock").exitCode == QuitSuccess
+      cd mainPkgRepoPath:
+        check execNimbleYes("lock").exitCode == QuitSuccess
 
-  #     cd dep1PkgOriginRepoPath:
-  #       addAdditionalFileToTheRepo("dep1.nim", "echo 42")
-  #       let newRevision = getRepoRevision()
-  #       cd mainPkgRepoPath:
-  #         check newRevision != getRevision(dep1PkgName)
-  #         let res = execNimbleYes("upgrade", fmt "{dep1PkgName}@#{newRevision}")
-  #         check newRevision == getRevision(dep1PkgName)
-  #         check res.exitCode == QuitSuccess
+      cd dep1PkgOriginRepoPath:
+        addAdditionalFileToTheRepo("dep1.nim", "echo 42")
+        let newRevision = getRepoRevision()
+        cd mainPkgRepoPath:
+          check newRevision != getRevision(dep1PkgName)
+          let res = execNimbleYes("upgrade", fmt "{dep1PkgName}@#{newRevision}")
+          check newRevision == getRevision(dep1PkgName)
+          check res.exitCode == QuitSuccess
 
   # test "can upgrade: the new version of the package has a new dep":
   #   cleanUp()
