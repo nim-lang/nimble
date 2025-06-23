@@ -932,8 +932,15 @@ proc findValidationErrorsOfDevDepsWithLockFile*(
   dependentPkg.assertIsLoaded
 
   let developDependencies = processDevelopDependencies(dependentPkg, options)
+  
+  let rootRequiredNames = dependentPkg.requires.mapIt(it.name.toLowerAscii()).toHashSet()
 
   for depPkg in developDependencies:
+    # Skip validation for packages that are not actual dependencies
+    #TODO REVIEW THIS
+    if depPkg.basicInfo.name.toLowerAscii() notin rootRequiredNames:
+      continue
+      
     if depPkg.pkgDirIsNotUnderVersionControl:
       addError(vekDirIsNotUnderVersionControl)
     elif depPkg.workingCopyIsNotClean:

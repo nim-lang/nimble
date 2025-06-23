@@ -2027,9 +2027,6 @@ proc lock(options: var Options) =
   # In vnext mode, the cache clearing is done before runVNext is called
   if not options.isVNext:
     options.pkgInfoCache.clear()
-    # Clear SAT solver results cache to ensure we re-run the solver with updated package info
-    # This is important when the nimble file has been modified since the last SAT solver run
-    options.satResult = SatResult()
   
   let
     pkgInfo = if options.isVNext:
@@ -2087,6 +2084,16 @@ proc lock(options: var Options) =
 
   if options.isVNext:
     # vnext path: generate lockfile from solved packages
+    # Check for develop dependency validation errors
+    # Create a minimal graph for error checking - only include actual dependencies, not root package
+    #TODO Some errors are not checked here.
+    var vnextGraph: LockFileDeps
+    let rootPkgName = pkgInfo.basicInfo.name
+    for solvedPkg in options.satResult.solvedPkgs:
+      if not solvedPkg.pkgName.isNim and solvedPkg.pkgName != rootPkgName:
+        vnextGraph[solvedPkg.pkgName] = LockFileDep()  # Minimal entry for error checking
+    errors.check(vnextGraph)
+    
     for solvedPkg in options.satResult.solvedPkgs:
       if solvedPkg.pkgName.isNim: continue
       
@@ -2286,7 +2293,11 @@ proc sync(options: Options) =
   # directory package with the revision data from the lock file.
 
   let currentDir = getCurrentDir()
-  let pkgInfo = getPkgInfo(currentDir, options)
+  let pkgInfo = 
+    if options.isVNext:
+      options.satResult.rootPackage
+    else:
+      getPkgInfo(currentDir, options)
 
   if not pkgInfo.areLockedDepsLoaded:
     raise nimbleError("Cannot execute `sync` when lock file is missing.")
@@ -2297,8 +2308,7 @@ proc sync(options: Options) =
   if not options.action.listOnly:
     # On `sync` we also want to update Nimble cache with the dependencies'
     # versions from the lock file.
-    if not options.isVNext:
-      discard processLockedDependencies(pkgInfo, options)
+    discard processLockedDependencies(pkgInfo, options)
     if fileExists(nimblePathsFileName):
       updatePathsFile(pkgInfo, options)
 
@@ -2574,45 +2584,48 @@ proc solvePkgs(rootPackage: PackageInfo, options: var Options) =
   options.satResult.nimResolved = resolvedNim #TODO maybe we should consider the sat fallback pass. Not sure if we should just warn the user so the packages are corrected
   options.satResult.pkgs.incl(resolvedNim.pkg.get) #Make sure its in the solution
   options.satResult.solutionToFullInfo(options)
-  options.satResult.pass = satDone 
   if rootPackage.hasLockFile(options): 
     options.satResult.solveLockFileDeps(pkgList, options)
+
+    
+  options.satResult.pass = satDone 
+
 
 proc runVNext*(options: var Options) =
   #Install and in consequence builds the packages
   
   # Handle sync action specially - prepare the SAT result with lock file dependencies
   #TODO rework this
-  if options.action.typ == actionSync:
-    let currentDir = getCurrentDir()
-    let pkgInfo = getPkgInfo(currentDir, options)
+  # if options.action.typ == actionSync:
+  #   let currentDir = getCurrentDir()
+  #   let pkgInfo = getPkgInfo(currentDir, options)
     
-    if not pkgInfo.areLockedDepsLoaded:
-      raise nimbleError("Cannot execute `sync` when lock file is missing.")
+  #   if not pkgInfo.areLockedDepsLoaded:
+  #     raise nimbleError("Cannot execute `sync` when lock file is missing.")
     
-    if options.offline:
-      raise nimbleError("Cannot execute `sync` in offline mode.")
+  #   if options.offline:
+  #     raise nimbleError("Cannot execute `sync` in offline mode.")
     
-    # Initialize SAT result for sync operation with lock file dependencies
-    options.satResult = initSATResult(satLockFile)
-    options.satResult.rootPackage = pkgInfo
-    let pkgList = initPkgList(options.satResult.rootPackage, options)
-    solveLockFileDeps(options.satResult, pkgList, options)
-  else:
-    let thereIsNimbleFile = findNimbleFile(getCurrentDir(), error = false, options) != ""
-    if thereIsNimbleFile:
-      options.satResult = initSATResult(satNimSelection)
-      var rootPackage = getPkgInfoFromDirWithDeclarativeParser(getCurrentDir(), options)
-      if options.action.typ == actionInstall:
-        rootPackage.requires.add(options.action.packages)
+  #   # Initialize SAT result for sync operation with lock file dependencies
+  #   options.satResult = initSATResult(satLockFile)
+  #   options.satResult.rootPackage = pkgInfo
+  #   let pkgList = initPkgList(options.satResult.rootPackage, options)
+  #   solveLockFileDeps(options.satResult, pkgList, options)
+  # else:
+  let thereIsNimbleFile = findNimbleFile(getCurrentDir(), error = false, options) != ""
+  if thereIsNimbleFile:
+    options.satResult = initSATResult(satNimSelection)
+    var rootPackage = getPkgInfoFromDirWithDeclarativeParser(getCurrentDir(), options)
+    if options.action.typ == actionInstall:
+      rootPackage.requires.add(options.action.packages)
+    solvePkgs(rootPackage, options)
+      # return
+  elif options.action.typ == actionInstall:
+    #Global install        
+    for pkg in options.action.packages:          
+      options.satResult = initSATResult(satNimSelection)      
+      var rootPackage = downloadPkInfoForPv(pkg, options, doPrompt = true)
       solvePkgs(rootPackage, options)
-        # return
-    elif options.action.typ == actionInstall:
-      #Global install        
-      for pkg in options.action.packages:          
-        options.satResult = initSATResult(satNimSelection)      
-        var rootPackage = downloadPkInfoForPv(pkg, options, doPrompt = true)
-        solvePkgs(rootPackage, options)
   # echo "DEGUG BEFORE INSTALL PKGS"
   # options.satResult.debug
   options.satResult.installPkgs(options)
