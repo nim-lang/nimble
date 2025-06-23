@@ -45,6 +45,13 @@ proc debugSATResult*(options: Options) =
   echo "PkgList path: ", satResult.pkgList.mapIt(it.myPath.parentDir)
   echo "Nimbledir: ", options.getNimbleDir()
   echo "Nimble Action: ", options.action.typ
+  if options.action.typ == actionDevelop:
+    echo "Path: ", options.action.packages.mapIt(it.name)
+    echo "Dev actions: ", options.action.devActions.mapIt(it.actionType)
+    echo "Dependencies: ", options.action.packages.mapIt(it.name)
+    for devAction in options.action.devActions:
+      echo "Dev action: ", devAction.actionType
+      echo "Argument: ", devAction.argument
   echo "--------------------------------"
 
 proc nameMatches(pkg: PackageInfo, pv: PkgTuple, options: Options): bool =
@@ -392,6 +399,12 @@ proc installFromDirDownloadInfo(downloadDir: string, url: string, options: Optio
     # In the case we already have the same package in the cache then only merge
     # the new package special versions to the old one.
     displayWarning(pkgAlreadyExistsInTheCacheMsg(pkgInfo), MediumPriority)
+    # echo "PKG ALREADY EXISTS IN THE CACHE: ", pkgInfo.basicInfo.name, " ", pkgInfo.basicInfo.version
+    # echo "Dir: ", pkgInfo.getNimbleFileDir()
+    # echo "Dest dir: ", pkgInfo.getPkgDest(options)
+    # echo "Old pkg: ", oldPkg.get.basicInfo.name, " ", oldPkg.get.basicInfo.version
+    # echo "Old pkg dir: ", oldPkg.get.getNimbleFileDir()
+    # echo "Old pkg dest dir: ", oldPkg.get.getPkgDest(options)
     # if not options.useSatSolver: #The dep path is not created when using the sat solver as packages are collected upfront
     var oldPkg = oldPkg.get
     oldPkg.metaData.specialVersions.incl pkgInfo.metaData.specialVersions
@@ -830,5 +843,7 @@ proc installPkgs*(satResult: var SATResult, options: Options) =
     # executes the hook defined in the CWD, so we set it to where the package
     # has been installed. Notice for legacy reasons this needs to happen after the build step
     # TODO investigate where it should happen before or after the after build step, I think after is better
-    executeHook(pkgInfo.myPath.splitFile.dir, options, actionInstall, before = false)
+    let hookDir = pkgInfo.myPath.splitFile.dir
+    if dirExists(hookDir):
+      executeHook(hookDir, options, actionInstall, before = false)
     

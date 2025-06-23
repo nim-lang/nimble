@@ -2552,10 +2552,11 @@ proc solvePkgs(rootPackage: PackageInfo, options: var Options) =
   #Note this wont work until we support taskRequires in the declarative parser
   if options.task.len > 0 and options.task in rootPackage.taskRequires:
     options.satResult.rootPackage.requires &= rootPackage.taskRequires[options.task]
-  let pkgList = initPkgList(options.satResult.rootPackage, options)
+  var pkgList = initPkgList(options.satResult.rootPackage, options)
+ 
   options.satResult.rootPackage.enableFeatures(options)
-  # echo "BEFORE FIRST PASS"
-  # options.debugSATResult()
+  echo "BEFORE FIRST PASS"
+  options.debugSATResult()
   # For lock action, always read from nimble file, not from lockfile
   # if rootPackage.hasLockFile(options) and options.action.typ != actionLock:
   #   options.satResult.pass = satLockFile
@@ -2627,10 +2628,10 @@ proc runVNext*(options: var Options) =
       var rootPackage = downloadPkInfoForPv(pkg, options, doPrompt = true)
       solvePkgs(rootPackage, options)
   # echo "DEGUG BEFORE INSTALL PKGS"
-  # options.satResult.debug
+  # options.debugSATResult()
   options.satResult.installPkgs(options)
   # echo "DEGUG AFTER INSTALL PKGS"
-  # options.satResult.debug
+  # options.debugSATResult()
   options.satResult.addReverseDeps(options)
   
 proc doAction(options: var Options) =
@@ -2857,7 +2858,7 @@ when isMainModule:
     
     #Notice some actions dont need to be touched in vnext. Some other partially incercepted (setup) and some others fully changed (i.e build, install)
     const vNextSupportedActions = { actionInstall, actionBuild, 
-      actionSetup, actionRun, actionLock, actionCustom, actionSync, actionDevelop }
+      actionSetup, actionRun, actionLock, actionCustom, actionSync }
 
     if opt.isVNext and opt.action.typ in vNextSupportedActions:
       # Clear caches before running vnext to ensure fresh package info
