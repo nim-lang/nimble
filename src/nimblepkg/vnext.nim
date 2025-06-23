@@ -251,6 +251,10 @@ proc solveLockFileDeps*(satResult: var SATResult, pkgList: seq[PackageInfo], opt
         found = true
         break
     if not found:
+      if current.name.isNim:
+        #ignore if nim wasnt present in the lock file as by default we dont save nim in the lock file
+        if not existingRequires.anyIt(it[0].isNim):
+          continue
       echo "New requirement detected: ", current.name, " ", current.ver
       shouldSolve = true
       break

@@ -245,7 +245,7 @@ suite "develop feature":
         check parseFile(developFileName) == parseJson(expectedDevelopFile)
         (output, exitCode) = execNimble("run")
         check exitCode == QuitSuccess
-        check output.processOutput.inLines(pkgInstalledMsg(pkgAName))
+        check packageDirExists(pkgsDir, pkgAName & "-0.5.0")
 
   test "warning on attempt to add the same package twice":
     cd dependentPkgPath:

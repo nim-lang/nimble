@@ -758,6 +758,12 @@ proc downloadDependency(name: string, dep: LockFileDep, options: Options, valida
   if options.offline:
     raise nimbleError("Cannot download in offline mode.")
 
+  if dep.url.len == 0:
+    raise nimbleError(
+      &"Cannot download dependency '{name}' because its URL is empty in the lock file. " &
+      "This usually happens with develop mode dependencies. " &
+      "Make sure the dependency is properly configured in your develop file.")
+
   if not options.developWithDependencies:
     let depDirName = getDependencyDir(name, dep, options)
     if depDirName.dirExists:
@@ -832,7 +838,9 @@ proc processLockedDependencies(pkgInfo: PackageInfo, options: Options):
   # their local file system directories and other packages from the Nimble
   # cache. If a package with required checksum is missing from the local cache
   # installs it by downloading it from its repository.
-
+  if options.isVNext:
+    return options.satResult.pkgs
+  
   let developModeDeps = getDevelopDependencies(pkgInfo, options, raiseOnValidationErrors = false)
 
   var res: seq[PackageInfo]
