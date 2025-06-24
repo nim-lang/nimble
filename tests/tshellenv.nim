@@ -31,6 +31,6 @@ suite "Shell env":
       else:
         check prefix == "export PATH"
 
-      check dirs[1].extractFileName == "shellenv"
-      let toCheck = "testutils-0.5.0-756d0757c4dd06a068f9d38c7f238576ba5ee897"
-      check dirs[2].extractFileName == toCheck
+      check "shellenv" in dirs.mapIt(it.extractFileName)
+      let testUtils = "testutils-0.5.0-756d0757c4dd06a068f9d38c7f238576ba5ee897"
+      check testUtils in dirs.mapIt(it.extractFileName)

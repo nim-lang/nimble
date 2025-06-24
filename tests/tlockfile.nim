@@ -226,11 +226,11 @@ requires "nim >= 1.5.1"
     usePackageListFile pkgListFilePath:
       body
 
-  proc getRepoRevision*(): string =
-    result = tryDoCmdEx("git rev-parse HEAD").replace("\n", "")
+  # proc getRepoRevision(): string =
+  #   result = tryDoCmdEx("git rev-parse HEAD").replace("\n", "")
 
-  proc getRevision*(dep: string, lockFileName = defaultLockFileName): string =
-    result = lockFileName.readFile.parseJson{$lfjkPackages}{dep}{$lfjkPkgVcsRevision}.str
+  # proc getRevision(dep: string, lockFileName = defaultLockFileName): string =
+  #   result = lockFileName.readFile.parseJson{$lfjkPackages}{dep}{$lfjkPkgVcsRevision}.str
 
   proc addAdditionalFileAndPushToRemote(
       repoPath, remoteName, remotePath, fileContent: string) {.used.} =
