@@ -173,7 +173,13 @@ proc validatePackage(pkgPath: Path, options: Options):
 
   try:
     if options.isVnext: #TODO add and test fallback to nimVM parser (i.e. dev pkgList would need to be reloaded)
-      result.pkgInfo = getPkgInfoFromDirWithDeclarativeParser(string(pkgPath), options)
+      if options.satResult.pass == satNimSelection:
+        result.pkgInfo = getPkgInfoFromDirWithDeclarativeParser(string(pkgPath), options)
+        #TODO find a way to validate the package, for now just mark the declarativeParser as failed
+        #as we dont have Nim selected yet. 
+        options.satResult.declarativeParseFailed = true
+      else:
+        result.pkgInfo = getPkgInfo(string(pkgPath), options, true)
     else:
       result.pkgInfo = getPkgInfo(string(pkgPath), options, true)
   except CatchableError as error:

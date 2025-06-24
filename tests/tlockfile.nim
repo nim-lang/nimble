@@ -289,14 +289,14 @@ requires "nim >= 1.5.1"
         `body`
 
 
-  # test "can generate lock file":
-  #   cleanUp()
-  #   withPkgListFile:
-  #     initNewNimblePackage(mainPkgOriginRepoPath, mainPkgRepoPath,
-  #                          @[dep1PkgName])
-  #     initNewNimblePackage(dep1PkgOriginRepoPath, dep1PkgRepoPath)
-  #     cd mainPkgRepoPath:
-  #       testLockFile(@[(dep1PkgName, dep1PkgRepoPath)], isNew = true)
+  test "can generate lock file":
+    cleanUp()
+    withPkgListFile:
+      initNewNimblePackage(mainPkgOriginRepoPath, mainPkgRepoPath,
+                           @[dep1PkgName])
+      initNewNimblePackage(dep1PkgOriginRepoPath, dep1PkgRepoPath)
+      cd mainPkgRepoPath:
+        testLockFile(@[(dep1PkgName, dep1PkgRepoPath)], isNew = true)
 
   test "can generate overridden lock file":
     cleanUp()
@@ -485,27 +485,30 @@ requires "nim >= 1.5.1"
           errorMessage = getValidationErrorMessage(dep1PkgName, error)
         check output.processOutput.inLines(errorMessage)
 
-  # test "cannot sync because the working copy needs lock":
-  #   cleanUp()
-  #   withPkgListFile:
-  #     initNewNimblePackage(mainPkgOriginRepoPath,  mainPkgRepoPath,
-  #                          @[dep1PkgName])
-  #     initNewNimblePackage(dep1PkgOriginRepoPath, dep1PkgRepoPath)
-  #     cd mainPkgRepoPath:
-  #       writeDevelopFile(developFileName, @[], @[dep1PkgRepoPath])
-  #       testLockFile(@[(dep1PkgName, dep1PkgRepoPath)], isNew = true)
-  #     cd dep1PkgOriginRepoPath:
-  #       addAdditionalFileToTheRepo("dep1.nim", additionalFileContent)
-  #     cd dep1PkgRepoPath:
-  #       pull("origin")
-  #     cd mainPkgRepoPath:
-  #       let (output, exitCode) = execNimbleYes("sync")
-  #       check exitCode == QuitFailure
-  #       let
-  #         error = ValidationError(kind: vekWorkingCopyNeedsLock,
-  #                                 path: dep1PkgRepoPath)
-  #         errorMessage = getValidationErrorMessage(dep1PkgName, error)
-  #       check output.processOutput.inLines(errorMessage)
+  test "cannot sync because the working copy needs lock":
+    cleanUp()
+    withPkgListFile:
+      initNewNimblePackage(mainPkgOriginRepoPath,  mainPkgRepoPath,
+                           @[dep1PkgName])
+      initNewNimblePackage(dep1PkgOriginRepoPath, dep1PkgRepoPath)
+      cd mainPkgRepoPath:
+        writeDevelopFile(developFileName, @[], @[dep1PkgRepoPath])
+        testLockFile(@[(dep1PkgName, dep1PkgRepoPath)], isNew = true)
+      cd dep1PkgOriginRepoPath:
+        addAdditionalFileToTheRepo("dep1.nim", additionalFileContent)
+      cd dep1PkgRepoPath:
+        pull("origin")
+      cd mainPkgRepoPath:
+        let (output, exitCode) = execNimbleYes("sync")
+        echo "BEGING OUTPUT"
+        echo output
+        echo "END"
+        check exitCode == QuitFailure
+        let
+          error = ValidationError(kind: vekWorkingCopyNeedsLock,
+                                  path: dep1PkgRepoPath)
+          errorMessage = getValidationErrorMessage(dep1PkgName, error)
+        check output.processOutput.inLines(errorMessage)
 
   test "check fails because the working copy needs sync":
      outOfSyncDepsTest(""):
