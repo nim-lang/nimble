@@ -2122,7 +2122,6 @@ proc lock(options: var Options) =
         dependencies: solvedPkg.requirements.mapIt(it.name), 
         checksums: Checksums(sha1: pkgInfo.basicInfo.checksum))
     
-    options.debugSATResult()
     for task in pkgInfo.taskRequires.keys:
       lockDeps[task] = LockFileDeps()
       for (taskDep, _) in pkgInfo.taskRequires[task]:
