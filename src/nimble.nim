@@ -120,7 +120,6 @@ proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, options: Options): Has
       appendGloballyActiveFeatures(rootPkgInfo.basicInfo.name, @["dev"])
   rootPkgInfo.requires &= options.extraRequires
   var pkgList = initPkgList(rootPkgInfo, options)
-  echo "+++++INIT PKG LIST: ", $pkgList.mapIt(it.basicInfo.name)
   if options.useDeclarativeParser:
     pkgList = pkgList.mapIt(it.toRequiresInfo(options))
   else:
@@ -143,7 +142,6 @@ proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, options: Options): Has
           not isUpgrading and lockedPkg.vcsRevision == pkg.metaData.vcsRevision):
               toRemoveFromLocked.add pkg
 
-  echo "*******PKG LIST: ", $pkgList.mapIt(it.basicInfo.name)
   var systemNimCompatible = options.nimBin.isSome
   result = solveLocalPackages(rootPkgInfo, pkgList, solvedPkgs, systemNimCompatible,  options)
   if solvedPkgs.len > 0: 
@@ -2124,6 +2122,22 @@ proc lock(options: var Options) =
         dependencies: solvedPkg.requirements.mapIt(it.name), 
         checksums: Checksums(sha1: pkgInfo.basicInfo.checksum))
     
+    options.debugSATResult()
+    for task in pkgInfo.taskRequires.keys:
+      lockDeps[task] = LockFileDeps()
+      for (taskDep, _) in pkgInfo.taskRequires[task]:
+        for solvedPkg in options.satResult.solvedPkgs:
+          if solvedPkg.pkgName == taskDep:
+            #Now we have to pick the dep from above
+            var found = false
+            for key, value in lockDeps[noTask]:
+              if key == taskDep:
+                lockDeps[task][key] = value
+                found = true
+                break
+            if found: 
+              lockDeps[noTask].del(taskDep)
+    
     writeLockFile(currentLockFile, lockDeps)
   else:
     # traditional path: use dependency graph
@@ -2569,8 +2583,12 @@ proc solvePkgs(rootPackage: PackageInfo, options: var Options) =
   #Note this wont work until we support taskRequires in the declarative parser
   if options.task.len > 0 and options.task in rootPackage.taskRequires:
     options.satResult.rootPackage.requires &= rootPackage.taskRequires[options.task]
+  #when locking we need to add the task requires to the root package
+  if options.action.typ == actionLock:
+    for task in rootPackage.taskRequires.keys:
+      options.satResult.rootPackage.requires &= rootPackage.taskRequires[task]
+  
   var pkgList = initPkgList(options.satResult.rootPackage, options)
- 
   options.satResult.rootPackage.enableFeatures(options)
   # echo "BEFORE FIRST PASS"
   # options.debugSATResult()
@@ -2595,6 +2613,10 @@ proc solvePkgs(rootPackage: PackageInfo, options: var Options) =
     # Add task-specific requirements if a task is being executed (fallback path)
     if options.task.len > 0 and options.task in options.satResult.rootPackage.taskRequires:
       options.satResult.rootPackage.requires &= options.satResult.rootPackage.taskRequires[options.task]
+    #when locking we need to add the task requires to the root package
+    if options.action.typ == actionLock:
+      for task in options.satResult.rootPackage.taskRequires.keys:
+        options.satResult.rootPackage.requires &= options.satResult.rootPackage.taskRequires[task]
     #Declarative parser failed. So we need to rerun the solver but this time, we allow the parser
     #to fallback to the vm parser
     solvePkgsWithVmParserAllowingFallback(options.satResult.rootPackage, resolvedNim, pkgList, options)

@@ -3,7 +3,7 @@
 
 {.used.}
 
-import unittest, os, strformat, json, strutils, sequtils
+import unittest, os, strformat, json, strutils
 
 import testscommon
 
