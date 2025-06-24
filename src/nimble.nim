@@ -2095,13 +2095,16 @@ proc lock(options: var Options) =
     #TODO Some errors are not checked here.
     var vnextGraph: LockFileDeps
     let rootPkgName = pkgInfo.basicInfo.name
+    
+    let shouldAddNim = false #TODO only add nim if it was explicitly added in develop:
+
     for solvedPkg in options.satResult.solvedPkgs:
-      if not solvedPkg.pkgName.isNim and solvedPkg.pkgName != rootPkgName:
+      if (not solvedPkg.pkgName.isNim or (shouldAddNim and solvedPkg.pkgName.isNim)) and solvedPkg.pkgName != rootPkgName:
         vnextGraph[solvedPkg.pkgName] = LockFileDep()  # Minimal entry for error checking
     errors.check(vnextGraph)
     
     for solvedPkg in options.satResult.solvedPkgs:
-      if solvedPkg.pkgName.isNim: continue
+      if solvedPkg.pkgName.isNim and not shouldAddNim: continue
       
       # Get the PackageInfo for this solved package
       let pkgInfo = options.satResult.getPkgInfoFromSolved(solvedPkg, options)

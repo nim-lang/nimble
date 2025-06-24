@@ -28,6 +28,8 @@ proc debugSATResult*(options: Options) =
   else:
     echo "No Nim selected"
   echo "Declarative parser failed: ", satResult.declarativeParseFailed
+  if satResult.declarativeParseFailed:
+    echo "Declarative parser error lines: ", satResult.declarativeParserErrorLines
  
   if satResult.rootPackage.hasLockFile(options):
     echo "Root package has lock file: ", satResult.rootPackage.myPath.parentDir() / "nimble.lock"
@@ -189,27 +191,23 @@ proc resolveNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo], options: v
 
   var nims = options.satResult.pkgs.toSeq.filterIt(it.basicInfo.name.isNim)
   if nims.len == 0:
-    let solvedNim = options.satResult.solvedPkgs.filterIt(it.pkgName.isNim)
-    if solvedNim.len > 0:
-      # echo "Solved nim ", solvedNim[0].version
-      return NimResolved(version: solvedNim[0].version)
     let pkgListDeclNims = pkgListDecl.filterIt(it.basicInfo.name.isNim)
-    # echo "PkgListDeclNims ", pkgListDeclNims.mapIt(it.basicInfo.name & " " & $it.basicInfo.version)
+    echo "PkgListDeclNims ", pkgListDeclNims.mapIt(it.basicInfo.name & " " & $it.basicInfo.version)
     var bestNim: Option[PackageInfo] = none(PackageInfo)
-    #TODO fail if there is none compatible with the current solution
+
     for pkg in pkgListDeclNims:
+      #TODO test if its compatible with the current solution.
       if bestNim.isNone or pkg.basicInfo.version > bestNim.get.basicInfo.version:
         bestNim = some(pkg)
     if bestNim.isSome:
+      options.satResult.pkgs.incl(bestNim.get)
       return NimResolved(pkg: some(bestNim.get), version: bestNim.get.basicInfo.version)
-
-    # echo "SAT result ", options.satResult.pkgs.mapIt(it.basicInfo.name)
+    let solvedNim = options.satResult.solvedPkgs.filterIt(it.pkgName.isNim)
+    
     # echo "SolvedPkgs ", options.satResult.solvedPkgs
-    # echo "PkgsToInstall ", options.satResult.pkgsToInstall
-    # echo "Root package ", rootPackage.basicInfo, " requires ", rootPackage.requires
-    # echo "PkglistDecl ", pkgListDecl.mapIt(it.basicInfo.name & " " & $it.basicInfo.version)
-    # echo options.satResult.output
-    # echo ""
+    if solvedNim.len > 0:
+      # echo "Solved nim ", solvedNim[0].version
+      return NimResolved(version: solvedNim[0].version)
     #TODO if we ever reach this point, we should just download the latest nim release
     raise newNimbleError[NimbleError]("No Nim found") 
   if nims.len > 1:    
@@ -218,11 +216,6 @@ proc resolveNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo], options: v
     if versions.deduplicate().len > 1:
       raise newNimbleError[NimbleError]("Multiple Nims found " & $nims.mapIt(it.basicInfo)) #TODO this cant be reached
   
-  # echo "Pgs result ", result.satResult.pkgs.mapIt(it.basicInfo.name)
-  # echo "SolvedPkgs ", result.satResult.solvedPkgs.mapIt(it.pkgName)
-  # echo "PkgsToInstall ", result.satResult.pkgsToInstall
-  # echo "Root package ", rootPackage.basicInfo, " requires ", rootPackage.requires
-  # echo "PkglistDecl ", pkgListDecl.mapIt(it.basicInfo.name & " " & $it.basicInfo.version)
   result.pkg = some(nims[0])
   result.version = nims[0].basicInfo.version
 
@@ -293,10 +286,11 @@ proc setNimBin*(pkgInfo: PackageInfo, options: var Options) =
   assert pkgInfo.basicInfo.name.isNim
   if options.nimBin.isSome and options.nimBin.get.path == pkgInfo.getRealDir / "bin" / "nim":
     return #We dont want to set the same Nim twice. Notice, this can only happen when installing multiple packages outside of the project dir i.e nimble install pkg1 pkg2 if voth
-  options.useNimFromDir(pkgInfo.getRealDir, pkgInfo.basicInfo.version.toVersionRange())
+  options.useNimFromDir(pkgInfo.getRealDir, pkgInfo.basicInfo.version.toVersionRange(), tryCompiling = true)
 
 proc resolveAndConfigureNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo], options: var Options): NimResolved =
   var resolvedNim = resolveNim(rootPackage, pkgList, options)
+  echo "RESOLVED NIM is SOME:", resolvedNim.pkg.isSome, " ", resolvedNim.version
   if resolvedNim.pkg.isNone:
     #we need to install it
     let nimPkg = (name: "nim", ver: parseVersionRange(resolvedNim.version))
