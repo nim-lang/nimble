@@ -226,10 +226,10 @@ requires "nim >= 1.5.1"
     usePackageListFile pkgListFilePath:
       body
 
-  proc getRepoRevision: string =
+  proc getRepoRevision*(): string =
     result = tryDoCmdEx("git rev-parse HEAD").replace("\n", "")
 
-  proc getRevision(dep: string, lockFileName = defaultLockFileName): string =
+  proc getRevision*(dep: string, lockFileName = defaultLockFileName): string =
     result = lockFileName.readFile.parseJson{$lfjkPackages}{dep}{$lfjkPkgVcsRevision}.str
 
   proc addAdditionalFileAndPushToRemote(
@@ -500,9 +500,6 @@ requires "nim >= 1.5.1"
         pull("origin")
       cd mainPkgRepoPath:
         let (output, exitCode) = execNimbleYes("sync")
-        echo "BEGING OUTPUT"
-        echo output
-        echo "END"
         check exitCode == QuitFailure
         let
           error = ValidationError(kind: vekWorkingCopyNeedsLock,
