@@ -226,11 +226,11 @@ requires "nim >= 1.5.1"
     usePackageListFile pkgListFilePath:
       body
 
-  # proc getRepoRevision(): string =
-  #   result = tryDoCmdEx("git rev-parse HEAD").replace("\n", "")
+  proc getRepoRevision(): string =
+    result = tryDoCmdEx("git rev-parse HEAD").replace("\n", "")
 
-  # proc getRevision(dep: string, lockFileName = defaultLockFileName): string =
-  #   result = lockFileName.readFile.parseJson{$lfjkPackages}{dep}{$lfjkPkgVcsRevision}.str
+  proc getRevision(dep: string, lockFileName = defaultLockFileName): string =
+    result = lockFileName.readFile.parseJson{$lfjkPackages}{dep}{$lfjkPkgVcsRevision}.str
 
   proc addAdditionalFileAndPushToRemote(
       repoPath, remoteName, remotePath, fileContent: string) {.used.} =
@@ -552,7 +552,7 @@ requires "nim >= 1.5.1"
         check exitCode == QuitSuccess
 
   # test "can generate lock file for nim as dep":
-  #   cleanUp()
+  #   # cleanUp()
   #   let nimDir = defaultDevelopPath / "Nim"
   #   cd "nimdep":
   #     removeFile "nimble.develop"
@@ -586,24 +586,25 @@ requires "nim >= 1.5.1"
     cd "lockfile-subdep":
       check execNimbleYes("test").exitCode == QuitSuccess
 
-  # test "can upgrade a dependency.":
-  #   cleanUp()
-  #   withPkgListFile:
-  #     initNewNimblePackage(mainPkgOriginRepoPath, mainPkgRepoPath,
-  #                          @[dep1PkgName])
-  #     initNewNimblePackage(dep1PkgOriginRepoPath, dep1PkgRepoPath)
+  test "can upgrade a dependency.":
+    cleanUp()
+    withPkgListFile:
+      initNewNimblePackage(mainPkgOriginRepoPath, mainPkgRepoPath,
+                           @[dep1PkgName])
+      initNewNimblePackage(dep1PkgOriginRepoPath, dep1PkgRepoPath)
 
-  #     cd mainPkgRepoPath:
-  #       check execNimbleYes("lock").exitCode == QuitSuccess
+      cd mainPkgRepoPath:
+        check execNimbleYes("lock").exitCode == QuitSuccess
 
-  #     cd dep1PkgOriginRepoPath:
-  #       addAdditionalFileToTheRepo("dep1.nim", "echo 42")
-  #       let newRevision = getRepoRevision()
-  #       cd mainPkgRepoPath:
-  #         check newRevision != getRevision(dep1PkgName)
-  #         let res = execNimbleYes("upgrade", fmt "{dep1PkgName}@#{newRevision}")
-  #         check newRevision == getRevision(dep1PkgName)
-  #         check res.exitCode == QuitSuccess
+      cd dep1PkgOriginRepoPath:
+        addAdditionalFileToTheRepo("dep1.nim", "echo 42")
+        let newRevision = getRepoRevision()
+        cd mainPkgRepoPath:
+          check newRevision != getRevision(dep1PkgName)
+          let res = execNimbleYes("upgrade", fmt "{dep1PkgName}@#{newRevision}")
+          echo "OUTPUT ", res.output
+          check newRevision == getRevision(dep1PkgName)
+          check res.exitCode == QuitSuccess
 
   # test "can upgrade: the new version of the package has a new dep":
   #   cleanUp()
