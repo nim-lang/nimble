@@ -734,13 +734,16 @@ proc processDevelopDependencies*(dependentPkg: PackageInfo, options: Options):
     seq[PackageInfo] =
   ## Returns a sequence with the develop mode dependencies of the `dependentPkg`
   ## and recursively all of their develop mode dependencies.
-
+  
   let loadGlobalDeps = not dependentPkg.getPkgDevFilePath.fileExists
   var cache = DevelopCache()
   let data = load(cache, dependentPkg, options, true, true, loadGlobalDeps)
   result = newSeqOfCap[PackageInfo](data.nameToPkg.len)
   for _, pkg in data.nameToPkg:
     result.add pkg[]
+  # echo "PROCESS DEVELOP DEPENDENCIES ", result.mapIt(it.basicInfo.name)
+  # echo "SAT RESULT ", options.satResult.pkgs.mapIt(it.basicInfo.name)
+  # options.debugSATResult()
 
 proc getDevelopDependencies*(dependentPkg: PackageInfo, options: Options, raiseOnValidationErrors = true):
     Table[string, ref PackageInfo] =

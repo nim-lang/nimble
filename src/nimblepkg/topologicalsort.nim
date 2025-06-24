@@ -80,7 +80,7 @@ proc buildDependencyGraph*(packages: seq[PackageInfo], options: Options):
     if (pkgInfo.isLink or (vcsRevision == notSetSha1Hash and pkgInfo.getRealDir().dirExists())) and vcsRevision == notSetSha1Hash:
       try:
         vcsRevision = getVcsRevision(pkgInfo.getRealDir())
-      except CatchableError as e:
+      except CatchableError:
         # If we can't get VCS revision, leave it as notSetSha1Hash
         discard
     

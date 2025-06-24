@@ -444,7 +444,7 @@ proc toRequiresInfo*(pkgInfo: PackageInfo, options: Options, nimbleFileInfo: Opt
   if result.isLink and result.metaData.vcsRevision == notSetSha1Hash:
     try:
       result.metaData.vcsRevision = getVcsRevision(result.getRealDir())
-    except CatchableError as e:
+    except CatchableError:
       # If we can't get VCS revision, leave it as notSetSha1Hash
       discard
   

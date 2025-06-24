@@ -2113,7 +2113,7 @@ proc lock(options: var Options) =
       if (pkgInfo.isLink or (vcsRevision == notSetSha1Hash and pkgInfo.getRealDir().dirExists())) and vcsRevision == notSetSha1Hash:
         try:
           vcsRevision = getVcsRevision(pkgInfo.getRealDir())
-        except CatchableError as e:
+        except CatchableError:
           discard
       
       lockDeps[noTask][solvedPkg.pkgName] = LockFileDep(
@@ -2445,8 +2445,17 @@ proc setup(options: Options) =
   setupVcsIgnoreFile()
 
 proc getAlteredPath(options: Options): string =
-  let pkgInfo = getPkgInfo(getCurrentDir(), options)
-  var pkgs = pkgInfo.processAllDependencies(options).toSeq.toOrderedSet
+  
+  let pkgInfo = 
+    if options.isVNext:
+      options.satResult.rootPackage
+    else:
+      getPkgInfo(getCurrentDir(), options)
+  var pkgs =
+    if options.isVNext:
+      options.satResult.pkgs.toSeq.toOrderedSet
+    else:
+      pkgInfo.processAllDependencies(options).toSeq.toOrderedSet
   pkgs.incl(pkgInfo)
 
   var paths: seq[string] = @[]
@@ -2563,8 +2572,8 @@ proc solvePkgs(rootPackage: PackageInfo, options: var Options) =
   var pkgList = initPkgList(options.satResult.rootPackage, options)
  
   options.satResult.rootPackage.enableFeatures(options)
-  echo "BEFORE FIRST PASS"
-  options.debugSATResult()
+  # echo "BEFORE FIRST PASS"
+  # options.debugSATResult()
   # For lock action, always read from nimble file, not from lockfile
   # if rootPackage.hasLockFile(options) and options.action.typ != actionLock:
   #   options.satResult.pass = satLockFile
@@ -2866,14 +2875,11 @@ when isMainModule:
     
     #Notice some actions dont need to be touched in vnext. Some other partially incercepted (setup) and some others fully changed (i.e build, install)
     const vNextSupportedActions = { actionInstall, actionBuild, 
-      actionSetup, actionRun, actionLock, actionCustom, actionSync }
+      actionSetup, actionRun, actionLock, actionCustom, actionSync,
+      actionShellEnv, actionShell
+    }
 
     if opt.isVNext and opt.action.typ in vNextSupportedActions:
-      # Clear caches before running vnext to ensure fresh package info
-      if opt.action.typ == actionLock:
-        opt.pkgInfoCache.clear()
-        opt.satResult = SatResult()
-      
       # For actionCustom, set the task name before calling runVNext
       if opt.action.typ == actionCustom:
         opt.task = opt.action.command.normalize
