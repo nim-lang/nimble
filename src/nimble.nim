@@ -2116,6 +2116,11 @@ proc lock(options: var Options) =
           vcsRevision = getVcsRevision(pkgInfo.getRealDir())
         except CatchableError:
           discard
+      if options.action.typ == actionUpgrade:
+        for upgradePkg in options.action.packages:
+          if upgradePkg.name == pkgInfo.basicInfo.name:
+            vcsRevision = initSha1Hash(upgradePkg.ver.spe.version[1..^1])
+            break
       
       lockDeps[noTask][solvedPkg.pkgName] = LockFileDep(
         version: solvedPkg.version,
@@ -2900,7 +2905,7 @@ when isMainModule:
     #Notice some actions dont need to be touched in vnext. Some other partially incercepted (setup) and some others fully changed (i.e build, install)
     const vNextSupportedActions = { actionInstall, actionBuild, 
       actionSetup, actionRun, actionLock, actionCustom, actionSync,
-      actionShellEnv, actionShell
+      actionShellEnv, actionShell, actionUpgrade
     }
 
     if opt.isVNext and opt.action.typ in vNextSupportedActions:

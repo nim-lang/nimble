@@ -38,7 +38,11 @@ proc debugSATResult*(options: Options) =
   echo "Root package: ", satResult.rootPackage.basicInfo.name, " ", satResult.rootPackage.basicInfo.version, " ", satResult.rootPackage.myPath
   echo "Root requires: ", satResult.rootPackage.requires.mapIt(it.name & " " & $it.ver)
   echo "Solved packages: ", satResult.solvedPkgs.mapIt(it.pkgName & " " & $it.deps.mapIt(it.pkgName))
-  echo "Solution as Packages Info: ", satResult.pkgs.mapIt(it.basicInfo.name)
+  echo "Solution as Packages Info: ", satResult.pkgs.mapIt(it.basicInfo.name & " " & $it.basicInfo.version)
+  if options.action.typ == actionUpgrade:
+    echo "Upgrade versions: ", options.action.packages.mapIt(it.name & " " & $it.ver)
+    echo "RESULT REVISIONS ", satResult.pkgs.mapIt(it.basicInfo.name & " " & $it.metaData.vcsRevision)
+    echo "PKG LIST REVISIONS ", satResult.pkgList.mapIt(it.basicInfo.name & " " & $it.metaData.vcsRevision)
   echo "Packages to install: ", satResult.pkgsToInstall
   echo "Installed pkgs: ", satResult.pkgs.mapIt(it.basicInfo.name)
   echo "Build pkgs: ", satResult.buildPkgs.mapIt(it.basicInfo.name)
