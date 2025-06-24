@@ -192,8 +192,24 @@ proc resolveNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo], options: v
   var nims = options.satResult.pkgs.toSeq.filterIt(it.basicInfo.name.isNim)
   if nims.len == 0:
     let pkgListDeclNims = pkgListDecl.filterIt(it.basicInfo.name.isNim)
-    echo "PkgListDeclNims ", pkgListDeclNims.mapIt(it.basicInfo.name & " " & $it.basicInfo.version)
+    # echo "PkgListDeclNims ", pkgListDeclNims.mapIt(it.basicInfo.name & " " & $it.basicInfo.version)
     var bestNim: Option[PackageInfo] = none(PackageInfo)
+    let solvedNim = options.satResult.solvedPkgs.filterIt(it.pkgName.isNim)
+    # echo "SolvedPkgs ", options.satResult.solvedPkgs
+    if solvedNim.len > 0:
+      
+      # echo "Solved nim ", solvedNim[0].version, " len ", solvedNim.len
+      result = NimResolved(version: solvedNim[0].version)
+      #Now we need to see if any of the nim pkgs is compatible with the Nim from the solution so 
+      #we dont download it again.
+      for nimPkg in pkgListDeclNims:
+        #At this point we lost range information, but we should be ok
+        #as we feed the solver with all the versions available already.
+        # echo "Checking ", nimPkg.basicInfo.name, " ", nimPkg.basicInfo.version, " ", solvedNim[0].version
+        if nimPkg.basicInfo.version == solvedNim[0].version: 
+          options.satResult.pkgs.incl(nimPkg)
+          return NimResolved(pkg: some(nimPkg), version: nimPkg.basicInfo.version)
+      return result
 
     for pkg in pkgListDeclNims:
       #TODO test if its compatible with the current solution.
@@ -202,15 +218,10 @@ proc resolveNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo], options: v
     if bestNim.isSome:
       options.satResult.pkgs.incl(bestNim.get)
       return NimResolved(pkg: some(bestNim.get), version: bestNim.get.basicInfo.version)
-    let solvedNim = options.satResult.solvedPkgs.filterIt(it.pkgName.isNim)
     
-    # echo "SolvedPkgs ", options.satResult.solvedPkgs
-    if solvedNim.len > 0:
-      # echo "Solved nim ", solvedNim[0].version
-      return NimResolved(version: solvedNim[0].version)
     #TODO if we ever reach this point, we should just download the latest nim release
     raise newNimbleError[NimbleError]("No Nim found") 
-  if nims.len > 1:    
+  if nims.len > 1:  
     #Before erroying make sure the version are actually different
     var versions = nims.mapIt(it.basicInfo.version)
     if versions.deduplicate().len > 1:
@@ -290,7 +301,6 @@ proc setNimBin*(pkgInfo: PackageInfo, options: var Options) =
 
 proc resolveAndConfigureNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo], options: var Options): NimResolved =
   var resolvedNim = resolveNim(rootPackage, pkgList, options)
-  echo "RESOLVED NIM is SOME:", resolvedNim.pkg.isSome, " ", resolvedNim.version
   if resolvedNim.pkg.isNone:
     #we need to install it
     let nimPkg = (name: "nim", ver: parseVersionRange(resolvedNim.version))
