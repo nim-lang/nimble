@@ -20,6 +20,7 @@ import nimblesat, packageinfotypes, options, version, declarativeparser, package
 proc debugSATResult*(options: Options) =
   # return
   echo "=== DEBUG SAT RESULT ==="
+  echo "Called from: ", getStackTrace()[^2]
   let satResult = options.satResult
   echo "--------------------------------"
   echo "Pass: ", satResult.pass
@@ -295,7 +296,6 @@ proc solveLockFileDeps*(satResult: var SATResult, pkgList: seq[PackageInfo], opt
       satResult.output, 
       satResult.solvedPkgs
     )
-    options.debugSATResult()
     if satResult.solvedPkgs.len == 0:
       displayError(satResult.output)
       raise newNimbleError[NimbleError]("Couldn't find a solution for the packages.")
@@ -398,9 +398,7 @@ proc solveLockFileDeps*(satResult: var SATResult, pkgList: seq[PackageInfo], opt
         satResult.pkgs.incl(depInfo.get)
       else:
         satResult.pkgsToInstall.add((name, dep.version))
-      
-  echo "POST"
-  options.debugSATResult()
+    
 
 proc setNimBin*(pkgInfo: PackageInfo, options: var Options) =
   assert pkgInfo.basicInfo.name.isNim

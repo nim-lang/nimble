@@ -2648,9 +2648,9 @@ proc runVNext*(options: var Options) =
       options.satResult = initSATResult(satNimSelection)      
       var rootPackage = downloadPkInfoForPv(pkg, options, doPrompt = true)
       solvePkgs(rootPackage, options)
-  options.debugSATResult()
+  # options.debugSATResult()
   options.satResult.installPkgs(options)
-  options.debugSATResult()
+  # options.debugSATResult()
   options.satResult.addReverseDeps(options)
   
 proc doAction(options: var Options) =
