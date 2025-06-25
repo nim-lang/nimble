@@ -37,7 +37,7 @@ proc debugSATResult*(options: Options) =
     echo "Root package does not have lock file"
   echo "Root package: ", satResult.rootPackage.basicInfo.name, " ", satResult.rootPackage.basicInfo.version, " ", satResult.rootPackage.myPath
   echo "Root requires: ", satResult.rootPackage.requires.mapIt(it.name & " " & $it.ver)
-  echo "Solved packages: ", satResult.solvedPkgs.mapIt(it.pkgName & " " & $it.deps.mapIt(it.pkgName))
+  echo "Solved packages: ", satResult.solvedPkgs.mapIt(it.pkgName & " " & $it.version & " " & $it.deps.mapIt(it.pkgName))
   echo "Solution as Packages Info: ", satResult.pkgs.mapIt(it.basicInfo.name & " " & $it.basicInfo.version)
   if options.action.typ == actionUpgrade:
     echo "Upgrade versions: ", options.action.packages.mapIt(it.name & " " & $it.ver)
@@ -267,29 +267,26 @@ proc solveLockFileDeps*(satResult: var SATResult, pkgList: seq[PackageInfo], opt
       shouldSolve = true
       break
 
-  if options.action.typ == actionUpgrade:
-    shouldSolve = true
   var pkgListDecl = pkgList.mapIt(it.toRequiresInfo(options))
 
-  if options.action.typ == actionUpgrade:
-    for upgradePkg in options.action.packages:
-      for pkg in pkgList:
-        if pkg.basicInfo.name == upgradePkg.name:
-          # echo "REMOVING ", upgradePkg.name
-          #Lets reload the pkg
-          #Remove it from the the package list so it gets reinstalled (aka added to the pkgsToInstall by sat)
-          pkgListDecl = pkgListDecl.filterIt(it.name != upgradePkg.name)
-          #We also need to update the root requires with the upgraded version
-          for req in satResult.rootPackage.requires.mitems:
-            if req.name == upgradePkg.name:
-              req.ver = upgradePkg.ver
-              break
-          break
-
+  # if options.action.typ == actionUpgrade:
+  #   for upgradePkg in options.action.packages:
+  #     for pkg in pkgList:
+  #       if pkg.basicInfo.name == upgradePkg.name:
+  #         echo "REMOVING ", upgradePkg.name
+  #         #Lets reload the pkg
+  #         #Remove it from the the package list so it gets reinstalled (aka added to the pkgsToInstall by sat)
+  #         pkgListDecl = pkgListDecl.filterIt(it.name != upgradePkg.name)
+  #         #We also need to update the root requires with the upgraded version
+  #         for req in satResult.rootPackage.requires.mitems:
+  #           if req.name == upgradePkg.name:
+  #             req.ver = upgradePkg.ver
+  #             break
+  #         break
+  satResult.pkgList = pkgListDecl.toHashSet()
   if shouldSolve:
     echo "New requirements detected, solving ALL requirements fresh: "
     # Create fresh package list and solve ALL requirements
-    
     satResult.pkgs = solvePackages(
       satResult.rootPackage, 
       pkgListDecl, 
@@ -298,12 +295,71 @@ proc solveLockFileDeps*(satResult: var SATResult, pkgList: seq[PackageInfo], opt
       satResult.output, 
       satResult.solvedPkgs
     )
-    
+    options.debugSATResult()
     if satResult.solvedPkgs.len == 0:
       displayError(satResult.output)
       raise newNimbleError[NimbleError]("Couldn't find a solution for the packages.")
+  elif options.action.typ == actionUpgrade:
+    for name, dep in lockFile.getLockedDependencies.lockedDepsFor(options):
+      if name.isNim: continue
+      let solvedPkg = SolvedPackage(pkgName: name, version: dep.version)
+      if options.action.typ == actionUpgrade:
+        if solvedPkg.pkgName in satResult.solvedPkgs.mapIt(it.pkgName):
+          #We need to remove the initial package from the satResult.solvedPkgs
+          satResult.solvedPkgs = satResult.solvedPkgs.filterIt(it.pkgName != name)
+          satResult.pkgs = satResult.pkgs.toSeq.filterIt(it.basicInfo.name != name).toHashSet()
+        for upgradePkg in options.action.packages:
+          if upgradePkg.name == name:
+            #this is assuming version is special version (likely not correct)
+            satResult.pkgsToInstall.add((name, upgradePkg.ver.spe))
+      var depInfo: Option[PackageInfo] = none(PackageInfo)
+      for pkg in satResult.pkgList:
+        if pkg.basicInfo.name == name and pkg.basicInfo.version == dep.version and pkg.metaData.vcsRevision == dep.vcsRevision:
+          satResult.pkgs.incl(pkg)
+          depInfo = some(pkg)
+          break      
+      satResult.solvedPkgs.add(solvedPkg)
+      var pkgListDecl = pkgListDecl
+      #Finally we need to re-run sat just to check if there are new deps. Although we dont want to update
+      #existing deps, only add the new ones.
+      for upgradePkg in options.action.packages:
+        for pkg in pkgList:
+          if pkg.basicInfo.name == upgradePkg.name:
+            #Lets reload the pkg
+            #Remove it from the the package list so it gets reinstalled (aka added to the pkgsToInstall by sat)
+            pkgListDecl = pkgListDecl.filterIt(it.name != upgradePkg.name)
+            #We also need to update the root requires with the upgraded version
+            for req in satResult.rootPackage.requires.mitems:
+              if req.name == upgradePkg.name:
+                req.ver = upgradePkg.ver
+                break
+            break
+           
+      var tempSatResult = initSATResult(satResult.pass)                
+      var newPkgsToInstall = newSeq[(string, Version)]()
+      discard solvePackages(
+            satResult.rootPackage, 
+            pkgListDecl, 
+            newPkgsToInstall, 
+            options, 
+            tempSatResult.output, 
+            tempSatResult.solvedPkgs
+          )
+      for newPkgToInstall in newPkgsToInstall:
+        if newPkgToInstall[0] notin satResult.pkgsToInstall.mapIt(it[0]):
+          satResult.pkgsToInstall.add(newPkgToInstall)
+      #We also need to update the satResult.solvedPkgs with the new packages
+      for solvedPkg in tempSatResult.solvedPkgs:
+        if solvedPkg.pkgName notin satResult.solvedPkgs.mapIt(it.pkgName):
+          satResult.solvedPkgs.add(solvedPkg)
+      
+      #Finally we need to remove the upgraded package from the installed once so it gets redownloaded with 
+      #the correct revision
+      for upgradePkg in options.action.packages:
+        satResult.pkgs = satResult.pkgs.toSeq.filterIt(it.basicInfo.name != upgradePkg.name).toHashSet()
+
   else:
-    # No new requirements, use existing lock file approach
+    # No new requirements and not upgrading
     for name, dep in lockFile.getLockedDependencies.lockedDepsFor(options):
       if name.isNim: continue
       let solvedPkg = SolvedPackage(pkgName: name, version: dep.version)
@@ -313,6 +369,7 @@ proc solveLockFileDeps*(satResult: var SATResult, pkgList: seq[PackageInfo], opt
         satResult.pkgs.incl(depInfo.get)
       else:
         satResult.pkgsToInstall.add((name, dep.version))
+      
   # echo "POST"
   # options.debugSATResult()
 
@@ -808,13 +865,6 @@ proc installPkgs*(satResult: var SATResult, options: Options) =
         wasNewlyInstalled = oldPkg.isNone
     else:
       var forceDownload = false
-      #If the package is in the upgrade list, we force the download of the package with the updated version
-      # if options.action.typ == actionUpgrade:
-      #   for upgradePkgReq in options.action.packages:
-      #     if upgradePkgReq.name == pv.name:
-      #       forceDownload = true
-      #       pv = upgradePkgReq
-      #       break      
       
       var dlInfo = getPackageDownloadInfo(pv, options, doPrompt = true)
       var downloadDir = dlInfo.downloadDir / dlInfo.subdir       
