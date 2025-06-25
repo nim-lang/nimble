@@ -301,7 +301,7 @@ proc solveLockFileDeps*(satResult: var SATResult, pkgList: seq[PackageInfo], opt
       raise newNimbleError[NimbleError]("Couldn't find a solution for the packages.")
   elif options.action.typ == actionUpgrade: #TODO EXTACT THIS TO A FUNCTION
     #[
-    Retrocompatability bullshit (as it goes against SAT in some edge cases)
+    Retrocompatibility (goes against SAT in some edge cases)
     When upgrading dep1: Only dep1 should change, dep2 should stay at it is
     We also need to check if the upgraded version adds or removes any other deps.
     
@@ -426,19 +426,12 @@ proc resolveAndConfigureNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo]
   return resolvedNim
 
 proc solvePkgsWithVmParserAllowingFallback*(rootPackage: PackageInfo, resolvedNim: NimResolved, pkgList: seq[PackageInfo], options: var Options)=
-  # echo "***Root package: ", options.satResult.rootPackage.basicInfo.name, " requires: ", options.satResult.rootPackage.requires
   var pkgList = 
     pkgList
     .mapIt(it.toRequiresInfo(options))
   pkgList.add(resolvedNim.pkg.get)
   options.satResult.pkgList = pkgList.toHashSet()
   options.satResult.pkgs = solvePackages(rootPackage, pkgList, options.satResult.pkgsToInstall, options, options.satResult.output, options.satResult.solvedPkgs)
-
-  # echo "SAT RESULT IS ", options.satResult.output
-  # for solvedPkg in options.satResult.solvedPkgs:
-  #   echo "SOLVED PKG IS ", solvedPkg.pkgName, " ", solvedPkg.version, " requires ", solvedPkg.requirements.mapIt(it.name & " " & $it.ver)
-  # for pkg in options.satResult.pkgs:
-  #   echo "PKG IS ", pkg.basicInfo.name, " ", pkg.basicInfo.version, " requires ", pkg.requires.mapIt(it.name & " " & $it.ver)
   if options.satResult.solvedPkgs.len == 0:
     displayError(options.satResult.output)
     raise newNimbleError[NimbleError]("Couldnt find a solution for the packages. Unsatisfiable dependencies. Check there is no contradictory dependencies.")
@@ -453,9 +446,7 @@ proc addReverseDeps*(satResult: SATResult, options: Options) =
     
     for dep in solvedPkg.deps:
       if dep.pkgName.isNim: continue 
-      let depPkg = satResult.getPkgInfoFromSolved(dep, options)
-      # echo "Checking ", depPkg.basicInfo.name, " ", depPkg.basicInfo.version, " ", depPkg.myPath.parentDir
-      
+      let depPkg = satResult.getPkgInfoFromSolved(dep, options)      
       addRevDep(options.nimbleData, depPkg.basicInfo, reverseDepPkg)
 
 proc executeHook(dir: string, options: Options, action: ActionType, before: bool) =
@@ -465,7 +456,6 @@ proc executeHook(dir: string, options: Options, action: ActionType, before: bool
         raise nimbleError("Pre-hook prevented further execution.")
       else:
         raise nimbleError("Post-hook prevented further execution.")
-
 
 proc packageExists(pkgInfo: PackageInfo, options: Options):
     Option[PackageInfo] =
@@ -494,17 +484,7 @@ proc installFromDirDownloadInfo(downloadDir: string, url: string, options: Optio
   executeHook(dir, options, actionInstall, before = true)
 
   var pkgInfo = getPkgInfo(dir, options)
-  # Set the flag that the package is not in develop mode before saving it to the
-  # reverse dependencies.
-  # pkgInfo.isLink = false
-  # if vcsRevision != notSetSha1Hash: #TODO review this
-  #   ## In the case we downloaded the package as tarball we have to set the VCS
-  #   ## revision returned by download procedure because it cannot be queried from
-  #   ## the package directory.
-  #   pkgInfo.metaData.vcsRevision = vcsRevision
-
-  # let realDir = pkgInfo.getRealDir()
-  var depsOptions = options
+    var depsOptions = options
   depsOptions.depsOnly = false
 
   display("Installing", "$1@$2" %
@@ -516,38 +496,10 @@ proc installFromDirDownloadInfo(downloadDir: string, url: string, options: Optio
     # In the case we already have the same package in the cache then only merge
     # the new package special versions to the old one.
     displayWarning(pkgAlreadyExistsInTheCacheMsg(pkgInfo), MediumPriority)
-    # echo "PKG ALREADY EXISTS IN THE CACHE: ", pkgInfo.basicInfo.name, " ", pkgInfo.basicInfo.version
-    # echo "Dir: ", pkgInfo.getNimbleFileDir()
-    # echo "Dest dir: ", pkgInfo.getPkgDest(options)
-    # echo "Old pkg: ", oldPkg.get.basicInfo.name, " ", oldPkg.get.basicInfo.version
-    # echo "Old pkg dir: ", oldPkg.get.getNimbleFileDir()
-    # echo "Old pkg dest dir: ", oldPkg.get.getPkgDest(options)
-    # if not options.useSatSolver: #The dep path is not created when using the sat solver as packages are collected upfront
-    var oldPkg = oldPkg.get
+      var oldPkg = oldPkg.get
     oldPkg.metaData.specialVersions.incl pkgInfo.metaData.specialVersions
     saveMetaData(oldPkg.metaData, oldPkg.getNimbleFileDir, changeRoots = false)
     return oldPkg
-  #TODO review this as we may want to this not hold anymore (i.e nimble install nim could replace choosenim)
-  # nim is intended only for local project local usage, so avoid installing it
-  # in .nimble/bin
-  # let isNimPackage = pkgInfo.basicInfo.name.isNim
-
-  # Build before removing an existing package (if one exists). This way
-  # if the build fails then the old package will still be installed.
-
-  #TODO Review this and build later in the pipeline
-  # if pkgInfo.bin.len > 0 and not isNimPackage:
-  #   let paths = result.deps.map(dep => dep.expandPaths(options))
-  #   let flags = if options.action.typ in {actionInstall, actionPath, actionUninstall, actionDevelop}:
-  #                 options.action.passNimFlags
-  #               else:
-  #                 @[]
-
-  #   try:
-  #     buildFromDir(pkgInfo, paths, "-d:release" & flags, options)
-  #   except CatchableError:
-  #     removeRevDep(options.nimbleData, pkgInfo)
-  #     raise
 
   let pkgDestDir = pkgInfo.getPkgDest(options)
 
@@ -572,12 +524,8 @@ proc installFromDirDownloadInfo(downloadDir: string, url: string, options: Optio
     let dest = changeRoot(pkgInfo.myPath.splitFile.dir, pkgDestDir,
                           pkgInfo.myPath)
     filesInstalled.incl copyFileD(pkgInfo.myPath, dest)
-
-    # Update package path to point to installed directory rather than the temp
-    # directory.
     pkgInfo.myPath = dest
     pkgInfo.metaData.files = filesInstalled.toSeq
-    # pkgInfo.metaData.binaries = binariesInstalled.toSeq #TODO update the metadata after the build step
 
     saveMetaData(pkgInfo.metaData, pkgDestDir)
   else:

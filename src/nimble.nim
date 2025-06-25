@@ -2635,25 +2635,6 @@ proc solvePkgs(rootPackage: PackageInfo, options: var Options) =
 
 proc runVNext*(options: var Options) =
   #Install and in consequence builds the packages
-  
-  # Handle sync action specially - prepare the SAT result with lock file dependencies
-  #TODO rework this
-  # if options.action.typ == actionSync:
-  #   let currentDir = getCurrentDir()
-  #   let pkgInfo = getPkgInfo(currentDir, options)
-    
-  #   if not pkgInfo.areLockedDepsLoaded:
-  #     raise nimbleError("Cannot execute `sync` when lock file is missing.")
-    
-  #   if options.offline:
-  #     raise nimbleError("Cannot execute `sync` in offline mode.")
-    
-  #   # Initialize SAT result for sync operation with lock file dependencies
-  #   options.satResult = initSATResult(satLockFile)
-  #   options.satResult.rootPackage = pkgInfo
-  #   let pkgList = initPkgList(options.satResult.rootPackage, options)
-  #   solveLockFileDeps(options.satResult, pkgList, options)
-  # else:
   let thereIsNimbleFile = findNimbleFile(getCurrentDir(), error = false, options) != ""
   if thereIsNimbleFile:
     options.satResult = initSATResult(satNimSelection)
