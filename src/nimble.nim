@@ -2116,11 +2116,6 @@ proc lock(options: var Options) =
           vcsRevision = getVcsRevision(pkgInfo.getRealDir())
         except CatchableError:
           discard
-      if options.action.typ == actionUpgrade:
-        for upgradePkg in options.action.packages:
-          if upgradePkg.name == pkgInfo.basicInfo.name:
-            vcsRevision = initSha1Hash(upgradePkg.ver.spe.version[1..^1])
-            break
       
       lockDeps[noTask][solvedPkg.pkgName] = LockFileDep(
         version: solvedPkg.version,

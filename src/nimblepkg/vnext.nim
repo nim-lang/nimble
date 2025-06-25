@@ -266,12 +266,28 @@ proc solveLockFileDeps*(satResult: var SATResult, pkgList: seq[PackageInfo], opt
       echo "New requirement detected: ", current.name, " ", current.ver
       shouldSolve = true
       break
-        
-  
+
+  if options.action.typ == actionUpgrade:
+    shouldSolve = true
+  var pkgListDecl = pkgList.mapIt(it.toRequiresInfo(options))
+
+  echo "BEFORE REMOVING THE PKG FROM THE PKG LIST"
+  echo "PKG LIST ", pkgListDecl.mapIt(it.basicInfo.name)
+  echo "SHOULD SOLVE ", shouldSolve
+  for upgradePkg in options.action.packages:
+    for pkg in pkgList:
+      if pkg.basicInfo.name == upgradePkg.name:
+        echo "REMOVING ", upgradePkg.name
+        #Lets reload the pkg
+        #Remove it from the the package list so it gets reinstalled (aka added to the pkgsToInstall by sat)
+        pkgListDecl = pkgListDecl.filterIt(it.name != upgradePkg.name)
+        break
+  echo "AFTER REMOVING THE PKG FROM THE PKG LIST"
+  echo "PKG LIST ", pkgListDecl.mapIt(it.basicInfo.name)
+    
   if shouldSolve:
     echo "New requirements detected, solving ALL requirements fresh: "
     # Create fresh package list and solve ALL requirements
-    let pkgListDecl = pkgList.mapIt(it.toRequiresInfo(options))
     
     satResult.pkgs = solvePackages(
       satResult.rootPackage, 
@@ -296,6 +312,8 @@ proc solveLockFileDeps*(satResult: var SATResult, pkgList: seq[PackageInfo], opt
         satResult.pkgs.incl(depInfo.get)
       else:
         satResult.pkgsToInstall.add((name, dep.version))
+  echo "POST"
+  options.debugSATResult()
 
 proc setNimBin*(pkgInfo: PackageInfo, options: var Options) =
   assert pkgInfo.basicInfo.name.isNim
@@ -788,10 +806,18 @@ proc installPkgs*(satResult: var SATResult, options: Options) =
         installedPkgInfo = installFromDirDownloadInfo(satResult.rootPackage.getNimbleFileDir(), satResult.rootPackage.metaData.url, options).toRequiresInfo(options)
         wasNewlyInstalled = oldPkg.isNone
     else:
+      var forceDownload = false
+      #If the package is in the upgrade list, we force the download of the package with the updated version
+      if options.action.typ == actionUpgrade:
+        for upgradePkgReq in options.action.packages:
+          if upgradePkgReq.name == pv.name:
+            forceDownload = true
+            pv = upgradePkgReq
+            break      
+      
       var dlInfo = getPackageDownloadInfo(pv, options, doPrompt = true)
-      let downloadDir = dlInfo.downloadDir / dlInfo.subdir 
-      # echo "DL INFO IS ", dlInfo
-      if not dirExists(dlInfo.downloadDir):
+      var downloadDir = dlInfo.downloadDir / dlInfo.subdir       
+      if not dirExists(dlInfo.downloadDir) or forceDownload:        
         #The reason for this is that the download cache may have a constrained version
         #this could be improved by creating a copy of the package in the cache dir when downloading
         #and also when enumerating. 
