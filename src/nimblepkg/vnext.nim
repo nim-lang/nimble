@@ -271,20 +271,21 @@ proc solveLockFileDeps*(satResult: var SATResult, pkgList: seq[PackageInfo], opt
     shouldSolve = true
   var pkgListDecl = pkgList.mapIt(it.toRequiresInfo(options))
 
-  echo "BEFORE REMOVING THE PKG FROM THE PKG LIST"
-  echo "PKG LIST ", pkgListDecl.mapIt(it.basicInfo.name)
-  echo "SHOULD SOLVE ", shouldSolve
-  for upgradePkg in options.action.packages:
-    for pkg in pkgList:
-      if pkg.basicInfo.name == upgradePkg.name:
-        echo "REMOVING ", upgradePkg.name
-        #Lets reload the pkg
-        #Remove it from the the package list so it gets reinstalled (aka added to the pkgsToInstall by sat)
-        pkgListDecl = pkgListDecl.filterIt(it.name != upgradePkg.name)
-        break
-  echo "AFTER REMOVING THE PKG FROM THE PKG LIST"
-  echo "PKG LIST ", pkgListDecl.mapIt(it.basicInfo.name)
-    
+  if options.action.typ == actionUpgrade:
+    for upgradePkg in options.action.packages:
+      for pkg in pkgList:
+        if pkg.basicInfo.name == upgradePkg.name:
+          # echo "REMOVING ", upgradePkg.name
+          #Lets reload the pkg
+          #Remove it from the the package list so it gets reinstalled (aka added to the pkgsToInstall by sat)
+          pkgListDecl = pkgListDecl.filterIt(it.name != upgradePkg.name)
+          #We also need to update the root requires with the upgraded version
+          for req in satResult.rootPackage.requires.mitems:
+            if req.name == upgradePkg.name:
+              req.ver = upgradePkg.ver
+              break
+          break
+
   if shouldSolve:
     echo "New requirements detected, solving ALL requirements fresh: "
     # Create fresh package list and solve ALL requirements
@@ -312,8 +313,8 @@ proc solveLockFileDeps*(satResult: var SATResult, pkgList: seq[PackageInfo], opt
         satResult.pkgs.incl(depInfo.get)
       else:
         satResult.pkgsToInstall.add((name, dep.version))
-  echo "POST"
-  options.debugSATResult()
+  # echo "POST"
+  # options.debugSATResult()
 
 proc setNimBin*(pkgInfo: PackageInfo, options: var Options) =
   assert pkgInfo.basicInfo.name.isNim
@@ -808,12 +809,12 @@ proc installPkgs*(satResult: var SATResult, options: Options) =
     else:
       var forceDownload = false
       #If the package is in the upgrade list, we force the download of the package with the updated version
-      if options.action.typ == actionUpgrade:
-        for upgradePkgReq in options.action.packages:
-          if upgradePkgReq.name == pv.name:
-            forceDownload = true
-            pv = upgradePkgReq
-            break      
+      # if options.action.typ == actionUpgrade:
+      #   for upgradePkgReq in options.action.packages:
+      #     if upgradePkgReq.name == pv.name:
+      #       forceDownload = true
+      #       pv = upgradePkgReq
+      #       break      
       
       var dlInfo = getPackageDownloadInfo(pv, options, doPrompt = true)
       var downloadDir = dlInfo.downloadDir / dlInfo.subdir       

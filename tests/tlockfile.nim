@@ -168,7 +168,7 @@ requires "nim >= 1.5.1"
 
   proc testLockedVcsRevisions(deps: seq[tuple[name, path: string]], lockFileName = defaultLockFileName) =
     check lockFileName.fileExists
-    let json = lockFileName.readFile.parseJson
+    let json = lockFileName.readFile.parseJson 
     for (depName, depPath) in deps:
       let expectedVcsRevision = depPath.getVcsRevision
       check depName in json{$lfjkPackages}
@@ -602,33 +602,32 @@ requires "nim >= 1.5.1"
         cd mainPkgRepoPath:
           check newRevision != getRevision(dep1PkgName)
           let res = execNimbleYes("upgrade", fmt "{dep1PkgName}@#{newRevision}")
-          echo "OUTPUT ", res.output
           check newRevision == getRevision(dep1PkgName)
           check res.exitCode == QuitSuccess
 
-  # test "can upgrade: the new version of the package has a new dep":
-  #   cleanUp()
-  #   withPkgListFile:
-  #     initNewNimblePackage(mainPkgOriginRepoPath, mainPkgRepoPath, @[dep1PkgName])
-  #     initNewNimblePackage(dep1PkgOriginRepoPath, dep1PkgRepoPath)
-  #     initNewNimblePackage(dep2PkgOriginRepoPath, dep2PkgRepoPath)
+  test "can upgrade: the new version of the package has a new dep":
+    cleanUp()
+    withPkgListFile:
+      initNewNimblePackage(mainPkgOriginRepoPath, mainPkgRepoPath, @[dep1PkgName])
+      initNewNimblePackage(dep1PkgOriginRepoPath, dep1PkgRepoPath)
+      initNewNimblePackage(dep2PkgOriginRepoPath, dep2PkgRepoPath)
 
-  #     cd mainPkgRepoPath:
-  #       check execNimbleYes("lock").exitCode == QuitSuccess
+      cd mainPkgRepoPath:
+        check execNimbleYes("lock").exitCode == QuitSuccess
 
-  #     cd dep1PkgOriginRepoPath:
-  #       let nimbleFile = initNewNimbleFile(dep1PkgOriginRepoPath, @[dep2PkgName])
-  #       addFiles(nimbleFile)
-  #       commit("Add dependency to pkg2")
+      cd dep1PkgOriginRepoPath:
+        let nimbleFile = initNewNimbleFile(dep1PkgOriginRepoPath, @[dep2PkgName])
+        addFiles(nimbleFile)
+        commit("Add dependency to pkg2")
 
-  #       let newRevision = getRepoRevision()
-  #       cd mainPkgRepoPath:
-  #         let res = execNimbleYes("upgrade", fmt "{dep1PkgName}@#{newRevision}")
-  #         check newRevision == getRevision(dep1PkgName)
-  #         check res.exitCode == QuitSuccess
-
-  #         testLockedVcsRevisions(@[(dep1PkgName, dep1PkgOriginRepoPath),
-  #                                  (dep2PkgName, dep2PkgOriginRepoPath)])
+        let newRevision = getRepoRevision()
+        cd mainPkgRepoPath:
+          let res = execNimbleYes("upgrade", fmt "{dep1PkgName}@#{newRevision}")
+          check newRevision == getRevision(dep1PkgName)
+          check res.exitCode == QuitSuccess         
+          
+          testLockedVcsRevisions(@[(dep1PkgName, dep1PkgOriginRepoPath),
+                                   (dep2PkgName, dep2PkgOriginRepoPath)])
 
   # test "can upgrade: upgrade minimal set of deps":
   #   cleanUp()
