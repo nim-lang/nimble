@@ -2116,8 +2116,7 @@ proc lock(options: var Options) =
           vcsRevision = getVcsRevision(pkgInfo.getRealDir())
         except CatchableError:
           discard
-      
-      lockDeps[noTask][solvedPkg.pkgName] = LockFileDep(
+      lockDeps[noTask][pkgInfo.basicInfo.name] = LockFileDep(
         version: solvedPkg.version,
         vcsRevision: vcsRevision,
         url: pkgInfo.metaData.url,
@@ -2649,11 +2648,9 @@ proc runVNext*(options: var Options) =
       options.satResult = initSATResult(satNimSelection)      
       var rootPackage = downloadPkInfoForPv(pkg, options, doPrompt = true)
       solvePkgs(rootPackage, options)
-  # echo "DEGUG BEFORE INSTALL PKGS"
-  # options.debugSATResult()
+  options.debugSATResult()
   options.satResult.installPkgs(options)
-  # echo "DEGUG AFTER INSTALL PKGS"
-  # options.debugSATResult()
+  options.debugSATResult()
   options.satResult.addReverseDeps(options)
   
 proc doAction(options: var Options) =

@@ -288,7 +288,6 @@ requires "nim >= 1.5.1"
         check devCmdExitCode == QuitSuccess
         `body`
 
-
   test "can generate lock file":
     cleanUp()
     withPkgListFile:
@@ -684,30 +683,30 @@ requires "nim >= 1.5.1"
           check "dep1" in pkgs
           check "dep2" notin pkgs
 
-  # test "can lock with --developFile argument":
-  #   cleanUp()
-  #   withPkgListFile:
-  #     initNewNimblePackage(mainPkgOriginRepoPath,  mainPkgRepoPath,
-  #                          @[dep1PkgName])
-  #     initNewNimblePackage(dep1PkgOriginRepoPath, dep1PkgRepoPath)
-  #     cd mainPkgRepoPath:
-  #       writeDevelopFile(developFileName, @[], @[dep1PkgRepoPath])
-  #       moveFile("nimble.develop", "other-name.develop")
+  test "can lock with --developFile argument":
+    cleanUp()
+    withPkgListFile:
+      initNewNimblePackage(mainPkgOriginRepoPath,  mainPkgRepoPath,
+                           @[dep1PkgName])
+      initNewNimblePackage(dep1PkgOriginRepoPath, dep1PkgRepoPath)
+      cd mainPkgRepoPath:
+        writeDevelopFile(developFileName, @[], @[dep1PkgRepoPath])
+        moveFile("nimble.develop", "other-name.develop")
 
-  #       let exitCode = execNimbleYes("lock", "--developFile=" & "other-name.develop").exitCode
-  #       check exitCode == QuitSuccess
-  # test "Forge alias is generated inside lockfile":
-  #   cleanup()
+        let exitCode = execNimbleYes("lock", "--developFile=" & "other-name.develop").exitCode
+        check exitCode == QuitSuccess
 
-  #   withPkgListFile:
-  #     cd "forgealias001":
-  #       removeFile defaultLockFileName
+  test "Forge alias is generated inside lockfile":
+    cleanup()
+    withPkgListFile:
+      cd "forgealias001":
+        removeFile defaultLockFileName
 
-  #       let (_, exitCode) = execNimbleYes("lock")
-  #       check exitCode == QuitSuccess
+        let (_, exitCode) = execNimbleYes("lock")
+        check exitCode == QuitSuccess
 
-  #       # Check the dependency appears in the lock file, and its expanded
-  #       check defaultLockFileName.fileExists
-  #       let json = defaultLockFileName.readFile.parseJson
-  #       check json{$lfjkPackages, "librng", "url"}.str == "https://github.com/xTrayambak/librng"
+        # Check the dependency appears in the lock file, and its expanded
+        check defaultLockFileName.fileExists
+        let json = defaultLockFileName.readFile.parseJson
+        check json{$lfjkPackages, "librng", "url"}.str == "https://github.com/xTrayambak/librng"
 

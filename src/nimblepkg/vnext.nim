@@ -15,7 +15,7 @@ After we resolve nim, we try to resolve the dependencies for a root package. Roo
 import std/[sequtils, sets, options, os, strutils, tables, strformat]
 import nimblesat, packageinfotypes, options, version, declarativeparser, packageinfo, common,
   nimenv, lockfile, cli, downloadnim, packageparser, tools, nimscriptexecutor, packagemetadatafile,
-  displaymessages, packageinstaller, reversedeps, developfile
+  displaymessages, packageinstaller, reversedeps, developfile, urls
 
 proc debugSATResult*(options: Options) =
   # return
@@ -484,7 +484,7 @@ proc installFromDirDownloadInfo(downloadDir: string, url: string, options: Optio
   executeHook(dir, options, actionInstall, before = true)
 
   var pkgInfo = getPkgInfo(dir, options)
-    var depsOptions = options
+  var depsOptions = options
   depsOptions.depsOnly = false
 
   display("Installing", "$1@$2" %
@@ -496,7 +496,7 @@ proc installFromDirDownloadInfo(downloadDir: string, url: string, options: Optio
     # In the case we already have the same package in the cache then only merge
     # the new package special versions to the old one.
     displayWarning(pkgAlreadyExistsInTheCacheMsg(pkgInfo), MediumPriority)
-      var oldPkg = oldPkg.get
+    var oldPkg = oldPkg.get
     oldPkg.metaData.specialVersions.incl pkgInfo.metaData.specialVersions
     saveMetaData(oldPkg.metaData, oldPkg.getNimbleFileDir, changeRoots = false)
     return oldPkg
@@ -840,12 +840,10 @@ proc installPkgs*(satResult: var SATResult, options: Options) =
         let oldPkg = tempPkgInfo.packageExists(options)
         installedPkgInfo = installFromDirDownloadInfo(satResult.rootPackage.getNimbleFileDir(), satResult.rootPackage.metaData.url, options).toRequiresInfo(options)
         wasNewlyInstalled = oldPkg.isNone
-    else:
-      var forceDownload = false
-      
+    else:      
       var dlInfo = getPackageDownloadInfo(pv, options, doPrompt = true)
       var downloadDir = dlInfo.downloadDir / dlInfo.subdir       
-      if not dirExists(dlInfo.downloadDir) or forceDownload:        
+      if not dirExists(dlInfo.downloadDir):        
         #The reason for this is that the download cache may have a constrained version
         #this could be improved by creating a copy of the package in the cache dir when downloading
         #and also when enumerating. 
@@ -861,6 +859,8 @@ proc installPkgs*(satResult: var SATResult, options: Options) =
       let oldPkg = tempPkgInfo.packageExists(options)
       installedPkgInfo = installFromDirDownloadInfo(downloadDir, dlInfo.url, options).toRequiresInfo(options)
       wasNewlyInstalled = oldPkg.isNone
+      if installedPkgInfo.metadata.url == "" and pv.name.isUrl:
+        installedPkgInfo.metadata.url = pv.name
 
     satResult.pkgs.incl(installedPkgInfo)
     installedPkgs.incl(installedPkgInfo)
