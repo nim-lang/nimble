@@ -326,7 +326,6 @@ proc solveLockFileDeps*(satResult: var SATResult, pkgList: seq[PackageInfo], opt
               satResult.pkgs.incl(pkg)
               break      
         satResult.solvedPkgs.add(solvedPkg)
-
       # THE CODE BELOW DEALS WITH ADD/REMOVE DIFF DEPS in another SAT pass
       var pkgListDecl = pkgListDecl
       #Finally we need to re-run sat just to check if there are new deps. Although we dont want to update
@@ -434,12 +433,17 @@ proc solvePkgsWithVmParserAllowingFallback*(rootPackage: PackageInfo, resolvedNi
     displayError(options.satResult.output)
     raise newNimbleError[NimbleError]("Couldnt find a solution for the packages. Unsatisfiable dependencies. Check there is no contradictory dependencies.")
 
+proc isInDevelopMode*(pkgInfo: PackageInfo, options: Options): bool =
+  if pkgInfo.developFileExists or not pkgInfo.myPath.startsWith(options.getPkgsDir):
+    return true
+  return false
+
 proc addReverseDeps*(satResult: SATResult, options: Options) = 
   for solvedPkg in satResult.solvedPkgs:
     if solvedPkg.pkgName.isNim: continue 
     var reverseDepPkg = satResult.getPkgInfoFromSolved(solvedPkg, options)
     # Check if THIS package (the one that depends on others) is a development package
-    if reverseDepPkg.developFileExists or not reverseDepPkg.myPath.startsWith(options.getPkgsDir):
+    if reverseDepPkg.isInDevelopMode(options):
       reverseDepPkg.isLink = true
     
     for dep in solvedPkg.deps:

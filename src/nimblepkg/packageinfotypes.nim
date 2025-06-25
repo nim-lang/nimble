@@ -129,6 +129,10 @@ type
     declarativeParserErrorLines*: seq[string]
     nimResolved*: NimResolved
 
+proc `==`*(a, b: SolvedPackage): bool =
+  a.pkgName == b.pkgName and
+  a.version == b.version 
+  
 proc isMinimal*(pkg: PackageInfo): bool =
   pkg.infoKind == pikMinimal
 

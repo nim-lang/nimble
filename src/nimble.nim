@@ -2051,17 +2051,12 @@ proc lock(options: var Options) =
       else:
         pkgInfo.getDependenciesForLocking(options) # Deps shared by base and tasks  
 
-  # Apply filtering for vnext code path - this is now redundant since we do it above
-  # if options.isVNext and options.action.typ in {actionLock}:
-  #   baseDeps = baseDeps.deleteStaleDependencies(pkgInfo, options)
-
   if options.useSystemNim:
     baseDeps = baseDeps.filterIt(not it.name.isNim)
 
   let baseDepNames: HashSet[string] = baseDeps.mapIt(it.name).toHashSet
   pkgInfo.validateDevelopDependenciesVersionRanges(baseDeps, options)
   
-  # We need to separate the graph into separate tasks later
   var
     errors = validateDevModeDepsWorkingCopiesBeforeLock(pkgInfo, options)
     taskDepNames: Table[string, HashSet[string]] # We need to separate the graph into separate tasks later
@@ -2096,13 +2091,19 @@ proc lock(options: var Options) =
     var vnextGraph: LockFileDeps
     let rootPkgName = pkgInfo.basicInfo.name
     
-    let shouldAddNim = false #TODO only add nim if it was explicitly added in develop:
+    #Only add nim if the user explicitly added it in develop mode
+    #TODO in the future we could consider to add it via a flag/when nimble install nim and a develop file is present. By default we should not add it.
+    var shouldAddNim = false
+    for pkg in options.satResult.pkgs:
+      #Is in develop?
+      if pkg.basicInfo.name.isNim and pkg.isInDevelopMode(options):
+        shouldAddNim = true
+        break
 
     for solvedPkg in options.satResult.solvedPkgs:
       if (not solvedPkg.pkgName.isNim or (shouldAddNim and solvedPkg.pkgName.isNim)) and solvedPkg.pkgName != rootPkgName:
         vnextGraph[solvedPkg.pkgName] = LockFileDep()  # Minimal entry for error checking
     errors.check(vnextGraph)
-    
     for solvedPkg in options.satResult.solvedPkgs:
       if solvedPkg.pkgName.isNim and not shouldAddNim: continue
       
@@ -2624,6 +2625,7 @@ proc solvePkgs(rootPackage: PackageInfo, options: var Options) =
   #Nim used in the new code path (mainly building, except in getPkgInfo) is set here
   options.satResult.nimResolved = resolvedNim #TODO maybe we should consider the sat fallback pass. Not sure if we should just warn the user so the packages are corrected
   options.satResult.pkgs.incl(resolvedNim.pkg.get) #Make sure its in the solution
+  nimblesat.addUnique(options.satResult.solvedPkgs, SolvedPackage(pkgName: "nim", version: resolvedNim.version))
   options.satResult.solutionToFullInfo(options)
   if rootPackage.hasLockFile(options): 
     options.satResult.solveLockFileDeps(pkgList, options)
