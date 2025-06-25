@@ -9,7 +9,7 @@ import tinitcommand
 import tcheckcommand
 import tcleancommand
 import tdevelopfeature
-# import tissues
+import tissues
 import tlocaldeps
 import tlockfile
 import tmisctests
@@ -34,6 +34,6 @@ import trequireflag
 import tdeclarativeparser
 import tforgeinstall
 import tforgeparser
-# nonim tests are very slow and (often) break the CI.
+# # nonim tests are very slow and (often) break the CI.
 
-# import tnonim
+# # import tnonim
