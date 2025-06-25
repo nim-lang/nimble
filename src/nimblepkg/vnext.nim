@@ -299,7 +299,13 @@ proc solveLockFileDeps*(satResult: var SATResult, pkgList: seq[PackageInfo], opt
     if satResult.solvedPkgs.len == 0:
       displayError(satResult.output)
       raise newNimbleError[NimbleError]("Couldn't find a solution for the packages.")
-  elif options.action.typ == actionUpgrade:
+  elif options.action.typ == actionUpgrade: #TODO EXTACT THIS TO A FUNCTION
+    #[
+    Retrocompatability bullshit (as it goes against SAT in some edge cases)
+    When upgrading dep1: Only dep1 should change, dep2 should stay at it is
+    We also need to check if the upgraded version adds or removes any other deps.
+    
+    ]#
     for name, dep in lockFile.getLockedDependencies.lockedDepsFor(options):
       if name.isNim: continue
       let solvedPkg = SolvedPackage(pkgName: name, version: dep.version)
@@ -308,17 +314,20 @@ proc solveLockFileDeps*(satResult: var SATResult, pkgList: seq[PackageInfo], opt
           #We need to remove the initial package from the satResult.solvedPkgs
           satResult.solvedPkgs = satResult.solvedPkgs.filterIt(it.pkgName != name)
           satResult.pkgs = satResult.pkgs.toSeq.filterIt(it.basicInfo.name != name).toHashSet()
+        var addedUpgradePkg = false
         for upgradePkg in options.action.packages:
           if upgradePkg.name == name:
             #this is assuming version is special version (likely not correct)
             satResult.pkgsToInstall.add((name, upgradePkg.ver.spe))
-      var depInfo: Option[PackageInfo] = none(PackageInfo)
-      for pkg in satResult.pkgList:
-        if pkg.basicInfo.name == name and pkg.basicInfo.version == dep.version and pkg.metaData.vcsRevision == dep.vcsRevision:
-          satResult.pkgs.incl(pkg)
-          depInfo = some(pkg)
-          break      
-      satResult.solvedPkgs.add(solvedPkg)
+            addedUpgradePkg = true
+        if not addedUpgradePkg:
+          for pkg in pkgListDecl.toHashSet():
+            if pkg.basicInfo.name == name and pkg.basicInfo.version == dep.version and pkg.metaData.vcsRevision == dep.vcsRevision:
+              satResult.pkgs.incl(pkg)
+              break      
+        satResult.solvedPkgs.add(solvedPkg)
+
+      # THE CODE BELOW DEALS WITH ADD/REMOVE DIFF DEPS in another SAT pass
       var pkgListDecl = pkgListDecl
       #Finally we need to re-run sat just to check if there are new deps. Although we dont want to update
       #existing deps, only add the new ones.
@@ -353,10 +362,30 @@ proc solveLockFileDeps*(satResult: var SATResult, pkgList: seq[PackageInfo], opt
         if solvedPkg.pkgName notin satResult.solvedPkgs.mapIt(it.pkgName):
           satResult.solvedPkgs.add(solvedPkg)
       
-      #Finally we need to remove the upgraded package from the installed once so it gets redownloaded with 
-      #the correct revision
+      # Also we need to remove the upgraded package from the installed once so it gets redownloaded with 
+      # the correct revision
       for upgradePkg in options.action.packages:
         satResult.pkgs = satResult.pkgs.toSeq.filterIt(it.basicInfo.name != upgradePkg.name).toHashSet()
+
+      var actuallyNeededDeps = initHashSet[string]()
+      
+      # Add all dependencies from the temp solve result (these are what's actually needed)
+      for solvedPkg in tempSatResult.solvedPkgs:
+        actuallyNeededDeps.incl(solvedPkg.pkgName)
+      
+      for upgradePkg in options.action.packages:
+        actuallyNeededDeps.incl(upgradePkg.name)
+      
+      # Now filter satResult.solvedPkgs to only include actually needed deps
+      satResult.solvedPkgs = satResult.solvedPkgs.filterIt(
+        it.pkgName in actuallyNeededDeps or it.pkgName == satResult.rootPackage.basicInfo.name
+      )
+      satResult.pkgs = satResult.pkgs.toSeq.filterIt(
+        it.basicInfo.name in actuallyNeededDeps or it.basicInfo.name == satResult.rootPackage.basicInfo.name
+      ).toHashSet()
+      satResult.pkgsToInstall = satResult.pkgsToInstall.filterIt(
+        it[0] in actuallyNeededDeps
+      )
 
   else:
     # No new requirements and not upgrading
@@ -370,8 +399,8 @@ proc solveLockFileDeps*(satResult: var SATResult, pkgList: seq[PackageInfo], opt
       else:
         satResult.pkgsToInstall.add((name, dep.version))
       
-  # echo "POST"
-  # options.debugSATResult()
+  echo "POST"
+  options.debugSATResult()
 
 proc setNimBin*(pkgInfo: PackageInfo, options: var Options) =
   assert pkgInfo.basicInfo.name.isNim
