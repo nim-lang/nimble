@@ -9,7 +9,7 @@ import tinitcommand
 import tcheckcommand
 import tcleancommand
 import tdevelopfeature
-# import tissues
+import tissues
 import tlocaldeps
 import tlockfile
 import tmisctests
