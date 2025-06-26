@@ -750,10 +750,10 @@ proc createBinSymlink(pkgInfo: PackageInfo, options: Options) =
       if not fileExists(symlinkDest):
         raise nimbleError(&"Binary '{bin}' was not found at expected location: {symlinkDest}")
       
-      if fileExists(symlinkDest) and not pkgInfo.isLink:
-        display("Warning:", ("Binary '$1' was already installed from source" &
-                            " directory. Will be overwritten.") % bin, Warning,
-                MediumPriority)
+      # if fileExists(symlinkDest) and not pkgInfo.isLink:
+      #   display("Warning:", ("Binary '$1' was already installed from source" &
+      #                       " directory. Will be overwritten.") % bin, Warning,
+      #           MediumPriority)
       
       if not pkgInfo.isLink:
         createDir((pkgDestDir / binDest).parentDir())
