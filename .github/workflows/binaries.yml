@@ -45,7 +45,7 @@ jobs:
             builder: macos-14
           - target:
               os: windows
-            builder: windows-2019
+            builder: windows-2025
     defaults:
       run:
         shell: bash
