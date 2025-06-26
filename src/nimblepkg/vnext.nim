@@ -811,6 +811,8 @@ proc installPkgs*(satResult: var SATResult, options: Options) =
   if isInRootDir and options.action.typ == actionInstall:
     executeHook(getCurrentDir(), options, actionInstall, before = true) #likely incorrect if we are not in a nimble dir
   var pkgsToInstall = satResult.pkgsToInstall
+  if options.useSystemNim: #Dont install Nim if we are using the system nim (TODO likely we need to dont install it neither if we have a binary set)
+    pkgsToInstall = pkgsToInstall.filterIt(not it[0].isNim)
    #If we are not in the root folder, means user is installing a package globally so we need to install root
   var installedPkgs = initHashSet[PackageInfo]()
   # echo "isInRootDir ", isInRootDir, " startDir ", options.startDir, " rootDir ", satResult.rootPackage.myPath.parentDir
