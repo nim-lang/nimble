@@ -2091,14 +2091,8 @@ proc lock(options: var Options) =
     var vnextGraph: LockFileDeps
     let rootPkgName = pkgInfo.basicInfo.name
     
-    #Only add nim if the user explicitly added it in develop mode
     #TODO in the future we could consider to add it via a flag/when nimble install nim and a develop file is present. By default we should not add it.
     var shouldAddNim = false
-    for pkg in options.satResult.pkgs:
-      #Is in develop?
-      if pkg.basicInfo.name.isNim and pkg.isInDevelopMode(options):
-        shouldAddNim = true
-        break
 
     for solvedPkg in options.satResult.solvedPkgs:
       if (not solvedPkg.pkgName.isNim or (shouldAddNim and solvedPkg.pkgName.isNim)) and solvedPkg.pkgName != rootPkgName:

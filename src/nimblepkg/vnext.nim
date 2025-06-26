@@ -434,7 +434,8 @@ proc solvePkgsWithVmParserAllowingFallback*(rootPackage: PackageInfo, resolvedNi
     raise newNimbleError[NimbleError]("Couldnt find a solution for the packages. Unsatisfiable dependencies. Check there is no contradictory dependencies.")
 
 proc isInDevelopMode*(pkgInfo: PackageInfo, options: Options): bool =
-  if pkgInfo.developFileExists or not pkgInfo.myPath.startsWith(options.getPkgsDir):
+  if pkgInfo.developFileExists or 
+    (not pkgInfo.myPath.startsWith(options.getPkgsDir) and pkgInfo.basicInfo.name != options.satResult.rootPackage.basicInfo.name):
     return true
   return false
 

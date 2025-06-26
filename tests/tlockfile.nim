@@ -550,35 +550,36 @@ requires "nim >= 1.5.1"
         let (_, exitCode) = execNimbleYes("--debug", "--verbose", "sync")
         check exitCode == QuitSuccess
 
-  test "can generate lock file for nim as dep":
-    # cleanUp()
-    let nimDir = defaultDevelopPath / "Nim"
-    cd "nimdep":
-      removeFile "nimble.develop"
-      removeFile "nimble.lock"
-      removeDir nimDir
-      check execNimbleYes("-y", "develop", "nim").exitCode == QuitSuccess
-      cd nimDir:
-        let (_, exitCode) = execNimbleYes("-y", "install")
-        check exitCode == QuitSuccess
+  #TODO we are going to introduce a new way to lock nim, this is too convoluted
+  # test "can generate lock file for nim as dep":
+  #   cleanUp()
+  #   let nimDir = defaultDevelopPath / "Nim"
+  #   cd "nimdep":
+  #     removeFile "nimble.develop"
+  #     removeFile "nimble.lock"
+  #     removeDir nimDir
+  #     check execNimbleYes("-y", "develop", "nim").exitCode == QuitSuccess
+  #     cd nimDir:
+  #       let (_, exitCode) = execNimbleYes("-y", "install")
+  #       check exitCode == QuitSuccess
 
-      # check if the compiler version will be used when doing build
-      testLockFile(@[("nim", nimDir)], isNew = true)
-      removeFile "nimble.develop"
-      removeDir nimDir
+  #     # check if the compiler version will be used when doing build
+  #     testLockFile(@[("nim", nimDir)], isNew = true)
+  #     removeFile "nimble.develop"
+  #     removeDir nimDir
 
-      let (output, exitCodeInstall) = execNimbleYes("-y", "build")
-      check exitCodeInstall == QuitSuccess
-      let usingNim = when defined(Windows): "nim.exe for compilation" else: "bin/nim for compilation"
-      check output.contains(usingNim)
+  #     let (output, exitCodeInstall) = execNimbleYes("-y", "build")
+  #     check exitCodeInstall == QuitSuccess
+  #     let usingNim = when defined(Windows): "nim.exe for compilation" else: "bin/nim for compilation"
+  #     check output.contains(usingNim)
 
-      # check the nim version
-      let (outputVersion, _) = execNimble("version")
-      check outputVersion.contains(getRevision("nim"))
+  #     # check the nim version
+  #     let (outputVersion, _) = execNimble("version")
+  #     check outputVersion.contains(getRevision("nim"))
 
-      let (outputGlobalNim, exitCodeGlobalNim) = execNimbleYes("-y", "--use-system-nim", "build")
-      check exitCodeGlobalNim == QuitSuccess
-      check not outputGlobalNim.contains(usingNim)
+  #     let (outputGlobalNim, exitCodeGlobalNim) = execNimbleYes("-y", "--use-system-nim", "build")
+  #     check exitCodeGlobalNim == QuitSuccess
+  #     check not outputGlobalNim.contains(usingNim)
 
   test "can install task level deps when dep has subdeb":
     cleanUp()
