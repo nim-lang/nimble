@@ -471,6 +471,9 @@ proc iterInstallFiles*(realDir: string, pkgInfo: PackageInfo,
                        options: Options, action: proc (f: string)) =
   ## Runs `action` for each file within the ``realDir`` that should be
   ## installed.
+  # Get the package root directory for skipDirs comparison
+  let pkgRootDir = pkgInfo.getNimbleFileDir()
+  
   var whitelistMode =
           pkgInfo.installDirs.len != 0 or
           pkgInfo.installFiles.len != 0 or
@@ -529,7 +532,7 @@ proc iterInstallFiles*(realDir: string, pkgInfo: PackageInfo,
   else:
     for kind, file in walkDir(realDir):
       if kind == pcDir:
-        let skip = pkgInfo.checkInstallDir(realDir, file)
+        let skip = pkgInfo.checkInstallDir(pkgRootDir, file)
         if skip: continue
         # we also have to stop recursing if we reach an in-place nimbleDir
         if file == options.getNimbleDir().expandFilename(): continue
