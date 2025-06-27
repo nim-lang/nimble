@@ -449,9 +449,14 @@ proc addReverseDeps*(satResult: SATResult, options: Options) =
     
     for dep in solvedPkg.deps:
       if dep.pkgName.isNim: continue 
-      let depPkg = satResult.getPkgInfoFromSolved(dep, options)      
-      addRevDep(options.nimbleData, depPkg.basicInfo, reverseDepPkg)
-
+      try:
+        let depPkg = satResult.getPkgInfoFromSolved(dep, options)      
+        addRevDep(options.nimbleData, depPkg.basicInfo, reverseDepPkg)
+      except CatchableError:
+        # Skip packages that can't be found (e.g., installed during hook execution)
+        # This can happen when packages are installed recursively during hooks
+        displayInfo("Skipping reverse dependency for package not found in solution: " & $dep, MediumPriority)
+  
 proc executeHook(dir: string, options: Options, action: ActionType, before: bool) =
   cd dir: # Make sure `execHook` executes the correct .nimble file.
     if not execHook(options, action, before):
@@ -483,9 +488,6 @@ proc packageExists(pkgInfo: PackageInfo, options: Options):
 proc installFromDirDownloadInfo(downloadDir: string, url: string, options: Options): PackageInfo = 
 
   let dir = downloadDir
-  # Handle pre-`install` hook.
-  executeHook(dir, options, actionInstall, before = true)
-
   var pkgInfo = getPkgInfo(dir, options)
   var depsOptions = options
   depsOptions.depsOnly = false
@@ -806,10 +808,7 @@ proc getVersionRangeFoPkgToInstall(satResult: SATResult, name: string, ver: Vers
 proc installPkgs*(satResult: var SATResult, options: Options) =
   #At this point the packages are already downloaded. 
   #We still need to install them aka copy them from the cache to the nimbleDir + run preInstall and postInstall scripts
-  #preInstall hook is always executed for the current directory
   let isInRootDir = options.startDir == satResult.rootPackage.myPath.parentDir
-  if isInRootDir and options.action.typ == actionInstall:
-    executeHook(getCurrentDir(), options, actionInstall, before = true) #likely incorrect if we are not in a nimble dir
   var pkgsToInstall = satResult.pkgsToInstall
   if options.useSystemNim: #Dont install Nim if we are using the system nim (TODO likely we need to dont install it neither if we have a binary set)
     pkgsToInstall = pkgsToInstall.filterIt(not it[0].isNim)
@@ -827,6 +826,10 @@ proc installPkgs*(satResult: var SATResult, options: Options) =
   var newlyInstalledPkgs = initHashSet[PackageInfo]()
   let rootName = satResult.rootPackage.basicInfo.name
   # options.debugSATResult()
+  
+  if isInRootDir and options.action.typ == actionInstall:
+    executeHook(getCurrentDir(), options, actionInstall, before = true)
+  
   for (name, ver) in pkgsToInstall:
     let verRange = satResult.getVersionRangeFoPkgToInstall(name, ver)
     var pv = (name: name, ver: verRange)
@@ -913,7 +916,6 @@ proc installPkgs*(satResult: var SATResult, options: Options) =
     # Run post-install hook now that package is installed. The `execHook` proc
     # executes the hook defined in the CWD, so we set it to where the package
     # has been installed. Notice for legacy reasons this needs to happen after the build step
-    # TODO investigate where it should happen before or after the after build step, I think after is better
     let hookDir = pkgInfo.myPath.splitFile.dir
     if dirExists(hookDir):
       executeHook(hookDir, options, actionInstall, before = false)
