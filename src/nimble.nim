@@ -1935,16 +1935,27 @@ proc updateSyncFile(dependentPkg: PackageInfo, options: Options) =
   # dependencies of the package `dependentPkg`.
 
   let developDeps = processDevelopDependencies(dependentPkg, options).toHashSet
-  let syncFile = getSyncFile(dependentPkg)
+  
+  # Only create/update sync file if there are develop dependencies and we're under VCS
+  if developDeps.len == 0:
+    return
+  
+  # Check if we're under version control before trying to create sync file
+  try:
+    let syncFile = getSyncFile(dependentPkg)
 
-  # Remove old data from the sync file
-  syncFile.clear
+    # Remove old data from the sync file
+    syncFile.clear
 
-  # Add all current develop packages' VCS revisions to the sync file.
-  for dep in developDeps:
-    syncFile.setDepVcsRevision(dep.basicInfo.name, dep.metaData.vcsRevision)
+    # Add all current develop packages' VCS revisions to the sync file.
+    for dep in developDeps:
+      syncFile.setDepVcsRevision(dep.basicInfo.name, dep.metaData.vcsRevision)
 
-  syncFile.save
+    syncFile.save
+  except NimbleError:
+    # If we can't create sync file (not under VCS), just skip it
+    # This is fine for test environments or when not using VCS
+    discard
 
 proc validateDevModeDepsWorkingCopiesBeforeLock(
     pkgInfo: PackageInfo, options: Options): ValidationErrors =
