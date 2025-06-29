@@ -502,9 +502,21 @@ proc iterInstallFiles*(realDir: string, pkgInfo: PackageInfo,
             let normalizedKey = relativePath.toLowerAscii()
             metadataNameMap[normalizedKey] = relativePath
     
-    let mainModuleFile = pkgInfo.basicInfo.name.addFileExt("nim")
-    let mainModuleNormalized = mainModuleFile.toLowerAscii()
-    metadataNameMap[mainModuleNormalized] = mainModuleFile
+    # Find the actual main module file with case-insensitive matching
+    let expectedMainModuleFile = pkgInfo.basicInfo.name.addFileExt("nim")
+    var actualMainModuleFile = expectedMainModuleFile
+    
+    # Look for the actual file with case-insensitive matching
+    if dirExists(realDir):
+      for kind, path in walkDir(realDir):
+        if kind == pcFile:
+          let fileName = path.extractFilename
+          if fileName.toLowerAscii == expectedMainModuleFile.toLowerAscii:
+            actualMainModuleFile = fileName
+            break
+    
+    let mainModuleNormalized = expectedMainModuleFile.toLowerAscii()
+    metadataNameMap[mainModuleNormalized] = actualMainModuleFile
     
   if whitelistMode:
     for file in pkgInfo.installFiles:

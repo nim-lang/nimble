@@ -12,7 +12,7 @@ After we resolve nim, we try to resolve the dependencies for a root package. Roo
   - Once we have the graph solved. We can proceed with the action.
 
 ]#
-import std/[sequtils, sets, options, os, strutils, tables, strformat]
+import std/[sequtils, sets, options, os, strutils, tables, strformat, sugar, algorithm]
 import nimblesat, packageinfotypes, options, version, declarativeparser, packageinfo, common,
   nimenv, lockfile, cli, downloadnim, packageparser, tools, nimscriptexecutor, packagemetadatafile,
   displaymessages, packageinstaller, reversedeps, developfile, urls
@@ -584,6 +584,26 @@ proc getPathsAllPkgs*(options: Options): HashSet[string] =
     for path in pkg.expandPaths(options):
       result.incl(path)
 
+proc findActualSourceFile(baseDir: string, expectedFileName: string): string =
+  ## Finds the actual source file with case-insensitive matching.
+  ## Returns the actual file path if found, or the expected path if not found.
+  let expectedPath = baseDir / expectedFileName
+
+  if fileExists(expectedPath):
+    return expectedPath
+  
+  let dir = expectedPath.parentDir
+  let fileName = expectedPath.extractFilename
+  
+  if dirExists(dir):
+    for kind, path in walkDir(dir):
+      if kind == pcFile:
+        let actualFileName = path.extractFilename
+        if actualFileName.toLowerAscii == fileName.toLowerAscii:
+          return path
+
+  return expectedPath
+
 proc getNimBin(satResult: SATResult): string =
   #TODO change this so nim is passed as a parameter but we also need to change getPkgInfo so for the time being its also in options
   if satResult.nimResolved.pkg.isSome:
@@ -695,10 +715,10 @@ proc buildFromDir(pkgInfo: PackageInfo, paths: HashSet[string],
     let input = 
       if pkgInfo.isInstalled and not pkgInfo.isLink and pkgInfo.srcDir != "":
         # For installed packages with srcDir, the source file is in srcDir
-        realDir / pkgInfo.srcDir / src.changeFileExt("nim")
+        findActualSourceFile(realDir / pkgInfo.srcDir, src.changeFileExt("nim"))
       else:
         # For non-installed packages or packages without srcDir, use realDir directly
-        realDir / src.changeFileExt("nim")
+        findActualSourceFile(realDir, src.changeFileExt("nim"))
 
     let cmd = "$# $# --colors:$# --noNimblePath $# $# $#" % [
       options.satResult.getNimBin().quoteShell, pkgInfo.backend, if options.noColor: "off" else: "on", join(args, " "),
@@ -920,3 +940,6 @@ proc installPkgs*(satResult: var SATResult, options: Options) =
     if dirExists(hookDir):
       executeHook(hookDir, options, actionInstall, before = false)
     
+
+
+
