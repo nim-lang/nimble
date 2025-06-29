@@ -12,7 +12,7 @@ After we resolve nim, we try to resolve the dependencies for a root package. Roo
   - Once we have the graph solved. We can proceed with the action.
 
 ]#
-import std/[sequtils, sets, options, os, strutils, tables, strformat, sugar, algorithm]
+import std/[sequtils, sets, options, os, strutils, tables, strformat]
 import nimblesat, packageinfotypes, options, version, declarativeparser, packageinfo, common,
   nimenv, lockfile, cli, downloadnim, packageparser, tools, nimscriptexecutor, packagemetadatafile,
   displaymessages, packageinstaller, reversedeps, developfile, urls
