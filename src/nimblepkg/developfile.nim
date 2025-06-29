@@ -173,7 +173,13 @@ proc validatePackage(pkgPath: Path, options: Options):
 
   try:
     if options.isVnext: #TODO add and test fallback to nimVM parser (i.e. dev pkgList would need to be reloaded)
-      result.pkgInfo = getPkgInfoFromDirWithDeclarativeParser(string(pkgPath), options)
+      if options.satResult.pass == satNimSelection:
+        result.pkgInfo = getPkgInfoFromDirWithDeclarativeParser(string(pkgPath), options)
+        #TODO find a way to validate the package, for now just mark the declarativeParser as failed
+        #as we dont have Nim selected yet. 
+        options.satResult.declarativeParseFailed = true
+      else:
+        result.pkgInfo = getPkgInfo(string(pkgPath), options, true)
     else:
       result.pkgInfo = getPkgInfo(string(pkgPath), options, true)
   except CatchableError as error:
@@ -734,13 +740,16 @@ proc processDevelopDependencies*(dependentPkg: PackageInfo, options: Options):
     seq[PackageInfo] =
   ## Returns a sequence with the develop mode dependencies of the `dependentPkg`
   ## and recursively all of their develop mode dependencies.
-
+  
   let loadGlobalDeps = not dependentPkg.getPkgDevFilePath.fileExists
   var cache = DevelopCache()
   let data = load(cache, dependentPkg, options, true, true, loadGlobalDeps)
   result = newSeqOfCap[PackageInfo](data.nameToPkg.len)
   for _, pkg in data.nameToPkg:
     result.add pkg[]
+  # echo "PROCESS DEVELOP DEPENDENCIES ", result.mapIt(it.basicInfo.name)
+  # echo "SAT RESULT ", options.satResult.pkgs.mapIt(it.basicInfo.name)
+  # options.debugSATResult()
 
 proc getDevelopDependencies*(dependentPkg: PackageInfo, options: Options, raiseOnValidationErrors = true):
     Table[string, ref PackageInfo] =
@@ -869,6 +878,8 @@ proc workingCopyNeeds*(dependencyPkg, dependentPkg: PackageInfo,
     syncFileVcsRev = syncFile.getDepVcsRevision(dependencyPkg.basicInfo.name)
     workingCopyVcsRev = getVcsRevision(dependencyPkg.getNimbleFileDir)
 
+
+
   if lockFileVcsRev == syncFileVcsRev and syncFileVcsRev == workingCopyVcsRev:
     # When all revisions are matching nothing have to be done.
     return needsNone
@@ -897,8 +908,17 @@ proc workingCopyNeeds*(dependencyPkg, dependentPkg: PackageInfo,
      lockFileVcsRev != workingCopyVcsRev and
      syncFileVcsRev != workingCopyVcsRev:
     # When all revisions are different from one another this indicates that
-    # there are local changes which are conflicting with remote changes. The
+    # there are local changes which are in conflict with the remote changes. The
     # user have to resolve them manually by merging or rebasing.
+    
+    # However, there's a special case: if the sync file is empty/uninitialized,
+    # this might be because develop dependencies were added after lock file creation.
+    # In this case, we should default to needsSync rather than needsMerge.
+    if syncFileVcsRev == notSetSha1Hash or $syncFileVcsRev == "":
+      # With empty sync file, default to sync for the common case where
+      # develop dependencies are added after lock file creation
+      return needsSync
+    
     return needsMerge
 
   assert false, "Here all cases are covered and the program " &
@@ -921,8 +941,15 @@ proc findValidationErrorsOfDevDepsWithLockFile*(
   dependentPkg.assertIsLoaded
 
   let developDependencies = processDevelopDependencies(dependentPkg, options)
+  
+  let rootRequiredNames = dependentPkg.requires.mapIt(it.name.toLowerAscii()).toHashSet()
 
   for depPkg in developDependencies:
+    # Skip validation for packages that are not actual dependencies
+    #TODO REVIEW THIS
+    if depPkg.basicInfo.name.toLowerAscii() notin rootRequiredNames:
+      continue
+      
     if depPkg.pkgDirIsNotUnderVersionControl:
       addError(vekDirIsNotUnderVersionControl)
     elif depPkg.workingCopyIsNotClean:

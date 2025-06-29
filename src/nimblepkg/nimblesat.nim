@@ -499,9 +499,9 @@ proc getSolvedPackages*(pkgVersionTable: Table[string, PackageVersions], output:
 proc getCacheDownloadDir*(url: string, ver: VersionRange, options: Options): string =
   options.pkgCachePath / getDownloadDirName(url, ver, notSetSha1Hash)
 
-proc getPackageDownloadInfo*(pv: PkgTuple, options: Options): PackageDownloadInfo =
+proc getPackageDownloadInfo*(pv: PkgTuple, options: Options, doPrompt = false): PackageDownloadInfo =
   let (meth, url, metadata) = 
-      getDownloadInfo(pv, options, doPrompt = false, ignorePackageCache = false)
+      getDownloadInfo(pv, options, doPrompt, ignorePackageCache = false)
   let subdir = metadata.getOrDefault("subdir")
   let downloadDir = getCacheDownloadDir(url, pv.ver, options)
   PackageDownloadInfo(meth: meth, url: url, subdir: subdir, downloadDir: downloadDir, pv: pv)
@@ -511,12 +511,12 @@ proc downloadFromDownloadInfo*(dlInfo: PackageDownloadInfo, options: Options): (
                 dlInfo.downloadDir, vcsRevision = notSetSha1Hash)
   (downloadRes, dlInfo.meth)
 
-proc downloadPkgFromUrl*(pv: PkgTuple, options: Options): (DownloadPkgResult, DownloadMethod) = 
-  let dlInfo = getPackageDownloadInfo(pv, options)
+proc downloadPkgFromUrl*(pv: PkgTuple, options: Options, doPrompt = false): (DownloadPkgResult, DownloadMethod) = 
+  let dlInfo = getPackageDownloadInfo(pv, options, doPrompt)
   downloadFromDownloadInfo(dlInfo, options)
         
-proc downloadPkInfoForPv*(pv: PkgTuple, options: Options): PackageInfo  =
-  let downloadRes = downloadPkgFromUrl(pv, options)
+proc downloadPkInfoForPv*(pv: PkgTuple, options: Options, doPrompt = false): PackageInfo  =
+  let downloadRes = downloadPkgFromUrl(pv, options, doPrompt)
   if options.satResult.pass in {satNimSelection, satFallbackToVmParser}:
     getPkgInfoFromDirWithDeclarativeParser(downloadRes[0].dir, options)
   else:
@@ -600,12 +600,12 @@ proc getPackageMinimalVersionsFromRepo*(repoDir: string, pkg: PkgTuple, version:
 
         if not tagVersion.withinRange(pkg[1]):
           displayInfo(&"Ignoring {name}:{tagVersion} because out of range {pkg[1]}")
-          break
+          continue
 
         doCheckout(downloadMethod, tempDir, tag, options)
         let nimbleFile = findNimbleFile(tempDir, true, options)
         if options.satResult.pass in {satNimSelection, satFallbackToVmParser}:
-          result.addUnique getPkgInfoFromDirWithDeclarativeParser(repoDir, options).getMinimalInfo(options)  
+          result.addUnique getPkgInfoFromDirWithDeclarativeParser(tempDir, options).getMinimalInfo(options)  
         elif options.useDeclarativeParser:
           result.addUnique getMinimalInfo(nimbleFile, name, options)
         else:

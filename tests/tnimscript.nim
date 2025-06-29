@@ -3,7 +3,7 @@
 
 {.used.}
 
-import unittest, os, strutils
+import unittest, os, strutils, sequtils
 import testscommon
 from nimblepkg/common import cd
 
@@ -24,11 +24,12 @@ suite "nimscript":
       check output.contains("After build")
       let lines = output.strip.processOutput()
       for line in lines:
-        if lines[3].startsWith("Before PkgDir:"):
+        if line.startsWith("Before PkgDir:"):
           check line.endsWith("tests" / "nimscript")
-      check lines[^1].startsWith("After PkgDir:")
+      let afterPkgDirLine = lines.filterIt(it.startsWith("After PkgDir:"))[0]
+      check afterPkgDirLine.startsWith("After PkgDir:")
       let packageDir = getPackageDir(pkgsDir, "nimscript-0.1.0")
-      check lines[^1].strip(trailing = true).endsWith(packageDir)
+      check afterPkgDirLine.strip(trailing = true).endsWith(packageDir)
 
   test "before/after on build":
     cd "nimscript":

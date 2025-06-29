@@ -42,6 +42,8 @@ proc doClone(meth: DownloadMethod, url, downloadDir: string, branch = "",
     discard tryDoCmdEx(
        "git clone --config core.autocrlf=false --config core.eol=lf " &
       &"{submoduleFlag} {depthArg} {branchArg} {url} {downloadDir}")
+    if not options.ignoreSubmodules:
+      downloadDir.updateSubmodules
   of DownloadMethod.hg:
     let
       tipArg = if onlyTip: "-r tip " else: ""
@@ -90,7 +92,7 @@ proc getTagsListRemote*(url: string, meth: DownloadMethod): seq[string] =
     var (output, exitCode) = doCmdEx(&"git ls-remote --tags {url}")
     if exitCode != QuitSuccess:
       raise nimbleError("Unable to query remote tags for " & url &
-                        ". Git returned: " & output)
+                        " . Git returned: " & output)
     for i in output.splitLines():
       let refStart = i.find("refs/tags/")
       # git outputs warnings, empty lines, etc
@@ -196,10 +198,12 @@ proc isGitHubRepo(url: string): bool =
 
 proc downloadTarball(url: string, options: Options): bool =
   ## Determines whether to download the repository as a tarball.
+  ## Tarballs don't include git submodules, so we must use git clone when submodules are needed.
   options.enableTarballs and
   not options.forceFullClone and
   url.isGitHubRepo and
-  hasTar()
+  hasTar() and
+  options.ignoreSubmodules  # Only use tarballs when ignoring submodules
 
 proc removeTrailingGitString*(url: string): string =
   ## Removes ".git" from an URL.

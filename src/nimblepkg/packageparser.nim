@@ -447,7 +447,7 @@ proc isNimScript*(nf: string, options: Options): bool =
   result = pkg.isNimScript
 
 proc toFullInfo*(pkg: PackageInfo, options: Options): PackageInfo =
-  if pkg.isMinimal:
+  if pkg.isMinimal or pkg.infoKind == pikRequires:
     result = getPkgInfoFromFile(pkg.mypath, options)
     result.isInstalled = pkg.isInstalled
     # The `isLink` data from the meta data file is with priority because of the
