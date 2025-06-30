@@ -502,9 +502,21 @@ proc iterInstallFiles*(realDir: string, pkgInfo: PackageInfo,
             let normalizedKey = relativePath.toLowerAscii()
             metadataNameMap[normalizedKey] = relativePath
     
-    let mainModuleFile = pkgInfo.basicInfo.name.addFileExt("nim")
-    let mainModuleNormalized = mainModuleFile.toLowerAscii()
-    metadataNameMap[mainModuleNormalized] = mainModuleFile
+    # Find the actual main module file with case-insensitive matching
+    let expectedMainModuleFile = pkgInfo.basicInfo.name.addFileExt("nim")
+    var actualMainModuleFile = expectedMainModuleFile
+    
+    # Look for the actual file with case-insensitive matching
+    if dirExists(realDir):
+      for kind, path in walkDir(realDir):
+        if kind == pcFile:
+          let fileName = path.extractFilename
+          if fileName.toLowerAscii == expectedMainModuleFile.toLowerAscii:
+            actualMainModuleFile = fileName
+            break
+    
+    let mainModuleNormalized = expectedMainModuleFile.toLowerAscii()
+    metadataNameMap[mainModuleNormalized] = actualMainModuleFile
     
   if whitelistMode:
     for file in pkgInfo.installFiles:
@@ -568,16 +580,27 @@ proc iterInstallFiles*(realDir: string, pkgInfo: PackageInfo,
                 break
           if skipBinary: continue
         
-        # For vnext: Check if we should use metadata name instead of filesystem name
-        if options.isVNext and metadataNameMap.len > 0:
+        # For vnext: Handle symbolic links and case sensitivity
+        if options.isVNext:
           let relativePath = file.relativePath(realDir)
           let normalizedPath = relativePath.toLowerAscii()
-          if metadataNameMap.hasKey(normalizedPath):
+          
+          if metadataNameMap.len > 0 and metadataNameMap.hasKey(normalizedPath):
             # Use the metadata name instead of filesystem name
             let metadataPath = realDir / metadataNameMap[normalizedPath]
-            action(metadataPath)
+            # Skip broken symbolic links
+            if metadataPath.symlinkExists() and not metadataPath.fileExists():
+              # This is a broken symbolic link, skip it
+              discard
+            else:
+              action(metadataPath)
           else:
-            action(file)
+            # Skip broken symbolic links
+            if file.symlinkExists() and not file.fileExists():
+              # This is a broken symbolic link, skip it
+              discard
+            else:
+              action(file)
         else:
           action(file)
 
