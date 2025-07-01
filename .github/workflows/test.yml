@@ -35,10 +35,17 @@ jobs:
         run: brew install mercurial
       - name: Install dependencies
         run: nimble install -y
+      - name: Install nimble
+        run: |
+          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+            ./src/nimble install -y --nimbleDir:C:/nimbleDir #circumvent a path lengh issue
+          else
+            ./src/nimble install -y
+          fi
+        shell: bash
       - name: Run nim c -r tester
         run: |
           nimble test
-      - run: ./src/nimble install -y
       - name: Build nimble with `-d:nimNimbleBootstrap`
         run: |
           nim c -d:release -r tests/private/clone.nim
