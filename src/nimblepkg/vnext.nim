@@ -902,7 +902,7 @@ proc installPkgs*(satResult: var SATResult, options: Options) =
           " `bin` key in your .nimble file?")
       else: #Skips building the package if it has no binaries
         continue
-    echo "Building package: ", pkgToBuild.basicInfo.name, " at ", pkgToBuild.myPath, " binaries: ", pkgToBuild.bin
+    # echo "Building package: ", pkgToBuild.basicInfo.name, " at ", pkgToBuild.myPath, " binaries: ", pkgToBuild.bin
     let isRoot = pkgToBuild.isRoot(options.satResult) and isInRootDir
     if options.action.typ in buildActions:
       buildPkg(pkgToBuild, isRoot, options)
