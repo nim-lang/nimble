@@ -2629,6 +2629,10 @@ proc solvePkgs(rootPackage: PackageInfo, options: var Options) =
 
 
 proc runVNext*(options: var Options) =
+  #Make sure we set the righ verbosity for commands that output info:
+  if options.action.typ in {actionShellEnv}:
+    setVerbosity(SilentPriority)
+    options.verbosity = SilentPriority
   #Install and in consequence builds the packages
   let thereIsNimbleFile = findNimbleFile(getCurrentDir(), error = false, options) != ""
   if thereIsNimbleFile:
