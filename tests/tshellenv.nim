@@ -6,8 +6,7 @@
 import unittest, os, osproc, strutils
 import testscommon
 from nimblepkg/common import cd
-when not defined windows:
-  import std/sequtils
+import std/sequtils
 
 const
   separator = when defined(windows): ";" else: ":"
