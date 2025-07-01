@@ -797,7 +797,7 @@ proc initOptions*(): Options =
     nimBinariesDir: getHomeDir() / ".nimble" / "nimbinaries", 
     maxTaggedVersions: 4,
     useSatSolver: true,
-    useDeclarativeParser: true,
+    useDeclarativeParser: false,
     satResult: SatResult()
   )
 
