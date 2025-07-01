@@ -170,9 +170,7 @@ proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, options: Options): Has
   displaySatisfiedMsg(solvedPkgs, pkgsToInstall, options)
   displayUsingSpecialVersionWarning(solvedPkgs, options)
   var solved = solvedPkgs.len > 0 #A pgk can be solved and still dont return a set of PackageInfo
-  echo "!!!!!!!!!!!****pkgsToInstall: ", $pkgsToInstall
   for (name, ver) in pkgsToInstall:
-    echo "INSTALLING: ", name, " ", ver
     var versionRange = ver.toVersionRange
     if name in upgradeVersions:
       versionRange = upgradeVersions[name]
