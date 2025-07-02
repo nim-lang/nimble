@@ -2142,6 +2142,8 @@ proc lock(options: var Options) =
       lockDeps[task] = LockFileDeps()
 
     for dep in topologicalSort(graph).order:
+      #ignore root
+      if dep == pkgInfo.basicInfo.name: continue
       if dep in baseDepNames:
         lockDeps[noTask][dep] = graph[dep]
       else:
