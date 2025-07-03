@@ -172,7 +172,7 @@ proc validatePackage(pkgPath: Path, options: Options):
   ##                 not a valid package directory.
 
   try:
-    if options.isVnext: #TODO add and test fallback to nimVM parser (i.e. dev pkgList would need to be reloaded)
+    if not options.isLegacy: #TODO add and test fallback to nimVM parser (i.e. dev pkgList would need to be reloaded)
       if options.satResult.pass == satNimSelection:
         result.pkgInfo = getPkgInfoFromDirWithDeclarativeParser(string(pkgPath), options)
         #TODO find a way to validate the package, for now just mark the declarativeParser as failed

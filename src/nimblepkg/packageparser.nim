@@ -261,7 +261,7 @@ proc inferInstallRules(pkgInfo: var PackageInfo, options: Options) =
   # installed.)
   let installInstructions =
     pkgInfo.installDirs.len + pkgInfo.installExt.len + pkgInfo.installFiles.len
-  if installInstructions == 0 and pkgInfo.bin.len > 0 and pkgInfo.basicInfo.name != "nim" and not options.isVNext: #dont skip nim files for vnext. We build in the install directory
+  if installInstructions == 0 and pkgInfo.bin.len > 0 and pkgInfo.basicInfo.name != "nim" and options.isLegacy: #dont skip nim files for vnext. We build in the install directory
     pkgInfo.skipExt.add("nim")
 
   # When a package doesn't specify a `srcDir` it's fair to assume that

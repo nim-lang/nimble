@@ -70,6 +70,7 @@ type
     features*: seq[string] # Features to be activated. Only used when using the declarative parser
     ignoreSubmodules*: bool # Whether to ignore submodules when cloning a repository
     satResult*: SatResult
+    legacy*: bool # Whether to use the legacy code path.
 
   ActionType* = enum
     actionNil, actionRefresh, actionInit, actionDump, actionPublish, actionUpgrade
@@ -282,7 +283,7 @@ Nimble Options:
       --parser:declarative|nimvm  Use the declarative parser or the nimvm parser (default).
       --features                  Activate features. Only used when using the declarative parser.
       --ignoreSubmodules          Ignore submodules when cloning a repository.
-      --vnext                     Temporary flag (not shipped) to use the new code path where we assume solver is SAT and declarative parser are enabled. Later on, when both are enabled `vnext` code path will be used.
+      --legacy                    Use the legacy code path (pre nimble 1.0.0)
 For more information read the GitHub readme:
   https://github.com/nim-lang/nimble#readme
 """
@@ -634,6 +635,7 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
   of "package", "p": result.package = val
   of "lockfile": result.lockFileName = val
   of "usesystemnim": result.useSystemNim = true
+  of "legacy": result.legacy = true
   of "developfile":
     if result.developFile.len == 0:
       result.developFile = val.normalizedPath
@@ -798,6 +800,7 @@ proc initOptions*(): Options =
     maxTaggedVersions: 4,
     useSatSolver: true,
     useDeclarativeParser: false,
+    legacy: true, #default to legacy code path for nimble < 1.0.0
     satResult: SatResult()
   )
 
@@ -822,6 +825,10 @@ proc handleUnknownFlags(options: var Options) =
     options.unknownFlags = @[]
     for flag in unknownFlags:
       parseFlag(flag[1], flag[2], options, flag[0])
+
+  if not options.legacy: 
+    #default to declarative parser for new code path.
+    options.useDeclarativeParser = true 
 
   # Any unhandled flags?
   if options.unknownFlags.len > 0:
@@ -968,5 +975,9 @@ proc isDevelopment*(pkg: PackageInfo, options: Options): bool =
   ### A development package is a root package that is not installed.
   not pkg.myPath.parentDir.startsWith(options.getPkgsDir())
 
-proc isVNext*(options: Options): bool =
-  options.useDeclarativeParser
+proc isLegacy*(options: Options): bool =
+  let isVnext = not options.legacy or options.useDeclarativeParser
+  if isVnext:
+    once: 
+      displayWarning("Using the new code path. This is experimental and may break in the future.")
+  return not isVnext

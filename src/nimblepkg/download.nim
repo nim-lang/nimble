@@ -524,7 +524,7 @@ proc downloadPkg*(url: string, verRange: VersionRange,
     modUrl, downloadDir, verRange, downMethod, options, vcsRevision)
   
   var pkgInfo: PackageInfo
-  if validateRange and verRange.kind notin {verSpecial, verAny} or options.isVNext:
+  if validateRange and verRange.kind notin {verSpecial, verAny} or not options.isLegacy:
     ## Makes sure that the downloaded package's version satisfies the requested
     ## version range.
     pkginfo = if options.satResult.pass in {satNimSelection, satFallbackToVmParser}: #TODO later when in vnext we should just use this code path and fallback inside the toRequires if we can

@@ -554,7 +554,7 @@ proc getDepsPkgInfo(satResult: SATResult, pkgInfo: PackageInfo, options: Options
 
 proc expandPaths*(pkgInfo: PackageInfo, options: Options): seq[string] =
   var pkgInfo = pkgInfo.toFullInfo(options) #TODO is this needed in VNEXT? I dont think so
-  if options.isVNext: 
+  if not options.isLegacy: 
     pkgInfo = pkgInfo.toRequiresInfo(options)
   let baseDir = pkgInfo.getRealDir()
   result = @[baseDir]

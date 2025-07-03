@@ -482,7 +482,7 @@ proc iterInstallFiles*(realDir: string, pkgInfo: PackageInfo,
   
   # Create a mapping of lowercase filesystem names to metadata names
   var metadataNameMap: Table[string, string]
-  if options.isVNext:
+  if not options.isLegacy:
     #in vnext we dont use the whitelist mode as we install all files since we want to build the package in the 
     #install dir. BUT we need to respect package metadata naming for specific files.
     whitelistMode = false
@@ -554,7 +554,7 @@ proc iterInstallFiles*(realDir: string, pkgInfo: PackageInfo,
         let skip = pkgInfo.checkInstallFile(realDir, file)
         if skip: 
           # In vnext mode, don't skip .nim files that are needed for binary compilation
-          if options.isVNext and file.splitFile.ext == ".nim":
+          if not options.isLegacy and file.splitFile.ext == ".nim":
             let fileName = file.splitFile.name
             var isNeededForBinary = false
             for binName, srcName in pkgInfo.bin:
@@ -568,7 +568,7 @@ proc iterInstallFiles*(realDir: string, pkgInfo: PackageInfo,
             continue
         
         # In vnext mode, skip binary files that match package binary names to avoid conflicts
-        if options.isVNext:
+        if not options.isLegacy:
           let fileName = file.splitFile.name
           let fileExt = file.splitFile.ext
           var skipBinary = false
@@ -581,7 +581,7 @@ proc iterInstallFiles*(realDir: string, pkgInfo: PackageInfo,
           if skipBinary: continue
         
         # For vnext: Handle symbolic links and case sensitivity
-        if options.isVNext:
+        if not options.isLegacy:
           let relativePath = file.relativePath(realDir)
           let normalizedPath = relativePath.toLowerAscii()
           
@@ -609,7 +609,7 @@ proc needsRebuild*(pkgInfo: PackageInfo, bin: string, dir: string, options: Opti
   if options.action.typ != actionInstall:
     return true
   
-  if options.isVNext:
+  if not options.isLegacy:
     if options.action.noRebuild:
       if not fileExists(bin):
         return true  

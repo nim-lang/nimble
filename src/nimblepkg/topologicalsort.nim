@@ -42,7 +42,7 @@ proc deleteStaleDependencies*(packages: seq[PackageInfo],
   # For lock operations in vnext mode, only include packages that are actual dependencies
   # This filters out packages in the develop file that are not real dependencies
   # Only apply this filtering for direct lock operations (no packages specified), not for upgrade operations
-  if options.action.typ == actionLock and options.isVNext and options.action.packages.len == 0:
+  if options.action.typ == actionLock and not options.isLegacy and options.action.packages.len == 0:
     let all = allDependencies(concat(rootPackage.requires,
                                      rootPackage.taskRequires.getOrDefault(options.task)),
                               packages,
