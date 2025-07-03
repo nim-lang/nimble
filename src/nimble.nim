@@ -834,7 +834,7 @@ proc processLockedDependencies(pkgInfo: PackageInfo, options: Options):
   # their local file system directories and other packages from the Nimble
   # cache. If a package with required checksum is missing from the local cache
   # installs it by downloading it from its repository.
-  if options.isVNext:
+  if not options.isLegacy:
     return options.satResult.pkgs
   
   let developModeDeps = getDevelopDependencies(pkgInfo, options, raiseOnValidationErrors = false)
@@ -1046,7 +1046,7 @@ proc execBackend(pkgInfo: PackageInfo, options: Options) =
   nimScriptHint(pkgInfo)
 
   let deps = 
-    if options.isVNext:
+    if not options.isLegacy:
       options.satResult.pkgs
     else:
       pkgInfo.processAllDependencies(options)
@@ -1054,7 +1054,7 @@ proc execBackend(pkgInfo: PackageInfo, options: Options) =
     raise nimbleError("Pre-hook prevented further execution.")
 
   var args = @["-d:NimblePkgVersion=" & $pkgInfo.basicInfo.version]
-  if options.isVNext:
+  if not options.isLegacy:
     for path in options.getPathsAllPkgs():
       args.add("--path:" & path.quoteShell)
   else:
@@ -1726,7 +1726,7 @@ proc updateSyncFile(dependentPkg: PackageInfo, options: Options)
 
 proc updatePathsFile(pkgInfo: PackageInfo, options: Options) =
   let paths = 
-    if options.isVNext: 
+    if not options.isLegacy: 
       #TODO improve this (or better the alternative, getDependenciesPaths, so it returns the same type)
       var pathsPaths = initHashSet[seq[string]]()
       for path in options.getPathsAllPkgs():
@@ -2029,11 +2029,11 @@ proc lock(options: var Options) =
   # Clear package info cache to ensure we read the latest nimble file
   # This is important when the nimble file has been modified since the last read
   # In vnext mode, the cache clearing is done before runVNext is called
-  if not options.isVNext:
+  if options.isLegacy:
     options.pkgInfoCache.clear()
   
   let
-    pkgInfo = if options.isVNext:
+    pkgInfo = if not options.isLegacy:
       options.satResult.rootPackage
     else:
       getPkgInfo(currentDir, options)
@@ -2042,7 +2042,7 @@ proc lock(options: var Options) =
   
   var 
      baseDeps =       
-      if options.isVNext:
+      if not options.isLegacy:
         options.satResult.pkgs.toSeq
       elif options.useSATSolver:
         processFreeDependenciesSAT(pkgInfo, options).toSeq        
@@ -2081,7 +2081,7 @@ proc lock(options: var Options) =
     # Now build graph for all dependencies
     taskOptions.checkSatisfied(taskDeps)
 
-  if options.isVNext:
+  if not options.isLegacy:
     # vnext path: generate lockfile from solved packages
     # Check for develop dependency validation errors
     # Create a minimal graph for error checking - only include actual dependencies, not root package
@@ -2312,7 +2312,7 @@ proc sync(options: Options) =
 
   let currentDir = getCurrentDir()
   let pkgInfo = 
-    if options.isVNext:
+    if not options.isLegacy:
       options.satResult.rootPackage
     else:
       getPkgInfo(currentDir, options)
@@ -2457,12 +2457,12 @@ proc setup(options: Options) =
 proc getAlteredPath(options: Options): string =
   
   let pkgInfo = 
-    if options.isVNext:
+    if not options.isLegacy:
       options.satResult.rootPackage
     else:
       getPkgInfo(getCurrentDir(), options)
   var pkgs =
-    if options.isVNext:
+    if not options.isLegacy:
       options.satResult.pkgs.toSeq.toOrderedSet
     else:
       pkgInfo.processAllDependencies(options).toSeq.toOrderedSet
@@ -2507,7 +2507,7 @@ proc getPackageForAction(pkgInfo: PackageInfo, options: Options): PackageInfo =
   if options.package.len == 0 or pkgInfo.basicInfo.name == options.package:
     return pkgInfo
 
-  if options.isVNext:
+  if not options.isLegacy:
     # Search through the SAT result packages as the packages are already solved
     for pkg in options.satResult.pkgs:
       if pkg.basicInfo.name == options.package:
@@ -2526,7 +2526,7 @@ proc getPackageForAction(pkgInfo: PackageInfo, options: Options): PackageInfo =
 
 proc run(options: Options) =
   var pkgInfo: PackageInfo
-  if options.isVNext: #At this point we already ran the solver
+  if not options.isLegacy: #At this point we already ran the solver
     pkgInfo = options.satResult.rootPackage
     pkgInfo = getPackageForAction(pkgInfo, options)
   else:
@@ -2540,7 +2540,7 @@ proc run(options: Options) =
   if binary notin pkgInfo.bin:
     raise nimbleError(binaryNotDefinedInPkgMsg(binary, pkgInfo.basicInfo.name))
 
-  if options.isVNext:
+  if not options.isLegacy:
     # In vnext path, build develop mode packages (similar to old code path)
     if pkgInfo.isLink:
       # Use vnext buildPkg for develop mode packages
@@ -2662,7 +2662,7 @@ proc doAction(options: var Options) =
   of actionRefresh:
     refresh(options)
   of actionInstall:
-    if not options.isVNext:
+    if options.isLegacy:
       let (_, pkgInfo) = install(options.action.packages, options,
                                 doPrompt = true,
                                 first = true,
@@ -2690,7 +2690,7 @@ proc doAction(options: var Options) =
   of actionPath:
     listPaths(options)
   of actionBuild:
-    if not options.isVNext:
+    if options.isLegacy:
       build(options)
   of actionClean:
     clean(options)
@@ -2744,7 +2744,7 @@ proc doAction(options: var Options) =
       # Make sure we have dependencies for the task.
       # We do that here to make sure that any binaries from dependencies
       # are installed
-      if not optsCopy.isVNext:
+      if optsCopy.isLegacy:
         discard pkgInfo.processAllDependencies(optsCopy)
       # If valid task defined in nimscript, run it
       var execResult: ExecutionResult[bool]
@@ -2881,7 +2881,7 @@ when isMainModule:
       actionShellEnv, actionShell, actionUpgrade
     }
 
-    if opt.isVNext and opt.action.typ in vNextSupportedActions:
+    if not opt.isLegacy and opt.action.typ in vNextSupportedActions:
       # For actionCustom, set the task name before calling runVNext
       if opt.action.typ == actionCustom:
         opt.task = opt.action.command.normalize
