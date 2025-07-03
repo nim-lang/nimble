@@ -384,7 +384,7 @@ proc getRealDir*(pkgInfo: PackageInfo): string =
     result = pkgInfo.getNimbleFileDir() / pkgInfo.srcDir
   else:
     result = pkgInfo.getNimbleFileDir()
-
+  
 proc getOutputDir*(pkgInfo: PackageInfo, bin: string): string =
   ## Returns a binary output dir for the package.
   if pkgInfo.binDir != "":
@@ -471,6 +471,9 @@ proc iterInstallFiles*(realDir: string, pkgInfo: PackageInfo,
                        options: Options, action: proc (f: string)) =
   ## Runs `action` for each file within the ``realDir`` that should be
   ## installed.
+  # Get the package root directory for skipDirs comparison
+  let pkgRootDir = pkgInfo.getNimbleFileDir()
+  
   var whitelistMode =
           pkgInfo.installDirs.len != 0 or
           pkgInfo.installFiles.len != 0 or
@@ -499,9 +502,21 @@ proc iterInstallFiles*(realDir: string, pkgInfo: PackageInfo,
             let normalizedKey = relativePath.toLowerAscii()
             metadataNameMap[normalizedKey] = relativePath
     
-    let mainModuleFile = pkgInfo.basicInfo.name.addFileExt("nim")
-    let mainModuleNormalized = mainModuleFile.toLowerAscii()
-    metadataNameMap[mainModuleNormalized] = mainModuleFile
+    # Find the actual main module file with case-insensitive matching
+    let expectedMainModuleFile = pkgInfo.basicInfo.name.addFileExt("nim")
+    var actualMainModuleFile = expectedMainModuleFile
+    
+    # Look for the actual file with case-insensitive matching
+    if dirExists(realDir):
+      for kind, path in walkDir(realDir):
+        if kind == pcFile:
+          let fileName = path.extractFilename
+          if fileName.toLowerAscii == expectedMainModuleFile.toLowerAscii:
+            actualMainModuleFile = fileName
+            break
+    
+    let mainModuleNormalized = expectedMainModuleFile.toLowerAscii()
+    metadataNameMap[mainModuleNormalized] = actualMainModuleFile
     
   if whitelistMode:
     for file in pkgInfo.installFiles:
@@ -529,7 +544,7 @@ proc iterInstallFiles*(realDir: string, pkgInfo: PackageInfo,
   else:
     for kind, file in walkDir(realDir):
       if kind == pcDir:
-        let skip = pkgInfo.checkInstallDir(realDir, file)
+        let skip = pkgInfo.checkInstallDir(pkgRootDir, file)
         if skip: continue
         # we also have to stop recursing if we reach an in-place nimbleDir
         if file == options.getNimbleDir().expandFilename(): continue
@@ -537,17 +552,55 @@ proc iterInstallFiles*(realDir: string, pkgInfo: PackageInfo,
         iterInstallFiles(file, pkgInfo, options, action)
       else:
         let skip = pkgInfo.checkInstallFile(realDir, file)
-        if skip: continue
-        # For vnext: Check if we should use metadata name instead of filesystem name
-        if options.isVNext and metadataNameMap.len > 0:
+        if skip: 
+          # In vnext mode, don't skip .nim files that are needed for binary compilation
+          if options.isVNext and file.splitFile.ext == ".nim":
+            let fileName = file.splitFile.name
+            var isNeededForBinary = false
+            for binName, srcName in pkgInfo.bin:
+              if fileName == srcName or fileName == binName:
+                isNeededForBinary = true
+                break
+            # If this .nim file is needed for binary compilation, don't skip it
+            if not isNeededForBinary:
+              continue
+          else:
+            continue
+        
+        # In vnext mode, skip binary files that match package binary names to avoid conflicts
+        if options.isVNext:
+          let fileName = file.splitFile.name
+          let fileExt = file.splitFile.ext
+          var skipBinary = false
+          # Only skip if it's not a source file (i.e., doesn't have .nim extension)
+          if fileExt != ".nim":
+            for binName, _ in pkgInfo.bin:
+              if fileName == binName:
+                skipBinary = true
+                break
+          if skipBinary: continue
+        
+        # For vnext: Handle symbolic links and case sensitivity
+        if options.isVNext:
           let relativePath = file.relativePath(realDir)
           let normalizedPath = relativePath.toLowerAscii()
-          if metadataNameMap.hasKey(normalizedPath):
+          
+          if metadataNameMap.len > 0 and metadataNameMap.hasKey(normalizedPath):
             # Use the metadata name instead of filesystem name
             let metadataPath = realDir / metadataNameMap[normalizedPath]
-            action(metadataPath)
+            # Skip broken symbolic links
+            if metadataPath.symlinkExists() and not metadataPath.fileExists():
+              # This is a broken symbolic link, skip it
+              discard
+            else:
+              action(metadataPath)
           else:
-            action(file)
+            # Skip broken symbolic links
+            if file.symlinkExists() and not file.fileExists():
+              # This is a broken symbolic link, skip it
+              discard
+            else:
+              action(file)
         else:
           action(file)
 
@@ -555,18 +608,36 @@ proc iterInstallFiles*(realDir: string, pkgInfo: PackageInfo,
 proc needsRebuild*(pkgInfo: PackageInfo, bin: string, dir: string, options: Options): bool =
   if options.action.typ != actionInstall:
     return true
-  if not options.action.noRebuild:
-    return true
+  
+  if options.isVNext:
+    if options.action.noRebuild:
+      if not fileExists(bin):
+        return true  
+      
+      let binTimestamp = getFileInfo(bin).lastWriteTime
+      var rebuild = false
+      iterFilesWithExt(dir, pkgInfo,
+        proc (file: string) =
+          let srcTimestamp = getFileInfo(file).lastWriteTime
+          if binTimestamp < srcTimestamp:
+            rebuild = true
+      )
+      return rebuild
+    else:
+      return true
+  else:
+    if not options.action.noRebuild:
+      return true
 
-  let binTimestamp = getFileInfo(bin).lastWriteTime
-  var rebuild = false
-  iterFilesWithExt(dir, pkgInfo,
-    proc (file: string) =
-      let srcTimestamp = getFileInfo(file).lastWriteTime
-      if binTimestamp < srcTimestamp:
-        rebuild = true
-  )
-  return rebuild
+    let binTimestamp = getFileInfo(bin).lastWriteTime
+    var rebuild = false
+    iterFilesWithExt(dir, pkgInfo,
+      proc (file: string) =
+        let srcTimestamp = getFileInfo(file).lastWriteTime
+        if binTimestamp < srcTimestamp:
+          rebuild = true
+    )
+    return rebuild
 
 proc getCacheDir*(pkgInfo: PackageBasicInfo): string =
   &"{pkgInfo.name}-{pkgInfo.version}-{$pkgInfo.checksum}"

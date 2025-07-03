@@ -7,8 +7,9 @@ import compiler/[ast, idents, msgs, syntaxes, options, pathutils, lineinfos]
 import compiler/[renderer]
 from compiler/nimblecmd import getPathVersionChecksum
 
-import version, packageinfotypes, packageinfo, options, packageparser, cli
-import sha1hashes
+import version, packageinfotypes, packageinfo, options, packageparser, cli,
+  packagemetadatafile
+import sha1hashes, vcstools
 import std/[tables, sequtils, strscans, strformat, os, options]
 
 type NimbleFileInfo* = object
@@ -56,12 +57,22 @@ proc validateNoNestedRequires(nfl: var NimbleFileInfo, n: PNode, conf: ConfigRef
     for child in n:
       validateNoNestedRequires(nfl, child, conf, hasErrors, nestedRequires, true)
   of nkCallKinds:
-    if n[0].kind == nkIdent and n[0].ident.s == "requires":
-      if inControlFlow:
+    if n[0].kind == nkIdent:
+      if n[0].ident.s == "requires":
+        if inControlFlow:
+          nestedRequires = true
+          let errorLine = &"{nfl.nimbleFile}({n.info.line}, {n.info.col}) 'requires' cannot be nested inside control flow statements"
+          nfl.declarativeParserErrorLines.add errorLine
+          hasErrors = true
+      elif n[0].ident.s == "taskRequires":
+        # taskRequires is not supported in declarative parser yet
         nestedRequires = true
-        let errorLine = &"{nfl.nimbleFile}({n.info.line}, {n.info.col}) 'requires' cannot be nested inside control flow statements"
+        let errorLine = &"{nfl.nimbleFile}({n.info.line}, {n.info.col}) 'taskRequires' is not supported in declarative parser"
         nfl.declarativeParserErrorLines.add errorLine
         hasErrors = true
+      else:
+        for child in n:
+          validateNoNestedRequires(nfl, child, conf, hasErrors, nestedRequires, inControlFlow)
     else:
       for child in n:
         validateNoNestedRequires(nfl, child, conf, hasErrors, nestedRequires, inControlFlow)
@@ -400,7 +411,9 @@ proc toRequiresInfo*(pkgInfo: PackageInfo, options: Options, nimbleFileInfo: Opt
       return result
     else:
       displayWarning &"Package {pkgInfo.basicInfo.name} is a babel package, skipping declarative parser", priority = HighPriority
-      return getPkgInfo(pkgInfo.myPath.parentDir, options)
+      result = getPkgInfo(pkgInfo.myPath.parentDir, options)
+      fillMetaData(result, result.getRealDir(), false, options)
+      return result
 
   let nimbleFileInfo = nimbleFileInfo.get(extractRequiresInfo(pkgInfo.myPath))
   result.requires = getRequires(nimbleFileInfo, result.activeFeatures)
@@ -424,6 +437,17 @@ proc toRequiresInfo*(pkgInfo: PackageInfo, options: Options, nimbleFileInfo: Opt
       # echo "Fallback to VM parser for package: ", pkgInfo.basicInfo.name
       # echo "Requires: ", result.requires
   result.features = getFeatures(nimbleFileInfo)
+  result.srcDir = nimbleFileInfo.srcDir
+  fillMetaData(result, result.getRealDir(), false, options)
+  
+  # For develop mode dependencies, ensure VCS revision is set
+  if result.isLink and result.metaData.vcsRevision == notSetSha1Hash:
+    try:
+      result.metaData.vcsRevision = getVcsRevision(result.getRealDir())
+    except CatchableError:
+      # If we can't get VCS revision, leave it as notSetSha1Hash
+      discard
+  
   if pkgInfo.infoKind == pikRequires:
     result.bin = nimbleFileInfo.bin #Noted that we are not parsing namedBins here, they are only parsed wit full info
 
@@ -438,6 +462,7 @@ proc fillPkgBasicInfo(pkgInfo: var PackageInfo, nimbleFileInfo: NimbleFileInfo) 
   pkgInfo.basicInfo.checksum = sha1Checksum
   pkgInfo.myPath = nimbleFileInfo.nimbleFile
   pkgInfo.basicInfo.version = newVersion nimbleFileInfo.version
+  pkgInfo.srcDir = nimbleFileInfo.srcDir
 
 proc getPkgInfoFromDirWithDeclarativeParser*(dir: string, options: Options): PackageInfo =
   let nimbleFile = findNimbleFile(dir, true, options)
@@ -445,7 +470,3 @@ proc getPkgInfoFromDirWithDeclarativeParser*(dir: string, options: Options): Pac
   result = initPackageInfo()
   fillPkgBasicInfo(result, nimbleFileInfo)
   result = toRequiresInfo(result, options, some nimbleFileInfo)
-
-when isMainModule:
-  for x in tokenizeRequires("jester@#head >= 1.5 & <= 1.8"):
-    echo x

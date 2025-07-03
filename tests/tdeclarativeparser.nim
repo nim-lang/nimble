@@ -22,6 +22,9 @@ proc getNimbleFileFromPkgNameHelper(pkgName: string, ver = VersionRange(kind: ve
   pkgInfo.myPath
 
 suite "Declarative parsing":
+  setup:
+    removeDir("nimbleDir")
+
   test "should parse requires from a nimble file":
     let nimbleFile = getNimbleFileFromPkgNameHelper("nimlangserver")
     let nimbleFileInfo = extractRequiresInfo(nimbleFile)
@@ -93,7 +96,6 @@ suite "Declarative parsing":
     for ver in versions:
       let nimbleFile = getNimbleFileFromPkgNameHelper("nim", parseVersionRange(ver))
       check extractNimVersion(nimbleFile) == ver
-    echo ""
 
 suite "Declarative parser features":
   test "should be able to parse features from a nimble file":
@@ -150,12 +152,3 @@ suite "Declarative parser features":
       let (output, exitCode) = execNimble("--parser:declarative", "run")
       check exitCode == QuitSuccess
       check output.processOutput.inLines("dev is enabled")
-
-  #[NEXT Tests:
-
-    TODO:
-    - compile time nimble parser detection so we can warn when using the vm parser with features
-
-]#
-
-echo ""

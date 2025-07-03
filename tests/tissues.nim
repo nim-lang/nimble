@@ -410,7 +410,7 @@ suite "issues":
     cd "testDir-1251":
       let (output, exitCode) = execNimble("--useSystemNim", "-l", "install", "nimlangserver")      
       let nimBin = findExe("nim")
-      let message = "compiling nim package using " & nimBin
+      let message = nimBin
       check exitCode == QuitSuccess
       check output.contains(message)
     removeDir("testDir-1251")

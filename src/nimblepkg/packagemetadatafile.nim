@@ -66,7 +66,9 @@ proc loadMetaData*(dirName: string, raiseIfNotFound: bool, options: Options): Pa
   elif raiseIfNotFound:
     raise metaDataError(&"No {packageMetaDataFileName} file found in {dirName}")
   else:
-    if not dirName.isSubdirOf(options.nimBinariesDir):
+    # Only show warning for installed packages (in pkgsDir) or Nim binaries dir
+    # development packages don't need nimblemeta.json files
+    if dirName.isSubdirOf(options.getPkgsDir()) and not dirName.isSubdirOf(options.nimBinariesDir):
       displayWarning(&"No {packageMetaDataFileName} file found in {dirName}")
 
 proc fillMetaData*(packageInfo: var PackageInfo, dirName: string,

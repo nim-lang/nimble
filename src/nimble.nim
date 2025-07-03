@@ -35,6 +35,7 @@ proc initPkgList(pkgInfo: PackageInfo, options: Options): seq[PackageInfo] =
   let
     installedPkgs = getInstalledPkgsMin(options.getPkgsDir(), options)
     developPkgs = processDevelopDependencies(pkgInfo, options)
+  
   result = concat(installedPkgs, developPkgs)
 
 proc install(packages: seq[PkgTuple], options: Options,
@@ -118,7 +119,6 @@ proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, options: Options): Has
       rootPkgInfo.requires &= rootPkgInfo.features["dev"]
       appendGloballyActiveFeatures(rootPkgInfo.basicInfo.name, @["dev"])
   rootPkgInfo.requires &= options.extraRequires
-    
   var pkgList = initPkgList(rootPkgInfo, options)
   if options.useDeclarativeParser:
     pkgList = pkgList.mapIt(it.toRequiresInfo(options))
@@ -165,13 +165,11 @@ proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, options: Options): Has
       .toHashSet
     satProccesedPackages = some result
     return result
-
   var output = ""
   result = solvePackages(rootPkgInfo, pkgList, pkgsToInstall, options, output, solvedPkgs)
   displaySatisfiedMsg(solvedPkgs, pkgsToInstall, options)
   displayUsingSpecialVersionWarning(solvedPkgs, options)
   var solved = solvedPkgs.len > 0 #A pgk can be solved and still dont return a set of PackageInfo
-  
   for (name, ver) in pkgsToInstall:
     var versionRange = ver.toVersionRange
     if name in upgradeVersions:
@@ -756,6 +754,12 @@ proc downloadDependency(name: string, dep: LockFileDep, options: Options, valida
   if options.offline:
     raise nimbleError("Cannot download in offline mode.")
 
+  if dep.url.len == 0:
+    raise nimbleError(
+      &"Cannot download dependency '{name}' because its URL is empty in the lock file. " &
+      "This usually happens with develop mode dependencies. " &
+      "Make sure the dependency is properly configured in your develop file.")
+
   if not options.developWithDependencies:
     let depDirName = getDependencyDir(name, dep, options)
     if depDirName.dirExists:
@@ -830,7 +834,9 @@ proc processLockedDependencies(pkgInfo: PackageInfo, options: Options):
   # their local file system directories and other packages from the Nimble
   # cache. If a package with required checksum is missing from the local cache
   # installs it by downloading it from its repository.
-
+  if options.isVNext:
+    return options.satResult.pkgs
+  
   let developModeDeps = getDevelopDependencies(pkgInfo, options, raiseOnValidationErrors = false)
 
   var res: seq[PackageInfo]
@@ -1039,13 +1045,21 @@ proc execBackend(pkgInfo: PackageInfo, options: Options) =
   let pkgInfo = getPkgInfo(getCurrentDir(), options)
   nimScriptHint(pkgInfo)
 
-  let deps = pkgInfo.processAllDependencies(options)
+  let deps = 
+    if options.isVNext:
+      options.satResult.pkgs
+    else:
+      pkgInfo.processAllDependencies(options)
   if not execHook(options, options.action.typ, true):
     raise nimbleError("Pre-hook prevented further execution.")
 
   var args = @["-d:NimblePkgVersion=" & $pkgInfo.basicInfo.version]
-  for dep in deps:
-    args.add("--path:" & dep.getRealDir().quoteShell)
+  if options.isVNext:
+    for path in options.getPathsAllPkgs():
+      args.add("--path:" & path.quoteShell)
+  else:
+    for dep in deps:
+      args.add("--path:" & dep.getRealDir().quoteShell)
   if options.verbosity >= HighPriority:
     # Hide Nim hints by default
     args.add("--hints:off")
@@ -1715,7 +1729,7 @@ proc updatePathsFile(pkgInfo: PackageInfo, options: Options) =
     if options.isVNext: 
       #TODO improve this (or better the alternative, getDependenciesPaths, so it returns the same type)
       var pathsPaths = initHashSet[seq[string]]()
-      for path in options.satResult.getPathsAllPkgs(options):
+      for path in options.getPathsAllPkgs():
           pathsPaths.incl @[path]
       pathsPaths
     else:
@@ -1871,11 +1885,12 @@ proc validateDevelopDependenciesVersionRanges(dependentPkg: PackageInfo,
   var errors: seq[string]
   for pkg in allPackages:
     for dep in pkg.requires:
-      if dep.ver.kind == verSpecial:
+      if dep.ver.kind == verSpecial or dep.ver.kind == verAny:
         # Develop packages versions are not being validated against the special
         # versions in the Nimble files requires clauses, because there is no
         # special versions for develop mode packages. If special version is
         # required then any version for the develop package is allowed.
+        # Also skip validation for verAny (any version) requirements.
         continue
       var depPkg = initPackageInfo()
       if not findPkg(developDependencies, dep, depPkg):
@@ -2006,31 +2021,40 @@ proc getDependenciesForLocking(pkgInfo: PackageInfo, options: Options):
 
   result = res.deleteStaleDependencies(pkgInfo, options).deduplicate
 
-proc lock(options: Options) =
+proc lock(options: var Options) =
   ## Generates a lock file for the package in the current directory or updates
   ## it if it already exists.  
+  let currentDir = getCurrentDir()
+  
+  # Clear package info cache to ensure we read the latest nimble file
+  # This is important when the nimble file has been modified since the last read
+  # In vnext mode, the cache clearing is done before runVNext is called
+  if not options.isVNext:
+    options.pkgInfoCache.clear()
+  
   let
-    currentDir = getCurrentDir()
-    pkgInfo = getPkgInfo(currentDir, options)
+    pkgInfo = if options.isVNext:
+      options.satResult.rootPackage
+    else:
+      getPkgInfo(currentDir, options)
     currentLockFile = options.lockFile(currentDir)
     lockExists = displayLockOperationStart(currentLockFile)      
   
   var 
-    baseDeps = 
+     baseDeps =       
       if options.isVNext:
         options.satResult.pkgs.toSeq
       elif options.useSATSolver:
         processFreeDependenciesSAT(pkgInfo, options).toSeq        
       else:
         pkgInfo.getDependenciesForLocking(options) # Deps shared by base and tasks  
-  
+
   if options.useSystemNim:
     baseDeps = baseDeps.filterIt(not it.name.isNim)
 
   let baseDepNames: HashSet[string] = baseDeps.mapIt(it.name).toHashSet
   pkgInfo.validateDevelopDependenciesVersionRanges(baseDeps, options)
   
-  # We need to separate the graph into separate tasks later
   var
     errors = validateDevModeDepsWorkingCopiesBeforeLock(pkgInfo, options)
     taskDepNames: Table[string, HashSet[string]] # We need to separate the graph into separate tasks later
@@ -2057,22 +2081,78 @@ proc lock(options: Options) =
     # Now build graph for all dependencies
     taskOptions.checkSatisfied(taskDeps)
 
-  let graph = buildDependencyGraph(allDeps.toSeq, options)
-  errors.check(graph)
+  if options.isVNext:
+    # vnext path: generate lockfile from solved packages
+    # Check for develop dependency validation errors
+    # Create a minimal graph for error checking - only include actual dependencies, not root package
+    #TODO Some errors are not checked here.
+    var vnextGraph: LockFileDeps
+    let rootPkgName = pkgInfo.basicInfo.name
+    
+    #TODO in the future we could consider to add it via a flag/when nimble install nim and a develop file is present. By default we should not add it.
+    var shouldAddNim = false
 
-  for task in pkgInfo.taskRequires.keys:
-    lockDeps[task] = LockFileDeps()
+    for solvedPkg in options.satResult.solvedPkgs:
+      if (not solvedPkg.pkgName.isNim or (shouldAddNim and solvedPkg.pkgName.isNim)) and solvedPkg.pkgName != rootPkgName:
+        vnextGraph[solvedPkg.pkgName] = LockFileDep()  # Minimal entry for error checking
+    errors.check(vnextGraph)
+    for solvedPkg in options.satResult.solvedPkgs:
+      if solvedPkg.pkgName.isNim and not shouldAddNim: continue
+      
+      # Get the PackageInfo for this solved package
+      let pkgInfo = options.satResult.getPkgInfoFromSolved(solvedPkg, options)
+      var vcsRevision = pkgInfo.metaData.vcsRevision
+      
+      # For develop mode dependencies, ensure VCS revision is set from working copy
+      if (pkgInfo.isLink or (vcsRevision == notSetSha1Hash and pkgInfo.getRealDir().dirExists())) and vcsRevision == notSetSha1Hash:
+        try:
+          vcsRevision = getVcsRevision(pkgInfo.getRealDir())
+        except CatchableError:
+          discard
+      lockDeps[noTask][pkgInfo.basicInfo.name] = LockFileDep(
+        version: solvedPkg.version,
+        vcsRevision: vcsRevision,
+        url: pkgInfo.metaData.url,
+        downloadMethod: pkgInfo.metaData.downloadMethod,
+        dependencies: solvedPkg.requirements.mapIt(it.name), 
+        checksums: Checksums(sha1: pkgInfo.basicInfo.checksum))
+    
+    for task in pkgInfo.taskRequires.keys:
+      lockDeps[task] = LockFileDeps()
+      for (taskDep, _) in pkgInfo.taskRequires[task]:
+        for solvedPkg in options.satResult.solvedPkgs:
+          if solvedPkg.pkgName == taskDep:
+            #Now we have to pick the dep from above
+            var found = false
+            for key, value in lockDeps[noTask]:
+              if key == taskDep:
+                lockDeps[task][key] = value
+                found = true
+                break
+            if found: 
+              lockDeps[noTask].del(taskDep)
+    
+    writeLockFile(currentLockFile, lockDeps)
+  else:
+    # traditional path: use dependency graph
+    let graph = buildDependencyGraph(allDeps.toSeq, options)
+    errors.check(graph)
 
-  for dep in topologicalSort(graph).order:
-    if dep in baseDepNames:
-      lockDeps[noTask][dep] = graph[dep]
-    else:
-      # Add the dependency for any task that requires it
-      for task in pkgInfo.taskRequires.keys:
-        if dep in taskDepNames[task]:
-          lockDeps[task][dep] = graph[dep]
+    for task in pkgInfo.taskRequires.keys:
+      lockDeps[task] = LockFileDeps()
 
-  writeLockFile(currentLockFile, lockDeps)
+    for dep in topologicalSort(graph).order:
+      #ignore root
+      if dep == pkgInfo.basicInfo.name: continue
+      if dep in baseDepNames:
+        lockDeps[noTask][dep] = graph[dep]
+      else:
+        # Add the dependency for any task that requires it
+        for task in pkgInfo.taskRequires.keys:
+          if dep in taskDepNames[task]:
+            lockDeps[task][dep] = graph[dep]
+
+    writeLockFile(currentLockFile, lockDeps)
   updateSyncFile(pkgInfo, options)
   displayLockOperationFinish(lockExists)
 
@@ -2231,7 +2311,11 @@ proc sync(options: Options) =
   # directory package with the revision data from the lock file.
 
   let currentDir = getCurrentDir()
-  let pkgInfo = getPkgInfo(currentDir, options)
+  let pkgInfo = 
+    if options.isVNext:
+      options.satResult.rootPackage
+    else:
+      getPkgInfo(currentDir, options)
 
   if not pkgInfo.areLockedDepsLoaded:
     raise nimbleError("Cannot execute `sync` when lock file is missing.")
@@ -2371,8 +2455,17 @@ proc setup(options: Options) =
   setupVcsIgnoreFile()
 
 proc getAlteredPath(options: Options): string =
-  let pkgInfo = getPkgInfo(getCurrentDir(), options)
-  var pkgs = pkgInfo.processAllDependencies(options).toSeq.toOrderedSet
+  
+  let pkgInfo = 
+    if options.isVNext:
+      options.satResult.rootPackage
+    else:
+      getPkgInfo(getCurrentDir(), options)
+  var pkgs =
+    if options.isVNext:
+      options.satResult.pkgs.toSeq.toOrderedSet
+    else:
+      pkgInfo.processAllDependencies(options).toSeq.toOrderedSet
   pkgs.incl(pkgInfo)
 
   var paths: seq[string] = @[]
@@ -2414,10 +2507,20 @@ proc getPackageForAction(pkgInfo: PackageInfo, options: Options): PackageInfo =
   if options.package.len == 0 or pkgInfo.basicInfo.name == options.package:
     return pkgInfo
 
-  let deps = pkgInfo.processAllDependencies(options)
-  for dep in deps:
-    if dep.basicInfo.name == options.package:
-      return dep.toFullInfo(options)
+  if options.isVNext:
+    # Search through the SAT result packages as the packages are already solved
+    for pkg in options.satResult.pkgs:
+      if pkg.basicInfo.name == options.package:
+        var fullPkg = getPkgInfo(pkg.getRealDir(), options)
+        # Explicitly check for develop mode conditions in vnext
+        if fullPkg.developFileExists or not fullPkg.myPath.startsWith(options.getPkgsDir):
+          fullPkg.isLink = true
+        return fullPkg
+  else:
+    let deps = pkgInfo.processAllDependencies(options)
+    for dep in deps:
+      if dep.basicInfo.name == options.package:
+        return dep.toFullInfo(options)
 
   raise nimbleError(notFoundPkgWithNameInPkgDepTree(options.package))
 
@@ -2425,6 +2528,7 @@ proc run(options: Options) =
   var pkgInfo: PackageInfo
   if options.isVNext: #At this point we already ran the solver
     pkgInfo = options.satResult.rootPackage
+    pkgInfo = getPackageForAction(pkgInfo, options)
   else:
     pkgInfo = getPkgInfo(getCurrentDir(), options)
     pkgInfo = getPackageForAction(pkgInfo, options)
@@ -2436,13 +2540,23 @@ proc run(options: Options) =
   if binary notin pkgInfo.bin:
     raise nimbleError(binaryNotDefinedInPkgMsg(binary, pkgInfo.basicInfo.name))
 
-  if not options.isVNext:
+  if options.isVNext:
+    # In vnext path, build develop mode packages (similar to old code path)
+    if pkgInfo.isLink:
+      # Use vnext buildPkg for develop mode packages
+      let isInRootDir = options.startDir == pkgInfo.myPath.parentDir and 
+        options.satResult.rootPackage.basicInfo.name == pkgInfo.basicInfo.name
+      buildPkg(pkgInfo, isInRootDir, options)
+    
+    if options.getCompilationFlags.len > 0:
+      displayWarning(ignoringCompilationFlagsMsg)
+  else:
     if pkgInfo.isLink: #TODO review this code path for vnext. isLink is related to develop mode
       # If this is not installed package then build the binary.
       pkgInfo.build(options)
     elif options.getCompilationFlags.len > 0:
       displayWarning(ignoringCompilationFlagsMsg)
-
+  
   let binaryPath = pkgInfo.getOutputDir(binary)
   let cmd = quoteShellCommand(binaryPath & options.action.runFlags)
   displayDebug("Executing", cmd)
@@ -2461,11 +2575,26 @@ proc openNimbleManual =
 proc solvePkgs(rootPackage: PackageInfo, options: var Options) =
   options.satResult.rootPackage = rootPackage
   options.satResult.rootPackage.requires &= options.extraRequires
-  let pkgList = initPkgList(options.satResult.rootPackage, options)
+  # Add task-specific requirements if a task is being executed
+  #Note this wont work until we support taskRequires in the declarative parser
+  if options.task.len > 0 and options.task in rootPackage.taskRequires:
+    options.satResult.rootPackage.requires &= rootPackage.taskRequires[options.task]
+  #when locking we need to add the task requires to the root package
+  if options.action.typ == actionLock:
+    for task in rootPackage.taskRequires.keys:
+      options.satResult.rootPackage.requires &= rootPackage.taskRequires[task]
+  
+  var pkgList = initPkgList(options.satResult.rootPackage, options)
   options.satResult.rootPackage.enableFeatures(options)
-  if rootPackage.hasLockFile(options):
-    options.satResult.pass = satLockFile
+  # echo "BEFORE FIRST PASS"
+  # options.debugSATResult()
+  # For lock action, always read from nimble file, not from lockfile
+  # if rootPackage.hasLockFile(options) and options.action.typ != actionLock:
+  #   options.satResult.pass = satLockFile
+  
   let resolvedNim = resolveAndConfigureNim(options.satResult.rootPackage, pkgList, options)
+  # echo "AFTER FIRST PASS"
+  # options.debugSATResult()
   #We set nim in the options here as it is used to get the full info of the packages.
   #Its kinda a big refactor getPkgInfo to parametrize it. At some point we will do it. 
   setNimBin(resolvedNim.pkg.get, options)
@@ -2477,21 +2606,33 @@ proc solvePkgs(rootPackage: PackageInfo, options: var Options) =
     options.satResult.rootPackage = rootPackage
     options.satResult.rootPackage = getPkgInfo(options.satResult.rootPackage.getNimbleFileDir, options).toRequiresInfo(options)
     options.satResult.rootPackage.enableFeatures(options) 
+    # Add task-specific requirements if a task is being executed (fallback path)
+    if options.task.len > 0 and options.task in options.satResult.rootPackage.taskRequires:
+      options.satResult.rootPackage.requires &= options.satResult.rootPackage.taskRequires[options.task]
+    #when locking we need to add the task requires to the root package
+    if options.action.typ == actionLock:
+      for task in options.satResult.rootPackage.taskRequires.keys:
+        options.satResult.rootPackage.requires &= options.satResult.rootPackage.taskRequires[task]
     #Declarative parser failed. So we need to rerun the solver but this time, we allow the parser
     #to fallback to the vm parser
     solvePkgsWithVmParserAllowingFallback(options.satResult.rootPackage, resolvedNim, pkgList, options)
   #Nim used in the new code path (mainly building, except in getPkgInfo) is set here
   options.satResult.nimResolved = resolvedNim #TODO maybe we should consider the sat fallback pass. Not sure if we should just warn the user so the packages are corrected
   options.satResult.pkgs.incl(resolvedNim.pkg.get) #Make sure its in the solution
+  nimblesat.addUnique(options.satResult.solvedPkgs, SolvedPackage(pkgName: "nim", version: resolvedNim.version))
   options.satResult.solutionToFullInfo(options)
-  options.satResult.pass = satDone 
   if rootPackage.hasLockFile(options): 
-    options.satResult.solveLockFileDeps(options)
+    options.satResult.solveLockFileDeps(pkgList, options)
+
+    
+  options.satResult.pass = satDone 
+
 
 proc runVNext*(options: var Options) =
-  #if the action is lock, we first remove the lock file so we can recalculate the deps. 
-  if options.action.typ == actionLock:
-    removeFile(options.lockFile(getCurrentDir()))
+  #Make sure we set the righ verbosity for commands that output info:
+  if options.action.typ in {actionShellEnv}:
+    setVerbosity(SilentPriority)
+    options.verbosity = SilentPriority
   #Install and in consequence builds the packages
   let thereIsNimbleFile = findNimbleFile(getCurrentDir(), error = false, options) != ""
   if thereIsNimbleFile:
@@ -2500,14 +2641,16 @@ proc runVNext*(options: var Options) =
     if options.action.typ == actionInstall:
       rootPackage.requires.add(options.action.packages)
     solvePkgs(rootPackage, options)
+      # return
   elif options.action.typ == actionInstall:
     #Global install        
     for pkg in options.action.packages:          
       options.satResult = initSATResult(satNimSelection)      
-      var rootPackage = downloadPkInfoForPv(pkg, options)
+      var rootPackage = downloadPkInfoForPv(pkg, options, doPrompt = true)
       solvePkgs(rootPackage, options)
+  # options.debugSATResult()
   options.satResult.installPkgs(options)
-  echo "PKG solution after install: ", options.satResult.pkgs.mapIt(it.basicInfo.name)
+  # options.debugSATResult()
   options.satResult.addReverseDeps(options)
   
 proc doAction(options: var Options) =
@@ -2601,7 +2744,8 @@ proc doAction(options: var Options) =
       # Make sure we have dependencies for the task.
       # We do that here to make sure that any binaries from dependencies
       # are installed
-      discard pkgInfo.processAllDependencies(optsCopy)
+      if not optsCopy.isVNext:
+        discard pkgInfo.processAllDependencies(optsCopy)
       # If valid task defined in nimscript, run it
       var execResult: ExecutionResult[bool]
       if execCustom(nimbleFile, optsCopy, execResult):
@@ -2733,14 +2877,16 @@ when isMainModule:
     
     #Notice some actions dont need to be touched in vnext. Some other partially incercepted (setup) and some others fully changed (i.e build, install)
     const vNextSupportedActions = { actionInstall, actionBuild, 
-      actionSetup, actionRun, actionLock, actionCustom }
-
-    # if opt.isVNext:
-    #   echo "ACTION IS ", opt.action.typ
+      actionSetup, actionRun, actionLock, actionCustom, actionSync,
+      actionShellEnv, actionShell, actionUpgrade
+    }
 
     if opt.isVNext and opt.action.typ in vNextSupportedActions:
+      # For actionCustom, set the task name before calling runVNext
+      if opt.action.typ == actionCustom:
+        opt.task = opt.action.command.normalize
       runVNext(opt)
-    elif not opt.showVersion and not opt.showHelp: 
+    elif not opt.showVersion and not opt.showHelp:
       #Even in vnext some actions need to have set Nim the old way i.e. initAction 
       #TODO review this and write specific logic to set Nim in this scenario.
       opt.setNimBin()

@@ -124,10 +124,15 @@ type
     pkgs*: HashSet[PackageInfo] #Packages from solution + new installs
     pass*: SATPass
     installedPkgs*: seq[PackageInfo] #Packages installed in the current pass
+    buildPkgs*: seq[PackageInfo] #Packages that were built in the current pass
     declarativeParseFailed*: bool
     declarativeParserErrorLines*: seq[string]
     nimResolved*: NimResolved
 
+proc `==`*(a, b: SolvedPackage): bool =
+  a.pkgName == b.pkgName and
+  a.version == b.version 
+  
 proc isMinimal*(pkg: PackageInfo): bool =
   pkg.infoKind == pikMinimal
 
