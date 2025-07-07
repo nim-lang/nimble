@@ -1,5 +1,5 @@
 {.used.}
-import unittest, os#, strformat, osproc
+import unittest, os, strutils# strformat, osproc
 import testscommon
 from nimblepkg/common import cd
 
@@ -34,4 +34,39 @@ suite "requires flag":
   #     check output.processOutput.inLines("Success:  nimqml installed successfully.")
   #     check output.processOutput.inLines("Installing nim@2.0.0")
 
+
+
+  test "should be able to install a special version":
+  #[
+    Test it can install a dep with the following variations:
+      - https://github.com/status-im/nim-json-serialization.git#lean-arrays
+      - https://github.com/status-im/nim-json-serialization.git#4cd31594f868a3d3cb81ec9d5f479efbe2466ebd
+      - json_serialization#lean-arrays
+      - json_serialization#4cd31594f868a3d3cb81ec9d5f479efbe2466ebd
+  ]#
+    let requires = [
+      "https://github.com/status-im/nim-json-serialization.git#nimble_test_dont_delete",
+      "https://github.com/status-im/nim-json-serialization.git#e45fe67d71f006f15a32f90a5a56a4775982d951",
+      "json_serialization#nimble_test_dont_delete",
+      "json_serialization#e45fe67d71f006f15a32f90a5a56a4775982d951",
+      "json_serialization == 0.2.9"
+    ]
+    cleanDir(installDir)
+    cd "gitversions":
+      for req in requires:
+        let require = "--requires: " & req
+        let isVersion = req.contains("==")
+        # echo "Trying require: ", req
+        let (output, exitCode) = execNimble("install", require)
+        let pkgDir = getPackageDir(pkgsDir, "json_serialization-0.2.9")
+        check exitCode == QuitSuccess
+        let nimbleTestDontDeleteFile =  pkgDir / "json_serialization" / "nimble.test.nim"
+        # echo "Nimble test dont delete file: ", nimbleTestDontDeleteFile
+        if isVersion:
+          check output.processOutput.inLines("Success:  json_serialization installed successfully.")
+          check not fileExists(nimbleTestDontDeleteFile)
+        else:
+          check output.processOutput.inLines("Success:  json_serialization installed successfully.")
+          check fileExists(nimbleTestDontDeleteFile)
+        cleanDir(pkgDir) #Resets the package dir for each require
 
