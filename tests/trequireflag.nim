@@ -2,7 +2,6 @@
 import unittest, os, strutils# strformat, osproc
 import testscommon
 from nimblepkg/common import cd
-import rdstdin
 
 suite "requires flag":
   test "can add additional requirements to package with legacy solver":
