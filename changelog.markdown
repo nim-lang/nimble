@@ -3,6 +3,34 @@
 
 # Nimble changelog
 
+## 0.20.0
+  - Road to Nimble 1.0: New declarative parser and SAT solver as default. Still experimental and incomplete, to enable and test it set `--parser:declarative`
+  - Introduced `testEntryPoint` configuration option
+  - Fixed `lock` command to imply `setup` automatically
+  - Enhanced `dump` action to support `--collect` and `--solve` flags
+  - Added `nimbledeps` to `.gitignore` during setup
+  - Fixed Mercurial repository support in requirements
+  - Set default path for develop dependencies
+  - Reverted spinner display
+  - Added vNext lock file support
+  - Fixed dependency satisfaction errors
+  - Added legacy flag (defaults to `true`)
+  - Added OpenBSD and Haiku OS support
+
+## 0.18.0
+
+- Implemented declarative parser with features support
+- Added git submodules installation with ignore flag
+- Fixed SAT solver reinstalling git dependencies on rebuild
+- Fixed lock file generating empty deps on subsequent runs
+- Don't recompile Nim if already compiled
+- Cache Nim releases for only 1 day
+- Moved search paths to nimble.nim.cfg
+- Improved CLI interactions and bash completion
+- Added comprehensive Nimble guide
+- Fixed Windows binary declarative parser
+
+
 ## 0.16.4
 
 - SAT solver now fallbacks to the previous version if the latest version of the packages involved in the resolution are unsatisfiable.

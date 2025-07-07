@@ -129,7 +129,21 @@ jobs:
           prerelease: true
           tag: latest
 
-      # Create a versioned release if this is a tag push
+      # Generate release notes and create a versioned release if this is a tag push
+      - if: startsWith(github.ref, 'refs/tags/v')
+        name: Generate release notes
+        id: release_notes
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: releaseNotes } = await github.rest.repos.generateReleaseNotes({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag_name: context.ref.replace('refs/tags/', ''),
+              target_commitish: context.sha,
+            });
+            core.setOutput('notes', releaseNotes.body)
+
       - if: startsWith(github.ref, 'refs/tags/v')
         uses: ncipollo/release-action@v1
         with:
@@ -139,6 +153,7 @@ jobs:
           makeLatest: true
           prerelease: false
           tag: ${{ github.ref_name }}
+          body: ${{ steps.release_notes.outputs.notes }}
 
       - name: Delete artefacts
         uses: geekyeggo/delete-artifact@v5
