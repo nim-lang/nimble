@@ -1156,7 +1156,7 @@ proc listNimBinaries(options: Options) =
 
 proc listInstalled(options: Options) =
   type
-    VersionChecksumTuple = tuple[version: Version, checksum: Sha1Hash]
+    VersionChecksumTuple = tuple[version: Version, checksum: Sha1Hash, special: seq[string]]
   var vers: OrderedTable[string, seq[VersionChecksumTuple]]
   let pkgs = getInstalledPkgsMin(options.getPkgsDir(), options)
   for pkg in pkgs:
@@ -1166,7 +1166,7 @@ proc listInstalled(options: Options) =
       pChecksum = pkg.basicInfo.checksum
     if not vers.hasKey(pName): vers[pName] = @[]
     var s = vers[pName]
-    add(s, (pVersion, pChecksum))
+    add(s, (pVersion, pChecksum, pkg.metadata.specialVersions.toSeq().map(v => $v)))
     vers[pName] = s
 
   vers.sort(proc (a, b: (string, seq[VersionChecksumTuple])): int =
@@ -1187,6 +1187,9 @@ proc listInstalled(options: Options) =
         displayFormatted(Success, "@", $item.version)
         displayFormatted(Hint, " ")
         displayFormatted(Details, fmt"({item.checksum})")
+        if item.special.len > 1:
+          displayFormatted(Hint, " ")
+          displayFormatted(Details, fmt"""[{item.special.join(", ")}]""")
         displayFormatted(Hint, "\n")
         # "  [" & vers[k].join(", ") & "]"
 
