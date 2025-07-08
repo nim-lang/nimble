@@ -412,6 +412,7 @@ proc buildFromDir(pkgInfo: PackageInfo, paths: HashSet[seq[string]],
       pkgInfo.getNimBin(options).quoteShell, pkgInfo.backend, if options.noColor: "off" else: "on", join(args, " "),
       outputOpt, input.quoteShell]
     try:
+      display("Executing", cmd, priority = DebugPriority)
       doCmd(cmd)
       binariesBuilt.inc()
     except CatchableError as error:
@@ -1156,7 +1157,7 @@ proc listNimBinaries(options: Options) =
 
 proc listInstalled(options: Options) =
   type
-    VersionChecksumTuple = tuple[version: Version, checksum: Sha1Hash, special: seq[string]]
+    VersionChecksumTuple = tuple[version: Version, checksum: Sha1Hash, special: seq[string], path: string]
   var vers: OrderedTable[string, seq[VersionChecksumTuple]]
   let pkgs = getInstalledPkgsMin(options.getPkgsDir(), options)
   for pkg in pkgs:
@@ -1166,7 +1167,7 @@ proc listInstalled(options: Options) =
       pChecksum = pkg.basicInfo.checksum
     if not vers.hasKey(pName): vers[pName] = @[]
     var s = vers[pName]
-    add(s, (pVersion, pChecksum, pkg.metadata.specialVersions.toSeq().map(v => $v)))
+    add(s, (pVersion, pChecksum, pkg.metadata.specialVersions.toSeq().map(v => $v), pkg.getRealDir()))
     vers[pName] = s
 
   vers.sort(proc (a, b: (string, seq[VersionChecksumTuple])): int =
@@ -1190,6 +1191,8 @@ proc listInstalled(options: Options) =
         if item.special.len > 1:
           displayFormatted(Hint, " ")
           displayFormatted(Details, fmt"""[{item.special.join(", ")}]""")
+        displayFormatted(Hint, " ")
+        displayFormatted(Details, fmt"({item.path})")
         displayFormatted(Hint, "\n")
         # "  [" & vers[k].join(", ") & "]"
 
