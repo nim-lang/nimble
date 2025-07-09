@@ -11,6 +11,3 @@ when not defined(no_test):
   import json_serialization/nimbletest
 
   hello()
-
-test "can add":
-  check add(5, 5) == 10
