@@ -46,9 +46,9 @@ suite "requires flag":
   ]#
     let requires = [
       "https://github.com/status-im/nim-json-serialization.git#nimble_test_dont_delete",
-      "https://github.com/status-im/nim-json-serialization.git#e45fe67d71f006f15a32f90a5a56a4775982d951",
+      "https://github.com/status-im/nim-json-serialization.git#26bea5ffce20ae0d0855b3d61072de04d3bf9826",
       "json_serialization#nimble_test_dont_delete",
-      "json_serialization#e45fe67d71f006f15a32f90a5a56a4775982d951",
+      "json_serialization#26bea5ffce20ae0d0855b3d61072de04d3bf9826",
       "json_serialization == 0.2.9"
     ]
     cleanDir(installDir)
@@ -57,10 +57,15 @@ suite "requires flag":
         let require = "--requires: " & req
         let isVersion = req.contains("==")
         # echo "Trying require: ", req
-        let (output, exitCode) = execNimble("install", require)
+        let no_test = if isVersion: "-d:no_test" else: ""
+        let (output, exitCode) = execNimble("run", require, no_test)
         let pkgDir = getPackageDir(pkgsDir, "json_serialization-0.2.9")
         check exitCode == QuitSuccess
-        let nimbleTestDontDeleteFile =  pkgDir / "json_serialization" / "nimble.test.nim"
+        
+        let (_, exitCodeTest) = execNimble("test", require, no_test)
+        check exitCodeTest == QuitSuccess
+
+        let nimbleTestDontDeleteFile =  pkgDir / "json_serialization" / "nimbletest.nim"
         # echo "Nimble test dont delete file: ", nimbleTestDontDeleteFile
         if isVersion:
           check output.processOutput.inLines("Success:  json_serialization installed successfully.")

@@ -7,6 +7,11 @@
 
 import unittest
 
+when not defined(no_test):
+  import json_serialization/nimbletest
+
+  hello()
+
 import gitversions
 test "can add":
   check add(5, 5) == 10
