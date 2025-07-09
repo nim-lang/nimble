@@ -58,7 +58,7 @@ suite "requires flag":
         let isVersion = req.contains("==")
         # echo "Trying require: ", req
         let no_test = if isVersion: "-d:no_test" else: ""
-        let (output, exitCode) = execNimble("run", require, no_test)
+        let (_, exitCode) = execNimble("run", require, no_test)
         
         # Find the actual package directory (it may have different hashes for special versions)
         let pkgDir = getPackageDir(pkgsDir, "json_serialization")
