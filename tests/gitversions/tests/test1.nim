@@ -12,6 +12,5 @@ when not defined(no_test):
 
   hello()
 
-import gitversions
 test "can add":
   check add(5, 5) == 10
