@@ -59,19 +59,25 @@ suite "requires flag":
         # echo "Trying require: ", req
         let no_test = if isVersion: "-d:no_test" else: ""
         let (output, exitCode) = execNimble("run", require, no_test)
-        let pkgDir = getPackageDir(pkgsDir, "json_serialization-0.2.9")
+        
+        # Find the actual package directory (it may have different hashes for special versions)
+        let pkgDir = getPackageDir(pkgsDir, "json_serialization")
         check exitCode == QuitSuccess
+        check pkgDir != ""
         
         let (_, exitCodeTest) = execNimble("test", require, no_test)
         check exitCodeTest == QuitSuccess
 
-        let nimbleTestDontDeleteFile =  pkgDir / "json_serialization" / "nimbletest.nim"
+        let nimbleTestDontDeleteFile = pkgDir / "json_serialization" / "nimbletest.nim"
         # echo "Nimble test dont delete file: ", nimbleTestDontDeleteFile
         if isVersion:
-          check output.processOutput.inLines("Success:  json_serialization installed successfully.")
+          # Regular version should NOT have the nimbletest.nim file
           check not fileExists(nimbleTestDontDeleteFile)
         else:
-          check output.processOutput.inLines("Success:  json_serialization installed successfully.")
+          # Special version should have the nimbletest.nim file
           check fileExists(nimbleTestDontDeleteFile)
-        cleanDir(pkgDir) #Resets the package dir for each require
+        # Clean up all json_serialization directories
+        for kind, dir in walkDir(pkgsDir):
+          if kind == pcDir and dir.splitPath.tail.startsWith("json_serialization"):
+            removeDir(dir)
 

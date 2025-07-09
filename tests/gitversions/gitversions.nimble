@@ -11,3 +11,4 @@ bin           = @["gitversions"]
 # Dependencies
 
 requires "nim"
+requires "json_rpc"
