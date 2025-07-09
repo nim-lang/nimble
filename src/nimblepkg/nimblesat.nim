@@ -125,8 +125,13 @@ proc getMinimalInfo*(nimbleFile: string, pkgName: string, options: Options): Pac
 
 proc hasVersion*(packageVersions: PackageVersions, pv: PkgTuple): bool =
   for pkg in packageVersions.versions:
-    if pkg.name == pv.name and pkg.version.withinRange(pv.ver):
-      return true
+    if pkg.name == pv.name:
+      # Special versions must match exactly for collection purposes
+      if pv.ver.kind == verSpecial:
+        return $pkg.version == $pv.ver
+      # Regular version ranges
+      elif pkg.version.withinRange(pv.ver):
+        return true
   false
 
 proc hasVersion*(packagesVersions: Table[string, PackageVersions], pv: PkgTuple): bool =
@@ -657,21 +662,31 @@ proc getMinimalFromPreferred(pv: PkgTuple,  getMinimalPackage: GetPackageMinimal
       return @[pp]
   getMinimalPackage(pv, options)
 
-proc processRequirements(versions: var Table[string, PackageVersions], pv: PkgTuple, visited: var HashSet[PkgTuple],  getMinimalPackage: GetPackageMinimal, preferredPackages: seq[PackageMinimalInfo] = newSeq[PackageMinimalInfo](), options: Options) =
+proc processRequirements(versions: var Table[string, PackageVersions], pv: PkgTuple, visited: var HashSet[PkgTuple], getMinimalPackage: GetPackageMinimal, preferredPackages: seq[PackageMinimalInfo] = newSeq[PackageMinimalInfo](), options: Options) =
   if pv in visited:
     return
   
   visited.incl pv
   
-  if not hasVersion(versions, pv):
+  # For special versions, always process them even if we think we have the package
+  # This ensures the special version gets downloaded and added to the version table
+  if pv.ver.kind == verSpecial or not hasVersion(versions, pv):
     var pkgMins = getMinimalFromPreferred(pv, getMinimalPackage, preferredPackages, options)
     for pkgMin in pkgMins.mitems:
       if pv.ver.kind == verSpecial:
         pkgMin.version = newVersion $pv.ver
-      if not versions.hasKey(pv.name):
-        versions[pv.name] = PackageVersions(pkgName: pv.name, versions: @[pkgMin])
+        
+        # If this is a special version, clear any existing regular versions
+        # to force the SAT solver to use this specific version
+        if versions.hasKey(pv.name):
+          versions[pv.name].versions = @[pkgMin]
+        else:
+          versions[pv.name] = PackageVersions(pkgName: pv.name, versions: @[pkgMin])
       else:
-        versions[pv.name].versions.addUnique pkgMin
+        if not versions.hasKey(pv.name):
+          versions[pv.name] = PackageVersions(pkgName: pv.name, versions: @[pkgMin])
+        else:
+          versions[pv.name].versions.addUnique pkgMin
       
       for req in pkgMin.requires:
         processRequirements(versions, req, visited, getMinimalPackage, preferredPackages, options)
