@@ -60,13 +60,27 @@ suite "requires flag":
         let no_test = if isVersion: "-d:no_test" else: ""
         let (_, exitCode) = execNimble("run", require, no_test)
         
-        # Find the actual package directory (it may have different hashes for special versions)
-        let pkgDir = getPackageDir(pkgsDir, "json_serialization")
         check exitCode == QuitSuccess
-        check pkgDir != ""
         
         let (_, exitCodeTest) = execNimble("test", require, no_test)
         check exitCodeTest == QuitSuccess
+
+        var pkgDir = ""
+        if isVersion:
+          pkgDir = getPackageDir(pkgsDir, "json_serialization")
+        else:
+          # Special version - find the directory with nimbletest.nim
+          for kind, dir in walkDir(pkgsDir):
+            if kind == pcDir and dir.splitPath.tail.startsWith("json_serialization"):
+              let testFile = dir / "json_serialization" / "nimbletest.nim"
+              if fileExists(testFile):
+                pkgDir = dir
+                break
+          # If no directory with nimbletest.nim found, fall back to standard function
+          if pkgDir == "":
+            pkgDir = getPackageDir(pkgsDir, "json_serialization")
+        
+        check pkgDir != ""
 
         let nimbleTestDontDeleteFile = pkgDir / "json_serialization" / "nimbletest.nim"
         # echo "Nimble test dont delete file: ", nimbleTestDontDeleteFile
