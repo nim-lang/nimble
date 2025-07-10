@@ -662,6 +662,13 @@ proc getMinimalFromPreferred(pv: PkgTuple,  getMinimalPackage: GetPackageMinimal
       return @[pp]
   getMinimalPackage(pv, options)
 
+proc hasSpecialVersion(versions: Table[string, PackageVersions], pkgName: string): bool =
+  if pkgName in versions:
+    for pkg in versions[pkgName].versions:
+      if pkg.version.isSpecial:
+        return true
+  return false
+
 proc processRequirements(versions: var Table[string, PackageVersions], pv: PkgTuple, visited: var HashSet[PkgTuple], getMinimalPackage: GetPackageMinimal, preferredPackages: seq[PackageMinimalInfo] = newSeq[PackageMinimalInfo](), options: Options) =
   if pv in visited:
     return
@@ -683,6 +690,10 @@ proc processRequirements(versions: var Table[string, PackageVersions], pv: PkgTu
         else:
           versions[pv.name] = PackageVersions(pkgName: pv.name, versions: @[pkgMin])
       else:
+        # Don't add regular versions if a special version already exists
+        if hasSpecialVersion(versions, pv.name):
+          continue
+          
         if not versions.hasKey(pv.name):
           versions[pv.name] = PackageVersions(pkgName: pv.name, versions: @[pkgMin])
         else:
