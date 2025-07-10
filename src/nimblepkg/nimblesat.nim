@@ -677,7 +677,6 @@ proc processRequirements(versions: var Table[string, PackageVersions], pv: PkgTu
   
   # For special versions, always process them even if we think we have the package
   # This ensures the special version gets downloaded and added to the version table
-  # For regular versions, only process if we don't have a version that satisfies the requirement
   if pv.ver.kind == verSpecial or not hasVersion(versions, pv):
     var pkgMins = getMinimalFromPreferred(pv, getMinimalPackage, preferredPackages, options)
     for pkgMin in pkgMins.mitems:
@@ -773,7 +772,7 @@ proc solvePackages*(rootPkg: PackageInfo, pkgList: seq[PackageInfo], pkgsToInsta
   collectAllVersions(pkgVersionTable, root, options, downloadMinimalPackage, pkgList.mapIt(it.getMinimalInfo(options)))
   solvedPkgs = pkgVersionTable.getSolvedPackages(output).topologicalSort()
   let systemNimCompatible = solvedPkgs.isSystemNimCompatible(options)
-  
+
   for solvedPkg in solvedPkgs:
     if solvedPkg.pkgName == root.name: continue    
     var foundInList = false
@@ -791,6 +790,7 @@ proc solvePackages*(rootPkg: PackageInfo, pkgList: seq[PackageInfo], pkgsToInsta
       # 2. Otherwise, prefer package with fewest special versions (most "normal")
       var selectedPkg = matchingPkgs[0]
       if matchingPkgs.len > 1:
+        # echo &"DEBUG: Multiple matches for {solvedPkg.pkgName} {solvedPkg.version}, selecting best one..."
         if solvedPkg.version.isSpecial:
           # Look for package that has this exact special version
           for pkg in matchingPkgs:
@@ -805,6 +805,7 @@ proc solvePackages*(rootPkg: PackageInfo, pkgList: seq[PackageInfo], pkgsToInsta
               minSpecialVersions = pkg.metaData.specialVersions.len
               selectedPkg = pkg
       
+      # echo &"DEBUG: Adding selected pkgInfo {selectedPkg.basicInfo.name} {selectedPkg.basicInfo.version} with special versions: {selectedPkg.metadata.specialVersions.toSeq().mapIt($it)}"
       result.incl selectedPkg
       foundInList = true
     
