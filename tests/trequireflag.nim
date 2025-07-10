@@ -1,7 +1,8 @@
 {.used.}
-import unittest, os, strutils# strformat, osproc
+import unittest, os, strutils, sequtils# strformat, osproc
 import testscommon
 from nimblepkg/common import cd
+from nimble import nimblePathsFileName
 
 suite "requires flag":
   test "can add additional requirements to package with legacy solver":
@@ -64,6 +65,20 @@ suite "requires flag":
         
         let (_, exitCodeTest) = execNimble("test", require, no_test)
         check exitCodeTest == QuitSuccess
+        
+        # Check nimble.paths file for correct path and no duplicates
+        check fileExists(nimblePathsFileName)
+        let pathsContent = nimblePathsFileName.readFile
+        let jsonSerializationLines = pathsContent.splitLines.filterIt(it.contains("json_serialization"))
+        check jsonSerializationLines.len == 1
+        
+        # Verify the path is correctly formatted
+        let pathLine = jsonSerializationLines[0]
+        let pathStart = pathLine.find('"') + 1
+        let pathEnd = pathLine.rfind('"')
+        check pathStart > 0 and pathEnd > pathStart
+        let packagePath = pathLine[pathStart..<pathEnd]
+        check packagePath.contains("json_serialization")
 
         var pkgDir = ""
         if isVersion:

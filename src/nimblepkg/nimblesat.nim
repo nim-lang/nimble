@@ -677,6 +677,7 @@ proc processRequirements(versions: var Table[string, PackageVersions], pv: PkgTu
   
   # For special versions, always process them even if we think we have the package
   # This ensures the special version gets downloaded and added to the version table
+  # For regular versions, only process if we don't have a version that satisfies the requirement
   if pv.ver.kind == verSpecial or not hasVersion(versions, pv):
     var pkgMins = getMinimalFromPreferred(pv, getMinimalPackage, preferredPackages, options)
     for pkgMin in pkgMins.mitems:
@@ -776,11 +777,37 @@ proc solvePackages*(rootPkg: PackageInfo, pkgList: seq[PackageInfo], pkgsToInsta
   for solvedPkg in solvedPkgs:
     if solvedPkg.pkgName == root.name: continue    
     var foundInList = false
+    var matchingPkgs: seq[PackageInfo] = @[]
+    
+    # Find all packages that match the solved package
     for pkgInfo in pkgList:
       if (pkgInfo.basicInfo.name == solvedPkg.pkgName or pkgInfo.metadata.url == solvedPkg.pkgName) and 
         (pkgInfo.basicInfo.version == solvedPkg.version or solvedPkg.version in pkgInfo.metadata.specialVersions):
-          result.incl pkgInfo
-          foundInList = true
+          matchingPkgs.add pkgInfo
+    
+    if matchingPkgs.len > 0:
+      # If we have multiple packages with the same name and version, prefer based on special versions:
+      # 1. If the solved version is special, prefer package with that exact special version
+      # 2. Otherwise, prefer package with fewest special versions (most "normal")
+      var selectedPkg = matchingPkgs[0]
+      if matchingPkgs.len > 1:
+        if solvedPkg.version.isSpecial:
+          # Look for package that has this exact special version
+          for pkg in matchingPkgs:
+            if solvedPkg.version in pkg.metaData.specialVersions:
+              selectedPkg = pkg
+              break
+        else:
+          # For regular versions, prefer package with minimum special versions (i.e., just the basic version)
+          var minSpecialVersions = selectedPkg.metaData.specialVersions.len
+          for pkg in matchingPkgs:
+            if pkg.metaData.specialVersions.len < minSpecialVersions:
+              minSpecialVersions = pkg.metaData.specialVersions.len
+              selectedPkg = pkg
+      
+      result.incl selectedPkg
+      foundInList = true
+    
     if not foundInList:
       # displayInfo(&"Coudlnt find {solvedPkg.pkgName}", priority = HighPriority)
       if solvedPkg.pkgName.isNim and systemNimCompatible:
