@@ -65,6 +65,9 @@ suite "requires flag":
         
         let (_, exitCodeTest) = execNimble("test", require, no_test)
         check exitCodeTest == QuitSuccess
+
+        let (_, exitCodeSetup) = execNimble("setup", require)
+        check exitCodeSetup == QuitSuccess
         
         # Check nimble.paths file for correct path and no duplicates
         check fileExists(nimblePathsFileName)
