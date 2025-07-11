@@ -66,6 +66,8 @@ type
     subdir*: string
     downloadDir*: string
     pv*: PkgTuple #Require request
+  
+var urlToName: Table[string, string] = initTable[string, string]()
 
 const TaggedVersionsFileName* = "tagged_versions.json"
 
@@ -111,9 +113,12 @@ proc getMinimalInfo*(pkg: PackageInfo, options: Options): PackageMinimalInfo =
   result.requires = pkg.requires.map(convertNimAliasToNim)
   if options.action.typ in {actionLock, actionDeps} or options.hasNimInLockFile():
     result.requires = result.requires.filterIt(not it.isNim)
+  if pkg.metadata.url != "":
+    urlToName[pkg.metadata.url] = result.name
 
 proc getMinimalInfo*(nimbleFile: string, pkgName: string, options: Options): PackageMinimalInfo =
   #TODO we can use the new getPkgInfoFromDirWithDeclarativeParser to get the minimal info and add the features to the packageinfo type so this whole function can be removed
+  #TODO we need to handle the url here as well.
   assert options.useDeclarativeParser, "useDeclarativeParser must be set"
   let nimbleFileInfo = extractRequiresInfo(nimbleFile)
   result.name =  if pkgName.isNim: "nim" else: pkgName
@@ -500,6 +505,13 @@ proc getSolvedPackages*(pkgVersionTable: Table[string, PackageVersions], output:
         if otherPkg.pkgName == depName and otherPkg.version.withinRange(depVer):
           solvedPkg.deps.add(otherPkg)
           break
+  # Collect reverse deps as solved package     
+  for solvedPkg in result.mitems:
+    for (depName, depVer) in solvedPkg.reverseDependencies:
+      for otherPkg in result:
+        if otherPkg.pkgName == depName:
+          solvedPkg.reverseDeps.add(otherPkg)
+          break
 
 proc getCacheDownloadDir*(url: string, ver: VersionRange, options: Options): string =
   options.pkgCachePath / getDownloadDirName(url, ver, notSetSha1Hash)
@@ -523,9 +535,11 @@ proc downloadPkgFromUrl*(pv: PkgTuple, options: Options, doPrompt = false): (Dow
 proc downloadPkInfoForPv*(pv: PkgTuple, options: Options, doPrompt = false): PackageInfo  =
   let downloadRes = downloadPkgFromUrl(pv, options, doPrompt)
   if options.satResult.pass in {satNimSelection, satFallbackToVmParser}:
-    getPkgInfoFromDirWithDeclarativeParser(downloadRes[0].dir, options)
+    result = getPkgInfoFromDirWithDeclarativeParser(downloadRes[0].dir, options)
   else:
-    downloadRes[0].dir.getPkgInfo(options)
+    result = downloadRes[0].dir.getPkgInfo(options)
+  if result.metadata.url != "": 
+    urlToName[result.metadata.url] = result.basicInfo.name
 
 proc getAllNimReleases(options: Options): seq[PackageMinimalInfo] =
   let releases = getOfficialReleases(options)  
@@ -764,21 +778,68 @@ proc solveLocalPackages*(rootPkgInfo: PackageInfo, pkgList: seq[PackageInfo], so
         (pkgInfo.basicInfo.version == solvedPkg.version or solvedPkg.version in pkgInfo.metadata.specialVersions):
           result.incl pkgInfo
 
+proc areAllReqAny(dep: SolvedPackage): bool =
+  #Checks where all the requirements by other packages in the solution are any
+  #This allows for using a special version to meet the requirement of the solution
+  #Scenario will be, int he package list there is only a special version but all requirements
+  #are any. So it wont need to download a regular version but just use the special version.
+  for rev in dep.reverseDeps:
+    for req in rev.requirements:
+      if dep.pkgName == req.name:
+        if req.ver.kind != verAny:
+          return false
+  true
+
+proc normalizeRequirements*(pkgVersionTable: var Table[string, PackageVersions]) =
+  #changes the url in the name of the requirements to the real name of the package
+  #so the resulting solvedPackages dont have url in the name
+  var recordsToRemove: seq[tuple[url: string, name: string]] = @[]
+  for pkgName, pkgVersions in pkgVersionTable.mpairs:
+    if pkgName.isUrl:
+      recordsToRemove.add((pkgName, urlToName[pkgName]))
+    for pkgVersion in pkgVersions.versions.mitems:
+      for req in pkgVersion.requires.mitems:
+        if req.name.isUrl and req.name in urlToName:
+          # echo "DEBUG: Normalizing requirement ", req.name, " to ", urlToName[req.name], "with version ", $req.ver, " for package ", pkgName, " version ", $pkgVersion.version
+          req.name = urlToName[req.name]
+  for (url, name) in recordsToRemove:
+    if pkgVersionTable.hasKey(name):
+      pkgVersionTable[name].versions.add(pkgVersionTable[url].versions)
+    else:
+      pkgVersionTable[name] = PackageVersions(pkgName: name, versions: pkgVersionTable[url].versions)
+    pkgVersionTable.del(url)
+  
+  #if there are special versions, we need to remove the regular versions
+  for pkgName, pkgVersions in pkgVersionTable.mpairs:
+    if pkgVersions.versions.filterIt(it.version.isSpecial).len > 0:
+      pkgVersions.versions = pkgVersions.versions.filterIt(it.version.isSpecial)
+
+  # if pkgVersionTable.hasKey("json_serialization"):
+  #   echo "DEBUG NEW VERSIONS FOR ", "json_serialization", " ", pkgVersionTable["json_serialization"].versions.mapIt(it.version).join(", ")
+
 proc solvePackages*(rootPkg: PackageInfo, pkgList: seq[PackageInfo], pkgsToInstall: var seq[(string, Version)], options: Options, output: var string, solvedPkgs: var seq[SolvedPackage]): HashSet[PackageInfo] =
   var root: PackageMinimalInfo = rootPkg.getMinimalInfo(options)
   root.isRoot = true
   var pkgVersionTable = initTable[string, PackageVersions]()
   pkgVersionTable[root.name] = PackageVersions(pkgName: root.name, versions: @[root])
   collectAllVersions(pkgVersionTable, root, options, downloadMinimalPackage, pkgList.mapIt(it.getMinimalInfo(options)))
+  # pkgVersionTable.normalizeRequirements() dont use it for now
   solvedPkgs = pkgVersionTable.getSolvedPackages(output).topologicalSort()
+  # echo "DEBUG: SolvedPkgs before post processing: ", solvedPkgs.mapIt(it.pkgName & " " & $it.version).join(", ")
   let systemNimCompatible = solvedPkgs.isSystemNimCompatible(options)
-  
+  # echo "DEBUG: SolvedPkgs after post processing: ", solvedPkgs.mapIt(it.pkgName & " " & $it.version).join(", ")
   for solvedPkg in solvedPkgs:
     if solvedPkg.pkgName == root.name: continue    
     var foundInList = false
+    let canUseAny = solvedPkg.areAllReqAny()
     for pkgInfo in pkgList:
+      let specialVersions = if pkgInfo.metadata.specialVersions.len > 1: pkgInfo.metadata.specialVersions.toSeq()[1..^1] else: @[]
+      let isSpecial = specialVersions.len > 0
       if (pkgInfo.basicInfo.name == solvedPkg.pkgName or pkgInfo.metadata.url == solvedPkg.pkgName) and 
-        (pkgInfo.basicInfo.version == solvedPkg.version or solvedPkg.version in pkgInfo.metadata.specialVersions):
+        (pkgInfo.basicInfo.version == solvedPkg.version and (not isSpecial or canUseAny) or solvedPkg.version in specialVersions) and
+        #only add one (we could fall into adding two if there are multiple special versiosn in the package list and we can add any). 
+        #But we still allow it on upgrade as they are post proccessed in a later stage
+        (result.toSeq.filterIt(it.basicInfo.name == solvedPkg.pkgName or it.metadata.url == solvedPkg.pkgName).len == 0 or options.action.typ in {actionUpgrade}): 
           result.incl pkgInfo
           foundInList = true
     if not foundInList:
