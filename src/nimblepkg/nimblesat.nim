@@ -790,7 +790,7 @@ proc areAllReqAny(dep: SolvedPackage): bool =
           return false
   true
 
-proc normalizeRequirements(pkgVersionTable: var Table[string, PackageVersions]) =
+proc normalizeRequirements*(pkgVersionTable: var Table[string, PackageVersions]) =
   #changes the url in the name of the requirements to the real name of the package
   #so the resulting solvedPackages dont have url in the name
   var recordsToRemove: seq[tuple[url: string, name: string]] = @[]
