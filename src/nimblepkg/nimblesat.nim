@@ -799,7 +799,7 @@ proc normalizeRequirements(pkgVersionTable: var Table[string, PackageVersions]) 
       recordsToRemove.add((pkgName, urlToName[pkgName]))
     for pkgVersion in pkgVersions.versions.mitems:
       for req in pkgVersion.requires.mitems:
-        if req.name.isUrl:
+        if req.name.isUrl and req.name in urlToName:
           # echo "DEBUG: Normalizing requirement ", req.name, " to ", urlToName[req.name], "with version ", $req.ver, " for package ", pkgName, " version ", $pkgVersion.version
           req.name = urlToName[req.name]
   for (url, name) in recordsToRemove:
