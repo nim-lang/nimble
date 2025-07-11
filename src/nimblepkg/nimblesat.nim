@@ -500,6 +500,13 @@ proc getSolvedPackages*(pkgVersionTable: Table[string, PackageVersions], output:
         if otherPkg.pkgName == depName and otherPkg.version.withinRange(depVer):
           solvedPkg.deps.add(otherPkg)
           break
+  # Collect reverse deps as solved package     
+  for solvedPkg in result.mitems:
+    for (depName, depVer) in solvedPkg.reverseDependencies:
+      for otherPkg in result:
+        if otherPkg.pkgName == depName:
+          solvedPkg.reverseDeps.add(otherPkg)
+          break
 
 proc getCacheDownloadDir*(url: string, ver: VersionRange, options: Options): string =
   options.pkgCachePath / getDownloadDirName(url, ver, notSetSha1Hash)
@@ -764,6 +771,18 @@ proc solveLocalPackages*(rootPkgInfo: PackageInfo, pkgList: seq[PackageInfo], so
         (pkgInfo.basicInfo.version == solvedPkg.version or solvedPkg.version in pkgInfo.metadata.specialVersions):
           result.incl pkgInfo
 
+proc areAllReqAny(dep: SolvedPackage): bool =
+  #Checks where all the requirements by other packages in the solution are any
+  #This allows for using a special version to meet the requirement of the solution
+  #Scenario will be, int he package list there is only a special version but all requirements
+  #are any. So it wont need to download a regular version but just use the special version.
+  for rev in dep.reverseDeps:
+    for req in rev.requirements:
+      if dep.pkgName == req.name:
+        if req.ver.kind != verAny:
+          return false
+  true
+
 proc solvePackages*(rootPkg: PackageInfo, pkgList: seq[PackageInfo], pkgsToInstall: var seq[(string, Version)], options: Options, output: var string, solvedPkgs: var seq[SolvedPackage]): HashSet[PackageInfo] =
   var root: PackageMinimalInfo = rootPkg.getMinimalInfo(options)
   root.isRoot = true
@@ -772,43 +791,21 @@ proc solvePackages*(rootPkg: PackageInfo, pkgList: seq[PackageInfo], pkgsToInsta
   collectAllVersions(pkgVersionTable, root, options, downloadMinimalPackage, pkgList.mapIt(it.getMinimalInfo(options)))
   solvedPkgs = pkgVersionTable.getSolvedPackages(output).topologicalSort()
   let systemNimCompatible = solvedPkgs.isSystemNimCompatible(options)
-
+  
   for solvedPkg in solvedPkgs:
     if solvedPkg.pkgName == root.name: continue    
     var foundInList = false
-    var matchingPkgs: seq[PackageInfo] = @[]
-    
-    # Find all packages that match the solved package
+    let canUseAny = solvedPkg.areAllReqAny()
     for pkgInfo in pkgList:
+      let specialVersions = if pkgInfo.metadata.specialVersions.len > 1: pkgInfo.metadata.specialVersions.toSeq()[1..^1] else: @[]
+      let isSpecial = specialVersions.len > 0
       if (pkgInfo.basicInfo.name == solvedPkg.pkgName or pkgInfo.metadata.url == solvedPkg.pkgName) and 
-        (pkgInfo.basicInfo.version == solvedPkg.version or solvedPkg.version in pkgInfo.metadata.specialVersions):
-          matchingPkgs.add pkgInfo
-    
-    if matchingPkgs.len > 0:
-      # If we have multiple packages with the same name and version, prefer based on special versions:
-      # 1. If the solved version is special, prefer package with that exact special version
-      # 2. Otherwise, prefer package with fewest special versions (most "normal")
-      var selectedPkg = matchingPkgs[0]
-      if matchingPkgs.len > 1:
-        # echo &"DEBUG: Multiple matches for {solvedPkg.pkgName} {solvedPkg.version}, selecting best one..."
-        if solvedPkg.version.isSpecial:
-          # Look for package that has this exact special version
-          for pkg in matchingPkgs:
-            if solvedPkg.version in pkg.metaData.specialVersions:
-              selectedPkg = pkg
-              break
-        else:
-          # For regular versions, prefer package with minimum special versions (i.e., just the basic version)
-          var minSpecialVersions = selectedPkg.metaData.specialVersions.len
-          for pkg in matchingPkgs:
-            if pkg.metaData.specialVersions.len < minSpecialVersions:
-              minSpecialVersions = pkg.metaData.specialVersions.len
-              selectedPkg = pkg
-      
-      # echo &"DEBUG: Adding selected pkgInfo {selectedPkg.basicInfo.name} {selectedPkg.basicInfo.version} with special versions: {selectedPkg.metadata.specialVersions.toSeq().mapIt($it)}"
-      result.incl selectedPkg
-      foundInList = true
-    
+        (pkgInfo.basicInfo.version == solvedPkg.version and (not isSpecial or canUseAny) or solvedPkg.version in specialVersions) and
+        #only add one (we could fall into adding two if there are multiple special versiosn in the package list and we can add any). 
+        #But we still allow it on upgrade as they are post proccessed in a later stage
+        (result.toSeq.filterIt(it.basicInfo.name == solvedPkg.pkgName).len == 0 or options.action.typ in {actionUpgrade}): 
+          result.incl pkgInfo
+          foundInList = true
     if not foundInList:
       # displayInfo(&"Coudlnt find {solvedPkg.pkgName}", priority = HighPriority)
       if solvedPkg.pkgName.isNim and systemNimCompatible:

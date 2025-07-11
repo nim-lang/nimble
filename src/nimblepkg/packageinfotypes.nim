@@ -103,6 +103,7 @@ type
     requirements*: seq[PkgTuple] 
     reverseDependencies*: seq[(string, Version)] 
     deps*: seq[SolvedPackage]
+    reverseDeps*: seq[SolvedPackage]
 
   SATPass* = enum
     satNone
