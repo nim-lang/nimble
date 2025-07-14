@@ -177,15 +177,16 @@ proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, options: Options): Has
     let resolvedDep = ((name: name, ver: versionRange)).resolveAlias(options)
     let (packages, _) = install(@[resolvedDep], options,
       doPrompt = false, first = false, fromLockFile = false, preferredPackages = @[])
+    let pkg = packages.toSeq.filterIt(it.basicInfo.name == resolvedDep.name)[0] #only install resolvedDep
+    # echo &"Installing {pkg.basicInfo.name} {pkg.basicInfo.version} with {pkg.metadata.specialVersions} special versions."
+    result.incl pkg
     for pkg in packages:
       if pkg in result:
         # If the result already contains the newly tried to install package
         # we had to merge its special versions set into the set of the old
         # one.
         result[pkg].metaData.specialVersions.incl(
-          pkg.metaData.specialVersions)
-      else:
-        result.incl pkg
+          pkg.metaData.specialVersions)      
 
   for pkg in result:
     allPkgsInfo.add pkg
