@@ -177,7 +177,7 @@ proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, options: Options): Has
     let resolvedDep = ((name: name, ver: versionRange)).resolveAlias(options)
     let (packages, _) = install(@[resolvedDep], options,
       doPrompt = false, first = false, fromLockFile = false, preferredPackages = @[])
-    let pkg = packages.toSeq.filterIt(it.basicInfo.name == resolvedDep.name)[0] #only install resolvedDep
+    let pkg = packages.toSeq.filterIt(it.basicInfo.name.toLower == resolvedDep.name.toLower)[0] #only install resolvedDep
     # echo &"Installing {pkg.basicInfo.name} {pkg.basicInfo.version} with {pkg.metadata.specialVersions} special versions."
     result.incl pkg
     for pkg in packages:
