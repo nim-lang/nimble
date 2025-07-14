@@ -176,7 +176,7 @@ proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, options: Options): Has
       versionRange = upgradeVersions[name]
     let resolvedDep = ((name: name, ver: versionRange)).resolveAlias(options)
     let (packages, _) = install(@[resolvedDep], options,
-      doPrompt = false, first = false, fromLockFile = false, preferredPackages = @[])
+      doPrompt = false, first = false, fromLockFile = false, preferredPackages = result.toSeq())
     for pkg in packages:
       if pkg in result:
         # If the result already contains the newly tried to install package
