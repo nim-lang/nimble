@@ -1844,6 +1844,9 @@ proc test(options: Options) =
       optsCopy.getCompilationFlags() = options.getCompilationFlags()
       # treat run flags as compile for default test task
       optsCopy.getCompilationFlags().add(options.action.custRunFlags)
+      let indexOfCompileOnlyFlag = optsCopy.getCompilationFlags().find("-c")
+      if indexOfCompileOnlyFlag != -1:
+        optsCopy.getCompilationFlags().delete(indexOfCompileOnlyFlag)
       optsCopy.getCompilationFlags().add("-r")
       optsCopy.getCompilationFlags().add("--path:.")
       let
