@@ -17,7 +17,7 @@ type
 
 proc updateSubmodules(dir: string) =
   discard tryDoCmdEx(
-    &"git -C {dir} submodule update --init --recursive --depth 1")
+    &"git -C {dir.quoteShell} submodule update --init --recursive --depth 1")
 
 proc doCheckout*(meth: DownloadMethod, downloadDir, branch: string, options: Options) =
   case meth
@@ -25,11 +25,11 @@ proc doCheckout*(meth: DownloadMethod, downloadDir, branch: string, options: Opt
     # Force is used here because local changes may appear straight after a clone
     # has happened. Like in the case of git on Windows where it messes up the
     # damn line endings.
-    discard tryDoCmdEx(&"git -C {downloadDir} checkout --force {branch}")
+    discard tryDoCmdEx(&"git -C {downloadDir.quoteShell} checkout --force {branch}")
     if not options.ignoreSubmodules:
       downloadDir.updateSubmodules
   of DownloadMethod.hg:
-    discard tryDoCmdEx(&"hg --cwd {downloadDir} checkout {branch}")
+    discard tryDoCmdEx(&"hg --cwd {downloadDir.quoteShell} checkout {branch}")
 
 proc doClone(meth: DownloadMethod, url, downloadDir: string, branch = "",
              onlyTip = true, options: Options) =
@@ -41,14 +41,14 @@ proc doClone(meth: DownloadMethod, url, downloadDir: string, branch = "",
       branchArg = if branch == "": "" else: &"-b {branch}"
     discard tryDoCmdEx(
        "git clone --config core.autocrlf=false --config core.eol=lf " &
-      &"{submoduleFlag} {depthArg} {branchArg} {url} {downloadDir}")
+      &"{submoduleFlag} {depthArg} {branchArg} {url} {downloadDir.quoteShell}")
     if not options.ignoreSubmodules:
       downloadDir.updateSubmodules
   of DownloadMethod.hg:
     let
       tipArg = if onlyTip: "-r tip " else: ""
       branchArg = if branch == "": "" else: &"-b {branch}"
-    discard tryDoCmdEx(&"hg clone {tipArg} {branchArg} {url} {downloadDir}")
+    discard tryDoCmdEx(&"hg clone {tipArg} {branchArg} {url} {downloadDir.quoteShell}")
 
 proc gitFetchTags*(repoDir: string, downloadMethod: DownloadMethod, options: Options) =
   case downloadMethod:
@@ -157,12 +157,12 @@ proc cloneSpecificRevision(downloadMethod: DownloadMethod,
   of DownloadMethod.git:
     let downloadDir = downloadDir.quoteShell
     createDir(downloadDir)
-    discard tryDoCmdEx(&"git -C {downloadDir} init")
-    discard tryDoCmdEx(&"git -C {downloadDir} config core.autocrlf false")
-    discard tryDoCmdEx(&"git -C {downloadDir} remote add origin {url}")
+    discard tryDoCmdEx(&"git -C {downloadDir.quoteShell} init")
+    discard tryDoCmdEx(&"git -C {downloadDir.quoteShell} config core.autocrlf false")
+    discard tryDoCmdEx(&"git -C {downloadDir.quoteShell} remote add origin {url}")
     discard tryDoCmdEx(
-      &"git -C {downloadDir} fetch --depth 1 origin {vcsRevision}")
-    discard tryDoCmdEx(&"git -C {downloadDir} reset --hard FETCH_HEAD")
+      &"git -C {downloadDir.quoteShell} fetch --depth 1 origin {vcsRevision}")
+    discard tryDoCmdEx(&"git -C {downloadDir.quoteShell} reset --hard FETCH_HEAD")
     if not options.ignoreSubmodules:
       downloadDir.updateSubmodules
   of DownloadMethod.hg:
@@ -296,10 +296,10 @@ proc getTarCmdLine(downloadDir, filePath: string): string =
   when defined(Windows):
     let downloadDir = downloadDir.replace('\\', '/')
     let filePath = filePath.replace('\\', '/')
-    &"{getTarExePath()} -C {downloadDir} -xf {filePath} --strip-components 1 " &
+    &"{getTarExePath()} -C {downloadDir.quoteShell} -xf {filePath} --strip-components 1 " &
      "--force-local"
   else:
-    &"tar -C {downloadDir} -xf {filePath} --strip-components 1"
+    &"tar -C {downloadDir.quoteShell} -xf {filePath} --strip-components 1"
 
 proc doDownloadTarball(url, downloadDir, version: string, queryRevision: bool):
     Sha1Hash =

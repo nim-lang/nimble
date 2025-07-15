@@ -252,7 +252,7 @@ proc vcsFindCommits*(repoDir, nimbleFile: string, downloadMethod: DownloadMethod
   var output: string
   case downloadMethod:
     of DownloadMethod.git:
-      output = tryDoCmdEx(&"git -C {repoDir} log --format=\"%H %s\" -- $2")
+      output = tryDoCmdEx(&"git -C {repoDir.quoteShell} log --format=\"%H %s\" -- $2")
     of DownloadMethod.hg:
       assert false, "hg not supported"
   
@@ -264,7 +264,7 @@ proc vcsFindCommits*(repoDir, nimbleFile: string, downloadMethod: DownloadMethod
 proc vcsDiff*(commit: Sha1Hash, repoDir, nimbleFile: string, downloadMethod: DownloadMethod): seq[string] =
   case downloadMethod:
     of DownloadMethod.git:
-      let (output, exitCode) = doCmdEx(&"git -C {repoDir} diff {commit}~ {commit} {nimbleFile}")
+      let (output, exitCode) = doCmdEx(&"git -C {repoDir.quoteShell} diff {commit}~ {commit} {nimbleFile}")
       if exitCode != QuitSuccess:
         return @[]
       else:
@@ -275,7 +275,7 @@ proc vcsDiff*(commit: Sha1Hash, repoDir, nimbleFile: string, downloadMethod: Dow
 proc createTag*(tag: string, commit: Sha1Hash, message, repoDir, nimbleFile: string, downloadMethod: DownloadMethod): bool =
   case downloadMethod:
     of DownloadMethod.git:
-      let (output, code) = doCmdEx(&"git -C {repoDir} tag -a {tag.quoteShell()} {commit} -m {message.quoteShell()}")
+      let (output, code) = doCmdEx(&"git -C {repoDir.quoteShell} tag -a {tag.quoteShell()} {commit} -m {message.quoteShell()}")
       result = code == QuitSuccess
       if not result:
         displayError(&"Failed to create tag {tag.quoteShell()} with error {output}")
