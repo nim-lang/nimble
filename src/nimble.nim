@@ -1843,7 +1843,7 @@ proc test(options: Options) =
       optsCopy.action.backend = pkgInfo.backend
       optsCopy.getCompilationFlags() = options.getCompilationFlags()
       # treat run flags as compile for default test task
-      optsCopy.getCompilationFlags().add(options.action.custRunFlags)
+      optsCopy.getCompilationFlags().add(options.action.custRunFlags.filterIt(it != "--continue" and it != "-c"))
       optsCopy.getCompilationFlags().add("-r")
       optsCopy.getCompilationFlags().add("--path:.")
       let
@@ -1872,7 +1872,7 @@ proc test(options: Options) =
   if failures == 0:
     display("Success:", "All tests passed", Success, HighPriority)
   else:
-    let error = "Only " & $(tests - failures) & "/" & $tests & " tests passed"
+    let error = "Only " & $(tests - failures) & "/" & $tests & " tests files passed"
     display("Error:", error, Error, HighPriority)
 
   if not execHook(options, actionCustom, false):
