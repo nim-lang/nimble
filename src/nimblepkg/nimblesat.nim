@@ -549,12 +549,20 @@ proc getAllNimReleases(options: Options): seq[PackageMinimalInfo] =
   if options.nimBin.isSome:
     result.addUnique PackageMinimalInfo(name: "nim", version: options.nimBin.get.version)
 
-proc getTaggedVersions*(repoDir, pkgName: string, options: Options): Option[TaggedPackageVersions] =
-  var file: string
+proc getCacheFileName(repoDir, pkgName: string, options: Options): string =
+  # return options.getNimbleDir / "pkgcache" / "tagged" / "test" & ".json"
   if options.localDeps:
-    file = options.getNimbleDir / "pkgcache" / "tagged" / pkgName & ".json"
-  else: 
-    file = repoDir / TaggedVersionsFileName
+    var pkgName = 
+      if pkgName.isUrl:
+        pkgName.getDownloadDirName(VersionRange(kind: verAny), notSetSha1Hash)
+      else:
+        pkgName
+    return options.getNimbleDir / "pkgcache" / "tagged" / pkgName & ".json"
+  else:
+    return repoDir / TaggedVersionsFileName
+
+proc getTaggedVersions*(repoDir, pkgName: string, options: Options): Option[TaggedPackageVersions] =
+  let file = getCacheFileName(repoDir, pkgName, options)
   if file.fileExists:
     try:
       let taggedVersions = file.readFile.parseJson().to(TaggedPackageVersions)
@@ -568,11 +576,7 @@ proc getTaggedVersions*(repoDir, pkgName: string, options: Options): Option[Tagg
     return none(TaggedPackageVersions)
 
 proc saveTaggedVersions*(repoDir, pkgName: string, taggedVersions: TaggedPackageVersions, options: Options) =
-  var file: string
-  if options.localDeps:
-    file = options.getNimbleDir / "pkgcache" / "tagged" / pkgName & ".json"
-  else: 
-    file = repoDir / TaggedVersionsFileName
+  let file = getCacheFileName(repoDir, pkgName, options)
   try:
     createDir(file.parentDir)
     file.writeFile((taggedVersions.toJson()).pretty)
