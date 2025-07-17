@@ -977,7 +977,4 @@ proc isDevelopment*(pkg: PackageInfo, options: Options): bool =
 
 proc isLegacy*(options: Options): bool =
   let isVnext = not options.legacy or options.useDeclarativeParser
-  if isVnext:
-    once: 
-      displayWarning("Using the new code path. This is experimental and may break in the future.")
   return not isVnext
