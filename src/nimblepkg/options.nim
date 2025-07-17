@@ -800,7 +800,7 @@ proc initOptions*(): Options =
     maxTaggedVersions: 4,
     useSatSolver: true,
     useDeclarativeParser: false,
-    legacy: true, #default to legacy code path for nimble < 1.0.0
+    legacy: false, #default to legacy code path for nimble < 1.0.0
     satResult: SatResult()
   )
 
