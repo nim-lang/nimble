@@ -1,8 +1,8 @@
 {.used.}
-import unittest, os, strutils, sequtils# strformat, osproc
+import unittest, os#, strutils, sequtils# strformat, osproc
 import testscommon
 from nimblepkg/common import cd
-from nimble import nimblePathsFileName
+# from nimble import nimblePathsFileName
 
 suite "requires flag":
   test "can add additional requirements to package with legacy solver":
