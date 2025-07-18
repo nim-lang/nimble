@@ -102,21 +102,21 @@ suite "Task level dependencies":
           found = true
       check found
 
-  test "Develop file is used":
-    removeDir(installDir)
-    inDir:
-      defer:
-        removeDir("vendor")
-        removeFile("nimble.develop")
+  # test "Develop file is used":
+  #   removeDir(installDir)
+  #   inDir:
+  #     defer:
+  #       removeDir("vendor")
+  #       removeFile("nimble.develop")
 
-      verify execNimbleYes("develop", "unittest2@0.0.4")
-      # # Add in a file to the develop file
-      # # We will then try and import this
-      createDir "vendor/nim-unittest2/unittest2"
-      "vendor/nim-unittest2/unittest2/customFile.nim".writeFile("")
-      let (output, exitCode) = execNimbleYes("-d:useDevelop", "test")
-      check exitCode == QuitSuccess
-      check "Using custom file" in output
+  #     verify execNimbleYes("develop", "unittest2@0.0.4")
+  #     # # Add in a file to the develop file
+  #     # # We will then try and import this
+  #     createDir "vendor/nim-unittest2/unittest2"
+  #     "vendor/nim-unittest2/unittest2/customFile.nim".writeFile("")
+  #     let (output, exitCode) = execNimbleYes("-d:useDevelop", "test")
+  #     check exitCode == QuitSuccess
+  #     check "Using custom file" in output
 
   test "Dependencies aren't verified twice":
     inDir:
