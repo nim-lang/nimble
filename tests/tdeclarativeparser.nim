@@ -127,7 +127,7 @@ suite "Declarative parser features":
 
   test "should ignore features specified in `requires` when using the vmparser":
     cd "features":
-      let (output, exitCode) = execNimble("--parser:nimvm", "run")
+      let (output, exitCode) = execNimble("--legacy", "run")
       check exitCode == QuitSuccess
       check output.processOutput.inLines("resultfeature is disabled")
 

@@ -26,7 +26,7 @@ suite "multi":
   test "do not replace a package if already installed":
     installAlpha()
     args.add pkgMultiBetaUrl
-    args.add "--parser: nimvm" #By definition new code path wont reinstall the same package twice if not explicitly. TODO add --legacy instead
+    args.add "--legacy" 
     let (output, exitCode) = execNimbleYes(args)
     check exitCode == QuitSuccess
     var lines = output.processOutput
