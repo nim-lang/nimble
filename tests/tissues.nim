@@ -416,7 +416,7 @@ suite "issues":
     removeDir("testDir-1251")
   
   test "issue #1412. Should be able to install packages in a nimbleDir with spaces in the path":
-    cd "gitversions":
+    cd "deps":
       when defined(windows):
         createDir("nimbledir spaces")
         let (_, exitCode) = execNimble("install", "results", "--nimbleDir:nimbledir spaces")
