@@ -207,7 +207,7 @@ proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, options: Options): Has
 
 proc getNimBin*(pkgInfo: PackageInfo, options: Options): string =
   var pkgInfo = pkgInfo
-  if not options.isLegacy:
+  if not options.isLegacy and options.action.typ in vNextSupportedActions:
     assert options.satResult.nimResolved.pkg.isSome, "Nim is not resolved yet"
     pkgInfo = options.satResult.nimResolved.pkg.get
     
@@ -2888,12 +2888,6 @@ when isMainModule:
     if opt.action.typ in {actionTasks, actionRun, actionBuild, actionCompile, actionDevelop}:
       # Implicitly disable package validation for these commands.
       opt.disableValidation = true
-    
-    #Notice some actions dont need to be touched in vnext. Some other partially incercepted (setup) and some others fully changed (i.e build, install)
-    const vNextSupportedActions = { actionInstall, actionBuild, 
-      actionSetup, actionRun, actionLock, actionCustom, actionSync,
-      actionShellEnv, actionShell, actionUpgrade
-    }
 
     if not opt.isLegacy and opt.action.typ in vNextSupportedActions:
       # For actionCustom, set the task name before calling runVNext
