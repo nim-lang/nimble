@@ -2611,6 +2611,7 @@ proc solvePkgs(rootPackage: PackageInfo, options: var Options) =
     options.satResult = initSATResult(satFallbackToVmParser)
     options.satResult.rootPackage = rootPackage
     options.satResult.rootPackage = getPkgInfo(options.satResult.rootPackage.getNimbleFileDir, options).toRequiresInfo(options)
+    options.satResult.rootPackage.requires &= options.extraRequires
     options.satResult.rootPackage.enableFeatures(options) 
     # Add task-specific requirements if a task is being executed (fallback path)
     if options.task.len > 0 and options.task in options.satResult.rootPackage.taskRequires:
@@ -2654,8 +2655,10 @@ proc runVNext*(options: var Options) =
       options.satResult = initSATResult(satNimSelection)      
       var rootPackage = downloadPkInfoForPv(pkg, options, doPrompt = true)
       solvePkgs(rootPackage, options)
+  # echo "BEFORE INSTALL PKGS"
   # options.debugSATResult()
   options.satResult.installPkgs(options)
+  # echo "AFTER INSTALL PKG/S"
   # options.debugSATResult()
   options.satResult.addReverseDeps(options)
   

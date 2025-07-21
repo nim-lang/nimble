@@ -843,7 +843,7 @@ proc solvePackages*(rootPkg: PackageInfo, pkgList: seq[PackageInfo], pkgsToInsta
         (pkgInfo.basicInfo.version == solvedPkg.version and (not isSpecial or canUseAny) or solvedPkg.version in specialVersions) and
         #only add one (we could fall into adding two if there are multiple special versiosn in the package list and we can add any). 
         #But we still allow it on upgrade as they are post proccessed in a later stage
-          (not options.isLegacy or 
+          (#not options.isLegacy or 
             (result.toSeq.filterIt(it.basicInfo.name == solvedPkg.pkgName or 
             it.metadata.url == solvedPkg.pkgName).len == 0 or 
             options.action.typ in {actionUpgrade})): 
