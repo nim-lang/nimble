@@ -52,7 +52,7 @@ suite "requires flag":
       "json_serialization#26bea5ffce20ae0d0855b3d61072de04d3bf9826",
       "json_serialization == 0.2.9"
     ]
-    # cleanDir(installDir)
+    cleanDir(installDir)
     cd "gitversions":
       for req in requires:
         let require = "--requires: " & req

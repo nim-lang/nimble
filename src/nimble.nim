@@ -206,7 +206,12 @@ proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, options: Options): Has
 
 
 proc getNimBin*(pkgInfo: PackageInfo, options: Options): string =
-  if pkgInfo.basicInfo.name == "nim":
+  var pkgInfo = pkgInfo
+  if not options.isLegacy:
+    assert options.satResult.nimResolved.pkg.isSome, "Nim is not resolved yet"
+    pkgInfo = options.satResult.nimResolved.pkg.get
+    
+  if pkgInfo.basicInfo.name.isNim:
     var binaryPath = "bin" / "nim"
     when defined(windows):
       binaryPath &= ".exe"      
