@@ -206,17 +206,18 @@ proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, options: Options): Has
 
 
 proc getNimBin*(pkgInfo: PackageInfo, options: Options): string =
-  var pkgInfo = pkgInfo
-  if not options.isLegacy and options.action.typ in vNextSupportedActions:
-    assert options.satResult.nimResolved.pkg.isSome, "Nim is not resolved yet"
-    pkgInfo = options.satResult.nimResolved.pkg.get
-    
-  if pkgInfo.basicInfo.name.isNim:
+  proc getNimPath(pkgInfo: PackageInfo): string = 
     var binaryPath = "bin" / "nim"
     when defined(windows):
       binaryPath &= ".exe"      
-    result = pkgInfo.getNimbleFileDir() / binaryPath
+    pkgInfo.getNimbleFileDir() / binaryPath
+
+  if pkgInfo.basicInfo.name.isNim:
+    return getNimPath(pkgInfo)
   else: 
+    if not options.isLegacy:
+      assert options.satResult.nimResolved.pkg.isSome, "Nim is not resolved yet"
+      return getNimPath(options.satResult.nimResolved.pkg.get)
     if options.useSatSolver and not options.useSystemNim:
       #Try to first use nim from the solved packages
       #TODO add the solved packages to the options (we need to remove the legacy solver first otherwise it will be messy)
