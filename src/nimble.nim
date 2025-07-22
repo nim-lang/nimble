@@ -206,12 +206,18 @@ proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, options: Options): Has
 
 
 proc getNimBin*(pkgInfo: PackageInfo, options: Options): string =
-  if pkgInfo.basicInfo.name == "nim":
+  proc getNimPath(pkgInfo: PackageInfo): string = 
     var binaryPath = "bin" / "nim"
     when defined(windows):
       binaryPath &= ".exe"      
-    result = pkgInfo.getNimbleFileDir() / binaryPath
+    pkgInfo.getNimbleFileDir() / binaryPath
+
+  if pkgInfo.basicInfo.name.isNim:
+    return getNimPath(pkgInfo)
   else: 
+    if not options.isLegacy:
+      assert options.satResult.nimResolved.pkg.isSome, "Nim is not resolved yet"
+      return getNimPath(options.satResult.nimResolved.pkg.get)
     if options.useSatSolver and not options.useSystemNim:
       #Try to first use nim from the solved packages
       #TODO add the solved packages to the options (we need to remove the legacy solver first otherwise it will be messy)
@@ -2611,6 +2617,7 @@ proc solvePkgs(rootPackage: PackageInfo, options: var Options) =
     options.satResult = initSATResult(satFallbackToVmParser)
     options.satResult.rootPackage = rootPackage
     options.satResult.rootPackage = getPkgInfo(options.satResult.rootPackage.getNimbleFileDir, options).toRequiresInfo(options)
+    options.satResult.rootPackage.requires &= options.extraRequires
     options.satResult.rootPackage.enableFeatures(options) 
     # Add task-specific requirements if a task is being executed (fallback path)
     if options.task.len > 0 and options.task in options.satResult.rootPackage.taskRequires:
@@ -2654,8 +2661,10 @@ proc runVNext*(options: var Options) =
       options.satResult = initSATResult(satNimSelection)      
       var rootPackage = downloadPkInfoForPv(pkg, options, doPrompt = true)
       solvePkgs(rootPackage, options)
+  # echo "BEFORE INSTALL PKGS"
   # options.debugSATResult()
   options.satResult.installPkgs(options)
+  # echo "AFTER INSTALL PKG/S"
   # options.debugSATResult()
   options.satResult.addReverseDeps(options)
   
@@ -2880,12 +2889,6 @@ when isMainModule:
     if opt.action.typ in {actionTasks, actionRun, actionBuild, actionCompile, actionDevelop}:
       # Implicitly disable package validation for these commands.
       opt.disableValidation = true
-    
-    #Notice some actions dont need to be touched in vnext. Some other partially incercepted (setup) and some others fully changed (i.e build, install)
-    const vNextSupportedActions = { actionInstall, actionBuild, 
-      actionSetup, actionRun, actionLock, actionCustom, actionSync,
-      actionShellEnv, actionShell, actionUpgrade
-    }
 
     if not opt.isLegacy and opt.action.typ in vNextSupportedActions:
       # For actionCustom, set the task name before calling runVNext
