@@ -1301,8 +1301,9 @@ proc getEntryPoints(pkgInfo: PackageInfo, options: Options): seq[string] =
     result.add if entry.endsWith(".nim"): entry else: entry & ".nim"
   
 proc dump(options: Options) =
-  let p = getPackageByPattern(options.action.projName, options)
+  var p = getPackageByPattern(options.action.projName, options)
   if options.action.collect or options.action.solve:
+    p.requires &= options.extraRequires
     let pkgList = initPkgList(p, options).toSeq()
     if options.action.collect:
       dumpPackageVersionTable(p, pkgList.toSeq(), options)
