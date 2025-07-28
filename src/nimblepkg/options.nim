@@ -252,6 +252,7 @@ Nimble Options:
   -y, --accept                    Accept all interactive prompts.
   -n, --reject                    Reject all interactive prompts.
   -l, --localdeps                 Run in project local dependency mode.
+  -g, --global                    Run in global dependency mode.
   -p, --package                   For which package in the dependency tree the
                                   command should be executed. If not provided by
                                   default it applies to the current directory
@@ -468,10 +469,7 @@ proc setNimbleDir*(options: var Options) =
       setPackageCache(options, nimbleDir)
     else:
       # ...followed by project local deps mode
-      if dirExists(nimbledeps) or (options.localdeps and not options.developLocaldeps):
-        if not options.showVersion:
-          display("Warning:", "Using project local deps mode", Warning,
-                  priority = HighPriority)
+      if dirExists(nimbledeps) or (options.localdeps and not options.developLocaldeps):        
         nimbleDir = nimbledeps
         options.localdeps = true
         propagate = true
@@ -633,6 +631,7 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
   of "disablevalidation": result.disableValidation = true
   of "nim": result.nimBin = some makeNimBin(result, val)
   of "localdeps", "l": result.localdeps = true
+  of "global", "g": result.localdeps = false
   of "nosslcheck": result.disableSslCertCheck = true
   of "nolockfile": result.disableLockFile = true
   of "tarballs", "t": result.enableTarballs = true
@@ -805,7 +804,8 @@ proc initOptions*(): Options =
     useSatSolver: true,
     useDeclarativeParser: false,
     legacy: false, #default to legacy code path for nimble < 1.0.0
-    satResult: SatResult()
+    satResult: SatResult(),
+    localDeps: true 
   )
 
 proc handleUnknownFlags(options: var Options) =

@@ -34,6 +34,8 @@ proc execNimble*(args: varargs[string]): ProcessOutput =
   quotedArgs.insert("--noColor")
   if not args.anyIt("--nimbleDir:" in it or "-l"  == it or "--local" == it):
     quotedArgs.insert("--nimbleDir:" & installDir)
+  if not args.anyIt("-l" == it or "--local" == it):
+    quotedArgs.insert("--global") #default to global mode for tests
   quotedArgs.insert(nimblePath)
   quotedArgs = quotedArgs.map((x: string) => x.quoteShell)
 
