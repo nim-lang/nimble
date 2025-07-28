@@ -138,6 +138,42 @@ proc enableFeatures*(rootPackage: var PackageInfo, options: var Options) =
     rootPackage.requires &= rootPackage.features["dev"]
     appendGloballyActiveFeatures(rootPackage.basicInfo.name, @["dev"])
 
+proc isSystemNim*(resolvedNim: NimResolved, options: Options): bool =
+  if resolvedNim.pkg.isSome:
+    let systemNimPkg = getNimFromSystem(options)
+    if systemNimPkg.isSome:
+      return resolvedNim.pkg.get.basicInfo.version == systemNimPkg.get.basicInfo.version
+  return false
+
+proc solvePackagesWithSystemNimFallback*(
+    rootPackage: PackageInfo, 
+    pkgList: seq[PackageInfo], 
+    options: var Options,
+    resolvedNim: NimResolved): HashSet[PackageInfo] =
+  ## Solves packages with system Nim as a hard requirement, falling back to 
+  ## solving without it if the first attempt fails due to unsatisfiable dependencies.
+  
+  var rootPackageWithSystemNim = rootPackage
+  var systemNimPass = false
+  
+  # If there is systemNim, we will try to do a first pass with the systemNim 
+  # as a hard requirement. If it fails, we will fallback to 
+  # retry without it as a hard requirement. The idea behind it is that a 
+  # compatible version of the packages is used for the current nim.
+  if resolvedNim.isSystemNim(options):
+    rootPackageWithSystemNim.requires.add(parseRequires("nim <=" & $resolvedNim.version))
+    systemNimPass = true
+
+  result = solvePackages(rootPackageWithSystemNim, pkgList, 
+                        options.satResult.pkgsToInstall, options, 
+                        options.satResult.output, options.satResult.solvedPkgs)
+  #Optimization: dont rerun when the declarative parser fails and we are in nimSelection pass.
+  if options.satResult.solvedPkgs.len == 0 and systemNimPass:
+    # If the first pass failed, we will retry without the systemNim as a hard requirement
+    result = solvePackages(rootPackage, pkgList, 
+                          options.satResult.pkgsToInstall, options, 
+                          options.satResult.output, options.satResult.solvedPkgs)
+
 proc resolveNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo], options: var Options): NimResolved =
   #TODO if we are able to resolve the packages in one go, we should not re-run the solver in the next step.
   #TODO Introduce the concept of bootstrap nimble where we detect a failure in the declarative parser and fallback to a concrete nim version to re-run the nim selection with the vm parser
@@ -187,9 +223,9 @@ proc resolveNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo], options: v
     # let latestNim = getLatestNimRelease()
     # if latestNim.isSome:
     #   return NimResolved(version: latestNim.get)
-
-  var rootPackage = rootPackage
-  options.satResult.pkgs = solvePackages(rootPackage, pkgListDecl, options.satResult.pkgsToInstall, options, options.satResult.output, options.satResult.solvedPkgs)
+  options.satResult.pkgs = solvePackagesWithSystemNimFallback(
+    rootPackage, pkgListDecl, options,  NimResolved(pkg: some(systemNimPkg.get), version: systemNimPkg.get.basicInfo.version))
+    
   if options.satResult.solvedPkgs.len == 0:
     displayError(options.satResult.output)
     raise newNimbleError[NimbleError]("Couldnt find a solution for the packages. Unsatisfiable dependencies. Check there is no contradictory dependencies.")
@@ -428,7 +464,10 @@ proc solvePkgsWithVmParserAllowingFallback*(rootPackage: PackageInfo, resolvedNi
     .mapIt(it.toRequiresInfo(options))
   pkgList.add(resolvedNim.pkg.get)
   options.satResult.pkgList = pkgList.toHashSet()
-  options.satResult.pkgs = solvePackages(rootPackage, pkgList, options.satResult.pkgsToInstall, options, options.satResult.output, options.satResult.solvedPkgs)
+  
+  options.satResult.pkgs = solvePackagesWithSystemNimFallback(
+    rootPackage, pkgList, options, resolvedNim)
+  
   if options.satResult.solvedPkgs.len == 0:
     displayError(options.satResult.output)
     raise newNimbleError[NimbleError]("Couldnt find a solution for the packages. Unsatisfiable dependencies. Check there is no contradictory dependencies.")
