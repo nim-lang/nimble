@@ -46,8 +46,8 @@ suite "requires flag":
       - json_serialization#4cd31594f868a3d3cb81ec9d5f479efbe2466ebd
   ]#
     let requires = [
-      "https://github.com/status-im/nim-json-serialization.git#nimble_test_dont_delete",
-      "https://github.com/status-im/nim-json-serialization.git#26bea5ffce20ae0d0855b3d61072de04d3bf9826",
+      # "https://github.com/status-im/nim-json-serialization.git#nimble_test_dont_delete",
+      # "https://github.com/status-im/nim-json-serialization.git#26bea5ffce20ae0d0855b3d61072de04d3bf9826",
       "json_serialization#nimble_test_dont_delete",
       "json_serialization#26bea5ffce20ae0d0855b3d61072de04d3bf9826",
       "json_serialization == 0.2.9"
