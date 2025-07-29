@@ -524,7 +524,7 @@ proc packageExists(pkgInfo: PackageInfo, options: Options):
     return some(oldPkgInfo)
 
 
-proc installFromDirDownloadInfo(downloadDir: string, url: string, options: Options): PackageInfo = 
+proc installFromDirDownloadInfo(downloadDir: string, url: string, pv: PkgTuple, options: Options): PackageInfo = 
 
   let dir = downloadDir
   var pkgInfo = getPkgInfo(dir, options)
@@ -570,6 +570,8 @@ proc installFromDirDownloadInfo(downloadDir: string, url: string, options: Optio
     filesInstalled.incl copyFileD(pkgInfo.myPath, dest)
     pkgInfo.myPath = dest
     pkgInfo.metaData.files = filesInstalled.toSeq
+    if pv.ver.kind == verSpecial:
+      pkgInfo.metadata.specialVersions.incl pv.ver.spe
 
     saveMetaData(pkgInfo.metaData, pkgDestDir)
   else:
@@ -885,7 +887,7 @@ proc installPkgs*(satResult: var SATResult, options: Options) =
         # Check if package already exists before installing
         let tempPkgInfo = getPkgInfo(satResult.rootPackage.getNimbleFileDir(), options)
         let oldPkg = tempPkgInfo.packageExists(options)
-        installedPkgInfo = installFromDirDownloadInfo(satResult.rootPackage.getNimbleFileDir(), satResult.rootPackage.metaData.url, options).toRequiresInfo(options)
+        installedPkgInfo = installFromDirDownloadInfo(satResult.rootPackage.getNimbleFileDir(), satResult.rootPackage.metaData.url, pv, options).toRequiresInfo(options)
         wasNewlyInstalled = oldPkg.isNone
     else:      
       var dlInfo = getPackageDownloadInfo(pv, options, doPrompt = true)
