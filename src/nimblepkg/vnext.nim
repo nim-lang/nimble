@@ -906,7 +906,7 @@ proc installPkgs*(satResult: var SATResult, options: Options) =
       # Check if package already exists before installing
       let tempPkgInfo = getPkgInfo(downloadDir, options)
       let oldPkg = tempPkgInfo.packageExists(options)
-      installedPkgInfo = installFromDirDownloadInfo(downloadDir, dlInfo.url, options).toRequiresInfo(options)
+      installedPkgInfo = installFromDirDownloadInfo(downloadDir, dlInfo.url, pv, options).toRequiresInfo(options)     
       wasNewlyInstalled = oldPkg.isNone
       if installedPkgInfo.metadata.url == "" and pv.name.isUrl:
         installedPkgInfo.metadata.url = pv.name
