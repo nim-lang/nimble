@@ -168,7 +168,7 @@ proc solvePackagesWithSystemNimFallback*(
                         options.satResult.pkgsToInstall, options, 
                         options.satResult.output, options.satResult.solvedPkgs)
   #Optimization: dont rerun when the declarative parser fails and we are in nimSelection pass.
-  if options.satResult.solvedPkgs.len == 0 and systemNimPass:
+  if options.satResult.solvedPkgs.len == 0 and systemNimPass and not (options.satResult.declarativeParseFailed and options.satResult.pass == satNimSelection):
     # If the first pass failed, we will retry without the systemNim as a hard requirement
     result = solvePackages(rootPackage, pkgList, 
                           options.satResult.pkgsToInstall, options, 
