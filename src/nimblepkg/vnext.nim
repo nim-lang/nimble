@@ -22,43 +22,45 @@ proc debugSATResult*(options: Options) =
   echo "=== DEBUG SAT RESULT ==="
   echo "Called from: ", getStackTrace()[^2]
   let satResult = options.satResult
+  let color = "\e[32m"
+  let reset = "\e[0m"
   echo "--------------------------------"
-  echo "Pass: ", satResult.pass
+  echo color, "Pass: ", reset, satResult.pass
   if satResult.nimResolved.pkg.isSome:
-    echo "Selected Nim: ", satResult.nimResolved.pkg.get.basicInfo.name, " ", satResult.nimResolved.version
+    echo color, "Selected Nim: ", reset, satResult.nimResolved.pkg.get.basicInfo.name, " ", satResult.nimResolved.version
   else:
     echo "No Nim selected"
-  echo "Declarative parser failed: ", satResult.declarativeParseFailed
+  echo color, "Declarative parser failed: ", reset, satResult.declarativeParseFailed
   if satResult.declarativeParseFailed:
-    echo "Declarative parser error lines: ", satResult.declarativeParserErrorLines
+    echo color, "Declarative parser error lines: ", reset, satResult.declarativeParserErrorLines
  
   if satResult.rootPackage.hasLockFile(options):
-    echo "Root package has lock file: ", satResult.rootPackage.myPath.parentDir() / "nimble.lock"
+    echo color, "Root package has lock file: ", reset, satResult.rootPackage.myPath.parentDir() / "nimble.lock"
   else:
-    echo "Root package does not have lock file"
-  echo "Root package: ", satResult.rootPackage.basicInfo.name, " ", satResult.rootPackage.basicInfo.version, " ", satResult.rootPackage.myPath
-  echo "Root requires: ", satResult.rootPackage.requires.mapIt(it.name & " " & $it.ver)
-  echo "Solved packages: ", satResult.solvedPkgs.mapIt(it.pkgName & " " & $it.version & " " & $it.deps.mapIt(it.pkgName))
-  echo "Solution as Packages Info: ", satResult.pkgs.mapIt(it.basicInfo.name & " " & $it.basicInfo.version)
+    echo color, "Root package does not have lock file", reset
+  echo color, "Root package: ", reset, satResult.rootPackage.basicInfo.name, " ", satResult.rootPackage.basicInfo.version, " ", satResult.rootPackage.myPath
+  echo color, "Root requires: ", reset, satResult.rootPackage.requires.mapIt(it.name & " " & $it.ver)
+  echo color, "Solved packages: ", reset, satResult.solvedPkgs.mapIt(it.pkgName & " " & $it.version & " " & $it.deps.mapIt(it.pkgName))
+  echo color, "Solution as Packages Info: ", reset, satResult.pkgs.mapIt(it.basicInfo.name & " " & $it.basicInfo.version)
   if options.action.typ == actionUpgrade:
     echo "Upgrade versions: ", options.action.packages.mapIt(it.name & " " & $it.ver)
     echo "RESULT REVISIONS ", satResult.pkgs.mapIt(it.basicInfo.name & " " & $it.metaData.vcsRevision)
     echo "PKG LIST REVISIONS ", satResult.pkgList.mapIt(it.basicInfo.name & " " & $it.metaData.vcsRevision)
-  echo "Packages to install: ", satResult.pkgsToInstall
-  echo "Installed pkgs: ", satResult.pkgs.mapIt(it.basicInfo.name)
-  echo "Build pkgs: ", satResult.buildPkgs.mapIt(it.basicInfo.name)
-  echo "Packages url: ", satResult.pkgs.mapIt(it.metaData.url)
-  echo "Package list: ", satResult.pkgList.mapIt(it.basicInfo.name)
-  echo "PkgList path: ", satResult.pkgList.mapIt(it.myPath.parentDir)
-  echo "Nimbledir: ", options.getNimbleDir()
-  echo "Nimble Action: ", options.action.typ
+  echo color, "Packages to install: ", reset, satResult.pkgsToInstall
+  echo color, "Installed pkgs: ", reset, satResult.pkgs.mapIt(it.basicInfo.name)
+  echo color, "Build pkgs: ", reset, satResult.buildPkgs.mapIt(it.basicInfo.name)
+  echo color, "Packages url: ", reset, satResult.pkgs.mapIt(it.metaData.url)
+  echo color, "Package list: ", reset, satResult.pkgList.mapIt(it.basicInfo.name)
+  echo color, "PkgList path: ", reset, satResult.pkgList.mapIt(it.myPath.parentDir)
+  echo color, "Nimbledir: ", reset, options.getNimbleDir()
+  echo color, "Nimble Action: ", reset, options.action.typ
   if options.action.typ == actionDevelop:
-    echo "Path: ", options.action.packages.mapIt(it.name)
-    echo "Dev actions: ", options.action.devActions.mapIt(it.actionType)
-    echo "Dependencies: ", options.action.packages.mapIt(it.name)
+    echo color, "Path: ", reset, options.action.packages.mapIt(it.name)
+    echo color, "Dev actions: ", reset, options.action.devActions.mapIt(it.actionType)
+    echo color, "Dependencies: ", reset, options.action.packages.mapIt(it.name)
     for devAction in options.action.devActions:
-      echo "Dev action: ", devAction.actionType
-      echo "Argument: ", devAction.argument
+      echo color, "Dev action: ", reset, devAction.actionType
+      echo color, "Argument: ", reset, devAction.argument
   echo "--------------------------------"
 
 proc nameMatches(pkg: PackageInfo, pv: PkgTuple, options: Options): bool =
@@ -68,15 +70,8 @@ proc nameMatches*(pkg: PackageInfo, name: string, options: Options): bool =
   let resolvedName = resolveAlias(name, options).toLowerAscii()
   let pkgName = pkg.basicInfo.name.toLowerAscii()
   let pkgUrl = pkg.metaData.url.toLowerAscii()
-  
-  if pkgName == resolvedName or pkgUrl == name.toLowerAscii():
+  if pkgName == resolvedName or pkgUrl == name.toLowerAscii() or pkgUrl == name.toLowerAscii().replace(".git", ""):
     return true
-  
-  # For GitHub URLs, extract repository name and match
-  if name.contains("github.com/") and name.contains("/"):
-    let repoName = name.split("/")[^1].replace(".git", "").toLowerAscii()
-    if pkgName == repoName:
-      return true
   
   return false
 
@@ -100,7 +95,7 @@ proc getPkgInfoFromSolved*(satResult: SATResult, solvedPkg: SolvedPackage, optio
       return pkg
   for pkg in satResult.pkgList.toSeq: 
     #For the pkg list we need to check the version as there may be multiple versions of the same package
-    if nameMatches(pkg, solvedPkg.pkgName, options) and pkg.basicInfo.version == solvedPkg.version:
+    if nameMatches(pkg, solvedPkg.pkgName, options) and (pkg.basicInfo.version == solvedPkg.version):
       return pkg
   
   options.debugSATResult()

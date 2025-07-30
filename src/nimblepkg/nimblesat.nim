@@ -821,14 +821,47 @@ proc normalizeRequirements*(pkgVersionTable: var Table[string, PackageVersions])
   # if pkgVersionTable.hasKey("json_serialization"):
   #   echo "DEBUG NEW VERSIONS FOR ", "json_serialization", " ", pkgVersionTable["json_serialization"].versions.mapIt(it.version).join(", ")
 
+proc clearSolvedPkgs(solvedPkgs: var seq[SolvedPackage]) =
+  #if any of the solvedPkgs has an url, we need to get the real name from the urlToName table
+  #afterwards we must make sure there is only one solvedPkg with the same name. If there are collisions, we prefer the special version always.
+  for solvedPkg in solvedPkgs.mitems:
+    if solvedPkg.pkgName.isUrl and solvedPkg.pkgName.replace(".git", "") in urlToName:
+      solvedPkg.pkgName = urlToName[solvedPkg.pkgName.replace(".git", "")]
+  
+  var duplicatePackages: Table[string, seq[SolvedPackage]] = initTable[string, seq[SolvedPackage]]()
+  for solvedPkg in solvedPkgs:
+    if solvedPkgs.filterIt(it.pkgName == solvedPkg.pkgName).len > 1:
+      if solvedPkg.pkgName in duplicatePackages:
+        duplicatePackages[solvedPkg.pkgName].add(solvedPkg)
+      else:
+        duplicatePackages[solvedPkg.pkgName] = @[solvedPkg]
+  
+  #First look for special versions and remove regular versions:
+  var toRemovePkgs: seq[SolvedPackage] = @[]
+  for pkgName, duplicatePkgs in duplicatePackages.mpairs:
+    let hasSpecial = duplicatePkgs.anyIt(it.version.isSpecial)
+    if hasSpecial:
+      for solvedPkg in duplicatePkgs:
+        if not solvedPkg.version.isSpecial:
+          toRemovePkgs.add(solvedPkg)
+
+  var newSolvedPkgs: seq[SolvedPackage] = @[]
+  for solvedPkg in solvedPkgs:
+    if solvedPkg notin toRemovePkgs:
+      newSolvedPkgs.add(solvedPkg)
+  solvedPkgs = newSolvedPkgs
+
+
 proc solvePackages*(rootPkg: PackageInfo, pkgList: seq[PackageInfo], pkgsToInstall: var seq[(string, Version)], options: Options, output: var string, solvedPkgs: var seq[SolvedPackage]): HashSet[PackageInfo] =
   var root: PackageMinimalInfo = rootPkg.getMinimalInfo(options)
   root.isRoot = true
   var pkgVersionTable = initTable[string, PackageVersions]()
   pkgVersionTable[root.name] = PackageVersions(pkgName: root.name, versions: @[root])
   collectAllVersions(pkgVersionTable, root, options, downloadMinimalPackage, pkgList.mapIt(it.getMinimalInfo(options)))
-  # pkgVersionTable.normalizeRequirements() dont use it for now
+  # pkgVersionTable.normalizeRequirements() #dont use it for now
   solvedPkgs = pkgVersionTable.getSolvedPackages(output).topologicalSort()
+  clearSolvedPkgs(solvedPkgs)
+  # echo "URL TO NAME: ", urlToName.pairs.toSeq.mapIt(it[0] & " " & it[1]).join(", ")
   # echo "DEBUG: SolvedPkgs before post processing: ", solvedPkgs.mapIt(it.pkgName & " " & $it.version).join(", ")
   let systemNimCompatible = solvedPkgs.isSystemNimCompatible(options)
   # echo "DEBUG: SolvedPkgs after post processing: ", solvedPkgs.mapIt(it.pkgName & " " & $it.version).join(", ")
@@ -856,7 +889,8 @@ proc solvePackages*(rootPkg: PackageInfo, pkgList: seq[PackageInfo], pkgsToInsta
         continue #Skips systemNim
       pkgsToInstall.addUnique((solvedPkg.pkgName, solvedPkg.version))
     
-    # echo "Packages in result: ", result.mapIt(it.basicInfo.name & " " & $it.basicInfo.version & " " & $it.metaData.vcsRevision).join(", ")
+  # echo "Packages in result: ", result.mapIt(it.basicInfo.name & " " & $it.basicInfo.version & " " & $it.metaData.vcsRevision).join(", ")
+  # echo "Packages in result: ", result.mapIt(it.basicInfo.name & " " & $it.basicInfo.version).join(", ")
 
 
 proc getPackageInfo*(name: string, pkgs: seq[PackageInfo], version: Option[Version] = none(Version)): Option[PackageInfo] =
