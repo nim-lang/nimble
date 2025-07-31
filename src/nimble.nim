@@ -1588,7 +1588,7 @@ proc saveLinkFile(pkgInfo: PackageInfo, options: Options) =
     pkgName = pkgInfo.basicInfo.name
     pkgLinkDir = options.getPkgsLinksDir / pkgName.getLinkFileDir
     pkgLinkFilePath = pkgLinkDir / pkgName.getLinkFileName
-    pkgLinkFileContent = pkgInfo.myPath & "\n" & pkgInfo.getNimbleFileDir
+    pkgLinkFileContent = pkgInfo.myPath & "\n" & pkgInfo.getRealDir()
 
   if pkgLinkDir.dirExists and not options.prompt(
     &"The link file for {pkgName} already exists. Overwrite?"):
