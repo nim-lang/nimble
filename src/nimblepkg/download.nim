@@ -7,7 +7,7 @@ import parseutils, os, osproc, strutils, tables, uri, strformat,
 from algorithm import SortOrder, sorted
 
 import packageinfotypes, packageparser, version, tools, common, options, cli,
-       sha1hashes, vcstools, displaymessages, packageinfo, config, declarativeparser
+       sha1hashes, vcstools, displaymessages, packageinfo, config, declarativeparser, packagemetadatafile
 
 type
   DownloadPkgResult* = tuple
@@ -523,6 +523,11 @@ proc downloadPkg*(url: string, verRange: VersionRange,
   (result.version, result.vcsRevision) = doDownload(
     modUrl, downloadDir, verRange, downMethod, options, vcsRevision)
   
+  var metaData = initPackageMetaData()
+  metaData.url = modUrl
+  metaData.vcsRevision = result.vcsRevision
+  saveMetaData(metaData, result.dir)
+
   var pkgInfo: PackageInfo
   if validateRange and verRange.kind notin {verSpecial, verAny} or not options.isLegacy:
     ## Makes sure that the downloaded package's version satisfies the requested
