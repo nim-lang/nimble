@@ -469,4 +469,5 @@ proc getPkgInfoFromDirWithDeclarativeParser*(dir: string, options: Options): Pac
   let nimbleFileInfo = extractRequiresInfo(nimbleFile)
   result = initPackageInfo()
   fillPkgBasicInfo(result, nimbleFileInfo)
+  result.metadata = loadMetaData(result.getNimbleFileDir(), raiseIfNotFound = false, options)
   result = toRequiresInfo(result, options, some nimbleFileInfo)
