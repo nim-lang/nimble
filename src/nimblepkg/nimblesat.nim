@@ -830,6 +830,7 @@ proc normalizeRequirements*(pkgVersionTable: var Table[string, PackageVersions],
           if newPkgName != "":
             # echo "DEBUG: Normalizing requirement ", req.name, " to ", newPkgName, " for package ", pkgName, " version ", $req.ver
             req.name = newPkgName
+        req.name = req.name.resolveAlias(options)
 
 proc solvePackages*(rootPkg: PackageInfo, pkgList: seq[PackageInfo], pkgsToInstall: var seq[(string, Version)], options: Options, output: var string, solvedPkgs: var seq[SolvedPackage]): HashSet[PackageInfo] =
   var root: PackageMinimalInfo = rootPkg.getMinimalInfo(options)
