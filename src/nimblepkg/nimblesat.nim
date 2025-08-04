@@ -678,7 +678,7 @@ proc getInstalledMinimalPackages*(options: Options): seq[PackageMinimalInfo] =
 
 proc getMinimalFromPreferred(pv: PkgTuple,  getMinimalPackage: GetPackageMinimal, preferredPackages: seq[PackageMinimalInfo], options: Options): seq[PackageMinimalInfo] =
   for pp in preferredPackages:
-    if pp.name == pv.name or pp.url == pv.name and pp.version.withinRange(pv.ver):
+    if (pp.name == pv.name or pp.url == pv.name) and pp.version.withinRange(pv.ver):
       return @[pp]
   getMinimalPackage(pv, options)
 
