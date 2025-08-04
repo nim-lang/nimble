@@ -129,6 +129,7 @@ type
     declarativeParseFailed*: bool
     declarativeParserErrorLines*: seq[string]
     nimResolved*: NimResolved
+    normalizedRequirements*: Table[string, string] #normalized -> old. Some packages are not published as nimble packages, we keep the url for installation.
 
 proc `==`*(a, b: SolvedPackage): bool =
   a.pkgName == b.pkgName and
@@ -157,4 +158,7 @@ proc getGloballyActiveFeatures*(): seq[string] =
       result.add(&"features.{pkgName}.{feature}")
   
 proc initSATResult*(pass: SATPass): SATResult =
-  SATResult(pkgsToInstall: @[], solvedPkgs: @[], output: "", pkgs: initHashSet[PackageInfo](), pass: pass, installedPkgs: @[], declarativeParseFailed: false, declarativeParserErrorLines: @[])
+  SATResult(pkgsToInstall: @[], solvedPkgs: @[], output: "", pkgs: initHashSet[PackageInfo](), 
+    pass: pass, installedPkgs: @[], declarativeParseFailed: false, declarativeParserErrorLines: @[],
+    normalizedRequirements: initTable[string, string]()
+    )

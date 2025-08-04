@@ -828,8 +828,10 @@ proc normalizeRequirements*(pkgVersionTable: var Table[string, PackageVersions],
           # echo "*** FOUND URL REQUIREMENT: ", req.name, " for package ", pkgName, " version ", $req.ver
           let newPkgName = getPackageNameFromUrl(req, pkgVersionTable, options)
           if newPkgName != "":
+            let oldReq = req.name
             # echo "DEBUG: Normalizing requirement ", req.name, " to ", newPkgName, " for package ", pkgName, " version ", $req.ver
             req.name = newPkgName
+            options.satResult.normalizedRequirements[newPkgName] = oldReq
         req.name = req.name.resolveAlias(options)
 
 proc solvePackages*(rootPkg: PackageInfo, pkgList: seq[PackageInfo], pkgsToInstall: var seq[(string, Version)], options: Options, output: var string, solvedPkgs: var seq[SolvedPackage]): HashSet[PackageInfo] =
@@ -838,7 +840,8 @@ proc solvePackages*(rootPkg: PackageInfo, pkgList: seq[PackageInfo], pkgsToInsta
   var pkgVersionTable = initTable[string, PackageVersions]()
   pkgVersionTable[root.name] = PackageVersions(pkgName: root.name, versions: @[root])
   collectAllVersions(pkgVersionTable, root, options, downloadMinimalPackage, pkgList.mapIt(it.getMinimalInfo(options)))
-  pkgVersionTable.normalizeRequirements(options)  
+  if not options.isLegacy:
+    pkgVersionTable.normalizeRequirements(options)  
   solvedPkgs = pkgVersionTable.getSolvedPackages(output).topologicalSort()
   # echo "DEBUG: SolvedPkgs before post processing: ", solvedPkgs.mapIt(it.pkgName & " " & $it.version).join(", ")
   let systemNimCompatible = solvedPkgs.isSystemNimCompatible(options)
