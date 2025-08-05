@@ -152,11 +152,11 @@ proc hasVersion*(packagesVersions: Table[string, PackageVersions], name: string,
   false
 
 proc findDependencyForDep(g: DepGraph; dep: string): int {.inline.} =
-  assert g.packageToDependency.hasKey(dep), dep & " not found"
+  assert g.packageToDependency.hasKey(dep), dep & " not found. All deps: " & $g.packageToDependency.keys.toSeq
   result = g.packageToDependency.getOrDefault(dep)
 
 proc createRequirements(pkg: PackageMinimalInfo): Requirements =
-  result.deps = pkg.requires
+  result.deps = pkg.requires.mapIt((name: it.name.toLower, ver: it.ver))
   result.version = pkg.version
   result.nimVersion = pkg.requires.getNimVersion()
 
@@ -177,7 +177,7 @@ proc toDependencyVersion(g: var DepGraph, pkg: PackageMinimalInfo): DependencyVe
   result.req = getRequirementFromGraph(g, pkg) 
 
 proc toDependency(g: var DepGraph, pkg: PackageVersions): Dependency = 
-  result.pkgName = pkg.pkgName
+  result.pkgName = pkg.pkgName.toLower
   result.versions = pkg.versions.mapIt(toDependencyVersion(g, it))
   assert pkg.versions.len > 0, "Package must have at least one version"
   result.isRoot = pkg.versions[0].isRoot
@@ -840,8 +840,7 @@ proc solvePackages*(rootPkg: PackageInfo, pkgList: seq[PackageInfo], pkgsToInsta
   var pkgVersionTable = initTable[string, PackageVersions]()
   pkgVersionTable[root.name] = PackageVersions(pkgName: root.name, versions: @[root])
   collectAllVersions(pkgVersionTable, root, options, downloadMinimalPackage, pkgList.mapIt(it.getMinimalInfo(options)))
-  if not options.isLegacy:
-    pkgVersionTable.normalizeRequirements(options)  
+  pkgVersionTable.normalizeRequirements(options)  
   solvedPkgs = pkgVersionTable.getSolvedPackages(output).topologicalSort()
   # echo "DEBUG: SolvedPkgs before post processing: ", solvedPkgs.mapIt(it.pkgName & " " & $it.version).join(", ")
   let systemNimCompatible = solvedPkgs.isSystemNimCompatible(options)

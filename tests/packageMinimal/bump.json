@@ -1,17 +1,4 @@
 {
-  "https://github.com/disruptek/cutelog": {
-    "pkgName": "https://github.com/disruptek/cutelog",
-    "versions": [
-      {
-        "name": "cutelog",
-        "version": {
-          "version": "2.0.1"
-        },
-        "requires": [],
-        "isRoot": false
-      }
-    ]
-  },
   "bump": {
     "pkgName": "bump",
     "versions": [
@@ -24,7 +11,31 @@
           "https://github.com/disruptek/cutelog >= 2.0.0 & < 3.0.0",
           "https://github.com/disruptek/cligen >= 2.0.2 & < 3.0.0"
         ],
-        "isRoot": true
+        "isRoot": true,
+        "url": "https://github.com/disruptek/bump"
+      }
+    ]
+  },
+  "cutelog": {
+    "pkgName": "cutelog",
+    "versions": [
+      {
+        "name": "cutelog",
+        "version": {
+          "version": "2.0.1"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": "https://github.com/disruptek/cutelog"
+      },
+      {
+        "name": "cutelog",
+        "version": {
+          "version": "2.0.0"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": "https://github.com/disruptek/cutelog"
       }
     ]
   },
@@ -37,7 +48,63 @@
           "version": "2.0.3"
         },
         "requires": [],
-        "isRoot": false
+        "isRoot": false,
+        "url": "https://github.com/disruptek/cligen"
+      },
+      {
+        "name": "cligen",
+        "version": {
+          "version": "2.0.2"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": "https://github.com/disruptek/cligen"
+      }
+    ]
+  },
+  "cligen": {
+    "pkgName": "cligen",
+    "versions": [
+      {
+        "name": "cligen",
+        "version": {
+          "version": "2.0.3"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": "https://github.com/disruptek/cligen"
+      },
+      {
+        "name": "cligen",
+        "version": {
+          "version": "2.0.2"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": "https://github.com/disruptek/cligen"
+      }
+    ]
+  },
+  "https://github.com/disruptek/cutelog": {
+    "pkgName": "https://github.com/disruptek/cutelog",
+    "versions": [
+      {
+        "name": "cutelog",
+        "version": {
+          "version": "2.0.1"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": "https://github.com/disruptek/cutelog"
+      },
+      {
+        "name": "cutelog",
+        "version": {
+          "version": "2.0.0"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": "https://github.com/disruptek/cutelog"
       }
     ]
   }

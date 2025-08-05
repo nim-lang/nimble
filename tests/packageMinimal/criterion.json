@@ -5,10 +5,11 @@
       {
         "name": "criterion",
         "version": {
-          "version": "0.3.0"
+          "version": "0.3.1"
         },
         "requires": [],
-        "isRoot": true
+        "isRoot": true,
+        "url": "https://github.com/disruptek/criterion"
       }
     ]
   }
