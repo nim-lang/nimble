@@ -200,7 +200,6 @@ suite "SAT solver":
     var pks = 0
     for jsonFile in walkPattern("packageMinimal/*.json"):
       inc pks
-      var pkgVersionTable = parseJson(readFile(jsonFile)).to(Table[string, PackageVersions])
       var pkgVersionTable = parseJson(readFile(jsonFile)).jsonTo(Table[string, PackageVersions], Joptions(allowMissingKeys: true))
       pkgVersionTable.normalizeRequirements(initOptions())
       var graph = pkgVersionTable.toDepGraph()
