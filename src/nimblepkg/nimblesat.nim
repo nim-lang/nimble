@@ -151,6 +151,18 @@ proc hasVersion*(packagesVersions: Table[string, PackageVersions], name: string,
         return true
   false
 
+proc hasKey(packageToDependency: Table[string, int], dep: string): bool =
+  for k in packageToDependency.keys:
+    if k == dep or k.toLower == dep or k.toLower == dep.toLower:
+      return true
+  false
+
+proc getKey(packageToDependency: Table[string, int], dep: string): int =
+  for k in packageToDependency.keys:
+    if k == dep or k.toLower == dep or k.toLower == dep.toLower:
+      return packageToDependency[k]
+  raise newException(KeyError, dep & " not found")
+
 proc findDependencyForDep(g: DepGraph; dep: string): int {.inline.} =
   assert g.packageToDependency.hasKey(dep), dep & " not found"
   result = g.packageToDependency.getOrDefault(dep)
@@ -472,7 +484,7 @@ proc getSolvedPackages*(pkgVersionTable: Table[string, PackageVersions], output:
   for p in graph.nodes:
     for ver in p.versions.items:
       for dep, q in items graph.reqs[ver.req].deps:
-        if dep notin graph.packageToDependency:
+        if not graph.packageToDependency.hasKey(dep):
           #debug print. show all packacges in the graph
           output.add &"Dependency {dep} not found in the graph \n"
           for k, v in pkgVersionTable:
@@ -487,7 +499,7 @@ proc getSolvedPackages*(pkgVersionTable: Table[string, PackageVersions], output:
   discard solve(graph, form, packages, output, triedVersions)
   
   for pkg, ver in packages:
-    let nodeIdx = graph.packageToDependency[pkg]
+    let nodeIdx = graph.packageToDependency.getKey(pkg)
     for dep in graph.nodes[nodeIdx].versions:
       if dep.version == ver:
         let reqIdx = dep.req

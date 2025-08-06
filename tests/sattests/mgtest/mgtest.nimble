@@ -10,5 +10,5 @@ srcDir        = "src"
 # Dependencies
 
 requires "nim >= 2.0.4 & < 2.2.0", "prologue >= 0.6.2", "results", 
-  "fusion", "nodejs", "nimcrypto >= 0.6.0", "anonimongo",
+  "fusion", "nodejs", "nimcrypto >= 0.6.0",
   "redis", "websocketx", "https://github.com/mashingan/multisock"
