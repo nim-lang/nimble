@@ -1,7 +1,7 @@
 # Copyright (C) Dominik Picheta. All rights reserved.
 # BSD License. Look at license.txt for more info.
 
-import std/[sets, tables, strformat, options]
+import std/[sets, tables, strformat, options, strutils]
 import version, sha1hashes
 
 type
@@ -116,6 +116,11 @@ type
     pkg*: Option[PackageInfo] #when none, we need to install it
     version*: Version
 
+  NormalizedRequirement* = object
+    original*: string
+    normalized*: string
+    url*: string
+
   SATResult* = ref object
     rootPackage*: PackageInfo 
     pkgsToInstall*: seq[(string, Version)] #Packages to install
@@ -129,7 +134,19 @@ type
     declarativeParseFailed*: bool
     declarativeParserErrorLines*: seq[string]
     nimResolved*: NimResolved
-    normalizedRequirements*: Table[string, string] #normalized -> old. Some packages are not published as nimble packages, we keep the url for installation.
+    normalizedRequirements*: Table[string, NormalizedRequirement] #normalized -> old. Some packages are not published as nimble packages, we keep the url for installation.
+
+proc contains*(normalizedRequirements: Table[string, NormalizedRequirement], name: string): bool =
+  for k, req in normalizedRequirements:
+    if req.original.toLower == name.toLower or req.normalized.toLower == name.toLower or req.url.toLower == name.toLower:
+      return true
+  false
+
+proc `[]`*(normalizedRequirements: Table[string, NormalizedRequirement], name: string): NormalizedRequirement =
+  for k, req in normalizedRequirements:
+    if req.original.toLower == name.toLower or req.normalized.toLower == name.toLower or req.url.toLower == name.toLower:
+      return req
+  raise newException(KeyError, "Normalized requirement not found for " & name)
 
 proc `==`*(a, b: SolvedPackage): bool =
   a.pkgName == b.pkgName and
@@ -160,5 +177,5 @@ proc getGloballyActiveFeatures*(): seq[string] =
 proc initSATResult*(pass: SATPass): SATResult =
   SATResult(pkgsToInstall: @[], solvedPkgs: @[], output: "", pkgs: initHashSet[PackageInfo](), 
     pass: pass, installedPkgs: @[], declarativeParseFailed: false, declarativeParserErrorLines: @[],
-    normalizedRequirements: initTable[string, string]()
+    normalizedRequirements: initTable[string, NormalizedRequirement]()
     )

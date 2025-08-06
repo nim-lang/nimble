@@ -376,7 +376,7 @@ proc findMinimalFailingSet*(g: var DepGraph): tuple[failingSet: seq[PkgTuple], o
   # Generate error message
   var output = ""
   if minimalFailingSet.len > 0:
-    output = "Dependency resolution failed. Minimal set of conflicting dependencies:\n"
+    output = "Dependency resolution failed. Minimal set of conflicting dependencies:\n"    
     var allRequirements = initTable[string, seq[VersionRange]]()
     for dep in minimalFailingSet:
       let depNodeIdx = g.findDependencyForDep(dep.name)
@@ -831,8 +831,30 @@ proc getPackageNameFromUrl*(pv: PkgTuple, pkgVersionTable: Table[string, Package
   # echo "*** PKG INFO: ", pkgInfo.basicInfo.name, " ", pkgInfo.basicInfo.version, " ", pkgInfo.metadata.url
   # return pkgInfo.basicInfo.name.toLower
   # return ""
+proc allLowercase(s: string): bool =
+  for c in s:
+    if c.isUpperAscii:
+      return false
+  true
 
 proc normalizeRequirements*(pkgVersionTable: var Table[string, PackageVersions], options: Options) =
+    #lowercase the keys
+  var newPkgVersionTable = initTable[string, PackageVersions]()
+  for pkgName, pkgVersions in pkgVersionTable.mpairs:
+    pkgVersions.pkgName = pkgVersions.pkgName.toLower
+    for pkgVersion in pkgVersions.versions.mitems:
+      pkgVersion.url = pkgVersion.url.toLower
+      if not pkgVersion.name.allLowercase:        
+        options.satResult.normalizedRequirements[pkgVersion.name.toLower] = NormalizedRequirement(original: pkgVersion.name, normalized: pkgVersion.name.toLower, url: pkgVersion.url)
+        pkgVersion.name = pkgVersion.name.toLower
+    
+      for req in pkgVersion.requires.mitems:
+        req.name = req.name.toLower
+      newPkgVersionTable[pkgName.toLower] = pkgVersionTable[pkgName]
+  
+  pkgVersionTable = newPkgVersionTable
+
+  #Convert requirement in form of urls to pkgName when possible:
   for pkgName, pkgVersions in pkgVersionTable.mpairs:
     for pkgVersion in pkgVersions.versions.mitems:
       for req in pkgVersion.requires.mitems:
@@ -843,7 +865,8 @@ proc normalizeRequirements*(pkgVersionTable: var Table[string, PackageVersions],
             let oldReq = req.name
             # echo "DEBUG: Normalizing requirement ", req.name, " to ", newPkgName, " for package ", pkgName, " version ", $req.ver
             req.name = newPkgName
-            options.satResult.normalizedRequirements[newPkgName] = oldReq
+            #We can override here cause we prefer the url version
+            options.satResult.normalizedRequirements[newPkgName] = NormalizedRequirement(original: oldReq, normalized: newPkgName, url: req.name)
         req.name = req.name.resolveAlias(options)
 
 proc solvePackages*(rootPkg: PackageInfo, pkgList: seq[PackageInfo], pkgsToInstall: var seq[(string, Version)], options: Options, output: var string, solvedPkgs: var seq[SolvedPackage]): HashSet[PackageInfo] =
@@ -852,7 +875,6 @@ proc solvePackages*(rootPkg: PackageInfo, pkgList: seq[PackageInfo], pkgsToInsta
   var pkgVersionTable = initTable[string, PackageVersions]()
   pkgVersionTable[root.name] = PackageVersions(pkgName: root.name, versions: @[root])
   collectAllVersions(pkgVersionTable, root, options, downloadMinimalPackage, pkgList.mapIt(it.getMinimalInfo(options)))
-  # if not options.isLegacy:
   pkgVersionTable.normalizeRequirements(options)  
   solvedPkgs = pkgVersionTable.getSolvedPackages(output).topologicalSort()
   # echo "DEBUG: SolvedPkgs before post processing: ", solvedPkgs.mapIt(it.pkgName & " " & $it.version).join(", ")

@@ -892,10 +892,8 @@ proc installPkgs*(satResult: var SATResult, options: Options) =
         installedPkgInfo = installFromDirDownloadInfo(satResult.rootPackage.getNimbleFileDir(), satResult.rootPackage.metaData.url, pv, options).toRequiresInfo(options)
         wasNewlyInstalled = oldPkg.isNone
     else:      
-
-      if pv.name in options.satResult.normalizedRequirements:
-        pv.name = options.satResult.normalizedRequirements[pv.name]    
-      
+      if pv.name in options.satResult.normalizedRequirements and options.satResult.normalizedRequirements[pv.name].url != "":
+        pv.name = options.satResult.normalizedRequirements[pv.name].url    
       var dlInfo = getPackageDownloadInfo(pv, options, doPrompt = true)        
       var downloadDir = dlInfo.downloadDir / dlInfo.subdir       
       if not dirExists(dlInfo.downloadDir):        
