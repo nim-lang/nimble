@@ -52,13 +52,32 @@ proc downloadAllPackages() {.used.} =
   let ignorePackages = ["rpgsheet", 
   "arturo", "argument_parser", "murmur", "nimgame", "locale", "nim-locale",
   "nim-ao", "ao", "termbox", "linagl", "kwin", "yahooweather", "noaa",
-  "nimwc",
+  "nimwc", "pylib",
   "artemis"]
-  let toDownload = importantPackages.filterIt(it notin ignorePackages)
-  for pkg in toDownload:
+  let startAt = 0#importantPackages.find("rbtree")
+  let toDownload = importantPackages
+  for i, pkg in toDownload:
+    if i >= startAt or pkg in ignorePackages:
+      continue
     echo "Downloading ", pkg
     downloadAndStorePackageVersionTableFor(pkg, options)
     echo "Done with ", pkg
+
+proc fromJsonHook(pv: var PkgTuple, jsonNode: JsonNode, opt = Joptions()) =
+  if jsonNode.kind == Jstring:
+    pv = parseRequires(jsonNode.getStr())
+  else:
+    raise newException(ValueError, "Expected a string for PkgTuple found: " & $jsonNode.kind & " val: " & $jsonNode)
+
+# proc fromJsonHook(pm: var PackageMinimalInfo, jsonNode: JsonNode, opt = Joptions()) =
+#   pm.name = jsonNode["name"].getStr().toLower
+#   pm.version = newVersion(jsonNode["version"].getStr())
+#   for req in jsonNode["requires"]:
+#     var pv: PkgTuple
+#     fromJson(pv, req)
+#     pm.requires.add((name: pv.name, ver: pv.ver))
+#   pm.isRoot = jsonNode["isRoot"].getBool()
+
 
 suite "SAT solver":
   test "can solve simple SAT":
@@ -181,7 +200,8 @@ suite "SAT solver":
     var pks = 0
     for jsonFile in walkPattern("packageMinimal/*.json"):
       inc pks
-      var pkgVersionTable = parseJson(readFile(jsonFile)).to(Table[string, PackageVersions])
+      var pkgVersionTable = parseJson(readFile(jsonFile)).jsonTo(Table[string, PackageVersions], Joptions(allowMissingKeys: true))
+      pkgVersionTable.normalizeRequirements(initOptions())
       var graph = pkgVersionTable.toDepGraph()
       let form = toFormular(graph)
       var packages = initTable[string, Version]()

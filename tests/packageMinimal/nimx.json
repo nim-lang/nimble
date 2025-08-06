@@ -1,17 +1,84 @@
 {
-  "opengl": {
-    "pkgName": "opengl",
+  "oldgtk3": {
+    "pkgName": "oldgtk3",
     "versions": [
       {
-        "name": "opengl",
+        "name": "oldgtk3",
         "version": {
-          "version": "1.2.9"
+          "version": "0.1.0"
         },
         "requires": [
-          "nim >= 0.11.0",
-          "x11 >= 1.1"
+          "nim >= 0.17.0"
         ],
-        "isRoot": false
+        "isRoot": false,
+        "url": "https://github.com/stefansalewski/oldgtk3"
+      }
+    ]
+  },
+  "ttf": {
+    "pkgName": "ttf",
+    "versions": [
+      {
+        "name": "ttf",
+        "version": {
+          "version": "0.2.13"
+        },
+        "requires": [
+          "nimbmp"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/yglukhov/ttf"
+      },
+      {
+        "name": "ttf",
+        "version": {
+          "version": "0.2.12"
+        },
+        "requires": [
+          "nimBMP"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/yglukhov/ttf"
+      },
+      {
+        "name": "ttf",
+        "version": {
+          "version": "0.2.11"
+        },
+        "requires": [
+          "nimBMP"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/yglukhov/ttf"
+      },
+      {
+        "name": "ttf",
+        "version": {
+          "version": "0.2.10"
+        },
+        "requires": [
+          "nimBMP"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/yglukhov/ttf"
+      }
+    ]
+  },
+  "nester": {
+    "pkgName": "nester",
+    "versions": [
+      {
+        "name": "nester",
+        "version": {
+          "version": "0.2.0"
+        },
+        "requires": [
+          "nim >= 0.20.0",
+          "https://github.com/kedean/nest",
+          "cligen"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/tormund/nester"
       }
     ]
   },
@@ -26,7 +93,171 @@
         "requires": [
           "nim > 0.9.2"
         ],
-        "isRoot": false
+        "isRoot": false,
+        "url": "https://github.com/nim-lang/x11"
+      }
+    ]
+  },
+  "clipboard": {
+    "pkgName": "clipboard",
+    "versions": [
+      {
+        "name": "clipboard",
+        "version": {
+          "version": "0.1.0"
+        },
+        "requires": [
+          "x11",
+          "wasmrt"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/yglukhov/clipboard"
+      }
+    ]
+  },
+  "wasmrt": {
+    "pkgName": "wasmrt",
+    "versions": [
+      {
+        "name": "wasmrt",
+        "version": {
+          "version": "0.1.0"
+        },
+        "requires": [
+          "zippy"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/yglukhov/wasmrt"
+      }
+    ]
+  },
+  "zippy": {
+    "pkgName": "zippy",
+    "versions": [
+      {
+        "name": "zippy",
+        "version": {
+          "version": "0.10.16"
+        },
+        "requires": [
+          "nim >= 1.0.10"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/guzba/zippy"
+      },
+      {
+        "name": "zippy",
+        "version": {
+          "version": "0.10.15"
+        },
+        "requires": [
+          "nim >= 1.0.10"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/guzba/zippy"
+      },
+      {
+        "name": "zippy",
+        "version": {
+          "version": "0.10.14"
+        },
+        "requires": [
+          "nim >= 1.0.10"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/guzba/zippy"
+      },
+      {
+        "name": "zippy",
+        "version": {
+          "version": "0.10.13"
+        },
+        "requires": [
+          "nim >= 1.0.10"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/guzba/zippy"
+      }
+    ]
+  },
+  "https://github.com/yglukhov/clipboard": {
+    "pkgName": "https://github.com/yglukhov/clipboard",
+    "versions": [
+      {
+        "name": "clipboard",
+        "version": {
+          "version": "0.1.0"
+        },
+        "requires": [
+          "x11",
+          "wasmrt"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/yglukhov/clipboard"
+      }
+    ]
+  },
+  "https://github.com/yglukhov/async_http_request": {
+    "pkgName": "https://github.com/yglukhov/async_http_request",
+    "versions": [
+      {
+        "name": "async_http_request",
+        "version": {
+          "version": "0.1.4"
+        },
+        "requires": [
+          "jsbind"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/yglukhov/async_http_request"
+      }
+    ]
+  },
+  "darwin": {
+    "pkgName": "darwin",
+    "versions": [
+      {
+        "name": "darwin",
+        "version": {
+          "version": "0.1.1"
+        },
+        "requires": [
+          "nim >= 0.17.0"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/yglukhov/darwin"
+      }
+    ]
+  },
+  "plists": {
+    "pkgName": "plists",
+    "versions": [
+      {
+        "name": "plists",
+        "version": {
+          "version": "0.2.0"
+        },
+        "requires": [
+          "darwin"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/yglukhov/plists"
+      }
+    ]
+  },
+  "nest": {
+    "pkgName": "nest",
+    "versions": [
+      {
+        "name": "nest",
+        "version": {
+          "version": "0.1.0"
+        },
+        "requires": [
+          "nim >= 0.13.0"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/kedean/nest"
       }
     ]
   },
@@ -41,37 +272,72 @@
         "requires": [
           "nim >= 0.15.3"
         ],
-        "isRoot": false
+        "isRoot": false,
+        "url": "https://github.com/yglukhov/kiwi"
       }
     ]
   },
-  "https://github.com/yglukhov/darwin": {
-    "pkgName": "https://github.com/yglukhov/darwin",
+  "nimwebp": {
+    "pkgName": "nimwebp",
     "versions": [
       {
-        "name": "darwin",
+        "name": "nimwebp",
+        "version": {
+          "version": "0.1.0"
+        },
+        "requires": [
+          "nim >= 1.0.4",
+          "nimPNG"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/tormund/nimwebp"
+      }
+    ]
+  },
+  "jsbind": {
+    "pkgName": "jsbind",
+    "versions": [
+      {
+        "name": "jsbind",
         "version": {
           "version": "0.1.1"
         },
         "requires": [
-          "nim >= 0.17.0"
+          "https://github.com/yglukhov/wasmrt"
         ],
-        "isRoot": false
+        "isRoot": false,
+        "url": "https://github.com/yglukhov/jsbind"
       }
     ]
   },
-  "nake": {
-    "pkgName": "nake",
+  "android": {
+    "pkgName": "android",
     "versions": [
       {
-        "name": "nake",
+        "name": "android",
         "version": {
-          "version": "1.9.4"
+          "version": "0.2.0"
         },
         "requires": [
-          "nim >= 0.10.2"
+          "nim >= 0.16.1",
+          "jnim"
         ],
-        "isRoot": false
+        "isRoot": false,
+        "url": "https://github.com/yglukhov/android"
+      }
+    ]
+  },
+  "rect_packer": {
+    "pkgName": "rect_packer",
+    "versions": [
+      {
+        "name": "rect_packer",
+        "version": {
+          "version": "0.1.0"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": "https://github.com/yglukhov/rect_packer"
       }
     ]
   },
@@ -92,7 +358,7 @@
           "nake",
           "closure_compiler >= 0.3.1",
           "plists",
-          "variant >= 0.2 & < 0.3",
+          "variant >= 0.2",
           "kiwi",
           "https://github.com/yglukhov/ttf >= 0.2.9 & < 0.3",
           "https://github.com/yglukhov/async_http_request",
@@ -105,29 +371,13 @@
           "nimwebp",
           "https://github.com/yglukhov/clipboard"
         ],
-        "isRoot": true
+        "isRoot": true,
+        "url": "https://github.com/yglukhov/nimx"
       }
     ]
   },
-  "os_files": {
-    "pkgName": "os_files",
-    "versions": [
-      {
-        "name": "os_files",
-        "version": {
-          "version": "0.1.2"
-        },
-        "requires": [
-          "oldgtk3",
-          "jsbind",
-          "https://github.com/yglukhov/darwin"
-        ],
-        "isRoot": false
-      }
-    ]
-  },
-  "darwin": {
-    "pkgName": "darwin",
+  "https://github.com/yglukhov/darwin": {
+    "pkgName": "https://github.com/yglukhov/darwin",
     "versions": [
       {
         "name": "darwin",
@@ -137,93 +387,106 @@
         "requires": [
           "nim >= 0.17.0"
         ],
-        "isRoot": false
+        "isRoot": false,
+        "url": "https://github.com/yglukhov/darwin"
       }
     ]
   },
-  "https://github.com/kedean/nest": {
-    "pkgName": "https://github.com/kedean/nest",
+  "jnim": {
+    "pkgName": "jnim",
     "versions": [
       {
-        "name": "nest",
+        "name": "jnim",
         "version": {
-          "version": "0.1.0"
+          "version": "0.5.2"
         },
         "requires": [
-          "nim >= 0.13.0"
+          "nim >= 0.19"
         ],
-        "isRoot": false
-      }
-    ]
-  },
-  "rect_packer": {
-    "pkgName": "rect_packer",
-    "versions": [
+        "isRoot": false,
+        "url": "https://github.com/yglukhov/jnim"
+      },
       {
-        "name": "rect_packer",
+        "name": "jnim",
         "version": {
-          "version": "0.1.0"
-        },
-        "requires": [],
-        "isRoot": false
-      }
-    ]
-  },
-  "https://github.com/yglukhov/async_http_request": {
-    "pkgName": "https://github.com/yglukhov/async_http_request",
-    "versions": [
-      {
-        "name": "async_http_request",
-        "version": {
-          "version": "0.1.4"
+          "version": "0.5.1"
         },
         "requires": [
-          "jsbind"
+          "nim >= 0.19"
         ],
-        "isRoot": false
-      }
-    ]
-  },
-  "nim": {
-    "pkgName": "nim",
-    "versions": [
+        "isRoot": false,
+        "url": "https://github.com/yglukhov/jnim"
+      },
       {
-        "name": "nim",
+        "name": "jnim",
         "version": {
-          "version": "2.0.2"
-        },
-        "requires": [],
-        "isRoot": false
-      }
-    ]
-  },
-  "zippy": {
-    "pkgName": "zippy",
-    "versions": [
-      {
-        "name": "zippy",
-        "version": {
-          "version": "0.10.11"
+          "version": "0.5.0"
         },
         "requires": [
-          "nim >= 1.0.10"
+          "nim >= 0.19"
         ],
-        "isRoot": false
+        "isRoot": false,
+        "url": "https://github.com/yglukhov/jnim"
+      },
+      {
+        "name": "jnim",
+        "version": {
+          "version": "0.4.2"
+        },
+        "requires": [
+          "nim >= 0.19"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/yglukhov/jnim"
       }
     ]
   },
-  "https://github.com/yglukhov/ttf": {
-    "pkgName": "https://github.com/yglukhov/ttf",
+  "cligen": {
+    "pkgName": "cligen",
     "versions": [
       {
-        "name": "ttf",
+        "name": "cligen",
         "version": {
-          "version": "0.2.13"
+          "version": "1.8.9"
         },
         "requires": [
-          "nimBMP"
+          "nim >= 0.20.2"
         ],
-        "isRoot": false
+        "isRoot": false,
+        "url": "https://github.com/c-blake/cligen.git"
+      },
+      {
+        "name": "cligen",
+        "version": {
+          "version": "1.8.8"
+        },
+        "requires": [
+          "nim >= 0.20.2"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/c-blake/cligen.git"
+      },
+      {
+        "name": "cligen",
+        "version": {
+          "version": "1.8.7"
+        },
+        "requires": [
+          "nim >= 0.20.2"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/c-blake/cligen.git"
+      },
+      {
+        "name": "cligen",
+        "version": {
+          "version": "1.8.6"
+        },
+        "requires": [
+          "nim >= 0.20.2"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/c-blake/cligen.git"
       }
     ]
   },
@@ -236,39 +499,90 @@
           "version": "0.3.3"
         },
         "requires": [],
-        "isRoot": false
+        "isRoot": false,
+        "url": "https://github.com/yglukhov/nimsl"
+      },
+      {
+        "name": "nimsl",
+        "version": {
+          "version": "0.3.2"
+        },
+        "requires": [
+          "variant"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/yglukhov/nimsl"
+      },
+      {
+        "name": "nimsl",
+        "version": {
+          "version": "0.3.1"
+        },
+        "requires": [
+          "variant"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/yglukhov/nimsl"
+      },
+      {
+        "name": "nimsl",
+        "version": {
+          "version": "0.3"
+        },
+        "requires": [
+          "variant"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/yglukhov/nimsl"
       }
     ]
   },
-  "oldgtk3": {
-    "pkgName": "oldgtk3",
+  "nimpng": {
+    "pkgName": "nimpng",
     "versions": [
       {
-        "name": "oldgtk3",
+        "name": "nimPNG",
         "version": {
-          "version": "0.1.0"
+          "version": "0.3.6"
         },
         "requires": [
-          "nim >= 0.17.0"
+          "nim >= 1.6.0"
         ],
-        "isRoot": false
-      }
-    ]
-  },
-  "nimwebp": {
-    "pkgName": "nimwebp",
-    "versions": [
+        "isRoot": false,
+        "url": "https://github.com/jangko/nimPNG"
+      },
       {
-        "name": "nimwebp",
+        "name": "nimPNG",
         "version": {
-          "version": "0.1.0"
+          "version": "0.3.6"
         },
         "requires": [
-          "nim >= 1.0.4",
-          "nimPNG",
-          "https://github.com/yglukhov/clurp"
+          "nim >= 1.16.0"
         ],
-        "isRoot": false
+        "isRoot": false,
+        "url": "https://github.com/jangko/nimPNG"
+      },
+      {
+        "name": "nimPNG",
+        "version": {
+          "version": "0.3.4"
+        },
+        "requires": [
+          "nim >= 0.19.0"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/jangko/nimPNG"
+      },
+      {
+        "name": "nimPNG",
+        "version": {
+          "version": "0.3.2"
+        },
+        "requires": [
+          "nim >= 0.19.0"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/jangko/nimPNG"
       }
     ]
   },
@@ -278,40 +592,87 @@
       {
         "name": "winim",
         "version": {
+          "version": "3.9.4"
+        },
+        "requires": [
+          "nim >= 1.0.0"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/khchen/winim"
+      },
+      {
+        "name": "winim",
+        "version": {
+          "version": "3.9.3"
+        },
+        "requires": [
+          "nim >= 1.0.0"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/khchen/winim"
+      },
+      {
+        "name": "winim",
+        "version": {
           "version": "3.9.2"
         },
         "requires": [
           "nim >= 1.0.0"
         ],
-        "isRoot": false
-      }
-    ]
-  },
-  "closure_compiler": {
-    "pkgName": "closure_compiler",
-    "versions": [
+        "isRoot": false,
+        "url": "https://github.com/khchen/winim"
+      },
       {
-        "name": "closure_compiler",
+        "name": "winim",
         "version": {
-          "version": "0.3.6"
-        },
-        "requires": [],
-        "isRoot": false
-      }
-    ]
-  },
-  "https://github.com/yglukhov/wasmrt": {
-    "pkgName": "https://github.com/yglukhov/wasmrt",
-    "versions": [
-      {
-        "name": "wasmrt",
-        "version": {
-          "version": "0.1.0"
+          "version": "3.9.1"
         },
         "requires": [
-          "zippy"
+          "nim >= 1.0.0"
         ],
-        "isRoot": false
+        "isRoot": false,
+        "url": "https://github.com/khchen/winim"
+      }
+    ]
+  },
+  "variant": {
+    "pkgName": "variant",
+    "versions": [
+      {
+        "name": "variant",
+        "version": {
+          "version": "0.3.1"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": "https://github.com/yglukhov/variant.git"
+      },
+      {
+        "name": "variant",
+        "version": {
+          "version": "0.2.13"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": "https://github.com/yglukhov/variant.git"
+      },
+      {
+        "name": "variant",
+        "version": {
+          "version": "0.2.12"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": "https://github.com/yglukhov/variant.git"
+      },
+      {
+        "name": "variant",
+        "version": {
+          "version": "0.2.11"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": "https://github.com/yglukhov/variant.git"
       }
     ]
   },
@@ -327,23 +688,550 @@
           "nim >= 0.16.1",
           "jnim"
         ],
-        "isRoot": false
+        "isRoot": false,
+        "url": "https://github.com/yglukhov/android"
       }
     ]
   },
-  "https://github.com/yglukhov/clipboard": {
-    "pkgName": "https://github.com/yglukhov/clipboard",
+  "nake": {
+    "pkgName": "nake",
     "versions": [
       {
-        "name": "clipboard",
+        "name": "nake",
+        "version": {
+          "version": "1.9.5"
+        },
+        "requires": [
+          "nim >= 0.10.2"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/fowlmouth/nake"
+      },
+      {
+        "name": "nake",
+        "version": {
+          "version": "1.9.4"
+        },
+        "requires": [
+          "nim >= 0.10.2"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/fowlmouth/nake"
+      },
+      {
+        "name": "nake",
+        "version": {
+          "version": "1.9.3"
+        },
+        "requires": [
+          "nim >= 0.10.2"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/fowlmouth/nake"
+      },
+      {
+        "name": "nake",
+        "version": {
+          "version": "1.9.2"
+        },
+        "requires": [
+          "nim >= 0.10.2"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/fowlmouth/nake"
+      }
+    ]
+  },
+  "nimbmp": {
+    "pkgName": "nimbmp",
+    "versions": [
+      {
+        "name": "nimBMP",
+        "version": {
+          "version": "0.1.8"
+        },
+        "requires": [
+          "nim >= 1.0.2"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/jangko/nimBMP"
+      },
+      {
+        "name": "nimBMP",
+        "version": {
+          "version": "0.1.7"
+        },
+        "requires": [
+          "nim >= 1.0.2"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/jangko/nimBMP"
+      },
+      {
+        "name": "nimBMP",
+        "version": {
+          "version": "0.1.6"
+        },
+        "requires": [
+          "nim >= 0.18.1"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/jangko/nimBMP"
+      }
+    ]
+  },
+  "https://github.com/yglukhov/wasmrt": {
+    "pkgName": "https://github.com/yglukhov/wasmrt",
+    "versions": [
+      {
+        "name": "wasmrt",
         "version": {
           "version": "0.1.0"
         },
         "requires": [
-          "nim >= 1.0.4",
-          "x11"
+          "zippy"
         ],
-        "isRoot": false
+        "isRoot": false,
+        "url": "https://github.com/yglukhov/wasmrt"
+      }
+    ]
+  },
+  "nim": {
+    "pkgName": "nim",
+    "versions": [
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.2.4"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.2.2"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.2.0"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.0.16"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.0.14"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.0.12"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.0.10"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.0.8"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.0.6"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.0.4"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.0.2"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.0.0"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "1.6.20"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "1.6.18"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "1.6.16"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "1.6.14"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "1.6.12"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "1.6.10"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "1.6.8"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "1.6.6"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "1.6.4"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "1.6.2"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "1.6.0"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "1.4.8"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "1.4.6"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "1.4.4"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "1.4.2"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "1.4.0"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "1.2.18"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "1.2.16"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.2.5"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      }
+    ]
+  },
+  "sdl2": {
+    "pkgName": "sdl2",
+    "versions": [
+      {
+        "name": "sdl2",
+        "version": {
+          "version": "2.0.5"
+        },
+        "requires": [
+          "nim >= 0.12.0"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/nim-lang/sdl2"
+      },
+      {
+        "name": "sdl2",
+        "version": {
+          "version": "2.0.4"
+        },
+        "requires": [
+          "nim >= 0.12.0"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/nim-lang/sdl2"
+      },
+      {
+        "name": "sdl2",
+        "version": {
+          "version": "2.0.3"
+        },
+        "requires": [
+          "nim >= 0.12.0"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/nim-lang/sdl2"
+      },
+      {
+        "name": "sdl2",
+        "version": {
+          "version": "2.0.2"
+        },
+        "requires": [
+          "nim >= 0.12.0"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/nim-lang/sdl2"
+      }
+    ]
+  },
+  "closure_compiler": {
+    "pkgName": "closure_compiler",
+    "versions": [
+      {
+        "name": "closure_compiler",
+        "version": {
+          "version": "0.3.6"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": "https://github.com/yglukhov/closure_compiler.git"
+      },
+      {
+        "name": "closure_compiler",
+        "version": {
+          "version": "0.3.5"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": "https://github.com/yglukhov/closure_compiler.git"
+      },
+      {
+        "name": "closure_compiler",
+        "version": {
+          "version": "0.3.4"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": "https://github.com/yglukhov/closure_compiler.git"
+      },
+      {
+        "name": "closure_compiler",
+        "version": {
+          "version": "0.3.3"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": "https://github.com/yglukhov/closure_compiler.git"
+      }
+    ]
+  },
+  "https://github.com/yglukhov/ttf": {
+    "pkgName": "https://github.com/yglukhov/ttf",
+    "versions": [
+      {
+        "name": "ttf",
+        "version": {
+          "version": "0.2.13"
+        },
+        "requires": [
+          "nimBMP"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/yglukhov/ttf"
+      },
+      {
+        "name": "ttf",
+        "version": {
+          "version": "0.2.12"
+        },
+        "requires": [
+          "nimBMP"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/yglukhov/ttf"
+      },
+      {
+        "name": "ttf",
+        "version": {
+          "version": "0.2.11"
+        },
+        "requires": [
+          "nimBMP"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/yglukhov/ttf"
+      },
+      {
+        "name": "ttf",
+        "version": {
+          "version": "0.2.10"
+        },
+        "requires": [
+          "nimBMP"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/yglukhov/ttf"
+      }
+    ]
+  },
+  "https://github.com/kedean/nest": {
+    "pkgName": "https://github.com/kedean/nest",
+    "versions": [
+      {
+        "name": "nest",
+        "version": {
+          "version": "0.1.0"
+        },
+        "requires": [
+          "nim >= 0.13.0"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/kedean/nest"
       }
     ]
   },
@@ -360,141 +1248,83 @@
           "https://github.com/kedean/nest",
           "cligen"
         ],
-        "isRoot": false
+        "isRoot": false,
+        "url": "https://github.com/tormund/nester"
       }
     ]
   },
-  "variant": {
-    "pkgName": "variant",
+  "opengl": {
+    "pkgName": "opengl",
     "versions": [
       {
-        "name": "variant",
+        "name": "opengl",
         "version": {
-          "version": "0.2.13"
-        },
-        "requires": [],
-        "isRoot": false
-      }
-    ]
-  },
-  "nimBMP": {
-    "pkgName": "nimBMP",
-    "versions": [
-      {
-        "name": "nimBMP",
-        "version": {
-          "version": "0.1.8"
+          "version": "1.2.9"
         },
         "requires": [
-          "nim >= 1.0.2"
+          "nim >= 0.11.0",
+          "x11 >= 1.1"
         ],
-        "isRoot": false
+        "isRoot": false,
+        "url": "https://github.com/nim-lang/opengl"
+      },
+      {
+        "name": "opengl",
+        "version": {
+          "version": "1.2.7"
+        },
+        "requires": [
+          "nim >= 0.11.0",
+          "x11 >= 1.1"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/nim-lang/opengl"
+      },
+      {
+        "name": "opengl",
+        "version": {
+          "version": "1.2.6"
+        },
+        "requires": [
+          "nim >= 0.11.0",
+          "x11 >= 1.1"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/nim-lang/opengl"
       }
     ]
   },
-  "nimPNG": {
-    "pkgName": "nimPNG",
+  "async_http_request": {
+    "pkgName": "async_http_request",
     "versions": [
       {
-        "name": "nimPNG",
+        "name": "async_http_request",
         "version": {
-          "version": "0.3.6"
+          "version": "0.1.4"
         },
         "requires": [
-          "nim >= 1.6.0"
+          "jsbind"
         ],
-        "isRoot": false
+        "isRoot": false,
+        "url": "https://github.com/yglukhov/async_http_request"
       }
     ]
   },
-  "jsbind": {
-    "pkgName": "jsbind",
+  "os_files": {
+    "pkgName": "os_files",
     "versions": [
       {
-        "name": "jsbind",
+        "name": "os_files",
         "version": {
-          "version": "0.1.1"
+          "version": "0.1.2"
         },
         "requires": [
-          "https://github.com/yglukhov/wasmrt"
+          "oldgtk3",
+          "jsbind",
+          "https://github.com/yglukhov/darwin"
         ],
-        "isRoot": false
-      }
-    ]
-  },
-  "jnim": {
-    "pkgName": "jnim",
-    "versions": [
-      {
-        "name": "jnim",
-        "version": {
-          "version": "0.5.2"
-        },
-        "requires": [
-          "nim >= 0.19"
-        ],
-        "isRoot": false
-      }
-    ]
-  },
-  "sdl2": {
-    "pkgName": "sdl2",
-    "versions": [
-      {
-        "name": "sdl2",
-        "version": {
-          "version": "2.0.5"
-        },
-        "requires": [
-          "nim >= 0.12.0"
-        ],
-        "isRoot": false
-      }
-    ]
-  },
-  "cligen": {
-    "pkgName": "cligen",
-    "versions": [
-      {
-        "name": "cligen",
-        "version": {
-          "version": "1.7.0"
-        },
-        "requires": [
-          "nim >= 0.20.2"
-        ],
-        "isRoot": false
-      }
-    ]
-  },
-  "https://github.com/yglukhov/clurp": {
-    "pkgName": "https://github.com/yglukhov/clurp",
-    "versions": [
-      {
-        "name": "clurp",
-        "version": {
-          "version": "0.1.0"
-        },
-        "requires": [
-          "nim >= 0.15.3",
-          "cligen"
-        ],
-        "isRoot": false
-      }
-    ]
-  },
-  "plists": {
-    "pkgName": "plists",
-    "versions": [
-      {
-        "name": "plists",
-        "version": {
-          "version": "0.2.0"
-        },
-        "requires": [
-          "darwin"
-        ],
-        "isRoot": false
+        "isRoot": false,
+        "url": "https://github.com/tormund/os_files"
       }
     ]
   }

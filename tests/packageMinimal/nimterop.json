@@ -1,48 +1,4 @@
 {
-  "regex": {
-    "pkgName": "regex",
-    "versions": [
-      {
-        "name": "regex",
-        "version": {
-          "version": "0.24.1"
-        },
-        "requires": [
-          "nim >= 1.0.0",
-          "unicodedb >= 0.7.2"
-        ],
-        "isRoot": false
-      }
-    ]
-  },
-  "unicodedb": {
-    "pkgName": "unicodedb",
-    "versions": [
-      {
-        "name": "unicodedb",
-        "version": {
-          "version": "0.12.0"
-        },
-        "requires": [
-          "nim >= 1.0.0"
-        ],
-        "isRoot": false
-      }
-    ]
-  },
-  "nim": {
-    "pkgName": "nim",
-    "versions": [
-      {
-        "name": "nim",
-        "version": {
-          "version": "2.0.2"
-        },
-        "requires": [],
-        "isRoot": false
-      }
-    ]
-  },
   "https://github.com/nim-lang/nimterop": {
     "pkgName": "https://github.com/nim-lang/nimterop",
     "versions": [
@@ -56,7 +12,77 @@
           "regex >= 0.15.0",
           "cligen >= 1.0.0"
         ],
-        "isRoot": true
+        "isRoot": true,
+        "url": "https://github.com/nim-lang/nimterop"
+      }
+    ]
+  },
+  "unicodedb": {
+    "pkgName": "unicodedb",
+    "versions": [
+      {
+        "name": "unicodedb",
+        "version": {
+          "version": "0.13.2"
+        },
+        "requires": [
+          "nim >= 1.0.0"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/nitely/nim-unicodedb"
+      }
+    ]
+  },
+  "regex": {
+    "pkgName": "regex",
+    "versions": [
+      {
+        "name": "regex",
+        "version": {
+          "version": "0.26.3"
+        },
+        "requires": [
+          "nim >= 1.6.0",
+          "unicodedb >= 0.13.2"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/nitely/nim-regex"
+      },
+      {
+        "name": "regex",
+        "version": {
+          "version": "0.26.2"
+        },
+        "requires": [
+          "nim >= 1.6.0",
+          "unicodedb >= 0.13.2"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/nitely/nim-regex"
+      },
+      {
+        "name": "regex",
+        "version": {
+          "version": "0.26.1"
+        },
+        "requires": [
+          "nim >= 1.6.0",
+          "unicodedb >= 0.13.2"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/nitely/nim-regex"
+      },
+      {
+        "name": "regex",
+        "version": {
+          "version": "0.26.0"
+        },
+        "requires": [
+          "nim >= 1.6.0",
+          "unicodedb >= 0.7.2"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/nitely/nim-regex"
       }
     ]
   },
@@ -66,12 +92,330 @@
       {
         "name": "cligen",
         "version": {
-          "version": "1.7.0"
+          "version": "1.8.9"
         },
         "requires": [
           "nim >= 0.20.2"
         ],
-        "isRoot": false
+        "isRoot": false,
+        "url": "https://github.com/c-blake/cligen.git"
+      },
+      {
+        "name": "cligen",
+        "version": {
+          "version": "1.8.8"
+        },
+        "requires": [
+          "nim >= 0.20.2"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/c-blake/cligen.git"
+      },
+      {
+        "name": "cligen",
+        "version": {
+          "version": "1.8.7"
+        },
+        "requires": [
+          "nim >= 0.20.2"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/c-blake/cligen.git"
+      },
+      {
+        "name": "cligen",
+        "version": {
+          "version": "1.8.6"
+        },
+        "requires": [
+          "nim >= 0.20.2"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/c-blake/cligen.git"
+      }
+    ]
+  },
+  "nim": {
+    "pkgName": "nim",
+    "versions": [
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.2.4"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.2.2"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.2.0"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.0.16"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.0.14"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.0.12"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.0.10"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.0.8"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.0.6"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.0.4"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.0.2"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.0.0"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "1.6.20"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "1.6.18"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "1.6.16"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "1.6.14"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "1.6.12"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "1.6.10"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "1.6.8"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "1.6.6"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "1.6.4"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "1.6.2"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "1.6.0"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "1.4.8"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "1.4.6"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "1.4.4"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "1.4.2"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "1.4.0"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "1.2.18"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "1.2.16"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.2.5"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
       }
     ]
   }

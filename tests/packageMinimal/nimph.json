@@ -10,110 +10,41 @@
         "requires": [
           "npeg >= 0.23.2 & < 2.0.0"
         ],
-        "isRoot": false
-      }
-    ]
-  },
-  "https://github.com/disruptek/balls": {
-    "pkgName": "https://github.com/disruptek/balls",
-    "versions": [
+        "isRoot": false,
+        "url": "https://github.com/disruptek/ups"
+      },
       {
-        "name": "balls",
+        "name": "ups",
         "version": {
-          "version": "3.9.11"
+          "version": "0.3.1"
         },
         "requires": [
-          "https://github.com/disruptek/grok >= 0.5.0 & < 1.0.0",
-          "https://github.com/disruptek/ups < 1.0.0"
+          "npeg >= 0.23.2 & < 2.0.0"
         ],
-        "isRoot": false
-      }
-    ]
-  },
-  "https://github.com/disruptek/cutelog": {
-    "pkgName": "https://github.com/disruptek/cutelog",
-    "versions": [
+        "isRoot": false,
+        "url": "https://github.com/disruptek/ups"
+      },
       {
-        "name": "cutelog",
+        "name": "ups",
         "version": {
-          "version": "2.0.1"
-        },
-        "requires": [],
-        "isRoot": false
-      }
-    ]
-  },
-  "https://github.com/disruptek/github": {
-    "pkgName": "https://github.com/disruptek/github",
-    "versions": [
-      {
-        "name": "github",
-        "version": {
-          "version": "3.0.0"
+          "version": "0.3.0"
         },
         "requires": [
-          "https://github.com/disruptek/rest.git >= 1.0.5 & < 2.0.0"
+          "npeg >= 0.23.2 & < 2.0.0"
         ],
-        "isRoot": false
-      }
-    ]
-  },
-  "https://github.com/zevv/npeg": {
-    "pkgName": "https://github.com/zevv/npeg",
-    "versions": [
+        "isRoot": false,
+        "url": "https://github.com/disruptek/ups"
+      },
       {
-        "name": "npeg",
+        "name": "ups",
         "version": {
-          "version": "1.2.1"
+          "version": "0.2.1"
         },
         "requires": [
-          "nim >= 0.19.0"
+          "npeg >= 0.23.2 & < 2.0.0"
         ],
-        "isRoot": false
-      }
-    ]
-  },
-  "https://github.com/alaviss/hlibgit2": {
-    "pkgName": "https://github.com/alaviss/hlibgit2",
-    "versions": [
-      {
-        "name": "hlibgit2",
-        "version": {
-          "version": "0.1.7"
-        },
-        "requires": [
-          "https://github.com/haxscramper/hlibssh2.git >= 0.1.4",
-          "nim >= 1.2.0"
-        ],
-        "isRoot": false
-      }
-    ]
-  },
-  "https://github.com/disruptek/jsonconvert": {
-    "pkgName": "https://github.com/disruptek/jsonconvert",
-    "versions": [
-      {
-        "name": "jsonconvert",
-        "version": {
-          "version": "1.0.2"
-        },
-        "requires": [
-          "nim >= 0.20.0"
-        ],
-        "isRoot": false
-      }
-    ]
-  },
-  "nim": {
-    "pkgName": "nim",
-    "versions": [
-      {
-        "name": "nim",
-        "version": {
-          "version": "2.0.2"
-        },
-        "requires": [],
-        "isRoot": false
+        "isRoot": false,
+        "url": "https://github.com/disruptek/ups"
       }
     ]
   },
@@ -129,63 +60,8 @@
           "https://github.com/disruptek/badresults >= 2.0.0 & < 3.0.0",
           "https://github.com/alaviss/hlibgit2 >= 0.1.7 & < 1.0.0"
         ],
-        "isRoot": false
-      }
-    ]
-  },
-  "npeg": {
-    "pkgName": "npeg",
-    "versions": [
-      {
-        "name": "npeg",
-        "version": {
-          "version": "1.2.1"
-        },
-        "requires": [
-          "nim >= 0.19.0"
-        ],
-        "isRoot": false
-      }
-    ]
-  },
-  "https://github.com/disruptek/grok": {
-    "pkgName": "https://github.com/disruptek/grok",
-    "versions": [
-      {
-        "name": "grok",
-        "version": {
-          "version": "0.6.4"
-        },
-        "requires": [],
-        "isRoot": false
-      }
-    ]
-  },
-  "https://github.com/disruptek/badresults": {
-    "pkgName": "https://github.com/disruptek/badresults",
-    "versions": [
-      {
-        "name": "badresults",
-        "version": {
-          "version": "2.2.0"
-        },
-        "requires": [],
-        "isRoot": false
-      }
-    ]
-  },
-  "https://github.com/haxscramper/hlibssh2.git": {
-    "pkgName": "https://github.com/haxscramper/hlibssh2.git",
-    "versions": [
-      {
-        "name": "hlibssh2",
-        "version": {
-          "version": "0.1.5"
-        },
-        "requires": [
-          "nim >= 1.2.0"
-        ],
-        "isRoot": false
+        "isRoot": false,
+        "url": "https://github.com/disruptek/gittyup"
       }
     ]
   },
@@ -201,7 +77,93 @@
           "nim >= 0.20.0",
           "foreach >= 1.0.0"
         ],
-        "isRoot": false
+        "isRoot": false,
+        "url": "https://github.com/disruptek/rest.git"
+      }
+    ]
+  },
+  "https://github.com/haxscramper/hlibssh2.git": {
+    "pkgName": "https://github.com/haxscramper/hlibssh2.git",
+    "versions": [
+      {
+        "name": "hlibssh2",
+        "version": {
+          "version": "0.1.5"
+        },
+        "requires": [
+          "nim >= 1.2.0"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/haxscramper/hlibssh2.git"
+      },
+      {
+        "name": "hlibssh2",
+        "version": {
+          "version": "0.1.4"
+        },
+        "requires": [
+          "nim >= 1.2.0"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/haxscramper/hlibssh2.git"
+      }
+    ]
+  },
+  "gittyup": {
+    "pkgName": "gittyup",
+    "versions": [
+      {
+        "name": "gittyup",
+        "version": {
+          "version": "3.2.2"
+        },
+        "requires": [
+          "https://github.com/disruptek/badresults >= 2.0.0 & < 3.0.0",
+          "https://github.com/alaviss/hlibgit2 >= 0.1.7 & < 1.0.0"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/disruptek/gittyup"
+      }
+    ]
+  },
+  "https://github.com/disruptek/grok": {
+    "pkgName": "https://github.com/disruptek/grok",
+    "versions": [
+      {
+        "name": "grok",
+        "version": {
+          "version": "0.6.4"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": "https://github.com/disruptek/grok"
+      },
+      {
+        "name": "grok",
+        "version": {
+          "version": "0.6.3"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": "https://github.com/disruptek/grok"
+      },
+      {
+        "name": "grok",
+        "version": {
+          "version": "0.6.2"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": "https://github.com/disruptek/grok"
+      },
+      {
+        "name": "grok",
+        "version": {
+          "version": "0.6.1"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": "https://github.com/disruptek/grok"
       }
     ]
   },
@@ -217,35 +179,260 @@
           "https://github.com/disruptek/cutelog >= 2.0.0 & < 3.0.0",
           "https://github.com/disruptek/cligen >= 2.0.2 & < 3.0.0"
         ],
-        "isRoot": false
+        "isRoot": false,
+        "url": "https://github.com/disruptek/bump"
+      },
+      {
+        "name": "bump",
+        "version": {
+          "version": "1.8.32"
+        },
+        "requires": [
+          "https://github.com/disruptek/cutelog >= 2.0.0 & < 3.0.0",
+          "https://github.com/disruptek/cligen >= 2.0.1 & < 3.0.0",
+          "https://github.com/disruptek/balls >= 2.0.0 & < 4.0.0"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/disruptek/bump"
+      },
+      {
+        "name": "bump",
+        "version": {
+          "version": "1.8.31"
+        },
+        "requires": [
+          "https://github.com/disruptek/cutelog >= 2.0.0 & < 3.0.0",
+          "https://github.com/disruptek/cligen >= 2.0.0 & < 3.0.0",
+          "https://github.com/disruptek/balls >= 2.0.0 & < 4.0.0",
+          "https://github.com/disruptek/cligen < 3.0.0"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/disruptek/bump"
       }
     ]
   },
-  "https://github.com/disruptek/cligen": {
-    "pkgName": "https://github.com/disruptek/cligen",
+  "bump": {
+    "pkgName": "bump",
     "versions": [
       {
-        "name": "cligen",
+        "name": "bump",
         "version": {
-          "version": "2.0.3"
+          "version": "1.8.33"
+        },
+        "requires": [
+          "https://github.com/disruptek/cutelog >= 2.0.0 & < 3.0.0",
+          "https://github.com/disruptek/cligen >= 2.0.2 & < 3.0.0"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/disruptek/bump"
+      },
+      {
+        "name": "bump",
+        "version": {
+          "version": "1.8.32"
+        },
+        "requires": [
+          "https://github.com/disruptek/cutelog >= 2.0.0 & < 3.0.0",
+          "https://github.com/disruptek/cligen >= 2.0.1 & < 3.0.0",
+          "https://github.com/disruptek/balls >= 2.0.0 & < 4.0.0"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/disruptek/bump"
+      },
+      {
+        "name": "bump",
+        "version": {
+          "version": "1.8.31"
+        },
+        "requires": [
+          "https://github.com/disruptek/cutelog >= 2.0.0 & < 3.0.0",
+          "https://github.com/disruptek/cligen >= 2.0.0 & < 3.0.0",
+          "https://github.com/disruptek/balls >= 2.0.0 & < 4.0.0",
+          "https://github.com/disruptek/cligen < 3.0.0"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/disruptek/bump"
+      }
+    ]
+  },
+  "cutelog": {
+    "pkgName": "cutelog",
+    "versions": [
+      {
+        "name": "cutelog",
+        "version": {
+          "version": "2.0.1"
         },
         "requires": [],
-        "isRoot": false
+        "isRoot": false,
+        "url": "https://github.com/disruptek/cutelog"
+      },
+      {
+        "name": "cutelog",
+        "version": {
+          "version": "2.0.0"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": "https://github.com/disruptek/cutelog"
       }
     ]
   },
-  "foreach": {
-    "pkgName": "foreach",
+  "balls": {
+    "pkgName": "balls",
     "versions": [
       {
-        "name": "foreach",
+        "name": "balls",
+        "version": {
+          "version": "3.9.12"
+        },
+        "requires": [
+          "https://github.com/disruptek/grok >= 0.5.0 & < 1.0.0",
+          "https://github.com/disruptek/ups < 1.0.0"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/disruptek/balls"
+      }
+    ]
+  },
+  "https://github.com/zevv/npeg": {
+    "pkgName": "https://github.com/zevv/npeg",
+    "versions": [
+      {
+        "name": "npeg",
+        "version": {
+          "version": "1.3.0"
+        },
+        "requires": [
+          "nim >= 0.19.0"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/zevv/npeg"
+      },
+      {
+        "name": "npeg",
+        "version": {
+          "version": "1.2.2"
+        },
+        "requires": [
+          "nim >= 0.19.0"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/zevv/npeg"
+      },
+      {
+        "name": "npeg",
+        "version": {
+          "version": "1.2.1"
+        },
+        "requires": [
+          "nim >= 0.19.0"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/zevv/npeg"
+      },
+      {
+        "name": "npeg",
+        "version": {
+          "version": "1.2.0"
+        },
+        "requires": [
+          "nim >= 0.19.0"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/zevv/npeg"
+      }
+    ]
+  },
+  "ups": {
+    "pkgName": "ups",
+    "versions": [
+      {
+        "name": "ups",
+        "version": {
+          "version": "0.4.0"
+        },
+        "requires": [
+          "npeg >= 0.23.2 & < 2.0.0"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/disruptek/ups"
+      },
+      {
+        "name": "ups",
+        "version": {
+          "version": "0.3.1"
+        },
+        "requires": [
+          "npeg >= 0.23.2 & < 2.0.0"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/disruptek/ups"
+      },
+      {
+        "name": "ups",
+        "version": {
+          "version": "0.3.0"
+        },
+        "requires": [
+          "npeg >= 0.23.2 & < 2.0.0"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/disruptek/ups"
+      },
+      {
+        "name": "ups",
+        "version": {
+          "version": "0.2.1"
+        },
+        "requires": [
+          "npeg >= 0.23.2 & < 2.0.0"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/disruptek/ups"
+      }
+    ]
+  },
+  "https://github.com/disruptek/github": {
+    "pkgName": "https://github.com/disruptek/github",
+    "versions": [
+      {
+        "name": "github",
+        "version": {
+          "version": "3.0.0"
+        },
+        "requires": [
+          "https://github.com/disruptek/rest.git >= 1.0.5 & < 2.0.0"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/disruptek/github"
+      }
+    ]
+  },
+  "https://github.com/disruptek/jsonconvert": {
+    "pkgName": "https://github.com/disruptek/jsonconvert",
+    "versions": [
+      {
+        "name": "jsonconvert",
         "version": {
           "version": "1.0.2"
         },
         "requires": [
           "nim >= 0.20.0"
         ],
-        "isRoot": false
+        "isRoot": false,
+        "url": "https://github.com/disruptek/jsonconvert"
+      },
+      {
+        "name": "jsonconvert",
+        "version": {
+          "version": "1.0.0"
+        },
+        "requires": [
+          "nim >= 0.20.0"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/disruptek/jsonconvert"
       }
     ]
   },
@@ -269,7 +456,757 @@
           "https://github.com/disruptek/ups >= 0.0.7 & < 1.0.0",
           "https://github.com/disruptek/balls >= 3.9.10 & < 4.0.0"
         ],
-        "isRoot": true
+        "isRoot": true,
+        "url": "https://github.com/disruptek/nimph"
+      }
+    ]
+  },
+  "https://github.com/disruptek/cligen": {
+    "pkgName": "https://github.com/disruptek/cligen",
+    "versions": [
+      {
+        "name": "cligen",
+        "version": {
+          "version": "2.0.3"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": "https://github.com/disruptek/cligen"
+      },
+      {
+        "name": "cligen",
+        "version": {
+          "version": "2.0.2"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": "https://github.com/disruptek/cligen"
+      },
+      {
+        "name": "cligen",
+        "version": {
+          "version": "2.0.1"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": "https://github.com/disruptek/cligen"
+      },
+      {
+        "name": "cligen",
+        "version": {
+          "version": "2.0.0"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": "https://github.com/disruptek/cligen"
+      }
+    ]
+  },
+  "cligen": {
+    "pkgName": "cligen",
+    "versions": [
+      {
+        "name": "cligen",
+        "version": {
+          "version": "2.0.3"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": "https://github.com/disruptek/cligen"
+      },
+      {
+        "name": "cligen",
+        "version": {
+          "version": "2.0.2"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": "https://github.com/disruptek/cligen"
+      },
+      {
+        "name": "cligen",
+        "version": {
+          "version": "2.0.1"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": "https://github.com/disruptek/cligen"
+      },
+      {
+        "name": "cligen",
+        "version": {
+          "version": "2.0.0"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": "https://github.com/disruptek/cligen"
+      }
+    ]
+  },
+  "rest": {
+    "pkgName": "rest",
+    "versions": [
+      {
+        "name": "rest",
+        "version": {
+          "version": "1.0.5"
+        },
+        "requires": [
+          "nim >= 0.20.0",
+          "foreach >= 1.0.0"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/disruptek/rest.git"
+      }
+    ]
+  },
+  "npeg": {
+    "pkgName": "npeg",
+    "versions": [
+      {
+        "name": "npeg",
+        "version": {
+          "version": "1.3.0"
+        },
+        "requires": [
+          "nim >= 0.19.0"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/zevv/npeg"
+      },
+      {
+        "name": "npeg",
+        "version": {
+          "version": "1.2.2"
+        },
+        "requires": [
+          "nim >= 0.19.0"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/zevv/npeg"
+      },
+      {
+        "name": "npeg",
+        "version": {
+          "version": "1.2.1"
+        },
+        "requires": [
+          "nim >= 0.19.0"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/zevv/npeg"
+      },
+      {
+        "name": "npeg",
+        "version": {
+          "version": "1.2.0"
+        },
+        "requires": [
+          "nim >= 0.19.0"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/zevv/npeg"
+      }
+    ]
+  },
+  "https://github.com/disruptek/badresults": {
+    "pkgName": "https://github.com/disruptek/badresults",
+    "versions": [
+      {
+        "name": "badresults",
+        "version": {
+          "version": "2.2.0"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": "https://github.com/disruptek/badresults"
+      },
+      {
+        "name": "badresults",
+        "version": {
+          "version": "2.1.4"
+        },
+        "requires": [
+          "https://github.com/disruptek/balls >= 2.0.0 & < 4.0.0"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/disruptek/badresults"
+      },
+      {
+        "name": "badresults",
+        "version": {
+          "version": "2.1.3"
+        },
+        "requires": [
+          "https://github.com/disruptek/balls >= 2.0.0 & < 4.0.0"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/disruptek/badresults"
+      },
+      {
+        "name": "badresults",
+        "version": {
+          "version": "2.1.2"
+        },
+        "requires": [
+          "https://github.com/disruptek/balls >= 2.0.0 & < 4.0.0"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/disruptek/badresults"
+      }
+    ]
+  },
+  "https://github.com/disruptek/cutelog": {
+    "pkgName": "https://github.com/disruptek/cutelog",
+    "versions": [
+      {
+        "name": "cutelog",
+        "version": {
+          "version": "2.0.1"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": "https://github.com/disruptek/cutelog"
+      },
+      {
+        "name": "cutelog",
+        "version": {
+          "version": "2.0.0"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": "https://github.com/disruptek/cutelog"
+      }
+    ]
+  },
+  "hlibssh2": {
+    "pkgName": "hlibssh2",
+    "versions": [
+      {
+        "name": "hlibssh2",
+        "version": {
+          "version": "0.1.5"
+        },
+        "requires": [
+          "nim >= 1.2.0"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/haxscramper/hlibssh2.git"
+      },
+      {
+        "name": "hlibssh2",
+        "version": {
+          "version": "0.1.4"
+        },
+        "requires": [
+          "nim >= 1.2.0"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/haxscramper/hlibssh2.git"
+      }
+    ]
+  },
+  "grok": {
+    "pkgName": "grok",
+    "versions": [
+      {
+        "name": "grok",
+        "version": {
+          "version": "0.6.4"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": "https://github.com/disruptek/grok"
+      },
+      {
+        "name": "grok",
+        "version": {
+          "version": "0.6.3"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": "https://github.com/disruptek/grok"
+      },
+      {
+        "name": "grok",
+        "version": {
+          "version": "0.6.2"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": "https://github.com/disruptek/grok"
+      },
+      {
+        "name": "grok",
+        "version": {
+          "version": "0.6.1"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": "https://github.com/disruptek/grok"
+      }
+    ]
+  },
+  "jsonconvert": {
+    "pkgName": "jsonconvert",
+    "versions": [
+      {
+        "name": "jsonconvert",
+        "version": {
+          "version": "1.0.2"
+        },
+        "requires": [
+          "nim >= 0.20.0"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/disruptek/jsonconvert"
+      },
+      {
+        "name": "jsonconvert",
+        "version": {
+          "version": "1.0.0"
+        },
+        "requires": [
+          "nim >= 0.20.0"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/disruptek/jsonconvert"
+      }
+    ]
+  },
+  "foreach": {
+    "pkgName": "foreach",
+    "versions": [
+      {
+        "name": "foreach",
+        "version": {
+          "version": "1.0.2"
+        },
+        "requires": [
+          "nim >= 0.20.0"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/disruptek/foreach"
+      },
+      {
+        "name": "foreach",
+        "version": {
+          "version": "1.0.1"
+        },
+        "requires": [
+          "nim >= 0.20.0"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/disruptek/foreach"
+      },
+      {
+        "name": "foreach",
+        "version": {
+          "version": "1.0.0"
+        },
+        "requires": [
+          "nim >= 0.20.0"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/disruptek/foreach"
+      }
+    ]
+  },
+  "nim": {
+    "pkgName": "nim",
+    "versions": [
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.2.4"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.2.2"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.2.0"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.0.16"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.0.14"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.0.12"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.0.10"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.0.8"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.0.6"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.0.4"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.0.2"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.0.0"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "1.6.20"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "1.6.18"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "1.6.16"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "1.6.14"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "1.6.12"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "1.6.10"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "1.6.8"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "1.6.6"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "1.6.4"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "1.6.2"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "1.6.0"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "1.4.8"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "1.4.6"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "1.4.4"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "1.4.2"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "1.4.0"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "1.2.18"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "1.2.16"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.2.5"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      }
+    ]
+  },
+  "hlibgit2": {
+    "pkgName": "hlibgit2",
+    "versions": [
+      {
+        "name": "hlibgit2",
+        "version": {
+          "version": "0.1.7"
+        },
+        "requires": [
+          "https://github.com/haxscramper/hlibssh2.git >= 0.1.4",
+          "nim >= 1.2.0"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/alaviss/hlibgit2"
+      }
+    ]
+  },
+  "github": {
+    "pkgName": "github",
+    "versions": [
+      {
+        "name": "github",
+        "version": {
+          "version": "3.0.0"
+        },
+        "requires": [
+          "https://github.com/disruptek/rest.git >= 1.0.5 & < 2.0.0"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/disruptek/github"
+      }
+    ]
+  },
+  "badresults": {
+    "pkgName": "badresults",
+    "versions": [
+      {
+        "name": "badresults",
+        "version": {
+          "version": "2.2.0"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": "https://github.com/disruptek/badresults"
+      },
+      {
+        "name": "badresults",
+        "version": {
+          "version": "2.1.4"
+        },
+        "requires": [
+          "https://github.com/disruptek/balls >= 2.0.0 & < 4.0.0"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/disruptek/badresults"
+      },
+      {
+        "name": "badresults",
+        "version": {
+          "version": "2.1.3"
+        },
+        "requires": [
+          "https://github.com/disruptek/balls >= 2.0.0 & < 4.0.0"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/disruptek/badresults"
+      },
+      {
+        "name": "badresults",
+        "version": {
+          "version": "2.1.2"
+        },
+        "requires": [
+          "https://github.com/disruptek/balls >= 2.0.0 & < 4.0.0"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/disruptek/badresults"
+      }
+    ]
+  },
+  "https://github.com/disruptek/balls": {
+    "pkgName": "https://github.com/disruptek/balls",
+    "versions": [
+      {
+        "name": "balls",
+        "version": {
+          "version": "3.9.12"
+        },
+        "requires": [
+          "https://github.com/disruptek/grok >= 0.5.0 & < 1.0.0",
+          "https://github.com/disruptek/ups < 1.0.0"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/disruptek/balls"
+      }
+    ]
+  },
+  "https://github.com/alaviss/hlibgit2": {
+    "pkgName": "https://github.com/alaviss/hlibgit2",
+    "versions": [
+      {
+        "name": "hlibgit2",
+        "version": {
+          "version": "0.1.7"
+        },
+        "requires": [
+          "https://github.com/haxscramper/hlibssh2.git >= 0.1.4",
+          "nim >= 1.2.0"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/alaviss/hlibgit2"
       }
     ]
   }

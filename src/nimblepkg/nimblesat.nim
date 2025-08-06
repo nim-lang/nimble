@@ -152,7 +152,7 @@ proc hasVersion*(packagesVersions: Table[string, PackageVersions], name: string,
   false
 
 proc findDependencyForDep(g: DepGraph; dep: string): int {.inline.} =
-  assert g.packageToDependency.hasKey(dep), dep & " not found"
+  assert g.packageToDependency.hasKey(dep), dep & " not found. All deps: " & $g.packageToDependency.keys.toSeq
   result = g.packageToDependency.getOrDefault(dep)
 
 proc createRequirements(pkg: PackageMinimalInfo): Requirements =
@@ -805,7 +805,7 @@ proc getPackageNameFromUrl*(pv: PkgTuple, pkgVersionTable: Table[string, Package
     for pkgVersion in pkgVersions.versions:
       # if pkgName == "json_serialization" or pkgName == "https://github.com/status-im/nim-json-serialization":
       #   echo "*** CHECKING URL: ", pkgVersion.url, " against ", url, " for package ", pkgName, " version ", $pkgVersion.version
-      if pkgVersion.url == pv.name:
+      if pkgVersion.url.toLower == pv.name.toLower:
         return pkgName
   # echo "*** NO MATCH FOUND FOR URL: ", pv.name
   # echo "*** PKG VERSION TABLE: ", pkgVersionTable.keys.toSeq.join(", ")
@@ -821,6 +821,20 @@ proc getPackageNameFromUrl*(pv: PkgTuple, pkgVersionTable: Table[string, Package
   # return ""
 
 proc normalizeRequirements*(pkgVersionTable: var Table[string, PackageVersions], options: Options) =
+  #lowercase the keys
+  var newPkgVersionTable = initTable[string, PackageVersions]()
+  for pkgName, pkgVersions in pkgVersionTable.mpairs:
+    pkgVersions.pkgName = pkgVersions.pkgName.toLower
+    for pkgVersion in pkgVersions.versions.mitems:
+      pkgVersion.url = pkgVersion.url.toLower
+      pkgVersion.name = pkgVersion.name.toLower
+      for req in pkgVersion.requires.mitems:
+        req.name = req.name.toLower
+      newPkgVersionTable[pkgName.toLower] = pkgVersionTable[pkgName]
+  
+  pkgVersionTable = newPkgVersionTable
+
+  #Convert requirement in form of urls to pkgName when possible:
   for pkgName, pkgVersions in pkgVersionTable.mpairs:
     for pkgVersion in pkgVersions.versions.mitems:
       for req in pkgVersion.requires.mitems:
@@ -833,15 +847,18 @@ proc normalizeRequirements*(pkgVersionTable: var Table[string, PackageVersions],
             req.name = newPkgName
             options.satResult.normalizedRequirements[newPkgName] = oldReq
         req.name = req.name.resolveAlias(options)
+  # echo "PKG VERSION TABLE: ", pkgVersionTable.keys.toSeq.join(", ")
+  # echo "PKG VERSION TABLE Name in VALUES: ", pkgVersionTable.values.toSeq.mapIt(it.pkgName).join(", ")
+              
 
 proc solvePackages*(rootPkg: PackageInfo, pkgList: seq[PackageInfo], pkgsToInstall: var seq[(string, Version)], options: Options, output: var string, solvedPkgs: var seq[SolvedPackage]): HashSet[PackageInfo] =
   var root: PackageMinimalInfo = rootPkg.getMinimalInfo(options)
   root.isRoot = true
   var pkgVersionTable = initTable[string, PackageVersions]()
-  pkgVersionTable[root.name] = PackageVersions(pkgName: root.name, versions: @[root])
+  pkgVersionTable[root.name.toLower] = PackageVersions(pkgName: root.name.toLower, versions: @[root])
   collectAllVersions(pkgVersionTable, root, options, downloadMinimalPackage, pkgList.mapIt(it.getMinimalInfo(options)))
-  if not options.isLegacy:
-    pkgVersionTable.normalizeRequirements(options)  
+  # if not options.isLegacy:
+  pkgVersionTable.normalizeRequirements(options)  
   solvedPkgs = pkgVersionTable.getSolvedPackages(output).topologicalSort()
   # echo "DEBUG: SolvedPkgs before post processing: ", solvedPkgs.mapIt(it.pkgName & " " & $it.version).join(", ")
   let systemNimCompatible = solvedPkgs.isSystemNimCompatible(options)

@@ -5,17 +5,100 @@
       {
         "name": "chronos",
         "version": {
-          "version": "4.0.0"
+          "version": "4.0.4"
         },
         "requires": [
           "nim >= 1.6.16",
           "results",
           "stew",
-          "bearssl",
+          "bearssl >= 0.2.5",
           "httputils",
           "unittest2"
         ],
-        "isRoot": true
+        "isRoot": true,
+        "url": "https://github.com/status-im/nim-chronos"
+      }
+    ]
+  },
+  "results": {
+    "pkgName": "results",
+    "versions": [
+      {
+        "name": "results",
+        "version": {
+          "version": "0.5.1"
+        },
+        "requires": [
+          "nim >= 1.2"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/arnetheduck/nim-results"
+      },
+      {
+        "name": "results",
+        "version": {
+          "version": "0.5.0"
+        },
+        "requires": [
+          "nim >= 1.2"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/arnetheduck/nim-results"
+      },
+      {
+        "name": "results",
+        "version": {
+          "version": "0.4.0"
+        },
+        "requires": [
+          "nim >= 1.2"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/arnetheduck/nim-results"
+      }
+    ]
+  },
+  "stew": {
+    "pkgName": "stew",
+    "versions": [
+      {
+        "name": "stew",
+        "version": {
+          "version": "0.4.1"
+        },
+        "requires": [
+          "nim >= 1.6.0",
+          "results",
+          "unittest2"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/status-im/nim-stew"
+      },
+      {
+        "name": "stew",
+        "version": {
+          "version": "0.4.0"
+        },
+        "requires": [
+          "nim >= 1.6.0",
+          "results",
+          "unittest2"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/status-im/nim-stew"
+      },
+      {
+        "name": "stew",
+        "version": {
+          "version": "0.2.0"
+        },
+        "requires": [
+          "nim >= 1.6.0",
+          "results",
+          "unittest2"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/status-im/nim-stew"
       }
     ]
   },
@@ -30,24 +113,11 @@
         "requires": [
           "nim >= 1.6.0",
           "stew",
+          "results",
           "unittest2"
         ],
-        "isRoot": false
-      }
-    ]
-  },
-  "unittest2": {
-    "pkgName": "unittest2",
-    "versions": [
-      {
-        "name": "unittest2",
-        "version": {
-          "version": "0.2.2"
-        },
-        "requires": [
-          "nim >= 1.6.0"
-        ],
-        "isRoot": false
+        "isRoot": false,
+        "url": "https://github.com/status-im/nim-http-utils"
       }
     ]
   },
@@ -57,42 +127,330 @@
       {
         "name": "nim",
         "version": {
+          "version": "2.2.4"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.2.2"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.2.0"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.0.16"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.0.14"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.0.12"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.0.10"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.0.8"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.0.6"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.0.4"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
           "version": "2.0.2"
         },
         "requires": [],
-        "isRoot": false
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.0.0"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "1.6.20"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "1.6.18"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "1.6.16"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "1.6.14"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "1.6.12"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "1.6.10"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "1.6.8"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "1.6.6"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "1.6.4"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "1.6.2"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "1.6.0"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "1.4.8"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "1.4.6"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "1.4.4"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "1.4.2"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "1.4.0"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "1.2.18"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "1.2.16"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.2.5"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
       }
     ]
   },
-  "stew": {
-    "pkgName": "stew",
+  "unittest2": {
+    "pkgName": "unittest2",
     "versions": [
       {
-        "name": "stew",
+        "name": "unittest2",
         "version": {
-          "version": "0.1.0"
+          "version": "0.2.4"
         },
         "requires": [
-          "nim >= 1.6.0",
-          "results",
-          "unittest2"
+          "nim >= 1.6.0"
         ],
-        "isRoot": false
-      }
-    ]
-  },
-  "results": {
-    "pkgName": "results",
-    "versions": [
+        "isRoot": false,
+        "url": "https://github.com/status-im/nim-unittest2"
+      },
       {
-        "name": "results",
+        "name": "unittest2",
         "version": {
-          "version": "0.4.0"
+          "version": "0.2.3"
         },
         "requires": [
-          "nim >= 1.2"
+          "nim >= 1.6.0"
         ],
-        "isRoot": false
+        "isRoot": false,
+        "url": "https://github.com/status-im/nim-unittest2"
+      },
+      {
+        "name": "unittest2",
+        "version": {
+          "version": "0.2.2"
+        },
+        "requires": [
+          "nim >= 1.6.0"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/status-im/nim-unittest2"
+      },
+      {
+        "name": "unittest2",
+        "version": {
+          "version": "0.2.1"
+        },
+        "requires": [
+          "nim >= 1.6.0"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/status-im/nim-unittest2"
       }
     ]
   },
@@ -102,13 +460,26 @@
       {
         "name": "bearssl",
         "version": {
-          "version": "0.2.2"
+          "version": "0.2.6"
         },
         "requires": [
           "nim >= 1.6.0",
           "unittest2"
         ],
-        "isRoot": false
+        "isRoot": false,
+        "url": "https://github.com/status-im/nim-bearssl"
+      },
+      {
+        "name": "bearssl",
+        "version": {
+          "version": "0.2.5"
+        },
+        "requires": [
+          "nim >= 1.6.0",
+          "unittest2"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/status-im/nim-bearssl"
       }
     ]
   }

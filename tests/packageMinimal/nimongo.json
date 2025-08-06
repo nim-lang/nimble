@@ -1,4 +1,77 @@
 {
+  "hmac": {
+    "pkgName": "hmac",
+    "versions": [
+      {
+        "name": "hmac",
+        "version": {
+          "version": "0.3.2"
+        },
+        "requires": [
+          "nim >= 1.6.10",
+          "nimsha2",
+          "nimcrypto >= 0.5.4",
+          "checksums >= 0.1.0"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/OpenSystemsLab/hmac.nim"
+      },
+      {
+        "name": "hmac",
+        "version": {
+          "version": "0.3.1"
+        },
+        "requires": [
+          "nim >= 1.6.10",
+          "nimsha2",
+          "nimcrypto >= 0.5.4"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/OpenSystemsLab/hmac.nim"
+      },
+      {
+        "name": "hmac",
+        "version": {
+          "version": "0.3.0"
+        },
+        "requires": [
+          "nim >= 2.0.0",
+          "nimsha2",
+          "nimcrypto >= 0.5.4"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/OpenSystemsLab/hmac.nim"
+      },
+      {
+        "name": "hmac",
+        "version": {
+          "version": "0.2.0"
+        },
+        "requires": [
+          "nim",
+          "nimsha2",
+          "sha1",
+          "nimcrypto >= 0.5.4"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/OpenSystemsLab/hmac.nim"
+      }
+    ]
+  },
+  "sha1": {
+    "pkgName": "sha1",
+    "versions": [
+      {
+        "name": "sha1",
+        "version": {
+          "version": "1.1"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": "https://github.com/onionhammer/sha1"
+      }
+    ]
+  },
   "scram": {
     "pkgName": "scram",
     "versions": [
@@ -12,53 +85,109 @@
           "hmac >= 0.2.0",
           "checksums >= 0.1.0"
         ],
-        "isRoot": false
+        "isRoot": false,
+        "url": "https://github.com/rgv151/scram"
+      },
+      {
+        "name": "scram",
+        "version": {
+          "version": "0.2.0"
+        },
+        "requires": [
+          "nim >= 0.19.4",
+          "hmac >= 0.2.0"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/rgv151/scram"
+      },
+      {
+        "name": "scram",
+        "version": {
+          "version": "0.1.14"
+        },
+        "requires": [
+          "nim >= 0.19.4",
+          "hmac >= 0.2.0"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/rgv151/scram"
+      },
+      {
+        "name": "scram",
+        "version": {
+          "version": "0.1.13"
+        },
+        "requires": [
+          "nim >= 0.19.4",
+          "hmac >= 0.1.9"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/rgv151/scram"
       }
     ]
   },
-  "nimSHA2": {
-    "pkgName": "nimSHA2",
+  "nimcrypto": {
+    "pkgName": "nimcrypto",
     "versions": [
       {
-        "name": "nimSHA2",
+        "name": "nimcrypto",
+        "version": {
+          "version": "0.6.4"
+        },
+        "requires": [
+          "nim >= 1.6"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/cheatfate/nimcrypto"
+      },
+      {
+        "name": "nimcrypto",
+        "version": {
+          "version": "0.6.3"
+        },
+        "requires": [
+          "nim >= 1.6"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/cheatfate/nimcrypto"
+      },
+      {
+        "name": "nimcrypto",
+        "version": {
+          "version": "0.6.2"
+        },
+        "requires": [
+          "nim >= 1.6"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/cheatfate/nimcrypto"
+      },
+      {
+        "name": "nimcrypto",
+        "version": {
+          "version": "0.6.1"
+        },
+        "requires": [
+          "nim >= 1.6"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/cheatfate/nimcrypto"
+      }
+    ]
+  },
+  "nimsha2": {
+    "pkgName": "nimsha2",
+    "versions": [
+      {
+        "name": "nimsha2",
         "version": {
           "version": "0.1.1"
         },
         "requires": [
           "nim >= 0.11.2"
         ],
-        "isRoot": false
-      }
-    ]
-  },
-  "nim": {
-    "pkgName": "nim",
-    "versions": [
-      {
-        "name": "nim",
-        "version": {
-          "version": "2.0.2"
-        },
-        "requires": [],
-        "isRoot": false
-      }
-    ]
-  },
-  "hmac": {
-    "pkgName": "hmac",
-    "versions": [
-      {
-        "name": "hmac",
-        "version": {
-          "version": "0.3.2"
-        },
-        "requires": [
-          "nim >= 1.6.10",
-          "nimSHA2",
-          "nimcrypto >= 0.5.4",
-          "checksums >= 0.1.0"
-        ],
-        "isRoot": false
+        "isRoot": false,
+        "url": "https://github.com/jangko/nimSHA2"
       }
     ]
   },
@@ -68,12 +197,35 @@
       {
         "name": "checksums",
         "version": {
+          "version": "0.2.1"
+        },
+        "requires": [
+          "nim >= 2.0.0"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/nim-lang/checksums"
+      },
+      {
+        "name": "checksums",
+        "version": {
+          "version": "0.2.0"
+        },
+        "requires": [
+          "nim >= 2.0.0"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/nim-lang/checksums"
+      },
+      {
+        "name": "checksums",
+        "version": {
           "version": "0.1.0"
         },
         "requires": [
           "nim >= 2.0.0"
         ],
-        "isRoot": false
+        "isRoot": false,
+        "url": "https://github.com/nim-lang/checksums"
       }
     ]
   },
@@ -88,22 +240,292 @@
         "requires": [
           "scram >= 0.1.2"
         ],
-        "isRoot": true
+        "isRoot": true,
+        "url": "https://github.com/SSPkrolik/nimongo"
       }
     ]
   },
-  "nimcrypto": {
-    "pkgName": "nimcrypto",
+  "nim": {
+    "pkgName": "nim",
     "versions": [
       {
-        "name": "nimcrypto",
+        "name": "nim",
         "version": {
-          "version": "0.6.0"
+          "version": "2.2.4"
         },
-        "requires": [
-          "nim >= 1.6"
-        ],
-        "isRoot": false
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.2.2"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.2.0"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.0.16"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.0.14"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.0.12"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.0.10"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.0.8"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.0.6"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.0.4"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.0.2"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.0.0"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "1.6.20"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "1.6.18"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "1.6.16"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "1.6.14"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "1.6.12"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "1.6.10"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "1.6.8"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "1.6.6"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "1.6.4"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "1.6.2"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "1.6.0"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "1.4.8"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "1.4.6"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "1.4.4"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "1.4.2"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "1.4.0"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "1.2.18"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "1.2.16"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "nim",
+        "version": {
+          "version": "2.2.5"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
       }
     ]
   }
