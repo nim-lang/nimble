@@ -15,17 +15,6 @@ type
     mapping*: Table[VarId, SatVarInfo]
     idgen*: int32
   
-  PackageMinimalInfo* = object
-    name*: string
-    version*: Version
-    requires*: seq[PkgTuple]
-    isRoot*: bool
-    url*: string
-
-  PackageVersions* = object
-    pkgName*: string
-    versions*: seq[PackageMinimalInfo]
-  
   Requirements* = object
     deps*: seq[PkgTuple] #@[(name, versRange)]
     version*: Version
@@ -871,6 +860,7 @@ proc solvePackages*(rootPkg: PackageInfo, pkgList: seq[PackageInfo], pkgsToInsta
   collectAllVersions(pkgVersionTable, root, options, downloadMinimalPackage, pkgList.mapIt(it.getMinimalInfo(options)))
   # if not options.isLegacy:
   pkgVersionTable.normalizeRequirements(options)  
+  options.satResult.pkgVersionTable = pkgVersionTable
   solvedPkgs = pkgVersionTable.getSolvedPackages(output).topologicalSort()
   # echo "DEBUG: SolvedPkgs before post processing: ", solvedPkgs.mapIt(it.pkgName & " " & $it.version).join(", ")
   let systemNimCompatible = solvedPkgs.isSystemNimCompatible(options)

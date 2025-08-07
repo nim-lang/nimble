@@ -892,11 +892,23 @@ proc installPkgs*(satResult: var SATResult, options: Options) =
         installedPkgInfo = installFromDirDownloadInfo(satResult.rootPackage.getNimbleFileDir(), satResult.rootPackage.metaData.url, pv, options).toRequiresInfo(options)
         wasNewlyInstalled = oldPkg.isNone
     else:      
-
+      # echo "NORMALIZING REQUIREMENT: ", pv.name
+      # echo "ROOT PACKAGE: ", satResult.rootPackage.basicInfo.name, " ", $satResult.rootPackage.basicInfo.version, " ", satResult.rootPackage.metaData.url
+      # options.debugSATResult()
       if pv.name in options.satResult.normalizedRequirements:
         pv.name = options.satResult.normalizedRequirements[pv.name]    
       
-      var dlInfo = getPackageDownloadInfo(pv, options, doPrompt = true)        
+      var dlInfo: PackageDownloadInfo
+      try:
+        dlInfo = getPackageDownloadInfo(pv, options, doPrompt = true)
+      except CatchableError as e:
+        #if we fail, we try to find the url for the req:
+        let url = getUrlFromPkgName(pv.name, options.satResult.pkgVersionTable, options)
+        if url != "":
+          pv.name = url
+          dlInfo = getPackageDownloadInfo(pv, options, doPrompt = true)
+        else:
+          raise e
       var downloadDir = dlInfo.downloadDir / dlInfo.subdir       
       if not dirExists(dlInfo.downloadDir):        
         #The reason for this is that the download cache may have a constrained version
