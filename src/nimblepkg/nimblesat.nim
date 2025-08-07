@@ -35,12 +35,14 @@ type
 
   DependencyVersion* = object  # Represents a specific version of a project.
     version*: Version
+    url*: string
     req*: int # index into graph.reqs so that it can be shared between versions
     v*: VarId
     # req: Requirements
 
   Dependency* = object
     pkgName*: string
+    url*: string
     versions*: seq[DependencyVersion]
     active*: bool
     activeVersion*: int
@@ -164,8 +166,9 @@ proc getKey(packageToDependency: Table[string, int], dep: string): int =
   raise newException(KeyError, dep & " not found")
 
 proc findDependencyForDep(g: DepGraph; dep: string): int {.inline.} =
-  assert g.packageToDependency.hasKey(dep), dep & " not found"
-  result = g.packageToDependency.getOrDefault(dep)
+  if not g.packageToDependency.hasKey(dep):
+    return -1
+  result = g.packageToDependency.getKey(dep)
 
 proc createRequirements(pkg: PackageMinimalInfo): Requirements =
   result.deps = pkg.requires
@@ -187,12 +190,14 @@ proc getRequirementFromGraph(g: var DepGraph, pkg: PackageMinimalInfo): int =
 proc toDependencyVersion(g: var DepGraph, pkg: PackageMinimalInfo): DependencyVersion =
   result.version = pkg.version
   result.req = getRequirementFromGraph(g, pkg) 
+  result.url = pkg.url
 
 proc toDependency(g: var DepGraph, pkg: PackageVersions): Dependency = 
   result.pkgName = pkg.pkgName
   result.versions = pkg.versions.mapIt(toDependencyVersion(g, it))
   assert pkg.versions.len > 0, "Package must have at least one version"
   result.isRoot = pkg.versions[0].isRoot
+  result.url = pkg.versions[0].url
 
 proc toDepGraph*(versions: Table[string, PackageVersions]): DepGraph =
   var root: PackageVersions
@@ -206,6 +211,11 @@ proc toDepGraph*(versions: Table[string, PackageVersions]): DepGraph =
   # Fill the other field and I should be good to go?
   for i in countup(0, result.nodes.len-1):
     result.packageToDependency[result.nodes[i].pkgName] = i
+    #also add the urls
+    for ver in result.nodes[i].versions:
+      if ver.url != "":
+        echo "ADDING URL: ", ver.url
+        result.packageToDependency[ver.url] = i
 
 proc toFormular*(g: var DepGraph): Form =
   result = Form()
@@ -832,6 +842,13 @@ proc getPackageNameFromUrl*(pv: PkgTuple, pkgVersionTable: Table[string, Package
   # return pkgInfo.basicInfo.name.toLower
   # return ""
 
+proc getUrlFromPkgName*(pkgName: string, pkgVersionTable: Table[string, PackageVersions], options: Options): string =
+  for pkgTableName, pkgVersions in pkgVersionTable:
+    for pkgVersion in pkgVersions.versions:
+      if pkgVersion.name.toLower == pkgName.toLower:
+        return pkgVersion.url
+  return ""
+  
 proc normalizeRequirements*(pkgVersionTable: var Table[string, PackageVersions], options: Options) =
   for pkgName, pkgVersions in pkgVersionTable.mpairs:
     for pkgVersion in pkgVersions.versions.mitems:
