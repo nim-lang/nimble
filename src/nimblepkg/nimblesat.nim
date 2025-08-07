@@ -214,7 +214,7 @@ proc toDepGraph*(versions: Table[string, PackageVersions]): DepGraph =
     #also add the urls
     for ver in result.nodes[i].versions:
       if ver.url != "":
-        echo "ADDING URL: ", ver.url
+        # echo "ADDING URL: ", ver.url
         result.packageToDependency[ver.url] = i
 
 proc toFormular*(g: var DepGraph): Form =
