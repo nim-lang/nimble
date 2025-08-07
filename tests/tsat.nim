@@ -2,7 +2,7 @@
 import unittest, os, osproc
 import testscommon
 # from nimblepkg/common import cd Used in the commented tests
-import std/[tables, sequtils, json, jsonutils, strutils, times, options, strformat]
+import std/[tables, sequtils, json, jsonutils, strutils, options, strformat]
 import nimblepkg/[version, nimblesat, options, config, download, packageinfotypes, packageinfo]
 from nimblepkg/common import cd
 

@@ -473,9 +473,20 @@ proc collectReverseDependencies*(targetPkgName: string, graph: DepGraph): seq[(s
   for node in graph.nodes:
     for version in node.versions:
       for (depName, ver) in graph.reqs[version.req].deps:
-        if depName == targetPkgName:
+        if depName.toLower == targetPkgName.toLower:
           let revDep = (node.pkgName, version.version)
           result.addUnique revDep
+        else:
+          # Check if this dependency matches by URL
+          # Find the dependency node and check its URL
+          for depNode in graph.nodes:
+            if depNode.pkgName == targetPkgName or depNode.pkgName.toLower == targetPkgName.toLower:
+              # Check if any version of this dependency node has a URL that matches depName
+              for depVersion in depNode.versions:
+                if depVersion.url != "" and (depVersion.url == depName or depVersion.url.toLower == depName.toLower):
+                  let revDep = (node.pkgName, version.version)
+                  result.addUnique revDep
+                  break
 
 proc getSolvedPackages*(pkgVersionTable: Table[string, PackageVersions], output: var string): seq[SolvedPackage] =
   var graph = pkgVersionTable.toDepGraph()
