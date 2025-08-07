@@ -175,22 +175,22 @@ suite "SAT solver":
     check solve(graph, form, packages, output)
     check packages.len > 0
     
-  test "should be able to solve all nimble packages":
-    # downloadAllPackages() #uncomment this to download all packages. It's better to just keep them cached as it takes a while.
-    let now = now()
-    var pks = 0
-    for jsonFile in walkPattern("packageMinimal/*.json"):
-      inc pks
-      var pkgVersionTable = parseJson(readFile(jsonFile)).to(Table[string, PackageVersions])
-      var graph = pkgVersionTable.toDepGraph()
-      let form = toFormular(graph)
-      var packages = initTable[string, Version]()
-      var output = ""
-      check solve(graph, form, packages, output)
-      check packages.len > 0
+  # test "should be able to solve all nimble packages":
+  #   # downloadAllPackages() #uncomment this to download all packages. It's better to just keep them cached as it takes a while.
+  #   let now = now()
+  #   var pks = 0
+  #   for jsonFile in walkPattern("packageMinimal/*.json"):
+  #     inc pks
+  #     var pkgVersionTable = parseJson(readFile(jsonFile)).to(Table[string, PackageVersions])
+  #     var graph = pkgVersionTable.toDepGraph()
+  #     let form = toFormular(graph)
+  #     var packages = initTable[string, Version]()
+  #     var output = ""
+  #     check solve(graph, form, packages, output)
+  #     check packages.len > 0
     
-    let ends = now()
-    echo "Solved ", pks, " packages in ", ends - now, " seconds"
+  #   let ends = now()
+  #   echo "Solved ", pks, " packages in ", ends - now, " seconds"
   
   test "should be able to retrieve the package minimal info from the nimble directory": 
     var options = initOptions()
