@@ -165,7 +165,7 @@ proc getKey(packageToDependency: Table[string, int], dep: string): int =
 
 proc findDependencyForDep(g: DepGraph; dep: string): int {.inline.} =
   assert g.packageToDependency.hasKey(dep), dep & " not found"
-  result = g.packageToDependency.getOrDefault(dep)
+  result = g.packageToDependency.getKey(dep)
 
 proc createRequirements(pkg: PackageMinimalInfo): Requirements =
   result.deps = pkg.requires
@@ -535,6 +535,17 @@ proc getPackageDownloadInfo*(pv: PkgTuple, options: Options, doPrompt = false): 
   let downloadDir = getCacheDownloadDir(url, pv.ver, options)
   PackageDownloadInfo(meth: meth, url: url, subdir: subdir, downloadDir: downloadDir, pv: pv)
 
+proc getPackageDownloadInfo*(solvedPkg: SolvedPackage, options: Options): PackageDownloadInfo =  
+    var exc: ref CatchableError
+    for url in [solvedPkg.pkgName, solvedPkg.url]:
+      let pv = (name: url, ver: solvedPkg.version.toVersionRange())
+      try:
+        let dlInfo = getPackageDownloadInfo(pv, options, false)
+        return dlInfo
+      except CatchableError as e:
+        exc = e
+    raise exc
+
 proc downloadFromDownloadInfo*(dlInfo: PackageDownloadInfo, options: Options): (DownloadPkgResult, DownloadMethod) = 
   let downloadRes = downloadPkg(dlInfo.url, dlInfo.pv.ver, dlInfo.meth, dlInfo.subdir, options,
                 dlInfo.downloadDir, vcsRevision = notSetSha1Hash)
@@ -832,6 +843,13 @@ proc getPackageNameFromUrl*(pv: PkgTuple, pkgVersionTable: Table[string, Package
   # return pkgInfo.basicInfo.name.toLower
   # return ""
 
+proc getUrlFromPkgName*(pkgName: string, pkgVersionTable: Table[string, PackageVersions], options: Options): string =
+  for pkgName, pkgVersions in pkgVersionTable:
+    for pkgVersion in pkgVersions.versions:
+      if pkgVersion.name.toLower == pkgName.toLower:
+        return pkgVersion.url
+  return ""
+  
 proc normalizeRequirements*(pkgVersionTable: var Table[string, PackageVersions], options: Options) =
   for pkgName, pkgVersions in pkgVersionTable.mpairs:
     for pkgVersion in pkgVersions.versions.mitems:
@@ -841,7 +859,6 @@ proc normalizeRequirements*(pkgVersionTable: var Table[string, PackageVersions],
           let newPkgName = getPackageNameFromUrl(req, pkgVersionTable, options)
           if newPkgName != "":
             let oldReq = req.name
-            # echo "DEBUG: Normalizing requirement ", req.name, " to ", newPkgName, " for package ", pkgName, " version ", $req.ver
             req.name = newPkgName
             options.satResult.normalizedRequirements[newPkgName] = oldReq
         req.name = req.name.resolveAlias(options)
@@ -859,7 +876,7 @@ proc solvePackages*(rootPkg: PackageInfo, pkgList: seq[PackageInfo], pkgsToInsta
   let systemNimCompatible = solvedPkgs.isSystemNimCompatible(options)
   # echo "DEBUG: SolvedPkgs after post processing: ", solvedPkgs.mapIt(it.pkgName & " " & $it.version).join(", ")
   # echo "ACTION IS ", options.action.typ
-  for solvedPkg in solvedPkgs:
+  for solvedPkg in solvedPkgs.mitems:
     if solvedPkg.pkgName == root.name: continue    
     var foundInList = false
     let canUseAny = solvedPkg.areAllReqAny()
@@ -879,11 +896,10 @@ proc solvePackages*(rootPkg: PackageInfo, pkgList: seq[PackageInfo], pkgsToInsta
     if not foundInList:
       # displayInfo(&"Coudlnt find {solvedPkg.pkgName}", priority = HighPriority)
       if solvedPkg.pkgName.isNim and systemNimCompatible:
-        continue #Skips systemNim
+        continue #Skips systemNim      
+      #And use that function in the vnext.nim file
+      solvedPkg.url = getUrlFromPkgName(solvedPkg.pkgName, pkgVersionTable, options)
       pkgsToInstall.addUnique((solvedPkg.pkgName, solvedPkg.version))
-    
-    # echo "Packages in result: ", result.mapIt(it.basicInfo.name & " " & $it.basicInfo.version & " " & $it.metaData.vcsRevision).join(", ")
-
 
 proc getPackageInfo*(name: string, pkgs: seq[PackageInfo], version: Option[Version] = none(Version)): Option[PackageInfo] =
     for pkg in pkgs:

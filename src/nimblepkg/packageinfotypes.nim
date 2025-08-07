@@ -104,6 +104,7 @@ type
     reverseDependencies*: seq[(string, Version)] 
     deps*: seq[SolvedPackage]
     reverseDeps*: seq[SolvedPackage]
+    url*: string #only set and used for installation in vnext
 
   SATPass* = enum
     satNone

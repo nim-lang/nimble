@@ -82,6 +82,15 @@ proc nameMatches*(pkg: PackageInfo, name: string, options: Options): bool =
   
   return false
 
+proc getSolvedPkg*(satResult: SATResult, pkgName: string, options: Options, includeRoot = false): SolvedPackage =
+  for solvedPkg in satResult.solvedPkgs:
+    if solvedPkg.pkgName.toLowerAscii() == pkgName.toLowerAscii():
+      return solvedPkg
+  if includeRoot:
+    if satResult.rootPackage.basicInfo.name.toLowerAscii() == pkgName.toLowerAscii():
+      return SolvedPackage(pkgName: satResult.rootPackage.basicInfo.name, version: satResult.rootPackage.basicInfo.version, url: satResult.rootPackage.metaData.url)
+  raise newNimbleError[NimbleError]("Package not found in solution: " & pkgName)
+
 proc getSolvedPkg*(satResult: SATResult, pkgInfo: PackageInfo): SolvedPackage =
   for solvedPkg in satResult.solvedPkgs:
     if pkgInfo.basicInfo.name.toLowerAscii() == solvedPkg.pkgName.toLowerAscii(): #No need to check version as they should match by design
@@ -892,11 +901,8 @@ proc installPkgs*(satResult: var SATResult, options: Options) =
         installedPkgInfo = installFromDirDownloadInfo(satResult.rootPackage.getNimbleFileDir(), satResult.rootPackage.metaData.url, pv, options).toRequiresInfo(options)
         wasNewlyInstalled = oldPkg.isNone
     else:      
-
-      if pv.name in options.satResult.normalizedRequirements:
-        pv.name = options.satResult.normalizedRequirements[pv.name]    
-      
-      var dlInfo = getPackageDownloadInfo(pv, options, doPrompt = true)        
+      let solved = satResult.getSolvedPkg(pv.name, options, includeRoot = true)  
+      var dlInfo = getPackageDownloadInfo(solved, options)        
       var downloadDir = dlInfo.downloadDir / dlInfo.subdir       
       if not dirExists(dlInfo.downloadDir):        
         #The reason for this is that the download cache may have a constrained version
