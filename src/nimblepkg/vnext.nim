@@ -902,7 +902,15 @@ proc installPkgs*(satResult: var SATResult, options: Options) =
         wasNewlyInstalled = oldPkg.isNone
     else:      
       let solved = satResult.getSolvedPkg(pv.name, options, includeRoot = true)  
-      var dlInfo = getPackageDownloadInfo(solved, options)        
+      # options.debugSATResult()
+      var dlInfo: PackageDownloadInfo
+      try:
+        dlInfo = getPackageDownloadInfo(solved, options)
+      except CatchableError as e:
+        if pv.name in options.satResult.normalizedRequirements:
+          pv.name = options.satResult.normalizedRequirements[pv.name]    
+        dlInfo = getPackageDownloadInfo(pv, options, doPrompt = true)        
+
       var downloadDir = dlInfo.downloadDir / dlInfo.subdir       
       if not dirExists(dlInfo.downloadDir):        
         #The reason for this is that the download cache may have a constrained version
