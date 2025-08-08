@@ -895,8 +895,8 @@ proc installPkgs*(satResult: var SATResult, options: Options) =
       # echo "NORMALIZING REQUIREMENT: ", pv.name
       # echo "ROOT PACKAGE: ", satResult.rootPackage.basicInfo.name, " ", $satResult.rootPackage.basicInfo.version, " ", satResult.rootPackage.metaData.url
       # options.debugSATResult()
-      if pv.name in options.satResult.normalizedRequirements:
-        pv.name = options.satResult.normalizedRequirements[pv.name]    
+      # if pv.name in options.satResult.normalizedRequirements:
+      #   pv.name = options.satResult.normalizedRequirements[pv.name]    
       
       var dlInfo: PackageDownloadInfo
       try:
