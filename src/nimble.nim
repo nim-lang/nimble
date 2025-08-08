@@ -2662,6 +2662,15 @@ proc runVNext*(options: var Options) =
       options.satResult = initSATResult(satNimSelection)      
       var rootPackage = downloadPkInfoForPv(pkg, options, doPrompt = true)
       solvePkgs(rootPackage, options)
+    
+      let rootSolvedPkg = SolvedPackage(
+        pkgName: rootPackage.basicInfo.name,
+        version: rootPackage.basicInfo.version,
+        requirements: rootPackage.requires,
+        deps: options.satResult.solvedPkgs.filterIt(it.pkgName.toLower != rootPackage.basicInfo.name.toLower)  
+      )
+      options.satResult.solvedPkgs.add(rootSolvedPkg)
+      
   # echo "BEFORE INSTALL PKGS"
   # options.debugSATResult()
   options.satResult.installPkgs(options)
