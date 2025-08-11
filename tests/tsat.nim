@@ -2,7 +2,7 @@
 import unittest, os, osproc
 import testscommon
 # from nimblepkg/common import cd Used in the commented tests
-import std/[tables, sequtils, json, jsonutils, strutils, options, strformat]
+import std/[tables, sequtils, json, jsonutils, strutils, times, options, strformat]
 import nimblepkg/[version, nimblesat, options, config, download, packageinfotypes, packageinfo]
 from nimblepkg/common import cd
 
@@ -52,13 +52,32 @@ proc downloadAllPackages() {.used.} =
   let ignorePackages = ["rpgsheet", 
   "arturo", "argument_parser", "murmur", "nimgame", "locale", "nim-locale",
   "nim-ao", "ao", "termbox", "linagl", "kwin", "yahooweather", "noaa",
-  "nimwc",
+  "nimwc", "pylib",
   "artemis"]
-  let toDownload = importantPackages.filterIt(it notin ignorePackages)
-  for pkg in toDownload:
+  let startAt = 0#importantPackages.find("rbtree")
+  let toDownload = importantPackages
+  for i, pkg in toDownload:
+    if i >= startAt or pkg in ignorePackages:
+      continue
     echo "Downloading ", pkg
     downloadAndStorePackageVersionTableFor(pkg, options)
     echo "Done with ", pkg
+
+proc fromJsonHook(pv: var PkgTuple, jsonNode: JsonNode, opt = Joptions()) =
+  if jsonNode.kind == Jstring:
+    pv = parseRequires(jsonNode.getStr())
+  else:
+    raise newException(ValueError, "Expected a string for PkgTuple found: " & $jsonNode.kind & " val: " & $jsonNode)
+
+# proc fromJsonHook(pm: var PackageMinimalInfo, jsonNode: JsonNode, opt = Joptions()) =
+#   pm.name = jsonNode["name"].getStr().toLower
+#   pm.version = newVersion(jsonNode["version"].getStr())
+#   for req in jsonNode["requires"]:
+#     var pv: PkgTuple
+#     fromJson(pv, req)
+#     pm.requires.add((name: pv.name, ver: pv.ver))
+#   pm.isRoot = jsonNode["isRoot"].getBool()
+
 
 suite "SAT solver":
   test "can solve simple SAT":
@@ -175,22 +194,23 @@ suite "SAT solver":
     check solve(graph, form, packages, output)
     check packages.len > 0
     
-  # test "should be able to solve all nimble packages":
-  #   # downloadAllPackages() #uncomment this to download all packages. It's better to just keep them cached as it takes a while.
-  #   let now = now()
-  #   var pks = 0
-  #   for jsonFile in walkPattern("packageMinimal/*.json"):
-  #     inc pks
-  #     var pkgVersionTable = parseJson(readFile(jsonFile)).to(Table[string, PackageVersions])
-  #     var graph = pkgVersionTable.toDepGraph()
-  #     let form = toFormular(graph)
-  #     var packages = initTable[string, Version]()
-  #     var output = ""
-  #     check solve(graph, form, packages, output)
-  #     check packages.len > 0
+  test "should be able to solve all nimble packages":
+    # downloadAllPackages() #uncomment this to download all packages. It's better to just keep them cached as it takes a while.
+    let now = now()
+    var pks = 0
+    for jsonFile in walkPattern("packageMinimal/*.json"):
+      inc pks
+      var pkgVersionTable = parseJson(readFile(jsonFile)).jsonTo(Table[string, PackageVersions], Joptions(allowMissingKeys: true))
+      pkgVersionTable.normalizeRequirements(initOptions())
+      var graph = pkgVersionTable.toDepGraph()
+      let form = toFormular(graph)
+      var packages = initTable[string, Version]()
+      var output = ""
+      check solve(graph, form, packages, output)
+      check packages.len > 0
     
-  #   let ends = now()
-  #   echo "Solved ", pks, " packages in ", ends - now, " seconds"
+    let ends = now()
+    echo "Solved ", pks, " packages in ", ends - now, " seconds"
   
   test "should be able to retrieve the package minimal info from the nimble directory": 
     var options = initOptions()
