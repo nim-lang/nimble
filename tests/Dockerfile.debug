@@ -1,0 +1,38 @@
+FROM nimlang/nim:alpine
+
+# Install git (needed for nimble operations)
+RUN apk add --no-cache git
+
+# Set working directory
+WORKDIR /nimble
+
+# Copy source code
+COPY . .
+
+# Initialize git repository and make an initial commit
+# This is needed for the sync file functionality in develop mode
+RUN git init && \
+    git config user.name "Docker Test" && \
+    git config user.email "test@docker.local" && \
+    git add . && \
+    git commit -m "Initial commit for testing"
+
+# Initialize git submodules (needed for vendor dependencies)
+RUN git submodule update --init
+
+# Build nimble
+RUN nim c -d:release src/nimble.nim
+
+# Set environment for testing
+ENV PATH="/nimble/src:$PATH"
+
+# Default command to run the specific failing test
+# CMD ["./src/nimble", "test", "requires flag::should be able to install a special version"] 
+# CMD ["./src/nimble", "build"] 
+# CMD ["./src/nimble", "test", "lock file::"] 
+# CMD ["./src/nimble", "test", "issues::issue 801"] 
+# CMD ["./src/nimble", "test"] 
+CMD ["./src/nimble", "test", "uninstall::can uninstall"] 
+# CMD ["./src/nimble", "test", "SAT solver::"] 
+
+# docker build -f tests/Dockerfile.debug -t nimble-debug . && docker run --rm nimble-debug 
