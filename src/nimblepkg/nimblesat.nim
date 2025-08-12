@@ -144,13 +144,13 @@ proc hasVersion*(packagesVersions: Table[string, PackageVersions], name: string,
 
 proc hasKey(packageToDependency: Table[string, int], dep: string): bool =
   for k in packageToDependency.keys:
-    if k == dep or k.toLower == dep or k.toLower == dep.toLower:
+    if cmpIgnoreCase(k, dep) == 0:
       return true
   false
 
 proc getKey(packageToDependency: Table[string, int], dep: string): int =
   for k in packageToDependency.keys:
-    if k == dep or k.toLower == dep or k.toLower == dep.toLower:
+    if cmpIgnoreCase(k, dep) == 0:
       return packageToDependency[k]
   raise newException(KeyError, dep & " not found")
 
@@ -473,17 +473,17 @@ proc collectReverseDependencies*(targetPkgName: string, graph: DepGraph): seq[(s
   for node in graph.nodes:
     for version in node.versions:
       for (depName, ver) in graph.reqs[version.req].deps:
-        if depName.toLower == targetPkgName.toLower:
+        if cmpIgnoreCase(depName, targetPkgName) == 0:
           let revDep = (node.pkgName, version.version)
           result.addUnique revDep
         else:
           # Check if this dependency matches by URL
           # Find the dependency node and check its URL
           for depNode in graph.nodes:
-            if depNode.pkgName == targetPkgName or depNode.pkgName.toLower == targetPkgName.toLower:
+            if cmpIgnoreCase(depNode.pkgName, targetPkgName) == 0:
               # Check if any version of this dependency node has a URL that matches depName
               for depVersion in depNode.versions:
-                if depVersion.url != "" and (depVersion.url == depName or depVersion.url.toLower == depName.toLower):
+                if depVersion.url != "" and (depVersion.url == depName or cmpIgnoreCase(depVersion.url, depName) == 0):
                   let revDep = (node.pkgName, version.version)
                   result.addUnique revDep
                   break
@@ -884,13 +884,13 @@ proc solvePackages*(rootPkg: PackageInfo, pkgList: seq[PackageInfo], pkgsToInsta
     for pkgInfo in pkgList:
       let specialVersions = if pkgInfo.metadata.specialVersions.len > 1: pkgInfo.metadata.specialVersions.toSeq()[1..^1] else: @[]
       let isSpecial = specialVersions.len > 0
-      if (pkgInfo.basicInfo.name == solvedPkg.pkgName or pkgInfo.metadata.url == solvedPkg.pkgName) and 
+      if (cmpIgnoreCase(pkgInfo.basicInfo.name, solvedPkg.pkgName) == 0 or cmpIgnoreCase(pkgInfo.metadata.url, solvedPkg.pkgName) == 0) and 
         (pkgInfo.basicInfo.version == solvedPkg.version and (not isSpecial or canUseAny) or solvedPkg.version in specialVersions) and
         #only add one (we could fall into adding two if there are multiple special versiosn in the package list and we can add any). 
         #But we still allow it on upgrade as they are post proccessed in a later stage
           ((not options.isLegacy and options.action.typ in {actionLock}) or #For lock in vnext the result is cleaned in the lock proc that handles the pass
-            (result.toSeq.filterIt(it.basicInfo.name == solvedPkg.pkgName or 
-            it.metadata.url == solvedPkg.pkgName).len == 0 or 
+            (result.toSeq.filterIt(cmpIgnoreCase(it.basicInfo.name, solvedPkg.pkgName) == 0 or 
+            cmpIgnoreCase(it.metadata.url, solvedPkg.pkgName) == 0).len == 0 or 
             options.action.typ in {actionUpgrade})): 
           result.incl pkgInfo
           foundInList = true
@@ -905,7 +905,7 @@ proc solvePackages*(rootPkg: PackageInfo, pkgList: seq[PackageInfo], pkgsToInsta
 
 proc getPackageInfo*(name: string, pkgs: seq[PackageInfo], version: Option[Version] = none(Version)): Option[PackageInfo] =
     for pkg in pkgs:
-      if pkg.basicInfo.name.tolower == name.tolower or pkg.metadata.url == name:
+      if cmpIgnoreCase(pkg.basicInfo.name, name) == 0 or cmpIgnoreCase(pkg.metadata.url, name) == 0:
         if version.isSome:
           if pkg.basicInfo.version == version.get:
             return some pkg
