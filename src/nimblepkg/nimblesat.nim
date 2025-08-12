@@ -15,16 +15,6 @@ type
     mapping*: Table[VarId, SatVarInfo]
     idgen*: int32
   
-  PackageMinimalInfo* = object
-    name*: string
-    version*: Version
-    requires*: seq[PkgTuple]
-    isRoot*: bool
-
-  PackageVersions* = object
-    pkgName*: string
-    versions*: seq[PackageMinimalInfo]
-  
   Requirements* = object
     deps*: seq[PkgTuple] #@[(name, versRange)]
     version*: Version
@@ -34,12 +24,14 @@ type
 
   DependencyVersion* = object  # Represents a specific version of a project.
     version*: Version
+    url*: string
     req*: int # index into graph.reqs so that it can be shared between versions
     v*: VarId
     # req: Requirements
 
   Dependency* = object
     pkgName*: string
+    url*: string
     versions*: seq[DependencyVersion]
     active*: bool
     activeVersion*: int
@@ -67,7 +59,7 @@ type
     downloadDir*: string
     pv*: PkgTuple #Require request
   
-var urlToName: Table[string, string] = initTable[string, string]()
+# var urlToName: Table[string, string] = initTable[string, string]()
 
 const TaggedVersionsFileName* = "tagged_versions.json"
 
@@ -113,18 +105,17 @@ proc getMinimalInfo*(pkg: PackageInfo, options: Options): PackageMinimalInfo =
   result.requires = pkg.requires.map(convertNimAliasToNim)
   if options.action.typ in {actionLock, actionDeps} or options.hasNimInLockFile():
     result.requires = result.requires.filterIt(not it.isNim)
-  if pkg.metadata.url != "":
-    urlToName[pkg.metadata.url] = result.name
+  result.url = pkg.metadata.url
 
-proc getMinimalInfo*(nimbleFile: string, pkgName: string, options: Options): PackageMinimalInfo =
+proc getMinimalInfo*(nimbleFile: string, options: Options): PackageMinimalInfo =
   #TODO we can use the new getPkgInfoFromDirWithDeclarativeParser to get the minimal info and add the features to the packageinfo type so this whole function can be removed
   #TODO we need to handle the url here as well.
   assert options.useDeclarativeParser, "useDeclarativeParser must be set"
-  let nimbleFileInfo = extractRequiresInfo(nimbleFile)
-  result.name =  if pkgName.isNim: "nim" else: pkgName
-  result.version = nimbleFileInfo.version.newVersion()
-  var activeFeatures = initTable[PkgTuple, seq[string]]() #we can ignore features here as we are solving at this point requires for these features should already be taken into account
-  result.requires = nimbleFileInfo.getRequires(activeFeatures) #TODO if package is Nim do not parse the file. Just get the version from the binary.
+  let pkg = getPkgInfoFromDirWithDeclarativeParser(nimbleFile.parentDir, options)
+  result.name =  if pkg.basicInfo.name.isNim: "nim" else: pkg.basicInfo.name
+  result.version = pkg.basicInfo.version
+  result.requires = pkg.requires.map(convertNimAliasToNim)
+  result.url = pkg.metadata.url
   if options.action.typ in {actionLock, actionDeps} or options.hasNimInLockFile():
     result.requires = result.requires.filterIt(not it.isNim)
 
@@ -151,9 +142,22 @@ proc hasVersion*(packagesVersions: Table[string, PackageVersions], name: string,
         return true
   false
 
+proc hasKey(packageToDependency: Table[string, int], dep: string): bool =
+  for k in packageToDependency.keys:
+    if cmpIgnoreCase(k, dep) == 0:
+      return true
+  false
+
+proc getKey(packageToDependency: Table[string, int], dep: string): int =
+  for k in packageToDependency.keys:
+    if cmpIgnoreCase(k, dep) == 0:
+      return packageToDependency[k]
+  raise newException(KeyError, dep & " not found")
+
 proc findDependencyForDep(g: DepGraph; dep: string): int {.inline.} =
-  assert g.packageToDependency.hasKey(dep), dep & " not found"
-  result = g.packageToDependency.getOrDefault(dep)
+  if not g.packageToDependency.hasKey(dep):
+    return -1
+  result = g.packageToDependency.getKey(dep)
 
 proc createRequirements(pkg: PackageMinimalInfo): Requirements =
   result.deps = pkg.requires
@@ -175,12 +179,14 @@ proc getRequirementFromGraph(g: var DepGraph, pkg: PackageMinimalInfo): int =
 proc toDependencyVersion(g: var DepGraph, pkg: PackageMinimalInfo): DependencyVersion =
   result.version = pkg.version
   result.req = getRequirementFromGraph(g, pkg) 
+  result.url = pkg.url
 
 proc toDependency(g: var DepGraph, pkg: PackageVersions): Dependency = 
   result.pkgName = pkg.pkgName
   result.versions = pkg.versions.mapIt(toDependencyVersion(g, it))
   assert pkg.versions.len > 0, "Package must have at least one version"
   result.isRoot = pkg.versions[0].isRoot
+  result.url = pkg.versions[0].url
 
 proc toDepGraph*(versions: Table[string, PackageVersions]): DepGraph =
   var root: PackageVersions
@@ -194,6 +200,11 @@ proc toDepGraph*(versions: Table[string, PackageVersions]): DepGraph =
   # Fill the other field and I should be good to go?
   for i in countup(0, result.nodes.len-1):
     result.packageToDependency[result.nodes[i].pkgName] = i
+    #also add the urls
+    for ver in result.nodes[i].versions:
+      if ver.url != "":
+        # echo "ADDING URL: ", ver.url
+        result.packageToDependency[ver.url] = i
 
 proc toFormular*(g: var DepGraph): Form =
   result = Form()
@@ -462,9 +473,20 @@ proc collectReverseDependencies*(targetPkgName: string, graph: DepGraph): seq[(s
   for node in graph.nodes:
     for version in node.versions:
       for (depName, ver) in graph.reqs[version.req].deps:
-        if depName == targetPkgName:
+        if cmpIgnoreCase(depName, targetPkgName) == 0:
           let revDep = (node.pkgName, version.version)
           result.addUnique revDep
+        else:
+          # Check if this dependency matches by URL
+          # Find the dependency node and check its URL
+          for depNode in graph.nodes:
+            if cmpIgnoreCase(depNode.pkgName, targetPkgName) == 0:
+              # Check if any version of this dependency node has a URL that matches depName
+              for depVersion in depNode.versions:
+                if depVersion.url != "" and (depVersion.url == depName or cmpIgnoreCase(depVersion.url, depName) == 0):
+                  let revDep = (node.pkgName, version.version)
+                  result.addUnique revDep
+                  break
 
 proc getSolvedPackages*(pkgVersionTable: Table[string, PackageVersions], output: var string): seq[SolvedPackage] =
   var graph = pkgVersionTable.toDepGraph()
@@ -472,7 +494,7 @@ proc getSolvedPackages*(pkgVersionTable: Table[string, PackageVersions], output:
   for p in graph.nodes:
     for ver in p.versions.items:
       for dep, q in items graph.reqs[ver.req].deps:
-        if dep notin graph.packageToDependency:
+        if not graph.packageToDependency.hasKey(dep):
           #debug print. show all packacges in the graph
           output.add &"Dependency {dep} not found in the graph \n"
           for k, v in pkgVersionTable:
@@ -487,7 +509,7 @@ proc getSolvedPackages*(pkgVersionTable: Table[string, PackageVersions], output:
   discard solve(graph, form, packages, output, triedVersions)
   
   for pkg, ver in packages:
-    let nodeIdx = graph.packageToDependency[pkg]
+    let nodeIdx = graph.packageToDependency.getKey(pkg)
     for dep in graph.nodes[nodeIdx].versions:
       if dep.version == ver:
         let reqIdx = dep.req
@@ -538,8 +560,6 @@ proc downloadPkInfoForPv*(pv: PkgTuple, options: Options, doPrompt = false): Pac
     result = getPkgInfoFromDirWithDeclarativeParser(downloadRes[0].dir, options)
   else:
     result = downloadRes[0].dir.getPkgInfo(options)
-  if result.metadata.url != "": 
-    urlToName[result.metadata.url] = result.basicInfo.name
 
 proc getAllNimReleases(options: Options): seq[PackageMinimalInfo] =
   let releases = getOfficialReleases(options)  
@@ -604,7 +624,7 @@ proc getPackageMinimalVersionsFromRepo*(repoDir: string, pkg: PkgTuple, version:
     
     try:
       if options.satResult.pass in {satNimSelection, satFallbackToVmParser}:
-        #TODO test this code path
+        # TODO test this code path
         result.add getPkgInfoFromDirWithDeclarativeParser(repoDir, options).getMinimalInfo(options)   
       else:
         result.add getPkgInfo(repoDir, options).getMinimalInfo(options)   
@@ -630,7 +650,7 @@ proc getPackageMinimalVersionsFromRepo*(repoDir: string, pkg: PkgTuple, version:
         if options.satResult.pass in {satNimSelection, satFallbackToVmParser}:
           result.addUnique getPkgInfoFromDirWithDeclarativeParser(tempDir, options).getMinimalInfo(options)  
         elif options.useDeclarativeParser:
-          result.addUnique getMinimalInfo(nimbleFile, name, options)
+          result.addUnique getMinimalInfo(nimbleFile, options)
         else:
           let pkgInfo = getPkgInfoFromFile(nimbleFile, options, useCache=false)
           result.addUnique pkgInfo.getMinimalInfo(options)
@@ -661,7 +681,11 @@ proc downloadMinimalPackage*(pv: PkgTuple, options: Options): seq[PackageMinimal
   else:    
     let (downloadRes, downloadMeth) = downloadPkgFromUrl(pv, options)
     result = getPackageMinimalVersionsFromRepo(downloadRes.dir, pv, downloadRes.version, downloadMeth, options)
-  # echo "Downloading minimal package for ", pv.name, " ", $pv.ver, result
+  #Make sure the url is set for the package
+  if pv.name.isUrl:
+    for r in result.mitems: 
+      if r.url == "":
+        r.url = pv.name
 
 proc fillPackageTableFromPreferred*(packages: var Table[string, PackageVersions], preferredPackages: seq[PackageMinimalInfo]) =
   for pkg in preferredPackages:
@@ -676,7 +700,7 @@ proc getInstalledMinimalPackages*(options: Options): seq[PackageMinimalInfo] =
 
 proc getMinimalFromPreferred(pv: PkgTuple,  getMinimalPackage: GetPackageMinimal, preferredPackages: seq[PackageMinimalInfo], options: Options): seq[PackageMinimalInfo] =
   for pp in preferredPackages:
-    if pp.name == pv.name and pp.version.withinRange(pv.ver):
+    if (pp.name == pv.name or pp.url == pv.name) and pp.version.withinRange(pv.ver):
       return @[pp]
   getMinimalPackage(pv, options)
 
@@ -698,27 +722,31 @@ proc processRequirements(versions: var Table[string, PackageVersions], pv: PkgTu
   if pv.ver.kind == verSpecial or not hasVersion(versions, pv):
     var pkgMins = getMinimalFromPreferred(pv, getMinimalPackage, preferredPackages, options)
     for pkgMin in pkgMins.mitems:
+      let pkgName = pkgMin.name.toLower
       if pv.ver.kind == verSpecial:
         pkgMin.version = newVersion $pv.ver
         
         # If this is a special version, clear any existing regular versions
         # to force the SAT solver to use this specific version
-        if versions.hasKey(pv.name):
-          versions[pv.name].versions = @[pkgMin]
+        if versions.hasKey(pkgName):
+          versions[pkgName].versions = @[pkgMin]
         else:
-          versions[pv.name] = PackageVersions(pkgName: pv.name, versions: @[pkgMin])
+          versions[pkgName] = PackageVersions(pkgName: pkgName, versions: @[pkgMin])
       else:
         # Don't add regular versions if a special version already exists
-        if hasSpecialVersion(versions, pv.name):
+        if hasSpecialVersion(versions, pkgName):
           continue
           
-        if not versions.hasKey(pv.name):
-          versions[pv.name] = PackageVersions(pkgName: pv.name, versions: @[pkgMin])
+        if not versions.hasKey(pkgName):
+          versions[pkgName] = PackageVersions(pkgName: pkgName, versions: @[pkgMin])
         else:
-          versions[pv.name].versions.addUnique pkgMin
+          versions[pkgName].versions.addUnique pkgMin
       
       for req in pkgMin.requires:
         processRequirements(versions, req, visited, getMinimalPackage, preferredPackages, options)
+    if pv.name.isUrl and pkgMins.len > 0: #still allow fallback to urls
+      versions[pv.name] = PackageVersions(pkgName: pv.name, versions: pkgMins)
+
 
 proc collectAllVersions*(versions: var Table[string, PackageVersions], package: PackageMinimalInfo, options: Options, getMinimalPackage: GetPackageMinimal, preferredPackages: seq[PackageMinimalInfo] = newSeq[PackageMinimalInfo]()) =
   var visited = initHashSet[PkgTuple]()
@@ -794,32 +822,46 @@ proc areAllReqAny(dep: SolvedPackage): bool =
           return false
   true
 
-proc normalizeRequirements*(pkgVersionTable: var Table[string, PackageVersions]) =
-  #changes the url in the name of the requirements to the real name of the package
-  #so the resulting solvedPackages dont have url in the name
-  var recordsToRemove: seq[tuple[url: string, name: string]] = @[]
+proc getPackageNameFromUrl*(pv: PkgTuple, pkgVersionTable: Table[string, PackageVersions], options: Options): string =
+  for pkgName, pkgVersions in pkgVersionTable:
+    for pkgVersion in pkgVersions.versions:
+      # if pkgName == "json_serialization" or pkgName == "https://github.com/status-im/nim-json-serialization":
+      #   echo "*** CHECKING URL: ", pkgVersion.url, " against ", url, " for package ", pkgName, " version ", $pkgVersion.version
+      if pkgVersion.url == pv.name:
+        return pkgName
+  # echo "*** NO MATCH FOUND FOR URL: ", pv.name
+  # echo "*** PKG VERSION TABLE: ", pkgVersionTable.keys.toSeq.join(", ")
+  # for pkgName, pkgVersions in pkgVersionTable:
+    # echo "*** PKG VERSIONS: ", pkgName, " ", pkgVersions.versions.mapIt(it.url).join(", ")
+
+  # lets retry 
+  # echo "*** RETRYING DOWNLOAD FOR URL: ", pv.name, " ", $pv.ver #Not actually a download, but a lookup in the filesystem
+  # let (downloadRes, downloadMeth) = downloadPkgFromUrl(pv, options)
+  # let pkgInfo = getPkgInfoFromDirWithDeclarativeParser(downloadRes.dir, options)
+  # echo "*** PKG INFO: ", pkgInfo.basicInfo.name, " ", pkgInfo.basicInfo.version, " ", pkgInfo.metadata.url
+  # return pkgInfo.basicInfo.name.toLower
+  # return ""
+
+proc getUrlFromPkgName*(pkgName: string, pkgVersionTable: Table[string, PackageVersions], options: Options): string =
+  for pkgTableName, pkgVersions in pkgVersionTable:
+    for pkgVersion in pkgVersions.versions:
+      if pkgVersion.name.toLower == pkgName.toLower:
+        return pkgVersion.url
+  return ""
+  
+proc normalizeRequirements*(pkgVersionTable: var Table[string, PackageVersions], options: Options) =
   for pkgName, pkgVersions in pkgVersionTable.mpairs:
-    if pkgName.isUrl:
-      recordsToRemove.add((pkgName, urlToName[pkgName]))
     for pkgVersion in pkgVersions.versions.mitems:
       for req in pkgVersion.requires.mitems:
-        if req.name.isUrl and req.name in urlToName:
-          # echo "DEBUG: Normalizing requirement ", req.name, " to ", urlToName[req.name], "with version ", $req.ver, " for package ", pkgName, " version ", $pkgVersion.version
-          req.name = urlToName[req.name]
-  for (url, name) in recordsToRemove:
-    if pkgVersionTable.hasKey(name):
-      pkgVersionTable[name].versions.add(pkgVersionTable[url].versions)
-    else:
-      pkgVersionTable[name] = PackageVersions(pkgName: name, versions: pkgVersionTable[url].versions)
-    pkgVersionTable.del(url)
-  
-  #if there are special versions, we need to remove the regular versions
-  for pkgName, pkgVersions in pkgVersionTable.mpairs:
-    if pkgVersions.versions.filterIt(it.version.isSpecial).len > 0:
-      pkgVersions.versions = pkgVersions.versions.filterIt(it.version.isSpecial)
-
-  # if pkgVersionTable.hasKey("json_serialization"):
-  #   echo "DEBUG NEW VERSIONS FOR ", "json_serialization", " ", pkgVersionTable["json_serialization"].versions.mapIt(it.version).join(", ")
+        if req.name.isUrl:          
+          # echo "*** FOUND URL REQUIREMENT: ", req.name, " for package ", pkgName, " version ", $req.ver
+          let newPkgName = getPackageNameFromUrl(req, pkgVersionTable, options)
+          if newPkgName != "":
+            let oldReq = req.name
+            # echo "DEBUG: Normalizing requirement ", req.name, " to ", newPkgName, " for package ", pkgName, " version ", $req.ver
+            req.name = newPkgName
+            options.satResult.normalizedRequirements[newPkgName] = oldReq
+        req.name = req.name.resolveAlias(options)
 
 proc solvePackages*(rootPkg: PackageInfo, pkgList: seq[PackageInfo], pkgsToInstall: var seq[(string, Version)], options: Options, output: var string, solvedPkgs: var seq[SolvedPackage]): HashSet[PackageInfo] =
   var root: PackageMinimalInfo = rootPkg.getMinimalInfo(options)
@@ -827,7 +869,9 @@ proc solvePackages*(rootPkg: PackageInfo, pkgList: seq[PackageInfo], pkgsToInsta
   var pkgVersionTable = initTable[string, PackageVersions]()
   pkgVersionTable[root.name] = PackageVersions(pkgName: root.name, versions: @[root])
   collectAllVersions(pkgVersionTable, root, options, downloadMinimalPackage, pkgList.mapIt(it.getMinimalInfo(options)))
-  # pkgVersionTable.normalizeRequirements() dont use it for now
+  # if not options.isLegacy:
+  pkgVersionTable.normalizeRequirements(options)  
+  options.satResult.pkgVersionTable = pkgVersionTable
   solvedPkgs = pkgVersionTable.getSolvedPackages(output).topologicalSort()
   # echo "DEBUG: SolvedPkgs before post processing: ", solvedPkgs.mapIt(it.pkgName & " " & $it.version).join(", ")
   let systemNimCompatible = solvedPkgs.isSystemNimCompatible(options)
@@ -840,13 +884,13 @@ proc solvePackages*(rootPkg: PackageInfo, pkgList: seq[PackageInfo], pkgsToInsta
     for pkgInfo in pkgList:
       let specialVersions = if pkgInfo.metadata.specialVersions.len > 1: pkgInfo.metadata.specialVersions.toSeq()[1..^1] else: @[]
       let isSpecial = specialVersions.len > 0
-      if (pkgInfo.basicInfo.name == solvedPkg.pkgName or pkgInfo.metadata.url == solvedPkg.pkgName) and 
+      if (cmpIgnoreCase(pkgInfo.basicInfo.name, solvedPkg.pkgName) == 0 or cmpIgnoreCase(pkgInfo.metadata.url, solvedPkg.pkgName) == 0) and 
         (pkgInfo.basicInfo.version == solvedPkg.version and (not isSpecial or canUseAny) or solvedPkg.version in specialVersions) and
         #only add one (we could fall into adding two if there are multiple special versiosn in the package list and we can add any). 
         #But we still allow it on upgrade as they are post proccessed in a later stage
           ((not options.isLegacy and options.action.typ in {actionLock}) or #For lock in vnext the result is cleaned in the lock proc that handles the pass
-            (result.toSeq.filterIt(it.basicInfo.name == solvedPkg.pkgName or 
-            it.metadata.url == solvedPkg.pkgName).len == 0 or 
+            (result.toSeq.filterIt(cmpIgnoreCase(it.basicInfo.name, solvedPkg.pkgName) == 0 or 
+            cmpIgnoreCase(it.metadata.url, solvedPkg.pkgName) == 0).len == 0 or 
             options.action.typ in {actionUpgrade})): 
           result.incl pkgInfo
           foundInList = true
@@ -861,7 +905,7 @@ proc solvePackages*(rootPkg: PackageInfo, pkgList: seq[PackageInfo], pkgsToInsta
 
 proc getPackageInfo*(name: string, pkgs: seq[PackageInfo], version: Option[Version] = none(Version)): Option[PackageInfo] =
     for pkg in pkgs:
-      if pkg.basicInfo.name.tolower == name.tolower or pkg.metadata.url == name:
+      if cmpIgnoreCase(pkg.basicInfo.name, name) == 0 or cmpIgnoreCase(pkg.metadata.url, name) == 0:
         if version.isSome:
           if pkg.basicInfo.version == version.get:
             return some pkg

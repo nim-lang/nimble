@@ -2122,10 +2122,14 @@ proc lock(options: var Options) =
           vcsRevision = getVcsRevision(pkgInfo.getRealDir())
         except CatchableError:
           discard
+      var lockUrl = pkgInfo.metaData.url
+      if lockUrl == "":
+        lockUrl = nimblesat.getUrlFromPkgName(solvedPkg.pkgName, options.satResult.pkgVersionTable, options)
+
       lockDeps[noTask][pkgInfo.basicInfo.name] = LockFileDep(
         version: solvedPkg.version,
         vcsRevision: vcsRevision,
-        url: pkgInfo.metaData.url,
+        url: lockUrl,
         downloadMethod: pkgInfo.metaData.downloadMethod,
         dependencies: solvedPkg.requirements.mapIt(it.name), 
         checksums: Checksums(sha1: pkgInfo.basicInfo.checksum))
@@ -2662,6 +2666,15 @@ proc runVNext*(options: var Options) =
       options.satResult = initSATResult(satNimSelection)      
       var rootPackage = downloadPkInfoForPv(pkg, options, doPrompt = true)
       solvePkgs(rootPackage, options)
+    
+      let rootSolvedPkg = SolvedPackage(
+        pkgName: rootPackage.basicInfo.name,
+        version: rootPackage.basicInfo.version,
+        requirements: rootPackage.requires,
+        deps: options.satResult.solvedPkgs.filterIt(it.pkgName.toLower != rootPackage.basicInfo.name.toLower)  
+      )
+      options.satResult.solvedPkgs.add(rootSolvedPkg)
+      
   # echo "BEFORE INSTALL PKGS"
   # options.debugSATResult()
   options.satResult.installPkgs(options)

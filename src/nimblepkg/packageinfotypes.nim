@@ -116,6 +116,17 @@ type
     pkg*: Option[PackageInfo] #when none, we need to install it
     version*: Version
 
+  PackageMinimalInfo* = object
+    name*: string
+    version*: Version
+    requires*: seq[PkgTuple]
+    isRoot*: bool
+    url*: string
+
+  PackageVersions* = object
+    pkgName*: string
+    versions*: seq[PackageMinimalInfo]
+    
   SATResult* = ref object
     rootPackage*: PackageInfo 
     pkgsToInstall*: seq[(string, Version)] #Packages to install
@@ -129,6 +140,8 @@ type
     declarativeParseFailed*: bool
     declarativeParserErrorLines*: seq[string]
     nimResolved*: NimResolved
+    normalizedRequirements*: Table[string, string] #normalized -> old. Some packages are not published as nimble packages, we keep the url for installation.
+    pkgVersionTable*: Table[string, PackageVersions]
 
 proc `==`*(a, b: SolvedPackage): bool =
   a.pkgName == b.pkgName and
@@ -157,4 +170,7 @@ proc getGloballyActiveFeatures*(): seq[string] =
       result.add(&"features.{pkgName}.{feature}")
   
 proc initSATResult*(pass: SATPass): SATResult =
-  SATResult(pkgsToInstall: @[], solvedPkgs: @[], output: "", pkgs: initHashSet[PackageInfo](), pass: pass, installedPkgs: @[], declarativeParseFailed: false, declarativeParserErrorLines: @[])
+  SATResult(pkgsToInstall: @[], solvedPkgs: @[], output: "", pkgs: initHashSet[PackageInfo](), 
+    pass: pass, installedPkgs: @[], declarativeParseFailed: false, declarativeParserErrorLines: @[],
+    normalizedRequirements: initTable[string, string]()
+    )
