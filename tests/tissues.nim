@@ -198,7 +198,7 @@ suite "issues":
       const localNimbleDir = "./nimbleDir"
       cleanDir localNimbleDir
       let (_, exitCode) = execCmdEx(
-        &"{nimblePath} -y --nimbleDir={localNimbleDir} install")
+        &"{nimblePath} -y --nimbleDir={localNimbleDir} install -g")
       check exitCode == QuitSuccess
       let dummyPkgDir = getPackageDir(
         localNimbleDir / nimblePackagesDirName, "dummy-0.1.0")
