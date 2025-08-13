@@ -68,6 +68,7 @@ suite "Declarative parsing":
     options.useDeclarativeParser = true
     options.noColor = true
     options.verbosity = DebugPriority
+    options.localDeps = false
     setSuppressMessages(false)
     removeDir(options.pkgCachePath)
     let pv = parseRequires("nimfp >= 0.3.4")
@@ -84,6 +85,7 @@ suite "Declarative parsing":
       @["0.3.4", "0.3.5", "0.3.6", "0.4.5", "0.4.4"].mapIt(newVersion(it))
     for version in availableVersions:
       check version in packageVersions.mapIt(it.version)
+    
     check fileExists(repoDir / TaggedVersionsFileName)
 
   test "should be able to install a package using the declarative parser":

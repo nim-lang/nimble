@@ -321,6 +321,7 @@ suite "SAT solver":
     "https://raw.githubusercontent.com/nim-lang/packages/master/packages.json",
     "https://nim-lang.org/nimble/packages.json"
     ])
+    options.localDeps = false
     let pv = parseRequires("nimfp >= 0.3.4")
     let downloadRes = pv.downloadPkgFromUrl(options)[0] #This is just to setup the test. We need a git dir to work on
     let repoDir = downloadRes.dir
@@ -337,6 +338,7 @@ suite "SAT solver":
     var options = initOptions()
     options.maxTaggedVersions = 0 #all
     options.nimBin = some options.makeNimBin("nim")
+    options.localDeps = false
     options.config.packageLists["official"] = PackageList(name: "Official", urls: @[
     "https://raw.githubusercontent.com/nim-lang/packages/master/packages.json",
     "https://nim-lang.org/nimble/packages.json"

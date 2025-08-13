@@ -18,7 +18,7 @@ suite "project local deps mode":
     cd "localdeps":
       removeFile("localdeps")
       cleanDir("nimbledeps")
-      let (output, exitCode) = execCmdEx(nimblePath & " install -y")
+      let (_, exitCode) = execCmdEx(nimblePath & " install -y")
       check exitCode == QuitSuccess
       check dirExists("nimbledeps")
 
@@ -26,10 +26,10 @@ suite "project local deps mode":
     cd "localdeps":
       removeFile("localdeps")
       cleanDir("nimbledeps")
-      let (output, exitCode) = execCmdEx(nimblePath & " install -y -l")
+      let (_, exitCode) = execCmdEx(nimblePath & " install -y -l")
       check exitCode == QuitSuccess
       check dirExists("nimbledeps")
-      
+
   test "localdeps develop":
     cleanDir("nimbledeps")
     cleanDir(defaultDevelopPath)
