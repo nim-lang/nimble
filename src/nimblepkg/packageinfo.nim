@@ -262,27 +262,6 @@ proc getPackageList*(options: Options): seq[Package] =
         result.add(pkg)
         namesAdded.incl(pkg.name)
 
-proc findNimbleFile*(dir: string; error: bool, options: Options): string =
-  var hits = 0
-  for kind, path in walkDir(dir):
-    if kind in {pcFile, pcLinkToFile}:
-      let ext = path.splitFile.ext
-      case ext
-      of ".babel", ".nimble":
-        result = path
-        inc hits
-      else: discard
-  if hits >= 2:
-    raise nimbleError(
-        "Only one .nimble file should be present in " & dir)
-  elif hits == 0:
-    if error:
-      raise nimbleError(
-        "Could not find a file with a .nimble extension inside the specified " &
-        "directory: $1" % dir)
-    else:
-      if not dir.isSubdirOf(options.nimBinariesDir):
-        displayWarning(&"No .nimble file found for {dir}")
 
 proc setNameVersionChecksum*(pkgInfo: var PackageInfo, pkgDir: string) =
   let (name, version, checksum) = getNameVersionChecksum(pkgDir)
