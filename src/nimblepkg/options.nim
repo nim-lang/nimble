@@ -451,8 +451,7 @@ proc isSubdirOf*(subdir, baseDir: string): bool =
   else:
     normalizedSubdir.startsWith(normalizedBaseDir)
 
-
-proc findNimbleFile*(dir: string; error: bool, options: Options): string =
+proc findNimbleFile*(dir: string; error: bool, options: Options, warn = true): string =
   var hits = 0
   for kind, path in walkDir(dir):
     if kind in {pcFile, pcLinkToFile}:
@@ -471,7 +470,7 @@ proc findNimbleFile*(dir: string; error: bool, options: Options): string =
         "Could not find a file with a .nimble extension inside the specified " &
         "directory: $1" % dir)
     else:
-      if not dir.isSubdirOf(options.nimBinariesDir):
+      if not dir.isSubdirOf(options.nimBinariesDir) and warn:
         displayWarning(&"No .nimble file found for {dir}")
 
 proc setNimbleDir*(options: var Options) =
@@ -480,8 +479,8 @@ proc setNimbleDir*(options: var Options) =
     propagate = false
 
   #if there is no .nimble file in the current directory, we default to global deps mode
-  let thereIsNimbleFile = findNimbleFile(getCurrentDir(), error = false, options) != ""
-  if not thereIsNimbleFile:
+  let thereIsNimbleFile = findNimbleFile(getCurrentDir(), error = false, options, warn = false) != ""
+  if not thereIsNimbleFile and options.action.typ != actionDevelop:
     options.localdeps = false
 
 
