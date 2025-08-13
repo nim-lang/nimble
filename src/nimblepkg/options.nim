@@ -252,6 +252,7 @@ Nimble Options:
   -y, --accept                    Accept all interactive prompts.
   -n, --reject                    Reject all interactive prompts.
   -l, --localdeps                 Run in project local dependency mode.
+  -g, --global                    Run in global dependency mode.
   -p, --package                   For which package in the dependency tree the
                                   command should be executed. If not provided by
                                   default it applies to the current directory
@@ -440,10 +441,48 @@ proc setPackageCache(options: var Options, baseDir: string) =
     if options.verbosity >= LowPriority:
       display("Info:", "Package cache path " & options.pkgCachePath, priority = LowPriority)
 
+proc isSubdirOf*(subdir, baseDir: string): bool =
+  let
+    normalizedSubdir = subdir.normalizedPath
+    normalizedBaseDir = baseDir.normalizedPath & DirSep
+
+  when defined(windows):
+    normalizedSubdir.toLower.startsWith(normalizedBaseDir.toLower)
+  else:
+    normalizedSubdir.startsWith(normalizedBaseDir)
+
+proc findNimbleFile*(dir: string; error: bool, options: Options, warn = true): string =
+  var hits = 0
+  for kind, path in walkDir(dir):
+    if kind in {pcFile, pcLinkToFile}:
+      let ext = path.splitFile.ext
+      case ext
+      of ".babel", ".nimble":
+        result = path
+        inc hits
+      else: discard
+  if hits >= 2:
+    raise nimbleError(
+        "Only one .nimble file should be present in " & dir)
+  elif hits == 0:
+    if error:
+      raise nimbleError(
+        "Could not find a file with a .nimble extension inside the specified " &
+        "directory: $1" % dir)
+    else:
+      if not dir.isSubdirOf(options.nimBinariesDir) and warn:
+        displayWarning(&"No .nimble file found for {dir}")
+
 proc setNimbleDir*(options: var Options) =
   var
     nimbleDir = options.config.nimbleDir
     propagate = false
+
+  #if there is no .nimble file in the current directory, we default to global deps mode
+  let thereIsNimbleFile = findNimbleFile(getCurrentDir(), error = false, options, warn = false) != ""
+  if not thereIsNimbleFile and options.action.typ != actionDevelop:
+    options.localdeps = false
+
 
   if options.action.typ == actionDevelop:
     options.forceFullClone = true
@@ -468,10 +507,7 @@ proc setNimbleDir*(options: var Options) =
       setPackageCache(options, nimbleDir)
     else:
       # ...followed by project local deps mode
-      if dirExists(nimbledeps) or (options.localdeps and not options.developLocaldeps):
-        if not options.showVersion:
-          display("Warning:", "Using project local deps mode", Warning,
-                  priority = HighPriority)
+      if dirExists(nimbledeps) or (options.localdeps and not options.developLocaldeps):        
         nimbleDir = nimbledeps
         options.localdeps = true
         propagate = true
@@ -633,6 +669,7 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
   of "disablevalidation": result.disableValidation = true
   of "nim": result.nimBin = some makeNimBin(result, val)
   of "localdeps", "l": result.localdeps = true
+  of "global", "g": result.localdeps = false
   of "nosslcheck": result.disableSslCertCheck = true
   of "nolockfile": result.disableLockFile = true
   of "tarballs", "t": result.enableTarballs = true
@@ -805,7 +842,8 @@ proc initOptions*(): Options =
     useSatSolver: true,
     useDeclarativeParser: false,
     legacy: false, #default to legacy code path for nimble < 1.0.0
-    satResult: SatResult()
+    satResult: SatResult(),
+    localDeps: true 
   )
 
 proc handleUnknownFlags(options: var Options) =
@@ -963,16 +1001,6 @@ proc lockFile*(options: Options, dir: string): string =
 
 proc lockFileExists*(options: Options, dir: string): bool =
   return options.lockFile(dir).fileExists
-
-proc isSubdirOf*(subdir, baseDir: string): bool =
-  let
-    normalizedSubdir = subdir.normalizedPath
-    normalizedBaseDir = baseDir.normalizedPath & DirSep
-
-  when defined(windows):
-    normalizedSubdir.toLower.startsWith(normalizedBaseDir.toLower)
-  else:
-    normalizedSubdir.startsWith(normalizedBaseDir)
 
 proc isDevelopment*(pkg: PackageInfo, options: Options): bool =
   ### Returns true if the package is a development package. 

@@ -3,7 +3,7 @@
 
 {.used.}
 
-import unittest, os, osproc, strutils, strformat
+import unittest, os, osproc, strformat
 import testscommon
 from nimblepkg/common import cd
 import nimblepkg/options
@@ -18,20 +18,17 @@ suite "project local deps mode":
     cd "localdeps":
       removeFile("localdeps")
       cleanDir("nimbledeps")
-      createDir("nimbledeps")
-      let (output, exitCode) = execCmdEx(nimblePath & " install -y")
+      let (_, exitCode) = execCmdEx(nimblePath & " install -y")
       check exitCode == QuitSuccess
-      check output.contains("project local deps mode")
-      check output.contains("Succeeded")
+      check dirExists("nimbledeps")
 
   test "--localdeps flag":
     cd "localdeps":
       removeFile("localdeps")
       cleanDir("nimbledeps")
-      let (output, exitCode) = execCmdEx(nimblePath & " install -y -l")
+      let (_, exitCode) = execCmdEx(nimblePath & " install -y -l")
       check exitCode == QuitSuccess
-      check output.contains("project local deps mode")
-      check output.contains("Succeeded")
+      check dirExists("nimbledeps")
 
   test "localdeps develop":
     cleanDir("nimbledeps")
