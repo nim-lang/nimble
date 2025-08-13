@@ -1,0 +1,15 @@
+.git
+.github
+.dockerignore
+.DS_Store
+tests/nimdep/vendor/
+tests/vendor/
+tests/git*
+nimbledeps
+**/csources_v2/
+**/*.o
+**/*.a
+**/*.so
+**/*.dll
+**/*.dylib
+
