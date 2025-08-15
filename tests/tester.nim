@@ -9,6 +9,7 @@ import tinitcommand
 import tcheckcommand
 import tcleancommand
 import tdevelopfeature
+import tdownload
 import tissues
 import tlocaldeps
 import tlockfile

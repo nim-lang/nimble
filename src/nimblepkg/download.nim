@@ -226,6 +226,25 @@ proc seemsLikeRevision(version: string): bool =
       return false
   return true
 
+proc extractPackageName*(url: string): string =
+  ## Extracts package name from repository URL.
+  ##
+  ## For example:
+  ## "https://github.com/nim-lang/nimble.git" -> "nimble"
+  ## "https://gitlab.com/user/mypackage" -> "mypackage"
+  ## "git://example.com/foo/bar.git" -> "bar"
+  let cleanUrl = removeTrailingGitString(url)
+  let lastSlash = cleanUrl.rfind('/')
+  if lastSlash >= 0 and lastSlash < cleanUrl.len - 1:
+    result = cleanUrl[lastSlash + 1 .. ^1]
+  else:
+    # Fallback to the whole URL if no slash found
+    result = cleanUrl
+  # Remove any remaining extensions like .tar.gz
+  let dotPos = result.find('.')
+  if dotPos > 0:
+    result = result[0 ..< dotPos]
+
 proc extractOwnerAndRepo(url: string): string =
   ## Extracts owner and repository string from an URL to GitHub repository.
   ##
@@ -425,7 +444,8 @@ proc doDownload(url, downloadDir: string, verRange: VersionRange,
             doClone(downMethod, url, downloadDir, latest.tag,
                     onlyTip = not options.forceFullClone, options = options)
       else:
-        display("Warning:", "The package has no tagged releases, downloading HEAD instead.", Warning,
+        let pkgName = extractPackageName(url)
+        display("Warning:", "The package '" & pkgName & "' has no tagged releases, downloading HEAD instead.", Warning,
                 priority = HighPriority)
         if downloadTarball(url, options):
           result.vcsRevision = doDownloadTarball(url, downloadDir, "HEAD", true)
@@ -444,7 +464,8 @@ proc doDownload(url, downloadDir: string, verRange: VersionRange,
                   priority = MediumPriority)
           doCheckout(downMethod, downloadDir, latest.tag, options = options)
       else:
-        display("Warning:", "The package has no tagged releases, downloading HEAD instead.", Warning,
+        let pkgName = extractPackageName(url)
+        display("Warning:", "The package '" & pkgName & "' has no tagged releases, downloading HEAD instead.", Warning,
                   priority = HighPriority)
 
   if result.vcsRevision == notSetSha1Hash:
