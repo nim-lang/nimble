@@ -917,13 +917,17 @@ proc installPkgs*(satResult: var SATResult, options: Options) =
         #Instead of redownload the actual version of the package here. Not important as this only happens per 
         #package once across all nimble projects (even in local mode)
         #But it would still be needed for the lock file case, although we could constraint it. 
-        discard downloadFromDownloadInfo(dlInfo, options)
+        if pv.name.isFileURL:
+          downloadDir = dlInfo.url.extractFilePathFromURL()
+        else:
+          discard downloadFromDownloadInfo(dlInfo, options)
         # dlInfo.downloadDir = downloadPkgResult.dir 
       assert dirExists(downloadDir)
       #TODO this : PackageInfoneeds to be improved as we are redonwloading certain packages
       # Check if package already exists before installing
       let tempPkgInfo = getPkgInfo(downloadDir, options)
       let oldPkg = tempPkgInfo.packageExists(options)
+      #TODO dont install fileURL packages
       installedPkgInfo = installFromDirDownloadInfo(downloadDir, dlInfo.url, pv, options).toRequiresInfo(options)     
       wasNewlyInstalled = oldPkg.isNone
       if installedPkgInfo.metadata.url == "" and pv.name.isUrl:
