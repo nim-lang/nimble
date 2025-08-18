@@ -482,7 +482,7 @@ proc isInDevelopMode*(pkgInfo: PackageInfo, options: Options): bool =
 
 proc addReverseDeps*(satResult: SATResult, options: Options) = 
   for solvedPkg in satResult.solvedPkgs:
-    if solvedPkg.pkgName.isNim: continue 
+    if solvedPkg.pkgName.isNim or solvedPkg.pkgName.isFileURL: continue #Dont add fileUrl to reverse deps.
     var reverseDepPkg = satResult.getPkgInfoFromSolved(solvedPkg, options)
     # Check if THIS package (the one that depends on others) is a development package
     if reverseDepPkg.isInDevelopMode(options):
@@ -923,17 +923,19 @@ proc installPkgs*(satResult: var SATResult, options: Options) =
           discard downloadFromDownloadInfo(dlInfo, options)
         # dlInfo.downloadDir = downloadPkgResult.dir 
       assert dirExists(downloadDir)
-      #TODO this : PackageInfoneeds to be improved as we are redonwloading certain packages
-      # Check if package already exists before installing
-      let tempPkgInfo = getPkgInfo(downloadDir, options)
-      let oldPkg = tempPkgInfo.packageExists(options)
-      #TODO dont install fileURL packages
-      installedPkgInfo = installFromDirDownloadInfo(downloadDir, dlInfo.url, pv, options).toRequiresInfo(options)     
-      wasNewlyInstalled = oldPkg.isNone
-      if installedPkgInfo.metadata.url == "" and pv.name.isUrl:
-        installedPkgInfo.metadata.url = pv.name
+      if pv.name.isFileURL:
+        installedPkgInfo = getPackageFromFileUrl(dlInfo.url, options).toRequiresInfo(options)
+      else:
+        #TODO this : PackageInfoneeds to be improved as we are redonwloading certain packages
+        # Check if package already exists before installing
+        let tempPkgInfo = getPkgInfo(downloadDir, options)
+        let oldPkg = tempPkgInfo.packageExists(options)
+        installedPkgInfo = installFromDirDownloadInfo(downloadDir, dlInfo.url, pv, options).toRequiresInfo(options)     
+        wasNewlyInstalled = oldPkg.isNone
+        if installedPkgInfo.metadata.url == "" and pv.name.isUrl:
+          installedPkgInfo.metadata.url = pv.name
 
-    satResult.pkgs.incl(installedPkgInfo)
+    satResult.pkgs.incl(installedPkgInfo)    
     installedPkgs.incl(installedPkgInfo)
     if wasNewlyInstalled:
       newlyInstalledPkgs.incl(installedPkgInfo)
