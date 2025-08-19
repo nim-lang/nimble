@@ -17,13 +17,13 @@ import nimblesat, packageinfotypes, options, version, declarativeparser, package
   nimenv, lockfile, cli, downloadnim, packageparser, tools, nimscriptexecutor, packagemetadatafile,
   displaymessages, packageinstaller, reversedeps, developfile, urls
 
-proc debugSATResult*(options: Options) =
+proc debugSATResult*(options: Options, calledFrom: string) =
   # return
   let satResult = options.satResult
   let color = "\e[32m"
   let reset = "\e[0m"
   echo "=== DEBUG SAT RESULT ==="
-  echo "Called from: ", getStackTrace()[^2]
+  echo "Called from: ", calledFrom
   echo "--------------------------------"
   echo color, "Pass: ", reset, satResult.pass
   if satResult.nimResolved.pkg.isSome:
@@ -93,7 +93,8 @@ proc getPkgInfoFromSolution(satResult: SATResult, pv: PkgTuple, options: Options
     if pv.isNim and pkg.basicInfo.name.isNim and pkg.basicInfo.version.withinRange(pv.ver): return pkg 
     if nameMatches(pkg, pv, options) and pkg.basicInfo.version.withinRange(pv.ver):
       return pkg
-  options.debugSATResult()
+  writeStackTrace()
+  options.debugSATResult("getPkgInfoFromSolution")
   raise newNimbleError[NimbleError]("Package not found in solution: " & $pv)
 
 proc getPkgInfoFromSolved*(satResult: SATResult, solvedPkg: SolvedPackage, options: Options): PackageInfo =
@@ -104,8 +105,8 @@ proc getPkgInfoFromSolved*(satResult: SATResult, solvedPkg: SolvedPackage, optio
     #For the pkg list we need to check the version as there may be multiple versions of the same package
     if nameMatches(pkg, solvedPkg.pkgName, options) and pkg.basicInfo.version == solvedPkg.version:
       return pkg
-  
-  options.debugSATResult()
+  writeStackTrace()
+  options.debugSATResult("getPkgInfoFromSolved")
   raise newNimbleError[NimbleError]("Package not found in solution: " & $solvedPkg.pkgName & " " & $solvedPkg.version)
 
 proc displaySatisfiedMsg*(solvedPkgs: seq[SolvedPackage], pkgToInstall: seq[(string, Version)], options: Options) =
@@ -491,7 +492,9 @@ proc addReverseDeps*(satResult: SATResult, options: Options) =
     for dep in solvedPkg.deps:
       if dep.pkgName.isNim: continue 
       try:
-        let depPkg = satResult.getPkgInfoFromSolved(dep, options)      
+        if dep.pkgName.isFileURL:
+          continue
+        let depPkg = satResult.getPkgInfoFromSolved(dep, options)              
         addRevDep(options.nimbleData, depPkg.basicInfo, reverseDepPkg)
       except CatchableError:
         # Skip packages that can't be found (e.g., installed during hook execution)
