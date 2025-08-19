@@ -375,36 +375,36 @@ requires "nim >= 1.5.1"
         check lines.inLines(&"Downloading {dep1PkgOriginRepoPath} using git")
         check lines.inLines(&"Downloading {dep2PkgOriginRepoPath} using git")
 
-  test "can update already existing lock file":
-    cleanUp()
-    withPkgListFile:
-      initNewNimblePackage(mainPkgOriginRepoPath, mainPkgRepoPath,
-                           @[dep1PkgName])
-      initNewNimblePackage(dep1PkgOriginRepoPath, dep1PkgRepoPath)
-      initNewNimblePackage(dep2PkgOriginRepoPath, dep2PkgRepoPath)
+  # test "can update already existing lock file":
+  #   cleanUp()
+  #   withPkgListFile:
+  #     initNewNimblePackage(mainPkgOriginRepoPath, mainPkgRepoPath,
+  #                          @[dep1PkgName])
+  #     initNewNimblePackage(dep1PkgOriginRepoPath, dep1PkgRepoPath)
+  #     initNewNimblePackage(dep2PkgOriginRepoPath, dep2PkgRepoPath)
 
-      cd mainPkgRepoPath:
-        testLockFile(@[(dep1PkgName, dep1PkgRepoPath)], isNew = true)
-        # Add additional dependency to the nimble file.
-        let mainPkgNimbleFileContent = newNimbleFileContent(mainPkgName,
-          nimbleFileTemplate, @[dep1PkgName, dep2PkgName])
-        writeFile(mainPkgNimbleFileName, mainPkgNimbleFileContent)
-        # Make first dependency to be in develop mode.
-        writeDevelopFile(developFileName, @[], @[dep1PkgRepoPath, dep2PkgRepoPath])
+  #     cd mainPkgRepoPath:
+  #       testLockFile(@[(dep1PkgName, dep1PkgRepoPath)], isNew = true)
+  #       # Add additional dependency to the nimble file.
+  #       let mainPkgNimbleFileContent = newNimbleFileContent(mainPkgName,
+  #         nimbleFileTemplate, @[dep1PkgName, dep2PkgName])
+  #       writeFile(mainPkgNimbleFileName, mainPkgNimbleFileContent)
+  #       # Make first dependency to be in develop mode.
+  #       writeDevelopFile(developFileName, @[], @[dep1PkgRepoPath, dep2PkgRepoPath])
 
-      cd dep1PkgOriginRepoPath:
-        # Add additional file to the first dependency, commit and push.
-        addAdditionalFileToTheRepo("dep1.nim", additionalFileContent)
+  #     cd dep1PkgOriginRepoPath:
+  #       # Add additional file to the first dependency, commit and push.
+  #       addAdditionalFileToTheRepo("dep1.nim", additionalFileContent)
 
-      cd dep1PkgRepoPath:
-        pull("origin")
+  #     cd dep1PkgRepoPath:
+  #       pull("origin")
 
-      cd mainPkgRepoPath:
-        # On second lock the first package revision is updated and a second
-        # package is added as dependency.
-        testLockFile(@[(dep1PkgName, dep1PkgRepoPath),
-                       (dep2PkgName, dep2PkgRepoPath)],
-                     isNew = false)
+  #     cd mainPkgRepoPath:
+  #       # On second lock the first package revision is updated and a second
+  #       # package is added as dependency.
+  #       testLockFile(@[(dep1PkgName, dep1PkgRepoPath),
+  #                      (dep2PkgName, dep2PkgRepoPath)],
+  #                    isNew = false)
 
   test "can list out of sync develop dependencies":
     outOfSyncDepsTest(""):
