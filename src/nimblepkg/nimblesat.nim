@@ -880,6 +880,21 @@ proc normalizeRequirements*(pkgVersionTable: var Table[string, PackageVersions],
             options.satResult.normalizedRequirements[newPkgName] = oldReq
         req.name = req.name.resolveAlias(options)
 
+proc postProcessSolvedPkgs*(solvedPkgs: var seq[SolvedPackage], options: Options) =
+  #Prioritizes fileUrl packages over the regular packages defined in the requirements
+  var fileUrlPkgs: seq[PackageInfo] = @[]
+  for solved in solvedPkgs:
+    if solved.pkgName.isFileURL:
+      let pkg = getPackageFromFileUrl(solved.pkgName, options)
+      fileUrlPkgs.add pkg
+  var toReplace: seq[SolvedPackage] = @[]
+  for solved in solvedPkgs:
+    for fileUrlPkg in fileUrlPkgs:
+      if solved.pkgName == fileUrlPkg.basicInfo.name:
+        toReplace.add solved
+        break
+  solvedPkgs = solvedPkgs.filterIt(it notin toReplace)
+
 proc solvePackages*(rootPkg: PackageInfo, pkgList: seq[PackageInfo], pkgsToInstall: var seq[(string, Version)], options: Options, output: var string, solvedPkgs: var seq[SolvedPackage]): HashSet[PackageInfo] =
   var root: PackageMinimalInfo = rootPkg.getMinimalInfo(options)
   root.isRoot = true
@@ -891,6 +906,8 @@ proc solvePackages*(rootPkg: PackageInfo, pkgList: seq[PackageInfo], pkgsToInsta
   options.satResult.pkgVersionTable = pkgVersionTable
   solvedPkgs = pkgVersionTable.getSolvedPackages(output).topologicalSort()
   # echo "DEBUG: SolvedPkgs before post processing: ", solvedPkgs.mapIt(it.pkgName & " " & $it.version).join(", ")
+  solvedPkgs.postProcessSolvedPkgs(options)
+  
   let systemNimCompatible = solvedPkgs.isSystemNimCompatible(options)
   # echo "DEBUG: SolvedPkgs after post processing: ", solvedPkgs.mapIt(it.pkgName & " " & $it.version).join(", ")
   # echo "ACTION IS ", options.action.typ

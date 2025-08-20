@@ -1,0 +1,59 @@
+name: CI
+on:
+  push:
+    branches:
+      - master
+      - test-*
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      branch:
+        default: '"stable"'
+
+concurrency: # Cancel stale PR builds (but not push builds)
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        branch: ${{ fromJSON(format('[{0}]', inputs.branch || '"1.2.0","1.2.x","1.4.2","1.4.x","1.6.0","1.6.x","2.0.0","2.0.x","stable","devel"')) }}
+
+    name: 'nim-${{matrix.branch}}'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - uses: jiro4989/setup-nim-action@v1
+        with:
+          nim-version: ${{ matrix.branch }}
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run tests
+        run: |
+          nim --version
+          env TEST_LANG="c" nimble test
+          env TEST_LANG="cpp" nimble test
+
+
+  lint:
+    name: "Check formatting"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2  # In PR, has extra merge commit: ^1 = PR, ^2 = base
+
+      - name: Check nph formatting
+        # Pin nph to a specific version to avoid sudden style differences.
+        run: |
+          VERSION="v0.6.0"
+          ARCHIVE="nph-linux_x64.tar.gz"
+          curl -L "https://github.com/arnetheduck/nph/releases/download/${VERSION}/${ARCHIVE}" -o ${ARCHIVE}
+          tar -xzf ${ARCHIVE}
+          ./nph .
+          git diff --exit-code

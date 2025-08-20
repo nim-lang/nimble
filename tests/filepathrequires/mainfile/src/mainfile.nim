@@ -10,3 +10,6 @@ when isMainModule:
     import dep2file
     let add2Result = addDep2(3, 4)
     echo("Addition 2 Result: ", add2Result)
+  when defined(withResults):
+    import resultstest
+    testResults()
