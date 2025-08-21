@@ -11,5 +11,5 @@ bin           = @["dep3file"]
 
 requires "nim >= 2.1.9"
 
-feature "patch":
+patch:
   requires "file://../depfile"

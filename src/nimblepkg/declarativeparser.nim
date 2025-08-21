@@ -158,6 +158,11 @@ proc extract(n: PNode, conf: ConfigRef, result: var NimbleFileInfo) =
         if not result.features.hasKey(featureName):
           result.features[featureName] = @[]
         result.features[featureName] = extractFeatures(n[1], conf, result.hasErrors, result.nestedRequires, result, featureName)
+      of "patch":
+        let featureName = "patch"
+        if not result.features.hasKey(featureName):
+          result.features[featureName] = @[]
+        result.features[featureName] = extractFeatures(n[1], conf, result.hasErrors, result.nestedRequires, result, featureName)
       of "task":
         if n.len >= 3 and n[1].kind == nkIdent and
             n[2].kind in {nkStrLit .. nkTripleStrLit}:

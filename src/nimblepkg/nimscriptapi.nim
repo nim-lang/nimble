@@ -264,3 +264,6 @@ template feature*(name: string, body: untyped): untyped =
 
 template dev*(body: untyped): untyped =
   discard
+
+template patch*(body: untyped): untyped =
+  discard
