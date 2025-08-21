@@ -137,9 +137,13 @@ proc enableFeatures*(rootPackage: var PackageInfo, options: var Options) =
     appendGloballyActiveFeatures(pkgName[0], activeFeatures)
   
   #If root is a development package, we need to activate it as well:
-  if rootPackage.isDevelopment(options) and "dev" in rootPackage.features:
-    rootPackage.requires &= rootPackage.features["dev"]
-    appendGloballyActiveFeatures(rootPackage.basicInfo.name, @["dev"])
+  if rootPackage.isTopLevel(options) and ("dev" in rootPackage.features or "patch" in rootPackage.features):
+    if "dev" in rootPackage.features:
+      rootPackage.requires &= rootPackage.features["dev"]
+      appendGloballyActiveFeatures(rootPackage.basicInfo.name, @["dev"])
+    if "patch" in rootPackage.features:
+      rootPackage.requires &= rootPackage.features["patch"]
+      appendGloballyActiveFeatures(rootPackage.basicInfo.name, @["patch"])
 
 proc isSystemNim*(resolvedNim: NimResolved, options: Options): bool =
   if resolvedNim.pkg.isSome:
@@ -852,6 +856,7 @@ proc getVersionRangeFoPkgToInstall(satResult: SATResult, name: string, ver: Vers
   return ver.toVersionRange()
  
 proc installPkgs*(satResult: var SATResult, options: Options) =
+  options.debugSATResult("installPkgs")
   #At this point the packages are already downloaded. 
   #We still need to install them aka copy them from the cache to the nimbleDir + run preInstall and postInstall scripts
   let isInRootDir = options.startDir == satResult.rootPackage.myPath.parentDir
@@ -927,6 +932,7 @@ proc installPkgs*(satResult: var SATResult, options: Options) =
         # dlInfo.downloadDir = downloadPkgResult.dir 
       assert dirExists(downloadDir)
       if pv.name.isFileURL:
+        # echo "*** GETTING PACKAGE FROM FILE URL: ", dlInfo.url
         installedPkgInfo = getPackageFromFileUrl(dlInfo.url, options).toRequiresInfo(options)
       else:
         #TODO this : PackageInfoneeds to be improved as we are redonwloading certain packages
