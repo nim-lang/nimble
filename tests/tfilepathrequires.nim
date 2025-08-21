@@ -20,7 +20,6 @@ suite "file path requires":
       let (_, exitCode) = execNimble("run", "--requires: file://" & depPath)
       check exitCode == QuitSuccess
 
-    
   test "can specify a dependency with a space in the path":
     removeDir "nimbleDir"
     cd "filepathrequires/mainfile":
@@ -29,7 +28,6 @@ suite "file path requires":
       let (_, exitCode) = execNimble("run","-d:withDep2", "--requires: " & allReqs.join("; "))
       check exitCode == QuitSuccess
  
-
   test "should override a version requirement": 
     #depfile depends on results 0.5.0
     #we are going to use our custom version results (0.5.1)
@@ -62,7 +60,6 @@ suite "file path requires":
   test "can not specify transitive dependencies": 
     removeDir "nimbleDir"
     cd "filepathrequires/mainfile":
-      #dep3file already has a dependency on depfile
       let (_, exitCode) = execNimble("run", "--requires: file://../dep3file")
       check exitCode != QuitSuccess
   
@@ -72,8 +69,19 @@ suite "file path requires":
       let (_, exitCode) = execNimble("run")
       check exitCode == QuitSuccess
 
-#[
-  - Limit the scope of fileUrls to the feature "patch" (make a failing tests of a package that uses a require outside of the patch feature)
-  - Limit the section where fileURls can be specified (feature "patch" and custom patch file)
+  test "cant specify a require with a filepath outside of the patch feature":
+    removeDir "nimbleDir"
+    cd "filepathrequires/failfile":
+      let (_, exitCode) = execNimble("run")
+      check exitCode != QuitSuccess
 
+  test "cant specify a require with a filepath in a feature other than patch":
+    removeDir "nimbleDir"
+    cd "filepathrequires/fail2file":
+      let (_, exitCode) = execNimble("run")
+      check exitCode != QuitSuccess
+
+#[ TODO
+  - Allow to specify the filerequires outside the nimble file.
+  - alias: patch for "feature patch"
 ]#

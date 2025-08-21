@@ -8,8 +8,8 @@ import compiler/[renderer]
 from compiler/nimblecmd import getPathVersionChecksum
 
 import version, packageinfotypes, packageinfo, options, packageparser, cli,
-  packagemetadatafile
-import sha1hashes, vcstools
+  packagemetadatafile, common
+import sha1hashes, vcstools, urls
 import std/[tables, sequtils, strscans, strformat, os, options]
 
 type NimbleFileInfo* = object
@@ -93,7 +93,36 @@ proc extractSeqLiteral(n: PNode, conf: ConfigRef, varName: string): seq[string] 
   else:
     localError(conf, n.info, &"'{varName}' must be assigned a sequence with @ prefix")
 
-proc extractFeatures(featureNode: PNode, conf: ConfigRef, hasErrors: var bool, nestedRequires: var bool): seq[string] =
+proc validateFileUrlRequires(nfl: var NimbleFileInfo, n: PNode, conf: ConfigRef, hasErrors: var bool, nestedRequires: var bool, currentFeature: string = "") =
+  case n.kind
+  of nkStmtList, nkStmtListExpr:
+    for child in n:
+      validateFileUrlRequires(nfl, child, conf, hasErrors, nestedRequires, currentFeature)
+  of nkCallKinds:
+    if n[0].kind == nkIdent and n[0].ident.s == "requires":
+      for i in 1 ..< n.len:
+        var ch = n[i]
+        while ch.kind in {nkStmtListExpr, nkStmtList} and ch.len > 0:
+          ch = ch.lastSon
+        if ch.kind in {nkStrLit .. nkTripleStrLit}:
+          let requireStr = ch.strVal
+          if requireStr.isFileURL:
+            if currentFeature != "patch":
+              nestedRequires = true
+              let errorLine = 
+                if currentFeature == "":
+                  &"{nfl.nimbleFile}({n.info.line}, {n.info.col}) 'file://' requires are only allowed in 'patch' features, found in global scope"
+                else:
+                  &"{nfl.nimbleFile}({n.info.line}, {n.info.col}) 'file://' requires are only allowed in 'patch' features, found in '{currentFeature}' feature"            
+              #this is a hard error, nimble should stop
+              raise nimbleError(errorLine)
+    else:
+      for child in n:
+        validateFileUrlRequires(nfl, child, conf, hasErrors, nestedRequires, currentFeature)
+  else:
+    discard
+
+proc extractFeatures(featureNode: PNode, conf: ConfigRef, hasErrors: var bool, nestedRequires: var bool, nfl: var NimbleFileInfo, featureName: string = ""): seq[string] =
   ## Extracts requirements from a feature declaration
   if featureNode.kind in {nkStmtList, nkStmtListExpr}:
     for stmt in featureNode:
@@ -102,6 +131,8 @@ proc extractFeatures(featureNode: PNode, conf: ConfigRef, hasErrors: var bool, n
         var requires: seq[string]
         collectRequiresFromNode(stmt, requires)
         result.add requires
+        # Validate file:// requires in this feature context
+        validateFileUrlRequires(nfl, stmt, conf, hasErrors, nestedRequires, featureName)
 
 proc extract(n: PNode, conf: ConfigRef, result: var NimbleFileInfo) =
   validateNoNestedRequires(result, n, conf, result.hasErrors, result.nestedRequires)
@@ -114,17 +145,19 @@ proc extract(n: PNode, conf: ConfigRef, result: var NimbleFileInfo) =
       case n[0].ident.s
       of "requires":
         collectRequiresFromNode(n, result.requires)
+        # Validate file:// requires in global scope
+        validateFileUrlRequires(result, n, conf, result.hasErrors, result.nestedRequires, "")
       of "feature":
         if n.len >= 3 and n[1].kind in {nkStrLit .. nkTripleStrLit}:
           let featureName = n[1].strVal
           if not result.features.hasKey(featureName):
             result.features[featureName] = @[]
-          result.features[featureName] = extractFeatures(n[2], conf, result.hasErrors, result.nestedRequires)
+          result.features[featureName] = extractFeatures(n[2], conf, result.hasErrors, result.nestedRequires, result, featureName)
       of "dev":
         let featureName = "dev"
         if not result.features.hasKey(featureName):
           result.features[featureName] = @[]
-        result.features[featureName] = extractFeatures(n[1], conf, result.hasErrors, result.nestedRequires)
+        result.features[featureName] = extractFeatures(n[1], conf, result.hasErrors, result.nestedRequires, result, featureName)
       of "task":
         if n.len >= 3 and n[1].kind == nkIdent and
             n[2].kind in {nkStrLit .. nkTripleStrLit}:

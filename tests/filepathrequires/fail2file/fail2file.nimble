@@ -5,8 +5,12 @@ author        = "jmgomez"
 description   = "A new awesome nimble package"
 license       = "MIT"
 srcDir        = "src"
+bin           = @["fail2file"]
 
 
 # Dependencies
 
-requires "results == 0.5.0"
+requires "nim >= 2.1.9"
+
+feature "random":
+  requires "file://../depfile" #this should fail

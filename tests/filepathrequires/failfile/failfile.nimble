@@ -5,8 +5,8 @@ author        = "jmgomez"
 description   = "A new awesome nimble package"
 license       = "MIT"
 srcDir        = "src"
+bin           = @["failfile"]
 
 
 # Dependencies
-
-requires "results == 0.5.0"
+requires "file://../depfile"
