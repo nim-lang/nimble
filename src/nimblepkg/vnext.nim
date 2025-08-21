@@ -856,7 +856,7 @@ proc getVersionRangeFoPkgToInstall(satResult: SATResult, name: string, ver: Vers
   return ver.toVersionRange()
  
 proc installPkgs*(satResult: var SATResult, options: Options) =
-  options.debugSATResult("installPkgs")
+  # options.debugSATResult("installPkgs")
   #At this point the packages are already downloaded. 
   #We still need to install them aka copy them from the cache to the nimbleDir + run preInstall and postInstall scripts
   let isInRootDir = options.startDir == satResult.rootPackage.myPath.parentDir
