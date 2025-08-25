@@ -66,15 +66,13 @@ suite "file path requires":
   
   test "traverse all filepaths packages upfront":
     var options = initOptions()
+    options.isFilePathDiscovering = true
     cd "filepathrequires/dep3file":
       let entryPkg = getPkgInfoFromDirWithDeclarativeParser(getCurrentDir(), options)
       loadFilePathPkgs(entryPkg, options)
       check options.filePathPkgs.len == 2
 
-#[ TODO
- - Revert path feature changes
- - Allow filepath only in top level requires and other requires opened from a filepath require
- - Add a failing test for the above (requires publishing a package)
-
- 
-]#
+  test "should not allow filepath requires in other deps if they werent openened through a filepath require":
+    cd "filepathrequires/mainfile":
+      let (_, exitCode) = execNimble("run", "--requires: file://../depfile;https://github.com/jmgomez/file_path_test")
+      check exitCode != QuitSuccess

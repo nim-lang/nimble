@@ -2608,8 +2608,9 @@ proc solvePkgs(rootPackage: PackageInfo, options: var Options) =
   if options.action.typ == actionLock:
     for task in rootPackage.taskRequires.keys:
       options.satResult.rootPackage.requires &= rootPackage.taskRequires[task]
-  
-  rootPackage.loadFilePathPkgs(options)
+  options.isFilePathDiscovering = true
+  options.satResult.rootPackage.loadFilePathPkgs(options)
+  options.isFilePathDiscovering = false
   var pkgList = initPkgList(options.satResult.rootPackage, options)
   options.satResult.rootPackage.enableFeatures(options)
   # echo "BEFORE FIRST PASS"

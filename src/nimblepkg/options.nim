@@ -72,6 +72,7 @@ type
     satResult*: SatResult
     legacy*: bool # Whether to use the legacy code path.
     filePathPkgs*: seq[PackageInfo] #Packages loaded from file:// requires. Top level is always included.
+    isFilePathDiscovering*: bool # Whether we are discovering file:// requires to fill up filePathPkgs. If true, it wont validate file:// requires.
 
   ActionType* = enum
     actionNil, actionRefresh, actionInit, actionDump, actionPublish, actionUpgrade

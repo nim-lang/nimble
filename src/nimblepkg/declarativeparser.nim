@@ -93,11 +93,15 @@ proc extractSeqLiteral(n: PNode, conf: ConfigRef, varName: string): seq[string] 
   else:
     localError(conf, n.info, &"'{varName}' must be assigned a sequence with @ prefix")
 
-proc validateFileUrlRequires(nfl: var NimbleFileInfo, n: PNode, conf: ConfigRef, hasErrors: var bool, nestedRequires: var bool, currentFeature: string = "") =
+proc validateFileUrlRequires(nfl: var NimbleFileInfo, n: PNode, conf: ConfigRef, hasErrors: var bool, nestedRequires: var bool, currentFeature: string = "", options: Options) =  
+  if options.isFilePathDiscovering:
+    return
+  let pkgPaths = options.filePathPkgs.mapIt(it.myPath)
+  let isAllowedToHaveFileUrlRequires = nfl.nimbleFile in pkgPaths
   case n.kind
   of nkStmtList, nkStmtListExpr:
     for child in n:
-      validateFileUrlRequires(nfl, child, conf, hasErrors, nestedRequires, currentFeature)
+      validateFileUrlRequires(nfl, child, conf, hasErrors, nestedRequires, currentFeature, options)
   of nkCallKinds:
     if n[0].kind == nkIdent and n[0].ident.s == "requires":
       for i in 1 ..< n.len:
@@ -105,25 +109,20 @@ proc validateFileUrlRequires(nfl: var NimbleFileInfo, n: PNode, conf: ConfigRef,
         while ch.kind in {nkStmtListExpr, nkStmtList} and ch.len > 0:
           ch = ch.lastSon
         if ch.kind in {nkStrLit .. nkTripleStrLit}:
-          discard
-          # let requireStr = ch.strVal
-          # if requireStr.isFileURL:            
-            # if currentFeature != "patch":
-            #   nestedRequires = true
-            #   let errorLine = 
-            #     if currentFeature == "":
-            #       &"{nfl.nimbleFile}({n.info.line}, {n.info.col}) 'file://' requires are only allowed in 'patch' features, found in global scope"
-            #     else:
-            #       &"{nfl.nimbleFile}({n.info.line}, {n.info.col}) 'file://' requires are only allowed in 'patch' features, found in '{currentFeature}' feature"            
-            #   #this is a hard error, nimble should stop
-            #   raise nimbleError(errorLine)
+          let requireStr = ch.strVal
+          if requireStr.isFileURL and not isAllowedToHaveFileUrlRequires:            
+            let errorLine = &"{nfl.nimbleFile}({n.info.line}, {n.info.col}) 'file://' requires are only allowed in top level requires or requires opened from a file:// require"
+            echo "Allowed to have file:// requires: ", isAllowedToHaveFileUrlRequires
+            echo "Package paths: ", pkgPaths
+            echo "Nimble file: ", nfl.nimbleFile
+            raise nimbleError(errorLine)
     else:
       for child in n:
-        validateFileUrlRequires(nfl, child, conf, hasErrors, nestedRequires, currentFeature)
+        validateFileUrlRequires(nfl, child, conf, hasErrors, nestedRequires, currentFeature, options)
   else:
     discard
 
-proc extractFeatures(featureNode: PNode, conf: ConfigRef, hasErrors: var bool, nestedRequires: var bool, nfl: var NimbleFileInfo, featureName: string = ""): seq[string] =
+proc extractFeatures(featureNode: PNode, conf: ConfigRef, hasErrors: var bool, nestedRequires: var bool, nfl: var NimbleFileInfo, featureName: string = "", options: Options): seq[string] =
   ## Extracts requirements from a feature declaration
   if featureNode.kind in {nkStmtList, nkStmtListExpr}:
     for stmt in featureNode:
@@ -133,32 +132,32 @@ proc extractFeatures(featureNode: PNode, conf: ConfigRef, hasErrors: var bool, n
         collectRequiresFromNode(stmt, requires)
         result.add requires
         # Validate file:// requires in this feature context
-        validateFileUrlRequires(nfl, stmt, conf, hasErrors, nestedRequires, featureName)
+        validateFileUrlRequires(nfl, stmt, conf, hasErrors, nestedRequires, featureName, options)
 
-proc extract(n: PNode, conf: ConfigRef, result: var NimbleFileInfo) =
+proc extract(n: PNode, conf: ConfigRef, result: var NimbleFileInfo, options: Options) =
   validateNoNestedRequires(result, n, conf, result.hasErrors, result.nestedRequires)
   case n.kind
   of nkStmtList, nkStmtListExpr:
     for child in n:
-      extract(child, conf, result)
+      extract(child, conf, result, options)
   of nkCallKinds:
     if n[0].kind == nkIdent:
       case n[0].ident.s
       of "requires":
         collectRequiresFromNode(n, result.requires)
         # Validate file:// requires in global scope
-        validateFileUrlRequires(result, n, conf, result.hasErrors, result.nestedRequires, "")
+        validateFileUrlRequires(result, n, conf, result.hasErrors, result.nestedRequires, "", options)
       of "feature":
         if n.len >= 3 and n[1].kind in {nkStrLit .. nkTripleStrLit}:
           let featureName = n[1].strVal
           if not result.features.hasKey(featureName):
             result.features[featureName] = @[]
-          result.features[featureName] = extractFeatures(n[2], conf, result.hasErrors, result.nestedRequires, result, featureName)
+          result.features[featureName] = extractFeatures(n[2], conf, result.hasErrors, result.nestedRequires, result, featureName, options)
       of "dev":
         let featureName = "dev"
         if not result.features.hasKey(featureName):
           result.features[featureName] = @[]
-        result.features[featureName] = extractFeatures(n[1], conf, result.hasErrors, result.nestedRequires, result, featureName)      
+        result.features[featureName] = extractFeatures(n[1], conf, result.hasErrors, result.nestedRequires, result, featureName, options)      
       of "task":
         if n.len >= 3 and n[1].kind == nkIdent and
             n[2].kind in {nkStrLit .. nkTripleStrLit}:
@@ -299,7 +298,7 @@ proc extractNimVersion*(nimbleFile: string): string =
   # echo "Extracted version: ", major, ".", minor, ".", patch
   return &"{major}.{minor}.{patch}"
 
-proc extractRequiresInfo*(nimbleFile: string): NimbleFileInfo =
+proc extractRequiresInfo*(nimbleFile: string, options: Options): NimbleFileInfo =
   ## Extract the `requires` information from a Nimble file. This does **not**
   ## evaluate the Nimble file. Errors are produced on stderr/stdout and are
   ## formatted as the Nim compiler does it. The parser uses the Nim compiler
@@ -324,7 +323,7 @@ proc extractRequiresInfo*(nimbleFile: string): NimbleFileInfo =
   var parser: Parser
   if setupParser(parser, fileIdx, newIdentCache(), conf):
     let ast = parseAll(parser)
-    extract(ast, conf, result)
+    extract(ast, conf, result, options)
     closeParser(parser)
   result.hasErrors = result.hasErrors or conf.errorCounter > 0
 
@@ -449,7 +448,7 @@ proc toRequiresInfo*(pkgInfo: PackageInfo, options: Options, nimbleFileInfo: Opt
       fillMetaData(result, result.getRealDir(), false, options)
       return result
 
-  let nimbleFileInfo = nimbleFileInfo.get(extractRequiresInfo(pkgInfo.myPath))
+  let nimbleFileInfo = nimbleFileInfo.get(extractRequiresInfo(pkgInfo.myPath, options))
   result.requires = getRequires(nimbleFileInfo, result.activeFeatures)
   if pkgInfo.basicInfo.name.isNim: 
     return result
@@ -500,7 +499,7 @@ proc fillPkgBasicInfo(pkgInfo: var PackageInfo, nimbleFileInfo: NimbleFileInfo) 
 
 proc getPkgInfoFromDirWithDeclarativeParser*(dir: string, options: Options): PackageInfo =
   let nimbleFile = findNimbleFile(dir, true, options)
-  let nimbleFileInfo = extractRequiresInfo(nimbleFile)
+  let nimbleFileInfo = extractRequiresInfo(nimbleFile, options)
   result = initPackageInfo()
   fillPkgBasicInfo(result, nimbleFileInfo)
   result.metadata = loadMetaData(result.getNimbleFileDir(), raiseIfNotFound = false, options)
