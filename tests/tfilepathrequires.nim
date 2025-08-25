@@ -1,7 +1,8 @@
 {.used.}
 import unittest, os, sequtils, strutils
 import testscommon
-from nimblepkg/common import cd
+import nimblepkg/[common, options, declarativeparser]
+import nimble
 
 suite "file path requires":
   test "can specify a dependency as a file path":
@@ -61,8 +62,14 @@ suite "file path requires":
     removeDir "nimbleDir"
     cd "filepathrequires/mainfile":
       let (_, exitCode) = execNimble("run", "--requires: file://../dep3file")
-      check exitCode != QuitSuccess
+      check exitCode == QuitSuccess
   
+  test "traverse all filepaths packages upfront":
+    var options = initOptions()
+    cd "filepathrequires/dep3file":
+      let entryPkg = getPkgInfoFromDirWithDeclarativeParser(getCurrentDir(), options)
+      loadFilePathPkgs(entryPkg, options)
+      check options.filePathPkgs.len == 2
 
 #[ TODO
  - Revert path feature changes

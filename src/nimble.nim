@@ -2589,18 +2589,27 @@ proc openNimbleManual =
   displayInfo("If it did not open, you can try going to the link manually: " & NimbleGuideURL)
   openDefaultBrowser(NimbleGuideURL)
 
+proc loadFilePathPkgs*(entryPkg: PackageInfo, options: var Options) =
+  nimblesat.addUnique(options.filePathPkgs, entryPkg)
+  for require in entryPkg.requires:
+    if require.name.isFileURL:
+      let path = require.name.extractFilePathFromURL()
+      let pkg = getPkgInfoFromDirWithDeclarativeParser(path, options)
+      pkg.loadFilePathPkgs(options)
+
 proc solvePkgs(rootPackage: PackageInfo, options: var Options) =
   options.satResult.rootPackage = rootPackage
   options.satResult.rootPackage.requires &= options.extraRequires
   # Add task-specific requirements if a task is being executed
   #Note this wont work until we support taskRequires in the declarative parser
   if options.task.len > 0 and options.task in rootPackage.taskRequires:
-    options.satResult.rootPackage.requires &= rootPackage.taskRequires[options.task]
+    options.satResult.rootPackage.requires &= rootPackage.taskRequires[options.task]  
   #when locking we need to add the task requires to the root package
   if options.action.typ == actionLock:
     for task in rootPackage.taskRequires.keys:
       options.satResult.rootPackage.requires &= rootPackage.taskRequires[task]
   
+  rootPackage.loadFilePathPkgs(options)
   var pkgList = initPkgList(options.satResult.rootPackage, options)
   options.satResult.rootPackage.enableFeatures(options)
   # echo "BEFORE FIRST PASS"
@@ -2644,7 +2653,6 @@ proc solvePkgs(rootPackage: PackageInfo, options: var Options) =
 
     
   options.satResult.pass = satDone 
-
 
 proc runVNext*(options: var Options) =
   #Make sure we set the righ verbosity for commands that output info:

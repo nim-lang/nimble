@@ -71,6 +71,7 @@ type
     ignoreSubmodules*: bool # Whether to ignore submodules when cloning a repository
     satResult*: SatResult
     legacy*: bool # Whether to use the legacy code path.
+    filePathPkgs*: seq[PackageInfo] #Packages loaded from file:// requires. Top level is always included.
 
   ActionType* = enum
     actionNil, actionRefresh, actionInit, actionDump, actionPublish, actionUpgrade

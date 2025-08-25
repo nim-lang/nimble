@@ -10,6 +10,4 @@ bin           = @["dep3file"]
 # Dependencies
 
 requires "nim >= 2.1.9"
-
-patch:
-  requires "file://../depfile"
+requires "file://../depfile"
