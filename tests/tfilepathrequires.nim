@@ -57,31 +57,17 @@ suite "file path requires":
     let pkgCounts = walkDir("nimbleDir/pkgs2/").toSeq.len
     check pkgCounts == 1 #Should install the new dep on results
 
-  test "can not specify transitive dependencies": 
+  test "can specify transitive dependencies": 
     removeDir "nimbleDir"
     cd "filepathrequires/mainfile":
       let (_, exitCode) = execNimble("run", "--requires: file://../dep3file")
       check exitCode != QuitSuccess
   
-  test "can specify a filepath inside the patch feature":
-    removeDir "nimbleDir"
-    cd "filepathrequires/dep3file":
-      let (_, exitCode) = execNimble("run")
-      check exitCode == QuitSuccess
-
-  test "cant specify a require with a filepath outside of the patch feature":
-    removeDir "nimbleDir"
-    cd "filepathrequires/failfile":
-      let (_, exitCode) = execNimble("run")
-      check exitCode != QuitSuccess
-
-  test "cant specify a require with a filepath in a feature other than patch":
-    removeDir "nimbleDir"
-    cd "filepathrequires/fail2file":
-      let (_, exitCode) = execNimble("run")
-      check exitCode != QuitSuccess
 
 #[ TODO
-  - Allow to specify the filerequires outside the nimble file.
-  - alias: patch for "feature patch"
+ - Revert path feature changes
+ - Allow filepath only in top level requires and other requires opened from a filepath require
+ - Add a failing test for the above (requires publishing a package)
+
+ 
 ]#

@@ -11,6 +11,3 @@ bin           = @["fail2file"]
 # Dependencies
 
 requires "nim >= 2.1.9"
-
-feature "random":
-  requires "file://../depfile" #this should fail

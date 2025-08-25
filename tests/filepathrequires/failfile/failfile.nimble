@@ -9,4 +9,5 @@ bin           = @["failfile"]
 
 
 # Dependencies
+#This should only work inside the graph. 
 requires "file://../depfile"

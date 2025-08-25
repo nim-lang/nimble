@@ -105,17 +105,18 @@ proc validateFileUrlRequires(nfl: var NimbleFileInfo, n: PNode, conf: ConfigRef,
         while ch.kind in {nkStmtListExpr, nkStmtList} and ch.len > 0:
           ch = ch.lastSon
         if ch.kind in {nkStrLit .. nkTripleStrLit}:
-          let requireStr = ch.strVal
-          if requireStr.isFileURL:
-            if currentFeature != "patch":
-              nestedRequires = true
-              let errorLine = 
-                if currentFeature == "":
-                  &"{nfl.nimbleFile}({n.info.line}, {n.info.col}) 'file://' requires are only allowed in 'patch' features, found in global scope"
-                else:
-                  &"{nfl.nimbleFile}({n.info.line}, {n.info.col}) 'file://' requires are only allowed in 'patch' features, found in '{currentFeature}' feature"            
-              #this is a hard error, nimble should stop
-              raise nimbleError(errorLine)
+          discard
+          # let requireStr = ch.strVal
+          # if requireStr.isFileURL:            
+            # if currentFeature != "patch":
+            #   nestedRequires = true
+            #   let errorLine = 
+            #     if currentFeature == "":
+            #       &"{nfl.nimbleFile}({n.info.line}, {n.info.col}) 'file://' requires are only allowed in 'patch' features, found in global scope"
+            #     else:
+            #       &"{nfl.nimbleFile}({n.info.line}, {n.info.col}) 'file://' requires are only allowed in 'patch' features, found in '{currentFeature}' feature"            
+            #   #this is a hard error, nimble should stop
+            #   raise nimbleError(errorLine)
     else:
       for child in n:
         validateFileUrlRequires(nfl, child, conf, hasErrors, nestedRequires, currentFeature)
@@ -157,12 +158,7 @@ proc extract(n: PNode, conf: ConfigRef, result: var NimbleFileInfo) =
         let featureName = "dev"
         if not result.features.hasKey(featureName):
           result.features[featureName] = @[]
-        result.features[featureName] = extractFeatures(n[1], conf, result.hasErrors, result.nestedRequires, result, featureName)
-      of "patch":
-        let featureName = "patch"
-        if not result.features.hasKey(featureName):
-          result.features[featureName] = @[]
-        result.features[featureName] = extractFeatures(n[1], conf, result.hasErrors, result.nestedRequires, result, featureName)
+        result.features[featureName] = extractFeatures(n[1], conf, result.hasErrors, result.nestedRequires, result, featureName)      
       of "task":
         if n.len >= 3 and n[1].kind == nkIdent and
             n[2].kind in {nkStrLit .. nkTripleStrLit}:
