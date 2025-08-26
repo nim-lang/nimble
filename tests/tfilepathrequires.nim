@@ -76,3 +76,9 @@ suite "file path requires":
     cd "filepathrequires/mainfile":
       let (_, exitCode) = execNimble("run", "--requires: file://../depfile;https://github.com/jmgomez/file_path_test")
       check exitCode != QuitSuccess
+
+  test "should not allow filepath deps in a top level package that is not being in development":
+    let (output, exitCode) = execNimble("install", "https://github.com/jmgomez/file_path_test")
+    echo output
+    check exitCode != QuitSuccess
+
