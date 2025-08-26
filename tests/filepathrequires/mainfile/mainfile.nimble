@@ -11,4 +11,3 @@ bin           = @["mainfile"]
 # Dependencies
 
 requires "nim >= 2.1.9"
-# requires "file://../depfile" Passed as argument to make the tests more flexible

@@ -298,6 +298,25 @@ proc extractNimVersion*(nimbleFile: string): string =
   # echo "Extracted version: ", major, ".", minor, ".", patch
   return &"{major}.{minor}.{patch}"
 
+proc parseRequiresFile*(requiresFile: string): seq[string] =
+  ## Parse a plain text requires file.
+  ## Each line should contain a requirement (like "nim >= 1.6.0", "stew", "file:///path/to/package", etc.)
+  ## Empty lines and lines starting with # are ignored.
+  if not fileExists(requiresFile):
+    return
+  for line in lines(requiresFile):
+    let trimmedLine = line.strip()
+    # Skip empty lines and comments
+    if trimmedLine.len > 0 and not trimmedLine.startsWith("#"):
+      result.add(trimmedLine)
+
+proc extractRequiresFromFile*(nimbleFileDir: string): seq[string] =
+  ## Extract requires from a "requires" file in the same directory as the nimble file.
+  let requiresFile = nimbleFileDir / "requires"
+  if fileExists(requiresFile):
+    return parseRequiresFile(requiresFile)
+  return @[]
+
 proc extractRequiresInfo*(nimbleFile: string, options: Options): NimbleFileInfo =
   ## Extract the `requires` information from a Nimble file. This does **not**
   ## evaluate the Nimble file. Errors are produced on stderr/stdout and are
@@ -326,6 +345,11 @@ proc extractRequiresInfo*(nimbleFile: string, options: Options): NimbleFileInfo 
     extract(ast, conf, result, options)
     closeParser(parser)
   result.hasErrors = result.hasErrors or conf.errorCounter > 0
+  
+  # Add requires from external requires file
+  let nimbleDir = nimbleFile.splitFile.dir
+  let additionalRequires = extractRequiresFromFile(nimbleDir)
+  result.requires.add(additionalRequires)
 
 type PluginInfo* = object
   builderPatterns*: seq[(string, string)]
