@@ -27,7 +27,8 @@ suite "Declarative parsing":
 
   test "should parse requires from a nimble file":
     let nimbleFile = getNimbleFileFromPkgNameHelper("nimlangserver")
-    let nimbleFileInfo = extractRequiresInfo(nimbleFile)
+    var options = initOptions()
+    let nimbleFileInfo = extractRequiresInfo(nimbleFile, options)
     var activeFeatures = initTable[PkgTuple, seq[string]]()
     let requires = nimbleFileInfo.getRequires(activeFeatures)
 
@@ -38,14 +39,16 @@ suite "Declarative parsing":
   
   test "should detect nested requires and fail":
     let nimbleFile = getNimbleFileFromPkgNameHelper("jester")
-    let nimbleFileInfo = extractRequiresInfo(nimbleFile)
+    var options = initOptions()
+    let nimbleFileInfo = extractRequiresInfo(nimbleFile, options)
 
     check nimbleFileInfo.nestedRequires
   
   
   test "should parse bin from a nimble file":
     let nimbleFile = getNimbleFileFromPkgNameHelper("nimlangserver")
-    let nimbleFileInfo = extractRequiresInfo(nimbleFile)
+    var options = initOptions()
+    let nimbleFileInfo = extractRequiresInfo(nimbleFile, options)
     check nimbleFileInfo.bin.len == 1
     when defined(windows):
       check nimbleFileInfo.bin["nimlangserver.exe"] == "nimlangserver.exe"
@@ -102,7 +105,8 @@ suite "Declarative parsing":
 suite "Declarative parser features":
   test "should be able to parse features from a nimble file":
     let nimbleFile =  "./features/features.nimble"
-    let nimbleFileInfo = extractRequiresInfo(nimbleFile)
+    var options = initOptions()
+    let nimbleFileInfo = extractRequiresInfo(nimbleFile, options)
     let features = nimbleFileInfo.features
     check features.len == 2 #we need to account for the default 'dev' feature
     check features["feature1"] == @["stew"]
@@ -154,3 +158,102 @@ suite "Declarative parser features":
       let (output, exitCode) = execNimble("--parser:declarative", "run")
       check exitCode == QuitSuccess
       check output.processOutput.inLines("dev is enabled")
+
+suite "Declarative parser requires file":
+  
+  test "should parse requires from a separate requires file":
+    let testDir = "test_requires_file"
+    createDir(testDir)
+    
+    # Create a simple nimble file
+    writeFile(testDir / "test.nimble", """
+version = "0.1.0"
+author = "test"
+description = "Test package"
+license = "MIT"
+
+requires "nim >= 1.6.0"
+""")
+    
+    # Create a requires file with additional dependencies
+    writeFile(testDir / "requires", """
+# Additional requirements
+stew
+chronos >= 3.0.0
+
+# Another requirement
+json_rpc
+""")
+    
+    var options = initOptions()
+    let nimbleFileInfo = extractRequiresInfo(testDir / "test.nimble", options)
+    
+    # Should have requires from both nimble file and requires file
+    check "nim >= 1.6.0" in nimbleFileInfo.requires
+    check "stew" in nimbleFileInfo.requires
+    check "chronos >= 3.0.0" in nimbleFileInfo.requires
+    check "json_rpc" in nimbleFileInfo.requires
+    
+    # Clean up
+    removeDir(testDir)
+
+  test "should work without requires file":
+    let testDir = "test_no_requires_file"
+    createDir(testDir)
+    
+    # Create a simple nimble file without requires file
+    writeFile(testDir / "test.nimble", """
+version = "0.1.0"
+author = "test"
+description = "Test package"
+license = "MIT"
+
+requires "nim >= 1.6.0"
+""")
+    
+    var options = initOptions()
+    let nimbleFileInfo = extractRequiresInfo(testDir / "test.nimble", options)
+    
+    # Should only have requires from nimble file
+    check "nim >= 1.6.0" in nimbleFileInfo.requires
+    check nimbleFileInfo.requires.len == 1
+    
+    # Clean up
+    removeDir(testDir)
+
+  test "should ignore comments and empty lines in requires file":
+    let testDir = "test_requires_comments"
+    createDir(testDir)
+    
+    # Create a nimble file
+    writeFile(testDir / "test.nimble", """
+version = "0.1.0"
+requires "nim"
+""")
+    
+    # Create a requires file with comments and empty lines
+    writeFile(testDir / "requires", """
+# This is a comment
+stew
+
+# Another comment
+chronos
+
+# Empty line above and below
+
+
+json_rpc
+""")
+    
+    var options = initOptions()
+    let nimbleFileInfo = extractRequiresInfo(testDir / "test.nimble", options)
+    
+    # Should only have actual requirements, not comments
+    check "nim" in nimbleFileInfo.requires
+    check "stew" in nimbleFileInfo.requires
+    check "chronos" in nimbleFileInfo.requires
+    check "json_rpc" in nimbleFileInfo.requires
+    check nimbleFileInfo.requires.len == 4
+    
+    # Clean up
+    removeDir(testDir)

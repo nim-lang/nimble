@@ -53,7 +53,7 @@ type
   VersionAttempt = tuple[pkgName: string, version: Version]
 
   PackageDownloadInfo* = object
-    meth*: DownloadMethod
+    meth*: Option[DownloadMethod] #None for file dependencies. File dependencies are not copied over to the cache
     url*: string
     subdir*: string
     downloadDir*: string
@@ -535,22 +535,36 @@ proc getSolvedPackages*(pkgVersionTable: Table[string, PackageVersions], output:
           solvedPkg.reverseDeps.add(otherPkg)
           break
 
+proc isFileUrl*(pkgDownloadInfo: PackageDownloadInfo): bool =
+  pkgDownloadInfo.meth.isNone and pkgDownloadInfo.url.isFileURL
+
 proc getCacheDownloadDir*(url: string, ver: VersionRange, options: Options): string =
   options.pkgCachePath / getDownloadDirName(url, ver, notSetSha1Hash)
 
 proc getPackageDownloadInfo*(pv: PkgTuple, options: Options, doPrompt = false): PackageDownloadInfo =
+  if pv.name.isFileURL:
+    return PackageDownloadInfo(meth: none(DownloadMethod), url: pv.name, subdir: "", downloadDir: "", pv: pv)
   let (meth, url, metadata) = 
       getDownloadInfo(pv, options, doPrompt, ignorePackageCache = false)
   let subdir = metadata.getOrDefault("subdir")
   let downloadDir = getCacheDownloadDir(url, pv.ver, options)
-  PackageDownloadInfo(meth: meth, url: url, subdir: subdir, downloadDir: downloadDir, pv: pv)
+  PackageDownloadInfo(meth: some meth, url: url, subdir: subdir, downloadDir: downloadDir, pv: pv)
 
-proc downloadFromDownloadInfo*(dlInfo: PackageDownloadInfo, options: Options): (DownloadPkgResult, DownloadMethod) = 
-  let downloadRes = downloadPkg(dlInfo.url, dlInfo.pv.ver, dlInfo.meth, dlInfo.subdir, options,
-                dlInfo.downloadDir, vcsRevision = notSetSha1Hash)
-  (downloadRes, dlInfo.meth)
+proc getPackageFromFileUrl*(fileUrl: string, options: Options): PackageInfo = 
+  let absPath = extractFilePathFromURL(fileUrl)
+  getPkgInfoFromDirWithDeclarativeParser(absPath, options)
 
-proc downloadPkgFromUrl*(pv: PkgTuple, options: Options, doPrompt = false): (DownloadPkgResult, DownloadMethod) = 
+proc downloadFromDownloadInfo*(dlInfo: PackageDownloadInfo, options: Options): (DownloadPkgResult, Option[DownloadMethod]) = 
+  if dlInfo.isFileUrl:
+    let pkgInfo = getPackageFromFileUrl(dlInfo.url, options)
+    let downloadRes = (dir: pkgInfo.getNimbleFileDir(), version: pkgInfo.basicInfo.version, vcsRevision: notSetSha1Hash)
+    (downloadRes, none(DownloadMethod))
+  else:
+    let downloadRes = downloadPkg(dlInfo.url, dlInfo.pv.ver, dlInfo.meth.get, dlInfo.subdir, options,
+                  dlInfo.downloadDir, vcsRevision = notSetSha1Hash)
+    (downloadRes, dlInfo.meth)
+
+proc downloadPkgFromUrl*(pv: PkgTuple, options: Options, doPrompt = false): (DownloadPkgResult, Option[DownloadMethod]) = 
   let dlInfo = getPackageDownloadInfo(pv, options, doPrompt)
   downloadFromDownloadInfo(dlInfo, options)
         
@@ -676,11 +690,14 @@ proc getPackageMinimalVersionsFromRepo*(repoDir: string, pkg: PkgTuple, version:
 proc downloadMinimalPackage*(pv: PkgTuple, options: Options): seq[PackageMinimalInfo] =
   if pv.name == "": return newSeq[PackageMinimalInfo]()
   if pv.isNim and not options.disableNimBinaries: return getAllNimReleases(options)
+  if pv.name.isFileURL:
+    result = @[getPackageFromFileUrl(pv.name, options).getMinimalInfo(options)]
+    return
   if pv.ver.kind in [verSpecial, verEq]: #if special or equal, we dont retrieve more versions as we only need one.
     result = @[downloadPkInfoForPv(pv, options).getMinimalInfo(options)]
   else:    
     let (downloadRes, downloadMeth) = downloadPkgFromUrl(pv, options)
-    result = getPackageMinimalVersionsFromRepo(downloadRes.dir, pv, downloadRes.version, downloadMeth, options)
+    result = getPackageMinimalVersionsFromRepo(downloadRes.dir, pv, downloadRes.version, downloadMeth.get, options)
   #Make sure the url is set for the package
   if pv.name.isUrl:
     for r in result.mitems: 
@@ -863,6 +880,21 @@ proc normalizeRequirements*(pkgVersionTable: var Table[string, PackageVersions],
             options.satResult.normalizedRequirements[newPkgName] = oldReq
         req.name = req.name.resolveAlias(options)
 
+proc postProcessSolvedPkgs*(solvedPkgs: var seq[SolvedPackage], options: Options) =
+  #Prioritizes fileUrl packages over the regular packages defined in the requirements
+  var fileUrlPkgs: seq[PackageInfo] = @[]
+  for solved in solvedPkgs:
+    if solved.pkgName.isFileURL:
+      let pkg = getPackageFromFileUrl(solved.pkgName, options)
+      fileUrlPkgs.add pkg
+  var toReplace: seq[SolvedPackage] = @[]
+  for solved in solvedPkgs:
+    for fileUrlPkg in fileUrlPkgs:
+      if solved.pkgName == fileUrlPkg.basicInfo.name:
+        toReplace.add solved
+        break
+  solvedPkgs = solvedPkgs.filterIt(it notin toReplace)
+
 proc solvePackages*(rootPkg: PackageInfo, pkgList: seq[PackageInfo], pkgsToInstall: var seq[(string, Version)], options: Options, output: var string, solvedPkgs: var seq[SolvedPackage]): HashSet[PackageInfo] =
   var root: PackageMinimalInfo = rootPkg.getMinimalInfo(options)
   root.isRoot = true
@@ -874,6 +906,8 @@ proc solvePackages*(rootPkg: PackageInfo, pkgList: seq[PackageInfo], pkgsToInsta
   options.satResult.pkgVersionTable = pkgVersionTable
   solvedPkgs = pkgVersionTable.getSolvedPackages(output).topologicalSort()
   # echo "DEBUG: SolvedPkgs before post processing: ", solvedPkgs.mapIt(it.pkgName & " " & $it.version).join(", ")
+  solvedPkgs.postProcessSolvedPkgs(options)
+  
   let systemNimCompatible = solvedPkgs.isSystemNimCompatible(options)
   # echo "DEBUG: SolvedPkgs after post processing: ", solvedPkgs.mapIt(it.pkgName & " " & $it.version).join(", ")
   # echo "ACTION IS ", options.action.typ

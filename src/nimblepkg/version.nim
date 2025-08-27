@@ -3,7 +3,7 @@
 
 ## Module for handling versions and version ranges such as ``>= 1.0 & <= 1.5``
 import json, sets
-import common, strutils, tables, hashes, parseutils, forge_aliases
+import common, strutils, tables, hashes, parseutils, forge_aliases, urls
 import std/[strscans]
 type
   Version* = object
@@ -289,7 +289,11 @@ proc discardFeatures*(req: string): string =
 proc parseRequires*(req: string): PkgTuple =
   var req = discardFeatures(req)
   try:
-    if ' ' in req:
+    # For file:// URLs, treat the entire string as the name (no version parsing)
+    if req.strip.isFileUrl:
+      result.name = req.strip
+      result.ver = VersionRange(kind: verAny)
+    elif ' ' in req:
       var i = skipUntil(req, Whitespace)
       result.name = req[0 .. i].strip
       result.ver = parseVersionRange(req[i .. req.len-1])

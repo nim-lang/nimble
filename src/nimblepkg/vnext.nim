@@ -17,13 +17,13 @@ import nimblesat, packageinfotypes, options, version, declarativeparser, package
   nimenv, lockfile, cli, downloadnim, packageparser, tools, nimscriptexecutor, packagemetadatafile,
   displaymessages, packageinstaller, reversedeps, developfile, urls
 
-proc debugSATResult*(options: Options) =
+proc debugSATResult*(options: Options, calledFrom: string) =
   # return
   let satResult = options.satResult
   let color = "\e[32m"
   let reset = "\e[0m"
   echo "=== DEBUG SAT RESULT ==="
-  echo "Called from: ", getStackTrace()[^2]
+  echo "Called from: ", calledFrom
   echo "--------------------------------"
   echo color, "Pass: ", reset, satResult.pass
   if satResult.nimResolved.pkg.isSome:
@@ -93,7 +93,8 @@ proc getPkgInfoFromSolution(satResult: SATResult, pv: PkgTuple, options: Options
     if pv.isNim and pkg.basicInfo.name.isNim and pkg.basicInfo.version.withinRange(pv.ver): return pkg 
     if nameMatches(pkg, pv, options) and pkg.basicInfo.version.withinRange(pv.ver):
       return pkg
-  options.debugSATResult()
+  writeStackTrace()
+  options.debugSATResult("getPkgInfoFromSolution")
   raise newNimbleError[NimbleError]("Package not found in solution: " & $pv)
 
 proc getPkgInfoFromSolved*(satResult: SATResult, solvedPkg: SolvedPackage, options: Options): PackageInfo =
@@ -104,8 +105,8 @@ proc getPkgInfoFromSolved*(satResult: SATResult, solvedPkg: SolvedPackage, optio
     #For the pkg list we need to check the version as there may be multiple versions of the same package
     if nameMatches(pkg, solvedPkg.pkgName, options) and pkg.basicInfo.version == solvedPkg.version:
       return pkg
-  
-  options.debugSATResult()
+  writeStackTrace()
+  options.debugSATResult("getPkgInfoFromSolved")
   raise newNimbleError[NimbleError]("Package not found in solution: " & $solvedPkg.pkgName & " " & $solvedPkg.version)
 
 proc displaySatisfiedMsg*(solvedPkgs: seq[SolvedPackage], pkgToInstall: seq[(string, Version)], options: Options) =
@@ -136,9 +137,13 @@ proc enableFeatures*(rootPackage: var PackageInfo, options: var Options) =
     appendGloballyActiveFeatures(pkgName[0], activeFeatures)
   
   #If root is a development package, we need to activate it as well:
-  if rootPackage.isDevelopment(options) and "dev" in rootPackage.features:
-    rootPackage.requires &= rootPackage.features["dev"]
-    appendGloballyActiveFeatures(rootPackage.basicInfo.name, @["dev"])
+  if rootPackage.isTopLevel(options) and ("dev" in rootPackage.features or "patch" in rootPackage.features):
+    if "dev" in rootPackage.features:
+      rootPackage.requires &= rootPackage.features["dev"]
+      appendGloballyActiveFeatures(rootPackage.basicInfo.name, @["dev"])
+    if "patch" in rootPackage.features:
+      rootPackage.requires &= rootPackage.features["patch"]
+      appendGloballyActiveFeatures(rootPackage.basicInfo.name, @["patch"])
 
 proc isSystemNim*(resolvedNim: NimResolved, options: Options): bool =
   if resolvedNim.pkg.isSome:
@@ -482,7 +487,7 @@ proc isInDevelopMode*(pkgInfo: PackageInfo, options: Options): bool =
 
 proc addReverseDeps*(satResult: SATResult, options: Options) = 
   for solvedPkg in satResult.solvedPkgs:
-    if solvedPkg.pkgName.isNim: continue 
+    if solvedPkg.pkgName.isNim or solvedPkg.pkgName.isFileURL: continue #Dont add fileUrl to reverse deps.
     var reverseDepPkg = satResult.getPkgInfoFromSolved(solvedPkg, options)
     # Check if THIS package (the one that depends on others) is a development package
     if reverseDepPkg.isInDevelopMode(options):
@@ -491,7 +496,9 @@ proc addReverseDeps*(satResult: SATResult, options: Options) =
     for dep in solvedPkg.deps:
       if dep.pkgName.isNim: continue 
       try:
-        let depPkg = satResult.getPkgInfoFromSolved(dep, options)      
+        if dep.pkgName.isFileURL:
+          continue
+        let depPkg = satResult.getPkgInfoFromSolved(dep, options)              
         addRevDep(options.nimbleData, depPkg.basicInfo, reverseDepPkg)
       except CatchableError:
         # Skip packages that can't be found (e.g., installed during hook execution)
@@ -849,6 +856,7 @@ proc getVersionRangeFoPkgToInstall(satResult: SATResult, name: string, ver: Vers
   return ver.toVersionRange()
  
 proc installPkgs*(satResult: var SATResult, options: Options) =
+  # options.debugSATResult("installPkgs")
   #At this point the packages are already downloaded. 
   #We still need to install them aka copy them from the cache to the nimbleDir + run preInstall and postInstall scripts
   let isInRootDir = options.startDir == satResult.rootPackage.myPath.parentDir
@@ -917,19 +925,26 @@ proc installPkgs*(satResult: var SATResult, options: Options) =
         #Instead of redownload the actual version of the package here. Not important as this only happens per 
         #package once across all nimble projects (even in local mode)
         #But it would still be needed for the lock file case, although we could constraint it. 
-        discard downloadFromDownloadInfo(dlInfo, options)
+        if pv.name.isFileURL:
+          downloadDir = dlInfo.url.extractFilePathFromURL()
+        else:
+          discard downloadFromDownloadInfo(dlInfo, options)
         # dlInfo.downloadDir = downloadPkgResult.dir 
       assert dirExists(downloadDir)
-      #TODO this : PackageInfoneeds to be improved as we are redonwloading certain packages
-      # Check if package already exists before installing
-      let tempPkgInfo = getPkgInfo(downloadDir, options)
-      let oldPkg = tempPkgInfo.packageExists(options)
-      installedPkgInfo = installFromDirDownloadInfo(downloadDir, dlInfo.url, pv, options).toRequiresInfo(options)     
-      wasNewlyInstalled = oldPkg.isNone
-      if installedPkgInfo.metadata.url == "" and pv.name.isUrl:
-        installedPkgInfo.metadata.url = pv.name
+      if pv.name.isFileURL:
+        # echo "*** GETTING PACKAGE FROM FILE URL: ", dlInfo.url
+        installedPkgInfo = getPackageFromFileUrl(dlInfo.url, options).toRequiresInfo(options)
+      else:
+        #TODO this : PackageInfoneeds to be improved as we are redonwloading certain packages
+        # Check if package already exists before installing
+        let tempPkgInfo = getPkgInfo(downloadDir, options)
+        let oldPkg = tempPkgInfo.packageExists(options)
+        installedPkgInfo = installFromDirDownloadInfo(downloadDir, dlInfo.url, pv, options).toRequiresInfo(options)     
+        wasNewlyInstalled = oldPkg.isNone
+        if installedPkgInfo.metadata.url == "" and pv.name.isUrl:
+          installedPkgInfo.metadata.url = pv.name
 
-    satResult.pkgs.incl(installedPkgInfo)
+    satResult.pkgs.incl(installedPkgInfo)    
     installedPkgs.incl(installedPkgInfo)
     if wasNewlyInstalled:
       newlyInstalledPkgs.incl(installedPkgInfo)
