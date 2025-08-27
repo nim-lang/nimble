@@ -1005,8 +1005,8 @@ proc lockFileExists*(options: Options, dir: string): bool =
   return options.lockFile(dir).fileExists
 
 proc isTopLevel*(pkg: PackageInfo, options: Options): bool =
-  ### Returns true if the package is a development package. 
-  ### A development package is a root package that is not installed.
+  ### Returns true if the package is a top level package. 
+  ### A top level package is a root package that is not installed.
   not pkg.myPath.parentDir.startsWith(options.getPkgsDir())
 
 proc isLegacy*(options: Options): bool =

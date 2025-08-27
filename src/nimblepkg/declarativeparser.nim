@@ -112,9 +112,10 @@ proc validateFileUrlRequires(nfl: var NimbleFileInfo, n: PNode, conf: ConfigRef,
           let requireStr = ch.strVal
           if requireStr.isFileURL and not isAllowedToHaveFileUrlRequires:            
             let errorLine = &"{nfl.nimbleFile}({n.info.line}, {n.info.col}) 'file://' requires are only allowed in top level requires or requires opened from a file:// require"
-            echo "Allowed to have file:// requires: ", isAllowedToHaveFileUrlRequires
-            echo "Package paths: ", pkgPaths
-            echo "Nimble file: ", nfl.nimbleFile
+            # echo "Allowed to have file:// requires: ", isAllowedToHaveFileUrlRequires
+            # echo "Package paths: ", pkgPaths
+            # echo "Nimble file: ", nfl.nimbleFile
+            # writeStackTrace()
             raise nimbleError(errorLine)
     else:
       for child in n:

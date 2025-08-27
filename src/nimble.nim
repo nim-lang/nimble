@@ -2597,6 +2597,11 @@ proc loadFilePathPkgs*(entryPkg: PackageInfo, options: var Options) =
       let pkg = getPkgInfoFromDirWithDeclarativeParser(path, options)
       pkg.loadFilePathPkgs(options)
 
+proc loadFilePathPkgs(options: var Options) =
+  options.isFilePathDiscovering = true
+  options.satResult.rootPackage.loadFilePathPkgs(options)
+  options.isFilePathDiscovering = false
+
 proc solvePkgs(rootPackage: PackageInfo, options: var Options) =
   options.satResult.rootPackage = rootPackage
   options.satResult.rootPackage.requires &= options.extraRequires
@@ -2608,9 +2613,7 @@ proc solvePkgs(rootPackage: PackageInfo, options: var Options) =
   if options.action.typ == actionLock:
     for task in rootPackage.taskRequires.keys:
       options.satResult.rootPackage.requires &= rootPackage.taskRequires[task]
-  options.isFilePathDiscovering = true
-  options.satResult.rootPackage.loadFilePathPkgs(options)
-  options.isFilePathDiscovering = false
+  loadFilePathPkgs(options)
   var pkgList = initPkgList(options.satResult.rootPackage, options)
   options.satResult.rootPackage.enableFeatures(options)
   # echo "BEFORE FIRST PASS"
@@ -2664,7 +2667,10 @@ proc runVNext*(options: var Options) =
   let thereIsNimbleFile = findNimbleFile(getCurrentDir(), error = false, options) != ""
   if thereIsNimbleFile:
     options.satResult = initSATResult(satNimSelection)
+    options.isFilePathDiscovering = true
+    #we need to skip validation for root
     var rootPackage = getPkgInfoFromDirWithDeclarativeParser(getCurrentDir(), options)
+    options.isFilePathDiscovering = false
     if options.action.typ == actionInstall:
       rootPackage.requires.add(options.action.packages)
     solvePkgs(rootPackage, options)
