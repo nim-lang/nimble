@@ -2113,7 +2113,11 @@ proc lock(options: var Options) =
       if solvedPkg.pkgName.isNim and not shouldAddNim: continue
       
       # Get the PackageInfo for this solved package
-      let pkgInfo = options.satResult.getPkgInfoFromSolved(solvedPkg, options)
+      let pkgInfo = 
+        if solvedPkg.pkgName.isFileURL:
+          getPkgInfoFromDirWithDeclarativeParser(solvedPkg.pkgName.extractFilePathFromURL(), options)
+        else:
+          options.satResult.getPkgInfoFromSolved(solvedPkg, options)
       var vcsRevision = pkgInfo.metaData.vcsRevision
       
       # For develop mode dependencies, ensure VCS revision is set from working copy
