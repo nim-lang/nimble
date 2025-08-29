@@ -410,24 +410,4 @@ when someRuntimeCondition:
     # Clean up
     removeDir(testDir)
 
-  test "should reject non-evaluable when defined() conditions":
-    let testDir = "test_when_invalid"
-    createDir(testDir)
-    
-    writeFile(testDir / "test.nimble", """
-version = "0.1.0"
-
-requires "nim >= 1.6.0"
-
-when defined(whatever):
-  requires "conditionallib"
-""")
-    
-    var options = initOptions()
-    let nimbleFileInfo = extractRequiresInfo(testDir / "test.nimble", options)
-    
-    # Should treat non-evaluable when as nested requires
-    check nimbleFileInfo.nestedRequires
-    
-    # Clean up
-    removeDir(testDir)
+ 

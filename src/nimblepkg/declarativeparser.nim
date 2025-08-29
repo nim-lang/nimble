@@ -10,7 +10,7 @@ from compiler/nimblecmd import getPathVersionChecksum
 import version, packageinfotypes, packageinfo, options, packageparser, cli,
   packagemetadatafile, common
 import sha1hashes, vcstools, urls
-import std/[tables, sequtils, strscans, strformat, os, options]
+import std/[tables, sequtils, strscans, strformat, os, options, strtabs]
 
 type NimbleFileInfo* = object
   nimbleFile*: string
@@ -29,33 +29,33 @@ type NimbleFileInfo* = object
 proc eqIdent(a, b: string): bool {.inline.} =
   cmpIgnoreCase(a, b) == 0 and a[0] == b[0]
 
-proc compileDefines(): Table[string, bool] =
-  result = initTable[string, bool]()
-  result["windows"] = defined(windows)
-  result["posix"] = defined(posix)
-  result["linux"] = defined(linux)
-  result["android"] = defined(android)
-  result["macosx"] = defined(macosx)
-  result["freebsd"] = defined(freebsd)
-  result["openbsd"] = defined(openbsd)
-  result["netbsd"] = defined(netbsd)
-  result["solaris"] = defined(solaris)
-  result["amd64"] = defined(amd64)
-  result["x86_64"] = defined(x86_64)
-  result["i386"] = defined(i386)
-  result["arm"] = defined(arm)
-  result["arm64"] = defined(arm64)
-  result["mips"] = defined(mips)
-  result["powerpc"] = defined(powerpc)
+proc compileDefines(): StringTableRef =
+  result = newStringTable(modeCaseSensitive)
+  result["windows"] = $defined(windows)
+  result["posix"] = $defined(posix)
+  result["linux"] = $defined(linux)
+  result["android"] = $defined(android)
+  result["macosx"] = $defined(macosx)
+  result["freebsd"] = $defined(freebsd)
+  result["openbsd"] = $defined(openbsd)
+  result["netbsd"] = $defined(netbsd)
+  result["solaris"] = $defined(solaris)
+  result["amd64"] = $defined(amd64)
+  result["x86_64"] = $defined(x86_64)
+  result["i386"] = $defined(i386)
+  result["arm"] = $defined(arm)
+  result["arm64"] = $defined(arm64)
+  result["mips"] = $defined(mips)
+  result["powerpc"] = $defined(powerpc)
   # Common additional switches used in nimble files
-  result["js"] = defined(js)
-  result["emscripten"] = defined(emscripten)
-  result["wasm32"] = defined(wasm32)
-  result["mingw"] = defined(mingw)
+  result["js"] = $defined(js)
+  result["emscripten"] = $defined(emscripten)
+  result["wasm32"] = $defined(wasm32)
+  result["mingw"] = $defined(mingw)
 
-var definedSymbols: Table[string, bool] = compileDefines()
+var definedSymbols: StringTableRef = compileDefines()
 
-proc getBasicDefines*(): Table[string, bool] =
+proc getBasicDefines*(): StringTableRef =
   return definedSymbols
 
 proc extractRequiresInfo*(nimbleFile: string, options: Options): NimbleFileInfo
@@ -67,11 +67,11 @@ proc testEvaluateCondition*(nimbleFile: string): bool =
   return not nimbleInfo.nestedRequires and not nimbleInfo.hasErrors
 
 proc setBasicDefines*(sym: string, value: bool) {.inline.} =
-  definedSymbols[sym] = value
+  definedSymbols[sym] = $value
 
 proc evalBasicDefines(sym: string; conf: ConfigRef; n: PNode): Option[bool] =
   if sym in definedSymbols:
-    return some(definedSymbols[sym])
+    return some(definedSymbols[sym] == "true")
   else:
     localError(conf, n.info, "undefined symbol: " & sym)
     return none(bool)
