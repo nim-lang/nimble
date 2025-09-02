@@ -840,24 +840,20 @@ proc areAllReqAny(dep: SolvedPackage): bool =
   true
 
 proc getPackageNameFromUrl*(pv: PkgTuple, pkgVersionTable: Table[string, PackageVersions], options: Options): string =
+  var candidates: seq[string] = @[]
   for pkgName, pkgVersions in pkgVersionTable:
     for pkgVersion in pkgVersions.versions:
-      # if pkgName == "json_serialization" or pkgName == "https://github.com/status-im/nim-json-serialization":
-      #   echo "*** CHECKING URL: ", pkgVersion.url, " against ", url, " for package ", pkgName, " version ", $pkgVersion.version
       if pkgVersion.url == pv.name:
-        return pkgName
-  # echo "*** NO MATCH FOUND FOR URL: ", pv.name
-  # echo "*** PKG VERSION TABLE: ", pkgVersionTable.keys.toSeq.join(", ")
-  # for pkgName, pkgVersions in pkgVersionTable:
-    # echo "*** PKG VERSIONS: ", pkgName, " ", pkgVersions.versions.mapIt(it.url).join(", ")
-
-  # lets retry 
-  # echo "*** RETRYING DOWNLOAD FOR URL: ", pv.name, " ", $pv.ver #Not actually a download, but a lookup in the filesystem
-  # let (downloadRes, downloadMeth) = downloadPkgFromUrl(pv, options)
-  # let pkgInfo = getPkgInfoFromDirWithDeclarativeParser(downloadRes.dir, options)
-  # echo "*** PKG INFO: ", pkgInfo.basicInfo.name, " ", pkgInfo.basicInfo.version, " ", pkgInfo.metadata.url
-  # return pkgInfo.basicInfo.name.toLower
-  # return ""
+        candidates.add(pkgName)
+  
+  # Prefer package names that are not URLs
+  for candidate in candidates:
+    if not candidate.isUrl:
+      return candidate
+  
+  # If no non-URL candidate, return the first one
+  if candidates.len > 0:
+    return candidates[0]
 
 proc getUrlFromPkgName*(pkgName: string, pkgVersionTable: Table[string, PackageVersions], options: Options): string =
   for pkgTableName, pkgVersions in pkgVersionTable:
