@@ -424,4 +424,13 @@ suite "issues":
         removeDir("nimbledir spaces")
       else:
         discard
-    
+  
+  test "issue #1454":
+    removeDir("nimbleDir")
+    cd "issue1454":
+      let (_, exitCode) = execNimble("setup")
+      check exitCode == QuitSuccess
+      #nimble.path contains css3selectors
+      let nimblePath = readFile("nimble.paths")
+      check nimblePath.contains("css3selectors")
+     
