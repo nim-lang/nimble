@@ -355,6 +355,15 @@ proc generateUnsatisfiableMessage(g: var DepGraph, f: Form, s: Solution): string
   else:
     return "Dependency resolution failed due to the following conflicts:\n" & conflicts.join("\n")
 
+proc safeSatisfiable(f: Form, s: var Solution): bool =
+  try:
+    if satisfiable(f.f, s):
+      return true
+    else:
+      return false
+  except SatOverflowError:
+    return false
+
 proc findMinimalFailingSet*(g: var DepGraph): tuple[failingSet: seq[PkgTuple], output: string] =
   var minimalFailingSet: seq[PkgTuple] = @[]
   let rootNode = g.nodes[0]
@@ -369,7 +378,7 @@ proc findMinimalFailingSet*(g: var DepGraph): tuple[failingSet: seq[PkgTuple], o
     tempGraph.reqs[rootVersion.req].deps = reducedDeps
     let tempForm = toFormular(tempGraph)
     var tempSolution = createSolution(tempForm.idgen)
-    if not satisfiable(tempForm.f, tempSolution):
+    if not safeSatisfiable(tempForm, tempSolution):
       minimalFailingSet.add(allDeps[i])
   
   # Generate error message
@@ -412,7 +421,7 @@ proc solve*(g: var DepGraph; f: Form, packages: var Table[string, Version], outp
   let m = f.idgen
   var s = createSolution(m)
   
-  if satisfiable(f.f, s):
+  if safeSatisfiable(f, s):
     # output.add analyzeVersionSelection(g, f, s)
     for n in mitems g.nodes:
       if n.isRoot: n.active = true
@@ -656,7 +665,7 @@ proc getPackageMinimalVersionsFromRepo*(repoDir: string, pkg: PkgTuple, version:
         let tagVersion = newVersion($ver)
 
         if not tagVersion.withinRange(pkg[1]):
-          displayInfo(&"Ignoring {name}:{tagVersion} because out of range {pkg[1]}")
+          displayInfo(&"Ignoring {name}:{tagVersion} because out of range {pkg[1]}", LowPriority)
           continue
 
         doCheckout(downloadMethod, tempDir, tag, options)

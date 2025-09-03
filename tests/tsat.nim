@@ -190,8 +190,10 @@ suite "SAT solver":
     var graph = pkgVersionTable.toDepGraph()
     let form = graph.toFormular()
     var packages = initTable[string, Version]()
-    var output = ""
+    var output = ""    
     check solve(graph, form, packages, output)
+    if packages.len == 0:
+      echo output
     check packages.len > 0
     
   test "should be able to solve all nimble packages":
