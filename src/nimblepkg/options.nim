@@ -840,7 +840,7 @@ proc initOptions*(): Options =
     noColor: not isatty(stdout),
     startDir: getCurrentDir(),
     nimBinariesDir: getHomeDir() / ".nimble" / "nimbinaries", 
-    maxTaggedVersions: 4,
+    maxTaggedVersions: 50,
     useSatSolver: true,
     useDeclarativeParser: false,
     legacy: false, #default to legacy code path for nimble < 1.0.0

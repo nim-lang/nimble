@@ -2656,7 +2656,7 @@ proc solvePkgs(rootPackage: PackageInfo, options: var Options) =
   options.satResult.pkgs.incl(resolvedNim.pkg.get) #Make sure its in the solution
   nimblesat.addUnique(options.satResult.solvedPkgs, SolvedPackage(pkgName: "nim", version: resolvedNim.version))
   options.satResult.solutionToFullInfo(options)
-  if rootPackage.hasLockFile(options): 
+  if rootPackage.hasLockFile(options) and not options.disableLockFile: 
     options.satResult.solveLockFileDeps(pkgList, options)
 
     
@@ -2668,8 +2668,7 @@ proc runVNext*(options: var Options) =
     setVerbosity(SilentPriority)
     options.verbosity = SilentPriority
   #Install and in consequence builds the packages
-  let thereIsNimbleFile = findNimbleFile(getCurrentDir(), error = false, options) != ""
-  if thereIsNimbleFile:
+  if options.thereIsNimbleFile:
     options.satResult = initSATResult(satNimSelection)
     options.isFilePathDiscovering = true
     #we need to skip validation for root

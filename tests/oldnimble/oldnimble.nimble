@@ -10,4 +10,4 @@ srcDir        = "src"
 # Dependencies
 
 requires "nim >= 2.0.11"
-requires "nimble <= 0.16.2" #We know this nimble version has additional requirements (new nimble use submodules)
+requires "nimble < 0.16.2 & >= 0.10.0" #We know this nimble version has additional requirements (new nimble use submodules)

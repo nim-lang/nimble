@@ -284,6 +284,9 @@ proc getSolvedPkgFromInstalledPkgs*(satResult: SATResult, solvedPkg: SolvedPacka
       return some(pkg)
   return none(PackageInfo)
 
+proc thereIsNimbleFile*(options: Options): bool =
+  return findNimbleFile(getCurrentDir(), error = false, options) != ""
+
 proc solveLockFileDeps*(satResult: var SATResult, pkgList: seq[PackageInfo], options: Options) = 
   let lockFile = options.lockFile(satResult.rootPackage.myPath.parentDir())
   let currentRequires = satResult.rootPackage.requires
@@ -307,7 +310,7 @@ proc solveLockFileDeps*(satResult: var SATResult, pkgList: seq[PackageInfo], opt
         #ignore if nim wasnt present in the lock file as by default we dont save nim in the lock file
         if not existingRequires.anyIt(it[0].isNim):
           continue
-      echo "New requirement detected: ", current.name, " ", current.ver
+      # echo "New requirement detected: ", current.name, " ", current.ver
       shouldSolve = true
       break
 
@@ -327,9 +330,13 @@ proc solveLockFileDeps*(satResult: var SATResult, pkgList: seq[PackageInfo], opt
   #             req.ver = upgradePkg.ver
   #             break
   #         break
+  #Do not re-solve if we are outside the project dir (i.e. installing a package globally)
+  if not thereIsNimbleFile(options):
+    shouldSolve = false
+
   satResult.pkgList = pkgListDecl.toHashSet()
   if shouldSolve:
-    echo "New requirements detected, solving ALL requirements fresh: "
+    # echo "New requirements detected, solving ALL requirements fresh: "
     # Create fresh package list and solve ALL requirements
     satResult.pkgs = solvePackages(
       satResult.rootPackage, 

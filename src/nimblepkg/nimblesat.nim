@@ -355,6 +355,15 @@ proc generateUnsatisfiableMessage(g: var DepGraph, f: Form, s: Solution): string
   else:
     return "Dependency resolution failed due to the following conflicts:\n" & conflicts.join("\n")
 
+proc safeSatisfiable(f: Form, s: var Solution): bool =
+  try:
+    if satisfiable(f.f, s):
+      return true
+    else:
+      return false
+  except SatOverflowError:
+    return false
+
 proc findMinimalFailingSet*(g: var DepGraph): tuple[failingSet: seq[PkgTuple], output: string] =
   var minimalFailingSet: seq[PkgTuple] = @[]
   let rootNode = g.nodes[0]
@@ -369,7 +378,7 @@ proc findMinimalFailingSet*(g: var DepGraph): tuple[failingSet: seq[PkgTuple], o
     tempGraph.reqs[rootVersion.req].deps = reducedDeps
     let tempForm = toFormular(tempGraph)
     var tempSolution = createSolution(tempForm.idgen)
-    if not satisfiable(tempForm.f, tempSolution):
+    if not safeSatisfiable(tempForm, tempSolution):
       minimalFailingSet.add(allDeps[i])
   
   # Generate error message
@@ -412,7 +421,7 @@ proc solve*(g: var DepGraph; f: Form, packages: var Table[string, Version], outp
   let m = f.idgen
   var s = createSolution(m)
   
-  if satisfiable(f.f, s):
+  if safeSatisfiable(f, s):
     # output.add analyzeVersionSelection(g, f, s)
     for n in mitems g.nodes:
       if n.isRoot: n.active = true
@@ -656,7 +665,7 @@ proc getPackageMinimalVersionsFromRepo*(repoDir: string, pkg: PkgTuple, version:
         let tagVersion = newVersion($ver)
 
         if not tagVersion.withinRange(pkg[1]):
-          displayInfo(&"Ignoring {name}:{tagVersion} because out of range {pkg[1]}")
+          displayInfo(&"Ignoring {name}:{tagVersion} because out of range {pkg[1]}", LowPriority)
           continue
 
         doCheckout(downloadMethod, tempDir, tag, options)
@@ -736,33 +745,61 @@ proc processRequirements(versions: var Table[string, PackageVersions], pv: PkgTu
   
   # For special versions, always process them even if we think we have the package
   # This ensures the special version gets downloaded and added to the version table
-  if pv.ver.kind == verSpecial or not hasVersion(versions, pv):
-    var pkgMins = getMinimalFromPreferred(pv, getMinimalPackage, preferredPackages, options)
-    for pkgMin in pkgMins.mitems:
-      let pkgName = pkgMin.name.toLower
-      if pv.ver.kind == verSpecial:
-        pkgMin.version = newVersion $pv.ver
-        
-        # If this is a special version, clear any existing regular versions
-        # to force the SAT solver to use this specific version
-        if versions.hasKey(pkgName):
-          versions[pkgName].versions = @[pkgMin]
-        else:
-          versions[pkgName] = PackageVersions(pkgName: pkgName, versions: @[pkgMin])
-      else:
-        # Don't add regular versions if a special version already exists
-        if hasSpecialVersion(versions, pkgName):
-          continue
-          
-        if not versions.hasKey(pkgName):
-          versions[pkgName] = PackageVersions(pkgName: pkgName, versions: @[pkgMin])
-        else:
-          versions[pkgName].versions.addUnique pkgMin
+  try:
+    if pv.ver.kind == verSpecial or not hasVersion(versions, pv):    
+      var pkgMins = getMinimalFromPreferred(pv, getMinimalPackage, preferredPackages, options)
       
-      for req in pkgMin.requires:
-        processRequirements(versions, req, visited, getMinimalPackage, preferredPackages, options)
-    if pv.name.isUrl and pkgMins.len > 0: #still allow fallback to urls
-      versions[pv.name] = PackageVersions(pkgName: pv.name, versions: pkgMins)
+      # First, validate all requirements for all package versions before adding anything
+      var validPkgMins: seq[PackageMinimalInfo] = @[]
+      for pkgMin in pkgMins:
+        var allRequirementsValid = true
+        # Test if all requirements can be processed without errors
+        for req in pkgMin.requires:
+          try:
+            # Try to get minimal package info for the requirement to validate it exists
+            discard getMinimalFromPreferred(req, getMinimalPackage, preferredPackages, options)
+          except CatchableError:
+            allRequirementsValid = false
+            displayWarning(&"Skipping package {pkgMin.name}@{pkgMin.version} due to invalid dependency: {req.name}", HighPriority)
+            break
+        
+        if allRequirementsValid:
+          validPkgMins.add pkgMin
+      
+      # Only add packages with valid requirements to the versions table
+      for pkgMin in validPkgMins.mitems:
+        let pkgName = pkgMin.name.toLower
+        if pv.ver.kind == verSpecial:
+          pkgMin.version = newVersion $pv.ver
+          
+          # If this is a special version, clear any existing regular versions
+          # to force the SAT solver to use this specific version
+          if versions.hasKey(pkgName):
+            versions[pkgName].versions = @[pkgMin]
+          else:
+            versions[pkgName] = PackageVersions(pkgName: pkgName, versions: @[pkgMin])
+        else:
+          # Don't add regular versions if a special version already exists
+          if hasSpecialVersion(versions, pkgName):
+            continue
+            
+          if not versions.hasKey(pkgName):
+            versions[pkgName] = PackageVersions(pkgName: pkgName, versions: @[pkgMin])
+          else:
+            versions[pkgName].versions.addUnique pkgMin
+        
+        # Now recursively process the requirements (we know they're valid)
+        for req in pkgMin.requires:
+          processRequirements(versions, req, visited, getMinimalPackage, preferredPackages, options)
+      
+      # Only add URL packages if we have valid versions
+      if pv.name.isUrl and validPkgMins.len > 0:
+        versions[pv.name] = PackageVersions(pkgName: pv.name, versions: validPkgMins)
+        
+  except CatchableError as e:
+    # Some old packages may have invalid requirements (i.e repos that doesn't exist anymore)
+    # we need to avoid adding it to the package table as this will cause the solver to fail
+    displayWarning(&"Error processing requirements for {pv.name}: {e.msg}", HighPriority)
 
 
 proc collectAllVersions*(versions: var Table[string, PackageVersions], package: PackageMinimalInfo, options: Options, getMinimalPackage: GetPackageMinimal, preferredPackages: seq[PackageMinimalInfo] = newSeq[PackageMinimalInfo]()) =
