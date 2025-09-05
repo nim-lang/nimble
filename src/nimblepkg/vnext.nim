@@ -289,7 +289,7 @@ proc getSolvedPkgFromInstalledPkgs*(satResult: SATResult, solvedPkg: SolvedPacka
   return none(PackageInfo)
 
 proc thereIsNimbleFile*(options: Options): bool =
-  return findNimbleFile(getCurrentDir(), error = false, options) != ""
+  return findNimbleFile(getCurrentDir(), error = false, options, warn = false) != ""
 
 proc solveLockFileDeps*(satResult: var SATResult, pkgList: seq[PackageInfo], options: Options) = 
   let lockFile = options.lockFile(satResult.rootPackage.myPath.parentDir())
