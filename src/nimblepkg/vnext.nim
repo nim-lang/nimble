@@ -156,7 +156,7 @@ proc solvePackagesWithSystemNimFallback*(
     rootPackage: PackageInfo, 
     pkgList: seq[PackageInfo], 
     options: var Options,
-    resolvedNim: NimResolved): HashSet[PackageInfo] =
+    resolvedNim: Option[NimResolved]): HashSet[PackageInfo] =
   ## Solves packages with system Nim as a hard requirement, falling back to 
   ## solving without it if the first attempt fails due to unsatisfiable dependencies.
   
@@ -167,8 +167,8 @@ proc solvePackagesWithSystemNimFallback*(
   # as a hard requirement. If it fails, we will fallback to 
   # retry without it as a hard requirement. The idea behind it is that a 
   # compatible version of the packages is used for the current nim.
-  if resolvedNim.isSystemNim(options):
-    rootPackageWithSystemNim.requires.add(parseRequires("nim <=" & $resolvedNim.version))
+  if resolvedNim.isSome and resolvedNim.get.isSystemNim(options):
+    rootPackageWithSystemNim.requires.add(parseRequires("nim <=" & $resolvedNim.get.version))
     systemNimPass = true
 
   result = solvePackages(rootPackageWithSystemNim, pkgList, 
@@ -230,8 +230,12 @@ proc resolveNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo], options: v
     # let latestNim = getLatestNimRelease()
     # if latestNim.isSome:
     #   return NimResolved(version: latestNim.get)
+  var resolvedNim: Option[NimResolved]  
+  if systemNimPkg.isSome:
+    resolvedNim = some(NimResolved(pkg: systemNimPkg, version: systemNimPkg.get.basicInfo.version))
+  
   options.satResult.pkgs = solvePackagesWithSystemNimFallback(
-    rootPackage, pkgListDecl, options,  NimResolved(pkg: some(systemNimPkg.get), version: systemNimPkg.get.basicInfo.version))
+      rootPackage, pkgListDecl, options,  resolvedNim)
     
   if options.satResult.solvedPkgs.len == 0:
     displayError(options.satResult.output)
@@ -480,7 +484,7 @@ proc solvePkgsWithVmParserAllowingFallback*(rootPackage: PackageInfo, resolvedNi
   options.satResult.pkgList = pkgList.toHashSet()
   
   options.satResult.pkgs = solvePackagesWithSystemNimFallback(
-    rootPackage, pkgList, options, resolvedNim)
+    rootPackage, pkgList, options, some(resolvedNim))
   
   if options.satResult.solvedPkgs.len == 0:
     displayError(options.satResult.output)
