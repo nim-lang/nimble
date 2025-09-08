@@ -820,18 +820,25 @@ proc createBinSymlink(pkgInfo: PackageInfo, options: Options) =
       #   display("Warning:", ("Binary '$1' was already installed from source" &
       #                       " directory. Will be overwritten.") % bin, Warning,
       #           MediumPriority)
-      
       if not pkgInfo.isLink:
         createDir((pkgDestDir / binDest).parentDir())
       let symlinkFilename = options.getBinDir() / bin.extractFilename
       binariesInstalled.incl(
         setupBinSymlink(symlinkDest, symlinkFilename, options))
 
+
+proc createBinSymlinkForNim(pkgInfo: PackageInfo, options: Options) =
+  let binDir = options.getBinDir()
+  createDir(binDir)
+  let symlinkDest =  pkgInfo.getNimbleFileDir() / "bin" / "nim".addFileExt(ExeExt)
+  let symlinkFilename = options.getBinDir() / "nim"
+  discard setupBinSymlink(symlinkDest, symlinkFilename, options)
+
 proc solutionToFullInfo*(satResult: SATResult, options: var Options) =
   # for pkg in satResult.pkgs:
   #   if pkg.infoKind != pikFull:   
   #     satResult.pkgs.incl(getPkgInfo(pkg.getNimbleFileDir, options))
-  if satResult.rootPackage.infoKind != pikFull: #Likely only needed for the root package
+  if satResult.rootPackage.infoKind != pikFull and not satResult.rootPackage.basicInfo.name.isNim: 
     satResult.rootPackage = getPkgInfo(satResult.rootPackage.getNimbleFileDir, options).toRequiresInfo(options)
     satResult.rootPackage.enableFeatures(options)
 
@@ -908,11 +915,16 @@ proc installPkgs*(satResult: var SATResult, options: Options) =
         installedPkgInfo = satResult.rootPackage
         wasNewlyInstalled = true
       else:
-        # Check if package already exists before installing
-        let tempPkgInfo = getPkgInfo(satResult.rootPackage.getNimbleFileDir(), options)
-        let oldPkg = tempPkgInfo.packageExists(options)
-        installedPkgInfo = installFromDirDownloadInfo(satResult.rootPackage.getNimbleFileDir(), satResult.rootPackage.metaData.url, pv, options).toRequiresInfo(options)
-        wasNewlyInstalled = oldPkg.isNone
+        if satResult.rootPackage.basicInfo.name.isNim:          
+          satResult.rootPackage = satResult.nimResolved.pkg.get          
+          createBinSymlinkForNim(satResult.rootPackage, options)       
+        else:
+          # Check if package already exists before installing
+          let tempPkgInfo = getPkgInfo(satResult.rootPackage.getNimbleFileDir(), options)
+          let oldPkg = tempPkgInfo.packageExists(options)
+          installedPkgInfo = installFromDirDownloadInfo(satResult.rootPackage.getNimbleFileDir(), satResult.rootPackage.metaData.url, pv, options).toRequiresInfo(options)
+          wasNewlyInstalled = oldPkg.isNone
+        
     else:      
       # echo "NORMALIZING REQUIREMENT: ", pv.name
       # echo "ROOT PACKAGE: ", satResult.rootPackage.basicInfo.name, " ", $satResult.rootPackage.basicInfo.version, " ", satResult.rootPackage.metaData.url
