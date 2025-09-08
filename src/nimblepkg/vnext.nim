@@ -12,7 +12,7 @@ After we resolve nim, we try to resolve the dependencies for a root package. Roo
   - Once we have the graph solved. We can proceed with the action.
 
 ]#
-import std/[sequtils, sets, options, os, strutils, tables, strformat]
+import std/[sequtils, sets, options, os, strutils, tables, strformat, strscans]
 import nimblesat, packageinfotypes, options, version, declarativeparser, packageinfo, common,
   nimenv, lockfile, cli, downloadnim, packageparser, tools, nimscriptexecutor, packagemetadatafile,
   displaymessages, packageinstaller, reversedeps, developfile, urls
@@ -124,8 +124,26 @@ proc getNimFromSystem*(options: Options): Option[PackageInfo] =
     pnim = findExe(options.nimBin.get.path)
   else:
     pnim = findExe("nim")
-  if pnim != "": 
-    let dir = pnim.parentDir.parentDir
+  if pnim != "":
+    var effectivePnim = pnim
+    # Handle Windows .cmd shim by checking for nearby nim bash script
+    when defined(windows):
+      if pnim.toLowerAscii().endsWith(".cmd"):
+        let nearbyNim = pnim.changeFileExt("") # Remove .cmd extension
+        if fileExists(nearbyNim):
+          try:
+            # Parse the bash script to extract the target path
+            let scriptContent = readFile(nearbyNim).strip()
+            # Extract path from: "`dirname "$0"`\..\nimbinaries\nim-2.2.4\bin\nim.exe" "$@"
+            var ignore, pathPath: string
+            if scanf(scriptContent, """$*\$*"""", ignore, pathPath):
+              var resolvedPath = pnim.parentDir / pathPath.replace("\\", $DirSep)
+              normalizePath(resolvedPath)
+              if fileExists(resolvedPath):
+                effectivePnim = resolvedPath
+          except CatchableError:
+            discard # Fall back to original pnim
+    let dir = effectivePnim.parentDir.parentDir
     return some getPkgInfoFromDirWithDeclarativeParser(dir, options)
   return none(PackageInfo)
 
