@@ -904,7 +904,7 @@ proc installPkgs*(satResult: var SATResult, options: Options) =
   #We still need to install them aka copy them from the cache to the nimbleDir + run preInstall and postInstall scripts
   let isInRootDir = options.startDir == satResult.rootPackage.myPath.parentDir
   var pkgsToInstall = satResult.pkgsToInstall
-  if options.useSystemNim: #Dont install Nim if we are using the system nim (TODO likely we need to dont install it neither if we have a binary set)
+  if options.useSystemNim:
     pkgsToInstall = pkgsToInstall.filterIt(not it[0].isNim)
    #If we are not in the root folder, means user is installing a package globally so we need to install root
   var installedPkgs = initHashSet[PackageInfo]()
@@ -1010,12 +1010,14 @@ proc installPkgs*(satResult: var SATResult, options: Options) =
   
   # For build action, only build the root package
   # For install action, only build newly installed packages
-  let pkgsToBuild = if options.action.typ == actionBuild:
+  var pkgsToBuild = if options.action.typ == actionBuild:
     installedPkgs.toSeq.filterIt(it.isRoot(options.satResult))
   else:
     # Only build packages that were newly installed in this session
     newlyInstalledPkgs.toSeq
-  
+  if options.action.typ == actionInstall and not options.thereIsNimbleFile:
+    pkgsToBuild.add(satResult.rootPackage)
+
   for pkgToBuild in pkgsToBuild:
     if pkgToBuild.bin.len == 0:
       if options.action.typ == actionBuild:
