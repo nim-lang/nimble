@@ -490,7 +490,10 @@ proc resolveAndConfigureNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo]
     if nimInstalled.isSome:
       resolvedNim.pkg = some getPkgInfoFromDirWithDeclarativeParser(nimInstalled.get.dir, options)
       resolvedNim.version = nimInstalled.get.ver
-    else:
+    elif rootPackage.basicInfo.name.isNim: #special version/not in releases nim binaries
+      resolvedNim.pkg = some rootPackage
+      resolvedNim.version = rootPackage.basicInfo.version
+    else:      
       raise nimbleError("Failed to install nim")
 
   return resolvedNim
