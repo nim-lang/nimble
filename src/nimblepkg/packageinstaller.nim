@@ -2,6 +2,9 @@
 # BSD License. Look at license.txt for more info.
 import os, strutils
 
+when defined(windows):
+  import strformat
+
 # Local imports
 import cli, options
 
