@@ -17,6 +17,9 @@ import nimblesat, packageinfotypes, options, version, declarativeparser, package
   nimenv, lockfile, cli, downloadnim, packageparser, tools, nimscriptexecutor, packagemetadatafile,
   displaymessages, packageinstaller, reversedeps, developfile, urls
 
+when defined(windows):
+  import std/strscans
+
 proc debugSATResult*(options: Options, calledFrom: string) =
   # return
   let satResult = options.satResult
@@ -124,8 +127,24 @@ proc getNimFromSystem*(options: Options): Option[PackageInfo] =
     pnim = findExe(options.nimBin.get.path)
   else:
     pnim = findExe("nim")
-  if pnim != "": 
-    let dir = pnim.parentDir.parentDir
+  if pnim != "":
+    var effectivePnim = pnim
+    when defined(windows):
+      if pnim.toLowerAscii().endsWith(".cmd"):
+        let nearbyNim = pnim.changeFileExt("") # Remove .cmd extension
+        if fileExists(nearbyNim):
+          try:
+            let scriptContent = readFile(nearbyNim).strip()
+            # Extract path from: "`dirname "$0"`\..\nimbinaries\nim-2.2.4\bin\nim.exe" "$@"
+            var ignore, pathPath: string
+            if scanf(scriptContent, """$*\$*"""", ignore, pathPath):
+              var resolvedPath = pnim.parentDir / pathPath.replace("\\", $DirSep)
+              normalizePath(resolvedPath)
+              if fileExists(resolvedPath):
+                effectivePnim = resolvedPath
+          except CatchableError:
+            discard # Fall back to original pnim
+    let dir = effectivePnim.parentDir.parentDir
     return some getPkgInfoFromDirWithDeclarativeParser(dir, options)
   return none(PackageInfo)
 
@@ -471,7 +490,10 @@ proc resolveAndConfigureNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo]
     if nimInstalled.isSome:
       resolvedNim.pkg = some getPkgInfoFromDirWithDeclarativeParser(nimInstalled.get.dir, options)
       resolvedNim.version = nimInstalled.get.ver
-    else:
+    elif rootPackage.basicInfo.name.isNim: #special version/not in releases nim binaries
+      resolvedNim.pkg = some rootPackage
+      resolvedNim.version = rootPackage.basicInfo.version
+    else:      
       raise nimbleError("Failed to install nim")
 
   return resolvedNim
@@ -820,18 +842,25 @@ proc createBinSymlink(pkgInfo: PackageInfo, options: Options) =
       #   display("Warning:", ("Binary '$1' was already installed from source" &
       #                       " directory. Will be overwritten.") % bin, Warning,
       #           MediumPriority)
-      
       if not pkgInfo.isLink:
         createDir((pkgDestDir / binDest).parentDir())
       let symlinkFilename = options.getBinDir() / bin.extractFilename
       binariesInstalled.incl(
         setupBinSymlink(symlinkDest, symlinkFilename, options))
 
+
+proc createBinSymlinkForNim(pkgInfo: PackageInfo, options: Options) =
+  let binDir = options.getBinDir()
+  createDir(binDir)
+  let symlinkDest =  pkgInfo.getNimbleFileDir() / "bin" / "nim".addFileExt(ExeExt)
+  let symlinkFilename = options.getBinDir() / "nim"
+  discard setupBinSymlink(symlinkDest, symlinkFilename, options)
+
 proc solutionToFullInfo*(satResult: SATResult, options: var Options) =
   # for pkg in satResult.pkgs:
   #   if pkg.infoKind != pikFull:   
   #     satResult.pkgs.incl(getPkgInfo(pkg.getNimbleFileDir, options))
-  if satResult.rootPackage.infoKind != pikFull: #Likely only needed for the root package
+  if satResult.rootPackage.infoKind != pikFull and not satResult.rootPackage.basicInfo.name.isNim: 
     satResult.rootPackage = getPkgInfo(satResult.rootPackage.getNimbleFileDir, options).toRequiresInfo(options)
     satResult.rootPackage.enableFeatures(options)
 
@@ -875,7 +904,7 @@ proc installPkgs*(satResult: var SATResult, options: Options) =
   #We still need to install them aka copy them from the cache to the nimbleDir + run preInstall and postInstall scripts
   let isInRootDir = options.startDir == satResult.rootPackage.myPath.parentDir
   var pkgsToInstall = satResult.pkgsToInstall
-  if options.useSystemNim: #Dont install Nim if we are using the system nim (TODO likely we need to dont install it neither if we have a binary set)
+  if options.useSystemNim:
     pkgsToInstall = pkgsToInstall.filterIt(not it[0].isNim)
    #If we are not in the root folder, means user is installing a package globally so we need to install root
   var installedPkgs = initHashSet[PackageInfo]()
@@ -908,11 +937,16 @@ proc installPkgs*(satResult: var SATResult, options: Options) =
         installedPkgInfo = satResult.rootPackage
         wasNewlyInstalled = true
       else:
-        # Check if package already exists before installing
-        let tempPkgInfo = getPkgInfo(satResult.rootPackage.getNimbleFileDir(), options)
-        let oldPkg = tempPkgInfo.packageExists(options)
-        installedPkgInfo = installFromDirDownloadInfo(satResult.rootPackage.getNimbleFileDir(), satResult.rootPackage.metaData.url, pv, options).toRequiresInfo(options)
-        wasNewlyInstalled = oldPkg.isNone
+        if satResult.rootPackage.basicInfo.name.isNim:          
+          satResult.rootPackage = satResult.nimResolved.pkg.get          
+          createBinSymlinkForNim(satResult.rootPackage, options)       
+        else:
+          # Check if package already exists before installing
+          let tempPkgInfo = getPkgInfo(satResult.rootPackage.getNimbleFileDir(), options)
+          let oldPkg = tempPkgInfo.packageExists(options)
+          installedPkgInfo = installFromDirDownloadInfo(satResult.rootPackage.getNimbleFileDir(), satResult.rootPackage.metaData.url, pv, options).toRequiresInfo(options)
+          wasNewlyInstalled = oldPkg.isNone
+        
     else:      
       # echo "NORMALIZING REQUIREMENT: ", pv.name
       # echo "ROOT PACKAGE: ", satResult.rootPackage.basicInfo.name, " ", $satResult.rootPackage.basicInfo.version, " ", satResult.rootPackage.metaData.url
@@ -962,7 +996,6 @@ proc installPkgs*(satResult: var SATResult, options: Options) =
     installedPkgs.incl(installedPkgInfo)
     if wasNewlyInstalled:
       newlyInstalledPkgs.incl(installedPkgInfo)
-  
   #we need to activate the features for the recently installed package
   #so they are activated in the build step
   options.satResult.activateSolvedPkgFeatures(options)
@@ -976,12 +1009,20 @@ proc installPkgs*(satResult: var SATResult, options: Options) =
   
   # For build action, only build the root package
   # For install action, only build newly installed packages
-  let pkgsToBuild = if options.action.typ == actionBuild:
+  var pkgsToBuild = if options.action.typ == actionBuild:
     installedPkgs.toSeq.filterIt(it.isRoot(options.satResult))
   else:
     # Only build packages that were newly installed in this session
     newlyInstalledPkgs.toSeq
-  
+  if options.action.typ == actionInstall and not options.thereIsNimbleFile:
+    if not satResult.rootPackage.basicInfo.name.isNim:
+      #RootPackage shouldnt be in the pkgcache for global installs. We need to move it to the 
+      #install dir.
+      let downloadDir = satResult.rootPackage.myPath.parentDir()
+      let pv = (name: satResult.rootPackage.basicInfo.name, ver: satResult.rootPackage.basicInfo.version.toVersionRange())
+      satResult.rootPackage = installFromDirDownloadInfo(downloadDir, satResult.rootPackage.metaData.url, pv, options).toRequiresInfo(options)    
+    pkgsToBuild.add(satResult.rootPackage)
+
   for pkgToBuild in pkgsToBuild:
     if pkgToBuild.bin.len == 0:
       if options.action.typ == actionBuild:
