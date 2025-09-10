@@ -1,6 +1,6 @@
 # Copyright (C) Dominik Picheta. All rights reserved.
 # BSD License. Look at license.txt for more info.
-import os, strutils, strformat
+import os, strutils
 
 # Local imports
 import cli, options
