@@ -1,6 +1,6 @@
 # Copyright (C) Dominik Picheta. All rights reserved.
 # BSD License. Look at license.txt for more info.
-import os, strutils
+import os, strutils, strformat
 
 # Local imports
 import cli, options
@@ -60,6 +60,12 @@ proc setupBinSymlink*(symlinkDest, symlinkFilename: string,
       if fixChcp:
         contents.add "chcp 65001 > nul && "
       else: contents.add "chcp 65001 > nul\n@"
+    # Assert that we're not creating a relative path to pkgcache
+    assert not symlinkDestRel.contains("pkgcache"), 
+      &"Windows stub is trying to create relative path to pkgcache. " &
+      &"symlinkDest: {symlinkDest}, symlinkFilename: {symlinkFilename}, " &
+      &"symlinkDestRel: {symlinkDestRel}, symlinkFilename.parentDir(): {symlinkFilename.parentDir()}"
+    
     contents.add "\"%~dp0\\" & symlinkDestRel & "\" %*\n"
     writeFile(dest, contents)
     result.add dest.extractFilename

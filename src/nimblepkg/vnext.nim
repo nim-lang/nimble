@@ -996,7 +996,6 @@ proc installPkgs*(satResult: var SATResult, options: Options) =
     installedPkgs.incl(installedPkgInfo)
     if wasNewlyInstalled:
       newlyInstalledPkgs.incl(installedPkgInfo)
-  
   #we need to activate the features for the recently installed package
   #so they are activated in the build step
   options.satResult.activateSolvedPkgFeatures(options)
@@ -1016,6 +1015,12 @@ proc installPkgs*(satResult: var SATResult, options: Options) =
     # Only build packages that were newly installed in this session
     newlyInstalledPkgs.toSeq
   if options.action.typ == actionInstall and not options.thereIsNimbleFile:
+    if not satResult.rootPackage.basicInfo.name.isNim:
+      #RootPackage shouldnt be in the pkgcache for global installs. We need to move it to the 
+      #install dir.
+      let downloadDir = satResult.rootPackage.myPath.parentDir()
+      let pv = (name: satResult.rootPackage.basicInfo.name, ver: satResult.rootPackage.basicInfo.version.toVersionRange())
+      satResult.rootPackage = installFromDirDownloadInfo(downloadDir, satResult.rootPackage.metaData.url, pv, options).toRequiresInfo(options)    
     pkgsToBuild.add(satResult.rootPackage)
 
   for pkgToBuild in pkgsToBuild:
