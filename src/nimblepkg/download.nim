@@ -25,11 +25,11 @@ proc doCheckout*(meth: DownloadMethod, downloadDir, branch: string, options: Opt
     # Force is used here because local changes may appear straight after a clone
     # has happened. Like in the case of git on Windows where it messes up the
     # damn line endings.
-    discard tryDoCmdEx(&"git -C {downloadDir.quoteShell} checkout --force {branch}")
+    discard tryDoCmdEx(&"git -C {downloadDir.quoteShell} checkout --force {branch.quoteShell}")
     if not options.ignoreSubmodules:
       downloadDir.updateSubmodules
   of DownloadMethod.hg:
-    discard tryDoCmdEx(&"hg --cwd {downloadDir.quoteShell} checkout {branch}")
+    discard tryDoCmdEx(&"hg --cwd {downloadDir.quoteShell} checkout {branch.quoteShell}")
 
 proc doClone(meth: DownloadMethod, url, downloadDir: string, branch = "",
              onlyTip = true, options: Options) =
@@ -38,7 +38,7 @@ proc doClone(meth: DownloadMethod, url, downloadDir: string, branch = "",
     let
       submoduleFlag = if not options.ignoreSubmodules: " --recurse-submodules" else: ""
       depthArg = if onlyTip: "--depth 1" else: ""
-      branchArg = if branch == "": "" else: &"-b {branch}"
+      branchArg = if branch == "": "" else: &"-b {branch.quoteShell}"
     discard tryDoCmdEx(
        "git clone --config core.autocrlf=false --config core.eol=lf " &
       &"{submoduleFlag} {depthArg} {branchArg} {url} {downloadDir.quoteShell}")
@@ -47,7 +47,7 @@ proc doClone(meth: DownloadMethod, url, downloadDir: string, branch = "",
   of DownloadMethod.hg:
     let
       tipArg = if onlyTip: "-r tip " else: ""
-      branchArg = if branch == "": "" else: &"-b {branch}"
+      branchArg = if branch == "": "" else: &"-b {branch.quoteShell}"
     discard tryDoCmdEx(&"hg clone {tipArg} {branchArg} {url} {downloadDir.quoteShell}")
 
 proc gitFetchTags*(repoDir: string, downloadMethod: DownloadMethod, options: Options) =
@@ -161,12 +161,12 @@ proc cloneSpecificRevision(downloadMethod: DownloadMethod,
     discard tryDoCmdEx(&"git -C {downloadDir.quoteShell} config core.autocrlf false")
     discard tryDoCmdEx(&"git -C {downloadDir.quoteShell} remote add origin {url}")
     discard tryDoCmdEx(
-      &"git -C {downloadDir.quoteShell} fetch --depth 1 origin {vcsRevision}")
+      &"git -C {downloadDir.quoteShell} fetch --depth 1 origin {($vcsRevision).quoteShell}")
     discard tryDoCmdEx(&"git -C {downloadDir.quoteShell} reset --hard FETCH_HEAD")
     if not options.ignoreSubmodules:
       downloadDir.updateSubmodules
   of DownloadMethod.hg:
-    discard tryDoCmdEx(&"hg clone {url} -r {vcsRevision}")
+    discard tryDoCmdEx(&"hg clone {url} -r {($vcsRevision).quoteShell}")
 
 proc getTarExePath: string =
   ## Returns path to `tar` executable.

@@ -6,7 +6,7 @@ import sequtils, sugar
 import std/options as std_opt
 from httpclient import Proxy, newProxy
 
-import config, version, common, cli, packageinfotypes, displaymessages
+import config, version, common, cli, packageinfotypes, displaymessages, urls
 
 const
   nimbledeps* = "nimbledeps"
@@ -565,15 +565,38 @@ proc parseArgument*(key: string, result: var Options) =
     assert false
   of actionInstall, actionPath, actionDevelop, actionUninstall, actionUpgrade, actionAdd:
     # Parse pkg@verRange or git@github.com:nim-lang/nimble.git
-    let i = rfind(key, '@')
-    let maybeUrl = rfind(key, {'/', ':'})
-    if i > maybeUrl:
-      let (pkgName, pkgVer) = (key[0 .. i-1], key[i+1 .. key.len-1])
-      if pkgVer.len == 0:
-        raise nimbleError("Version range expected after '@'.")
-      result.action.packages.add((pkgName, pkgVer.parseVersionRange()))
+    # First trim whitespace from the key
+    let trimmedKey = key.strip()
+    let i = rfind(trimmedKey, '@')
+    
+    if i >= 0:
+      # Found '@', check what we're dealing with
+      let beforeAt = trimmedKey[0 .. i-1]
+      let afterAt = trimmedKey[i+1 .. trimmedKey.len-1]
+      
+      # If the part before '@' is a URL, we have a URL with version specifier
+      if beforeAt.isURL:
+        # This is a URL with version specifier like https://github.com/user/repo@#branch
+        if afterAt.len == 0:
+          raise nimbleError("Version range expected after '@'.")
+        result.action.packages.add((beforeAt, afterAt.parseVersionRange()))
+      else:
+        # Check if there are URL indicators before the '@'
+        let maybeUrlBeforeAt = rfind(beforeAt, {'/', ':'})
+        
+        # If there are no URL indicators before '@', treat as package@version format
+        # This handles cases like "waku@#feature/branch" where '/' is part of the version spec
+        if maybeUrlBeforeAt < 0:
+          let (pkgName, pkgVer) = (beforeAt, afterAt)
+          if pkgVer.len == 0:
+            raise nimbleError("Version range expected after '@'.")
+          result.action.packages.add((pkgName, pkgVer.parseVersionRange()))
+        else:
+          # This looks like a URL, don't split
+          result.action.packages.add((trimmedKey, VersionRange(kind: verAny)))
     else:
-      result.action.packages.add((key, VersionRange(kind: verAny)))
+      # No '@' found
+      result.action.packages.add((trimmedKey, VersionRange(kind: verAny)))
   of actionRefresh:
     result.action.optionalURL = key
   of actionSearch:

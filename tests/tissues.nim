@@ -433,4 +433,11 @@ suite "issues":
       #nimble.path contains css3selectors
       let nimblePath = readFile("nimble.paths")
       check nimblePath.contains("css3selectors")
-     
+  
+  test "issue #1466":
+    createDir "issue1466"
+    defer:
+      removeDir("issue1466")
+    cd "issue1466":
+      let (_, exitCode) = execNimble("install", " https://github.com/jmgomez/FeaturesTest@#slash/inbranch")
+      check exitCode == QuitSuccess
