@@ -42,6 +42,8 @@ proc install(packages: seq[PkgTuple], options: Options,
              doPrompt, first, fromLockFile: bool,
              preferredPackages: seq[PackageInfo] = @[]): PackageDependenciesInfo
 
+proc getNimDir(options: var Options): string 
+
 proc checkSatisfied(options: Options, dependencies: seq[PackageInfo]) =
   ## Check if two packages of the same name (but different version) are listed
   ## in the path. Throws error if it fails
@@ -1271,25 +1273,6 @@ proc getPackageByPattern(pattern: string, options: Options): PackageInfo =
       )
     result = getPkgInfoFromFile(skeletonInfo.myPath, options)
 
-proc getNimDir(options: Options): string = 
-  ## returns the nim directory prioritizing the nimBin one if it satisfais the requirement of the project
-  ## otherwise it returns the major version of the nim installed packages that satisfies the requirement of the project
-  ## if no nim package satisfies the requirement of the project it returns the nimBin parent directory
-  ## only used by the `nimble dump` command which is used to drive the lsp
-  let projectPkg = getPackageByPattern(options.action.projName, options)
-  var nimPkgTupl = projectPkg.requires.filterIt(it.name == "nim")
-  if nimPkgTupl.len > 0:
-    let reqNimVersion = nimPkgTupl[0].ver
-    if options.nimBin.isSome and options.nimBin.get.version.withinRange(reqNimVersion):
-      return options.nimBin.get.path.parentDir
-    var nimPkgInfo = 
-      getInstalledPkgsMin(options.getPkgsDir(), options)
-        .filterIt(it.basicInfo.name == "nim" and it.withinRange(reqNimVersion))
-    nimPkgInfo.sort(proc (a, b: PackageInfo): int = cmp(a.basicInfo.version, b.basicInfo.version), Descending)
-    if nimPkgInfo.len > 0:
-      let nimBin = nimPkgInfo[0].getNimBin(options)
-      return nimBin.parentDir
-  return options.nimBin.get(NimBin()).path.parentDir
 
 proc getEntryPoints(pkgInfo: PackageInfo, options: Options): seq[string] =
   ## Returns the entry points for a package. 
@@ -1300,7 +1283,7 @@ proc getEntryPoints(pkgInfo: PackageInfo, options: Options): seq[string] =
   for entry in entries:
     result.add if entry.endsWith(".nim"): entry else: entry & ".nim"
   
-proc dump(options: Options) =
+proc dump(options: var Options) =
   var p = getPackageByPattern(options.action.projName, options)
   if options.action.collect or options.action.solve:
     p.requires &= options.extraRequires
@@ -2700,6 +2683,50 @@ proc runVNext*(options: var Options) =
   # options.debugSATResult()
   options.satResult.addReverseDeps(options)
   
+proc getNimDir(options: var Options): string = 
+  ## returns the nim directory prioritizing the nimBin one if it satisfais the requirement of the project
+  ## otherwise it returns the major version of the nim installed packages that satisfies the requirement of the project
+  ## if no nim package satisfies the requirement of the project it returns the nimBin parent directory
+  ## only used by the `nimble dump` command which is used to drive the lsp
+  if options.isLegacy:
+    let projectPkg = getPackageByPattern(options.action.projName, options)
+    var nimPkgTupl = projectPkg.requires.filterIt(it.name == "nim")
+    if nimPkgTupl.len > 0:
+      let reqNimVersion = nimPkgTupl[0].ver
+      if options.nimBin.isSome and options.nimBin.get.version.withinRange(reqNimVersion):
+        return options.nimBin.get.path.parentDir
+      var nimPkgInfo = 
+        getInstalledPkgsMin(options.getPkgsDir(), options)
+          .filterIt(it.basicInfo.name == "nim" and it.withinRange(reqNimVersion))
+      nimPkgInfo.sort(proc (a, b: PackageInfo): int = cmp(a.basicInfo.version, b.basicInfo.version), Descending)
+      if nimPkgInfo.len > 0:
+        let nimBin = nimPkgInfo[0].getNimBin(options)
+        return nimBin.parentDir
+      return options.nimBin.get(NimBin()).path.parentDir
+  else:
+    #we relly on vnext mechanism to get the right Nim but we do not install anything (so the lsp doesnt hang)
+    let projectName = options.action.projName
+    var projFolder = 
+      if projectName == "": getCurrentDir() 
+      elif projectName.endsWith(".nimble"): (getCurrentDir() / projectName).parentDir
+      else: getCurrentDir() / projectName
+    if not dirExists(projFolder):
+      #dump for an installed package.
+      let pkg = getInstalledPkgsMin(options.getPkgsDir(), options).filterIt(it.basicInfo.name == projectName)
+      if pkg.len > 0:
+        projFolder = pkg[0].getRealDir
+        
+    var rootPackage = getPkgInfoFromDirWithDeclarativeParser(projFolder, options)
+    #make it silent as we are going to capture the output
+    setVerbosity(SilentPriority)
+    options.isFilePathDiscovering = false
+    if options.action.typ == actionInstall:
+      rootPackage.requires.add(options.action.packages)
+    solvePkgs(rootPackage, options)    
+    return options.nimBin.get(NimBin()).path.parentDir    
+
+
+
 proc doAction(options: var Options) =
   if options.showHelp:
     writeHelp()
