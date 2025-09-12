@@ -2705,15 +2705,25 @@ proc getNimDir(options: var Options): string =
       return options.nimBin.get(NimBin()).path.parentDir
   else:
     #we relly on vnext mechanism to get the right Nim but we do not install anything (so the lsp doesnt hang)
-    var rootPackage = getPkgInfoFromDirWithDeclarativeParser(getCurrentDir(), options)
+    let projectName = options.action.projName
+    var projFolder = 
+      if projectName == "": getCurrentDir() 
+      elif projectName.endsWith(".nimble"): (getCurrentDir() / projectName).parentDir
+      else: getCurrentDir() / projectName
+    if not dirExists(projFolder):
+      #dump for an installed package.
+      let pkg = getInstalledPkgsMin(options.getPkgsDir(), options).filterIt(it.basicInfo.name == projectName)
+      if pkg.len > 0:
+        projFolder = pkg[0].getRealDir
+        
+    var rootPackage = getPkgInfoFromDirWithDeclarativeParser(projFolder, options)
+    #make it silent as we are going to capture the output
+    setVerbosity(SilentPriority)
     options.isFilePathDiscovering = false
     if options.action.typ == actionInstall:
       rootPackage.requires.add(options.action.packages)
-    solvePkgs(rootPackage, options)
-    let nimResolved = options.satResult.nimResolved
-    if nimResolved.pkg.isSome:
-      return nimResolved.pkg.get.getNimBin(options)
-    return ""
+    solvePkgs(rootPackage, options)    
+    return options.nimBin.get(NimBin()).path.parentDir    
 
 
 
