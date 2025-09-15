@@ -35,7 +35,13 @@ jobs:
         run: brew install mercurial
       - name: Install Mercurial on Windows
         if: matrix.os == 'windows-latest'
-        run: choco install hg -y
+        shell: powershell
+        run: |
+          choco install hg -y
+          $env:PATH = [System.Environment]::GetEnvironmentVariable("PATH","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("PATH","User")
+          echo "PATH=$env:PATH" >> $env:GITHUB_ENV
+          Write-Host "Mercurial installed, checking version:"
+          hg --version
       - name: Install dependencies
         run: nimble install -y
       - name: Run nim c -r tester
