@@ -30,12 +30,13 @@ jobs:
         with:
           nim-version: ${{ matrix.nimversion }}
       - run: nim --version
-      - name: Install Mercurial on macOS
-        if: matrix.os == 'macos-latest'
-        run: brew install mercurial
-      - name: Install Mercurial on Windows
-        if: matrix.os == 'windows-latest'
-        run: choco install mercurial -y
+      - name: Install Mercurial
+        run: |
+          if [[ "${{ matrix.os }}" == "macos-latest" ]]; then
+            brew install mercurial
+          elif [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+            choco install hg -y
+          fi
       - name: Install dependencies
         run: nimble install -y
       - name: Run nim c -r tester
