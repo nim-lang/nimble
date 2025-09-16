@@ -457,7 +457,10 @@ proc findNimbleFile*(dir: string; error: bool, options: Options, warn = true): s
   var hits = 0
   for kind, path in walkDir(dir):
     if kind in {pcFile, pcLinkToFile}:
-      let ext = path.splitFile.ext
+      let (_, fileName, ext) = splitFile(path)
+      # Ignore macOS AppleDouble files like `._filename.nimble`
+      if fileName.startsWith("._"):
+        continue
       case ext
       of ".babel", ".nimble":
         result = path
