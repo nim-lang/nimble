@@ -677,6 +677,10 @@ proc getPackageMinimalVersionsFromRepo*(repoDir: string, pkg: PkgTuple, version:
         else:
           let pkgInfo = getPkgInfoFromFile(nimbleFile, options, useCache=false)
           result.addUnique pkgInfo.getMinimalInfo(options)
+        #here we copy the directory to its own folder so we have it cached for future usage
+        let downloadInfo = getPackageDownloadInfo((name, tagVersion.toVersionRange()), options)
+        copyDir(tempDir, downloadInfo.downloadDir)
+
       except CatchableError as e:
         displayWarning(
           &"Error reading tag {tag}: for package {name}. This may not be relevant as it could be an old version of the package. \n {e.msg}",

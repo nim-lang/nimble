@@ -976,6 +976,7 @@ proc installPkgs*(satResult: var SATResult, options: Options) =
         if pv.name.isFileURL:
           downloadDir = dlInfo.url.extractFilePathFromURL()
         else:
+          #Since cache expansion is implemented, this point shouldnt be reached anymore.
           discard downloadFromDownloadInfo(dlInfo, options)
         # dlInfo.downloadDir = downloadPkgResult.dir 
       assert dirExists(downloadDir)
