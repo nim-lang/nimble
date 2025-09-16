@@ -515,6 +515,15 @@ proc setNimbleDir*(options: var Options) =
         propagate = true
         setPackageCache(options, options.config.nimbleDir) #We want to use the nimbleDir from the config so it can be shared
 
+  # Handle --local flag even when --nimbleDir is specified
+  if options.localdeps and not options.developLocaldeps:
+    # When both --nimbleDir and --local are specified, still use local behavior
+    if dirExists(nimbledeps):
+      nimbleDir = nimbledeps
+      options.localdeps = true
+      propagate = true
+      setPackageCache(options, options.config.nimbleDir)
+
   options.nimbleDir = expandTilde(nimbleDir).absolutePath()
   if options.pkgCachePath == "":
     setPackageCache(options, options.nimbleDir)    
