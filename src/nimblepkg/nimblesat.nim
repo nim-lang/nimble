@@ -417,7 +417,7 @@ proc findMinimalFailingSet*(g: var DepGraph): tuple[failingSet: seq[PkgTuple], o
   (minimalFailingSet, output)
 
 proc solve*(g: var DepGraph; f: Form, packages: var Table[string, Version], output: var string, 
-           triedVersions: var seq[VersionAttempt]): bool =
+           triedVersions: var seq[VersionAttempt], options: Options): bool =
   let m = f.idgen
   var s = createSolution(m)
   
@@ -441,8 +441,8 @@ proc solve*(g: var DepGraph; f: Form, packages: var Table[string, Version], outp
         else:
           output.add &"item.pkg  [ ]  {toString item} \n"
     return true
-  else:
-    output.add "\nFailed to find satisfiable solution:\n"
+  else:    
+    output.add "\nFailed to find satisfiable solution (pass: {options.satResult.pass}):\n"
     output.add analyzeVersionSelection(g, f, s)
     let (failingSet, errorMsg) = findMinimalFailingSet(g)
     if failingSet.len > 0:
@@ -461,7 +461,7 @@ proc solve*(g: var DepGraph; f: Form, packages: var Table[string, Version], outp
               # echo "Trying package ", pkg.name, " version ", ver.version
               newGraph.nodes[idx].versions = @[ver]  # Try just this version
               let newForm = toFormular(newGraph)
-              if solve(newGraph, newForm, packages, output, triedVersions):
+              if solve(newGraph, newForm, packages, output, triedVersions, options):
                 return true
           # Restore original versions if no solution found
           newGraph.nodes[idx].versions = originalVersions
@@ -474,9 +474,9 @@ proc solve*(g: var DepGraph; f: Form, packages: var Table[string, Version], outp
     false
 
 
-proc solve*(g: var DepGraph; f: Form, packages: var Table[string, Version], output: var string): bool =
+proc solve*(g: var DepGraph; f: Form, packages: var Table[string, Version], output: var string, options: Options): bool =
   var triedVersions = newSeq[VersionAttempt]()
-  solve(g, f, packages, output, triedVersions)
+  solve(g, f, packages, output, triedVersions, options)
 
 proc collectReverseDependencies*(targetPkgName: string, graph: DepGraph): seq[(string, Version)] =
   for node in graph.nodes:
@@ -497,7 +497,7 @@ proc collectReverseDependencies*(targetPkgName: string, graph: DepGraph): seq[(s
                   result.addUnique revDep
                   break
 
-proc getSolvedPackages*(pkgVersionTable: Table[string, PackageVersions], output: var string): seq[SolvedPackage] =
+proc getSolvedPackages*(pkgVersionTable: Table[string, PackageVersions], output: var string, options: Options): seq[SolvedPackage] =
   var graph = pkgVersionTable.toDepGraph()
   #Make sure all references are in the graph before calling toFormular
   for p in graph.nodes:
@@ -515,7 +515,7 @@ proc getSolvedPackages*(pkgVersionTable: Table[string, PackageVersions], output:
   let form = toFormular(graph)
   var packages = initTable[string, Version]()
   var triedVersions: seq[VersionAttempt] = @[]
-  discard solve(graph, form, packages, output, triedVersions)
+  discard solve(graph, form, packages, output, triedVersions, options)
   
   for pkg, ver in packages:
     let nodeIdx = graph.packageToDependency.getKey(pkg)
@@ -774,7 +774,10 @@ proc processRequirements(versions: var Table[string, PackageVersions], pv: PkgTu
       for pkgMin in validPkgMins.mitems:
         let pkgName = pkgMin.name.toLower
         if pv.ver.kind == verSpecial:
-          pkgMin.version = newVersion $pv.ver
+          # Keep both the commit hash and the actual semantic version
+          var specialVer = newVersion($pv.ver)
+          specialVer.speSemanticVersion = some($pkgMin.version)  # Store the real version
+          pkgMin.version = specialVer
           
           # If this is a special version, clear any existing regular versions
           # to force the SAT solver to use this specific version
@@ -857,7 +860,7 @@ proc solveLocalPackages*(rootPkgInfo: PackageInfo, pkgList: seq[PackageInfo], so
   pkgVersionTable[root.name] = PackageVersions(pkgName: root.name, versions: @[root])
   fillPackageTableFromPreferred(pkgVersionTable, pkgList.mapIt(it.getMinimalInfo(options)))
   var output = ""
-  solvedPkgs = pkgVersionTable.getSolvedPackages(output)
+  solvedPkgs = pkgVersionTable.getSolvedPackages(output, options)
   systemNimCompatible = solvedPkgs.isSystemNimCompatible(options)
   
   for solvedPkg in solvedPkgs:
@@ -941,7 +944,7 @@ proc solvePackages*(rootPkg: PackageInfo, pkgList: seq[PackageInfo], pkgsToInsta
   # if not options.isLegacy:
   pkgVersionTable.normalizeRequirements(options)  
   options.satResult.pkgVersionTable = pkgVersionTable
-  solvedPkgs = pkgVersionTable.getSolvedPackages(output).topologicalSort()
+  solvedPkgs = pkgVersionTable.getSolvedPackages(output, options).topologicalSort()
   # echo "DEBUG: SolvedPkgs before post processing: ", solvedPkgs.mapIt(it.pkgName & " " & $it.version).join(", ")
   solvedPkgs.postProcessSolvedPkgs(options)
   

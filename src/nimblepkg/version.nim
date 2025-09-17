@@ -4,10 +4,11 @@
 ## Module for handling versions and version ranges such as ``>= 1.0 & <= 1.5``
 import json, sets
 import common, strutils, tables, hashes, parseutils, forge_aliases, urls
-import std/[strscans]
+import std/[strscans, options]
 type
   Version* = object
     version*: string
+    speSemanticVersion*: Option[string]  # For special versions, stores the real semantic version so we can compare.
 
   VersionRangeEnum* = enum
     verLater, # > V
@@ -27,7 +28,7 @@ type
     of verLater, verEarlier, verEqLater, verEqEarlier, verEq:
       ver*: Version
     of verSpecial:
-      spe*: Version
+      spe*: Version      
     of verIntersect, verTilde, verCaret:
       verILeft*, verIRight*: VersionRange
     of verAny:
@@ -133,6 +134,15 @@ proc `==`*(range1: VersionRange, range2: VersionRange): bool =
   of verAny: true
 
 proc withinRange*(ver: Version, ran: VersionRange): bool =
+  # For special versions, use actualVersion if available
+  if ver.isSpecial and ver.speSemanticVersion.isSome:
+    let semanticVer = newVersion(ver.speSemanticVersion.get)
+    case ran.kind
+    of verSpecial:
+      return ver == ran.spe  # Must match exactly for special ranges
+    else:
+      return withinRange(semanticVer, ran)  # Use semantic version for comparisons
+  
   case ran.kind
   of verLater:
     return ver > ran.ver
