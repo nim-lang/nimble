@@ -95,7 +95,7 @@ suite "SAT solver":
     let form = toFormular(graph)
     var packages = initTable[string, Version]()
     var output = ""
-    check solve(graph, form, packages, output)
+    check solve(graph, form, packages, output, initOptions())
     check packages.len == 2
     check packages["a"] == newVersion "3.0"
     check packages["b"] == newVersion "0.1.0"
@@ -122,7 +122,7 @@ suite "SAT solver":
     let form = toFormular(graph)
     var packages = initTable[string, Version]()
     var output = ""
-    check solve(graph, form, packages, output)
+    check solve(graph, form, packages, output, initOptions())
     check packages.len == 3
     check packages["a"] == newVersion "3.0"
     check packages["b"] == newVersion "0.1.4"
@@ -144,7 +144,7 @@ suite "SAT solver":
     let form = toFormular(graph)
     var packages = initTable[string, Version]()
     var output = ""
-    check not solve(graph, form, packages, output)
+    check not solve(graph, form, packages, output, initOptions())
     echo output
     check packages.len == 0
 
@@ -191,7 +191,7 @@ suite "SAT solver":
     let form = graph.toFormular()
     var packages = initTable[string, Version]()
     var output = ""    
-    check solve(graph, form, packages, output)
+    check solve(graph, form, packages, output, initOptions())
     if packages.len == 0:
       echo output
     check packages.len > 0
@@ -208,7 +208,7 @@ suite "SAT solver":
       let form = toFormular(graph)
       var packages = initTable[string, Version]()
       var output = ""
-      check solve(graph, form, packages, output)
+      check solve(graph, form, packages, output, initOptions())
       check packages.len > 0
     
     let ends = now()
@@ -249,7 +249,7 @@ suite "SAT solver":
     fillPackageTableFromPreferred(pkgVersionTable, pkgs)
     collectAllVersions(pkgVersionTable, root, options, downloadMinimalPackage)
     var output = ""
-    let solvedPkgs = pkgVersionTable.getSolvedPackages(output)
+    let solvedPkgs = pkgVersionTable.getSolvedPackages(output, options)
     let pkgB = solvedPkgs.filterIt(it.pkgName == "b")[0]
     let pkgC = solvedPkgs.filterIt(it.pkgName == "c")[0]
     check pkgB.pkgName == "b" and pkgB.version == newVersion "0.1.4"
@@ -273,7 +273,7 @@ suite "SAT solver":
     let form = toFormular(graph)
     var packages = initTable[string, Version]()
     var output = ""
-    check solve(graph, form, packages, output)
+    check solve(graph, form, packages, output, initOptions())
     check packages.len == 2
     
   test "should not match other tags":
@@ -291,7 +291,7 @@ suite "SAT solver":
     let form = toFormular(graph)
     var packages = initTable[string, Version]()
     var output = ""
-    check not solve(graph, form, packages, output)
+    check not solve(graph, form, packages, output, initOptions())
 
   test "should prioritize exact version matches":
     let pkgVersionTable = {
@@ -310,7 +310,7 @@ suite "SAT solver":
     let form = toFormular(graph)
     var packages = initTable[string, Version]()
     var output = ""
-    check solve(graph, form, packages, output)
+    check solve(graph, form, packages, output, initOptions())
     check packages.len == 2
     check packages["a"] == newVersion "3.0"
     check packages["b"] == newVersion "1.0.0"  # Should pick exact version 1.0.0 despite 2.0.0 being available
@@ -417,7 +417,7 @@ suite "SAT solver":
     let form = toFormular(graph)
     var packages = initTable[string, Version]()
     var output = ""
-    check solve(graph, form, packages, output)
+    check solve(graph, form, packages, output, initOptions())
    
   test "collectAllVersions should retrieve all releases of a given package":
     var options = initOptions()
@@ -455,20 +455,20 @@ suite "SAT solver":
       check exitCode == QuitSuccess
       
   #TODO package got updated. Review test (not related with the declarative parser work)
-  # test "should be able to fallback to a previous version of a dependency when unsatisfable (complex case)":
-  #   #There is an issue with 
-  #   #[
-  #     "libp2p",
-  #     "https://github.com/status-im/nim-quic.git#8a97eeeb803614bce2eb0e4696127d813fea7526"
+  test "should be able to fallback to a previous version of a dependency when unsatisfable (complex case)":
+    #There is an issue with 
+    #[
+      "libp2p",
+      "https://github.com/status-im/nim-quic.git#8a97eeeb803614bce2eb0e4696127d813fea7526"
     
-  #   Where libp2p needs to be set to an older version (15) as the constraints from nim-quic are incompatible with the 
-  #   constraints from libp2p > 15.
+    Where libp2p needs to be set to an older version (15) as the constraints from nim-quic are incompatible with the 
+    constraints from libp2p > 15.
     
-  #   ]#
-  #   cd "libp2pconflict": #0.16.2
-  #     removeDir("nimbledeps")
-  #     let (_, exitCode) = execNimbleYes("install", "-l")
-  #     check exitCode == QuitSuccess
+    ]#
+    cd "libp2pconflict": #0.16.2
+      removeDir("nimbledeps")
+      let (_, exitCode) = execNimbleYes("install", "-l")
+      check exitCode == QuitSuccess
 
   test "should be able to solve complex dep graphs":
     cd "sattests" / "mgtest":
