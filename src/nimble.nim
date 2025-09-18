@@ -1181,9 +1181,8 @@ proc listInstalled(options: Options) =
   vers.sort(proc (a, b: (string, seq[VersionChecksumTuple])): int =
     cmpIgnoreCase(a[0], b[0]))
 
-  displayInfo("Package list format: {PackageName} ")
-  displayInfo("  {PackageName} ")
-  displayInfo("     {Version} ({CheckSum})")
+  echo("Package list format: \n{PackageName}")
+  echo("└── @{Version} ({CheckSum})[Special Versions (if any)] ({InstallPath})")
   for k in keys(vers):
     displayFormatted(Message, k)
     displayFormatted(Hint, "\n")
@@ -1202,7 +1201,6 @@ proc listInstalled(options: Options) =
         displayFormatted(Hint, " ")
         displayFormatted(Details, fmt"({item.path})")
         displayFormatted(Hint, "\n")
-        # "  [" & vers[k].join(", ") & "]"
 
 type VersionAndPath = tuple[version: Version, path: string]
 
