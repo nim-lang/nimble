@@ -12,7 +12,7 @@ After we resolve nim, we try to resolve the dependencies for a root package. Roo
   - Once we have the graph solved. We can proceed with the action.
 
 ]#
-import std/[sequtils, sets, options, os, strutils, tables, strformat]
+import std/[sequtils, sets, options, os, strutils, tables, strformat, algorithm]
 import nimblesat, packageinfotypes, options, version, declarativeparser, packageinfo, common,
   nimenv, lockfile, cli, downloadnim, packageparser, tools, nimscriptexecutor, packagemetadatafile,
   displaymessages, packageinstaller, reversedeps, developfile, urls
@@ -187,7 +187,7 @@ proc solvePackagesWithSystemNimFallback*(
   # retry without it as a hard requirement. The idea behind it is that a 
   # compatible version of the packages is used for the current nim.
   if resolvedNim.isSome and resolvedNim.get.isSystemNim(options):
-    rootPackageWithSystemNim.requires.add(parseRequires("nim <=" & $resolvedNim.get.version))
+    rootPackageWithSystemNim.requires.add(parseRequires("nim " & $resolvedNim.get.version))
     systemNimPass = true
 
   result = solvePackages(rootPackageWithSystemNim, pkgList, 
@@ -198,6 +198,11 @@ proc solvePackagesWithSystemNimFallback*(
     result = solvePackages(rootPackage, pkgList, 
                           options.satResult.pkgsToInstall, options, 
                           options.satResult.output, options.satResult.solvedPkgs)
+
+proc compPkgListByVersion*(a, b: PackageInfo): int =
+  if  a.basicInfo.version > b.basicInfo.version: return -1
+  elif a.basicInfo.version < b.basicInfo.version: return 1
+  else: return 0
 
 proc resolveNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo], options: var Options): NimResolved =
   #TODO if we are able to resolve the packages in one go, we should not re-run the solver in the next step.
@@ -215,6 +220,10 @@ proc resolveNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo], options: v
     .mapIt(it.toRequiresInfo(options))
   if systemNimPkg.isSome:
     pkgListDecl.add(systemNimPkg.get)
+
+  #TODO we should add the nim packages on the binaries folder before this point
+  #Order the pkglist by version
+  pkgListDecl.sort(compPkgListByVersion)
 
   options.satResult.pkgList = pkgListDecl.toHashSet()
   
@@ -254,7 +263,6 @@ proc resolveNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo], options: v
   
   options.satResult.pkgs = solvePackagesWithSystemNimFallback(
       rootPackage, pkgListDecl, options,  resolvedNim)
-    
   if options.satResult.solvedPkgs.len == 0:
     displayError(options.satResult.output)
     raise newNimbleError[NimbleError]("Couldnt find a solution for the packages. Unsatisfiable dependencies. Check there is no contradictory dependencies.")
