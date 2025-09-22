@@ -523,7 +523,7 @@ proc fillPkgBasicInfo(pkgInfo: var PackageInfo, nimbleFileInfo: NimbleFileInfo) 
   pkgInfo.srcDir = nimbleFileInfo.srcDir
 
 proc getPkgInfoFromDirWithDeclarativeParser*(dir: string, options: Options): PackageInfo =
-  let nimbleFile = findNimbleFile(dir, true, options)
+  let nimbleFile = findNimbleFile(dir, false, options)
   let nimbleFileInfo = extractRequiresInfo(nimbleFile, options)
   result = initPackageInfo()
   fillPkgBasicInfo(result, nimbleFileInfo)
