@@ -221,7 +221,6 @@ proc resolveNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo], options: v
   if systemNimPkg.isSome:
     pkgListDecl.add(systemNimPkg.get)
 
-  #TODO we should add the nim packages on the binaries folder before this point
   #Order the pkglist by version
   pkgListDecl.sort(compPkgListByVersion)
 
