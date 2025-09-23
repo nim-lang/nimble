@@ -522,6 +522,14 @@ proc fillPkgBasicInfo(pkgInfo: var PackageInfo, nimbleFileInfo: NimbleFileInfo) 
   pkgInfo.basicInfo.version = newVersion nimbleFileInfo.version
   pkgInfo.srcDir = nimbleFileInfo.srcDir
 
+proc getNimPkgInfo*(dir: string, options: Options): PackageInfo =
+  let nimbleFile = dir / "nim.nimble"
+  assert fileExists(nimbleFile), "Nim.nimble file not found in " & dir
+  let nimbleFileInfo = extractRequiresInfo(nimbleFile, options)
+  result = initPackageInfo()
+  fillPkgBasicInfo(result, nimbleFileInfo)
+  result = toRequiresInfo(result, options, some nimbleFileInfo)
+
 proc getPkgInfoFromDirWithDeclarativeParser*(dir: string, options: Options, shouldError: bool = true): PackageInfo =
   let nimbleFile = findNimbleFile(dir, shouldError, options)
   let nimbleFileInfo = extractRequiresInfo(nimbleFile, options)

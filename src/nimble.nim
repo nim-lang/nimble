@@ -34,9 +34,9 @@ const
 proc getNimBinariesPackages(options: Options): seq[PackageInfo] =
   for kind, path in walkDir(options.nimBinariesDir):
     if kind == pcDir:
-      let nimbleFile = findNimbleFile(path, false, options)
-      #declarative parser can always read nim packages
-      result.add getPkgInfoFromDirWithDeclarativeParser(nimbleFile.parentDir, options, shouldError = false) 
+      let nimbleFile = path / "nim.nimble"
+      if fileExists(nimbleFile):
+        result.add getNimPkgInfo(nimbleFile.parentDir, options) 
 
 proc initPkgList(pkgInfo: PackageInfo, options: Options): seq[PackageInfo] =
   let
