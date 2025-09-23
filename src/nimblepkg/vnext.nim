@@ -145,7 +145,10 @@ proc getNimFromSystem*(options: Options): Option[PackageInfo] =
           except CatchableError:
             discard # Fall back to original pnim
     let dir = effectivePnim.parentDir.parentDir
-    return some getPkgInfoFromDirWithDeclarativeParser(dir, options)
+    try:
+      return some getPkgInfoFromDirWithDeclarativeParser(dir, options)
+    except CatchableError:
+      discard # Fall back to original pnim
   return none(PackageInfo)
 
 proc enableFeatures*(rootPackage: var PackageInfo, options: var Options) =
