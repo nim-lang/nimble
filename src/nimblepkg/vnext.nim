@@ -207,26 +207,8 @@ proc compPkgListByVersion*(a, b: PackageInfo): int =
   elif a.basicInfo.version < b.basicInfo.version: return 1
   else: return 0
 
-proc resolveNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo], options: var Options): NimResolved =
-  #TODO if we are able to resolve the packages in one go, we should not re-run the solver in the next step.
-  #TODO Introduce the concept of bootstrap nimble where we detect a failure in the declarative parser and fallback to a concrete nim version to re-run the nim selection with the vm parser
-  let systemNimPkg = getNimFromSystem(options)
-  if options.useSystemNim:
-    if systemNimPkg.isSome:
-      return NimResolved(pkg: some(systemNimPkg.get), version: systemNimPkg.get.basicInfo.version)
-    else:
-      raise newNimbleError[NimbleError]("No system nim found") 
+proc resolveNim*(rootPackage: PackageInfo, pkgListDecl: seq[PackageInfo], systemNimPkg: Option[PackageInfo], options: var Options): NimResolved =
   
-  #We assume we dont have an available nim yet  
-  var pkgListDecl = 
-    pkgList
-    .mapIt(it.toRequiresInfo(options))
-  if systemNimPkg.isSome:
-    pkgListDecl.add(systemNimPkg.get)
-
-  #Order the pkglist by version
-  pkgListDecl.sort(compPkgListByVersion)
-
   options.satResult.pkgList = pkgListDecl.toHashSet()
   
   #If there is a lock file we should use it straight away (if the user didnt specify --useSystemNim)
@@ -487,8 +469,51 @@ proc setNimBin*(pkgInfo: PackageInfo, options: var Options) =
     return #We dont want to set the same Nim twice. Notice, this can only happen when installing multiple packages outside of the project dir i.e nimble install pkg1 pkg2 if voth
   options.useNimFromDir(pkgInfo.getRealDir, pkgInfo.basicInfo.version.toVersionRange(), tryCompiling = true)
 
+proc setBootstrapNim*(systemNimPkg: Option[PackageInfo], pkgList: seq[PackageInfo], options: var Options) =
+  var bootstrapNim: NimResolved
+  let nimPkgList = pkgList.filterIt(it.basicInfo.name.isNim)
+  #we want to use actual systemNimPkg as bootstrap nim.
+  if systemNimPkg.isSome:
+    bootstrapNim.pkg = some(systemNimPkg.get)
+    bootstrapNim.version = systemNimPkg.get.basicInfo.version
+  elif nimPkgList.len > 0: #If no system nim, we use the best nim available (they are ordered by version)
+    bootstrapNim.pkg = some(pkgList[0])
+    bootstrapNim.version = pkgList[0].basicInfo.version
+  else:
+    #if none of the above, we just set the version to be used. We dont want to install a nim until we 
+    #are clear that we need to actually use it. In order to pick the version, we get the releases.
+    #Notice we should never call setNimBin for it. Rather we should attempt to use it directly.     
+    let bestRelease = getOfficialReleases(options).max
+    bootstrapNim.version = bestRelease
+    #TODO Only install when we actually need it. Meaning in a subsequent PR when we failed to parse a nimble fail with the declarative parser.
+    #Ideally it should be triggered from the declarative parser when it detects the failure. 
+    #Important: we need to refactor the code path to the nim parser to make sure we parametrize the Nim instead of setting the bootstrap nim directly, this should never be the case. 
+  
+  options.satResult.bootstrapNim = bootstrapNim
+
 proc resolveAndConfigureNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo], options: var Options): NimResolved =
-  var resolvedNim = resolveNim(rootPackage, pkgList, options)
+  #Before resolving nim, we bootstrap it, so if we fail resolving it when can use the bootstrapped version.
+  #Notice when implemented it would make the second sat pass obsolete. 
+  let systemNimPkg = getNimFromSystem(options)
+  if options.useSystemNim:
+    if systemNimPkg.isSome:
+      return NimResolved(pkg: some(systemNimPkg.get), version: systemNimPkg.get.basicInfo.version)
+    else:
+      raise newNimbleError[NimbleError]("No system nim found") 
+  
+  #We assume we dont have an available nim yet  
+  var pkgListDecl = 
+    pkgList
+    .mapIt(it.toRequiresInfo(options)) #Notice this could fail to parse, but shouldnt be an issue as it wont be falling back yet. We are only interested in selecting nim
+  if systemNimPkg.isSome:
+    pkgListDecl.add(systemNimPkg.get)
+  #Order the pkglist by version
+  pkgListDecl.sort(compPkgListByVersion)
+
+  options.satResult.pkgList = pkgListDecl.toHashSet()
+  setBootstrapNim(systemNimPkg, pkgListDecl, options)
+  
+  var resolvedNim = resolveNim(rootPackage, pkgListDecl, systemNimPkg, options)
   if resolvedNim.pkg.isNone:
     #we need to install it
     let nimPkg = (name: "nim", ver: parseVersionRange(resolvedNim.version))
