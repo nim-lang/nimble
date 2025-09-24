@@ -4,6 +4,7 @@
 import testscommon
 
 # suits imports
+import ttaskdeps
 import tnimbinaries
 import tinitcommand
 import tcheckcommand
@@ -27,7 +28,6 @@ import tsetupcommand
 import ttestcommand
 import ttwobinaryversions
 import tuninstall
-import ttaskdeps
 import tsat
 import tniminstall
 import trequireflag

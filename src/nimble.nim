@@ -31,12 +31,21 @@ const
   nimblePathsEnv = "__NIMBLE_PATHS"
   separator = when defined(windows): ";" else: ":"
 
+proc getNimBinariesPackages(options: Options): seq[PackageInfo] =
+  for kind, path in walkDir(options.nimBinariesDir):
+    if kind == pcDir:
+      let nimbleFile = path / "nim.nimble"
+      if fileExists(nimbleFile):
+        result.add getNimPkgInfo(nimbleFile.parentDir, options) 
+
 proc initPkgList(pkgInfo: PackageInfo, options: Options): seq[PackageInfo] =
   let
     installedPkgs = getInstalledPkgsMin(options.getPkgsDir(), options)
     developPkgs = processDevelopDependencies(pkgInfo, options)
   
   result = concat(installedPkgs, developPkgs)
+  if not options.isLegacy:
+    result.add getNimBinariesPackages(options)
 
 proc install(packages: seq[PkgTuple], options: Options,
              doPrompt, first, fromLockFile: bool,
