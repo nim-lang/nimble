@@ -2646,10 +2646,13 @@ proc solvePkgs(rootPackage: PackageInfo, options: var Options) =
   options.satResult.pkgs.incl(resolvedNim.pkg.get) #Make sure its in the solution
   nimblesat.addUnique(options.satResult.solvedPkgs, SolvedPackage(pkgName: "nim", version: resolvedNim.version))
   options.satResult.solutionToFullInfo(options)
-  if rootPackage.hasLockFile(options) and not options.disableLockFile: 
+  if rootPackage.hasLockFile(options) and not options.disableLockFile:
     options.satResult.solveLockFileDeps(pkgList, options)
 
-    
+  # # When installing nim itself globally, update rootPackage to point to the resolved nim location
+  if rootPackage.basicInfo.name.isNim and resolvedNim.pkg.isSome:
+    options.satResult.rootPackage = resolvedNim.pkg.get
+
   options.satResult.pass = satDone 
 
 proc runVNext*(options: var Options) =

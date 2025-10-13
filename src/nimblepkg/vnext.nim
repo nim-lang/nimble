@@ -493,16 +493,37 @@ proc setBootstrapNim*(systemNimPkg: Option[PackageInfo], pkgList: seq[PackageInf
 
 proc resolveAndConfigureNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo], options: var Options): NimResolved =
   #Before resolving nim, we bootstrap it, so if we fail resolving it when can use the bootstrapped version.
-  #Notice when implemented it would make the second sat pass obsolete. 
+  #Notice when implemented it would make the second sat pass obsolete.
   let systemNimPkg = getNimFromSystem(options)
   if options.useSystemNim:
     if systemNimPkg.isSome:
       return NimResolved(pkg: some(systemNimPkg.get), version: systemNimPkg.get.basicInfo.version)
     else:
-      raise newNimbleError[NimbleError]("No system nim found") 
-  
-  #We assume we dont have an available nim yet  
-  var pkgListDecl = 
+      raise newNimbleError[NimbleError]("No system nim found")
+
+  # Special case: when installing nim itself globally, we want to install that specific version
+  # Don't run SAT solver which would pick a nim for compilation - we want the nim we're installing
+  if rootPackage.basicInfo.name.isNim:
+    let nimPkg = (name: "nim", ver: parseVersionRange(rootPackage.basicInfo.version))
+    let nimInstalled = installNimFromBinariesDir(nimPkg, options)
+    if nimInstalled.isSome:
+      let resolvedNim = NimResolved(
+        pkg: some getPkgInfoFromDirWithDeclarativeParser(nimInstalled.get.dir, options),
+        version: nimInstalled.get.ver
+      )
+      # Still need to set bootstrap nim and configure it
+      var pkgListDecl = pkgList.mapIt(it.toRequiresInfo(options))
+      if systemNimPkg.isSome:
+        pkgListDecl.add(systemNimPkg.get)
+      pkgListDecl.sort(compPkgListByVersion)
+      options.satResult.pkgList = pkgListDecl.toHashSet()
+      setBootstrapNim(systemNimPkg, pkgListDecl, options)
+      return resolvedNim
+    else:
+      raise nimbleError("Failed to install nim version " & $rootPackage.basicInfo.version)
+
+  #We assume we dont have an available nim yet
+  var pkgListDecl =
     pkgList
     .mapIt(it.toRequiresInfo(options)) #Notice this could fail to parse, but shouldnt be an issue as it wont be falling back yet. We are only interested in selecting nim
   if systemNimPkg.isSome:
@@ -512,7 +533,7 @@ proc resolveAndConfigureNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo]
 
   options.satResult.pkgList = pkgListDecl.toHashSet()
   setBootstrapNim(systemNimPkg, pkgListDecl, options)
-  
+
   var resolvedNim = resolveNim(rootPackage, pkgListDecl, systemNimPkg, options)
   if resolvedNim.pkg.isNone:
     #we need to install it
@@ -971,9 +992,12 @@ proc installPkgs*(satResult: var SATResult, options: Options) =
         installedPkgInfo = satResult.rootPackage
         wasNewlyInstalled = true
       else:
-        if satResult.rootPackage.basicInfo.name.isNim:          
-          satResult.rootPackage = satResult.nimResolved.pkg.get          
-          createBinSymlinkForNim(satResult.rootPackage, options)       
+        if satResult.rootPackage.basicInfo.name.isNim:
+          # When installing nim itself, use the root package (the nim version we're installing)
+          # not the nimResolved (which is the nim used for compilation)
+          createBinSymlinkForNim(satResult.rootPackage, options)
+          installedPkgInfo = satResult.rootPackage
+          wasNewlyInstalled = true
         else:
           # Check if package already exists before installing
           let tempPkgInfo = getPkgInfo(satResult.rootPackage.getNimbleFileDir(), options)
