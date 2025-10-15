@@ -679,7 +679,8 @@ proc getPackageMinimalVersionsFromRepo*(repoDir: string, pkg: PkgTuple, version:
           result.addUnique pkgInfo.getMinimalInfo(options)
         #here we copy the directory to its own folder so we have it cached for future usage
         let downloadInfo = getPackageDownloadInfo((name, tagVersion.toVersionRange()), options)
-        copyDir(tempDir, downloadInfo.downloadDir)
+        if not dirExists(downloadInfo.downloadDir):
+          copyDir(tempDir, downloadInfo.downloadDir)
 
       except CatchableError as e:
         displayWarning(
