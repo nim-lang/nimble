@@ -425,7 +425,7 @@ proc doDownload(url, downloadDir: string, verRange: VersionRange,
             doClone(downMethod, url, downloadDir, latest.tag,
                     onlyTip = not options.forceFullClone, options = options)
       else:
-        display("Warning:", "The package has no tagged releases, downloading HEAD instead.", Warning,
+        display("Warning:", &"The package {url} has no tagged releases, downloading HEAD instead.", Warning,
                 priority = HighPriority)
         if downloadTarball(url, options):
           result.vcsRevision = doDownloadTarball(url, downloadDir, "HEAD", true)
@@ -444,7 +444,7 @@ proc doDownload(url, downloadDir: string, verRange: VersionRange,
                   priority = MediumPriority)
           doCheckout(downMethod, downloadDir, latest.tag, options = options)
       else:
-        display("Warning:", "The package has no tagged releases, downloading HEAD instead.", Warning,
+        display("Warning:", &"The package {url} has no tagged releases, downloading HEAD instead.", Warning,
                   priority = HighPriority)
 
   if result.vcsRevision == notSetSha1Hash:
