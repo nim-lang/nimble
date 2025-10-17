@@ -235,7 +235,8 @@ proc getPackage*(pkg: string, options: Options, resPkg: var Package, ignorePacka
   ##
   ## Aliases are handled and resolved.
   for name, list in options.config.packageLists:
-    display("Reading", "$1 package list" % name, priority = LowPriority)
+    once:
+      display("Reading", "$1 package list" % name, priority = LowPriority)
     let packages = readPackageList(name, options, ignorePackageCache)
     for p in packages:
       if normalize(p["name"].str) == normalize(pkg):
