@@ -206,6 +206,6 @@ Since there can be many versions of the same package installed, this command wil
 
 ```sh
 $ nimble path itertools
-/home/user/.nimble/pkgs2/itertools-0.4.0-5a3514a97e4ff2f6ca4f9fab264b3be765527c7f
-/home/user/.nimble/pkgs2/itertools-0.2.0-ab2eac22ebda6512d830568bfd3052928c8fa2b9
+/home/user/.nimble/pkgs/itertools-0.4.0-5a3514a97e4ff2f6ca4f9fab264b3be765527c7f
+/home/user/.nimble/pkgs/itertools-0.2.0-ab2eac22ebda6512d830568bfd3052928c8fa2b9
 ```

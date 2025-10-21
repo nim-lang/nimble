@@ -30,7 +30,7 @@ proc getVersionFromNimble(): string =
 
 const
   nimbleVersion* = getVersionFromNimble()
-  nimblePackagesDirName* = "pkgs2"
+  nimblePackagesDirName* = "pkgs"
   nimblePackagesLinksDirName* ="links"
   nimbleBinariesDirName* = "bin"
 
