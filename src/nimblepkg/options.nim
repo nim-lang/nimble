@@ -295,7 +295,8 @@ const noHookActions* = {actionCheck}
  #Notice some actions dont need to be touched in vnext. Some other partially incercepted (setup) and some others fully changed (i.e build, install)
 const vNextSupportedActions* = { actionInstall, actionBuild, 
   actionSetup, actionRun, actionLock, actionCustom, actionSync,
-  actionShellEnv, actionShell, actionUpgrade, actionDoc, actionCompile
+  actionShellEnv, actionShell, actionUpgrade, actionDoc, actionCompile,
+  actionDeps
 }
 proc writeHelp*(quit=true) =
   echo(help)
