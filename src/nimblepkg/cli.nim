@@ -178,7 +178,7 @@ proc displayTip*() =
              $globalCLI.suppressionCount
     display("Tip:", msg, Warning, HighPriority)
 
-proc prompt*(forcePrompts: ForcePrompt, question: string): bool =
+proc prompt*(forcePrompts: ForcePrompt, question: string, alwaysAsk = false): bool =
   case forcePrompts
   of forcePromptYes:
     display("Prompt:", question & " -> [forced yes]", Warning, HighPriority)
@@ -187,7 +187,7 @@ proc prompt*(forcePrompts: ForcePrompt, question: string): bool =
     display("Prompt:", question & " -> [forced no]", Warning, HighPriority)
     return false
   of dontForcePrompt:
-    if globalCLI.level > SilentPriority:
+    if alwaysAsk or globalCLI.level > SilentPriority:
       display("Prompt:", question & " [y/N]", Warning, HighPriority)
       displayCategory("Answer:", Warning, HighPriority)
       let yn = stdin.readLine()
