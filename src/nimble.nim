@@ -2189,12 +2189,16 @@ proc deps(options: Options) =
   let pkgInfo = getPkgInfo(getCurrentDir(), options)
 
   var errors = validateDevModeDepsWorkingCopiesBeforeLock(pkgInfo, options)
-
-  let dependencies =  pkgInfo.allDependencies(options).map(
-    pkg => pkg.toFullInfo(options)).toSeq
-  pkgInfo.validateDevelopDependenciesVersionRanges(dependencies, options)
+  var dependencies: seq[PackageInfo]
+  if options.isLegacy:
+    dependencies =  pkgInfo.allDependencies(options).map(
+      pkg => pkg.toFullInfo(options)).toSeq
+    pkgInfo.validateDevelopDependenciesVersionRanges(dependencies, options)
+  else:
+    dependencies = options.satResult.pkgs.toSeq
+  #TODO review if buildDependencyGraph should be called in vnext mode. It seems it can be used
+  #But likely using satResult would be faster, all the info we need is already there.
   var dependencyGraph = buildDependencyGraph(dependencies, options)
-
   # delete errors for dependencies that aren't part of the graph
   for name, error in common.dup errors:
     if not dependencyGraph.contains name:
