@@ -10,7 +10,7 @@ Here are their specifications and differences.
 Library packages are likely the most popular form of Nimble packages.
 They are meant to be used by other library or binary packages.
 
-When Nimble installs a library, it will copy all of its files into `$nimbleDir/pkgs2/pkgname-ver-checksum`.
+When Nimble installs a library, it will copy all of its files into `$nimbleDir/pkgs/pkgname-ver-checksum`.
 It's up to the package creator to make sure that the package directory layout is correct, this is so that users of the package can correctly import the package.
 
 It is suggested that the layout be as follows.
@@ -60,7 +60,7 @@ bin = @["main"]
 ```
 
 In this case when `nimble install` is invoked, Nimble will build the `main.nim`
-file, copy it into `$nimbleDir/pkgs2/pkgname-ver-checksum/` and subsequently
+file, copy it into `$nimbleDir/pkgs/pkgname-ver-checksum/` and subsequently
 create a symlink to the binary in `$nimbleDir/bin/`.
 On Windows, a stub `.cmd` file is created instead.
 

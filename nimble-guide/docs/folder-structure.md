@@ -3,7 +3,7 @@
 
 
 Nimble stores all installed packages and metadata in `$HOME/.nimble` by default.
-Libraries are stored in `$nimbleDir/pkgs2`, and compiled binaries are linked in `$nimbleDir/bin`.
+Libraries are stored in `$nimbleDir/pkgs`, and compiled binaries are linked in `$nimbleDir/bin`.
 The Nim compiler is aware of Nimble and will automatically find modules so you can `import modulename` and have that working without additional setup.
 
 However, some Nimble packages can provide additional tools or commands.
@@ -42,13 +42,13 @@ For example, if your Nimble directory is located at `/some/custom/path/nimble`,
 this should work:
 
 ``
-nim c --nimblePath:/some/custom/path/nimble/pkgs2 main.nim
+nim c --nimblePath:/some/custom/path/nimble/pkgs main.nim
 ``
 
 In the case of package local dependencies with `nimbledeps`:
 
 ``
-nim c --nimblePath:nimbledeps/pkgs2 main.nim
+nim c --nimblePath:nimbledeps/pkgs main.nim
 ``
 
 Some code editors rely on `nim check` to check for errors under the hood (e.g. VScode), and the editor extension may not allow users to pass custom option to `nim check`, which will cause `nim check` to scream `Error: cannot open file:<the_package>`.
@@ -56,10 +56,10 @@ In this case, you will have to use the Nim compiler's configuration file capabil
 Simply add the following line to the `nim.cfg` located in any directory listed in the [documentation](https://nim-lang.org/docs/nimc.html#compiler-usage-configuration-files).
 
 ``
-nimblePath = "/some/custom/path/nimble/pkgs2"
+nimblePath = "/some/custom/path/nimble/pkgs"
 ``
 
 For project local dependencies:
 ``
-nimblePath = "$project/nimbledeps/pkgs2"
+nimblePath = "$project/nimbledeps/pkgs"
 ``

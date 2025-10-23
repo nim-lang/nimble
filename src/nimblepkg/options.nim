@@ -399,12 +399,13 @@ proc initAction*(options: var Options, key: string) =
   else:
     discard
 
-proc prompt*(options: Options, question: string): bool =
+proc prompt*(options: Options, question: string, alwaysAsk = false): bool =
   ## Asks an interactive question and returns the result.
   ##
   ## The proc will return immediately without asking the user if the global
   ## forcePrompts has a value different than dontForcePrompt.
-  return prompt(options.forcePrompts, question)
+  ## If alwaysAsk is true, the prompt will be shown even in silent mode.
+  return prompt(options.forcePrompts, question, alwaysAsk)
 
 proc promptCustom*(options: Options, question, default: string): string =
   ## Asks an interactive question and returns the result.
