@@ -2976,7 +2976,8 @@ when isMainModule:
     
     opt.doAction()
     #if the action is different than setup and in vnext we run setup
-    if shouldRunVNext and opt.action.typ != actionSetup:
+    #when not doing a global install (no ninmble file in the current directory)
+    if shouldRunVNext and opt.action.typ != actionSetup and opt.thereIsNimbleFile:
       setup(opt)
 
   except NimbleQuit as quit:
