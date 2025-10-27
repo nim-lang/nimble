@@ -2804,7 +2804,6 @@ proc doAction(options: var Options) =
     check(options)
   of actionLock:
     lock(options)
-    setup(options)
   of actionDeps:
     deps(options)
   of actionSync:
@@ -2962,8 +2961,10 @@ when isMainModule:
     if opt.action.typ in {actionTasks, actionRun, actionBuild, actionCompile, actionDevelop}:
       # Implicitly disable package validation for these commands.
       opt.disableValidation = true
+    
+    var shouldRunVNext = not opt.isLegacy and opt.action.typ in vNextSupportedActions
 
-    if not opt.isLegacy and opt.action.typ in vNextSupportedActions:
+    if shouldRunVNext:
       # For actionCustom, set the task name before calling runVNext
       if opt.action.typ == actionCustom:
         opt.task = opt.action.command.normalize
@@ -2974,6 +2975,10 @@ when isMainModule:
       opt.setNimBin()
     
     opt.doAction()
+    #if the action is different than setup and in vnext we run setup
+    if shouldRunVNext and opt.action.typ != actionSetup:
+      setup(opt)
+
   except NimbleQuit as quit:
     exitCode = quit.exitCode
   except CatchableError as error:
