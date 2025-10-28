@@ -1743,7 +1743,8 @@ proc updatePathsFile(pkgInfo: PackageInfo, options: Options) =
       pathsFileContent &= &"--path:{p.escape}\n"
   var action = if fileExists(nimblePathsFileName): "updated" else: "generated"
   writeFile(nimblePathsFileName, pathsFileContent)
-  displayInfo(&"\"{nimblePathsFileName}\" is {action}.")
+  var msgPriority = if options.action.typ == actionSetup: HighPriority else: LowPriority
+  displayInfo(&"\"{nimblePathsFileName}\" is {action}.", msgPriority)
 
 proc develop(options: var Options) =
   if options.action.path.len == 0:
@@ -2421,12 +2422,13 @@ when withDir(thisDir(), system.fileExists("{nimblePathsFileName}")):
   else:
     fileContent.append(configFileContent)
     writeFile = true
-
+  
+  var msgPriority = if options.action.typ == actionSetup: HighPriority else: LowPriority
   if writeFile:
     writeFile(nimbleConfigFileName, fileContent)
-    displayInfo(&"\"{nimbleConfigFileName}\" is set up.")
+    displayInfo(&"\"{nimbleConfigFileName}\" is set up.", msgPriority)
   else:
-    displayInfo(&"\"{nimbleConfigFileName}\" is already set up.")
+    displayInfo(&"\"{nimbleConfigFileName}\" is already set up.", msgPriority)
 
 proc setupVcsIgnoreFile =
   ## Adds the names of some files which should not be committed to the VCS
@@ -2804,7 +2806,6 @@ proc doAction(options: var Options) =
     check(options)
   of actionLock:
     lock(options)
-    setup(options)
   of actionDeps:
     deps(options)
   of actionSync:
@@ -2962,8 +2963,10 @@ when isMainModule:
     if opt.action.typ in {actionTasks, actionRun, actionBuild, actionCompile, actionDevelop}:
       # Implicitly disable package validation for these commands.
       opt.disableValidation = true
+    
+    var shouldRunVNext = not opt.isLegacy and opt.action.typ in vNextSupportedActions
 
-    if not opt.isLegacy and opt.action.typ in vNextSupportedActions:
+    if shouldRunVNext:
       # For actionCustom, set the task name before calling runVNext
       if opt.action.typ == actionCustom:
         opt.task = opt.action.command.normalize
@@ -2974,6 +2977,11 @@ when isMainModule:
       opt.setNimBin()
     
     opt.doAction()
+    #if the action is different than setup and in vnext we run setup
+    #when not doing a global install (no ninmble file in the current directory)
+    if shouldRunVNext and opt.action.typ notin {actionSetup, actionDevelop} and opt.thereIsNimbleFile:
+      setup(opt)
+
   except NimbleQuit as quit:
     exitCode = quit.exitCode
   except CatchableError as error:

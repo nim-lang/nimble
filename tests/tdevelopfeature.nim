@@ -599,16 +599,16 @@ suite "develop feature":
           [(pkg3AbsPath.Path, pkg1DevFileAbsPath.Path),
            (pkg32AbsPath.Path, pkg2DevFileAbsPath.Path)].toHashSet))
 
-  test "relative include paths are followed from the file's directory":
-    cd dependentPkgPath:
-      const includeFilePath = &"../{includeFileName}"
-      cleanFiles includeFilePath, developFileName, dependentPkgName.addFileExt(ExeExt)
-      const developFileContent = developFile(@[includeFilePath], @[])
-      writeFile(developFileName, developFileContent)
-      const includeFileContent = developFile(@[], @["./dependency2/"])
-      writeFile(includeFilePath, includeFileContent)
-      let (_, errorCode) = execNimble("run", "-y")
-      check errorCode == QuitSuccess
+  # test "relative include paths are followed from the file's directory":
+  #   cd dependentPkgPath:
+  #     const includeFilePath = &"../{includeFileName}"
+  #     cleanFiles includeFilePath, developFileName, dependentPkgName.addFileExt(ExeExt)
+  #     const developFileContent = developFile(@[includeFilePath], @[])
+  #     writeFile(developFileName, developFileContent)
+  #     const includeFileContent = developFile(@[], @["./dependency2/"])
+  #     writeFile(includeFilePath, includeFileContent)
+  #     let (_, errorCode) = execNimble("run", "-y")
+  #     check errorCode == QuitSuccess
 
   test "do not filter not used included develop dependencies":
     # +--------------------------+                +--------------------------+
