@@ -1743,7 +1743,7 @@ proc updatePathsFile(pkgInfo: PackageInfo, options: Options) =
       pathsFileContent &= &"--path:{p.escape}\n"
   var action = if fileExists(nimblePathsFileName): "updated" else: "generated"
   writeFile(nimblePathsFileName, pathsFileContent)
-  var msgPriority: Priority = if options.action.typ == actionSetup: HighPriority else: MediumPriority
+  var msgPriority = if options.action.typ == actionSetup: HighPriority else: LowPriority
   displayInfo(&"\"{nimblePathsFileName}\" is {action}.", msgPriority)
 
 proc develop(options: var Options) =
@@ -2423,7 +2423,7 @@ when withDir(thisDir(), system.fileExists("{nimblePathsFileName}")):
     fileContent.append(configFileContent)
     writeFile = true
   
-  var msgPriority: Priority = if options.action.typ == actionSetup: HighPriority else: MediumPriority
+  var msgPriority = if options.action.typ == actionSetup: HighPriority else: LowPriority
   if writeFile:
     writeFile(nimbleConfigFileName, fileContent)
     displayInfo(&"\"{nimbleConfigFileName}\" is set up.", msgPriority)
