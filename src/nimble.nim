@@ -57,6 +57,7 @@ proc checkSatisfied(options: Options, dependencies: seq[PackageInfo]) =
   ## Check if two packages of the same name (but different version) are listed
   ## in the path. Throws error if it fails
   var pkgsInPath: Table[string, Version]
+  
   for pkgInfo in dependencies:
     let currentVer = pkgInfo.getConcreteVersion(options)
     if pkgsInPath.hasKey(pkgInfo.basicInfo.name) and
@@ -2661,7 +2662,7 @@ proc solvePkgs(rootPackage: PackageInfo, options: var Options) =
 
   options.satResult.pass = satDone 
 
-proc runVNext*(options: var Options) =
+proc runVNext*(options: var Options) {.instrument.} =
   #Make sure we set the righ verbosity for commands that output info:
   if options.action.typ in {actionShellEnv}:
     setVerbosity(SilentPriority)
