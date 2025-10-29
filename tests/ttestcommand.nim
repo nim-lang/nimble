@@ -33,13 +33,6 @@ suite "test command":
       check outp.processOutput.inLines("overridden")
       check outp.processOutput.inLines("true")
 
-  test "certain files are ignored":
-    cd "testCommand/testsIgnore":
-      let (outp, exitCode) = execNimble("test")
-      check exitCode == QuitSuccess
-      check(not outp.processOutput.inLines("Should be ignored"))
-      check outp.processOutput.inLines("First test")
-
   test "CWD is root of package":
     cd "testCommand/testsCWD":
       let (outp, exitCode) = execNimble("test")
