@@ -178,7 +178,7 @@ proc solvePackagesWithSystemNimFallback*(
     rootPackage: PackageInfo, 
     pkgList: seq[PackageInfo], 
     options: var Options,
-    resolvedNim: Option[NimResolved]): HashSet[PackageInfo] =
+    resolvedNim: Option[NimResolved]): HashSet[PackageInfo] {.instrument.} =
   ## Solves packages with system Nim as a hard requirement, falling back to 
   ## solving without it if the first attempt fails due to unsatisfiable dependencies.
   
@@ -207,7 +207,7 @@ proc compPkgListByVersion*(a, b: PackageInfo): int =
   elif a.basicInfo.version < b.basicInfo.version: return 1
   else: return 0
 
-proc resolveNim*(rootPackage: PackageInfo, pkgListDecl: seq[PackageInfo], systemNimPkg: Option[PackageInfo], options: var Options): NimResolved =
+proc resolveNim*(rootPackage: PackageInfo, pkgListDecl: seq[PackageInfo], systemNimPkg: Option[PackageInfo], options: var Options): NimResolved {.instrument.} =
   
   options.satResult.pkgList = pkgListDecl.toHashSet()
   
@@ -463,7 +463,7 @@ proc solveLockFileDeps*(satResult: var SATResult, pkgList: seq[PackageInfo], opt
         satResult.pkgsToInstall.add((name, dep.version))
     
 
-proc setNimBin*(pkgInfo: PackageInfo, options: var Options) =
+proc setNimBin*(pkgInfo: PackageInfo, options: var Options) {.instrument.} =
   assert pkgInfo.basicInfo.name.isNim
   if options.nimBin.isSome and options.nimBin.get.path == pkgInfo.getRealDir / "bin" / "nim":
     return #We dont want to set the same Nim twice. Notice, this can only happen when installing multiple packages outside of the project dir i.e nimble install pkg1 pkg2 if voth
@@ -553,7 +553,7 @@ proc resolveAndConfigureNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo]
 
   return resolvedNim
 
-proc solvePkgsWithVmParserAllowingFallback*(rootPackage: PackageInfo, resolvedNim: NimResolved, pkgList: seq[PackageInfo], options: var Options)=
+proc solvePkgsWithVmParserAllowingFallback*(rootPackage: PackageInfo, resolvedNim: NimResolved, pkgList: seq[PackageInfo], options: var Options) {.instrument.} =
   var pkgList = 
     pkgList
     .mapIt(it.toRequiresInfo(options))
@@ -911,7 +911,7 @@ proc createBinSymlinkForNim(pkgInfo: PackageInfo, options: Options) =
   let symlinkFilename = options.getBinDir() / "nim"
   discard setupBinSymlink(symlinkDest, symlinkFilename, options)
 
-proc solutionToFullInfo*(satResult: SATResult, options: var Options) =
+proc solutionToFullInfo*(satResult: SATResult, options: var Options) {.instrument.} =
   # for pkg in satResult.pkgs:
   #   if pkg.infoKind != pikFull:   
   #     satResult.pkgs.incl(getPkgInfo(pkg.getNimbleFileDir, options))
