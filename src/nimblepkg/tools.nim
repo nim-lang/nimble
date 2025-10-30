@@ -3,7 +3,7 @@
 #
 # Various miscellaneous utility functions reside here.
 import osproc, pegs, strutils, os, uri, sets, json, parseutils, strformat,
-       sequtils, macros, times
+       sequtils, macros, times, terminal
 when defined(instrument):
   import std/genasts
 
@@ -225,15 +225,24 @@ proc newSSLContext*(disabled: bool): SslContext =
     sslVerifyMode = CVerifyNone
   return newContext(verifyMode = sslVerifyMode)
 
-template measureTime*(name: static string, body: untyped, traceStack: bool) =
-  let starts = times.now()
-  body
-  let ends = (times.now() - starts)
-  let msg = "[" & $(name) & "] took " & $(ends)
-  echo msg
-  if traceStack:
-    for entry in getStackTraceEntries()[1..^2]: #Skips instrument and self
-      echo "  ", entry.filename, ":", entry.line, " ", entry.procname
+template measureTime*(name: static string, traceStack: bool, body: untyped) =
+  when defined(instrument):
+    let starts = times.now()
+    body
+    let ends = (times.now() - starts)
+    let dur = ends.inSeconds
+    let color = 
+      if dur < 1: fgGreen
+      elif dur < 2: fgYellow
+      else: fgRed
+    stdout.styledWrite(fgDefault, "[")
+    stdout.styledWrite(color, $(name))
+    stdout.styledWriteLine(fgDefault, "] took " & $(ends))
+    if traceStack:
+      for entry in getStackTraceEntries()[1..^2]: #Skips instrument and self
+        echo "  ", entry.filename, ":", entry.line, " ", entry.procname
+  else:
+    body
   
 proc instrumentImpl(fn: NimNode, traceStack: bool): NimNode =
   assert fn.kind in [nnkProcDef, nnkFuncDef], "Instrument can only be used on procs and funcs"    
@@ -260,7 +269,7 @@ proc instrumentImpl(fn: NimNode, traceStack: bool): NimNode =
     var body = fn.body
     var instrumentedFn = fn  
     instrumentedFn.body = genAst(fnName, body, traceStack = newLit(traceStack)):
-      measureTime(fnName, body, traceStack)
+      measureTime(fnName, traceStack, body)
     
     if returns:
       result.add copiedFn
