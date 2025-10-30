@@ -3,8 +3,9 @@
 #
 # Various miscellaneous utility functions reside here.
 import osproc, pegs, strutils, os, uri, sets, json, parseutils, strformat,
-       sequtils
-import std/[macros, genasts, times]
+       sequtils, macros, times
+when defined(instrument):
+  import genasts
 
 from net import SslCVerifyMode, newContext, SslContext
 
