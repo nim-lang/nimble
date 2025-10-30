@@ -1064,7 +1064,9 @@ proc installPkgs*(satResult: var SATResult, options: Options) =
     # fillMetaData(pkg, pkg.getRealDir(), false, options)
     options.satResult.pkgs.incl pkg 
 
-  let buildActions = { actionInstall, actionBuild, actionRun }
+  #Only build root for this actions
+  let rootBuildActions = { actionInstall, actionBuild, actionRun }
+  
   
   # For build action, only build the root package
   # For install action, only build newly installed packages
@@ -1092,7 +1094,11 @@ proc installPkgs*(satResult: var SATResult, options: Options) =
         continue
     # echo "Building package: ", pkgToBuild.basicInfo.name, " at ", pkgToBuild.myPath, " binaries: ", pkgToBuild.bin
     let isRoot = pkgToBuild.isRoot(options.satResult) and isInRootDir
-    if options.action.typ in buildActions:
+    if isRoot and options.action.typ in rootBuildActions:
+      buildPkg(pkgToBuild, isRoot, options)
+      satResult.buildPkgs.add(pkgToBuild)
+    elif not isRoot:
+      #Build non root package for all actions that requires the package as a dependency
       buildPkg(pkgToBuild, isRoot, options)
       satResult.buildPkgs.add(pkgToBuild)
 
