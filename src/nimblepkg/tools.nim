@@ -5,7 +5,7 @@
 import osproc, pegs, strutils, os, uri, sets, json, parseutils, strformat,
        sequtils, macros, times
 when defined(instrument):
-  import genasts
+  import std/genasts
 
 from net import SslCVerifyMode, newContext, SslContext
 
@@ -236,9 +236,15 @@ template measureTime*(name: static string, body: untyped, traceStack: bool) =
       echo "  ", entry.filename, ":", entry.line, " ", entry.procname
   
 proc instrumentImpl(fn: NimNode, traceStack: bool): NimNode =
-  assert fn.kind in [nnkProcDef, nnkFuncDef], "Instrument can only be used on procs and funcs"
+  assert fn.kind in [nnkProcDef, nnkFuncDef], "Instrument can only be used on procs and funcs"    
   when defined(instrument):
+    result = newStmtList()    
     var fnName = newLit fn.name.strVal
+    #We forward declare the original function here so we support recursive fns
+    var fwdDecl = fn.copyNimTree
+    fwdDecl[^1] = newEmptyNode()
+    result.add fwdDecl
+
     #if the function doesnt return anything, we dont need to wrap it:
     var returns = fn.params[0].kind != nnkEmpty and not (fn.params[0].kind == nnkIdent and fn.params[0].strVal == "void")
     var copiedFn = newEmptyNode()
@@ -256,7 +262,6 @@ proc instrumentImpl(fn: NimNode, traceStack: bool): NimNode =
     instrumentedFn.body = genAst(fnName, body, traceStack = newLit(traceStack)):
       measureTime(fnName, body, traceStack)
     
-    result = newStmtList()
     if returns:
       result.add copiedFn
     result.add instrumentedFn  
