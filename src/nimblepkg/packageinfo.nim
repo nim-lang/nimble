@@ -293,8 +293,19 @@ proc getInstalledPkgsMin*(libsDir: string, options: Options): seq[PackageInfo] =
     if kind == pcDir:
       let nimbleFile = findNimbleFile(path, false, options)
       if nimbleFile != "":
-        let pkg = getInstalledPackageMin(options, path, nimbleFile)
-        result.add pkg
+        try:
+          let pkg = getInstalledPackageMin(options, path, nimbleFile)
+          result.add pkg
+        except CatchableError as e:
+          displayWarning(&"Error getting installed package {path}: {e.msg}", HighPriority)
+          displayWarning("Package may be corrupted.", HighPriority)
+          if options.prompt(&"Do you want to delete the corrupted package at {path}?", alwaysAsk = true):
+            try:
+              removeDir(path)
+              displayInfo(&"Successfully deleted corrupted package: {path}", HighPriority)
+            except OSError as removeError:
+              displayWarning(&"Failed to delete {path}: {removeError.msg}", HighPriority)
+          continue
 
 proc withinRange*(pkgInfo: PackageInfo, verRange: VersionRange): bool =
   ## Determines whether the specified package's version is within the specified

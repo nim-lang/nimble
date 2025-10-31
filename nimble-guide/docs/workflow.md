@@ -277,7 +277,7 @@ Downloading https://github.com/narimiran/itertools using git
      Info:  "nimble.paths" is updated.
 ```
 
-If you check the contents of `nimble.paths`, you will notice that the path for `itertools` is no more in `~/.nimble/pkgs2` directory (where the version 0.3.0 is), but it has the following value:
+If you check the contents of `nimble.paths`, you will notice that the path for `itertools` is no more in `~/.nimble/pkgs` directory (where the version 0.3.0 is), but it has the following value:
 
 ```sh
 ...
