@@ -3,7 +3,9 @@
 #
 # Various miscellaneous utility functions reside here.
 import osproc, pegs, strutils, os, uri, sets, json, parseutils, strformat,
-       sequtils
+       sequtils, macros, times, terminal
+when defined(instrument):
+  import std/genasts
 
 from net import SslCVerifyMode, newContext, SslContext
 
@@ -223,6 +225,64 @@ proc newSSLContext*(disabled: bool): SslContext =
     sslVerifyMode = CVerifyNone
   return newContext(verifyMode = sslVerifyMode)
 
+template measureTime*(name: static string, traceStack: bool, body: untyped) =
+  when defined(instrument):
+    let starts = times.now()
+    body
+    let ends = (times.now() - starts)
+    let dur = ends.inSeconds
+    let color = 
+      if dur < 1: fgGreen
+      elif dur < 2: fgYellow
+      else: fgRed
+    stdout.styledWrite(fgDefault, "[")
+    stdout.styledWrite(color, $(name))
+    stdout.styledWriteLine(fgDefault, "] took " & $(ends))
+    if traceStack:
+      for entry in getStackTraceEntries()[1..^2]: #Skips instrument and self
+        echo "  ", entry.filename, ":", entry.line, " ", entry.procname
+  else:
+    body
+  
+proc instrumentImpl(fn: NimNode, traceStack: bool): NimNode =
+  assert fn.kind in [nnkProcDef, nnkFuncDef], "Instrument can only be used on procs and funcs"    
+  when defined(instrument):
+    result = newStmtList()    
+    var fnName = newLit fn.name.strVal
+    #We forward declare the original function here so we support recursive fns
+    var fwdDecl = fn.copyNimTree
+    fwdDecl[^1] = newEmptyNode()
+    result.add fwdDecl
+
+    #if the function doesnt return anything, we dont need to wrap it:
+    var returns = fn.params[0].kind != nnkEmpty and not (fn.params[0].kind == nnkIdent and fn.params[0].strVal == "void")
+    var copiedFn = newEmptyNode()
+    if returns:
+      copiedFn = fn.copyNimTree
+      copiedFn.name = newIdentNode("wrapped_" & fnName.strVal)
+      #Construct call here:  
+      var callFnCopied = nnkCall.newTree(copiedFn.name)
+      for param in fn.params[1..^1]:
+        callFnCopied.add param[0]
+      fn.body = nnkAsgn.newTree(newIdentNode("result"), callFnCopied)
+
+    var body = fn.body
+    var instrumentedFn = fn  
+    instrumentedFn.body = genAst(fnName, body, traceStack = newLit(traceStack)):
+      measureTime(fnName, traceStack, body)
+    
+    if returns:
+      result.add copiedFn
+    result.add instrumentedFn  
+  else:
+    result = fn
+
+macro instrument*(fn: untyped): untyped =
+  instrumentImpl(fn, false)
+  
+macro stackInstrument*(fn: untyped): untyped =
+  instrumentImpl(fn, true)    
+    
 when isMainModule:
   import unittest
 

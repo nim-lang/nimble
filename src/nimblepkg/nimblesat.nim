@@ -417,10 +417,9 @@ proc findMinimalFailingSet*(g: var DepGraph): tuple[failingSet: seq[PkgTuple], o
   (minimalFailingSet, output)
 
 proc solve*(g: var DepGraph; f: Form, packages: var Table[string, Version], output: var string, 
-           triedVersions: var seq[VersionAttempt], options: Options): bool =
+           triedVersions: var seq[VersionAttempt], options: Options): bool {.instrument.} =
   let m = f.idgen
   var s = createSolution(m)
-  
   if safeSatisfiable(f, s):
     # output.add analyzeVersionSelection(g, f, s)
     for n in mitems g.nodes:
@@ -497,7 +496,7 @@ proc collectReverseDependencies*(targetPkgName: string, graph: DepGraph): seq[(s
                   result.addUnique revDep
                   break
 
-proc getSolvedPackages*(pkgVersionTable: Table[string, PackageVersions], output: var string, options: Options): seq[SolvedPackage] =
+proc getSolvedPackages*(pkgVersionTable: Table[string, PackageVersions], output: var string, options: Options): seq[SolvedPackage] {.instrument.} =
   var graph = pkgVersionTable.toDepGraph()
   #Make sure all references are in the graph before calling toFormular
   for p in graph.nodes:
@@ -810,7 +809,7 @@ proc processRequirements(versions: var Table[string, PackageVersions], pv: PkgTu
     displayWarning(&"Error processing requirements for {pv.name}: {e.msg}", HighPriority)
 
 
-proc collectAllVersions*(versions: var Table[string, PackageVersions], package: PackageMinimalInfo, options: Options, getMinimalPackage: GetPackageMinimal, preferredPackages: seq[PackageMinimalInfo] = newSeq[PackageMinimalInfo]()) =
+proc collectAllVersions*(versions: var Table[string, PackageVersions], package: PackageMinimalInfo, options: Options, getMinimalPackage: GetPackageMinimal, preferredPackages: seq[PackageMinimalInfo] = newSeq[PackageMinimalInfo]()) {.instrument.} =
   var visited = initHashSet[PkgTuple]()
   for pv in package.requires:
     processRequirements(versions, pv, visited, getMinimalPackage, preferredPackages, options)
@@ -907,7 +906,7 @@ proc getUrlFromPkgName*(pkgName: string, pkgVersionTable: Table[string, PackageV
         return pkgVersion.url
   return ""
   
-proc normalizeRequirements*(pkgVersionTable: var Table[string, PackageVersions], options: Options) =
+proc normalizeRequirements*(pkgVersionTable: var Table[string, PackageVersions], options: Options) {.instrument.} =
   for pkgName, pkgVersions in pkgVersionTable.mpairs:
     for pkgVersion in pkgVersions.versions.mitems:
       for req in pkgVersion.requires.mitems:
@@ -921,7 +920,7 @@ proc normalizeRequirements*(pkgVersionTable: var Table[string, PackageVersions],
             options.satResult.normalizedRequirements[newPkgName] = oldReq
         req.name = req.name.resolveAlias(options)
 
-proc postProcessSolvedPkgs*(solvedPkgs: var seq[SolvedPackage], options: Options) =
+proc postProcessSolvedPkgs*(solvedPkgs: var seq[SolvedPackage], options: Options) {.instrument.} =
   #Prioritizes fileUrl packages over the regular packages defined in the requirements
   var fileUrlPkgs: seq[PackageInfo] = @[]
   for solved in solvedPkgs:
@@ -936,7 +935,7 @@ proc postProcessSolvedPkgs*(solvedPkgs: var seq[SolvedPackage], options: Options
         break
   solvedPkgs = solvedPkgs.filterIt(it notin toReplace)
 
-proc solvePackages*(rootPkg: PackageInfo, pkgList: seq[PackageInfo], pkgsToInstall: var seq[(string, Version)], options: Options, output: var string, solvedPkgs: var seq[SolvedPackage]): HashSet[PackageInfo] =
+proc solvePackages*(rootPkg: PackageInfo, pkgList: seq[PackageInfo], pkgsToInstall: var seq[(string, Version)], options: Options, output: var string, solvedPkgs: var seq[SolvedPackage]): HashSet[PackageInfo] {.instrument.} =
   var root: PackageMinimalInfo = rootPkg.getMinimalInfo(options)
   root.isRoot = true
   var pkgVersionTable = initTable[string, PackageVersions]()
@@ -974,7 +973,7 @@ proc solvePackages*(rootPkg: PackageInfo, pkgList: seq[PackageInfo], pkgsToInsta
       if solvedPkg.pkgName.isNim and systemNimCompatible:
         continue #Skips systemNim
       pkgsToInstall.addUnique((solvedPkg.pkgName, solvedPkg.version))
-    
+      
     # echo "Packages in result: ", result.mapIt(it.basicInfo.name & " " & $it.basicInfo.version & " " & $it.metaData.vcsRevision).join(", ")
 
 

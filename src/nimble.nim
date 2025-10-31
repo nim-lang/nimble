@@ -20,7 +20,7 @@ import nimblepkg/packageinfotypes, nimblepkg/packageinfo, nimblepkg/version,
        nimblepkg/displaymessages, nimblepkg/sha1hashes, nimblepkg/syncfile,
        nimblepkg/deps, nimblepkg/nimblesat, nimblepkg/nimenv,
        nimblepkg/downloadnim, nimblepkg/declarativeparser,
-       nimblepkg/vnext
+      nimblepkg/vnext
 
 const
   nimblePathsFileName* = "nimble.paths"
@@ -57,6 +57,7 @@ proc checkSatisfied(options: Options, dependencies: seq[PackageInfo]) =
   ## Check if two packages of the same name (but different version) are listed
   ## in the path. Throws error if it fails
   var pkgsInPath: Table[string, Version]
+  
   for pkgInfo in dependencies:
     let currentVer = pkgInfo.getConcreteVersion(options)
     if pkgsInPath.hasKey(pkgInfo.basicInfo.name) and
@@ -733,6 +734,7 @@ proc getDependencyDir(name: string, dep: LockFileDep, options: Options):
     string =
   ## Returns the installation directory for a dependency from the lock file.
   options.getPkgsDir() /  &"{name}-{dep.version}-{dep.checksums.sha1}"
+
 
 proc isInstalled(name: string, dep: LockFileDep, options: Options): bool =
   ## Checks whether a dependency from the lock file is already installed.
@@ -2602,7 +2604,7 @@ proc loadFilePathPkgs(options: var Options) =
   options.satResult.rootPackage.loadFilePathPkgs(options)
   options.isFilePathDiscovering = false
 
-proc solvePkgs(rootPackage: PackageInfo, options: var Options) =
+proc solvePkgs(rootPackage: PackageInfo, options: var Options) {.instrument.} =
   options.satResult.rootPackage = rootPackage
   options.satResult.rootPackage.requires &= options.extraRequires
   # Add task-specific requirements if a task is being executed
@@ -2661,7 +2663,7 @@ proc solvePkgs(rootPackage: PackageInfo, options: var Options) =
 
   options.satResult.pass = satDone 
 
-proc runVNext*(options: var Options) =
+proc runVNext*(options: var Options) {.instrument.} =
   #Make sure we set the righ verbosity for commands that output info:
   if options.action.typ in {actionShellEnv}:
     setVerbosity(SilentPriority)
@@ -2743,7 +2745,7 @@ proc getNimDir(options: var Options): string =
 
 
 
-proc doAction(options: var Options) =
+proc doAction(options: var Options) {.instrument.} =
   if options.showHelp:
     writeHelp()
   if options.showVersion:
