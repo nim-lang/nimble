@@ -1231,27 +1231,35 @@ proc listPaths(options: Options) =
   if options.action.packages.len == 0:
     raise nimbleError("A package name needs to be specified")
 
-  var errors = 0
-  let pkgs = getInstalledPkgsMin(options.getPkgsDir(), options)
-  for name, version in options.action.packages.items:
-    var installed: seq[VersionAndPath] = @[]
-    # There may be several, list all available ones and sort by version.
-    for pkg in pkgs:
-      if name == pkg.basicInfo.name and withinRange(pkg.basicInfo.version, version):
-        installed.add((pkg.basicInfo.version, pkg.getRealDir))
+  let pkgInfo = maybeGetPkgInfo(getCurrentDir(), options)
+  if pkgInfo.isSome:
+    let searchNames = options.action.packages.mapIt(it.name).toHashSet
+    for dep in pkgInfo.get.processAllDependencies(options):
+      if dep.basicInfo.name in searchNames:
+        for path in dep.expandPaths(options):
+          echo path
+  else:
+    var errors = 0
+    let pkgs = getInstalledPkgsMin(options.getPkgsDir(), options)
+    for name, version in options.action.packages.items:
+      var installed: seq[VersionAndPath] = @[]
+      # There may be several, list all available ones and sort by version.
+      for pkg in pkgs:
+        if name == pkg.basicInfo.name and withinRange(pkg.basicInfo.version, version):
+          installed.add((pkg.basicInfo.version, pkg.getRealDir))
 
-    if installed.len > 0:
-      sort(installed, cmp[VersionAndPath], Descending)
-      # The output for this command is used by tools so we do not use display().
-      for pkg in installed:
-        echo pkg.path
-    else:
-      display("Warning:", "Package '$1' is not installed" % name, Warning,
-              MediumPriority)
-      errors += 1
-  if errors > 0:
-    raise nimbleError(
-        "At least one of the specified packages was not found")
+      if installed.len > 0:
+        sort(installed, cmp[VersionAndPath], Descending)
+        # The output for this command is used by tools so we do not use display().
+        for pkg in installed:
+          echo pkg.path
+      else:
+        display("Warning:", "Package '$1' is not installed" % name, Warning,
+                MediumPriority)
+        errors += 1
+    if errors > 0:
+      raise nimbleError(
+          "At least one of the specified packages was not found")
 
 proc join(x: seq[PkgTuple]; y: string): string =
   if x.len == 0: return ""
