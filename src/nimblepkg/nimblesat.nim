@@ -478,23 +478,24 @@ proc solve*(g: var DepGraph; f: Form, packages: var Table[string, Version], outp
   solve(g, f, packages, output, triedVersions, options)
 
 proc collectReverseDependencies*(targetPkgName: string, graph: DepGraph): seq[(string, Version)] =
+  # Build URL lookup table once
+  var urlToPkgName = initTable[string, string]()
+  for node in graph.nodes:
+    if cmpIgnoreCase(node.pkgName, targetPkgName) == 0:
+      for version in node.versions:
+        if version.url != "":
+          urlToPkgName[version.url.toLower] = node.pkgName
+
   for node in graph.nodes:
     for version in node.versions:
       for (depName, ver) in graph.reqs[version.req].deps:
         if cmpIgnoreCase(depName, targetPkgName) == 0:
           let revDep = (node.pkgName, version.version)
           result.addUnique revDep
-        else:
+        elif urlToPkgName.hasKey(depName.toLower):
           # Check if this dependency matches by URL
-          # Find the dependency node and check its URL
-          for depNode in graph.nodes:
-            if cmpIgnoreCase(depNode.pkgName, targetPkgName) == 0:
-              # Check if any version of this dependency node has a URL that matches depName
-              for depVersion in depNode.versions:
-                if depVersion.url != "" and (depVersion.url == depName or cmpIgnoreCase(depVersion.url, depName) == 0):
-                  let revDep = (node.pkgName, version.version)
-                  result.addUnique revDep
-                  break
+          let revDep = (node.pkgName, version.version)
+          result.addUnique revDep
 
 proc getSolvedPackages*(pkgVersionTable: Table[string, PackageVersions], output: var string, options: Options): seq[SolvedPackage] {.instrument.} =
   var graph = pkgVersionTable.toDepGraph()
@@ -528,20 +529,23 @@ proc getSolvedPackages*(pkgVersionTable: Table[string, PackageVersions], output:
         )
         result.add solvedPkg
 
+  # Create lookup table for O(1) package access
+  var pkgLookup = initTable[string, SolvedPackage]()
+  for pkg in result:
+    pkgLookup[pkg.pkgName] = pkg
+
   # Collect the deps for every solved package
   for solvedPkg in result.mitems:
     for (depName, depVer) in solvedPkg.requirements:
-      for otherPkg in result:
-        if otherPkg.pkgName == depName and otherPkg.version.withinRange(depVer):
+      if pkgLookup.hasKey(depName):
+        let otherPkg = pkgLookup[depName]
+        if otherPkg.version.withinRange(depVer):
           solvedPkg.deps.add(otherPkg)
-          break
-  # Collect reverse deps as solved package     
+  # Collect reverse deps as solved package
   for solvedPkg in result.mitems:
     for (depName, depVer) in solvedPkg.reverseDependencies:
-      for otherPkg in result:
-        if otherPkg.pkgName == depName:
-          solvedPkg.reverseDeps.add(otherPkg)
-          break
+      if pkgLookup.hasKey(depName):
+        solvedPkg.reverseDeps.add(pkgLookup[depName])
 
 proc isFileUrl*(pkgDownloadInfo: PackageDownloadInfo): bool =
   pkgDownloadInfo.meth.isNone and pkgDownloadInfo.url.isFileURL
@@ -814,19 +818,23 @@ proc collectAllVersions*(versions: var Table[string, PackageVersions], package: 
   for pv in package.requires:
     processRequirements(versions, pv, visited, getMinimalPackage, preferredPackages, options)
 
-proc topologicalSort*(solvedPkgs: seq[SolvedPackage]): seq[SolvedPackage] =
+proc topologicalSort*(solvedPkgs: seq[SolvedPackage]): seq[SolvedPackage] {.instrument.}  =
   var inDegree = initTable[string, int]()
   var adjList = initTable[string, seq[string]]()
-  var zeroInDegree: seq[string] = @[]  
+  var zeroInDegree: seq[string] = @[]
+  # Create a lookup table for O(1) package access
+  var pkgLookup = initTable[string, SolvedPackage]()
+
   # Initialize in-degree and adjacency list using requirements
   for pkg in solvedPkgs:
+    pkgLookup[pkg.pkgName] = pkg
     if not inDegree.hasKey(pkg.pkgName):
       inDegree[pkg.pkgName] = 0  # Ensure every package is in the inDegree table
     for dep in pkg.requirements:
       if dep.name notin adjList:
-        adjList[dep.name] = @[pkg.pkgName]  
+        adjList[dep.name] = @[pkg.pkgName]
       else:
-        adjList[dep.name].add(pkg.pkgName)  
+        adjList[dep.name].add(pkg.pkgName)
       inDegree[pkg.pkgName].inc  # Increase in-degree of this pkg since it depends on dep
 
   # Find all nodes with zero in-degree
@@ -837,7 +845,7 @@ proc topologicalSort*(solvedPkgs: seq[SolvedPackage]): seq[SolvedPackage] =
   # Perform the topological sorting
   while zeroInDegree.len > 0:
     let current = zeroInDegree.pop()
-    let currentPkg = solvedPkgs.filterIt(it.pkgName == current)[0]
+    let currentPkg = pkgLookup[current]
     result.add(currentPkg)
     for neighbor in adjList.getOrDefault(current, @[]):
       inDegree[neighbor] -= 1
