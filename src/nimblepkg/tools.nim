@@ -3,9 +3,7 @@
 #
 # Various miscellaneous utility functions reside here.
 import osproc, pegs, strutils, os, uri, sets, json, parseutils, strformat,
-       sequtils, macros, times, terminal
-when defined(instrument):
-  import std/genasts
+       sequtils, macros, times
 
 from net import SslCVerifyMode, newContext, SslContext
 
@@ -225,22 +223,107 @@ proc newSSLContext*(disabled: bool): SslContext =
     sslVerifyMode = CVerifyNone
   return newContext(verifyMode = sslVerifyMode)
 
-template measureTime*(name: static string, traceStack: bool, body: untyped) =
+when defined(instrument):
+  import std/[tables, terminal, genasts]
+  
+  type
+    CallRecord = object
+      name: string
+      totalTime: Duration
+      callCount: int
+      children: seq[int]  # Indices of child records
+      parent: int  # Index of parent record (-1 for root)
+  
+  var gCallRecords: seq[CallRecord]
+  var gCallStack: seq[int]  # Stack of record indices
+  var gNameToIndex: Table[string, int]  # Map name+parent to record index
+  var gInstrumentDepth: int
+
+proc getOrCreateRecord(name: string, parentIdx: int): int {.inline.} =
+  ## Gets or creates a call record for the given function and parent
   when defined(instrument):
-    let starts = times.now()
-    body
-    let ends = (times.now() - starts)
-    let dur = ends.inSeconds
+    let key = name & ":" & $parentIdx
+    if key in gNameToIndex:
+      return gNameToIndex[key]
+    
+    result = gCallRecords.len
+    gCallRecords.add(CallRecord(
+      name: name,
+      totalTime: initDuration(),
+      callCount: 0,
+      children: @[],
+      parent: parentIdx
+    ))
+    gNameToIndex[key] = result
+    
+    # Add this record as a child of the parent
+    if parentIdx >= 0 and parentIdx < gCallRecords.len:
+      gCallRecords[parentIdx].children.add(result)
+
+proc printCallTree*(idx: int, depth: int = 0) =
+  ## Recursively prints the call tree
+  when defined(instrument):
+    if idx < 0 or idx >= gCallRecords.len:
+      return
+    
+    let record = gCallRecords[idx]
+    let indent = "  ".repeat(depth)
+    let dur = record.totalTime.inSeconds
     let color = 
       if dur < 1: fgGreen
       elif dur < 2: fgYellow
       else: fgRed
-    stdout.styledWrite(fgDefault, "[")
-    stdout.styledWrite(color, $(name))
-    stdout.styledWriteLine(fgDefault, "] took " & $(ends))
-    if traceStack:
-      for entry in getStackTraceEntries()[1..^2]: #Skips instrument and self
-        echo "  ", entry.filename, ":", entry.line, " ", entry.procname
+    
+    stdout.styledWrite(fgDefault, indent & "[")
+    stdout.styledWrite(color, record.name)
+    stdout.styledWrite(fgDefault, "] ")
+    stdout.styledWrite(color, $record.totalTime)
+    if record.callCount > 1:
+      stdout.styledWrite(fgMagenta, " (×" & $record.callCount & ")")
+    stdout.writeLine("")
+    
+    # Print children
+    for childIdx in record.children:
+      printCallTree(childIdx, depth + 1)
+
+proc printInstrumentationReport*() =
+  ## Prints the accumulated instrumentation data as a hierarchical tree
+  when defined(instrument):
+    if gCallRecords.len == 0:
+      return
+    
+    echo ""
+    stdout.styledWriteLine(fgCyan, "=== Instrumentation Report ===")
+    
+    # Print all root-level calls
+    for idx, record in gCallRecords:
+      if record.parent == -1:
+        printCallTree(idx)
+    
+    stdout.styledWriteLine(fgCyan, "==============================")
+    echo ""
+
+template measureTime*(name: static string, traceStack: bool, body: untyped) =
+  when defined(instrument):
+    # Get or create the record for this call
+    let parentIdx = if gCallStack.len > 0: gCallStack[^1] else: -1
+    let recordIdx = getOrCreateRecord(name, parentIdx)
+    
+    # Push this call onto the stack
+    gCallStack.add(recordIdx)
+    inc gInstrumentDepth
+    
+    let starts = times.now()
+    body
+    let ends = times.now() - starts
+    
+    # Update the record
+    gCallRecords[recordIdx].totalTime = gCallRecords[recordIdx].totalTime + ends
+    gCallRecords[recordIdx].callCount += 1
+    
+    # Pop from stack
+    dec gInstrumentDepth
+    discard gCallStack.pop()
   else:
     body
   

@@ -3006,5 +3006,6 @@ when isMainModule:
       exitCode = QuitFailure
       displayError(&"Couldn't save \"{nimbleDataFileName}\".")
       displayDetails(error)
-
+  when defined(instrument):
+    printInstrumentationReport()
   quit(exitCode)
