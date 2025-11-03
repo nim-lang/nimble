@@ -260,7 +260,7 @@ proc getOrCreateRecord(name: string, parentIdx: int): int {.inline.} =
     if parentIdx >= 0 and parentIdx < gCallRecords.len:
       gCallRecords[parentIdx].children.add(result)
 
-proc printCallTree(idx: int, depth: int = 0) =
+proc printCallTree*(idx: int, depth: int = 0) =
   ## Recursively prints the call tree
   when defined(instrument):
     if idx < 0 or idx >= gCallRecords.len:
