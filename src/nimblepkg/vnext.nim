@@ -621,7 +621,7 @@ proc packageExists(pkgInfo: PackageInfo, options: Options):
     return some(oldPkgInfo)
 
 
-proc installFromDirDownloadInfo(downloadDir: string, url: string, pv: PkgTuple, options: Options): PackageInfo = 
+proc installFromDirDownloadInfo(downloadDir: string, url: string, pv: PkgTuple, options: Options): PackageInfo {.instrument.} = 
 
   let dir = downloadDir
   var pkgInfo = getPkgInfo(dir, options)
@@ -922,7 +922,7 @@ proc solutionToFullInfo*(satResult: SATResult, options: var Options) {.instrumen
 proc isRoot(pkgInfo: PackageInfo, satResult: SATResult): bool =
   pkgInfo.basicInfo.name == satResult.rootPackage.basicInfo.name and pkgInfo.basicInfo.version == satResult.rootPackage.basicInfo.version
 
-proc buildPkg*(pkgToBuild: PackageInfo, isRootInRootDir: bool, options: Options) =
+proc buildPkg*(pkgToBuild: PackageInfo, isRootInRootDir: bool, options: Options) {.instrument.} =
   # let paths = getPathsToBuildFor(options.satResult, pkgToBuild, recursive = true, options)
   let paths = getPathsAllPkgs(options)
   # echo "Paths ", paths

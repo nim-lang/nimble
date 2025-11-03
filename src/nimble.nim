@@ -3007,4 +3007,5 @@ when isMainModule:
       displayError(&"Couldn't save \"{nimbleDataFileName}\".")
       displayDetails(error)
 
+  printInstrumentationReport()
   quit(exitCode)
