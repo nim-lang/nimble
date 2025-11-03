@@ -1,6 +1,6 @@
 # Copyright (C) Dominik Picheta. All rights reserved.
 # BSD License. Look at license.txt for more info.
-import parsecfg, sets, streams, strutils, os, tables, sugar, strformat
+import std/[parsecfg, sets, streams, strutils, os, tables, sugar, strformat, options]
 from sequtils import apply, map, toSeq
 
 import common, version, tools, nimscriptwrapper, options, cli, sha1hashes,
@@ -390,6 +390,12 @@ proc getPkgInfo*(dir: string, options: Options, forValidation = false, onlyMinim
   ## Find the .nimble file in ``dir`` and parses it, returning a PackageInfo.
   let nimbleFile = findNimbleFile(dir, true, options)
   result = getPkgInfoFromFile(nimbleFile, options, forValidation, onlyMinimalInfo = onlyMinimalInfo)
+
+proc maybeGetPkgInfo*(dir: string, options: Options): Option[PackageInfo] =
+  try:
+    return some(getPkgInfo(dir, options))
+  except NimbleError:
+    return none(PackageInfo)
 
 proc getInstalledPkgs*(libsDir: string, options: Options): seq[PackageInfo] =
   ## Gets a list of installed packages.
