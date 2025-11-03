@@ -1117,6 +1117,14 @@ proc installPkgs*(satResult: var SATResult, options: Options) {.instrument.} =
       satResult.rootPackage = installFromDirDownloadInfo(nimBin, downloadDir, satResult.rootPackage.metaData.url, pv, options).toRequiresInfo(options, nimBin)    
     pkgsToBuild.add(satResult.rootPackage)
 
+  satResult.installedPkgs = installedPkgs.toSeq()
+  for pkgInfo in satResult.installedPkgs:
+    # Run before-install hook now that package before the build step but after the package is copied over to the 
+    #install dir.
+    let hookDir = pkgInfo.myPath.splitFile.dir
+    if dirExists(hookDir):
+      executeHook(hookDir, options, actionInstall, before = true)
+
   for pkgToBuild in pkgsToBuild:
     if pkgToBuild.bin.len == 0:
       if options.action.typ == actionBuild:
@@ -1135,7 +1143,6 @@ proc installPkgs*(satResult: var SATResult, options: Options) {.instrument.} =
       buildPkg(nimBin, pkgToBuild, isRoot, options)
       satResult.buildPkgs.add(pkgToBuild)
 
-  satResult.installedPkgs = installedPkgs.toSeq()
   for pkg in satResult.installedPkgs.mitems:
     satResult.pkgs.incl pkg
     
