@@ -296,7 +296,7 @@ const noHookActions* = {actionCheck}
 const vNextSupportedActions* = { actionInstall, actionBuild, 
   actionSetup, actionRun, actionLock, actionCustom, actionSync,
   actionShellEnv, actionShell, actionUpgrade, actionDoc, actionCompile,
-  actionDeps
+  actionDeps, actionAdd
 }
 proc writeHelp*(quit=true) =
   echo(help)
