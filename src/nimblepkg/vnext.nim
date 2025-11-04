@@ -33,6 +33,7 @@ proc debugSATResult*(options: Options, calledFrom: string) =
     echo color, "Selected Nim: ", reset, satResult.nimResolved.pkg.get.basicInfo.name, " ", satResult.nimResolved.version
   else:
     echo "No Nim selected"
+  echo color, "Bootstrap Nim: ", reset, "isSet: ", satResult.bootstrapNim.nimResolved.pkg.isSome, " version: ", satResult.bootstrapNim.nimResolved.version
   echo color, "Declarative parser failed: ", reset, satResult.declarativeParseFailed
   if satResult.declarativeParseFailed:
     echo color, "Declarative parser error lines: ", reset, satResult.declarativeParserErrorLines
@@ -474,22 +475,28 @@ proc setBootstrapNim*(systemNimPkg: Option[PackageInfo], pkgList: seq[PackageInf
   let nimPkgList = pkgList.filterIt(it.basicInfo.name.isNim)
   #we want to use actual systemNimPkg as bootstrap nim.
   if systemNimPkg.isSome:
+    # echo "SETTING BOOTSTRAP NIM TO SYSTEM NIM PKG: ", systemNimPkg.get.basicInfo.name, " ", systemNimPkg.get.basicInfo.version, " path ", systemNimPkg.get.getNimbleFileDir()
     bootstrapNim.pkg = some(systemNimPkg.get)
     bootstrapNim.version = systemNimPkg.get.basicInfo.version
   elif nimPkgList.len > 0: #If no system nim, we use the best nim available (they are ordered by version)
-    bootstrapNim.pkg = some(pkgList[0])
-    bootstrapNim.version = pkgList[0].basicInfo.version
+    echo nimPkgList.mapIt(it.basicInfo.name & " " & $it.basicInfo.version & " path " & it.getNimbleFileDir())
+    # echo "SETTING BOOTSTRAP NIM TO: ", nimPkgList[0].basicInfo.name, " ", nimPkgList[0].basicInfo.version, " path ", nimPkgList[0].getNimbleFileDir()
+    bootstrapNim.pkg = some(nimPkgList[0])
+    bootstrapNim.version = nimPkgList[0].basicInfo.version
   else:
     #if none of the above, we just set the version to be used. We dont want to install a nim until we 
     #are clear that we need to actually use it. In order to pick the version, we get the releases.
     #Notice we should never call setNimBin for it. Rather we should attempt to use it directly.     
     let bestRelease = getOfficialReleases(options).max
     bootstrapNim.version = bestRelease
+
+    # echo "SETTING BOOTSTRAP NIM TO BEST RELEASE: ", bestRelease
     #TODO Only install when we actually need it. Meaning in a subsequent PR when we failed to parse a nimble fail with the declarative parser.
     #Ideally it should be triggered from the declarative parser when it detects the failure. 
     #Important: we need to refactor the code path to the nim parser to make sure we parametrize the Nim instead of setting the bootstrap nim directly, this should never be the case. 
   
-  options.satResult.bootstrapNim = bootstrapNim
+  options.satResult.bootstrapNim = BootstrapNim(nimResolved: bootstrapNim, allowToUse: true)
+  
 
 proc resolveAndConfigureNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo], options: var Options): NimResolved {.instrument.} =
   #Before resolving nim, we bootstrap it, so if we fail resolving it when can use the bootstrapped version.
@@ -533,7 +540,12 @@ proc resolveAndConfigureNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo]
 
   options.satResult.pkgList = pkgListDecl.toHashSet()
   setBootstrapNim(systemNimPkg, pkgListDecl, options)
-
+  #At this point, if we failed before to parse the pkglist. We need to reparse with the bootsrapped nim as we may have missed some deps.
+  if options.satResult.declarativeParseFailed:
+    echo "FAILED TO PARSE THE PKGLIST, REPARSING WITH BOOTSTRAPPED NIM"
+    debugSatResult(options, "resolveAndConfigureNim")
+    
+    
   var resolvedNim = resolveNim(rootPackage, pkgListDecl, systemNimPkg, options)
   if resolvedNim.pkg.isNone:
     #we need to install it
