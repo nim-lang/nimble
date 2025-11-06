@@ -68,8 +68,8 @@ suite "file path requires":
     var options = initOptions()
     options.isFilePathDiscovering = true
     cd "filepathrequires/dep3file":
-      let entryPkg = getPkgInfoFromDirWithDeclarativeParser(getCurrentDir(), options)
-      loadFilePathPkgs(entryPkg, options)
+      let entryPkg = getPkgInfoFromDirWithDeclarativeParser(getCurrentDir(), options, nimBin = "nim")
+      loadFilePathPkgs(entryPkg, options, nimBin = "nim")
       check options.filePathPkgs.len == 2
 
   test "should not allow filepath requires in other deps if they werent openened through a filepath require":

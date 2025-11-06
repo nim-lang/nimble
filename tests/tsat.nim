@@ -6,7 +6,7 @@ import std/[tables, sequtils, json, jsonutils, strutils, times, options, strform
 import nimblepkg/[version, nimblesat, options, config, download, packageinfotypes, packageinfo]
 from nimblepkg/common import cd
 
-
+let nimBin = "nim"
 #Test utils:
 proc downloadAndStorePackageVersionTableFor(pkgName: string, options: Options) =
   #Downloads all the dependencies for a given package and store the minimal version of the deps in a json file.
@@ -19,11 +19,11 @@ proc downloadAndStorePackageVersionTableFor(pkgName: string, options: Options) =
   if fileExists(path):
     return
   let pv: PkgTuple = (pkgName, VersionRange(kind: verAny))
-  var pkgInfo = downloadPkInfoForPv(pv, options)
+  var pkgInfo = downloadPkInfoForPv(pv, options, nimBin = nimBin)
   var root = pkgInfo.getMinimalInfo(options)
   root.isRoot = true
   var pkgVersionTable = initTable[string, PackageVersions]()
-  collectAllVersions(pkgVersionTable, root, options, downloadMinimalPackage)
+  collectAllVersions(pkgVersionTable, root, options, downloadMinimalPackage, nimBin = nimBin)
   pkgVersionTable[pkgName] = PackageVersions(pkgName: pkgName, versions: @[root])
   let json = pkgVersionTable.toJson()
   writeFile(path, json.pretty())
@@ -180,11 +180,11 @@ suite "SAT solver":
       "https://nim-lang.org/nimble/packages.json"
     ])
 
-    var pkgInfo = downloadPkInfoForPv(pv, options)
+    var pkgInfo = downloadPkInfoForPv(pv, options, nimBin = nimBin)
     var root = pkgInfo.getMinimalInfo(options)
     root.isRoot = true
     var pkgVersionTable = initTable[string, PackageVersions]()
-    collectAllVersions(pkgVersionTable, root, options, downloadMinimalPackage)
+    collectAllVersions(pkgVersionTable, root, options, downloadMinimalPackage, nimBin = nimBin)
     pkgVersionTable[pkgName] = PackageVersions(pkgName: pkgName, versions: @[root])
 
     var graph = pkgVersionTable.toDepGraph()
@@ -247,7 +247,7 @@ suite "SAT solver":
     var pkgVersionTable = initTable[string, PackageVersions]()
     pkgVersionTable["a"] = PackageVersions(pkgName: "a", versions: @[root])
     fillPackageTableFromPreferred(pkgVersionTable, pkgs)
-    collectAllVersions(pkgVersionTable, root, options, downloadMinimalPackage)
+    collectAllVersions(pkgVersionTable, root, options, downloadMinimalPackage, nimBin = nimBin)
     var output = ""
     let solvedPkgs = pkgVersionTable.getSolvedPackages(output, options)
     let pkgB = solvedPkgs.filterIt(it.pkgName == "b")[0]
@@ -325,10 +325,10 @@ suite "SAT solver":
     ])
     options.localDeps = false
     let pv = parseRequires("nimfp >= 0.3.4")
-    let downloadRes = pv.downloadPkgFromUrl(options)[0] #This is just to setup the test. We need a git dir to work on
+    let downloadRes = pv.downloadPkgFromUrl(options, nimBin = nimBin)[0] #This is just to setup the test. We need a git dir to work on
     let repoDir = downloadRes.dir
     let downloadMethod = DownloadMethod git
-    let packageVersions = getPackageMinimalVersionsFromRepo(repoDir, pv, downloadRes.version, downloadMethod, options)
+    let packageVersions = getPackageMinimalVersionsFromRepo(repoDir, pv, downloadRes.version, downloadMethod, options, nimBin = nimBin)
     
     #we know these versions are available
     let availableVersions = @["0.3.4", "0.3.5", "0.3.6", "0.4.5", "0.4.4"].mapIt(newVersion(it))
@@ -351,17 +351,17 @@ suite "SAT solver":
         removeDir(dir.path)
 
     let pvPrev = parseRequires("nimfp >= 0.3.4")
-    let downloadResPrev = pvPrev.downloadPkgFromUrl(options)[0]
+    let downloadResPrev = pvPrev.downloadPkgFromUrl(options, nimBin = nimBin)[0]
     let repoDirPrev = downloadResPrev.dir
-    discard getPackageMinimalVersionsFromRepo(repoDirPrev, pvPrev, downloadResPrev.version,  DownloadMethod.git, options)
+    discard getPackageMinimalVersionsFromRepo(repoDirPrev, pvPrev, downloadResPrev.version,  DownloadMethod.git, options, nimBin = nimBin)
     check fileExists(repoDirPrev / TaggedVersionsFileName)
     
     let pv = parseRequires("nimfp >= 0.4.4")
-    let downloadRes = pv.downloadPkgFromUrl(options)[0]
+    let downloadRes = pv.downloadPkgFromUrl(options, nimBin = nimBin)[0]
     let repoDir = downloadRes.dir 
     check not fileExists(repoDir / TaggedVersionsFileName)
 
-    let packageVersions = getPackageMinimalVersionsFromRepo(repoDir, pv, downloadRes.version, DownloadMethod.git, options)
+    let packageVersions = getPackageMinimalVersionsFromRepo(repoDir, pv, downloadRes.version, DownloadMethod.git, options, nimBin = nimBin)
     #we know these versions are available
     let availableVersions = @["0.4.5", "0.4.4"].mapIt(newVersion(it))
     for version in availableVersions:
@@ -427,11 +427,11 @@ suite "SAT solver":
     "https://nim-lang.org/nimble/packages.json"
     ])
     let pv = parseRequires("chronos >= 4.0.0")
-    var pkgInfo = downloadPkInfoForPv(pv, options)
+    var pkgInfo = downloadPkInfoForPv(pv, options, nimBin = nimBin)
     var root = pkgInfo.getMinimalInfo(options)
     root.isRoot = true
     var pkgVersionTable = initTable[string, PackageVersions]()
-    collectAllVersions(pkgVersionTable, root, options, downloadMinimalPackage)
+    collectAllVersions(pkgVersionTable, root, options, downloadMinimalPackage, nimBin = nimBin)
     for k, v in pkgVersionTable:
       if not k.isNim:
         check v.versions.len <= options.maxTaggedVersions
