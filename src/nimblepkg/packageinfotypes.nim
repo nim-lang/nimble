@@ -1,7 +1,7 @@
 # Copyright (C) Dominik Picheta. All rights reserved.
 # BSD License. Look at license.txt for more info.
 
-import std/[sets, tables, strformat, options]
+import std/[sets, tables, strformat, options, os]
 import version, sha1hashes
 
 type
@@ -116,6 +116,10 @@ type
     pkg*: Option[PackageInfo] #when none, we need to install it
     version*: Version
 
+  BootstrapNim* = object
+    nimResolved*: NimResolved
+    allowToUse*: bool #Whether we are allowed to use the bootstrap nim. When parsing the initial pkglist we are not allow. 
+
   PackageMinimalInfo* = object
     name*: string
     version*: Version
@@ -140,7 +144,7 @@ type
     declarativeParseFailed*: bool
     declarativeParserErrorLines*: seq[string]
     nimResolved*: NimResolved
-    bootstrapNim*: NimResolved #The nim that we are going to use if we dont have a nim resolved yet and the declarative parser failed. Notice this is required to Atomic Parser fallback (not implemented)
+    bootstrapNim*: BootstrapNim #The nim that we are going to use if we dont have a nim resolved yet and the declarative parser failed. Notice this is required to Atomic Parser fallback (not implemented)
     normalizedRequirements*: Table[string, string] #normalized -> old. Some packages are not published as nimble packages, we keep the url for installation.
     pkgVersionTable*: Table[string, PackageVersions]
 
@@ -175,3 +179,16 @@ proc initSATResult*(pass: SATPass): SATResult =
     pass: pass, installedPkgs: @[], declarativeParseFailed: false, declarativeParserErrorLines: @[],
     normalizedRequirements: initTable[string, string]()
     )
+
+proc getNimbleFileDir*(pkgInfo: PackageInfo): string =
+  pkgInfo.myPath.splitFile.dir
+
+proc getNimPath*(pkgInfo: PackageInfo): string = 
+  var binaryPath = "bin" / "nim"
+  when defined(windows):
+    binaryPath &= ".exe"      
+  pkgInfo.getNimbleFileDir() / binaryPath
+
+proc getNimBin*(nimResolved: NimResolved): string =
+  assert nimResolved.pkg.isSome, "Nim is not resolved yet"
+  return nimResolved.pkg.get.getNimPath().quoteShell

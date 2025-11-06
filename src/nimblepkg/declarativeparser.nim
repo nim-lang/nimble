@@ -455,12 +455,12 @@ proc getFeatures*(nimbleFileInfo: NimbleFileInfo): Table[string, seq[PkgTuple]] 
   for feature, requires in nimbleFileInfo.features:
     result[feature] = requires.map(parseRequires)    
 
-proc toRequiresInfo*(pkgInfo: PackageInfo, options: Options, nimbleFileInfo: Option[NimbleFileInfo] = none(NimbleFileInfo)): PackageInfo =
+proc toRequiresInfo*(pkgInfo: PackageInfo, options: Options, nimBin: string, nimbleFileInfo: Option[NimbleFileInfo] = none(NimbleFileInfo)): PackageInfo =
   #For nim we only need the version. Since version is usually in the form of `version = $NimMajor & "." & $NimMinor & "." & $NimPatch
   #we need to use the vm to get the version. Another option could be to use the binary and ask for the version
   # echo "toRequiresInfo: ", $pkgInfo.basicInfo, $pkgInfo.requires
   result = pkgInfo
-  let forceDeclarativeOnly = options.satResult.pass == satNimSelection
+  let forceDeclarativeOnly = options.satResult.pass == satNimSelection or nimBin != ""
   if pkgInfo.myPath.splitFile.ext == ".babel":
     if forceDeclarativeOnly: #TODO mark the pass as failed via declarativeParseFailed and continue
       let error = "Package " & pkgInfo.basicInfo.name & " is a babel package, skipping declarative parser"
@@ -469,7 +469,7 @@ proc toRequiresInfo*(pkgInfo: PackageInfo, options: Options, nimbleFileInfo: Opt
       return result
     else:
       displayWarning &"Package {pkgInfo.basicInfo.name} is a babel package, skipping declarative parser", priority = HighPriority
-      result = getPkgInfo(pkgInfo.myPath.parentDir, options)
+      result = getPkgInfo(pkgInfo.myPath.parentDir, options, nimBin)
       fillMetaData(result, result.getRealDir(), false, options)
       return result
 
@@ -486,7 +486,7 @@ proc toRequiresInfo*(pkgInfo: PackageInfo, options: Options, nimbleFileInfo: Opt
       options.satResult.declarativeParseFailed = true
       options.satResult.declarativeParserErrorLines = nimbleFileInfo.declarativeParserErrorLines
     else:
-      result = getPkgInfo(result.myPath.parentDir, options)
+      result = getPkgInfo(result.myPath.parentDir, options, nimBin)
       # raise nimbleError("Invalid SAT pass: " & $options.satResult.pass)
       # echo " to fullinfo Requires: ", result.requires
       # echo readFile(pkgInfo.myPath)
@@ -522,18 +522,18 @@ proc fillPkgBasicInfo(pkgInfo: var PackageInfo, nimbleFileInfo: NimbleFileInfo) 
   pkgInfo.basicInfo.version = newVersion nimbleFileInfo.version
   pkgInfo.srcDir = nimbleFileInfo.srcDir
 
-proc getNimPkgInfo*(dir: string, options: Options): PackageInfo =
+proc getNimPkgInfo*(dir: string, options: Options, nimBin: string): PackageInfo =
   let nimbleFile = dir / "nim.nimble"
   assert fileExists(nimbleFile), "Nim.nimble file not found in " & dir
   let nimbleFileInfo = extractRequiresInfo(nimbleFile, options)
   result = initPackageInfo()
   fillPkgBasicInfo(result, nimbleFileInfo)
-  result = toRequiresInfo(result, options, some nimbleFileInfo)
+  result = toRequiresInfo(result, options, nimBin, some nimbleFileInfo)
 
-proc getPkgInfoFromDirWithDeclarativeParser*(dir: string, options: Options, shouldError: bool = true): PackageInfo =
+proc getPkgInfoFromDirWithDeclarativeParser*(dir: string, options: Options, nimBin: string, shouldError: bool = true): PackageInfo =
   let nimbleFile = findNimbleFile(dir, shouldError, options)
   let nimbleFileInfo = extractRequiresInfo(nimbleFile, options)
   result = initPackageInfo()
   fillPkgBasicInfo(result, nimbleFileInfo)
   result.metadata = loadMetaData(result.getNimbleFileDir(), raiseIfNotFound = false, options)
-  result = toRequiresInfo(result, options, some nimbleFileInfo)
+  result = toRequiresInfo(result, options, nimBin, some nimbleFileInfo)

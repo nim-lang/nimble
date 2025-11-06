@@ -5,7 +5,7 @@ import os, strutils, sets
 
 import packageparser, common, options, nimscriptwrapper, cli
 
-proc execHook*(options: Options, hookAction: ActionType, before: bool): bool =
+proc execHook*(nimBin: string, options: Options, hookAction: ActionType, before: bool): bool =
   ## Returns whether to continue.
   result = true
 
@@ -18,7 +18,7 @@ proc execHook*(options: Options, hookAction: ActionType, before: bool): bool =
     nimbleFile = findNimbleFile(getCurrentDir(), true, options)
   except NimbleError: return true
   # PackageInfos are cached so we can read them as many times as we want.
-  let pkgInfo = getPkgInfoFromFile(nimbleFile, options)
+  let pkgInfo = getPkgInfoFromFile(nimBin, nimbleFile, options)
   let actionName =
     if hookAction == actionCustom: options.action.command
     else: ($hookAction)[6 .. ^1]
@@ -26,21 +26,21 @@ proc execHook*(options: Options, hookAction: ActionType, before: bool): bool =
     if before: actionName.normalize in pkgInfo.preHooks
     else: actionName.normalize in pkgInfo.postHooks
   if pkgInfo.isNimScript and hookExists:
-    let res = execHook(nimbleFile, actionName, before, options)
+    let res = execHook(nimBin, nimbleFile, actionName, before, options)
     if res.success:
       result = res.retVal
 
-proc execCustom*(nimbleFile: string, options: Options,
+proc execCustom*(nimBin: string, nimbleFile: string, options: Options,
                  execResult: var ExecutionResult[bool]): bool =
   ## Executes the custom command using the nimscript backend.
 
-  if not execHook(options, actionCustom, true):
+  if not execHook(nimBin, options, actionCustom, true):
     raise nimbleError("Pre-hook prevented further execution.")
 
-  if not nimbleFile.isNimScript(options):
+  if not nimbleFile.isNimScript(nimBin, options):
     writeHelp()
 
-  execResult = execTask(nimbleFile, options.action.command, options)
+  execResult = execTask(nimBin, nimbleFile, options.action.command, options)
   if not execResult.success:
     raise nimbleError(msg = "Failed to execute task $1 in $2" %
                              [options.action.command, nimbleFile])
@@ -49,7 +49,7 @@ proc execCustom*(nimbleFile: string, options: Options,
     display("Warning:", "Using `setCommand 'nop'` is not necessary.", Warning,
             HighPriority)
 
-  if not execHook(options, actionCustom, false):
+  if not execHook(nimBin, options, actionCustom, false):
     return
 
   return true

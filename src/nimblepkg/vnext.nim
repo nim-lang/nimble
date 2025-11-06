@@ -147,7 +147,7 @@ proc getNimFromSystem*(options: Options): Option[PackageInfo] =
             discard # Fall back to original pnim
     let dir = effectivePnim.parentDir.parentDir
     try:
-      return some getPkgInfoFromDirWithDeclarativeParser(dir, options)
+      return some getPkgInfoFromDirWithDeclarativeParser(dir, options, nimBin = "") #Can be empty as the code path for nim doesnt need it. 
     except CatchableError:
       discard # Fall back to original pnim
   return none(PackageInfo)
@@ -179,7 +179,7 @@ proc solvePackagesWithSystemNimFallback*(
     rootPackage: PackageInfo, 
     pkgList: seq[PackageInfo], 
     options: var Options,
-    resolvedNim: Option[NimResolved]): HashSet[PackageInfo] {.instrument.} =
+    resolvedNim: Option[NimResolved], nimBin: string): HashSet[PackageInfo] {.instrument.} =
   ## Solves packages with system Nim as a hard requirement, falling back to 
   ## solving without it if the first attempt fails due to unsatisfiable dependencies.
   
@@ -196,12 +196,12 @@ proc solvePackagesWithSystemNimFallback*(
 
   result = solvePackages(rootPackageWithSystemNim, pkgList, 
                         options.satResult.pkgsToInstall, options, 
-                        options.satResult.output, options.satResult.solvedPkgs)
+                        options.satResult.output, options.satResult.solvedPkgs, nimBin)
   if options.satResult.solvedPkgs.len == 0 and systemNimPass:
     # If the first pass failed, we will retry without the systemNim as a hard requirement
     result = solvePackages(rootPackage, pkgList, 
                           options.satResult.pkgsToInstall, options, 
-                          options.satResult.output, options.satResult.solvedPkgs)
+                          options.satResult.output, options.satResult.solvedPkgs, nimBin)
 
 proc compPkgListByVersion*(a, b: PackageInfo): int =
   if  a.basicInfo.version > b.basicInfo.version: return -1
@@ -245,9 +245,14 @@ proc resolveNim*(rootPackage: PackageInfo, pkgListDecl: seq[PackageInfo], system
   var resolvedNim: Option[NimResolved]  
   if systemNimPkg.isSome:
     resolvedNim = some(NimResolved(pkg: systemNimPkg, version: systemNimPkg.get.basicInfo.version))
-  
+  var nimBin: string
+  if resolvedNim.isSome:
+    nimBin = resolvedNim.get.getNimBin()
+  else:
+    nimBin = options.satResult.bootstrapNim.nimResolved.getNimBin()
+
   options.satResult.pkgs = solvePackagesWithSystemNimFallback(
-      rootPackage, pkgListDecl, options,  resolvedNim)
+      rootPackage, pkgListDecl, options,  resolvedNim, nimBin)
   if options.satResult.solvedPkgs.len == 0:
     displayError(options.satResult.output)
     raise newNimbleError[NimbleError]("Couldnt find a solution for the packages. Unsatisfiable dependencies. Check there is no contradictory dependencies.")
@@ -302,7 +307,7 @@ proc getSolvedPkgFromInstalledPkgs*(satResult: SATResult, solvedPkg: SolvedPacka
 proc thereIsNimbleFile*(options: Options): bool =
   return findNimbleFile(getCurrentDir(), error = false, options, warn = false) != ""
 
-proc solveLockFileDeps*(satResult: var SATResult, pkgList: seq[PackageInfo], options: Options) = 
+proc solveLockFileDeps*(satResult: var SATResult, pkgList: seq[PackageInfo], options: Options, nimBin: string) = 
   let lockFile = options.lockFile(satResult.rootPackage.myPath.parentDir())
   let currentRequires = satResult.rootPackage.requires
   var existingRequires = newSeq[(string, Version)]()
@@ -329,7 +334,7 @@ proc solveLockFileDeps*(satResult: var SATResult, pkgList: seq[PackageInfo], opt
       shouldSolve = true
       break
 
-  var pkgListDecl = pkgList.mapIt(it.toRequiresInfo(options))
+  var pkgListDecl = pkgList.mapIt(it.toRequiresInfo(options, nimBin))
 
   # if options.action.typ == actionUpgrade:
   #   for upgradePkg in options.action.packages:
@@ -359,7 +364,8 @@ proc solveLockFileDeps*(satResult: var SATResult, pkgList: seq[PackageInfo], opt
       satResult.pkgsToInstall, 
       options, 
       satResult.output, 
-      satResult.solvedPkgs
+      satResult.solvedPkgs,
+      nimBin
     )
     if satResult.solvedPkgs.len == 0:
       displayError(satResult.output)
@@ -416,7 +422,8 @@ proc solveLockFileDeps*(satResult: var SATResult, pkgList: seq[PackageInfo], opt
             newPkgsToInstall, 
             options, 
             tempSatResult.output, 
-            tempSatResult.solvedPkgs
+            tempSatResult.solvedPkgs,
+            nimBin
           )
       for newPkgToInstall in newPkgsToInstall:
         if newPkgToInstall[0] notin satResult.pkgsToInstall.mapIt(it[0]):
@@ -496,7 +503,20 @@ proc setBootstrapNim*(systemNimPkg: Option[PackageInfo], pkgList: seq[PackageInf
     #Important: we need to refactor the code path to the nim parser to make sure we parametrize the Nim instead of setting the bootstrap nim directly, this should never be the case. 
   
   options.satResult.bootstrapNim = BootstrapNim(nimResolved: bootstrapNim, allowToUse: true)
-  
+
+proc getBootstrapNimResolved*(options: var Options): NimResolved =
+  #TODO NEXT PR the package list should be the nim binaries + the nims in pkgs2 (so we need to prefilter it without using nim)
+  let pkgList: seq[PackageInfo] = @[]
+  setBootstrapNim(getNimFromSystem(options), pkgList, options)  
+  var bootstrapNim = options.satResult.bootstrapNim
+  if bootstrapNim.nimResolved.pkg.isNone:
+    let nimInstalled = installNimFromBinariesDir(("nim", bootstrapNim.nimResolved.version.toVersionRange()), options)
+    if nimInstalled.isSome:
+      bootstrapNim.nimResolved.pkg = some getPkgInfoFromDirWithDeclarativeParser(nimInstalled.get.dir, options, nimBin = "") #Can be empty as the code path for nim doesnt need it. 
+    else:
+      raise nimbleError("Failed to install nim") #What to do here? Is this ever possible?
+  options.satResult.bootstrapNim = bootstrapNim
+  return bootstrapNim.nimResolved
 
 proc resolveAndConfigureNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo], options: var Options): NimResolved {.instrument.} =
   #Before resolving nim, we bootstrap it, so if we fail resolving it when can use the bootstrapped version.
@@ -515,35 +535,36 @@ proc resolveAndConfigureNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo]
     let nimInstalled = installNimFromBinariesDir(nimPkg, options)
     if nimInstalled.isSome:
       let resolvedNim = NimResolved(
-        pkg: some getPkgInfoFromDirWithDeclarativeParser(nimInstalled.get.dir, options),
+        pkg: some getPkgInfoFromDirWithDeclarativeParser(nimInstalled.get.dir, options, nimBin = ""), #Can be empty as the code path for nim doesnt need it. 
         version: nimInstalled.get.ver
       )
       # Still need to set bootstrap nim and configure it
-      var pkgListDecl = pkgList.mapIt(it.toRequiresInfo(options))
+      var pkgListDecl = pkgList.mapIt(it.toRequiresInfo(options, resolvedNim.getNimBin()))
       if systemNimPkg.isSome:
         pkgListDecl.add(systemNimPkg.get)
       pkgListDecl.sort(compPkgListByVersion)
       options.satResult.pkgList = pkgListDecl.toHashSet()
-      setBootstrapNim(systemNimPkg, pkgListDecl, options)
       return resolvedNim
     else:
       raise nimbleError("Failed to install nim version " & $rootPackage.basicInfo.version)
 
   #We assume we dont have an available nim yet
+  var nimBin = ""
   var pkgListDecl =
     pkgList
-    .mapIt(it.toRequiresInfo(options)) #Notice this could fail to parse, but shouldnt be an issue as it wont be falling back yet. We are only interested in selecting nim
+    .mapIt(it.toRequiresInfo(options, nimBin)) #Notice this could fail to parse, but shouldnt be an issue as it wont be falling back yet. We are only interested in selecting nim
   if systemNimPkg.isSome:
     pkgListDecl.add(systemNimPkg.get)
   #Order the pkglist by version
   pkgListDecl.sort(compPkgListByVersion)
 
   options.satResult.pkgList = pkgListDecl.toHashSet()
-  setBootstrapNim(systemNimPkg, pkgListDecl, options)
+  # setBootstrapNim(systemNimPkg, pkgListDecl, options)
+  #TODO NEXT PR
   #At this point, if we failed before to parse the pkglist. We need to reparse with the bootsrapped nim as we may have missed some deps.
-  if options.satResult.declarativeParseFailed:
-    echo "FAILED TO PARSE THE PKGLIST, REPARSING WITH BOOTSTRAPPED NIM"
-    debugSatResult(options, "resolveAndConfigureNim")
+  # if options.satResult.declarativeParseFailed:
+  #   echo "FAILED TO PARSE THE PKGLIST, REPARSING WITH BOOTSTRAPPED NIM"
+  #   debugSatResult(options, "resolveAndConfigureNim")
     
     
   var resolvedNim = resolveNim(rootPackage, pkgListDecl, systemNimPkg, options)
@@ -555,7 +576,7 @@ proc resolveAndConfigureNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo]
     #forcing a recompilation of nim.
     let nimInstalled = installNimFromBinariesDir(nimPkg, options)
     if nimInstalled.isSome:
-      resolvedNim.pkg = some getPkgInfoFromDirWithDeclarativeParser(nimInstalled.get.dir, options)
+      resolvedNim.pkg = some getPkgInfoFromDirWithDeclarativeParser(nimInstalled.get.dir, options, nimBin = "") #Can be empty as the code path for nim doesnt need it. 
       resolvedNim.version = nimInstalled.get.ver
     elif rootPackage.basicInfo.name.isNim: #special version/not in releases nim binaries
       resolvedNim.pkg = some rootPackage
@@ -566,14 +587,15 @@ proc resolveAndConfigureNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo]
   return resolvedNim
 
 proc solvePkgsWithVmParserAllowingFallback*(rootPackage: PackageInfo, resolvedNim: NimResolved, pkgList: seq[PackageInfo], options: var Options) {.instrument.} =
+  let nimBin = resolvedNim.getNimBin()
   var pkgList = 
     pkgList
-    .mapIt(it.toRequiresInfo(options))
+    .mapIt(it.toRequiresInfo(options, nimBin))
   pkgList.add(resolvedNim.pkg.get)
   options.satResult.pkgList = pkgList.toHashSet()
   
   options.satResult.pkgs = solvePackagesWithSystemNimFallback(
-    rootPackage, pkgList, options, some(resolvedNim))
+    rootPackage, pkgList, options, some(resolvedNim), nimBin)
   
   if options.satResult.solvedPkgs.len == 0:
     displayError(options.satResult.output)
@@ -605,15 +627,15 @@ proc addReverseDeps*(satResult: SATResult, options: Options) =
         # This can happen when packages are installed recursively during hooks
         displayInfo("Skipping reverse dependency for package not found in solution: " & $dep, MediumPriority)
   
-proc executeHook(dir: string, options: Options, action: ActionType, before: bool) =
+proc executeHook(nimBin: string, dir: string, options: Options, action: ActionType, before: bool) =
   cd dir: # Make sure `execHook` executes the correct .nimble file.
-    if not execHook(options, action, before):
+    if not execHook(nimBin, options, action, before):
       if before:
         raise nimbleError("Pre-hook prevented further execution.")
       else:
         raise nimbleError("Post-hook prevented further execution.")
 
-proc packageExists(pkgInfo: PackageInfo, options: Options):
+proc packageExists(nimBin: string, pkgInfo: PackageInfo, options: Options):
     Option[PackageInfo] =
   ## Checks whether a package `pkgInfo` already exists in the Nimble cache. If a
   ## package already exists returns the `PackageInfo` of the package in the
@@ -625,7 +647,7 @@ proc packageExists(pkgInfo: PackageInfo, options: Options):
   else:
     var oldPkgInfo = initPackageInfo()
     try:
-      oldPkgInfo = pkgDestDir.getPkgInfo(options)
+      oldPkgInfo = pkgDestDir.getPkgInfo(options, nimBin = nimBin)
     except CatchableError as error:
       raise nimbleError(&"The package inside \"{pkgDestDir}\" is invalid.",
                         details = error)
@@ -633,10 +655,10 @@ proc packageExists(pkgInfo: PackageInfo, options: Options):
     return some(oldPkgInfo)
 
 
-proc installFromDirDownloadInfo(downloadDir: string, url: string, pv: PkgTuple, options: Options): PackageInfo {.instrument.} = 
+proc installFromDirDownloadInfo(nimBin: string,downloadDir: string, url: string, pv: PkgTuple, options: Options): PackageInfo {.instrument.} = 
 
   let dir = downloadDir
-  var pkgInfo = getPkgInfo(dir, options)
+  var pkgInfo = getPkgInfo(dir, options, nimBin = nimBin)
   var depsOptions = options
   depsOptions.depsOnly = false
 
@@ -644,7 +666,7 @@ proc installFromDirDownloadInfo(downloadDir: string, url: string, pv: PkgTuple, 
     [pkgInfo.basicInfo.name, $pkgInfo.basicInfo.version],
     priority = MediumPriority)
 
-  let oldPkg = pkgInfo.packageExists(options)
+  let oldPkg = packageExists(nimBin, pkgInfo, options)
   if oldPkg.isSome:
     # In the case we already have the same package in the cache then only merge
     # the new package special versions to the old one.
@@ -702,10 +724,10 @@ proc getDepsPkgInfo(satResult: SATResult, pkgInfo: PackageInfo, options: Options
     let depInfo = getPkgInfoFromSolution(satResult, solvedPkg, options)
     result.add(depInfo)
 
-proc expandPaths*(pkgInfo: PackageInfo, options: Options): seq[string] =
-  var pkgInfo = pkgInfo.toFullInfo(options) #TODO is this needed in VNEXT? I dont think so
+proc expandPaths*(pkgInfo: PackageInfo, nimBin: string, options: Options): seq[string] =
+  var pkgInfo = pkgInfo.toFullInfo(options, nimBin = nimBin) #TODO is this needed in VNEXT? I dont think so
   if not options.isLegacy: 
-    pkgInfo = pkgInfo.toRequiresInfo(options)
+    pkgInfo = pkgInfo.toRequiresInfo(options, nimBin = nimBin)
   let baseDir = pkgInfo.getRealDir()
   result = @[baseDir]
   # Also add srcDir if it exists and is different from baseDir
@@ -720,18 +742,19 @@ proc expandPaths*(pkgInfo: PackageInfo, options: Options): seq[string] =
       result.add path
 
 proc getPathsToBuildFor*(satResult: SATResult, pkgInfo: PackageInfo, recursive: bool, options: Options): HashSet[string] =
+  let nimBin = satResult.nimResolved.getNimBin()
   for depInfo in getDepsPkgInfo(satResult, pkgInfo, options):
-    for path in depInfo.expandPaths(options):
+    for path in depInfo.expandPaths(nimBin, options):
       result.incl(path)
     if recursive:
       for path in satResult.getPathsToBuildFor(depInfo, recursive = true, options):
         result.incl(path)
-  result.incl(pkgInfo.expandPaths(options))
+  result.incl(pkgInfo.expandPaths(nimBin, options))
 
 proc getPathsAllPkgs*(options: Options): HashSet[string] =
   let satResult = options.satResult
   for pkg in satResult.pkgs:
-    for path in pkg.expandPaths(options):
+    for path in pkg.expandPaths(satResult.nimResolved.getNimBin(), options):
       result.incl(path)
 
 proc getNimBin(satResult: SATResult): string =
@@ -746,15 +769,14 @@ proc getNimBin(satResult: SATResult): string =
     raise newNimbleError[NimbleError]("No Nim found")
 
 proc buildFromDir(pkgInfo: PackageInfo, paths: HashSet[string],
-                  args: seq[string], options: Options) =
+                  args: seq[string], options: Options, nimBin: string) =
   ## Builds a package as specified by ``pkgInfo``.
   # Handle pre-`build` hook.
   let
     realDir = pkgInfo.getRealDir()
     pkgDir = pkgInfo.myPath.parentDir()
-
   cd pkgDir: # Make sure `execHook` executes the correct .nimble file.
-    if not execHook(options, actionBuild, true):
+    if not execHook(nimBin, options, actionBuild, true):
       raise nimbleError("Pre-hook prevented further execution.")
 
   if pkgInfo.bin.len == 0:
@@ -872,7 +894,7 @@ proc buildFromDir(pkgInfo: PackageInfo, paths: HashSet[string],
 
   # Handle post-`build` hook.
   cd pkgDir: # Make sure `execHook` executes the correct .nimble file.
-    discard execHook(options, actionBuild, false)
+    discard execHook(nimBin, options, actionBuild, false)
 
 proc createBinSymlink(pkgInfo: PackageInfo, options: Options) =
   var binariesInstalled: HashSet[string]
@@ -927,14 +949,15 @@ proc solutionToFullInfo*(satResult: SATResult, options: var Options) {.instrumen
   # for pkg in satResult.pkgs:
   #   if pkg.infoKind != pikFull:   
   #     satResult.pkgs.incl(getPkgInfo(pkg.getNimbleFileDir, options))
+  let nimBin = satResult.nimResolved.getNimBin()
   if satResult.rootPackage.infoKind != pikFull and not satResult.rootPackage.basicInfo.name.isNim: 
-    satResult.rootPackage = getPkgInfo(satResult.rootPackage.getNimbleFileDir, options).toRequiresInfo(options)
+    satResult.rootPackage = getPkgInfo(satResult.rootPackage.getNimbleFileDir, options, nimBin = nimBin).toRequiresInfo(options, nimBin = nimBin)
     satResult.rootPackage.enableFeatures(options)
 
 proc isRoot(pkgInfo: PackageInfo, satResult: SATResult): bool =
   pkgInfo.basicInfo.name == satResult.rootPackage.basicInfo.name and pkgInfo.basicInfo.version == satResult.rootPackage.basicInfo.version
 
-proc buildPkg*(pkgToBuild: PackageInfo, isRootInRootDir: bool, options: Options) {.instrument.} =
+proc buildPkg*(nimBin: string, pkgToBuild: PackageInfo, isRootInRootDir: bool, options: Options) {.instrument.} =
   # let paths = getPathsToBuildFor(options.satResult, pkgToBuild, recursive = true, options)
   let paths = getPathsAllPkgs(options)
   # echo "Paths ", paths
@@ -949,7 +972,7 @@ proc buildPkg*(pkgToBuild: PackageInfo, isRootInRootDir: bool, options: Options)
   var pkgToBuild = pkgToBuild
   if isRootInRootDir:
     pkgToBuild.isInstalled = false
-  buildFromDir(pkgToBuild, paths, "-d:release" & flags, options)
+  buildFromDir(pkgToBuild, paths, "-d:release" & flags, options, nimBin)
   # For globally installed packages, always create symlinks
   # Only skip symlinks if we're building the root package in its own directory
   let shouldCreateSymlinks = not isRootInRootDir or options.action.typ == actionInstall
@@ -987,9 +1010,9 @@ proc installPkgs*(satResult: var SATResult, options: Options) {.instrument.} =
   var newlyInstalledPkgs = initHashSet[PackageInfo]()
   let rootName = satResult.rootPackage.basicInfo.name
   # options.debugSATResult()
-  
+  let nimBin = satResult.nimResolved.getNimBin()
   if isInRootDir and options.action.typ == actionInstall:
-    executeHook(getCurrentDir(), options, actionInstall, before = true)
+    executeHook(nimBin, getCurrentDir(), options, actionInstall, before = true)
   
   for (name, ver) in pkgsToInstall:
     let verRange = satResult.getVersionRangeFoPkgToInstall(name, ver)
@@ -1012,9 +1035,9 @@ proc installPkgs*(satResult: var SATResult, options: Options) {.instrument.} =
           wasNewlyInstalled = true
         else:
           # Check if package already exists before installing
-          let tempPkgInfo = getPkgInfo(satResult.rootPackage.getNimbleFileDir(), options)
-          let oldPkg = tempPkgInfo.packageExists(options)
-          installedPkgInfo = installFromDirDownloadInfo(satResult.rootPackage.getNimbleFileDir(), satResult.rootPackage.metaData.url, pv, options).toRequiresInfo(options)
+          let tempPkgInfo = getPkgInfo(satResult.rootPackage.getNimbleFileDir(), options, nimBin = nimBin)
+          let oldPkg = packageExists(nimBin, tempPkgInfo, options)
+          installedPkgInfo = installFromDirDownloadInfo(nimBin, satResult.rootPackage.getNimbleFileDir(), satResult.rootPackage.metaData.url, pv, options).toRequiresInfo(options, nimBin = nimBin)
           wasNewlyInstalled = oldPkg.isNone
         
     else:      
@@ -1047,18 +1070,19 @@ proc installPkgs*(satResult: var SATResult, options: Options) {.instrument.} =
           downloadDir = dlInfo.url.extractFilePathFromURL()
         else:
           #Since cache expansion is implemented, this point shouldnt be reached anymore.
-          discard downloadFromDownloadInfo(dlInfo, options)
+          let downloadPkgResult = downloadFromDownloadInfo(dlInfo, options, nimBin)
+          discard downloadPkgResult
         # dlInfo.downloadDir = downloadPkgResult.dir 
       assert dirExists(downloadDir)
       if pv.name.isFileURL:
         # echo "*** GETTING PACKAGE FROM FILE URL: ", dlInfo.url
-        installedPkgInfo = getPackageFromFileUrl(dlInfo.url, options).toRequiresInfo(options)
+        installedPkgInfo = getPackageFromFileUrl(dlInfo.url, options, nimBin = nimBin).toRequiresInfo(options, nimBin = nimBin)
       else:
         #TODO this : PackageInfoneeds to be improved as we are redonwloading certain packages
         # Check if package already exists before installing
-        let tempPkgInfo = getPkgInfo(downloadDir, options)
-        let oldPkg = tempPkgInfo.packageExists(options)
-        installedPkgInfo = installFromDirDownloadInfo(downloadDir, dlInfo.url, pv, options).toRequiresInfo(options)     
+        let tempPkgInfo = getPkgInfo(downloadDir, options, nimBin = nimBin)
+        let oldPkg = packageExists(nimBin, tempPkgInfo, options)
+        installedPkgInfo = installFromDirDownloadInfo(nimBin, downloadDir, dlInfo.url, pv, options).toRequiresInfo(options, nimBin = nimBin)     
         wasNewlyInstalled = oldPkg.isNone
         if installedPkgInfo.metadata.url == "" and pv.name.isUrl:
           installedPkgInfo.metadata.url = pv.name
@@ -1093,7 +1117,7 @@ proc installPkgs*(satResult: var SATResult, options: Options) {.instrument.} =
       #install dir.
       let downloadDir = satResult.rootPackage.myPath.parentDir()
       let pv = (name: satResult.rootPackage.basicInfo.name, ver: satResult.rootPackage.basicInfo.version.toVersionRange())
-      satResult.rootPackage = installFromDirDownloadInfo(downloadDir, satResult.rootPackage.metaData.url, pv, options).toRequiresInfo(options)    
+      satResult.rootPackage = installFromDirDownloadInfo(nimBin, downloadDir, satResult.rootPackage.metaData.url, pv, options).toRequiresInfo(options, nimBin)    
     pkgsToBuild.add(satResult.rootPackage)
 
   for pkgToBuild in pkgsToBuild:
@@ -1107,11 +1131,11 @@ proc installPkgs*(satResult: var SATResult, options: Options) {.instrument.} =
     # echo "Building package: ", pkgToBuild.basicInfo.name, " at ", pkgToBuild.myPath, " binaries: ", pkgToBuild.bin
     let isRoot = pkgToBuild.isRoot(options.satResult) and isInRootDir
     if isRoot and options.action.typ in rootBuildActions:
-      buildPkg(pkgToBuild, isRoot, options)
+      buildPkg(nimBin, pkgToBuild, isRoot, options)
       satResult.buildPkgs.add(pkgToBuild)
     elif not isRoot:
       #Build non root package for all actions that requires the package as a dependency
-      buildPkg(pkgToBuild, isRoot, options)
+      buildPkg(nimBin, pkgToBuild, isRoot, options)
       satResult.buildPkgs.add(pkgToBuild)
 
   satResult.installedPkgs = installedPkgs.toSeq()
@@ -1124,5 +1148,5 @@ proc installPkgs*(satResult: var SATResult, options: Options) {.instrument.} =
     # has been installed. Notice for legacy reasons this needs to happen after the build step
     let hookDir = pkgInfo.myPath.splitFile.dir
     if dirExists(hookDir):
-      executeHook(hookDir, options, actionInstall, before = false)
+      executeHook(nimBin, hookDir, options, actionInstall, before = false)
     

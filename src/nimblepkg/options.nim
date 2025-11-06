@@ -551,9 +551,6 @@ proc parseCommand*(key: string, result: var Options) =
   initAction(result, key)
 
 
-proc getNimbleFileDir*(pkgInfo: PackageInfo): string =
-  pkgInfo.myPath.splitFile.dir
-
 proc getRequiredNimVersion*(pkgInfo: PackageInfo): VersionRange =
   let nimPkgTupl = pkgInfo.requires.filterIt(it.name == "nim")
   if nimPkgTupl.len > 0:

@@ -38,7 +38,7 @@ proc writeExecutionOutput(data: string) =
 proc getNimblecache(): string =
   getTempDir() / "nimblecache-" & $getEnv("USER").hash().abs()
 
-proc execNimscript(
+proc execNimscript(nimBin: string,
   nimbleFile, nimsFile, actionName: string, options: Options, isHook: bool
 ): tuple[output: string, exitCode: int, stdout: string] =
   let
@@ -50,7 +50,7 @@ proc execNimscript(
   let nimbleVersion = common.nimbleVersion.split(".")
   var cmd = (
     "$# e $# $# --colors:on $# $# $# $# $# $# $# $# $#" % [
-      getNimBin(options).quoteShell,
+      nimBin,
       "--hints:off --verbosity:0",
       "--define:nimbleExe=" & getAppFilename().quoteShell,
       "--define:NimbleVersion=" & common.nimbleVersion,
@@ -125,7 +125,7 @@ onExit()
 
   result = nimsFile
 
-proc getIniFile*(scriptName: string, options: Options): string =
+proc getIniFile*(scriptName: string, options: Options, nimBin: string): string =
   let
     nimsFile = getNimsFile(scriptName, options)
 
@@ -138,7 +138,7 @@ proc getIniFile*(scriptName: string, options: Options): string =
 
   if not isIniResultCached:
     let (output, exitCode, stdout) = execNimscript(
-      scriptName, nimsFile, printPkgInfo, options, isHook=false
+      nimBin, scriptName, nimsFile, printPkgInfo, options, isHook=false
     )
 
     if exitCode == 0 and output.len != 0:
@@ -148,13 +148,13 @@ proc getIniFile*(scriptName: string, options: Options): string =
       raise nimbleError(stdout & "\nprintPkgInfo() failed")
 
 proc execScript(
-  scriptName, actionName: string, options: Options, isHook: bool
+  nimBin: string, scriptName, actionName: string, options: Options, isHook: bool
 ): ExecutionResult[bool] =
   let nimsFile = getNimsFile(scriptName, options)
 
   let (output, exitCode, stdout) =
     execNimscript(
-      scriptName, nimsFile, actionName, options, isHook
+      nimBin, scriptName, nimsFile, actionName, options, isHook
     )
 
   if exitCode != 0:
@@ -186,7 +186,7 @@ proc execScript(
 
   stdout.writeExecutionOutput()
 
-proc execTask*(scriptName, taskName: string,
+proc execTask*(nimBin: string, scriptName, taskName: string,
     options: Options): ExecutionResult[bool] =
   ## Executes the specified task in the specified script.
   ##
@@ -194,9 +194,9 @@ proc execTask*(scriptName, taskName: string,
   display("Executing",  "task $# in $#" % [taskName, scriptName],
           priority = HighPriority)
 
-  result = execScript(scriptName, taskName, options, isHook=false)
+  result = execScript(nimBin, scriptName, taskName, options, isHook=false)
 
-proc execHook*(scriptName, actionName: string, before: bool,
+proc execHook*(nimBin: string, scriptName, actionName: string, before: bool,
     options: Options): ExecutionResult[bool] =
   ## Executes the specified action's hook. Depending on ``before``, either
   ## the "before" or the "after" hook.
@@ -208,11 +208,11 @@ proc execHook*(scriptName, actionName: string, before: bool,
   display("Attempting", "to execute hook $# in $#" % [hookName, scriptName],
           priority = MediumPriority)
 
-  result = execScript(scriptName, hookName, options, isHook=true)
+  result = execScript(nimBin, scriptName, hookName, options, isHook=true)
 
 proc hasTaskRequestedCommand*(execResult: ExecutionResult): bool =
   ## Determines whether the last executed task used ``setCommand``
   return execResult.command != internalCmd
 
-proc listTasks*(scriptName: string, options: Options) =
-  discard execScript(scriptName, "", options, isHook=false)
+proc listTasks*(nimBin: string, scriptName: string, options: Options) =
+  discard execScript(nimBin, scriptName, "", options, isHook=false)
