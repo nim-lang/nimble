@@ -37,7 +37,7 @@ proc execCustom*(nimBin: string, nimbleFile: string, options: Options,
   if not execHook(nimBin, options, actionCustom, true):
     raise nimbleError("Pre-hook prevented further execution.")
 
-  if not nimbleFile.isNimScript(nimBin, options):
+  if not isNimScript(nimBin, nimbleFile, options):
     writeHelp()
 
   execResult = execTask(nimBin, nimbleFile, options.action.command, options)
