@@ -18,7 +18,7 @@ proc getNimbleFileFromPkgNameHelper(pkgName: string, ver = VersionRange(kind: ve
       ],
   )
   options.pkgCachePath = "./nimbleDir/pkgcache"
-  let pkgInfo = downloadPkInfoForPv(pv, options)
+  let pkgInfo = downloadPkInfoForPv(pv, options, nimBin = "nim")
   pkgInfo.myPath
 
 suite "Declarative parsing":
@@ -75,12 +75,12 @@ suite "Declarative parsing":
     setSuppressMessages(false)
     removeDir(options.pkgCachePath)
     let pv = parseRequires("nimfp >= 0.3.4")
-    let downloadRes = pv.downloadPkgFromUrl(options)[0]
+    let downloadRes = pv.downloadPkgFromUrl(options, nimBin = "nim")[0]
       #This is just to setup the test. We need a git dir to work on
     let repoDir = downloadRes.dir
     let downloadMethod = DownloadMethod git
     let packageVersions = getPackageMinimalVersionsFromRepo(
-      repoDir, pv, downloadRes.version, downloadMethod, options
+      repoDir, pv, downloadRes.version, downloadMethod, options, nimBin = "nim"
     )
 
     #we know these versions are available

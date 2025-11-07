@@ -132,13 +132,13 @@ proc getRevDeps*(nimbleData: JsonNode, pkg: ReverseDependency):
          checksum: revDep[$ndjkRevDepChecksum].str.initSha1Hash)
       result.incl ReverseDependency(kind: rdkInstalled, pkgInfo: pkgBasicInfo)
 
-proc toPkgInfo*(revDep: ReverseDependency, options: Options): PackageInfo =
+proc toPkgInfo*(revDep: ReverseDependency, options: Options, nimBin: string): PackageInfo =
   case revDep.kind
   of rdkInstalled:
     let pkgDir = revDep.pkgInfo.getPkgDest(options)
-    result = getPkgInfo(pkgDir, options)
+    result = getPkgInfo(pkgDir, options, nimBin)
   of rdkDevelop:
-    result = getPkgInfo(revDep.pkgPath, options)
+    result = getPkgInfo(revDep.pkgPath, options, nimBin)
 
 proc toRevDep*(pkg: PackageInfo): ReverseDependency =
   if not pkg.isLink:
