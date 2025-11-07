@@ -626,7 +626,9 @@ proc addReverseDeps*(satResult: SATResult, options: Options) =
   
 proc executeHook(nimBin: string, dir: string, options: Options, action: ActionType, before: bool) =
   cd dir: # Make sure `execHook` executes the correct .nimble file.
-    if not execHook(nimBin, options, action, before):
+    var hookOptions = options
+    hookOptions.insideHook = true
+    if not execHook(nimBin, hookOptions, action, before):
       if before:
         raise nimbleError("Pre-hook prevented further execution.")
       else:

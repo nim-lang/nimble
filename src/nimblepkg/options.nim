@@ -73,6 +73,7 @@ type
     legacy*: bool # Whether to use the legacy code path.
     filePathPkgs*: seq[PackageInfo] #Packages loaded from file:// requires. Top level is always included.
     isFilePathDiscovering*: bool # Whether we are discovering file:// requires to fill up filePathPkgs. If true, it wont validate file:// requires.
+    insideHook*: bool # Whether we're currently executing inside a hook to prevent recursive hook execution
 
   ActionType* = enum
     actionNil, actionRefresh, actionInit, actionDump, actionPublish, actionUpgrade

@@ -9,6 +9,10 @@ proc execHook*(nimBin: string, options: Options, hookAction: ActionType, before:
   ## Returns whether to continue.
   result = true
 
+  # Prevent recursive hook execution - if we're already inside a hook, don't execute nested hooks
+  if options.insideHook:
+    return true
+
   # For certain commands hooks should not be evaluated.
   if hookAction in noHookActions:
     return
