@@ -1123,7 +1123,7 @@ proc installPkgs*(satResult: var SATResult, options: Options) {.instrument.} =
     #install dir.
     let hookDir = pkgInfo.myPath.splitFile.dir
     if dirExists(hookDir):
-      executeHook(hookDir, options, actionInstall, before = true)
+      executeHook(nimBin, hookDir, options, actionInstall, before = true)
 
   for pkgToBuild in pkgsToBuild:
     if pkgToBuild.bin.len == 0:
