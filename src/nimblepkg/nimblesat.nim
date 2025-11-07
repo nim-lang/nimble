@@ -44,7 +44,7 @@ type
     # reqsByDeps: Table[Requirements, int]
 
     
-  GetPackageMinimal* = proc (pv: PkgTuple, options: Options): seq[PackageMinimalInfo]
+  GetPackageMinimal* = proc (pv: PkgTuple, options: Options, nimBin: string): seq[PackageMinimalInfo]
 
   TaggedPackageVersions = object
     maxTaggedVersions: int # Maximum number of tags. When number changes, we invalidate the cache
@@ -107,11 +107,11 @@ proc getMinimalInfo*(pkg: PackageInfo, options: Options): PackageMinimalInfo =
     result.requires = result.requires.filterIt(not it.isNim)
   result.url = pkg.metadata.url
 
-proc getMinimalInfo*(nimbleFile: string, options: Options): PackageMinimalInfo =
+proc getMinimalInfo*(nimbleFile: string, options: Options, nimBin: string): PackageMinimalInfo =
   #TODO we can use the new getPkgInfoFromDirWithDeclarativeParser to get the minimal info and add the features to the packageinfo type so this whole function can be removed
   #TODO we need to handle the url here as well.
   assert options.useDeclarativeParser, "useDeclarativeParser must be set"
-  let pkg = getPkgInfoFromDirWithDeclarativeParser(nimbleFile.parentDir, options)
+  let pkg = getPkgInfoFromDirWithDeclarativeParser(nimbleFile.parentDir, options, nimBin)
   result.name =  if pkg.basicInfo.name.isNim: "nim" else: pkg.basicInfo.name
   result.version = pkg.basicInfo.version
   result.requires = pkg.requires.map(convertNimAliasToNim)
@@ -562,30 +562,30 @@ proc getPackageDownloadInfo*(pv: PkgTuple, options: Options, doPrompt = false): 
   let downloadDir = getCacheDownloadDir(url, pv.ver, options)
   PackageDownloadInfo(meth: some meth, url: url, subdir: subdir, downloadDir: downloadDir, pv: pv)
 
-proc getPackageFromFileUrl*(fileUrl: string, options: Options): PackageInfo = 
+proc getPackageFromFileUrl*(fileUrl: string, options: Options, nimBin: string): PackageInfo = 
   let absPath = extractFilePathFromURL(fileUrl)
-  getPkgInfoFromDirWithDeclarativeParser(absPath, options)
+  getPkgInfoFromDirWithDeclarativeParser(absPath, options, nimBin)
 
-proc downloadFromDownloadInfo*(dlInfo: PackageDownloadInfo, options: Options): (DownloadPkgResult, Option[DownloadMethod]) = 
+proc downloadFromDownloadInfo*(dlInfo: PackageDownloadInfo, options: Options, nimBin: string): (DownloadPkgResult, Option[DownloadMethod]) = 
   if dlInfo.isFileUrl:
-    let pkgInfo = getPackageFromFileUrl(dlInfo.url, options)
+    let pkgInfo = getPackageFromFileUrl(dlInfo.url, options, nimBin)
     let downloadRes = (dir: pkgInfo.getNimbleFileDir(), version: pkgInfo.basicInfo.version, vcsRevision: notSetSha1Hash)
     (downloadRes, none(DownloadMethod))
   else:
     let downloadRes = downloadPkg(dlInfo.url, dlInfo.pv.ver, dlInfo.meth.get, dlInfo.subdir, options,
-                  dlInfo.downloadDir, vcsRevision = notSetSha1Hash)
+                  dlInfo.downloadDir, vcsRevision = notSetSha1Hash, nimBin = nimBin)
     (downloadRes, dlInfo.meth)
 
-proc downloadPkgFromUrl*(pv: PkgTuple, options: Options, doPrompt = false): (DownloadPkgResult, Option[DownloadMethod]) = 
+proc downloadPkgFromUrl*(pv: PkgTuple, options: Options, doPrompt = false, nimBin: string): (DownloadPkgResult, Option[DownloadMethod]) = 
   let dlInfo = getPackageDownloadInfo(pv, options, doPrompt)
-  downloadFromDownloadInfo(dlInfo, options)
+  downloadFromDownloadInfo(dlInfo, options, nimBin)
         
-proc downloadPkInfoForPv*(pv: PkgTuple, options: Options, doPrompt = false): PackageInfo  =
-  let downloadRes = downloadPkgFromUrl(pv, options, doPrompt)
+proc downloadPkInfoForPv*(pv: PkgTuple, options: Options, doPrompt = false, nimBin: string): PackageInfo  =
+  let downloadRes = downloadPkgFromUrl(pv, options, doPrompt, nimBin)
   if options.satResult.pass in {satNimSelection, satFallbackToVmParser}:
-    result = getPkgInfoFromDirWithDeclarativeParser(downloadRes[0].dir, options)
+    result = getPkgInfoFromDirWithDeclarativeParser(downloadRes[0].dir, options, nimBin)
   else:
-    result = downloadRes[0].dir.getPkgInfo(options)
+    result = getPkgInfo(downloadRes[0].dir, options, nimBin, forValidation = false, onlyMinimalInfo = false)
 
 proc getAllNimReleases(options: Options): seq[PackageMinimalInfo] =
   let releases = getOfficialReleases(options)  
@@ -629,7 +629,7 @@ proc saveTaggedVersions*(repoDir, pkgName: string, taggedVersions: TaggedPackage
   except CatchableError as e:
     displayWarning(&"Error saving tagged versions: {e.msg}", HighPriority)
 
-proc getPackageMinimalVersionsFromRepo*(repoDir: string, pkg: PkgTuple, version: Version, downloadMethod: DownloadMethod, options: Options): seq[PackageMinimalInfo] =
+proc getPackageMinimalVersionsFromRepo*(repoDir: string, pkg: PkgTuple, version: Version, downloadMethod: DownloadMethod, options: Options, nimBin: string): seq[PackageMinimalInfo] =
   result = newSeq[PackageMinimalInfo]()
   
   let name = pkg[0]
@@ -651,9 +651,9 @@ proc getPackageMinimalVersionsFromRepo*(repoDir: string, pkg: PkgTuple, version:
     try:
       if options.satResult.pass in {satNimSelection, satFallbackToVmParser}:
         # TODO test this code path
-        result.add getPkgInfoFromDirWithDeclarativeParser(repoDir, options).getMinimalInfo(options)   
+        result.add getPkgInfoFromDirWithDeclarativeParser(repoDir, options, nimBin).getMinimalInfo(options)   
       else:
-        result.add getPkgInfo(repoDir, options).getMinimalInfo(options)   
+        result.add getPkgInfo(repoDir, options, nimBin).getMinimalInfo(options)   
     except CatchableError as e:
       displayWarning(&"Error getting package info for {name}: {e.msg}", HighPriority)
     
@@ -674,11 +674,11 @@ proc getPackageMinimalVersionsFromRepo*(repoDir: string, pkg: PkgTuple, version:
         doCheckout(downloadMethod, tempDir, tag, options)
         let nimbleFile = findNimbleFile(tempDir, true, options, warn = false)
         if options.satResult.pass in {satNimSelection, satFallbackToVmParser}:
-          result.addUnique getPkgInfoFromDirWithDeclarativeParser(tempDir, options).getMinimalInfo(options)  
+          result.addUnique getPkgInfoFromDirWithDeclarativeParser(tempDir, options, nimBin).getMinimalInfo(options)  
         elif options.useDeclarativeParser:
-          result.addUnique getMinimalInfo(nimbleFile, options)
+          result.addUnique getMinimalInfo(nimbleFile, options, nimBin)
         else:
-          let pkgInfo = getPkgInfoFromFile(nimbleFile, options, useCache=false)
+          let pkgInfo = getPkgInfoFromFile(nimBin, nimbleFile, options, useCache=false)
           result.addUnique pkgInfo.getMinimalInfo(options)
         #here we copy the directory to its own folder so we have it cached for future usage
         let downloadInfo = getPackageDownloadInfo((name, tagVersion.toVersionRange()), options)
@@ -704,17 +704,17 @@ proc getPackageMinimalVersionsFromRepo*(repoDir: string, pkg: PkgTuple, version:
     except CatchableError as e:
       displayWarning(&"Error cleaning up temporary directory {tempDir}: {e.msg}", LowPriority)
 
-proc downloadMinimalPackage*(pv: PkgTuple, options: Options): seq[PackageMinimalInfo] =
+proc downloadMinimalPackage*(pv: PkgTuple, options: Options, nimBin: string): seq[PackageMinimalInfo] =
   if pv.name == "": return newSeq[PackageMinimalInfo]()
   if pv.isNim and not options.disableNimBinaries: return getAllNimReleases(options)
   if pv.name.isFileURL:
-    result = @[getPackageFromFileUrl(pv.name, options).getMinimalInfo(options)]
+    result = @[getPackageFromFileUrl(pv.name, options, nimBin).getMinimalInfo(options)]
     return
   if pv.ver.kind in [verSpecial, verEq]: #if special or equal, we dont retrieve more versions as we only need one.
-    result = @[downloadPkInfoForPv(pv, options).getMinimalInfo(options)]
+    result = @[downloadPkInfoForPv(pv, options, false, nimBin).getMinimalInfo(options)]
   else:    
-    let (downloadRes, downloadMeth) = downloadPkgFromUrl(pv, options)
-    result = getPackageMinimalVersionsFromRepo(downloadRes.dir, pv, downloadRes.version, downloadMeth.get, options)
+    let (downloadRes, downloadMeth) = downloadPkgFromUrl(pv, options, false, nimBin)
+    result = getPackageMinimalVersionsFromRepo(downloadRes.dir, pv, downloadRes.version, downloadMeth.get, options, nimBin)
   #Make sure the url is set for the package
   if pv.name.isUrl:
     for r in result.mitems: 
@@ -732,11 +732,11 @@ proc fillPackageTableFromPreferred*(packages: var Table[string, PackageVersions]
 proc getInstalledMinimalPackages*(options: Options): seq[PackageMinimalInfo] =
   getInstalledPkgsMin(options.getPkgsDir(), options).mapIt(it.getMinimalInfo(options))
 
-proc getMinimalFromPreferred(pv: PkgTuple,  getMinimalPackage: GetPackageMinimal, preferredPackages: seq[PackageMinimalInfo], options: Options): seq[PackageMinimalInfo] =
+proc getMinimalFromPreferred(pv: PkgTuple,  getMinimalPackage: GetPackageMinimal, preferredPackages: seq[PackageMinimalInfo], options: Options, nimBin: string): seq[PackageMinimalInfo] =
   for pp in preferredPackages:
     if (pp.name == pv.name or pp.url == pv.name) and pp.version.withinRange(pv.ver):
       return @[pp]
-  getMinimalPackage(pv, options)
+  getMinimalPackage(pv, options, nimBin)
 
 proc hasSpecialVersion(versions: Table[string, PackageVersions], pkgName: string): bool =
   if pkgName in versions:
@@ -745,7 +745,7 @@ proc hasSpecialVersion(versions: Table[string, PackageVersions], pkgName: string
         return true
   return false
 
-proc processRequirements(versions: var Table[string, PackageVersions], pv: PkgTuple, visited: var HashSet[PkgTuple], getMinimalPackage: GetPackageMinimal, preferredPackages: seq[PackageMinimalInfo] = newSeq[PackageMinimalInfo](), options: Options) =
+proc processRequirements(versions: var Table[string, PackageVersions], pv: PkgTuple, visited: var HashSet[PkgTuple], getMinimalPackage: GetPackageMinimal, preferredPackages: seq[PackageMinimalInfo] = newSeq[PackageMinimalInfo](), options: Options, nimBin: string) =
   if pv in visited:
     return
   
@@ -755,7 +755,7 @@ proc processRequirements(versions: var Table[string, PackageVersions], pv: PkgTu
   # This ensures the special version gets downloaded and added to the version table
   try:
     if pv.ver.kind == verSpecial or not hasVersion(versions, pv):    
-      var pkgMins = getMinimalFromPreferred(pv, getMinimalPackage, preferredPackages, options)
+      var pkgMins = getMinimalFromPreferred(pv, getMinimalPackage, preferredPackages, options, nimBin)
       
       # First, validate all requirements for all package versions before adding anything
       var validPkgMins: seq[PackageMinimalInfo] = @[]
@@ -765,7 +765,7 @@ proc processRequirements(versions: var Table[string, PackageVersions], pv: PkgTu
         for req in pkgMin.requires:
           try:
             # Try to get minimal package info for the requirement to validate it exists
-            discard getMinimalFromPreferred(req, getMinimalPackage, preferredPackages, options)
+            discard getMinimalFromPreferred(req, getMinimalPackage, preferredPackages, options, nimBin)
           except CatchableError:
             allRequirementsValid = false
             displayWarning(&"Skipping package {pkgMin.name}@{pkgMin.version} due to invalid dependency: {req.name}", HighPriority)
@@ -801,7 +801,7 @@ proc processRequirements(versions: var Table[string, PackageVersions], pv: PkgTu
         
         # Now recursively process the requirements (we know they're valid)
         for req in pkgMin.requires:
-          processRequirements(versions, req, visited, getMinimalPackage, preferredPackages, options)
+          processRequirements(versions, req, visited, getMinimalPackage, preferredPackages, options, nimBin)
       
       # Only add URL packages if we have valid versions
       if pv.name.isUrl and validPkgMins.len > 0:
@@ -813,10 +813,10 @@ proc processRequirements(versions: var Table[string, PackageVersions], pv: PkgTu
     displayWarning(&"Error processing requirements for {pv.name}: {e.msg}", HighPriority)
 
 
-proc collectAllVersions*(versions: var Table[string, PackageVersions], package: PackageMinimalInfo, options: Options, getMinimalPackage: GetPackageMinimal, preferredPackages: seq[PackageMinimalInfo] = newSeq[PackageMinimalInfo]()) {.instrument.} =
+proc collectAllVersions*(versions: var Table[string, PackageVersions], package: PackageMinimalInfo, options: Options, getMinimalPackage: GetPackageMinimal, preferredPackages: seq[PackageMinimalInfo] = newSeq[PackageMinimalInfo](), nimBin: string) {.instrument.} =
   var visited = initHashSet[PkgTuple]()
   for pv in package.requires:
-    processRequirements(versions, pv, visited, getMinimalPackage, preferredPackages, options)
+    processRequirements(versions, pv, visited, getMinimalPackage, preferredPackages, options, nimBin)
 
 proc topologicalSort*(solvedPkgs: seq[SolvedPackage]): seq[SolvedPackage] {.instrument.}  =
   var inDegree = initTable[string, int]()
@@ -928,12 +928,12 @@ proc normalizeRequirements*(pkgVersionTable: var Table[string, PackageVersions],
             options.satResult.normalizedRequirements[newPkgName] = oldReq
         req.name = req.name.resolveAlias(options)
 
-proc postProcessSolvedPkgs*(solvedPkgs: var seq[SolvedPackage], options: Options) {.instrument.} =
+proc postProcessSolvedPkgs*(solvedPkgs: var seq[SolvedPackage], options: Options, nimBin: string) {.instrument.} =
   #Prioritizes fileUrl packages over the regular packages defined in the requirements
   var fileUrlPkgs: seq[PackageInfo] = @[]
   for solved in solvedPkgs:
     if solved.pkgName.isFileURL:
-      let pkg = getPackageFromFileUrl(solved.pkgName, options)
+      let pkg = getPackageFromFileUrl(solved.pkgName, options, nimBin)
       fileUrlPkgs.add pkg
   var toReplace: seq[SolvedPackage] = @[]
   for solved in solvedPkgs:
@@ -943,18 +943,18 @@ proc postProcessSolvedPkgs*(solvedPkgs: var seq[SolvedPackage], options: Options
         break
   solvedPkgs = solvedPkgs.filterIt(it notin toReplace)
 
-proc solvePackages*(rootPkg: PackageInfo, pkgList: seq[PackageInfo], pkgsToInstall: var seq[(string, Version)], options: Options, output: var string, solvedPkgs: var seq[SolvedPackage]): HashSet[PackageInfo] {.instrument.} =
+proc solvePackages*(rootPkg: PackageInfo, pkgList: seq[PackageInfo], pkgsToInstall: var seq[(string, Version)], options: Options, output: var string, solvedPkgs: var seq[SolvedPackage], nimBin: string): HashSet[PackageInfo] {.instrument.} =
   var root: PackageMinimalInfo = rootPkg.getMinimalInfo(options)
   root.isRoot = true
   var pkgVersionTable = initTable[string, PackageVersions]()
   pkgVersionTable[root.name] = PackageVersions(pkgName: root.name, versions: @[root])
-  collectAllVersions(pkgVersionTable, root, options, downloadMinimalPackage, pkgList.mapIt(it.getMinimalInfo(options)))
+  collectAllVersions(pkgVersionTable, root, options, downloadMinimalPackage, pkgList.mapIt(it.getMinimalInfo(options)), nimBin)
   # if not options.isLegacy:
   pkgVersionTable.normalizeRequirements(options)  
   options.satResult.pkgVersionTable = pkgVersionTable
   solvedPkgs = pkgVersionTable.getSolvedPackages(output, options).topologicalSort()
   # echo "DEBUG: SolvedPkgs before post processing: ", solvedPkgs.mapIt(it.pkgName & " " & $it.version).join(", ")
-  solvedPkgs.postProcessSolvedPkgs(options)
+  solvedPkgs.postProcessSolvedPkgs(options, nimBin)
   
   let systemNimCompatible = solvedPkgs.isSystemNimCompatible(options)
   # echo "DEBUG: SolvedPkgs after post processing: ", solvedPkgs.mapIt(it.pkgName & " " & $it.version).join(", ")
@@ -994,12 +994,12 @@ proc getPackageInfo*(name: string, pkgs: seq[PackageInfo], version: Option[Versi
         else: #No version passed over first match
           return some pkg
 
-proc getPkgVersionTable*(pkgInfo: PackageInfo, pkgList: seq[PackageInfo], options: Options): Table[string, PackageVersions] =
+proc getPkgVersionTable*(pkgInfo: PackageInfo, pkgList: seq[PackageInfo], options: Options, nimBin: string): Table[string, PackageVersions] =
   result = initTable[string, PackageVersions]()
   var root = pkgInfo.getMinimalInfo(options)
   root.isRoot = true
   result[root.name] = PackageVersions(pkgName: root.name, versions: @[root])
-  collectAllVersions(result, root, options, downloadMinimalPackage, pkgList.mapIt(it.getMinimalInfo(options)))
+  collectAllVersions(result, root, options, downloadMinimalPackage, pkgList.mapIt(it.getMinimalInfo(options)), nimBin)
 
 
 const maxPkgNameDisplayWidth = 40  # Cap package name width
@@ -1018,11 +1018,11 @@ proc formatPkgName(pkgName: string, maxWidth = maxPkgNameDisplayWidth): string =
   if result.len > maxWidth - 3:
     result = result[0..<(maxWidth - 3)] & "..."
 
-proc dumpSolvedPackages*(pkgInfo: PackageInfo, pkgList: seq[PackageInfo], options: Options) =
+proc dumpSolvedPackages*(pkgInfo: PackageInfo, pkgList: seq[PackageInfo], options: Options, nimBin: string) =
   var pkgToInstall: seq[(string, Version)] = @[]
   var output = ""
   var solvedPkgs: seq[SolvedPackage] = @[]
-  discard solvePackages(pkgInfo, pkgList, pkgToInstall, options, output, solvedPkgs)
+  discard solvePackages(pkgInfo, pkgList, pkgToInstall, options, output, solvedPkgs, nimBin)
 
   echo "PACKAGE".alignLeft(maxPkgNameDisplayWidth), "VERSION".alignLeft(maxVersionDisplayWidth), "REQUIREMENTS"
   echo "-".repeat(maxPkgNameDisplayWidth + maxVersionDisplayWidth + 4)
@@ -1136,8 +1136,8 @@ proc dumpSolvedPackages*(pkgInfo: PackageInfo, pkgList: seq[PackageInfo], option
       
       echo " ".repeat(maxPkgNameDisplayWidth + maxVersionDisplayWidth + 3), currentLine
 
-proc dumpPackageVersionTable*(pkg: PackageInfo, pkgList: seq[PackageInfo], options: Options) =
-  let pkgVersionTable = getPkgVersionTable(pkg, pkgList, options)
+proc dumpPackageVersionTable*(pkg: PackageInfo, pkgList: seq[PackageInfo], options: Options, nimBin: string) =
+  let pkgVersionTable = getPkgVersionTable(pkg, pkgList, options, nimBin)
 
   # Display header
   echo "PACKAGE".alignLeft(maxPkgNameDisplayWidth), "VERSION".alignLeft(maxVersionDisplayWidth), "REQUIREMENTS"

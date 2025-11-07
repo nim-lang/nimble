@@ -394,7 +394,7 @@ proc echoPackage*(pkg: PackageInfo) =
 
 
 proc checkInstallFile(pkgInfo: PackageInfo,
-                      origDir, file: string): bool =
+                      origDir, file: string, isVnext: bool = false): bool =
   ## Checks whether ``file`` should be installed.
   ## ``True`` means file should be skipped.
 
@@ -410,10 +410,21 @@ proc checkInstallFile(pkgInfo: PackageInfo,
       result = true
       break
 
-  if file.splitFile().name[0] == '.': result = true
+  # In vnext mode, allow dot files inside .git and .hg directories
+  if file.splitFile().name[0] == '.':
+    if isVnext:
+      # Check if this file is inside a .git or .hg directory
+      var isInVcsDir = false
+      let normalizedFile = file.replace('\\', '/')
+      if ".git/" in normalizedFile or ".hg/" in normalizedFile:
+        isInVcsDir = true
+      if not isInVcsDir:
+        result = true
+    else:
+      result = true
 
 proc checkInstallDir(pkgInfo: PackageInfo,
-                     origDir, dir: string): bool =
+                     origDir, dir: string, isVnext: bool = false): bool =
   ## Determines whether ``dir`` should be installed.
   ## ``True`` means dir should be skipped.
   for ignoreDir in pkgInfo.skipDirs:
@@ -423,7 +434,13 @@ proc checkInstallDir(pkgInfo: PackageInfo,
 
   let thisDir = splitPath(dir).tail
   assert thisDir != ""
-  if thisDir[0] == '.': result = true
+
+  # In vnext mode, allow .git and .hg directories to be installed
+  if isVnext and (thisDir == ".git" or thisDir == ".hg"):
+    result = false
+  elif thisDir[0] == '.':
+    result = true
+
   if thisDir == "nimcache": result = true
 
 proc iterFilesWithExt(dir: string, pkgInfo: PackageInfo,
@@ -523,14 +540,14 @@ proc iterInstallFiles*(realDir: string, pkgInfo: PackageInfo,
   else:
     for kind, file in walkDir(realDir):
       if kind == pcDir:
-        let skip = pkgInfo.checkInstallDir(pkgRootDir, file)
+        let skip = pkgInfo.checkInstallDir(pkgRootDir, file, not options.isLegacy)
         if skip: continue
         # we also have to stop recursing if we reach an in-place nimbleDir
         if file == options.getNimbleDir().expandFilename(): continue
 
         iterInstallFiles(file, pkgInfo, options, action)
       else:
-        let skip = pkgInfo.checkInstallFile(realDir, file)
+        let skip = pkgInfo.checkInstallFile(realDir, file, not options.isLegacy)
         if skip: 
           # In vnext mode, don't skip .nim files that are needed for binary compilation
           if not options.isLegacy and file.splitFile.ext == ".nim":

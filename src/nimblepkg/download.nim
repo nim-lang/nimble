@@ -484,6 +484,7 @@ proc downloadPkg*(url: string, verRange: VersionRange,
                   options: Options,
                   downloadPath: string,
                   vcsRevision: Sha1Hash,
+                  nimBin: string,
                   validateRange = true): DownloadPkgResult =
   ## Downloads the repository as specified by ``url`` and ``verRange`` using
   ## the download method specified.
@@ -533,9 +534,9 @@ proc downloadPkg*(url: string, verRange: VersionRange,
     ## Makes sure that the downloaded package's version satisfies the requested
     ## version range.
     pkginfo = if options.satResult.pass in {satNimSelection, satFallbackToVmParser}: #TODO later when in vnext we should just use this code path and fallback inside the toRequires if we can
-      getPkgInfoFromDirWithDeclarativeParser(result.dir, options)
+      getPkgInfoFromDirWithDeclarativeParser(result.dir, options, nimBin)
     else:
-      getPkgInfo(result.dir, options)
+      getPkgInfo(result.dir, options, nimBin)
     if pkginfo.basicInfo.version notin verRange:
       raise nimbleError(
         "Downloaded package's version does not satisfy requested version " &
