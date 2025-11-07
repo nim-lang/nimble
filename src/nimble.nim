@@ -1131,7 +1131,6 @@ proc search(options: Options) =
     raise nimbleError("Please specify a search string.")
   if needsRefresh(options):
     raise nimbleError("Please run nimble refresh.")
-  let nimBin = getNimBin(options)
   let pkgList = getPackageList(options)
   var found = false
   template onFound {.dirty.} =
@@ -2817,7 +2816,7 @@ proc doAction(options: var Options, nimBin: string) {.instrument.} =
     var pkgInfo = getPkgInfo(getCurrentDir(), options, nimBin = nimBin)
     publish(pkgInfo, options)
   of actionDump:
-    dump(options)
+    dump(options, nimBin)
   of actionTasks:
     listTasks(options, nimBin)
   of actionDevelop:
@@ -2891,8 +2890,8 @@ proc setNimBin*(options: var Options) =
     # it.
     return
 
-  # first try lock file
-  let lockFile = options.lockFile(getCurrentDir())
+  # first try lock file (VNEXT ALREADY SUPPORT THIS)
+  # let lockFile = options.lockFile(getCurrentDir())
 
   # if options.hasNimInLockFile():
   #   for name, dep in lockFile.getLockedDependencies.lockedDepsFor(options):

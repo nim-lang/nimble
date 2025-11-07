@@ -21,7 +21,6 @@ when defined(windows):
   import std/strscans
 
 proc debugSATResult*(options: Options, calledFrom: string) =
-  # return
   let satResult = options.satResult
   let color = "\e[32m"
   let reset = "\e[0m"
@@ -97,8 +96,6 @@ proc getPkgInfoFromSolution(satResult: SATResult, pv: PkgTuple, options: Options
     if pv.isNim and pkg.basicInfo.name.isNim and pkg.basicInfo.version.withinRange(pv.ver): return pkg 
     if nameMatches(pkg, pv, options) and pkg.basicInfo.version.withinRange(pv.ver):
       return pkg
-  writeStackTrace()
-  options.debugSATResult("getPkgInfoFromSolution")
   raise newNimbleError[NimbleError]("Package not found in solution: " & $pv)
 
 proc getPkgInfoFromSolved*(satResult: SATResult, solvedPkg: SolvedPackage, options: Options): PackageInfo =
