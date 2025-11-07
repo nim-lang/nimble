@@ -460,7 +460,7 @@ proc toRequiresInfo*(pkgInfo: PackageInfo, options: Options, nimBin: string, nim
   #we need to use the vm to get the version. Another option could be to use the binary and ask for the version
   # echo "toRequiresInfo: ", $pkgInfo.basicInfo, $pkgInfo.requires
   result = pkgInfo
-  let forceDeclarativeOnly = options.satResult.pass == satNimSelection or nimBin != ""
+  let forceDeclarativeOnly = options.satResult.pass == satNimSelection
   if pkgInfo.myPath.splitFile.ext == ".babel":
     if forceDeclarativeOnly: #TODO mark the pass as failed via declarativeParseFailed and continue
       let error = "Package " & pkgInfo.basicInfo.name & " is a babel package, skipping declarative parser"
