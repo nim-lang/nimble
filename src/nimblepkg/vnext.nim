@@ -501,12 +501,20 @@ proc setBootstrapNim*(systemNimPkg: Option[PackageInfo], pkgList: seq[PackageInf
   
   options.satResult.bootstrapNim = BootstrapNim(nimResolved: bootstrapNim, allowToUse: true)
 
-proc getBootstrapNimResolved*(options: var Options): NimResolved =
-  #TODO NEXT PR the package list should be the nim binaries + the nims in pkgs2 (so we need to prefilter it without using nim)
-  let pkgList: seq[PackageInfo] = @[]
+proc getNimBinariesPackages*(options: Options): seq[PackageInfo] =
+  for kind, path in walkDir(options.nimBinariesDir):
+    if kind == pcDir:
+      let nimbleFile = path / "nim.nimble"
+      if fileExists(nimbleFile):
+        result.add getNimPkgInfo(nimbleFile.parentDir, options, nimBin = "") #Can be empty as the code path for nim doesnt need it. 
+
+proc getBootstrapNimResolved*(options: var Options): NimResolved =  
+  var pkgList: seq[PackageInfo] = @[] #Should we use the install nim pkgs? In most cases they should already be in the nim binaries dir
+  let nimBinariesPackages = getNimBinariesPackages(options).sortedByIt(it.basicInfo.version).reversed()
+  pkgList.add(nimBinariesPackages)
   setBootstrapNim(getNimFromSystem(options), pkgList, options)  
   var bootstrapNim = options.satResult.bootstrapNim
-  if bootstrapNim.nimResolved.pkg.isNone:
+  if bootstrapNim.nimResolved.pkg.isNone:   
     let nimInstalled = installNimFromBinariesDir(("nim", bootstrapNim.nimResolved.version.toVersionRange()), options)
     if nimInstalled.isSome:
       bootstrapNim.nimResolved.pkg = some getPkgInfoFromDirWithDeclarativeParser(nimInstalled.get.dir, options, nimBin = "") #Can be empty as the code path for nim doesnt need it. 

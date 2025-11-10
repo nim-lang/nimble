@@ -31,13 +31,6 @@ const
   nimblePathsEnv = "__NIMBLE_PATHS"
   separator = when defined(windows): ";" else: ":"
 
-proc getNimBinariesPackages(options: Options): seq[PackageInfo] =
-  for kind, path in walkDir(options.nimBinariesDir):
-    if kind == pcDir:
-      let nimbleFile = path / "nim.nimble"
-      if fileExists(nimbleFile):
-        result.add getNimPkgInfo(nimbleFile.parentDir, options, nimBin = "") #Can be empty as the code path for nim doesnt need it. 
-
 proc initPkgList(pkgInfo: PackageInfo, options: Options, nimBin: string): seq[PackageInfo] =
   let
     installedPkgs = getInstalledPkgsMin(options.getPkgsDir(), options)
@@ -2912,7 +2905,9 @@ proc setNimBin*(options: var Options) =
   #       break
 
   # Search PATH to find nim to continue with
-  let nimBin = findExe("nim")
+  var nimBin = findExe("nim")
+  if nimBin == "" and not options.isLegacy and options.satResult.bootstrapNim.nimResolved.pkg.isSome:
+    nimBin = options.satResult.bootstrapNim.nimResolved.getNimBin()
   if nimBin != "" or options.useSystemNim: #when using systemNim is on we want to fail if system nim is not found
     options.nimBin = some makeNimBin(options, nimBin)
     return #Prioritize Nim in path
