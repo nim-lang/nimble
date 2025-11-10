@@ -623,8 +623,16 @@ proc addReverseDeps*(satResult: SATResult, options: Options) =
         # Skip packages that can't be found (e.g., installed during hook execution)
         # This can happen when packages are installed recursively during hooks
         displayInfo("Skipping reverse dependency for package not found in solution: " & $dep, MediumPriority)
-  
-proc executeHook(nimBin: string, dir: string, options: Options, action: ActionType, before: bool) =
+
+
+
+proc executeHook(nimBin: string, dir: string, options: var Options, action: ActionType, before: bool) =
+  let nimbleFile = findNimbleFile(dir, false, options).splitFile.name
+  let hook = VisitedHook(pkgName: nimbleFile, action: action, before: before)
+  if hook in options.visitedHooks:
+    return
+  options.visitedHooks.add(hook)
+
   cd dir: # Make sure `execHook` executes the correct .nimble file.
     if not execHook(nimBin, options, action, before):
       if before:
@@ -985,7 +993,7 @@ proc getVersionRangeFoPkgToInstall(satResult: SATResult, name: string, ver: Vers
         return parseVersionRange(specialVersion)  
   return ver.toVersionRange()
  
-proc installPkgs*(satResult: var SATResult, options: Options) {.instrument.} =
+proc installPkgs*(satResult: var SATResult, options: var Options) {.instrument.} =
   # options.debugSATResult("installPkgs")
   #At this point the packages are already downloaded. 
   #We still need to install them aka copy them from the cache to the nimbleDir + run preInstall and postInstall scripts
@@ -1117,6 +1125,14 @@ proc installPkgs*(satResult: var SATResult, options: Options) {.instrument.} =
       satResult.rootPackage = installFromDirDownloadInfo(nimBin, downloadDir, satResult.rootPackage.metaData.url, pv, options).toRequiresInfo(options, nimBin)    
     pkgsToBuild.add(satResult.rootPackage)
 
+  satResult.installedPkgs = installedPkgs.toSeq()
+  for pkgInfo in satResult.installedPkgs:
+    # Run before-install hook now that package before the build step but after the package is copied over to the 
+    #install dir.
+    let hookDir = pkgInfo.myPath.splitFile.dir
+    if dirExists(hookDir):
+      executeHook(nimBin, hookDir, options, actionInstall, before = true)
+
   for pkgToBuild in pkgsToBuild:
     if pkgToBuild.bin.len == 0:
       if options.action.typ == actionBuild:
@@ -1135,7 +1151,6 @@ proc installPkgs*(satResult: var SATResult, options: Options) {.instrument.} =
       buildPkg(nimBin, pkgToBuild, isRoot, options)
       satResult.buildPkgs.add(pkgToBuild)
 
-  satResult.installedPkgs = installedPkgs.toSeq()
   for pkg in satResult.installedPkgs.mitems:
     satResult.pkgs.incl pkg
     
