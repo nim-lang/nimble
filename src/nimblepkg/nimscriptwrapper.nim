@@ -47,6 +47,11 @@ proc execNimscript(nimBin: string,
     compFlags = if isCustomTask: join(options.getCompilationFlags(), " ")
       else: ""
 
+  # Set environment variable with visited hooks to prevent recursion
+  # This ensures child nimble processes know which hooks have already been executed
+  if isHook:
+    putEnv("NIMBLE_VISITED_HOOKS", serializeVisitedHooks(options.visitedHooks))
+
   let nimbleVersion = common.nimbleVersion.split(".")
   var cmd = (
     "$# e $# $# --colors:on $# $# $# $# $# $# $# $# $#" % [

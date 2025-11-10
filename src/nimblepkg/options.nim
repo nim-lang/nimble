@@ -21,6 +21,11 @@ type
 
   DumpMode* = enum kdumpIni, kdumpJson
 
+  VisitedHook* = object
+    pkgName*: string #just the nimble file name
+    action*: ActionType
+    before*: bool
+
   Options* = object
     forcePrompts*: ForcePrompt
     depsOnly*: bool
@@ -73,7 +78,8 @@ type
     legacy*: bool # Whether to use the legacy code path.
     filePathPkgs*: seq[PackageInfo] #Packages loaded from file:// requires. Top level is always included.
     isFilePathDiscovering*: bool # Whether we are discovering file:// requires to fill up filePathPkgs. If true, it wont validate file:// requires.
-
+    visitedHooks*: seq[VisitedHook] # Whether we are executing hooks.
+    
   ActionType* = enum
     actionNil, actionRefresh, actionInit, actionDump, actionPublish, actionUpgrade
     actionInstall, actionSearch, actionList, actionBuild, actionPath,
@@ -291,13 +297,47 @@ For more information read the GitHub readme:
   https://github.com/nim-lang/nimble#readme
 """
 
-const noHookActions* = {actionCheck}
+const
+  visitedHooksEnvVar = "NIMBLE_VISITED_HOOKS"
+  noHookActions* = {actionCheck}
  #Notice some actions dont need to be touched in vnext. Some other partially incercepted (setup) and some others fully changed (i.e build, install)
-const vNextSupportedActions* = { actionInstall, actionBuild, 
+const vNextSupportedActions* = { actionInstall, actionBuild,
   actionSetup, actionRun, actionLock, actionCustom, actionSync,
   actionShellEnv, actionShell, actionUpgrade, actionDoc, actionCompile,
   actionDeps, actionAdd
 }
+
+proc `$`*(hook: VisitedHook): string =
+  ## Converts a VisitedHook to a string for serialization
+  result = hook.pkgName & "|" & $ord(hook.action) & "|" & $ord(hook.before)
+
+proc parseVisitedHook(s: string): VisitedHook =
+  ## Parses a VisitedHook from a serialized string
+  let parts = s.split('|')
+  if parts.len != 3:
+    raise newException(ValueError, "Invalid visited hook format: " & s)
+  result = VisitedHook(
+    pkgName: parts[0],
+    action: ActionType(parseInt(parts[1])),
+    before: parseInt(parts[2]) != 0  # 1 = true, 0 = false
+  )
+
+proc serializeVisitedHooks*(hooks: seq[VisitedHook]): string =
+  ## Serializes visited hooks to a string for environment variable
+  result = ""
+  for i, hook in hooks:
+    if i > 0: result.add(":")
+    result.add($hook)
+
+proc deserializeVisitedHooks*(s: string): seq[VisitedHook] =
+  ## Deserializes visited hooks from an environment variable string
+  result = @[]
+  if s.len == 0:
+    return
+  for hookStr in s.split(':'):
+    if hookStr.len > 0:
+      result.add(parseVisitedHook(hookStr))
+
 proc writeHelp*(quit=true) =
   echo(help)
   if quit:
@@ -866,20 +906,29 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
   
 proc initOptions*(): Options =
   # Exported for choosenim
-  Options(
+  result = Options(
     action: Action(typ: actionNil),
     pkgInfoCache: newTable[string, PackageInfo](),
     verbosity: HighPriority,
     noColor: not isatty(stdout),
     startDir: getCurrentDir(),
-    nimBinariesDir: getHomeDir() / ".nimble" / "nimbinaries", 
+    nimBinariesDir: getHomeDir() / ".nimble" / "nimbinaries",
     maxTaggedVersions: 50,
     useSatSolver: true,
     useDeclarativeParser: false,
     legacy: false, #default to legacy code path for nimble < 1.0.0
     satResult: SatResult(),
-    localDeps: true 
+    localDeps: true
   )
+
+  # Load visited hooks from environment variable to prevent recursive hook execution
+  let visitedHooksEnv = getEnv(visitedHooksEnvVar)
+  if visitedHooksEnv.len > 0:
+    try:
+      result.visitedHooks = deserializeVisitedHooks(visitedHooksEnv)
+    except ValueError:
+      # If we can't parse it, just start with empty list
+      discard
 
 proc handleUnknownFlags(options: var Options) =
   if options.action.typ == actionRun:
