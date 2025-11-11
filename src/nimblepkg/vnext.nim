@@ -246,6 +246,13 @@ proc resolveNim*(rootPackage: PackageInfo, pkgListDecl: seq[PackageInfo], system
   if resolvedNim.isSome:
     nimBin = resolvedNim.get.getNimBin()
   else:
+    if options.satResult.bootstrapNim.nimResolved.pkg.isNone:
+      let nimPkg = (name: "nim", ver: parseVersionRange(options.satResult.bootstrapNim.nimResolved.version))
+      let nimInstalled = installNimFromBinariesDir(nimPkg, options)
+      if nimInstalled.isSome:
+        options.satResult.bootstrapNim.nimResolved.pkg = some getPkgInfoFromDirWithDeclarativeParser(nimInstalled.get.dir, options, nimBin = "") #Can be empty as the code path for nim doesnt need it. 
+      else:
+        raise newNimbleError[NimbleError]("Failed to install nim")
     nimBin = options.satResult.bootstrapNim.nimResolved.getNimBin()
 
   options.satResult.pkgs = solvePackagesWithSystemNimFallback(
