@@ -460,18 +460,11 @@ proc toRequiresInfo*(pkgInfo: PackageInfo, options: Options, nimBin: string, nim
   #we need to use the vm to get the version. Another option could be to use the binary and ask for the version
   # echo "toRequiresInfo: ", $pkgInfo.basicInfo, $pkgInfo.requires
   result = pkgInfo
-  let forceDeclarativeOnly = options.satResult.pass == satNimSelection
   if pkgInfo.myPath.splitFile.ext == ".babel":
-    if forceDeclarativeOnly: #TODO mark the pass as failed via declarativeParseFailed and continue
-      let error = "Package " & pkgInfo.basicInfo.name & " is a babel package, skipping declarative parser"
-      options.satResult.declarativeParseFailed = true
-      options.satResult.declarativeParserErrorLines = @[error]
-      return result
-    else:
-      displayWarning &"Package {pkgInfo.basicInfo.name} is a babel package, skipping declarative parser", priority = HighPriority
-      result = getPkgInfo(pkgInfo.myPath.parentDir, options, nimBin)
-      fillMetaData(result, result.getRealDir(), false, options)
-      return result
+    displayWarning &"Package {pkgInfo.basicInfo.name} is a babel package, skipping declarative parser", priority = HighPriority
+    result = getPkgInfo(pkgInfo.myPath.parentDir, options, nimBin)
+    fillMetaData(result, result.getRealDir(), false, options)
+    return result
 
   let nimbleFileInfo = nimbleFileInfo.get(extractRequiresInfo(pkgInfo.myPath, options))
   result.requires = getRequires(nimbleFileInfo, result.activeFeatures)
@@ -481,19 +474,13 @@ proc toRequiresInfo*(pkgInfo: PackageInfo, options: Options, nimBin: string, nim
     result.infoKind = pikRequires
   
   if nimbleFileInfo.nestedRequires and options.action.typ != actionCheck: #When checking we want to fail on porpuse
-    case options.satResult.pass
-    of satNimSelection:
-      options.satResult.declarativeParseFailed = true
-      options.satResult.declarativeParserErrorLines = nimbleFileInfo.declarativeParserErrorLines
-    else:
-      result = getPkgInfo(result.myPath.parentDir, options, nimBin)
-      # raise nimbleError("Invalid SAT pass: " & $options.satResult.pass)
-      # echo " to fullinfo Requires: ", result.requires
-      # echo readFile(pkgInfo.myPath)
+    if options.satResult.pass == satNimSelection:    
+      assert nimBin != "", "Cant fallback to the vm parser as there is no nim bin."
 
-      # result.requires.add (name: "httpbeast", ver: VersionRange(kind: verAny))
-      # echo "Fallback to VM parser for package: ", pkgInfo.basicInfo.name
-      # echo "Requires: ", result.requires
+    options.satResult.declarativeParserErrorLines.addUnique nimbleFileInfo.declarativeParserErrorLines.join("\n")
+    
+    result = getPkgInfo(result.myPath.parentDir, options, nimBin)
+
   result.features = getFeatures(nimbleFileInfo)
   result.srcDir = nimbleFileInfo.srcDir
   fillMetaData(result, result.getRealDir(), false, options)
