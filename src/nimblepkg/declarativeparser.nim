@@ -483,9 +483,9 @@ proc toRequiresInfo*(pkgInfo: PackageInfo, options: Options, nimBin: string, nim
   if nimbleFileInfo.nestedRequires and options.action.typ != actionCheck: #When checking we want to fail on porpuse
     if options.satResult.pass == satNimSelection:    
       assert nimBin != "", "Cant fallback to the vm parser as there is no nim bin."
-    #TODO HANDLE THIS BETTER FOR NOW JUST PRINT HERE
-    echo "ERRORS ", nimbleFileInfo.declarativeParserErrorLines, options.satResult.pass
 
+    options.satResult.declarativeParserErrorLines.addUnique nimbleFileInfo.declarativeParserErrorLines.join("\n")
+    
     result = getPkgInfo(result.myPath.parentDir, options, nimBin)
 
   result.features = getFeatures(nimbleFileInfo)

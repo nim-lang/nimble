@@ -2636,8 +2636,8 @@ proc solvePkgs(rootPackage: PackageInfo, options: var Options, nimBin: string) {
   #We set nim in the options here as it is used to get the full info of the packages.
   #Its kinda a big refactor getPkgInfo to parametrize it. At some point we will do it. 
   setNimBin(resolvedNim.pkg.get, options)
-  if options.satResult.declarativeParseFailed:
-    displayWarning("Declarative parser failed. Will rerun SAT with the VM parser. Please fix your nimble file.")
+  if options.satResult.declarativeParserErrorLines.len > 0:
+    displayWarning("Declarative parser failed, the file had to be parsed with the VM parser. Please fix your nimble file.")
     for line in options.satResult.declarativeParserErrorLines:
       displayWarning(line)
     options.satResult = initSATResult(satFallbackToVmParser)
