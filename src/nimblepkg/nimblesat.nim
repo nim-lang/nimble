@@ -582,7 +582,7 @@ proc downloadPkgFromUrl*(pv: PkgTuple, options: Options, doPrompt = false, nimBi
         
 proc downloadPkInfoForPv*(pv: PkgTuple, options: Options, doPrompt = false, nimBin: string): PackageInfo  =
   let downloadRes = downloadPkgFromUrl(pv, options, doPrompt, nimBin)
-  if options.satResult.pass in {satNimSelection, satFallbackToVmParser}:
+  if options.satResult.pass in {satNimSelection}:
     result = getPkgInfoFromDirWithDeclarativeParser(downloadRes[0].dir, options, nimBin)
   else:
     result = getPkgInfo(downloadRes[0].dir, options, nimBin, forValidation = false, onlyMinimalInfo = false)
@@ -649,7 +649,7 @@ proc getPackageMinimalVersionsFromRepo*(repoDir: string, pkg: PkgTuple, version:
       displayWarning(&"Error fetching tags for {name}: {e.msg}", HighPriority)
     
     try:
-      if options.satResult.pass in {satNimSelection, satFallbackToVmParser}:
+      if options.satResult.pass in {satNimSelection}:
         # TODO test this code path
         result.add getPkgInfoFromDirWithDeclarativeParser(repoDir, options, nimBin).getMinimalInfo(options)   
       else:
@@ -673,7 +673,7 @@ proc getPackageMinimalVersionsFromRepo*(repoDir: string, pkg: PkgTuple, version:
 
         doCheckout(downloadMethod, tempDir, tag, options)
         let nimbleFile = findNimbleFile(tempDir, true, options, warn = false)
-        if options.satResult.pass in {satNimSelection, satFallbackToVmParser}:
+        if options.satResult.pass in {satNimSelection}:
           result.addUnique getPkgInfoFromDirWithDeclarativeParser(tempDir, options, nimBin).getMinimalInfo(options)  
         elif options.useDeclarativeParser:
           result.addUnique getMinimalInfo(nimbleFile, options, nimBin)

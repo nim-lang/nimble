@@ -596,21 +596,6 @@ proc resolveAndConfigureNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo]
 
   return resolvedNim
 
-proc solvePkgsWithVmParserAllowingFallback*(rootPackage: PackageInfo, resolvedNim: NimResolved, pkgList: seq[PackageInfo], options: var Options) {.instrument.} =
-  let nimBin = resolvedNim.getNimBin()
-  var pkgList = 
-    pkgList
-    .mapIt(it.toRequiresInfo(options, nimBin))
-  pkgList.add(resolvedNim.pkg.get)
-  options.satResult.pkgList = pkgList.toHashSet()
-  
-  options.satResult.pkgs = solvePackagesWithSystemNimFallback(
-    rootPackage, pkgList, options, some(resolvedNim), nimBin)
-  
-  if options.satResult.solvedPkgs.len == 0:
-    displayError(options.satResult.output)
-    raise newNimbleError[NimbleError]("Couldnt find a solution for the packages. Unsatisfiable dependencies. Check there is no contradictory dependencies.")
-
 proc isInDevelopMode*(pkgInfo: PackageInfo, options: Options): bool =
   if pkgInfo.developFileExists or 
     (not pkgInfo.myPath.startsWith(options.getPkgsDir) and pkgInfo.basicInfo.name != options.satResult.rootPackage.basicInfo.name):
