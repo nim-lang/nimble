@@ -2621,13 +2621,9 @@ proc solvePkgs(rootPackage: PackageInfo, options: var Options, nimBin: string) {
   loadFilePathPkgs(options, nimBin)
   var pkgList = initPkgList(options.satResult.rootPackage, options, nimBin = nimBin)
   options.satResult.rootPackage.enableFeatures(options)
-  # echo "BEFORE FIRST PASS"
-  # options.debugSATResult()
-  # For lock action, always read from nimble file, not from lockfile
-  # if rootPackage.hasLockFile(options) and options.action.typ != actionLock:
-  #   options.satResult.pass = satLockFile
+
   
-  var resolvedNim = resolveAndConfigureNim(options.satResult.rootPackage, pkgList, options)
+  var resolvedNim = resolveAndConfigureNim(options.satResult.rootPackage, pkgList, options, nimBin)
   if resolvedNim.pkg.isNone:
     let nimInstalled = installNimFromBinariesDir(("nim", resolvedNim.version.toVersionRange()), options)
     if nimInstalled.isSome:

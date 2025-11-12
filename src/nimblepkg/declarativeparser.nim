@@ -481,19 +481,13 @@ proc toRequiresInfo*(pkgInfo: PackageInfo, options: Options, nimBin: string, nim
     result.infoKind = pikRequires
   
   if nimbleFileInfo.nestedRequires and options.action.typ != actionCheck: #When checking we want to fail on porpuse
-    case options.satResult.pass
-    of satNimSelection:
-      options.satResult.declarativeParseFailed = true
-      options.satResult.declarativeParserErrorLines = nimbleFileInfo.declarativeParserErrorLines
-    else:
-      result = getPkgInfo(result.myPath.parentDir, options, nimBin)
-      # raise nimbleError("Invalid SAT pass: " & $options.satResult.pass)
-      # echo " to fullinfo Requires: ", result.requires
-      # echo readFile(pkgInfo.myPath)
+    if options.satResult.pass == satNimSelection:    
+      assert nimBin != "", "Cant fallback to the vm parser as there is no nim bin."
+    #TODO HANDLE THIS BETTER FOR NOW JUST PRINT HERE
+    echo "ERRORS ", nimbleFileInfo.declarativeParserErrorLines, options.satResult.pass
 
-      # result.requires.add (name: "httpbeast", ver: VersionRange(kind: verAny))
-      # echo "Fallback to VM parser for package: ", pkgInfo.basicInfo.name
-      # echo "Requires: ", result.requires
+    result = getPkgInfo(result.myPath.parentDir, options, nimBin)
+
   result.features = getFeatures(nimbleFileInfo)
   result.srcDir = nimbleFileInfo.srcDir
   fillMetaData(result, result.getRealDir(), false, options)

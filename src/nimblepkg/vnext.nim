@@ -490,7 +490,7 @@ proc setBootstrapNim*(systemNimPkg: Option[PackageInfo], pkgList: seq[PackageInf
     bootstrapNim.pkg = some(systemNimPkg.get)
     bootstrapNim.version = systemNimPkg.get.basicInfo.version
   elif nimPkgList.len > 0: #If no system nim, we use the best nim available (they are ordered by version)
-    echo nimPkgList.mapIt(it.basicInfo.name & " " & $it.basicInfo.version & " path " & it.getNimbleFileDir())
+    # echo nimPkgList.mapIt(it.basicInfo.name & " " & $it.basicInfo.version & " path " & it.getNimbleFileDir())
     # echo "SETTING BOOTSTRAP NIM TO: ", nimPkgList[0].basicInfo.name, " ", nimPkgList[0].basicInfo.version, " path ", nimPkgList[0].getNimbleFileDir()
     bootstrapNim.pkg = some(nimPkgList[0])
     bootstrapNim.version = nimPkgList[0].basicInfo.version
@@ -530,7 +530,7 @@ proc getBootstrapNimResolved*(options: var Options): NimResolved =
   options.satResult.bootstrapNim = bootstrapNim
   return bootstrapNim.nimResolved
 
-proc resolveAndConfigureNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo], options: var Options): NimResolved {.instrument.} =
+proc resolveAndConfigureNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo], options: var Options, nimBin: string): NimResolved {.instrument.} =
   #Before resolving nim, we bootstrap it, so if we fail resolving it when can use the bootstrapped version.
   #Notice when implemented it would make the second sat pass obsolete.
   let systemNimPkg = getNimFromSystem(options)
@@ -560,8 +560,6 @@ proc resolveAndConfigureNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo]
     else:
       raise nimbleError("Failed to install nim version " & $rootPackage.basicInfo.version)
 
-  #We assume we dont have an available nim yet
-  var nimBin = ""
   var pkgListDecl =
     pkgList
     .mapIt(it.toRequiresInfo(options, nimBin)) #Notice this could fail to parse, but shouldnt be an issue as it wont be falling back yet. We are only interested in selecting nim
