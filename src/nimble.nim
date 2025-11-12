@@ -2645,15 +2645,15 @@ proc solvePkgs(rootPackage: PackageInfo, options: var Options, nimBin: string) {
     # options.satResult.rootPackage = getPkgInfo(options.satResult.rootPackage.getNimbleFileDir, options, nimBin = nimBin).toRequiresInfo(options, nimBin = nimBin)
     # options.satResult.rootPackage.requires &= options.extraRequires
     # options.satResult.rootPackage.enableFeatures(options) 
-    # # Add task-specific requirements if a task is being executed (fallback path)
+    # Add task-specific requirements if a task is being executed (fallback path)
     # if options.task.len > 0 and options.task in options.satResult.rootPackage.taskRequires:
     #   options.satResult.rootPackage.requires &= options.satResult.rootPackage.taskRequires[options.task]
     # #when locking we need to add the task requires to the root package
     # if options.action.typ == actionLock:
     #   for task in options.satResult.rootPackage.taskRequires.keys:
     #     options.satResult.rootPackage.requires &= options.satResult.rootPackage.taskRequires[task]
-    # #Declarative parser failed. So we need to rerun the solver but this time, we allow the parser
-    # #to fallback to the vm parser
+    #Declarative parser failed. So we need to rerun the solver but this time, we allow the parser
+    #to fallback to the vm parser
     # solvePkgsWithVmParserAllowingFallback(options.satResult.rootPackage, resolvedNim, pkgList, options)
   #Nim used in the new code path (mainly building, except in getPkgInfo) is set here
   options.satResult.nimResolved = resolvedNim #TODO maybe we should consider the sat fallback pass. Not sure if we should just warn the user so the packages are corrected
