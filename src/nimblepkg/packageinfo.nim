@@ -508,6 +508,14 @@ proc iterInstallFilesSimple*(realDir: string, pkgInfo: PackageInfo,
           skipFile = true
           break
 
+      # In vnext mode, don't skip .nim files that are needed for binary compilation
+      if skipFile and file.splitFile.ext == ".nim":
+        let fileName = file.splitFile.name
+        for binName, srcName in pkgInfo.bin:
+          if fileName == srcName or fileName == binName:
+            skipFile = false
+            break
+
       if not skipFile:
         action(file)
 
