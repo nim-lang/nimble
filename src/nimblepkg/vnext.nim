@@ -691,7 +691,7 @@ proc installFromDirDownloadInfo(nimBin: string,downloadDir: string, url: string,
     createDir(pkgDestDir)
     # Copy this package's files based on the preferences specified in PkgInfo.
     var filesInstalled: HashSet[string]
-    iterInstallFiles(pkgInfo.getNimbleFileDir(), pkgInfo, options,
+    iterInstallFilesSimple(pkgInfo.getNimbleFileDir(), pkgInfo, options,
       proc (file: string) =
         createDir(changeRoot(pkgInfo.getNimbleFileDir(), pkgDestDir, file.splitFile.dir))
         let dest = changeRoot(pkgInfo.getNimbleFileDir(), pkgDestDir, file)
