@@ -7,3 +7,6 @@
 [submodule "vendor/checksums"]
 	path = vendor/checksums
 	url = https://github.com/nim-lang/checksums.git
+[submodule "vendor/chronos"]
+	path = vendor/chronos
+	url = https://github.com/status-im/nim-chronos.git
