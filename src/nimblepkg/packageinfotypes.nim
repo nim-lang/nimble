@@ -169,9 +169,10 @@ proc appendGloballyActiveFeatures*(pkgName: string, features: seq[string]) =
 
 proc getGloballyActiveFeatures*(): seq[string] = 
   #returns features.{pkgName}.{feature}
-  for pkgName, features in globallyActiveFeatures:
-    for feature in features:
-      result.add(&"features.{pkgName}.{feature}")
+  {.cast(gcsafe).}:
+    for pkgName, features in globallyActiveFeatures:
+      for feature in features:
+        result.add(&"features.{pkgName}.{feature}")
   
 proc initSATResult*(pass: SATPass): SATResult =
   SATResult(pkgsToInstall: @[], solvedPkgs: @[], output: "", pkgs: initHashSet[PackageInfo](), 
