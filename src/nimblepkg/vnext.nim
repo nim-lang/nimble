@@ -773,7 +773,7 @@ proc getNimBin(satResult: SATResult): string =
     raise newNimbleError[NimbleError]("No Nim found")
 
 proc buildFromDir(pkgInfo: PackageInfo, paths: HashSet[string],
-                  args: seq[string], options: Options, nimBin: string) {.async, raises: [].} =
+                  args: seq[string], options: Options, nimBin: string): Future[void] {.async: (raises: [CatchableError, AsyncProcessError, AsyncProcessTimeoutError, CancelledError, Exception]).} =
   ## Builds a package as specified by ``pkgInfo``.
   # Handle pre-`build` hook.
   let
@@ -1000,7 +1000,7 @@ proc solutionToFullInfo*(satResult: SATResult, options: var Options) {.instrumen
 proc isRoot(pkgInfo: PackageInfo, satResult: SATResult): bool =
   pkgInfo.basicInfo.name == satResult.rootPackage.basicInfo.name and pkgInfo.basicInfo.version == satResult.rootPackage.basicInfo.version
 
-proc buildPkg*(nimBin: string, pkgToBuild: PackageInfo, isRootInRootDir: bool, options: Options) {.async.} =
+proc buildPkg*(nimBin: string, pkgToBuild: PackageInfo, isRootInRootDir: bool, options: Options): Future[void] {.async: (raises: [CatchableError, AsyncProcessError, AsyncProcessTimeoutError, CancelledError, Exception]).} =
   # let paths = getPathsToBuildFor(options.satResult, pkgToBuild, recursive = true, options)
   let paths = try: getPathsAllPkgs(options)
               except Exception:
