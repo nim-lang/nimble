@@ -6,5 +6,8 @@ switch("define", "ssl")
 switch("path", "vendor" / "zippy" / "src")
 switch("path", "vendor" / "sat" / "src")
 switch("path", "vendor" / "checksums" / "src")
+switch("path", "vendor" / "chronos")
+switch("path", "vendor" / "results")
+switch("path", "vendor" / "stew")
 switch("define", "zippyNoSimd")
 
