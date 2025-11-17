@@ -774,7 +774,7 @@ proc getNimBin(satResult: SATResult): string =
     raise newNimbleError[NimbleError]("No Nim found")
 
 proc buildFromDir(pkgInfo: PackageInfo, paths: HashSet[string],
-                  args: seq[string], options: Options, nimBin: string): Future[void] {.async: (raises: [CatchableError, AsyncProcessError, AsyncProcessTimeoutError, CancelledError, Exception]).} =
+                  args: seq[string], options: Options, nimBin: string): Future[void] {.async: (raises: [CatchableError]).} =
   ## Builds a package as specified by ``pkgInfo``.
   # Handle pre-`build` hook.
   let
@@ -1001,7 +1001,7 @@ proc solutionToFullInfo*(satResult: SATResult, options: var Options) {.instrumen
 proc isRoot(pkgInfo: PackageInfo, satResult: SATResult): bool =
   pkgInfo.basicInfo.name == satResult.rootPackage.basicInfo.name and pkgInfo.basicInfo.version == satResult.rootPackage.basicInfo.version
 
-proc buildPkg*(nimBin: string, pkgToBuild: PackageInfo, isRootInRootDir: bool, options: Options): Future[void] {.async: (raises: [CatchableError, AsyncProcessError, AsyncProcessTimeoutError, CancelledError, Exception]).} =
+proc buildPkg*(nimBin: string, pkgToBuild: PackageInfo, isRootInRootDir: bool, options: Options): Future[void] {.async: (raises: [CatchableError]).} =
   # let paths = getPathsToBuildFor(options.satResult, pkgToBuild, recursive = true, options)
   let paths = try: getPathsAllPkgs(options)
               except Exception:
@@ -1026,7 +1026,7 @@ proc buildPkg*(nimBin: string, pkgToBuild: PackageInfo, isRootInRootDir: bool, o
     try:
       createBinSymlink(pkgToBuild, options)
     except Exception:
-      display("Error creating bin symlink", "Error creating bin symlink: " & getCurrentExceptionMsg(), Error, HighPriority)
+      displayError("Error creating bin symlink: " & getCurrentExceptionMsg())
 
 proc getVersionRangeFoPkgToInstall(satResult: SATResult, name: string, ver: Version): VersionRange =
   if satResult.rootPackage.basicInfo.name == name and satResult.rootPackage.basicInfo.version == ver:
