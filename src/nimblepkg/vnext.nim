@@ -712,7 +712,8 @@ proc installFromDirDownloadInfo(nimBin: string,downloadDir: string, url: string,
     display("Warning:", "Skipped copy in project local deps mode", Warning)
 
   pkgInfo.isInstalled = true
-  displaySuccess(pkgInstalledMsg(pkgInfo.basicInfo.name), MediumPriority)
+  if pkgInfo.bin.len == 0:
+    displaySuccess(pkgInstalledMsg(pkgInfo.basicInfo.name), MediumPriority)
   pkgInfo
 
 proc activateSolvedPkgFeatures*(satResult: SATResult, options: Options) =
@@ -1196,9 +1197,20 @@ proc installPkgs*(satResult: var SATResult, options: var Options) {.instrument.}
       futPkgsToBuild.add(buildPkg(nimBin, pkgToBuild, isRoot, options))
       satResult.buildPkgs.add(pkgToBuild)
 
-    measureTime "Packages built in ", false:
-      waitFor allFutures(futPkgsToBuild)
-    
+  measureTime "Packages built in ", false:
+    waitFor allFutures(futPkgsToBuild)
+
+    # Check each future for failures - allFutures doesn't propagate exceptions
+    for i, fut in futPkgsToBuild:
+      if fut.failed():
+        # Re-raise the first build failure we encounter
+        raise fut.error()
+
+  # Display success messages after builds complete successfully
+  # Only show for packages that were actually built (have binaries)
+  for pkgInfo in pkgsToBuild:
+    displaySuccess(pkgInstalledMsg(pkgInfo.basicInfo.name), MediumPriority)
+
   for pkg in satResult.installedPkgs.mitems:
     satResult.pkgs.incl pkg
     
