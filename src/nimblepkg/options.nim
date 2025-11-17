@@ -79,6 +79,7 @@ type
     filePathPkgs*: seq[PackageInfo] #Packages loaded from file:// requires. Top level is always included.
     isFilePathDiscovering*: bool # Whether we are discovering file:// requires to fill up filePathPkgs. If true, it wont validate file:// requires.
     visitedHooks*: seq[VisitedHook] # Whether we are executing hooks.
+    jobs*: int # Number of build jobs to run in parallel. 0 means unlimited.
     
   ActionType* = enum
     actionNil, actionRefresh, actionInit, actionDump, actionPublish, actionUpgrade
@@ -293,6 +294,8 @@ Nimble Options:
       --features                  Activate features. Only used when using the declarative parser.
       --ignoreSubmodules          Ignore submodules when cloning a repository.
       --legacy                    Use the legacy code path (pre nimble 1.0.0)
+      --jobs                      Number of build jobs to run in parallel. 0 means unlimited. Default is 1.
+
 For more information read the GitHub readme:
   https://github.com/nim-lang/nimble#readme
 """
@@ -784,6 +787,13 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
     result.features = val.split(";").mapIt(it.strip)
   of "ignoresubmodules":
     result.ignoreSubmodules = true
+  of "jobs":
+    try:
+      result.jobs = parseInt(val)
+    except ValueError:
+      raise nimbleError(&"{val} is not a valid value")
+    if result.jobs < 0:
+      raise nimbleError("Number of jobs must be greater than or equal to 0")
   else: isGlobalFlag = false
 
   var wasFlagHandled = true
@@ -918,7 +928,8 @@ proc initOptions*(): Options =
     useDeclarativeParser: false,
     legacy: false, #default to legacy code path for nimble < 1.0.0
     satResult: SatResult(),
-    localDeps: true
+    localDeps: true,
+    jobs: 1
   )
 
   # Load visited hooks from environment variable to prevent recursive hook execution

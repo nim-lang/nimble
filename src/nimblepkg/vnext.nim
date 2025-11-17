@@ -20,6 +20,13 @@ import chronos, chronos/asyncproc
 when defined(windows):
   import std/strscans
 
+
+type BuildTask = object
+  bin: string
+  cmd: string
+  pkgName: string
+  startBuild*: proc(): Future[CommandExResponse] {.closure.}
+
 proc debugSATResult*(options: Options, calledFrom: string) =
   let satResult = options.satResult
   let color = "\e[32m"
@@ -773,8 +780,8 @@ proc getNimBin(satResult: SATResult): string =
     raise newNimbleError[NimbleError]("No Nim found")
 
 proc buildFromDir(pkgInfo: PackageInfo, paths: HashSet[string],
-                  args: seq[string], options: Options, nimBin: string): Future[void] {.async: (raises: [CatchableError, AsyncProcessError, AsyncProcessTimeoutError, CancelledError, Exception]).} =
-  ## Builds a package as specified by ``pkgInfo``.
+                  args: seq[string], options: Options, nimBin: string): Future[seq[BuildTask]] {.async: (raises: [CatchableError, AsyncProcessError, AsyncProcessTimeoutError, CancelledError, Exception]).} =
+  ## Collects build tasks for all binaries in the package. Returns futures to be batched at a higher level.
   # Handle pre-`build` hook.
   let
     realDir = pkgInfo.getRealDir()
@@ -788,9 +795,7 @@ proc buildFromDir(pkgInfo: PackageInfo, paths: HashSet[string],
         "Nothing to build. Did you specify a module to build using the" &
         " `bin` key in your .nimble file?")
 
-  var
-    binariesBuilt = 0
-    args = args
+  var args = args
   args.add "-d:NimblePkgVersion=" & $pkgInfo.basicInfo.version
   for path in paths:
       args.add("--path:" & path.quoteShell)
@@ -823,12 +828,7 @@ proc buildFromDir(pkgInfo: PackageInfo, paths: HashSet[string],
       options.getCompilationBinary(pkgInfo).get("")
     else: ""
 
-  # Collect all binary build tasks to run in parallel
-  type BuildTask = object
-    bin: string
-    cmd: string
-    future: Future[CommandExResponse]
-
+  # Collect all binary build tasks (will be batched at installPkgs level)
   var buildTasks: seq[BuildTask]
 
   for bin, src in pkgInfo.bin:
@@ -844,7 +844,6 @@ proc buildFromDir(pkgInfo: PackageInfo, paths: HashSet[string],
           if not pkgInfo.needsRebuild(outputDir / bin, realDir, options):
             display("Skipping", "$1/$2 (up-to-date)" %
                     [pkginfo.basicInfo.name, bin], priority = HighPriority)
-            binariesBuilt.inc()
             continue
     else:
       createDir(outputDir)
@@ -870,7 +869,6 @@ proc buildFromDir(pkgInfo: PackageInfo, paths: HashSet[string],
             when not defined(windows):
               # Preserve executable permissions
               setFilePermissions(targetBinary, getFilePermissions(sourceBinary))
-            binariesBuilt.inc()
             continue
 
     let outputOpt = "-o:" & pkgInfo.getOutputDir(bin).quoteShell
@@ -892,52 +890,20 @@ proc buildFromDir(pkgInfo: PackageInfo, paths: HashSet[string],
 
     display("Executing", cmd, priority = MediumPriority)
 
-    # Start async build and collect future
+    # Create build task (don't start yet - will be started based on jobs limit)
     var task: BuildTask
     task.bin = bin
     task.cmd = cmd
-    task.future = execCommandEx(cmd)
+    task.pkgName = pkgInfo.basicInfo.name
+    task.startBuild = proc(): Future[CommandExResponse] = execCommandEx(cmd)
     buildTasks.add(task)
 
-  # Wait for all builds to complete in parallel
-  if buildTasks.len > 0:
-    let futures = buildTasks.mapIt(it.future)
-    discard await allFinished(futures)
-
-    # Process results
-    for task in buildTasks:
-      try:
-        let response = task.future.read()
-
-        # Display output
-        if response.stdOutput.len > 0:
-          display("Nim Output", response.stdOutput, priority = HighPriority)
-        if response.stdError.len > 0:
-          display("Nim Stderr", response.stdError, priority = HighPriority)
-
-        # Check exit code
-        if response.status != QuitSuccess:
-          raise nimbleError(
-            "Execution failed with exit code $1\nCommand: $2" %
-            [$response.status, task.cmd])
-
-        binariesBuilt.inc()
-      except CatchableError as error:
-        raise buildFailed(
-          &"Build failed for package: {pkgInfo.basicInfo.name}, binary: {task.bin}", details = error)
-
-  if binariesBuilt == 0:
-    let binary = options.getCompilationBinary(pkgInfo).get("")
-    if binary != "":
-      raise nimbleError(binaryNotDefinedInPkgMsg(binary, pkgInfo.basicInfo.name))
-
-    raise nimbleError(
-      "No binaries built, did you specify a valid binary name?"
-    )
-
-  # Handle post-`build` hook.
+  # Handle post-`build` hook before returning tasks
   cd pkgDir: # Make sure `execHook` executes the correct .nimble file.
     discard execHook(nimBin, options, actionBuild, false)
+
+  # Return build tasks to be batched at installPkgs level based on jobs setting
+  return buildTasks
 
 proc createBinSymlink(pkgInfo: PackageInfo, options: Options) =
   var binariesInstalled: HashSet[string]
@@ -1000,7 +966,8 @@ proc solutionToFullInfo*(satResult: SATResult, options: var Options) {.instrumen
 proc isRoot(pkgInfo: PackageInfo, satResult: SATResult): bool =
   pkgInfo.basicInfo.name == satResult.rootPackage.basicInfo.name and pkgInfo.basicInfo.version == satResult.rootPackage.basicInfo.version
 
-proc buildPkg*(nimBin: string, pkgToBuild: PackageInfo, isRootInRootDir: bool, options: Options): Future[void] {.async: (raises: [CatchableError, AsyncProcessError, AsyncProcessTimeoutError, CancelledError, Exception]).} =
+proc buildPkg*(nimBin: string, pkgToBuild: PackageInfo, isRootInRootDir: bool, options: Options): Future[seq[BuildTask]] {.async: (raises: [CatchableError, AsyncProcessError, AsyncProcessTimeoutError, CancelledError, Exception]).} =
+  ## Collects build tasks for the package. Symlinks are created after builds complete.
   # let paths = getPathsToBuildFor(options.satResult, pkgToBuild, recursive = true, options)
   let paths = try: getPathsAllPkgs(options)
               except Exception:
@@ -1017,15 +984,12 @@ proc buildPkg*(nimBin: string, pkgToBuild: PackageInfo, isRootInRootDir: bool, o
   var pkgToBuild = pkgToBuild
   if isRootInRootDir:
     pkgToBuild.isInstalled = false
-  await buildFromDir(pkgToBuild, paths, "-d:release" & flags, options, nimBin)
-  # For globally installed packages, always create symlinks
-  # Only skip symlinks if we're building the root package in its own directory
-  let shouldCreateSymlinks = not isRootInRootDir or options.action.typ == actionInstall
-  if shouldCreateSymlinks:
-    try:
-      createBinSymlink(pkgToBuild, options)
-    except Exception:
-      display("Error creating bin symlink", "Error creating bin symlink: " & getCurrentExceptionMsg(), Error, HighPriority)
+
+  # Collect build tasks, don't wait for them yet
+  let buildTasks = await buildFromDir(pkgToBuild, paths, "-d:release" & flags, options, nimBin)
+
+  # Note: createBinSymlink will be called after all builds complete in installPkgs
+  return buildTasks
 
 proc getVersionRangeFoPkgToInstall(satResult: SATResult, name: string, ver: Version): VersionRange =
   if satResult.rootPackage.basicInfo.name == name and satResult.rootPackage.basicInfo.version == ver:
@@ -1176,8 +1140,10 @@ proc installPkgs*(satResult: var SATResult, options: var Options) {.instrument.}
     if dirExists(hookDir):
       executeHook(nimBin, hookDir, options, actionInstall, before = true)
 
-  # Collect all build futures to run in parallel
-  var futPkgsToBuild = newSeq[Future[void]]()
+  # Collect ALL build tasks from all packages (flattened list)
+  var allBuildTasks: seq[BuildTask]
+  var pkgsWithBuilds: seq[PackageInfo]  # Track which packages have builds for symlink creation
+
   for pkgToBuild in pkgsToBuild:
     if pkgToBuild.bin.len == 0:
       if options.action.typ == actionBuild:
@@ -1189,16 +1155,80 @@ proc installPkgs*(satResult: var SATResult, options: var Options) {.instrument.}
     # echo "Building package: ", pkgToBuild.basicInfo.name, " at ", pkgToBuild.myPath, " binaries: ", pkgToBuild.bin
     let isRoot = pkgToBuild.isRoot(options.satResult) and isInRootDir
     if isRoot and options.action.typ in rootBuildActions:
-      futPkgsToBuild.add(buildPkg(nimBin, pkgToBuild, isRoot, options))
+      let buildTasks = waitFor buildPkg(nimBin, pkgToBuild, isRoot, options)
+      allBuildTasks.add(buildTasks)
       satResult.buildPkgs.add(pkgToBuild)
+      pkgsWithBuilds.add(pkgToBuild)
     elif not isRoot:
       #Build non root package for all actions that requires the package as a dependency
-      futPkgsToBuild.add(buildPkg(nimBin, pkgToBuild, isRoot, options))
+      let buildTasks = waitFor buildPkg(nimBin, pkgToBuild, isRoot, options)
+      allBuildTasks.add(buildTasks)
       satResult.buildPkgs.add(pkgToBuild)
+      pkgsWithBuilds.add(pkgToBuild)
+
+  # Now batch all build tasks according to jobs limit
+  if allBuildTasks.len > 0:
+    # echo "Building ", allBuildTasks.len, " binaries across ", pkgsWithBuilds.len, " packages"
+    # Start builds and collect futures
+    var buildFutures: seq[tuple[task: BuildTask, future: Future[CommandExResponse]]]
 
     measureTime "Packages built in ", false:
-      waitFor allFutures(futPkgsToBuild)
-    
+      if options.jobs <= 0:
+        # jobs=0 means unlimited parallelism - start all at once
+        for task in allBuildTasks:
+          let future = task.startBuild()
+          buildFutures.add((task, future))
+
+        let allFutures = buildFutures.mapIt(it.future)
+        waitFor allFutures(allFutures)
+      else:
+        # Process in batches of size options.jobs - start only what we can run
+        # echo "Using job limit: ", options.jobs
+        for i in countup(0, allBuildTasks.len - 1, options.jobs):
+          let batchEnd = min(i + options.jobs, allBuildTasks.len)
+
+          # Start this batch of builds
+          var batchFutures: seq[Future[CommandExResponse]]
+          for j in i ..< batchEnd:
+            let future = allBuildTasks[j].startBuild()
+            buildFutures.add((allBuildTasks[j], future))
+            batchFutures.add(future)
+
+          # Wait for this batch to complete before starting next batch
+          waitFor allFutures(batchFutures)
+
+    # Process results and create symlinks
+    for item in buildFutures:
+      let task = item.task
+      let future = item.future
+      try:
+        let response = future.read()
+
+        # Display output
+        if response.stdOutput.len > 0:
+          display("Nim Output", response.stdOutput, priority = HighPriority)
+        if response.stdError.len > 0:
+          display("Nim Stderr", response.stdError, priority = HighPriority)
+
+        # Check exit code
+        if response.status != QuitSuccess:
+          raise nimbleError(
+            "Execution failed with exit code $1\nCommand: $2" %
+            [$response.status, task.cmd])
+      except CatchableError as error:
+        raise buildFailed(
+          &"Build failed for package: {task.pkgName}, binary: {task.bin}", details = error)
+
+    # Create symlinks after all builds complete
+    for pkgToBuild in pkgsWithBuilds:
+      let isRoot = pkgToBuild.isRoot(options.satResult) and isInRootDir
+      let shouldCreateSymlinks = not isRoot or options.action.typ == actionInstall
+      if shouldCreateSymlinks:
+        try:
+          createBinSymlink(pkgToBuild, options)
+        except Exception:
+          display("Error creating bin symlink", "Error creating bin symlink: " & getCurrentExceptionMsg(), Error, HighPriority)   
+
   for pkg in satResult.installedPkgs.mitems:
     satResult.pkgs.incl pkg
     

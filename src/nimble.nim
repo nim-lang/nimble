@@ -2569,9 +2569,9 @@ proc run(options: Options, nimBin: string) =
     # In vnext path, build develop mode packages (similar to old code path)
     if pkgInfo.isLink:
       # Use vnext buildPkg for develop mode packages
-      let isInRootDir = options.startDir == pkgInfo.myPath.parentDir and 
+      let isInRootDir = options.startDir == pkgInfo.myPath.parentDir and
         options.satResult.rootPackage.basicInfo.name == pkgInfo.basicInfo.name
-      waitFor buildPkg(nimBin, pkgInfo, isInRootDir, options)
+      discard waitFor buildPkg(nimBin, pkgInfo, isInRootDir, options)
     
     if options.getCompilationFlags.len > 0:
       displayWarning(ignoringCompilationFlagsMsg)
