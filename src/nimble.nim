@@ -665,8 +665,7 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
           createDir(changeRoot(realDir, pkgDestDir, file.splitFile.dir))
           let dest = changeRoot(realDir, pkgDestDir, file)
           filesInstalled.incl copyFileD(file, dest)
-        except CatchableError:
-          #TODO print msg
+        except Exception:
           discard
     )
 
