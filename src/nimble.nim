@@ -2571,7 +2571,20 @@ proc run(options: Options, nimBin: string) =
       # Use vnext buildPkg for develop mode packages
       let isInRootDir = options.startDir == pkgInfo.myPath.parentDir and
         options.satResult.rootPackage.basicInfo.name == pkgInfo.basicInfo.name
-      discard waitFor buildPkg(nimBin, pkgInfo, isInRootDir, options)
+      let buildTasks = waitFor buildPkg(nimBin, pkgInfo, isInRootDir, options)
+      # Execute the build tasks immediately for run command
+      for task in buildTasks:
+        let future = task.startBuild()
+        let response = waitFor future
+        if response.stdOutput.len > 0:
+          display("Output", response.stdOutput, priority = HighPriority)
+        if response.stdError.len > 0:
+          displayWarning(response.stdError)
+        if response.status != 0:
+          raise buildFailed(&"Build failed for binary: {task.bin}", details = nil)
+      # Create symlinks after build completes
+      if buildTasks.len > 0:
+        vnext.createBinSymlink(pkgInfo, options)
     
     if options.getCompilationFlags.len > 0:
       displayWarning(ignoringCompilationFlagsMsg)

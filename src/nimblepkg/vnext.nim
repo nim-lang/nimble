@@ -21,10 +21,10 @@ when defined(windows):
   import std/strscans
 
 
-type BuildTask = object
-  bin: string
-  cmd: string
-  pkgName: string
+type BuildTask* = object
+  bin*: string
+  cmd*: string
+  pkgName*: string
   startBuild*: proc(): Future[CommandExResponse] {.closure.}
 
 proc debugSATResult*(options: Options, calledFrom: string) =
@@ -905,7 +905,7 @@ proc buildFromDir(pkgInfo: PackageInfo, paths: HashSet[string],
   # Return build tasks to be batched at installPkgs level based on jobs setting
   return buildTasks
 
-proc createBinSymlink(pkgInfo: PackageInfo, options: Options) =
+proc createBinSymlink*(pkgInfo: PackageInfo, options: Options) =
   var binariesInstalled: HashSet[string]
   let binDir = options.getBinDir()
   let pkgDestDir = pkgInfo.getPkgDest(options)
