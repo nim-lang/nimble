@@ -772,8 +772,73 @@ proc getNimBin(satResult: SATResult): string =
   else:
     raise newNimbleError[NimbleError]("No Nim found")
 
+type BuildTask = object
+    bin: string
+    cmd: string
+    future: Future[CommandExResponse]
+
+# Forward declaration
+proc createBinSymlink(pkgInfo: PackageInfo, options: Options)
+
+proc processBuildTasks(buildTasks: seq[BuildTask],
+                      pkgInfo: PackageInfo, nimBin: string, options: Options,
+                      shouldCreateSymlinks: bool): Future[void] {.async: (raises: [CatchableError]).} =
+  ## Wait for all builds to complete in parallel, process their results,
+  ## and optionally create symlinks for the built binaries.
+  ## Returns the total number of binaries built.
+
+  var binariesBuilt = 0
+
+  if buildTasks.len > 0:
+    let futures = buildTasks.mapIt(it.future)
+    discard await allFinished(futures)
+
+    # Process results
+    for task in buildTasks:
+      try:
+        let response = task.future.read()
+
+        # Display output
+        if response.stdOutput.len > 0:
+          display("Nim Output", response.stdOutput, priority = HighPriority)
+        if response.stdError.len > 0:
+          display("Nim Stderr", response.stdError, priority = HighPriority)
+
+        # Check exit code
+        if response.status != QuitSuccess:
+          raise nimbleError(
+            "Execution failed with exit code $1\nCommand: $2" %
+            [$response.status, task.cmd])
+
+        binariesBuilt.inc()
+      except CatchableError as error:
+        raise buildFailed(
+          &"Build failed for package: {pkgInfo.basicInfo.name}, binary: {task.bin}", details = error)
+
+    if binariesBuilt == 0:
+      let binary = options.getCompilationBinary(pkgInfo).get("")
+      if binary != "":
+        raise nimbleError(binaryNotDefinedInPkgMsg(binary, pkgInfo.basicInfo.name))
+
+      raise nimbleError(
+        "No binaries built, did you specify a valid binary name?"
+      )
+
+  # Handle post-`build` hook.
+  cd pkgInfo.myPath.parentDir(): # Make sure `execHook` executes the correct .nimble file.
+    discard execHook(nimBin, options, actionBuild, false)
+
+  # Create symlinks if requested
+  if shouldCreateSymlinks:
+    try:
+      {.cast(gcsafe).}:
+        createBinSymlink(pkgInfo, options)
+    except Exception:
+      displayError("Error creating bin symlink: " & getCurrentExceptionMsg())
+  
+    
 proc buildFromDir(pkgInfo: PackageInfo, paths: HashSet[string],
-                  args: seq[string], options: Options, nimBin: string): Future[void] {.async: (raises: [CatchableError]).} =
+                  args: seq[string], options: Options, nimBin: string): seq[BuildTask] =
   ## Builds a package as specified by ``pkgInfo``.
   # Handle pre-`build` hook.
   let
@@ -824,10 +889,7 @@ proc buildFromDir(pkgInfo: PackageInfo, paths: HashSet[string],
     else: ""
 
   # Collect all binary build tasks to run in parallel
-  type BuildTask = object
-    bin: string
-    cmd: string
-    future: Future[CommandExResponse]
+
 
   var buildTasks: seq[BuildTask]
 
@@ -897,45 +959,8 @@ proc buildFromDir(pkgInfo: PackageInfo, paths: HashSet[string],
     task.future = execCommandEx(cmd)
     buildTasks.add(task)
 
-  # Wait for all builds to complete in parallel
-  if buildTasks.len > 0:
-    let futures = buildTasks.mapIt(it.future)
-    discard await allFinished(futures)
-
-    # Process results
-    for task in buildTasks:
-      try:
-        let response = task.future.read()
-
-        # Display output
-        if response.stdOutput.len > 0:
-          display("Nim Output", response.stdOutput, priority = HighPriority)
-        if response.stdError.len > 0:
-          display("Nim Stderr", response.stdError, priority = HighPriority)
-
-        # Check exit code
-        if response.status != QuitSuccess:
-          raise nimbleError(
-            "Execution failed with exit code $1\nCommand: $2" %
-            [$response.status, task.cmd])
-
-        binariesBuilt.inc()
-      except CatchableError as error:
-        raise buildFailed(
-          &"Build failed for package: {pkgInfo.basicInfo.name}, binary: {task.bin}", details = error)
-
-  if binariesBuilt == 0:
-    let binary = options.getCompilationBinary(pkgInfo).get("")
-    if binary != "":
-      raise nimbleError(binaryNotDefinedInPkgMsg(binary, pkgInfo.basicInfo.name))
-
-    raise nimbleError(
-      "No binaries built, did you specify a valid binary name?"
-    )
-
-  # Handle post-`build` hook.
-  cd pkgDir: # Make sure `execHook` executes the correct .nimble file.
-    discard execHook(nimBin, options, actionBuild, false)
+  return buildTasks
+ 
 
 proc createBinSymlink(pkgInfo: PackageInfo, options: Options) =
   var binariesInstalled: HashSet[string]
@@ -1015,15 +1040,16 @@ proc buildPkg*(nimBin: string, pkgToBuild: PackageInfo, isRootInRootDir: bool, o
   var pkgToBuild = pkgToBuild
   if isRootInRootDir:
     pkgToBuild.isInstalled = false
-  await buildFromDir(pkgToBuild, paths, "-d:release" & flags, options, nimBin)
+
+  # Build and collect tasks
+  let buildTasks = buildFromDir(pkgToBuild, paths, "-d:release" & flags, options, nimBin)
+
   # For globally installed packages, always create symlinks
   # Only skip symlinks if we're building the root package in its own directory
   let shouldCreateSymlinks = not isRootInRootDir or options.action.typ == actionInstall
-  if shouldCreateSymlinks:
-    try:
-      createBinSymlink(pkgToBuild, options)
-    except Exception:
-      displayError("Error creating bin symlink: " & getCurrentExceptionMsg())
+
+  # Process build tasks and create symlinks
+  await processBuildTasks(buildTasks, pkgToBuild, nimBin, options, shouldCreateSymlinks)
 
 proc getVersionRangeFoPkgToInstall(satResult: SATResult, name: string, ver: Version): VersionRange =
   if satResult.rootPackage.basicInfo.name == name and satResult.rootPackage.basicInfo.version == ver:

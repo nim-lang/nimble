@@ -664,9 +664,14 @@ proc needsRebuild*(pkgInfo: PackageInfo, bin: string, dir: string, options: Opti
   if not options.isLegacy:
     if options.action.noRebuild:
       if not fileExists(bin):
-        return true  
-      
-      let binTimestamp = getFileInfo(bin).lastWriteTime
+        return true
+
+      let binTimestamp =
+        try:
+          getFileInfo(bin).lastWriteTime
+        except OSError:
+          # File disappeared or became inaccessible between fileExists check and here
+          return true
       var rebuild = false
       iterFilesWithExt(dir, pkgInfo,
         proc (file: string) =
@@ -684,7 +689,12 @@ proc needsRebuild*(pkgInfo: PackageInfo, bin: string, dir: string, options: Opti
     if not options.action.noRebuild:
       return true
 
-    let binTimestamp = getFileInfo(bin).lastWriteTime
+    let binTimestamp =
+      try:
+        getFileInfo(bin).lastWriteTime
+      except OSError:
+        # File doesn't exist or became inaccessible
+        return true
     var rebuild = false
     iterFilesWithExt(dir, pkgInfo,
       proc (file: string) =
