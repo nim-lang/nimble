@@ -756,11 +756,10 @@ proc getPathsToBuildFor*(satResult: SATResult, pkgInfo: PackageInfo, recursive: 
   result.incl(pkgInfo.expandPaths(nimBin, options))
 
 proc getPathsAllPkgs*(options: Options): HashSet[string] =
-  {.cast(gcsafe).}:
-    let satResult = options.satResult
-    for pkg in satResult.pkgs:
-      for path in pkg.expandPaths(satResult.nimResolved.getNimBin(), options):
-        result.incl(path)
+  let satResult = options.satResult
+  for pkg in satResult.pkgs:
+    for path in pkg.expandPaths(satResult.nimResolved.getNimBin(), options):
+      result.incl(path)
 
 proc getNimBin(satResult: SATResult): string =
   #TODO change this so nim is passed as a parameter but we also need to change getPkgInfo so for the time being its also in options
@@ -841,12 +840,11 @@ proc buildFromDir(pkgInfo: PackageInfo, paths: HashSet[string],
     let outputDir = pkgInfo.getOutputDir("")
     if dirExists(outputDir):
       if fileExists(outputDir / bin):
-        {.cast(gcsafe).}:
-          if not pkgInfo.needsRebuild(outputDir / bin, realDir, options):
-            display("Skipping", "$1/$2 (up-to-date)" %
-                    [pkginfo.basicInfo.name, bin], priority = HighPriority)
-            binariesBuilt.inc()
-            continue
+        if not pkgInfo.needsRebuild(outputDir / bin, realDir, options):
+          display("Skipping", "$1/$2 (up-to-date)" %
+                  [pkginfo.basicInfo.name, bin], priority = HighPriority)
+          binariesBuilt.inc()
+          continue
     else:
       createDir(outputDir)
 
@@ -862,17 +860,16 @@ proc buildFromDir(pkgInfo: PackageInfo, paths: HashSet[string],
 
       if fileExists(sourceBinary):
         # Check if the source binary is up-to-date
-        {.cast(gcsafe).}:
-          if not pkgInfo.needsRebuild(sourceBinary, realDir, options):
-            let targetBinary = outputDir / bin
-            display("Skipping", "$1/$2 (up-to-date)" %
-                    [pkginfo.basicInfo.name, bin], priority = HighPriority)
-            copyFile(sourceBinary, targetBinary)
-            when not defined(windows):
-              # Preserve executable permissions
-              setFilePermissions(targetBinary, getFilePermissions(sourceBinary))
-            binariesBuilt.inc()
-            continue
+        if not pkgInfo.needsRebuild(sourceBinary, realDir, options):
+          let targetBinary = outputDir / bin
+          display("Skipping", "$1/$2 (up-to-date)" %
+                  [pkginfo.basicInfo.name, bin], priority = HighPriority)
+          copyFile(sourceBinary, targetBinary)
+          when not defined(windows):
+            # Preserve executable permissions
+            setFilePermissions(targetBinary, getFilePermissions(sourceBinary))
+          binariesBuilt.inc()
+          continue
 
     let outputOpt = "-o:" & pkgInfo.getOutputDir(bin).quoteShell
     display("Building", "$1/$2 using $3 backend" %

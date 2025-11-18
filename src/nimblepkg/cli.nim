@@ -48,7 +48,13 @@ proc newCLI(): CLI =
     showColor: true,
   )
 
-var globalCLI = newCLI()
+var globalCLI {.threadvar.}: CLI
+
+proc getGlobalCLI(): CLI =
+  if globalCLI == nil:
+    globalCLI = newCLI()
+  return globalCLI
+
 
 proc calculateCategoryOffset(category: string): int =
   assert category.len <= longestCategory
@@ -57,14 +63,14 @@ proc calculateCategoryOffset(category: string): int =
 proc isSuppressed(displayType: DisplayType): bool =
   # Don't print any Warning, Message or Success messages when suppression of
   # warnings is enabled. That is, unless the user asked for --verbose output.
-  if globalCLI.suppressMessages and displayType >= Warning and
-     globalCLI.level == HighPriority:
+  if getGlobalCLI().suppressMessages and displayType >= Warning and
+     getGlobalCLI().level == HighPriority:
     return true
 
 proc displayFormatted*(displayType: DisplayType, msgs: varargs[string]) =
   ## for styling outputs lines using the DisplayTypes
   for msg in msgs:
-    if globalCLI.showColor:
+    if getGlobalCLI().showColor:
       stdout.styledWrite(foregrounds[displayType], msg)
     else:
       stdout.write(msg)
@@ -76,23 +82,22 @@ proc displayInfoLine*(field, msg: string) =
 
 proc displayCategory(category: string, displayType: DisplayType,
                      priority: Priority) =
-  {.cast(gcsafe).}:
-    if isSuppressed(displayType):
-      return
+  if isSuppressed(displayType):
+    return
 
-    # Calculate how much the `category` must be offset to align along a center
-    # line.
-    let offset = calculateCategoryOffset(category)
+  # Calculate how much the `category` must be offset to align along a center
+  # line.
+  let offset = calculateCategoryOffset(category)
 
-    # Display the category.
-    let text = "$1$2 " % [spaces(offset), category]
-    if globalCLI.showColor:
-      if priority != DebugPriority:
-        setForegroundColor(stdout, foregrounds[displayType])
-      writeStyled(text, styles[priority])
-      resetAttributes()
-    else:
-      stdout.write(text)
+  # Display the category.
+  let text = "$1$2 " % [spaces(offset), category]
+  if getGlobalCLI().showColor:
+    if priority != DebugPriority:
+      setForegroundColor(stdout, foregrounds[displayType])
+    writeStyled(text, styles[priority])
+    resetAttributes()
+  else:
+    stdout.write(text)
 
 
 proc displayLine(category, line: string, displayType: DisplayType,
@@ -107,28 +112,27 @@ proc displayLine(category, line: string, displayType: DisplayType,
 
 proc display*(category, msg: string, displayType = Message,
               priority = MediumPriority) =
-  {.cast(gcsafe).}:
-    # Multiple warnings containing the same messages should not be shown.
-    let warningPair = (category, msg)
-    if displayType == Warning:
-      if warningPair in globalCLI.warnings:
-        return
-      else:
-        globalCLI.warnings.incl(warningPair)
-
-    # Suppress this message if its priority isn't high enough.
-    # TODO: Per-priority suppression counts?
-    if priority < globalCLI.level:
-      if priority != DebugPriority:
-        globalCLI.suppressionCount.inc
+  # Multiple warnings containing the same messages should not be shown.
+  let warningPair = (category, msg)
+  if displayType == Warning:
+    if warningPair in getGlobalCLI().warnings:
       return
+    else:
+      getGlobalCLI().warnings.incl(warningPair)
 
-    # Display each line in the message.
-    var i = 0
-    for line in msg.splitLines():
-      if len(line) == 0: continue
-      displayLine(if i == 0: category else: "...", line, displayType, priority)
-      i.inc
+  # Suppress this message if its priority isn't high enough.
+  # TODO: Per-priority suppression counts?
+  if priority < getGlobalCLI().level:
+    if priority != DebugPriority:
+      getGlobalCLI().suppressionCount.inc
+    return
+
+  # Display each line in the message.
+  var i = 0
+  for line in msg.splitLines():
+    if len(line) == 0: continue
+    displayLine(if i == 0: category else: "...", line, displayType, priority)
+    i.inc
 
 proc displayWarning*(message: string, priority = HighPriority) =
   display("Warning: ", message, Warning, priority)
@@ -175,7 +179,7 @@ proc displayDebug*(msg: string) =
 proc displayTip*() =
   ## Called just before Nimble exits. Shows some tips for the user, for example
   ## the amount of messages that were suppressed and how to show them.
-  if globalCLI.suppressionCount > 0:
+  if getGlobalCLI().suppressionCount > 0:
     let msg = "$1 messages have been suppressed, use --verbose to show them." %
              $globalCLI.suppressionCount
     display("Tip:", msg, Warning, HighPriority)
@@ -189,7 +193,7 @@ proc prompt*(forcePrompts: ForcePrompt, question: string): bool =
     display("Prompt:", question & " -> [forced no]", Warning, HighPriority)
     return false
   of dontForcePrompt:
-    if globalCLI.level > SilentPriority:
+    if getGlobalCLI().level > SilentPriority:
       display("Prompt:", question & " [y/N]", Warning, HighPriority)
       displayCategory("Answer:", Warning, HighPriority)
       let yn = stdin.readLine()
@@ -323,10 +327,10 @@ proc promptList*(forcePrompts: ForcePrompt, question: string, args: openarray[st
       return promptListFallback(question, args)
 
 proc setVerbosity*(level: Priority) =
-  globalCLI.level = level
+  getGlobalCLI().level = level
 
 proc setShowColor*(val: bool) =
-  globalCLI.showColor = val
+  getGlobalCLI().showColor = val
 
 proc setSuppressMessages*(val: bool) =
-  globalCLI.suppressMessages = val
+  getGlobalCLI().suppressMessages = val

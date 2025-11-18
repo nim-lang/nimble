@@ -444,7 +444,7 @@ proc checkInstallDir(pkgInfo: PackageInfo,
   if thisDir == "nimcache": result = true
 
 proc iterFilesWithExt(dir: string, pkgInfo: PackageInfo,
-                      action: proc (f: string): void {.raises: [].}) =
+                      action: proc (f: string): void {.raises: [], gcsafe.}) =
   ## Runs `action` for each filename of the files that have a whitelisted
   ## file extension.
   for kind, path in walkDir(dir):
@@ -520,7 +520,7 @@ proc iterInstallFilesSimple*(realDir: string, pkgInfo: PackageInfo,
         action(file)
 
 proc iterInstallFiles*(realDir: string, pkgInfo: PackageInfo,
-                       options: Options, action: proc (f: string): void {.raises: [].}) =
+                       options: Options, action: proc (f: string): void {.raises: [], gcsafe.}) =
   ## Runs `action` for each file within the ``realDir`` that should be
   ## installed.
   # Get the package root directory for skipDirs comparison

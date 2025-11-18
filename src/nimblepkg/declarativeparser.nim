@@ -210,24 +210,25 @@ proc getNimCompilationPath*(nimbleFile: string): string =
   let fileIdx = fileInfoIdx(conf, AbsoluteFile nimbleFile)
   var parser: Parser
   var includePath = ""
-  if setupParser(parser, fileIdx, newIdentCache(), conf):
-    let ast = parseAll(parser)
-    proc findIncludePath(n: PNode) =
-      case n.kind
-      of nkStmtList, nkStmtListExpr:
-        for child in n:
-          findIncludePath(child)
-      of nkIncludeStmt:
-        # Found an include statement
-        if n.len > 0 and n[0].kind in {nkStrLit..nkTripleStrLit}:
-          includePath = n[0].strVal
-          # echo "Found include: ", includePath
-      else:
-        for i in 0..<n.safeLen:
-          findIncludePath(n[i])
-    
-    findIncludePath(ast)
-    closeParser(parser)
+  {.cast(gcsafe).}:
+    if setupParser(parser, fileIdx, newIdentCache(), conf):
+      let ast = parseAll(parser)
+      proc findIncludePath(n: PNode) =
+        case n.kind
+        of nkStmtList, nkStmtListExpr:
+          for child in n:
+            findIncludePath(child)
+        of nkIncludeStmt:
+          # Found an include statement
+          if n.len > 0 and n[0].kind in {nkStrLit..nkTripleStrLit}:
+            includePath = n[0].strVal
+            # echo "Found include: ", includePath
+        else:
+          for i in 0..<n.safeLen:
+            findIncludePath(n[i])
+      
+      findIncludePath(ast)
+      closeParser(parser)
   
   if includePath.len > 0:
     if includePath.contains("compilation.nim"):
@@ -251,53 +252,53 @@ proc extractNimVersion*(nimbleFile: string): string =
   
   let compFileIdx = fileInfoIdx(conf, AbsoluteFile compilationPath)
   var parser: Parser
-
-  if setupParser(parser, compFileIdx, newIdentCache(), conf):
-    let ast = parseAll(parser)
-    
-    # Process AST to find NimMajor, NimMinor, NimPatch definitions
-    proc processNode(n: PNode) =
-      case n.kind
-      of nkStmtList, nkStmtListExpr:
-        for child in n:
-          processNode(child)
-      of nkConstSection:
-        for child in n:
-          if child.kind == nkConstDef:
-            var identName = ""
-            case child[0].kind
-            of nkPostfix:
-              if child[0][1].kind == nkIdent:
-                identName = child[0][1].ident.s
-            of nkIdent:
-              identName = child[0].ident.s
-            of nkPragmaExpr:
-              # Handle pragma expression (like NimMajor* {.intdefine.})
-              if child[0][0].kind == nkIdent:
-                identName = child[0][0].ident.s
-              elif child[0][0].kind == nkPostfix and child[0][0][1].kind == nkIdent:
-                identName = child[0][0][1].ident.s
-            else: discard
-              # echo "Unhandled node kind for const name: ", child[0].kind
-            # Extract value
-            if child.len > 2:
-              case child[2].kind
-              of nkIntLit:
-                let value = child[2].intVal.int
-                case identName
-                of "NimMajor": major = value
-                of "NimMinor": minor = value
-                of "NimPatch": patch = value
-                else: discard
-              else:
-                discard
-      else:
-        discard
-    
-    processNode(ast)
-    closeParser(parser)
-  # echo "Extracted version: ", major, ".", minor, ".", patch
-  return &"{major}.{minor}.{patch}"
+  {.cast(gcsafe).}:
+    if setupParser(parser, compFileIdx, newIdentCache(), conf):
+      let ast = parseAll(parser)
+      
+      # Process AST to find NimMajor, NimMinor, NimPatch definitions
+      proc processNode(n: PNode) =
+        case n.kind
+        of nkStmtList, nkStmtListExpr:
+          for child in n:
+            processNode(child)
+        of nkConstSection:
+          for child in n:
+            if child.kind == nkConstDef:
+              var identName = ""
+              case child[0].kind
+              of nkPostfix:
+                if child[0][1].kind == nkIdent:
+                  identName = child[0][1].ident.s
+              of nkIdent:
+                identName = child[0].ident.s
+              of nkPragmaExpr:
+                # Handle pragma expression (like NimMajor* {.intdefine.})
+                if child[0][0].kind == nkIdent:
+                  identName = child[0][0].ident.s
+                elif child[0][0].kind == nkPostfix and child[0][0][1].kind == nkIdent:
+                  identName = child[0][0][1].ident.s
+              else: discard
+                # echo "Unhandled node kind for const name: ", child[0].kind
+              # Extract value
+              if child.len > 2:
+                case child[2].kind
+                of nkIntLit:
+                  let value = child[2].intVal.int
+                  case identName
+                  of "NimMajor": major = value
+                  of "NimMinor": minor = value
+                  of "NimPatch": patch = value
+                  else: discard
+                else:
+                  discard
+        else:
+          discard
+      
+      processNode(ast)
+      closeParser(parser)
+    # echo "Extracted version: ", major, ".", minor, ".", patch
+    return &"{major}.{minor}.{patch}"
 
 proc parseRequiresFile*(requiresFile: string): seq[string] =
   ## Parse a plain text requires file.
@@ -340,12 +341,13 @@ proc extractRequiresInfo*(nimbleFile: string, options: Options): NimbleFileInfo 
     localError(config, info, warnUser, msg)
 
   let fileIdx = fileInfoIdx(conf, AbsoluteFile nimbleFile)
-  var parser: Parser
-  if setupParser(parser, fileIdx, newIdentCache(), conf):
-    let ast = parseAll(parser)
-    extract(ast, conf, result, options)
-    closeParser(parser)
-  result.hasErrors = result.hasErrors or conf.errorCounter > 0
+  {.cast(gcsafe).}:
+    var parser: Parser
+    if setupParser(parser, fileIdx, newIdentCache(), conf):
+      let ast = parseAll(parser)
+      extract(ast, conf, result, options)
+      closeParser(parser)
+    result.hasErrors = result.hasErrors or conf.errorCounter > 0
   
   # Add requires from external requires file
   let nimbleDir = nimbleFile.splitFile.dir
