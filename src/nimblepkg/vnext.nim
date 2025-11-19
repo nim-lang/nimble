@@ -972,33 +972,17 @@ proc createBinSymlink(pkgInfo: PackageInfo, options: Options) =
     # Set file permissions to +x for all binaries built,
     # and symlink them on *nix OS' to $nimbleDir/bin/
     for bin, src in pkgInfo.bin:
-      let binDest =
-        # Issue #308
-        if dirExists(pkgDestDir / bin):
-          bin & ".out"
-        elif dirExists(pkgDestDir / pkgInfo.binDir):
-          pkgInfo.binDir / bin
-        else:
-          bin
-
-      # For develop mode packages, the binary is in the source directory, not installed directory
-      let symlinkDest = 
-        if pkgInfo.isLink:
-          # Develop mode: binary is in the source directory
-          pkgInfo.getOutputDir(bin)
-        else:
-          # Installed package: binary is in the installed directory
-          pkgDestDir / binDest
+      let symlinkDest = pkgInfo.getOutputDir(bin)
 
       if not fileExists(symlinkDest):
-        raise nimbleError(&"Binary '{bin}' was not found at expected location: {symlinkDest}. BinDir is {binDir}. binDest is {binDest}. pkgDestDir is {pkgDestDir}. isLink is {pkgInfo.isLink}")
+        raise nimbleError(&"Binary '{bin}' was not found at expected location: {symlinkDest}. BinDir is {binDir}. isLink is {pkgInfo.isLink}")
       
       # if fileExists(symlinkDest) and not pkgInfo.isLink:
       #   display("Warning:", ("Binary '$1' was already installed from source" &
       #                       " directory. Will be overwritten.") % bin, Warning,
       #           MediumPriority)
       if not pkgInfo.isLink:
-        createDir((pkgDestDir / binDest).parentDir())
+        createDir(symlinkDest.parentDir())
       let symlinkFilename = options.getBinDir() / bin.extractFilename
       binariesInstalled.incl(
         setupBinSymlink(symlinkDest, symlinkFilename, options))
