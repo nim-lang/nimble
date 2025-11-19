@@ -130,6 +130,29 @@ proc isRosetta*(): bool =
   except CatchableError:
     return false
 
+proc getPlatformString*(arch: int): string =
+  ## Returns the platform string used in releases.json (e.g., "linux_x64", "macosx_arm64")
+  let os =
+    when defined(windows):
+      "windows"
+    elif defined(linux):
+      "linux"
+    elif defined(macosx):
+      "macosx"
+    else:
+      # For other platforms, fall back to source
+      return "source_tar"
+
+  when defined(macosx):
+    # On macOS, detect ARM64 vs x64
+    if not isRosetta() and hostCPU == "arm64":
+      return os & "_arm64"
+    else:
+      return os & "_x64"
+  else:
+    # For Windows and Linux
+    return os & "_x" & $arch
+
 proc getNightliesUrl*(parsedContents: JsonNode, arch: int): (string, string) =
   let os =
     when defined(windows):
@@ -204,7 +227,7 @@ proc doCmdRaw*(cmd: string) =
     )
 
 const
-  githubTagReleasesUrl = "https://api.github.com/repos/nim-lang/Nim/tags"
+  releasesJsonUrl = "https://nim-lang.org/releases.json"
   githubNightliesReleasesUrl =
     "https://api.github.com/repos/nim-lang/nightlies/releases"
   githubUrl = "https://github.com/nim-lang/Nim"
@@ -212,8 +235,6 @@ const
   websiteUrlGz = "https://nim-lang.org/download/nim-$1.tar.gz"
   csourcesUrl = "https://github.com/nim-lang/csources"
   dlArchive = "archive/$1.tar.gz"
-  binaryUrl {.used.} =
-    "https://nim-lang.org/download/nim-$1$2_x$3" & getBinArchiveFormat()
   userAgent = "nimble/" & nimbleVersion
 
 const # Windows-only
@@ -250,19 +271,6 @@ proc showBar(fraction: float, speed: BiggestInt) =
       [hashes, spaces, formatFloat(fraction * 100, precision = 4), $(speed div 1000)]
   )
   stdout.flushFile()
-
-proc addGithubAuthentication(url: string): string =
-  let ghtoken = getEnv("GITHUB_TOKEN")
-  if ghtoken == "":
-    return url
-  else:
-    display(
-      "Info:",
-      "Using the 'GITHUB_TOKEN' environment variable for GitHub API Token.",
-      priority = HighPriority,
-    )
-    return
-      url.replace("https://api.github.com", "https://" & ghtoken & "@api.github.com")
 
 when defined(curl):
   proc checkCurl(code: Code) =
@@ -417,6 +425,37 @@ proc needsDownload(
     return false
 
 proc retrieveUrl*(url: string): string
+
+proc getBinaryUrlFromReleases*(version: Version, arch: int): Option[string] =
+  ## Get the binary download URL for a specific version and platform from releases.json
+  ## Returns None if the platform/version combination is not available
+  try:
+    let rawContents = retrieveUrl(releasesJsonUrl)
+    let parsedContents = parseJson(rawContents)
+    let versionStr = $version
+
+    if not parsedContents.hasKey(versionStr):
+      return none(string)
+
+    let versionData = parsedContents[versionStr]
+    let platformStr = getPlatformString(arch)
+
+    if not versionData.hasKey(platformStr):
+      # Platform not available for this version
+      return none(string)
+
+    let platformData = versionData[platformStr]
+
+    # Prefer nimlang_url if available, otherwise use github_url
+    if platformData.hasKey("nimlang_url"):
+      return some(platformData["nimlang_url"].getStr())
+    elif platformData.hasKey("github_url"):
+      return some(platformData["github_url"].getStr())
+
+    return none(string)
+  except CatchableError:
+    return none(string)
+
 proc downloadImpl(version: Version, options: Options): string =
   let arch = getGccArch(options)
   displayDebug("Detected", "arch as " & $arch & "bit")
@@ -425,8 +464,7 @@ proc downloadImpl(version: Version, options: Options): string =
     if $version in ["#devel", "#head"]: # and not params.latest:
       # Install nightlies by default for devel channel
       try:
-        let rawContents =
-          retrieveUrl(githubNightliesReleasesUrl.addGithubAuthentication())
+        let rawContents = retrieveUrl(githubNightliesReleasesUrl)
         let parsedContents = parseJson(rawContents)
         (url, reference) = getNightliesUrl(parsedContents, arch)
         if url.len == 0:
@@ -473,10 +511,10 @@ proc downloadImpl(version: Version, options: Options): string =
 
     var outputPath: string
 
-    # Use binary builds for Windows and Linux
-    when defined(Windows) or defined(linux):
-      let os = when defined(linux): "-linux" else: ""
-      let binUrl = binaryUrl % [$version, os, $arch]
+    # Try to get binary URL from releases.json
+    let binaryUrlOpt = getBinaryUrlFromReleases(version, arch)
+    if binaryUrlOpt.isSome():
+      let binUrl = binaryUrlOpt.get()
       if not needsDownload(binUrl, outputPath, options):
         return outputPath
       try:
@@ -485,16 +523,30 @@ proc downloadImpl(version: Version, options: Options): string =
       except HttpRequestError:
         display(
           "Info:",
+          "Binary download failed, falling back to source",
+          priority = HighPriority,
+        )
+    else:
+      # Platform/version not available in releases.json
+      when defined(macosx):
+        display(
+          "Info:",
+          "Binary build for $1 not available on this platform, building from source" %
+            $version,
+          priority = HighPriority,
+        )
+      else:
+        display(
+          "Info:",
           "Binary build unavailable, building from source",
           priority = HighPriority,
         )
 
+    # Fall back to source tarball
     let hasUnxz = findExe("unxz") != ""
     let url = (if hasUnxz: websiteUrlXz else: websiteUrlGz) % $version
-    #Note for macOs its using x86 we need to update the binaries and then the macos url
     if not needsDownload(url, outputPath, options):
       return outputPath
-    echo "url: ", url
     downloadFile(url, outputPath)
     result = outputPath
 
@@ -546,28 +598,33 @@ proc retrieveUrl*(url: string): string =
   return client.getContent(url)
 
 proc getOfficialReleases*(options: Options): seq[Version] =
-  #Avoid reaching github api limit
-  #Later on, this file will be moved to a new global cache file that we are going to 
+  #Avoid reaching rate limits by caching the releases
+  #Later on, this file will be moved to a new global cache file that we are going to
   #introduce when enabling the "enumerate all versions" feature
   let oficialReleasesCachedFile =
     options.nimbleDir.absolutePath() / "official-nim-releases.json"
   if oficialReleasesCachedFile.fileExists():
-    #We only store the file for a day. 
+    #We only store the file for a day.
     let fileCreation = getTime() - getFileInfo(oficialReleasesCachedFile).lastWriteTime
     if fileCreation.inDays <= 1:
       return oficialReleasesCachedFile.readFile().parseJson().to(seq[Version])
   var parsedContents: JsonNode
   try:
-    let rawContents = retrieveUrl(githubTagReleasesUrl.addGithubAuthentication())
+    let rawContents = retrieveUrl(releasesJsonUrl)
     parsedContents = parseJson(rawContents)
   except CatchableError:
     display(
-      "Warning", "Error getting official releases from github", Warning, HighPriority
+      "Warning", "Error getting official releases from nim-lang.org", Warning, HighPriority
     )
-    #Avoid reaching github api limit when the file doesnt exists only expected to be reached in CI
+    #Fallback list of known releases when the endpoint is unavailable
     return
       @[
+        newVersion("2.2.6"),
+        newVersion("2.2.4"),
+        newVersion("2.2.2"),
         newVersion("2.2.0"),
+        newVersion("2.0.16"),
+        newVersion("2.0.14"),
         newVersion("2.0.12"),
         newVersion("2.0.10"),
         newVersion("2.0.8"),
@@ -598,14 +655,17 @@ proc getOfficialReleases*(options: Options): seq[Version] =
         newVersion("1.2.10"),
         newVersion("1.2.8"),
       ]
-  let cutOffVersion = newVersion("0.16.0")
 
+  # Parse releases.json - it has version numbers as keys
   var releases: seq[Version] = @[]
-  for release in parsedContents:
-    let name = release["name"].getStr().strip(true, false, {'v'})
-    let version = name.newVersion
-    if cutOffVersion <= version:
+  for versionKey in parsedContents.keys:
+    try:
+      let version = newVersion(versionKey)
       releases.add(version)
+    except CatchableError:
+      # Skip invalid version strings
+      discard
+
   createDir(oficialReleasesCachedFile.parentDir)
   writeFile(oficialReleasesCachedFile, releases.toJson().pretty())
   return releases
