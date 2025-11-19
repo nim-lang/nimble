@@ -5,10 +5,9 @@ import os, strutils, sets
 
 import packageparser, common, options, nimscriptwrapper, cli
 
-proc execHook*(nimBin: string, options: Options, hookAction: ActionType, before: bool): bool =
+proc execHook*(nimBin: string, options: Options, hookAction: ActionType, before: bool): bool {. raises: [], gcsafe.} =
   ## Returns whether to continue.
   result = true
-
   # For certain commands hooks should not be evaluated.
   if hookAction in noHookActions:
     return
@@ -16,19 +15,21 @@ proc execHook*(nimBin: string, options: Options, hookAction: ActionType, before:
   var nimbleFile = ""
   try:
     nimbleFile = findNimbleFile(getCurrentDir(), true, options)
-  except NimbleError: return true
+
   # PackageInfos are cached so we can read them as many times as we want.
-  let pkgInfo = getPkgInfoFromFile(nimBin, nimbleFile, options)
-  let actionName =
-    if hookAction == actionCustom: options.action.command
-    else: ($hookAction)[6 .. ^1]
-  let hookExists =
-    if before: actionName.normalize in pkgInfo.preHooks
-    else: actionName.normalize in pkgInfo.postHooks
-  if pkgInfo.isNimScript and hookExists:
-    let res = execHook(nimBin, nimbleFile, actionName, before, options)
-    if res.success:
-      result = res.retVal
+    let pkgInfo = getPkgInfoFromFile(nimBin, nimbleFile, options)
+    let actionName =
+      if hookAction == actionCustom: options.action.command
+      else: ($hookAction)[6 .. ^1]
+    let hookExists =
+      if before: actionName.normalize in pkgInfo.preHooks
+      else: actionName.normalize in pkgInfo.postHooks
+    if pkgInfo.isNimScript and hookExists:
+      let res = execHook(nimBin, nimbleFile, actionName, before, options)
+      if res.success:
+        result = res.retVal
+  except NimbleError: return true
+  except Exception: return false #TODO fix the propagation of Exception 
 
 proc execCustom*(nimBin: string, nimbleFile: string, options: Options,
                  execResult: var ExecutionResult[bool]): bool =

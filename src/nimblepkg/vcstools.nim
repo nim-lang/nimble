@@ -88,7 +88,7 @@ proc getVcsTypeAndSpecialDirPath*(dir: Path): VcsTypeAndSpecialDirPath =
   ##
   ## Raises a `NimbleError` in the case the directory `dir` does not exist.
 
-  var cache {.global.}: Table[Path, VcsTypeAndSpecialDirPath]
+  var cache {.global, threadvar.}: Table[Path, VcsTypeAndSpecialDirPath]
   if cache.hasKey(dir):
     return cache[dir]
 
@@ -192,7 +192,6 @@ proc getVcsRevision*(dir: Path): Sha1Hash =
   ##   - the external command fails.
   ##   - the directory does not exist.
   ##   - there is no vcsRevisions in the repository.
-
   let vcsRevision = tryDoVcsCmd(dir,
     gitCmd = "rev-parse HEAD",
     hgCmd  = "id -i --debug",
