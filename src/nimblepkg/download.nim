@@ -2,7 +2,7 @@
 # BSD License. Look at license.txt for more info.
 
 import parseutils, os, osproc, strutils, tables, uri, strformat,
-       httpclient, json, sequtils, urls
+       httpclient, json, sequtils, urls, chronos
 
 from algorithm import SortOrder, sorted
 
@@ -17,6 +17,18 @@ type
 
 proc updateSubmodules(dir: string) =
   discard tryDoCmdEx(
+    &"git -C {dir.quoteShell} submodule update --init --recursive --depth 1")
+
+proc tryDoCmdExAsync(cmd: string): Future[string] {.async.} =
+  ## Async version of tryDoCmdEx. Executes command and raises error if it fails.
+  let (output, exitCode) = await doCmdExAsync(cmd)
+  if exitCode != QuitSuccess:
+    raise nimbleError(tryDoCmdExErrorMessage(cmd, output, exitCode))
+  return output
+
+proc updateSubmodulesAsync(dir: string): Future[void] {.async.} =
+  ## Async version of updateSubmodules.
+  discard await tryDoCmdExAsync(
     &"git -C {dir.quoteShell} submodule update --init --recursive --depth 1")
 
 proc doCheckout*(meth: DownloadMethod, downloadDir, branch: string, options: Options) =
@@ -49,6 +61,26 @@ proc doClone(meth: DownloadMethod, url, downloadDir: string, branch = "",
       tipArg = if onlyTip: "-r tip " else: ""
       branchArg = if branch == "": "" else: &"-b {branch.quoteShell}"
     discard tryDoCmdEx(&"hg clone {tipArg} {branchArg} {url} {downloadDir.quoteShell}")
+
+proc doCloneAsync*(meth: DownloadMethod, url, downloadDir: string, branch = "",
+                   onlyTip = true, options: Options): Future[void] {.async.} =
+  ## Async version of doClone that uses doCmdExAsync for non-blocking execution.
+  case meth
+  of DownloadMethod.git:
+    let
+      submoduleFlag = if not options.ignoreSubmodules: " --recurse-submodules" else: ""
+      depthArg = if onlyTip: "--depth 1" else: ""
+      branchArg = if branch == "": "" else: &"-b {branch.quoteShell}"
+    discard await tryDoCmdExAsync(
+       "git clone --config core.autocrlf=false --config core.eol=lf " &
+      &"{submoduleFlag} {depthArg} {branchArg} {url} {downloadDir.quoteShell}")
+    if not options.ignoreSubmodules:
+      await downloadDir.updateSubmodulesAsync()
+  of DownloadMethod.hg:
+    let
+      tipArg = if onlyTip: "-r tip " else: ""
+      branchArg = if branch == "": "" else: &"-b {branch.quoteShell}"
+    discard await tryDoCmdExAsync(&"hg clone {tipArg} {branchArg} {url} {downloadDir.quoteShell}")
 
 proc gitFetchTags*(repoDir: string, downloadMethod: DownloadMethod, options: Options) =
   case downloadMethod:

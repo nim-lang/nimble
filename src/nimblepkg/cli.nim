@@ -50,10 +50,10 @@ proc newCLI(): CLI =
 
 var globalCLI {.threadvar.}: CLI
 
-proc getGlobalCLI(): CLI = 
-  if globalCLI == nil:
+proc getGlobalCLI*(): CLI =
+  if globalCLI.isNil:
     globalCLI = newCLI()
-  return globalCLI
+  result = globalCLI
 
 proc calculateCategoryOffset(category: string): int =
   assert category.len <= longestCategory
@@ -180,7 +180,7 @@ proc displayTip*() =
   ## the amount of messages that were suppressed and how to show them.
   if getGlobalCLI().suppressionCount > 0:
     let msg = "$1 messages have been suppressed, use --verbose to show them." %
-             $globalCLI.suppressionCount
+             $getGlobalCLI().suppressionCount
     display("Tip:", msg, Warning, HighPriority)
 
 proc prompt*(forcePrompts: ForcePrompt, question: string): bool =
