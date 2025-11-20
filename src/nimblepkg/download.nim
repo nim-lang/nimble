@@ -295,7 +295,7 @@ proc cloneSpecificRevisionAsync*(downloadMethod: DownloadMethod,
 
 var tarExePathCache {.threadvar.}: string
 
-proc getTarExePath: string {.gcsafe.} =
+proc getTarExePath: string =
   ## Returns path to `tar` executable.
   if tarExePathCache == "":
     tarExePathCache =
@@ -750,8 +750,7 @@ proc doDownloadAsync(url, downloadDir: string, verRange: VersionRange,
   if result.vcsRevision == notSetSha1Hash:
     # In the case the package in not downloaded as tarball we must query its
     # VCS revision from its download directory.
-    {.gcsafe.}:
-      result.vcsRevision = downloadDir.getVcsRevision
+    result.vcsRevision = downloadDir.getVcsRevision
 
 proc pkgDirHasNimble*(dir: string, options: Options): bool =
   try:

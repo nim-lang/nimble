@@ -729,15 +729,14 @@ proc getPackageMinimalVersionsFromRepoAsync*(repoDir: string, pkg: PkgTuple, ver
       displayWarning(&"Error fetching tags for {name}: {e.msg}", HighPriority)
 
     try:
-      {.gcsafe.}:
-        try:
-          if options.satResult.pass in {satNimSelection}:
-            # TODO test this code path
-            result.add getPkgInfoFromDirWithDeclarativeParser(repoDir, options, nimBin).getMinimalInfo(options)
-          else:
-            result.add getPkgInfo(repoDir, options, nimBin).getMinimalInfo(options)
-        except Exception as e:
-          raise newException(CatchableError, e.msg)
+      try:
+        if options.satResult.pass in {satNimSelection}:
+          # TODO test this code path
+          result.add getPkgInfoFromDirWithDeclarativeParser(repoDir, options, nimBin).getMinimalInfo(options)
+        else:
+          result.add getPkgInfo(repoDir, options, nimBin).getMinimalInfo(options)
+      except Exception as e:
+        raise newException(CatchableError, e.msg)
     except CatchableError as e:
       displayWarning(&"Error getting package info for {name}: {e.msg}", HighPriority)
 
@@ -757,25 +756,23 @@ proc getPackageMinimalVersionsFromRepoAsync*(repoDir: string, pkg: PkgTuple, ver
 
         await doCheckoutAsync(downloadMethod, tempDir, tag, options)
         let nimbleFile = findNimbleFile(tempDir, true, options, warn = false)
-        {.gcsafe.}:
-          try:
-            if options.satResult.pass in {satNimSelection}:
-              result.addUnique getPkgInfoFromDirWithDeclarativeParser(tempDir, options, nimBin).getMinimalInfo(options)
-            elif options.useDeclarativeParser:
-              result.addUnique getMinimalInfo(nimbleFile, options, nimBin)
-            else:
-              let pkgInfo = getPkgInfoFromFile(nimBin, nimbleFile, options, useCache=false)
-              result.addUnique pkgInfo.getMinimalInfo(options)
-          except Exception as e:
-            raise newException(CatchableError, e.msg)
+        try:
+          if options.satResult.pass in {satNimSelection}:
+            result.addUnique getPkgInfoFromDirWithDeclarativeParser(tempDir, options, nimBin).getMinimalInfo(options)
+          elif options.useDeclarativeParser:
+            result.addUnique getMinimalInfo(nimbleFile, options, nimBin)
+          else:
+            let pkgInfo = getPkgInfoFromFile(nimBin, nimbleFile, options, useCache=false)
+            result.addUnique pkgInfo.getMinimalInfo(options)
+        except Exception as e:
+          raise newException(CatchableError, e.msg)
         #here we copy the directory to its own folder so we have it cached for future usage
-        {.gcsafe.}:
-          try:
-            let downloadInfo = getPackageDownloadInfo((name, tagVersion.toVersionRange()), options)
-            if not dirExists(downloadInfo.downloadDir):
-              copyDir(tempDir, downloadInfo.downloadDir)
-          except Exception as e:
-            raise newException(CatchableError, e.msg)
+        try:
+          let downloadInfo = getPackageDownloadInfo((name, tagVersion.toVersionRange()), options)
+          if not dirExists(downloadInfo.downloadDir):
+            copyDir(tempDir, downloadInfo.downloadDir)
+        except Exception as e:
+          raise newException(CatchableError, e.msg)
 
       except CatchableError as e:
         displayWarning(
@@ -819,13 +816,12 @@ proc downloadMinimalPackage*(pv: PkgTuple, options: Options, nimBin: string): se
 proc downloadFromDownloadInfoAsync*(dlInfo: PackageDownloadInfo, options: Options, nimBin: string): Future[(DownloadPkgResult, Option[DownloadMethod])] {.async.} =
   ## Async version of downloadFromDownloadInfo that uses async download operations.
   if dlInfo.isFileUrl:
-    {.gcsafe.}:
-      try:
-        let pkgInfo = getPackageFromFileUrl(dlInfo.url, options, nimBin)
-        let downloadRes = (dir: pkgInfo.getNimbleFileDir(), version: pkgInfo.basicInfo.version, vcsRevision: notSetSha1Hash)
-        return (downloadRes, none(DownloadMethod))
-      except Exception as e:
-        raise newException(CatchableError, e.msg)
+    try:
+      let pkgInfo = getPackageFromFileUrl(dlInfo.url, options, nimBin)
+      let downloadRes = (dir: pkgInfo.getNimbleFileDir(), version: pkgInfo.basicInfo.version, vcsRevision: notSetSha1Hash)
+      return (downloadRes, none(DownloadMethod))
+    except Exception as e:
+      raise newException(CatchableError, e.msg)
   else:
     let downloadRes = await downloadPkgAsync(dlInfo.url, dlInfo.pv.ver, dlInfo.meth.get, dlInfo.subdir, options,
                   dlInfo.downloadDir, vcsRevision = notSetSha1Hash, nimBin = nimBin)
@@ -833,64 +829,57 @@ proc downloadFromDownloadInfoAsync*(dlInfo: PackageDownloadInfo, options: Option
 
 proc downloadPkgFromUrlAsync*(pv: PkgTuple, options: Options, doPrompt = false, nimBin: string): Future[(DownloadPkgResult, Option[DownloadMethod])] {.async.} =
   ## Async version of downloadPkgFromUrl that downloads from a package URL.
-  {.gcsafe.}:
-    try:
-      let dlInfo = getPackageDownloadInfo(pv, options, doPrompt)
-      return await downloadFromDownloadInfoAsync(dlInfo, options, nimBin)
-    except Exception as e:
-      raise newException(CatchableError, e.msg)
+  try:
+    let dlInfo = getPackageDownloadInfo(pv, options, doPrompt)
+    return await downloadFromDownloadInfoAsync(dlInfo, options, nimBin)
+  except Exception as e:
+    raise newException(CatchableError, e.msg)
 
 proc downloadPkInfoForPvAsync*(pv: PkgTuple, options: Options, doPrompt = false, nimBin: string): Future[PackageInfo] {.async.} =
   ## Async version of downloadPkInfoForPv that downloads and gets package info.
   let downloadRes = await downloadPkgFromUrlAsync(pv, options, doPrompt, nimBin)
-  {.gcsafe.}:
-    try:
-      if options.satResult.pass in {satNimSelection}:
-        return getPkgInfoFromDirWithDeclarativeParser(downloadRes[0].dir, options, nimBin)
-      else:
-        return getPkgInfo(downloadRes[0].dir, options, nimBin, forValidation = false, onlyMinimalInfo = false)
-    except Exception as e:
-      raise newException(CatchableError, e.msg)
+  try:
+    if options.satResult.pass in {satNimSelection}:
+      return getPkgInfoFromDirWithDeclarativeParser(downloadRes[0].dir, options, nimBin)
+    else:
+      return getPkgInfo(downloadRes[0].dir, options, nimBin, forValidation = false, onlyMinimalInfo = false)
+  except Exception as e:
+    raise newException(CatchableError, e.msg)
 
 proc downloadMinimalPackageAsync*(pv: PkgTuple, options: Options, nimBin: string): Future[seq[PackageMinimalInfo]] {.async.} =
   ## Async version of downloadMinimalPackage that downloads package versions in parallel.
   if pv.name == "": return newSeq[PackageMinimalInfo]()
+  try:
+    if pv.isNim and not options.disableNimBinaries:
+      return getAllNimReleases(options)
+  except Exception as e:
+    raise newException(CatchableError, e.msg)
 
-  {.gcsafe.}:
+  if pv.name.isFileURL:
     try:
-      if pv.isNim and not options.disableNimBinaries:
-        return getAllNimReleases(options)
+      result = @[getPackageFromFileUrl(pv.name, options, nimBin).getMinimalInfo(options)]
+      return
     except Exception as e:
       raise newException(CatchableError, e.msg)
 
-  if pv.name.isFileURL:
-    {.gcsafe.}:
-      try:
-        result = @[getPackageFromFileUrl(pv.name, options, nimBin).getMinimalInfo(options)]
-        return
-      except Exception as e:
-        raise newException(CatchableError, e.msg)
-
   if pv.ver.kind in [verSpecial, verEq]: #if special or equal, we dont retrieve more versions as we only need one.
     let pkgInfo = await downloadPkInfoForPvAsync(pv, options, false, nimBin)
-    {.gcsafe.}:
-      try:
-        result = @[pkgInfo.getMinimalInfo(options)]
-      except Exception as e:
-        raise newException(CatchableError, e.msg)
+    try:
+      result = @[pkgInfo.getMinimalInfo(options)]
+    except Exception as e:
+      raise newException(CatchableError, e.msg)
   else:
     let (downloadRes, downloadMeth) = await downloadPkgFromUrlAsync(pv, options, false, nimBin)
     result = await getPackageMinimalVersionsFromRepoAsync(downloadRes.dir, pv, downloadRes.version, downloadMeth.get, options, nimBin)
 
   #Make sure the url is set for the package
-  {.gcsafe.}:
-    try:
-      if pv.name.isUrl:
-        for r in result.mitems:
-          if r.url == "":
-            r.url = pv.name
-    except Exception as e:
-      raise newException(CatchableError, e.msg)
+  try:
+    if pv.name.isUrl:
+      for r in result.mitems:
+        if r.url == "":
+          r.url = pv.name
+  except Exception as e:
+    raise newException(CatchableError, e.msg)
 
 proc fillPackageTableFromPreferred*(packages: var Table[string, PackageVersions], preferredPackages: seq[PackageMinimalInfo]) =
   for pkg in preferredPackages:
