@@ -127,6 +127,33 @@ proc getTagsList*(dir: string, meth: DownloadMethod): seq[string] =
   else:
     result = @[]
 
+proc getTagsListAsync*(dir: string, meth: DownloadMethod): Future[seq[string]] {.async.} =
+  ## Async version of getTagsList that uses doCmdExAsync for non-blocking execution.
+  var output: string
+  cd dir:
+    case meth
+    of DownloadMethod.git:
+      output = await tryDoCmdExAsync("git tag")
+    of DownloadMethod.hg:
+      output = await tryDoCmdExAsync("hg tags")
+  if output.len > 0:
+    case meth
+    of DownloadMethod.git:
+      result = @[]
+      for i in output.splitLines():
+        if i == "": continue
+        result.add(i)
+    of DownloadMethod.hg:
+      result = @[]
+      for i in output.splitLines():
+        if i == "": continue
+        var tag = ""
+        discard parseUntil(i, tag, ' ')
+        if tag != "tip":
+          result.add(tag)
+  else:
+    result = @[]
+
 proc getTagsListRemote*(url: string, meth: DownloadMethod): seq[string] =
   result = @[]
   case meth
