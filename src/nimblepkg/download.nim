@@ -615,6 +615,104 @@ proc doDownload(url, downloadDir: string, verRange: VersionRange,
     result.vcsRevision = downloadDir.getVcsRevision
 {.warning[ProveInit]: on.}
 
+proc doDownloadAsync(url, downloadDir: string, verRange: VersionRange,
+                     downMethod: DownloadMethod, options: Options,
+                     vcsRevision: Sha1Hash):
+    Future[tuple[version: Version, vcsRevision: Sha1Hash]] {.async.} =
+  ## Async version of doDownload that uses async operations for clone, checkout, and tarball downloads.
+  template getLatestByTag(meth: untyped) {.dirty.} =
+    # Find latest version that fits our ``verRange``.
+    var latest = findLatest(verRange, versions)
+    ## Note: HEAD is not used when verRange.kind is verAny. This is
+    ## intended behaviour, the latest tagged version will be used in this case.
+
+    # If no tagged versions satisfy our range latest.tag will be "".
+    # We still clone in that scenario because we want to try HEAD in that case.
+    # https://github.com/nim-lang/nimble/issues/22
+    meth
+    if $latest.ver != "":
+      result.version = latest.ver
+
+  result.vcsRevision = notSetSha1Hash
+
+  removeDir(downloadDir)
+  if vcsRevision != notSetSha1Hash:
+    if downloadTarball(url, options):
+      discard await doDownloadTarballAsync(url, downloadDir, $vcsRevision, false)
+    else:
+      await cloneSpecificRevisionAsync(downMethod, url, downloadDir, vcsRevision, options)
+    result.vcsRevision = vcsRevision
+  elif verRange.kind == verSpecial:
+    # We want a specific commit/branch/tag here.
+    if verRange.spe == getHeadName(downMethod):
+       # Grab HEAD.
+      if downloadTarball(url, options):
+        result.vcsRevision = await doDownloadTarballAsync(url, downloadDir, "HEAD", true)
+      else:
+        await doCloneAsync(downMethod, url, downloadDir,
+                onlyTip = not options.forceFullClone, options = options)
+    else:
+      assert ($verRange.spe)[0] == '#',
+             "The special version must start with '#'."
+      let specialVersion = substr($verRange.spe, 1)
+      if downloadTarball(url, options):
+        result.vcsRevision = await doDownloadTarballAsync(
+          url, downloadDir, specialVersion, true)
+      else:
+        # Grab the full repo.
+        await doCloneAsync(downMethod, url, downloadDir, onlyTip = false, options = options)
+        # Then perform a checkout operation to get the specified branch/commit.
+        # `spe` starts with '#', trim it.
+        doCheckout(downMethod, downloadDir, specialVersion, options = options)
+    result.version = verRange.spe
+  else:
+    case downMethod
+    of DownloadMethod.git:
+      # For Git we have to query the repo remotely for its tags. This is
+      # necessary as cloning with a --depth of 1 removes all tag info.
+      result.version = getHeadName(downMethod)
+      let versions = (await getTagsListRemoteAsync(url, downMethod)).getVersionList()
+      if versions.len > 0:
+        getLatestByTag:
+          if downloadTarball(url, options):
+            let versionToDownload =
+              if latest.tag.len > 0: latest.tag else: "HEAD"
+            result.vcsRevision = await doDownloadTarballAsync(
+              url, downloadDir, versionToDownload, true)
+          else:
+            display("Cloning", "latest tagged version: " & latest.tag,
+                    priority = MediumPriority)
+            await doCloneAsync(downMethod, url, downloadDir, latest.tag,
+                    onlyTip = not options.forceFullClone, options = options)
+      else:
+        display("Warning:", &"The package {url} has no tagged releases, downloading HEAD instead.", Warning,
+                priority = HighPriority)
+        if downloadTarball(url, options):
+          result.vcsRevision = await doDownloadTarballAsync(url, downloadDir, "HEAD", true)
+        else:
+          # If no commits have been tagged on the repo we just clone HEAD.
+          await doCloneAsync(downMethod, url, downloadDir, onlyTip = not options.forceFullClone, options = options) # Grab HEAD.
+    of DownloadMethod.hg:
+      await doCloneAsync(downMethod, url, downloadDir,
+              onlyTip = not options.forceFullClone, options = options)
+      result.version = getHeadName(downMethod)
+      let versions = getTagsList(downloadDir, downMethod).getVersionList()
+
+      if versions.len > 0:
+        getLatestByTag:
+          display("Switching", "to latest tagged version: " & latest.tag,
+                  priority = MediumPriority)
+          doCheckout(downMethod, downloadDir, latest.tag, options = options)
+      else:
+        display("Warning:", &"The package {url} has no tagged releases, downloading HEAD instead.", Warning,
+                  priority = HighPriority)
+
+  if result.vcsRevision == notSetSha1Hash:
+    # In the case the package in not downloaded as tarball we must query its
+    # VCS revision from its download directory.
+    {.gcsafe.}:
+      result.vcsRevision = downloadDir.getVcsRevision
+
 proc pkgDirHasNimble*(dir: string, options: Options): bool =
   try:
     discard findNimbleFile(dir, true, options)
@@ -717,6 +815,91 @@ proc downloadPkg*(url: string, verRange: VersionRange,
     #   if downloadDir != newDownloadDir:
     #     if dirExists(newDownloadDir):
     #       removeDir(newDownloadDir)  
+    #     moveDir(downloadDir, newDownloadDir)
+    #     result.dir = newDownloadDir / subdir
+
+proc downloadPkgAsync*(url: string, verRange: VersionRange,
+                       downMethod: DownloadMethod,
+                       subdir: string,
+                       options: Options,
+                       downloadPath: string,
+                       vcsRevision: Sha1Hash,
+                       nimBin: string,
+                       validateRange = true): Future[DownloadPkgResult] {.async.} =
+  ## Async version of downloadPkg that uses async operations for cloning and downloading.
+  ## Downloads the repository as specified by ``url`` and ``verRange`` using
+  ## the download method specified.
+  ##
+  ## If `downloadPath` isn't specified a location in /tmp/ will be used.
+  ##
+  ## Returns the directory where it was downloaded (subdir is appended) and
+  ## the concrete version  which was downloaded.
+  ##
+  ## ``vcsRevision``
+  ##   If specified this parameter will cause specific VCS revision to be
+  ##   checked out.
+
+  let (downloadDir, pkgDir) = downloadPkgDir(url, verRange, subdir, options, vcsRevision, downloadPath)
+  result.dir = pkgDir
+
+  #when using a persistent download dir we can skip the download if it's already done
+  if pkgDirHasNimble(result.dir, options):
+    return # already downloaded, skipping
+
+  if options.offline:
+    raise nimbleError("Cannot download in offline mode.")
+
+  let modUrl = modifyUrl(url, options.config.cloneUsingHttps)
+
+  let downloadMethod = if downloadTarball(modUrl, options):
+    "http" else: $downMethod
+
+  if subdir.len > 0:
+    display("Downloading", "$1 using $2 (subdir is '$3')" %
+                           [modUrl, downloadMethod, subdir],
+            priority = HighPriority)
+  else:
+    display("Downloading", "$1 using $2" % [modUrl, downloadMethod],
+            priority = HighPriority)
+
+  (result.version, result.vcsRevision) = await doDownloadAsync(
+    modUrl, downloadDir, verRange, downMethod, options, vcsRevision)
+
+  var metaData = initPackageMetaData()
+  metaData.url = modUrl
+  metaData.vcsRevision = result.vcsRevision
+  saveMetaData(metaData, result.dir)
+
+  var pkgInfo: PackageInfo
+  if validateRange and verRange.kind notin {verSpecial, verAny} or not options.isLegacy:
+    ## Makes sure that the downloaded package's version satisfies the requested
+    ## version range.
+    {.gcsafe.}:
+      try:
+        pkginfo = if options.satResult.pass == satNimSelection: #TODO later when in vnext we should just use this code path and fallback inside the toRequires if we can
+          getPkgInfoFromDirWithDeclarativeParser(result.dir, options, nimBin)
+        else:
+          getPkgInfo(result.dir, options, nimBin)
+      except Exception as e:
+        raise nimbleError("Failed to get package info: " & e.msg)
+    if pkginfo.basicInfo.version notin verRange:
+      raise nimbleError(
+        "Downloaded package's version does not satisfy requested version " &
+        "range: wanted $1 got $2." %
+        [$verRange, $pkginfo.basicInfo.version])
+
+    #TODO rework the pkgcache to handle this better
+    #ideally we should be able to know the version we are downloading upfront
+    #as for the constraints we need a way to invalidate the cache entry so it doesnt get outdated
+    # if options.isVNext:
+    #   # Rename the download directory to use actual version if it's different from the version range
+    #   # as constraints shouldnt be stored in the download cache but the actual package version
+    #   # theorically this means that subsequent downloads of unconstraines packages will be re-download
+    #   # but this shouldnt be an issue since when a package is installed we dont reach this point anymore
+    #   let newDownloadDir = options.pkgCachePath / getDownloadDirName(url, pkginfo.basicInfo.version.toVersionRange(), notSetSha1Hash)
+    #   if downloadDir != newDownloadDir:
+    #     if dirExists(newDownloadDir):
+    #       removeDir(newDownloadDir)
     #     moveDir(downloadDir, newDownloadDir)
     #     result.dir = newDownloadDir / subdir
 
