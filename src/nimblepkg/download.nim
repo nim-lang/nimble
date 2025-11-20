@@ -231,6 +231,28 @@ proc cloneSpecificRevision(downloadMethod: DownloadMethod,
   of DownloadMethod.hg:
     discard tryDoCmdEx(&"hg clone {url} -r {($vcsRevision).quoteShell}")
 
+proc cloneSpecificRevisionAsync*(downloadMethod: DownloadMethod,
+                                  url, downloadDir: string,
+                                  vcsRevision: Sha1Hash, options: Options): Future[void] {.async.} =
+  ## Async version of cloneSpecificRevision that uses doCmdExAsync for non-blocking execution.
+  assert vcsRevision != notSetSha1Hash
+
+  display("Cloning", "revision: " & $vcsRevision, priority = MediumPriority)
+  case downloadMethod
+  of DownloadMethod.git:
+    let downloadDir = downloadDir.quoteShell
+    createDir(downloadDir)
+    discard await tryDoCmdExAsync(&"git -C {downloadDir.quoteShell} init")
+    discard await tryDoCmdExAsync(&"git -C {downloadDir.quoteShell} config core.autocrlf false")
+    discard await tryDoCmdExAsync(&"git -C {downloadDir.quoteShell} remote add origin {url}")
+    discard await tryDoCmdExAsync(
+      &"git -C {downloadDir.quoteShell} fetch --depth 1 origin {($vcsRevision).quoteShell}")
+    discard await tryDoCmdExAsync(&"git -C {downloadDir.quoteShell} reset --hard FETCH_HEAD")
+    if not options.ignoreSubmodules:
+      await downloadDir.updateSubmodulesAsync()
+  of DownloadMethod.hg:
+    discard await tryDoCmdExAsync(&"hg clone {url} -r {($vcsRevision).quoteShell}")
+
 proc getTarExePath: string =
   ## Returns path to `tar` executable.
   var tarExePath {.global.}: string
