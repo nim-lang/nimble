@@ -253,17 +253,38 @@ proc cloneSpecificRevisionAsync*(downloadMethod: DownloadMethod,
   of DownloadMethod.hg:
     discard await tryDoCmdExAsync(&"hg clone {url} -r {($vcsRevision).quoteShell}")
 
-proc getTarExePath: string =
+var tarExePathCache {.threadvar.}: string
+
+proc getTarExePath: string {.gcsafe.} =
   ## Returns path to `tar` executable.
-  var tarExePath {.global.}: string
-  once:
-    tarExePath =
+  if tarExePathCache == "":
+    tarExePathCache =
       when defined(Windows):
-        findExe("git").splitPath.head / "../usr/bin/tar.exe"
+        # On Windows, prefer Git's tar which supports --force-local
+        # Git for Windows includes tar at <GitRoot>/usr/bin/tar.exe
+        let gitPath = findExe("git")
+        if gitPath != "":
+          # Navigate up from git.exe location to find Git root, then check usr/bin/tar.exe
+          var currentDir = gitPath.splitPath.head
+          var gitTar = ""
+          # Search up to 3 levels up for usr/bin/tar.exe
+          for i in 0..2:
+            let candidateTar = currentDir / "usr" / "bin" / "tar.exe"
+            if fileExists(candidateTar):
+              gitTar = candidateTar
+              break
+            currentDir = currentDir.parentDir
+
+          if gitTar != "":
+            gitTar
+          else:
+            findExe("tar")
+        else:
+          findExe("tar")
       else:
         findExe("tar")
-    tarExePath = tarExePath.quoteShell
-  return tarExePath
+    tarExePathCache = tarExePathCache.quoteShell
+  return tarExePathCache
 
 proc hasTar: bool =
   ## Checks whether a `tar` external tool is available.
@@ -375,7 +396,22 @@ proc getRevision(url, version: string): Sha1Hash =
       raise nimbleError(&"Cannot get revision for version \"{version}\" " &
                         &"of package at \"{url}\".")
 
-proc getTarCmdLine(downloadDir, filePath: string): string =
+proc getRevisionAsync(url, version: string): Future[Sha1Hash] {.async.} =
+  ## Async version of getRevision that uses doCmdExAsync.
+  let output = await tryDoCmdExAsync(&"git ls-remote {url} {version}")
+  result = parseRevision(output)
+  if result == notSetSha1Hash:
+    if version.seemsLikeRevision:
+      try:
+        result = getFullRevisionFromGitHubApi(url, version)
+      except Exception:
+        raise nimbleError(&"Cannot get revision for version \"{version}\" " &
+                          &"of package at \"{url}\".")
+    else:
+      raise nimbleError(&"Cannot get revision for version \"{version}\" " &
+                        &"of package at \"{url}\".")
+
+proc getTarCmdLine(downloadDir, filePath: string): string {.gcsafe.} =
   ## Returns an OS specific command and arguments for extracting the downloaded
   ## tarball.
   when defined(Windows):
@@ -435,6 +471,47 @@ proc doDownloadTarball(url, downloadDir, version: string, queryRevision: bool):
 
   filePath.removeFile
   return if queryRevision: getRevision(url, version) else: notSetSha1Hash
+
+proc doDownloadTarballAsync*(url, downloadDir, version: string, queryRevision: bool): Future[Sha1Hash] {.async.} =
+  ## Async version of doDownloadTarball that uses doCmdExAsync for tar extraction.
+  ## Note: HTTP download is still synchronous, but tar extraction is async.
+  let downloadLink = getTarballDownloadLink(url, version)
+  display("Downloading", downloadLink)
+  let data =
+    try:
+      getUrlContent(downloadLink)
+    except Exception as e:
+      raise nimbleError("Failed to download tarball: " & e.msg)
+  display("Completed", "downloading " & downloadLink)
+
+  let filePath = downloadDir / "tarball.tar.gz"
+  display("Saving", filePath)
+  downloadDir.createDir
+  writeFile(filePath, data)
+  display("Completed", "saving " & filePath)
+
+  display("Unpacking", filePath)
+  let cmd = getTarCmdLine(downloadDir, filePath)
+  let (output, exitCode) = await doCmdExAsync(cmd)
+  if exitCode != QuitSuccess and not output.contains("Cannot create symlink to"):
+    raise nimbleError(tryDoCmdExErrorMessage(cmd, output, exitCode))
+  display("Completed", "unpacking " & filePath)
+
+  when defined(windows):
+    let listCmd = &"{getTarExePath()} -ztvf {filePath} --force-local"
+    let (cmdOutput, cmdExitCode) = await doCmdExAsync(listCmd)
+    if cmdExitCode != QuitSuccess:
+      raise nimbleError(tryDoCmdExErrorMessage(listCmd, cmdOutput, cmdExitCode))
+    for line in cmdOutput.splitLines():
+      if line.contains(" -> "):
+        let parts = line.split
+        let linkPath = parts[^1]
+        let linkNameParts = parts[^3].split('/')
+        let linkName = linkNameParts[1 .. ^1].foldl(a / b)
+        writeFile(downloadDir / linkName, linkPath)
+
+  filePath.removeFile
+  return if queryRevision: await getRevisionAsync(url, version) else: notSetSha1Hash
 
 {.warning[ProveInit]: off.}
 proc doDownload(url, downloadDir: string, verRange: VersionRange,

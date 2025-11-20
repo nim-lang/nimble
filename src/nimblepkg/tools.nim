@@ -236,7 +236,7 @@ when defined(instrument):
   type
     CallRecord = object
       name: string
-      totalTime: Duration
+      totalTime: times.Duration
       callCount: int
       children: seq[int]  # Indices of child records
       parent: int  # Index of parent record (-1 for root)
