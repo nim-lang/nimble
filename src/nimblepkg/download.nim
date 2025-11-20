@@ -147,6 +147,27 @@ proc getTagsListRemote*(url: string, meth: DownloadMethod): seq[string] =
     # http://stackoverflow.com/questions/2039150/show-tags-for-remote-hg-repository
     raise nimbleError("Hg doesn't support remote tag querying.")
 
+proc getTagsListRemoteAsync*(url: string, meth: DownloadMethod): Future[seq[string]] {.async.} =
+  ## Async version of getTagsListRemote that uses doCmdExAsync for non-blocking execution.
+  result = @[]
+  case meth
+  of DownloadMethod.git:
+    var (output, exitCode) = await doCmdExAsync(&"git ls-remote --tags {url}")
+    if exitCode != QuitSuccess:
+      raise nimbleError("Unable to query remote tags for " & url &
+                        " . Git returned: " & output)
+    for i in output.splitLines():
+      let refStart = i.find("refs/tags/")
+      # git outputs warnings, empty lines, etc
+      if refStart == -1: continue
+      let start = refStart+"refs/tags/".len
+      let tag = i[start .. i.len-1]
+      if not tag.endswith("^{}"): result.add(tag)
+
+  of DownloadMethod.hg:
+    # http://stackoverflow.com/questions/2039150/show-tags-for-remote-hg-repository
+    raise nimbleError("Hg doesn't support remote tag querying.")
+
 proc getVersionList*(tags: seq[string]): OrderedTable[Version, string] =
   ## Return an ordered table of Version -> git tag label.  Ordering is
   ## in descending order with the most recent version first.
