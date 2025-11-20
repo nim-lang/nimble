@@ -7,7 +7,7 @@ import osproc, pegs, strutils, os, uri, sets, json, parseutils, strformat,
 
 from net import SslCVerifyMode, newContext, SslContext
 
-import version, cli, common, packageinfotypes, options, sha1hashes
+import version, cli, common, packageinfotypes, options, sha1hashes, chronos, chronos/asyncproc
 from "$nim" / compiler/nimblecmd import getPathVersionChecksum
 
 proc extractBin(cmd: string): string =
@@ -48,6 +48,14 @@ proc doCmd*(cmd: string) =
 
 proc doCmdEx*(cmd: string): ProcessOutput =
   displayDebug("Executing", cmd)
+  result = execCmdEx(cmd)
+  displayDebug("Output", result.output)
+
+proc doCmdExAsync*(cmd: string): Future[ProcessOutput] {.async.} =
+  displayDebug("Executing", cmd)
+  let res = await execCommandEx(cmd)
+  result = (res.stdOutput, res.status)
+  displayDebug("Output", result.output)
   let bin = extractBin(cmd)
   if findExe(bin) == "":
     raise nimbleError("'" & bin & "' not in PATH.")
