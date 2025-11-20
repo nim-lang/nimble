@@ -874,19 +874,18 @@ proc downloadPkgAsync*(url: string, verRange: VersionRange,
   if validateRange and verRange.kind notin {verSpecial, verAny} or not options.isLegacy:
     ## Makes sure that the downloaded package's version satisfies the requested
     ## version range.
-    {.gcsafe.}:
-      try:
-        pkginfo = if options.satResult.pass == satNimSelection: #TODO later when in vnext we should just use this code path and fallback inside the toRequires if we can
-          getPkgInfoFromDirWithDeclarativeParser(result.dir, options, nimBin)
-        else:
-          getPkgInfo(result.dir, options, nimBin)
-      except Exception as e:
-        raise nimbleError("Failed to get package info: " & e.msg)
-    if pkginfo.basicInfo.version notin verRange:
-      raise nimbleError(
-        "Downloaded package's version does not satisfy requested version " &
-        "range: wanted $1 got $2." %
-        [$verRange, $pkginfo.basicInfo.version])
+    try:
+      pkginfo = if options.satResult.pass == satNimSelection: #TODO later when in vnext we should just use this code path and fallback inside the toRequires if we can
+        getPkgInfoFromDirWithDeclarativeParser(result.dir, options, nimBin)
+      else:
+        getPkgInfo(result.dir, options, nimBin)
+    except Exception as e:
+      raise nimbleError("Failed to get package info: " & e.msg)
+  if pkginfo.basicInfo.version notin verRange:
+    raise nimbleError(
+      "Downloaded package's version does not satisfy requested version " &
+      "range: wanted $1 got $2." %
+      [$verRange, $pkginfo.basicInfo.version])
 
     #TODO rework the pkgcache to handle this better
     #ideally we should be able to know the version we are downloading upfront
