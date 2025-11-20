@@ -1,8 +1,9 @@
-import sat/[sat, satvars] 
-import version, packageinfotypes, download, packageinfo, packageparser, options, 
+import sat/[sat, satvars]
+import version, packageinfotypes, download, packageinfo, packageparser, options,
   sha1hashes, tools, downloadnim, cli, declarativeparser
-  
+
 import std/[tables, sequtils, algorithm, sets, strutils, options, strformat, os, json, jsonutils]
+import chronos
 
 type  
   SatVarInfo* = object # attached information for a SAT variable
@@ -698,6 +699,100 @@ proc getPackageMinimalVersionsFromRepo*(repoDir: string, pkg: PkgTuple, version:
                           maxTaggedVersions: options.maxTaggedVersions, 
                           versions: result
                         ), options)
+  finally:
+    try:
+      removeDir(tempDir)
+    except CatchableError as e:
+      displayWarning(&"Error cleaning up temporary directory {tempDir}: {e.msg}", LowPriority)
+
+proc getPackageMinimalVersionsFromRepoAsync*(repoDir: string, pkg: PkgTuple, version: Version, downloadMethod: DownloadMethod, options: Options, nimBin: string): Future[seq[PackageMinimalInfo]] {.async.} =
+  ## Async version of getPackageMinimalVersionsFromRepo that uses async operations for VCS commands.
+  result = newSeq[PackageMinimalInfo]()
+
+  let name = pkg[0]
+  try:
+    let taggedVersions = getTaggedVersions(repoDir, name, options)
+    if taggedVersions.isSome:
+      return taggedVersions.get.versions
+  except Exception:
+    discard # Continue with fetching from repo
+
+  let tempDir = repoDir & "_versions"
+  try:
+    removeDir(tempDir)
+    copyDir(repoDir, tempDir)
+    var tags = initOrderedTable[Version, string]()
+    try:
+      await gitFetchTagsAsync(tempDir, downloadMethod, options)
+      tags = (await getTagsListAsync(tempDir, downloadMethod)).getVersionList()
+    except CatchableError as e:
+      displayWarning(&"Error fetching tags for {name}: {e.msg}", HighPriority)
+
+    try:
+      {.gcsafe.}:
+        try:
+          if options.satResult.pass in {satNimSelection}:
+            # TODO test this code path
+            result.add getPkgInfoFromDirWithDeclarativeParser(repoDir, options, nimBin).getMinimalInfo(options)
+          else:
+            result.add getPkgInfo(repoDir, options, nimBin).getMinimalInfo(options)
+        except Exception as e:
+          raise newException(CatchableError, e.msg)
+    except CatchableError as e:
+      displayWarning(&"Error getting package info for {name}: {e.msg}", HighPriority)
+
+    # Process tagged versions in the temporary copy
+    var checkedTags = 0
+    for (ver, tag) in tags.pairs:
+      if options.maxTaggedVersions > 0 and checkedTags >= options.maxTaggedVersions:
+        break
+      inc checkedTags
+
+      try:
+        let tagVersion = newVersion($ver)
+
+        if not tagVersion.withinRange(pkg[1]):
+          displayInfo(&"Ignoring {name}:{tagVersion} because out of range {pkg[1]}", LowPriority)
+          continue
+
+        await doCheckoutAsync(downloadMethod, tempDir, tag, options)
+        let nimbleFile = findNimbleFile(tempDir, true, options, warn = false)
+        {.gcsafe.}:
+          try:
+            if options.satResult.pass in {satNimSelection}:
+              result.addUnique getPkgInfoFromDirWithDeclarativeParser(tempDir, options, nimBin).getMinimalInfo(options)
+            elif options.useDeclarativeParser:
+              result.addUnique getMinimalInfo(nimbleFile, options, nimBin)
+            else:
+              let pkgInfo = getPkgInfoFromFile(nimBin, nimbleFile, options, useCache=false)
+              result.addUnique pkgInfo.getMinimalInfo(options)
+          except Exception as e:
+            raise newException(CatchableError, e.msg)
+        #here we copy the directory to its own folder so we have it cached for future usage
+        {.gcsafe.}:
+          try:
+            let downloadInfo = getPackageDownloadInfo((name, tagVersion.toVersionRange()), options)
+            if not dirExists(downloadInfo.downloadDir):
+              copyDir(tempDir, downloadInfo.downloadDir)
+          except Exception as e:
+            raise newException(CatchableError, e.msg)
+
+      except CatchableError as e:
+        displayWarning(
+          &"Error reading tag {tag}: for package {name}. This may not be relevant as it could be an old version of the package. \n {e.msg}",
+           HighPriority)
+    if not (not options.isLegacy and options.satResult.pass == satNimSelection and options.satResult.declarativeParseFailed):
+      #Dont save tagged versions if we are in vNext and the declarative parser failed as this could cache the incorrect versions.
+      #its suboptimal in the sense that next packages after failure wont be saved in the first past but there is a guarantee that there is a second pass in the case
+      #the declarative parser fails so they will be saved then.
+      try:
+        saveTaggedVersions(repoDir, name,
+                          TaggedPackageVersions(
+                            maxTaggedVersions: options.maxTaggedVersions,
+                            versions: result
+                          ), options)
+      except Exception as e:
+        displayWarning(&"Error saving tagged versions for {name}: {e.msg}", LowPriority)
   finally:
     try:
       removeDir(tempDir)
