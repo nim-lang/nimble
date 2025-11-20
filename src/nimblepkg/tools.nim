@@ -52,14 +52,13 @@ proc doCmdEx*(cmd: string): ProcessOutput =
   displayDebug("Output", result.output)
 
 proc doCmdExAsync*(cmd: string): Future[ProcessOutput] {.async.} =
+  let bin = extractBin(cmd)
+  if findExe(bin) == "":
+    raise nimbleError("'" & bin & "' not in PATH.")
   displayDebug("Executing", cmd)
   let res = await execCommandEx(cmd)
   result = (res.stdOutput, res.status)
   displayDebug("Output", result.output)
-  let bin = extractBin(cmd)
-  if findExe(bin) == "":
-    raise nimbleError("'" & bin & "' not in PATH.")
-  return execCmdEx(cmd)
 
 proc tryDoCmdExErrorMessage*(cmd, output: string, exitCode: int): string =
   &"Execution of '{cmd}' failed with an exit code {exitCode}.\n" &

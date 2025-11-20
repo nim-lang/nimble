@@ -91,6 +91,16 @@ proc gitFetchTags*(repoDir: string, downloadMethod: DownloadMethod, options: Opt
       # In Mercurial, pulling updates also fetches all remote tags
       tryDoCmdEx(&"hg --cwd {repoDir} pull")
 
+proc gitFetchTagsAsync*(repoDir: string, downloadMethod: DownloadMethod, options: Options): Future[void] {.async.} =
+  ## Async version of gitFetchTags that uses doCmdExAsync for non-blocking execution.
+  case downloadMethod:
+    of DownloadMethod.git:
+      let submoduleFlag = if not options.ignoreSubmodules: " --recurse-submodules" else: ""
+      discard await tryDoCmdExAsync(&"git -C {repoDir} fetch --tags" & submoduleFlag)
+    of DownloadMethod.hg:
+      # In Mercurial, pulling updates also fetches all remote tags
+      discard await tryDoCmdExAsync(&"hg --cwd {repoDir} pull")
+
 proc getTagsList*(dir: string, meth: DownloadMethod): seq[string] =
   var output: string
   cd dir:
