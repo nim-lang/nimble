@@ -46,6 +46,7 @@ type
 
     
   GetPackageMinimal* = proc (pv: PkgTuple, options: Options, nimBin: string): seq[PackageMinimalInfo]
+  GetPackageMinimalAsync* = proc (pv: PkgTuple, options: Options, nimBin: string): Future[seq[PackageMinimalInfo]] {.gcsafe.}
 
   TaggedPackageVersions = object
     maxTaggedVersions: int # Maximum number of tags. When number changes, we invalidate the cache
@@ -897,6 +898,16 @@ proc getMinimalFromPreferred(pv: PkgTuple,  getMinimalPackage: GetPackageMinimal
     if (pp.name == pv.name or pp.url == pv.name) and pp.version.withinRange(pv.ver):
       return @[pp]
   getMinimalPackage(pv, options, nimBin)
+
+proc getMinimalFromPreferredAsync*(pv: PkgTuple, getMinimalPackage: GetPackageMinimalAsync, preferredPackages: seq[PackageMinimalInfo], options: Options, nimBin: string): Future[seq[PackageMinimalInfo]] {.async.} =
+  ## Async version of getMinimalFromPreferred that uses async package fetching.
+  for pp in preferredPackages:
+    if (pp.name == pv.name or pp.url == pv.name) and pp.version.withinRange(pv.ver):
+      return @[pp]
+  try:
+    return await getMinimalPackage(pv, options, nimBin)
+  except Exception as e:
+    raise newException(CatchableError, e.msg)
 
 proc hasSpecialVersion(versions: Table[string, PackageVersions], pkgName: string): bool =
   if pkgName in versions:
