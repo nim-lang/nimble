@@ -43,6 +43,19 @@ proc doCheckout*(meth: DownloadMethod, downloadDir, branch: string, options: Opt
   of DownloadMethod.hg:
     discard tryDoCmdEx(&"hg --cwd {downloadDir.quoteShell} checkout {branch.quoteShell}")
 
+proc doCheckoutAsync*(meth: DownloadMethod, downloadDir, branch: string, options: Options): Future[void] {.async.} =
+  ## Async version of doCheckout that uses doCmdExAsync for non-blocking execution.
+  case meth
+  of DownloadMethod.git:
+    # Force is used here because local changes may appear straight after a clone
+    # has happened. Like in the case of git on Windows where it messes up the
+    # damn line endings.
+    discard await tryDoCmdExAsync(&"git -C {downloadDir.quoteShell} checkout --force {branch.quoteShell}")
+    if not options.ignoreSubmodules:
+      await downloadDir.updateSubmodulesAsync()
+  of DownloadMethod.hg:
+    discard await tryDoCmdExAsync(&"hg --cwd {downloadDir.quoteShell} checkout {branch.quoteShell}")
+
 proc doClone(meth: DownloadMethod, url, downloadDir: string, branch = "",
              onlyTip = true, options: Options) =
   case meth
