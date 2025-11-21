@@ -60,6 +60,17 @@ proc doCmdExAsync*(cmd: string): Future[ProcessOutput] {.async.} =
   result = (res.stdOutput, res.status)
   displayDebug("Output", result.output)
 
+proc gitShowFileAsync*(repoDir: string, commitish: string, filePath: string): Future[string] {.async.} =
+  ## Reads file content directly from git object database without checkout.
+  ## commitish can be: tag name, commit hash, branch name
+  ## Example: await gitShowFileAsync("/path/to/repo", "v1.0.5", "mypackage.nimble")
+  let cmd = &"git -C {repoDir.quoteShell} show {commitish.quoteShell}:{filePath.quoteShell}"
+  let (output, exitCode) = await doCmdExAsync(cmd)
+  if exitCode == 0:
+    return output
+  else:
+    raise nimbleError(&"Could not read {filePath} from {commitish}: {output}")
+
 proc tryDoCmdExErrorMessage*(cmd, output: string, exitCode: int): string =
   &"Execution of '{cmd}' failed with an exit code {exitCode}.\n" &
   &"Details: {output}"

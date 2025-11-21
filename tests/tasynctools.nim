@@ -403,3 +403,31 @@ suite "Async Tools":
     check foundResults
 
     removeDir(tmpDir)
+
+  test "gitShowFileAsync reads file from git commit":
+    let tmpDir = getTempDir() / "nimble_async_test_gitshow"
+    let cloneDir = tmpDir / "clone"
+
+    if dirExists(tmpDir):
+      removeDir(tmpDir)
+    createDir(tmpDir)
+
+    # Clone nim-results repo with full history
+    let options = initOptions()
+    let repoUrl = "https://github.com/arnetheduck/nim-results"
+    waitFor doCloneAsync(DownloadMethod.git, repoUrl, cloneDir,
+                         onlyTip = false, options = options)
+
+    # Read README.md from v0.4.0 tag using gitShowFileAsync
+    let content = waitFor gitShowFileAsync(cloneDir, "v0.4.0", "README.md")
+
+    # Verify we got content
+    check content.len > 0
+    check "results" in content.toLowerAscii()
+
+    # Test reading the nimble file from a specific tag
+    let nimbleContent = waitFor gitShowFileAsync(cloneDir, "v0.4.0", "results.nimble")
+    check nimbleContent.len > 0
+    check "version" in nimbleContent.toLowerAscii()
+
+    removeDir(tmpDir)
