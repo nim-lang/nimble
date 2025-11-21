@@ -71,6 +71,21 @@ proc gitShowFileAsync*(repoDir: string, commitish: string, filePath: string): Fu
   else:
     raise nimbleError(&"Could not read {filePath} from {commitish}: {output}")
 
+proc gitListNimbleFilesInCommitAsync*(repoDir: string, commitish: string): Future[seq[string]] {.async.} =
+  ## Lists .nimble files in a specific commit without checkout.
+  ## Uses git ls-tree to list files directly from git object database.
+  ## Example: await gitListNimbleFilesInCommitAsync("/path/to/repo", "v1.0.5")
+  let cmd = &"git -C {repoDir.quoteShell} ls-tree --name-only -r {commitish.quoteShell}"
+  let (output, exitCode) = await doCmdExAsync(cmd)
+  if exitCode != 0:
+    raise nimbleError(&"Could not list files in {commitish}: {output}")
+
+  result = @[]
+  for line in output.splitLines():
+    let trimmed = line.strip()
+    if trimmed != "" and trimmed.endsWith(".nimble"):
+      result.add(trimmed)
+
 proc tryDoCmdExErrorMessage*(cmd, output: string, exitCode: int): string =
   &"Execution of '{cmd}' failed with an exit code {exitCode}.\n" &
   &"Details: {output}"

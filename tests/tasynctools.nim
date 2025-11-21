@@ -431,3 +431,30 @@ suite "Async Tools":
     check "version" in nimbleContent.toLowerAscii()
 
     removeDir(tmpDir)
+
+  test "gitListNimbleFilesInCommitAsync lists nimble files":
+    let tmpDir = getTempDir() / "nimble_async_test_gitlist"
+    let cloneDir = tmpDir / "clone"
+
+    if dirExists(tmpDir):
+      removeDir(tmpDir)
+    createDir(tmpDir)
+
+    # Clone nim-results repo with full history
+    let options = initOptions()
+    let repoUrl = "https://github.com/arnetheduck/nim-results"
+    waitFor doCloneAsync(DownloadMethod.git, repoUrl, cloneDir,
+                         onlyTip = false, options = options)
+
+    # List .nimble files in v0.4.0 tag
+    let nimbleFiles = waitFor gitListNimbleFilesInCommitAsync(cloneDir, "v0.4.0")
+
+    # Verify we found the nimble file
+    check nimbleFiles.len > 0
+    check "results.nimble" in nimbleFiles
+
+    # Test with HEAD
+    let nimbleFilesHead = waitFor gitListNimbleFilesInCommitAsync(cloneDir, "HEAD")
+    check nimbleFilesHead.len > 0
+
+    removeDir(tmpDir)
