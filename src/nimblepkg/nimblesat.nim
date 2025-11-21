@@ -847,8 +847,10 @@ proc downloadPkInfoForPvAsync*(pv: PkgTuple, options: Options, doPrompt = false,
   except Exception as e:
     raise newException(CatchableError, e.msg)
 
-proc downloadMinimalPackageAsync*(pv: PkgTuple, options: Options, nimBin: string): Future[seq[PackageMinimalInfo]] {.async.} =
-  ## Async version of downloadMinimalPackage that downloads package versions in parallel.
+var downloadCache {.threadvar.}: Table[string, Future[seq[PackageMinimalInfo]]]
+
+proc downloadMinimalPackageAsyncImpl(pv: PkgTuple, options: Options, nimBin: string): Future[seq[PackageMinimalInfo]] {.async.} =
+  ## Internal implementation of async download without caching.
   if pv.name == "": return newSeq[PackageMinimalInfo]()
   try:
     if pv.isNim and not options.disableNimBinaries:
@@ -870,8 +872,11 @@ proc downloadMinimalPackageAsync*(pv: PkgTuple, options: Options, nimBin: string
     except Exception as e:
       raise newException(CatchableError, e.msg)
   else:
-    let (downloadRes, downloadMeth) = await downloadPkgFromUrlAsync(pv, options, false, nimBin)
-    result = await getPackageMinimalVersionsFromRepoAsync(downloadRes.dir, pv, downloadRes.version, downloadMeth.get, options, nimBin)
+    try:
+      let (downloadRes, downloadMeth) = await downloadPkgFromUrlAsync(pv, options, false, nimBin)
+      result = await getPackageMinimalVersionsFromRepoAsync(downloadRes.dir, pv, downloadRes.version, downloadMeth.get, options, nimBin)
+    except Exception as e:
+      raise newException(CatchableError, e.msg)
 
   #Make sure the url is set for the package
   try:
@@ -881,6 +886,26 @@ proc downloadMinimalPackageAsync*(pv: PkgTuple, options: Options, nimBin: string
           r.url = pv.name
   except Exception as e:
     raise newException(CatchableError, e.msg)
+
+proc downloadMinimalPackageAsync*(pv: PkgTuple, options: Options, nimBin: string): Future[seq[PackageMinimalInfo]] {.async.} =
+  ## Async version of downloadMinimalPackage with deduplication.
+  ## If multiple calls request the same package concurrently, they share the same download.
+  let cacheKey = pv.name & "@" & $pv.ver
+
+  # Check if download is already in progress
+  if downloadCache.hasKey(cacheKey):
+    # Wait for the existing download to complete
+    return await downloadCache[cacheKey]
+
+  # Start new download and cache the future
+  let downloadFuture = downloadMinimalPackageAsyncImpl(pv, options, nimBin)
+  downloadCache[cacheKey] = downloadFuture
+
+  try:
+    result = await downloadFuture
+  finally:
+    # Remove from cache after completion (success or failure)
+    downloadCache.del(cacheKey)
 
 proc fillPackageTableFromPreferred*(packages: var Table[string, PackageVersions], preferredPackages: seq[PackageMinimalInfo]) =
   for pkg in preferredPackages:
@@ -983,11 +1008,147 @@ proc processRequirements(versions: var Table[string, PackageVersions], pv: PkgTu
     # we need to avoid adding it to the package table as this will cause the solver to fail
     displayWarning(&"Error processing requirements for {pv.name}: {e.msg}", HighPriority)
 
+proc processRequirementsAsync(pv: PkgTuple, visitedParam: HashSet[PkgTuple], getMinimalPackage: GetPackageMinimalAsync, preferredPackages: seq[PackageMinimalInfo] = newSeq[PackageMinimalInfo](), options: Options, nimBin: string): Future[Table[string, PackageVersions]] {.async.} =
+  ## Async version of processRequirements that returns computed versions instead of mutating shared state.
+  ## This allows for safe parallel execution since there's no shared mutable state.
+  ## Takes visited by value since we pass separate copies to each top-level dependency branch.
+  ## Processes all nested dependencies in parallel for maximum performance.
+  result = initTable[string, PackageVersions]()
+
+  # Make a local mutable copy
+  var visited = visitedParam
+
+  if pv in visited:
+    return
+
+  visited.incl pv
+
+  # For special versions, always process them even if we think we have the package
+  # This ensures the special version gets downloaded and added to the version table
+  try:
+    var pkgMins = await getMinimalFromPreferredAsync(pv, getMinimalPackage, preferredPackages, options, nimBin)
+
+    # First, validate all requirements for all package versions before adding anything
+    var validPkgMins: seq[PackageMinimalInfo] = @[]
+    for pkgMin in pkgMins:
+      var allRequirementsValid = true
+      # Test if all requirements can be processed without errors
+      for req in pkgMin.requires:
+        try:
+          # Try to get minimal package info for the requirement to validate it exists
+          discard await getMinimalFromPreferredAsync(req, getMinimalPackage, preferredPackages, options, nimBin)
+        except CatchableError:
+          allRequirementsValid = false
+          displayWarning(&"Skipping package {pkgMin.name}@{pkgMin.version} due to invalid dependency: {req.name}", HighPriority)
+          break
+
+      if allRequirementsValid:
+        validPkgMins.add pkgMin
+
+    # Only add packages with valid requirements to the result table
+    for pkgMin in validPkgMins.mitems:
+      let pkgName = pkgMin.name.toLower
+      if pv.ver.kind == verSpecial:
+        # Keep both the commit hash and the actual semantic version
+        var specialVer = newVersion($pv.ver)
+        specialVer.speSemanticVersion = some($pkgMin.version)  # Store the real version
+        pkgMin.version = specialVer
+
+        # Special versions replace any existing versions
+        result[pkgName] = PackageVersions(pkgName: pkgName, versions: @[pkgMin])
+      else:
+        # Add to result table
+        if not result.hasKey(pkgName):
+          result[pkgName] = PackageVersions(pkgName: pkgName, versions: @[pkgMin])
+        else:
+          result[pkgName].versions.addUnique pkgMin
+
+      # Process all requirements in parallel (full parallelization)
+      # Each branch gets its own copy of visited to avoid shared state issues
+      var reqFutures: seq[Future[Table[string, PackageVersions]]] = @[]
+      for req in pkgMin.requires:
+        reqFutures.add processRequirementsAsync(req, visited, getMinimalPackage, preferredPackages, options, nimBin)
+
+      # Wait for all requirement processing to complete
+      if reqFutures.len > 0:
+        await allFutures(reqFutures)
+
+        # Merge all requirement results
+        for reqFut in reqFutures:
+          let reqResult = reqFut.read()
+          for pkgName, pkgVersions in reqResult:
+            if not result.hasKey(pkgName):
+              result[pkgName] = pkgVersions
+            else:
+              for ver in pkgVersions.versions:
+                result[pkgName].versions.addUnique ver
+
+    # Only add URL packages if we have valid versions
+    try:
+      if pv.name.isUrl and validPkgMins.len > 0:
+        result[pv.name] = PackageVersions(pkgName: pv.name, versions: validPkgMins)
+    except Exception as e:
+      raise newException(CatchableError, e.msg)
+
+  except CatchableError as e:
+    # Some old packages may have invalid requirements (i.e repos that doesn't exist anymore)
+    # we need to avoid adding it to the package table as this will cause the solver to fail
+    displayWarning(&"Error processing requirements for {pv.name}: {e.msg}", HighPriority)
 
 proc collectAllVersions*(versions: var Table[string, PackageVersions], package: PackageMinimalInfo, options: Options, getMinimalPackage: GetPackageMinimal, preferredPackages: seq[PackageMinimalInfo] = newSeq[PackageMinimalInfo](), nimBin: string) {.instrument.} =
   var visited = initHashSet[PkgTuple]()
   for pv in package.requires:
     processRequirements(versions, pv, visited, getMinimalPackage, preferredPackages, options, nimBin)
+
+proc mergeVersionTables(dest: var Table[string, PackageVersions], source: Table[string, PackageVersions]) =
+  ## Helper proc to merge version tables. Synchronous to avoid closure capture issues.
+  for pkgName, pkgVersions in source:
+    if not dest.hasKey(pkgName):
+      dest[pkgName] = pkgVersions
+    else:
+      # Merge versions, handling special versions
+      var hasSpecial = false
+      for ver in pkgVersions.versions:
+        if ver.version.isSpecial:
+          hasSpecial = true
+          # Special version replaces all
+          dest[pkgName] = PackageVersions(pkgName: pkgName, versions: @[ver])
+          break
+
+      if not hasSpecial:
+        # Check if existing has special version
+        var existingHasSpecial = false
+        for ver in dest[pkgName].versions:
+          if ver.version.isSpecial:
+            existingHasSpecial = true
+            break
+
+        # Only add if existing doesn't have special version
+        if not existingHasSpecial:
+          for ver in pkgVersions.versions:
+            dest[pkgName].versions.addUnique ver
+
+proc collectAllVersionsAsync*(package: PackageMinimalInfo, options: Options, getMinimalPackage: GetPackageMinimalAsync, preferredPackages: seq[PackageMinimalInfo] = newSeq[PackageMinimalInfo](), nimBin: string): Future[Table[string, PackageVersions]] {.async.} =
+  ## Async version of collectAllVersions that processes top-level dependencies in parallel.
+  ## Uses return-based approach: each branch returns its computed versions, then we merge them.
+  ## This allows for safe parallel execution with no shared mutable state during processing.
+  ## Returns the merged version table instead of mutating a parameter.
+
+  # Process all top-level requirements in parallel
+  # Each gets its own visited set to avoid race conditions
+  var futures: seq[Future[Table[string, PackageVersions]]] = @[]
+  for pv in package.requires:
+    var visitedCopy = initHashSet[PkgTuple]()
+    futures.add processRequirementsAsync(pv, visitedCopy, getMinimalPackage, preferredPackages, options, nimBin)
+
+  # Wait for all to complete
+  await allFutures(futures)
+
+  # Merge all results into a new table
+  result = initTable[string, PackageVersions]()
+  for fut in futures:
+    let resultTable = fut.read()
+    mergeVersionTables(result, resultTable)
 
 proc topologicalSort*(solvedPkgs: seq[SolvedPackage]): seq[SolvedPackage] {.instrument.}  =
   var inDegree = initTable[string, int]()
@@ -1117,9 +1278,15 @@ proc postProcessSolvedPkgs*(solvedPkgs: var seq[SolvedPackage], options: Options
 proc solvePackages*(rootPkg: PackageInfo, pkgList: seq[PackageInfo], pkgsToInstall: var seq[(string, Version)], options: Options, output: var string, solvedPkgs: var seq[SolvedPackage], nimBin: string): HashSet[PackageInfo] {.instrument.} =
   var root: PackageMinimalInfo = rootPkg.getMinimalInfo(options)
   root.isRoot = true
-  var pkgVersionTable = initTable[string, PackageVersions]()
-  pkgVersionTable[root.name] = PackageVersions(pkgName: root.name, versions: @[root])
-  collectAllVersions(pkgVersionTable, root, options, downloadMinimalPackage, pkgList.mapIt(it.getMinimalInfo(options)), nimBin)
+  var pkgVersionTable: Table[system.string, packageinfotypes.PackageVersions]
+  if options.isLegacy:
+    pkgVersionTable = initTable[string, PackageVersions]()
+    pkgVersionTable[root.name] = PackageVersions(pkgName: root.name, versions: @[root])
+    collectAllVersions(pkgVersionTable, root, options, downloadMinimalPackage, pkgList.mapIt(it.getMinimalInfo(options)), nimBin)
+  else:
+    pkgVersionTable = waitFor collectAllVersionsAsync(root, options, downloadMinimalPackageAsync, pkgList.mapIt(it.getMinimalInfo(options)), nimBin)
+    pkgVersionTable[root.name] = PackageVersions(pkgName: root.name, versions: @[root])
+
   # if not options.isLegacy:
   pkgVersionTable.normalizeRequirements(options)  
   options.satResult.pkgVersionTable = pkgVersionTable
@@ -1170,7 +1337,15 @@ proc getPkgVersionTable*(pkgInfo: PackageInfo, pkgList: seq[PackageInfo], option
   var root = pkgInfo.getMinimalInfo(options)
   root.isRoot = true
   result[root.name] = PackageVersions(pkgName: root.name, versions: @[root])
-  collectAllVersions(result, root, options, downloadMinimalPackage, pkgList.mapIt(it.getMinimalInfo(options)), nimBin)
+  # Use async version for parallel downloading
+  let asyncVersions = waitFor collectAllVersionsAsync(root, options, downloadMinimalPackageAsync, pkgList.mapIt(it.getMinimalInfo(options)), nimBin)
+  # Merge async results into the result table
+  for pkgName, pkgVersions in asyncVersions:
+    if not result.hasKey(pkgName):
+      result[pkgName] = pkgVersions
+    else:
+      for ver in pkgVersions.versions:
+        result[pkgName].versions.addUnique ver
 
 
 const maxPkgNameDisplayWidth = 40  # Cap package name width
