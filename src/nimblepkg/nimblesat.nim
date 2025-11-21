@@ -2,7 +2,7 @@ import sat/[sat, satvars]
 import version, packageinfotypes, download, packageinfo, packageparser, options,
   sha1hashes, tools, downloadnim, cli, declarativeparser
 
-import std/[tables, sequtils, algorithm, sets, strutils, options, strformat, os, json, jsonutils]
+import std/[tables, sequtils, algorithm, sets, strutils, options, strformat, os, json, jsonutils, uri]
 import chronos
 
 type  
@@ -553,12 +553,27 @@ proc isFileUrl*(pkgDownloadInfo: PackageDownloadInfo): bool =
   pkgDownloadInfo.meth.isNone and pkgDownloadInfo.url.isFileURL
 
 proc getCacheDownloadDir*(url: string, ver: VersionRange, options: Options): string =
-  options.pkgCachePath / getDownloadDirName(url, ver, notSetSha1Hash)
+  # Don't include version in directory name - we download all versions to same location
+  # Create a version-agnostic directory name using only the URL
+  let puri = parseUri(url)
+  var dirName = ""
+  for i in puri.hostname:
+    case i
+    of strutils.Letters, strutils.Digits:
+      dirName.add i
+    else: discard
+  dirName.add "_"
+  for i in puri.path:
+    case i
+    of strutils.Letters, strutils.Digits:
+      dirName.add i
+    else: discard
+  options.pkgCachePath / dirName
 
 proc getPackageDownloadInfo*(pv: PkgTuple, options: Options, doPrompt = false): PackageDownloadInfo =
   if pv.name.isFileURL:
     return PackageDownloadInfo(meth: none(DownloadMethod), url: pv.name, subdir: "", downloadDir: "", pv: pv)
-  let (meth, url, metadata) = 
+  let (meth, url, metadata) =
       getDownloadInfo(pv, options, doPrompt, ignorePackageCache = false)
   let subdir = metadata.getOrDefault("subdir")
   let downloadDir = getCacheDownloadDir(url, pv.ver, options)
@@ -751,10 +766,6 @@ proc getPackageMinimalVersionsFromRepoAsync*(repoDir: string, pkg: PkgTuple, ver
       try:
         let tagVersion = newVersion($ver)
 
-        if not tagVersion.withinRange(pkg[1]):
-          displayInfo(&"Ignoring {name}:{tagVersion} because out of range {pkg[1]}", LowPriority)
-          continue
-
         await doCheckoutAsync(downloadMethod, tempDir, tag, options)
         let nimbleFile = findNimbleFile(tempDir, true, options, warn = false)
         try:
@@ -844,9 +855,6 @@ proc getPackageMinimalVersionsFromRepoAsyncFast*(
 
     try:
       let tagVersion = newVersion($ver)
-      if not tagVersion.withinRange(pkg[1]):
-        displayInfo(&"Ignoring {name}:{tagVersion} because out of range {pkg[1]}", LowPriority)
-        continue
 
       # List nimble files in this tag
       let nimbleFiles = await gitListNimbleFilesInCommitAsync(repoDir, tag)
@@ -969,7 +977,7 @@ proc downloadMinimalPackageAsyncImpl(pv: PkgTuple, options: Options, nimBin: str
   else:
     try:
       let (downloadRes, downloadMeth) = await downloadPkgFromUrlAsync(pv, options, false, nimBin)
-      result = await getPackageMinimalVersionsFromRepoAsync(downloadRes.dir, pv, downloadRes.version, downloadMeth.get, options, nimBin)
+      result = await getPackageMinimalVersionsFromRepoAsyncFast(downloadRes.dir, pv, downloadMeth.get, options, nimBin)
     except Exception as e:
       raise newException(CatchableError, e.msg)
 
@@ -985,11 +993,25 @@ proc downloadMinimalPackageAsyncImpl(pv: PkgTuple, options: Options, nimBin: str
 proc downloadMinimalPackageAsync*(pv: PkgTuple, options: Options, nimBin: string): Future[seq[PackageMinimalInfo]] {.async.} =
   ## Async version of downloadMinimalPackage with deduplication.
   ## If multiple calls request the same package concurrently, they share the same download.
-  let cacheKey = pv.name & "@" & $pv.ver
+  ## Cache key uses canonical package URL (not version) since we download all versions anyway.
+
+  # Get canonical URL to use as cache key (handles both short names and full URLs)
+  var cacheKey: string
+  if pv.name.isFileURL or pv.name == "" or (pv.isNim and not options.disableNimBinaries):
+    # For special cases, use the name as-is
+    cacheKey = pv.name
+  else:
+    # Resolve to canonical URL for proper deduplication
+    try:
+      let dlInfo = getPackageDownloadInfo(pv, options, doPrompt = false)
+      cacheKey = dlInfo.url
+    except:
+      # If resolution fails, fall back to using name
+      cacheKey = pv.name
 
   # Check if download is already in progress
   if downloadCache.hasKey(cacheKey):
-    # Wait for the existing download to complete
+    # Wait for the existing download to complete and reuse all versions
     return await downloadCache[cacheKey]
 
   # Start new download and cache the future
