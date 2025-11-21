@@ -797,6 +797,101 @@ proc getPackageMinimalVersionsFromRepoAsync*(repoDir: string, pkg: PkgTuple, ver
     except CatchableError as e:
       displayWarning(&"Error cleaning up temporary directory {tempDir}: {e.msg}", LowPriority)
 
+proc getPackageMinimalVersionsFromRepoAsyncFast*(
+    repoDir: string,
+    pkg: PkgTuple,
+    downloadMethod: DownloadMethod,
+    options: Options,
+    nimBin: string
+): Future[seq[PackageMinimalInfo]] {.async.} =
+  ## Fast version that reads nimble files directly from git tags without checkout.
+  ## Uses git ls-tree and git show to avoid expensive checkout + copyDir operations.
+  result = newSeq[PackageMinimalInfo]()
+  let name = pkg[0]
+
+  # Check cache first
+  try:
+    let taggedVersions = getTaggedVersions(repoDir, name, options)
+    if taggedVersions.isSome:
+      return taggedVersions.get.versions
+  except Exception:
+    discard
+
+  # Fetch all tags
+  var tags = initOrderedTable[Version, string]()
+  try:
+    await gitFetchTagsAsync(repoDir, downloadMethod, options)
+    tags = (await getTagsListAsync(repoDir, downloadMethod)).getVersionList()
+  except CatchableError as e:
+    displayWarning(&"Error fetching tags for {name}: {e.msg}", HighPriority)
+    return
+
+  # Get current HEAD version info (files already on disk)
+  try:
+    try:
+      result.add getPkgInfo(repoDir, options, nimBin).getMinimalInfo(options)
+    except Exception as e:
+      raise newException(CatchableError, e.msg)
+  except CatchableError as e:
+    displayWarning(&"Error getting package info for {name}: {e.msg}", HighPriority)
+
+  # Process each tag - read nimble file directly from git
+  var checkedTags = 0
+  for (ver, tag) in tags.pairs:
+    if options.maxTaggedVersions > 0 and checkedTags >= options.maxTaggedVersions:
+      break
+    inc checkedTags
+
+    try:
+      let tagVersion = newVersion($ver)
+      if not tagVersion.withinRange(pkg[1]):
+        displayInfo(&"Ignoring {name}:{tagVersion} because out of range {pkg[1]}", LowPriority)
+        continue
+
+      # List nimble files in this tag
+      let nimbleFiles = await gitListNimbleFilesInCommitAsync(repoDir, tag)
+      if nimbleFiles.len == 0:
+        displayInfo(&"No nimble file found in tag {tag} for {name}", LowPriority)
+        continue
+
+      # Prefer nimble file matching package name
+      var nimbleFilePath = nimbleFiles[0]
+      let expectedName = name & ".nimble"
+      for nf in nimbleFiles:
+        if nf.endsWith(expectedName) or nf == expectedName:
+          nimbleFilePath = nf
+          break
+
+      # Read nimble file content from git
+      let nimbleContent = await gitShowFileAsync(repoDir, tag, nimbleFilePath)
+
+      # Write to temp file for parsing
+      let tempNimbleFile = getTempDir() / &"{name}_{tag}.nimble"
+      try:
+        writeFile(tempNimbleFile, nimbleContent)
+        try:
+          let pkgInfo = getPkgInfoFromFile(nimBin, tempNimbleFile, options, useCache=false)
+          result.addUnique(pkgInfo.getMinimalInfo(options))
+        except Exception as e:
+          raise newException(CatchableError, e.msg)
+      finally:
+        try:
+          removeFile(tempNimbleFile)
+        except: discard
+
+    except CatchableError as e:
+      displayInfo(&"Error reading tag {tag} for {name}: {e.msg}", LowPriority)
+
+  # Save to cache
+  try:
+    saveTaggedVersions(repoDir, name,
+                      TaggedPackageVersions(
+                        maxTaggedVersions: options.maxTaggedVersions,
+                        versions: result
+                      ), options)
+  except Exception as e:
+    displayWarning(&"Error saving tagged versions for {name}: {e.msg}", LowPriority)
+
 proc downloadMinimalPackage*(pv: PkgTuple, options: Options, nimBin: string): seq[PackageMinimalInfo] =
   if pv.name == "": return newSeq[PackageMinimalInfo]()
   if pv.isNim and not options.disableNimBinaries: return getAllNimReleases(options)

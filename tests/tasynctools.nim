@@ -458,3 +458,42 @@ suite "Async Tools":
     check nimbleFilesHead.len > 0
 
     removeDir(tmpDir)
+
+  test "getPackageMinimalVersionsFromRepoAsyncFast gets versions without checkout":
+    let tmpDir = getTempDir() / "nimble_async_test_fast"
+    let repoDir = tmpDir / "repo"
+
+    if dirExists(tmpDir):
+      removeDir(tmpDir)
+    createDir(tmpDir)
+
+    # Clone nim-results repo with full history
+    let options = initOptions()
+    let repoUrl = "https://github.com/arnetheduck/nim-results"
+    waitFor doCloneAsync(DownloadMethod.git, repoUrl, repoDir,
+                         onlyTip = false, options = options)
+
+    # Find nim binary
+    let nimBin = findExe("nim")
+    if nimBin == "":
+      skip()
+
+    # Get minimal versions using the FAST method (no checkout)
+    let pkg: PkgTuple = ("results", parseVersionRange(">= 0.4.0"))
+    let versions = waitFor getPackageMinimalVersionsFromRepoAsyncFast(
+      repoDir, pkg, DownloadMethod.git, options, nimBin)
+
+    # Verify we got versions
+    check versions.len > 0
+
+    # Verify we got v0.4.0
+    var foundV040 = false
+    for v in versions:
+      if v.version == newVersion("0.4.0"):
+        foundV040 = true
+        # Verify it has dependencies info
+        check v.requires.len > 0
+        break
+    check foundV040
+
+    removeDir(tmpDir)
