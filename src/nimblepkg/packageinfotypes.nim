@@ -158,20 +158,25 @@ const noTask* = "" # Means that noTask is being ran. Use this as key for base de
 var satProccesedPackages*: Option[HashSet[PackageInfo]] 
 #Package name -> features. When a package requires a feature, it is added to this table. 
 #For instance, if a dependency of a package requires the feature "feature1", it will be added to this table although the root package may not explicitly require it.
-var globallyActiveFeatures: Table[string, seq[string]] = initTable[string, seq[string]]()
+var globallyActiveFeatures {.threadvar.}: TableRef[string, seq[string]]
+
+proc getGloballyActiveFeaturesTable(): TableRef[string, seq[string]] =
+  if globallyActiveFeatures == nil:
+    globallyActiveFeatures = newTable[string, seq[string]]()
+  return globallyActiveFeatures
 
 proc appendGloballyActiveFeatures*(pkgName: string, features: seq[string]) =
-  if pkgName notin globallyActiveFeatures:
-    globallyActiveFeatures[pkgName] = features
+  if pkgName notin getGloballyActiveFeaturesTable():
+    getGloballyActiveFeaturesTable()[pkgName] = features
   else:
     for feature in features:
-      globallyActiveFeatures[pkgName].add(feature)
+      getGloballyActiveFeaturesTable()[pkgName].add(feature)
 
 proc getGloballyActiveFeatures*(): seq[string] = 
   #returns features.{pkgName}.{feature}
-  for pkgName, features in globallyActiveFeatures:
-    for feature in features:
-      result.add(&"features.{pkgName}.{feature}")
+    for pkgName, features in getGloballyActiveFeaturesTable():
+      for feature in features:
+        result.add(&"features.{pkgName}.{feature}")
   
 proc initSATResult*(pass: SATPass): SATResult =
   SATResult(pkgsToInstall: @[], solvedPkgs: @[], output: "", pkgs: initHashSet[PackageInfo](), 

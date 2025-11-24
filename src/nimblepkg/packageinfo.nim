@@ -444,7 +444,7 @@ proc checkInstallDir(pkgInfo: PackageInfo,
   if thisDir == "nimcache": result = true
 
 proc iterFilesWithExt(dir: string, pkgInfo: PackageInfo,
-                      action: proc (f: string)) =
+                      action: proc (f: string): void {.raises: [], gcsafe.}) =
   ## Runs `action` for each filename of the files that have a whitelisted
   ## file extension.
   for kind, path in walkDir(dir):
@@ -454,7 +454,7 @@ proc iterFilesWithExt(dir: string, pkgInfo: PackageInfo,
       if path.splitFile.ext.substr(1) in pkgInfo.installExt:
         action(path)
 
-proc iterFilesInDir(dir: string, action: proc (f: string)) =
+proc iterFilesInDir(dir: string, action: proc (f: string): void {.raises: [].}) =
   ## Runs `action` for each file in ``dir`` and any
   ## subdirectories that are in it.
   for kind, path in walkDir(dir):
@@ -520,7 +520,7 @@ proc iterInstallFilesSimple*(realDir: string, pkgInfo: PackageInfo,
         action(file)
 
 proc iterInstallFiles*(realDir: string, pkgInfo: PackageInfo,
-                       options: Options, action: proc (f: string)) =
+                       options: Options, action: proc (f: string): void {.raises: [], gcsafe.}) =
   ## Runs `action` for each file within the ``realDir`` that should be
   ## installed.
   # Get the package root directory for skipDirs comparison
@@ -664,15 +664,23 @@ proc needsRebuild*(pkgInfo: PackageInfo, bin: string, dir: string, options: Opti
   if not options.isLegacy:
     if options.action.noRebuild:
       if not fileExists(bin):
-        return true  
-      
-      let binTimestamp = getFileInfo(bin).lastWriteTime
+        return true
+
+      let binTimestamp =
+        try:
+          getFileInfo(bin).lastWriteTime
+        except OSError:
+          # File disappeared or became inaccessible between fileExists check and here
+          return true
       var rebuild = false
       iterFilesWithExt(dir, pkgInfo,
         proc (file: string) =
-          let srcTimestamp = getFileInfo(file).lastWriteTime
-          if binTimestamp < srcTimestamp:
-            rebuild = true
+          try:
+            let srcTimestamp = getFileInfo(file).lastWriteTime
+            if binTimestamp < srcTimestamp:
+              rebuild = true
+          except OSError:
+            discard
       )
       return rebuild
     else:
@@ -681,13 +689,21 @@ proc needsRebuild*(pkgInfo: PackageInfo, bin: string, dir: string, options: Opti
     if not options.action.noRebuild:
       return true
 
-    let binTimestamp = getFileInfo(bin).lastWriteTime
+    let binTimestamp =
+      try:
+        getFileInfo(bin).lastWriteTime
+      except OSError:
+        # File doesn't exist or became inaccessible
+        return true
     var rebuild = false
     iterFilesWithExt(dir, pkgInfo,
       proc (file: string) =
-        let srcTimestamp = getFileInfo(file).lastWriteTime
-        if binTimestamp < srcTimestamp:
-          rebuild = true
+        try:
+          let srcTimestamp = getFileInfo(file).lastWriteTime
+          if binTimestamp < srcTimestamp:
+            rebuild = true
+        except OSError:
+          discard
     )
     return rebuild
 

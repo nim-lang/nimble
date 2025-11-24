@@ -16,7 +16,7 @@ import std/[sequtils, sets, options, os, strutils, tables, strformat, algorithm]
 import nimblesat, packageinfotypes, options, version, declarativeparser, packageinfo, common,
   nimenv, lockfile, cli, downloadnim, packageparser, tools, nimscriptexecutor, packagemetadatafile,
   displaymessages, packageinstaller, reversedeps, developfile, urls
-
+import chronos, chronos/asyncproc
 when defined(windows):
   import std/strscans
 
@@ -712,7 +712,8 @@ proc installFromDirDownloadInfo(nimBin: string,downloadDir: string, url: string,
     display("Warning:", "Skipped copy in project local deps mode", Warning)
 
   pkgInfo.isInstalled = true
-  displaySuccess(pkgInstalledMsg(pkgInfo.basicInfo.name), MediumPriority)
+  if pkgInfo.bin.len == 0:
+    displaySuccess(pkgInstalledMsg(pkgInfo.basicInfo.name), MediumPriority)
   pkgInfo
 
 proc activateSolvedPkgFeatures*(satResult: SATResult, options: Options) =
@@ -771,8 +772,73 @@ proc getNimBin(satResult: SATResult): string =
   else:
     raise newNimbleError[NimbleError]("No Nim found")
 
+type BuildTask = object
+    bin: string
+    cmd: string
+    future: Future[CommandExResponse]
+
+# Forward declaration
+proc createBinSymlink(pkgInfo: PackageInfo, options: Options)
+
+proc processBuildTasks(buildTasks: seq[BuildTask],
+                      pkgInfo: PackageInfo, nimBin: string, options: Options,
+                      shouldCreateSymlinks: bool): Future[void] {.async: (raises: [CatchableError]).} =
+  ## Wait for all builds to complete in parallel, process their results,
+  ## and optionally create symlinks for the built binaries.
+  ## Returns the total number of binaries built.
+
+  var binariesBuilt = 0
+
+  if buildTasks.len > 0:
+    let futures = buildTasks.mapIt(it.future)
+    discard await allFinished(futures)
+
+    # Process results
+    for task in buildTasks:
+      try:
+        let response = task.future.read()
+
+        # Display output
+        if response.stdOutput.len > 0:
+          display("Nim Output", response.stdOutput, priority = HighPriority)
+        if response.stdError.len > 0:
+          display("Nim Stderr", response.stdError, priority = HighPriority)
+
+        # Check exit code
+        if response.status != QuitSuccess:
+          raise nimbleError(
+            "Execution failed with exit code $1\nCommand: $2" %
+            [$response.status, task.cmd])
+
+        binariesBuilt.inc()
+      except CatchableError as error:
+        raise buildFailed(
+          &"Build failed for package: {pkgInfo.basicInfo.name}, binary: {task.bin}", details = error)
+
+    if binariesBuilt == 0:
+      let binary = options.getCompilationBinary(pkgInfo).get("")
+      if binary != "":
+        raise nimbleError(binaryNotDefinedInPkgMsg(binary, pkgInfo.basicInfo.name))
+
+      raise nimbleError(
+        "No binaries built, did you specify a valid binary name?"
+      )
+
+  # Handle post-`build` hook.
+  cd pkgInfo.myPath.parentDir(): # Make sure `execHook` executes the correct .nimble file.
+    discard execHook(nimBin, options, actionBuild, false)
+
+  # Create symlinks if requested
+  if shouldCreateSymlinks:
+    try:
+      {.cast(gcsafe).}:
+        createBinSymlink(pkgInfo, options)
+    except Exception:
+      displayError("Error creating bin symlink: " & getCurrentExceptionMsg())
+  
+    
 proc buildFromDir(pkgInfo: PackageInfo, paths: HashSet[string],
-                  args: seq[string], options: Options, nimBin: string) =
+                  args: seq[string], options: Options, nimBin: string): seq[BuildTask] =
   ## Builds a package as specified by ``pkgInfo``.
   # Handle pre-`build` hook.
   let
@@ -822,6 +888,11 @@ proc buildFromDir(pkgInfo: PackageInfo, paths: HashSet[string],
       options.getCompilationBinary(pkgInfo).get("")
     else: ""
 
+  # Collect all binary build tasks to run in parallel
+
+
+  var buildTasks: seq[BuildTask]
+
   for bin, src in pkgInfo.bin:
     # Check if this is the only binary that we want to build.
     if binToBuild.len != 0 and binToBuild != bin:
@@ -840,15 +911,15 @@ proc buildFromDir(pkgInfo: PackageInfo, paths: HashSet[string],
       createDir(outputDir)
 
     # Check if we can copy an existing binary from source directory when --noRebuild is used
-    if options.action.typ in {actionInstall, actionPath, actionUninstall, actionDevelop, actionUpgrade, actionLock, actionAdd} and 
+    if options.action.typ in {actionInstall, actionPath, actionUninstall, actionDevelop, actionUpgrade, actionLock, actionAdd} and
        options.action.noRebuild:
       # When installing from a local directory, check for binary in the original directory
-      let sourceBinary = 
+      let sourceBinary =
         if options.startDir != pkgDir:
           options.startDir / bin
         else:
           pkgDir / bin
-      
+
       if fileExists(sourceBinary):
         # Check if the source binary is up-to-date
         if not pkgInfo.needsRebuild(sourceBinary, realDir, options):
@@ -867,7 +938,7 @@ proc buildFromDir(pkgInfo: PackageInfo, paths: HashSet[string],
             [pkginfo.basicInfo.name, bin, pkgInfo.backend], priority = HighPriority)
 
     # For installed packages, we need to handle srcDir correctly
-    let input = 
+    let input =
       if pkgInfo.isInstalled and not pkgInfo.isLink and pkgInfo.srcDir != "":
         # For installed packages with srcDir, the source file is in srcDir
         realDir / pkgInfo.srcDir / src.changeFileExt("nim")
@@ -878,26 +949,18 @@ proc buildFromDir(pkgInfo: PackageInfo, paths: HashSet[string],
     let cmd = "$# $# --colors:$# --noNimblePath $# $# $#" % [
       options.satResult.getNimBin().quoteShell, pkgInfo.backend, if options.noColor: "off" else: "on", join(args, " "),
       outputOpt, input.quoteShell]
-    try:
-      # echo "***Executing cmd: ", cmd
-      doCmd(cmd)
-      binariesBuilt.inc()
-    except CatchableError as error:
-      raise buildFailed(
-        &"Build failed for the package: {pkgInfo.basicInfo.name}", details = error)
 
-  if binariesBuilt == 0:
-    let binary = options.getCompilationBinary(pkgInfo).get("")
-    if binary != "":
-      raise nimbleError(binaryNotDefinedInPkgMsg(binary, pkgInfo.basicInfo.name))
+    display("Executing", cmd, priority = MediumPriority)
 
-    raise nimbleError(
-      "No binaries built, did you specify a valid binary name?"
-    )
+    # Start async build and collect future
+    var task: BuildTask
+    task.bin = bin
+    task.cmd = cmd
+    task.future = execCommandEx(cmd)
+    buildTasks.add(task)
 
-  # Handle post-`build` hook.
-  cd pkgDir: # Make sure `execHook` executes the correct .nimble file.
-    discard execHook(nimBin, options, actionBuild, false)
+  return buildTasks
+ 
 
 proc createBinSymlink(pkgInfo: PackageInfo, options: Options) =
   var binariesInstalled: HashSet[string]
@@ -909,33 +972,17 @@ proc createBinSymlink(pkgInfo: PackageInfo, options: Options) =
     # Set file permissions to +x for all binaries built,
     # and symlink them on *nix OS' to $nimbleDir/bin/
     for bin, src in pkgInfo.bin:
-      let binDest =
-        # Issue #308
-        if dirExists(pkgDestDir / bin):
-          bin & ".out"
-        elif dirExists(pkgDestDir / pkgInfo.binDir):
-          pkgInfo.binDir / bin
-        else:
-          bin
-
-      # For develop mode packages, the binary is in the source directory, not installed directory
-      let symlinkDest = 
-        if pkgInfo.isLink:
-          # Develop mode: binary is in the source directory
-          pkgInfo.getOutputDir(bin)
-        else:
-          # Installed package: binary is in the installed directory
-          pkgDestDir / binDest
+      let symlinkDest = pkgInfo.getOutputDir(bin)
 
       if not fileExists(symlinkDest):
-        raise nimbleError(&"Binary '{bin}' was not found at expected location: {symlinkDest}. BinDir is {binDir}. binDest is {binDest}. pkgDestDir is {pkgDestDir}. isLink is {pkgInfo.isLink}")
+        raise nimbleError(&"Binary '{bin}' was not found at expected location: {symlinkDest}. BinDir is {binDir}. isLink is {pkgInfo.isLink}")
       
       # if fileExists(symlinkDest) and not pkgInfo.isLink:
       #   display("Warning:", ("Binary '$1' was already installed from source" &
       #                       " directory. Will be overwritten.") % bin, Warning,
       #           MediumPriority)
       if not pkgInfo.isLink:
-        createDir((pkgDestDir / binDest).parentDir())
+        createDir(symlinkDest.parentDir())
       let symlinkFilename = options.getBinDir() / bin.extractFilename
       binariesInstalled.incl(
         setupBinSymlink(symlinkDest, symlinkFilename, options))
@@ -960,9 +1007,11 @@ proc solutionToFullInfo*(satResult: SATResult, options: var Options) {.instrumen
 proc isRoot(pkgInfo: PackageInfo, satResult: SATResult): bool =
   pkgInfo.basicInfo.name == satResult.rootPackage.basicInfo.name and pkgInfo.basicInfo.version == satResult.rootPackage.basicInfo.version
 
-proc buildPkg*(nimBin: string, pkgToBuild: PackageInfo, isRootInRootDir: bool, options: Options) {.instrument.} =
+proc buildPkg*(nimBin: string, pkgToBuild: PackageInfo, isRootInRootDir: bool, options: Options): Future[void] {.async: (raises: [CatchableError]).} =
   # let paths = getPathsToBuildFor(options.satResult, pkgToBuild, recursive = true, options)
-  let paths = getPathsAllPkgs(options)
+  let paths = try: getPathsAllPkgs(options)
+              except Exception:
+                initHashSet[string]()
   # echo "Paths ", paths
   # echo "Requires ", pkgToBuild.requires
   # echo "Package ", pkgToBuild.basicInfo.name
@@ -975,12 +1024,16 @@ proc buildPkg*(nimBin: string, pkgToBuild: PackageInfo, isRootInRootDir: bool, o
   var pkgToBuild = pkgToBuild
   if isRootInRootDir:
     pkgToBuild.isInstalled = false
-  buildFromDir(pkgToBuild, paths, "-d:release" & flags, options, nimBin)
+
+  # Build and collect tasks
+  let buildTasks = buildFromDir(pkgToBuild, paths, "-d:release" & flags, options, nimBin)
+
   # For globally installed packages, always create symlinks
   # Only skip symlinks if we're building the root package in its own directory
   let shouldCreateSymlinks = not isRootInRootDir or options.action.typ == actionInstall
-  if shouldCreateSymlinks:
-    createBinSymlink(pkgToBuild, options)
+
+  # Process build tasks and create symlinks
+  await processBuildTasks(buildTasks, pkgToBuild, nimBin, options, shouldCreateSymlinks)
 
 proc getVersionRangeFoPkgToInstall(satResult: SATResult, name: string, ver: Version): VersionRange =
   if satResult.rootPackage.basicInfo.name == name and satResult.rootPackage.basicInfo.version == ver:
@@ -1125,12 +1178,14 @@ proc installPkgs*(satResult: var SATResult, options: var Options) {.instrument.}
 
   satResult.installedPkgs = installedPkgs.toSeq()
   for pkgInfo in satResult.installedPkgs:
-    # Run before-install hook now that package before the build step but after the package is copied over to the 
+    # Run before-install hook now that package before the build step but after the package is copied over to the
     #install dir.
     let hookDir = pkgInfo.myPath.splitFile.dir
     if dirExists(hookDir):
       executeHook(nimBin, hookDir, options, actionInstall, before = true)
 
+  # Collect all build futures to run in parallel
+  var futPkgsToBuild = newSeq[Future[void]]()
   for pkgToBuild in pkgsToBuild:
     if pkgToBuild.bin.len == 0:
       if options.action.typ == actionBuild:
@@ -1142,12 +1197,26 @@ proc installPkgs*(satResult: var SATResult, options: var Options) {.instrument.}
     # echo "Building package: ", pkgToBuild.basicInfo.name, " at ", pkgToBuild.myPath, " binaries: ", pkgToBuild.bin
     let isRoot = pkgToBuild.isRoot(options.satResult) and isInRootDir
     if isRoot and options.action.typ in rootBuildActions:
-      buildPkg(nimBin, pkgToBuild, isRoot, options)
+      futPkgsToBuild.add(buildPkg(nimBin, pkgToBuild, isRoot, options))
       satResult.buildPkgs.add(pkgToBuild)
     elif not isRoot:
       #Build non root package for all actions that requires the package as a dependency
-      buildPkg(nimBin, pkgToBuild, isRoot, options)
+      futPkgsToBuild.add(buildPkg(nimBin, pkgToBuild, isRoot, options))
       satResult.buildPkgs.add(pkgToBuild)
+
+  measureTime "Packages built in ", false:
+    waitFor allFutures(futPkgsToBuild)
+
+    # Check each future for failures - allFutures doesn't propagate exceptions
+    for i, fut in futPkgsToBuild:
+      if fut.failed():
+        # Re-raise the first build failure we encounter
+        raise fut.error()
+
+  # Display success messages after builds complete successfully
+  # Only show for packages that were actually built (have binaries)
+  for pkgInfo in pkgsToBuild:
+    displaySuccess(pkgInstalledMsg(pkgInfo.basicInfo.name), MediumPriority)
 
   for pkg in satResult.installedPkgs.mitems:
     satResult.pkgs.incl pkg

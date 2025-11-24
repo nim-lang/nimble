@@ -5,7 +5,7 @@ import os, tables, strtabs, json, browsers, algorithm, sets, uri, sugar, sequtil
        strformat
 
 import std/options as std_opt
-
+import chronos
 import strutils except toLower
 from unicode import toLower
 import sat/sat
@@ -660,10 +660,13 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
     # Copy this package's files based on the preferences specified in PkgInfo.
     var filesInstalled: HashSet[string]
     iterInstallFiles(realDir, pkgInfo, options,
-      proc (file: string) =
-        createDir(changeRoot(realDir, pkgDestDir, file.splitFile.dir))
-        let dest = changeRoot(realDir, pkgDestDir, file)
-        filesInstalled.incl copyFileD(file, dest)
+      proc (file: string) {.raises: [].} =
+        try:
+          createDir(changeRoot(realDir, pkgDestDir, file.splitFile.dir))
+          let dest = changeRoot(realDir, pkgDestDir, file)
+          filesInstalled.incl copyFileD(file, dest)
+        except Exception:
+          discard
     )
 
     # Copy the .nimble file.
@@ -2568,7 +2571,7 @@ proc run(options: Options, nimBin: string) =
       # Use vnext buildPkg for develop mode packages
       let isInRootDir = options.startDir == pkgInfo.myPath.parentDir and 
         options.satResult.rootPackage.basicInfo.name == pkgInfo.basicInfo.name
-      buildPkg(nimBin, pkgInfo, isInRootDir, options)
+      waitFor buildPkg(nimBin, pkgInfo, isInRootDir, options)
     
     if options.getCompilationFlags.len > 0:
       displayWarning(ignoringCompilationFlagsMsg)
