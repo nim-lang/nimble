@@ -554,7 +554,7 @@ proc isFileUrl*(pkgDownloadInfo: PackageDownloadInfo): bool =
 
 proc getCacheDownloadDir*(url: string, ver: VersionRange, options: Options): string =
   # Don't include version in directory name - we download all versions to same location
-  # Create a version-agnostic directory name using only the URL
+  # Create a version-agnostic directory name using only the URL (including query for subdirs)
   let puri = parseUri(url)
   var dirName = ""
   for i in puri.hostname:
@@ -568,6 +568,14 @@ proc getCacheDownloadDir*(url: string, ver: VersionRange, options: Options): str
     of strutils.Letters, strutils.Digits:
       dirName.add i
     else: discard
+  # Include query string (e.g., ?subdir=generator) to differentiate subdirectories
+  if puri.query != "":
+    dirName.add "_"
+    for i in puri.query:
+      case i
+      of strutils.Letters, strutils.Digits:
+        dirName.add i
+      else: discard
   options.pkgCachePath / dirName
 
 proc getPackageDownloadInfo*(pv: PkgTuple, options: Options, doPrompt = false): PackageDownloadInfo =
@@ -820,6 +828,27 @@ proc getPackageMinimalVersionsFromRepoAsyncFast*(
   result = newSeq[PackageMinimalInfo]()
   let name = pkg[0]
 
+  # Find the git repository root (repoDir might be a subdirectory)
+  var gitRoot = repoDir
+  var subdirPath = ""
+
+  # Check if we're in a subdirectory by looking for .git
+  try:
+    if not dirExists(gitRoot / ".git"):
+      # Walk up to find the git root
+      var currentDir = repoDir
+      while not dirExists(currentDir / ".git") and currentDir.parentDir() != currentDir:
+        currentDir = currentDir.parentDir()
+
+      if dirExists(currentDir / ".git"):
+        gitRoot = currentDir
+        # Calculate relative path from git root to repoDir
+        subdirPath = repoDir.relativePath(gitRoot).replace("\\", "/")
+      # If no .git found, proceed anyway - git commands might still work
+  except Exception:
+    # If anything fails, just use repoDir as-is
+    gitRoot = repoDir
+
   # Check cache first
   try:
     let taggedVersions = getTaggedVersions(repoDir, name, options)
@@ -831,8 +860,8 @@ proc getPackageMinimalVersionsFromRepoAsyncFast*(
   # Fetch all tags
   var tags = initOrderedTable[Version, string]()
   try:
-    await gitFetchTagsAsync(repoDir, downloadMethod, options)
-    tags = (await getTagsListAsync(repoDir, downloadMethod)).getVersionList()
+    await gitFetchTagsAsync(gitRoot, downloadMethod, options)
+    tags = (await getTagsListAsync(gitRoot, downloadMethod)).getVersionList()
   except CatchableError as e:
     displayWarning(&"Error fetching tags for {name}: {e.msg}", HighPriority)
     return
@@ -854,24 +883,35 @@ proc getPackageMinimalVersionsFromRepoAsyncFast*(
     inc checkedTags
 
     try:
-      let tagVersion = newVersion($ver)
-
       # List nimble files in this tag
-      let nimbleFiles = await gitListNimbleFilesInCommitAsync(repoDir, tag)
+      let nimbleFiles = await gitListNimbleFilesInCommitAsync(gitRoot, tag)
       if nimbleFiles.len == 0:
         displayInfo(&"No nimble file found in tag {tag} for {name}", LowPriority)
         continue
 
+      # Filter nimble files to those in the subdirectory (if applicable)
+      var relevantNimbleFiles: seq[string] = @[]
+      if subdirPath != "":
+        for nf in nimbleFiles:
+          if nf.startsWith(subdirPath & "/") or nf.startsWith(subdirPath):
+            relevantNimbleFiles.add(nf)
+      else:
+        relevantNimbleFiles = nimbleFiles
+
+      if relevantNimbleFiles.len == 0:
+        displayInfo(&"No nimble file found in tag {tag} (subdir: {subdirPath}) for {name}", LowPriority)
+        continue
+
       # Prefer nimble file matching package name
-      var nimbleFilePath = nimbleFiles[0]
+      var nimbleFilePath = relevantNimbleFiles[0]
       let expectedName = name & ".nimble"
-      for nf in nimbleFiles:
+      for nf in relevantNimbleFiles:
         if nf.endsWith(expectedName) or nf == expectedName:
           nimbleFilePath = nf
           break
 
       # Read nimble file content from git
-      let nimbleContent = await gitShowFileAsync(repoDir, tag, nimbleFilePath)
+      let nimbleContent = await gitShowFileAsync(gitRoot, tag, nimbleFilePath)
 
       # Write to temp file for parsing
       let tempNimbleFile = getTempDir() / &"{name}_{tag}.nimble"
@@ -985,8 +1025,8 @@ proc downloadMinimalPackageAsyncImpl(pv: PkgTuple, options: Options, nimBin: str
   try:
     if pv.name.isUrl:
       for r in result.mitems:
-        if r.url == "":
-          r.url = pv.name
+        # Always set URL for URL-based packages to ensure subdirectories have correct URL
+        r.url = pv.name
   except Exception as e:
     raise newException(CatchableError, e.msg)
 
@@ -997,17 +1037,25 @@ proc downloadMinimalPackageAsync*(pv: PkgTuple, options: Options, nimBin: string
 
   # Get canonical URL to use as cache key (handles both short names and full URLs)
   var cacheKey: string
-  if pv.name.isFileURL or pv.name == "" or (pv.isNim and not options.disableNimBinaries):
-    # For special cases, use the name as-is
-    cacheKey = pv.name
-  else:
-    # Resolve to canonical URL for proper deduplication
-    try:
-      let dlInfo = getPackageDownloadInfo(pv, options, doPrompt = false)
-      cacheKey = dlInfo.url
-    except:
-      # If resolution fails, fall back to using name
+  try:
+    if pv.name.isFileURL or pv.name == "" or (pv.isNim and not options.disableNimBinaries):
+      # For special cases, use the name as-is
       cacheKey = pv.name
+    elif pv.name.isUrl:
+      # For direct URLs (including subdirectories), use the URL as-is
+      # Don't normalize because subdirectories must be treated as separate packages
+      cacheKey = pv.name
+    else:
+      # For package names, resolve to canonical URL for proper deduplication
+      try:
+        let dlInfo = getPackageDownloadInfo(pv, options, doPrompt = false)
+        cacheKey = dlInfo.url
+      except:
+        # If resolution fails, fall back to using name
+        cacheKey = pv.name
+  except Exception as e:
+    # If any check fails, use name as-is
+    cacheKey = pv.name
 
   # Check if download is already in progress
   if downloadCache.hasKey(cacheKey):
