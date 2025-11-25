@@ -1444,7 +1444,7 @@ proc solvePackages*(rootPkg: PackageInfo, pkgList: seq[PackageInfo], pkgsToInsta
   var root: PackageMinimalInfo = rootPkg.getMinimalInfo(options)
   root.isRoot = true
   var pkgVersionTable: Table[system.string, packageinfotypes.PackageVersions]
-  if options.isLegacy:
+  if options.isLegacy or options.useAsyncDownloads: 
     pkgVersionTable = initTable[string, PackageVersions]()
     pkgVersionTable[root.name] = PackageVersions(pkgName: root.name, versions: @[root])
     collectAllVersions(pkgVersionTable, root, options, downloadMinimalPackage, pkgList.mapIt(it.getMinimalInfo(options)), nimBin)

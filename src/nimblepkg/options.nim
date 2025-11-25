@@ -79,6 +79,7 @@ type
     filePathPkgs*: seq[PackageInfo] #Packages loaded from file:// requires. Top level is always included.
     isFilePathDiscovering*: bool # Whether we are discovering file:// requires to fill up filePathPkgs. If true, it wont validate file:// requires.
     visitedHooks*: seq[VisitedHook] # Whether we are executing hooks.
+    useAsyncDownloads*: bool # Whether to use async downloads (temporary flag)
     
   ActionType* = enum
     actionNil, actionRefresh, actionInit, actionDump, actionPublish, actionUpgrade
@@ -784,6 +785,8 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
     result.features = val.split(";").mapIt(it.strip)
   of "ignoresubmodules":
     result.ignoreSubmodules = true
+  of "asyncdownloads":
+    result.useAsyncDownloads = true
   else: isGlobalFlag = false
 
   var wasFlagHandled = true
@@ -918,7 +921,8 @@ proc initOptions*(): Options =
     useDeclarativeParser: false,
     legacy: false, #default to legacy code path for nimble < 1.0.0
     satResult: SatResult(),
-    localDeps: true
+    localDeps: true,
+    useAsyncDownloads: false
   )
 
   # Load visited hooks from environment variable to prevent recursive hook execution
