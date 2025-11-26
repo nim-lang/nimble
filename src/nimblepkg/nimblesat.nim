@@ -553,30 +553,35 @@ proc isFileUrl*(pkgDownloadInfo: PackageDownloadInfo): bool =
   pkgDownloadInfo.meth.isNone and pkgDownloadInfo.url.isFileURL
 
 proc getCacheDownloadDir*(url: string, ver: VersionRange, options: Options): string =
-  # Don't include version in directory name - we download all versions to same location
-  # Create a version-agnostic directory name using only the URL (including query for subdirs)
-  let puri = parseUri(url)
-  var dirName = ""
-  for i in puri.hostname:
-    case i
-    of strutils.Letters, strutils.Digits:
-      dirName.add i
-    else: discard
-  dirName.add "_"
-  for i in puri.path:
-    case i
-    of strutils.Letters, strutils.Digits:
-      dirName.add i
-    else: discard
-  # Include query string (e.g., ?subdir=generator) to differentiate subdirectories
-  if puri.query != "":
-    dirName.add "_"
-    for i in puri.query:
+  # When useAsyncDownloads is enabled, use version-agnostic cache directory
+  # (all versions in same location). Otherwise use old behavior (version in path).
+  if options.useAsyncDownloads:
+    # New behavior: version-agnostic directory name using only the URL (including query for subdirs)
+    let puri = parseUri(url)
+    var dirName = ""
+    for i in puri.hostname:
       case i
       of strutils.Letters, strutils.Digits:
         dirName.add i
       else: discard
-  options.pkgCachePath / dirName
+    dirName.add "_"
+    for i in puri.path:
+      case i
+      of strutils.Letters, strutils.Digits:
+        dirName.add i
+      else: discard
+    # Include query string (e.g., ?subdir=generator) to differentiate subdirectories
+    if puri.query != "":
+      dirName.add "_"
+      for i in puri.query:
+        case i
+        of strutils.Letters, strutils.Digits:
+          dirName.add i
+        else: discard
+    options.pkgCachePath / dirName
+  else:
+    # Old behavior: include version in directory name
+    options.pkgCachePath / getDownloadDirName(url, ver, notSetSha1Hash)
 
 proc getPackageDownloadInfo*(pv: PkgTuple, options: Options, doPrompt = false): PackageDownloadInfo =
   if pv.name.isFileURL:
