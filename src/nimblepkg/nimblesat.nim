@@ -580,7 +580,6 @@ proc getCacheDownloadDir*(url: string, ver: VersionRange, options: Options): str
         else: discard
     options.pkgCachePath / dirName
   else:
-    # Old behavior: include version in directory name
     options.pkgCachePath / getDownloadDirName(url, ver, notSetSha1Hash)
 
 proc getPackageDownloadInfo*(pv: PkgTuple, options: Options, doPrompt = false): PackageDownloadInfo =
@@ -1058,7 +1057,7 @@ proc downloadMinimalPackageAsync*(pv: PkgTuple, options: Options, nimBin: string
       except:
         # If resolution fails, fall back to using name
         cacheKey = pv.name
-  except Exception as e:
+  except Exception:
     # If any check fails, use name as-is
     cacheKey = pv.name
 
