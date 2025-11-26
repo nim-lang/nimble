@@ -294,6 +294,7 @@ Nimble Options:
       --features                  Activate features. Only used when using the declarative parser.
       --ignoreSubmodules          Ignore submodules when cloning a repository.
       --legacy                    Use the legacy code path (pre nimble 1.0.0)
+      --asyncdownloads            Use async for package downloads. (temporary flag)
 For more information read the GitHub readme:
   https://github.com/nim-lang/nimble#readme
 """
