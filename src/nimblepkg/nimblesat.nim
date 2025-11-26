@@ -1448,7 +1448,7 @@ proc solvePackages*(rootPkg: PackageInfo, pkgList: seq[PackageInfo], pkgsToInsta
   var root: PackageMinimalInfo = rootPkg.getMinimalInfo(options)
   root.isRoot = true
   var pkgVersionTable: Table[system.string, packageinfotypes.PackageVersions]
-  if options.isLegacy or options.useAsyncDownloads: 
+  if options.isLegacy or not options.useAsyncDownloads:
     pkgVersionTable = initTable[string, PackageVersions]()
     pkgVersionTable[root.name] = PackageVersions(pkgName: root.name, versions: @[root])
     collectAllVersions(pkgVersionTable, root, options, downloadMinimalPackage, pkgList.mapIt(it.getMinimalInfo(options)), nimBin)
@@ -1506,15 +1506,19 @@ proc getPkgVersionTable*(pkgInfo: PackageInfo, pkgList: seq[PackageInfo], option
   var root = pkgInfo.getMinimalInfo(options)
   root.isRoot = true
   result[root.name] = PackageVersions(pkgName: root.name, versions: @[root])
-  # Use async version for parallel downloading
-  let asyncVersions = waitFor collectAllVersionsAsync(root, options, downloadMinimalPackageAsync, pkgList.mapIt(it.getMinimalInfo(options)), nimBin)
-  # Merge async results into the result table
-  for pkgName, pkgVersions in asyncVersions:
-    if not result.hasKey(pkgName):
-      result[pkgName] = pkgVersions
-    else:
-      for ver in pkgVersions.versions:
-        result[pkgName].versions.addUnique ver
+  if options.useAsyncDownloads:
+    # Use async version for parallel downloading
+    let asyncVersions = waitFor collectAllVersionsAsync(root, options, downloadMinimalPackageAsync, pkgList.mapIt(it.getMinimalInfo(options)), nimBin)
+    # Merge async results into the result table
+    for pkgName, pkgVersions in asyncVersions:
+      if not result.hasKey(pkgName):
+        result[pkgName] = pkgVersions
+      else:
+        for ver in pkgVersions.versions:
+          result[pkgName].versions.addUnique ver
+  else:
+    # Use sync version (default, stable behavior)
+    collectAllVersions(result, root, options, downloadMinimalPackage, pkgList.mapIt(it.getMinimalInfo(options)), nimBin)
 
 
 const maxPkgNameDisplayWidth = 40  # Cap package name width
