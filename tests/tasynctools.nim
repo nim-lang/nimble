@@ -1,5 +1,5 @@
 import unittest, chronos, strutils, os, tables
-import nimblepkg/[tools, download, options, packageinfotypes, packageinfo, sha1hashes, version, nimblesat]
+import nimblepkg/[tools, download, options, packageinfotypes, sha1hashes, version, nimblesat]
 
 suite "Async Tools":
   test "doCmdExAsync executes command":
