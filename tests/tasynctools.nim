@@ -1,6 +1,8 @@
 import unittest, chronos, strutils, os, tables
 import nimblepkg/[tools, download, options, packageinfotypes, sha1hashes, version, nimblesat]
 
+{.used.}
+
 suite "Async Tools":
   test "doCmdExAsync executes command":
     let (output, exitCode) = waitFor doCmdExAsync("echo hello")
