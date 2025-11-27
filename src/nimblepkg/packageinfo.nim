@@ -191,11 +191,17 @@ proc fetchList*(list: PackageList, options: Options) =
 
 # Cache after first call
 var
-  gPackageJson: Table[string, JsonNode]
+  gPackageJson {.threadvar.}: TableRef[string, JsonNode]
+
+proc getGPackageJson(): TableRef[string, JsonNode] =
+  if gPackageJson.isNil:
+    gPackageJson = newTable[string, JsonNode]()
+  return gPackageJson
+
 proc readPackageList(name: string, options: Options, ignorePackageCache = false): JsonNode =
   # If packages.json is not present ask the user if they want to download it.
-  if (not ignorePackageCache) and gPackageJson.hasKey(name):
-    return gPackageJson[name]
+  if (not ignorePackageCache) and getGPackageJson().hasKey(name):
+    return getGPackageJson()[name]
 
   if needsRefresh(options):
     if options.prompt("No local packages.json found, download it from " &
@@ -205,16 +211,16 @@ proc readPackageList(name: string, options: Options, ignorePackageCache = false)
     else:
       # The user might not need a package list for now. So let's try
       # going further.
-      gPackageJson[name] = newJArray()
-      return gPackageJson[name]
+      getGPackageJson()[name] = newJArray()
+      return getGPackageJson()[name]
   let file = options.getNimbleDir() / "packages_" & name.toLowerAscii() & ".json"
   if file.fileExists:
-    gPackageJson[name] = parseFile(file)
+    getGPackageJson()[name] = parseFile(file)
   else:
-    gPackageJson[name] = newJArray()
-  return gPackageJson[name]
+    getGPackageJson()[name] = newJArray()
+  return getGPackageJson()[name]
 
-proc getPackage*(pkg: string, options: Options, resPkg: var Package, ignorePackageCache = false): bool
+proc getPackage*(pkg: string, options: Options, resPkg: var Package, ignorePackageCache = false): bool {.gcsafe.} 
 proc resolveAlias(pkg: Package, options: Options): Package =
   result = pkg
   # Resolve alias.

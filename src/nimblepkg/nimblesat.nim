@@ -1,8 +1,9 @@
-import sat/[sat, satvars] 
-import version, packageinfotypes, download, packageinfo, packageparser, options, 
+import sat/[sat, satvars]
+import version, packageinfotypes, download, packageinfo, packageparser, options,
   sha1hashes, tools, downloadnim, cli, declarativeparser
-  
-import std/[tables, sequtils, algorithm, sets, strutils, options, strformat, os, json, jsonutils]
+
+import std/[tables, sequtils, algorithm, sets, strutils, options, strformat, os, json, jsonutils, uri]
+import chronos
 
 type  
   SatVarInfo* = object # attached information for a SAT variable
@@ -45,6 +46,7 @@ type
 
     
   GetPackageMinimal* = proc (pv: PkgTuple, options: Options, nimBin: string): seq[PackageMinimalInfo]
+  GetPackageMinimalAsync* = proc (pv: PkgTuple, options: Options, nimBin: string): Future[seq[PackageMinimalInfo]] {.gcsafe.}
 
   TaggedPackageVersions = object
     maxTaggedVersions: int # Maximum number of tags. When number changes, we invalidate the cache
@@ -551,12 +553,39 @@ proc isFileUrl*(pkgDownloadInfo: PackageDownloadInfo): bool =
   pkgDownloadInfo.meth.isNone and pkgDownloadInfo.url.isFileURL
 
 proc getCacheDownloadDir*(url: string, ver: VersionRange, options: Options): string =
-  options.pkgCachePath / getDownloadDirName(url, ver, notSetSha1Hash)
+  # When useAsyncDownloads is enabled, use version-agnostic cache directory
+  # (all versions in same location). Otherwise use old behavior (version in path).
+  if options.useAsyncDownloads:
+    # New behavior: version-agnostic directory name using only the URL (including query for subdirs)
+    let puri = parseUri(url)
+    var dirName = ""
+    for i in puri.hostname:
+      case i
+      of strutils.Letters, strutils.Digits:
+        dirName.add i
+      else: discard
+    dirName.add "_"
+    for i in puri.path:
+      case i
+      of strutils.Letters, strutils.Digits:
+        dirName.add i
+      else: discard
+    # Include query string (e.g., ?subdir=generator) to differentiate subdirectories
+    if puri.query != "":
+      dirName.add "_"
+      for i in puri.query:
+        case i
+        of strutils.Letters, strutils.Digits:
+          dirName.add i
+        else: discard
+    options.pkgCachePath / dirName
+  else:
+    options.pkgCachePath / getDownloadDirName(url, ver, notSetSha1Hash)
 
 proc getPackageDownloadInfo*(pv: PkgTuple, options: Options, doPrompt = false): PackageDownloadInfo =
   if pv.name.isFileURL:
     return PackageDownloadInfo(meth: none(DownloadMethod), url: pv.name, subdir: "", downloadDir: "", pv: pv)
-  let (meth, url, metadata) = 
+  let (meth, url, metadata) =
       getDownloadInfo(pv, options, doPrompt, ignorePackageCache = false)
   let subdir = metadata.getOrDefault("subdir")
   let downloadDir = getCacheDownloadDir(url, pv.ver, options)
@@ -704,6 +733,217 @@ proc getPackageMinimalVersionsFromRepo*(repoDir: string, pkg: PkgTuple, version:
     except CatchableError as e:
       displayWarning(&"Error cleaning up temporary directory {tempDir}: {e.msg}", LowPriority)
 
+proc getPackageMinimalVersionsFromRepoAsync*(repoDir: string, pkg: PkgTuple, version: Version, downloadMethod: DownloadMethod, options: Options, nimBin: string): Future[seq[PackageMinimalInfo]] {.async.} =
+  ## Async version of getPackageMinimalVersionsFromRepo that uses async operations for VCS commands.
+  result = newSeq[PackageMinimalInfo]()
+
+  let name = pkg[0]
+  try:
+    let taggedVersions = getTaggedVersions(repoDir, name, options)
+    if taggedVersions.isSome:
+      return taggedVersions.get.versions
+  except Exception:
+    discard # Continue with fetching from repo
+
+  let tempDir = repoDir & "_versions"
+  try:
+    removeDir(tempDir)
+    copyDir(repoDir, tempDir)
+    var tags = initOrderedTable[Version, string]()
+    try:
+      await gitFetchTagsAsync(tempDir, downloadMethod, options)
+      tags = (await getTagsListAsync(tempDir, downloadMethod)).getVersionList()
+    except CatchableError as e:
+      displayWarning(&"Error fetching tags for {name}: {e.msg}", HighPriority)
+
+    try:
+      try:
+        if options.satResult.pass in {satNimSelection}:
+          # TODO test this code path
+          result.add getPkgInfoFromDirWithDeclarativeParser(repoDir, options, nimBin).getMinimalInfo(options)
+        else:
+          result.add getPkgInfo(repoDir, options, nimBin).getMinimalInfo(options)
+      except Exception as e:
+        raise newException(CatchableError, e.msg)
+    except CatchableError as e:
+      displayWarning(&"Error getting package info for {name}: {e.msg}", HighPriority)
+
+    # Process tagged versions in the temporary copy
+    var checkedTags = 0
+    for (ver, tag) in tags.pairs:
+      if options.maxTaggedVersions > 0 and checkedTags >= options.maxTaggedVersions:
+        break
+      inc checkedTags
+
+      try:
+        let tagVersion = newVersion($ver)
+
+        await doCheckoutAsync(downloadMethod, tempDir, tag, options)
+        let nimbleFile = findNimbleFile(tempDir, true, options, warn = false)
+        try:
+          if options.satResult.pass in {satNimSelection}:
+            result.addUnique getPkgInfoFromDirWithDeclarativeParser(tempDir, options, nimBin).getMinimalInfo(options)
+          elif options.useDeclarativeParser:
+            result.addUnique getMinimalInfo(nimbleFile, options, nimBin)
+          else:
+            let pkgInfo = getPkgInfoFromFile(nimBin, nimbleFile, options, useCache=false)
+            result.addUnique pkgInfo.getMinimalInfo(options)
+        except Exception as e:
+          raise newException(CatchableError, e.msg)
+        #here we copy the directory to its own folder so we have it cached for future usage
+        try:
+          let downloadInfo = getPackageDownloadInfo((name, tagVersion.toVersionRange()), options)
+          if not dirExists(downloadInfo.downloadDir):
+            copyDir(tempDir, downloadInfo.downloadDir)
+        except Exception as e:
+          raise newException(CatchableError, e.msg)
+
+      except CatchableError as e:
+        displayWarning(
+          &"Error reading tag {tag}: for package {name}. This may not be relevant as it could be an old version of the package. \n {e.msg}",
+           HighPriority)
+    if not (not options.isLegacy and options.satResult.pass == satNimSelection and options.satResult.declarativeParseFailed):
+      #Dont save tagged versions if we are in vNext and the declarative parser failed as this could cache the incorrect versions.
+      #its suboptimal in the sense that next packages after failure wont be saved in the first past but there is a guarantee that there is a second pass in the case
+      #the declarative parser fails so they will be saved then.
+      try:
+        saveTaggedVersions(repoDir, name,
+                          TaggedPackageVersions(
+                            maxTaggedVersions: options.maxTaggedVersions,
+                            versions: result
+                          ), options)
+      except Exception as e:
+        displayWarning(&"Error saving tagged versions for {name}: {e.msg}", LowPriority)
+  finally:
+    try:
+      removeDir(tempDir)
+    except CatchableError as e:
+      displayWarning(&"Error cleaning up temporary directory {tempDir}: {e.msg}", LowPriority)
+
+proc getPackageMinimalVersionsFromRepoAsyncFast*(
+    repoDir: string,
+    pkg: PkgTuple,
+    downloadMethod: DownloadMethod,
+    options: Options,
+    nimBin: string
+): Future[seq[PackageMinimalInfo]] {.async.} =
+  ## Fast version that reads nimble files directly from git tags without checkout.
+  ## Uses git ls-tree and git show to avoid expensive checkout + copyDir operations.
+  result = newSeq[PackageMinimalInfo]()
+  let name = pkg[0]
+
+  # Find the git repository root (repoDir might be a subdirectory)
+  var gitRoot = repoDir
+  var subdirPath = ""
+
+  # Check if we're in a subdirectory by looking for .git
+  try:
+    if not dirExists(gitRoot / ".git"):
+      # Walk up to find the git root
+      var currentDir = repoDir
+      while not dirExists(currentDir / ".git") and currentDir.parentDir() != currentDir:
+        currentDir = currentDir.parentDir()
+
+      if dirExists(currentDir / ".git"):
+        gitRoot = currentDir
+        # Calculate relative path from git root to repoDir
+        subdirPath = repoDir.relativePath(gitRoot).replace("\\", "/")
+      # If no .git found, proceed anyway - git commands might still work
+  except Exception:
+    # If anything fails, just use repoDir as-is
+    gitRoot = repoDir
+
+  # Check cache first
+  try:
+    let taggedVersions = getTaggedVersions(repoDir, name, options)
+    if taggedVersions.isSome:
+      return taggedVersions.get.versions
+  except Exception:
+    discard
+
+  # Fetch all tags
+  var tags = initOrderedTable[Version, string]()
+  try:
+    await gitFetchTagsAsync(gitRoot, downloadMethod, options)
+    tags = (await getTagsListAsync(gitRoot, downloadMethod)).getVersionList()
+  except CatchableError as e:
+    displayWarning(&"Error fetching tags for {name}: {e.msg}", HighPriority)
+    return
+
+  # Get current HEAD version info (files already on disk)
+  try:
+    try:
+      result.add getPkgInfo(repoDir, options, nimBin).getMinimalInfo(options)
+    except Exception as e:
+      raise newException(CatchableError, e.msg)
+  except CatchableError as e:
+    displayWarning(&"Error getting package info for {name}: {e.msg}", HighPriority)
+
+  # Process each tag - read nimble file directly from git
+  var checkedTags = 0
+  for (ver, tag) in tags.pairs:
+    if options.maxTaggedVersions > 0 and checkedTags >= options.maxTaggedVersions:
+      break
+    inc checkedTags
+
+    try:
+      # List nimble files in this tag
+      let nimbleFiles = await gitListNimbleFilesInCommitAsync(gitRoot, tag)
+      if nimbleFiles.len == 0:
+        displayInfo(&"No nimble file found in tag {tag} for {name}", LowPriority)
+        continue
+
+      # Filter nimble files to those in the subdirectory (if applicable)
+      var relevantNimbleFiles: seq[string] = @[]
+      if subdirPath != "":
+        for nf in nimbleFiles:
+          if nf.startsWith(subdirPath & "/") or nf.startsWith(subdirPath):
+            relevantNimbleFiles.add(nf)
+      else:
+        relevantNimbleFiles = nimbleFiles
+
+      if relevantNimbleFiles.len == 0:
+        displayInfo(&"No nimble file found in tag {tag} (subdir: {subdirPath}) for {name}", LowPriority)
+        continue
+
+      # Prefer nimble file matching package name
+      var nimbleFilePath = relevantNimbleFiles[0]
+      let expectedName = name & ".nimble"
+      for nf in relevantNimbleFiles:
+        if nf.endsWith(expectedName) or nf == expectedName:
+          nimbleFilePath = nf
+          break
+
+      # Read nimble file content from git
+      let nimbleContent = await gitShowFileAsync(gitRoot, tag, nimbleFilePath)
+
+      # Write to temp file for parsing
+      let tempNimbleFile = getTempDir() / &"{name}_{tag}.nimble"
+      try:
+        writeFile(tempNimbleFile, nimbleContent)
+        try:
+          let pkgInfo = getPkgInfoFromFile(nimBin, tempNimbleFile, options, useCache=false)
+          result.addUnique(pkgInfo.getMinimalInfo(options))
+        except Exception as e:
+          raise newException(CatchableError, e.msg)
+      finally:
+        try:
+          removeFile(tempNimbleFile)
+        except: discard
+
+    except CatchableError as e:
+      displayInfo(&"Error reading tag {tag} for {name}: {e.msg}", LowPriority)
+
+  # Save to cache
+  try:
+    saveTaggedVersions(repoDir, name,
+                      TaggedPackageVersions(
+                        maxTaggedVersions: options.maxTaggedVersions,
+                        versions: result
+                      ), options)
+  except Exception as e:
+    displayWarning(&"Error saving tagged versions for {name}: {e.msg}", LowPriority)
+
 proc downloadMinimalPackage*(pv: PkgTuple, options: Options, nimBin: string): seq[PackageMinimalInfo] =
   if pv.name == "": return newSeq[PackageMinimalInfo]()
   if pv.isNim and not options.disableNimBinaries: return getAllNimReleases(options)
@@ -712,14 +952,129 @@ proc downloadMinimalPackage*(pv: PkgTuple, options: Options, nimBin: string): se
     return
   if pv.ver.kind in [verSpecial, verEq]: #if special or equal, we dont retrieve more versions as we only need one.
     result = @[downloadPkInfoForPv(pv, options, false, nimBin).getMinimalInfo(options)]
-  else:    
+  else:
     let (downloadRes, downloadMeth) = downloadPkgFromUrl(pv, options, false, nimBin)
     result = getPackageMinimalVersionsFromRepo(downloadRes.dir, pv, downloadRes.version, downloadMeth.get, options, nimBin)
   #Make sure the url is set for the package
   if pv.name.isUrl:
-    for r in result.mitems: 
+    for r in result.mitems:
       if r.url == "":
         r.url = pv.name
+
+proc downloadFromDownloadInfoAsync*(dlInfo: PackageDownloadInfo, options: Options, nimBin: string): Future[(DownloadPkgResult, Option[DownloadMethod])] {.async.} =
+  ## Async version of downloadFromDownloadInfo that uses async download operations.
+  if dlInfo.isFileUrl:
+    try:
+      let pkgInfo = getPackageFromFileUrl(dlInfo.url, options, nimBin)
+      let downloadRes = (dir: pkgInfo.getNimbleFileDir(), version: pkgInfo.basicInfo.version, vcsRevision: notSetSha1Hash)
+      return (downloadRes, none(DownloadMethod))
+    except Exception as e:
+      raise newException(CatchableError, e.msg)
+  else:
+    let downloadRes = await downloadPkgAsync(dlInfo.url, dlInfo.pv.ver, dlInfo.meth.get, dlInfo.subdir, options,
+                  dlInfo.downloadDir, vcsRevision = notSetSha1Hash, nimBin = nimBin)
+    return (downloadRes, dlInfo.meth)
+
+proc downloadPkgFromUrlAsync*(pv: PkgTuple, options: Options, doPrompt = false, nimBin: string): Future[(DownloadPkgResult, Option[DownloadMethod])] {.async.} =
+  ## Async version of downloadPkgFromUrl that downloads from a package URL.
+  try:
+    let dlInfo = getPackageDownloadInfo(pv, options, doPrompt)
+    return await downloadFromDownloadInfoAsync(dlInfo, options, nimBin)
+  except Exception as e:
+    raise newException(CatchableError, e.msg)
+
+proc downloadPkInfoForPvAsync*(pv: PkgTuple, options: Options, doPrompt = false, nimBin: string): Future[PackageInfo] {.async.} =
+  ## Async version of downloadPkInfoForPv that downloads and gets package info.
+  let downloadRes = await downloadPkgFromUrlAsync(pv, options, doPrompt, nimBin)
+  try:
+    if options.satResult.pass in {satNimSelection}:
+      return getPkgInfoFromDirWithDeclarativeParser(downloadRes[0].dir, options, nimBin)
+    else:
+      return getPkgInfo(downloadRes[0].dir, options, nimBin, forValidation = false, onlyMinimalInfo = false)
+  except Exception as e:
+    raise newException(CatchableError, e.msg)
+
+var downloadCache {.threadvar.}: Table[string, Future[seq[PackageMinimalInfo]]]
+
+proc downloadMinimalPackageAsyncImpl(pv: PkgTuple, options: Options, nimBin: string): Future[seq[PackageMinimalInfo]] {.async.} =
+  ## Internal implementation of async download without caching.
+  if pv.name == "": return newSeq[PackageMinimalInfo]()
+  try:
+    if pv.isNim and not options.disableNimBinaries:
+      return getAllNimReleases(options)
+  except Exception as e:
+    raise newException(CatchableError, e.msg)
+
+  if pv.name.isFileURL:
+    try:
+      result = @[getPackageFromFileUrl(pv.name, options, nimBin).getMinimalInfo(options)]
+      return
+    except Exception as e:
+      raise newException(CatchableError, e.msg)
+
+  if pv.ver.kind in [verSpecial, verEq]: #if special or equal, we dont retrieve more versions as we only need one.
+    let pkgInfo = await downloadPkInfoForPvAsync(pv, options, false, nimBin)
+    try:
+      result = @[pkgInfo.getMinimalInfo(options)]
+    except Exception as e:
+      raise newException(CatchableError, e.msg)
+  else:
+    try:
+      let (downloadRes, downloadMeth) = await downloadPkgFromUrlAsync(pv, options, false, nimBin)
+      result = await getPackageMinimalVersionsFromRepoAsyncFast(downloadRes.dir, pv, downloadMeth.get, options, nimBin)
+    except Exception as e:
+      raise newException(CatchableError, e.msg)
+
+  #Make sure the url is set for the package
+  try:
+    if pv.name.isUrl:
+      for r in result.mitems:
+        # Always set URL for URL-based packages to ensure subdirectories have correct URL
+        r.url = pv.name
+  except Exception as e:
+    raise newException(CatchableError, e.msg)
+
+proc downloadMinimalPackageAsync*(pv: PkgTuple, options: Options, nimBin: string): Future[seq[PackageMinimalInfo]] {.async.} =
+  ## Async version of downloadMinimalPackage with deduplication.
+  ## If multiple calls request the same package concurrently, they share the same download.
+  ## Cache key uses canonical package URL (not version) since we download all versions anyway.
+
+  # Get canonical URL to use as cache key (handles both short names and full URLs)
+  var cacheKey: string
+  try:
+    if pv.name.isFileURL or pv.name == "" or (pv.isNim and not options.disableNimBinaries):
+      # For special cases, use the name as-is
+      cacheKey = pv.name
+    elif pv.name.isUrl:
+      # For direct URLs (including subdirectories), use the URL as-is
+      # Don't normalize because subdirectories must be treated as separate packages
+      cacheKey = pv.name
+    else:
+      # For package names, resolve to canonical URL for proper deduplication
+      try:
+        let dlInfo = getPackageDownloadInfo(pv, options, doPrompt = false)
+        cacheKey = dlInfo.url
+      except:
+        # If resolution fails, fall back to using name
+        cacheKey = pv.name
+  except Exception:
+    # If any check fails, use name as-is
+    cacheKey = pv.name
+
+  # Check if download is already in progress
+  if downloadCache.hasKey(cacheKey):
+    # Wait for the existing download to complete and reuse all versions
+    return await downloadCache[cacheKey]
+
+  # Start new download and cache the future
+  let downloadFuture = downloadMinimalPackageAsyncImpl(pv, options, nimBin)
+  downloadCache[cacheKey] = downloadFuture
+
+  try:
+    result = await downloadFuture
+  finally:
+    # Remove from cache after completion (success or failure)
+    downloadCache.del(cacheKey)
 
 proc fillPackageTableFromPreferred*(packages: var Table[string, PackageVersions], preferredPackages: seq[PackageMinimalInfo]) =
   for pkg in preferredPackages:
@@ -737,6 +1092,16 @@ proc getMinimalFromPreferred(pv: PkgTuple,  getMinimalPackage: GetPackageMinimal
     if (pp.name == pv.name or pp.url == pv.name) and pp.version.withinRange(pv.ver):
       return @[pp]
   getMinimalPackage(pv, options, nimBin)
+
+proc getMinimalFromPreferredAsync*(pv: PkgTuple, getMinimalPackage: GetPackageMinimalAsync, preferredPackages: seq[PackageMinimalInfo], options: Options, nimBin: string): Future[seq[PackageMinimalInfo]] {.async.} =
+  ## Async version of getMinimalFromPreferred that uses async package fetching.
+  for pp in preferredPackages:
+    if (pp.name == pv.name or pp.url == pv.name) and pp.version.withinRange(pv.ver):
+      return @[pp]
+  try:
+    return await getMinimalPackage(pv, options, nimBin)
+  except Exception as e:
+    raise newException(CatchableError, e.msg)
 
 proc hasSpecialVersion(versions: Table[string, PackageVersions], pkgName: string): bool =
   if pkgName in versions:
@@ -812,11 +1177,147 @@ proc processRequirements(versions: var Table[string, PackageVersions], pv: PkgTu
     # we need to avoid adding it to the package table as this will cause the solver to fail
     displayWarning(&"Error processing requirements for {pv.name}: {e.msg}", HighPriority)
 
+proc processRequirementsAsync(pv: PkgTuple, visitedParam: HashSet[PkgTuple], getMinimalPackage: GetPackageMinimalAsync, preferredPackages: seq[PackageMinimalInfo] = newSeq[PackageMinimalInfo](), options: Options, nimBin: string): Future[Table[string, PackageVersions]] {.async.} =
+  ## Async version of processRequirements that returns computed versions instead of mutating shared state.
+  ## This allows for safe parallel execution since there's no shared mutable state.
+  ## Takes visited by value since we pass separate copies to each top-level dependency branch.
+  ## Processes all nested dependencies in parallel for maximum performance.
+  result = initTable[string, PackageVersions]()
+
+  # Make a local mutable copy
+  var visited = visitedParam
+
+  if pv in visited:
+    return
+
+  visited.incl pv
+
+  # For special versions, always process them even if we think we have the package
+  # This ensures the special version gets downloaded and added to the version table
+  try:
+    var pkgMins = await getMinimalFromPreferredAsync(pv, getMinimalPackage, preferredPackages, options, nimBin)
+
+    # First, validate all requirements for all package versions before adding anything
+    var validPkgMins: seq[PackageMinimalInfo] = @[]
+    for pkgMin in pkgMins:
+      var allRequirementsValid = true
+      # Test if all requirements can be processed without errors
+      for req in pkgMin.requires:
+        try:
+          # Try to get minimal package info for the requirement to validate it exists
+          discard await getMinimalFromPreferredAsync(req, getMinimalPackage, preferredPackages, options, nimBin)
+        except CatchableError:
+          allRequirementsValid = false
+          displayWarning(&"Skipping package {pkgMin.name}@{pkgMin.version} due to invalid dependency: {req.name}", HighPriority)
+          break
+
+      if allRequirementsValid:
+        validPkgMins.add pkgMin
+
+    # Only add packages with valid requirements to the result table
+    for pkgMin in validPkgMins.mitems:
+      let pkgName = pkgMin.name.toLower
+      if pv.ver.kind == verSpecial:
+        # Keep both the commit hash and the actual semantic version
+        var specialVer = newVersion($pv.ver)
+        specialVer.speSemanticVersion = some($pkgMin.version)  # Store the real version
+        pkgMin.version = specialVer
+
+        # Special versions replace any existing versions
+        result[pkgName] = PackageVersions(pkgName: pkgName, versions: @[pkgMin])
+      else:
+        # Add to result table
+        if not result.hasKey(pkgName):
+          result[pkgName] = PackageVersions(pkgName: pkgName, versions: @[pkgMin])
+        else:
+          result[pkgName].versions.addUnique pkgMin
+
+      # Process all requirements in parallel (full parallelization)
+      # Each branch gets its own copy of visited to avoid shared state issues
+      var reqFutures: seq[Future[Table[string, PackageVersions]]] = @[]
+      for req in pkgMin.requires:
+        reqFutures.add processRequirementsAsync(req, visited, getMinimalPackage, preferredPackages, options, nimBin)
+
+      # Wait for all requirement processing to complete
+      if reqFutures.len > 0:
+        await allFutures(reqFutures)
+
+        # Merge all requirement results
+        for reqFut in reqFutures:
+          let reqResult = reqFut.read()
+          for pkgName, pkgVersions in reqResult:
+            if not result.hasKey(pkgName):
+              result[pkgName] = pkgVersions
+            else:
+              for ver in pkgVersions.versions:
+                result[pkgName].versions.addUnique ver
+
+    # Only add URL packages if we have valid versions
+    try:
+      if pv.name.isUrl and validPkgMins.len > 0:
+        result[pv.name] = PackageVersions(pkgName: pv.name, versions: validPkgMins)
+    except Exception as e:
+      raise newException(CatchableError, e.msg)
+
+  except CatchableError as e:
+    # Some old packages may have invalid requirements (i.e repos that doesn't exist anymore)
+    # we need to avoid adding it to the package table as this will cause the solver to fail
+    displayWarning(&"Error processing requirements for {pv.name}: {e.msg}", HighPriority)
 
 proc collectAllVersions*(versions: var Table[string, PackageVersions], package: PackageMinimalInfo, options: Options, getMinimalPackage: GetPackageMinimal, preferredPackages: seq[PackageMinimalInfo] = newSeq[PackageMinimalInfo](), nimBin: string) {.instrument.} =
   var visited = initHashSet[PkgTuple]()
   for pv in package.requires:
     processRequirements(versions, pv, visited, getMinimalPackage, preferredPackages, options, nimBin)
+
+proc mergeVersionTables(dest: var Table[string, PackageVersions], source: Table[string, PackageVersions]) =
+  ## Helper proc to merge version tables. Synchronous to avoid closure capture issues.
+  for pkgName, pkgVersions in source:
+    if not dest.hasKey(pkgName):
+      dest[pkgName] = pkgVersions
+    else:
+      # Merge versions, handling special versions
+      var hasSpecial = false
+      for ver in pkgVersions.versions:
+        if ver.version.isSpecial:
+          hasSpecial = true
+          # Special version replaces all
+          dest[pkgName] = PackageVersions(pkgName: pkgName, versions: @[ver])
+          break
+
+      if not hasSpecial:
+        # Check if existing has special version
+        var existingHasSpecial = false
+        for ver in dest[pkgName].versions:
+          if ver.version.isSpecial:
+            existingHasSpecial = true
+            break
+
+        # Only add if existing doesn't have special version
+        if not existingHasSpecial:
+          for ver in pkgVersions.versions:
+            dest[pkgName].versions.addUnique ver
+
+proc collectAllVersionsAsync*(package: PackageMinimalInfo, options: Options, getMinimalPackage: GetPackageMinimalAsync, preferredPackages: seq[PackageMinimalInfo] = newSeq[PackageMinimalInfo](), nimBin: string): Future[Table[string, PackageVersions]] {.async.} =
+  ## Async version of collectAllVersions that processes top-level dependencies in parallel.
+  ## Uses return-based approach: each branch returns its computed versions, then we merge them.
+  ## This allows for safe parallel execution with no shared mutable state during processing.
+  ## Returns the merged version table instead of mutating a parameter.
+
+  # Process all top-level requirements in parallel
+  # Each gets its own visited set to avoid race conditions
+  var futures: seq[Future[Table[string, PackageVersions]]] = @[]
+  for pv in package.requires:
+    var visitedCopy = initHashSet[PkgTuple]()
+    futures.add processRequirementsAsync(pv, visitedCopy, getMinimalPackage, preferredPackages, options, nimBin)
+
+  # Wait for all to complete
+  await allFutures(futures)
+
+  # Merge all results into a new table
+  result = initTable[string, PackageVersions]()
+  for fut in futures:
+    let resultTable = fut.read()
+    mergeVersionTables(result, resultTable)
 
 proc topologicalSort*(solvedPkgs: seq[SolvedPackage]): seq[SolvedPackage] {.instrument.}  =
   var inDegree = initTable[string, int]()
@@ -946,9 +1447,15 @@ proc postProcessSolvedPkgs*(solvedPkgs: var seq[SolvedPackage], options: Options
 proc solvePackages*(rootPkg: PackageInfo, pkgList: seq[PackageInfo], pkgsToInstall: var seq[(string, Version)], options: Options, output: var string, solvedPkgs: var seq[SolvedPackage], nimBin: string): HashSet[PackageInfo] {.instrument.} =
   var root: PackageMinimalInfo = rootPkg.getMinimalInfo(options)
   root.isRoot = true
-  var pkgVersionTable = initTable[string, PackageVersions]()
-  pkgVersionTable[root.name] = PackageVersions(pkgName: root.name, versions: @[root])
-  collectAllVersions(pkgVersionTable, root, options, downloadMinimalPackage, pkgList.mapIt(it.getMinimalInfo(options)), nimBin)
+  var pkgVersionTable: Table[system.string, packageinfotypes.PackageVersions]
+  if options.isLegacy or not options.useAsyncDownloads:
+    pkgVersionTable = initTable[string, PackageVersions]()
+    pkgVersionTable[root.name] = PackageVersions(pkgName: root.name, versions: @[root])
+    collectAllVersions(pkgVersionTable, root, options, downloadMinimalPackage, pkgList.mapIt(it.getMinimalInfo(options)), nimBin)
+  else:
+    pkgVersionTable = waitFor collectAllVersionsAsync(root, options, downloadMinimalPackageAsync, pkgList.mapIt(it.getMinimalInfo(options)), nimBin)
+    pkgVersionTable[root.name] = PackageVersions(pkgName: root.name, versions: @[root])
+
   # if not options.isLegacy:
   pkgVersionTable.normalizeRequirements(options)  
   options.satResult.pkgVersionTable = pkgVersionTable
@@ -999,7 +1506,19 @@ proc getPkgVersionTable*(pkgInfo: PackageInfo, pkgList: seq[PackageInfo], option
   var root = pkgInfo.getMinimalInfo(options)
   root.isRoot = true
   result[root.name] = PackageVersions(pkgName: root.name, versions: @[root])
-  collectAllVersions(result, root, options, downloadMinimalPackage, pkgList.mapIt(it.getMinimalInfo(options)), nimBin)
+  if options.useAsyncDownloads:
+    # Use async version for parallel downloading
+    let asyncVersions = waitFor collectAllVersionsAsync(root, options, downloadMinimalPackageAsync, pkgList.mapIt(it.getMinimalInfo(options)), nimBin)
+    # Merge async results into the result table
+    for pkgName, pkgVersions in asyncVersions:
+      if not result.hasKey(pkgName):
+        result[pkgName] = pkgVersions
+      else:
+        for ver in pkgVersions.versions:
+          result[pkgName].versions.addUnique ver
+  else:
+    # Use sync version (default, stable behavior)
+    collectAllVersions(result, root, options, downloadMinimalPackage, pkgList.mapIt(it.getMinimalInfo(options)), nimBin)
 
 
 const maxPkgNameDisplayWidth = 40  # Cap package name width
