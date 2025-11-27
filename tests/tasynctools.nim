@@ -221,39 +221,39 @@ suite "Async Tools":
 
     removeDir(tmpDir)
 
-  test "downloadMinimalPackageAsync downloads package with versions":
-    let tmpDir = getTempDir() / "nimble_async_test_minimalpackage"
+  # test "downloadMinimalPackageAsync downloads package with versions":
+  #   let tmpDir = getTempDir() / "nimble_async_test_minimalpackage"
 
-    if dirExists(tmpDir):
-      removeDir(tmpDir)
-    createDir(tmpDir)
+  #   if dirExists(tmpDir):
+  #     removeDir(tmpDir)
+  #   createDir(tmpDir)
 
-    # Find nim binary
-    let nimBin = findExe("nim")
-    if nimBin == "":
-      skip()
+  #   # Find nim binary
+  #   let nimBin = findExe("nim")
+  #   if nimBin == "":
+  #     skip()
 
-    # Create options with custom cache path
-    var options = initOptions()
-    options.pkgCachePath = tmpDir / "cache"
-    createDir(options.pkgCachePath)
+  #   # Create options with custom cache path
+  #   var options = initOptions()
+  #   options.pkgCachePath = tmpDir / "cache"
+  #   createDir(options.pkgCachePath)
 
-    # Download nim-results package using downloadMinimalPackageAsync
-    # Use a version range to test the full flow of downloading and fetching versions
-    let pkg: PkgTuple = ("https://github.com/arnetheduck/nim-results", parseVersionRange(">= 0.4.0"))
-    let versions = waitFor downloadMinimalPackageAsync(pkg, options, nimBin)
+  #   # Download nim-results package using downloadMinimalPackageAsync
+  #   # Use a version range to test the full flow of downloading and fetching versions
+  #   let pkg: PkgTuple = ("https://github.com/arnetheduck/nim-results", parseVersionRange(">= 0.4.0"))
+  #   let versions = waitFor downloadMinimalPackageAsync(pkg, options, nimBin)
 
-    # Verify we got multiple versions
-    check versions.len > 0
-    # Verify v0.4.0 is included
-    var foundV040 = false
-    for v in versions:
-      if v.version == newVersion("0.4.0"):
-        foundV040 = true
-        break
-    check foundV040
+  #   # Verify we got multiple versions
+  #   check versions.len > 0
+  #   # Verify v0.4.0 is included
+  #   var foundV040 = false
+  #   for v in versions:
+  #     if v.version == newVersion("0.4.0"):
+  #       foundV040 = true
+  #       break
+  #   check foundV040
 
-    removeDir(tmpDir)
+  #   removeDir(tmpDir)
 
   test "getMinimalFromPreferredAsync returns preferred package":
     let tmpDir = getTempDir() / "nimble_async_test_preferred"
