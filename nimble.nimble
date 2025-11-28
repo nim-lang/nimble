@@ -1,5 +1,5 @@
 # Package
-
+#TEST CI
 version       = "0.99.0"
 author        = "Dominik Picheta"
 description   = "Nim package manager."
