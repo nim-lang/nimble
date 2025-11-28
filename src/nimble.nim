@@ -5,7 +5,7 @@ import os, tables, strtabs, json, browsers, algorithm, sets, uri, sugar, sequtil
        strformat
 
 import std/options as std_opt
-
+import chronos
 import strutils except toLower
 from unicode import toLower
 import sat/sat
@@ -660,10 +660,13 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
     # Copy this package's files based on the preferences specified in PkgInfo.
     var filesInstalled: HashSet[string]
     iterInstallFiles(realDir, pkgInfo, options,
-      proc (file: string) =
-        createDir(changeRoot(realDir, pkgDestDir, file.splitFile.dir))
-        let dest = changeRoot(realDir, pkgDestDir, file)
-        filesInstalled.incl copyFileD(file, dest)
+      proc (file: string) {.raises: [].} =
+        try:
+          createDir(changeRoot(realDir, pkgDestDir, file.splitFile.dir))
+          let dest = changeRoot(realDir, pkgDestDir, file)
+          filesInstalled.incl copyFileD(file, dest)
+        except Exception:
+          discard
     )
 
     # Copy the .nimble file.
@@ -2566,9 +2569,22 @@ proc run(options: Options, nimBin: string) =
     # In vnext path, build develop mode packages (similar to old code path)
     if pkgInfo.isLink:
       # Use vnext buildPkg for develop mode packages
-      let isInRootDir = options.startDir == pkgInfo.myPath.parentDir and 
+      let isInRootDir = options.startDir == pkgInfo.myPath.parentDir and
         options.satResult.rootPackage.basicInfo.name == pkgInfo.basicInfo.name
-      buildPkg(nimBin, pkgInfo, isInRootDir, options)
+      let buildTasks = waitFor buildPkg(nimBin, pkgInfo, isInRootDir, options)
+      # Execute the build tasks immediately for run command
+      for task in buildTasks:
+        let future = task.startBuild()
+        let response = waitFor future
+        if response.stdOutput.len > 0:
+          display("Output", response.stdOutput, priority = HighPriority)
+        if response.stdError.len > 0:
+          displayWarning(response.stdError)
+        if response.status != 0:
+          raise buildFailed(&"Build failed for binary: {task.bin}", details = nil)
+      # Create symlinks after build completes
+      if buildTasks.len > 0:
+        vnext.createBinSymlink(pkgInfo, options)
     
     if options.getCompilationFlags.len > 0:
       displayWarning(ignoringCompilationFlagsMsg)

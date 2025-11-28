@@ -76,22 +76,23 @@ proc displayInfoLine*(field, msg: string) =
 
 proc displayCategory(category: string, displayType: DisplayType,
                      priority: Priority) =
-  if isSuppressed(displayType):
-    return
+  {.cast(gcsafe).}:
+    if isSuppressed(displayType):
+      return
 
-  # Calculate how much the `category` must be offset to align along a center
-  # line.
-  let offset = calculateCategoryOffset(category)
+    # Calculate how much the `category` must be offset to align along a center
+    # line.
+    let offset = calculateCategoryOffset(category)
 
-  # Display the category.
-  let text = "$1$2 " % [spaces(offset), category]
-  if globalCLI.showColor:
-    if priority != DebugPriority:
-      setForegroundColor(stdout, foregrounds[displayType])
-    writeStyled(text, styles[priority])
-    resetAttributes()
-  else:
-    stdout.write(text)
+    # Display the category.
+    let text = "$1$2 " % [spaces(offset), category]
+    if globalCLI.showColor:
+      if priority != DebugPriority:
+        setForegroundColor(stdout, foregrounds[displayType])
+      writeStyled(text, styles[priority])
+      resetAttributes()
+    else:
+      stdout.write(text)
 
 
 proc displayLine(category, line: string, displayType: DisplayType,
@@ -106,27 +107,28 @@ proc displayLine(category, line: string, displayType: DisplayType,
 
 proc display*(category, msg: string, displayType = Message,
               priority = MediumPriority) =
-  # Multiple warnings containing the same messages should not be shown.
-  let warningPair = (category, msg)
-  if displayType == Warning:
-    if warningPair in globalCLI.warnings:
+  {.cast(gcsafe).}:
+    # Multiple warnings containing the same messages should not be shown.
+    let warningPair = (category, msg)
+    if displayType == Warning:
+      if warningPair in globalCLI.warnings:
+        return
+      else:
+        globalCLI.warnings.incl(warningPair)
+
+    # Suppress this message if its priority isn't high enough.
+    # TODO: Per-priority suppression counts?
+    if priority < globalCLI.level:
+      if priority != DebugPriority:
+        globalCLI.suppressionCount.inc
       return
-    else:
-      globalCLI.warnings.incl(warningPair)
 
-  # Suppress this message if its priority isn't high enough.
-  # TODO: Per-priority suppression counts?
-  if priority < globalCLI.level:
-    if priority != DebugPriority:
-      globalCLI.suppressionCount.inc
-    return
-
-  # Display each line in the message.
-  var i = 0
-  for line in msg.splitLines():
-    if len(line) == 0: continue
-    displayLine(if i == 0: category else: "...", line, displayType, priority)
-    i.inc
+    # Display each line in the message.
+    var i = 0
+    for line in msg.splitLines():
+      if len(line) == 0: continue
+      displayLine(if i == 0: category else: "...", line, displayType, priority)
+      i.inc
 
 proc displayWarning*(message: string, priority = HighPriority) =
   display("Warning: ", message, Warning, priority)
