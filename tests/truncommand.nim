@@ -28,12 +28,13 @@ suite "nimble run":
         "run", # Run command invocation
         "run", # The command to run
         "--test", # First argument passed to the executed command
-        "check" # Second argument passed to the executed command.
+        "--help", # Second argument passed to the executed command (nimble global flag)
+        "check" # Third argument passed to the executed command.
       )
       check exitCode == QuitSuccess
-      check output.contains("tests$1run$1$2 --test check" %
+      check output.contains("tests$1run$1$2 --test --help check" %
                             [$DirSep, "run".changeFileExt(ExeExt)])
-      check output.contains("""Testing `nimble run`: @["--test", "check"]""")
+      check output.contains("""Testing `nimble run`: @["--test", "--help", "check"]""")
 
   test "Parameters not passed to single executable":
     cd "run":
@@ -55,12 +56,13 @@ suite "nimble run":
         "run", # Run command invocation
         "--", # Flag to set run file to "" before next argument
         "--test", # First argument passed to the executed command
-        "check" # Second argument passed to the executed command.
+        "--help", # Second argument passed to the executed command (nimble global flag)
+        "check" # Third argument passed to the executed command.
       )
       check exitCode == QuitSuccess
-      check output.contains("tests$1run$1$2 --test check" %
+      check output.contains("tests$1run$1$2 --test --help check" %
                             [$DirSep, "run".changeFileExt(ExeExt)])
-      check output.contains("""Testing `nimble run`: @["--test", "check"]""")
+      check output.contains("""Testing `nimble run`: @["--test", "--help", "check"]""")
 
   test "Executable output is shown even when not debugging":
     cd "run":

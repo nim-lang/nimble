@@ -843,7 +843,8 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
       result.action.compileOptions.add(getFlagString(kind, flag, val))
   of actionRun:
     result.showHelp = false
-    if not isGlobalFlag:
+    # After runFile all flags should be added to runFlags, even if global
+    if not isGlobalFlag or result.action.runFile.isSome():
       result.setRunOptions(flag, getFlagString(kind, flag, val), false)
   of actionCustom:
     if not isGlobalFlag:
