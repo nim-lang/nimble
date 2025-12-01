@@ -7,7 +7,7 @@ import osproc, pegs, strutils, os, uri, sets, json, parseutils, strformat,
 
 from net import SslCVerifyMode, newContext, SslContext
 
-import version, cli, common, packageinfotypes, options, sha1hashes
+import version, cli, common, packageinfotypes, options, sha1hashes, chronos, chronos/asyncproc
 from "$nim" / compiler/nimblecmd import getPathVersionChecksum
 
 proc extractBin(cmd: string): string =
@@ -48,10 +48,43 @@ proc doCmd*(cmd: string) =
 
 proc doCmdEx*(cmd: string): ProcessOutput =
   displayDebug("Executing", cmd)
+  result = execCmdEx(cmd)
+  displayDebug("Output", result.output)
+
+proc doCmdExAsync*(cmd: string): Future[ProcessOutput] {.async.} =
   let bin = extractBin(cmd)
   if findExe(bin) == "":
     raise nimbleError("'" & bin & "' not in PATH.")
-  return execCmdEx(cmd)
+  displayDebug("Executing", cmd)
+  let res = await execCommandEx(cmd)
+  result = (res.stdOutput, res.status)
+  displayDebug("Output", result.output)
+
+proc gitShowFileAsync*(repoDir: string, commitish: string, filePath: string): Future[string] {.async.} =
+  ## Reads file content directly from git object database without checkout.
+  ## commitish can be: tag name, commit hash, branch name
+  ## Example: await gitShowFileAsync("/path/to/repo", "v1.0.5", "mypackage.nimble")
+  let cmd = &"git -C {repoDir.quoteShell} show {commitish.quoteShell}:{filePath.quoteShell}"
+  let (output, exitCode) = await doCmdExAsync(cmd)
+  if exitCode == 0:
+    return output
+  else:
+    raise nimbleError(&"Could not read {filePath} from {commitish}: {output}")
+
+proc gitListNimbleFilesInCommitAsync*(repoDir: string, commitish: string): Future[seq[string]] {.async.} =
+  ## Lists .nimble files in a specific commit without checkout.
+  ## Uses git ls-tree to list files directly from git object database.
+  ## Example: await gitListNimbleFilesInCommitAsync("/path/to/repo", "v1.0.5")
+  let cmd = &"git -C {repoDir.quoteShell} ls-tree --name-only -r {commitish.quoteShell}"
+  let (output, exitCode) = await doCmdExAsync(cmd)
+  if exitCode != 0:
+    raise nimbleError(&"Could not list files in {commitish}: {output}")
+
+  result = @[]
+  for line in output.splitLines():
+    let trimmed = line.strip()
+    if trimmed != "" and trimmed.endsWith(".nimble"):
+      result.add(trimmed)
 
 proc tryDoCmdExErrorMessage*(cmd, output: string, exitCode: int): string =
   &"Execution of '{cmd}' failed with an exit code {exitCode}.\n" &
@@ -229,7 +262,7 @@ when defined(instrument):
   type
     CallRecord = object
       name: string
-      totalTime: Duration
+      totalTime: times.Duration
       callCount: int
       children: seq[int]  # Indices of child records
       parent: int  # Index of parent record (-1 for root)

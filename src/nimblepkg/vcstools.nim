@@ -76,6 +76,13 @@ proc hasVcsSubDir*(dir: Path): VcsType =
   else:
     result = vcsTypeNone
 
+var vcsTypeAndSpecialDirPathCache {.threadvar.}: TableRef[Path, VcsTypeAndSpecialDirPath]
+
+proc getVcsTypeAndSpecialDirPathCache(): TableRef[Path, VcsTypeAndSpecialDirPath] =
+  if vcsTypeAndSpecialDirPathCache.isNil:
+    vcsTypeAndSpecialDirPathCache = newTable[Path, VcsTypeAndSpecialDirPath]()
+  return vcsTypeAndSpecialDirPathCache
+
 proc getVcsTypeAndSpecialDirPath*(dir: Path): VcsTypeAndSpecialDirPath = 
   ## By given directory `dir` gets the type of VCS under which is it by
   ## traversing the parent directories until some specific directory like
@@ -88,9 +95,8 @@ proc getVcsTypeAndSpecialDirPath*(dir: Path): VcsTypeAndSpecialDirPath =
   ##
   ## Raises a `NimbleError` in the case the directory `dir` does not exist.
 
-  var cache {.global.}: Table[Path, VcsTypeAndSpecialDirPath]
-  if cache.hasKey(dir):
-    return cache[dir]
+  if getVcsTypeAndSpecialDirPathCache().hasKey(dir):
+    return getVcsTypeAndSpecialDirPathCache()[dir]
 
   if not dir.dirExists:
     raise nimbleError(dirDoesNotExistErrorMsg(dir))
@@ -111,7 +117,7 @@ proc getVcsTypeAndSpecialDirPath*(dir: Path): VcsTypeAndSpecialDirPath =
     dirIter = dirIter / vcsType.getVcsSpecialDir.Path
 
   result = (vcsType, dirIter)
-  cache[dir] = result
+  getVcsTypeAndSpecialDirPathCache()[dir] = result
 
 proc getVcsType*(dir: Path): VcsType =
   ## Returns VCS type of the given directory.
