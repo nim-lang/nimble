@@ -41,7 +41,6 @@ proc printDepsHumanReadable*(pkgInfo: PackageInfo,
   ## print human readable tree deps
   ## 
   if levelInfos.len() == 0:
-    displayInfo("Dependency tree format: {PackageName} {Requirements} (@{Resolved Version})")
     displayFormatted(Hint, "\n")
     displayFormatted(Message, pkgInfo.basicInfo.name, " ")
     displayFormatted(Success, "(@", $pkgInfo.basicInfo.version, ")")
@@ -99,8 +98,6 @@ proc printDepsHumanReadableInverted*(pkgInfo: PackageInfo,
     isRoot = pkgs.len() == 0
 
   if isRoot:
-    displayInfo("Dependency tree format: {PackageName} (@{Resolved Version})")
-    displayInfo("Dependency tree format:    {Source Package} {Source Requirements}")
     displayFormatted(Hint, "\n")
     displayFormatted(Message, pkgInfo.basicInfo.name, " ")
     displayFormatted(Success, "(@", $pkgInfo.basicInfo.version, ")")

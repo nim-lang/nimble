@@ -199,6 +199,38 @@ Some commands may remind you to run `nimble refresh` or will run it for you if t
 
 
 
+## `nimble deps`
+
+The `nimble deps` command displays the dependency tree of the current package.
+It shows all direct and transitive dependencies along with their version requirements and resolved versions.
+
+```sh
+$ nimble deps
+```
+
+The output format is:
+
+```
+{PackageName} {Requirements} (@{Resolved Version})
+```
+
+For example:
+
+```
+mypackage (@1.0.0)
+├── jester @>= 0.5.0 (@0.6.0)
+│   └── httpbeast @>= 0.4.0 (@0.4.1)
+└── chronicles @any (@0.10.3)
+```
+
+### Options
+
+- `--format:json` - Output the dependency tree in JSON format for programmatic use.
+- `-i` or `--inverted` - Show an inverted dependency tree where each package lists which packages depend on it.
+- `-d` or `--direct` - Show only direct dependencies (no transitive dependencies).
+
+
+
 ## `nimble path`
 
 The `nimble path` command will show the absolute path to the installed packages matching the specified parameters.
