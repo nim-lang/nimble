@@ -339,9 +339,9 @@ proc `$`*(verRange: VersionRange): string =
   of verIntersect:
     return $verRange.verILeft & " & " & $verRange.verIRight
   of verTilde:
-    return " ~= " & $verRange.verILeft
+    return "~= " & $verRange.verILeft.ver
   of verCaret:
-    return " ^= " & $verRange.verILeft
+    return "^= " & $verRange.verILeft.ver
   of verAny:
     return "any version"
 
