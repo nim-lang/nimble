@@ -37,7 +37,10 @@ proc doCheckout*(meth: DownloadMethod, downloadDir, branch: string, options: Opt
     # Force is used here because local changes may appear straight after a clone
     # has happened. Like in the case of git on Windows where it messes up the
     # damn line endings.
-    discard tryDoCmdEx(&"git -C {downloadDir.quoteShell} checkout --force {branch.quoteShell}")
+    let (_, exitCode) = doCmdEx(&"git -C {downloadDir.quoteShell} checkout --force {branch.quoteShell}")
+    if exitCode != 0 and not branch.startsWith("v"):
+      # Try with 'v' prefix as fallback (common convention for version tags)
+      discard tryDoCmdEx(&"git -C {downloadDir.quoteShell} checkout --force v{branch.quoteShell}")
     if not options.ignoreSubmodules:
       downloadDir.updateSubmodules
   of DownloadMethod.hg:
@@ -50,7 +53,10 @@ proc doCheckoutAsync*(meth: DownloadMethod, downloadDir, branch: string, options
     # Force is used here because local changes may appear straight after a clone
     # has happened. Like in the case of git on Windows where it messes up the
     # damn line endings.
-    discard await tryDoCmdExAsync(&"git -C {downloadDir.quoteShell} checkout --force {branch.quoteShell}")
+    let (_, exitCode) = await doCmdExAsync(&"git -C {downloadDir.quoteShell} checkout --force {branch.quoteShell}")
+    if exitCode != 0 and not branch.startsWith("v"):
+      # Try with 'v' prefix as fallback (common convention for version tags)
+      discard await tryDoCmdExAsync(&"git -C {downloadDir.quoteShell} checkout --force v{branch.quoteShell}")
     if not options.ignoreSubmodules:
       await downloadDir.updateSubmodulesAsync()
   of DownloadMethod.hg:
