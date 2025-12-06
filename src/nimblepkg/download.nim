@@ -1046,7 +1046,7 @@ proc getDownloadInfo*(
       # Also ignore the package cache so the old info isn't used
       return getDownloadInfo(pv, options, false, true)
     else:
-      raise nimbleError(pkgNotFoundMsg(pv))
+      raise newNimbleError[PackageNotFoundError](pkgNotFoundMsg(pv))
 
 when isMainModule:
   import unittest
