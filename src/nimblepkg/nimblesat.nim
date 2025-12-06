@@ -93,6 +93,17 @@ func addUnique*[T](s: var seq[T], x: sink T) =
   else:
     s.add x
 
+func addUnique*(s: var seq[PackageMinimalInfo], x: sink PackageMinimalInfo) =
+  ## Specialized addUnique for PackageMinimalInfo that compares only by name and version.
+  ## This ensures that when multiple nimble file revisions exist for the same version tag,
+  ## we keep only the first one (typically from the tagged release).
+  for i in 0..high(s):
+    if s[i].name == x.name and s[i].version == x.version: return
+  when declared(ensureMove):
+    s.add ensureMove(x)
+  else:
+    s.add x
+
 proc isNim*(pv: PkgTuple): bool = pv.name.isNim
 
 proc convertNimAliasToNim*(pv: PkgTuple): PkgTuple = 
@@ -677,16 +688,7 @@ proc getPackageMinimalVersionsFromRepo*(repoDir: string, pkg: PkgTuple, version:
     except CatchableError as e:
       displayWarning(&"Error fetching tags for {name}: {e.msg}", HighPriority)
     
-    try:
-      if options.satResult.pass in {satNimSelection}:
-        # TODO test this code path
-        result.add getPkgInfoFromDirWithDeclarativeParser(repoDir, options, nimBin).getMinimalInfo(options)   
-      else:
-        result.add getPkgInfo(repoDir, options, nimBin).getMinimalInfo(options)   
-    except CatchableError as e:
-      displayWarning(&"Error getting package info for {name}: {e.msg}", HighPriority)
-    
-    # Process tagged versions in the temporary copy
+    # Process tagged versions first (so they take precedence over HEAD)
     var checkedTags = 0
     for (ver, tag) in tags.pairs:    
       if options.maxTaggedVersions > 0 and checkedTags >= options.maxTaggedVersions:
@@ -718,6 +720,16 @@ proc getPackageMinimalVersionsFromRepo*(repoDir: string, pkg: PkgTuple, version:
         displayWarning(
           &"Error reading tag {tag}: for package {name}. This may not be relevant as it could be an old version of the package. \n {e.msg}",
            HighPriority)
+    
+    # Add HEAD version last (tagged releases take precedence if same version exists)
+    try:
+      if options.satResult.pass in {satNimSelection}:
+        result.addUnique getPkgInfoFromDirWithDeclarativeParser(repoDir, options, nimBin).getMinimalInfo(options)
+      else:
+        result.addUnique getPkgInfo(repoDir, options, nimBin).getMinimalInfo(options)
+    except CatchableError as e:
+      displayWarning(&"Error getting package info for {name}: {e.msg}", HighPriority)
+
     if not (not options.isLegacy and options.satResult.pass == satNimSelection and options.satResult.declarativeParseFailed):
       #Dont save tagged versions if we are in vNext and the declarative parser failed as this could cache the incorrect versions.
       #its suboptimal in the sense that next packages after failure wont be saved in the first past but there is a guarantee that there is a second pass in the case 
@@ -756,19 +768,7 @@ proc getPackageMinimalVersionsFromRepoAsync*(repoDir: string, pkg: PkgTuple, ver
     except CatchableError as e:
       displayWarning(&"Error fetching tags for {name}: {e.msg}", HighPriority)
 
-    try:
-      try:
-        if options.satResult.pass in {satNimSelection}:
-          # TODO test this code path
-          result.add getPkgInfoFromDirWithDeclarativeParser(repoDir, options, nimBin).getMinimalInfo(options)
-        else:
-          result.add getPkgInfo(repoDir, options, nimBin).getMinimalInfo(options)
-      except Exception as e:
-        raise newException(CatchableError, e.msg)
-    except CatchableError as e:
-      displayWarning(&"Error getting package info for {name}: {e.msg}", HighPriority)
-
-    # Process tagged versions in the temporary copy
+    # Process tagged versions first (so they take precedence over HEAD)
     var checkedTags = 0
     for (ver, tag) in tags.pairs:
       if options.maxTaggedVersions > 0 and checkedTags >= options.maxTaggedVersions:
@@ -802,6 +802,19 @@ proc getPackageMinimalVersionsFromRepoAsync*(repoDir: string, pkg: PkgTuple, ver
         displayWarning(
           &"Error reading tag {tag}: for package {name}. This may not be relevant as it could be an old version of the package. \n {e.msg}",
            HighPriority)
+
+    # Add HEAD version last (tagged releases take precedence if same version exists)
+    try:
+      try:
+        if options.satResult.pass in {satNimSelection}:
+          result.addUnique getPkgInfoFromDirWithDeclarativeParser(repoDir, options, nimBin).getMinimalInfo(options)
+        else:
+          result.addUnique getPkgInfo(repoDir, options, nimBin).getMinimalInfo(options)
+      except Exception as e:
+        raise newException(CatchableError, e.msg)
+    except CatchableError as e:
+      displayWarning(&"Error getting package info for {name}: {e.msg}", HighPriority)
+
     if not (not options.isLegacy and options.satResult.pass == satNimSelection and options.satResult.declarativeParseFailed):
       #Dont save tagged versions if we are in vNext and the declarative parser failed as this could cache the incorrect versions.
       #its suboptimal in the sense that next packages after failure wont be saved in the first past but there is a guarantee that there is a second pass in the case
