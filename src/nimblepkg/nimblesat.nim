@@ -64,6 +64,7 @@ type
 # var urlToName: Table[string, string] = initTable[string, string]()
 
 const TaggedVersionsFileName* = "tagged_versions.json"
+proc dumpPackageVersionTable*(pkg: PackageInfo, pkgVersionTable: Table[string, PackageVersions], options: Options, nimBin: string)
 
 proc initFromJson*(dst: var PkgTuple, jsonNode: JsonNode, jsonPath: var string) =
   dst = parseRequires(jsonNode.str)
@@ -178,6 +179,11 @@ proc createRequirements(pkg: PackageMinimalInfo): Requirements =
   result.nimVersion = pkg.requires.getNimVersion()
 
 proc cmp(a,b: DependencyVersion): int =
+  ## Compare dependency versions in ascending order (oldest first).
+  ## This ensures the SAT solver prefers newer versions because it tries
+  ## to set variables to FALSE first - by assigning variables to older
+  ## versions first (lower indices), the solver will try to set them false,
+  ## leaving newer versions (higher indices) more likely to be selected.
   if a.version < b.version: return -1
   elif a.version == b.version: return 0
   else: return 1
@@ -230,25 +236,24 @@ proc toFormular*(g: var DepGraph): Form =
     p.versions.sort(cmp)
     
     # Version selection constraint
+    # Assign variables to all versions first (in ascending order, so older = lower VarId)
+    for ver in mitems p.versions:
+      ver.v = VarId(result.idgen)
+      result.mapping[ver.v] = SatVarInfo(pkg: p.pkgName, version: ver.version, index: result.idgen)
+      inc result.idgen
+    
+    # Add constraint with versions in ascending order (oldest first)
+    # SAT solver's freeVariable picks the first variable it sees, then tries FALSE first.
+    # By putting older versions first, the solver tries to set them FALSE, preferring newer versions.
     if p.isRoot:
       b.openOpr(ExactlyOneOfForm)
-      for ver in mitems p.versions:
-        ver.v = VarId(result.idgen)
-        result.mapping[ver.v] = SatVarInfo(pkg: p.pkgName, version: ver.version, index: result.idgen)
-        b.add(ver.v)
-        inc result.idgen
+      for i in countup(0, p.versions.high):
+        b.add(p.versions[i].v)
       b.closeOpr()
     else:
-      # For non-root packages, assign variables first
-      for ver in mitems p.versions:
-        ver.v = VarId(result.idgen)
-        result.mapping[ver.v] = SatVarInfo(pkg: p.pkgName, version: ver.version, index: result.idgen)
-        inc result.idgen
-      
-      # Then add ZeroOrOneOf constraint
       b.openOpr(ZeroOrOneOfForm)
-      for ver in p.versions:
-        b.add(ver.v)
+      for i in countup(0, p.versions.high):
+        b.add(p.versions[i].v)
       b.closeOpr()
 
   # Second pass: Encode dependency implications
@@ -280,20 +285,26 @@ proc toFormular*(g: var DepGraph): Form =
       # Add implications for each dependency
       for dep, q in items g.reqs[ver.req].deps:
         let depIdx = findDependencyForDep(g, dep)
-        if depIdx < 0: continue
+        if depIdx < 0:
+          continue
         let depNode = g.nodes[depIdx]
-        
+
+        # Collect compatible versions (node is sorted oldest first)
         var compatibleVersions: seq[VarId] = @[]
         for depVer in depNode.versions:
           if depVer.version.withinRange(q):
             compatibleVersions.add(depVer.v)
-        
+
+        if compatibleVersions.len == 0:
+          continue
+
         # Add implication: if this version is selected, one of its compatible deps must be selected
+        # Add oldest versions first in the OR clause so solver tries to set them FALSE
         b.openOpr(OrForm)
         b.addNegated(ver.v)  # not A
-        b.openOpr(OrForm)    # or (B1 or B2 or ...)
-        for compatVer in compatibleVersions:
-          b.add(compatVer)
+        b.openOpr(OrForm)    # or (B_oldest or B_... or B_newest)
+        for i in countup(0, compatibleVersions.high):
+          b.add(compatibleVersions[i])
         b.closeOpr()
         b.closeOpr()
   
@@ -678,12 +689,17 @@ proc getPackageMinimalVersionsFromRepo*(repoDir: string, pkg: PkgTuple, version:
     return taggedVersions.get.versions
 
   let tempDir = repoDir & "_versions"
+  # During version discovery, we only need to read .nimble files, not compile code
+  # So we can safely ignore submodules to avoid issues with repos that have
+  # submodules that fail to clone (e.g., waku's zerokit submodule)
+  var versionDiscoveryOptions = options
+  versionDiscoveryOptions.ignoreSubmodules = true
   try:
     removeDir(tempDir) 
     copyDir(repoDir, tempDir)
     var tags = initOrderedTable[Version, string]()
     try:
-      gitFetchTags(tempDir, downloadMethod, options)    
+      gitFetchTags(tempDir, downloadMethod, versionDiscoveryOptions)    
       tags = getTagsList(tempDir, downloadMethod).getVersionList()
     except CatchableError as e:
       displayWarning(&"Error fetching tags for {name}: {e.msg}", HighPriority)
@@ -702,7 +718,7 @@ proc getPackageMinimalVersionsFromRepo*(repoDir: string, pkg: PkgTuple, version:
           displayInfo(&"Ignoring {name}:{tagVersion} because out of range {pkg[1]}", LowPriority)
           continue
 
-        doCheckout(downloadMethod, tempDir, tag, options)
+        doCheckout(downloadMethod, tempDir, tag, versionDiscoveryOptions)
         let nimbleFile = findNimbleFile(tempDir, true, options, warn = false)
         if options.satResult.pass in {satNimSelection}:
           result.addUnique getPkgInfoFromDirWithDeclarativeParser(tempDir, options, nimBin).getMinimalInfo(options)  
@@ -758,12 +774,17 @@ proc getPackageMinimalVersionsFromRepoAsync*(repoDir: string, pkg: PkgTuple, ver
     discard # Continue with fetching from repo
 
   let tempDir = repoDir & "_versions"
+  # During version discovery, we only need to read .nimble files, not compile code
+  # So we can safely ignore submodules to avoid issues with repos that have
+  # submodules that fail to clone (e.g., waku's zerokit submodule)
+  var versionDiscoveryOptions = options
+  versionDiscoveryOptions.ignoreSubmodules = true
   try:
     removeDir(tempDir)
     copyDir(repoDir, tempDir)
     var tags = initOrderedTable[Version, string]()
     try:
-      await gitFetchTagsAsync(tempDir, downloadMethod, options)
+      await gitFetchTagsAsync(tempDir, downloadMethod, versionDiscoveryOptions)
       tags = (await getTagsListAsync(tempDir, downloadMethod)).getVersionList()
     except CatchableError as e:
       displayWarning(&"Error fetching tags for {name}: {e.msg}", HighPriority)
@@ -778,7 +799,7 @@ proc getPackageMinimalVersionsFromRepoAsync*(repoDir: string, pkg: PkgTuple, ver
       try:
         let tagVersion = newVersion($ver)
 
-        await doCheckoutAsync(downloadMethod, tempDir, tag, options)
+        await doCheckoutAsync(downloadMethod, tempDir, tag, versionDiscoveryOptions)
         let nimbleFile = findNimbleFile(tempDir, true, options, warn = false)
         try:
           if options.satResult.pass in {satNimSelection}:
@@ -960,14 +981,18 @@ proc getPackageMinimalVersionsFromRepoAsyncFast*(
 proc downloadMinimalPackage*(pv: PkgTuple, options: Options, nimBin: string): seq[PackageMinimalInfo] =
   if pv.name == "": return newSeq[PackageMinimalInfo]()
   if pv.isNim and not options.disableNimBinaries: return getAllNimReleases(options)
+  # During version discovery, we only need to read .nimble files, not compile code
+  # So we ignore submodules to speed up cloning and avoid failures from broken submodules
+  var versionDiscoveryOptions = options
+  versionDiscoveryOptions.ignoreSubmodules = true
   if pv.name.isFileURL:
-    result = @[getPackageFromFileUrl(pv.name, options, nimBin).getMinimalInfo(options)]
+    result = @[getPackageFromFileUrl(pv.name, versionDiscoveryOptions, nimBin).getMinimalInfo(versionDiscoveryOptions)]
     return
   if pv.ver.kind in [verSpecial, verEq]: #if special or equal, we dont retrieve more versions as we only need one.
-    result = @[downloadPkInfoForPv(pv, options, false, nimBin).getMinimalInfo(options)]
+    result = @[downloadPkInfoForPv(pv, versionDiscoveryOptions, false, nimBin).getMinimalInfo(versionDiscoveryOptions)]
   else:
-    let (downloadRes, downloadMeth) = downloadPkgFromUrl(pv, options, false, nimBin)
-    result = getPackageMinimalVersionsFromRepo(downloadRes.dir, pv, downloadRes.version, downloadMeth.get, options, nimBin)
+    let (downloadRes, downloadMeth) = downloadPkgFromUrl(pv, versionDiscoveryOptions, false, nimBin)
+    result = getPackageMinimalVersionsFromRepo(downloadRes.dir, pv, downloadRes.version, downloadMeth.get, versionDiscoveryOptions, nimBin)
   #Make sure the url is set for the package
   if pv.name.isUrl:
     for r in result.mitems:
@@ -1018,23 +1043,28 @@ proc downloadMinimalPackageAsyncImpl(pv: PkgTuple, options: Options, nimBin: str
   except Exception as e:
     raise newException(CatchableError, e.msg)
 
+  # During version discovery, we only need to read .nimble files, not compile code
+  # So we ignore submodules to speed up cloning and avoid failures from broken submodules
+  var versionDiscoveryOptions = options
+  versionDiscoveryOptions.ignoreSubmodules = true
+
   if pv.name.isFileURL:
     try:
-      result = @[getPackageFromFileUrl(pv.name, options, nimBin).getMinimalInfo(options)]
+      result = @[getPackageFromFileUrl(pv.name, versionDiscoveryOptions, nimBin).getMinimalInfo(versionDiscoveryOptions)]
       return
     except Exception as e:
       raise newException(CatchableError, e.msg)
 
   if pv.ver.kind in [verSpecial, verEq]: #if special or equal, we dont retrieve more versions as we only need one.
-    let pkgInfo = await downloadPkInfoForPvAsync(pv, options, false, nimBin)
+    let pkgInfo = await downloadPkInfoForPvAsync(pv, versionDiscoveryOptions, false, nimBin)
     try:
-      result = @[pkgInfo.getMinimalInfo(options)]
+      result = @[pkgInfo.getMinimalInfo(versionDiscoveryOptions)]
     except Exception as e:
       raise newException(CatchableError, e.msg)
   else:
     try:
-      let (downloadRes, downloadMeth) = await downloadPkgFromUrlAsync(pv, options, false, nimBin)
-      result = await getPackageMinimalVersionsFromRepoAsyncFast(downloadRes.dir, pv, downloadMeth.get, options, nimBin)
+      let (downloadRes, downloadMeth) = await downloadPkgFromUrlAsync(pv, versionDiscoveryOptions, false, nimBin)
+      result = await getPackageMinimalVersionsFromRepoAsyncFast(downloadRes.dir, pv, downloadMeth.get, versionDiscoveryOptions, nimBin)
     except Exception as e:
       raise newException(CatchableError, e.msg)
 
@@ -1101,20 +1131,37 @@ proc getInstalledMinimalPackages*(options: Options): seq[PackageMinimalInfo] =
   getInstalledPkgsMin(options.getPkgsDir(), options).mapIt(it.getMinimalInfo(options))
 
 proc getMinimalFromPreferred(pv: PkgTuple,  getMinimalPackage: GetPackageMinimal, preferredPackages: seq[PackageMinimalInfo], options: Options, nimBin: string): seq[PackageMinimalInfo] =
+  # Check if we have a preferred package first
   for pp in preferredPackages:
     if (pp.name == pv.name or pp.url == pv.name) and pp.version.withinRange(pv.ver):
-      return @[pp]
-  getMinimalPackage(pv, options, nimBin)
+      result.add pp
+  
+  # Try to download all versions to give the SAT solver full choice
+  try:
+    let downloaded = getMinimalPackage(pv, options, nimBin)
+    for pkg in downloaded:
+      result.addUnique pkg
+  except CatchableError:
+    # If download fails but we have preferred packages, use those
+    if result.len == 0:
+      raise
 
 proc getMinimalFromPreferredAsync*(pv: PkgTuple, getMinimalPackage: GetPackageMinimalAsync, preferredPackages: seq[PackageMinimalInfo], options: Options, nimBin: string): Future[seq[PackageMinimalInfo]] {.async.} =
   ## Async version of getMinimalFromPreferred that uses async package fetching.
+  # Check if we have a preferred package first
   for pp in preferredPackages:
     if (pp.name == pv.name or pp.url == pv.name) and pp.version.withinRange(pv.ver):
-      return @[pp]
+      result.add pp
+  
+  # Try to download all versions to give the SAT solver full choice
   try:
-    return await getMinimalPackage(pv, options, nimBin)
+    let downloaded = await getMinimalPackage(pv, options, nimBin)
+    for pkg in downloaded:
+      result.addUnique pkg
   except Exception as e:
-    raise newException(CatchableError, e.msg)
+    # If download fails but we have preferred packages, use those
+    if result.len == 0:
+      raise newException(CatchableError, e.msg)
 
 proc hasSpecialVersion(versions: Table[string, PackageVersions], pkgName: string): bool =
   if pkgName in versions:
@@ -1429,7 +1476,7 @@ proc getUrlFromPkgName*(pkgName: string, pkgVersionTable: Table[string, PackageV
       if pkgVersion.name.toLower == pkgName.toLower:
         return pkgVersion.url
   return ""
-  
+
 proc normalizeRequirements*(pkgVersionTable: var Table[string, PackageVersions], options: Options) {.instrument.} =
   for pkgName, pkgVersions in pkgVersionTable.mpairs:
     for pkgVersion in pkgVersions.versions.mitems:
@@ -1471,11 +1518,12 @@ proc solvePackages*(rootPkg: PackageInfo, pkgList: seq[PackageInfo], pkgsToInsta
     pkgVersionTable = waitFor collectAllVersionsAsync(root, options, downloadMinimalPackageAsync, pkgList.mapIt(it.getMinimalInfo(options)), nimBin)
     pkgVersionTable[root.name] = PackageVersions(pkgName: root.name, versions: @[root])
 
-  # if not options.isLegacy:
-  pkgVersionTable.normalizeRequirements(options)  
+  # dumpPackageVersionTable(rootPkg, pkgVersionTable, options, nimBin)
+
+  pkgVersionTable.normalizeRequirements(options)
+
   options.satResult.pkgVersionTable = pkgVersionTable
   solvedPkgs = pkgVersionTable.getSolvedPackages(output, options).topologicalSort()
-  # echo "DEBUG: SolvedPkgs before post processing: ", solvedPkgs.mapIt(it.pkgName & " " & $it.version).join(", ")
   solvedPkgs.postProcessSolvedPkgs(options, nimBin)
   
   let systemNimCompatible = solvedPkgs.isSystemNimCompatible(options)
@@ -1670,9 +1718,7 @@ proc dumpSolvedPackages*(pkgInfo: PackageInfo, pkgList: seq[PackageInfo], option
       
       echo " ".repeat(maxPkgNameDisplayWidth + maxVersionDisplayWidth + 3), currentLine
 
-proc dumpPackageVersionTable*(pkg: PackageInfo, pkgList: seq[PackageInfo], options: Options, nimBin: string) =
-  let pkgVersionTable = getPkgVersionTable(pkg, pkgList, options, nimBin)
-
+proc dumpPackageVersionTable*(pkg: PackageInfo, pkgVersionTable: Table[string, PackageVersions], options: Options, nimBin: string) =
   # Display header
   echo "PACKAGE".alignLeft(maxPkgNameDisplayWidth), "VERSION".alignLeft(maxVersionDisplayWidth), "REQUIREMENTS"
   echo "-".repeat(maxPkgNameDisplayWidth + maxVersionDisplayWidth + 4)
@@ -1740,3 +1786,7 @@ proc dumpPackageVersionTable*(pkg: PackageInfo, pkgList: seq[PackageInfo], optio
           echo " ".repeat(maxPkgNameDisplayWidth + maxVersionDisplayWidth + 3), currentLine
       
       isFirstVersion = false
+
+proc dumpPackageVersionTable*(pkg: PackageInfo, pkgList: seq[PackageInfo], options: Options, nimBin: string) =
+  let pkgVersionTable = getPkgVersionTable(pkg, pkgList, options, nimBin)
+  dumpPackageVersionTable(pkg, pkgVersionTable, options, nimBin)
