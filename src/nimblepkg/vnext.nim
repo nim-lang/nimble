@@ -1077,6 +1077,11 @@ proc installPkgs*(satResult: var SATResult, options: var Options) {.instrument.}
           discard downloadPkgResult
         # dlInfo.downloadDir = downloadPkgResult.dir 
       assert dirExists(downloadDir)
+      # Ensure submodules are populated if needed.
+      # Version discovery caches packages without submodules for speed and potential errors in old pkgs,
+      # so we need to fetch them here during actual installation.
+      if not options.ignoreSubmodules and fileExists(downloadDir / ".gitmodules"):
+        updateSubmodules(downloadDir)
       if pv.name.isFileURL:
         # echo "*** GETTING PACKAGE FROM FILE URL: ", dlInfo.url
         installedPkgInfo = getPackageFromFileUrl(dlInfo.url, options, nimBin = nimBin).toRequiresInfo(options, nimBin = nimBin)

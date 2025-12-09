@@ -15,7 +15,10 @@ type
     version: Version
     vcsRevision: Sha1Hash
 
-proc updateSubmodules(dir: string) =
+proc updateSubmodules*(dir: string) =
+  ## Updates git submodules in the given directory.
+  ## Called during installation to ensure submodules are populated
+  ## even if the package was cached without them during version discovery.
   discard tryDoCmdEx(
     &"git -C {dir.quoteShell} submodule update --init --recursive --depth 1")
 
