@@ -1,0 +1,3056 @@
+{
+  "serialization": {
+    "pkgName": "serialization",
+    "versions": [
+      {
+        "name": "serialization",
+        "version": {
+          "version": "0.5.2",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "faststreams",
+          "unittest2",
+          "stew"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/status-im/nim-serialization"
+      },
+      {
+        "name": "serialization",
+        "version": {
+          "version": "0.5.1",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "faststreams",
+          "unittest2",
+          "stew"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/status-im/nim-serialization"
+      },
+      {
+        "name": "serialization",
+        "version": {
+          "version": "0.5.0",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "faststreams",
+          "unittest2",
+          "stew"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/status-im/nim-serialization"
+      },
+      {
+        "name": "serialization",
+        "version": {
+          "version": "0.4.9",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "faststreams",
+          "unittest2",
+          "stew"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/status-im/nim-serialization"
+      },
+      {
+        "name": "serialization",
+        "version": {
+          "version": "0.4.8",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "faststreams",
+          "unittest2",
+          "stew"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/status-im/nim-serialization"
+      },
+      {
+        "name": "serialization",
+        "version": {
+          "version": "0.4.6",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "faststreams",
+          "unittest2",
+          "stew"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/status-im/nim-serialization"
+      },
+      {
+        "name": "serialization",
+        "version": {
+          "version": "0.4.4",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "faststreams",
+          "unittest2",
+          "stew"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/status-im/nim-serialization"
+      },
+      {
+        "name": "serialization",
+        "version": {
+          "version": "0.4.0",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "faststreams",
+          "unittest2",
+          "stew"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/status-im/nim-serialization"
+      },
+      {
+        "name": "serialization",
+        "version": {
+          "version": "0.3.0",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "faststreams",
+          "unittest2",
+          "stew"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/status-im/nim-serialization"
+      },
+      {
+        "name": "serialization",
+        "version": {
+          "version": "0.2.7",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "faststreams",
+          "unittest2",
+          "stew"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/status-im/nim-serialization"
+      },
+      {
+        "name": "serialization",
+        "version": {
+          "version": "0.2.6",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "faststreams",
+          "unittest2",
+          "stew"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/status-im/nim-serialization"
+      },
+      {
+        "name": "serialization",
+        "version": {
+          "version": "0.2.4",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "faststreams",
+          "unittest2",
+          "stew"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/status-im/nim-serialization"
+      }
+    ]
+  },
+  "snappy": {
+    "pkgName": "snappy",
+    "versions": [
+      {
+        "name": "snappy",
+        "version": {
+          "version": "0.1.0",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "faststreams",
+          "unittest2",
+          "results",
+          "stew"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/status-im/nim-snappy"
+      }
+    ]
+  },
+  "minilru": {
+    "pkgName": "minilru",
+    "versions": [
+      {
+        "name": "minilru",
+        "version": {
+          "version": "0.1.0",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "results",
+          "unittest2"
+        ],
+        "isRoot": false,
+        "url": ""
+      }
+    ]
+  },
+  "chronos": {
+    "pkgName": "chronos",
+    "versions": [
+      {
+        "name": "chronos",
+        "version": {
+          "version": "4.0.4",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "results",
+          "stew",
+          "bearssl >= 0.2.5",
+          "httputils",
+          "unittest2"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/status-im/nim-chronos"
+      },
+      {
+        "name": "chronos",
+        "version": {
+          "version": "4.0.3",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "results",
+          "stew",
+          "bearssl >= 0.2.5",
+          "httputils",
+          "unittest2"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/status-im/nim-chronos"
+      },
+      {
+        "name": "chronos",
+        "version": {
+          "version": "4.0.2",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "results",
+          "stew",
+          "bearssl",
+          "httputils",
+          "unittest2"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/status-im/nim-chronos"
+      },
+      {
+        "name": "chronos",
+        "version": {
+          "version": "4.0.1",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "results",
+          "stew",
+          "bearssl",
+          "httputils",
+          "unittest2"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/status-im/nim-chronos"
+      },
+      {
+        "name": "chronos",
+        "version": {
+          "version": "4.0.0",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "results",
+          "stew",
+          "bearssl",
+          "httputils",
+          "unittest2"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/status-im/nim-chronos"
+      },
+      {
+        "name": "chronos",
+        "version": {
+          "version": "3.2.0",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "stew",
+          "bearssl",
+          "httputils",
+          "unittest2"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/status-im/nim-chronos"
+      }
+    ]
+  },
+  "secp256k1": {
+    "pkgName": "secp256k1",
+    "versions": [
+      {
+        "name": "secp256k1",
+        "version": {
+          "version": "0.6.0.3.2",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "stew",
+          "results",
+          "nimcrypto"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/status-im/nim-secp256k1"
+      }
+    ]
+  },
+  "json_serialization": {
+    "pkgName": "json_serialization",
+    "versions": [
+      {
+        "name": "json_serialization",
+        "version": {
+          "version": "0.4.4",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "faststreams >= 0.5.0",
+          "serialization",
+          "stew >= 0.2.0",
+          "results"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/status-im/nim-json-serialization"
+      },
+      {
+        "name": "json_serialization",
+        "version": {
+          "version": "0.4.2",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "serialization",
+          "stew >= 0.2.0",
+          "results"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/status-im/nim-json-serialization"
+      },
+      {
+        "name": "json_serialization",
+        "version": {
+          "version": "0.4.0",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "serialization",
+          "stew >= 0.2.0",
+          "results"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/status-im/nim-json-serialization"
+      },
+      {
+        "name": "json_serialization",
+        "version": {
+          "version": "0.3.0",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "serialization",
+          "stew >= 0.2.0",
+          "results"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/status-im/nim-json-serialization"
+      },
+      {
+        "name": "json_serialization",
+        "version": {
+          "version": "0.2.9",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "serialization",
+          "stew",
+          "results"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/status-im/nim-json-serialization"
+      }
+    ]
+  },
+  "https://github.com/vacp2p/bearssl_pkey_decoder": {
+    "pkgName": "https://github.com/vacp2p/bearssl_pkey_decoder",
+    "versions": [
+      {
+        "name": "bearssl_pkey_decoder",
+        "version": {
+          "version": "#21dd3710df9345ed2ad8bf8f882761e07863b8e0",
+          "speSemanticVersion": "0.1.0"
+        },
+        "requires": [
+          "bearssl"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/vacp2p/bearssl_pkey_decoder"
+      }
+    ]
+  },
+  "https://github.com/status-im/nim-unittest2.git": {
+    "pkgName": "https://github.com/status-im/nim-unittest2.git",
+    "versions": [
+      {
+        "name": "unittest2",
+        "version": {
+          "version": "#head",
+          "speSemanticVersion": "0.2.5"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": "https://github.com/status-im/nim-unittest2.git"
+      }
+    ]
+  },
+  "stint": {
+    "pkgName": "stint",
+    "versions": [
+      {
+        "name": "stint",
+        "version": {
+          "version": "0.8.2",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "stew >= 0.2.0",
+          "unittest2 >= 0.2.3"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/status-im/nim-stint"
+      },
+      {
+        "name": "stint",
+        "version": {
+          "version": "0.8.1",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "stew >= 0.2.0",
+          "unittest2 >= 0.2.3"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/status-im/nim-stint"
+      },
+      {
+        "name": "stint",
+        "version": {
+          "version": "0.8.0",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "stew >= 0.2.0",
+          "unittest2 >= 0.2.3"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/status-im/nim-stint"
+      }
+    ]
+  },
+  "eth": {
+    "pkgName": "eth",
+    "versions": [
+      {
+        "name": "eth",
+        "version": {
+          "version": "0.9.0",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "nimcrypto",
+          "stint >= 0.8.0",
+          "secp256k1",
+          "chronos",
+          "chronicles",
+          "stew",
+          "nat_traversal",
+          "metrics",
+          "sqlite3_abi",
+          "confutils",
+          "testutils",
+          "unittest2",
+          "results",
+          "minilru",
+          "snappy"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/status-im/nim-eth"
+      },
+      {
+        "name": "eth",
+        "version": {
+          "version": "0.8.0",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "nimcrypto",
+          "stint >= 0.8.0",
+          "secp256k1",
+          "chronos",
+          "chronicles",
+          "stew",
+          "nat_traversal",
+          "metrics",
+          "sqlite3_abi",
+          "confutils",
+          "testutils",
+          "unittest2",
+          "results",
+          "minilru",
+          "snappy"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/status-im/nim-eth"
+      },
+      {
+        "name": "eth",
+        "version": {
+          "version": "0.7.0",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "nimcrypto",
+          "stint >= 0.8.0",
+          "secp256k1",
+          "chronos",
+          "chronicles",
+          "stew",
+          "nat_traversal",
+          "metrics",
+          "sqlite3_abi",
+          "confutils",
+          "testutils",
+          "unittest2",
+          "results",
+          "minilru",
+          "snappy"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/status-im/nim-eth"
+      },
+      {
+        "name": "eth",
+        "version": {
+          "version": "0.6.0",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "nimcrypto",
+          "stint >= 0.8.0",
+          "secp256k1",
+          "chronos",
+          "chronicles",
+          "stew",
+          "nat_traversal",
+          "metrics",
+          "sqlite3_abi",
+          "confutils",
+          "testutils",
+          "unittest2",
+          "results",
+          "minilru",
+          "snappy"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/status-im/nim-eth"
+      },
+      {
+        "name": "eth",
+        "version": {
+          "version": "0.5.0",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "nimcrypto",
+          "stint >= 0.8.0",
+          "secp256k1",
+          "chronos",
+          "chronicles",
+          "stew",
+          "nat_traversal",
+          "metrics",
+          "sqlite3_abi",
+          "confutils",
+          "testutils",
+          "unittest2",
+          "results",
+          "minilru",
+          "snappy"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/status-im/nim-eth"
+      }
+    ]
+  },
+  "metrics": {
+    "pkgName": "metrics",
+    "versions": [
+      {
+        "name": "metrics",
+        "version": {
+          "version": "0.1.2",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "chronos >= 4.0.3",
+          "results",
+          "stew"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/status-im/nim-metrics"
+      }
+    ]
+  },
+  "https://github.com/vacp2p/mix": {
+    "pkgName": "https://github.com/vacp2p/mix",
+    "versions": [
+      {
+        "name": "mix",
+        "version": {
+          "version": "#0.1.0",
+          "speSemanticVersion": "0.1.0"
+        },
+        "requires": [
+          "stew >= 0.3.0",
+          "chronos >= 4.0.3",
+          "libp2p >= 1.12.0",
+          "nimcrypto >= 0.6.0",
+          "serialization >= 0.2.2"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/vacp2p/mix"
+      }
+    ]
+  },
+  "nimcrypto": {
+    "pkgName": "nimcrypto",
+    "versions": [
+      {
+        "name": "nimcrypto",
+        "version": {
+          "version": "0.7.2",
+          "speSemanticVersion": null
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": "https://github.com/cheatfate/nimcrypto"
+      },
+      {
+        "name": "nimcrypto",
+        "version": {
+          "version": "0.7.1",
+          "speSemanticVersion": null
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": "https://github.com/cheatfate/nimcrypto"
+      },
+      {
+        "name": "nimcrypto",
+        "version": {
+          "version": "0.7.0",
+          "speSemanticVersion": null
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": "https://github.com/cheatfate/nimcrypto"
+      },
+      {
+        "name": "nimcrypto",
+        "version": {
+          "version": "0.6.4",
+          "speSemanticVersion": null
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": "https://github.com/cheatfate/nimcrypto"
+      },
+      {
+        "name": "nimcrypto",
+        "version": {
+          "version": "0.6.3",
+          "speSemanticVersion": null
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": "https://github.com/cheatfate/nimcrypto"
+      },
+      {
+        "name": "nimcrypto",
+        "version": {
+          "version": "0.6.2",
+          "speSemanticVersion": null
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": "https://github.com/cheatfate/nimcrypto"
+      },
+      {
+        "name": "nimcrypto",
+        "version": {
+          "version": "0.6.1",
+          "speSemanticVersion": null
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": "https://github.com/cheatfate/nimcrypto"
+      },
+      {
+        "name": "nimcrypto",
+        "version": {
+          "version": "0.6.0",
+          "speSemanticVersion": null
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": "https://github.com/cheatfate/nimcrypto"
+      }
+    ]
+  },
+  "confutils": {
+    "pkgName": "confutils",
+    "versions": [
+      {
+        "name": "confutils",
+        "version": {
+          "version": "0.1.0",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "stew",
+          "serialization"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/status-im/nim-confutils"
+      }
+    ]
+  },
+  "example": {
+    "pkgName": "example",
+    "versions": [
+      {
+        "name": "example",
+        "version": {
+          "version": "0.1.0",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "chronos",
+          "results",
+          "waku"
+        ],
+        "isRoot": true,
+        "url": ""
+      }
+    ]
+  },
+  "dnsdisc": {
+    "pkgName": "dnsdisc",
+    "versions": [
+      {
+        "name": "dnsdisc",
+        "version": {
+          "version": "0.1.0",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "bearssl",
+          "chronicles",
+          "chronos",
+          "eth",
+          "secp256k1",
+          "stew",
+          "testutils",
+          "unittest2",
+          "nimcrypto",
+          "results"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/status-im/nim-dnsdisc"
+      }
+    ]
+  },
+  "jwt": {
+    "pkgName": "jwt",
+    "versions": [
+      {
+        "name": "jwt",
+        "version": {
+          "version": "#18f8378de52b241f321c1f9ea905456e89b95c6f",
+          "speSemanticVersion": "0.2"
+        },
+        "requires": [
+          "bearssl",
+          "https://github.com/vacp2p/bearssl_pkey_decoder#21dd3710df9345ed2ad8bf8f882761e07863b8e0"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/vacp2p/nim-jwt.git"
+      }
+    ]
+  },
+  "dnsclient": {
+    "pkgName": "dnsclient",
+    "versions": [
+      {
+        "name": "dnsclient",
+        "version": {
+          "version": "0.3.4",
+          "speSemanticVersion": null
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "dnsclient",
+        "version": {
+          "version": "0.3.3",
+          "speSemanticVersion": null
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "dnsclient",
+        "version": {
+          "version": "0.3.2",
+          "speSemanticVersion": null
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "dnsclient",
+        "version": {
+          "version": "0.3.1",
+          "speSemanticVersion": null
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "dnsclient",
+        "version": {
+          "version": "0.3.0",
+          "speSemanticVersion": null
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      }
+    ]
+  },
+  "stew": {
+    "pkgName": "stew",
+    "versions": [
+      {
+        "name": "stew",
+        "version": {
+          "version": "0.4.2",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "results",
+          "unittest2"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/status-im/nim-stew"
+      },
+      {
+        "name": "stew",
+        "version": {
+          "version": "0.4.1",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "results",
+          "unittest2"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/status-im/nim-stew"
+      },
+      {
+        "name": "stew",
+        "version": {
+          "version": "0.4.0",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "results",
+          "unittest2"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/status-im/nim-stew"
+      },
+      {
+        "name": "stew",
+        "version": {
+          "version": "0.2.0",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "results",
+          "unittest2"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/status-im/nim-stew"
+      }
+    ]
+  },
+  "sqlite3_abi": {
+    "pkgName": "sqlite3_abi",
+    "versions": [
+      {
+        "name": "sqlite3_abi",
+        "version": {
+          "version": "3.51.1.0",
+          "speSemanticVersion": null
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": "https://github.com/arnetheduck/nim-sqlite3-abi"
+      },
+      {
+        "name": "sqlite3_abi",
+        "version": {
+          "version": "3.51.0.0",
+          "speSemanticVersion": null
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": "https://github.com/arnetheduck/nim-sqlite3-abi"
+      },
+      {
+        "name": "sqlite3_abi",
+        "version": {
+          "version": "3.50.4.0",
+          "speSemanticVersion": null
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": "https://github.com/arnetheduck/nim-sqlite3-abi"
+      },
+      {
+        "name": "sqlite3_abi",
+        "version": {
+          "version": "3.50.3.0",
+          "speSemanticVersion": null
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": "https://github.com/arnetheduck/nim-sqlite3-abi"
+      },
+      {
+        "name": "sqlite3_abi",
+        "version": {
+          "version": "3.50.2.0",
+          "speSemanticVersion": null
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": "https://github.com/arnetheduck/nim-sqlite3-abi"
+      },
+      {
+        "name": "sqlite3_abi",
+        "version": {
+          "version": "3.50.1.0",
+          "speSemanticVersion": null
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": "https://github.com/arnetheduck/nim-sqlite3-abi"
+      },
+      {
+        "name": "sqlite3_abi",
+        "version": {
+          "version": "3.50.0.0",
+          "speSemanticVersion": null
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": "https://github.com/arnetheduck/nim-sqlite3-abi"
+      },
+      {
+        "name": "sqlite3_abi",
+        "version": {
+          "version": "3.49.2.0",
+          "speSemanticVersion": null
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": "https://github.com/arnetheduck/nim-sqlite3-abi"
+      },
+      {
+        "name": "sqlite3_abi",
+        "version": {
+          "version": "3.49.1.0",
+          "speSemanticVersion": null
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": "https://github.com/arnetheduck/nim-sqlite3-abi"
+      },
+      {
+        "name": "sqlite3_abi",
+        "version": {
+          "version": "3.49.0.0",
+          "speSemanticVersion": null
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": "https://github.com/arnetheduck/nim-sqlite3-abi"
+      },
+      {
+        "name": "sqlite3_abi",
+        "version": {
+          "version": "3.48.0.0",
+          "speSemanticVersion": null
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": "https://github.com/arnetheduck/nim-sqlite3-abi"
+      },
+      {
+        "name": "sqlite3_abi",
+        "version": {
+          "version": "3.47.2.0",
+          "speSemanticVersion": null
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": "https://github.com/arnetheduck/nim-sqlite3-abi"
+      },
+      {
+        "name": "sqlite3_abi",
+        "version": {
+          "version": "3.47.1.0",
+          "speSemanticVersion": null
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": "https://github.com/arnetheduck/nim-sqlite3-abi"
+      },
+      {
+        "name": "sqlite3_abi",
+        "version": {
+          "version": "3.47.0.0",
+          "speSemanticVersion": null
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": "https://github.com/arnetheduck/nim-sqlite3-abi"
+      },
+      {
+        "name": "sqlite3_abi",
+        "version": {
+          "version": "3.46.1.0",
+          "speSemanticVersion": null
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": "https://github.com/arnetheduck/nim-sqlite3-abi"
+      },
+      {
+        "name": "sqlite3_abi",
+        "version": {
+          "version": "3.46.0.0",
+          "speSemanticVersion": null
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": "https://github.com/arnetheduck/nim-sqlite3-abi"
+      },
+      {
+        "name": "sqlite3_abi",
+        "version": {
+          "version": "3.45.3.0",
+          "speSemanticVersion": null
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": "https://github.com/arnetheduck/nim-sqlite3-abi"
+      },
+      {
+        "name": "sqlite3_abi",
+        "version": {
+          "version": "3.45.2.0",
+          "speSemanticVersion": null
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": "https://github.com/arnetheduck/nim-sqlite3-abi"
+      },
+      {
+        "name": "sqlite3_abi",
+        "version": {
+          "version": "3.45.1.0",
+          "speSemanticVersion": null
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": "https://github.com/arnetheduck/nim-sqlite3-abi"
+      },
+      {
+        "name": "sqlite3_abi",
+        "version": {
+          "version": "3.45.0.0",
+          "speSemanticVersion": null
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": "https://github.com/arnetheduck/nim-sqlite3-abi"
+      },
+      {
+        "name": "sqlite3_abi",
+        "version": {
+          "version": "3.44.2.0",
+          "speSemanticVersion": null
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": "https://github.com/arnetheduck/nim-sqlite3-abi"
+      },
+      {
+        "name": "sqlite3_abi",
+        "version": {
+          "version": "3.44.1.0",
+          "speSemanticVersion": null
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": "https://github.com/arnetheduck/nim-sqlite3-abi"
+      },
+      {
+        "name": "sqlite3_abi",
+        "version": {
+          "version": "3.44.0.0",
+          "speSemanticVersion": null
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": "https://github.com/arnetheduck/nim-sqlite3-abi"
+      },
+      {
+        "name": "sqlite3_abi",
+        "version": {
+          "version": "3.43.2.0",
+          "speSemanticVersion": null
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": "https://github.com/arnetheduck/nim-sqlite3-abi"
+      },
+      {
+        "name": "sqlite3_abi",
+        "version": {
+          "version": "3.43.1.0",
+          "speSemanticVersion": null
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": "https://github.com/arnetheduck/nim-sqlite3-abi"
+      },
+      {
+        "name": "sqlite3_abi",
+        "version": {
+          "version": "3.43.0.0",
+          "speSemanticVersion": null
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": "https://github.com/arnetheduck/nim-sqlite3-abi"
+      },
+      {
+        "name": "sqlite3_abi",
+        "version": {
+          "version": "3.42.0.0",
+          "speSemanticVersion": null
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": "https://github.com/arnetheduck/nim-sqlite3-abi"
+      },
+      {
+        "name": "sqlite3_abi",
+        "version": {
+          "version": "3.41.2.0",
+          "speSemanticVersion": null
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": "https://github.com/arnetheduck/nim-sqlite3-abi"
+      },
+      {
+        "name": "sqlite3_abi",
+        "version": {
+          "version": "3.40.1.1",
+          "speSemanticVersion": null
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": "https://github.com/arnetheduck/nim-sqlite3-abi"
+      },
+      {
+        "name": "sqlite3_abi",
+        "version": {
+          "version": "3.40.1.0",
+          "speSemanticVersion": null
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": "https://github.com/arnetheduck/nim-sqlite3-abi"
+      }
+    ]
+  },
+  "regex": {
+    "pkgName": "regex",
+    "versions": [
+      {
+        "name": "regex",
+        "version": {
+          "version": "0.26.3",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "unicodedb >= 0.13.2"
+        ],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "regex",
+        "version": {
+          "version": "0.26.2",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "unicodedb >= 0.13.2"
+        ],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "regex",
+        "version": {
+          "version": "0.26.1",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "unicodedb >= 0.13.2"
+        ],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "regex",
+        "version": {
+          "version": "0.26.0",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "unicodedb >= 0.7.2"
+        ],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "regex",
+        "version": {
+          "version": "0.25.0",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "unicodedb >= 0.7.2"
+        ],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "regex",
+        "version": {
+          "version": "0.24.1",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "unicodedb >= 0.7.2"
+        ],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "regex",
+        "version": {
+          "version": "0.24.0",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "unicodedb >= 0.7.2"
+        ],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "regex",
+        "version": {
+          "version": "0.23.0",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "unicodedb >= 0.7.2"
+        ],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "regex",
+        "version": {
+          "version": "0.22.0",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "unicodedb >= 0.7.2"
+        ],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "regex",
+        "version": {
+          "version": "0.21.0",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "unicodedb >= 0.7.2"
+        ],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "regex",
+        "version": {
+          "version": "0.20.2",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "unicodedb >= 0.7.2"
+        ],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "regex",
+        "version": {
+          "version": "0.20.1",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "unicodedb >= 0.7.2"
+        ],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "regex",
+        "version": {
+          "version": "0.20.0",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "unicodedb >= 0.7.2"
+        ],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "regex",
+        "version": {
+          "version": "0.19.0",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "unicodedb >= 0.7.2"
+        ],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "regex",
+        "version": {
+          "version": "0.18.0",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "unicodedb >= 0.7.2"
+        ],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "regex",
+        "version": {
+          "version": "0.17.1",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "unicodedb >= 0.7.2",
+          "unicodeplus >= 0.5.0"
+        ],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "regex",
+        "version": {
+          "version": "0.17.0",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "unicodedb >= 0.7.2",
+          "unicodeplus >= 0.5.0"
+        ],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "regex",
+        "version": {
+          "version": "0.16.2",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "unicodedb >= 0.7.2",
+          "unicodeplus >= 0.5.0"
+        ],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "regex",
+        "version": {
+          "version": "0.16.1",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "unicodedb >= 0.7.2",
+          "unicodeplus >= 0.5.0"
+        ],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "regex",
+        "version": {
+          "version": "0.16.0",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "unicodedb >= 0.7.2",
+          "unicodeplus >= 0.5.0"
+        ],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "regex",
+        "version": {
+          "version": "0.15.0",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "unicodedb >= 0.7.2",
+          "unicodeplus >= 0.5.0"
+        ],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "regex",
+        "version": {
+          "version": "0.14.1",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "unicodedb >= 0.7.2",
+          "unicodeplus >= 0.5.0"
+        ],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "regex",
+        "version": {
+          "version": "0.14.0",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "unicodedb >= 0.7.2",
+          "unicodeplus >= 0.5.0"
+        ],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "regex",
+        "version": {
+          "version": "0.13.1",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "unicodedb >= 0.7.2",
+          "unicodeplus >= 0.5.0"
+        ],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "regex",
+        "version": {
+          "version": "0.13.0",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "unicodedb >= 0.7.2",
+          "unicodeplus >= 0.5.0"
+        ],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "regex",
+        "version": {
+          "version": "0.12.0",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "unicodedb >= 0.7.2",
+          "unicodeplus >= 0.5.0"
+        ],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "regex",
+        "version": {
+          "version": "0.11.2",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "unicodedb >= 0.7.0",
+          "unicodeplus >= 0.5.0"
+        ],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "regex",
+        "version": {
+          "version": "0.11.1",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "unicodedb >= 0.7.0",
+          "unicodeplus >= 0.5.0"
+        ],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "regex",
+        "version": {
+          "version": "0.11.0",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "unicodedb >= 0.7.0",
+          "unicodeplus >= 0.5.0"
+        ],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "regex",
+        "version": {
+          "version": "0.10.1",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "unicodedb >= 0.6.0 & < 0.7",
+          "unicodeplus >= 0.4.0 & < 0.5"
+        ],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "regex",
+        "version": {
+          "version": "0.10.0",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "unicodedb >= 0.6.0 & < 0.7",
+          "unicodeplus >= 0.4.0 & < 0.5"
+        ],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "regex",
+        "version": {
+          "version": "0.8.1",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "unicodedb >= 0.6.0 & < 0.7",
+          "unicodeplus >= 0.4.0 & < 0.5"
+        ],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "regex",
+        "version": {
+          "version": "0.8.0",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "unicodedb >= 0.6.0 & < 0.7",
+          "unicodeplus >= 0.4.0 & < 0.5"
+        ],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "regex",
+        "version": {
+          "version": "0.7.4",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "unicodedb >= 0.5.1 & < 0.6",
+          "unicodeplus >= 0.3.0 & < 0.4"
+        ],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "regex",
+        "version": {
+          "version": "0.7.3",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "unicodedb >= 0.5.1 & < 0.6",
+          "unicodeplus >= 0.3.0 & < 0.4"
+        ],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "regex",
+        "version": {
+          "version": "0.7.2",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "unicodedb >= 0.5.1 & < 0.6",
+          "unicodeplus >= 0.3.0 & < 0.4"
+        ],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "regex",
+        "version": {
+          "version": "0.7.1",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "unicodedb >= 0.5.1 & < 0.6",
+          "unicodeplus >= 0.3.0 & < 0.4"
+        ],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "regex",
+        "version": {
+          "version": "0.7.0",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "unicodedb >= 0.4.0 & < 0.5",
+          "unicodeplus >= 0.2.0 & < 0.3"
+        ],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "regex",
+        "version": {
+          "version": "0.6.3",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "unicodedb >= 0.2.3 & < 0.3",
+          "unicodeplus >= 0.1 & < 0.2"
+        ],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "regex",
+        "version": {
+          "version": "0.6.2",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "unicodedb >= 0.2.3 & < 0.3",
+          "unicodeplus >= 0.1 & < 0.2"
+        ],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "regex",
+        "version": {
+          "version": "0.6.1",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "unicodedb >= 0.2.3 & < 0.3",
+          "unicodeplus >= 0.1 & < 0.2"
+        ],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "regex",
+        "version": {
+          "version": "0.1.0",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "unicodedb >= 0.2.3 & < 0.3",
+          "unicodeplus >= 0.1 & < 0.2"
+        ],
+        "isRoot": false,
+        "url": ""
+      }
+    ]
+  },
+  "web3": {
+    "pkgName": "web3",
+    "versions": [
+      {
+        "name": "web3",
+        "version": {
+          "version": "0.8.0",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "chronicles",
+          "chronos",
+          "bearssl",
+          "eth >= 0.9.0",
+          "faststreams",
+          "json_rpc >= 0.5.2",
+          "serialization >= 0.4.4",
+          "json_serialization >= 0.4.2",
+          "nimcrypto",
+          "stew",
+          "stint",
+          "results"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/status-im/nim-web3"
+      },
+      {
+        "name": "web3",
+        "version": {
+          "version": "0.7.0",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "chronicles",
+          "chronos",
+          "bearssl",
+          "eth >= 0.8.0",
+          "faststreams",
+          "json_rpc",
+          "json_serialization",
+          "nimcrypto",
+          "stew",
+          "stint",
+          "results"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/status-im/nim-web3"
+      },
+      {
+        "name": "web3",
+        "version": {
+          "version": "0.6.0",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "chronicles",
+          "chronos",
+          "bearssl",
+          "eth >= 0.7.0",
+          "faststreams",
+          "json_rpc",
+          "json_serialization",
+          "nimcrypto",
+          "stew",
+          "stint",
+          "results"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/status-im/nim-web3"
+      },
+      {
+        "name": "web3",
+        "version": {
+          "version": "0.5.0",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "chronicles",
+          "chronos",
+          "bearssl",
+          "eth",
+          "faststreams",
+          "json_rpc",
+          "json_serialization",
+          "nimcrypto",
+          "stew",
+          "stint",
+          "results"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/status-im/nim-web3"
+      }
+    ]
+  },
+  "ngtcp2": {
+    "pkgName": "ngtcp2",
+    "versions": [
+      {
+        "name": "ngtcp2",
+        "version": {
+          "version": "0.39.0",
+          "speSemanticVersion": null
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": "https://github.com/status-im/nim-ngtcp2"
+      }
+    ]
+  },
+  "unicodeplus": {
+    "pkgName": "unicodeplus",
+    "versions": [
+      {
+        "name": "unicodeplus",
+        "version": {
+          "version": "0.14.2",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "unicodedb >= 0.8",
+          "segmentation >= 0.1",
+          "graphemes >= 0.12"
+        ],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "unicodeplus",
+        "version": {
+          "version": "0.14.1",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "unicodedb >= 0.8",
+          "segmentation >= 0.1",
+          "graphemes >= 0.12"
+        ],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "unicodeplus",
+        "version": {
+          "version": "0.14.0",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "unicodedb >= 0.8",
+          "segmentation >= 0.1",
+          "graphemes >= 0.12"
+        ],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "unicodeplus",
+        "version": {
+          "version": "0.13.0",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "unicodedb >= 0.8",
+          "segmentation >= 0.1"
+        ],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "unicodeplus",
+        "version": {
+          "version": "0.12.0",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "unicodedb >= 0.8",
+          "segmentation >= 0.1"
+        ],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "unicodeplus",
+        "version": {
+          "version": "0.11.1",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "unicodedb >= 0.8",
+          "segmentation >= 0.1"
+        ],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "unicodeplus",
+        "version": {
+          "version": "0.11.0",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "unicodedb >= 0.8",
+          "segmentation >= 0.1"
+        ],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "unicodeplus",
+        "version": {
+          "version": "0.10.0",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "unicodedb >= 0.8",
+          "segmentation >= 0.1"
+        ],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "unicodeplus",
+        "version": {
+          "version": "0.9.1",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "unicodedb >= 0.8",
+          "segmentation >= 0.1"
+        ],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "unicodeplus",
+        "version": {
+          "version": "0.9.0",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "unicodedb >= 0.8",
+          "segmentation >= 0.1"
+        ],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "unicodeplus",
+        "version": {
+          "version": "0.8.0",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "unicodedb >= 0.8",
+          "segmentation >= 0.1"
+        ],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "unicodeplus",
+        "version": {
+          "version": "0.6.0",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "unicodedb >= 0.8",
+          "segmentation >= 0.1"
+        ],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "unicodeplus",
+        "version": {
+          "version": "0.5.1",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "unicodedb >= 0.7"
+        ],
+        "isRoot": false,
+        "url": ""
+      },
+      {
+        "name": "unicodeplus",
+        "version": {
+          "version": "0.5.0",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "unicodedb >= 0.7"
+        ],
+        "isRoot": false,
+        "url": ""
+      }
+    ]
+  },
+  "db_connector": {
+    "pkgName": "db_connector",
+    "versions": [
+      {
+        "name": "db_connector",
+        "version": {
+          "version": "0.1.0",
+          "speSemanticVersion": null
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      }
+    ]
+  },
+  "nat_traversal": {
+    "pkgName": "nat_traversal",
+    "versions": [
+      {
+        "name": "nat_traversal",
+        "version": {
+          "version": "0.0.1",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "results"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/status-im/nim-nat-traversal"
+      }
+    ]
+  },
+  "presto": {
+    "pkgName": "presto",
+    "versions": [
+      {
+        "name": "presto",
+        "version": {
+          "version": "0.1.1",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "chronos >= 4.0.3 & < 5.0.0",
+          "chronicles",
+          "metrics",
+          "results",
+          "stew"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/status-im/nim-presto"
+      },
+      {
+        "name": "presto",
+        "version": {
+          "version": "0.1.0",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "chronos ^= 4.0.3",
+          "chronicles",
+          "metrics",
+          "results",
+          "stew"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/status-im/nim-presto"
+      }
+    ]
+  },
+  "unittest2": {
+    "pkgName": "unittest2",
+    "versions": [
+      {
+        "name": "unittest2",
+        "version": {
+          "version": "#head",
+          "speSemanticVersion": "0.2.5"
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": "https://github.com/status-im/nim-unittest2.git"
+      }
+    ]
+  },
+  "segmentation": {
+    "pkgName": "segmentation",
+    "versions": [
+      {
+        "name": "segmentation",
+        "version": {
+          "version": "0.1.0",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "unicodedb >= 0.8.0"
+        ],
+        "isRoot": false,
+        "url": ""
+      }
+    ]
+  },
+  "quic": {
+    "pkgName": "quic",
+    "versions": [
+      {
+        "name": "quic",
+        "version": {
+          "version": "0.5.2",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "stew >= 0.4.0",
+          "chronos >= 4.0.4",
+          "nimcrypto >= 0.6.0",
+          "ngtcp2 >= 0.39.0",
+          "unittest2",
+          "chronicles >= 0.11.0",
+          "bearssl >= 0.2.5"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/vacp2p/nim-quic"
+      },
+      {
+        "name": "quic",
+        "version": {
+          "version": "0.5.1",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "stew >= 0.4.0",
+          "chronos >= 4.0.4",
+          "nimcrypto >= 0.6.0",
+          "ngtcp2 >= 0.39.0",
+          "unittest2",
+          "chronicles >= 0.11.0",
+          "bearssl >= 0.2.5"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/vacp2p/nim-quic"
+      },
+      {
+        "name": "quic",
+        "version": {
+          "version": "0.5.0",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "stew >= 0.4.0",
+          "chronos >= 4.0.3 & < 5.0.0",
+          "nimcrypto >= 0.6.0 & < 0.7.0",
+          "ngtcp2 >= 0.39.0",
+          "unittest2",
+          "chronicles >= 0.11.0",
+          "bearssl >= 0.2.5"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/vacp2p/nim-quic"
+      },
+      {
+        "name": "quic",
+        "version": {
+          "version": "0.4.0",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "stew >= 0.4.0",
+          "chronos >= 4.0.3 & < 5.0.0",
+          "nimcrypto >= 0.6.0 & < 0.7.0",
+          "ngtcp2 >= 0.39.0",
+          "unittest2",
+          "chronicles >= 0.11.0",
+          "bearssl >= 0.2.5"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/vacp2p/nim-quic"
+      }
+    ]
+  },
+  "bearssl": {
+    "pkgName": "bearssl",
+    "versions": [
+      {
+        "name": "bearssl",
+        "version": {
+          "version": "0.2.6",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "unittest2"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/status-im/nim-bearssl"
+      },
+      {
+        "name": "bearssl",
+        "version": {
+          "version": "0.2.5",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "unittest2"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/status-im/nim-bearssl"
+      }
+    ]
+  },
+  "websock": {
+    "pkgName": "websock",
+    "versions": [
+      {
+        "name": "websock",
+        "version": {
+          "version": "0.2.1",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "chronos >= 4.0.3 & < 4.1.0",
+          "httputils >= 0.2.0",
+          "chronicles >= 0.10.2",
+          "stew >= 0.4.2",
+          "nimcrypto",
+          "bearssl",
+          "results",
+          "zlib"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/status-im/nim-websock"
+      },
+      {
+        "name": "websock",
+        "version": {
+          "version": "0.2.0",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "chronos >= 4.0.3 & < 4.1.0",
+          "httputils >= 0.2.0",
+          "chronicles >= 0.10.2",
+          "stew >= 0.1.0",
+          "nimcrypto",
+          "bearssl",
+          "zlib"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/status-im/nim-websock"
+      }
+    ]
+  },
+  "libp2p": {
+    "pkgName": "libp2p",
+    "versions": [
+      {
+        "name": "libp2p",
+        "version": {
+          "version": "1.14.3",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "nimcrypto >= 0.6.0",
+          "dnsclient >= 0.3.0 & < 0.4.0",
+          "bearssl >= 0.2.5",
+          "chronicles >= 0.11.0",
+          "chronos >= 4.0.4",
+          "metrics",
+          "secp256k1",
+          "stew >= 0.4.2",
+          "websock >= 0.2.1",
+          "unittest2",
+          "results",
+          "quic >= 0.4.0",
+          "https://github.com/vacp2p/nim-jwt.git#18f8378de52b241f321c1f9ea905456e89b95c6f"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/vacp2p/nim-libp2p"
+      },
+      {
+        "name": "libp2p",
+        "version": {
+          "version": "1.14.2",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "nimcrypto >= 0.6.0",
+          "dnsclient >= 0.3.0 & < 0.4.0",
+          "bearssl >= 0.2.5",
+          "chronicles >= 0.11.0",
+          "chronos >= 4.0.4",
+          "metrics",
+          "secp256k1",
+          "stew >= 0.4.2",
+          "websock >= 0.2.1",
+          "unittest2",
+          "results",
+          "quic >= 0.4.0",
+          "https://github.com/vacp2p/nim-jwt.git#18f8378de52b241f321c1f9ea905456e89b95c6f"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/vacp2p/nim-libp2p"
+      },
+      {
+        "name": "libp2p",
+        "version": {
+          "version": "1.14.1",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "nimcrypto >= 0.6.0",
+          "dnsclient >= 0.3.0 & < 0.4.0",
+          "bearssl >= 0.2.5",
+          "chronicles >= 0.11.0",
+          "chronos >= 4.0.4",
+          "metrics",
+          "secp256k1",
+          "stew >= 0.4.2",
+          "websock >= 0.2.1",
+          "unittest2",
+          "results",
+          "quic >= 0.3.0",
+          "https://github.com/vacp2p/nim-jwt.git#18f8378de52b241f321c1f9ea905456e89b95c6f"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/vacp2p/nim-libp2p"
+      },
+      {
+        "name": "libp2p",
+        "version": {
+          "version": "1.14.0",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "nimcrypto >= 0.6.0 & < 0.7.0",
+          "dnsclient >= 0.3.0 & < 0.4.0",
+          "bearssl >= 0.2.5",
+          "chronicles >= 0.11.0 & < 0.12.0",
+          "chronos >= 4.0.4",
+          "metrics",
+          "secp256k1",
+          "stew >= 0.4.2",
+          "websock >= 0.2.1",
+          "unittest2",
+          "results",
+          "quic >= 0.3.0",
+          "https://github.com/vacp2p/nim-jwt.git#18f8378de52b241f321c1f9ea905456e89b95c6f"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/vacp2p/nim-libp2p"
+      },
+      {
+        "name": "libp2p",
+        "version": {
+          "version": "1.13.0",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "nimcrypto >= 0.6.0 & < 0.7.0",
+          "dnsclient >= 0.3.0 & < 0.4.0",
+          "bearssl >= 0.2.5",
+          "chronicles >= 0.11.0 & < 0.12.0",
+          "chronos >= 4.0.4",
+          "metrics",
+          "secp256k1",
+          "stew >= 0.4.0",
+          "websock >= 0.2.0",
+          "unittest2",
+          "results",
+          "quic >= 0.2.16",
+          "https://github.com/vacp2p/nim-jwt.git#18f8378de52b241f321c1f9ea905456e89b95c6f"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/vacp2p/nim-libp2p"
+      }
+    ]
+  },
+  "https://github.com/vacp2p/nim-jwt.git": {
+    "pkgName": "https://github.com/vacp2p/nim-jwt.git",
+    "versions": [
+      {
+        "name": "jwt",
+        "version": {
+          "version": "#18f8378de52b241f321c1f9ea905456e89b95c6f",
+          "speSemanticVersion": "0.2"
+        },
+        "requires": [
+          "bearssl",
+          "https://github.com/vacp2p/bearssl_pkey_decoder#21dd3710df9345ed2ad8bf8f882761e07863b8e0"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/vacp2p/nim-jwt.git"
+      }
+    ]
+  },
+  "bearssl_pkey_decoder": {
+    "pkgName": "bearssl_pkey_decoder",
+    "versions": [
+      {
+        "name": "bearssl_pkey_decoder",
+        "version": {
+          "version": "#21dd3710df9345ed2ad8bf8f882761e07863b8e0",
+          "speSemanticVersion": "0.1.0"
+        },
+        "requires": [
+          "bearssl"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/vacp2p/bearssl_pkey_decoder"
+      }
+    ]
+  },
+  "mix": {
+    "pkgName": "mix",
+    "versions": [
+      {
+        "name": "mix",
+        "version": {
+          "version": "#0.1.0",
+          "speSemanticVersion": "0.1.0"
+        },
+        "requires": [
+          "stew >= 0.3.0",
+          "chronos >= 4.0.3",
+          "libp2p >= 1.12.0",
+          "nimcrypto >= 0.6.0",
+          "serialization >= 0.2.2"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/vacp2p/mix"
+      }
+    ]
+  },
+  "faststreams": {
+    "pkgName": "faststreams",
+    "versions": [
+      {
+        "name": "faststreams",
+        "version": {
+          "version": "0.5.0",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "stew >= 0.2.0",
+          "unittest2"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/status-im/nim-faststreams"
+      },
+      {
+        "name": "faststreams",
+        "version": {
+          "version": "0.4.1",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "stew >= 0.2.0",
+          "unittest2"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/status-im/nim-faststreams"
+      },
+      {
+        "name": "faststreams",
+        "version": {
+          "version": "0.4.0",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "stew >= 0.2.0",
+          "unittest2"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/status-im/nim-faststreams"
+      },
+      {
+        "name": "faststreams",
+        "version": {
+          "version": "0.3.0",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "stew >= 0.2.0",
+          "unittest2"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/status-im/nim-faststreams"
+      }
+    ]
+  },
+  "unicodedb": {
+    "pkgName": "unicodedb",
+    "versions": [
+      {
+        "name": "unicodedb",
+        "version": {
+          "version": "0.13.2",
+          "speSemanticVersion": null
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      }
+    ]
+  },
+  "results": {
+    "pkgName": "results",
+    "versions": [
+      {
+        "name": "results",
+        "version": {
+          "version": "0.5.1",
+          "speSemanticVersion": null
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": "https://github.com/arnetheduck/nim-results"
+      },
+      {
+        "name": "results",
+        "version": {
+          "version": "0.5.0",
+          "speSemanticVersion": null
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": "https://github.com/arnetheduck/nim-results"
+      },
+      {
+        "name": "results",
+        "version": {
+          "version": "0.4.0",
+          "speSemanticVersion": null
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": "https://github.com/arnetheduck/nim-results"
+      }
+    ]
+  },
+  "waku": {
+    "pkgName": "waku",
+    "versions": [
+      {
+        "name": "waku",
+        "version": {
+          "version": "0.36.0",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "chronicles",
+          "confutils",
+          "chronos",
+          "dnsdisc",
+          "eth",
+          "json_rpc",
+          "libbacktrace",
+          "nimcrypto",
+          "serialization",
+          "stew",
+          "stint",
+          "metrics",
+          "libp2p >= 1.13.0",
+          "web3",
+          "presto",
+          "regex",
+          "results",
+          "db_connector",
+          "minilru",
+          "https://github.com/vacp2p/mix#0.1.0"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/waku-org/nwaku"
+      },
+      {
+        "name": "waku",
+        "version": {
+          "version": "0.1.0",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "chronicles",
+          "confutils",
+          "chronos",
+          "eth",
+          "json_rpc",
+          "libbacktrace",
+          "nimcrypto",
+          "stew",
+          "stint",
+          "metrics",
+          "libp2p",
+          "web3",
+          "presto",
+          "regex",
+          "results",
+          "db_connector",
+          "minilru",
+          "quic"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/waku-org/nwaku"
+      }
+    ]
+  },
+  "graphemes": {
+    "pkgName": "graphemes",
+    "versions": [
+      {
+        "name": "graphemes",
+        "version": {
+          "version": "0.12.0",
+          "speSemanticVersion": null
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": ""
+      }
+    ]
+  },
+  "httputils": {
+    "pkgName": "httputils",
+    "versions": [
+      {
+        "name": "httputils",
+        "version": {
+          "version": "0.4.0",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "stew",
+          "results",
+          "unittest2"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/status-im/nim-http-utils"
+      },
+      {
+        "name": "httputils",
+        "version": {
+          "version": "0.3.0",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "stew",
+          "results",
+          "unittest2"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/status-im/nim-http-utils"
+      }
+    ]
+  },
+  "zlib": {
+    "pkgName": "zlib",
+    "versions": [
+      {
+        "name": "zlib",
+        "version": {
+          "version": "0.1.0",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "stew >= 0.1.0",
+          "results >= 0.5.1"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/status-im/nim-zlib"
+      }
+    ]
+  },
+  "json_rpc": {
+    "pkgName": "json_rpc",
+    "versions": [
+      {
+        "name": "json_rpc",
+        "version": {
+          "version": "0.5.4",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "stew",
+          "nimcrypto",
+          "stint",
+          "chronos >= 4.0.3 & < 5.0.0",
+          "httputils >= 0.3.0",
+          "chronicles",
+          "websock >= 0.2.0 & < 0.3.0",
+          "serialization >= 0.4.4",
+          "json_serialization >= 0.4.2",
+          "unittest2"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/status-im/nim-json-rpc"
+      },
+      {
+        "name": "json_rpc",
+        "version": {
+          "version": "0.5.2",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "stew",
+          "nimcrypto",
+          "stint",
+          "chronos >= 4.0.3 & < 4.1.0",
+          "httputils >= 0.3.0 & < 0.4.0",
+          "chronicles",
+          "websock >= 0.2.0 & < 0.3.0",
+          "serialization >= 0.4.4",
+          "json_serialization >= 0.4.2",
+          "unittest2"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/status-im/nim-json-rpc"
+      },
+      {
+        "name": "json_rpc",
+        "version": {
+          "version": "0.5.0",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "stew",
+          "nimcrypto",
+          "stint",
+          "chronos >= 4.0.3 & < 4.1.0",
+          "httputils >= 0.3.0 & < 0.4.0",
+          "chronicles",
+          "websock >= 0.2.0 & < 0.3.0",
+          "json_serialization",
+          "unittest2"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/status-im/nim-json-rpc"
+      }
+    ]
+  },
+  "chronicles": {
+    "pkgName": "chronicles",
+    "versions": [
+      {
+        "name": "chronicles",
+        "version": {
+          "version": "0.12.2",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "faststreams >= 0.3.0",
+          "serialization",
+          "json_serialization",
+          "testutils"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/status-im/nim-chronicles"
+      }
+    ]
+  },
+  "libbacktrace": {
+    "pkgName": "libbacktrace",
+    "versions": [
+      {
+        "name": "libbacktrace",
+        "version": {
+          "version": "0.0.9",
+          "speSemanticVersion": null
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": "https://github.com/status-im/nim-libbacktrace"
+      },
+      {
+        "name": "libbacktrace",
+        "version": {
+          "version": "0.0.8",
+          "speSemanticVersion": null
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": "https://github.com/status-im/nim-libbacktrace"
+      },
+      {
+        "name": "libbacktrace",
+        "version": {
+          "version": "0.0.7",
+          "speSemanticVersion": null
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": "https://github.com/status-im/nim-libbacktrace"
+      },
+      {
+        "name": "libbacktrace",
+        "version": {
+          "version": "0.0.6",
+          "speSemanticVersion": null
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": "https://github.com/status-im/nim-libbacktrace"
+      },
+      {
+        "name": "libbacktrace",
+        "version": {
+          "version": "0.0.5",
+          "speSemanticVersion": null
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": "https://github.com/status-im/nim-libbacktrace"
+      },
+      {
+        "name": "libbacktrace",
+        "version": {
+          "version": "0.0.4",
+          "speSemanticVersion": null
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": "https://github.com/status-im/nim-libbacktrace"
+      },
+      {
+        "name": "libbacktrace",
+        "version": {
+          "version": "0.0.3",
+          "speSemanticVersion": null
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": "https://github.com/status-im/nim-libbacktrace"
+      },
+      {
+        "name": "libbacktrace",
+        "version": {
+          "version": "0.0.2",
+          "speSemanticVersion": null
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": "https://github.com/status-im/nim-libbacktrace"
+      }
+    ]
+  },
+  "testutils": {
+    "pkgName": "testutils",
+    "versions": [
+      {
+        "name": "testutils",
+        "version": {
+          "version": "0.8.0",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "unittest2"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/status-im/nim-testutils"
+      },
+      {
+        "name": "testutils",
+        "version": {
+          "version": "0.7.0",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "unittest2"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/status-im/nim-testutils"
+      },
+      {
+        "name": "testutils",
+        "version": {
+          "version": "0.6.0",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "unittest2"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/status-im/nim-testutils"
+      },
+      {
+        "name": "testutils",
+        "version": {
+          "version": "0.5.3",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "unittest2"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/status-im/nim-testutils"
+      },
+      {
+        "name": "testutils",
+        "version": {
+          "version": "0.5.0",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "unittest2"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/status-im/nim-testutils"
+      },
+      {
+        "name": "testutils",
+        "version": {
+          "version": "0.4.2",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "https://github.com/status-im/nim-unittest2.git#head"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/status-im/nim-testutils"
+      },
+      {
+        "name": "testutils",
+        "version": {
+          "version": "0.4.1",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "https://github.com/status-im/nim-unittest2.git#head"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/status-im/nim-testutils"
+      },
+      {
+        "name": "testutils",
+        "version": {
+          "version": "0.4.0",
+          "speSemanticVersion": null
+        },
+        "requires": [
+          "https://github.com/status-im/nim-unittest2.git#head"
+        ],
+        "isRoot": false,
+        "url": "https://github.com/status-im/nim-testutils"
+      },
+      {
+        "name": "testutils",
+        "version": {
+          "version": "0.3.0",
+          "speSemanticVersion": null
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": "https://github.com/status-im/nim-testutils"
+      },
+      {
+        "name": "testutils",
+        "version": {
+          "version": "0.1.1",
+          "speSemanticVersion": null
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": "https://github.com/status-im/nim-testutils"
+      },
+      {
+        "name": "testutils",
+        "version": {
+          "version": "0.1.0",
+          "speSemanticVersion": null
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": "https://github.com/status-im/nim-testutils"
+      },
+      {
+        "name": "testutils",
+        "version": {
+          "version": "0.0.2",
+          "speSemanticVersion": null
+        },
+        "requires": [],
+        "isRoot": false,
+        "url": "https://github.com/status-im/nim-testutils"
+      }
+    ]
+  }
+}

@@ -668,6 +668,7 @@ proc installFromDirDownloadInfo(nimBin: string,downloadDir: string, url: string,
   # Check for version mismatch between tag and .nimble file
   # If SAT solver expects a specific version but .nimble has different version,
   # the package maintainer likely forgot to update their .nimble file
+  # TODO in a subsequent PR this will improved so we keep track of the mismatch in PkgInfo
   if pv.ver.kind == verEq and pkgInfo.basicInfo.version != pv.ver.ver:
     displayWarning(&"Version mismatch for {pkgInfo.basicInfo.name}: tag has {pv.ver.ver} but .nimble file has {pkgInfo.basicInfo.version}. Using tag version.", HighPriority)
     pkgInfo.basicInfo.version = pv.ver.ver
