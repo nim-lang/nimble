@@ -1191,8 +1191,10 @@ proc processRequirements(versions: var Table[string, PackageVersions], pv: PkgTu
           try:
             # Try to get minimal package info for the requirement to validate it exists
             discard getMinimalFromPreferred(req, getMinimalPackage, preferredPackages, options, nimBin)
-          except PackageNotFoundError:
-            # Only skip if the package truly doesn't exist, not for other errors
+          except NimbleError:
+            # Skip packages with invalid/unresolvable dependencies
+            # This can happen for packages with URLs that can't be identified,
+            # repos that no longer exist, etc.
             allRequirementsValid = false
             displayWarning(&"Skipping package {pkgMin.name}@{pkgMin.version} due to invalid dependency: {req.name}", HighPriority)
             break
@@ -1267,8 +1269,10 @@ proc processRequirementsAsync(pv: PkgTuple, visitedParam: HashSet[PkgTuple], get
         try:
           # Try to get minimal package info for the requirement to validate it exists
           discard await getMinimalFromPreferredAsync(req, getMinimalPackage, preferredPackages, options, nimBin)
-        except PackageNotFoundError:
-          # Only skip if the package truly doesn't exist, not for other errors
+        except NimbleError:
+          # Skip packages with invalid/unresolvable dependencies
+          # This can happen for packages with URLs that can't be identified,
+          # repos that no longer exist, etc.
           allRequirementsValid = false
           displayWarning(&"Skipping package {pkgMin.name}@{pkgMin.version} due to invalid dependency: {req.name}", HighPriority)
           break
