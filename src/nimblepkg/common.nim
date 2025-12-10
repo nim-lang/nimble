@@ -13,6 +13,9 @@ type
 
   BuildFailed* = object of NimbleError
 
+  PackageNotFoundError* = object of NimbleError
+    ## Raised when a package cannot be found in any repository
+
   ## Same as quit(QuitSuccess) or quit(QuitFailure), but allows cleanup.
   ## Inheriting from `Defect` is workaround to avoid accidental catching of
   ## `NimbleQuit` by `CatchableError` handlers.

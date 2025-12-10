@@ -15,7 +15,10 @@ type
     version: Version
     vcsRevision: Sha1Hash
 
-proc updateSubmodules(dir: string) =
+proc updateSubmodules*(dir: string) =
+  ## Updates git submodules in the given directory.
+  ## Called during installation to ensure submodules are populated
+  ## even if the package was cached without them during version discovery.
   discard tryDoCmdEx(
     &"git -C {dir.quoteShell} submodule update --init --recursive --depth 1")
 
@@ -37,7 +40,10 @@ proc doCheckout*(meth: DownloadMethod, downloadDir, branch: string, options: Opt
     # Force is used here because local changes may appear straight after a clone
     # has happened. Like in the case of git on Windows where it messes up the
     # damn line endings.
-    discard tryDoCmdEx(&"git -C {downloadDir.quoteShell} checkout --force {branch.quoteShell}")
+    let (_, exitCode) = doCmdEx(&"git -C {downloadDir.quoteShell} checkout --force {branch.quoteShell}")
+    if exitCode != 0 and not branch.startsWith("v"):
+      # Try with 'v' prefix as fallback (common convention for version tags)
+      discard tryDoCmdEx(&"git -C {downloadDir.quoteShell} checkout --force v{branch.quoteShell}")
     if not options.ignoreSubmodules:
       downloadDir.updateSubmodules
   of DownloadMethod.hg:
@@ -50,7 +56,10 @@ proc doCheckoutAsync*(meth: DownloadMethod, downloadDir, branch: string, options
     # Force is used here because local changes may appear straight after a clone
     # has happened. Like in the case of git on Windows where it messes up the
     # damn line endings.
-    discard await tryDoCmdExAsync(&"git -C {downloadDir.quoteShell} checkout --force {branch.quoteShell}")
+    let (_, exitCode) = await doCmdExAsync(&"git -C {downloadDir.quoteShell} checkout --force {branch.quoteShell}")
+    if exitCode != 0 and not branch.startsWith("v"):
+      # Try with 'v' prefix as fallback (common convention for version tags)
+      discard await tryDoCmdExAsync(&"git -C {downloadDir.quoteShell} checkout --force v{branch.quoteShell}")
     if not options.ignoreSubmodules:
       await downloadDir.updateSubmodulesAsync()
   of DownloadMethod.hg:
@@ -1046,7 +1055,7 @@ proc getDownloadInfo*(
       # Also ignore the package cache so the old info isn't used
       return getDownloadInfo(pv, options, false, true)
     else:
-      raise nimbleError(pkgNotFoundMsg(pv))
+      raise newNimbleError[PackageNotFoundError](pkgNotFoundMsg(pv))
 
 when isMainModule:
   import unittest

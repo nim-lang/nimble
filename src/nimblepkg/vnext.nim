@@ -15,7 +15,7 @@ After we resolve nim, we try to resolve the dependencies for a root package. Roo
 import std/[sequtils, sets, options, os, strutils, tables, strformat, algorithm]
 import nimblesat, packageinfotypes, options, version, declarativeparser, packageinfo, common,
   nimenv, lockfile, cli, downloadnim, packageparser, tools, nimscriptexecutor, packagemetadatafile,
-  displaymessages, packageinstaller, reversedeps, developfile, urls
+  displaymessages, packageinstaller, reversedeps, developfile, urls, download
 
 when defined(windows):
   import std/strscans
@@ -665,6 +665,14 @@ proc installFromDirDownloadInfo(nimBin: string,downloadDir: string, url: string,
   var depsOptions = options
   depsOptions.depsOnly = false
 
+  # Check for version mismatch between tag and .nimble file
+  # If SAT solver expects a specific version but .nimble has different version,
+  # the package maintainer likely forgot to update their .nimble file
+  # TODO in a subsequent PR this will improved so we keep track of the mismatch in PkgInfo
+  if pv.ver.kind == verEq and pkgInfo.basicInfo.version != pv.ver.ver:
+    displayWarning(&"Version mismatch for {pkgInfo.basicInfo.name}: tag has {pv.ver.ver} but .nimble file has {pkgInfo.basicInfo.version}. Using tag version.", HighPriority)
+    pkgInfo.basicInfo.version = pv.ver.ver
+
   display("Installing", "$1@$2" %
     [pkgInfo.basicInfo.name, $pkgInfo.basicInfo.version],
     priority = MediumPriority)
@@ -1077,6 +1085,11 @@ proc installPkgs*(satResult: var SATResult, options: var Options) {.instrument.}
           discard downloadPkgResult
         # dlInfo.downloadDir = downloadPkgResult.dir 
       assert dirExists(downloadDir)
+      # Ensure submodules are populated if needed.
+      # Version discovery caches packages without submodules for speed and potential errors in old pkgs,
+      # so we need to fetch them here during actual installation.
+      if not options.ignoreSubmodules and fileExists(downloadDir / ".gitmodules"):
+        updateSubmodules(downloadDir)
       if pv.name.isFileURL:
         # echo "*** GETTING PACKAGE FROM FILE URL: ", dlInfo.url
         installedPkgInfo = getPackageFromFileUrl(dlInfo.url, options, nimBin = nimBin).toRequiresInfo(options, nimBin = nimBin)
@@ -1159,4 +1172,3 @@ proc installPkgs*(satResult: var SATResult, options: var Options) {.instrument.}
     let hookDir = pkgInfo.myPath.splitFile.dir
     if dirExists(hookDir):
       executeHook(nimBin, hookDir, options, actionInstall, before = false)
-    

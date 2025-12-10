@@ -481,3 +481,24 @@ suite "SAT solver":
       removeDir("nimbledeps")
       let (_, exitCode) = execNimbleYes("install", "-l")
       check exitCode == QuitSuccess
+
+  test "should prefer newer versions (waku@0.36.0 over 0.1.0)":
+    # This test verifies that the SAT solver prefers newer versions of packages
+    var pkgVersionTable = parseJson(readFile("packageMinimal/waku.json")).jsonTo(Table[string, PackageVersions], Joptions(allowMissingKeys: true))
+    pkgVersionTable.normalizeRequirements(initOptions())
+    var graph = pkgVersionTable.toDepGraph()
+    let form = toFormular(graph)
+    var packages = initTable[string, Version]()
+    var output = ""
+    let solved = solve(graph, form, packages, output, initOptions())
+    echo "Solved: ", solved, " packages: ", packages.len
+    for pkgName, version in packages.pairs():
+      echo pkgName & "@" & $version
+    if packages.hasKey("waku"):
+      echo "waku version selected: ", packages["waku"]
+    check solved
+    check packages.len > 0
+    # The SAT solver should prefer waku@0.36.0 over waku@0.1.0
+    check packages.hasKey("waku")
+    echo "waku selected: ", packages["waku"]
+    check packages["waku"] == newVersion("0.36.0")
