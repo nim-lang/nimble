@@ -665,9 +665,10 @@ proc installFromDirDownloadInfo(nimBin: string,downloadDir: string, url: string,
   var depsOptions = options
   depsOptions.depsOnly = false
 
-  # Check for version mismatch between tag and .nimble file
-  # If SAT solver expects a specific version but .nimble has different version,
-  # the package maintainer likely forgot to update their .nimble file
+  # Check for version mismatch between git tag and .nimble file
+  # pv.ver.ver is the version from the SAT solver, which was discovered from git tags
+  # (e.g., tag v0.36.0 -> version 0.36.0). If the .nimble file declares a different
+  # version (e.g., 0.1.0), we use the tag version since that's what was requested.
   if pv.ver.kind == verEq and pkgInfo.basicInfo.version != pv.ver.ver:
     pkgInfo.basicInfo.version = pv.ver.ver
 
