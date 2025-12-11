@@ -552,7 +552,7 @@ proc getSolvedPackages*(pkgVersionTable: Table[string, PackageVersions], output:
           reverseDependencies: collectReverseDependencies(pkg, graph),
         )
         result.add solvedPkg
-
+  
   # Create lookup table for O(1) package access
   var pkgLookup = initTable[string, SolvedPackage]()
   for pkg in result:
@@ -1394,15 +1394,17 @@ proc topologicalSort*(solvedPkgs: seq[SolvedPackage]): seq[SolvedPackage] {.inst
 
   # Initialize in-degree and adjacency list using requirements
   for pkg in solvedPkgs:
-    pkgLookup[pkg.pkgName] = pkg
-    if not inDegree.hasKey(pkg.pkgName):
-      inDegree[pkg.pkgName] = 0  # Ensure every package is in the inDegree table
+    let pkgNameLower = pkg.pkgName.toLowerAscii
+    pkgLookup[pkgNameLower] = pkg
+    if not inDegree.hasKey(pkgNameLower):
+      inDegree[pkgNameLower] = 0  # Ensure every package is in the inDegree table
     for dep in pkg.requirements:
-      if dep.name notin adjList:
-        adjList[dep.name] = @[pkg.pkgName]
+      let depNameLower = dep.name.toLowerAscii
+      if depNameLower notin adjList:
+        adjList[depNameLower] = @[pkgNameLower]
       else:
-        adjList[dep.name].add(pkg.pkgName)
-      inDegree[pkg.pkgName].inc  # Increase in-degree of this pkg since it depends on dep
+        adjList[depNameLower].add(pkgNameLower)
+      inDegree[pkgNameLower].inc  # Increase in-degree of this pkg since it depends on dep
 
   # Find all nodes with zero in-degree
   for (pkgName, degree) in inDegree.pairs:
