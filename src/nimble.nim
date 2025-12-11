@@ -2691,6 +2691,16 @@ proc runVNext*(options: var Options, nimBin: string) {.instrument.} =
   # options.debugSATResult()
   options.satResult.addReverseDeps(options)
   
+  # Warn about version mismatches for packages in the solution
+  # Compare installed version (from directory/tag) with the version in the .nimble file
+  for pkgInfo in options.satResult.pkgs:
+    try:
+      let nimbleFileInfo = extractRequiresInfo(pkgInfo.myPath, options)
+      if nimbleFileInfo.version != "" and newVersion(nimbleFileInfo.version) != pkgInfo.basicInfo.version:
+        displayWarning(&"Version mismatch for {pkgInfo.basicInfo.name}: installed version is {pkgInfo.basicInfo.version} but .nimble file declares {nimbleFileInfo.version}.", HighPriority)
+    except CatchableError:
+      discard 
+  
 proc getNimDir(options: var Options, nimBin: string): string = 
   ## returns the nim directory prioritizing the nimBin one if it satisfais the requirement of the project
   ## otherwise it returns the major version of the nim installed packages that satisfies the requirement of the project
