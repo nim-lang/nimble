@@ -2107,6 +2107,7 @@ proc lock(options: var Options, nimBin: string) =
     errors.check(vnextGraph)
     for solvedPkg in options.satResult.solvedPkgs:
       if solvedPkg.pkgName.isNim and not shouldAddNim: continue
+      if solvedPkg.pkgName == rootPkgName: continue
       
       # Get the PackageInfo for this solved package
       let pkgInfo = 
