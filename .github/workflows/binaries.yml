@@ -117,7 +117,7 @@ jobs:
       actions: write
     steps:
       - name: Download artefacts
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v7
 
       # Create/update the "latest" release
       - uses: ncipollo/release-action@v1
