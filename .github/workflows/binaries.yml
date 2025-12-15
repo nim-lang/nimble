@@ -95,14 +95,14 @@ jobs:
           fi
 
       - name: Upload tar.gz artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: nimble-${{ matrix.target.name }}.tar.gz
           path: nimble-${{ matrix.target.name }}.tar.gz
 
       - name: Upload zip artifact (Windows only)
         if: matrix.target.os == 'windows'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: nimble-${{ matrix.target.name }}.zip
           path: nimble-${{ matrix.target.name }}.zip
