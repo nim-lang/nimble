@@ -134,14 +134,24 @@ proc `==`*(range1: VersionRange, range2: VersionRange): bool =
   of verAny: true
 
 proc withinRange*(ver: Version, ran: VersionRange): bool =
-  # For special versions, use actualVersion if available
-  if ver.isSpecial and ver.speSemanticVersion.isSome:
-    let semanticVer = newVersion(ver.speSemanticVersion.get)
-    case ran.kind
-    of verSpecial:
-      return ver == ran.spe  # Must match exactly for special ranges
+  # For special versions, use speSemanticVersion if available
+  if ver.isSpecial:
+    if ver.speSemanticVersion.isSome:
+      let semanticVer = newVersion(ver.speSemanticVersion.get)
+      case ran.kind
+      of verSpecial:
+        return ver == ran.spe  # Must match exactly for special ranges
+      else:
+        return withinRange(semanticVer, ran)  # Use semantic version for comparisons
     else:
-      return withinRange(semanticVer, ran)  # Use semantic version for comparisons
+      # Special version without semantic version - only matches verSpecial or verAny
+      case ran.kind
+      of verSpecial:
+        return ver == ran.spe
+      of verAny:
+        return true
+      else:
+        return false  # Can't compare special version to normal range
   
   case ran.kind
   of verLater:
@@ -154,8 +164,8 @@ proc withinRange*(ver: Version, ran: VersionRange): bool =
     return ver <= ran.ver
   of verEq:
     return ver == ran.ver
-  of verSpecial: # special version is always within range
-    return ver.isSpecial and ver == ran.spe or not ver.isSpecial
+  of verSpecial: # special version must match exactly
+    return ver.isSpecial and ver == ran.spe
   of verIntersect, verTilde, verCaret:
     return withinRange(ver, ran.verILeft) and withinRange(ver, ran.verIRight)
   of verAny:

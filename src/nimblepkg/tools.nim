@@ -13,6 +13,8 @@ from "$nim" / compiler/nimblecmd import getPathVersionChecksum
 proc extractBin(cmd: string): string =
   if cmd[0] == '"':
     return cmd.captureBetween('"')
+  elif cmd[0] == '\'':
+    return cmd.captureBetween('\'')
   else:
     return cmd.split(' ')[0]
 

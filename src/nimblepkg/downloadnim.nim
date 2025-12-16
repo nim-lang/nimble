@@ -813,13 +813,19 @@ proc extractNimIfNeeded*(
 proc downloadAndExtractNim*(version: Version, options: Options): Option[string] =
   try:
     let extractDir = options.getNimInstallationDir(version)
-    if extractDir.dirExists() and isNimDirProperlyExtracted(extractDir):
-      #TODO test if binary is valid?
+    # Check if already properly installed (with working binary)
+    let nimBin = extractDir / "bin" / "nim".addFileExt(ExeExt)
+    if extractDir.dirExists() and nimBin.fileExists:
       display("Info:", "Nim $1 already installed" % $version)
       return some extractDir
     let path = downloadNim(version, options)
     let extracted = extractNimIfNeeded(path, extractDir, options)
     if extracted:
+      # Compile if no binary exists (e.g., source tarballs from GitHub)
+      let nimBin = extractDir / "bin" / "nim".addFileExt(ExeExt)
+      if not nimBin.fileExists:
+        display("Info:", "Compiling Nim $1 from source" % $version, priority = HighPriority)
+        compileNim(options, extractDir, version.toVersionRange)
       return some extractDir
     else:
       return none(string)
@@ -829,6 +835,9 @@ proc downloadAndExtractNim*(version: Version, options: Options): Option[string] 
 proc downloadAndExtractNimMatchedVersion*(
     ver: VersionRange, options: Options
 ): Option[string] =
+  # Handle special versions like #devel, #head, etc.
+  if ver.kind == verSpecial:
+    return downloadAndExtractNim(newVersion($ver), options)
   let releases = getOfficialReleases(options)
     #TODO Use the cached make sure the order is correct
   for releaseVer in releases:
@@ -854,7 +863,8 @@ proc installNimFromBinariesDir*(
       isNimDirProperlyExtracted(pkg.getRealDir):
     let ver = getNimVersion(pkg.getRealDir)
     if ver.isSome():
-      if pkg.basicInfo.version != ver.get():
+      # Don't warn for special versions like #devel - they won't match the binary version
+      if not pkg.basicInfo.version.isSpecial and pkg.basicInfo.version != ver.get():
         displayWarning("Nim binary version doesn't match the package info version for Nim located at: " & pkg.getRealDir)
       return some (pkg.getRealDir, ver.get())
 

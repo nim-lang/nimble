@@ -219,6 +219,12 @@ proc resolveNim*(rootPackage: PackageInfo, pkgListDecl: seq[PackageInfo], system
       for name, dep in lockFile.getLockedDependencies.lockedDepsFor(options):
         if name.isNim:
           # echo "Found Nim in lock file: ", name, " ", dep.version
+          # Check if the locked version satisfies the current requirement
+          let nimRequirement = rootPackage.requires.filterIt(it.name.isNim)
+          if nimRequirement.len > 0:
+            if not dep.version.withinRange(nimRequirement[0].ver):
+              # Lock file nim doesn't match current requirement - need to re-solve
+              break
           #Test if the version in the lock is the same as in the system nim (in case devel is set in the lock file and system nim is devel)
           if systemNimPkg.isSome and dep.version == systemNimPkg.get.basicInfo.version:
             return NimResolved(pkg: some(systemNimPkg.get), version: systemNimPkg.get.basicInfo.version)
@@ -513,7 +519,19 @@ proc getNimBinariesPackages*(options: Options): seq[PackageInfo] =
     if kind == pcDir:
       let nimbleFile = path / "nim.nimble"
       if fileExists(nimbleFile):
-        result.add getNimPkgInfo(nimbleFile.parentDir, options, nimBin = "") #Can be empty as the code path for nim doesnt need it. 
+        var pkgInfo = getNimPkgInfo(nimbleFile.parentDir, options, nimBin = "") #Can be empty as the code path for nim doesnt need it.
+        # Check if directory name indicates a special version (e.g., nim-#devel)
+        # The directory name format is "nim-<version>" 
+        let dirName = path.extractFilename
+        if dirName.startsWith("nim-#"):
+          # This is a special version like #devel
+          let specialVersionStr = dirName[4..^1]  # Extract "#devel" from "nim-#devel"
+          var specialVer = newVersion(specialVersionStr)
+          let semanticVer = extractNimVersion(nimbleFile)
+          if semanticVer != "":
+            specialVer.speSemanticVersion = some(semanticVer)
+          pkgInfo.basicInfo.version = specialVer
+        result.add pkgInfo 
 
 proc getBootstrapNimResolved*(options: var Options): NimResolved =  
   var pkgList: seq[PackageInfo] = @[] #Should we use the install nim pkgs? In most cases they should already be in the nim binaries dir
@@ -1004,8 +1022,8 @@ proc installPkgs*(satResult: var SATResult, options: var Options) {.instrument.}
   #We still need to install them aka copy them from the cache to the nimbleDir + run preInstall and postInstall scripts
   let isInRootDir = options.startDir == satResult.rootPackage.myPath.parentDir
   var pkgsToInstall = satResult.pkgsToInstall
-  if options.useSystemNim:
-    pkgsToInstall = pkgsToInstall.filterIt(not it[0].isNim)
+  # Always filter out nim - it's handled separately through installNimFromBinariesDir
+  pkgsToInstall = pkgsToInstall.filterIt(not it[0].isNim)
    #If we are not in the root folder, means user is installing a package globally so we need to install root
   var installedPkgs = initHashSet[PackageInfo]()
   # echo "isInRootDir ", isInRootDir, " startDir ", options.startDir, " rootDir ", satResult.rootPackage.myPath.parentDir

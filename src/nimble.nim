@@ -2098,8 +2098,7 @@ proc lock(options: var Options, nimBin: string) =
     var vnextGraph: LockFileDeps
     let rootPkgName = pkgInfo.basicInfo.name
     
-    #TODO in the future we could consider to add it via a flag/when nimble install nim and a develop file is present. By default we should not add it.
-    var shouldAddNim = false
+    var shouldAddNim = true
 
     for solvedPkg in options.satResult.solvedPkgs:
       if (not solvedPkg.pkgName.isNim or (shouldAddNim and solvedPkg.pkgName.isNim)) and solvedPkg.pkgName != rootPkgName:
@@ -2643,7 +2642,9 @@ proc solvePkgs(rootPackage: PackageInfo, options: var Options, nimBin: string) {
       displayWarning(line)
   options.satResult.nimResolved = resolvedNim #TODO maybe we should consider the sat fallback pass. Not sure if we should just warn the user so the packages are corrected
   options.satResult.pkgs.incl(resolvedNim.pkg.get) #Make sure its in the solution
-  nimblesat.addUnique(options.satResult.solvedPkgs, SolvedPackage(pkgName: "nim", version: resolvedNim.version))
+  # Only add nim to solvedPkgs if there isn't already one (e.g., with a special version like #devel)
+  if not options.satResult.solvedPkgs.anyIt(it.pkgName.isNim):
+    nimblesat.addUnique(options.satResult.solvedPkgs, SolvedPackage(pkgName: "nim", version: resolvedNim.version))
   options.satResult.solutionToFullInfo(options)
   if rootPackage.hasLockFile(options) and not options.disableLockFile:
     options.satResult.solveLockFileDeps(pkgList, options, nimBin)
@@ -2696,6 +2697,10 @@ proc runVNext*(options: var Options, nimBin: string) {.instrument.} =
   # Compare installed version (from directory/tag) with the version in the .nimble file
   for pkgInfo in options.satResult.pkgs:
     try:
+      # Skip warning for special versions (like #devel) - they have a special version string
+      # but the .nimble file declares the actual semantic version from compilation.nim
+      if pkgInfo.basicInfo.version.isSpecial:
+        continue
       let nimbleFileInfo = extractRequiresInfo(pkgInfo.myPath, options)
       if nimbleFileInfo.version != "" and newVersion(nimbleFileInfo.version) != pkgInfo.basicInfo.version:
         displayWarning(&"Version mismatch for {pkgInfo.basicInfo.name}: installed version is {pkgInfo.basicInfo.version} but .nimble file declares {nimbleFileInfo.version}.", HighPriority)

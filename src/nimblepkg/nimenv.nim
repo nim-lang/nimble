@@ -48,9 +48,12 @@ proc compileNim*(options: Options, nimDest: string, v: VersionRange) =
       display("Error", "cannot parse version requirement", Error)
       return
   let csourcesVersion =
-    #TODO We could test special against the special versionn-x branch to get the right csources
-    if nimVersion.isSpecial or (major == 1 and minor >= 9) or major >= 2:
-      # already uses csources_v2
+    #TODO We could test special against the special version-x branch to get the right csources
+    if nimVersion.isSpecial or major >= 2 and minor >= 2:
+      # devel and 2.2+ need csources_v3
+      "csources_v3"
+    elif (major == 1 and minor >= 9) or major >= 2:
+      # 1.9+ and 2.0/2.1 use csources_v2
       "csources_v2"
     elif major == 0:
       "csources" # has some chance of working
