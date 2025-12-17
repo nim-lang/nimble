@@ -45,10 +45,10 @@ suite "Nim binaries":
   
   test "should be able to get the package info from the nim extracted folder":
     var options = initOptions()
-    let require: PkgTuple = (name: "nim", ver: parseVersionRange("2.2.0"))
+    let require: PkgTuple = (name: "nim", ver: parseVersionRange("2.0.4"))
     let nimInstalled = installNimFromBinariesDir(require, options)
     check nimInstalled.isSome
-    check nimInstalled.get().ver == newVersion("2.2.0")
+    check nimInstalled.get().ver == newVersion("2.0.4")
     options.nimBin = some options.makeNimBin("nim")
     let pkgInfo = getPkgInfo(nimInstalled.get().dir, options, nimBin = "nim")    
     check pkgInfo.basicInfo.name == "nim"

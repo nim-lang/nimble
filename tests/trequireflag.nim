@@ -115,3 +115,9 @@ suite "requires flag":
           if kind == pcDir and dir.splitPath.tail.startsWith("json_serialization"):
             removeDir(dir)
 
+  test "can use nim#dev as require":
+    cd "requireflag":
+      let expectedMessage = "nim-#devel"
+      let (outp, exitCode) = execNimble("--requires:nim#devel", "install")
+      check exitCode == QuitSuccess      
+      check outp.contains(expectedMessage)

@@ -118,7 +118,8 @@ proc getMinimalInfo*(pkg: PackageInfo, options: Options): PackageMinimalInfo =
   result.version = pkg.basicInfo.version
   result.requires = pkg.requires.map(convertNimAliasToNim)
   if options.action.typ in {actionLock, actionDeps} or options.hasNimInLockFile():
-    result.requires = result.requires.filterIt(not it.isNim)
+    # Keep nim requirements with special versions (e.g., #devel, #commit-sha)
+    result.requires = result.requires.filterIt(not it.isNim or it.ver.kind == verSpecial)
   result.url = pkg.metadata.url
 
 proc getMinimalInfo*(nimbleFile: string, options: Options, nimBin: string): PackageMinimalInfo =
@@ -131,7 +132,8 @@ proc getMinimalInfo*(nimbleFile: string, options: Options, nimBin: string): Pack
   result.requires = pkg.requires.map(convertNimAliasToNim)
   result.url = pkg.metadata.url
   if options.action.typ in {actionLock, actionDeps} or options.hasNimInLockFile():
-    result.requires = result.requires.filterIt(not it.isNim)
+    # Keep nim requirements with special versions (e.g., #devel, #commit-sha)
+    result.requires = result.requires.filterIt(not it.isNim or it.ver.kind == verSpecial)
 
 proc hasVersion*(packageVersions: PackageVersions, pv: PkgTuple): bool =
   for pkg in packageVersions.versions:
@@ -980,7 +982,19 @@ proc getPackageMinimalVersionsFromRepoAsyncFast*(
 
 proc downloadMinimalPackage*(pv: PkgTuple, options: Options, nimBin: string): seq[PackageMinimalInfo] =
   if pv.name == "": return newSeq[PackageMinimalInfo]()
-  if pv.isNim and not options.disableNimBinaries: return getAllNimReleases(options)
+  if pv.isNim and not options.disableNimBinaries:
+    if pv.ver.kind == verSpecial:
+      # For special versions like #devel, #commit-sha, etc., download the binary
+      # and get the actual version using the declarative parser
+      let extractedDir = downloadAndExtractNimMatchedVersion(pv.ver, options)
+      var ver = newVersion($pv.ver)
+      let nimbleFile = extractedDir.get / "nim.nimble"
+      if nimbleFile.fileExists:
+        let nimVersion = extractNimVersion(nimbleFile)
+        if nimVersion != "":
+          ver.speSemanticVersion = some(nimVersion)
+      return @[PackageMinimalInfo(name: "nim", version: ver)]
+    return getAllNimReleases(options)
   # During version discovery, we only need to read .nimble files, not compile code
   # So we ignore submodules to speed up cloning and avoid failures from broken submodules
   var versionDiscoveryOptions = options
@@ -1039,6 +1053,10 @@ proc downloadMinimalPackageAsyncImpl(pv: PkgTuple, options: Options, nimBin: str
   if pv.name == "": return newSeq[PackageMinimalInfo]()
   try:
     if pv.isNim and not options.disableNimBinaries:
+      if pv.ver.kind == verSpecial:
+        # For special versions, delegate to the sync version which handles downloading
+        {.gcsafe.}:
+          return downloadMinimalPackage(pv, options, nimBin)
       return getAllNimReleases(options)
   except Exception as e:
     raise newException(CatchableError, e.msg)
@@ -1207,9 +1225,15 @@ proc processRequirements(versions: var Table[string, PackageVersions], pv: PkgTu
         let pkgName = pkgMin.name.toLower
         if pv.ver.kind == verSpecial:
           # Keep both the commit hash and the actual semantic version
-          var specialVer = newVersion($pv.ver)
-          specialVer.speSemanticVersion = some($pkgMin.version)  # Store the real version
-          pkgMin.version = specialVer
+          # If pkgMin.version already has speSemanticVersion set (e.g., from downloadMinimalPackage
+          # for nim special versions), preserve it. Otherwise, use the version string.
+          if pkgMin.version.speSemanticVersion.isSome:
+            # Already has semantic version set (e.g., nim#devel with version extracted from compilation.nim)
+            discard
+          else:
+            var specialVer = newVersion($pv.ver)
+            specialVer.speSemanticVersion = some($pkgMin.version)  # Store the real version
+            pkgMin.version = specialVer
           
           # If this is a special version, clear any existing regular versions
           # to force the SAT solver to use this specific version
@@ -1285,9 +1309,15 @@ proc processRequirementsAsync(pv: PkgTuple, visitedParam: HashSet[PkgTuple], get
       let pkgName = pkgMin.name.toLower
       if pv.ver.kind == verSpecial:
         # Keep both the commit hash and the actual semantic version
-        var specialVer = newVersion($pv.ver)
-        specialVer.speSemanticVersion = some($pkgMin.version)  # Store the real version
-        pkgMin.version = specialVer
+        # If pkgMin.version already has speSemanticVersion set (e.g., from downloadMinimalPackage
+        # for nim special versions), preserve it. Otherwise, use the version string.
+        if pkgMin.version.speSemanticVersion.isSome:
+          # Already has semantic version set (e.g., nim#devel with version extracted from compilation.nim)
+          discard
+        else:
+          var specialVer = newVersion($pv.ver)
+          specialVer.speSemanticVersion = some($pkgMin.version)  # Store the real version
+          pkgMin.version = specialVer
 
         # Special versions replace any existing versions
         result[pkgName] = PackageVersions(pkgName: pkgName, versions: @[pkgMin])
