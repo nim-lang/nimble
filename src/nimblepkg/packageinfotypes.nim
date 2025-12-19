@@ -146,6 +146,7 @@ type
     bootstrapNim*: BootstrapNim #The nim that we are going to use if we dont have a nim resolved yet and the declarative parser failed. Notice this is required to Atomic Parser fallback (not implemented)
     normalizedRequirements*: Table[string, string] #normalized -> old. Some packages are not published as nimble packages, we keep the url for installation.
     pkgVersionTable*: Table[string, PackageVersions]
+    gitErrors*: seq[string] # Git errors encountered during package discovery (could be network, auth, etc.)
 
 proc `==`*(a, b: SolvedPackage): bool =
   a.pkgName == b.pkgName and
@@ -176,7 +177,8 @@ proc getGloballyActiveFeatures*(): seq[string] =
 proc initSATResult*(pass: SATPass): SATResult =
   SATResult(pkgsToInstall: @[], solvedPkgs: @[], output: "", pkgs: initHashSet[PackageInfo](), 
     pass: pass, installedPkgs: @[], declarativeParseFailed: false, declarativeParserErrorLines: @[],
-    normalizedRequirements: initTable[string, string]()
+    normalizedRequirements: initTable[string, string](),
+    gitErrors: @[]
     )
 
 proc getNimbleFileDir*(pkgInfo: PackageInfo): string =

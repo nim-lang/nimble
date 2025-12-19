@@ -13,6 +13,9 @@ type
 
   BuildFailed* = object of NimbleError
 
+  NimbleGitError* = object of NimbleError
+    ## Raised when a git operation fails (exit code 128 - could be network, auth, or other issues)
+
   PackageNotFoundError* = object of NimbleError
     ## Raised when a package cannot be found in any repository
 
@@ -50,6 +53,10 @@ proc nimbleError*(msg: string, hint = "", details: ref CatchableError = nil):
 proc buildFailed*(msg: string, details: ref CatchableError = nil):
     ref BuildFailed =
   newNimbleError[BuildFailed](msg)
+
+proc nimbleGitError*(msg: string, hint = "", details: ref CatchableError = nil):
+    ref NimbleGitError =
+  newNimbleError[NimbleGitError](msg, hint, details)
 
 proc nimbleQuit*(exitCode = QuitSuccess): ref NimbleQuit =
   result = newException(NimbleQuit, "")
