@@ -26,7 +26,11 @@ proc tryDoCmdExAsync(cmd: string): Future[string] {.async.} =
   ## Async version of tryDoCmdEx. Executes command and raises error if it fails.
   let (output, exitCode) = await doCmdExAsync(cmd)
   if exitCode != QuitSuccess:
-    raise nimbleError(tryDoCmdExErrorMessage(cmd, output, exitCode))
+    let errorMsg = tryDoCmdExErrorMessage(cmd, output, exitCode)
+    if isGitFatalError(exitCode):
+      raise nimbleGitError(errorMsg)
+    else:
+      raise nimbleError(errorMsg)
   return output
 
 proc updateSubmodulesAsync(dir: string): Future[void] {.async.} =

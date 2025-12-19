@@ -536,6 +536,11 @@ proc getSolvedPackages*(pkgVersionTable: Table[string, PackageVersions], output:
             output.add &"Package {k} \n"
             for v in v.versions:
               output.add &"\t \t Version {v.version} requires: {v.requires} \n" 
+          # Include git errors if any occurred during package discovery
+          if options.satResult.gitErrors.len > 0:
+            output.add "The following errors occurred during package discovery (could be network issues):\n"
+            for err in options.satResult.gitErrors:
+              output.add &"  - {err}\n"
           return newSeq[SolvedPackage]()
     
   let form = toFormular(graph)
@@ -703,6 +708,9 @@ proc getPackageMinimalVersionsFromRepo*(repoDir: string, pkg: PkgTuple, version:
     try:
       gitFetchTags(tempDir, downloadMethod, versionDiscoveryOptions)    
       tags = getTagsList(tempDir, downloadMethod).getVersionList()
+    except NimbleGitError as e:
+      options.satResult.gitErrors.add(&"Git error fetching tags for {name} (could be a network issue): {e.msg}")
+      displayWarning(&"Git error fetching tags for {name}: {e.msg}", HighPriority)
     except CatchableError as e:
       displayWarning(&"Error fetching tags for {name}: {e.msg}", HighPriority)
     
@@ -788,6 +796,9 @@ proc getPackageMinimalVersionsFromRepoAsync*(repoDir: string, pkg: PkgTuple, ver
     try:
       await gitFetchTagsAsync(tempDir, downloadMethod, versionDiscoveryOptions)
       tags = (await getTagsListAsync(tempDir, downloadMethod)).getVersionList()
+    except ref NimbleGitError as e:
+      options.satResult.gitErrors.add(&"Git error fetching tags for {name} (could be a network issue): {e.msg}")
+      displayWarning(&"Git error fetching tags for {name}: {e.msg}", HighPriority)
     except CatchableError as e:
       displayWarning(&"Error fetching tags for {name}: {e.msg}", HighPriority)
 
@@ -902,6 +913,10 @@ proc getPackageMinimalVersionsFromRepoAsyncFast*(
   try:
     await gitFetchTagsAsync(gitRoot, downloadMethod, options)
     tags = (await getTagsListAsync(gitRoot, downloadMethod)).getVersionList()
+  except ref NimbleGitError as e:
+    options.satResult.gitErrors.add(&"Git error fetching tags for {name} (could be a network issue): {e.msg}")
+    displayWarning(&"Git error fetching tags for {name}: {e.msg}", HighPriority)
+    return
   except CatchableError as e:
     displayWarning(&"Error fetching tags for {name}: {e.msg}", HighPriority)
     return

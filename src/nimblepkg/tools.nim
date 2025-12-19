@@ -92,10 +92,19 @@ proc tryDoCmdExErrorMessage*(cmd, output: string, exitCode: int): string =
   &"Execution of '{cmd}' failed with an exit code {exitCode}.\n" &
   &"Details: {output}"
 
+proc isGitFatalError*(exitCode: int): bool =
+  ## Detects if a command failure is a git fatal error (exit code 128).
+  ## This can indicate network issues, auth failures, or other git problems.
+  result = exitCode == 128
+
 proc tryDoCmdEx*(cmd: string): string {.discardable.} =
   let (output, exitCode) = doCmdEx(cmd)
   if exitCode != QuitSuccess:
-    raise nimbleError(tryDoCmdExErrorMessage(cmd, output, exitCode))
+    let errorMsg = tryDoCmdExErrorMessage(cmd, output, exitCode)
+    if isGitFatalError(exitCode):
+      raise nimbleGitError(errorMsg)
+    else:
+      raise nimbleError(errorMsg)
   return output
 
 proc getNimrodVersion*(options: Options): Version =
