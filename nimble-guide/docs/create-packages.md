@@ -181,8 +181,7 @@ There are several version selector operators you can use:
 | `>=` | Install _at least_ the provided version. |
 | `<=` | Install _at most_ the provided version. |
 | `^=` | Install the latest compatible version according to [semver](https://semver.npmjs.com/). |
-| `~=` | Install the latest version by increasing the last given digit
-       to the highest version.
+| `~=` | Install the latest version by increasing the last given digit to the highest version. |
 
 
 Here are some examples of the `^=` and `~=` operators:
@@ -234,7 +233,7 @@ This can be achieved as follows:
 
 ```nim
 feature "chronos":
-  require "chronos"
+  requires "chronos"
 ```
 
 In this example, `chronos` will only be installed when the `chronos` feature is activated.  
@@ -247,12 +246,12 @@ There are two ways to activate a feature:
    ```
 2. By activating it in a dependency using the `[]` operator:  
    ```nim
-   require "awesomeAsyncPackage[chronos]"
+   requires "awesomeAsyncPackage[chronos]"
    ```
 
 Multiple features can be activated for a package as follows:  
 ```nim
-require "awesomeAsyncPackage[chronos, feature2]"
+requires "awesomeAsyncPackage[chronos, feature2]"
 ```
 
 #### Checking Active Features in Code
@@ -276,13 +275,13 @@ It is useful for requiring development-specific dependencies.
 For example:
 ```nim
 feature "dev":
-  require "unittest2"
+  requires "unittest2"
 ```
 
 Since the `dev` feature is used frequently, an alias is available:
 ```nim
 dev:
-  require "unittest2"
+  requires "unittest2"
 ```
 
 
