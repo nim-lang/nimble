@@ -15,3 +15,4 @@ switch("define", "zippyNoSimd")
 when withDir(thisDir(), system.fileExists("nimble.paths")):
   include "nimble.paths"
 # end Nimble config
+
