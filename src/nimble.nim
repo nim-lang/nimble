@@ -2098,7 +2098,7 @@ proc lock(options: var Options, nimBin: string) =
     var vnextGraph: LockFileDeps
     let rootPkgName = pkgInfo.basicInfo.name
     
-    var shouldAddNim = true
+    var shouldAddNim = not options.useSystemNim
 
     for solvedPkg in options.satResult.solvedPkgs:
       if (not solvedPkg.pkgName.isNim or (shouldAddNim and solvedPkg.pkgName.isNim)) and solvedPkg.pkgName != rootPkgName:

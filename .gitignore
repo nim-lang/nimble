@@ -71,3 +71,5 @@ nimble-guide/site/
 !nimble-guide/config.nims
 githubcom_*
 nimbledeps
+nimble.develop
+nimble.paths
