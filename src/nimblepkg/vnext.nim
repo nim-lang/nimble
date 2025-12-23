@@ -553,10 +553,23 @@ proc resolveAndConfigureNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo]
   #Notice when implemented it would make the second sat pass obsolete.
   let systemNimPkg = getNimFromSystem(options)
   if options.useSystemNim:
-    if systemNimPkg.isSome:
-      return NimResolved(pkg: some(systemNimPkg.get), version: systemNimPkg.get.basicInfo.version)
-    else:
+    if systemNimPkg.isNone:
       raise newNimbleError[NimbleError]("No system nim found")
+    # If there's a lock file, return early - solveLockFileDeps will handle resolution
+    # If there's no lock file, we need to run the SAT solver with system nim
+    if rootPackage.hasLockFile(options) and not options.disableLockFile:
+      return NimResolved(pkg: some(systemNimPkg.get), version: systemNimPkg.get.basicInfo.version)
+    # No lock file - run SAT solver with system nim as the resolved nim
+    var pkgListDecl = pkgList.mapIt(it.toRequiresInfo(options, nimBin))
+    pkgListDecl.add(systemNimPkg.get)
+    pkgListDecl.sort(compPkgListByVersion)
+    options.satResult.pkgList = pkgListDecl.toHashSet()
+    options.satResult.pkgs = solvePackagesWithSystemNimFallback(
+        rootPackage, pkgListDecl, options, some(NimResolved(pkg: systemNimPkg, version: systemNimPkg.get.basicInfo.version)), nimBin)
+    if options.satResult.solvedPkgs.len == 0:
+      displayError(options.satResult.output)
+      raise newNimbleError[NimbleError]("Couldnt find a solution for the packages. Unsatisfiable dependencies.")
+    return NimResolved(pkg: some(systemNimPkg.get), version: systemNimPkg.get.basicInfo.version)
 
   # Special case: when installing nim itself globally, we want to install that specific version
   # Don't run SAT solver which would pick a nim for compilation - we want the nim we're installing
@@ -904,7 +917,6 @@ proc buildFromDir(pkgInfo: PackageInfo, paths: HashSet[string],
       options.satResult.getNimBin().quoteShell, pkgInfo.backend, if options.noColor: "off" else: "on", join(args, " "),
       outputOpt, input.quoteShell]
     try:
-      # echo "***Executing cmd: ", cmd
       doCmd(cmd)
       binariesBuilt.inc()
     except CatchableError as error:
