@@ -555,13 +555,15 @@ proc resolveAndConfigureNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo]
   if options.useSystemNim:
     if systemNimPkg.isNone:
       raise newNimbleError[NimbleError]("No system nim found")
-    # When using system nim, we still need to solve dependencies for other packages
-    # Set up pkgList and run SAT solver, but use system nim as the resolved nim
+    # If there's a lock file, return early - solveLockFileDeps will handle resolution
+    # If there's no lock file, we need to run the SAT solver with system nim
+    if rootPackage.hasLockFile(options) and not options.disableLockFile:
+      return NimResolved(pkg: some(systemNimPkg.get), version: systemNimPkg.get.basicInfo.version)
+    # No lock file - run SAT solver with system nim as the resolved nim
     var pkgListDecl = pkgList.mapIt(it.toRequiresInfo(options, nimBin))
     pkgListDecl.add(systemNimPkg.get)
     pkgListDecl.sort(compPkgListByVersion)
     options.satResult.pkgList = pkgListDecl.toHashSet()
-    # Solve packages with system nim as the resolved nim
     options.satResult.pkgs = solvePackagesWithSystemNimFallback(
         rootPackage, pkgListDecl, options, some(NimResolved(pkg: systemNimPkg, version: systemNimPkg.get.basicInfo.version)), nimBin)
     if options.satResult.solvedPkgs.len == 0:
