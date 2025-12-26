@@ -80,6 +80,7 @@ type
     features*: Table[string, seq[PkgTuple]] #features requires defined in the nimble file. Declarative parser + SAT solver only.
     activeFeatures*: Table[PkgTuple, seq[string]] #features that dependencies of this package have activated. #i.e. requires package[feature1, feature2]
     testEntryPoint*: string ## The entry point for the test task.
+    declarativeParserErrors*: seq[string] ## Errors from declarative parser (shown only for packages in solution)
 
   Package* = object ## Definition of package from packages.json.
     # Required fields in a package.
@@ -141,7 +142,6 @@ type
     installedPkgs*: seq[PackageInfo] #Packages installed in the current pass
     buildPkgs*: seq[PackageInfo] #Packages that were built in the current pass
     declarativeParseFailed*: bool
-    declarativeParserErrorLines*: seq[string]
     nimResolved*: NimResolved
     bootstrapNim*: BootstrapNim #The nim that we are going to use if we dont have a nim resolved yet and the declarative parser failed. Notice this is required to Atomic Parser fallback (not implemented)
     normalizedRequirements*: Table[string, string] #normalized -> old. Some packages are not published as nimble packages, we keep the url for installation.
@@ -175,8 +175,8 @@ proc getGloballyActiveFeatures*(): seq[string] =
       result.add(&"features.{pkgName}.{feature}")
   
 proc initSATResult*(pass: SATPass): SATResult =
-  SATResult(pkgsToInstall: @[], solvedPkgs: @[], output: "", pkgs: initHashSet[PackageInfo](), 
-    pass: pass, installedPkgs: @[], declarativeParseFailed: false, declarativeParserErrorLines: @[],
+  SATResult(pkgsToInstall: @[], solvedPkgs: @[], output: "", pkgs: initHashSet[PackageInfo](),
+    pass: pass, installedPkgs: @[], declarativeParseFailed: false,
     normalizedRequirements: initTable[string, string](),
     gitErrors: @[]
     )
