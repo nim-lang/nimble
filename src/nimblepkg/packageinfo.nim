@@ -203,6 +203,8 @@ proc readPackageList(name: string, options: Options, ignorePackageCache = false)
   if (not ignorePackageCache) and getGPackageJson().hasKey(name):
     return getGPackageJson()[name]
 
+  display("Reading", "$1 package list" % name, priority = LowPriority)
+
   if needsRefresh(options):
     if options.prompt("No local packages.json found, download it from " &
             "internet?"):
@@ -241,7 +243,6 @@ proc getPackage*(pkg: string, options: Options, resPkg: var Package, ignorePacka
   ##
   ## Aliases are handled and resolved.
   for name, list in options.config.packageLists:
-    display("Reading", "$1 package list" % name, priority = LowPriority)
     let packages = readPackageList(name, options, ignorePackageCache)
     for p in packages:
       if normalize(p["name"].str) == normalize(pkg):
