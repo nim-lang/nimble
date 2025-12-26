@@ -2637,10 +2637,6 @@ proc solvePkgs(rootPackage: PackageInfo, options: var Options, nimBin: string) {
   #We set nim in the options here as it is used to get the full info of the packages.
   #Its kinda a big refactor getPkgInfo to parametrize it. At some point we will do it. 
   setNimBin(resolvedNim.pkg.get, options)
-  if options.satResult.declarativeParserErrorLines.len > 0:
-    displayWarning("Declarative parser failed, the file had to be parsed with the VM parser. Please fix your nimble file.")
-    for line in options.satResult.declarativeParserErrorLines:
-      displayWarning(line)
   options.satResult.nimResolved = resolvedNim #TODO maybe we should consider the sat fallback pass. Not sure if we should just warn the user so the packages are corrected
   options.satResult.pkgs.incl(resolvedNim.pkg.get) #Make sure its in the solution
   # Only add nim to solvedPkgs if there isn't already one (e.g., with a special version like #devel)
@@ -2653,6 +2649,14 @@ proc solvePkgs(rootPackage: PackageInfo, options: var Options, nimBin: string) {
   # # When installing nim itself globally, update rootPackage to point to the resolved nim location
   if rootPackage.basicInfo.name.isNim and resolvedNim.pkg.isSome:
     options.satResult.rootPackage = resolvedNim.pkg.get
+
+  # Display declarative parser warnings for packages in the solution
+  let pkgsWithErrors = options.satResult.pkgs.toSeq.filterIt(it.declarativeParserErrors.len > 0)
+  if pkgsWithErrors.len > 0:
+    displayWarning("Declarative parser failed, the file had to be parsed with the VM parser. Please fix your nimble file.")
+    for pkg in pkgsWithErrors:
+      for line in pkg.declarativeParserErrors:
+        displayWarning(line)
 
   options.satResult.pass = satDone 
 

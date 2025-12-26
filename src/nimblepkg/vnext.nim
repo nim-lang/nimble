@@ -34,8 +34,11 @@ proc debugSATResult*(options: Options, calledFrom: string) =
     echo "No Nim selected"
   echo color, "Bootstrap Nim: ", reset, "isSet: ", satResult.bootstrapNim.nimResolved.pkg.isSome, " version: ", satResult.bootstrapNim.nimResolved.version
   echo color, "Declarative parser failed: ", reset, satResult.declarativeParseFailed
-  if satResult.declarativeParseFailed:
-    echo color, "Declarative parser error lines: ", reset, satResult.declarativeParserErrorLines
+  let pkgsWithErrors = satResult.pkgs.toSeq.filterIt(it.declarativeParserErrors.len > 0)
+  if pkgsWithErrors.len > 0:
+    echo color, "Declarative parser errors: ", reset
+    for pkg in pkgsWithErrors:
+      echo "  ", pkg.basicInfo.name, " ", pkg.basicInfo.version, ": ", pkg.declarativeParserErrors
  
   if satResult.rootPackage.hasLockFile(options):
     echo "Root package has lock file: ", satResult.rootPackage.myPath.parentDir() / "nimble.lock"
@@ -559,7 +562,6 @@ proc resolveAndConfigureNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo]
     # If there's no lock file, we need to run the SAT solver with system nim
     if rootPackage.hasLockFile(options) and not options.disableLockFile:
       return NimResolved(pkg: some(systemNimPkg.get), version: systemNimPkg.get.basicInfo.version)
-    # No lock file - run SAT solver with system nim as the resolved nim
     var pkgListDecl = pkgList.mapIt(it.toRequiresInfo(options, nimBin))
     pkgListDecl.add(systemNimPkg.get)
     pkgListDecl.sort(compPkgListByVersion)

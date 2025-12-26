@@ -464,9 +464,13 @@ proc toRequiresInfo*(pkgInfo: PackageInfo, options: Options, nimBin: string, nim
   # echo "toRequiresInfo: ", $pkgInfo.basicInfo, $pkgInfo.requires
   result = pkgInfo
   if pkgInfo.myPath.splitFile.ext == ".babel":
-    displayWarning &"Package {pkgInfo.basicInfo.name} is a babel package, skipping declarative parser", priority = HighPriority
+    let babelWarning = &"Package {pkgInfo.basicInfo.name} is a babel package, skipping declarative parser"
+    if options.verbosity <= LowPriority:
+      displayWarning babelWarning
     result = getPkgInfo(pkgInfo.myPath.parentDir, options, nimBin)
     fillMetaData(result, result.getRealDir(), false, options)
+    if babelWarning notin result.declarativeParserErrors:
+      result.declarativeParserErrors.add(babelWarning)
     return result
 
   let nimbleFileInfo = nimbleFileInfo.get(extractRequiresInfo(pkgInfo.myPath, options))
@@ -477,12 +481,17 @@ proc toRequiresInfo*(pkgInfo: PackageInfo, options: Options, nimBin: string, nim
     result.infoKind = pikRequires
   
   if nimbleFileInfo.nestedRequires and options.action.typ != actionCheck: #When checking we want to fail on porpuse
-    if options.satResult.pass == satNimSelection:    
+    if options.satResult.pass == satNimSelection:
       assert nimBin != "", "Cant fallback to the vm parser as there is no nim bin."
 
-    options.satResult.declarativeParserErrorLines.addUnique nimbleFileInfo.declarativeParserErrorLines.join("\n")
-    
+    if options.verbosity <= LowPriority:
+      for line in nimbleFileInfo.declarativeParserErrorLines:
+        displayWarning line
+
     result = getPkgInfo(result.myPath.parentDir, options, nimBin)
+    for line in nimbleFileInfo.declarativeParserErrorLines:
+      if line notin result.declarativeParserErrors:
+        result.declarativeParserErrors.add(line)
 
   result.features = getFeatures(nimbleFileInfo)
   result.srcDir = nimbleFileInfo.srcDir
