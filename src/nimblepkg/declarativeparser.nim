@@ -10,7 +10,7 @@ from compiler/nimblecmd import getPathVersionChecksum
 import version, packageinfotypes, packageinfo, options, packageparser, cli,
   packagemetadatafile, common
 import sha1hashes, vcstools, urls
-import std/[tables, sequtils, strscans, strformat, os, options]
+import std/[tables, sequtils, strscans, strformat, os, options, strtabs]
 
 type NimbleFileInfo* = object
   nimbleFile*: string
@@ -28,6 +28,142 @@ type NimbleFileInfo* = object
 
 proc eqIdent(a, b: string): bool {.inline.} =
   cmpIgnoreCase(a, b) == 0 and a[0] == b[0]
+
+proc compileDefines(): StringTableRef =
+  result = newStringTable(modeCaseSensitive)
+  result["windows"] = $defined(windows)
+  result["posix"] = $defined(posix)
+  result["linux"] = $defined(linux)
+  result["android"] = $defined(android)
+  result["macosx"] = $defined(macosx)
+  result["freebsd"] = $defined(freebsd)
+  result["openbsd"] = $defined(openbsd)
+  result["netbsd"] = $defined(netbsd)
+  result["solaris"] = $defined(solaris)
+  result["amd64"] = $defined(amd64)
+  result["x86_64"] = $defined(x86_64)
+  result["i386"] = $defined(i386)
+  result["arm"] = $defined(arm)
+  result["arm64"] = $defined(arm64)
+  result["mips"] = $defined(mips)
+  result["powerpc"] = $defined(powerpc)
+  # Common additional switches used in nimble files
+  result["js"] = $defined(js)
+  result["emscripten"] = $defined(emscripten)
+  result["wasm32"] = $defined(wasm32)
+  result["mingw"] = $defined(mingw)
+
+var definedSymbols: StringTableRef = compileDefines()
+
+proc getBasicDefines*(): StringTableRef =
+  return definedSymbols
+
+proc extractRequiresInfo*(nimbleFile: string, options: Options): NimbleFileInfo
+
+proc testEvaluateCondition*(nimbleFile: string): bool =
+  ## Test function to check if when defined() evaluation works
+  var options = initOptions()
+  let nimbleInfo = extractRequiresInfo(nimbleFile, options)
+  return not nimbleInfo.nestedRequires and not nimbleInfo.hasErrors
+
+proc setBasicDefines*(sym: string, value: bool) {.inline.} =
+  definedSymbols[sym] = $value
+
+proc evalBasicDefines(sym: string; conf: ConfigRef; n: PNode): Option[bool] =
+  if sym in definedSymbols:
+    return some(definedSymbols[sym] == "true")
+  else:
+    localError(conf, n.info, "undefined symbol: " & sym)
+    return none(bool)
+
+proc evalBooleanCondition(n: PNode; conf: ConfigRef): Option[bool] =
+  ## Recursively evaluate boolean conditions in when statements
+  case n.kind
+  of nkCall:
+    # Handle defined(platform) calls
+    if n[0].kind == nkIdent and n[0].ident.s == "defined" and n.len == 2:
+      if n[1].kind == nkIdent:
+        return evalBasicDefines(n[1].ident.s, conf, n)
+    return none(bool)
+  of nkInfix:
+    # Handle binary operators: and, or
+    if n[0].kind == nkIdent and n.len == 3:
+      case n[0].ident.s
+      of "and":
+        let left = evalBooleanCondition(n[1], conf)
+        let right = evalBooleanCondition(n[2], conf)
+        if left.isSome and right.isSome:
+          return some(left.get and right.get)
+        else:
+          return none(bool)
+      of "or":
+        let left = evalBooleanCondition(n[1], conf)
+        let right = evalBooleanCondition(n[2], conf)
+        if left.isSome and right.isSome:
+          return some(left.get or right.get)
+        else:
+          return none(bool)
+      of "xor":
+        let left = evalBooleanCondition(n[1], conf)
+        let right = evalBooleanCondition(n[2], conf)
+        if left.isSome and right.isSome:
+          return some(left.get xor right.get)
+        else:
+          return none(bool)
+    return none(bool)
+  of nkPrefix:
+    # Handle unary operators: not
+    if n[0].kind == nkIdent and n[0].ident.s == "not" and n.len == 2:
+      let inner = evalBooleanCondition(n[1], conf)
+      if inner.isSome:
+        return some(not inner.get)
+      else:
+        return none(bool)
+    return none(bool)
+  of nkPar:
+    # Handle parentheses - evaluate the content
+    if n.len == 1:
+      return evalBooleanCondition(n[0], conf)
+    return none(bool)
+  of nkIdent:
+    # Handle direct identifiers (though this shouldn't happen in practice)
+    return evalBasicDefines(n.ident.s, conf, n)
+  else:
+    return none(bool)
+
+proc isEvaluableCondition(n: PNode): bool =
+  ## Check if a when condition only contains evaluable expressions (defined() calls)
+  case n.kind
+  of nkCall:
+    # Allow defined(platform) calls
+    if n[0].kind == nkIdent and n[0].ident.s == "defined" and n.len == 2:
+      if n[1].kind == nkIdent:
+        return true
+    return false
+  of nkInfix:
+    # Allow binary operators: and, or, xor
+    if n[0].kind == nkIdent and n.len == 3:
+      case n[0].ident.s
+      of "and", "or", "xor":
+        return isEvaluableCondition(n[1]) and isEvaluableCondition(n[2])
+      else:
+        return false
+    return false
+  of nkPrefix:
+    # Allow unary operators: not
+    if n[0].kind == nkIdent and n[0].ident.s == "not" and n.len == 2:
+      return isEvaluableCondition(n[1])
+    return false
+  of nkPar:
+    # Allow parentheses - check the content
+    if n.len == 1:
+      return isEvaluableCondition(n[0])
+    return false
+  of nkIdent:
+    # Allow direct identifiers if they're in our defined symbols
+    return n.ident.s in definedSymbols
+  else:
+    return false
 
 proc collectRequiresFromNode(n: PNode, result: var seq[string]) =
   case n.kind
@@ -53,7 +189,25 @@ proc validateNoNestedRequires(nfl: var NimbleFileInfo, n: PNode, conf: ConfigRef
   of nkStmtList, nkStmtListExpr:
     for child in n:
       validateNoNestedRequires(nfl, child, conf, hasErrors, nestedRequires, inControlFlow)
-  of nkWhenStmt, nkIfStmt, nkIfExpr, nkElifBranch, nkElse, nkElifExpr, nkElseExpr:
+  of nkWhenStmt:
+    # Special handling for when statements - allow evaluable conditions
+    var allowedWhen = false
+    if n.len > 0:
+      let firstBranch = n[0]
+      if firstBranch.kind == nkElifBranch and firstBranch.len >= 2:
+        let condition = firstBranch[0]
+        if isEvaluableCondition(condition):
+          allowedWhen = true
+    
+    if allowedWhen:
+      # This is an evaluable when statement - skip validation here, it will be handled in extract
+      # Don't validate children here - the extract phase will handle them properly
+      discard
+    else:
+      # This is a non-evaluable when statement - mark as control flow
+      for child in n:
+        validateNoNestedRequires(nfl, child, conf, hasErrors, nestedRequires, true)
+  of nkIfStmt, nkIfExpr, nkElifBranch, nkElse, nkElifExpr, nkElseExpr:
     for child in n:
       validateNoNestedRequires(nfl, child, conf, hasErrors, nestedRequires, true)
   of nkCallKinds:
@@ -191,6 +345,35 @@ proc extract(n: PNode, conf: ConfigRef, result: var NimbleFileInfo, options: Opt
           result.bin[bin] = bin        
     else:
       discard
+  of nkWhenStmt:
+    # Handle full when/elif/else chains.
+    var taken = false
+    var hasElse = false
+
+    # Iterate all branches; choose the first with condition evaluating to true.
+    for i in 0 ..< n.len:
+      let br = n[i]
+      case br.kind
+      of nkElifBranch:
+        if br.len >= 2:
+          let cond = br[0]
+          let body = br[1]
+          let condResult = evalBooleanCondition(cond, conf)
+          if condResult.isSome:
+            if condResult.get and not taken:
+              extract(body, conf, result, options)
+              taken = true
+          else:
+            # Non-evaluable condition - skip this branch entirely
+            discard
+      of nkElse:
+        if br.len >= 1 and not taken:
+          let body = br[0]
+          extract(body, conf, result, options)
+          taken = true
+          hasElse = true
+      else:
+        discard
   else:
     discard
 
