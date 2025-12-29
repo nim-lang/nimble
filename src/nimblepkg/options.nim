@@ -70,7 +70,6 @@ type
     extraRequires*: seq[PkgTuple] # extra requires parsed from the command line
     nimBinariesDir*: string # Directory where nim binaries are stored. Separated from nimbleDir as it can be changed by the user/tests
     disableNimBinaries*: bool # Whether to disable the use of nim binaries
-    maxTaggedVersions*: int # Maximum number of tags to check for a package when discovering versions in a local repo
     useDeclarativeParser*: bool # Whether to use the declarative parser for parsing nimble files (only when solver is SAT). A new code path is used when declarative is on.
     features*: seq[string] # Features to be activated. Only used when using the declarative parser
     ignoreSubmodules*: bool # Whether to ignore submodules when cloning a repository
@@ -777,11 +776,6 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
     result.extraRequires = val.split(";").mapIt(it.strip.parseRequires())
   of "disablenimbinaries":
     result.disableNimBinaries = true
-  of "maximumtaggedversions":
-    try: 
-      result.maxTaggedVersions = parseUInt(val).int
-    except ValueError:
-      raise nimbleError(&"{val} is not a valid value")
   of "features":
     result.features = val.split(";").mapIt(it.strip)
   of "ignoresubmodules":
@@ -918,7 +912,6 @@ proc initOptions*(): Options =
     noColor: not isatty(stdout),
     startDir: getCurrentDir(),
     nimBinariesDir: getHomeDir() / ".nimble" / "nimbinaries",
-    maxTaggedVersions: 50,
     useSatSolver: true,
     useDeclarativeParser: false,
     legacy: false, #default to legacy code path for nimble < 1.0.0
