@@ -284,7 +284,7 @@ proc toFormular*(g: var DepGraph): Form =
         
         var hasCompatible = false
         for depVer in depNode.versions:
-          if depVer.version.withinRange(q):
+          if depVer.version.satisfiesConstraint(q):
             hasCompatible = true
             break
         
@@ -307,7 +307,7 @@ proc toFormular*(g: var DepGraph): Form =
         # Collect compatible versions (node is sorted oldest first)
         var compatibleVersions: seq[VarId] = @[]
         for depVer in depNode.versions:
-          if depVer.version.withinRange(q):
+          if depVer.version.satisfiesConstraint(q):
             compatibleVersions.add(depVer.v)
 
         if compatibleVersions.len == 0:
@@ -1247,7 +1247,7 @@ proc processRequirements(versions: var Table[string, PackageVersions], pv: PkgTu
 
           # Add special version alongside existing versions.
           # The SAT solver will respect explicit special version requirements via
-          # withinRange (verSpecial only matches exact special versions).
+          # satisfiesConstraint (only exact special versions satisfy special requirements).
           if pkgName notin versions:
             versions[pkgName] = PackageVersions(pkgName: pkgName, versions: @[pkgMin])
           else:
@@ -1329,7 +1329,7 @@ proc processRequirementsAsync(pv: PkgTuple, visitedParam: HashSet[PkgTuple], get
 
         # Add special version alongside existing versions.
         # The SAT solver will respect explicit special version requirements via
-        # withinRange (verSpecial only matches exact special versions).
+        # satisfiesConstraint (only exact special versions satisfy special requirements).
         if pkgName notin result:
           result[pkgName] = PackageVersions(pkgName: pkgName, versions: @[pkgMin])
         else:
