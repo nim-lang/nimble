@@ -3,7 +3,7 @@ import unittest, os, osproc
 import testscommon
 # from nimblepkg/common import cd Used in the commented tests
 import std/[tables, sequtils, json, jsonutils, strutils, times, options, strformat]
-import nimblepkg/[version, nimblesat, options, config, download, packageinfotypes, packageinfo]
+import nimblepkg/[version, nimblesat, options, config, download, packageinfotypes]
 from nimblepkg/common import cd
 
 let nimBin = "nim"
@@ -258,7 +258,8 @@ suite "SAT solver":
     
     removeDir(options.pkgCachePath)
 
-  test "should treat #head and tags as any version":
+  test "#head requirements require #head available":
+    # When a package requires dep#head, only #head should satisfy it, not tagged versions
     let pkgVersionTable = {
       "a": PackageVersions(pkgName: "a", versions: @[
         PackageMinimalInfo(name: "a", version: newVersion "3.0", requires: @[
@@ -266,7 +267,27 @@ suite "SAT solver":
         ], isRoot:true),
       ]),
       "b": PackageVersions(pkgName: "b", versions: @[
-        PackageMinimalInfo(name: "b", version: newVersion "0.1.0")
+        PackageMinimalInfo(name: "b", version: newVersion "0.1.0")  # Only tagged version, no #head
+      ])
+    }.toTable()
+    var graph = pkgVersionTable.toDepGraph()
+    let form = toFormular(graph)
+    var packages = initTable[string, Version]()
+    var output = ""
+    # Should fail because #head is required but only 0.1.0 is available
+    check not solve(graph, form, packages, output, initOptions())
+
+  test "#head requirements are satisfied when #head is available":
+    # When #head is available, it should satisfy #head requirements
+    let pkgVersionTable = {
+      "a": PackageVersions(pkgName: "a", versions: @[
+        PackageMinimalInfo(name: "a", version: newVersion "3.0", requires: @[
+          (name:"b", ver: parseVersionRange "#head")
+        ], isRoot:true),
+      ]),
+      "b": PackageVersions(pkgName: "b", versions: @[
+        PackageMinimalInfo(name: "b", version: newVersion "0.1.0"),
+        PackageMinimalInfo(name: "b", version: newVersion "#head")  # #head is available
       ])
     }.toTable()
     var graph = pkgVersionTable.toDepGraph()
@@ -275,6 +296,7 @@ suite "SAT solver":
     var output = ""
     check solve(graph, form, packages, output, initOptions())
     check packages.len == 2
+    check packages["b"] == newVersion("#head")
     
   test "should not match other tags":
     let pkgVersionTable = {

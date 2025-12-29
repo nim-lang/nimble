@@ -1201,15 +1201,15 @@ proc getMinimalFromPreferredAsync*(pv: PkgTuple, getMinimalPackage: GetPackageMi
 proc processRequirements(versions: var Table[string, PackageVersions], pv: PkgTuple, visited: var HashSet[PkgTuple], getMinimalPackage: GetPackageMinimal, preferredPackages: seq[PackageMinimalInfo] = newSeq[PackageMinimalInfo](), options: Options, nimBin: string) =
   if pv in visited:
     return
-  
+
   visited.incl pv
-  
+
   # For special versions, always process them even if we think we have the package
   # This ensures the special version gets downloaded and added to the version table
   try:
-    if pv.ver.kind == verSpecial or not hasVersion(versions, pv):    
+    if pv.ver.kind == verSpecial or not hasVersion(versions, pv):
       var pkgMins = getMinimalFromPreferred(pv, getMinimalPackage, preferredPackages, options, nimBin)
-      
+
       # First, validate all requirements for all package versions before adding anything
       var validPkgMins: seq[PackageMinimalInfo] = @[]
       for pkgMin in pkgMins:
@@ -1226,10 +1226,10 @@ proc processRequirements(versions: var Table[string, PackageVersions], pv: PkgTu
             allRequirementsValid = false
             displayWarning(&"Skipping package {pkgMin.name}@{pkgMin.version} due to invalid dependency: {req.name}", HighPriority)
             break
-        
+
         if allRequirementsValid:
           validPkgMins.add pkgMin
-      
+
       # Only add packages with valid requirements to the versions table
       for pkgMin in validPkgMins.mitems:
         let pkgName = pkgMin.name.toLower
@@ -1245,12 +1245,20 @@ proc processRequirements(versions: var Table[string, PackageVersions], pv: PkgTu
             specialVer.speSemanticVersion = some($pkgMin.version)  # Store the real version
             pkgMin.version = specialVer
 
-        # Add special version alongside existing versions - let the SAT solver choose
-        if pkgName notin versions:
-          versions[pkgName] = PackageVersions(pkgName: pkgName, versions: @[pkgMin])
+          # Add special version alongside existing versions.
+          # The SAT solver will respect explicit special version requirements via
+          # withinRange (verSpecial only matches exact special versions).
+          if pkgName notin versions:
+            versions[pkgName] = PackageVersions(pkgName: pkgName, versions: @[pkgMin])
+          else:
+            versions[pkgName].versions.addUnique pkgMin
         else:
-          versions[pkgName].versions.addUnique pkgMin
-        
+          # Regular versions: add alongside existing versions
+          if pkgName notin versions:
+            versions[pkgName] = PackageVersions(pkgName: pkgName, versions: @[pkgMin])
+          else:
+            versions[pkgName].versions.addUnique pkgMin
+
         # Now recursively process the requirements (we know they're valid)
         for req in pkgMin.requires:
           processRequirements(versions, req, visited, getMinimalPackage, preferredPackages, options, nimBin)
@@ -1319,11 +1327,19 @@ proc processRequirementsAsync(pv: PkgTuple, visitedParam: HashSet[PkgTuple], get
           specialVer.speSemanticVersion = some($pkgMin.version)  # Store the real version
           pkgMin.version = specialVer
 
-      # Add special version alongside existing versions - let the SAT solver choose
-      if pkgName notin result:
-        result[pkgName] = PackageVersions(pkgName: pkgName, versions: @[pkgMin])
+        # Add special version alongside existing versions.
+        # The SAT solver will respect explicit special version requirements via
+        # withinRange (verSpecial only matches exact special versions).
+        if pkgName notin result:
+          result[pkgName] = PackageVersions(pkgName: pkgName, versions: @[pkgMin])
+        else:
+          result[pkgName].versions.addUnique pkgMin
       else:
-        result[pkgName].versions.addUnique pkgMin
+        # Regular versions: add alongside existing versions
+        if pkgName notin result:
+          result[pkgName] = PackageVersions(pkgName: pkgName, versions: @[pkgMin])
+        else:
+          result[pkgName].versions.addUnique pkgMin
 
       # Process all requirements in parallel (full parallelization)
       # Each branch gets its own copy of visited to avoid shared state issues

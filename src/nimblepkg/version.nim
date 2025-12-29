@@ -157,11 +157,12 @@ proc withinRange*(ver: Version, ran: VersionRange): bool =
     return ver <= ran.ver
   of verEq:
     return ver == ran.ver
-  of verSpecial: # special version is always within range
-    # If the downloaded package has a normal version (e.g., 1.0.2), it satisfies
-    # a special version range (e.g., #branch) because the branch was downloaded
-    # and its nimble file contains that version.
-    return ver.isSpecial and ver == ran.spe or not ver.isSpecial
+  of verSpecial:
+    # For explicit special version requirements (e.g., #head), only the exact
+    # special version satisfies the constraint. Normal versions don't satisfy
+    # special version requirements - this ensures the SAT solver respects
+    # explicit #head/#branch requirements.
+    return ver.isSpecial and ver == ran.spe
   of verIntersect, verTilde, verCaret:
     return withinRange(ver, ran.verILeft) and withinRange(ver, ran.verIRight)
   of verAny:
