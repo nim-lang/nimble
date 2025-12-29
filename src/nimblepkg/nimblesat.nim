@@ -275,19 +275,19 @@ proc toFormular*(g: var DepGraph): Form =
   for p in mitems(g.nodes):
     for ver in p.versions.mitems:
       var allDepsCompatible = true
-      
+
       # First check if all dependencies can be satisfied
       for dep, q in items g.reqs[ver.req].deps:
         let depIdx = findDependencyForDep(g, dep)
         if depIdx < 0: continue
         let depNode = g.nodes[depIdx]
-        
+
         var hasCompatible = false
         for depVer in depNode.versions:
           if depVer.version.satisfiesConstraint(q):
             hasCompatible = true
             break
-        
+
         if not hasCompatible:
           allDepsCompatible = false
           break
@@ -1245,13 +1245,10 @@ proc processRequirements(versions: var Table[string, PackageVersions], pv: PkgTu
             specialVer.speSemanticVersion = some($pkgMin.version)  # Store the real version
             pkgMin.version = specialVer
 
-          # Add special version alongside existing versions.
-          # The SAT solver will respect explicit special version requirements via
-          # satisfiesConstraint (only exact special versions satisfy special requirements).
-          if pkgName notin versions:
-            versions[pkgName] = PackageVersions(pkgName: pkgName, versions: @[pkgMin])
-          else:
-            versions[pkgName].versions.addUnique pkgMin
+          # Special versions replace any existing versions.
+          # When a package explicitly requires a special version (like #head or a commit),
+          # that's the ONLY version that should be used.
+          versions[pkgName] = PackageVersions(pkgName: pkgName, versions: @[pkgMin])
         else:
           # Regular versions: add alongside existing versions
           if pkgName notin versions:
@@ -1327,13 +1324,10 @@ proc processRequirementsAsync(pv: PkgTuple, visitedParam: HashSet[PkgTuple], get
           specialVer.speSemanticVersion = some($pkgMin.version)  # Store the real version
           pkgMin.version = specialVer
 
-        # Add special version alongside existing versions.
-        # The SAT solver will respect explicit special version requirements via
-        # satisfiesConstraint (only exact special versions satisfy special requirements).
-        if pkgName notin result:
-          result[pkgName] = PackageVersions(pkgName: pkgName, versions: @[pkgMin])
-        else:
-          result[pkgName].versions.addUnique pkgMin
+        # Special versions replace any existing versions.
+        # When a package explicitly requires a special version (like #head or a commit),
+        # that's the ONLY version that should be used.
+        result[pkgName] = PackageVersions(pkgName: pkgName, versions: @[pkgMin])
       else:
         # Regular versions: add alongside existing versions
         if pkgName notin result:
