@@ -157,15 +157,39 @@ proc withinRange*(ver: Version, ran: VersionRange): bool =
     return ver <= ran.ver
   of verEq:
     return ver == ran.ver
-  of verSpecial: # special version is always within range
+  of verSpecial:
     # If the downloaded package has a normal version (e.g., 1.0.2), it satisfies
     # a special version range (e.g., #branch) because the branch was downloaded
     # and its nimble file contains that version.
+    # For SAT constraint building, use satisfiesConstraint instead.
     return ver.isSpecial and ver == ran.spe or not ver.isSpecial
   of verIntersect, verTilde, verCaret:
     return withinRange(ver, ran.verILeft) and withinRange(ver, ran.verIRight)
   of verAny:
     return true
+
+proc satisfiesConstraint*(ver: Version, ran: VersionRange): bool =
+  ## Stricter version matching for SAT solver constraint building.
+  ## Unlike withinRange, this requires exact matches for special version requirements.
+  ## Use this when building SAT constraints; use withinRange for post-download validation.
+
+  # For special versions with speSemanticVersion, use that for comparison
+  if ver.isSpecial and ver.speSemanticVersion.isSome:
+    let semanticVer = newVersion(ver.speSemanticVersion.get)
+    case ran.kind
+    of verSpecial:
+      return ver == ran.spe  # Must match exactly for special ranges
+    else:
+      return withinRange(semanticVer, ran)  # Use semantic version for comparisons
+
+  case ran.kind
+  of verSpecial:
+    # For SAT constraints: special version requirements require exact special version match.
+    # Normal versions do NOT satisfy special requirements.
+    return ver.isSpecial and ver == ran.spe
+  else:
+    # For non-special requirements, use normal withinRange logic
+    return withinRange(ver, ran)
 
 proc withinRange*(versions: HashSet[Version], range: VersionRange): bool =
   ## Checks whether any of the versions from the set `versions` are in the range

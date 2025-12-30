@@ -3,7 +3,7 @@ import unittest, os, osproc
 import testscommon
 # from nimblepkg/common import cd Used in the commented tests
 import std/[tables, sequtils, json, jsonutils, strutils, times, options, strformat]
-import nimblepkg/[version, nimblesat, options, config, download, packageinfotypes, packageinfo]
+import nimblepkg/[version, nimblesat, options, config, download, packageinfotypes]
 from nimblepkg/common import cd
 
 let nimBin = "nim"
@@ -258,7 +258,8 @@ suite "SAT solver":
     
     removeDir(options.pkgCachePath)
 
-  test "should treat #head and tags as any version":
+  test "#head requirements require #head available":
+    # When a package requires dep#head, only #head should satisfy it, not tagged versions
     let pkgVersionTable = {
       "a": PackageVersions(pkgName: "a", versions: @[
         PackageMinimalInfo(name: "a", version: newVersion "3.0", requires: @[
@@ -266,7 +267,27 @@ suite "SAT solver":
         ], isRoot:true),
       ]),
       "b": PackageVersions(pkgName: "b", versions: @[
-        PackageMinimalInfo(name: "b", version: newVersion "0.1.0")
+        PackageMinimalInfo(name: "b", version: newVersion "0.1.0")  # Only tagged version, no #head
+      ])
+    }.toTable()
+    var graph = pkgVersionTable.toDepGraph()
+    let form = toFormular(graph)
+    var packages = initTable[string, Version]()
+    var output = ""
+    # Should fail because #head is required but only 0.1.0 is available
+    check not solve(graph, form, packages, output, initOptions())
+
+  test "#head requirements are satisfied when #head is available":
+    # When #head is available, it should satisfy #head requirements
+    let pkgVersionTable = {
+      "a": PackageVersions(pkgName: "a", versions: @[
+        PackageMinimalInfo(name: "a", version: newVersion "3.0", requires: @[
+          (name:"b", ver: parseVersionRange "#head")
+        ], isRoot:true),
+      ]),
+      "b": PackageVersions(pkgName: "b", versions: @[
+        PackageMinimalInfo(name: "b", version: newVersion "0.1.0"),
+        PackageMinimalInfo(name: "b", version: newVersion "#head")  # #head is available
       ])
     }.toTable()
     var graph = pkgVersionTable.toDepGraph()
@@ -275,6 +296,7 @@ suite "SAT solver":
     var output = ""
     check solve(graph, form, packages, output, initOptions())
     check packages.len == 2
+    check packages["b"] == newVersion("#head")
     
   test "should not match other tags":
     let pkgVersionTable = {
@@ -317,7 +339,6 @@ suite "SAT solver":
 
   test "should be able to get all the released PackageVersions from a git local repository":
     var options = initOptions()
-    options.maxTaggedVersions = 0 #all
     options.nimBin = some options.makeNimBin("nim")
     options.config.packageLists["official"] = PackageList(name: "Official", urls: @[
     "https://raw.githubusercontent.com/nim-lang/packages/master/packages.json",
@@ -329,22 +350,24 @@ suite "SAT solver":
     let repoDir = downloadRes.dir
     let downloadMethod = DownloadMethod git
     let packageVersions = getPackageMinimalVersionsFromRepo(repoDir, pv, downloadRes.version, downloadMethod, options, nimBin = nimBin)
-    
+
     #we know these versions are available
     let availableVersions = @["0.3.4", "0.3.5", "0.3.6", "0.4.5", "0.4.4"].mapIt(newVersion(it))
     for version in availableVersions:
       check version in packageVersions.mapIt(it.version)
-    check fileExists(repoDir / TaggedVersionsFileName)
+    # Check that the centralized cache file exists
+    check fileExists(options.pkgCachePath / TaggedVersionsFileName)
   
-  test "should not use the cache when switching versions":
+  test "should use the centralized cache for package versions":
     var options = initOptions()
-    options.maxTaggedVersions = 0 #all
     options.nimBin = some options.makeNimBin("nim")
     options.localDeps = false
     options.config.packageLists["official"] = PackageList(name: "Official", urls: @[
     "https://raw.githubusercontent.com/nim-lang/packages/master/packages.json",
     "https://nim-lang.org/nimble/packages.json"
     ])
+    # Clean up any existing cache
+    removeFile(options.pkgCachePath / TaggedVersionsFileName)
     for dir in walkDir(".", true):
       if dir.kind == PathComponent.pcDir and dir.path.startsWith("githubcom_vegansknimfp"):
         echo "Removing dir", dir.path
@@ -354,19 +377,20 @@ suite "SAT solver":
     let downloadResPrev = pvPrev.downloadPkgFromUrl(options, nimBin = nimBin)[0]
     let repoDirPrev = downloadResPrev.dir
     discard getPackageMinimalVersionsFromRepo(repoDirPrev, pvPrev, downloadResPrev.version,  DownloadMethod.git, options, nimBin = nimBin)
-    check fileExists(repoDirPrev / TaggedVersionsFileName)
-    
+    # Check that the centralized cache file exists
+    check fileExists(options.pkgCachePath / TaggedVersionsFileName)
+
+    # Requesting a different version should use the same centralized cache
     let pv = parseRequires("nimfp >= 0.4.4")
     let downloadRes = pv.downloadPkgFromUrl(options, nimBin = nimBin)[0]
-    let repoDir = downloadRes.dir 
-    check not fileExists(repoDir / TaggedVersionsFileName)
+    let repoDir = downloadRes.dir
 
+    # The second call should use the cached versions from the centralized cache
     let packageVersions = getPackageMinimalVersionsFromRepo(repoDir, pv, downloadRes.version, DownloadMethod.git, options, nimBin = nimBin)
     #we know these versions are available
     let availableVersions = @["0.4.5", "0.4.4"].mapIt(newVersion(it))
     for version in availableVersions:
       check version in packageVersions.mapIt(it.version)
-    check fileExists(repoDir / TaggedVersionsFileName)
 
   #Desactivate tests as it goes against local deps mode by default. Need to be redone
   # test "should not use the global tagged cache when in local but a local one":
@@ -433,8 +457,8 @@ suite "SAT solver":
     var pkgVersionTable = initTable[string, PackageVersions]()
     collectAllVersions(pkgVersionTable, root, options, downloadMinimalPackage, nimBin = nimBin)
     for k, v in pkgVersionTable:
-      if not k.isNim:
-        check v.versions.len <= options.maxTaggedVersions
+      # All packages should have at least one version
+      check v.versions.len > 0
       echo &"{k} versions {v.versions.len}"
   
   test "should fallback to a previous version of a dependency when is unsatisfable": 

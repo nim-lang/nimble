@@ -57,7 +57,6 @@ suite "Declarative parsing":
 
   test "should be able to get all the released PackageVersions from a git local repository using the declarative parser":
     var options = initOptions()
-    options.maxTaggedVersions = 0 #all
     options.nimBin = some options.makeNimBin("nim")
     options.config.packageLists["official"] = PackageList(
       name: "Official",
@@ -88,8 +87,8 @@ suite "Declarative parsing":
       @["0.3.4", "0.3.5", "0.3.6", "0.4.5", "0.4.4"].mapIt(newVersion(it))
     for version in availableVersions:
       check version in packageVersions.mapIt(it.version)
-    
-    check fileExists(repoDir / TaggedVersionsFileName)
+
+    check fileExists(options.pkgCachePath / TaggedVersionsFileName)
 
   test "should be able to install a package using the declarative parser":
     let (output, exitCode) = execNimble("--parser:declarative", "install", "nimlangserver@#head")
