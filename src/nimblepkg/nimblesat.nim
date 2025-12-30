@@ -716,6 +716,26 @@ proc saveTaggedVersions*(pkgName: string, versions: seq[PackageMinimalInfo], opt
   cache[normalizedName] = versions
   writeTaggedVersionsCache(cache, options)
 
+proc cacheToPackageVersionTable*(options: Options): Table[string, PackageVersions] =
+  ## Loads the tagged versions cache and converts it to a package version table.
+  ## This allows reusing cached package versions instead of re-fetching them.
+  ## Note: Skips package versions that have URL-based requirements since those
+  ## dependencies may not be resolved in the cache.
+  let cache = readTaggedVersionsCache(options)
+  result = initTable[string, PackageVersions]()
+  for pkgName, versions in cache:
+    var validVersions: seq[PackageMinimalInfo] = @[]
+    for v in versions:
+      var hasUrlDep = false
+      for req in v.requires:
+        if req.name.isUrl:
+          hasUrlDep = true
+          break
+      if not hasUrlDep:
+        validVersions.add v
+    if validVersions.len > 0:
+      result[pkgName] = PackageVersions(pkgName: pkgName, versions: validVersions)
+
 proc getPackageMinimalVersionsFromRepo*(repoDir: string, pkg: PkgTuple, version: Version, downloadMethod: DownloadMethod, options: Options, nimBin: string): seq[PackageMinimalInfo] =
   result = newSeq[PackageMinimalInfo]()
 
@@ -1537,7 +1557,8 @@ proc solvePackages*(rootPkg: PackageInfo, pkgList: seq[PackageInfo], pkgsToInsta
   root.isRoot = true
   var pkgVersionTable: Table[system.string, packageinfotypes.PackageVersions]
   if options.isLegacy or not options.useAsyncDownloads:
-    pkgVersionTable = initTable[string, PackageVersions]()
+    # Load cached package versions to skip re-fetching known packages
+    pkgVersionTable = cacheToPackageVersionTable(options)
     pkgVersionTable[root.name] = PackageVersions(pkgName: root.name, versions: @[root])
     collectAllVersions(pkgVersionTable, root, options, downloadMinimalPackage, pkgList.mapIt(it.getMinimalInfo(options)), nimBin)
   else:
@@ -1591,7 +1612,8 @@ proc getPackageInfo*(name: string, pkgs: seq[PackageInfo], version: Option[Versi
           return some pkg
 
 proc getPkgVersionTable*(pkgInfo: PackageInfo, pkgList: seq[PackageInfo], options: Options, nimBin: string): Table[string, PackageVersions] =
-  result = initTable[string, PackageVersions]()
+  # Load cached package versions to skip re-fetching known packages
+  result = cacheToPackageVersionTable(options)
   var root = pkgInfo.getMinimalInfo(options)
   root.isRoot = true
   result[root.name] = PackageVersions(pkgName: root.name, versions: @[root])
