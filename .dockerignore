@@ -4,7 +4,8 @@
 .DS_Store
 tests/nimdep/vendor/
 tests/vendor/
-tests/git*
+# tests/git* was excluding tests/gitversions directory
+# .git directories are already excluded by the first line
 nimbledeps
 **/csources_v2/
 **/*.o

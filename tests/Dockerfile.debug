@@ -1,7 +1,11 @@
-FROM nimlang/nim:alpine
+# Use official Nim image (Ubuntu-based, matches CI better than Alpine)
+FROM nimlang/nim:latest
 
-# Install git (needed for nimble operations)
-RUN apk add --no-cache git
+# Install git and ensure /etc/localtime exists (needed for timezones package tests)
+# Set timezone non-interactively
+ENV TZ=UTC
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone && \
+    apt-get update && apt-get install -y git tzdata && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
 WORKDIR /nimble
@@ -11,14 +15,17 @@ COPY . .
 
 # Initialize git repository and make an initial commit
 # This is needed for the sync file functionality in develop mode
-RUN git init && \
+# Use --force to add files that are in .gitignore (like nimbledeps) but are tracked in the real repo
+# Remove .git files from subdirectories to avoid submodule conflicts
+# Also remove untracked test artifacts that may have been copied
+RUN rm -rf "tests/nimbleDir copy" 2>/dev/null || true && \
+    find tests -name ".git" -type f -delete 2>/dev/null || true && \
+    find tests -name ".git" -type d -exec rm -rf {} + 2>/dev/null || true && \
+    git init && \
     git config user.name "Docker Test" && \
     git config user.email "test@docker.local" && \
-    git add . && \
+    git add --force . && \
     git commit -m "Initial commit for testing"
-
-# Initialize git submodules (needed for vendor dependencies)
-RUN git submodule update --init
 
 # Build nimble
 RUN nim c -d:release src/nimble.nim
@@ -26,13 +33,12 @@ RUN nim c -d:release src/nimble.nim
 # Set environment for testing
 ENV PATH="/nimble/src:$PATH"
 
-# Default command to run the specific failing test
-# CMD ["./src/nimble", "test", "requires flag::should be able to install a special version"] 
-# CMD ["./src/nimble", "build"] 
-# CMD ["./src/nimble", "test", "lock file::"] 
-# CMD ["./src/nimble", "test", "issues::issue 801"] 
-# CMD ["./src/nimble", "test"] 
-CMD ["./src/nimble", "test", "uninstall::can uninstall"] 
-# CMD ["./src/nimble", "test", "SAT solver::"] 
+# Default command to run tests
+# CMD ["./src/nimble", "test", "requires flag::should be able to install a special version"]
+# CMD ["./src/nimble", "build"]
+# CMD ["./src/nimble", "test", "lock file::"]
+# CMD ["./src/nimble", "test", "issues::issue 801"]
+# CMD ["./src/nimble", "test", "SAT solver::"]
+CMD ["./src/nimble", "test"]
 
-# docker build -f tests/Dockerfile.debug -t nimble-debug . && docker run --rm nimble-debug 
+# docker build -f tests/Dockerfile.debug -t nimble-debug . && docker run --rm nimble-debug
