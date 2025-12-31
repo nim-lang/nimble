@@ -536,25 +536,51 @@ proc collectReverseDependencies*(targetPkgName: string, graph: DepGraph): seq[(s
           let revDep = (node.pkgName, version.version)
           result.addUnique revDep
 
+proc getReachablePackages(graph: DepGraph): HashSet[string] =
+  ## BFS traversal to find all packages reachable from root.
+  ## Returns lowercased package names.
+  result = initHashSet[string]()
+  var queue: seq[string] = @[]
+
+  let rootNode = graph.nodes[0]
+  result.incl(rootNode.pkgName.toLowerAscii)
+  for ver in rootNode.versions:
+    for dep, q in items graph.reqs[ver.req].deps:
+      let depLower = dep.toLowerAscii
+      if depLower notin result:
+        result.incl(depLower)
+        queue.add(dep)
+
+  while queue.len > 0:
+    let current = queue.pop()
+    if graph.packageToDependency.hasKey(current):
+      let idx = graph.packageToDependency[current]
+      for ver in graph.nodes[idx].versions:
+        for dep, q in items graph.reqs[ver.req].deps:
+          let depLower = dep.toLowerAscii
+          if depLower notin result:
+            result.incl(depLower)
+            queue.add(dep)
+
 proc getSolvedPackages*(pkgVersionTable: Table[string, PackageVersions], output: var string, options: Options): seq[SolvedPackage] {.instrument.} =
   var graph = pkgVersionTable.toDepGraph()
-  #Make sure all references are in the graph before calling toFormular
-  for p in graph.nodes:
-    for ver in p.versions.items:
-      for dep, q in items graph.reqs[ver.req].deps:
-        if not graph.packageToDependency.hasKey(dep):
-          #debug print. show all packacges in the graph
-          output.add &"Dependency {dep} not found in the graph \n"
-          for k, v in pkgVersionTable:
-            output.add &"Package {k} \n"
-            for v in v.versions:
-              output.add &"\t \t Version {v.version} requires: {v.requires} \n" 
-          # Include git errors if any occurred during package discovery
-          if options.satResult.gitErrors.len > 0:
-            output.add "The following errors occurred during package discovery (could be network issues):\n"
-            for err in options.satResult.gitErrors:
-              output.add &"  - {err}\n"
-          return newSeq[SolvedPackage]()
+
+  # Only validate packages reachable from root, not ALL packages in the table.
+  # Pre-loaded cached packages may have deps not relevant to this resolution;
+  # those will be handled by toFormular (marked as unsatisfiable).
+  let reachable = getReachablePackages(graph)
+  for pkgName in reachable:
+    if not graph.packageToDependency.hasKey(pkgName):
+      output.add &"Dependency {pkgName} not found in the graph \n"
+      for k, v in pkgVersionTable:
+        output.add &"Package {k} \n"
+        for v in v.versions:
+          output.add &"\t \t Version {v.version} requires: {v.requires} \n"
+      if options.satResult.gitErrors.len > 0:
+        output.add "The following errors occurred during package discovery (could be network issues):\n"
+        for err in options.satResult.gitErrors:
+          output.add &"  - {err}\n"
+      return newSeq[SolvedPackage]()
     
   let form = toFormular(graph)
   var packages = initTable[string, Version]()
