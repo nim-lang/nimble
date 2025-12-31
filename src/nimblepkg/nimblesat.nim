@@ -538,9 +538,14 @@ proc collectReverseDependencies*(targetPkgName: string, graph: DepGraph): seq[(s
 
 proc getReachablePackages(graph: DepGraph): HashSet[string] =
   ## BFS traversal to find all packages reachable from root.
-  ## Returns lowercased package names.
-  result = initHashSet[string]()
+  ## Returns package names that are required by the root's dependency tree.
+  ## Names are stored lowercase for case-insensitive comparison.
+  result = initHashSet[string]()  # Lowercase names
   var queue: seq[string] = @[]
+
+  var graphPackages = initTable[string, string]()  # lowercase -> original
+  for key in graph.packageToDependency.keys:
+    graphPackages[key.toLowerAscii] = key
 
   let rootNode = graph.nodes[0]
   result.incl(rootNode.pkgName.toLowerAscii)
@@ -549,18 +554,19 @@ proc getReachablePackages(graph: DepGraph): HashSet[string] =
       let depLower = dep.toLowerAscii
       if depLower notin result:
         result.incl(depLower)
-        queue.add(dep)
+        if depLower in graphPackages:
+          queue.add(graphPackages[depLower])  # Use graph's version of the name
 
   while queue.len > 0:
     let current = queue.pop()
-    if graph.packageToDependency.hasKey(current):
-      let idx = graph.packageToDependency[current]
-      for ver in graph.nodes[idx].versions:
-        for dep, q in items graph.reqs[ver.req].deps:
-          let depLower = dep.toLowerAscii
-          if depLower notin result:
-            result.incl(depLower)
-            queue.add(dep)
+    let idx = graph.packageToDependency[current]
+    for ver in graph.nodes[idx].versions:
+      for dep, q in items graph.reqs[ver.req].deps:
+        let depLower = dep.toLowerAscii
+        if depLower notin result:
+          result.incl(depLower)
+          if depLower in graphPackages:
+            queue.add(graphPackages[depLower])  # Use graph's version of the name
 
 proc getSolvedPackages*(pkgVersionTable: Table[string, PackageVersions], output: var string, options: Options): seq[SolvedPackage] {.instrument.} =
   var graph = pkgVersionTable.toDepGraph()
@@ -568,9 +574,14 @@ proc getSolvedPackages*(pkgVersionTable: Table[string, PackageVersions], output:
   # Only validate packages reachable from root, not ALL packages in the table.
   # Pre-loaded cached packages may have deps not relevant to this resolution;
   # those will be handled by toFormular (marked as unsatisfiable).
+
+  var lowerCasePackages = initHashSet[string]()
+  for key in graph.packageToDependency.keys:
+    lowerCasePackages.incl(key.toLowerAscii)
+
   let reachable = getReachablePackages(graph)
   for pkgName in reachable:
-    if not graph.packageToDependency.hasKey(pkgName):
+    if pkgName.toLowerAscii notin lowerCasePackages:
       output.add &"Dependency {pkgName} not found in the graph \n"
       for k, v in pkgVersionTable:
         output.add &"Package {k} \n"
