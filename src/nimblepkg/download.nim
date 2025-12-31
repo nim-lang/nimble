@@ -1,13 +1,16 @@
 # Copyright (C) Dominik Picheta. All rights reserved.
 # BSD License. Look at license.txt for more info.
 
-import parseutils, os, osproc, strutils, tables, uri, strformat,
-       httpclient, json, sequtils, urls, chronos
+import parseutils, os, strutils, tables, uri, strformat,
+       httpclient, sequtils, urls, chronos
 
+import compat/[json, osproc]
 from algorithm import SortOrder, sorted
 
 import packageinfotypes, packageparser, version, tools, common, options, cli,
        sha1hashes, vcstools, displaymessages, packageinfo, config, declarativeparser, packagemetadatafile
+
+const userAgent = "nimble/" & nimbleVersion
 
 type
   DownloadPkgResult* = tuple
@@ -339,7 +342,7 @@ proc getTarExePath: string =
     tarExePathCache = tarExePathCache.quoteShell
   return tarExePathCache
 
-proc hasTar: bool =
+proc hasTar: bool {.raises: [], gcsafe.} =
   ## Checks whether a `tar` external tool is available.
   var hasTar {.global.} = false
   once:
@@ -348,6 +351,8 @@ proc hasTar: bool =
       let (_, exitCode) = execCmdEx(getTarExePath() & " --version")
       hasTar = exitCode == QuitSuccess
     except OSError:
+      discard
+    except IOError:
       discard
   return hasTar
 
@@ -401,10 +406,40 @@ proc getGitHubApiUrl(url, commit: string): string =
   ## an URL for the GitHub REST API query for the full commit hash.
   &"https://api.github.com/repos/{extractOwnerAndRepo(url)}/commits/{commit}"
 
-proc getUrlContent(url: string): string =
-  ## Makes a GET request to `url`.
-  let client = newHttpClient()
-  return client.getContent(url)
+proc getProxy*(): Proxy =
+  ## Returns ``nil`` if no proxy is specified.
+  var url = ""
+  try:
+    if existsEnv("http_proxy"):
+      url = getEnv("http_proxy")
+    elif existsEnv("https_proxy"):
+      url = getEnv("https_proxy")
+  except ValueError:
+    display(
+      "Warning:",
+      "Unable to parse proxy from environment: " & getCurrentExceptionMsg(),
+      Warning,
+      HighPriority,
+    )
+
+  if url.len > 0:
+    var parsed = parseUri(url)
+    if parsed.scheme.len == 0 or parsed.hostname.len == 0:
+      parsed = parseUri("http://" & url)
+    let auth =
+      if parsed.username.len > 0:
+        parsed.username & ":" & parsed.password
+      else:
+        ""
+    return newProxy($parsed, auth)
+  else:
+    return nil
+
+proc retrieveUrl*(url: string): string =
+  display("Http", "Requesting " & url, priority = DebugPriority)
+  {.cast(raises: [CatchableError]).}:
+    var client = newHttpClient(proxy = getProxy(), userAgent = userAgent)
+    return client.getContent(url)
 
 {.warning[ProveInit]: off.}
 proc getFullRevisionFromGitHubApi(url, version: string): Sha1Hash =
@@ -413,7 +448,7 @@ proc getFullRevisionFromGitHubApi(url, version: string): Sha1Hash =
   try:
     let gitHubApiUrl = getGitHubApiUrl(url, version)
     display("Get", gitHubApiUrl);
-    let content = getUrlContent(gitHubApiUrl)
+    let content = retrieveUrl(gitHubApiUrl)
     let json = parseJson(content)
     if json.hasKey("sha"):
       return json["sha"].str.initSha1Hash
@@ -455,11 +490,7 @@ proc getRevisionAsync(url, version: string): Future[Sha1Hash] {.async.} =
   result = parseRevision(output)
   if result == notSetSha1Hash:
     if version.seemsLikeRevision:
-      try:
-        result = getFullRevisionFromGitHubApi(url, version)
-      except Exception:
-        raise nimbleError(&"Cannot get revision for version \"{version}\" " &
-                          &"of package at \"{url}\".")
+      result = getFullRevisionFromGitHubApi(url, version)
     else:
       raise nimbleError(&"Cannot get revision for version \"{version}\" " &
                         &"of package at \"{url}\".")
@@ -482,7 +513,7 @@ proc doDownloadTarball(url, downloadDir, version: string, queryRevision: bool):
 
   let downloadLink = getTarballDownloadLink(url, version)
   display("Downloading", downloadLink)
-  let data = getUrlContent(downloadLink)
+  let data = retrieveUrl(downloadLink)
   display("Completed", "downloading " & downloadLink)
 
   let filePath = downloadDir / "tarball.tar.gz"
@@ -530,11 +561,7 @@ proc doDownloadTarballAsync*(url, downloadDir, version: string, queryRevision: b
   ## Note: HTTP download is still synchronous, but tar extraction is async.
   let downloadLink = getTarballDownloadLink(url, version)
   display("Downloading", downloadLink)
-  let data =
-    try:
-      getUrlContent(downloadLink)
-    except Exception as e:
-      raise nimbleError("Failed to download tarball: " & e.msg)
+  let data = retrieveUrl(downloadLink)
   display("Completed", "downloading " & downloadLink)
 
   let filePath = downloadDir / "tarball.tar.gz"
@@ -926,13 +953,10 @@ proc downloadPkgAsync*(url: string, verRange: VersionRange,
   if validateRange and verRange.kind notin {verSpecial, verAny} or not options.isLegacy:
     ## Makes sure that the downloaded package's version satisfies the requested
     ## version range.
-    try:
-      pkginfo = if options.satResult.pass == satNimSelection: #TODO later when in vnext we should just use this code path and fallback inside the toRequires if we can
-        getPkgInfoFromDirWithDeclarativeParser(result.dir, options, nimBin)
-      else:
-        getPkgInfo(result.dir, options, nimBin)
-    except Exception as e:
-      raise nimbleError("Failed to get package info: " & e.msg)
+    pkginfo = if options.satResult.pass == satNimSelection: #TODO later when in vnext we should just use this code path and fallback inside the toRequires if we can
+      getPkgInfoFromDirWithDeclarativeParser(result.dir, options, nimBin)
+    else:
+      getPkgInfo(result.dir, options, nimBin)
   if pkginfo.basicInfo.version notin verRange:
     raise nimbleError(
       "Downloaded package's version does not satisfy requested version " &
@@ -966,8 +990,8 @@ proc echoPackageVersions*(pkg: Package) =
       else:
         displayInfoLine("  versions:    ", "(No versions tagged in the remote repository)")
     except CatchableError:
-      displayFormatted(Error, "  Error: ")
-      displayFormatted(Error, getCurrentExceptionMsg())
+      displayFormatted(DisplayType.Error, "  Error: ")
+      displayFormatted(DisplayType.Error, getCurrentExceptionMsg())
       displayFormatted(Hint, "\n")
   of DownloadMethod.hg:
     displayInfoLine("  versions:    ", "(Remote tag retrieval not supported by " &

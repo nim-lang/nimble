@@ -1,12 +1,14 @@
 import
   std/[
-    httpclient, strutils, os, osproc, terminal, times, json, uri, sequtils, options,
+    httpclient, strutils, os, terminal, times, uri, sequtils, options,
     jsonutils,
   ]
+import compat/[json, osproc]
+
 import zippy/tarballs as zippy_tarballs
 import zippy/ziparchives as zippy_zips
 
-import common, options, packageinfo, nimenv
+import common, options, packageinfo, nimenv, download
 
 when defined(curl):
   import math
@@ -22,35 +24,6 @@ proc getBinArchiveFormat*(): string =
     return ".zip"
   else:
     return ".tar.xz"
-
-proc getProxy*(): Proxy =
-  ## Returns ``nil`` if no proxy is specified.
-  var url = ""
-  try:
-    if existsEnv("http_proxy"):
-      url = getEnv("http_proxy")
-    elif existsEnv("https_proxy"):
-      url = getEnv("https_proxy")
-  except ValueError:
-    display(
-      "Warning:",
-      "Unable to parse proxy from environment: " & getCurrentExceptionMsg(),
-      Warning,
-      HighPriority,
-    )
-
-  if url.len > 0:
-    var parsed = parseUri(url)
-    if parsed.scheme.len == 0 or parsed.hostname.len == 0:
-      parsed = parseUri("http://" & url)
-    let auth =
-      if parsed.username.len > 0:
-        parsed.username & ":" & parsed.password
-      else:
-        ""
-    return newProxy($parsed, auth)
-  else:
-    return nil
 
 proc getCpuArch*(): int =
   ## Get CPU arch on Windows - get env var PROCESSOR_ARCHITECTURE
@@ -235,7 +208,6 @@ const
   websiteUrlGz = "https://nim-lang.org/download/nim-$1.tar.gz"
   csourcesUrl = "https://github.com/nim-lang/csources"
   dlArchive = "archive/$1.tar.gz"
-  userAgent = "nimble/" & nimbleVersion
 
 const # Windows-only
   mingwUrl = "https://nim-lang.org/download/mingw$1.zip"
@@ -424,8 +396,6 @@ proc needsDownload(
     display("Info:", "$1 already downloaded" % outputPath, priority = HighPriority)
     return false
 
-proc retrieveUrl*(url: string): string
-
 proc getBinaryUrlFromReleases*(version: Version, arch: int): Option[string] =
   ## Get the binary download URL for a specific version and platform from releases.json
   ## Returns None if the platform/version combination is not available
@@ -592,12 +562,7 @@ proc downloadDLLs*(options: Options): string =
   downloadFile(dllsUrl, outputPath)
   return outputPath
 
-proc retrieveUrl*(url: string): string =
-  display("Http", "Requesting " & url, priority = DebugPriority)
-  var client = newHttpClient(proxy = getProxy(), userAgent = userAgent)
-  return client.getContent(url)
-
-proc getOfficialReleases*(options: Options): seq[Version] =
+proc getOfficialReleases*(options: Options): seq[Version] {.raises: [CatchableError].} =
   #Avoid reaching rate limits by caching the releases
   #Later on, this file will be moved to a new global cache file that we are going to
   #introduce when enabling the "enumerate all versions" feature
@@ -607,7 +572,7 @@ proc getOfficialReleases*(options: Options): seq[Version] =
     #We only store the file for a day.
     let fileCreation = getTime() - getFileInfo(oficialReleasesCachedFile).lastWriteTime
     if fileCreation.inDays <= 1:
-      return oficialReleasesCachedFile.readFile().parseJson().to(seq[Version])
+      return oficialReleasesCachedFile.parseFile().to(seq[Version])
   var parsedContents: JsonNode
   try:
     let rawContents = retrieveUrl(releasesJsonUrl)

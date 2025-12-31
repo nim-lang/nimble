@@ -4,8 +4,10 @@
 ## Implements the new configuration system for Nimble. Uses Nim as a
 ## scripting language.
 
-import hashes, json, os, strutils, tables, times, osproc
+import hashes, os, strutils, tables, times
+import compat/json
 import common, options, cli, tools
+import compat/osproc
 
 type
   Flags = TableRef[string, seq[string]]

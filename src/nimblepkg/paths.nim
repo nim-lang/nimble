@@ -4,7 +4,9 @@
 ## This module implements operations with file system paths in a way independent
 ## of weather the path is absolute or relative to the current directory.
 
-import os, json, hashes
+import os, hashes
+
+import compat/json
 
 type Path* = distinct string
 

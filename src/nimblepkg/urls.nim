@@ -1,4 +1,4 @@
-import std/pegs, std/strutils
+import compat/pegs, std/strutils
 
 proc isURL*(name: string): bool =
   name.startsWith(peg" @'://' ") or name.startsWith(peg"\ident+'@'@':'.+")

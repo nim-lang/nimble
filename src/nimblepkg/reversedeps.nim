@@ -1,8 +1,8 @@
 # Copyright (C) Dominik Picheta. All rights reserved.
 # BSD License. Look at license.txt for more info.
 
-import json, sets, os, hashes
-
+import sets, os, hashes
+import compat/json
 import options, version, download, jsonhelpers, nimbledatafile, sha1hashes,
        packageinfotypes, packageinfo, packageparser
 

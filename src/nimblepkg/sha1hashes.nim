@@ -1,10 +1,10 @@
 # Copyright (C) Dominik Picheta. All rights reserved.
 # BSD License. Look at license.txt for more info.
 
-import strformat, strutils, json,  hashes
+import strformat, strutils, hashes
 import common
 import pkg/checksums/sha1
-
+import compat/json
 type
   InvalidSha1HashError* = object of NimbleError
     ## Represents an error caused by invalid value of a sha1 hash.
