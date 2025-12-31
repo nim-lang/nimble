@@ -38,12 +38,44 @@ suite "Declarative parsing":
       check pkg in requires.mapIt(it[0])
   
   test "should detect nested requires and fail":
-    let nimbleFile = getNimbleFileFromPkgNameHelper("jester")
+    # Create a test file with actual nested requires (not when defined)
+    let testDir = "test_real_nested_requires"
+    createDir(testDir)
+    
+    writeFile(testDir / "nested.nimble", """
+version = "0.1.0"
+
+requires "nim >= 1.6.0"
+
+when someRuntimeCondition:
+  requires "badlib"
+""")
+    
+    var options = initOptions()
+    let nimbleFileInfo = extractRequiresInfo(testDir / "nested.nimble", options)
+    
+    check nimbleFileInfo.nestedRequires
+    
+    # Clean up
+    removeDir(testDir)
+
+  test "should handle when defined() constructs and not mark as nested":
+    let nimbleFile = getNimbleFileFromPkgNameHelper("jester") 
     var options = initOptions()
     let nimbleFileInfo = extractRequiresInfo(nimbleFile, options)
-
-    check nimbleFileInfo.nestedRequires
-  
+    
+    # Should NOT be detected as nested requires since it uses when defined()
+    check not nimbleFileInfo.nestedRequires
+    check not nimbleFileInfo.hasErrors
+    
+    # Should have base requirement
+    check "nim >= 1.0.0" in nimbleFileInfo.requires
+    
+    # Should have platform-specific requirement based on current platform
+    when not defined(windows):
+      check "httpbeast >= 0.4.0" in nimbleFileInfo.requires
+    else:
+      check "httpbeast >= 0.4.0" notin nimbleFileInfo.requires
   
   test "should parse bin from a nimble file":
     let nimbleFile = getNimbleFileFromPkgNameHelper("nimlangserver")
@@ -256,3 +288,125 @@ json_rpc
     
     # Clean up
     removeDir(testDir)
+
+suite "When defined() support":
+  test "should parse when defined() conditions for current platform":
+    let testDir = "test_when_defined"
+    createDir(testDir)
+    
+    # Create a nimble file with when defined() blocks
+    writeFile(testDir / "test.nimble", """
+version = "0.1.0"
+author = "test"
+description = "Test package for when defined support"
+license = "MIT"
+
+requires "nim >= 1.6.0"
+
+when defined(windows):
+  requires "winapi"
+
+when defined(linux):
+  requires "linuxlib"
+
+when defined(macosx):
+  requires "macoslib"
+""")
+    
+    var options = initOptions()
+    let nimbleFileInfo = extractRequiresInfo(testDir / "test.nimble", options)
+    
+    # Should not treat when defined() as nested requires
+    check not nimbleFileInfo.nestedRequires
+    check not nimbleFileInfo.hasErrors
+    
+    # Should have base requirement
+    check "nim >= 1.6.0" in nimbleFileInfo.requires
+    
+    # Should have platform-specific requirement based on current platform
+    when defined(windows):
+      check "winapi" in nimbleFileInfo.requires
+      check "linuxlib" notin nimbleFileInfo.requires
+      check "macoslib" notin nimbleFileInfo.requires
+    elif defined(linux):
+      check "linuxlib" in nimbleFileInfo.requires
+      check "winapi" notin nimbleFileInfo.requires
+      check "macoslib" notin nimbleFileInfo.requires
+    elif defined(macosx):
+      check "macoslib" in nimbleFileInfo.requires
+      check "winapi" notin nimbleFileInfo.requires
+      check "linuxlib" notin nimbleFileInfo.requires
+    
+    # Clean up
+    removeDir(testDir)
+
+  test "should handle complex when defined() expressions":
+    let testDir = "test_when_complex"
+    createDir(testDir)
+    
+    writeFile(testDir / "test.nimble", """
+version = "0.1.0"
+
+requires "nim >= 1.6.0"
+
+when defined(windows) or defined(linux):
+  requires "posixcompat"
+
+when not defined(js):
+  requires "nativelib"
+
+when defined(windows) and defined(amd64):
+  requires "winx64lib"
+""")
+    
+    var options = initOptions()
+    let nimbleFileInfo = extractRequiresInfo(testDir / "test.nimble", options)
+    
+    check not nimbleFileInfo.nestedRequires
+    check not nimbleFileInfo.hasErrors
+    check "nim >= 1.6.0" in nimbleFileInfo.requires
+    
+    # Check OR condition
+    when defined(windows) or defined(linux):
+      check "posixcompat" in nimbleFileInfo.requires
+    else:
+      check "posixcompat" notin nimbleFileInfo.requires
+    
+    # Check NOT condition
+    when not defined(js):
+      check "nativelib" in nimbleFileInfo.requires
+    else:
+      check "nativelib" notin nimbleFileInfo.requires
+      
+    # Check AND condition  
+    when defined(windows) and defined(amd64):
+      check "winx64lib" in nimbleFileInfo.requires
+    else:
+      check "winx64lib" notin nimbleFileInfo.requires
+    
+    # Clean up
+    removeDir(testDir)
+
+  test "should reject non-evaluable when conditions":
+    let testDir = "test_when_invalid"
+    createDir(testDir)
+    
+    writeFile(testDir / "test.nimble", """
+version = "0.1.0"
+
+requires "nim >= 1.6.0"
+
+when someRuntimeCondition:
+  requires "conditionallib"
+""")
+    
+    var options = initOptions()
+    let nimbleFileInfo = extractRequiresInfo(testDir / "test.nimble", options)
+    
+    # Should treat non-evaluable when as nested requires
+    check nimbleFileInfo.nestedRequires
+    
+    # Clean up
+    removeDir(testDir)
+
+ 
