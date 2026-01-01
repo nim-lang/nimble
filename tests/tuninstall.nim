@@ -12,14 +12,14 @@ from nimblepkg/version import newVersion
 
 suite "uninstall":
   test "cannot install packagebin2 in --offline mode":
-    cleanDir(installDir)
+    cleanInstallDir()
     let args = ["--offline", "install", pkgBin2Url]
     let (output, exitCode) = execNimbleYes(args)
     check exitCode != QuitSuccess
     check output.contains("Cannot download in offline mode.")
 
   test "can install packagebin2":
-    cleanDir(installDir)
+    cleanInstallDir()
     let args = ["install", pkgBin2Url]
     check execNimbleYes(args).exitCode == QuitSuccess
 
@@ -27,7 +27,7 @@ suite "uninstall":
      &"Cannot satisfy the dependency on PackageA {v1} and PackageA {v2}"
 
   test "can reject same version dependencies":
-    cleanDir(installDir)
+    cleanInstallDir()
     let (outp, exitCode) = execNimbleYes("install", pkgBinUrl)
     # We look at the error output here to avoid out-of-order problems caused by
     # stderr output being generated and flushed without first flushing stdout
@@ -52,7 +52,7 @@ suite "uninstall":
 
   test "can uninstall":
     # setup test environment
-    cleanDir(installDir)
+    cleanInstallDir()
     setupIssue27Packages()
     check execNimbleYes("install", &"{pkgAUrl}@0.2").exitCode == QuitSuccess
     check execNimbleYes("install", &"{pkgAUrl}@0.5").exitCode == QuitSuccess

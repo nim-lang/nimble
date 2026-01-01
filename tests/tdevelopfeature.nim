@@ -83,7 +83,7 @@ suite "develop feature":
           pkgBName, installDir / defaultPath / pkgBName))
 
   test "can develop global":
-    cleanDir installDir
+    cleanInstallDir()
     usePackageListFile &"develop/{pkgListFileName}":
       let dependencyPath = getCurrentDir() / "develop" / "dependency"
 
@@ -194,7 +194,7 @@ suite "develop feature":
       check lines.inLinesOrdered(validationFailedMsg)
 
   test "add downloaded package to the develop file":
-    cleanDir installDir
+    cleanInstallDir()
     cd "develop/dependency":
       usePackageListFile &"../{pkgListFileName}":
         cleanFile developFileName
@@ -211,7 +211,7 @@ suite "develop feature":
           &"{pkgAName}@0.6.0", pkgAAbsPath, developFileName))
 
   test "can add not a dependency downloaded package to the develop file":
-    cleanDir installDir
+    cleanInstallDir()
     cd "develop/dependency":
       usePackageListFile &"../{pkgListFileName}":
         cleanFile developFileName
@@ -232,7 +232,7 @@ suite "develop feature":
           &"{pkgBName}@0.2.0", pkgBAbsPath, developFileName))
 
   test "add package to develop file":
-    cleanDir installDir
+    cleanInstallDir()
     cd dependentPkgPath:
       usePackageListFile &"../{pkgListFileName}":
         cleanFiles developFileName, dependentPkgName.addFileExt(ExeExt)
@@ -356,7 +356,7 @@ suite "develop feature":
       check parseFile(developFileName) == parseJson(developFileContent)
 
   test "include develop file":
-    cleanDir installDir
+    cleanInstallDir()
     cd dependentPkgPath:
       usePackageListFile &"../{pkgListFileName}":
         cleanFiles developFileName, includeFileName,
@@ -412,7 +412,7 @@ suite "develop feature":
       check lines.inLinesOrdered(validationFailedMsg)
 
   test "can include file pointing to the same package":
-    cleanDir installDir
+    cleanInstallDir()
     cd dependentPkgPath:
       usePackageListFile &"../{pkgListFileName}":
         cleanFiles developFileName, includeFileName,
@@ -525,7 +525,7 @@ suite "develop feature":
       check parseFile(developFileName) == parseJson(emptyDevelopFileContent)
 
   test "uninstall package with develop reverse dependencies":
-    cleanDir installDir
+    cleanInstallDir()
     cd dependentPkgPath:
       usePackageListFile &"../{pkgListFileName}":
         const developFileContent = developFile(@[], @[depPath])
@@ -832,7 +832,7 @@ suite "develop feature":
            (pkg32Path, freeDevFile2Path)].toHashSet))
 
   test "create an empty develop file in some dir":
-    cleanDir installDir
+    cleanInstallDir()
     let filePath = installDir / "develop.json"
     cleanFile filePath
     createDir installDir
@@ -851,7 +851,7 @@ suite "develop feature":
     check output.processOutput.inLines(&"cannot open: {filePath}")
 
   test "can manipulate a free develop file":
-    cleanDir installDir
+    cleanInstallDir()
     cd dependentPkgPath:
       usePackageListFile &"../{pkgListFileName}":
         const
@@ -894,7 +894,7 @@ suite "develop feature":
         check parseFile(developFile) == parseJson(developFileContent)
 
   test "partial success when some operations in single command failed":
-    cleanDir installDir
+    cleanInstallDir()
     cd dependentPkgPath:
       usePackageListFile &"../{pkgListFileName}":
         const

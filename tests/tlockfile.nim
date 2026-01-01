@@ -208,7 +208,7 @@ requires "nim >= 1.5.1"
 
   template filesAndDirsToRemove() =
     removeFile pkgListFilePath
-    removeDir installDir
+    cleanInstallDir()
     removeDir tempDir
 
   template cleanUp() =
@@ -368,7 +368,7 @@ requires "nim >= 1.5.1"
         testLockFile(@[(dep1PkgName, dep1PkgRepoPath),
                        (dep2PkgName, dep2PkgRepoPath)],
                      isNew = true)
-        removeDir installDir
+        cleanInstallDir()
         let (output, exitCode) = execNimbleYes("install", "--debug")
         check exitCode == QuitSuccess
         let lines = output.processOutput
