@@ -4,11 +4,11 @@
 ## This module implements operations required for working with Nimble develop
 ## files.
 
-import sets, json, sequtils, os, strformat, tables, hashes, strutils, math,
+import sets, sequtils, os, strformat, tables, hashes, strutils, math,
        std/jsonutils
 
 import typetraits except distinctBase
-
+import compat/json
 import common, cli, packageinfotypes, packageinfo, packageparser, options,
        version, paths, displaymessages, sha1hashes,
        tools, vcstools, syncfile, lockfile, declarativeparser

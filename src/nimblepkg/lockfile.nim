@@ -1,8 +1,9 @@
 # Copyright (C) Dominik Picheta. All rights reserved.
 # BSD License. Look at license.txt for more info.
 
-import tables, os, json
+import tables, os
 import version, sha1hashes, packageinfotypes
+import compat/json
 
 type
   LockFileJsonKeys* = enum

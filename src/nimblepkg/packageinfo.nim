@@ -3,9 +3,10 @@
 
 # Stdlib imports
 import system except TResult
-import hashes, json, strutils, os, sets, tables, times, httpclient, strformat
+import hashes, strutils, os, sets, tables, times, httpclient, strformat
 from net import SslError
 
+import compat/json
 # Local imports
 import version, tools, common, options, cli, config, lockfile, packageinfotypes,
        packagemetadatafile, sha1hashes
@@ -222,7 +223,7 @@ proc readPackageList(name: string, options: Options, ignorePackageCache = false)
     getGPackageJson()[name] = newJArray()
   return getGPackageJson()[name]
 
-proc getPackage*(pkg: string, options: Options, resPkg: var Package, ignorePackageCache = false): bool {.gcsafe.} 
+proc getPackage*(pkg: string, options: Options, resPkg: var Package, ignorePackageCache = false): bool {.gcsafe, raises: [CatchableError].}
 proc resolveAlias(pkg: Package, options: Options): Package =
   result = pkg
   # Resolve alias.

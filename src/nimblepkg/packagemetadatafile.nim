@@ -1,8 +1,9 @@
 # Copyright (C) Dominik Picheta. All rights reserved.
 # BSD License. Look at license.txt for more info.
 
-import json, os, strformat, sets, sequtils
+import os, strformat, sets, sequtils
 import common, version, packageinfotypes, cli, tools, sha1hashes, options
+import compat/json
 
 type
   MetaDataError* = object of NimbleError

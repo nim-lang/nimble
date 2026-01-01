@@ -7,7 +7,7 @@
 import system except TResult
 import httpclient, strutils, json, os, browsers, times, uri
 import common, tools, cli, config, options, packageinfotypes, sha1hashes, version, download
-import strformat, sequtils, pegs, sets
+import strformat, sequtils, sets
 {.warning[UnusedImport]: off.}
 from net import SslCVerifyMode, newContext
 
@@ -247,69 +247,3 @@ proc publish*(p: PackageInfo, o: Options) =
     doCmd("git push https://" & auth.token & "@github.com/" & auth.user & "/packages " & branchName)
     let prUrl = createPullRequest(auth, p, url, branchName)
     display("Success:", "Pull request successful, check at " & prUrl , Success, HighPriority)
-
-proc vcsFindCommits*(repoDir, nimbleFile: string, downloadMethod: DownloadMethod): seq[(Sha1Hash, string)] =
-  var output: string
-  case downloadMethod:
-    of DownloadMethod.git:
-      output = tryDoCmdEx(&"git -C {repoDir.quoteShell} log --format=\"%H %s\" -- $2")
-    of DownloadMethod.hg:
-      assert false, "hg not supported"
-  
-  for line in output.splitLines():
-    let line = line.strip()
-    if line != "":
-      result.add((line[0..39].initSha1Hash(), line[40..^1]))
-
-proc vcsDiff*(commit: Sha1Hash, repoDir, nimbleFile: string, downloadMethod: DownloadMethod): seq[string] =
-  case downloadMethod:
-    of DownloadMethod.git:
-      let (output, exitCode) = doCmdEx(&"git -C {repoDir.quoteShell} diff {commit}~ {commit} {nimbleFile}")
-      if exitCode != QuitSuccess:
-        return @[]
-      else:
-        return output.splitLines()
-    of DownloadMethod.hg:
-      assert false, "hg not supported"
-  
-proc createTag*(tag: string, commit: Sha1Hash, message, repoDir, nimbleFile: string, downloadMethod: DownloadMethod): bool =
-  case downloadMethod:
-    of DownloadMethod.git:
-      let (output, code) = doCmdEx(&"git -C {repoDir.quoteShell} tag -a {tag.quoteShell()} {commit} -m {message.quoteShell()}")
-      result = code == QuitSuccess
-      if not result:
-        displayError(&"Failed to create tag {tag.quoteShell()} with error {output}")
-    of DownloadMethod.hg:
-      assert false, "hg not supported"
-  
-proc findVersions*(commits: seq[(Sha1Hash, string)], projdir, nimbleFile: string, downloadMethod: DownloadMethod, options: Options) =
-  ## parse the versions
-  var
-    versions: HashSet[Version]
-    existingTags: HashSet[Version]
-  for tag in getTagsList(projdir, downloadMethod):
-    let tag = tag.strip(leading=true, chars={'v'})
-    try:
-      existingTags.incl(newVersion(tag))
-    except ParseVersionError:
-      discard
-
-  # adapted from @beef331's algorithm https://github.com/beef331/graffiti/blob/master/src/graffiti.nim
-  for (commit, message) in commits:
-    # echo "commit: ", commit
-    let diffs = vcsDiff(commit, projdir, nimbleFile, downloadMethod)
-    for line in diffs:
-      var matches: array[0..MaxSubpatterns, string]
-      if line.find(peg"'+version' \s* '=' \s* {[\34\39]} {@} $1", matches) > -1:
-        let version = newVersion(matches[1])
-        if version notin versions: 
-          versions.incl(version)
-          if version in existingTags:
-            displayInfo(&"Found existing tag for version {version} at commit {commit}", HighPriority)
-          else:
-            displayInfo(&"Found new version {version} at {commit}", HighPriority)
-            displayWarning(&"Creating tag for new version {version} at {commit}", HighPriority)
-            let res = createTag(&"v{version}", commit, message, projdir, nimbleFile, downloadMethod)
-            if not res:
-                displayError(&"Unable to create tag {version}", HighPriority)
-

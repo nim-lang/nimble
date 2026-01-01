@@ -1,7 +1,7 @@
 # Copyright (C) Dominik Picheta. All rights reserved.
 # BSD License. Look at license.txt for more info.
 
-import json
+import compat/json
 
 proc newJObjectIfKeyNotExists(obj: JsonNode, key: string): JsonNode =
   assert obj.kind == JObject

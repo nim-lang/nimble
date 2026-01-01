@@ -1,8 +1,9 @@
 # Copyright (C) Dominik Picheta. All rights reserved.
 # BSD License. Look at license.txt for more info.
 
-import json, os, strformat
+import os, strformat
 import common, options, jsonhelpers, version, cli
+import compat/json
 
 type
   NimbleDataJsonKeys* = enum

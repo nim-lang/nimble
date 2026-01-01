@@ -2,9 +2,10 @@
 # BSD License. Look at license.txt for more info.
 
 ## Module for handling versions and version ranges such as ``>= 1.0 & <= 1.5``
-import json, sets
+import sets
 import common, strutils, tables, hashes, parseutils, forge_aliases, urls
 import std/[strscans, options]
+import compat/json
 type
   Version* = object
     version*: string

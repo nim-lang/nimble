@@ -2,8 +2,10 @@
 # BSD License. Look at license.txt for more info.
 #
 # Various miscellaneous utility functions reside here.
-import osproc, pegs, strutils, os, uri, sets, json, parseutils, strformat,
+import compat/pegs, strutils, os, uri, sets, json, parseutils, strformat,
        sequtils, macros, times
+
+import compat/osproc
 
 from net import SslCVerifyMode, newContext, SslContext
 

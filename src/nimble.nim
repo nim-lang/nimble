@@ -1,9 +1,9 @@
 # Copyright (C) Dominik Picheta. All rights reserved.
 # BSD License. Look at license.txt for more info.
 
-import os, tables, strtabs, json, browsers, algorithm, sets, uri, sugar, sequtils, osproc,
-       strformat
+import os, tables, strtabs, browsers, algorithm, sets, uri, sugar, strformat
 
+import nimblepkg/compat/[json, sequtils, osproc]
 import std/options as std_opt
 
 import strutils except toLower
@@ -65,7 +65,7 @@ proc displayUsingSpecialVersionWarning(solvedPkgs: seq[SolvedPackage], options: 
   for pkg in solvedPkgs:
     for req in pkg.requirements:
       if req.ver.isSpecial:
-        nimblesat.addUnique(messages, &"Package {pkg.pkgName} lists an underspecified version of {req.name} ({req.ver})")
+        addUnique(messages, &"Package {pkg.pkgName} lists an underspecified version of {req.name} ({req.ver})")
   
   for msg in messages:
     displayWarning(msg)
@@ -2596,7 +2596,7 @@ proc openNimbleManual =
   openDefaultBrowser(NimbleGuideURL)
 
 proc loadFilePathPkgs*(entryPkg: PackageInfo, options: var Options, nimBin: string) =
-  nimblesat.addUnique(options.filePathPkgs, entryPkg)
+  addUnique(options.filePathPkgs, entryPkg)
   for require in entryPkg.requires:
     if require.name.isFileURL:
       let path = require.name.extractFilePathFromURL()
@@ -2641,7 +2641,7 @@ proc solvePkgs(rootPackage: PackageInfo, options: var Options, nimBin: string) {
   options.satResult.pkgs.incl(resolvedNim.pkg.get) #Make sure its in the solution
   # Only add nim to solvedPkgs if there isn't already one (e.g., with a special version like #devel)
   if not options.satResult.solvedPkgs.anyIt(it.pkgName.isNim):
-    nimblesat.addUnique(options.satResult.solvedPkgs, SolvedPackage(pkgName: "nim", version: resolvedNim.version))
+    addUnique(options.satResult.solvedPkgs, SolvedPackage(pkgName: "nim", version: resolvedNim.version))
   options.satResult.solutionToFullInfo(options)
   if rootPackage.hasLockFile(options) and not options.disableLockFile:
     options.satResult.solveLockFileDeps(pkgList, options, nimBin)

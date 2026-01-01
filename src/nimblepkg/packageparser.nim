@@ -1,7 +1,8 @@
 # Copyright (C) Dominik Picheta. All rights reserved.
 # BSD License. Look at license.txt for more info.
-import parsecfg, sets, streams, strutils, os, tables, sugar, strformat
+import sets, streams, strutils, os, tables, sugar, strformat
 from sequtils import apply, map, toSeq
+import compat/parsecfg
 
 import common, version, tools, nimscriptwrapper, options, cli, sha1hashes,
        packagemetadatafile, packageinfo, packageinfotypes, checksums, vcstools,
@@ -319,7 +320,7 @@ proc readPackageInfo(pkgInfo: var PackageInfo, nf: NimbleFile, options: Options,
         pkgInfo.isNimScript = true
       except NimbleError as exc:
         if exc.hint.len > 0:
-          raise
+          raise exc
         let msg = "Could not read package info file in " & nf & ";\n" &
                   "  Reading as ini file failed with: \n" &
                   "    " & iniError.msg & ".\n" &
@@ -377,13 +378,12 @@ proc getPkgInfoFromFile*(nimBin: string,file: NimbleFile, options: Options,
   result = initPackageInfo()
   try:
     readPackageInfo(result, file, options, nimBin, onlyMinimalInfo = onlyMinimalInfo, useCache= useCache)
-  except ValidationError:
-    let exc = (ref ValidationError)(getCurrentException())
+  except ValidationError as exc:
     if exc.warnAll and not forValidation:
       display("Warning:", exc.msg, Warning, HighPriority)
       display("Hint:", exc.hint, Warning, HighPriority)
     else:
-      raise
+      raise exc
 
 proc getPkgInfo*(dir: string, options: Options, nimBin: string, forValidation = false, onlyMinimalInfo = false):
     PackageInfo =
