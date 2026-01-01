@@ -536,25 +536,62 @@ proc collectReverseDependencies*(targetPkgName: string, graph: DepGraph): seq[(s
           let revDep = (node.pkgName, version.version)
           result.addUnique revDep
 
+proc getReachablePackages(graph: DepGraph): HashSet[string] =
+  ## BFS traversal to find all packages reachable from root.
+  ## Returns package names that are required by the root's dependency tree.
+  ## Names are stored lowercase for case-insensitive comparison.
+  result = initHashSet[string]()  # Lowercase names
+  var queue: seq[string] = @[]
+
+  var graphPackages = initTable[string, string]()  # lowercase -> original
+  for key in graph.packageToDependency.keys:
+    graphPackages[key.toLowerAscii] = key
+
+  let rootNode = graph.nodes[0]
+  result.incl(rootNode.pkgName.toLowerAscii)
+  for ver in rootNode.versions:
+    for dep, q in items graph.reqs[ver.req].deps:
+      let depLower = dep.toLowerAscii
+      if depLower notin result:
+        result.incl(depLower)
+        if depLower in graphPackages:
+          queue.add(graphPackages[depLower])  # Use graph's version of the name
+
+  while queue.len > 0:
+    let current = queue.pop()
+    let idx = graph.packageToDependency[current]
+    for ver in graph.nodes[idx].versions:
+      for dep, q in items graph.reqs[ver.req].deps:
+        let depLower = dep.toLowerAscii
+        if depLower notin result:
+          result.incl(depLower)
+          if depLower in graphPackages:
+            queue.add(graphPackages[depLower])  # Use graph's version of the name
+
 proc getSolvedPackages*(pkgVersionTable: Table[string, PackageVersions], output: var string, options: Options): seq[SolvedPackage] {.instrument.} =
   var graph = pkgVersionTable.toDepGraph()
-  #Make sure all references are in the graph before calling toFormular
-  for p in graph.nodes:
-    for ver in p.versions.items:
-      for dep, q in items graph.reqs[ver.req].deps:
-        if not graph.packageToDependency.hasKey(dep):
-          #debug print. show all packacges in the graph
-          output.add &"Dependency {dep} not found in the graph \n"
-          for k, v in pkgVersionTable:
-            output.add &"Package {k} \n"
-            for v in v.versions:
-              output.add &"\t \t Version {v.version} requires: {v.requires} \n" 
-          # Include git errors if any occurred during package discovery
-          if options.satResult.gitErrors.len > 0:
-            output.add "The following errors occurred during package discovery (could be network issues):\n"
-            for err in options.satResult.gitErrors:
-              output.add &"  - {err}\n"
-          return newSeq[SolvedPackage]()
+
+  # Only validate packages reachable from root, not ALL packages in the table.
+  # Pre-loaded cached packages may have deps not relevant to this resolution;
+  # those will be handled by toFormular (marked as unsatisfiable).
+
+  var lowerCasePackages = initHashSet[string]()
+  for key in graph.packageToDependency.keys:
+    lowerCasePackages.incl(key.toLowerAscii)
+
+  let reachable = getReachablePackages(graph)
+  for pkgName in reachable:
+    if pkgName.toLowerAscii notin lowerCasePackages:
+      output.add &"Dependency {pkgName} not found in the graph \n"
+      for k, v in pkgVersionTable:
+        output.add &"Package {k} \n"
+        for v in v.versions:
+          output.add &"\t \t Version {v.version} requires: {v.requires} \n"
+      if options.satResult.gitErrors.len > 0:
+        output.add "The following errors occurred during package discovery (could be network issues):\n"
+        for err in options.satResult.gitErrors:
+          output.add &"  - {err}\n"
+      return newSeq[SolvedPackage]()
     
   let form = toFormular(graph)
   var packages = initTable[string, Version]()
@@ -715,6 +752,26 @@ proc saveTaggedVersions*(pkgName: string, versions: seq[PackageMinimalInfo], opt
   let normalizedName = normalizePackageName(pkgName)
   cache[normalizedName] = versions
   writeTaggedVersionsCache(cache, options)
+
+proc cacheToPackageVersionTable*(options: Options): Table[string, PackageVersions] =
+  ## Loads the tagged versions cache and converts it to a package version table.
+  ## This allows reusing cached package versions instead of re-fetching them.
+  ## Note: Skips package versions that have URL-based requirements since those
+  ## dependencies may not be resolved in the cache.
+  let cache = readTaggedVersionsCache(options)
+  result = initTable[string, PackageVersions]()
+  for pkgName, versions in cache:
+    var validVersions: seq[PackageMinimalInfo] = @[]
+    for v in versions:
+      var hasUrlDep = false
+      for req in v.requires:
+        if req.name.isUrl:
+          hasUrlDep = true
+          break
+      if not hasUrlDep:
+        validVersions.add v
+    if validVersions.len > 0:
+      result[pkgName] = PackageVersions(pkgName: pkgName, versions: validVersions)
 
 proc getPackageMinimalVersionsFromRepo*(repoDir: string, pkg: PkgTuple, version: Version, downloadMethod: DownloadMethod, options: Options, nimBin: string): seq[PackageMinimalInfo] =
   result = newSeq[PackageMinimalInfo]()
@@ -1537,7 +1594,8 @@ proc solvePackages*(rootPkg: PackageInfo, pkgList: seq[PackageInfo], pkgsToInsta
   root.isRoot = true
   var pkgVersionTable: Table[system.string, packageinfotypes.PackageVersions]
   if options.isLegacy or not options.useAsyncDownloads:
-    pkgVersionTable = initTable[string, PackageVersions]()
+    # Load cached package versions to skip re-fetching known packages
+    pkgVersionTable = cacheToPackageVersionTable(options)
     pkgVersionTable[root.name] = PackageVersions(pkgName: root.name, versions: @[root])
     collectAllVersions(pkgVersionTable, root, options, downloadMinimalPackage, pkgList.mapIt(it.getMinimalInfo(options)), nimBin)
   else:
@@ -1591,7 +1649,8 @@ proc getPackageInfo*(name: string, pkgs: seq[PackageInfo], version: Option[Versi
           return some pkg
 
 proc getPkgVersionTable*(pkgInfo: PackageInfo, pkgList: seq[PackageInfo], options: Options, nimBin: string): Table[string, PackageVersions] =
-  result = initTable[string, PackageVersions]()
+  # Load cached package versions to skip re-fetching known packages
+  result = cacheToPackageVersionTable(options)
   var root = pkgInfo.getMinimalInfo(options)
   root.isRoot = true
   result[root.name] = PackageVersions(pkgName: root.name, versions: @[root])
