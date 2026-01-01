@@ -570,7 +570,7 @@ proc getSolvedPackages*(pkgVersionTable: Table[string, PackageVersions], output:
   var packages = initTable[string, Version]()
   var triedVersions: seq[VersionAttempt] = @[]
   discard solve(graph, form, packages, output, triedVersions, options)
-  
+
   for pkg, ver in packages:
     let nodeIdx = graph.packageToDependency.getKey(pkg)
     for dep in graph.nodes[nodeIdx].versions:
@@ -743,7 +743,9 @@ proc cacheToPackageVersionTable*(options: Options): Table[string, PackageVersion
           hasUrlDep = true
           break
       if not hasUrlDep:
-        validVersions.add v
+        var cleanVersion = v
+        cleanVersion.isRoot = false  # Clear isRoot - it's set at runtime, not from cache
+        validVersions.add cleanVersion
     if validVersions.len > 0:
       result[pkgName] = PackageVersions(pkgName: pkgName, versions: validVersions)
 
