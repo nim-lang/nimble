@@ -253,6 +253,71 @@ json_rpc
     check "chronos" in nimbleFileInfo.requires
     check "json_rpc" in nimbleFileInfo.requires
     check nimbleFileInfo.requires.len == 4
-    
+
     # Clean up
     removeDir(testDir)
+
+suite "isParsableByDeclarative":
+  test "should return true for simple nimble content":
+    let content = """
+version = "0.1.0"
+author = "test"
+description = "Test package"
+license = "MIT"
+
+requires "nim >= 1.6.0"
+requires "stew"
+"""
+    var options = initOptions()
+    check isParsableByDeclarative(content, options) == true
+
+  test "should return false for content with nested requires":
+    let content = """
+version = "0.1.0"
+author = "test"
+
+when defined(windows):
+  requires "winapi"
+else:
+  requires "posix"
+"""
+    var options = initOptions()
+    check isParsableByDeclarative(content, options) == false
+
+  test "should return false for content with syntax errors":
+    let content = """
+version = "0.1.0"
+author = "test"
+
+requires "nim >= 1.6.0"
+invalid syntax here!!!
+"""
+    var options = initOptions()
+    check isParsableByDeclarative(content, options) == false
+
+  test "should return true for content with tasks (no nested requires)":
+    let content = """
+version = "0.1.0"
+author = "test"
+description = "Test"
+license = "MIT"
+
+requires "nim"
+
+task test, "Run tests":
+  exec "nim c -r tests/test.nim"
+"""
+    var options = initOptions()
+    check isParsableByDeclarative(content, options) == true
+
+  test "should return false for content with if statements around requires":
+    let content = """
+version = "0.1.0"
+
+if NimMajor >= 2:
+  requires "nim >= 2.0.0"
+else:
+  requires "nim >= 1.6.0"
+"""
+    var options = initOptions()
+    check isParsableByDeclarative(content, options) == false
