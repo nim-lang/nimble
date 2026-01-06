@@ -189,7 +189,11 @@ proc satisfiesConstraint*(ver: Version, ran: VersionRange): bool =
     # Normal versions do NOT satisfy special requirements.
     return ver.isSpecial and ver == ran.spe
   else:
-    # For non-special requirements, use normal withinRange logic
+    # For non-special requirements: special versions without speSemanticVersion
+    # cannot satisfy normal version constraints. Only tagged versions or special
+    # versions with known semantic version can satisfy >= X.Y.Z requirements.
+    if ver.isSpecial:
+      return false  # #head without semantic version cannot satisfy >= 0.2.4
     return withinRange(ver, ran)
 
 proc withinRange*(versions: HashSet[Version], range: VersionRange): bool =
