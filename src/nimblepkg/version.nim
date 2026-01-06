@@ -188,6 +188,9 @@ proc satisfiesConstraint*(ver: Version, ran: VersionRange): bool =
     # For SAT constraints: special version requirements require exact special version match.
     # Normal versions do NOT satisfy special requirements.
     return ver.isSpecial and ver == ran.spe
+  of verAny:
+    # Any version satisfies verAny, including special versions
+    return true
   else:
     # For non-special requirements: special versions without speSemanticVersion
     # cannot satisfy normal version constraints. Only tagged versions or special
