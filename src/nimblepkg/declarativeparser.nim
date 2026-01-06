@@ -352,6 +352,37 @@ proc extractRequiresInfo*(nimbleFile: string, options: Options): NimbleFileInfo 
   let additionalRequires = extractRequiresFromFile(nimbleDir)
   result.requires.add(additionalRequires)
 
+proc extractRequiresInfoFromContent*(content: string, options: Options): NimbleFileInfo =
+  ## Extract requires information from nimble file content (as a string).
+  ## This is useful for parsing content obtained via `git show` without
+  ## needing to write to a temp file.
+  var conf = newConfigRef()
+  conf.foreignPackageNotes = {}
+  conf.notes = {}
+  conf.mainPackageNotes = {}
+  conf.errorMax = high(int)
+  conf.structuredErrorHook = proc(
+      config: ConfigRef, info: TLineInfo, msg: string, severity: Severity
+  ) {.gcsafe.} =
+    localError(config, info, warnUser, msg)
+
+  # Create a dummy file index for the parser (it needs one for error reporting)
+  let fileIdx = fileInfoIdx(conf, AbsoluteFile "memory.nimble")
+  let stream = llStreamOpen(content)
+  var parser: Parser
+  openParser(parser, fileIdx, stream, newIdentCache(), conf)
+  let ast = parseAll(parser)
+  extract(ast, conf, result, options)
+  closeParser(parser)
+  result.hasErrors = result.hasErrors or conf.errorCounter > 0
+
+proc isParsableByDeclarative*(content: string, options: Options): bool =
+  ## Check if nimble file content can be fully parsed by the declarative parser.
+  ## Returns true if the content has no errors and no nested requires
+  ## (i.e., requires inside if/when blocks that need VM evaluation).
+  let info = extractRequiresInfoFromContent(content, options)
+  result = not info.hasErrors and not info.nestedRequires
+
 type PluginInfo* = object
   builderPatterns*: seq[(string, string)]
 

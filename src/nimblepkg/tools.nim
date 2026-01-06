@@ -64,6 +64,17 @@ proc doCmdExAsync*(cmd: string): Future[ProcessOutput] {.async.} =
   result = (res.stdOutput, res.status)
   displayDebug("Output", result.output)
 
+proc gitShowFile*(repoDir: string, commitish: string, filePath: string): string =
+  ## Reads file content directly from git object database without checkout (sync version).
+  ## commitish can be: tag name, commit hash, branch name
+  ## Example: gitShowFile("/path/to/repo", "v1.0.5", "mypackage.nimble")
+  let cmd = &"git -C {repoDir.quoteShell} show {commitish.quoteShell}:{filePath.quoteShell}"
+  let (output, exitCode) = doCmdEx(cmd)
+  if exitCode == 0:
+    return output
+  else:
+    raise nimbleError(&"Could not read {filePath} from {commitish}: {output}")
+
 proc gitShowFileAsync*(repoDir: string, commitish: string, filePath: string): Future[string] {.async.} =
   ## Reads file content directly from git object database without checkout.
   ## commitish can be: tag name, commit hash, branch name
@@ -74,6 +85,21 @@ proc gitShowFileAsync*(repoDir: string, commitish: string, filePath: string): Fu
     return output
   else:
     raise nimbleError(&"Could not read {filePath} from {commitish}: {output}")
+
+proc gitListNimbleFilesInCommit*(repoDir: string, commitish: string): seq[string] =
+  ## Lists .nimble files in a specific commit without checkout (sync version).
+  ## Uses git ls-tree to list files directly from git object database.
+  ## Example: gitListNimbleFilesInCommit("/path/to/repo", "v1.0.5")
+  let cmd = &"git -C {repoDir.quoteShell} ls-tree --name-only -r {commitish.quoteShell}"
+  let (output, exitCode) = doCmdEx(cmd)
+  if exitCode != 0:
+    raise nimbleError(&"Could not list files in {commitish}: {output}")
+
+  result = @[]
+  for line in output.splitLines():
+    let trimmed = line.strip()
+    if trimmed != "" and trimmed.endsWith(".nimble"):
+      result.add(trimmed)
 
 proc gitListNimbleFilesInCommitAsync*(repoDir: string, commitish: string): Future[seq[string]] {.async.} =
   ## Lists .nimble files in a specific commit without checkout.

@@ -107,6 +107,29 @@ proc getMinimalInfo*(nimbleFile: string, options: Options, nimBin: string): Pack
     # Keep nim requirements with special versions (e.g., #devel, #commit-sha)
     result.requires = result.requires.filterIt(not it.isNim or it.ver.kind == verSpecial)
 
+proc getMinimalInfoFromContent*(content: string, name: string, version: Version,
+                                 url: string, options: Options): Option[PackageMinimalInfo] =
+  ## Try to get minimal package info by parsing nimble file content with declarative parser.
+  ## Returns none if content is not parseable by declarative parser (has errors or nested requires).
+  if not isParsableByDeclarative(content, options):
+    return none(PackageMinimalInfo)
+
+  let info = extractRequiresInfoFromContent(content, options)
+  var pkgInfo: PackageMinimalInfo
+  pkgInfo.name = if name.isNim: "nim" else: name
+  pkgInfo.version = if info.version != "": newVersion(info.version) else: version
+  pkgInfo.url = url
+
+  # Parse requires from string list to PkgTuple list
+  var activeFeatures = initTable[PkgTuple, seq[string]]()
+  pkgInfo.requires = info.getRequires(activeFeatures).map(convertNimAliasToNim)
+
+  if options.action.typ in {actionLock, actionDeps} or options.hasNimInLockFile():
+    # Keep nim requirements with special versions (e.g., #devel, #commit-sha)
+    pkgInfo.requires = pkgInfo.requires.filterIt(not it.isNim or it.ver.kind == verSpecial)
+
+  return some(pkgInfo)
+
 proc hasVersion*(packageVersions: PackageVersions, pv: PkgTuple): bool =
   for pkg in packageVersions.versions:
     if pkg.name == pv.name:
@@ -785,19 +808,42 @@ proc getPackageMinimalVersionsFromRepo*(repoDir: string, pkg: PkgTuple, version:
           displayInfo(&"Ignoring {name}:{tagVersion} because out of range {pkg[1]}", LowPriority)
           continue
 
-        doCheckout(downloadMethod, tempDir, tag, versionDiscoveryOptions)
-        let nimbleFile = findNimbleFile(tempDir, true, options, warn = false)
-        if options.satResult.pass in {satNimSelection}:
-          result.addUnique getPkgInfoFromDirWithDeclarativeParser(tempDir, options, nimBin).getMinimalInfo(options)  
-        elif options.useDeclarativeParser:
-          result.addUnique getMinimalInfo(nimbleFile, options, nimBin)
-        else:
-          let pkgInfo = getPkgInfoFromFile(nimBin, nimbleFile, options, useCache=false)
-          result.addUnique pkgInfo.getMinimalInfo(options)
-        #here we copy the directory to its own folder so we have it cached for future usage
-        let downloadInfo = getPackageDownloadInfo((name, tagVersion.toVersionRange()), options)
-        if not dirExists(downloadInfo.downloadDir):
-          copyDir(tempDir, downloadInfo.downloadDir)
+        # Try git show + declarative parser first (faster, avoids checkout)
+        var parsed = false
+        try:
+          let nimbleFiles = gitListNimbleFilesInCommit(tempDir, tag)
+          if nimbleFiles.len > 0:
+            # Prefer nimble file matching package name
+            var nimbleFilePath = nimbleFiles[0]
+            let expectedName = name & ".nimble"
+            for nf in nimbleFiles:
+              if nf.endsWith(expectedName) or nf == expectedName:
+                nimbleFilePath = nf
+                break
+
+            let nimbleContent = gitShowFile(tempDir, tag, nimbleFilePath)
+            let minimalInfo = getMinimalInfoFromContent(nimbleContent, name, tagVersion, url = "", options)
+            if minimalInfo.isSome:
+              result.addUnique(minimalInfo.get)
+              parsed = true
+        except CatchableError:
+          discard  # Fall back to checkout approach
+
+        # Fall back to checkout + VM parser if declarative parsing failed
+        if not parsed:
+          doCheckout(downloadMethod, tempDir, tag, versionDiscoveryOptions)
+          let nimbleFile = findNimbleFile(tempDir, true, options, warn = false)
+          if options.satResult.pass in {satNimSelection}:
+            result.addUnique getPkgInfoFromDirWithDeclarativeParser(tempDir, options, nimBin).getMinimalInfo(options)
+          elif options.useDeclarativeParser:
+            result.addUnique getMinimalInfo(nimbleFile, options, nimBin)
+          else:
+            let pkgInfo = getPkgInfoFromFile(nimBin, nimbleFile, options, useCache=false)
+            result.addUnique pkgInfo.getMinimalInfo(options)
+          #here we copy the directory to its own folder so we have it cached for future usage
+          let downloadInfo = getPackageDownloadInfo((name, tagVersion.toVersionRange()), options)
+          if not dirExists(downloadInfo.downloadDir):
+            copyDir(tempDir, downloadInfo.downloadDir)
 
       except CatchableError as e:
         displayWarning(
@@ -860,19 +906,42 @@ proc getPackageMinimalVersionsFromRepoAsync*(repoDir: string, pkg: PkgTuple, ver
       try:
         let tagVersion = newVersion($ver)
 
-        await doCheckoutAsync(downloadMethod, tempDir, tag, versionDiscoveryOptions)
-        let nimbleFile = findNimbleFile(tempDir, true, options, warn = false)
-        if options.satResult.pass in {satNimSelection}:
-          result.addUnique getPkgInfoFromDirWithDeclarativeParser(tempDir, options, nimBin).getMinimalInfo(options)
-        elif options.useDeclarativeParser:
-          result.addUnique getMinimalInfo(nimbleFile, options, nimBin)
-        else:
-          let pkgInfo = getPkgInfoFromFile(nimBin, nimbleFile, options, useCache=false)
-          result.addUnique pkgInfo.getMinimalInfo(options)
-        #here we copy the directory to its own folder so we have it cached for future usage
-        let downloadInfo = getPackageDownloadInfo((name, tagVersion.toVersionRange()), options)
-        if not dirExists(downloadInfo.downloadDir):
-          copyDir(tempDir, downloadInfo.downloadDir)
+        # Try git show + declarative parser first (faster, avoids checkout)
+        var parsed = false
+        try:
+          let nimbleFiles = await gitListNimbleFilesInCommitAsync(tempDir, tag)
+          if nimbleFiles.len > 0:
+            # Prefer nimble file matching package name
+            var nimbleFilePath = nimbleFiles[0]
+            let expectedName = name & ".nimble"
+            for nf in nimbleFiles:
+              if nf.endsWith(expectedName) or nf == expectedName:
+                nimbleFilePath = nf
+                break
+
+            let nimbleContent = await gitShowFileAsync(tempDir, tag, nimbleFilePath)
+            let minimalInfo = getMinimalInfoFromContent(nimbleContent, name, tagVersion, url = "", options)
+            if minimalInfo.isSome:
+              result.addUnique(minimalInfo.get)
+              parsed = true
+        except CatchableError:
+          discard  # Fall back to checkout approach
+
+        # Fall back to checkout + VM parser if declarative parsing failed
+        if not parsed:
+          await doCheckoutAsync(downloadMethod, tempDir, tag, versionDiscoveryOptions)
+          let nimbleFile = findNimbleFile(tempDir, true, options, warn = false)
+          if options.satResult.pass in {satNimSelection}:
+            result.addUnique getPkgInfoFromDirWithDeclarativeParser(tempDir, options, nimBin).getMinimalInfo(options)
+          elif options.useDeclarativeParser:
+            result.addUnique getMinimalInfo(nimbleFile, options, nimBin)
+          else:
+            let pkgInfo = getPkgInfoFromFile(nimBin, nimbleFile, options, useCache=false)
+            result.addUnique pkgInfo.getMinimalInfo(options)
+          #here we copy the directory to its own folder so we have it cached for future usage
+          let downloadInfo = getPackageDownloadInfo((name, tagVersion.toVersionRange()), options)
+          if not dirExists(downloadInfo.downloadDir):
+            copyDir(tempDir, downloadInfo.downloadDir)
 
       except CatchableError as e:
         displayWarning(
@@ -995,16 +1064,21 @@ proc getPackageMinimalVersionsFromRepoAsyncFast*(
       # Read nimble file content from git
       let nimbleContent = await gitShowFileAsync(gitRoot, tag, nimbleFilePath)
 
-      # Write to temp file for parsing
-      let tempNimbleFile = getTempDir() / &"{name}_{tag}.nimble"
-      try:
-        writeFile(tempNimbleFile, nimbleContent)
-        let pkgInfo = getPkgInfoFromFile(nimBin, tempNimbleFile, options, useCache=false)
-        result.addUnique(pkgInfo.getMinimalInfo(options))
-      finally:
+      # Try declarative parser first (faster, no temp file needed)
+      let minimalInfo = getMinimalInfoFromContent(nimbleContent, name, ver, url = "", options)
+      if minimalInfo.isSome:
+        result.addUnique(minimalInfo.get)
+      else:
+        # Fall back to temp file + VM parser for complex nimble files
+        let tempNimbleFile = getTempDir() / &"{name}_{tag}.nimble"
         try:
-          removeFile(tempNimbleFile)
-        except: discard
+          writeFile(tempNimbleFile, nimbleContent)
+          let pkgInfo = getPkgInfoFromFile(nimBin, tempNimbleFile, options, useCache=false)
+          result.addUnique(pkgInfo.getMinimalInfo(options))
+        finally:
+          try:
+            removeFile(tempNimbleFile)
+          except: discard
 
     except CatchableError as e:
       displayInfo(&"Error reading tag {tag} for {name}: {e.msg}", LowPriority)
