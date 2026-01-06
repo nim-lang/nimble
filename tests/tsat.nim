@@ -526,3 +526,64 @@ suite "SAT solver":
     check packages.hasKey("waku")
     echo "waku selected: ", packages["waku"]
     check packages["waku"] == newVersion("0.36.0")
+
+  test "special versions should not replace tagged versions during collection":
+    # This test verifies the fix for the issue where #head would replace all tagged versions
+    # in processRequirements. When collecting versions, if one dependency path requires #head
+    # and another requires a normal version, both should be kept in the version table.
+
+    # Mock getMinimalPackage that returns controlled versions
+    proc mockGetMinimalPackage(pv: PkgTuple, options: Options, nimBin: string): seq[PackageMinimalInfo] =
+      case pv.name
+      of "dep":
+        if pv.ver.kind == verSpecial:
+          # When #head is requested, return #head version
+          var headVer = newVersion("#head")
+          headVer.speSemanticVersion = some("0.3.0")
+          return @[PackageMinimalInfo(name: "dep", version: headVer)]
+        else:
+          # Return tagged versions
+          return @[
+            PackageMinimalInfo(name: "dep", version: newVersion("0.2.5")),
+            PackageMinimalInfo(name: "dep", version: newVersion("0.2.0")),
+            PackageMinimalInfo(name: "dep", version: newVersion("0.1.0"))
+          ]
+      of "wrapper":
+        # Return both versions of wrapper
+        return @[
+          PackageMinimalInfo(name: "wrapper", version: newVersion("1.0.0"), requires: @[
+            (name: "dep", ver: parseVersionRange(">= 0.2.0"))
+          ]),
+          PackageMinimalInfo(name: "wrapper", version: newVersion("0.5.0"), requires: @[
+            (name: "dep", ver: parseVersionRange("#head"))
+          ])
+        ]
+      else:
+        return @[]
+
+    var options = initOptions()
+
+    # Root package requires wrapper and dep
+    let root = PackageMinimalInfo(
+      name: "root",
+      version: newVersion("1.0.0"),
+      requires: @[
+        (name: "wrapper", ver: parseVersionRange(">= 0.5.0")),
+        (name: "dep", ver: parseVersionRange(">= 0.1.0"))
+      ],
+      isRoot: true
+    )
+
+    var pkgVersionTable = initTable[string, PackageVersions]()
+    pkgVersionTable["root"] = PackageVersions(pkgName: "root", versions: @[root])
+
+    # Collect all versions - this triggers processRequirements
+    collectAllVersions(pkgVersionTable, root, options, mockGetMinimalPackage, nimBin = "nim")
+
+    check pkgVersionTable.hasKey("dep")
+    let depVersions = pkgVersionTable["dep"].versions.mapIt($it.version)
+
+    # Should have tagged versions (not replaced by #head)
+    check "0.2.5" in depVersions or "0.2.0" in depVersions or "0.1.0" in depVersions
+    # Should also have #head
+    check "#head" in depVersions
