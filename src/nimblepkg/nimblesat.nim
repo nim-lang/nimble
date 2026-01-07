@@ -1312,10 +1312,13 @@ proc processRequirements(versions: var Table[string, PackageVersions], pv: PkgTu
             specialVer.speSemanticVersion = some($pkgMin.version)  # Store the real version
             pkgMin.version = specialVer
 
-          # Special versions replace any existing versions.
-          # When a package explicitly requires a special version (like #head or a commit),
-          # that's the ONLY version that should be used.
-          versions[pkgName] = PackageVersions(pkgName: pkgName, versions: @[pkgMin])
+          # Add special version alongside existing versions - let the SAT solver choose
+          # The cmp function places special versions first so they get set FALSE first,
+          # meaning the SAT solver will prefer regular tagged versions over #head
+          if pkgName notin versions:
+            versions[pkgName] = PackageVersions(pkgName: pkgName, versions: @[pkgMin])
+          else:
+            versions[pkgName].versions.addUnique pkgMin
         else:
           # Regular versions: add alongside existing versions
           if pkgName notin versions:
@@ -1391,10 +1394,13 @@ proc processRequirementsAsync(pv: PkgTuple, visitedParam: HashSet[PkgTuple], get
           specialVer.speSemanticVersion = some($pkgMin.version)  # Store the real version
           pkgMin.version = specialVer
 
-        # Special versions replace any existing versions.
-        # When a package explicitly requires a special version (like #head or a commit),
-        # that's the ONLY version that should be used.
-        result[pkgName] = PackageVersions(pkgName: pkgName, versions: @[pkgMin])
+        # Add special version alongside existing versions - let the SAT solver choose
+        # The cmp function places special versions first so they get set FALSE first,
+        # meaning the SAT solver will prefer regular tagged versions over #head
+        if pkgName notin result:
+          result[pkgName] = PackageVersions(pkgName: pkgName, versions: @[pkgMin])
+        else:
+          result[pkgName].versions.addUnique pkgMin
       else:
         # Regular versions: add alongside existing versions
         if pkgName notin result:
