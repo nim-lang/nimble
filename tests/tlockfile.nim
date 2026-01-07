@@ -711,3 +711,30 @@ requires "nim >= 1.5.1"
         let json = defaultLockFileName.readFile.parseJson
         check json{$lfjkPackages, "librng", "url"}.str == "https://github.com/xTrayambak/librng"
 
+  test "nim version from requires is used in lock file":
+    # Test that when a package requires a specific nim version (e.g., nim == 2.0.8),
+    # the lock file correctly contains that nim version, not the system nim.
+    # This tests the fix for nim requirements being filtered during SAT nim selection.
+    # Uses langserver as it has many dependencies and moving pieces.
+    let langserverDir = tempDir / "nimlangserver"
+
+    # Clean up any previous test
+    if dirExists(langserverDir):
+      removeDir(langserverDir)
+    createDir(tempDir)
+
+    # Clone langserver
+    let (cloneOutput, cloneExitCode) = 
+        doCmdEx(&"git clone --depth 1 https://github.com/nim-lang/langserver.git {langserverDir}")
+    check cloneExitCode == QuitSuccess
+
+    cd langserverDir:
+      # Remove existing lock file to force regeneration
+      removeFile defaultLockFileName
+      let (lockOutput, lockExitCode) = execNimbleYes("lock")
+      check lockExitCode == QuitSuccess
+
+      check defaultLockFileName.fileExists
+      let lockJson = defaultLockFileName.readFile.parseJson
+      let nimVersion = lockJson{$lfjkPackages, "nim", "version"}.getStr
+      check nimVersion == "2.0.8"
