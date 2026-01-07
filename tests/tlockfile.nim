@@ -3,7 +3,7 @@
 
 {.used.}
 
-import unittest, os, strformat, json, strutils, sequtils
+import unittest, os, strformat, json, strutils, sequtils, tables
 
 import testscommon
 
@@ -15,10 +15,12 @@ import nimblepkg/vcstools
 from nimblepkg/common import cd, dump, cdNewDir
 from nimblepkg/tools import tryDoCmdEx, doCmdEx
 from nimblepkg/packageinfotypes import DownloadMethod
+from nimblepkg/version import PkgTuple, `$`
 from nimblepkg/lockfile import LockFileJsonKeys
-from nimblepkg/options import defaultLockFileName, defaultDevelopPath
+from nimblepkg/options import defaultLockFileName, defaultDevelopPath, initOptions
 from nimblepkg/developfile import ValidationError, ValidationErrorKind,
   developFileName, getValidationErrorMessage
+from nimblepkg/declarativeparser import extractRequiresInfo, getRequires
 
 suite "lock file":
   type
@@ -724,17 +726,25 @@ requires "nim >= 1.5.1"
     createDir(tempDir)
 
     # Clone langserver
-    let (cloneOutput, cloneExitCode) = 
+    let (_, cloneExitCode) =
         doCmdEx(&"git clone --depth 1 https://github.com/nim-lang/langserver.git {langserverDir}")
     check cloneExitCode == QuitSuccess
 
     cd langserverDir:
+      var options = initOptions()
+      let nimbleInfo = extractRequiresInfo("nimlangserver.nimble", options)
+      var activeFeatures = initTable[PkgTuple, seq[string]]()
+      let requires = nimbleInfo.getRequires(activeFeatures)
+      let nimReq = requires.filterIt(it.name == "nim")
+      check nimReq.len > 0
+      let expectedNimVersion = $nimReq[0].ver
+
       # Remove existing lock file to force regeneration
       removeFile defaultLockFileName
-      let (lockOutput, lockExitCode) = execNimbleYes("lock")
+      let (_, lockExitCode) = execNimbleYes("lock")
       check lockExitCode == QuitSuccess
 
       check defaultLockFileName.fileExists
       let lockJson = defaultLockFileName.readFile.parseJson
       let nimVersion = lockJson{$lfjkPackages, "nim", "version"}.getStr
-      check nimVersion == "2.0.8"
+      check nimVersion == expectedNimVersion
