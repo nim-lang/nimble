@@ -89,7 +89,8 @@ proc getMinimalInfo*(pkg: PackageInfo, options: Options): PackageMinimalInfo =
   result.name = if pkg.basicInfo.name.isNim: "nim" else: pkg.basicInfo.name
   result.version = pkg.basicInfo.version
   result.requires = pkg.requires.map(convertNimAliasToNim)
-  if options.action.typ in {actionLock, actionDeps} or options.hasNimInLockFile():
+  if options.satResult.pass != satNimSelection and
+     (options.action.typ in {actionLock, actionDeps} or options.hasNimInLockFile()):
     # Keep nim requirements with special versions (e.g., #devel, #commit-sha)
     result.requires = result.requires.filterIt(not it.isNim or it.ver.kind == verSpecial)
   result.url = pkg.metadata.url
@@ -103,7 +104,8 @@ proc getMinimalInfo*(nimbleFile: string, options: Options, nimBin: string): Pack
   result.version = pkg.basicInfo.version
   result.requires = pkg.requires.map(convertNimAliasToNim)
   result.url = pkg.metadata.url
-  if options.action.typ in {actionLock, actionDeps} or options.hasNimInLockFile():
+  if options.satResult.pass != satNimSelection and
+     (options.action.typ in {actionLock, actionDeps} or options.hasNimInLockFile()):
     # Keep nim requirements with special versions (e.g., #devel, #commit-sha)
     result.requires = result.requires.filterIt(not it.isNim or it.ver.kind == verSpecial)
 
@@ -124,7 +126,8 @@ proc getMinimalInfoFromContent*(content: string, name: string, version: Version,
   var activeFeatures = initTable[PkgTuple, seq[string]]()
   pkgInfo.requires = info.getRequires(activeFeatures).map(convertNimAliasToNim)
 
-  if options.action.typ in {actionLock, actionDeps} or options.hasNimInLockFile():
+  if options.satResult.pass != satNimSelection and
+     (options.action.typ in {actionLock, actionDeps} or options.hasNimInLockFile()):
     # Keep nim requirements with special versions (e.g., #devel, #commit-sha)
     pkgInfo.requires = pkgInfo.requires.filterIt(not it.isNim or it.ver.kind == verSpecial)
 

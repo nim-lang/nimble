@@ -176,31 +176,31 @@ proc isSystemNim*(resolvedNim: NimResolved, options: Options): bool =
   return false
 
 proc solvePackagesWithSystemNimFallback*(
-    rootPackage: PackageInfo, 
-    pkgList: seq[PackageInfo], 
+    rootPackage: PackageInfo,
+    pkgList: seq[PackageInfo],
     options: var Options,
     resolvedNim: Option[NimResolved], nimBin: string): HashSet[PackageInfo] {.instrument.} =
-  ## Solves packages with system Nim as a hard requirement, falling back to 
+  ## Solves packages with system Nim as a hard requirement, falling back to
   ## solving without it if the first attempt fails due to unsatisfiable dependencies.
-  
+
   var rootPackageWithSystemNim = rootPackage
   var systemNimPass = false
-  
-  # If there is systemNim, we will try to do a first pass with the systemNim 
-  # as a hard requirement. If it fails, we will fallback to 
-  # retry without it as a hard requirement. The idea behind it is that a 
+
+  # If there is systemNim, we will try to do a first pass with the systemNim
+  # as a hard requirement. If it fails, we will fallback to
+  # retry without it as a hard requirement. The idea behind it is that a
   # compatible version of the packages is used for the current nim.
   if resolvedNim.isSome and resolvedNim.get.isSystemNim(options):
     rootPackageWithSystemNim.requires.add(parseRequires("nim " & $resolvedNim.get.version))
     systemNimPass = true
 
-  result = solvePackages(rootPackageWithSystemNim, pkgList, 
-                        options.satResult.pkgsToInstall, options, 
+  result = solvePackages(rootPackageWithSystemNim, pkgList,
+                        options.satResult.pkgsToInstall, options,
                         options.satResult.output, options.satResult.solvedPkgs, nimBin)
   if options.satResult.solvedPkgs.len == 0 and systemNimPass:
     # If the first pass failed, we will retry without the systemNim as a hard requirement
-    result = solvePackages(rootPackage, pkgList, 
-                          options.satResult.pkgsToInstall, options, 
+    result = solvePackages(rootPackage, pkgList,
+                          options.satResult.pkgsToInstall, options,
                           options.satResult.output, options.satResult.solvedPkgs, nimBin)
 
 proc compPkgListByVersion*(a, b: PackageInfo): int =
@@ -211,7 +211,7 @@ proc compPkgListByVersion*(a, b: PackageInfo): int =
 proc resolveNim*(rootPackage: PackageInfo, pkgListDecl: seq[PackageInfo], systemNimPkg: Option[PackageInfo], options: var Options): NimResolved {.instrument.} =
   
   options.satResult.pkgList = pkgListDecl.toHashSet()
-  
+
   #If there is a lock file we should use it straight away (if the user didnt specify --useSystemNim)
   let lockFile = options.lockFile(rootPackage.myPath.parentDir())
 
@@ -221,7 +221,6 @@ proc resolveNim*(rootPackage: PackageInfo, pkgListDecl: seq[PackageInfo], system
     else:
       for name, dep in lockFile.getLockedDependencies.lockedDepsFor(options):
         if name.isNim:
-          # echo "Found Nim in lock file: ", name, " ", dep.version
           # Check if the locked version satisfies the current requirement
           let nimRequirement = rootPackage.requires.filterIt(it.name.isNim)
           if nimRequirement.len > 0:
@@ -232,7 +231,7 @@ proc resolveNim*(rootPackage: PackageInfo, pkgListDecl: seq[PackageInfo], system
           if systemNimPkg.isSome and dep.version == systemNimPkg.get.basicInfo.version:
             return NimResolved(pkg: some(systemNimPkg.get), version: systemNimPkg.get.basicInfo.version)
           return NimResolved(version: dep.version)
-  
+
   let runSolver = options.satResult.pass notin [satLockFile]
   if not runSolver:
     #We come from a lock file with no Nim so we can use any Nim.

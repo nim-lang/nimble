@@ -3,7 +3,7 @@
 
 {.used.}
 
-import unittest, os, strformat, json, strutils, sequtils
+import unittest, os, strformat, json, strutils, sequtils, tables
 
 import testscommon
 
@@ -15,10 +15,12 @@ import nimblepkg/vcstools
 from nimblepkg/common import cd, dump, cdNewDir
 from nimblepkg/tools import tryDoCmdEx, doCmdEx
 from nimblepkg/packageinfotypes import DownloadMethod
+from nimblepkg/version import PkgTuple, `$`
 from nimblepkg/lockfile import LockFileJsonKeys
-from nimblepkg/options import defaultLockFileName, defaultDevelopPath
+from nimblepkg/options import defaultLockFileName, defaultDevelopPath, initOptions
 from nimblepkg/developfile import ValidationError, ValidationErrorKind,
   developFileName, getValidationErrorMessage
+from nimblepkg/declarativeparser import extractRequiresInfo, getRequires
 
 suite "lock file":
   type
@@ -711,3 +713,38 @@ requires "nim >= 1.5.1"
         let json = defaultLockFileName.readFile.parseJson
         check json{$lfjkPackages, "librng", "url"}.str == "https://github.com/xTrayambak/librng"
 
+  test "nim version from requires is used in lock file":
+    # Test that when a package requires a specific nim version (e.g., nim == 2.0.8),
+    # the lock file correctly contains that nim version, not the system nim.
+    # This tests the fix for nim requirements being filtered during SAT nim selection.
+    # Uses langserver as it has many dependencies and moving pieces.
+    let langserverDir = tempDir / "nimlangserver"
+
+    # Clean up any previous test
+    if dirExists(langserverDir):
+      removeDir(langserverDir)
+    createDir(tempDir)
+
+    # Clone langserver
+    let (_, cloneExitCode) =
+        doCmdEx(&"git clone --depth 1 https://github.com/nim-lang/langserver.git {langserverDir}")
+    check cloneExitCode == QuitSuccess
+
+    cd langserverDir:
+      var options = initOptions()
+      let nimbleInfo = extractRequiresInfo("nimlangserver.nimble", options)
+      var activeFeatures = initTable[PkgTuple, seq[string]]()
+      let requires = nimbleInfo.getRequires(activeFeatures)
+      let nimReq = requires.filterIt(it.name == "nim")
+      check nimReq.len > 0
+      let expectedNimVersion = $nimReq[0].ver
+
+      # Remove existing lock file to force regeneration
+      removeFile defaultLockFileName
+      let (_, lockExitCode) = execNimbleYes("lock")
+      check lockExitCode == QuitSuccess
+
+      check defaultLockFileName.fileExists
+      let lockJson = defaultLockFileName.readFile.parseJson
+      let nimVersion = lockJson{$lfjkPackages, "nim", "version"}.getStr
+      check nimVersion == expectedNimVersion
