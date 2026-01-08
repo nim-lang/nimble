@@ -8,7 +8,7 @@ import compat/[json, osproc]
 import zippy/tarballs as zippy_tarballs
 import zippy/ziparchives as zippy_zips
 
-import common, options, packageinfo, nimenv, download
+import common, options, packageinfo, nimenv, download, packagemetadatafile
 
 when defined(curl):
   import math
@@ -775,6 +775,15 @@ proc extractNimIfNeeded*(
       writeFile(buildAll, "echo hello;")
   return extractNimIfNeeded(path, extractDir, options, attempts + 1)
 
+proc saveNimMetaData(extractDir: string) =
+  ## Save metadata for nim binaries installation with the canonical URL.
+  ## This ensures lock files can reference nim properly.
+  let metaDataFile = extractDir / packageMetaDataFileName
+  if not metaDataFile.fileExists:
+    var metaData = initPackageMetaData()
+    metaData.url = "https://github.com/nim-lang/Nim.git"
+    saveMetaData(metaData, extractDir, changeRoots = false)
+
 proc downloadAndExtractNim*(version: Version, options: Options): Option[string] =
   try:
     let extractDir = options.getNimInstallationDir(version)
@@ -782,6 +791,7 @@ proc downloadAndExtractNim*(version: Version, options: Options): Option[string] 
     let nimBin = extractDir / "bin" / "nim".addFileExt(ExeExt)
     if extractDir.dirExists() and nimBin.fileExists:
       display("Info:", "Nim $1 already installed" % $version)
+      saveNimMetaData(extractDir)
       return some extractDir
     let path = downloadNim(version, options)
     let extracted = extractNimIfNeeded(path, extractDir, options)
@@ -791,6 +801,7 @@ proc downloadAndExtractNim*(version: Version, options: Options): Option[string] 
       if not nimBin.fileExists:
         display("Info:", "Compiling Nim $1 from source" % $version, priority = HighPriority)
         compileNim(options, extractDir, version.toVersionRange)
+      saveNimMetaData(extractDir)
       return some extractDir
     else:
       return none(string)
@@ -831,6 +842,7 @@ proc installNimFromBinariesDir*(
       # Don't warn for special versions like #devel - they won't match the binary version
       if not pkg.basicInfo.version.isSpecial and pkg.basicInfo.version != ver.get():
         displayWarning("Nim binary version doesn't match the package info version for Nim located at: " & pkg.getRealDir)
+      saveNimMetaData(pkg.getRealDir)
       return some (pkg.getRealDir, ver.get())
 
   # Download if allowed
