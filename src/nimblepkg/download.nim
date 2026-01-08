@@ -472,7 +472,7 @@ proc parseRevision(lsRemoteOutput: string): Sha1Hash =
         discard
   return notSetSha1Hash
 
-proc getRevision(url, version: string): Sha1Hash =
+proc getRevision*(url, version: string): Sha1Hash =
   ## Returns the commit hash corresponding to the given `version` of the package
   ## in repository at `url`.
   let output = tryDoCmdEx(&"git ls-remote {url} {version}")

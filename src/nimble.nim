@@ -806,7 +806,9 @@ proc downloadDependency(name: string, dep: LockFileDep, options: Options, nimBin
     dep.vcsRevision, nimBin, validateRange = validateRange)
 
   let downloadedPackageChecksum = calculateDirSha1Checksum(downloadDir)
-  if downloadedPackageChecksum != dep.checksums.sha1:
+  # Skip checksum verification for nim - binaries are platform-specific so
+  # checksums would differ across platforms (macOS vs Linux vs Windows)
+  if downloadedPackageChecksum != dep.checksums.sha1 and not name.isNim:
     raise checksumError(name, dep.version, dep.vcsRevision,
                         downloadedPackageChecksum, dep.checksums.sha1)
 
@@ -2130,13 +2132,26 @@ proc lock(options: var Options, nimBin: string) =
       if lockUrl == "" and solvedPkg.pkgName.isNim:
         lockUrl = "https://github.com/nim-lang/Nim.git"
 
+      var lockChecksum = pkgInfo.basicInfo.checksum
+
+      # For nim with missing metadata, resolve vcsRevision from git remote
+      # Note: We don't compute checksum for nim from binaries installation
+      if solvedPkg.pkgName.isNim and lockUrl != "":
+        # Resolve vcsRevision from git remote if not set
+        if vcsRevision == notSetSha1Hash:
+          let versionTag = "v" & $solvedPkg.version
+          try:
+            vcsRevision = download.getRevision(lockUrl, versionTag)
+          except CatchableError:
+            displayWarning(&"Could not resolve git revision for nim {solvedPkg.version}")
+
       lockDeps[noTask][pkgInfo.basicInfo.name] = LockFileDep(
         version: solvedPkg.version,
         vcsRevision: vcsRevision,
         url: lockUrl,
         downloadMethod: pkgInfo.metaData.downloadMethod,
-        dependencies: solvedPkg.requirements.mapIt(it.name), 
-        checksums: Checksums(sha1: pkgInfo.basicInfo.checksum))
+        dependencies: solvedPkg.requirements.mapIt(it.name),
+        checksums: Checksums(sha1: lockChecksum))
     
     for task in pkgInfo.taskRequires.keys:
       lockDeps[task] = LockFileDeps()
