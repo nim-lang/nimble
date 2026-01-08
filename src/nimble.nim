@@ -2126,6 +2126,9 @@ proc lock(options: var Options, nimBin: string) =
       var lockUrl = pkgInfo.metaData.url
       if lockUrl == "":
         lockUrl = nimblesat.getUrlFromPkgName(solvedPkg.pkgName, options.satResult.pkgVersionTable, options)
+      # Fallback for nim when no metadata URL is available (e.g., system nim or old binaries installation)
+      if lockUrl == "" and solvedPkg.pkgName.isNim:
+        lockUrl = "https://github.com/nim-lang/Nim.git"
 
       lockDeps[noTask][pkgInfo.basicInfo.name] = LockFileDep(
         version: solvedPkg.version,
