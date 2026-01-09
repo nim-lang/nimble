@@ -805,10 +805,10 @@ proc downloadDependency(name: string, dep: LockFileDep, options: Options, nimBin
     url, version, dep.downloadMethod, subdir, options, downloadPath,
     dep.vcsRevision, nimBin, validateRange = validateRange)
 
-  let downloadedPackageChecksum = calculateDirSha1Checksum(downloadDir)
-  # Skip checksum verification for nim - binaries are platform-specific so
-  # checksums would differ across platforms (macOS vs Linux vs Windows)
-  if downloadedPackageChecksum != dep.checksums.sha1 and not name.isNim:
+  # For nim, compute checksum from lib/ only 
+  let checksumDir = if name.isNim: downloadDir / "lib" else: downloadDir
+  let downloadedPackageChecksum = calculateDirSha1Checksum(checksumDir)
+  if downloadedPackageChecksum != dep.checksums.sha1:
     raise checksumError(name, dep.version, dep.vcsRevision,
                         downloadedPackageChecksum, dep.checksums.sha1)
 
@@ -2134,8 +2134,7 @@ proc lock(options: var Options, nimBin: string) =
 
       var lockChecksum = pkgInfo.basicInfo.checksum
 
-      # For nim with missing metadata, resolve vcsRevision from git remote
-      # Note: We don't compute checksum for nim from binaries installation
+      # For nim with missing metadata, resolve vcsRevision and checksum
       if solvedPkg.pkgName.isNim and lockUrl != "":
         # Resolve vcsRevision from git remote if not set
         if vcsRevision == notSetSha1Hash:
@@ -2144,6 +2143,16 @@ proc lock(options: var Options, nimBin: string) =
             vcsRevision = download.getRevision(lockUrl, versionTag)
           except CatchableError:
             displayWarning(&"Could not resolve git revision for nim {solvedPkg.version}")
+
+        # Compute checksum from lib/ directory only (stdlib source)
+        # This is consistent across platforms unlike compiled binaries
+        if lockChecksum == notSetSha1Hash:
+          let libDir = pkgInfo.getRealDir() / "lib"
+          if libDir.dirExists():
+            try:
+              lockChecksum = calculateDirSha1Checksum(libDir)
+            except CatchableError:
+              displayWarning(&"Could not compute checksum for nim stdlib at {libDir}")
 
       lockDeps[noTask][pkgInfo.basicInfo.name] = LockFileDep(
         version: solvedPkg.version,
