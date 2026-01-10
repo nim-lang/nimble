@@ -13,7 +13,7 @@ from nimblepkg/displaymessages import pkgAlreadyExistsInTheCacheMsg
 from nimblepkg/tools import getNameVersionChecksum
 
 template installAlpha =
-  cleanDir installDir
+  cleanInstallDir()
   var args {.inject.} = @["install", pkgMultiAlphaUrl]
   let (output, exitCode) = execNimbleYes(args)
   check exitCode == QuitSuccess

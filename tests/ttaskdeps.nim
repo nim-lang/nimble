@@ -103,7 +103,7 @@ suite "Task level dependencies":
       check found
 
   test "Develop file is used":
-    removeDir(installDir)
+    cleanInstallDir()
     inDir:
       defer:
         removeDir("vendor")

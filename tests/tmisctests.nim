@@ -37,7 +37,7 @@ suite "misc tests":
       check execNimble("recurse").exitCode == QuitSuccess
 
   test "picks #head when looking for packages":
-    removeDir installDir
+    cleanInstallDir()
     cd "versionClashes" / "aporiaScenario":
       let (output, exitCode) = execNimbleYes("install", "--verbose")
       checkpoint output
@@ -51,7 +51,7 @@ suite "misc tests":
       check exitCode == QuitSuccess
 
   test "install with --noRebuild flag":
-    cleanDir(installDir)
+    cleanInstallDir()
     cd "run":
       check execNimbleYes("build").exitCode == QuitSuccess
       let (output, exitCode) = execNimbleYes("install", "--noRebuild")
@@ -115,12 +115,12 @@ suite "misc tests":
     check execNimble("list", "-i").exitCode == QuitSuccess
 
   test "should not install submodules when --ignoreSubmodules flag is on":
-    cleanDir(installDir)
+    cleanInstallDir()
     let (_, exitCode) = execNimble("--ignoreSubmodules", "install", "https://github.com/jmgomez/submodule_package")
     check exitCode == QuitFailure
 
   test "should install submodules when --ignoreSubmodules flag is off":
-    cleanDir(installDir)
+    cleanInstallDir()
     let (_, exitCode) = execNimble("install", "https://github.com/jmgomez/submodule_package")
     check exitCode == QuitSuccess
   

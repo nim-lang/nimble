@@ -176,7 +176,7 @@ suite "nimble run":
     packagesFilePath = "develop/packages.json"
 
   test "Run binary from dependency in Nimble cache":
-    cleanDir installDir
+    cleanInstallDir()
     cleanFile dependencyPkgBinary
     usePackageListFile(packagesFilePath):
       cd dependencyPkgPath:
@@ -192,7 +192,7 @@ suite "nimble run":
         check lines.inLinesOrdered("--arg2")
 
   test "Run binary from develop mode dependency":
-    cleanDir installDir
+    cleanInstallDir()
     cleanFiles dependencyPkgBinary, dependentPkgDevelopFile
     usePackageListFile(packagesFilePath):
       cd dependentPkgPath:
@@ -209,7 +209,7 @@ suite "nimble run":
         check lines.inLinesOrdered("--arg2")
 
   test "Error when specified package does not exist":
-    cleanDir installDir
+    cleanInstallDir()
     cleanFile dependencyPkgBinary
     usePackageListFile(packagesFilePath):
       cd dependencyPkgPath:
@@ -222,7 +222,7 @@ suite "nimble run":
         check output.contains(notFoundPkgWithNameInPkgDepTree("dep"))
 
   test "Error when specified binary does not exist in specified package":
-    cleanDir installDir
+    cleanInstallDir()
     cleanFile dependencyPkgBinary
     usePackageListFile(packagesFilePath):
       cd dependencyPkgPath:

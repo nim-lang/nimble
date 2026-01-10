@@ -29,7 +29,7 @@ suite "issues":
   test "issue 799":
     # When building, any newly installed packages should be referenced via the
     # path that they get permanently installed at.
-    cleanDir installDir
+    cleanInstallDir()
     cd "issue799":
       let (output, exitCode) = execNimbleYes("build")    
       check exitCode == QuitSuccess
@@ -135,7 +135,7 @@ suite "issues":
   test "issues #308 and #515":
     let
       ext = when defined(Windows): ExeExt else: "out"
-    cleanDir(installDir)
+    cleanInstallDir()
     cd "issue308515" / "v1":
       var (output, exitCode) = execNimble(["run", "binname", "--silent"])
       check exitCode == QuitSuccess
@@ -275,7 +275,7 @@ suite "issues":
       check execNimble("tasks").exitCode == QuitSuccess
 
   test "can build with #head and versioned package (#289)":
-    cleanDir(installDir)
+    cleanInstallDir()
     cd "issue289":
       check execNimbleYes("install").exitCode == QuitSuccess
 
@@ -314,7 +314,7 @@ suite "issues":
         check(not lines.hasLineStartingWith("Warning:"))
 
   test "issue 129 (installing commit hash)":
-    cleanDir(installDir)
+    cleanInstallDir()
     let arguments = @["install", &"{pkgAUrl}@#1f9cb289c89"]
     check execNimbleYes(arguments).exitCode == QuitSuccess
     # Verify that it was installed correctly.
@@ -337,7 +337,7 @@ suite "issues":
       check inLines(lines1, "The .nimble file name must match name specified inside")
 
   test "issue 113 (uninstallation problems)":
-    cleanDir(installDir)
+    cleanInstallDir()
 
     cd "issue113/c":
       check execNimbleYes("install").exitCode == QuitSuccess

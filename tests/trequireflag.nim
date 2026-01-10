@@ -6,7 +6,7 @@ from nimble import nimblePathsFileName
 
 suite "requires flag":
   test "can add additional requirements to package with legacy solver":
-    cleanDir(installDir)
+    cleanInstallDir()
     cd "requireflag":
       #legacy solver is not supported in vnext (nimble 1.0.0)
       let (outp, exitCode) = execNimble("--requires: stew; results > 0.1", "--solver:legacy", "--legacy", "install")
@@ -15,7 +15,7 @@ suite "requires flag":
       check outp.processOutput.inLines("Success:  stew installed successfully.")
 
   test "can add additional requirements to package with sat solver":
-    cleanDir(installDir)
+    cleanInstallDir()
     cd "requireflag":
       let (outp, exitCode) = execNimble("--requires: stew; results > 0.1", "--solver:sat", "install")
       check exitCode == QuitSuccess
@@ -52,7 +52,7 @@ suite "requires flag":
       "json_serialization#26bea5ffce20ae0d0855b3d61072de04d3bf9826",
       "json_serialization == 0.2.9"
     ]
-    cleanDir(installDir)
+    cleanInstallDir()
     cd "gitversions":
       for req in requires:
         let require = "--requires: " & req

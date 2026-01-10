@@ -27,6 +27,7 @@ let
   installDir* = rootDir / "tests" / "nimbleDir"
   buildTests* = rootDir / "buildTests"
   pkgsDir* = installDir / nimblePackagesDirName
+  pkgCacheDir* = installDir / "pkgcache"
 
 proc execNimble*(args: varargs[string]): ProcessOutput =
   var quotedArgs = @args
@@ -184,6 +185,17 @@ macro cleanFiles*(fileNames: varargs[string]) =
 template cleanDir*(dirName: string) =
   removeDir dirName
   defer: removeDir dirName
+
+template cleanInstallDir*(cleanPkgCache: bool = false) =
+  ## Cleans the install directory by removing pkgs2.
+  ## If cleanPkgCache is true, also removes the package cache.
+  removeDir pkgsDir
+  if cleanPkgCache:
+    removeDir pkgCacheDir
+  defer:
+    removeDir pkgsDir
+    if cleanPkgCache:
+      removeDir pkgCacheDir
 
 template createTempDir*(dirName: string) =
   createDir dirName
