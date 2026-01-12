@@ -805,9 +805,17 @@ proc downloadDependency(name: string, dep: LockFileDep, options: Options, nimBin
     url, version, dep.downloadMethod, subdir, options, downloadPath,
     dep.vcsRevision, nimBin, validateRange = validateRange)
 
-  # For nim, compute checksum from lib/ only 
-  let checksumDir = if name.isNim: downloadDir / "lib" else: downloadDir
-  let downloadedPackageChecksum = calculateDirSha1Checksum(checksumDir)
+  # For nim, compute checksum from lib/ only (stdlib source is consistent across platforms)
+  # Fallback to full directory for backwards compatibility with older lock files
+  let downloadedPackageChecksum =
+    if name.isNim:
+      let libChecksum = calculateDirSha1Checksum(downloadDir / "lib")
+      if libChecksum == dep.checksums.sha1:
+        libChecksum
+      else:
+        calculateDirSha1Checksum(downloadDir)
+    else:
+      calculateDirSha1Checksum(downloadDir)
   if downloadedPackageChecksum != dep.checksums.sha1:
     raise checksumError(name, dep.version, dep.vcsRevision,
                         downloadedPackageChecksum, dep.checksums.sha1)
