@@ -723,6 +723,56 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
   cd pkgInfo.myPath.splitFile.dir:
     discard execHook(nimBin, options, actionInstall, false)
 
+proc installNimToPkgs2*(nimPkgInfo: PackageInfo, options: Options, nimBin: string): PackageInfo =
+  ## Installs nim to pkgs2 directory by copying from nimbinaries.
+  ## This ensures nim is available like other packages for dependency resolution.
+  ## Only applies to nim installed via nimbinaries, not system nim.
+  ## Returns the updated PackageInfo pointing to pkgs2.
+  result = nimPkgInfo
+
+  let srcDir = nimPkgInfo.getRealDir()
+  if not dirExists(srcDir):
+    return
+
+  # Only install nim from nimbinaries, not system nim
+  if "nimbinaries" notin srcDir:
+    return
+
+  # Compute checksum from lib/ directory (stdlib source - consistent across platforms)
+  let libDir = srcDir / "lib"
+  if not dirExists(libDir):
+    return
+
+  let nimChecksum = calculateDirSha1Checksum(libDir)
+
+  # Build destination path manually since basicInfo.checksum may be empty
+  let pkgDestDir = options.getPkgsDir() /
+    &"{nimPkgInfo.basicInfo.name}-{nimPkgInfo.basicInfo.version}-{nimChecksum}"
+
+  if not dirExists(pkgDestDir):
+    display("Installing", "nim@$1 to pkgs2" % [$nimPkgInfo.basicInfo.version],
+            priority = MediumPriority)
+
+    createDir(pkgDestDir)
+
+    # Copy nim files to pkgs2
+    for kind, path in walkDir(srcDir):
+      let destPath = pkgDestDir / path.extractFilename
+      if kind == pcDir:
+        copyDir(path, destPath)
+      else:
+        copyFile(path, destPath)
+
+    # Save metadata
+    var metaData = nimPkgInfo.metaData
+    if metaData.url == "":
+      metaData.url = "https://github.com/nim-lang/Nim.git"
+    saveMetaData(metaData, pkgDestDir, changeRoots = false)
+
+  # Return PackageInfo pointing to pkgs2
+  result = getPkgInfoFromDirWithDeclarativeParser(pkgDestDir, options, nimBin)
+  result.basicInfo.checksum = nimChecksum
+
 proc getDependencyDir(name: string, dep: LockFileDep, options: Options):
     string =
   ## Returns the installation directory for a dependency from the lock file.
@@ -2671,10 +2721,14 @@ proc solvePkgs(rootPackage: PackageInfo, options: var Options, nimBin: string) {
   # echo "AFTER FIRST PASS"
   # options.debugSATResult()
   #We set nim in the options here as it is used to get the full info of the packages.
-  #Its kinda a big refactor getPkgInfo to parametrize it. At some point we will do it. 
-  setNimBin(resolvedNim.pkg.get, options)
+  #Its kinda a big refactor getPkgInfo to parametrize it. At some point we will do it.
+  # Install nim to pkgs2 if not already there (for consistency with other packages)
+  # This returns a PackageInfo pointing to pkgs2 instead of nimbinaries
+  let nimPkgInfo = installNimToPkgs2(resolvedNim.pkg.get, options, nimBin)
+  resolvedNim.pkg = some nimPkgInfo
+  setNimBin(nimPkgInfo, options)
   options.satResult.nimResolved = resolvedNim #TODO maybe we should consider the sat fallback pass. Not sure if we should just warn the user so the packages are corrected
-  options.satResult.pkgs.incl(resolvedNim.pkg.get) #Make sure its in the solution
+  options.satResult.pkgs.incl(nimPkgInfo) #Make sure its in the solution
   # Only add nim to solvedPkgs if there isn't already one (e.g., with a special version like #devel)
   if not options.satResult.solvedPkgs.anyIt(it.pkgName.isNim):
     addUnique(options.satResult.solvedPkgs, SolvedPackage(pkgName: "nim", version: resolvedNim.version))
