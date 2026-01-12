@@ -1474,6 +1474,7 @@ This should ideally be a valid SPDX identifier. See https://spdx.org/licenses/.
     "LGPL-3.0-linking-exception",
     "EPL-2.0",
     "AGPL-3.0",
+    "EUPL-1.2",
     # This is what npm calls "UNLICENSED" (which is too similar to "Unlicense")
     "Proprietary",
     "Other"
@@ -2143,8 +2144,7 @@ proc lock(options: var Options, nimBin: string) =
 
       var lockChecksum = pkgInfo.basicInfo.checksum
 
-      # For nim with missing metadata, resolve vcsRevision from git remote
-      # Note: We don't compute checksum for nim from binaries installation
+      # For nim with missing metadata, resolve vcsRevision and checksum
       if solvedPkg.pkgName.isNim and lockUrl != "":
         # Resolve vcsRevision from git remote if not set
         if vcsRevision == notSetSha1Hash:
@@ -2153,6 +2153,16 @@ proc lock(options: var Options, nimBin: string) =
             vcsRevision = download.getRevision(lockUrl, versionTag)
           except CatchableError:
             displayWarning(&"Could not resolve git revision for nim {solvedPkg.version}")
+
+        # Compute checksum from lib/ directory only (stdlib source)
+        # This is consistent across platforms unlike compiled binaries
+        if lockChecksum == notSetSha1Hash:
+          let libDir = pkgInfo.getRealDir() / "lib"
+          if libDir.dirExists():
+            try:
+              lockChecksum = calculateDirSha1Checksum(libDir)
+            except CatchableError:
+              displayWarning(&"Could not compute checksum for nim stdlib at {libDir}")
 
       lockDeps[noTask][pkgInfo.basicInfo.name] = LockFileDep(
         version: solvedPkg.version,
