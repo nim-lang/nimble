@@ -1465,6 +1465,7 @@ This should ideally be a valid SPDX identifier. See https://spdx.org/licenses/.
     "LGPL-3.0-linking-exception",
     "EPL-2.0",
     "AGPL-3.0",
+    "EUPL-1.2",
     # This is what npm calls "UNLICENSED" (which is too similar to "Unlicense")
     "Proprietary",
     "Other"
