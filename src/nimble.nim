@@ -769,6 +769,17 @@ proc installNimToPkgs2*(nimPkgInfo: PackageInfo, options: Options, nimBin: strin
       metaData.url = "https://github.com/nim-lang/Nim.git"
     saveMetaData(metaData, pkgDestDir, changeRoots = false)
 
+    # Transfer file permissions from source bin/ to dest bin/
+    # copyFile/copyDir doesn't preserve execute permissions on Linux
+    let srcBinDir = srcDir / "bin"
+    let destBinDir = pkgDestDir / "bin"
+    if dirExists(srcBinDir) and dirExists(destBinDir):
+      for binkind, srcBinPath in walkDir(srcBinDir):
+        if binkind == pcFile:
+          let destBinPath = destBinDir / srcBinPath.extractFilename
+          if fileExists(destBinPath):
+            setFilePermissions(destBinPath, getFilePermissions(srcBinPath))
+
   # Return PackageInfo pointing to pkgs2
   result = getPkgInfoFromDirWithDeclarativeParser(pkgDestDir, options, nimBin)
   result.basicInfo.checksum = nimChecksum
