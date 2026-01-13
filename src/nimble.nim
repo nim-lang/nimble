@@ -772,6 +772,7 @@ proc installNimToPkgs2*(nimPkgInfo: PackageInfo, options: Options, nimBin: strin
   # Return PackageInfo pointing to pkgs2
   result = getPkgInfoFromDirWithDeclarativeParser(pkgDestDir, options, nimBin)
   result.basicInfo.checksum = nimChecksum
+  result.isInstalled = true
 
 proc getDependencyDir(name: string, dep: LockFileDep, options: Options):
     string =
