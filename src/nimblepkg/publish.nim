@@ -37,8 +37,8 @@ proc requestNewToken(cfg: Config): string =
   display("Info:", "Please create a new personal access token on GitHub in" &
           " order to allow Nimble to fork the packages repository.",
           priority = HighPriority)
-  display("Hint:", "Make sure to give the access token access to public repos" &
-          " (public_repo scope)!", Warning, HighPriority)
+  display("Hint:", "Make sure to give the access token access to public repos and workflows" &
+          " (public_repo and workflow scopes)!", Warning, HighPriority)
   sleep(5000)
   display("Info:", "Your default browser should open with the following URL: " &
           "https://github.com/settings/tokens/new", priority = HighPriority)
