@@ -242,7 +242,7 @@ There are two ways to activate a feature:
 
 1. By passing a flag to the root package:  
    ```sh
-   nimble --features:"chronos" install
+   nimble --features:chronos install
    ```
 2. By activating it in a dependency using the `[]` operator:  
    ```nim
