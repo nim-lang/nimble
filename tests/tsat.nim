@@ -498,8 +498,8 @@ suite "SAT solver":
   # test "should be able to solve complex dep graphs":
   #   cd "sattests" / "mgtest":
   #     removeDir("nimbledeps")
-      let (_, exitCode) = execNimbleYes("install", "-l")
-      check exitCode == QuitSuccess
+  #     let (_, exitCode) = execNimbleYes("install", "-l")
+  #     check exitCode == QuitSuccess
 
   test "should be able to install packages with cycles in the requirements":
     cd "sattests" / "cycletest":
