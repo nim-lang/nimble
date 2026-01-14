@@ -2,9 +2,6 @@
 # BSD License. Look at license.txt for more info.
 import os, strutils
 
-when defined(windows):
-  import strformat
-
 # Local imports
 import cli, options
 
@@ -63,20 +60,25 @@ proc setupBinSymlink*(symlinkDest, symlinkFilename: string,
       if fixChcp:
         contents.add "chcp 65001 > nul && "
       else: contents.add "chcp 65001 > nul\n@"
-    # Assert that we're not creating a relative path to pkgcache
-    assert not symlinkDestRel.contains("pkgcache"), 
-      &"Windows stub is trying to create relative path to pkgcache. " &
-      &"symlinkDest: {symlinkDest}, symlinkFilename: {symlinkFilename}, " &
-      &"symlinkDestRel: {symlinkDestRel}, symlinkFilename.parentDir(): {symlinkFilename.parentDir()}"
-    
-    contents.add "\"%~dp0\\" & symlinkDestRel & "\" %*\n"
+
+    # Check if we can use relative path (same drive) or need absolute path (cross-drive)
+    # On Windows, relativePath returns an absolute path when paths are on different drives
+    if symlinkDestRel.isAbsolute:
+      # Cross-drive case: use absolute path directly (can't use %~dp0 relative paths)
+      contents.add "\"" & symlinkDest & "\" %*\n"
+    else:
+      contents.add "\"%~dp0\\" & symlinkDestRel & "\" %*\n"
     writeFile(dest, contents)
     result.add dest.extractFilename
     # For bash on Windows (Cygwin/Git bash).
     let bashDest = dest.changeFileExt("")
     display("Creating", "Cygwin stub: $1 -> $2" %
             [symlinkDest, bashDest], priority = MediumPriority)
-    writeFile(bashDest, "\"`dirname \"$0\"`\\" & symlinkDestRel & "\" \"$@\"\n")
+    if symlinkDestRel.isAbsolute:
+      # Cross-drive case: use absolute path directly
+      writeFile(bashDest, "\"" & symlinkDest & "\" \"$@\"\n")
+    else:
+      writeFile(bashDest, "\"`dirname \"$0\"`\\" & symlinkDestRel & "\" \"$@\"\n")
     result.add bashDest.extractFilename
   else:
     {.error: "Sorry, your platform is not supported.".}
