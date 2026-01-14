@@ -528,11 +528,10 @@ proc setNimbleDir*(options: var Options) =
     nimbleDir = options.config.nimbleDir
     propagate = false
 
-  #if there is no .nimble file in the current directory, we default to global deps mode
-  let thereIsNimbleFile = findNimbleFile(getCurrentDir(), error = false, options, warn = false) != ""
-  if not thereIsNimbleFile and options.action.typ != actionDevelop:
-    options.localdeps = false
-
+  # TEMPORARY: Removed for global-by-default. To revert to local-by-default, uncomment:
+  # let thereIsNimbleFile = findNimbleFile(getCurrentDir(), error = false, options, warn = false) != ""
+  # if not thereIsNimbleFile and options.action.typ != actionDevelop:
+  #   options.localdeps = false
 
   if options.action.typ == actionDevelop:
     options.forceFullClone = true
@@ -919,7 +918,8 @@ proc initOptions*(): Options =
     useDeclarativeParser: false,
     legacy: false, #default to legacy code path for nimble < 1.0.0
     satResult: SatResult(),
-    localDeps: true,
+    # TEMPORARY: Changed to global-by-default. To revert to local-by-default, change to: localDeps: true
+    localDeps: false,
     useAsyncDownloads: false
   )
 

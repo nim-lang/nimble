@@ -18,6 +18,8 @@ suite "project local deps mode":
     cd "localdeps":
       removeFile("localdeps")
       cleanDir("nimbledeps")
+      # TEMPORARY: Added for global-by-default. To revert to local-by-default, remove this createDir line:
+      createDir("nimbledeps")
       let (_, exitCode) = execCmdEx(nimblePath & " install -y")
       check exitCode == QuitSuccess
       check dirExists("nimbledeps")
