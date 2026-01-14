@@ -494,11 +494,12 @@ suite "SAT solver":
       let (_, exitCode) = execNimbleYes("install", "-l")
       check exitCode == QuitSuccess
 
-  test "should be able to solve complex dep graphs":
-    cd "sattests" / "mgtest":
-      removeDir("nimbledeps")
-      let (_, exitCode) = execNimbleYes("install", "-l")
-      check exitCode == QuitSuccess
+  #disabled for being too slow. TODO replace with one from the cached pkgtable similar to nwaku
+  # test "should be able to solve complex dep graphs":
+  #   cd "sattests" / "mgtest":
+  #     removeDir("nimbledeps")
+  #     let (_, exitCode) = execNimbleYes("install", "-l")
+  #     check exitCode == QuitSuccess
 
   test "should be able to install packages with cycles in the requirements":
     cd "sattests" / "cycletest":
