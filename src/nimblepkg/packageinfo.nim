@@ -487,7 +487,7 @@ proc iterInstallFilesSimple*(realDir: string, pkgInfo: PackageInfo,
           skipDir = true
           break
 
-      # Skip nimcache
+      # Skip nimcache and tests directories
       let dirName = splitPath(file).tail
       if dirName == "nimcache":
         skipDir = true
