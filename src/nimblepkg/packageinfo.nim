@@ -449,7 +449,7 @@ proc checkInstallDir(pkgInfo: PackageInfo,
   elif thisDir[0] == '.':
     result = true
 
-  if thisDir == "nimcache": result = true
+  if thisDir == "nimcache" or thisDir == "tests": result = true
 
 proc iterFilesWithExt(dir: string, pkgInfo: PackageInfo,
                       action: proc (f: string)) =
@@ -487,9 +487,9 @@ proc iterInstallFilesSimple*(realDir: string, pkgInfo: PackageInfo,
           skipDir = true
           break
 
-      # Skip nimcache
+      # Skip nimcache and tests directories
       let dirName = splitPath(file).tail
-      if dirName == "nimcache":
+      if dirName == "nimcache" or dirName == "tests":
         skipDir = true
 
       # Skip nested nimble directories
