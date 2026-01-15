@@ -35,8 +35,16 @@ proc initPkgList(pkgInfo: PackageInfo, options: Options, nimBin: string): seq[Pa
   let
     installedPkgs = getInstalledPkgsMin(options.getPkgsDir(), options)
     developPkgs = processDevelopDependencies(pkgInfo, options, nimBin)
-  
-  result = concat(installedPkgs, developPkgs)
+
+  # Get names of develop packages to filter out from installed packages
+  let developPkgNames = developPkgs.mapIt(it.basicInfo.name.toLowerAscii()).toHashSet()
+
+  # Filter installed packages that have a develop version (develop takes priority)
+  let filteredInstalledPkgs = installedPkgs.filterIt(
+    it.basicInfo.name.toLowerAscii() notin developPkgNames
+  )
+
+  result = concat(filteredInstalledPkgs, developPkgs)
   if not options.isLegacy:
     result.add getNimBinariesPackages(options)
 
