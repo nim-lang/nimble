@@ -435,21 +435,30 @@ proc checkInstallDir(pkgInfo: PackageInfo,
                      origDir, dir: string, isVnext: bool = false): bool =
   ## Determines whether ``dir`` should be installed.
   ## ``True`` means dir should be skipped.
-  for ignoreDir in pkgInfo.skipDirs:
-    if samePaths(dir, origDir / ignoreDir):
-      result = true
-      break
-
+  ## In vnext mode, directories in installDirs are never skipped.
   let thisDir = splitPath(dir).tail
   assert thisDir != ""
 
-  # In vnext mode, allow .git and .hg directories to be installed
-  if isVnext and (thisDir == ".git" or thisDir == ".hg"):
-    result = false
-  elif thisDir[0] == '.':
-    result = true
+  # In vnext mode, installDirs acts as an "include even if normally skipped" list
+  if isVnext:
+    for includeDir in pkgInfo.installDirs:
+      if thisDir == includeDir or samePaths(dir, origDir / includeDir):
+        return false  # Don't skip - explicitly included
 
-  if thisDir == "nimcache" or thisDir == "tests": result = true
+  # Check skipDirs
+  for ignoreDir in pkgInfo.skipDirs:
+    if samePaths(dir, origDir / ignoreDir):
+      return true
+
+  # Skip hidden directories (starting with '.')
+  if thisDir[0] == '.':
+    return true
+
+  # Skip nimcache and tests directories
+  if thisDir == "nimcache" or thisDir == "tests":
+    return true
+
+  result = false
 
 proc iterFilesWithExt(dir: string, pkgInfo: PackageInfo,
                       action: proc (f: string)) =
@@ -474,27 +483,39 @@ proc iterFilesInDir(dir: string, action: proc (f: string)) =
 proc iterInstallFilesSimple*(realDir: string, pkgInfo: PackageInfo,
                              options: Options, action: proc (f: string)) =
   ## Simplified version for vnext: Copies all files except those explicitly
+  ## skipped. Directories in installDirs are always included (even if hidden).
   let pkgRootDir = pkgInfo.getNimbleFileDir()
 
   for kind, file in walkDir(realDir):
     if kind == pcDir:
-      # Check if directory should be skipped
+      let dirName = splitPath(file).tail
       var skipDir = false
 
-      # Skip if in skipDirs
-      for ignoreDir in pkgInfo.skipDirs:
-        if samePaths(file, pkgRootDir / ignoreDir):
-          skipDir = true
+      # Check if directory is in installDirs - if so, never skip it
+      var explicitlyIncluded = false
+      for includeDir in pkgInfo.installDirs:
+        if dirName == includeDir or samePaths(file, pkgRootDir / includeDir):
+          explicitlyIncluded = true
           break
 
-      # Skip nimcache and tests directories
-      let dirName = splitPath(file).tail
-      if dirName == "nimcache" or dirName == "tests":
-        skipDir = true
+      if not explicitlyIncluded:
+        # Skip if in skipDirs
+        for ignoreDir in pkgInfo.skipDirs:
+          if samePaths(file, pkgRootDir / ignoreDir):
+            skipDir = true
+            break
 
-      # Skip nested nimble directories
-      if file == options.getNimbleDir().expandFilename():
-        skipDir = true
+        # Skip hidden directories (starting with '.')
+        if dirName[0] == '.':
+          skipDir = true
+
+        # Skip nimcache and tests directories
+        if dirName == "nimcache" or dirName == "tests":
+          skipDir = true
+
+        # Skip nested nimble directories
+        if file == options.getNimbleDir().expandFilename():
+          skipDir = true
 
       if not skipDir:
         iterInstallFilesSimple(file, pkgInfo, options, action)
