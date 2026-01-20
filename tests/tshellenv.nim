@@ -30,10 +30,10 @@ suite "Shell env":
           output = exportLines[0]
         else:
           echo "DEBUG: No export lines found, keeping original output"
+      let prefixValPair = split(output, "=")
+      echo "DEBUG: prefixValPair.len = ", prefixValPair.len
+      echo "DEBUG: prefixValPair = ", prefixValPair
       let
-        prefixValPair = split(output, "=")
-        echo "DEBUG: prefixValPair.len = ", prefixValPair.len
-        echo "DEBUG: prefixValPair = ", prefixValPair
         prefix = prefixValPair[0]
         value = if prefixValPair.len > 1: prefixValPair[1] else: ""
         dirs = value.split(separator)
