@@ -766,8 +766,6 @@ proc installFromDirDownloadInfo(nimBin: string, downloadDir: string, url: string
             continue
           if "/nimbledeps/" in path or path.endsWith("/nimbledeps"):
             continue
-          if "/.git/" in path or path.endsWith("/.git"):
-            continue
           createDir(changeRoot(downloadDir, buildTempDir, path.splitFile.dir))
           discard copyFileD(path, changeRoot(downloadDir, buildTempDir, path))
 
@@ -787,9 +785,19 @@ proc installFromDirDownloadInfo(nimBin: string, downloadDir: string, url: string
         buildFromDir(buildPkgInfo, paths, "-d:release" & flags, options, nimBin)
 
         # Copy SELECTED files from temp build dir to install dir
+        # Skip dot directories and tests unless explicitly whitelisted in installDirs
         createDir(pkgDestDir)
         iterInstallFiles(buildTempDir, buildPkgInfo, options,
           proc (file: string) =
+            # Skip files inside dot directories or tests (unless in installDirs)
+            let relPath = file.relativePath(buildTempDir).replace('\\', '/')
+            for part in relPath.split('/'):
+              if part.len > 0 and part[0] == '.':
+                if part notin buildPkgInfo.installDirs:
+                  return
+              if part == "tests":
+                if part notin buildPkgInfo.installDirs:
+                  return
             createDir(changeRoot(buildTempDir, pkgDestDir, file.splitFile.dir))
             let dest = changeRoot(buildTempDir, pkgDestDir, file)
             filesInstalled.incl copyFileD(file, dest)
@@ -832,8 +840,19 @@ proc installFromDirDownloadInfo(nimBin: string, downloadDir: string, url: string
       executeHook(nimBin, downloadDir, options, actionInstall, before = true)
 
       # Copy SELECTED files directly from pkgcache to install dir
+      # Skip dot directories and tests unless explicitly whitelisted in installDirs
+      # (before-install hook runs in downloadDir which has .git, .hg, etc.)
       iterInstallFiles(downloadDir, pkgInfo, options,
         proc (file: string) =
+          # Skip files inside dot directories or tests (unless in installDirs)
+          let relPath = file.relativePath(downloadDir).replace('\\', '/')
+          for part in relPath.split('/'):
+            if part.len > 0 and part[0] == '.':
+              if part notin pkgInfo.installDirs:
+                return
+            if part == "tests":
+              if part notin pkgInfo.installDirs:
+                return
           createDir(changeRoot(downloadDir, pkgDestDir, file.splitFile.dir))
           let dest = changeRoot(downloadDir, pkgDestDir, file)
           filesInstalled.incl copyFileD(file, dest)
