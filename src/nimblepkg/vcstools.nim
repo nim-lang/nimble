@@ -238,16 +238,21 @@ proc getPackageFileList*(dir: Path): seq[string] =
   ## sub-directories by trying to get it from Git, Mercurial or directly from
   ## the file system if both fail.
   ##
-  ## Raises a `NimbleError` if:
-  ##   - the external command fails.
-  ##   - the directory does not exist.
+  ## Falls back to filesystem listing if VCS command fails (e.g., when
+  ## directory is inside a parent VCS repo but not tracked by it).
 
   const noVcsOutput = "/"
 
-  let output = tryDoVcsCmd(dir,
-    gitCmd = "ls-files",
-    hgCmd  = "manifest",
-    noVcsAction = noVcsOutput)
+  var output: string
+  try:
+    output = tryDoVcsCmd(dir,
+      gitCmd = "ls-files",
+      hgCmd  = "manifest",
+      noVcsAction = noVcsOutput)
+  except CatchableError:
+    # VCS command failed (e.g., dir is in parent repo but not tracked)
+    # Fall back to filesystem listing
+    return dir.getPackageFileListWithoutVcs
 
   return
     if output != noVcsOutput:
