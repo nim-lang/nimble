@@ -37,6 +37,7 @@ import tforgeparser
 import tfilepathrequires
 import tglobalinstall
 import tasynctools
+import tbuildinstall
 # # nonim tests are very slow and (often) break the CI.
 
 # # import tnonim
