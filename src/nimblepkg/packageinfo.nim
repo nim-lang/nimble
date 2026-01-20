@@ -471,62 +471,6 @@ proc iterFilesInDir(dir: string, action: proc (f: string)) =
     else:
       action(path)
 
-proc iterInstallFilesSimple*(realDir: string, pkgInfo: PackageInfo,
-                             options: Options, action: proc (f: string)) =
-  ## Simplified version for vnext: Copies all files except those explicitly
-  let pkgRootDir = pkgInfo.getNimbleFileDir()
-
-  for kind, file in walkDir(realDir):
-    if kind == pcDir:
-      # Check if directory should be skipped
-      var skipDir = false
-
-      # Skip if in skipDirs
-      for ignoreDir in pkgInfo.skipDirs:
-        if samePaths(file, pkgRootDir / ignoreDir):
-          skipDir = true
-          break
-
-      # Skip nimcache and tests directories
-      let dirName = splitPath(file).tail
-      if dirName == "nimcache" or dirName == "tests":
-        skipDir = true
-
-      # Skip nested nimble directories
-      if file == options.getNimbleDir().expandFilename():
-        skipDir = true
-
-      if not skipDir:
-        iterInstallFilesSimple(file, pkgInfo, options, action)
-    else:
-      # Check if file should be skipped
-      var skipFile = false
-
-      # Skip if in skipFiles
-      for ignoreFile in pkgInfo.skipFiles:
-        if ignoreFile.endswith("nimble"):
-          raise nimbleError(ignoreFile & " must be installed.")
-        if file == absolutePath(ignoreFile):
-          skipFile = true
-          break
-
-      # Skip if extension is in skipExt
-      for ignoreExt in pkgInfo.skipExt:
-        if file.splitFile.ext == ('.' & ignoreExt):
-          skipFile = true
-          break
-
-      # In vnext mode, don't skip .nim files that are needed for binary compilation
-      if skipFile and file.splitFile.ext == ".nim":
-        let fileName = file.splitFile.name
-        for binName, srcName in pkgInfo.bin:
-          if fileName == srcName or fileName == binName:
-            skipFile = false
-            break
-
-      if not skipFile:
-        action(file)
-
 proc iterInstallFiles*(realDir: string, pkgInfo: PackageInfo,
                        options: Options, action: proc (f: string)) =
   ## Runs `action` for each file within the ``realDir`` that should be
@@ -543,10 +487,9 @@ proc iterInstallFiles*(realDir: string, pkgInfo: PackageInfo,
   # Create a mapping of lowercase filesystem names to metadata names
   var metadataNameMap: Table[string, string]
   if not options.isLegacy:
-    #in vnext we dont use the whitelist mode as we install all files since we want to build the package in the 
-    #install dir. BUT we need to respect package metadata naming for specific files.
-    whitelistMode = false
-    
+    # In vnext we now build in a temp directory before copying, so we CAN use whitelist mode
+    # to only copy necessary files. We still need metadataNameMap for case sensitivity.
+
     # Map installFiles
     for metadataFile in pkgInfo.installFiles:
       let normalizedKey = metadataFile.toLowerAscii()
