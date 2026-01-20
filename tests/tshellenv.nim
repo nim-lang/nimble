@@ -15,16 +15,27 @@ suite "Shell env":
   test "Shell env":
     cd "shellenv":
       var (output, exitCode) = execCmdEx(nimblePath & " shellenv")
+      # Debug output to diagnose CI failures
+      echo "=== DEBUG: nimble shellenv output ==="
+      echo "Exit code: ", exitCode
+      echo "Output length: ", output.len
+      echo "Output:\n", output
+      echo "=== END DEBUG ==="
       check exitCode == QuitSuccess
       when not defined windows:
         # Skip potential linker warning in some MacOs versions
         let exportLines = output.splitLines.toSeq.filterIt("export" in it)
+        echo "DEBUG: exportLines.len = ", exportLines.len
         if exportLines.len > 0:
           output = exportLines[0]
+        else:
+          echo "DEBUG: No export lines found, keeping original output"
       let
         prefixValPair = split(output, "=")
+        echo "DEBUG: prefixValPair.len = ", prefixValPair.len
+        echo "DEBUG: prefixValPair = ", prefixValPair
         prefix = prefixValPair[0]
-        value = prefixValPair[1]
+        value = if prefixValPair.len > 1: prefixValPair[1] else: ""
         dirs = value.split(separator)
 
       when defined windows:
