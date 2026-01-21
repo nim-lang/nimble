@@ -759,6 +759,17 @@ proc installFromDirDownloadInfo(nimBin: string, downloadDir: string, url: string
                                          buildTempBase.startsWith(downloadDir & "/")
         let nimbleDirIsInsideDownload = nimbleDirBase.len > 0 and
                                          nimbleDirBase.startsWith(downloadDir & "/")
+
+        # Debug: show what we're copying
+        display("Debug", "downloadDir: " & downloadDir, priority = HighPriority)
+        display("Debug", "buildTempDir: " & buildTempDir, priority = HighPriority)
+        display("Debug", "buildTempBase: " & buildTempBase, priority = HighPriority)
+        display("Debug", "nimbleDirBase: " & nimbleDirBase, priority = HighPriority)
+        display("Debug", "buildTempIsInsideDownload: " & $buildTempIsInsideDownload, priority = HighPriority)
+        display("Debug", "nimbleDirIsInsideDownload: " & $nimbleDirIsInsideDownload, priority = HighPriority)
+
+        var filesCopied = 0
+        var nimbleFileCopied = false
         for path in walkDirRec(downloadDir):
           if buildTempIsInsideDownload and path.startsWith(buildTempBase):
             continue
@@ -768,6 +779,17 @@ proc installFromDirDownloadInfo(nimBin: string, downloadDir: string, url: string
             continue
           createDir(changeRoot(downloadDir, buildTempDir, path.splitFile.dir))
           discard copyFileD(path, changeRoot(downloadDir, buildTempDir, path))
+          inc filesCopied
+          if path.endsWith(".nimble"):
+            nimbleFileCopied = true
+            display("Debug", "Copied .nimble file: " & path, priority = HighPriority)
+
+        display("Debug", "Total files copied: " & $filesCopied & ", nimble file copied: " & $nimbleFileCopied, priority = HighPriority)
+
+        # List buildTempDir contents
+        display("Debug", "buildTempDir contents:", priority = HighPriority)
+        for kind, path in walkDir(buildTempDir):
+          display("Debug", "  " & $kind & ": " & path, priority = HighPriority)
 
         var buildPkgInfo = getPkgInfo(buildTempDir, options, nimBin = nimBin)
         if pv.ver.kind == verEq and buildPkgInfo.basicInfo.version != pv.ver.ver:
