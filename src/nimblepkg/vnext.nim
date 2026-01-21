@@ -775,7 +775,6 @@ proc installFromDirDownloadInfo(nimBin: string, downloadDir: string, url: string
             continue
           if nimbleDirIsInsideDownload and path.startsWith(nimbleDirBase):
             continue
-          # Skip nimbledeps subdirectory within the package (not the parent pkgcache path)
           let relPath = path.substr(downloadDir.len)
           if "/nimbledeps/" in relPath or relPath.endsWith("/nimbledeps"):
             continue

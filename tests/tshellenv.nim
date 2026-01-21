@@ -14,23 +14,14 @@ const
 suite "Shell env":
   test "Shell env":
     cd "shellenv":
-      # Debug: show current directory and environment
-      echo "=== DEBUG: Shell env test ==="
-      echo "CWD: ", getCurrentDir()
-      echo "NIMBLE_DIR env: ", getEnv("NIMBLE_DIR", "<not set>")
-      echo "nimblePath: ", nimblePath
-
-      # List local nimbledeps to verify it exists
-      echo "=== Local nimbledeps contents ==="
-      let (lsOutput, _) = execCmdEx("ls -la nimbledeps/ 2>&1 || echo 'nimbledeps not found'")
-      echo lsOutput
-
       var (output, exitCode) = execCmdEx(nimblePath & " shellenv")
-      echo "=== nimble shellenv output (exit: ", exitCode, ") ==="
-      echo output
-      echo "=== end output ==="
       check exitCode == QuitSuccess
-      when not defined windows:
+      # Filter to get only the PATH line (skip DEBUG output and warnings)
+      when defined(windows):
+        let pathLines = output.splitLines.toSeq.filterIt(it.startsWith("set PATH"))
+        if pathLines.len > 0:
+          output = pathLines[0]
+      else:
         # Skip potential linker warning in some MacOs versions
         let exportLines = output.splitLines.toSeq.filterIt("export" in it)
         if exportLines.len > 0:
@@ -41,7 +32,7 @@ suite "Shell env":
         value = prefixValPair[1]
         dirs = value.split(separator)
 
-      when defined windows:
+      when defined(windows):
         check prefix == "set PATH"
       else:
         check prefix == "export PATH"
