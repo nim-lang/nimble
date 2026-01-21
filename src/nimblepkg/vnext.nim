@@ -776,7 +776,9 @@ proc installFromDirDownloadInfo(nimBin: string, downloadDir: string, url: string
           if nimbleDirIsInsideDownload and path.startsWith(nimbleDirBase):
             continue
           let relPath = path.substr(downloadDir.len)
-          if "/nimbledeps/" in relPath or relPath.endsWith("/nimbledeps"):
+          # Skip nimbledeps subdirectory
+          if (DirSep & "nimbledeps" & DirSep) in relPath or
+             relPath.endsWith(DirSep & "nimbledeps"):
             continue
           createDir(changeRoot(downloadDir, buildTempDir, path.splitFile.dir))
           discard copyFileD(path, changeRoot(downloadDir, buildTempDir, path))
