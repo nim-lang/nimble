@@ -22,7 +22,7 @@ suite "Shell env":
 
       # List local nimbledeps to verify it exists
       echo "=== Local nimbledeps contents ==="
-      let (lsOutput, lsExit) = execCmdEx("ls -la nimbledeps/ 2>&1 || echo 'nimbledeps not found'")
+      let (lsOutput, _) = execCmdEx("ls -la nimbledeps/ 2>&1 || echo 'nimbledeps not found'")
       echo lsOutput
 
       var (output, exitCode) = execCmdEx(nimblePath & " shellenv")

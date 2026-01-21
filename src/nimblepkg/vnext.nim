@@ -770,28 +770,20 @@ proc installFromDirDownloadInfo(nimBin: string, downloadDir: string, url: string
         stdout.flushFile()
 
         var filesCopied = 0
-        var nimbleFileCopied = false
         for path in walkDirRec(downloadDir):
           if buildTempIsInsideDownload and path.startsWith(buildTempBase):
             continue
           if nimbleDirIsInsideDownload and path.startsWith(nimbleDirBase):
             continue
-          if "/nimbledeps/" in path or path.endsWith("/nimbledeps"):
+          # Skip nimbledeps subdirectory within the package (not the parent pkgcache path)
+          let relPath = path.substr(downloadDir.len)
+          if "/nimbledeps/" in relPath or relPath.endsWith("/nimbledeps"):
             continue
           createDir(changeRoot(downloadDir, buildTempDir, path.splitFile.dir))
           discard copyFileD(path, changeRoot(downloadDir, buildTempDir, path))
           inc filesCopied
-          if path.endsWith(".nimble"):
-            nimbleFileCopied = true
-            echo "DEBUG: Copied .nimble file: " & path
 
-        echo "DEBUG: Total files copied: " & $filesCopied & ", nimble file copied: " & $nimbleFileCopied
-        stdout.flushFile()
-
-        # List buildTempDir contents
-        echo "DEBUG: buildTempDir contents:"
-        for kind, path in walkDir(buildTempDir):
-          echo "DEBUG:   " & $kind & ": " & path
+        echo "DEBUG: Total files copied: " & $filesCopied
         stdout.flushFile()
 
         var buildPkgInfo = getPkgInfo(buildTempDir, options, nimBin = nimBin)
