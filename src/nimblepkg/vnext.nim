@@ -761,12 +761,13 @@ proc installFromDirDownloadInfo(nimBin: string, downloadDir: string, url: string
                                          nimbleDirBase.startsWith(downloadDir & "/")
 
         # Debug: show what we're copying
-        display("Debug", "downloadDir: " & downloadDir, priority = HighPriority)
-        display("Debug", "buildTempDir: " & buildTempDir, priority = HighPriority)
-        display("Debug", "buildTempBase: " & buildTempBase, priority = HighPriority)
-        display("Debug", "nimbleDirBase: " & nimbleDirBase, priority = HighPriority)
-        display("Debug", "buildTempIsInsideDownload: " & $buildTempIsInsideDownload, priority = HighPriority)
-        display("Debug", "nimbleDirIsInsideDownload: " & $nimbleDirIsInsideDownload, priority = HighPriority)
+        echo "DEBUG: downloadDir: " & downloadDir
+        echo "DEBUG: buildTempDir: " & buildTempDir
+        echo "DEBUG: buildTempBase: " & buildTempBase
+        echo "DEBUG: nimbleDirBase: " & nimbleDirBase
+        echo "DEBUG: buildTempIsInsideDownload: " & $buildTempIsInsideDownload
+        echo "DEBUG: nimbleDirIsInsideDownload: " & $nimbleDirIsInsideDownload
+        stdout.flushFile()
 
         var filesCopied = 0
         var nimbleFileCopied = false
@@ -782,14 +783,16 @@ proc installFromDirDownloadInfo(nimBin: string, downloadDir: string, url: string
           inc filesCopied
           if path.endsWith(".nimble"):
             nimbleFileCopied = true
-            display("Debug", "Copied .nimble file: " & path, priority = HighPriority)
+            echo "DEBUG: Copied .nimble file: " & path
 
-        display("Debug", "Total files copied: " & $filesCopied & ", nimble file copied: " & $nimbleFileCopied, priority = HighPriority)
+        echo "DEBUG: Total files copied: " & $filesCopied & ", nimble file copied: " & $nimbleFileCopied
+        stdout.flushFile()
 
         # List buildTempDir contents
-        display("Debug", "buildTempDir contents:", priority = HighPriority)
+        echo "DEBUG: buildTempDir contents:"
         for kind, path in walkDir(buildTempDir):
-          display("Debug", "  " & $kind & ": " & path, priority = HighPriority)
+          echo "DEBUG:   " & $kind & ": " & path
+        stdout.flushFile()
 
         var buildPkgInfo = getPkgInfo(buildTempDir, options, nimBin = nimBin)
         if pv.ver.kind == verEq and buildPkgInfo.basicInfo.version != pv.ver.ver:
