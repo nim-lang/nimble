@@ -20,7 +20,6 @@ import nimblesat, packageinfotypes, options, version, declarativeparser, package
 when defined(windows):
   import std/strscans
 
-# Forward declarations
 proc getPathsAllPkgs*(options: Options): HashSet[string]
 proc buildFromDir(pkgInfo: PackageInfo, paths: HashSet[string],
                   args: seq[string], options: Options, nimBin: string)
@@ -696,9 +695,31 @@ proc packageExists(nimBin: string, pkgInfo: PackageInfo, options: Options):
     return some(oldPkgInfo)
 
 
+proc copyInstallFiles(srcDir, destDir: string, pkgInfo: PackageInfo,
+                      options: Options): HashSet[string] =
+  ## Copies selected files from srcDir to destDir during installation.
+  ## Skips dot directories (like .git) and tests unless explicitly in installDirs.
+  var copied: HashSet[string]
+  iterInstallFiles(srcDir, pkgInfo, options,
+    proc (file: string) =
+      let relPath = file.relativePath(srcDir).replace('\\', '/')
+      for part in relPath.split('/'):
+        if part.len > 0 and part[0] == '.':
+          if part notin pkgInfo.installDirs:
+            return
+        if part == "tests":
+          if part notin pkgInfo.installDirs:
+            return
+      createDir(changeRoot(srcDir, destDir, file.splitFile.dir))
+      let dest = changeRoot(srcDir, destDir, file)
+      copied.incl copyFileD(file, dest)
+  )
+  copied
+
+
 proc installFromDirDownloadInfo(nimBin: string, downloadDir: string, url: string, pv: PkgTuple, options: var Options): PackageInfo {.instrument.} =
   ## Installs a package from a download directory (pkgcache).
-  ## New flow: pkgcache -> buildtemp (build) -> pkgs2 (install minimum)
+  ## flow: pkgcache -> buildtemp (build) -> pkgs2 (install minimum)
 
   let dir = downloadDir
   var pkgInfo = getPkgInfo(dir, options, nimBin = nimBin)
@@ -760,16 +781,6 @@ proc installFromDirDownloadInfo(nimBin: string, downloadDir: string, url: string
         let nimbleDirIsInsideDownload = nimbleDirBase.len > 0 and
                                          nimbleDirBase.startsWith(downloadDir & "/")
 
-        # Debug: show what we're copying
-        echo "DEBUG: downloadDir: " & downloadDir
-        echo "DEBUG: buildTempDir: " & buildTempDir
-        echo "DEBUG: buildTempBase: " & buildTempBase
-        echo "DEBUG: nimbleDirBase: " & nimbleDirBase
-        echo "DEBUG: buildTempIsInsideDownload: " & $buildTempIsInsideDownload
-        echo "DEBUG: nimbleDirIsInsideDownload: " & $nimbleDirIsInsideDownload
-        stdout.flushFile()
-
-        var filesCopied = 0
         for path in walkDirRec(downloadDir):
           if buildTempIsInsideDownload and path.startsWith(buildTempBase):
             continue
@@ -782,10 +793,6 @@ proc installFromDirDownloadInfo(nimBin: string, downloadDir: string, url: string
             continue
           createDir(changeRoot(downloadDir, buildTempDir, path.splitFile.dir))
           discard copyFileD(path, changeRoot(downloadDir, buildTempDir, path))
-          inc filesCopied
-
-        echo "DEBUG: Total files copied: " & $filesCopied
-        stdout.flushFile()
 
         var buildPkgInfo = getPkgInfo(buildTempDir, options, nimBin = nimBin)
         if pv.ver.kind == verEq and buildPkgInfo.basicInfo.version != pv.ver.ver:
@@ -805,21 +812,7 @@ proc installFromDirDownloadInfo(nimBin: string, downloadDir: string, url: string
         # Copy SELECTED files from temp build dir to install dir
         # Skip dot directories and tests unless explicitly whitelisted in installDirs
         createDir(pkgDestDir)
-        iterInstallFiles(buildTempDir, buildPkgInfo, options,
-          proc (file: string) =
-            # Skip files inside dot directories or tests (unless in installDirs)
-            let relPath = file.relativePath(buildTempDir).replace('\\', '/')
-            for part in relPath.split('/'):
-              if part.len > 0 and part[0] == '.':
-                if part notin buildPkgInfo.installDirs:
-                  return
-              if part == "tests":
-                if part notin buildPkgInfo.installDirs:
-                  return
-            createDir(changeRoot(buildTempDir, pkgDestDir, file.splitFile.dir))
-            let dest = changeRoot(buildTempDir, pkgDestDir, file)
-            filesInstalled.incl copyFileD(file, dest)
-        )
+        filesInstalled.incl copyInstallFiles(buildTempDir, pkgDestDir, buildPkgInfo, options)
 
         # Copy the .nimble file
         let nimbleFileDest = changeRoot(buildPkgInfo.myPath.splitFile.dir, pkgDestDir, buildPkgInfo.myPath)
@@ -857,24 +850,9 @@ proc installFromDirDownloadInfo(nimBin: string, downloadDir: string, url: string
       # Run before-install hook in download dir
       executeHook(nimBin, downloadDir, options, actionInstall, before = true)
 
-      # Copy SELECTED files directly from pkgcache to install dir
-      # Skip dot directories and tests unless explicitly whitelisted in installDirs
-      # (before-install hook runs in downloadDir which has .git, .hg, etc.)
-      iterInstallFiles(downloadDir, pkgInfo, options,
-        proc (file: string) =
-          # Skip files inside dot directories or tests (unless in installDirs)
-          let relPath = file.relativePath(downloadDir).replace('\\', '/')
-          for part in relPath.split('/'):
-            if part.len > 0 and part[0] == '.':
-              if part notin pkgInfo.installDirs:
-                return
-            if part == "tests":
-              if part notin pkgInfo.installDirs:
-                return
-          createDir(changeRoot(downloadDir, pkgDestDir, file.splitFile.dir))
-          let dest = changeRoot(downloadDir, pkgDestDir, file)
-          filesInstalled.incl copyFileD(file, dest)
-      )
+      # Copy selected files from pkgcache to install dir. Hook runs in pkgcache, notice it may cause side effects
+      # unlikely but worth copying directly instead of creating an intermediate directory just for hook execution (can be reconsidered)
+      filesInstalled.incl copyInstallFiles(downloadDir, pkgDestDir, pkgInfo, options)
 
       # Copy the .nimble file
       let nimbleFileDest = changeRoot(pkgInfo.myPath.splitFile.dir, pkgDestDir, pkgInfo.myPath)
