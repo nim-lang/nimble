@@ -10,7 +10,7 @@ from nimblepkg/common import cd
 from nimblepkg/developfile import developFileName
 
 suite "setup command":
-  cleanDir installDir
+  cleanInstallDir()
   test "nimble setup (without develop file)":
     cd "setup/binary":
       usePackageListFile "../../develop/packages.json":
