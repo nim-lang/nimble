@@ -482,6 +482,14 @@ proc getPkgsLinksDir*(options: Options): string =
 proc getBinDir*(options: Options): string =
   options.getNimbleDir() / nimbleBinariesDirName
 
+proc getBuildTempDir*(options: Options): string =
+  ## Returns the temporary build directory path
+  options.getNimbleDir() / "buildtemp"
+
+proc getPkgBuildTempDir*(options: Options, pkgName: string, version: string, checksum: string): string =
+  ## Returns the temporary build directory for a specific package.
+  options.getBuildTempDir() / &"{pkgName}-{version}-{checksum}"
+
 proc setPackageCache(options: var Options, baseDir: string) =
   if options.useSatSolver:
     options.pkgCachePath = baseDir / "pkgcache"

@@ -1,0 +1,1 @@
+This file should be installed because extra/ is in installDirs.

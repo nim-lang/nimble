@@ -340,10 +340,9 @@ proc readPackageInfo(pkgInfo: var PackageInfo, nf: NimbleFile, options: Options,
     try:
       pkgInfo.metaData.vcsRevision = getVcsRevision(fileDir)
     except CatchableError:
-      raise nimbleError(
-        msg = "Failed to get VCS revision of your project!",
-        hint = "Try making a commit to your project if you haven't made one yet."
-      )
+      # VCS revision may fail for copied directories (e.g., buildTempDir)
+      # that have .git but aren't valid repos. This is not fatal.
+      discard
 
     case getVcsType(fileDir)
       of vcsTypeGit: pkgInfo.metaData.downloadMethod = DownloadMethod.git
