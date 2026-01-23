@@ -32,6 +32,9 @@ proc hasMetaData*(pkgInfo: PackageInfo): bool =
   # if the package info has loaded meta data its files list have to be not empty
   pkgInfo.metaData.files.len > 0
 
+proc hasBeforeInstallHook*(pkgInfo: PackageInfo): bool =
+  "install" in pkgInfo.preHooks
+
 proc initPackageInfo*(options: Options, filePath: string): PackageInfo =
   result = initPackageInfo()
   let (fileDir, fileName, _) = filePath.splitFile

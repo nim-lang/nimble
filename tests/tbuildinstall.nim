@@ -92,13 +92,12 @@ suite "Build/Install refactor":
 
   test "non-binary packages skip buildtemp":
     cd "buildInstall/pkgNoBinary":
-      # Clean buildtemp before install
-      let buildTempDir = installDir / "buildtemp"
-      removeDir(buildTempDir)
-      createDir(buildTempDir)
-
-      let (_, exitCode) = execNimbleYes("install")
+      # Use --verbose to see buildtemp messages
+      let (output, exitCode) = execNimbleYes("--verbose", "install")
       check exitCode == QuitSuccess
+
+      # Verify buildtemp was NOT used
+      check "Using buildtemp for pkgNoBinary" notin output
 
       # Find the installed package directory
       var installedDir = ""
@@ -108,28 +107,22 @@ suite "Build/Install refactor":
           break
 
       check installedDir.len > 0
-
-      # Check that the package was installed correctly
       check dirExists(installedDir / "src")
       check fileExists(installedDir / "src" / "pkgNoBinary.nim")
       check fileExists(installedDir / "pkgNoBinary.nimble")
 
-      # Check that buildtemp was NOT used (should still be empty)
-      var buildTempUsed = false
-      if dirExists(buildTempDir):
-        for kind, path in walkDir(buildTempDir):
-          buildTempUsed = true
-          break
-      check not buildTempUsed  # buildtemp should not have been used
-
-  test "before-install hook runs for non-binary packages":
+  test "before-install hook uses buildtemp":
     cd "buildInstall/pkgWithHook":
-      let (output, exitCode) = execNimbleYes("install")
+      # Use --verbose to see buildtemp messages
+      let (output, exitCode) = execNimbleYes("--verbose", "install")
       check exitCode == QuitSuccess
+
+      # Verify buildtemp was used (verbose message)
+      check "Using buildtemp for pkgWithHook" in output
+      check "before-install hook: true" in output
 
       # Check that the before-install hook was executed
       check "HOOK_EXECUTED: before-install hook ran successfully" in output
-
       # Check that the after-install hook was also executed
       check "HOOK_EXECUTED: after-install hook ran successfully" in output
 
@@ -144,3 +137,64 @@ suite "Build/Install refactor":
       check dirExists(installedDir / "src")
       check fileExists(installedDir / "src" / "pkgWithHook.nim")
       check fileExists(installedDir / "pkgWithHook.nimble")
+
+  test "after-install-only hook skips buildtemp":
+    cd "buildInstall/pkgWithAfterHookOnly":
+      # Use --verbose to see buildtemp messages
+      let (output, exitCode) = execNimbleYes("--verbose", "install")
+      check exitCode == QuitSuccess
+
+      # Verify buildtemp was NOT used (no before-install hook)
+      check "Using buildtemp for pkgWithAfterHookOnly" notin output
+
+      # Check that the after-install hook was executed
+      check "HOOK_EXECUTED: after-install hook ran successfully" in output
+
+      # Find the installed package directory
+      var installedDir = ""
+      for kind, path in walkDir(pkgsDir):
+        if kind == pcDir and "pkgWithAfterHookOnly" in path:
+          installedDir = path
+          break
+
+      check installedDir.len > 0
+      check dirExists(installedDir / "src")
+      check fileExists(installedDir / "src" / "pkgWithAfterHookOnly.nim")
+      check fileExists(installedDir / "pkgWithAfterHookOnly.nimble")
+
+  test "conditional before-install hook uses buildtemp":
+    cd "buildInstall/pkgWithConditionalHook":
+      # Use --verbose to see buildtemp messages
+      let (output, exitCode) = execNimbleYes("--verbose", "install")
+      check exitCode == QuitSuccess
+
+      # Verify buildtemp was used (declarative parser detected the hook in when block)
+      check "Using buildtemp for pkgWithConditionalHook" in output
+      check "before-install hook: true" in output
+
+      # Check that the conditional before-install hook was executed
+      check "HOOK_EXECUTED: conditional before-install hook ran successfully" in output
+      # Check that the after-install hook was also executed
+      check "HOOK_EXECUTED: after-install hook ran successfully" in output
+
+      # Verify the package was installed correctly
+      var installedDir = ""
+      for kind, path in walkDir(pkgsDir):
+        if kind == pcDir and "pkgWithConditionalHook" in path:
+          installedDir = path
+          break
+
+      check installedDir.len > 0
+      check dirExists(installedDir / "src")
+      check fileExists(installedDir / "src" / "pkgWithConditionalHook.nim")
+      check fileExists(installedDir / "pkgWithConditionalHook.nimble")
+
+  test "binary packages use buildtemp":
+    cd "buildInstall/pkgWithSkipDirs":
+      # Use --verbose to see buildtemp messages
+      let (output, exitCode) = execNimbleYes("--verbose", "install")
+      check exitCode == QuitSuccess
+
+      # Verify buildtemp was used for binary package
+      check "Using buildtemp for pkgWithSkipDirs" in output
+      check "binaries: true" in output

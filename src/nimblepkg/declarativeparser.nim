@@ -11,7 +11,7 @@ import compat/[msgs, sequtils, syntaxes]
 import version, packageinfotypes, packageinfo, options, packageparser, cli,
   packagemetadatafile, common
 import sha1hashes, vcstools, urls
-import std/[tables, strscans, strformat, os, options]
+import std/[tables, strscans, strformat, os, options, sets]
 
 type NimbleFileInfo* = object
   nimbleFile*: string
@@ -21,7 +21,8 @@ type NimbleFileInfo* = object
   tasks*: seq[(string, string)]
   features*: Table[string, seq[string]]
   bin*: Table[string, string]
-  hasInstallHooks*: bool
+  preHooks*: HashSet[string]
+  postHooks*: HashSet[string]
   hasErrors*: bool
   nestedRequires*: bool #if true, the requires section contains nested requires meaning that the package is incorrectly defined
   declarativeParserErrorLines*: seq[string]
@@ -142,6 +143,14 @@ proc extract(n: PNode, conf: ConfigRef, result: var NimbleFileInfo, options: Opt
   of nkStmtList, nkStmtListExpr:
     for child in n:
       extract(child, conf, result, options)
+  of nkIfStmt, nkWhenStmt:
+    # Traverse into conditional blocks to detect hooks
+    for branch in n:
+      extract(branch, conf, result, options)
+  of nkElifBranch, nkElifExpr, nkElse, nkElseExpr:
+    # Traverse the body of conditional branches
+    for child in n:
+      extract(child, conf, result, options)
   of nkCallKinds:
     if n[0].kind == nkIdent:
       case n[0].ident.s
@@ -164,9 +173,12 @@ proc extract(n: PNode, conf: ConfigRef, result: var NimbleFileInfo, options: Opt
         if n.len >= 3 and n[1].kind == nkIdent and
             n[2].kind in {nkStrLit .. nkTripleStrLit}:
           result.tasks.add((n[1].ident.s, n[2].strVal))
-      of "before", "after":
+      of "before":
         if n.len >= 3 and n[1].kind == nkIdent and n[1].ident.s == "install":
-          result.hasInstallHooks = true
+          result.preHooks.incl("install")
+      of "after":
+        if n.len >= 3 and n[1].kind == nkIdent and n[1].ident.s == "install":
+          result.postHooks.incl("install")
       else:
         discard
   of nkAsgn, nkFastAsgn:
@@ -535,6 +547,8 @@ proc toRequiresInfo*(pkgInfo: PackageInfo, options: Options, nimBin: string, nim
   
   if pkgInfo.infoKind == pikRequires:
     result.bin = nimbleFileInfo.bin #Noted that we are not parsing namedBins here, they are only parsed wit full info
+  result.preHooks = result.preHooks + nimbleFileInfo.preHooks
+  result.postHooks = result.postHooks + nimbleFileInfo.postHooks
 
 proc fillPkgBasicInfo(pkgInfo: var PackageInfo, nimbleFileInfo: NimbleFileInfo) =
   let (_, _, checksum) = getPathVersionChecksum(nimbleFileInfo.nimbleFile.splitPath.tail)
