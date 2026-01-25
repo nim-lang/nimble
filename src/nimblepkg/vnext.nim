@@ -809,6 +809,10 @@ proc installFromDirDownloadInfo(nimBin: string, downloadDir: string, url: string
         if (DirSep & "nimbledeps" & DirSep) in relPath or
            relPath.endsWith(DirSep & "nimbledeps"):
           continue
+        
+        if (DirSep & "tests" & DirSep) in relPath or
+           (DirSep & "testdata" & DirSep) in relPath:
+          continue
         createDir(changeRoot(downloadDir, buildTempDir, path.splitFile.dir))
         discard copyFileD(path, changeRoot(downloadDir, buildTempDir, path))
 
