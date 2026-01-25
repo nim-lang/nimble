@@ -322,7 +322,14 @@ proc getSolvedPkgFromInstalledPkgs*(satResult: SATResult, solvedPkg: SolvedPacka
   return none(PackageInfo)
 
 proc thereIsNimbleFile*(options: Options): bool =
-  return findNimbleFile(getCurrentDir(), error = false, options, warn = false) != ""
+  # Don't treat buildtemp directories as having a local nimble file
+  # This prevents hooks running in buildtemp from causing nested nimble
+  # to misinterpret the context as a local project install
+  let cwd = getCurrentDir()
+  let buildTempDir = options.getBuildTempDir()
+  if buildTempDir.len > 0 and cwd.startsWith(buildTempDir):
+    return false
+  return findNimbleFile(cwd, error = false, options, warn = false) != ""
 
 proc solveLockFileDeps*(satResult: var SATResult, pkgList: seq[PackageInfo], options: Options, nimBin: string) = 
   let lockFile = options.lockFile(satResult.rootPackage.myPath.parentDir())

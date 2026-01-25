@@ -137,6 +137,33 @@ proc extractFeatures(featureNode: PNode, conf: ConfigRef, hasErrors: var bool, n
         # Validate file:// requires in this feature context
         validateFileUrlRequires(nfl, stmt, conf, hasErrors, nestedRequires, featureName, options)
 
+proc extractHooksOnly(n: PNode, result: var NimbleFileInfo) =
+  ## Extract only before/after install hooks from conditional blocks.
+  ## Does not extract requires or other declarations.
+  case n.kind
+  of nkStmtList, nkStmtListExpr:
+    for child in n:
+      extractHooksOnly(child, result)
+  of nkIfStmt, nkWhenStmt:
+    for branch in n:
+      extractHooksOnly(branch, result)
+  of nkElifBranch, nkElifExpr, nkElse, nkElseExpr:
+    for child in n:
+      extractHooksOnly(child, result)
+  of nkCallKinds:
+    if n[0].kind == nkIdent:
+      case n[0].ident.s
+      of "before":
+        if n.len >= 3 and n[1].kind == nkIdent and n[1].ident.s == "install":
+          result.preHooks.incl("install")
+      of "after":
+        if n.len >= 3 and n[1].kind == nkIdent and n[1].ident.s == "install":
+          result.postHooks.incl("install")
+      else:
+        discard
+  else:
+    discard
+
 proc extract(n: PNode, conf: ConfigRef, result: var NimbleFileInfo, options: Options)  {.raises: [CatchableError].}=
   validateNoNestedRequires(result, n, conf, result.hasErrors, result.nestedRequires)
   case n.kind
@@ -144,13 +171,8 @@ proc extract(n: PNode, conf: ConfigRef, result: var NimbleFileInfo, options: Opt
     for child in n:
       extract(child, conf, result, options)
   of nkIfStmt, nkWhenStmt:
-    # Traverse into conditional blocks to detect hooks
-    for branch in n:
-      extract(branch, conf, result, options)
-  of nkElifBranch, nkElifExpr, nkElse, nkElseExpr:
-    # Traverse the body of conditional branches
-    for child in n:
-      extract(child, conf, result, options)
+    # Only extract hooks from conditional blocks, not requires or other declarations
+    extractHooksOnly(n, result)
   of nkCallKinds:
     if n[0].kind == nkIdent:
       case n[0].ident.s
