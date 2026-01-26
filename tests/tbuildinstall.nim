@@ -202,7 +202,7 @@ suite "Build/Install refactor":
   test "special versions do not have # in directory names":
     # Install a package with an explicit special version (#head)
     # This test verifies our fix strips # from directory names
-    let (output, exitCode) = execNimbleYes("install", "https://github.com/nimble-test/packagebin2.git@#head")
+    let (_, exitCode) = execNimbleYes("install", "https://github.com/nimble-test/packagebin2.git@#head")
     check exitCode == QuitSuccess
 
     proc checkNoPoundInDirs(baseDir: string): bool =
