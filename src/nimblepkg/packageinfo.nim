@@ -646,7 +646,7 @@ proc needsRebuild*(pkgInfo: PackageInfo, bin: string, dir: string, options: Opti
     return rebuild
 
 proc getCacheDir*(pkgInfo: PackageBasicInfo): string =
-  &"{pkgInfo.name}-{pkgInfo.version}-{$pkgInfo.checksum}"
+  &"{pkgInfo.name}-{pkgInfo.version.toDirectoryName}-{$pkgInfo.checksum}"
 
 proc getPkgDest*(pkgInfo: PackageBasicInfo, options: Options): string =
   options.getPkgsDir() / pkgInfo.getCacheDir()

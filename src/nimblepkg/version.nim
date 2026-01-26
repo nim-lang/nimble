@@ -50,6 +50,10 @@ template `$`*(ver: Version): string = ver.version
 template hash*(ver: Version): Hash = ver.version.hash
 template `%`*(ver: Version): JsonNode = %ver.version
 
+proc toDirectoryName*(ver: Version): string =
+  #strips '#' which causes issues with autoconf/shell
+  ver.version.strip(chars = {'#'})
+
 proc newVersion*(ver: string): Version =
   if ver.len != 0 and ver[0] notin {'#', '\0'} + Digits:
     raise parseVersionError("Wrong version: " & ver)
@@ -390,7 +394,8 @@ proc getSimpleString*(verRange: VersionRange): string =
   ## creation in tools.nim
   case verRange.kind
   of verSpecial:
-    result = $verRange.spe
+    # Strip '#' for directory names - '#' causes issues with autoconf and shell scripts
+    result = ($verRange.spe).strip(chars = {'#'})
   of verLater, verEarlier, verEqLater, verEqEarlier, verEq:
     result = $verRange.ver
   of verIntersect, verTilde, verCaret:

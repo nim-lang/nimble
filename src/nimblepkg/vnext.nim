@@ -783,7 +783,7 @@ proc installFromDirDownloadInfo(nimBin: string, downloadDir: string, url: string
               priority = LowPriority)
       buildTempDir = options.getPkgBuildTempDir(
         pkgInfo.basicInfo.name,
-        $pkgInfo.basicInfo.version,
+        pkgInfo.basicInfo.version.toDirectoryName,
         $pkgInfo.basicInfo.checksum
       )
 

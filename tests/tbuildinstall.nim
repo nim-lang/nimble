@@ -198,3 +198,38 @@ suite "Build/Install refactor":
       # Verify buildtemp was used for binary package
       check "Using buildtemp for pkgWithSkipDirs" in output
       check "binaries: true" in output
+
+  test "special versions do not have # in directory names":
+    # Install a package with an explicit special version (#head)
+    # This test verifies our fix strips # from directory names
+    let (output, exitCode) = execNimbleYes("install", "https://github.com/nimble-test/packagebin2.git@#head")
+    check exitCode == QuitSuccess
+
+    proc checkNoPoundInDirs(baseDir: string): bool =
+      if not dirExists(baseDir):
+        return true
+      for kind, path in walkDir(baseDir):
+        if '#' in path:
+          echo "Found # in path: ", path
+          return false
+        if kind == pcDir:
+          if not checkNoPoundInDirs(path):
+            return false
+      return true
+
+    let pkgCacheDir = installDir / "pkgcache"
+    check checkNoPoundInDirs(pkgCacheDir)
+
+    let buildTempDir = installDir / "buildtemp"
+    check checkNoPoundInDirs(buildTempDir)
+
+    check checkNoPoundInDirs(pkgsDir)
+
+    # Verify a package was installed and no directory contains '#'
+    var foundPackage = false
+    for kind, path in walkDir(pkgsDir):
+      if kind == pcDir and "packagebin2" in path.toLowerAscii:
+        foundPackage = true
+        check '#' notin path
+        break
+    check foundPackage
