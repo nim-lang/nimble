@@ -11,7 +11,7 @@ import compat/[msgs, sequtils, syntaxes]
 import version, packageinfotypes, packageinfo, options, packageparser, cli,
   packagemetadatafile, common
 import sha1hashes, vcstools, urls
-import std/[tables, strscans, strformat, os, options]
+import std/[tables, strscans, strformat, os, options, sets]
 
 type NimbleFileInfo* = object
   nimbleFile*: string
@@ -21,7 +21,8 @@ type NimbleFileInfo* = object
   tasks*: seq[(string, string)]
   features*: Table[string, seq[string]]
   bin*: Table[string, string]
-  hasInstallHooks*: bool
+  preHooks*: HashSet[string]
+  postHooks*: HashSet[string]
   hasErrors*: bool
   nestedRequires*: bool #if true, the requires section contains nested requires meaning that the package is incorrectly defined
   declarativeParserErrorLines*: seq[string]
@@ -136,12 +137,42 @@ proc extractFeatures(featureNode: PNode, conf: ConfigRef, hasErrors: var bool, n
         # Validate file:// requires in this feature context
         validateFileUrlRequires(nfl, stmt, conf, hasErrors, nestedRequires, featureName, options)
 
+proc extractHooksOnly(n: PNode, result: var NimbleFileInfo) =
+  ## Extract only before/after install hooks from conditional blocks.
+  ## Does not extract requires or other declarations.
+  case n.kind
+  of nkStmtList, nkStmtListExpr:
+    for child in n:
+      extractHooksOnly(child, result)
+  of nkIfStmt, nkWhenStmt:
+    for branch in n:
+      extractHooksOnly(branch, result)
+  of nkElifBranch, nkElifExpr, nkElse, nkElseExpr:
+    for child in n:
+      extractHooksOnly(child, result)
+  of nkCallKinds:
+    if n[0].kind == nkIdent:
+      case n[0].ident.s
+      of "before":
+        if n.len >= 3 and n[1].kind == nkIdent and n[1].ident.s == "install":
+          result.preHooks.incl("install")
+      of "after":
+        if n.len >= 3 and n[1].kind == nkIdent and n[1].ident.s == "install":
+          result.postHooks.incl("install")
+      else:
+        discard
+  else:
+    discard
+
 proc extract(n: PNode, conf: ConfigRef, result: var NimbleFileInfo, options: Options)  {.raises: [CatchableError].}=
   validateNoNestedRequires(result, n, conf, result.hasErrors, result.nestedRequires)
   case n.kind
   of nkStmtList, nkStmtListExpr:
     for child in n:
       extract(child, conf, result, options)
+  of nkIfStmt, nkWhenStmt:
+    # Only extract hooks from conditional blocks, not requires or other declarations
+    extractHooksOnly(n, result)
   of nkCallKinds:
     if n[0].kind == nkIdent:
       case n[0].ident.s
@@ -164,9 +195,12 @@ proc extract(n: PNode, conf: ConfigRef, result: var NimbleFileInfo, options: Opt
         if n.len >= 3 and n[1].kind == nkIdent and
             n[2].kind in {nkStrLit .. nkTripleStrLit}:
           result.tasks.add((n[1].ident.s, n[2].strVal))
-      of "before", "after":
+      of "before":
         if n.len >= 3 and n[1].kind == nkIdent and n[1].ident.s == "install":
-          result.hasInstallHooks = true
+          result.preHooks.incl("install")
+      of "after":
+        if n.len >= 3 and n[1].kind == nkIdent and n[1].ident.s == "install":
+          result.postHooks.incl("install")
       else:
         discard
   of nkAsgn, nkFastAsgn:
@@ -535,6 +569,8 @@ proc toRequiresInfo*(pkgInfo: PackageInfo, options: Options, nimBin: string, nim
   
   if pkgInfo.infoKind == pikRequires:
     result.bin = nimbleFileInfo.bin #Noted that we are not parsing namedBins here, they are only parsed wit full info
+  result.preHooks = result.preHooks + nimbleFileInfo.preHooks
+  result.postHooks = result.postHooks + nimbleFileInfo.postHooks
 
 proc fillPkgBasicInfo(pkgInfo: var PackageInfo, nimbleFileInfo: NimbleFileInfo) =
   let (_, _, checksum) = getPathVersionChecksum(nimbleFileInfo.nimbleFile.splitPath.tail)

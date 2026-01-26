@@ -322,7 +322,14 @@ proc getSolvedPkgFromInstalledPkgs*(satResult: SATResult, solvedPkg: SolvedPacka
   return none(PackageInfo)
 
 proc thereIsNimbleFile*(options: Options): bool =
-  return findNimbleFile(getCurrentDir(), error = false, options, warn = false) != ""
+  # Don't treat buildtemp directories as having a local nimble file
+  # This prevents hooks running in buildtemp from causing nested nimble
+  # to misinterpret the context as a local project install
+  let cwd = getCurrentDir()
+  let buildTempDir = options.getBuildTempDir()
+  if buildTempDir.len > 0 and cwd.startsWith(buildTempDir):
+    return false
+  return findNimbleFile(cwd, error = false, options, warn = false) != ""
 
 proc solveLockFileDeps*(satResult: var SATResult, pkgList: seq[PackageInfo], options: Options, nimBin: string) = 
   let lockFile = options.lockFile(satResult.rootPackage.myPath.parentDir())
@@ -757,10 +764,24 @@ proc installFromDirDownloadInfo(nimBin: string, downloadDir: string, url: string
   if not (options.localdeps and options.isInstallingTopLevel(dir)):
     var filesInstalled: HashSet[string]
     let hasBinaries = pkgInfo.bin.len > 0 and not pkgInfo.basicInfo.name.isNim
+    let hasPreInstallHook = pkgInfo.hasBeforeInstallHook
 
-    if hasBinaries:
-      # Binary packages: use buildtemp flow (build in temp, copy selected to install)
-      let buildTempDir = options.getPkgBuildTempDir(
+    # Install pipeline: workDir → before-install hook → build → copy to pkgDestDir → after-install hook
+    # Optimization: skip buildtemp when we know it's safe (no binaries, no before-install hook)
+    let canSkipBuildTemp = not hasBinaries and not hasPreInstallHook
+
+    var workDir, buildTempDir: string
+    var workPkgInfo: PackageInfo
+
+    if canSkipBuildTemp:
+      # Optimized path: work directly from pkgcache
+      workDir = downloadDir
+      workPkgInfo = pkgInfo
+    else:
+      display("Info:", "Using buildtemp for " & pkgInfo.basicInfo.name &
+              " (binaries: " & $hasBinaries & ", before-install hook: " & $hasPreInstallHook & ")",
+              priority = LowPriority)
+      buildTempDir = options.getPkgBuildTempDir(
         pkgInfo.basicInfo.name,
         $pkgInfo.basicInfo.version,
         $pkgInfo.basicInfo.checksum
@@ -771,92 +792,63 @@ proc installFromDirDownloadInfo(nimBin: string, downloadDir: string, url: string
         removeDir(buildTempDir)
       createDir(buildTempDir)
 
-      try:
-        # Copy ALL files from pkgcache to temp build dir
-        let buildTempBase = options.getBuildTempDir()
-        let nimbleDirBase = options.getNimbleDir()
-        # Only skip these directories if they're actually inside the downloadDir
-        let buildTempIsInsideDownload = buildTempBase.len > 0 and
-                                         buildTempBase.startsWith(downloadDir & "/")
-        let nimbleDirIsInsideDownload = nimbleDirBase.len > 0 and
-                                         nimbleDirBase.startsWith(downloadDir & "/")
+      # Copy ALL files from pkgcache to temp build dir
+      let buildTempBase = options.getBuildTempDir()
+      let nimbleDirBase = options.getNimbleDir()
+      let buildTempIsInsideDownload = buildTempBase.len > 0 and
+                                       buildTempBase.startsWith(downloadDir & "/")
+      let nimbleDirIsInsideDownload = nimbleDirBase.len > 0 and
+                                       nimbleDirBase.startsWith(downloadDir & "/")
 
-        for path in walkDirRec(downloadDir):
-          if buildTempIsInsideDownload and path.startsWith(buildTempBase):
-            continue
-          if nimbleDirIsInsideDownload and path.startsWith(nimbleDirBase):
-            continue
-          let relPath = path.substr(downloadDir.len)
-          # Skip nimbledeps subdirectory
-          if (DirSep & "nimbledeps" & DirSep) in relPath or
-             relPath.endsWith(DirSep & "nimbledeps"):
-            continue
-          createDir(changeRoot(downloadDir, buildTempDir, path.splitFile.dir))
-          discard copyFileD(path, changeRoot(downloadDir, buildTempDir, path))
+      for path in walkDirRec(downloadDir):
+        if buildTempIsInsideDownload and path.startsWith(buildTempBase):
+          continue
+        if nimbleDirIsInsideDownload and path.startsWith(nimbleDirBase):
+          continue
+        let relPath = path.substr(downloadDir.len)
+        if (DirSep & "nimbledeps" & DirSep) in relPath or
+           relPath.endsWith(DirSep & "nimbledeps"):
+          continue
+        
+        if (DirSep & "tests" & DirSep) in relPath or
+           (DirSep & "testdata" & DirSep) in relPath:
+          continue
+        createDir(changeRoot(downloadDir, buildTempDir, path.splitFile.dir))
+        discard copyFileD(path, changeRoot(downloadDir, buildTempDir, path))
 
-        var buildPkgInfo = getPkgInfo(buildTempDir, options, nimBin = nimBin)
-        if pv.ver.kind == verEq and buildPkgInfo.basicInfo.version != pv.ver.ver:
-          buildPkgInfo.basicInfo.version = pv.ver.ver
+      workPkgInfo = getPkgInfo(buildTempDir, options, nimBin = nimBin)
+      if pv.ver.kind == verEq and workPkgInfo.basicInfo.version != pv.ver.ver:
+        workPkgInfo.basicInfo.version = pv.ver.ver
+      workDir = buildTempDir
 
-        # Run before-install hook (in buildtemp, before build)
-        executeHook(nimBin, buildTempDir, options, actionInstall, before = true)
+      # Run before-install hook (in buildtemp, before build)
+      executeHook(nimBin, workDir, options, actionInstall, before = true)
 
-        # Build in temp directory
+      # Build binaries (only if there are any)
+      if hasBinaries:
         let paths = getPathsAllPkgs(options)
         let flags = if options.action.typ in {actionInstall, actionPath, actionUninstall, actionDevelop}:
                       options.action.passNimFlags
                     else:
                       @[]
-        buildFromDir(buildPkgInfo, paths, "-d:release" & flags, options, nimBin)
+        buildFromDir(workPkgInfo, paths, "-d:release" & flags, options, nimBin)
 
-        # Copy SELECTED files from temp build dir to install dir
-        # Skip dot directories and tests unless explicitly whitelisted in installDirs
-        createDir(pkgDestDir)
-        filesInstalled.incl copyInstallFiles(buildTempDir, pkgDestDir, buildPkgInfo, options)
+    try:
+      createDir(pkgDestDir)
+      filesInstalled.incl copyInstallFiles(workDir, pkgDestDir, workPkgInfo, options)
 
-        # Copy the .nimble file
-        let nimbleFileDest = changeRoot(buildPkgInfo.myPath.splitFile.dir, pkgDestDir, buildPkgInfo.myPath)
-        filesInstalled.incl copyFileD(buildPkgInfo.myPath, nimbleFileDest)
+      # Copy the .nimble file
+      let nimbleFileDest = changeRoot(workPkgInfo.myPath.splitFile.dir, pkgDestDir, workPkgInfo.myPath)
+      filesInstalled.incl copyFileD(workPkgInfo.myPath, nimbleFileDest)
 
-        # Copy built binaries from temp to install dir
-        for bin, src in buildPkgInfo.bin:
+      # Copy built binaries (only if there are any)
+      if hasBinaries:
+        for bin, src in workPkgInfo.bin:
           let binDest = if dirExists(pkgDestDir / bin): bin & ".out" else: bin
-          let srcBin = buildPkgInfo.getOutputDir(bin)
+          let srcBin = workPkgInfo.getOutputDir(bin)
           if fileExists(srcBin):
             createDir((pkgDestDir / binDest).parentDir())
             filesInstalled.incl copyFileD(srcBin, pkgDestDir / binDest)
-
-        pkgInfo.myPath = nimbleFileDest
-        pkgInfo.metaData.files = filesInstalled.toSeq
-        if pv.ver.kind == verSpecial:
-          pkgInfo.metadata.specialVersions.incl pv.ver.spe
-
-        saveMetaData(pkgInfo.metaData, pkgDestDir)
-
-        # Run after-install hook
-        executeHook(nimBin, pkgDestDir, options, actionInstall, before = false)
-
-        # Create bin symlinks
-        createBinSymlink(pkgInfo, options)
-
-      finally:
-        if dirExists(buildTempDir):
-          removeDir(buildTempDir)
-
-    else:
-      # Non-binary packages: copy directly from pkgcache to install dir
-      createDir(pkgDestDir)
-
-      # Run before-install hook in download dir
-      executeHook(nimBin, downloadDir, options, actionInstall, before = true)
-
-      # Copy selected files from pkgcache to install dir. Hook runs in pkgcache, notice it may cause side effects
-      # unlikely but worth copying directly instead of creating an intermediate directory just for hook execution (can be reconsidered)
-      filesInstalled.incl copyInstallFiles(downloadDir, pkgDestDir, pkgInfo, options)
-
-      # Copy the .nimble file
-      let nimbleFileDest = changeRoot(pkgInfo.myPath.splitFile.dir, pkgDestDir, pkgInfo.myPath)
-      filesInstalled.incl copyFileD(pkgInfo.myPath, nimbleFileDest)
 
       pkgInfo.myPath = nimbleFileDest
       pkgInfo.metaData.files = filesInstalled.toSeq
@@ -867,6 +859,15 @@ proc installFromDirDownloadInfo(nimBin: string, downloadDir: string, url: string
 
       # Run after-install hook
       executeHook(nimBin, pkgDestDir, options, actionInstall, before = false)
+
+      # Create bin symlinks (only if there are binaries)
+      if hasBinaries:
+        createBinSymlink(pkgInfo, options)
+
+    finally:
+      # Cleanup buildtemp if used
+      if not canSkipBuildTemp and dirExists(buildTempDir):
+        removeDir(buildTempDir)
 
   else:
     display("Warning:", "Skipped copy in project local deps mode", Warning)
