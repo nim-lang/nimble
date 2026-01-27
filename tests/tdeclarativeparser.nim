@@ -321,3 +321,242 @@ else:
 """
     var options = initOptions()
     check isParsableByDeclarative(content, options) == false
+
+suite "fileHasStateModifyingOps":
+  test "should detect state ops in fixture with mkDir":
+    check fileHasStateModifyingOps("buildInstall/pkgWithStateOps/pkgWithStateOps.nimble") == true
+
+  test "should return false for simple library package":
+    check fileHasStateModifyingOps("buildInstall/pkgNoBinary/pkgNoBinary.nimble") == false
+
+suite "hasSideEffects":
+  test "should return false for simple nimble file":
+    let content = """
+version = "0.1.0"
+author = "test"
+description = "Test"
+license = "MIT"
+requires "nim >= 1.6.0"
+"""
+    check contentHasStateModifyingOps(content) == false
+
+  test "should detect exec at top level":
+    let content = """
+version = "0.1.0"
+requires "nim"
+exec "echo hello"
+"""
+    check contentHasStateModifyingOps(content) == true
+
+  test "should detect createDir at top level":
+    let content = """
+version = "0.1.0"
+requires "nim"
+createDir "somedir"
+"""
+    check contentHasStateModifyingOps(content) == true
+
+  test "should detect mkDir at top level":
+    let content = """
+version = "0.1.0"
+mkDir "somedir"
+"""
+    check contentHasStateModifyingOps(content) == true
+
+  test "should detect writeFile at top level":
+    let content = """
+version = "0.1.0"
+writeFile "test.txt", "hello"
+"""
+    check contentHasStateModifyingOps(content) == true
+
+  test "should detect cpFile at top level":
+    let content = """
+version = "0.1.0"
+cpFile "a.txt", "b.txt"
+"""
+    check contentHasStateModifyingOps(content) == true
+
+  test "should detect mvFile at top level":
+    let content = """
+version = "0.1.0"
+mvFile "a.txt", "b.txt"
+"""
+    check contentHasStateModifyingOps(content) == true
+
+  test "should detect rmFile at top level":
+    let content = """
+version = "0.1.0"
+rmFile "a.txt"
+"""
+    check contentHasStateModifyingOps(content) == true
+
+  test "should detect rmDir at top level":
+    let content = """
+version = "0.1.0"
+rmDir "somedir"
+"""
+    check contentHasStateModifyingOps(content) == true
+
+  test "should detect selfExec at top level":
+    let content = """
+version = "0.1.0"
+selfExec "c test.nim"
+"""
+    check contentHasStateModifyingOps(content) == true
+
+  test "should detect patchFile at top level":
+    let content = """
+version = "0.1.0"
+patchFile "pkg", "file", "patch"
+"""
+    check contentHasStateModifyingOps(content) == true
+
+  test "should NOT detect ops inside task blocks":
+    let content = """
+version = "0.1.0"
+requires "nim"
+
+task build, "Build":
+  exec "nim c src/main.nim"
+  mkDir "output"
+"""
+    check contentHasStateModifyingOps(content) == false
+
+  test "should NOT detect ops inside before hook blocks":
+    let content = """
+version = "0.1.0"
+requires "nim"
+
+before install:
+  exec "echo pre-install"
+  mkDir "build"
+"""
+    check contentHasStateModifyingOps(content) == false
+
+  test "should NOT detect ops inside after hook blocks":
+    let content = """
+version = "0.1.0"
+requires "nim"
+
+after install:
+  exec "echo post-install"
+  rmDir "temp"
+"""
+    check contentHasStateModifyingOps(content) == false
+
+  test "should detect ops inside when blocks":
+    let content = """
+version = "0.1.0"
+requires "nim"
+
+when defined(linux):
+  mkDir "linux_dir"
+"""
+    check contentHasStateModifyingOps(content) == true
+
+  test "should detect ops inside if blocks":
+    let content = """
+version = "0.1.0"
+requires "nim"
+
+if NimMajor >= 2:
+  exec "echo nim2"
+"""
+    check contentHasStateModifyingOps(content) == true
+
+  test "should detect ops in else branch":
+    let content = """
+version = "0.1.0"
+
+when defined(windows):
+  discard
+else:
+  createDir "unix_dir"
+"""
+    check contentHasStateModifyingOps(content) == true
+
+  test "should return false for file with only tasks and hooks":
+    let content = """
+version = "0.1.0"
+author = "test"
+description = "Test"
+license = "MIT"
+srcDir = "src"
+bin = @["myapp"]
+requires "nim >= 1.6.0"
+
+task test, "Run tests":
+  exec "nim c -r tests/test.nim"
+
+before install:
+  echo "preparing"
+
+after install:
+  echo "done"
+"""
+    check contentHasStateModifyingOps(content) == false
+
+  test "should flag unknown calls as potentially having side effects":
+    let content = """
+version = "0.1.0"
+requires "nim"
+someUnknownProc "arg1", "arg2"
+"""
+    check contentHasStateModifyingOps(content) == true
+
+  test "should return false for echo at top level":
+    let content = """
+version = "0.1.0"
+requires "nim"
+echo "hello"
+"""
+    check contentHasStateModifyingOps(content) == false
+
+  test "should flag unknown calls inside when blocks":
+    let content = """
+version = "0.1.0"
+when defined(linux):
+  customSetup()
+"""
+    check contentHasStateModifyingOps(content) == true
+
+  test "should return false for conditional requires":
+    let content = """
+version = "0.1.0"
+when defined(windows):
+  requires "winapi"
+else:
+  requires "posix"
+"""
+    check contentHasStateModifyingOps(content) == false
+
+  test "should return false for old-style metadata calls":
+    let content = """
+version "0.1.0"
+author "test"
+description "A test package"
+license "MIT"
+srcDir "src"
+bin "myapp"
+skipDirs "tests"
+installExt "nim"
+foreignDep "openssl"
+"""
+    check contentHasStateModifyingOps(content) == false
+
+  test "should return false for switch and taskrequires":
+    let content = """
+version = "0.1.0"
+requires "nim"
+switch "threads", "on"
+taskrequires "docgen", "nimdoc >= 1.0"
+"""
+    check contentHasStateModifyingOps(content) == false
+
+  test "should be case-insensitive for Requires":
+    let content = """
+version = "0.1.0"
+Requires "nim >= 1.6.0"
+"""
+    check contentHasStateModifyingOps(content) == false
