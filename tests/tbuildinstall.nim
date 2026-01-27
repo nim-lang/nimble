@@ -199,6 +199,31 @@ suite "Build/Install refactor":
       check "Using buildtemp for pkgWithSkipDirs" in output
       check "binaries: true" in output
 
+  test "package with state-modifying ops installs successfully":
+    cd "buildInstall/pkgWithStateOps":
+      # Clean up before test
+      removeDir("generated_dir")
+
+      let (_, exitCode) = execNimbleYes("install")
+      check exitCode == QuitSuccess
+
+      # Verify the package was installed correctly
+      var installedDir = ""
+      for kind, path in walkDir(pkgsDir):
+        if kind == pcDir and "pkgWithStateOps" in path:
+          installedDir = path
+          break
+
+      check installedDir.len > 0
+      check dirExists(installedDir / "src")
+      check fileExists(installedDir / "src" / "pkgWithStateOps.nim")
+      check fileExists(installedDir / "pkgWithStateOps.nimble")
+
+      # Clean up generated_dir created by the VM parser for local packages.
+      # For local packages the VM parser runs in-place (expected behavior).
+      # The temp dir protection applies to pkgcache packages only.
+      removeDir("generated_dir")
+
   test "special versions do not have # in directory names":
     # Install a package with an explicit special version (#head)
     # This test verifies our fix strips # from directory names

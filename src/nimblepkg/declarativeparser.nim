@@ -11,7 +11,8 @@ import compat/[msgs, sequtils, syntaxes]
 import version, packageinfotypes, packageinfo, options, packageparser, cli,
   packagemetadatafile, common
 import sha1hashes, vcstools, urls
-import std/[tables, strscans, strformat, os, options, sets]
+import std/[tables, strscans, strformat, os, options, sets, times]
+import tools
 
 type NimbleFileInfo* = object
   nimbleFile*: string
@@ -163,6 +164,92 @@ proc extractHooksOnly(n: PNode, result: var NimbleFileInfo) =
         discard
   else:
     discard
+
+const safeNimbleOps = [
+  # Dependency declarations
+  "requires",
+  # Feature declarations
+  "feature", "dev",
+  # Block definitions (not executed during parsing)
+  "task", "before", "after",
+  # Foreign dependency declaration
+  "foreignDep",
+  # Task dependency declaration
+  "taskrequires",
+  # Compiler switch declaration
+  "switch",
+  # Old-style nimble metadata (used as calls instead of assignments in some packages)
+  "version", "author", "description", "license", "name",
+  "srcDir", "srcdir",
+  "bin", "binDir",
+  "skipDirs", "skipFiles", "skipExt",
+  "installDirs", "installFiles", "installExt",
+  "packageName", "backend",
+  # Safe output
+  "echo",
+]
+
+proc isSafeOp(name: string): bool =
+  ## Case-insensitive check against the whitelist.
+  for op in safeNimbleOps:
+    if cmpIgnoreCase(name, op) == 0:
+      return true
+  return false
+
+proc hasSideEffects(n: PNode): bool =
+  ## Detects if the AST contains operations that may have side effects.
+  ## Uses a whitelist approach: only known-safe operations are allowed.
+  ## Any unrecognized call at the top level or in when/if blocks is treated
+  ## as potentially having side effects.
+  case n.kind
+  of nkStmtList, nkStmtListExpr:
+    for child in n:
+      if hasSideEffects(child):
+        return true
+  of nkIfStmt, nkWhenStmt:
+    for branch in n:
+      if hasSideEffects(branch):
+        return true
+  of nkElifBranch, nkElifExpr:
+    # First child is the condition (e.g., defined(windows)), last child is the body.
+    # Only check the body — conditions are compile-time expressions without side effects.
+    if n.len > 1 and hasSideEffects(n[^1]):
+      return true
+  of nkElse, nkElseExpr:
+    for child in n:
+      if hasSideEffects(child):
+        return true
+  of nkCallKinds:
+    if n[0].kind == nkIdent:
+      let name = n[0].ident.s
+      if name in ["task", "before", "after"]:
+        # Block definitions - their body is not executed during parsing
+        return false
+      if not isSafeOp(name):
+        return true
+  of nkAsgn, nkFastAsgn:
+    # Property assignments (version = ..., srcDir = ..., etc.) are safe
+    discard
+  of nkCommentStmt, nkEmpty, nkImportStmt, nkFromStmt, nkIncludeStmt:
+    discard
+  else:
+    discard
+  return false
+
+proc contentHasStateModifyingOps*(content: string): bool =
+  ## Parses nimble file content and checks if it contains state-modifying operations.
+  var conf = newConfigRef()
+  conf.foreignPackageNotes = {}
+  conf.notes = {}
+  conf.mainPackageNotes = {}
+  conf.errorMax = high(int)
+  let fileIdx = fileInfoIdx(conf, AbsoluteFile "memory.nimble")
+  let stream = llStreamOpen(content)
+  var parser: Parser
+  openParser(parser, fileIdx, stream, newIdentCache(), conf)
+  let ast = parseAll(parser)
+  result = hasSideEffects(ast)
+  closeParser(parser)
 
 proc extract(n: PNode, conf: ConfigRef, result: var NimbleFileInfo, options: Options)  {.raises: [CatchableError].}=
   validateNoNestedRequires(result, n, conf, result.hasErrors, result.nestedRequires)
@@ -380,7 +467,7 @@ proc extractRequiresInfo*(nimbleFile: string, options: Options): NimbleFileInfo 
     extract(ast, conf, result, options)
     closeParser(parser)
   result.hasErrors = result.hasErrors or conf.errorCounter > 0
-  
+
   # Add requires from external requires file
   let nimbleDir = nimbleFile.splitFile.dir
   let additionalRequires = extractRequiresFromFile(nimbleDir)
@@ -520,6 +607,60 @@ proc getFeatures*(nimbleFileInfo: NimbleFileInfo): Table[string, seq[PkgTuple]] 
   for feature, requires in nimbleFileInfo.features:
     result[feature] = requires.map(parseRequires)    
 
+proc copyDirRec(src, dest: string) =
+  ## Recursively copy a directory, skipping nimbledeps and nimcache.
+  createDir(dest)
+  for kind, path in walkDir(src):
+    let name = path.extractFilename
+    if name in ["nimbledeps", "nimcache"]:
+      continue
+    let destPath = dest / name
+    if kind == pcFile:
+      copyFile(path, destPath)
+    elif kind == pcDir:
+      copyDirRec(path, destPath)
+
+proc isInPkgCache(pkgDir: string, options: Options): bool =
+  ## Check if the given directory is inside the pkgcache.
+  options.pkgCachePath.len > 0 and pkgDir.startsWith(options.pkgCachePath)
+
+proc fileHasStateModifyingOps*(nimbleFile: string): bool =
+  ## Parses a nimble file and checks if it contains state-modifying operations.
+  var conf = newConfigRef()
+  conf.foreignPackageNotes = {}
+  conf.notes = {}
+  conf.mainPackageNotes = {}
+  conf.errorMax = high(int)
+  let fileIdx = fileInfoIdx(conf, AbsoluteFile nimbleFile)
+  var parser: Parser
+  if setupParser(parser, fileIdx, newIdentCache(), conf):
+    let ast = parseAll(parser)
+    result = hasSideEffects(ast)
+    closeParser(parser)
+
+proc getPkgInfoMaybeInTempDir(pkgDir: string, options: Options, nimBin: string, nimbleFile: string): PackageInfo =
+  ## Runs getPkgInfo, potentially in a temp directory copy.
+  ## Only copies to temp dir when the package is in pkgcache AND has state-modifying ops.
+  ## This prevents the VM parser from creating files/directories in pkgcache.
+  if not isInPkgCache(pkgDir, options):
+    return getPkgInfo(pkgDir, options, nimBin)
+  if not fileHasStateModifyingOps(nimbleFile):
+    return getPkgInfo(pkgDir, options, nimBin)
+  let tempDir = getNimbleTempDir() / "vmparse_" & $epochTime().int
+  try:
+    copyDirRec(pkgDir, tempDir)
+    result = getPkgInfo(tempDir, options, nimBin)
+    # Update myPath to point back to original location
+    let nimbleFileName = result.myPath.extractFilename
+    result.myPath = pkgDir / nimbleFileName
+  finally:
+    # Clean up temp directory
+    if dirExists(tempDir):
+      try:
+        removeDir(tempDir)
+      except CatchableError:
+        discard # Ignore cleanup errors
+
 proc toRequiresInfo*(pkgInfo: PackageInfo, options: Options, nimBin: string, nimbleFileInfo: Option[NimbleFileInfo] = none(NimbleFileInfo)): PackageInfo =
   #For nim we only need the version. Since version is usually in the form of `version = $NimMajor & "." & $NimMinor & "." & $NimPatch
   #we need to use the vm to get the version. Another option could be to use the binary and ask for the version
@@ -529,7 +670,7 @@ proc toRequiresInfo*(pkgInfo: PackageInfo, options: Options, nimBin: string, nim
     let babelWarning = &"Package {pkgInfo.basicInfo.name} is a babel package, skipping declarative parser"
     if options.verbosity <= LowPriority:
       displayWarning babelWarning
-    result = getPkgInfo(pkgInfo.myPath.parentDir, options, nimBin)
+    result = getPkgInfoMaybeInTempDir(pkgInfo.myPath.parentDir, options, nimBin, pkgInfo.myPath)
     fillMetaData(result, result.getRealDir(), false, options)
     if babelWarning notin result.declarativeParserErrors:
       result.declarativeParserErrors.add(babelWarning)
@@ -537,11 +678,11 @@ proc toRequiresInfo*(pkgInfo: PackageInfo, options: Options, nimBin: string, nim
 
   let nimbleFileInfo = nimbleFileInfo.get(extractRequiresInfo(pkgInfo.myPath, options))
   result.requires = getRequires(nimbleFileInfo, result.activeFeatures)
-  if pkgInfo.basicInfo.name.isNim: 
+  if pkgInfo.basicInfo.name.isNim:
     return result
   if pkgInfo.infoKind != pikFull: #dont update as full implies pik requires
     result.infoKind = pikRequires
-  
+
   if nimbleFileInfo.nestedRequires and options.action.typ != actionCheck: #When checking we want to fail on porpuse
     if options.satResult.pass == satNimSelection:
       assert nimBin != "", "Cant fallback to the vm parser as there is no nim bin."
@@ -550,7 +691,7 @@ proc toRequiresInfo*(pkgInfo: PackageInfo, options: Options, nimBin: string, nim
       for line in nimbleFileInfo.declarativeParserErrorLines:
         displayWarning line
 
-    result = getPkgInfo(result.myPath.parentDir, options, nimBin)
+    result = getPkgInfoMaybeInTempDir(result.myPath.parentDir, options, nimBin, result.myPath)
     for line in nimbleFileInfo.declarativeParserErrorLines:
       if line notin result.declarativeParserErrors:
         result.declarativeParserErrors.add(line)
