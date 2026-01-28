@@ -1337,6 +1337,16 @@ proc processRequirements(versions: var Table[string, PackageVersions], pv: PkgTu
       if pv.name.isUrl and validPkgMins.len > 0:
         versions[pv.name] = PackageVersions(pkgName: pv.name, versions: validPkgMins)
         
+    else:
+      # Package already has a matching version in the table (e.g. from pkgcache),
+      # but we still need to recursively process its requirements to ensure
+      # transitive dependencies are discovered.
+      let pkgName = pv.name.toLower
+      if pkgName in versions:
+        for pkgMin in versions[pkgName].versions:
+          if pkgMin.version.withinRange(pv.ver):
+            for req in pkgMin.requires:
+              processRequirements(versions, req, visited, getMinimalPackage, preferredPackages, options, nimBin)
   except CatchableError as e:
     # Some old packages may have invalid requirements (i.e repos that doesn't exist anymore)
     # we need to avoid adding it to the package table as this will cause the solver to fail
