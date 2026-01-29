@@ -1237,6 +1237,19 @@ proc installPkgs*(satResult: var SATResult, options: var Options) {.instrument.}
           discard downloadPkgResult
         # dlInfo.downloadDir = downloadPkgResult.dir 
       assert dirExists(downloadDir)
+
+      # Check if cache is corrupted (directory exists but has no nimble file)
+      if not pv.name.isFileURL and not pkgDirHasNimble(dlInfo.downloadDir, options):
+        displayWarning(&"Cache directory is corrupted (no .nimble file found): {dlInfo.downloadDir}", HighPriority)
+        displayWarning("Removing corrupted cache and re-downloading...", HighPriority)
+        try:
+          removeDir(dlInfo.downloadDir)
+        except CatchableError as e:
+          displayWarning(&"Failed to remove corrupted cache: {e.msg}", HighPriority)
+        # Re-download
+        let downloadPkgResult = downloadFromDownloadInfo(dlInfo, options, nimBin)
+        discard downloadPkgResult
+
       # Ensure submodules are populated if needed.
       # Version discovery caches packages without submodules for speed and potential errors in old pkgs,
       # so we need to fetch them here during actual installation.

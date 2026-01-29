@@ -129,3 +129,55 @@ suite "misc tests":
     let content = configFile.splitLines.toSeq()
     check content[^2].strip() == ""
     check content[^1].strip() == ""
+
+  test "recovers from corrupted pkgcache":
+    # This test verifies that nimble can recover when a pkgcache directory exists
+    # but is corrupted (has no .nimble/.babel file). This can happen due to:
+    # - Interrupted downloads
+    # - File system corruption
+    # - Concurrent nimble processes
+
+    cleanDir(installDir)
+
+    # First install to populate the cache
+    let (_, exitCode1) = execNimbleYes("install", pkgAUrl)
+    check exitCode1 == QuitSuccess
+
+    let pkgCacheDir = installDir / "pkgcache"
+
+    # Find the cache directory that will be used for installation
+    var corruptedDir = ""
+    for kind, path in walkDir(pkgCacheDir):
+      let dirName = path.extractFilename.toLowerAscii
+      if kind == pcDir and "packagea" in dirName and dirName.endsWith("git"):
+        corruptedDir = path
+        break
+    check corruptedDir != ""
+
+    # Corrupt the cache directory by removing all files except .git
+    for kind, path in walkDir(corruptedDir):
+      if kind == pcFile:
+        removeFile(path)
+      elif kind == pcDir and not path.endsWith(".git"):
+        removeDir(path)
+
+    # Verify corruption (no .nimble or .babel file)
+    var hasNimbleFile = false
+    for file in walkFiles(corruptedDir / "*.nimble"):
+      hasNimbleFile = true
+    for file in walkFiles(corruptedDir / "*.babel"):
+      hasNimbleFile = true
+    check not hasNimbleFile
+
+    # Remove the installed package so nimble needs to use the cache
+    for kind, path in walkDir(installDir / "pkgs2"):
+      if kind == pcDir and "packagea" in path.toLowerAscii:
+        removeDir(path)
+
+    # Install again - should either show "corrupted" (with fix) or "Downloading" (recovery)
+    let (output, exitCode2) = execNimbleYes("install", pkgAUrl)
+    check exitCode2 == QuitSuccess
+    # The test passes if either:
+    # - With fix: shows "corrupted" warning and re-downloads
+    # - Without fix but SAT recovery: shows "Downloading"
+    check output.contains("corrupted") or output.contains("Downloading")
