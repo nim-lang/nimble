@@ -695,10 +695,10 @@ proc downloadPkInfoForPv*(pv: PkgTuple, options: Options, doPrompt = false, nimB
     result = getPkgInfo(downloadRes[0].dir, options, nimBin, forValidation = false, onlyMinimalInfo = false)
 
 proc getAllNimReleases(options: Options): seq[PackageMinimalInfo] =
-  let releases = getOfficialReleases(options)  
+  let releases = getOfficialReleases(options)
   for release in releases:
     result.add PackageMinimalInfo(name: "nim", version: release)
-  
+
   if options.nimBin.isSome:
     result.addUnique PackageMinimalInfo(name: "nim", version: options.nimBin.get.version)
 
@@ -1348,6 +1348,9 @@ proc processRequirements(versions: var Table[string, PackageVersions], pv: PkgTu
             for req in pkgMin.requires:
               processRequirements(versions, req, visited, getMinimalPackage, preferredPackages, options, nimBin)
   except CatchableError as e:
+    # In offline mode, fail immediately - don't try to recover
+    if options.offline:
+      raise
     # Some old packages may have invalid requirements (i.e repos that doesn't exist anymore)
     # we need to avoid adding it to the package table as this will cause the solver to fail
     displayWarning(&"Error processing requirements for {pv.name}: {e.msg}", HighPriority)

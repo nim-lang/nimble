@@ -27,6 +27,7 @@ import truncommand
 import tsetupcommand
 import ttestcommand
 import ttwobinaryversions
+import toffline
 import tuninstall
 import tsat
 import tniminstall

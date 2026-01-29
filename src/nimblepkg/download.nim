@@ -247,8 +247,10 @@ proc getHeadName*(meth: DownloadMethod): Version =
   of DownloadMethod.git: newVersion("#head")
   of DownloadMethod.hg: newVersion("#tip")
 
-proc checkUrlType*(url: string): DownloadMethod =
+proc checkUrlType*(url: string, options: Options): DownloadMethod =
   ## Determines the download method based on the URL.
+  if options.offline:
+    raise nimbleError("Cannot check URL type in offline mode: " & url)
   if doCmdEx("git ls-remote " & url.quoteShell()).exitCode == QuitSuccess:
     return DownloadMethod.git
   elif doCmdEx("hg identify " & url.quoteShell()).exitCode == QuitSuccess:
@@ -1066,7 +1068,7 @@ proc getDownloadInfo*(
     let (url, urlmeta) = getUrlData(pv.name)
     var metadata = urlmeta
     metadata["urlOnly"] = "true"
-    result = (checkUrlType(url), url, metadata)
+    result = (checkUrlType(url, options), url, metadata)
     # echo "getDownloadInfo:isURL: ", $result
     return
   else:
