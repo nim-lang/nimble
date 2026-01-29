@@ -569,10 +569,17 @@ proc getOfficialReleases*(options: Options): seq[Version] {.raises: [CatchableEr
   let oficialReleasesCachedFile =
     options.nimbleDir.absolutePath() / "official-nim-releases.json"
   if oficialReleasesCachedFile.fileExists():
+    if options.offline:
+      # In offline mode, use cache regardless of age
+      return oficialReleasesCachedFile.parseFile().to(seq[Version])
     #We only store the file for a day.
     let fileCreation = getTime() - getFileInfo(oficialReleasesCachedFile).lastWriteTime
     if fileCreation.inDays <= 1:
       return oficialReleasesCachedFile.parseFile().to(seq[Version])
+  if options.offline:
+    # No cache available in offline mode - return empty list
+    # System nim will be added by getAllNimReleases if available
+    return @[]
   var parsedContents: JsonNode
   try:
     let rawContents = retrieveUrl(releasesJsonUrl)
@@ -811,6 +818,8 @@ proc downloadAndExtractNim*(version: Version, options: Options): Option[string] 
 proc downloadAndExtractNimMatchedVersion*(
     ver: VersionRange, options: Options
 ): Option[string] =
+  if options.offline:
+    raise nimbleError("Cannot download Nim in offline mode.")
   # Handle special versions like #devel, #head, etc.
   if ver.kind == verSpecial:
     return downloadAndExtractNim(newVersion($ver), options)
