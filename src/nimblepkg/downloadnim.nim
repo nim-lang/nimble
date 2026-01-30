@@ -756,12 +756,6 @@ proc isNimDirProperlyExtracted*(extractDir: string): bool =
   let folders = @["lib", "bin"]
   for folder in folders:
     if not (extractDir / folder).dirExists():
-      display(
-        "Warning",
-        "Nim $1 is not properly extracted" % $extractDir,
-        Warning,
-        HighPriority,
-      )
       return false
   true
 
@@ -770,13 +764,19 @@ proc extractNimIfNeeded*(
 ): bool =
   if isNimDirProperlyExtracted(extractDir):
     return true
-  #dir exists but is not properly extracted. We need to wipe it out and extract from scratch
+  # Dir doesn't exist or is incomplete. Extract from scratch.
   if attempts > 5:
+    display(
+      "Warning",
+      "Failed to extract Nim to $1 after multiple attempts" % extractDir,
+      Warning,
+      HighPriority,
+    )
     return false
   removeDir(extractDir)
   extract(path, extractDir)
   when defined(windows):
-    #beforeInstall 
+    #beforeInstall
     let buildAll = extractDir / "build_all.bat"
     if not buildAll.fileExists():
       writeFile(buildAll, "echo hello;")
