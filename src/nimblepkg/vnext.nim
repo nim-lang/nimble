@@ -764,7 +764,7 @@ proc installFromDirDownloadInfo(nimBin: string, downloadDir: string, url: string
   if not (options.localdeps and options.isInstallingTopLevel(dir)):
     var filesInstalled: HashSet[string]
     let hasBinaries = pkgInfo.bin.len > 0 and not pkgInfo.basicInfo.name.isNim
-    let hasPreInstallHook = pkgInfo.hasBeforeInstallHook
+    let hasPreInstallHook = pkgInfo.hasBeforeInstallHook and not pkgInfo.basicInfo.name.isNim
 
     # Install pipeline: workDir → before-install hook → build → copy to pkgDestDir → after-install hook
     # Optimization: skip buildtemp when we know it's safe (no binaries, no before-install hook)
