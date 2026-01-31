@@ -117,7 +117,7 @@ suite "requires flag":
 
   test "can use nim#dev as require":
     cd "requireflag":
-      let expectedMessage = "nim-#devel"
       let (outp, exitCode) = execNimble("--requires:nim#devel", "install")
-      check exitCode == QuitSuccess      
-      check outp.contains(expectedMessage)
+      check exitCode == QuitSuccess
+      # Check that nim#devel was processed (either compiled from source or already installed)
+      check outp.contains("Nim #devel") or outp.contains("nim-devel")

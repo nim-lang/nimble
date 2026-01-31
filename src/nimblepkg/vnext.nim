@@ -764,7 +764,7 @@ proc installFromDirDownloadInfo(nimBin: string, downloadDir: string, url: string
   if not (options.localdeps and options.isInstallingTopLevel(dir)):
     var filesInstalled: HashSet[string]
     let hasBinaries = pkgInfo.bin.len > 0 and not pkgInfo.basicInfo.name.isNim
-    let hasPreInstallHook = pkgInfo.hasBeforeInstallHook
+    let hasPreInstallHook = pkgInfo.hasBeforeInstallHook and not pkgInfo.basicInfo.name.isNim
 
     # Install pipeline: workDir → before-install hook → build → copy to pkgDestDir → after-install hook
     # Optimization: skip buildtemp when we know it's safe (no binaries, no before-install hook)
@@ -792,7 +792,7 @@ proc installFromDirDownloadInfo(nimBin: string, downloadDir: string, url: string
         removeDir(buildTempDir)
       createDir(buildTempDir)
 
-      # Copy ALL files from pkgcache to temp build dir
+      # Copy ALL files and directories from pkgcache to temp build dir
       let buildTempBase = options.getBuildTempDir()
       let nimbleDirBase = options.getNimbleDir()
       let buildTempIsInsideDownload = buildTempBase.len > 0 and
@@ -800,7 +800,8 @@ proc installFromDirDownloadInfo(nimBin: string, downloadDir: string, url: string
       let nimbleDirIsInsideDownload = nimbleDirBase.len > 0 and
                                        nimbleDirBase.startsWith(downloadDir & "/")
 
-      for path in walkDirRec(downloadDir):
+      # Use yieldFilter to also yield directories (important for empty dirs like .git/refs/)
+      for path in walkDirRec(downloadDir, yieldFilter = {pcFile, pcDir}):
         if buildTempIsInsideDownload and path.startsWith(buildTempBase):
           continue
         if nimbleDirIsInsideDownload and path.startsWith(nimbleDirBase):
@@ -809,12 +810,17 @@ proc installFromDirDownloadInfo(nimBin: string, downloadDir: string, url: string
         if (DirSep & "nimbledeps" & DirSep) in relPath or
            relPath.endsWith(DirSep & "nimbledeps"):
           continue
-        
+
         if (DirSep & "tests" & DirSep) in relPath or
            (DirSep & "testdata" & DirSep) in relPath:
           continue
-        createDir(changeRoot(downloadDir, buildTempDir, path.splitFile.dir))
-        discard copyFileD(path, changeRoot(downloadDir, buildTempDir, path))
+
+        let destPath = changeRoot(downloadDir, buildTempDir, path)
+        if path.dirExists:
+          createDir(destPath)
+        else:
+          createDir(destPath.splitFile.dir)
+          discard copyFileD(path, destPath)
 
       workPkgInfo = getPkgInfo(buildTempDir, options, nimBin = nimBin)
       if pv.ver.kind == verEq and workPkgInfo.basicInfo.version != pv.ver.ver:

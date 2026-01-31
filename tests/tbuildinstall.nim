@@ -258,3 +258,25 @@ suite "Build/Install refactor":
         check '#' notin path
         break
     check foundPackage
+
+  test "before-install hook with git submodules copies empty directories":
+    # Test for issue where empty .git directories weren't copied to buildtemp,
+    # causing before-install hooks that use git (like libbacktrace) to fail
+    let tempDir = getTempDir() / "nimble_test_install"
+    removeDir(tempDir)
+    createDir(tempDir)
+    defer: removeDir(tempDir)
+
+    cd tempDir:
+      # Install libbacktrace which has a before-install hook that runs git submodule
+      let (output, exitCode) = execNimbleYes("install", "libbacktrace")
+      check exitCode == QuitSuccess
+      check output.contains("libbacktrace installed successfully")
+
+      # Verify it's in pkgs2
+      var found = false
+      for kind, path in walkDir(pkgsDir):
+        if kind == pcDir and "libbacktrace" in path:
+          found = true
+          break
+      check found
