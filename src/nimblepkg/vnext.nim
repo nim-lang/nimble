@@ -403,7 +403,9 @@ proc solveLockFileDeps*(satResult: var SATResult, pkgList: seq[PackageInfo], opt
     ]#
     for name, dep in lockFile.getLockedDependencies.lockedDepsFor(options):
       if name.isNim: continue
-      let solvedPkg = SolvedPackage(pkgName: name, version: dep.version)
+      # Populate requirements from lock file dependencies to preserve them
+      let requirements = dep.dependencies.mapIt((name: it, ver: VersionRange(kind: verAny)))
+      let solvedPkg = SolvedPackage(pkgName: name, version: dep.version, requirements: requirements)
       if options.action.typ == actionUpgrade:
         if solvedPkg.pkgName in satResult.solvedPkgs.mapIt(it.pkgName):
           #We need to remove the initial package from the satResult.solvedPkgs
@@ -484,10 +486,14 @@ proc solveLockFileDeps*(satResult: var SATResult, pkgList: seq[PackageInfo], opt
 
   else:
     # No new requirements and not upgrading
+    # Clear any pre-added nim to ensure lock file ordering is preserved
+    satResult.solvedPkgs = satResult.solvedPkgs.filterIt(not it.pkgName.isNim)
     for name, dep in lockFile.getLockedDependencies.lockedDepsFor(options):
-      if name.isNim: continue
-      let solvedPkg = SolvedPackage(pkgName: name, version: dep.version)
+      # Populate requirements from lock file dependencies to preserve them
+      let requirements = dep.dependencies.mapIt((name: it, ver: VersionRange(kind: verAny)))
+      let solvedPkg = SolvedPackage(pkgName: name, version: dep.version, requirements: requirements)
       satResult.solvedPkgs.add(solvedPkg)
+      if name.isNim: continue  # Don't add nim to pkgsToInstall
       let depInfo = satResult.getSolvedPkgFromInstalledPkgs(solvedPkg, options)
       if depInfo.isSome:
         satResult.pkgs.incl(depInfo.get)

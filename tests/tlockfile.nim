@@ -748,3 +748,69 @@ requires "nim >= 1.5.1"
       let lockJson = defaultLockFileName.readFile.parseJson
       let nimVersion = lockJson{$lfjkPackages, "nim", "version"}.getStr
       check nimVersion == expectedNimVersion
+
+  test "lock file content is preserved when running nimble lock on existing lock file":
+    # Test that running `nimble lock` on an existing lock file preserves:
+    # 1. The dependencies arrays (not emptied)
+    # 2. The package ordering (nim not moved to first line)
+    # This tests fixes for issues: "Missing deps in lock file" and "Nim dependency moved to first line"
+    let langserverDir = tempDir / "nimlangserver_preserve_test"
+
+    # Clean up any previous test
+    if dirExists(langserverDir):
+      removeDir(langserverDir)
+    createDir(tempDir)
+
+    # Clone langserver which has an existing lock file
+    let (_, cloneExitCode) =
+        doCmdEx(&"git clone --depth 1 https://github.com/nim-lang/langserver.git {langserverDir}")
+    check cloneExitCode == QuitSuccess
+
+    cd langserverDir:
+      check defaultLockFileName.fileExists
+      let originalLockJson = defaultLockFileName.readFile.parseJson
+
+      # 1. Find a package with dependencies to verify they're preserved
+      var pkgWithDeps = ""
+      var expectedDeps: seq[string] = @[]
+      for pkgName, pkgData in originalLockJson{$lfjkPackages}.pairs:
+        if pkgName == "nim":
+          continue  # Skip nim as it typically has no dependencies
+        let deps = pkgData{"dependencies"}
+        if deps != nil and deps.kind == JArray and deps.len > 0:
+          pkgWithDeps = pkgName
+          for dep in deps:
+            expectedDeps.add(dep.getStr)
+          break
+      check pkgWithDeps != ""
+      check expectedDeps.len > 0
+
+      # 2. Get original package order and nim's position
+      var originalOrder: seq[string] = @[]
+      for pkgName, _ in originalLockJson{$lfjkPackages}.pairs:
+        originalOrder.add(pkgName)
+      let originalNimIndex = originalOrder.find("nim")
+      check originalNimIndex >= 0  # nim should be in the lock file
+
+      # Run nimble lock
+      let (_, lockExitCode) = execNimbleYes("lock")
+      check lockExitCode == QuitSuccess
+
+      let newLockJson = defaultLockFileName.readFile.parseJson
+
+      # Verify 1: dependencies are preserved
+      let newDeps = newLockJson{$lfjkPackages, pkgWithDeps, "dependencies"}
+      check newDeps != nil
+      check newDeps.kind == JArray
+      check newDeps.len == expectedDeps.len
+      for dep in expectedDeps:
+        check newDeps.elems.anyIt(it.getStr == dep)
+
+      # Verify 2: nim position is preserved (not moved to first)
+      var newOrder: seq[string] = @[]
+      for pkgName, _ in newLockJson{$lfjkPackages}.pairs:
+        newOrder.add(pkgName)
+      let newNimIndex = newOrder.find("nim")
+      check newNimIndex >= 0  # nim should still be in the lock file
+      if originalNimIndex > 0:
+        check newNimIndex > 0  # nim should not be moved to first position
