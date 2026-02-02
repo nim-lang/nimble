@@ -588,3 +588,41 @@ suite "SAT solver":
     check "0.2.5" in depVersions or "0.2.0" in depVersions or "0.1.0" in depVersions
     # Should also have #head
     check "#head" in depVersions
+
+  test "verAny uses version-agnostic cache directory for discovery":
+    # Test that verAny (used during package discovery) uses version-agnostic cache
+    # to avoid downloading the same repo multiple times.
+    # Specific version requirements use version-specific directories to ensure
+    # correct version is installed.
+    var options = initOptions()
+    options.nimBin = some options.makeNimBin("nim")
+    options.config.packageLists["official"] = PackageList(name: "Official", urls: @[
+      "https://raw.githubusercontent.com/nim-lang/packages/master/packages.json",
+      "https://nim-lang.org/nimble/packages.json"
+    ])
+
+    let url = "https://github.com/vegansk/nimfp"
+
+    # verAny uses version-agnostic cache (for package discovery/enumeration)
+    let cacheDirAny = getCacheDownloadDir(url, VersionRange(kind: verAny), options)
+
+    # Specific version requirements use version-specific directories
+    let cacheDir1 = getCacheDownloadDir(url, parseVersionRange(">= 0.3.0"), options)
+    let cacheDir2 = getCacheDownloadDir(url, parseVersionRange(">= 0.4.0"), options)
+    let cacheDir3 = getCacheDownloadDir(url, parseVersionRange("== 0.4.5"), options)
+
+    # verAny should differ from specific versions
+    check cacheDirAny != cacheDir1
+    check cacheDirAny != cacheDir2
+    check cacheDirAny != cacheDir3
+
+    # Different version requirements should have different directories
+    check cacheDir1 != cacheDir2
+    check cacheDir2 != cacheDir3
+
+    # Special versions (commit hashes) should also get separate directories
+    let cacheDir4 = getCacheDownloadDir(url, parseVersionRange("#abc123"), options)
+    let cacheDir5 = getCacheDownloadDir(url, parseVersionRange("#def456"), options)
+
+    # Different special versions should have different directories
+    check cacheDir4 != cacheDir5
