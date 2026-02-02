@@ -188,7 +188,12 @@ proc processFreeDependenciesSAT(rootPkgInfo: PackageInfo, options: Options): Has
     var versionRange = ver.toVersionRange
     if name in upgradeVersions:
       versionRange = upgradeVersions[name]
-    let resolvedDep = ((name: name, ver: versionRange)).resolveAlias(options)
+    # Restore URL for packages that were normalized from URL requirements
+    # (e.g., packages required via full GitHub URL like https://github.com/user/repo#commit)
+    var depName = name
+    if name in options.satResult.normalizedRequirements:
+      depName = options.satResult.normalizedRequirements[name]
+    let resolvedDep = ((name: depName, ver: versionRange)).resolveAlias(options)
     let (packages, _) = install(@[resolvedDep], options,
       doPrompt = false, first = false, fromLockFile = false, preferredPackages = result.toSeq())
     for pkg in packages:
@@ -1085,17 +1090,29 @@ proc addPackages(packages: seq[PkgTuple], options: var Options) =
     
     if not doAppend:
       continue
-  
-    var pSeq = newSeq[PkgTuple](1)
-    pSeq[0] = apkg
 
-    let data = install(pSeq, options, false, false, false)
-
-    let finalVer = if version.len < 1:
-      $data.pkg.basicInfo.version
+    var finalVer: string
+    if not options.isLegacy:
+      # In vnext mode, packages are already installed by runVNext
+      # Get the version from the solved packages
+      finalVer = if version.len < 1:
+        var foundVer = ""
+        for pkg in options.satResult.pkgs:
+          if pkg.basicInfo.name.toLowerAscii() == apkg.name.toLowerAscii():
+            foundVer = $pkg.basicInfo.version
+            break
+        foundVer
+      else:
+        version
     else:
-      version
-    
+      var pSeq = newSeq[PkgTuple](1)
+      pSeq[0] = apkg
+      let data = install(pSeq, options, false, false, false)
+      finalVer = if version.len < 1:
+        $data.pkg.basicInfo.version
+      else:
+        version
+
     let prettyStr = apkg.name & '@' & finalVer
 
     appendStr &= "\nrequires \"$1$2\"" % [
@@ -1105,7 +1122,7 @@ proc addPackages(packages: seq[PkgTuple], options: var Options) =
       else:
         ""
     ]
-    
+
     addedPkgs.add(prettyStr)
 
   let file = open(dir, fmAppend)
@@ -2782,7 +2799,7 @@ proc runVNext*(options: var Options, nimBin: string) {.instrument.} =
     #we need to skip validation for root
     var rootPackage = getPkgInfoFromDirWithDeclarativeParser(getCurrentDir(), options, nimBin = nimBin)
     options.isFilePathDiscovering = false
-    if options.action.typ == actionInstall:
+    if options.action.typ in {actionInstall, actionAdd}:
       rootPackage.requires.add(options.action.packages)
     solvePkgs(rootPackage, options, nimBin)
       # return

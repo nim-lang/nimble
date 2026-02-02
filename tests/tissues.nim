@@ -441,3 +441,23 @@ suite "issues":
     cd "issue1466":
       let (_, exitCode) = execNimble("install", " https://github.com/jmgomez/FeaturesTest@#slash/inbranch")
       check exitCode == QuitSuccess
+
+  test "can add packages with URL-based transitive dependencies":
+    # Test that `nimble add` works for packages with transitive dependencies
+    # specified via full URLs (not in packages.json).
+    # libp2p -> jwt -> bearssl_pkey_decoder (via full URL with commit hash)
+    # Pin to specific commit to avoid test breaking if libp2p refactors dependencies
+    cleanDir(installDir)
+    createDir("testadd_urldeps")
+    writeFile("testadd_urldeps/testadd_urldeps.nimble", """
+version       = "0.1.0"
+author        = "Test"
+description   = "Test"
+license       = "MIT"
+requires "nim >= 2.0.0"
+""")
+    cd "testadd_urldeps":
+      let (output, exitCode) = execNimbleYes("add", "https://github.com/vacp2p/nim-libp2p.git@#d12cac1b8fcf648da573170f000c9822e87a07eb")
+      check exitCode == QuitSuccess
+      check output.contains("Added")
+    removeDir("testadd_urldeps")
