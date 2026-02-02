@@ -631,10 +631,10 @@ proc isFileUrl*(pkgDownloadInfo: PackageDownloadInfo): bool =
   pkgDownloadInfo.meth.isNone and pkgDownloadInfo.url.isFileURL
 
 proc getCacheDownloadDir*(url: string, ver: VersionRange, options: Options): string =
-  # Use version-agnostic cache directory so all versions of a package share the same
-  # git clone. This avoids downloading the same repo multiple times for different versions.
-  # However, special versions (specific commit hashes) need their own cache directory
-  # to ensure upgrades to specific revisions work correctly.
+  # Use version-agnostic cache directory ONLY for verAny (used during package discovery).
+  # This allows enumerating all versions from a single git clone.
+  # For all other version types (specific versions, ranges, special versions),
+  # use version-specific directories to ensure correct version is checked out.
   let puri = parseUri(url)
   var dirName = ""
   for i in puri.hostname:
@@ -656,11 +656,11 @@ proc getCacheDownloadDir*(url: string, ver: VersionRange, options: Options): str
       of strutils.Letters, strutils.Digits:
         dirName.add i
       else: discard
-  # For special versions (commit hashes), include the version to ensure
-  # upgrades to specific revisions get their own cache directory
-  if ver.kind == verSpecial:
+  # For any version type other than verAny, include the version in the directory name
+  # This ensures each specific version gets its own cache directory
+  if ver.kind != verAny:
     dirName.add "_"
-    for i in $ver.spe:
+    for i in $ver:
       case i
       of strutils.Letters, strutils.Digits:
         dirName.add i

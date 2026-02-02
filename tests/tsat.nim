@@ -589,11 +589,11 @@ suite "SAT solver":
     # Should also have #head
     check "#head" in depVersions
 
-  test "same repo uses same cache directory for different versions":
-    # Test that different version ranges of the same package reuse the same
-    # cache directory, avoiding duplicate downloads.
-    # However, special versions (commit hashes) should get separate directories
-    # to ensure upgrades to specific revisions work correctly.
+  test "verAny uses version-agnostic cache directory for discovery":
+    # Test that verAny (used during package discovery) uses version-agnostic cache
+    # to avoid downloading the same repo multiple times.
+    # Specific version requirements use version-specific directories to ensure
+    # correct version is installed.
     var options = initOptions()
     options.nimBin = some options.makeNimBin("nim")
     options.config.packageLists["official"] = PackageList(name: "Official", urls: @[
@@ -603,20 +603,26 @@ suite "SAT solver":
 
     let url = "https://github.com/vegansk/nimfp"
 
-    # Get cache directories for different version ranges
+    # verAny uses version-agnostic cache (for package discovery/enumeration)
+    let cacheDirAny = getCacheDownloadDir(url, VersionRange(kind: verAny), options)
+
+    # Specific version requirements use version-specific directories
     let cacheDir1 = getCacheDownloadDir(url, parseVersionRange(">= 0.3.0"), options)
     let cacheDir2 = getCacheDownloadDir(url, parseVersionRange(">= 0.4.0"), options)
     let cacheDir3 = getCacheDownloadDir(url, parseVersionRange("== 0.4.5"), options)
 
-    # All regular version ranges should use the same cache directory
-    check cacheDir1 == cacheDir2
-    check cacheDir2 == cacheDir3
+    # verAny should differ from specific versions
+    check cacheDirAny != cacheDir1
+    check cacheDirAny != cacheDir2
+    check cacheDirAny != cacheDir3
 
-    # Special versions (commit hashes) should get separate directories
+    # Different version requirements should have different directories
+    check cacheDir1 != cacheDir2
+    check cacheDir2 != cacheDir3
+
+    # Special versions (commit hashes) should also get separate directories
     let cacheDir4 = getCacheDownloadDir(url, parseVersionRange("#abc123"), options)
     let cacheDir5 = getCacheDownloadDir(url, parseVersionRange("#def456"), options)
 
-    # Special versions should differ from regular versions
-    check cacheDir1 != cacheDir4
     # Different special versions should have different directories
     check cacheDir4 != cacheDir5
