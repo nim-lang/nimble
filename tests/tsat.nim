@@ -588,3 +588,24 @@ suite "SAT solver":
     check "0.2.5" in depVersions or "0.2.0" in depVersions or "0.1.0" in depVersions
     # Should also have #head
     check "#head" in depVersions
+
+  test "same repo uses same cache directory for different versions":
+    # Test that different version ranges of the same package reuse the same
+    # cache directory, avoiding duplicate downloads.
+    var options = initOptions()
+    options.nimBin = some options.makeNimBin("nim")
+    options.config.packageLists["official"] = PackageList(name: "Official", urls: @[
+      "https://raw.githubusercontent.com/nim-lang/packages/master/packages.json",
+      "https://nim-lang.org/nimble/packages.json"
+    ])
+
+    let url = "https://github.com/vegansk/nimfp"
+
+    # Get cache directories for different version ranges
+    let cacheDir1 = getCacheDownloadDir(url, parseVersionRange(">= 0.3.0"), options)
+    let cacheDir2 = getCacheDownloadDir(url, parseVersionRange(">= 0.4.0"), options)
+    let cacheDir3 = getCacheDownloadDir(url, parseVersionRange("== 0.4.5"), options)
+
+    # All version ranges should use the same cache directory
+    check cacheDir1 == cacheDir2
+    check cacheDir2 == cacheDir3

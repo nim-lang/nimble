@@ -631,34 +631,30 @@ proc isFileUrl*(pkgDownloadInfo: PackageDownloadInfo): bool =
   pkgDownloadInfo.meth.isNone and pkgDownloadInfo.url.isFileURL
 
 proc getCacheDownloadDir*(url: string, ver: VersionRange, options: Options): string =
-  # When useAsyncDownloads is enabled, use version-agnostic cache directory
-  # (all versions in same location). Otherwise use old behavior (version in path).
-  if options.useAsyncDownloads:
-    # New behavior: version-agnostic directory name using only the URL (including query for subdirs)
-    let puri = parseUri(url)
-    var dirName = ""
-    for i in puri.hostname:
-      case i
-      of strutils.Letters, strutils.Digits:
-        dirName.add i
-      else: discard
+  # Use version-agnostic cache directory so all versions of a package share the same
+  # git clone. This avoids downloading the same repo multiple times for different versions.
+  let puri = parseUri(url)
+  var dirName = ""
+  for i in puri.hostname:
+    case i
+    of strutils.Letters, strutils.Digits:
+      dirName.add i
+    else: discard
+  dirName.add "_"
+  for i in puri.path:
+    case i
+    of strutils.Letters, strutils.Digits:
+      dirName.add i
+    else: discard
+  # Include query string (e.g., ?subdir=generator) to differentiate subdirectories
+  if puri.query != "":
     dirName.add "_"
-    for i in puri.path:
+    for i in puri.query:
       case i
       of strutils.Letters, strutils.Digits:
         dirName.add i
       else: discard
-    # Include query string (e.g., ?subdir=generator) to differentiate subdirectories
-    if puri.query != "":
-      dirName.add "_"
-      for i in puri.query:
-        case i
-        of strutils.Letters, strutils.Digits:
-          dirName.add i
-        else: discard
-    options.pkgCachePath / dirName
-  else:
-    options.pkgCachePath / getDownloadDirName(url, ver, notSetSha1Hash)
+  options.pkgCachePath / dirName
 
 proc getPackageDownloadInfo*(pv: PkgTuple, options: Options, doPrompt = false): PackageDownloadInfo =
   if pv.name.isFileURL:
