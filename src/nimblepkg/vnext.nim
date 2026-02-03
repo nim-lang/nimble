@@ -315,9 +315,12 @@ proc resolveNim*(rootPackage: PackageInfo, pkgListDecl: seq[PackageInfo], system
   result.pkg = some(nims[0])
   result.version = nims[0].basicInfo.version
 
-proc getSolvedPkgFromInstalledPkgs*(satResult: SATResult, solvedPkg: SolvedPackage, options: Options): Option[PackageInfo] =
+proc getSolvedPkgFromInstalledPkgs*(satResult: SATResult, solvedPkg: SolvedPackage, options: Options, vcsRevision: Sha1Hash = notSetSha1Hash): Option[PackageInfo] =
   for pkg in satResult.pkgList:
     if pkg.basicInfo.name == solvedPkg.pkgName and pkg.basicInfo.version == solvedPkg.version:
+      # If vcsRevision is specified (from lock file), also check that it matches
+      if vcsRevision != notSetSha1Hash and pkg.metaData.vcsRevision != vcsRevision:
+        continue
       return some(pkg)
   return none(PackageInfo)
 
@@ -486,15 +489,19 @@ proc solveLockFileDeps*(satResult: var SATResult, pkgList: seq[PackageInfo], opt
 
   else:
     # No new requirements and not upgrading
-    # Clear any pre-added nim to ensure lock file ordering is preserved
+    # Clear any pre-added entries to ensure lock file is used exactly
     satResult.solvedPkgs = satResult.solvedPkgs.filterIt(not it.pkgName.isNim)
+    satResult.pkgsToInstall = @[]  # Clear SAT-resolved packages, use lock file versions
     for name, dep in lockFile.getLockedDependencies.lockedDepsFor(options):
       # Populate requirements from lock file dependencies to preserve them
       let requirements = dep.dependencies.mapIt((name: it, ver: VersionRange(kind: verAny)))
       let solvedPkg = SolvedPackage(pkgName: name, version: dep.version, requirements: requirements)
       satResult.solvedPkgs.add(solvedPkg)
+      # Store vcsRevision from lock file for use during installation
+      options.satResult.lockFileVcsRevisions[name] = dep.vcsRevision
       if name.isNim: continue  # Don't add nim to pkgsToInstall
-      let depInfo = satResult.getSolvedPkgFromInstalledPkgs(solvedPkg, options)
+      # Pass vcsRevision from lock file to ensure we match the exact commit
+      let depInfo = satResult.getSolvedPkgFromInstalledPkgs(solvedPkg, options, dep.vcsRevision)
       if depInfo.isSome:
         satResult.pkgs.incl(depInfo.get)
       else:
@@ -1190,7 +1197,12 @@ proc installPkgs*(satResult: var SATResult, options: var Options) {.instrument.}
     executeHook(nimBin, getCurrentDir(), options, actionInstall, before = true)
   
   for (name, ver) in pkgsToInstall:
-    let verRange = satResult.getVersionRangeFoPkgToInstall(name, ver)
+    var verRange = satResult.getVersionRangeFoPkgToInstall(name, ver)
+    # Get vcsRevision from lock file if available - will be passed to download functions
+    let vcsRevision = if name in options.satResult.lockFileVcsRevisions:
+      options.satResult.lockFileVcsRevisions[name]
+    else:
+      notSetSha1Hash
     var pv = (name: name, ver: verRange)
     var installedPkgInfo: PackageInfo
     var wasNewlyInstalled = false
@@ -1224,13 +1236,13 @@ proc installPkgs*(satResult: var SATResult, options: var Options) {.instrument.}
       
       var dlInfo: PackageDownloadInfo
       try:
-        dlInfo = getPackageDownloadInfo(pv, options, doPrompt = true)
+        dlInfo = getPackageDownloadInfo(pv, options, doPrompt = true, vcsRevision = vcsRevision)
       except CatchableError as e:
         #if we fail, we try to find the url for the req:
         let url = getUrlFromPkgName(pv.name, options.satResult.pkgVersionTable, options)
         if url != "":
           pv.name = url
-          dlInfo = getPackageDownloadInfo(pv, options, doPrompt = true)
+          dlInfo = getPackageDownloadInfo(pv, options, doPrompt = true, vcsRevision = vcsRevision)
         else:
           raise e
       var downloadDir = dlInfo.downloadDir / dlInfo.subdir       

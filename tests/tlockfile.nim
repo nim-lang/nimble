@@ -814,3 +814,76 @@ requires "nim >= 1.5.1"
       check newNimIndex >= 0  # nim should still be in the lock file
       if originalNimIndex > 0:
         check newNimIndex > 0  # nim should not be moved to first position
+
+  test "installs correct vcsRevision from lock file":
+    # Test that when installing from a lock file, the exact vcsRevision
+    # specified in the lock file is installed, not just a matching version.
+    let testDir = tempDir / "vcsrevision_test"
+
+    # Clean up any previous test
+    if dirExists(testDir):
+      removeDir(testDir)
+    createDir(testDir)
+
+    cd testDir:
+      # Create a minimal project with a lock file that specifies exact vcsRevisions
+      writeFile("vcsrevision_test.nimble", """
+version       = "0.1.0"
+author        = "Test"
+description   = "Test vcsRevision from lock file"
+license       = "MIT"
+requires "nim >= 2.0.0"
+requires "checksums >= 0.1.0"
+""")
+
+      # Create a lock file with specific vcsRevision
+      # Using checksums package which is small and has tags
+      # The vcsRevision is the actual commit for v0.1.0 tag
+      let lockContent = """{
+  "version": 2,
+  "packages": {
+    "checksums": {
+      "version": "0.1.0",
+      "vcsRevision": "7ff0b762332d2591bbeb65df9bb86d52ea44ec01",
+      "url": "https://github.com/nim-lang/checksums",
+      "downloadMethod": "git",
+      "dependencies": [],
+      "checksums": {
+        "sha1": "7ff0b762332d2591bbeb65df9bb86d52ea44ec01"
+      }
+    }
+  },
+  "tasks": {}
+}"""
+      writeFile(defaultLockFileName, lockContent)
+
+      # Remove any existing checksums package to force fresh install
+      let pkgsDir = installDir / "pkgs2"
+      for kind, path in walkDir(pkgsDir):
+        if kind == pcDir and path.extractFilename.startsWith("checksums-"):
+          removeDir(path)
+
+      # Run nimble setup which will install from lock file
+      let (output, exitCode) = execNimbleYes("setup")
+      check exitCode == QuitSuccess
+
+      # Find the installed checksums package
+      var installedDir = ""
+      for kind, path in walkDir(pkgsDir):
+        if kind == pcDir and path.extractFilename.startsWith("checksums-"):
+          installedDir = path
+          break
+
+      check installedDir != ""
+
+      # Read the nimblemeta.json to verify the correct vcsRevision was installed
+      let metaFile = installedDir / "nimblemeta.json"
+      check fileExists(metaFile)
+      let metaJson = parseFile(metaFile)
+      let installedVcsRevision = metaJson{"metaData", "vcsRevision"}.getStr
+
+      # Verify the vcsRevision matches what was in the lock file
+      check installedVcsRevision == "7ff0b762332d2591bbeb65df9bb86d52ea44ec01"
+
+    # Cleanup
+    removeDir(testDir)

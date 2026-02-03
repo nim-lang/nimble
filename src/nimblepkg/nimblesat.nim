@@ -60,6 +60,7 @@ type
     subdir*: string
     downloadDir*: string
     pv*: PkgTuple #Require request
+    vcsRevision*: Sha1Hash #From lock file, for exact commit matching
   
 # var urlToName: Table[string, string] = initTable[string, string]()
 
@@ -630,7 +631,7 @@ proc getSolvedPackages*(pkgVersionTable: Table[string, PackageVersions], output:
 proc isFileUrl*(pkgDownloadInfo: PackageDownloadInfo): bool =
   pkgDownloadInfo.meth.isNone and pkgDownloadInfo.url.isFileURL
 
-proc getCacheDownloadDir*(url: string, ver: VersionRange, options: Options): string =
+proc getCacheDownloadDir*(url: string, ver: VersionRange, options: Options, vcsRevision: Sha1Hash = notSetSha1Hash): string =
   # Use version-agnostic cache directory ONLY for verAny (used during package discovery).
   # This allows enumerating all versions from a single git clone.
   # For all other version types (specific versions, ranges, special versions),
@@ -665,29 +666,34 @@ proc getCacheDownloadDir*(url: string, ver: VersionRange, options: Options): str
       of strutils.Letters, strutils.Digits:
         dirName.add i
       else: discard
+  # When vcsRevision is specified (e.g., from lock file), include it in the cache directory
+  # This ensures exact commits get their own cache directory
+  if vcsRevision != notSetSha1Hash:
+    dirName.add "_"
+    dirName.add $vcsRevision
   options.pkgCachePath / dirName
 
-proc getPackageDownloadInfo*(pv: PkgTuple, options: Options, doPrompt = false): PackageDownloadInfo =
+proc getPackageDownloadInfo*(pv: PkgTuple, options: Options, doPrompt = false, vcsRevision: Sha1Hash = notSetSha1Hash): PackageDownloadInfo =
   if pv.name.isFileURL:
-    return PackageDownloadInfo(meth: none(DownloadMethod), url: pv.name, subdir: "", downloadDir: "", pv: pv)
+    return PackageDownloadInfo(meth: none(DownloadMethod), url: pv.name, subdir: "", downloadDir: "", pv: pv, vcsRevision: notSetSha1Hash)
   let (meth, url, metadata) =
       getDownloadInfo(pv, options, doPrompt, ignorePackageCache = false)
   let subdir = metadata.getOrDefault("subdir")
-  let downloadDir = getCacheDownloadDir(url, pv.ver, options)
-  PackageDownloadInfo(meth: some meth, url: url, subdir: subdir, downloadDir: downloadDir, pv: pv)
+  let downloadDir = getCacheDownloadDir(url, pv.ver, options, vcsRevision)
+  PackageDownloadInfo(meth: some meth, url: url, subdir: subdir, downloadDir: downloadDir, pv: pv, vcsRevision: vcsRevision)
 
 proc getPackageFromFileUrl*(fileUrl: string, options: Options, nimBin: string): PackageInfo = 
   let absPath = extractFilePathFromURL(fileUrl)
   getPkgInfoFromDirWithDeclarativeParser(absPath, options, nimBin)
 
-proc downloadFromDownloadInfo*(dlInfo: PackageDownloadInfo, options: Options, nimBin: string): (DownloadPkgResult, Option[DownloadMethod]) = 
+proc downloadFromDownloadInfo*(dlInfo: PackageDownloadInfo, options: Options, nimBin: string): (DownloadPkgResult, Option[DownloadMethod]) =
   if dlInfo.isFileUrl:
     let pkgInfo = getPackageFromFileUrl(dlInfo.url, options, nimBin)
     let downloadRes = (dir: pkgInfo.getNimbleFileDir(), version: pkgInfo.basicInfo.version, vcsRevision: notSetSha1Hash)
     (downloadRes, none(DownloadMethod))
   else:
     let downloadRes = downloadPkg(dlInfo.url, dlInfo.pv.ver, dlInfo.meth.get, dlInfo.subdir, options,
-                  dlInfo.downloadDir, vcsRevision = notSetSha1Hash, nimBin = nimBin)
+                  dlInfo.downloadDir, vcsRevision = dlInfo.vcsRevision, nimBin = nimBin)
     (downloadRes, dlInfo.meth)
 
 proc downloadPkgFromUrl*(pv: PkgTuple, options: Options, doPrompt = false, nimBin: string): (DownloadPkgResult, Option[DownloadMethod]) = 
@@ -841,7 +847,7 @@ proc getPackageMinimalVersionsFromRepo*(repoDir: string, pkg: PkgTuple, version:
 
         # Fall back to checkout + VM parser if declarative parsing failed
         if not parsed:
-          doCheckout(downloadMethod, tempDir, tag, versionDiscoveryOptions)
+          discard doCheckout(downloadMethod, tempDir, tag, versionDiscoveryOptions)
           let nimbleFile = findNimbleFile(tempDir, true, options, warn = false)
           if options.satResult.pass in {satNimSelection}:
             result.addUnique getPkgInfoFromDirWithDeclarativeParser(tempDir, options, nimBin).getMinimalInfo(options)
@@ -939,7 +945,7 @@ proc getPackageMinimalVersionsFromRepoAsync*(repoDir: string, pkg: PkgTuple, ver
 
         # Fall back to checkout + VM parser if declarative parsing failed
         if not parsed:
-          await doCheckoutAsync(downloadMethod, tempDir, tag, versionDiscoveryOptions)
+          discard await doCheckoutAsync(downloadMethod, tempDir, tag, versionDiscoveryOptions)
           let nimbleFile = findNimbleFile(tempDir, true, options, warn = false)
           if options.satResult.pass in {satNimSelection}:
             result.addUnique getPkgInfoFromDirWithDeclarativeParser(tempDir, options, nimBin).getMinimalInfo(options)
@@ -1140,7 +1146,7 @@ proc downloadFromDownloadInfoAsync*(dlInfo: PackageDownloadInfo, options: Option
     return (downloadRes, none(DownloadMethod))
   else:
     let downloadRes = await downloadPkgAsync(dlInfo.url, dlInfo.pv.ver, dlInfo.meth.get, dlInfo.subdir, options,
-                  dlInfo.downloadDir, vcsRevision = notSetSha1Hash, nimBin = nimBin)
+                  dlInfo.downloadDir, vcsRevision = dlInfo.vcsRevision, nimBin = nimBin)
     return (downloadRes, dlInfo.meth)
 
 proc downloadPkgFromUrlAsync*(pv: PkgTuple, options: Options, doPrompt = false, nimBin: string): Future[(DownloadPkgResult, Option[DownloadMethod])] {.async.} =

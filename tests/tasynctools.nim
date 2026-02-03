@@ -139,7 +139,8 @@ suite "Async Tools":
                          onlyTip = false, options = options)
 
     # Checkout v0.4.0 tag using async
-    waitFor doCheckoutAsync(DownloadMethod.git, cloneDir, "v0.4.0", options)
+    let checkoutSuccess = waitFor doCheckoutAsync(DownloadMethod.git, cloneDir, "v0.4.0", options)
+    check checkoutSuccess
 
     # Verify checkout succeeded by checking if we're on the right version
     check dirExists(cloneDir)
