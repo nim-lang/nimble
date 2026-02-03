@@ -41,7 +41,8 @@ proc updateSubmodulesAsync(dir: string): Future[void] {.async.} =
   discard await tryDoCmdExAsync(
     &"git -C {dir.quoteShell} submodule update --init --recursive --depth 1")
 
-proc doCheckout*(meth: DownloadMethod, downloadDir, branch: string, options: Options) =
+proc doCheckout*(meth: DownloadMethod, downloadDir, branch: string, options: Options): bool =
+  ## Performs checkout and returns true if successful, false otherwise.
   case meth
   of DownloadMethod.git:
     # Force is used here because local changes may appear straight after a clone
@@ -50,14 +51,19 @@ proc doCheckout*(meth: DownloadMethod, downloadDir, branch: string, options: Opt
     let (_, exitCode) = doCmdEx(&"git -C {downloadDir.quoteShell} checkout --force {branch.quoteShell}")
     if exitCode != 0 and not branch.startsWith("v"):
       # Try with 'v' prefix as fallback (common convention for version tags)
-      discard tryDoCmdEx(&"git -C {downloadDir.quoteShell} checkout --force v{branch.quoteShell}")
+      let (_, exitCode2) = doCmdEx(&"git -C {downloadDir.quoteShell} checkout --force v{branch.quoteShell}")
+      if exitCode2 != 0:
+        return false
     if not options.ignoreSubmodules:
       downloadDir.updateSubmodules
+    return true
   of DownloadMethod.hg:
-    discard tryDoCmdEx(&"hg --cwd {downloadDir.quoteShell} checkout {branch.quoteShell}")
+    let (_, exitCode) = doCmdEx(&"hg --cwd {downloadDir.quoteShell} checkout {branch.quoteShell}")
+    return exitCode == 0
 
-proc doCheckoutAsync*(meth: DownloadMethod, downloadDir, branch: string, options: Options): Future[void] {.async.} =
+proc doCheckoutAsync*(meth: DownloadMethod, downloadDir, branch: string, options: Options): Future[bool] {.async.} =
   ## Async version of doCheckout that uses doCmdExAsync for non-blocking execution.
+  ## Returns true if successful, false otherwise.
   case meth
   of DownloadMethod.git:
     # Force is used here because local changes may appear straight after a clone
@@ -66,11 +72,15 @@ proc doCheckoutAsync*(meth: DownloadMethod, downloadDir, branch: string, options
     let (_, exitCode) = await doCmdExAsync(&"git -C {downloadDir.quoteShell} checkout --force {branch.quoteShell}")
     if exitCode != 0 and not branch.startsWith("v"):
       # Try with 'v' prefix as fallback (common convention for version tags)
-      discard await tryDoCmdExAsync(&"git -C {downloadDir.quoteShell} checkout --force v{branch.quoteShell}")
+      let (_, exitCode2) = await doCmdExAsync(&"git -C {downloadDir.quoteShell} checkout --force v{branch.quoteShell}")
+      if exitCode2 != 0:
+        return false
     if not options.ignoreSubmodules:
       await downloadDir.updateSubmodulesAsync()
+    return true
   of DownloadMethod.hg:
-    discard await tryDoCmdExAsync(&"hg --cwd {downloadDir.quoteShell} checkout {branch.quoteShell}")
+    let (_, exitCode) = await doCmdExAsync(&"hg --cwd {downloadDir.quoteShell} checkout {branch.quoteShell}")
+    return exitCode == 0
 
 proc doClone(meth: DownloadMethod, url, downloadDir: string, branch = "",
              onlyTip = true, options: Options) =
@@ -643,11 +653,15 @@ proc doDownload(url, downloadDir: string, verRange: VersionRange,
         result.vcsRevision = doDownloadTarball(
           url, downloadDir, specialVersion, true)
       else:
-        # Grab the full repo.
+        # Try normal clone + checkout first (works for branches, tags, and reachable commits)
         doClone(downMethod, url, downloadDir, onlyTip = false, options = options)
-        # Then perform a checkout operation to get the specified branch/commit.
-        # `spe` starts with '#', trim it.
-        doCheckout(downMethod, downloadDir, specialVersion, options = options)
+        let checkoutSuccess = doCheckout(downMethod, downloadDir, specialVersion, options = options)
+        if not checkoutSuccess:
+          # Checkout failed - likely a commit hash not reachable from default branch.
+          # Fall back to cloneSpecificRevision which fetches the specific commit directly.
+          removeDir(downloadDir)
+          cloneSpecificRevision(downMethod, url, downloadDir, initSha1Hash(specialVersion), options)
+          result.vcsRevision = initSha1Hash(specialVersion)
     result.version = verRange.spe
   else:
     case downMethod
@@ -686,7 +700,7 @@ proc doDownload(url, downloadDir: string, verRange: VersionRange,
         getLatestByTag:
           display("Switching", "to latest tagged version: " & latest.tag,
                   priority = MediumPriority)
-          doCheckout(downMethod, downloadDir, latest.tag, options = options)
+          discard doCheckout(downMethod, downloadDir, latest.tag, options = options)
       else:
         display("Warning:", &"The package {url} has no tagged releases, downloading HEAD instead.", Warning,
                   priority = HighPriority)
@@ -741,11 +755,15 @@ proc doDownloadAsync(url, downloadDir: string, verRange: VersionRange,
         result.vcsRevision = await doDownloadTarballAsync(
           url, downloadDir, specialVersion, true)
       else:
-        # Grab the full repo.
+        # Try normal clone + checkout first (works for branches, tags, and reachable commits)
         await doCloneAsync(downMethod, url, downloadDir, onlyTip = false, options = options)
-        # Then perform a checkout operation to get the specified branch/commit.
-        # `spe` starts with '#', trim it.
-        doCheckout(downMethod, downloadDir, specialVersion, options = options)
+        let checkoutSuccess = await doCheckoutAsync(downMethod, downloadDir, specialVersion, options = options)
+        if not checkoutSuccess:
+          # Checkout failed - likely a commit hash not reachable from default branch.
+          # Fall back to cloneSpecificRevision which fetches the specific commit directly.
+          removeDir(downloadDir)
+          await cloneSpecificRevisionAsync(downMethod, url, downloadDir, initSha1Hash(specialVersion), options)
+          result.vcsRevision = initSha1Hash(specialVersion)
     result.version = verRange.spe
   else:
     case downMethod
@@ -784,7 +802,7 @@ proc doDownloadAsync(url, downloadDir: string, verRange: VersionRange,
         getLatestByTag:
           display("Switching", "to latest tagged version: " & latest.tag,
                   priority = MediumPriority)
-          doCheckout(downMethod, downloadDir, latest.tag, options = options)
+          discard doCheckout(downMethod, downloadDir, latest.tag, options = options)
       else:
         display("Warning:", &"The package {url} has no tagged releases, downloading HEAD instead.", Warning,
                   priority = HighPriority)
