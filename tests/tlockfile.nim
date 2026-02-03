@@ -864,7 +864,7 @@ requires "checksums >= 0.1.0"
           removeDir(path)
 
       # Run nimble setup which will install from lock file
-      let (output, exitCode) = execNimbleYes("setup")
+      let (_, exitCode) = execNimbleYes("setup")
       check exitCode == QuitSuccess
 
       # Find the installed checksums package
