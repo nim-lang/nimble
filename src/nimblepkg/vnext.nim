@@ -492,6 +492,7 @@ proc solveLockFileDeps*(satResult: var SATResult, pkgList: seq[PackageInfo], opt
     # Clear any pre-added entries to ensure lock file is used exactly
     satResult.solvedPkgs = satResult.solvedPkgs.filterIt(not it.pkgName.isNim)
     satResult.pkgsToInstall = @[]  # Clear SAT-resolved packages, use lock file versions
+    satResult.pkgs.clear()  # Clear SAT-resolved pkgs to avoid mixing versions
     for name, dep in lockFile.getLockedDependencies.lockedDepsFor(options):
       # Populate requirements from lock file dependencies to preserve them
       let requirements = dep.dependencies.mapIt((name: it, ver: VersionRange(kind: verAny)))
@@ -701,10 +702,11 @@ proc packageExists(nimBin: string, pkgInfo: PackageInfo, options: Options):
   ## package already exists returns the `PackageInfo` of the package in the
   ## cache otherwise returns `none`. Raises a `NimbleError` in the case the
   ## package exists in the cache but it is not valid.
+  ##
+  ## Also checks for packages with the same name and checksum but different version
+  ## to avoid storing the same content multiple times with different version labels.
   let pkgDestDir = pkgInfo.getPkgDest(options)
-  if not fileExists(pkgDestDir / packageMetaDataFileName):
-    return none[PackageInfo]()
-  else:
+  if fileExists(pkgDestDir / packageMetaDataFileName):
     var oldPkgInfo = initPackageInfo()
     try:
       oldPkgInfo = pkgDestDir.getPkgInfo(options, nimBin = nimBin)
@@ -713,6 +715,28 @@ proc packageExists(nimBin: string, pkgInfo: PackageInfo, options: Options):
                         details = error)
     fillMetaData(oldPkgInfo, pkgDestDir, true, options)
     return some(oldPkgInfo)
+
+  # Check if a package with the same name and checksum exists with a different version.
+  # This prevents storing the same content multiple times with different version labels.
+  if pkgInfo.basicInfo.checksum != notSetSha1Hash:
+    let pkgsDir = options.getPkgsDir()
+    let pkgNamePrefix = pkgInfo.basicInfo.name & "-"
+    let checksumSuffix = "-" & $pkgInfo.basicInfo.checksum
+    for kind, path in walkDir(pkgsDir):
+      if kind == pcDir:
+        let dirName = path.extractFilename
+        # Check if this is the same package (name matches) with same checksum
+        if dirName.startsWith(pkgNamePrefix) and dirName.endsWith(checksumSuffix):
+          if fileExists(path / packageMetaDataFileName):
+            var oldPkgInfo = initPackageInfo()
+            try:
+              oldPkgInfo = path.getPkgInfo(options, nimBin = nimBin)
+            except CatchableError:
+              continue  # Skip invalid packages
+            fillMetaData(oldPkgInfo, path, true, options)
+            return some(oldPkgInfo)
+
+  return none[PackageInfo]()
 
 
 proc copyInstallFiles(srcDir, destDir: string, pkgInfo: PackageInfo,
@@ -746,10 +770,9 @@ proc installFromDirDownloadInfo(nimBin: string, downloadDir: string, url: string
   var depsOptions = options
   depsOptions.depsOnly = false
 
-  # Check for version mismatch between git tag and .nimble file
-  # pv.ver.ver is the version from the SAT solver, which was discovered from git tags
-  # (e.g., tag v0.36.0 -> version 0.36.0). If the .nimble file declares a different
-  # version (e.g., 0.1.0), we use the tag version since that's what was requested.
+  # Handle version mismatch between git tag/lock file and .nimble file.
+  # Tag version takes precedence - if the nimble file has a different version,
+  # it's simply stale/wrong. Override it with the tag version.
   if pv.ver.kind == verEq and pkgInfo.basicInfo.version != pv.ver.ver:
     pkgInfo.basicInfo.version = pv.ver.ver
 
@@ -763,6 +786,9 @@ proc installFromDirDownloadInfo(nimBin: string, downloadDir: string, url: string
     # the new package special versions to the old one.
     displayWarning(pkgAlreadyExistsInTheCacheMsg(pkgInfo), MediumPriority)
     var oldPkg = oldPkg.get
+    # Add the requested version to specialVersions so this package can satisfy
+    # requirements for that version (important when same content has multiple version tags)
+    oldPkg.metaData.specialVersions.incl pkgInfo.basicInfo.version
     oldPkg.metaData.specialVersions.incl pkgInfo.metaData.specialVersions
     saveMetaData(oldPkg.metaData, oldPkg.getNimbleFileDir, changeRoots = false)
     return oldPkg

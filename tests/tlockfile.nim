@@ -887,3 +887,112 @@ requires "checksums >= 0.1.0"
 
     # Cleanup
     removeDir(testDir)
+
+  test "nimble.paths contains only one version per package":
+    # This test verifies that when using a lock file, nimble.paths doesn't contain
+    # multiple versions of the same package. This was a bug where satResult.pkgs
+    # wasn't cleared before processing the lock file, causing old versions to remain.
+    #
+    # The bug scenario:
+    # 1. Project requires "checksums >= 0.1.0"
+    # 2. Lock file specifies checksums 0.1.0
+    # 3. SAT solver runs and might pick 0.2.0 (latest satisfying version)
+    # 4. Lock file processing should clear SAT result and use 0.1.0 only
+    # 5. Without the fix, both 0.1.0 and 0.2.0 could appear in nimble.paths
+
+    let testDir = tempDir / "single_version_paths_test"
+
+    # Clean up any previous test
+    if dirExists(testDir):
+      removeDir(testDir)
+    createDir(testDir)
+
+    cd testDir:
+      # Create a minimal project
+      writeFile("single_version_test.nimble", """
+version       = "0.1.0"
+author        = "Test"
+description   = "Test single version in paths"
+license       = "MIT"
+requires "nim >= 2.0.0"
+requires "checksums >= 0.1.0"
+""")
+
+      # Create a lock file specifying an OLDER version (0.1.0)
+      # The SAT solver would normally pick the latest (0.2.x) but lock file pins to 0.1.0
+      let lockContent = """{
+  "version": 2,
+  "packages": {
+    "checksums": {
+      "version": "0.1.0",
+      "vcsRevision": "7ff0b762332d2591bbeb65df9bb86d52ea44ec01",
+      "url": "https://github.com/nim-lang/checksums",
+      "downloadMethod": "git",
+      "dependencies": [],
+      "checksums": {
+        "sha1": "7ff0b762332d2591bbeb65df9bb86d52ea44ec01"
+      }
+    }
+  },
+  "tasks": {}
+}"""
+      writeFile(defaultLockFileName, lockContent)
+
+      let pkgsDir = installDir / "pkgs2"
+
+      # Remove any existing checksums packages first
+      for kind, path in walkDir(pkgsDir):
+        if kind == pcDir and path.extractFilename.startsWith("checksums-"):
+          removeDir(path)
+
+      # First, install the LATEST version without using lock file
+      # This simulates having a newer version installed
+      removeFile(defaultLockFileName)  # Temporarily remove lock file
+      let (_, buildExitCode) = execNimbleYes("setup")
+      check buildExitCode == QuitSuccess
+
+      # Check what version was installed (should be latest, like 0.2.x)
+      var installedVersionWithoutLock = ""
+      for kind, path in walkDir(pkgsDir):
+        if kind == pcDir and path.extractFilename.startsWith("checksums-"):
+          let afterChecksums = path.extractFilename[10 .. ^1]  # skip "checksums-"
+          let dashPos = afterChecksums.find("-")
+          if dashPos > 0:
+            installedVersionWithoutLock = afterChecksums[0 ..< dashPos]
+            break
+
+      # Now restore the lock file and run setup again
+      # This is where the bug manifests - both versions could appear
+      writeFile(defaultLockFileName, lockContent)
+      let (_, setupExitCode) = execNimbleYes("setup")
+      check setupExitCode == QuitSuccess
+
+      # Read nimble.paths and check for duplicate package versions
+      let pathsFile = "nimble.paths"
+      check fileExists(pathsFile)
+      let pathsContent = readFile(pathsFile)
+
+      # Extract version numbers from checksums paths
+      # A package may have multiple paths (root and src), but all should be same version
+      var checksumsVersions: seq[string] = @[]
+      for line in pathsContent.splitLines():
+        if "checksums-" in line and line.startsWith("--path:"):
+          # Extract version from path like "checksums-0.1.0-hash"
+          let pathStart = line.find("checksums-")
+          if pathStart >= 0:
+            let afterChecksums = line[pathStart + 10 .. ^1]  # skip "checksums-"
+            let dashPos = afterChecksums.find("-")
+            if dashPos > 0:
+              let version = afterChecksums[0 ..< dashPos]
+              if version notin checksumsVersions:
+                checksumsVersions.add(version)
+
+      # There should be exactly one VERSION of checksums (though possibly multiple paths)
+      # The bug would cause both 0.1.0 and 0.2.x to appear
+      check checksumsVersions.len == 1
+
+      # And it should be the version from the lock file (0.1.0), not the latest
+      check checksumsVersions[0] == "0.1.0"
+
+    # Cleanup
+    removeDir(testDir)
