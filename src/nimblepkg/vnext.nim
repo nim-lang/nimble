@@ -492,6 +492,7 @@ proc solveLockFileDeps*(satResult: var SATResult, pkgList: seq[PackageInfo], opt
     # Clear any pre-added entries to ensure lock file is used exactly
     satResult.solvedPkgs = satResult.solvedPkgs.filterIt(not it.pkgName.isNim)
     satResult.pkgsToInstall = @[]  # Clear SAT-resolved packages, use lock file versions
+    satResult.pkgs.clear()  # Clear SAT-resolved pkgs to avoid mixing versions
     for name, dep in lockFile.getLockedDependencies.lockedDepsFor(options):
       # Populate requirements from lock file dependencies to preserve them
       let requirements = dep.dependencies.mapIt((name: it, ver: VersionRange(kind: verAny)))
