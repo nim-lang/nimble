@@ -2817,7 +2817,12 @@ proc runVNext*(options: var Options, nimBin: string) {.instrument.} =
         deps: options.satResult.solvedPkgs.filterIt(it.pkgName.toLower != rootPackage.basicInfo.name.toLower)  
       )
       options.satResult.solvedPkgs.add(rootSolvedPkg)
-      
+  else:
+    # No nimble file and action requires one - raise a friendly error
+    raise nimbleError(
+      "Could not find a .nimble file in the current directory. " &
+      "This command requires a Nimble package file.")
+
   # echo "BEFORE INSTALL PKGS"
   # options.debugSATResult()
   options.satResult.installPkgs(options)

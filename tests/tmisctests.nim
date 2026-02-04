@@ -181,3 +181,22 @@ suite "misc tests":
     # - With fix: shows "corrupted" warning and re-downloads
     # - Without fix but SAT recovery: shows "Downloading"
     check output.contains("corrupted") or output.contains("Downloading")
+
+  test "friendly error when running command without nimble file":
+    # Commands like build, test, run should show a friendly error message
+    # when run in a directory without a .nimble file, instead of an assertion failure
+    let testDir = getTempDir() / "no_nimble_file_test"
+    if dirExists(testDir):
+      removeDir(testDir)
+    createDir(testDir)
+
+    cd testDir:
+      # Test various commands that require a nimble file
+      for cmd in ["build", "run", "test"]:
+        let (output, exitCode) = execNimble(cmd)
+        check exitCode != QuitSuccess
+        # Should show a friendly error message, not an assertion failure
+        check output.contains("Could not find a .nimble file")
+        check not output.contains("AssertionDefect")
+
+    removeDir(testDir)
