@@ -3113,6 +3113,17 @@ when isMainModule:
       opt.disableValidation = true
     
     var shouldRunVNext = not opt.isLegacy and opt.action.typ in vNextSupportedActions
+
+    # Check if nimble file is required but not present
+    # Actions like build, test, run, etc. require a nimble file
+    const actionsRequiringNimbleFile = {actionBuild, actionSetup, actionRun,
+      actionLock, actionCustom, actionSync, actionUpgrade, actionDoc,
+      actionCompile, actionDeps, actionAdd}
+    if shouldRunVNext and opt.action.typ in actionsRequiringNimbleFile and not opt.thereIsNimbleFile:
+      raise nimbleError(
+        "Could not find a .nimble file in the current directory. " &
+        "This command requires a Nimble package file.")
+
     let bootstrapNimRes = getBootstrapNimResolved(opt)
     let nimBin = bootstrapNimRes.getNimBin()
     if shouldRunVNext:
