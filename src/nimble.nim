@@ -2793,7 +2793,9 @@ proc runVNext*(options: var Options, nimBin: string) {.instrument.} =
     setVerbosity(SilentPriority)
     options.verbosity = SilentPriority
   #Install and in consequence builds the packages
-  if options.thereIsNimbleFile:
+  let isGlobalInstall = options.explicitGlobal and
+    options.action.typ == actionInstall and options.action.packages.len > 0
+  if options.thereIsNimbleFile and not isGlobalInstall:
     options.satResult = initSATResult(satNimSelection)
     options.isFilePathDiscovering = true
     #we need to skip validation for root
@@ -3139,7 +3141,9 @@ when isMainModule:
     opt.doAction(nimBin)
     #if the action is different than setup and in vnext we run setup
     #when not doing a global install (no ninmble file in the current directory)
-    if shouldRunVNext and opt.action.typ notin {actionSetup, actionDevelop} and opt.thereIsNimbleFile:
+    let isGlobalInstallPost = opt.explicitGlobal and
+      opt.action.typ == actionInstall and opt.action.packages.len > 0
+    if shouldRunVNext and opt.action.typ notin {actionSetup, actionDevelop} and opt.thereIsNimbleFile and not isGlobalInstallPost:
       setup(opt, nimBin)
 
   except NimbleQuit as quit:

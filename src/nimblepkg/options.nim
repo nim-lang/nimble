@@ -82,6 +82,7 @@ type
     isFilePathDiscovering*: bool # Whether we are discovering file:// requires to fill up filePathPkgs. If true, it wont validate file:// requires.
     visitedHooks*: seq[VisitedHook] # Whether we are executing hooks.
     useAsyncDownloads*: bool # Whether to use async downloads (temporary flag)
+    explicitGlobal*: bool # Whether -g/--global was explicitly passed by the user
     
   ActionType* = enum
     actionNil, actionRefresh, actionInit, actionDump, actionPublish, actionUpgrade
@@ -755,7 +756,9 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
   of "disablevalidation": result.disableValidation = true
   of "nim": result.nimBin = some makeNimBin(result, val)
   of "localdeps", "l": result.localdeps = true
-  of "global", "g": result.localdeps = false
+  of "global", "g":
+    result.localdeps = false
+    result.explicitGlobal = true
   of "nosslcheck": result.disableSslCertCheck = true
   of "nolockfile": result.disableLockFile = true
   of "tarballs", "t": result.enableTarballs = true
