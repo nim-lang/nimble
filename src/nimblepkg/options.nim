@@ -309,7 +309,7 @@ const
 const vNextSupportedActions* = { actionInstall, actionBuild,
   actionSetup, actionRun, actionLock, actionCustom, actionSync,
   actionShellEnv, actionShell, actionUpgrade, actionDoc, actionCompile,
-  actionDeps, actionAdd
+  actionDeps, actionAdd, actionDevelop
 }
 
 proc `$`*(hook: VisitedHook): string =
