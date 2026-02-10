@@ -69,6 +69,29 @@ suite "develop feature":
         check lines.inLinesOrdered(
           pkgSetupInDevModeMsg(pkgBName, installDir / defaultPath / pkgBName))
 
+  test "develop with dependencies generates nimble.paths with vendor paths":
+    cdCleanDir installDir:
+      usePackageListFile &"../develop/{pkgListFileName}":
+        # Create a project that requires packagea (available in the test package list)
+        writeFile("testproject.nimble",
+          "version = \"0.1.0\"\n" &
+          "author = \"Test\"\n" &
+          "description = \"Test\"\n" &
+          "license = \"MIT\"\n" &
+          "requires \"nim >= 1.6.0\", \"packagea\"\n")
+        # develop --withDependencies from a project dir clones deps into vendor/
+        # and should generate nimble.paths with vendor paths
+        let (_, exitCode) = execNimble(
+          "develop", "--with-dependencies")
+        check exitCode == QuitSuccess
+        # Check nimble.paths was generated with vendor paths
+        check fileExists("nimble.paths")
+        let pathsContent = readFile("nimble.paths")
+        check pathsContent.contains(defaultPath)
+        check pathsContent.toLowerAscii.contains("packagea")
+        # Ensure paths point to vendor directory, not to pkgs2
+        check not pathsContent.contains("pkgs2")
+
   test "can develop list of packages":
     cdCleanDir installDir:
       usePackageListFile &"../develop/{pkgListFileName}":

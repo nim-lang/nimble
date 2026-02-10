@@ -52,7 +52,15 @@ proc install(packages: seq[PkgTuple], options: Options,
              doPrompt, first, fromLockFile: bool,
              preferredPackages: seq[PackageInfo] = @[]): PackageDependenciesInfo
 
-proc getNimDir(options: var Options, nimBin: string): string 
+proc getNimDir(options: var Options, nimBin: string): string
+
+proc solvePkgs(rootPackage: PackageInfo, options: var Options, nimBin: string) {.instrument.}
+
+proc setup(options: Options, nimBin: string)
+
+proc develop(options: var Options, nimBin: string)
+
+proc setNimBin*(options: var Options)
 
 proc checkSatisfied(options: Options, dependencies: seq[PackageInfo], nimBin: string) =
   ## Check if two packages of the same name (but different version) are listed
@@ -2792,19 +2800,28 @@ proc runVNext*(options: var Options, nimBin: string) {.instrument.} =
   if options.action.typ in {actionShellEnv}:
     setVerbosity(SilentPriority)
     options.verbosity = SilentPriority
+  # For develop --withDependencies, run develop() first to clone vendor packages,
+  # then solve. This avoids a chicken-and-egg problem: the solver needs vendor
+  # packages on disk, but develop() is what creates them.
+  if options.action.typ == actionDevelop:
+    options.setNimBin()
+    develop(options, nimBin)
+    if not options.action.withDependencies or not options.thereIsNimbleFile:
+      return
+
   #Install and in consequence builds the packages
   let isGlobalInstall = options.explicitGlobal and
     options.action.typ == actionInstall and options.action.packages.len > 0
+  var rootPackage: PackageInfo
   if options.thereIsNimbleFile and not isGlobalInstall:
     options.satResult = initSATResult(satNimSelection)
     options.isFilePathDiscovering = true
     #we need to skip validation for root
-    var rootPackage = getPkgInfoFromDirWithDeclarativeParser(getCurrentDir(), options, nimBin = nimBin)
+    rootPackage = getPkgInfoFromDirWithDeclarativeParser(getCurrentDir(), options, nimBin = nimBin)
     options.isFilePathDiscovering = false
     if options.action.typ in {actionInstall, actionAdd}:
       rootPackage.requires.add(options.action.packages)
     solvePkgs(rootPackage, options, nimBin)
-      # return
   elif options.action.typ == actionInstall:
     #Global install        
     for pkg in options.action.packages:          
@@ -2825,8 +2842,21 @@ proc runVNext*(options: var Options, nimBin: string) {.instrument.} =
       "Could not find a .nimble file in the current directory. " &
       "This command requires a Nimble package file.")
 
-  # echo "BEFORE INSTALL PKGS"
-  # options.debugSATResult()
+  # For develop, resolve pkgsToInstall from vendor packages instead of downloading.
+  if options.action.typ == actionDevelop:
+    let developPkgs = processDevelopDependencies(rootPackage, options, nimBin)
+    var remainingPkgsToInstall: seq[(string, Version)] = @[]
+    for (name, ver) in options.satResult.pkgsToInstall:
+      var found = false
+      for devPkg in developPkgs:
+        if cmpIgnoreCase(devPkg.basicInfo.name, name) == 0:
+          options.satResult.pkgs.incl(devPkg)
+          found = true
+          break
+      if not found:
+        remainingPkgsToInstall.add((name, ver))
+    options.satResult.pkgsToInstall = remainingPkgsToInstall
+
   options.satResult.installPkgs(options)
   # echo "AFTER INSTALL PKG/S"
   # options.debugSATResult()
@@ -3134,17 +3164,21 @@ when isMainModule:
         opt.task = opt.action.command.normalize
       runVNext(opt, nimBin)
     elif not opt.showVersion and not opt.showHelp:
-      #Even in vnext some actions need to have set Nim the old way i.e. initAction 
+      #Even in vnext some actions need to have set Nim the old way i.e. initAction
       #TODO review this and write specific logic to set Nim in this scenario.
       opt.setNimBin()
-    
-    opt.doAction(nimBin)
+
+    # develop is handled inside runVNext (it must run before the solver)
+    if not shouldRunVNext or opt.action.typ != actionDevelop:
+      opt.doAction(nimBin)
     #if the action is different than setup and in vnext we run setup
     #when not doing a global install (no ninmble file in the current directory)
     let isGlobalInstallPost = opt.explicitGlobal and
       opt.action.typ == actionInstall and opt.action.packages.len > 0
-    if shouldRunVNext and opt.action.typ notin {actionSetup, actionDevelop} and opt.thereIsNimbleFile and not isGlobalInstallPost:
-      setup(opt, nimBin)
+    if shouldRunVNext and opt.action.typ notin {actionSetup} and opt.thereIsNimbleFile and not isGlobalInstallPost:
+      # For develop without --withDependencies, no solving happened - skip setup
+      if opt.action.typ != actionDevelop or opt.action.withDependencies:
+        setup(opt, nimBin)
 
   except NimbleQuit as quit:
     exitCode = quit.exitCode

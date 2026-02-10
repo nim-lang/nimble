@@ -963,6 +963,8 @@ proc getPathsToBuildFor*(satResult: SATResult, pkgInfo: PackageInfo, recursive: 
 proc getPathsAllPkgs*(options: Options): HashSet[string] =
   let satResult = options.satResult
   for pkg in satResult.pkgs:
+    if pkg.basicInfo.name.isNim:
+      continue  # Skip nim - it's the compiler, not a library dependency
     for path in pkg.expandPaths(satResult.nimResolved.getNimBin(), options):
       result.incl(path)
 
