@@ -224,6 +224,47 @@ suite "Build/Install refactor":
       # The temp dir protection applies to pkgcache packages only.
       removeDir("generated_dir")
 
+  test "-g flag installs globally, not to nimbledeps":
+    cd "buildInstall/pkgNoBinary":
+      # Ensure clean state
+      removeDir("nimbledeps")
+
+      # Install packagea with -g from a project directory
+      let (_, exitCode1) = execNimbleYes("-g", "install", pkgAUrl)
+      check exitCode1 == QuitSuccess
+
+      # Package should be in the global install dir (pkgsDir)
+      var foundInGlobal = false
+      for kind, path in walkDir(pkgsDir):
+        if kind == pcDir and "packagea" in path.toLower:
+          foundInGlobal = true
+          break
+      check foundInGlobal
+
+      # Package should NOT be in nimbledeps
+      check not dirExists("nimbledeps" / "pkgs2")
+
+  test "without -g flag installs to nimbledeps in local mode":
+    cd "buildInstall/pkgNoBinary":
+      # Create nimbledeps so localdeps mode activates
+      createDir("nimbledeps")
+
+      # Install packagea with -l (local mode) - no -g
+      let (_, exitCode2) = execNimbleYes("-l", "install", pkgAUrl)
+      check exitCode2 == QuitSuccess
+
+      # Package should be in nimbledeps
+      var foundInLocal = false
+      if dirExists("nimbledeps" / "pkgs2"):
+        for kind, path in walkDir("nimbledeps" / "pkgs2"):
+          if kind == pcDir and "packagea" in path.toLower:
+            foundInLocal = true
+            break
+      check foundInLocal
+
+      # Clean up
+      removeDir("nimbledeps")
+
   test "special versions do not have # in directory names":
     # Install a package with an explicit special version (#head)
     # This test verifies our fix strips # from directory names
