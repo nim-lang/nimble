@@ -3175,7 +3175,7 @@ when isMainModule:
     #when not doing a global install (no ninmble file in the current directory)
     let isGlobalInstallPost = opt.explicitGlobal and
       opt.action.typ == actionInstall and opt.action.packages.len > 0
-    if shouldRunVNext and opt.action.typ notin {actionSetup} and opt.thereIsNimbleFile and not isGlobalInstallPost:
+    if shouldRunVNext and opt.action.typ notin {actionSetup, actionShell, actionShellEnv} and opt.thereIsNimbleFile and not isGlobalInstallPost:
       # For develop without --withDependencies, no solving happened - skip setup
       if opt.action.typ != actionDevelop or opt.action.withDependencies:
         setup(opt, nimBin)
