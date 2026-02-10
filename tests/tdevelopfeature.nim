@@ -81,7 +81,7 @@ suite "develop feature":
           "requires \"nim >= 1.6.0\", \"packagea\"\n")
         # develop --withDependencies from a project dir clones deps into vendor/
         # and should generate nimble.paths with vendor paths
-        let (output, exitCode) = execNimble(
+        let (_, exitCode) = execNimble(
           "develop", "--with-dependencies")
         check exitCode == QuitSuccess
         # Check nimble.paths was generated with vendor paths
