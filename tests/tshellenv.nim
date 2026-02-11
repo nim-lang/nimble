@@ -8,6 +8,9 @@ import testscommon
 from nimblepkg/common import cd
 import std/sequtils
 
+when not defined(windows):
+  import strformat
+
 const
   separator = when defined(windows): ";" else: ":"
 
