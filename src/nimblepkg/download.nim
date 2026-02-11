@@ -22,8 +22,13 @@ proc updateSubmodules*(dir: string) =
   ## Updates git submodules in the given directory.
   ## Called during installation to ensure submodules are populated
   ## even if the package was cached without them during version discovery.
-  discard tryDoCmdEx(
+  ## Non-fatal: on Windows, deeply nested submodule paths can exceed MAX_PATH.
+  let (output, exitCode) = doCmdEx(
     &"git -C {dir.quoteShell} submodule update --init --recursive --depth 1")
+  if exitCode != QuitSuccess:
+    displayWarning("Failed to update submodules in " & dir &
+      ". This may cause issues if the package relies on submodules.\n" &
+      "Details: " & output)
 
 proc tryDoCmdExAsync(cmd: string): Future[string] {.async.} =
   ## Async version of tryDoCmdEx. Executes command and raises error if it fails.
