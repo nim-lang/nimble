@@ -332,7 +332,7 @@ suite "Build/Install refactor":
     defer: removeDir(tempDir)
 
     cd tempDir:
-      let (output, exitCode) = execNimbleYes("install", "libbacktrace")
+      let (_, exitCode) = execNimbleYes("install", "libbacktrace")
       check exitCode == QuitSuccess
 
       # Verify pkgcache does NOT contain populated submodule directories.
