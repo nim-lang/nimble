@@ -2842,21 +2842,6 @@ proc runVNext*(options: var Options, nimBin: string) {.instrument.} =
       "Could not find a .nimble file in the current directory. " &
       "This command requires a Nimble package file.")
 
-  # For develop, resolve pkgsToInstall from vendor packages instead of downloading.
-  if options.action.typ == actionDevelop:
-    let developPkgs = processDevelopDependencies(rootPackage, options, nimBin)
-    var remainingPkgsToInstall: seq[(string, Version)] = @[]
-    for (name, ver) in options.satResult.pkgsToInstall:
-      var found = false
-      for devPkg in developPkgs:
-        if cmpIgnoreCase(devPkg.basicInfo.name, name) == 0:
-          options.satResult.pkgs.incl(devPkg)
-          found = true
-          break
-      if not found:
-        remainingPkgsToInstall.add((name, ver))
-    options.satResult.pkgsToInstall = remainingPkgsToInstall
-
   options.satResult.installPkgs(options)
   # echo "AFTER INSTALL PKG/S"
   # options.debugSATResult()

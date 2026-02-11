@@ -1221,9 +1221,27 @@ proc installPkgs*(satResult: var SATResult, options: var Options) {.instrument.}
   let rootName = satResult.rootPackage.basicInfo.name
   # options.debugSATResult()
   let nimBin = satResult.nimResolved.getNimBin()
+
+  # For develop, resolve pkgsToInstall from vendor packages instead of downloading.
+  # The SAT solver may flag vendor packages for installation when cached versions
+  # shadow them in processRequirements's hasVersion check.
+  if options.action.typ == actionDevelop:
+    let developPkgs = processDevelopDependencies(satResult.rootPackage, options, nimBin)
+    var remaining: seq[(string, Version)] = @[]
+    for (name, ver) in pkgsToInstall:
+      var found = false
+      for devPkg in developPkgs:
+        if cmpIgnoreCase(devPkg.basicInfo.name, name) == 0:
+          satResult.pkgs.incl(devPkg)
+          found = true
+          break
+      if not found:
+        remaining.add((name, ver))
+    pkgsToInstall = remaining
+
   if isInRootDir and options.action.typ == actionInstall:
     executeHook(nimBin, getCurrentDir(), options, actionInstall, before = true)
-  
+
   for (name, ver) in pkgsToInstall:
     var verRange = satResult.getVersionRangeFoPkgToInstall(name, ver)
     # Get vcsRevision from lock file if available - will be passed to download functions
