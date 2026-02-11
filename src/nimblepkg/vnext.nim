@@ -806,8 +806,9 @@ proc installFromDirDownloadInfo(nimBin: string, downloadDir: string, url: string
     let hasPreInstallHook = pkgInfo.hasBeforeInstallHook and not pkgInfo.basicInfo.name.isNim
 
     # Install pipeline: workDir → before-install hook → build → copy to pkgDestDir → after-install hook
-    # Optimization: skip buildtemp when we know it's safe (no binaries, no before-install hook)
-    let canSkipBuildTemp = not hasBinaries and not hasPreInstallHook
+    # Optimization: skip buildtemp when we know it's safe (no binaries, no before-install hook, no submodules)
+    let hasSubmodules = not options.ignoreSubmodules and fileExists(downloadDir / ".gitmodules")
+    let canSkipBuildTemp = not hasBinaries and not hasPreInstallHook and not hasSubmodules
 
     var workDir, buildTempDir: string
     var workPkgInfo: PackageInfo
@@ -818,7 +819,8 @@ proc installFromDirDownloadInfo(nimBin: string, downloadDir: string, url: string
       workPkgInfo = pkgInfo
     else:
       display("Info:", "Using buildtemp for " & pkgInfo.basicInfo.name &
-              " (binaries: " & $hasBinaries & ", before-install hook: " & $hasPreInstallHook & ")",
+              " (binaries: " & $hasBinaries & ", before-install hook: " & $hasPreInstallHook &
+              ", submodules: " & $hasSubmodules & ")",
               priority = LowPriority)
       buildTempDir = options.getPkgBuildTempDir(
         pkgInfo.basicInfo.name,
@@ -865,6 +867,10 @@ proc installFromDirDownloadInfo(nimBin: string, downloadDir: string, url: string
       if pv.ver.kind == verEq and workPkgInfo.basicInfo.version != pv.ver.ver:
         workPkgInfo.basicInfo.version = pv.ver.ver
       workDir = buildTempDir
+
+      # Populate submodules in buildtemp
+      if hasSubmodules:
+        updateSubmodules(workDir)
 
       # Run before-install hook (in buildtemp, before build)
       executeHook(nimBin, workDir, options, actionInstall, before = true)
@@ -1303,7 +1309,11 @@ proc installPkgs*(satResult: var SATResult, options: var Options) {.instrument.}
           downloadDir = dlInfo.url.extractFilePathFromURL()
         else:
           #Since cache expansion is implemented, this point shouldnt be reached anymore.
-          let downloadPkgResult = downloadFromDownloadInfo(dlInfo, options, nimBin)
+
+          var dlOptions = options
+          dlOptions.ignoreSubmodules = true
+          dlOptions.enableTarballs = false
+          let downloadPkgResult = downloadFromDownloadInfo(dlInfo, dlOptions, nimBin)
           discard downloadPkgResult
         # dlInfo.downloadDir = downloadPkgResult.dir 
       assert dirExists(downloadDir)
@@ -1316,15 +1326,13 @@ proc installPkgs*(satResult: var SATResult, options: var Options) {.instrument.}
           removeDir(dlInfo.downloadDir)
         except CatchableError as e:
           displayWarning(&"Failed to remove corrupted cache: {e.msg}", HighPriority)
-        # Re-download
-        let downloadPkgResult = downloadFromDownloadInfo(dlInfo, options, nimBin)
+        # Re-download to pkgcache WITHOUT submodules (issue #1592)
+        # Force git clone (not tarball) so .git and .gitmodules are preserved for buildtemp
+        var dlOptions = options
+        dlOptions.ignoreSubmodules = true
+        dlOptions.enableTarballs = false
+        let downloadPkgResult = downloadFromDownloadInfo(dlInfo, dlOptions, nimBin)
         discard downloadPkgResult
-
-      # Ensure submodules are populated if needed.
-      # Version discovery caches packages without submodules for speed and potential errors in old pkgs,
-      # so we need to fetch them here during actual installation.
-      if not options.ignoreSubmodules and fileExists(downloadDir / ".gitmodules"):
-        updateSubmodules(downloadDir)
       if pv.name.isFileURL:
         # echo "*** GETTING PACKAGE FROM FILE URL: ", dlInfo.url
         installedPkgInfo = getPackageFromFileUrl(dlInfo.url, options, nimBin = nimBin).toRequiresInfo(options, nimBin = nimBin)

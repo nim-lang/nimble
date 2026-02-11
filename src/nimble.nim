@@ -2826,7 +2826,13 @@ proc runVNext*(options: var Options, nimBin: string) {.instrument.} =
     #Global install        
     for pkg in options.action.packages:          
       options.satResult = initSATResult(satNimSelection)      
-      var rootPackage = downloadPkInfoForPv(pkg, options, doPrompt = true, nimBin = nimBin)
+      # Download package info to pkgcache WITHOUT submodules - submodules are
+      # populated in buildtemp during actual install to avoid mutating shared cache (issue #1592)
+      # Force git clone (not tarball) so .git and .gitmodules are preserved for buildtemp
+      var dlOptions = options
+      dlOptions.ignoreSubmodules = true
+      dlOptions.enableTarballs = false
+      var rootPackage = downloadPkInfoForPv(pkg, dlOptions, doPrompt = true, nimBin = nimBin)
       solvePkgs(rootPackage, options, nimBin)
     
       let rootSolvedPkg = SolvedPackage(

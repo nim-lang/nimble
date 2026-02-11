@@ -321,3 +321,34 @@ suite "Build/Install refactor":
           found = true
           break
       check found
+
+  test "submodules are fetched in buildtemp not pkgcache":
+    # Test for issue #1592: submodule update was running directly on pkgcache,
+    # mutating shared state. If the submodule fetch fails, the cache is left
+    # in a broken state requiring manual rm -rf to fix.
+    let tempDir = getTempDir() / "nimble_test_submodule_cache"
+    removeDir(tempDir)
+    createDir(tempDir)
+    defer: removeDir(tempDir)
+
+    cd tempDir:
+      let (output, exitCode) = execNimbleYes("install", "libbacktrace")
+      check exitCode == QuitSuccess
+
+      # Verify pkgcache does NOT contain populated submodule directories.
+      # Submodules should only be fetched in buildtemp, not in the shared cache.
+      let pkgCacheDir = installDir / "pkgcache"
+      var cacheDir = ""
+      for kind, path in walkDir(pkgCacheDir):
+        if kind == pcDir and "libbacktrace" in path:
+          cacheDir = path
+          break
+      check cacheDir.len > 0
+      # The submodule directory should exist (from the clone) but be empty
+      # (submodules not fetched in cache)
+      if dirExists(cacheDir / "vendor" / "libbacktrace-upstream"):
+        var hasContent = false
+        for kind, path in walkDir(cacheDir / "vendor" / "libbacktrace-upstream"):
+          hasContent = true
+          break
+        check not hasContent
