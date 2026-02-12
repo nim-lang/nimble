@@ -73,4 +73,39 @@
   **Example**: `nim >= 0.10.0, jester`; with this value your package will
   depend on `nim` version 0.10.0 or greater and on any version of `jester`.
 
+#### Local Path Dependencies
+
+You can reference local packages using the `file://` protocol. This is useful for:
+
+- Monorepo setups where multiple packages live in the same repository
+- Development of interdependent packages
+- Using local forks or modifications of packages
+
+**Example**:
+```nim
+requires "file://./libs/myutil"
+requires "file://../shared/common"
+requires "file:///absolute/path/to/package"
+```
+
+Paths can be relative (resolved from the package's directory) or absolute.
+
+### Command Line Options
+
+#### `--extra-requires`
+
+Specify additional dependencies from the command line without modifying the `.nimble` file. This is useful for:
+
+- Adding optional development dependencies
+- Testing with specific package versions
+- CI/CD pipelines that need additional packages
+
+**Example**:
+```sh
+nimble build --extra-requires:"unittest2 >= 0.2.0"
+nimble install --extra-requires:"chronicles,stew"
+```
+
+Multiple packages can be specified, separated by commas.
+
 
