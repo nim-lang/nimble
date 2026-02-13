@@ -1,7 +1,7 @@
 {.used.}
 import unittest
 import nimblepkg/[options, downloadnim, version, nimblesat, packageparser]
-import std/[os, options]
+import std/[os, options, osproc]
 import testscommon
 from nimblepkg/common import cd
 
@@ -63,3 +63,18 @@ suite "Nim binaries":
         check "iteration: 1" notin lines
         check "iteration: 2" notin lines
         check exitCode == QuitSuccess
+
+  test "nimble builds with all supported Nim versions":
+    const
+      projectRoot = currentSourcePath().parentDir.parentDir
+      nimVersionRanges = [
+        "nim ~= 1.6.0",
+        "nim ~= 2.0.0",
+        "nim ~= 2.2.0",
+      ]
+    for nimRange in nimVersionRanges:
+      checkpoint("Building with " & nimRange)
+      let cmd = nimblePath & " build --requires:" & nimRange.quoteShell
+      let (output, exitCode) = execCmdEx(cmd, workingDir = projectRoot)
+      checkpoint(output)
+      check exitCode == QuitSuccess
