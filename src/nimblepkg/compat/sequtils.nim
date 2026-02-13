@@ -14,7 +14,7 @@ when not declared(addUnique):
 
     for i in 0..high(s):
       if s[i] == x: return
-    when declared(ensureMove):
+    when (NimMajor, NimMinor) >= (2, 2):
       s.add ensureMove(x)
     else:
       s.add x
