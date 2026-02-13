@@ -1,7 +1,7 @@
 {.used.}
 import unittest
 import nimblepkg/[options, downloadnim, version, nimblesat, packageparser]
-import std/[os, options, osproc]
+import std/[os, options, osproc, strutils]
 import testscommon
 from nimblepkg/common import cd
 
@@ -68,13 +68,24 @@ suite "Nim binaries":
     const
       projectRoot = currentSourcePath().parentDir.parentDir
       nimVersionRanges = [
-        "nim ~= 1.6.0",
-        "nim ~= 2.0.0",
-        "nim ~= 2.2.0",
+        ("nim ~= 1.6.0", "1.6."),
+        ("nim ~= 2.0.0", "2.0."),
+        ("nim ~= 2.2.0", "2.2."),
       ]
-    for nimRange in nimVersionRanges:
+    for (nimRange, expectedPrefix) in nimVersionRanges:
       checkpoint("Building with " & nimRange)
       let cmd = nimblePath & " build --requires:" & nimRange.quoteShell
       let (output, exitCode) = execCmdEx(cmd, workingDir = projectRoot)
       checkpoint(output)
       check exitCode == QuitSuccess
+      var verifiedVer: bool
+      for line in output.splitLines:
+        if "using" in line and "for compilation" in line:
+          verifiedVer = true
+          let nimBin = line.split("using")[1].split("for compilation")[0].strip()
+          let (verOutput, verExitCode) = execCmdEx(nimBin & " --version")
+          checkpoint(verOutput)
+          check verExitCode == QuitSuccess
+          check "Version " & expectedPrefix in verOutput
+          break
+      check verifiedVer
