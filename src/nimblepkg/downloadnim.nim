@@ -103,6 +103,15 @@ proc isRosetta*(): bool =
   except CatchableError:
     return false
 
+proc isAppleSilicon*(): bool =
+  when defined(macosx):
+    try:
+      let res = execCmdEx("uname -m")
+      if res.exitCode == 0:
+        return res.output.strip() == "arm64"
+    except CatchableError:
+      return false
+
 proc getPlatformString*(arch: int): string =
   ## Returns the platform string used in releases.json (e.g., "linux_x64", "macosx_arm64")
   let os =
@@ -117,8 +126,7 @@ proc getPlatformString*(arch: int): string =
       return "source_tar"
 
   when defined(macosx):
-    # On macOS, detect ARM64 vs x64
-    if not isRosetta() and hostCPU == "arm64":
+    if isAppleSilicon():
       return os & "_arm64"
     else:
       return os & "_x64"
@@ -151,9 +159,7 @@ proc getNightliesUrl*(parsedContents: JsonNode, arch: int): (string, string) =
             if "x" & $arch in aname:
               result = (url, tagName)
           else:
-            # when choosenim become arm64 binary, isRosetta will be false. But we don't have nightlies for arm64 yet.
-            # So, we should check if choosenim is compiled as x86_64 (nim's system.hostCPU returns amd64 even on Apple Silicon machines)
-            if not isRosetta() and hostCPU == "amd64":
+            if not isAppleSilicon():
               result = (url, tagName)
         if result[0].len != 0:
           break

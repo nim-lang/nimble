@@ -30,19 +30,19 @@ suite "Nim binaries":
     let releases: seq[Version] = getOfficialReleases(options)
     let nimBin = "nim"
     let minimalPgks = downloadMinimalPackage(pv, options, nimBin)
-    
+
     check minimalPgks.len > 0
     check minimalPgks.len == releases.len
     for pkg in minimalPgks:
       check pkg.version in releases
-  
+
   test "installNimFromBinariesDir should return the installed version":
     var options = initOptions()
     let require: PkgTuple = (name: "nim", ver: parseVersionRange("2.0.4"))
     let nimInstalled = installNimFromBinariesDir(require, options)
     check nimInstalled.isSome
     check nimInstalled.get().ver == newVersion("2.0.4")
-  
+
   test "should be able to get the package info from the nim extracted folder":
     var options = initOptions()
     let require: PkgTuple = (name: "nim", ver: parseVersionRange("2.0.4"))
@@ -50,9 +50,9 @@ suite "Nim binaries":
     check nimInstalled.isSome
     check nimInstalled.get().ver == newVersion("2.0.4")
     options.nimBin = some options.makeNimBin("nim")
-    let pkgInfo = getPkgInfo(nimInstalled.get().dir, options, nimBin = "nim")    
+    let pkgInfo = getPkgInfo(nimInstalled.get().dir, options, nimBin = "nim")
     check pkgInfo.basicInfo.name == "nim"
-  
+
   test "Should be able to reuse -without compiling- a Nim version":
     cd "nimnimble":
       let nimVerDir = "nim2.0.4"
