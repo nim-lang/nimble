@@ -821,9 +821,32 @@ proc pkgDirHasNimble*(dir: string, options: Options): bool =
   try:
     discard findNimbleFile(dir, true, options)
     return true
-  except NimbleError: 
+  except NimbleError:
     #Continue with the download
     discard
+
+proc isCacheValid(pkgDir, downloadDir, downloadPath: string,
+                   verRange: VersionRange, options: Options): bool =
+  ## Checks if a cached package directory can be reused.
+  ## When the cached version doesn't match the requested range,
+  ## deletes the stale cache directory and returns false.
+  if not pkgDirHasNimble(pkgDir, options):
+    return false
+  if verRange.kind in {verAny, verSpecial} or downloadPath == "":
+    return true
+  try:
+    let nimbleFile = findNimbleFile(pkgDir, error = false, options, warn = false)
+    let cachedInfo = extractRequiresInfo(nimbleFile, options)
+    if cachedInfo.version != "" and newVersion(cachedInfo.version) notin verRange:
+      display("Info", "Cached version " & cachedInfo.version &
+        " doesn't match requested " & $verRange & ", re-downloading",
+        priority = HighPriority)
+      removeDir(downloadDir)
+      createDir(downloadDir)
+      return false
+  except CatchableError:
+    discard
+  return true
 
 proc downloadPkgDir*(url: string,
                      verRange: VersionRange,
@@ -866,8 +889,8 @@ proc downloadPkg*(url: string, verRange: VersionRange,
   result.dir = pkgDir
 
   #when using a persistent download dir we can skip the download if it's already done
-  if pkgDirHasNimble(result.dir, options):
-    return # already downloaded, skipping
+  if isCacheValid(result.dir, downloadDir, downloadPath, verRange, options):
+    return
 
   if options.offline:
     raise nimbleError("Cannot download in offline mode.")
@@ -947,8 +970,8 @@ proc downloadPkgAsync*(url: string, verRange: VersionRange,
   result.dir = pkgDir
 
   #when using a persistent download dir we can skip the download if it's already done
-  if pkgDirHasNimble(result.dir, options):
-    return # already downloaded, skipping
+  if isCacheValid(result.dir, downloadDir, downloadPath, verRange, options):
+    return
 
   if options.offline:
     raise nimbleError("Cannot download in offline mode.")

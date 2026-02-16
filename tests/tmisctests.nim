@@ -200,3 +200,52 @@ suite "misc tests":
         check not output.contains("AssertionDefect")
 
     removeDir(testDir)
+
+  test "re-downloads when cached version doesn't match requested":
+    # Simulates a stale pkgcache: the cache directory has a nimble file
+    # but with a version that doesn't match the requested version range.
+    # This can happen when a previous nimble version or version discovery
+    # leaves a wrong checkout in the cache directory.
+
+    cleanDir(installDir)
+
+    # First install packagea@0.2 to populate the cache
+    let (_, exitCode1) = execNimbleYes("install", pkgAUrl & "@0.2")
+    check exitCode1 == QuitSuccess
+
+    let pkgCacheDir = installDir / "pkgcache"
+
+    # Find the version-specific cache directory for packagea
+    # (the one with a version suffix, not the verAny discovery dir)
+    var cacheDir = ""
+    for kind, path in walkDir(pkgCacheDir):
+      let dirName = path.extractFilename.toLowerAscii
+      if kind == pcDir and "packagea" in dirName:
+        if cacheDir == "" or dirName.len > cacheDir.extractFilename.len:
+          # The version-specific dir has a longer name (includes version suffix)
+          cacheDir = path
+
+    check cacheDir != ""
+
+    # Modify the cached nimble/babel file to declare a version below the requested range
+    var nimbleFile = ""
+    for file in walkFiles(cacheDir / "*.nimble"):
+      nimbleFile = file
+      break
+    if nimbleFile == "":
+      for file in walkFiles(cacheDir / "*.babel"):
+        nimbleFile = file
+        break
+    check nimbleFile != ""
+
+    writeFile(nimbleFile,
+      "version = \"0.0.1\"\nauthor = \"test\"\ndescription = \"test\"\nlicense = \"MIT\"\n")
+
+    # Remove installed packages so nimble needs to re-use cache
+    removeDir(installDir / "pkgs2")
+    createDir(installDir / "pkgs2")
+
+    # Install again - should detect version mismatch and re-download
+    let (output2, exitCode2) = execNimbleYes("install", pkgAUrl & "@0.2")
+    check exitCode2 == QuitSuccess
+    check output2.contains("re-downloading")
