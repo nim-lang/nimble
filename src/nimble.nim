@@ -2863,7 +2863,7 @@ proc runVNext*(options: var Options, nimBin: string) {.instrument.} =
         continue
       let nimbleFileInfo = extractRequiresInfo(pkgInfo.myPath, options)
       if nimbleFileInfo.version != "" and newVersion(nimbleFileInfo.version) != pkgInfo.basicInfo.version:
-        displayWarning(&"Version mismatch for {pkgInfo.basicInfo.name}: installed version is {pkgInfo.basicInfo.version} but .nimble file declares {nimbleFileInfo.version}.", HighPriority)
+        displayWarning(&"Version mismatch for {pkgInfo.basicInfo.name}: installed version is {pkgInfo.basicInfo.version} but .nimble file declares {nimbleFileInfo.version}. ({pkgInfo.myPath})", HighPriority)
     except CatchableError:
       discard 
   
