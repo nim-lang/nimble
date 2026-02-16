@@ -150,8 +150,9 @@ jobs:
           name: Nimble ${{ github.ref_name }}
           artifacts: "*/*"
           allowUpdates: true
-          makeLatest: true
+          makeLatest: false
           prerelease: false
+          draft: true
           tag: ${{ github.ref_name }}
           body: ${{ steps.release_notes.outputs.notes }}
 
