@@ -281,3 +281,13 @@ echo "hello"
       check not output.contains("tester installed successfully")
 
     removeDir(testDir)
+
+  test "install multiple packages at once":
+    # Regression test for https://github.com/nim-lang/nimble/issues/1604
+    # `nimble install -g foo bar` only installed bar, dropping foo.
+    cleanDir(installDir)
+
+    let (output, exitCode) = execNimbleYes("install", pkgMultiAlphaUrl, pkgMultiBetaUrl)
+    check exitCode == QuitSuccess
+    check output.contains("alpha installed successfully")
+    check output.contains("beta installed successfully")

@@ -2823,9 +2823,9 @@ proc runVNext*(options: var Options, nimBin: string) {.instrument.} =
       rootPackage.requires.add(options.action.packages)
     solvePkgs(rootPackage, options, nimBin)
   elif options.action.typ == actionInstall:
-    #Global install        
-    for pkg in options.action.packages:          
-      options.satResult = initSATResult(satNimSelection)      
+    #Global install
+    for pkg in options.action.packages:
+      options.satResult = initSATResult(satNimSelection)
       # Download package info to pkgcache WITHOUT submodules - submodules are
       # populated in buildtemp during actual install to avoid mutating shared cache (issue #1592)
       # Force git clone (not tarball) so .git and .gitmodules are preserved for buildtemp
@@ -2834,14 +2834,17 @@ proc runVNext*(options: var Options, nimBin: string) {.instrument.} =
       dlOptions.enableTarballs = false
       var rootPackage = downloadPkInfoForPv(pkg, dlOptions, doPrompt = true, nimBin = nimBin)
       solvePkgs(rootPackage, options, nimBin)
-    
+
       let rootSolvedPkg = SolvedPackage(
         pkgName: rootPackage.basicInfo.name,
         version: rootPackage.basicInfo.version,
         requirements: rootPackage.requires,
-        deps: options.satResult.solvedPkgs.filterIt(it.pkgName.toLower != rootPackage.basicInfo.name.toLower)  
+        deps: options.satResult.solvedPkgs.filterIt(it.pkgName.toLower != rootPackage.basicInfo.name.toLower)
       )
       options.satResult.solvedPkgs.add(rootSolvedPkg)
+      options.satResult.installPkgs(options)
+      options.satResult.addReverseDeps(options)
+    return
   else:
     # No nimble file and action requires one - raise a friendly error
     raise nimbleError(
