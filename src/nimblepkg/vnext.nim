@@ -1215,7 +1215,7 @@ proc installPkgs*(satResult: var SATResult, options: var Options) {.instrument.}
    #If we are not in the root folder, means user is installing a package globally so we need to install root
   var installedPkgs = initHashSet[PackageInfo]()
   # echo "isInRootDir ", isInRootDir, " startDir ", options.startDir, " rootDir ", satResult.rootPackage.myPath.parentDir
-  if options.action.typ == actionInstall: #only install action install the root package: #skip root when in localdeps mode and in rootdir
+  if options.action.typ == actionInstall and not options.depsOnly: #only install action install the root package: #skip root when in localdeps mode and in rootdir
     pkgsToInstall.add((name: satResult.rootPackage.basicInfo.name, ver: satResult.rootPackage.basicInfo.version))
   else:
     #Root can be assumed as installed as the only global action one can do is install
@@ -1370,7 +1370,7 @@ proc installPkgs*(satResult: var SATResult, options: var Options) {.instrument.}
   else:
     # Only build packages that were newly installed in this session
     newlyInstalledPkgs.toSeq
-  if options.action.typ == actionInstall and not options.thereIsNimbleFile:
+  if options.action.typ == actionInstall and not options.thereIsNimbleFile and not options.depsOnly:
     if not satResult.rootPackage.basicInfo.name.isNim:
       #RootPackage shouldnt be in the pkgcache for global installs. We need to move it to the 
       #install dir.

@@ -249,3 +249,35 @@ suite "misc tests":
     let (output2, exitCode2) = execNimbleYes("install", pkgAUrl & "@0.2")
     check exitCode2 == QuitSuccess
     check output2.contains("re-downloading")
+
+  test "depsOnly installs dependencies but not root package (vnext)":
+    # Regression test for https://github.com/nim-lang/nimble/issues/1598
+    # In vnext mode, --depsOnly was ignored and the root package was installed.
+    let testDir = getTempDir() / "nimble_test_depsonly"
+    removeDir(testDir)
+    createDir(testDir)
+
+    writeFile(testDir / "tester.nimble", """
+version = "0.1.0"
+author = "test"
+description = "test"
+license = "MIT"
+srcDir = "."
+bin = @["tester"]
+
+requires "nim >= 2.0.0", "jsony"
+""")
+    writeFile(testDir / "tester.nim", """
+echo "hello"
+""")
+
+    cleanDir(installDir)
+    cd testDir:
+      let (output, exitCode) = execNimbleYes("install", "--depsOnly")
+      check exitCode == QuitSuccess
+      # jsony (dependency) should be installed
+      check output.contains("jsony")
+      # root package should NOT be installed
+      check not output.contains("tester installed successfully")
+
+    removeDir(testDir)
