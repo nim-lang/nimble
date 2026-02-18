@@ -3150,8 +3150,17 @@ when isMainModule:
         "Could not find a .nimble file in the current directory. " &
         "This command requires a Nimble package file.")
 
-    let bootstrapNimRes = getBootstrapNimResolved(opt)
-    let nimBin = bootstrapNimRes.getNimBin()
+    # Actions that don't need a Nim binary should not trigger downloading Nim.
+    # This avoids e.g. `nimble --version` or `nimble list -i` fetching Nim binaries.
+    const actionsNotNeedingNim = {actionRefresh, actionSearch, actionList,
+      actionPath, actionUninstall, actionClean, actionInit, actionManual,
+      actionNil}
+    let needsNim = not opt.showVersion and not opt.showHelp and
+      opt.action.typ notin actionsNotNeedingNim
+    var nimBin = ""
+    if needsNim:
+      let bootstrapNimRes = getBootstrapNimResolved(opt)
+      nimBin = bootstrapNimRes.getNimBin()
     if shouldRunVNext:
       # For actionCustom, set the task name before calling runVNext
       if opt.action.typ == actionCustom:
