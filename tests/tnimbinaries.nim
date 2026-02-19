@@ -64,6 +64,21 @@ suite "Nim binaries":
         check "iteration: 2" notin lines
         check exitCode == QuitSuccess
 
+  test "install nim@#devel from outside a project directory":
+    let tmpDir = getTempDir() / "nimble_test_install_nim"
+    createDir(tmpDir)
+    defer: removeDir(tmpDir)
+    let cmd = nimblePath & " --nimbleDir:" & installDir & " install nim@#devel -y"
+    let (output, exitCode) = execCmdEx(cmd, workingDir = tmpDir)
+    checkpoint(output)
+    check exitCode == QuitSuccess
+    let nimBin = installDir / "bin" / "nim"
+    check fileExists(nimBin) or symlinkExists(nimBin)
+    # Verify the installed nim is the same as the #devel binary in nimbinaries
+    let (installedVer, _) = execCmdEx(nimBin & " --version")
+    let (develVer, _) = execCmdEx(getHomeDir() / ".nimble" / "nimbinaries" / "nim-#devel" / "bin" / "nim" & " --version")
+    check installedVer.splitLines[0] == develVer.splitLines[0]
+
   test "nimble builds with all supported Nim versions":
     const
       projectRoot = currentSourcePath().parentDir.parentDir

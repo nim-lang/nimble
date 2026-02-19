@@ -152,7 +152,7 @@ proc getNimFromSystem*(options: Options): Option[PackageInfo] =
             discard # Fall back to original pnim
     let dir = effectivePnim.parentDir.parentDir
     try:
-      return some getPkgInfoFromDirWithDeclarativeParser(dir, options, nimBin = "") #Can be empty as the code path for nim doesnt need it. 
+      return some getPkgInfoFromDirWithDeclarativeParser(dir, options, nimBin = "") #Can be empty as the code path for nim doesnt need it.
     except CatchableError:
       discard # Fall back to original pnim
   return none(PackageInfo)
@@ -601,11 +601,18 @@ proc resolveAndConfigureNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo]
   # Special case: when installing nim itself globally, we want to install that specific version
   # Don't run SAT solver which would pick a nim for compilation - we want the nim we're installing
   if rootPackage.basicInfo.name.isNim:
-    let nimPkg = (name: "nim", ver: parseVersionRange(rootPackage.basicInfo.version))
+    # Use the requested version from the command line (e.g. #head, #devel, >= 2.0.0)
+    # not the declared version from nim.nimble (e.g. 2.3.1) which may not have binaries
+    var requestedVer = parseVersionRange(rootPackage.basicInfo.version)
+    for pkg in options.action.packages:
+      if pkg.name.isNim:
+        requestedVer = pkg.ver
+        break
+    let nimPkg = (name: "nim", ver: requestedVer)
     let nimInstalled = installNimFromBinariesDir(nimPkg, options)
     if nimInstalled.isSome:
       let resolvedNim = NimResolved(
-        pkg: some getPkgInfoFromDirWithDeclarativeParser(nimInstalled.get.dir, options, nimBin = ""), #Can be empty as the code path for nim doesnt need it. 
+        pkg: some getPkgInfoFromDirWithDeclarativeParser(nimInstalled.get.dir, options, nimBin = ""), #Can be empty as the code path for nim doesnt need it.
         version: nimInstalled.get.ver
       )
       # Still need to set bootstrap nim and configure it
@@ -616,7 +623,7 @@ proc resolveAndConfigureNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo]
       options.satResult.pkgList = pkgListDecl.toHashSet()
       return resolvedNim
     else:
-      raise nimbleError("Failed to install nim version " & $rootPackage.basicInfo.version)
+      raise nimbleError("Failed to install nim version " & $requestedVer)
 
   var pkgListDecl =
     pkgList
