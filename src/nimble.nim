@@ -2813,8 +2813,11 @@ proc runVNext*(options: var Options, nimBin: string) {.instrument.} =
   let isGlobalInstall = options.explicitGlobal and
     options.action.typ == actionInstall and options.action.packages.len > 0
   var rootPackage: PackageInfo
-  if options.action.global and options.action.typ == actionInstall and
-      options.action.packages.len == 0 and options.thereIsNimbleFile:
+  var isGlobalInstallRoot = false
+  if options.action.typ == actionInstall:
+    isGlobalInstallRoot = options.action.global and
+      options.action.packages.len == 0 and options.thereIsNimbleFile
+  if isGlobalInstallRoot:
     # nimble install -g: install current project globally
     options.satResult = initSATResult(satNimSelection)
     rootPackage = getPkgInfoFromDirWithDeclarativeParser(getCurrentDir(), options, nimBin = nimBin)
