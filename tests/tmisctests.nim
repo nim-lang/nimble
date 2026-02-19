@@ -294,9 +294,12 @@ echo "hello"
       checkpoint(output)
       check exitCode == QuitSuccess
       # Binary should be installed to global bin dir
-      check fileExists(installDir / "bin" / "globaltest") or
-            symlinkExists(installDir / "bin" / "globaltest")
-      let (runOutput, runExitCode) = execCmdEx(installDir / "bin" / "globaltest")
+      when defined(windows):
+        check fileExists(installDir / "bin" / "globaltest.cmd")
+      else:
+        check fileExists(installDir / "bin" / "globaltest") or
+              symlinkExists(installDir / "bin" / "globaltest")
+      let (runOutput, runExitCode) = execBin("globaltest")
       check runExitCode == QuitSuccess
       check runOutput.strip() == "hello from globaltest"
       check not fileExists("nimble.paths")
