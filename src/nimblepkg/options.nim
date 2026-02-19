@@ -563,9 +563,9 @@ proc setNimbleDir*(options: var Options) =
               env & "'", Success, priority = HighPriority)
       nimbleDir = env
       setPackageCache(options, nimbleDir)
-    else:
-      # ...followed by project local deps mode
-      if dirExists(nimbledeps) or (options.localdeps and not options.developLocaldeps):        
+    elif not options.explicitGlobal:
+      # ...followed by project local deps mode (skipped when -g/--global is used)
+      if dirExists(nimbledeps) or (options.localdeps and not options.developLocaldeps):
         nimbleDir = nimbledeps
         options.localdeps = true
         propagate = true
