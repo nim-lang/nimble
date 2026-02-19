@@ -73,10 +73,16 @@ suite "Nim binaries":
     checkpoint(output)
     check exitCode == QuitSuccess
     let nimBin = installDir / "bin" / "nim"
-    check fileExists(nimBin) or symlinkExists(nimBin)
+    when defined(windows):
+      check fileExists(nimBin & ".cmd")
+      let nimBinCmd = "cmd /c " & nimBin & ".cmd"
+    else:
+      check fileExists(nimBin) or symlinkExists(nimBin)
+      let nimBinCmd = nimBin
     # Verify the installed nim is the same as the #devel binary in nimbinaries
-    let (installedVer, _) = execCmdEx(nimBin & " --version")
-    let (develVer, _) = execCmdEx(getHomeDir() / ".nimble" / "nimbinaries" / "nim-#devel" / "bin" / "nim" & " --version")
+    let (installedVer, _) = execCmdEx(nimBinCmd & " --version")
+    let develNim = getHomeDir() / ".nimble" / "nimbinaries" / "nim-#devel" / "bin" / addFileExt("nim", ExeExt)
+    let (develVer, _) = execCmdEx(develNim & " --version")
     check installedVer.splitLines[0] == develVer.splitLines[0]
 
   test "nimble builds with all supported Nim versions":
