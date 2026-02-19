@@ -832,6 +832,8 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
       result.action.noRebuild = true
     of "passnim", "p":
       result.action.passNimFlags.add(val)
+    of "g", "global":
+      result.action.global = true
     else:
       if not isGlobalFlag:
         result.action.passNimFlags.add(getFlagString(kind, flag, val))
