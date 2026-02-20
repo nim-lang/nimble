@@ -282,10 +282,32 @@ echo "hello"
 
     removeDir(testDir)
 
+  test "install -g inside a project dir installs globally":
+    # nimble install -g with no packages inside a project dir should install the
+    # current project to the global nimble dir, not do a local install.
+    cleanDir(installDir)
+    cd "globaltest":
+      removeDir("nimbledeps")
+      removeFile("nimble.paths")
+      let cmd = nimblePath & " --nimbleDir:" & installDir & " install -g -y"
+      let (output, exitCode) = execCmdEx(cmd)
+      checkpoint(output)
+      check exitCode == QuitSuccess
+      # Binary should be installed to global bin dir
+      when defined(windows):
+        check fileExists(installDir / "bin" / "globaltest.cmd")
+      else:
+        check fileExists(installDir / "bin" / "globaltest") or
+              symlinkExists(installDir / "bin" / "globaltest")
+      let (runOutput, runExitCode) = execBin("globaltest")
+      check runExitCode == QuitSuccess
+      check runOutput.strip() == "hello from globaltest"
+      check not fileExists("nimble.paths")
+
   test "install multiple packages at once":
     # Regression test for https://github.com/nim-lang/nimble/issues/1604
     # `nimble install -g foo bar` only installed bar, dropping foo.
-    cleanDir(installDir)
+
 
     let (output, exitCode) = execNimbleYes("install", pkgMultiAlphaUrl, pkgMultiBetaUrl)
     check exitCode == QuitSuccess

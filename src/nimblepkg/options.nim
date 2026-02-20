@@ -550,10 +550,19 @@ proc setNimbleDir*(options: var Options) =
     # Localdeps + nimble develop pkg1 ...
     options.developLocaldeps = true
 
+  # nimble install -g: force default global dir, skip NIMBLE_DIR and nimbledeps
+  var isActionGlobal = false
+  if options.action.typ == actionInstall:
+    isActionGlobal = options.action.global
+
   if options.nimbleDir.len != 0:
     # --nimbleDir:<dir> takes priority...
     nimbleDir = options.nimbleDir
     propagate = true
+    setPackageCache(options, nimbleDir)
+  elif isActionGlobal:
+    # nimble install -g: use default global dir, skip NIMBLE_DIR and nimbledeps
+    nimbleDir = options.config.nimbleDir
     setPackageCache(options, nimbleDir)
   else:
     # ...followed by the environment variable.
@@ -565,7 +574,7 @@ proc setNimbleDir*(options: var Options) =
       setPackageCache(options, nimbleDir)
     else:
       # ...followed by project local deps mode
-      if dirExists(nimbledeps) or (options.localdeps and not options.developLocaldeps):        
+      if dirExists(nimbledeps) or (options.localdeps and not options.developLocaldeps):
         nimbleDir = nimbledeps
         options.localdeps = true
         propagate = true
@@ -832,6 +841,8 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
       result.action.noRebuild = true
     of "passnim", "p":
       result.action.passNimFlags.add(val)
+    of "g", "global":
+      result.action.global = true
     else:
       if not isGlobalFlag:
         result.action.passNimFlags.add(getFlagString(kind, flag, val))

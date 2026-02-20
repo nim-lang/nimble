@@ -2813,7 +2813,26 @@ proc runVNext*(options: var Options, nimBin: string) {.instrument.} =
   let isGlobalInstall = options.explicitGlobal and
     options.action.typ == actionInstall and options.action.packages.len > 0
   var rootPackage: PackageInfo
-  if options.thereIsNimbleFile and not isGlobalInstall:
+  var isGlobalInstallRoot = false
+  if options.action.typ == actionInstall:
+    isGlobalInstallRoot = options.action.global and
+      options.action.packages.len == 0 and options.thereIsNimbleFile
+  if isGlobalInstallRoot:
+    # nimble install -g: install current project globally
+    options.satResult = initSATResult(satNimSelection)
+    rootPackage = getPkgInfoFromDirWithDeclarativeParser(getCurrentDir(), options, nimBin = nimBin)
+    solvePkgs(rootPackage, options, nimBin)
+    let rootSolvedPkg = SolvedPackage(
+      pkgName: rootPackage.basicInfo.name,
+      version: rootPackage.basicInfo.version,
+      requirements: rootPackage.requires,
+      deps: options.satResult.solvedPkgs.filterIt(it.pkgName.toLower != rootPackage.basicInfo.name.toLower)
+    )
+    options.satResult.solvedPkgs.add(rootSolvedPkg)
+    options.satResult.installPkgs(options)
+    options.satResult.addReverseDeps(options)
+    return
+  elif options.thereIsNimbleFile and not isGlobalInstall:
     options.satResult = initSATResult(satNimSelection)
     options.isFilePathDiscovering = true
     #we need to skip validation for root
@@ -3176,8 +3195,10 @@ when isMainModule:
       opt.doAction(nimBin)
     #if the action is different than setup and in vnext we run setup
     #when not doing a global install (no ninmble file in the current directory)
-    let isGlobalInstallPost = opt.explicitGlobal and
-      opt.action.typ == actionInstall and opt.action.packages.len > 0
+    var isGlobalInstallPost = false
+    if opt.action.typ == actionInstall:
+      isGlobalInstallPost = (opt.explicitGlobal and opt.action.packages.len > 0) or
+        (opt.action.global and opt.action.packages.len == 0)
     if shouldRunVNext and opt.action.typ notin {actionSetup, actionShell, actionShellEnv} and opt.thereIsNimbleFile and not isGlobalInstallPost:
       # For develop without --withDependencies, no solving happened - skip setup
       if opt.action.typ != actionDevelop or opt.action.withDependencies:
