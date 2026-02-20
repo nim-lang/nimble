@@ -550,10 +550,19 @@ proc setNimbleDir*(options: var Options) =
     # Localdeps + nimble develop pkg1 ...
     options.developLocaldeps = true
 
+  # nimble install -g: force default global dir, skip NIMBLE_DIR and nimbledeps
+  var isActionGlobal = false
+  if options.action.typ == actionInstall:
+    isActionGlobal = options.action.global
+
   if options.nimbleDir.len != 0:
     # --nimbleDir:<dir> takes priority...
     nimbleDir = options.nimbleDir
     propagate = true
+    setPackageCache(options, nimbleDir)
+  elif isActionGlobal:
+    # nimble install -g: use default global dir, skip NIMBLE_DIR and nimbledeps
+    nimbleDir = options.config.nimbleDir
     setPackageCache(options, nimbleDir)
   else:
     # ...followed by the environment variable.
@@ -563,8 +572,8 @@ proc setNimbleDir*(options: var Options) =
               env & "'", Success, priority = HighPriority)
       nimbleDir = env
       setPackageCache(options, nimbleDir)
-    elif not options.explicitGlobal:
-      # ...followed by project local deps mode (skipped when -g/--global is used)
+    else:
+      # ...followed by project local deps mode
       if dirExists(nimbledeps) or (options.localdeps and not options.developLocaldeps):
         nimbleDir = nimbledeps
         options.localdeps = true
