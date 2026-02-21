@@ -2832,7 +2832,9 @@ proc runVNext*(options: var Options, nimBin: string) {.instrument.} =
     options.satResult.installPkgs(options)
     options.satResult.addReverseDeps(options)
     return
-  elif options.thereIsNimbleFile and not isGlobalInstall:
+  elif options.thereIsNimbleFile and not isGlobalInstall and
+       not (findNimbleFile(getCurrentDir(), error = false, options, warn = false).splitFile.name.isNim and
+            options.action.typ == actionInstall and options.action.packages.len > 0):
     options.satResult = initSATResult(satNimSelection)
     options.isFilePathDiscovering = true
     #we need to skip validation for root
