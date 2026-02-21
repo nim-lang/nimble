@@ -1613,12 +1613,10 @@ proc normalizeRequirements*(pkgVersionTable: var Table[string, PackageVersions],
   for pkgName, pkgVersions in pkgVersionTable.mpairs:
     for pkgVersion in pkgVersions.versions.mitems:
       for req in pkgVersion.requires.mitems:
-        if req.name.isUrl:          
-          # echo "*** FOUND URL REQUIREMENT: ", req.name, " for package ", pkgName, " version ", $req.ver
+        if req.name.isUrl:
           let newPkgName = getPackageNameFromUrl(req, pkgVersionTable, options)
           if newPkgName != "":
             let oldReq = req.name
-            # echo "DEBUG: Normalizing requirement ", req.name, " to ", newPkgName, " for package ", pkgName, " version ", $req.ver
             req.name = newPkgName
             options.satResult.normalizedRequirements[newPkgName] = oldReq
         req.name = req.name.resolveAlias(options)

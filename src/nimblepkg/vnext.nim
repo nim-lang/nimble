@@ -893,7 +893,11 @@ proc installFromDirDownloadInfo(nimBin: string, downloadDir: string, url: string
 
     try:
       createDir(pkgDestDir)
-      filesInstalled.incl copyInstallFiles(workDir, pkgDestDir, workPkgInfo, options)
+      # Use getRealDir() to resolve srcDir, so files from src/ are installed at root level.
+      # This matches v0.20.1 behavior and ensures --nimblePath scanning works correctly
+      # for packages with srcDir (e.g. intops with srcDir="src").
+      let installSrcDir = workPkgInfo.getRealDir()
+      filesInstalled.incl copyInstallFiles(installSrcDir, pkgDestDir, workPkgInfo, options)
 
       # Copy the .nimble file
       let nimbleFileDest = changeRoot(workPkgInfo.myPath.splitFile.dir, pkgDestDir, workPkgInfo.myPath)
@@ -1252,7 +1256,7 @@ proc installPkgs*(satResult: var SATResult, options: var Options) {.instrument.}
         remaining.add((name, ver))
     pkgsToInstall = remaining
 
-  if isInRootDir and options.action.typ == actionInstall:
+  if isInRootDir and options.action.typ == actionInstall and not options.depsOnly:
     executeHook(nimBin, getCurrentDir(), options, actionInstall, before = true)
 
   for (name, ver) in pkgsToInstall:

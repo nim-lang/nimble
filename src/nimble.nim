@@ -1849,6 +1849,12 @@ proc updatePathsFile(pkgInfo: PackageInfo, options: Options) =
     else:
       pkgInfo.getDependenciesPaths(options)
   var pathsFileContent = "--noNimblePath\n"
+  # For global installs, add --nimblePath to allow nim to discover all packages
+  # in the nimble dir (matches v0.20.1 system nim.cfg behavior).
+  # For local (nimbledeps), keep strict --noNimblePath so only SAT-solved
+  # packages are visible via explicit --path entries.
+  if not dirExists(nimbledeps):
+    pathsFileContent &= "--nimblePath:" & options.getPkgsDir().escape & "\n"
   for path in paths:
     for p in path:
       pathsFileContent &= &"--path:{p.escape}\n"
@@ -2833,8 +2839,7 @@ proc runVNext*(options: var Options, nimBin: string) {.instrument.} =
     options.satResult.addReverseDeps(options)
     return
   elif options.thereIsNimbleFile and not isGlobalInstall and
-       not (findNimbleFile(getCurrentDir(), error = false, options, warn = false).splitFile.name.isNim and
-            options.action.typ == actionInstall and options.action.packages.len > 0):
+       not (options.action.typ == actionInstall and options.action.packages.len > 0):
     options.satResult = initSATResult(satNimSelection)
     options.isFilePathDiscovering = true
     #we need to skip validation for root
