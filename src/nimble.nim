@@ -1849,6 +1849,12 @@ proc updatePathsFile(pkgInfo: PackageInfo, options: Options) =
     else:
       pkgInfo.getDependenciesPaths(options)
   var pathsFileContent = "--noNimblePath\n"
+  # For global installs, add --nimblePath to allow nim to discover all packages
+  # in the nimble dir (matches v0.20.1 system nim.cfg behavior).
+  # For local (nimbledeps or develop/vendor), keep strict --noNimblePath so
+  # only SAT-solved packages are visible via explicit --path entries.
+  if not dirExists(nimbledeps) and not fileExists(developFileName):
+    pathsFileContent &= "--nimblePath:" & options.getPkgsDir().escape & "\n"
   for path in paths:
     for p in path:
       pathsFileContent &= &"--path:{p.escape}\n"
