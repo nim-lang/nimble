@@ -1848,14 +1848,7 @@ proc updatePathsFile(pkgInfo: PackageInfo, options: Options) =
       pathsPaths
     else:
       pkgInfo.getDependenciesPaths(options)
-  var pathsFileContent = ""
-  # For global installs, use --nimblePath to allow nim to discover all packages
-  # in the nimble dir (matches v0.20.1 system nim.cfg behavior).
-  # For local (nimbledeps or develop/vendor), rely only on explicit --path entries.
-  # We do NOT use --noNimblePath because it permanently disables all nimblePath
-  # processing and can interfere with tools like nimsuggest that read config.nims.
-  if not dirExists(nimbledeps) and not fileExists(developFileName):
-    pathsFileContent &= "--nimblePath:" & options.getPkgsDir().escape & "\n"
+  var pathsFileContent = "--noNimblePath\n"
   for path in paths:
     for p in path:
       pathsFileContent &= &"--path:{p.escape}\n"
@@ -3208,10 +3201,12 @@ when isMainModule:
     if opt.action.typ == actionInstall:
       isGlobalInstallPost = (opt.explicitGlobal and opt.action.packages.len > 0) or
         (opt.action.global and opt.action.packages.len == 0)
-    if shouldRunVNext and opt.action.typ notin {actionSetup, actionShell, actionShellEnv} and opt.thereIsNimbleFile and not isGlobalInstallPost and not opt.depsOnly:
-      # For develop without --withDependencies, no solving happened - skip setup
-      if opt.action.typ != actionDevelop or opt.action.withDependencies:
-        setup(opt, nimBin)
+    var shouldRunSetup = shouldRunVNext and opt.action.typ in {actionCompile, actionRun, actionDevelop} and opt.thereIsNimbleFile and not isGlobalInstallPost
+    # For develop without --withDependencies, no solving happened - skip setup
+    if opt.action.typ == actionDevelop and not opt.action.withDependencies:
+      shouldRunSetup = false
+    if shouldRunSetup:
+      setup(opt, nimBin)
 
   except NimbleQuit as quit:
     exitCode = quit.exitCode
