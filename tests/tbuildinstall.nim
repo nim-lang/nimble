@@ -62,9 +62,8 @@ suite "Build/Install refactor":
       check fileExists(installedDir / "pkgWithSkipDirs") or
             fileExists(installedDir / "pkgWithSkipDirs.exe")
 
-      # Check that srcDir content is installed
-      check dirExists(installedDir / "src")
-      check fileExists(installedDir / "src" / "pkgWithSkipDirs.nim")
+      # Check that srcDir content is installed (flattened to root)
+      check fileExists(installedDir / "pkgWithSkipDirs.nim")
 
   test "buildtemp directory is cleaned up after install":
     cd "buildInstall/pkgWithSkipDirs":
@@ -107,8 +106,7 @@ suite "Build/Install refactor":
           break
 
       check installedDir.len > 0
-      check dirExists(installedDir / "src")
-      check fileExists(installedDir / "src" / "pkgNoBinary.nim")
+      check fileExists(installedDir / "pkgNoBinary.nim")
       check fileExists(installedDir / "pkgNoBinary.nimble")
 
   test "before-install hook uses buildtemp":
@@ -134,8 +132,7 @@ suite "Build/Install refactor":
           break
 
       check installedDir.len > 0
-      check dirExists(installedDir / "src")
-      check fileExists(installedDir / "src" / "pkgWithHook.nim")
+      check fileExists(installedDir / "pkgWithHook.nim")
       check fileExists(installedDir / "pkgWithHook.nimble")
 
   test "after-install-only hook skips buildtemp":
@@ -158,8 +155,7 @@ suite "Build/Install refactor":
           break
 
       check installedDir.len > 0
-      check dirExists(installedDir / "src")
-      check fileExists(installedDir / "src" / "pkgWithAfterHookOnly.nim")
+      check fileExists(installedDir / "pkgWithAfterHookOnly.nim")
       check fileExists(installedDir / "pkgWithAfterHookOnly.nimble")
 
   test "conditional before-install hook uses buildtemp":
@@ -185,8 +181,7 @@ suite "Build/Install refactor":
           break
 
       check installedDir.len > 0
-      check dirExists(installedDir / "src")
-      check fileExists(installedDir / "src" / "pkgWithConditionalHook.nim")
+      check fileExists(installedDir / "pkgWithConditionalHook.nim")
       check fileExists(installedDir / "pkgWithConditionalHook.nimble")
 
   test "binary packages use buildtemp":
@@ -215,8 +210,7 @@ suite "Build/Install refactor":
           break
 
       check installedDir.len > 0
-      check dirExists(installedDir / "src")
-      check fileExists(installedDir / "src" / "pkgWithStateOps.nim")
+      check fileExists(installedDir / "pkgWithStateOps.nim")
       check fileExists(installedDir / "pkgWithStateOps.nimble")
 
       # Clean up generated_dir created by the VM parser for local packages.

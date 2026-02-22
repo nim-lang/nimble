@@ -894,10 +894,24 @@ proc installFromDirDownloadInfo(nimBin: string, downloadDir: string, url: string
     try:
       createDir(pkgDestDir)
       # Use getRealDir() to resolve srcDir, so files from src/ are installed at root level.
-      # This matches v0.20.1 behavior and ensures --nimblePath scanning works correctly
+      # This matches legacy install behavior and ensures --nimblePath scanning works
       # for packages with srcDir (e.g. intops with srcDir="src").
       let installSrcDir = workPkgInfo.getRealDir()
       filesInstalled.incl copyInstallFiles(installSrcDir, pkgDestDir, workPkgInfo, options)
+
+      # When srcDir is set, installDirs at the package root level won't be found
+      # by copyInstallFiles (which starts from srcDir). Copy them separately.
+      if workPkgInfo.srcDir.len > 0:
+        for dir in workPkgInfo.installDirs:
+          let srcDirPath = workDir / dir
+          if dirExists(srcDirPath) and not dirExists(installSrcDir / dir):
+            let destDirPath = pkgDestDir / dir
+            createDir(destDirPath)
+            for path in walkDirRec(srcDirPath):
+              let relPath = path.relativePath(srcDirPath)
+              let dest = destDirPath / relPath
+              createDir(dest.splitFile.dir)
+              filesInstalled.incl copyFileD(path, dest)
 
       # Copy the .nimble file
       let nimbleFileDest = changeRoot(workPkgInfo.myPath.splitFile.dir, pkgDestDir, workPkgInfo.myPath)
