@@ -3208,7 +3208,7 @@ when isMainModule:
     if opt.action.typ == actionInstall:
       isGlobalInstallPost = (opt.explicitGlobal and opt.action.packages.len > 0) or
         (opt.action.global and opt.action.packages.len == 0)
-    if shouldRunVNext and opt.action.typ notin {actionSetup, actionShell, actionShellEnv} and opt.thereIsNimbleFile and not isGlobalInstallPost:
+    if shouldRunVNext and opt.action.typ notin {actionSetup, actionShell, actionShellEnv} and opt.thereIsNimbleFile and not isGlobalInstallPost and not opt.depsOnly:
       # For develop without --withDependencies, no solving happened - skip setup
       if opt.action.typ != actionDevelop or opt.action.withDependencies:
         setup(opt, nimBin)
