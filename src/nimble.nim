@@ -3192,26 +3192,30 @@ when isMainModule:
       #TODO review this and write specific logic to set Nim in this scenario.
       opt.setNimBin()
 
-    # develop is handled inside runVNext (it must run before the solver)
-    if not shouldRunVNext or opt.action.typ != actionDevelop:
-      opt.doAction(nimBin)
     #if the action is different than setup and in vnext we run setup
-    #when not doing a global install (no ninmble file in the current directory)
+    #when not doing a global install (no nimble file in the current directory)
     var isGlobalInstallPost = false
     if opt.action.typ == actionInstall:
       isGlobalInstallPost = (opt.explicitGlobal and opt.action.packages.len > 0) or
         (opt.action.global and opt.action.packages.len == 0)
-    var shouldRunSetup = shouldRunVNext and opt.action.typ in {actionCompile, actionRun, actionDevelop} and opt.thereIsNimbleFile and not isGlobalInstallPost
+    var shouldRunSetup = shouldRunVNext and opt.action.typ in {actionCompile, actionRun, actionDevelop, actionCustom} and opt.thereIsNimbleFile and not isGlobalInstallPost
     # For develop without --withDependencies, no solving happened - skip setup
     if opt.action.typ == actionDevelop and not opt.action.withDependencies:
       shouldRunSetup = false
+    if opt.action.typ == actionCustom and not opt.localdeps:
+      shouldRunSetup = false
+    # Generate config.nims BEFORE doAction so test tasks can find deps
     if shouldRunSetup:
       setup(opt, nimBin)
+
+    # develop is handled inside runVNext (it must run before the solver)
+    if not shouldRunVNext or opt.action.typ != actionDevelop:
+      opt.doAction(nimBin)
 
   except NimbleQuit as quit:
     exitCode = quit.exitCode
   except CatchableError as error:
-    exitCode = QuitFailure
+
     displayTip()
     echo error.getStackTrace()
     displayError(error)
