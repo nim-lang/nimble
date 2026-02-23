@@ -893,18 +893,22 @@ proc installFromDirDownloadInfo(nimBin: string, downloadDir: string, url: string
 
     try:
       createDir(pkgDestDir)
-      # Use getRealDir() to resolve srcDir, so files from src/ are installed at root level.
-      # This matches legacy install behavior and ensures --nimblePath scanning works
-      # for packages with srcDir (e.g. intops with srcDir="src").
-      let installSrcDir = workPkgInfo.getRealDir()
+      # For global installs, flatten srcDir so --nimblePath scanning finds modules
+      # at the package root (e.g. pkgs2/intops-xxx/intops.nim instead of .../src/intops.nim).
+      # For local installs (nimbledeps), keep srcDir structure because --path entries
+      # use getRealDir() which points to the srcDir subdirectory.
+      let isLocalInstall = dirExists(nimbledeps) or fileExists(developFileName)
+      let installSrcDir = if isLocalInstall: workPkgInfo.getNimbleFileDir()
+                          else: workPkgInfo.getRealDir()
       filesInstalled.incl copyInstallFiles(installSrcDir, pkgDestDir, workPkgInfo, options)
 
-      # When srcDir is set, installDirs at the package root level won't be found
-      # by copyInstallFiles (which starts from srcDir). Copy them separately.
-      if workPkgInfo.srcDir.len > 0:
+      # When srcDir is flattened (global install), installDirs at the package root
+      # won't be found by copyInstallFiles (which starts from srcDir). Copy them separately.
+      if not isLocalInstall and workPkgInfo.srcDir.len > 0:
+        let realDir = workPkgInfo.getRealDir()
         for dir in workPkgInfo.installDirs:
           let srcDirPath = workDir / dir
-          if dirExists(srcDirPath) and not dirExists(installSrcDir / dir):
+          if dirExists(srcDirPath) and not dirExists(realDir / dir):
             let destDirPath = pkgDestDir / dir
             createDir(destDirPath)
             for path in walkDirRec(srcDirPath):

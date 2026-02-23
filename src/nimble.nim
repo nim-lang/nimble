@@ -1849,12 +1849,6 @@ proc updatePathsFile(pkgInfo: PackageInfo, options: Options) =
     else:
       pkgInfo.getDependenciesPaths(options)
   var pathsFileContent = "--noNimblePath\n"
-  # For global installs, add --nimblePath to allow nim to discover all packages
-  # in the nimble dir (matches v0.20.1 system nim.cfg behavior).
-  # For local (nimbledeps or develop/vendor), keep strict --noNimblePath so
-  # only SAT-solved packages are visible via explicit --path entries.
-  if not dirExists(nimbledeps) and not fileExists(developFileName):
-    pathsFileContent &= "--nimblePath:" & options.getPkgsDir().escape & "\n"
   for path in paths:
     for p in path:
       pathsFileContent &= &"--path:{p.escape}\n"
@@ -3198,24 +3192,30 @@ when isMainModule:
       #TODO review this and write specific logic to set Nim in this scenario.
       opt.setNimBin()
 
-    # develop is handled inside runVNext (it must run before the solver)
-    if not shouldRunVNext or opt.action.typ != actionDevelop:
-      opt.doAction(nimBin)
     #if the action is different than setup and in vnext we run setup
-    #when not doing a global install (no ninmble file in the current directory)
+    #when not doing a global install (no nimble file in the current directory)
     var isGlobalInstallPost = false
     if opt.action.typ == actionInstall:
       isGlobalInstallPost = (opt.explicitGlobal and opt.action.packages.len > 0) or
         (opt.action.global and opt.action.packages.len == 0)
-    if shouldRunVNext and opt.action.typ notin {actionSetup, actionShell, actionShellEnv} and opt.thereIsNimbleFile and not isGlobalInstallPost:
-      # For develop without --withDependencies, no solving happened - skip setup
-      if opt.action.typ != actionDevelop or opt.action.withDependencies:
-        setup(opt, nimBin)
+    var shouldRunSetup = shouldRunVNext and opt.action.typ in {actionCompile, actionRun, actionDevelop, actionCustom} and opt.thereIsNimbleFile and not isGlobalInstallPost
+    # For develop without --withDependencies, no solving happened - skip setup
+    if opt.action.typ == actionDevelop and not opt.action.withDependencies:
+      shouldRunSetup = false
+    if opt.action.typ == actionCustom and not opt.localdeps:
+      shouldRunSetup = false
+    # Generate config.nims BEFORE doAction so test tasks can find deps
+    if shouldRunSetup:
+      setup(opt, nimBin)
+
+    # develop is handled inside runVNext (it must run before the solver)
+    if not shouldRunVNext or opt.action.typ != actionDevelop:
+      opt.doAction(nimBin)
 
   except NimbleQuit as quit:
     exitCode = quit.exitCode
   except CatchableError as error:
-    exitCode = QuitFailure
+
     displayTip()
     echo error.getStackTrace()
     displayError(error)
