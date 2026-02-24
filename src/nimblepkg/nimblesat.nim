@@ -1621,6 +1621,43 @@ proc normalizeRequirements*(pkgVersionTable: var Table[string, PackageVersions],
             options.satResult.normalizedRequirements[newPkgName] = oldReq
         req.name = req.name.resolveAlias(options)
 
+proc normalizeSpecialVersions*(pkgVersionTable: var Table[string, PackageVersions], options: Options) {.instrument.} =
+  ## First-#-wins: when multiple special versions exist for the same package
+  ## (e.g. asynctools#commit_a from jester, asynctools#commit_b from httpbeast),
+  ## keep only the first one encountered (topologically closest to root, since
+  ## processRequirements traverses depth-first from root). Rewrite all other
+  ## special requirements for that package to use the winner.
+  var winners = initTable[string, Version]()  # pkgName -> winning special version
+
+  # Phase 1: find packages with multiple special versions, pick the first one
+  for pkgName, pkgVersions in pkgVersionTable.mpairs:
+    var specialVersions: seq[Version] = @[]
+    for v in pkgVersions.versions:
+      if v.version.isSpecial:
+        specialVersions.add v.version
+    if specialVersions.len > 1:
+      let winner = specialVersions[0]  # first = topologically first (DFS order)
+      let others = specialVersions[1..^1].mapIt($it).join(", ")
+      if not options.lenient:
+        raise newNimbleError[NimbleError](
+          &"Multiple dependencies require different special versions of '{pkgName}': " &
+          &"{specialVersions[0]}, {others}.")
+      winners[pkgName] = winner
+      pkgVersions.versions = pkgVersions.versions.filterIt(
+        not it.version.isSpecial or it.version == winner
+      )
+      displayWarning(&"Multiple dependencies require different special versions of '{pkgName}': " &
+        &"using {winner}, ignoring {others}. This will become an error in future versions.", HighPriority)
+
+  # Phase 2: rewrite requirements across the table to use winning versions
+  if winners.len > 0:
+    for pkgName, pkgVersions in pkgVersionTable.mpairs:
+      for pkgVersion in pkgVersions.versions.mitems:
+        for req in pkgVersion.requires.mitems:
+          let reqName = req.name.toLower
+          if reqName in winners and req.ver.kind == verSpecial and req.ver.spe != winners[reqName]:
+            req.ver = VersionRange(kind: verSpecial, spe: winners[reqName])
+
 proc postProcessSolvedPkgs*(solvedPkgs: var seq[SolvedPackage], options: Options, nimBin: string) {.instrument.} =
   #Prioritizes fileUrl packages over the regular packages defined in the requirements
   var fileUrlPkgs: seq[PackageInfo] = @[]
@@ -1659,6 +1696,7 @@ proc solvePackages*(rootPkg: PackageInfo, pkgList: seq[PackageInfo], pkgsToInsta
   # dumpPackageVersionTable(rootPkg, pkgVersionTable, options, nimBin)
 
   pkgVersionTable.normalizeRequirements(options)
+  pkgVersionTable.normalizeSpecialVersions(options)
 
   options.satResult.pkgVersionTable = pkgVersionTable
   solvedPkgs = pkgVersionTable.getSolvedPackages(output, options).topologicalSort()

@@ -1,10 +1,10 @@
 {.used.}
 import unittest, os, osproc
 import testscommon
-# from nimblepkg/common import cd Used in the commented tests
+# from nimblepkg/common import cd, NimbleError Used in the commented tests
 import std/[tables, sequtils, json, jsonutils, strutils, times, options, strformat]
 import nimblepkg/[version, nimblesat, options, config, download, packageinfotypes]
-from nimblepkg/common import cd
+from nimblepkg/common import cd, NimbleError
 
 let nimBin = "nim"
 #Test utils:
@@ -99,6 +99,79 @@ suite "SAT solver":
     check packages.len == 2
     check packages["a"] == newVersion "3.0"
     check packages["b"] == newVersion "0.1.0"
+
+  test "nitter: same package from different fork URLs (asynctools)":
+    # nitter's dep tree requires asynctools from multiple URLs:
+    # - jester#baca3f requires "https://github.com/timotheecour/asynctools#pr_fix_compilation"
+    # - httpbeast requires "asynctools#0e6bdc3ed5bae8c7cc9" (name-based → official)
+    # normalizeSpecialVersions picks the first special version (topologically)
+    # and rewrites all other requirements to use it.
+
+    let pkgName = "https://github.com/zedeus/nitter"
+    let pv: PkgTuple = (pkgName, VersionRange(kind: verAny))
+    var options = initOptions()
+    options.nimBin = some options.makeNimBin("nim")
+    options.config.packageLists["official"] = PackageList(name: "Official", urls: @[
+      "https://raw.githubusercontent.com/nim-lang/packages/master/packages.json",
+      "https://nim-lang.org/nimble/packages.json"
+    ])
+
+    var pkgInfo = downloadPkInfoForPv(pv, options, nimBin = nimBin)
+    var pkgsToInstall: seq[(string, Version)] = @[]
+    var solvedPkgs: seq[SolvedPackage] = @[]
+    var output = ""
+
+    # lenient=true (default): should resolve successfully
+    options.lenient = true
+    discard solvePackages(pkgInfo, @[], pkgsToInstall, options, output, solvedPkgs, nimBin)
+    check solvedPkgs.len > 0
+
+    # lenient=false: should fail with NimbleError
+    options.lenient = false
+    expect NimbleError:
+      discard solvePackages(pkgInfo, @[], pkgsToInstall, options, output, solvedPkgs, nimBin)
+
+  test "lenient resolves conflicting special versions with warning":
+    proc initConflictingSpecialVersionsTable(): Table[string, PackageVersions] =
+      {
+        "root": PackageVersions(pkgName: "root", versions: @[
+          PackageMinimalInfo(name: "root", version: newVersion "1.0", requires: @[
+            (name: "a", ver: parseVersionRange ">= 1.0"),
+            (name: "b", ver: parseVersionRange ">= 1.0"),
+          ], isRoot: true),
+        ]),
+        "a": PackageVersions(pkgName: "a", versions: @[
+          PackageMinimalInfo(name: "a", version: newVersion "1.0", requires: @[
+            (name: "dep", ver: parseVersionRange "#commit_a"),
+          ]),
+        ]),
+        "b": PackageVersions(pkgName: "b", versions: @[
+          PackageMinimalInfo(name: "b", version: newVersion "1.0", requires: @[
+            (name: "dep", ver: parseVersionRange "#commit_b"),
+          ]),
+        ]),
+        "dep": PackageVersions(pkgName: "dep", versions: @[
+          PackageMinimalInfo(name: "dep", version: newVersion "#commit_a"),
+          PackageMinimalInfo(name: "dep", version: newVersion "#commit_b"),
+        ]),
+      }.toTable()
+
+    var options = initOptions()
+
+    # lenient=true: should succeed, picking #commit_a
+    options.lenient = true
+    var pkgVersionTable = initConflictingSpecialVersionsTable()
+    pkgVersionTable.normalizeSpecialVersions(options)
+    check pkgVersionTable["dep"].versions.len == 1
+    check pkgVersionTable["dep"].versions[0].version == newVersion "#commit_a"
+    check pkgVersionTable["b"].versions[0].requires[0].ver.kind == verSpecial
+    check $pkgVersionTable["b"].versions[0].requires[0].ver.spe == "#commit_a"
+
+    # lenient=false: should raise
+    options.lenient = false
+    var pkgVersionTable2 = initConflictingSpecialVersionsTable()
+    expect NimbleError:
+      pkgVersionTable2.normalizeSpecialVersions(options)
 
   test "solves 'Conflicting dependency resolution' #1162":
     let pkgVersionTable = {
