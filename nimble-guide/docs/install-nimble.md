@@ -8,6 +8,24 @@ Because of this, it is very likely that **you do not need to install Nimble manu
 In case you still want to install Nimble manually, you can follow these installation instructions:
 
 
+
+### Using installation scripts
+
+
+POSIX (Linux/macOS):
+
+```shell
+curl -sSL https://nim-lang.github.io/nimble/install.sh | sh
+```
+
+Windows (PowerShell):
+
+```powershell
+iex (Invoke-WebRequest -Uri https://nim-lang.github.io/nimble/install.ps1 -UseBasicParsing).Content
+```
+
+
+
 ### Using koch
 
 The ``koch`` tool is included in the Nim distribution and [repository](https://github.com/nim-lang/Nim/blob/devel/koch.nim).
