@@ -56,6 +56,7 @@ nav:
   - Home:
     - 'index.md'
     - 'install-nimble.md'
+    - 'install-nim.md'
 
   - Use existing packages:
     - 'use-packages.md'
