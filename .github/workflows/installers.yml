@@ -25,7 +25,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Run install.sh
-        run: ./nimble-guide/install.sh
+        run: sh nimble-guide/install.sh
 
       - name: Verify installation
         run: |
