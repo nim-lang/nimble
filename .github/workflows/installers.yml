@@ -15,7 +15,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-22.04, macos-14]
     runs-on: ${{ matrix.os }}
     defaults:
       run:
@@ -34,8 +34,8 @@ jobs:
           "$HOME/.nimble/bin/nimble" update
 
   test-ps1:
-    name: "Test install.ps1 (windows-latest)"
-    runs-on: windows-latest
+    name: "Test install.ps1 (windows-2025)"
+    runs-on: windows-2025
     steps:
       - name: Checkout
         uses: actions/checkout@v6
