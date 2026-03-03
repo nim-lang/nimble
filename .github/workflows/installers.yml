@@ -1,7 +1,7 @@
 on:
   push:
     tags:
-      - "v*" # "v1.2.3"
+      - "v*"
     branches:
       - master
     paths-ignore: ["nimble-guide/**", "**/*.md"]
