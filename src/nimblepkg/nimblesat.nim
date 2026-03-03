@@ -1631,6 +1631,8 @@ proc normalizeSpecialVersions*(pkgVersionTable: var Table[string, PackageVersion
 
   # Phase 1: find packages with multiple special versions, pick the first one
   for pkgName, pkgVersions in pkgVersionTable.mpairs:
+    if pkgName.isNim:
+      continue
     var specialVersions: seq[Version] = @[]
     for v in pkgVersions.versions:
       if v.version.isSpecial:
@@ -1649,15 +1651,38 @@ proc normalizeSpecialVersions*(pkgVersionTable: var Table[string, PackageVersion
       displayWarning(&"Multiple dependencies require different special versions of '{pkgName}': " &
         &"using {winner}, ignoring {others}. This will become an error in future versions.", HighPriority)
 
-  # Phase 2: rewrite requirements across the table to use winning versions
+  # Phase 2: remove URL-keyed table entries for packages that have a winner
+  # and fix normalizedRequirements so it points to the correct URL
   if winners.len > 0:
+    var keysToRemove: seq[string] = @[]
+    var winnerUrls = initTable[string, string]()  # pkgName -> URL of fork that has the winning version
+    for key, pkgVersions in pkgVersionTable:
+      if key.isUrl and pkgVersions.versions.len > 0:
+        let name = pkgVersions.versions[0].name.toLower
+        if name in winners:
+          for v in pkgVersions.versions:
+            if v.version == winners[name]:
+              winnerUrls[name] = key
+              break
+          keysToRemove.add key
+    for key in keysToRemove:
+      pkgVersionTable.del key
+    # Update normalizedRequirements: point to the winning fork's URL,
+    # or remove the entry if the winner came from a name-based requirement
+    # (so normal package resolution finds the official URL from packages.json)
+    for name, winner in winners:
+      if name in winnerUrls:
+        options.satResult.normalizedRequirements[name] = winnerUrls[name]
+      elif name in options.satResult.normalizedRequirements:
+        options.satResult.normalizedRequirements.del name
+
+    # Phase 3: rewrite requirements across the table to use winning versions
     for pkgName, pkgVersions in pkgVersionTable.mpairs:
       for pkgVersion in pkgVersions.versions.mitems:
         for req in pkgVersion.requires.mitems:
           let reqName = req.name.toLower
           if reqName in winners and req.ver.kind == verSpecial and req.ver.spe != winners[reqName]:
             req.ver = VersionRange(kind: verSpecial, spe: winners[reqName])
-
 proc postProcessSolvedPkgs*(solvedPkgs: var seq[SolvedPackage], options: Options, nimBin: string) {.instrument.} =
   #Prioritizes fileUrl packages over the regular packages defined in the requirements
   var fileUrlPkgs: seq[PackageInfo] = @[]

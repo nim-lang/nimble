@@ -83,7 +83,7 @@ type
     visitedHooks*: seq[VisitedHook] # Whether we are executing hooks.
     useAsyncDownloads*: bool # Whether to use async downloads (temporary flag)
     explicitGlobal*: bool # Whether -g/--global was explicitly passed by the user
-    lenient*: bool # When true, conflicting special versions produce warnings. When false, they error. For now it cant be disabled.  
+    lenient*: bool # When true, conflicting special versions produce warnings. When false, they error. For now it cant be disabled.
     
   ActionType* = enum
     actionNil, actionRefresh, actionInit, actionDump, actionPublish, actionUpgrade
