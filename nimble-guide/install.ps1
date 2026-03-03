@@ -1,7 +1,12 @@
 $ErrorActionPreference = 'Stop'
 
 # --- Detection ---
-$latestRelease = Invoke-RestMethod -Uri "https://api.github.com/repos/nim-lang/nimble/releases/latest"
+$headers = @{}
+if ($env:GITHUB_TOKEN) {
+    $headers["Authorization"] = "token $($env:GITHUB_TOKEN)"
+}
+
+$latestRelease = Invoke-RestMethod -Uri "https://api.github.com/repos/nim-lang/nimble/releases/latest" -Headers $headers
 $version = $latestRelease.tag_name
 if (-not $version) {
     Throw "Could not find latest version."

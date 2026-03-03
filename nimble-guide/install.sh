@@ -25,9 +25,19 @@ if [ "$OS_NAME" = "macosx" ] && [ "$ARCH_NAME" = "aarch64" ]; then
 fi
 
 # --- Find latest version ---
-VERSION=$(curl -s https://api.github.com/repos/nim-lang/nimble/releases/latest | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+if [ -n "$GITHUB_TOKEN" ]; then
+  RESPONSE=$(curl -s -H "Authorization: token $GITHUB_TOKEN" https://api.github.com/repos/nim-lang/nimble/releases/latest)
+else
+  RESPONSE=$(curl -s https://api.github.com/repos/nim-lang/nimble/releases/latest)
+fi
+
+VERSION=$(echo "$RESPONSE" | grep '"tag_name":' | cut -d '"' -f 4)
+
 if [ -z "$VERSION" ]; then
   echo "Could not find latest version."
+  if echo "$RESPONSE" | grep -q "rate limit exceeded"; then
+    echo "GitHub API rate limit exceeded. Please set GITHUB_TOKEN to increase limits."
+  fi
   exit 1
 fi
 
