@@ -1,14 +1,12 @@
-name: Test Installers
-
 on:
   push:
     tags:
       - "v*" # "v1.2.3"
     branches:
       - master
-    paths-ignore: ["**/*.md"]
+    paths-ignore: ["nimble-guide/**", "**/*.md"]
   pull_request:
-    paths-ignore: ["**/*.md"]
+    paths-ignore: ["nimble-guide/**", "**/*.md"]
   workflow_dispatch:
 
 jobs:
@@ -17,7 +15,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-22.04, macos-14]
+        os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     defaults:
       run:
@@ -32,7 +30,8 @@ jobs:
       - name: Verify installation
         run: |
           $HOME/.nimble/bin/nimble --version
-          $HOME/.nimble/bin/nimble update
+          cd "$HOME"
+          "$HOME/.nimble/bin/nimble" update
 
   test-ps1:
     name: "Test install.ps1 (windows-latest)"
@@ -52,4 +51,5 @@ jobs:
           $nimbleExe = Join-Path $HOME ".nimble/bin/nimble.exe"
           if (-not (Test-Path $nimbleExe)) { throw "nimble.exe not found at $nimbleExe" }
           & $nimbleExe --version
+          cd $env:TEMP
           & $nimbleExe update
