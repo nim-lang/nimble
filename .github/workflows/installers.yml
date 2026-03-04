@@ -1,0 +1,59 @@
+on:
+  push:
+    tags:
+      - "v*"
+    branches:
+      - master
+    paths-ignore: ["nimble-guide/**", "**/*.md"]
+  pull_request:
+    paths-ignore: ["nimble-guide/**", "**/*.md"]
+  workflow_dispatch:
+
+jobs:
+  test-sh:
+    name: "Test install.sh (${{ matrix.os }})"
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Run install.sh
+        run: bash nimble-guide/install.sh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Verify installation
+        run: |
+          $HOME/.nimble/bin/nimble --version
+          cd "$HOME"
+          "$HOME/.nimble/bin/nimble" update
+
+  test-ps1:
+    name: "Test install.ps1 (windows-latest)"
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Run install.ps1
+        shell: powershell
+        run: |
+          ./nimble-guide/install.ps1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Verify installation
+        shell: powershell
+        run: |
+          $nimbleExe = Join-Path $HOME ".nimble/bin/nimble.exe"
+          if (-not (Test-Path $nimbleExe)) { throw "nimble.exe not found at $nimbleExe" }
+          & $nimbleExe --version
+          cd $env:TEMP
+          & $nimbleExe update
