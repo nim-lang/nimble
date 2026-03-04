@@ -19,16 +19,18 @@ case "$ARCH" in
   *) echo "Unsupported architecture: $ARCH"; exit 1 ;;
 esac
 
-# Fallback for Apple Silicon if arm64 build is not available
-if [ "$OS_NAME" = "macosx" ] && [ "$ARCH_NAME" = "aarch64" ]; then
-  ARCH_NAME="x64"
-fi
-
 # --- Find latest version ---
 if [ -n "$GITHUB_TOKEN" ]; then
   RESPONSE=$(curl -s -H "Authorization: token $GITHUB_TOKEN" https://api.github.com/repos/nim-lang/nimble/releases/latest)
 else
   RESPONSE=$(curl -s https://api.github.com/repos/nim-lang/nimble/releases/latest)
+fi
+
+# Fallback for Apple Silicon if native arm64 build is not available in the release
+if [ "$OS_NAME" = "macosx" ] && [ "$ARCH_NAME" = "aarch64" ]; then
+  if ! echo "$RESPONSE" | grep -q "nimble-macosx_aarch64.tar.gz"; then
+    ARCH_NAME="x64"
+  fi
 fi
 
 VERSION=$(echo "$RESPONSE" | grep '"tag_name":' | cut -d '"' -f 4)
