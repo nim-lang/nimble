@@ -572,7 +572,7 @@ proc setNimbleDir*(options: var Options) =
       display("Info:", "Using the environment variable: NIMBLE_DIR='" &
               env & "'", Success, priority = HighPriority)
       nimbleDir = env
-      setPackageCache(options, nimbleDir)
+      setPackageCache(options, options.config.nimbleDir) #Use the global nimbleDir so pkgcache is shared
     else:
       # ...followed by project local deps mode
       if dirExists(nimbledeps) or (options.localdeps and not options.developLocaldeps):
