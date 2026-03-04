@@ -13,7 +13,7 @@ Nimble can be used to install Nim globally and manage global Nim versions. In th
     If you need a specific version:
 
     ```shell
-    $ nimble install -g nim@2.2.6`.
+    $ nimble install -g nim@2.2.6
     ```
 
 1. To set up development environment, install nimlangserver and nph globally:
