@@ -30,6 +30,12 @@ jobs:
           - os: macosx
             triple: x86_64-apple-darwin14
             name: macosx_x64
+          - os: macosx
+            triple: aarch64-apple-darwin
+            name: macosx_aarch64
+          - os: macosx
+            triple: universal-apple-darwin
+            name: macosx_universal
           - os: windows
             triple: x86_64-w64-mingw32
             name: windows_x64
@@ -79,6 +85,24 @@ jobs:
             --passL:"-target x86_64-apple-macos10.15" \
             --passC:"-target x86_64-apple-macos10.15" \
             src/nimble.nim;
+          elif [[ "${{ matrix.target.triple }}" == "aarch64-apple-darwin" ]]; then
+            nim c -d:release \
+            -d:zippyNoSimd \
+            --passL:"-target arm64-apple-macos11" \
+            --passC:"-target arm64-apple-macos11" \
+            src/nimble.nim;
+          elif [[ "${{ matrix.target.triple }}" == "universal-apple-darwin" ]]; then
+            nim c -d:release \
+            -d:zippyNoSimd \
+            --passL:"-target x86_64-apple-macos10.15" \
+            --passC:"-target x86_64-apple-macos10.15" \
+            -o:src/nimble_x64 src/nimble.nim;
+            nim c -d:release \
+            -d:zippyNoSimd \
+            --passL:"-target arm64-apple-macos11" \
+            --passC:"-target arm64-apple-macos11" \
+            -o:src/nimble_arm64 src/nimble.nim;
+            lipo -create src/nimble_x64 src/nimble_arm64 -output src/nimble;
           else
             nim -d:release c src/nimble.nim;
           fi
