@@ -107,13 +107,19 @@ jobs:
             nim -d:release c src/nimble.nim;
           fi
 
+      - name: Download OpenSSL DLLs
+        if: matrix.target.os == 'windows'
+        run: |
+          curl -sL "https://nim-lang.org/download/dlls.zip" -o dlls.zip
+          unzip -o dlls.zip -d src/ "libcrypto-*.dll" "libssl-*.dll" "cacert.pem"
+
       - name: Compress binaries
         run: |
           cd src
           if [[ "${{ matrix.target.os }}" == "windows" ]]; then
-            # Create both formats for Windows
-            tar -c -z -v -f ../nimble-${{ matrix.target.name }}.tar.gz nimble.exe
-            zip ../nimble-${{ matrix.target.name }}.zip nimble.exe
+            # Create both formats for Windows (include OpenSSL DLLs)
+            tar -c -z -v -f ../nimble-${{ matrix.target.name }}.tar.gz nimble.exe libcrypto-*.dll libssl-*.dll cacert.pem
+            zip ../nimble-${{ matrix.target.name }}.zip nimble.exe libcrypto-*.dll libssl-*.dll cacert.pem
           else
             tar -c -z -v -f ../nimble-${{ matrix.target.name }}.tar.gz nimble
           fi
