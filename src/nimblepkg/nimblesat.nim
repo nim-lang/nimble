@@ -99,7 +99,7 @@ proc getMinimalInfo*(pkg: PackageInfo, options: Options): PackageMinimalInfo =
 proc getMinimalInfo*(nimbleFile: string, options: Options, nimBin: string): PackageMinimalInfo =
   #TODO we can use the new getPkgInfoFromDirWithDeclarativeParser to get the minimal info and add the features to the packageinfo type so this whole function can be removed
   #TODO we need to handle the url here as well.
-  assert options.useDeclarativeParser, "useDeclarativeParser must be set"
+  # declarative parser is always used
   let pkg = getPkgInfoFromDirWithDeclarativeParser(nimbleFile.parentDir, options, nimBin)
   result.name =  if pkg.basicInfo.name.isNim: "nim" else: pkg.basicInfo.name
   result.version = pkg.basicInfo.version
@@ -851,11 +851,8 @@ proc getPackageMinimalVersionsFromRepo*(repoDir: string, pkg: PkgTuple, version:
           let nimbleFile = findNimbleFile(tempDir, true, options, warn = false)
           if options.satResult.pass in {satNimSelection}:
             result.addUnique getPkgInfoFromDirWithDeclarativeParser(tempDir, options, nimBin).getMinimalInfo(options)
-          elif options.useDeclarativeParser:
-            result.addUnique getMinimalInfo(nimbleFile, options, nimBin)
           else:
-            let pkgInfo = getPkgInfoFromFile(nimBin, nimbleFile, options, useCache=false)
-            result.addUnique pkgInfo.getMinimalInfo(options)
+            result.addUnique getMinimalInfo(nimbleFile, options, nimBin)
           #here we copy the directory to its own folder so we have it cached for future usage
           let downloadInfo = getPackageDownloadInfo((name, tagVersion.toVersionRange()), options)
           if not dirExists(downloadInfo.downloadDir):
@@ -875,8 +872,8 @@ proc getPackageMinimalVersionsFromRepo*(repoDir: string, pkg: PkgTuple, version:
     except CatchableError as e:
       displayWarning(&"Error getting package info for {name}: {e.msg}", HighPriority)
 
-    if not (not options.isLegacy and options.satResult.pass == satNimSelection and options.satResult.declarativeParseFailed):
-      #Dont save tagged versions if we are in vNext and the declarative parser failed as this could cache the incorrect versions.
+    if not (options.satResult.pass == satNimSelection and options.satResult.declarativeParseFailed):
+      #Dont save tagged versions if the declarative parser failed as this could cache the incorrect versions.
       #its suboptimal in the sense that next packages after failure wont be saved in the first past but there is a guarantee that there is a second pass in the case
       #the declarative parser fails so they will be saved then.
       saveTaggedVersions(name, result, options)
@@ -949,11 +946,8 @@ proc getPackageMinimalVersionsFromRepoAsync*(repoDir: string, pkg: PkgTuple, ver
           let nimbleFile = findNimbleFile(tempDir, true, options, warn = false)
           if options.satResult.pass in {satNimSelection}:
             result.addUnique getPkgInfoFromDirWithDeclarativeParser(tempDir, options, nimBin).getMinimalInfo(options)
-          elif options.useDeclarativeParser:
-            result.addUnique getMinimalInfo(nimbleFile, options, nimBin)
           else:
-            let pkgInfo = getPkgInfoFromFile(nimBin, nimbleFile, options, useCache=false)
-            result.addUnique pkgInfo.getMinimalInfo(options)
+            result.addUnique getMinimalInfo(nimbleFile, options, nimBin)
           #here we copy the directory to its own folder so we have it cached for future usage
           let downloadInfo = getPackageDownloadInfo((name, tagVersion.toVersionRange()), options)
           if not dirExists(downloadInfo.downloadDir):
@@ -973,8 +967,8 @@ proc getPackageMinimalVersionsFromRepoAsync*(repoDir: string, pkg: PkgTuple, ver
     except CatchableError as e:
       displayWarning(&"Error getting package info for {name}: {e.msg}", HighPriority)
 
-    if not (not options.isLegacy and options.satResult.pass == satNimSelection and options.satResult.declarativeParseFailed):
-      #Dont save tagged versions if we are in vNext and the declarative parser failed as this could cache the incorrect versions.
+    if not (options.satResult.pass == satNimSelection and options.satResult.declarativeParseFailed):
+      #Dont save tagged versions if the declarative parser failed as this could cache the incorrect versions.
       #its suboptimal in the sense that next packages after failure wont be saved in the first past but there is a guarantee that there is a second pass in the case
       #the declarative parser fails so they will be saved then.
       try:
@@ -1556,24 +1550,6 @@ proc isSystemNimCompatible*(solvedPkgs: seq[SolvedPackage], options: Options): b
         return false
   true
 
-proc solveLocalPackages*(rootPkgInfo: PackageInfo, pkgList: seq[PackageInfo], solvedPkgs: var seq[SolvedPackage], systemNimCompatible: var bool, options: Options): HashSet[PackageInfo] = 
-  var root = rootPkgInfo.getMinimalInfo(options)
-  root.isRoot = true
-  var pkgVersionTable = initTable[string, PackageVersions]()
-  pkgVersionTable[root.name] = PackageVersions(pkgName: root.name, versions: @[root])
-  fillPackageTableFromPreferred(pkgVersionTable, pkgList.mapIt(it.getMinimalInfo(options)))
-  var output = ""
-  solvedPkgs = pkgVersionTable.getSolvedPackages(output, options)
-  systemNimCompatible = solvedPkgs.isSystemNimCompatible(options)
-  
-  for solvedPkg in solvedPkgs:
-    if solvedPkg.pkgName.isNim and systemNimCompatible:     
-      continue #Dont add nim from the solution as we will use system nim
-    for pkgInfo in pkgList:
-      if (pkgInfo.basicInfo.name == solvedPkg.pkgName or pkgInfo.metadata.url == solvedPkg.pkgName) and 
-        (pkgInfo.basicInfo.version == solvedPkg.version or solvedPkg.version in pkgInfo.metadata.specialVersions):
-          result.incl pkgInfo
-
 proc areAllReqAny(dep: SolvedPackage): bool =
   #Checks where all the requirements by other packages in the solution are any
   #This allows for using a special version to meet the requirement of the solution
@@ -1706,7 +1682,7 @@ proc solvePackages*(rootPkg: PackageInfo, pkgList: seq[PackageInfo], pkgsToInsta
   pkgVersionTable = cacheToPackageVersionTable(options)
   pkgVersionTable[root.name] = PackageVersions(pkgName: root.name, versions: @[root])
 
-  if options.isLegacy or not options.useAsyncDownloads:
+  if not options.useAsyncDownloads:
     collectAllVersions(pkgVersionTable, root, options, downloadMinimalPackage, pkgList.mapIt(it.getMinimalInfo(options)), nimBin)
   else:
     # Async version: collect versions in parallel, then merge with cache
@@ -1741,7 +1717,7 @@ proc solvePackages*(rootPkg: PackageInfo, pkgList: seq[PackageInfo], pkgsToInsta
         (pkgInfo.basicInfo.version == solvedPkg.version and (not isSpecial or canUseAny) or solvedPkg.version in specialVersions) and
         #only add one (we could fall into adding two if there are multiple special versiosn in the package list and we can add any). 
         #But we still allow it on upgrade as they are post proccessed in a later stage
-          ((not options.isLegacy and options.action.typ in {actionLock}) or #For lock in vnext the result is cleaned in the lock proc that handles the pass
+          ((options.action.typ in {actionLock}) or #For lock the result is cleaned in the lock proc that handles the pass
             (result.toSeq.filterIt(cmpIgnoreCase(it.basicInfo.name, solvedPkg.pkgName) == 0 or 
             cmpIgnoreCase(it.metadata.url, solvedPkg.pkgName) == 0).len == 0 or 
             options.action.typ in {actionUpgrade})): 

@@ -26,7 +26,6 @@ suite "multi":
   test "do not replace a package if already installed":
     installAlpha()
     args.add pkgMultiBetaUrl
-    args.add "--legacy" 
     let (output, exitCode) = execNimbleYes(args)
     check exitCode == QuitSuccess
     var lines = output.processOutput

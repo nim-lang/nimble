@@ -917,21 +917,20 @@ proc downloadPkg*(url: string, verRange: VersionRange,
   saveMetaData(metaData, result.dir)
 
   var pkgInfo: PackageInfo
-  if validateRange and verRange.kind notin {verSpecial, verAny} or not options.isLegacy:
-    ## Makes sure that the downloaded package's version satisfies the requested
-    ## version range.
-    pkginfo = if options.satResult.pass == satNimSelection: #TODO later when in vnext we should just use this code path and fallback inside the toRequires if we can
-      getPkgInfoFromDirWithDeclarativeParser(result.dir, options, nimBin)
-    else:
-      getPkgInfo(result.dir, options, nimBin)
-    if pkginfo.basicInfo.version notin verRange:
-      raise nimbleError(
-        "Downloaded package's version does not satisfy requested version " &
-        "range: wanted $1 got $2." %
-        [$verRange, $pkginfo.basicInfo.version])
+  ## Makes sure that the downloaded package's version satisfies the requested
+  ## version range.
+  pkginfo = if options.satResult.pass == satNimSelection: #TODO later when in vnext we should just use this code path and fallback inside the toRequires if we can
+    getPkgInfoFromDirWithDeclarativeParser(result.dir, options, nimBin)
+  else:
+    getPkgInfo(result.dir, options, nimBin)
+  if pkginfo.basicInfo.version notin verRange:
+    raise nimbleError(
+      "Downloaded package's version does not satisfy requested version " &
+      "range: wanted $1 got $2." %
+      [$verRange, $pkginfo.basicInfo.version])
 
     #TODO rework the pkgcache to handle this better
-    #ideally we should be able to know the version we are downloading upfront 
+    #ideally we should be able to know the version we are downloading upfront
     #as for the constraints we need a way to invalidate the cache entry so it doesnt get outdated
     # if options.isVNext:
     #   # Rename the download directory to use actual version if it's different from the version range
@@ -941,7 +940,7 @@ proc downloadPkg*(url: string, verRange: VersionRange,
     #   let newDownloadDir = options.pkgCachePath / getDownloadDirName(url, pkginfo.basicInfo.version.toVersionRange(), notSetSha1Hash)
     #   if downloadDir != newDownloadDir:
     #     if dirExists(newDownloadDir):
-    #       removeDir(newDownloadDir)  
+    #       removeDir(newDownloadDir)
     #     moveDir(downloadDir, newDownloadDir)
     #     result.dir = newDownloadDir / subdir
 
@@ -998,13 +997,12 @@ proc downloadPkgAsync*(url: string, verRange: VersionRange,
   saveMetaData(metaData, result.dir)
 
   var pkgInfo: PackageInfo
-  if validateRange and verRange.kind notin {verSpecial, verAny} or not options.isLegacy:
-    ## Makes sure that the downloaded package's version satisfies the requested
-    ## version range.
-    pkginfo = if options.satResult.pass == satNimSelection: #TODO later when in vnext we should just use this code path and fallback inside the toRequires if we can
-      getPkgInfoFromDirWithDeclarativeParser(result.dir, options, nimBin)
-    else:
-      getPkgInfo(result.dir, options, nimBin)
+  ## Makes sure that the downloaded package's version satisfies the requested
+  ## version range.
+  pkginfo = if options.satResult.pass == satNimSelection: #TODO later when in vnext we should just use this code path and fallback inside the toRequires if we can
+    getPkgInfoFromDirWithDeclarativeParser(result.dir, options, nimBin)
+  else:
+    getPkgInfo(result.dir, options, nimBin)
   if pkginfo.basicInfo.version notin verRange:
     raise nimbleError(
       "Downloaded package's version does not satisfy requested version " &

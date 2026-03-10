@@ -69,15 +69,13 @@ type
       # If not provided by default it applies to the current directory package.
       # For now, it is used only by the run action and it is ignored by others.
     pkgCachePath*: string # Cache used to store package downloads
-    useSatSolver*: bool
     extraRequires*: seq[PkgTuple] # extra requires parsed from the command line
     nimBinariesDir*: string # Directory where nim binaries are stored. Separated from nimbleDir as it can be changed by the user/tests
     disableNimBinaries*: bool # Whether to disable the use of nim binaries
-    useDeclarativeParser*: bool # Whether to use the declarative parser for parsing nimble files (only when solver is SAT). A new code path is used when declarative is on.
+    useDeclarativeParser*: bool # Always true; toggled only in validateParsedDependencies for comparison.
     features*: seq[string] # Features to be activated. Only used when using the declarative parser
     ignoreSubmodules*: bool # Whether to ignore submodules when cloning a repository
     satResult*: SatResult
-    legacy*: bool # Whether to use the legacy code path.
     filePathPkgs*: seq[PackageInfo] #Packages loaded from file:// requires. Top level is always included.
     isFilePathDiscovering*: bool # Whether we are discovering file:// requires to fill up filePathPkgs. If true, it wont validate file:// requires.
     visitedHooks*: seq[VisitedHook] # Whether we are executing hooks.
@@ -290,14 +288,12 @@ Nimble Options:
                                   to be manipulated. If not present creates it.
       --useSystemNim              Use system nim and ignore nim from the lock
                                   file if any.
-      --solver:sat|legacy         Use the SAT solver (default) or the legacy for dependency resolution.
       --requires                  Add extra packages to the dependency resolution. Uses the same syntax as the Nimble file. Example: nimble install --requires "pkg1; pkg2 >= 1.2".
       --disableNimBinaries        Disable the use of nim precompiled binaries. Note in some platforms precompiled binaries are not available but the flag can still be used to avoid compile the Nim version once and reuse it.
       --maximumTaggedVersions     Maximum number of tags to check for a package when discovering versions for the SAT solver. 0 means all.
       --parser:declarative|nimvm  Use the declarative parser or the nimvm parser (default).
       --features                  Activate features. Only used when using the declarative parser.
       --ignoreSubmodules          Ignore submodules when cloning a repository.
-      --legacy                    Use the legacy code path (pre nimble 1.0.0)
       --asyncdownloads            Use async for package downloads. (temporary flag)
 For more information read the GitHub readme:
   https://github.com/nim-lang/nimble#readme
@@ -493,10 +489,9 @@ proc getPkgBuildTempDir*(options: Options, pkgName: string, version: string, che
   options.getBuildTempDir() / &"{pkgName}-{version}-{checksum}"
 
 proc setPackageCache(options: var Options, baseDir: string) =
-  if options.useSatSolver:
-    options.pkgCachePath = baseDir / "pkgcache"
-    if options.verbosity >= LowPriority:
-      display("Info:", "Package cache path " & options.pkgCachePath, priority = LowPriority)
+  options.pkgCachePath = baseDir / "pkgcache"
+  if options.verbosity >= LowPriority:
+    display("Info:", "Package cache path " & options.pkgCachePath, priority = LowPriority)
 
 proc isSubdirOf*(subdir, baseDir: string): bool =
   let
@@ -775,26 +770,13 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
   of "package", "p": result.package = val
   of "lockfile": result.lockFileName = val
   of "usesystemnim": result.useSystemNim = true
-  of "legacy": result.legacy = true
   of "developfile":
     if result.developFile.len == 0:
       result.developFile = val.normalizedPath
     else:
       raise nimbleError(multipleDevelopFileOptionsGivenMsg)
-  of "solver": 
-    if val == "sat":
-      result.useSatSolver = true
-    elif val == "legacy":
-      result.useSatSolver = false
-    else:
-      raise nimbleError("Unknown solver option: " & val)
   of "parser":
-    if val == "declarative":
-      result.useDeclarativeParser = true
-    elif val == "nimvm":
-      result.useDeclarativeParser = false
-    else:
-      raise nimbleError("Unknown parser option: " & val)
+    discard # declarative parser is always used
   of "requires":
     result.extraRequires = val.split(";").mapIt(it.strip.parseRequires())
   of "disablenimbinaries":
@@ -939,9 +921,7 @@ proc initOptions*(): Options =
     noColor: not isatty(stdout),
     startDir: getCurrentDir(),
     nimBinariesDir: getHomeDir() / ".nimble" / "nimbinaries",
-    useSatSolver: true,
-    useDeclarativeParser: false,
-    legacy: false, #default to legacy code path for nimble < 1.0.0
+    useDeclarativeParser: true,
     satResult: SatResult(),
     # TEMPORARY: Changed to global-by-default. To revert to local-by-default, change to: localDeps: true
     localDeps: false,
@@ -979,10 +959,6 @@ proc handleUnknownFlags(options: var Options) =
     options.unknownFlags = @[]
     for flag in unknownFlags:
       parseFlag(flag[1], flag[2], options, flag[0])
-
-  if not options.legacy: 
-    #default to declarative parser for new code path.
-    options.useDeclarativeParser = true 
 
   # Any unhandled flags?
   if options.unknownFlags.len > 0:
@@ -1119,6 +1095,4 @@ proc isTopLevel*(pkg: PackageInfo, options: Options): bool =
   ### A top level package is a root package that is not installed.
   not pkg.myPath.parentDir.startsWith(options.getPkgsDir())
 
-proc isLegacy*(options: Options): bool =
-  let isVnext = not options.legacy or options.useDeclarativeParser
-  return not isVnext
+

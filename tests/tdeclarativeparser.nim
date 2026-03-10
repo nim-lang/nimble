@@ -130,12 +130,6 @@ suite "Declarative parser features":
       check exitCode == QuitSuccess
       check output.processOutput.inLines("resultfeature is enabled")
 
-  test "should ignore features specified in `requires` when using the vmparser":
-    cd "features":
-      let (output, exitCode) = execNimble("--legacy", "run")
-      check exitCode == QuitSuccess
-      check output.processOutput.inLines("resultfeature is disabled")
-
   test "should activate transitive features specified in `requires`":
     cd "features-deps":
       removeDir("nimbledeps")

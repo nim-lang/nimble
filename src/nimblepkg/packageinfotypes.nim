@@ -157,7 +157,6 @@ proc isMinimal*(pkg: PackageInfo): bool =
   pkg.infoKind == pikMinimal
 
 const noTask* = "" # Means that noTask is being ran. Use this as key for base dependencies
-var satProccesedPackages*: Option[HashSet[PackageInfo]] 
 #Package name -> features. When a package requires a feature, it is added to this table. 
 #For instance, if a dependency of a package requires the feature "feature1", it will be added to this table although the root package may not explicitly require it.
 var globallyActiveFeatures: Table[string, seq[string]] = initTable[string, seq[string]]()

@@ -172,14 +172,11 @@ proc validatePackage(pkgPath: Path, options: Options, nimBin: string):
   ##                 not a valid package directory.
 
   try:
-    if not options.isLegacy: #TODO add and test fallback to nimVM parser (i.e. dev pkgList would need to be reloaded)
-      if options.satResult.pass == satNimSelection:
-        result.pkgInfo = getPkgInfoFromDirWithDeclarativeParser(string(pkgPath), options, nimBin)
-        #TODO find a way to validate the package, for now just mark the declarativeParser as failed
-        #as we dont have Nim selected yet. 
-        options.satResult.declarativeParseFailed = true
-      else:
-        result.pkgInfo = getPkgInfo(string(pkgPath), options, nimBin, true)
+    if options.satResult.pass == satNimSelection:
+      result.pkgInfo = getPkgInfoFromDirWithDeclarativeParser(string(pkgPath), options, nimBin)
+      #TODO find a way to validate the package, for now just mark the declarativeParser as failed
+      #as we dont have Nim selected yet.
+      options.satResult.declarativeParseFailed = true
     else:
       result.pkgInfo = getPkgInfo(string(pkgPath), options, nimBin, true)
   except CatchableError as error:
