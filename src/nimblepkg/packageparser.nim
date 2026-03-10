@@ -257,14 +257,6 @@ proc readPackageInfoFromNims(nimBin: string, scriptName: string, options: Option
     readPackageInfoFromNimble(iniFile, result)
 
 proc inferInstallRules(pkgInfo: var PackageInfo, options: Options) =
-  # Binary packages shouldn't install .nim files by default.
-  # (As long as the package info doesn't explicitly specify what should be
-  # installed.)
-  let installInstructions =
-    pkgInfo.installDirs.len + pkgInfo.installExt.len + pkgInfo.installFiles.len
-  if installInstructions == 0 and pkgInfo.bin.len > 0 and pkgInfo.basicInfo.name != "nim" and options.isLegacy: #dont skip nim files for vnext. We build in the install directory
-    pkgInfo.skipExt.add("nim")
-
   # When a package doesn't specify a `srcDir` it's fair to assume that
   # the .nim files are in the root of the package. So we can explicitly select
   # them and prevent the installation of anything else. The user can always

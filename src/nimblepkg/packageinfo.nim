@@ -489,8 +489,8 @@ proc iterInstallFiles*(realDir: string, pkgInfo: PackageInfo,
   
   # Create a mapping of lowercase filesystem names to metadata names
   var metadataNameMap: Table[string, string]
-  if not options.isLegacy:
-    # In vnext we now build in a temp directory before copying, so we CAN use whitelist mode
+  block:
+    # We build in a temp directory before copying, so we CAN use whitelist mode
     # to only copy necessary files. We still need metadataNameMap for case sensitivity.
 
     # Map installFiles
@@ -550,17 +550,17 @@ proc iterInstallFiles*(realDir: string, pkgInfo: PackageInfo,
   else:
     for kind, file in walkDir(realDir):
       if kind == pcDir:
-        let skip = pkgInfo.checkInstallDir(pkgRootDir, file, not options.isLegacy)
+        let skip = pkgInfo.checkInstallDir(pkgRootDir, file, true)
         if skip: continue
         # we also have to stop recursing if we reach an in-place nimbleDir
         if file == options.getNimbleDir().expandFilename(): continue
 
         iterInstallFiles(file, pkgInfo, options, action)
       else:
-        let skip = pkgInfo.checkInstallFile(realDir, file, not options.isLegacy)
+        let skip = pkgInfo.checkInstallFile(realDir, file, true)
         if skip: 
-          # In vnext mode, don't skip .nim files that are needed for binary compilation
-          if not options.isLegacy and file.splitFile.ext == ".nim":
+          # Don't skip .nim files that are needed for binary compilation
+          if file.splitFile.ext == ".nim":
             let fileName = file.splitFile.name
             var isNeededForBinary = false
             for binName, srcName in pkgInfo.bin:
@@ -573,8 +573,8 @@ proc iterInstallFiles*(realDir: string, pkgInfo: PackageInfo,
           else:
             continue
         
-        # In vnext mode, skip binary files that match package binary names to avoid conflicts
-        if not options.isLegacy:
+        # Skip binary files that match package binary names to avoid conflicts
+        block:
           let fileName = file.splitFile.name
           let fileExt = file.splitFile.ext
           var skipBinary = false
@@ -586,11 +586,11 @@ proc iterInstallFiles*(realDir: string, pkgInfo: PackageInfo,
                 break
           if skipBinary: continue
         
-        # For vnext: Handle symbolic links and case sensitivity
-        if not options.isLegacy:
+        # Handle symbolic links and case sensitivity
+        block:
           let relativePath = file.relativePath(realDir)
           let normalizedPath = relativePath.toLowerAscii()
-          
+
           if metadataNameMap.len > 0 and metadataNameMap.hasKey(normalizedPath):
             # Use the metadata name instead of filesystem name
             let metadataPath = realDir / metadataNameMap[normalizedPath]
@@ -607,32 +607,14 @@ proc iterInstallFiles*(realDir: string, pkgInfo: PackageInfo,
               discard
             else:
               action(file)
-        else:
-          action(file)
 
 
 proc needsRebuild*(pkgInfo: PackageInfo, bin: string, dir: string, options: Options): bool =
   if options.action.typ != actionInstall:
     return true
   
-  if not options.isLegacy:
-    if options.action.noRebuild:
-      if not fileExists(bin):
-        return true  
-      
-      let binTimestamp = getFileInfo(bin).lastWriteTime
-      var rebuild = false
-      iterFilesWithExt(dir, pkgInfo,
-        proc (file: string) =
-          let srcTimestamp = getFileInfo(file).lastWriteTime
-          if binTimestamp < srcTimestamp:
-            rebuild = true
-      )
-      return rebuild
-    else:
-      return true
-  else:
-    if not options.action.noRebuild:
+  if options.action.noRebuild:
+    if not fileExists(bin):
       return true
 
     let binTimestamp = getFileInfo(bin).lastWriteTime
@@ -644,6 +626,8 @@ proc needsRebuild*(pkgInfo: PackageInfo, bin: string, dir: string, options: Opti
           rebuild = true
     )
     return rebuild
+  else:
+    return true
 
 proc getCacheDir*(pkgInfo: PackageBasicInfo): string =
   &"{pkgInfo.name}-{pkgInfo.version.toDirectoryName}-{$pkgInfo.checksum}"

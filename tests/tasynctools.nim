@@ -372,7 +372,7 @@ suite "Async Tools":
     # Create options with async enabled (not legacy)
     var options = initOptions()
     options.pkgCachePath = tmpDir / "cache"
-    options.legacy = false  # Use async path (vnext mode)
+    # vnext mode is always used now
     createDir(options.pkgCachePath)
 
     # Create a root package that depends on nim-results

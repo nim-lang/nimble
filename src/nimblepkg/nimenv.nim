@@ -26,7 +26,7 @@ proc compileNim*(options: Options, nimDest: string, v: VersionRange) =
   if nimCompVersion.isSome() and nimCompVersion.get.withinRange(v):
     return
 
-  let keepCsources = options.useSatSolver #SAT Solver has a cache instead of a temp dir for downloads
+  let keepCsources = true # SAT Solver uses a cache instead of a temp dir for downloads
   template exec(command: string) =
     let cmd = command # eval once
     if os.execShellCmd(cmd) != 0:

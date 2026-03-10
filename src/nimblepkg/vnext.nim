@@ -970,8 +970,7 @@ proc getDepsPkgInfo(satResult: SATResult, pkgInfo: PackageInfo, options: Options
 
 proc expandPaths*(pkgInfo: PackageInfo, nimBin: string, options: Options): seq[string] =
   var pkgInfo = pkgInfo.toFullInfo(options, nimBin = nimBin) #TODO is this needed in VNEXT? I dont think so
-  if not options.isLegacy: 
-    pkgInfo = pkgInfo.toRequiresInfo(options, nimBin = nimBin)
+  pkgInfo = pkgInfo.toRequiresInfo(options, nimBin = nimBin)
   let baseDir = pkgInfo.getRealDir()
   result = @[baseDir]
   # Also add srcDir if it exists and is different from baseDir
@@ -1046,10 +1045,7 @@ proc buildFromDir(pkgInfo: PackageInfo, paths: HashSet[string],
     # Disable coloured output
     args.add("--colors:off")
 
-  if options.features.len > 0 and not options.useDeclarativeParser:
-    raise nimbleError("Features are only supported when using the declarative parser")
-
-  for feature in options.features: #Features enabled with the cli    
+  for feature in options.features: #Features enabled with the cli
     let featureStr = &"features.{pkgInfo.basicInfo.name}.{feature}"
     # displayInfo &"Adding feature {featureStr}", priority = HighPriority
     args.add &"-d:{featureStr}"
