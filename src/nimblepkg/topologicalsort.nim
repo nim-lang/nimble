@@ -2,7 +2,7 @@
 # BSD License. Look at license.txt for more info.
 
 import sequtils, tables, strformat, algorithm, sets, os
-import common, packageinfotypes, packageinfo, options, cli, version, vcstools, sha1hashes
+import common, packageinfotypes, packageinfo, options, cli, version, sha1hashes
 
 proc getDependencies(packages: seq[PackageInfo], requires: seq[PkgTuple],
                      options: Options):
@@ -68,29 +68,6 @@ proc deleteStaleDependencies*(packages: seq[PackageInfo],
                             options)
   # Don't filter out develop mode dependencies (link packages) that are actual dependencies
   result = packages.filterIt(all.contains(it.name) or it.isLink)
-
-proc buildDependencyGraph*(packages: seq[PackageInfo], options: Options):
-    LockFileDeps =
-  ## Creates records which will be saved to the lock file.
-  for pkgInfo in packages:
-    var vcsRevision = pkgInfo.metaData.vcsRevision
-    
-    # For develop mode dependencies, ensure VCS revision is set
-    # Check both isLink and if the package has an empty VCS revision but exists locally
-    if (pkgInfo.isLink or (vcsRevision == notSetSha1Hash and pkgInfo.getRealDir().dirExists())) and vcsRevision == notSetSha1Hash:
-      try:
-        vcsRevision = getVcsRevision(pkgInfo.getRealDir())
-      except CatchableError:
-        # If we can't get VCS revision, leave it as notSetSha1Hash
-        discard
-    
-    result[pkgInfo.basicInfo.name] = LockFileDep(
-      version: pkgInfo.basicInfo.version,
-      vcsRevision: vcsRevision,
-      url: pkgInfo.metaData.url,
-      downloadMethod: pkgInfo.metaData.downloadMethod,
-      dependencies: getDependencies(packages, pkgInfo.requires, options),
-      checksums: Checksums(sha1: pkgInfo.basicInfo.checksum))
 
 proc topologicalSort*(graph: LockFileDeps):
     tuple[order: seq[string], cycles: seq[seq[string]]] =
