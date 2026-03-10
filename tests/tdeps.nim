@@ -12,11 +12,8 @@ suite "nimble deps":
     cd "deps":
       let (output, exitCode) = execCmdEx(nimblePath & " --silent deps -y")
       check exitCode == QuitSuccess
-      check output.contains("""
-deps
-  timezones 0.5.4 (resolved 0.5.4)
-    nim >= 0.19.9
-""")
+      check output.contains("deps (@0.1.0)")
+      check output.contains("timezones 0.5.4 (@0.5.4)")
 
   test "nimble deps(json)":
     cd "issue727":

@@ -14,7 +14,7 @@ import nimblepkg/packageinfotypes, nimblepkg/packageinfo, nimblepkg/version,
        nimblepkg/publish, nimblepkg/options, nimblepkg/packageparser,
        nimblepkg/cli, nimblepkg/packageinstaller, nimblepkg/reversedeps,
        nimblepkg/nimscriptexecutor, nimblepkg/init, nimblepkg/vcstools,
-       nimblepkg/checksums, nimblepkg/topologicalsort, nimblepkg/lockfile,
+       nimblepkg/checksums, nimblepkg/lockfile,
        nimblepkg/nimscriptwrapper, nimblepkg/developfile, nimblepkg/paths,
        nimblepkg/nimbledatafile, nimblepkg/packagemetadatafile,
        nimblepkg/displaymessages, nimblepkg/sha1hashes, nimblepkg/syncfile,
@@ -1533,12 +1533,10 @@ proc deps(options: Options, nimBin: string) =
 
   var errors = validateDevModeDepsWorkingCopiesBeforeLock(pkgInfo, options, nimBin)
   var dependencies = options.satResult.pkgs.toSeq
-  #TODO review if buildDependencyGraph should be called in vnext mode. It seems it can be used
-  #But likely using satResult would be faster, all the info we need is already there.
-  var dependencyGraph = buildDependencyGraph(dependencies, options)
-  # delete errors for dependencies that aren't part of the graph
+  let depNames = dependencies.mapIt(it.basicInfo.name).toHashSet
+  # delete errors for dependencies that aren't part of the solution
   for name, error in common.dup errors:
-    if not dependencyGraph.contains name:
+    if name notin depNames:
       errors.del name
 
   if options.action.depsAction in ["", "tree", "inverted"]:
