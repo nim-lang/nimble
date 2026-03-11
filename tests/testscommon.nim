@@ -219,3 +219,56 @@ block:
   # Verbose name is used for exit code so assert is clearer
   let (output, nimbleCompileExitCode) = execCmdEx("nim c " & nimbleCompilePath)
   doAssert nimbleCompileExitCode == QuitSuccess, output
+
+# Test timing instrumentation — compile with -d:timedTests to enable
+when defined(timedTests):
+  import std/times, std/algorithm, std/exitprocs
+
+  type
+    TestTiming = object
+      suite: string
+      test: string
+      duration: Duration
+
+    TimingFormatter = ref object of OutputFormatter
+      currentSuite: string
+      suiteStart: DateTime
+      testStart: DateTime
+      timings: seq[TestTiming]
+
+  method suiteStarted(f: TimingFormatter, suiteName: string) =
+    f.currentSuite = suiteName
+    f.suiteStart = times.now()
+
+  method testStarted(f: TimingFormatter, testName: string) =
+    f.testStart = times.now()
+
+  method testEnded(f: TimingFormatter, testResult: TestResult) =
+    f.timings.add(TestTiming(
+      suite: f.currentSuite,
+      test: testResult.testName,
+      duration: times.now() - f.testStart))
+
+  method suiteEnded(f: TimingFormatter) =
+    f.timings.add(TestTiming(
+      suite: f.currentSuite,
+      test: "[total]",
+      duration: times.now() - f.suiteStart))
+
+  var timingFmt = TimingFormatter()
+  addOutputFormatter(timingFmt)
+
+  proc printTimingReport() =
+    var sorted = timingFmt.timings.filterIt(it.duration.inMilliseconds > 0)
+    sorted.sort proc(a, b: TestTiming): int = cmp(b.duration, a.duration)
+    echo ""
+    echo "=== Test Timing Report (slowest first) ==="
+    for t in sorted:
+      let ms = t.duration.inMilliseconds
+      if t.test == "[total]":
+        echo &"  [{ms:>8}ms] SUITE: {t.suite}"
+      else:
+        echo &"  [{ms:>8}ms]   {t.suite} > {t.test}"
+    echo "==========================================="
+
+  addExitProc printTimingReport

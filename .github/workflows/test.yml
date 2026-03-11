@@ -46,7 +46,7 @@ jobs:
         run: nimble install -y
       - name: Run nim c -r tester
         run: |
-          nimble test
+          nimble cibenchmark
       - name: Install nimble
         run: |
           if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
