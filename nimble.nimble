@@ -22,13 +22,18 @@ when defined(nimdistros):
 before install:
   exec "git submodule update --init"
 
-task test, "Run the Nimble tester!":
-  #Find params that are a test name
+proc runTester(extraFlags = "") =
   var extraParams = ""
   for i in 0 .. paramCount():
     if "::" in paramStr(i):
-      extraParams = "test " 
+      extraParams = "test "
       extraParams.addQuoted paramStr(i)
 
-  withDir "tests":  
-    exec "nim c -r tester " & extraParams
+  withDir "tests":
+    exec "nim c " & extraFlags & " -r tester " & extraParams
+
+task test, "Run the Nimble tester!":
+  runTester()
+
+task cibenchmark, "Run tests with timing instrumentation":
+  runTester("-d:timedTests")
