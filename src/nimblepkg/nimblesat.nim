@@ -796,88 +796,99 @@ proc getPackageMinimalVersionsFromRepo*(repoDir: string, pkg: PkgTuple, version:
   if taggedVersions.isSome:
     return taggedVersions.get
 
-  let tempDir = repoDir & "_versions"
   # During version discovery, we only need to read .nimble files, not compile code
   # So we can safely ignore submodules to avoid issues with repos that have
   # submodules that fail to clone (e.g., waku's zerokit submodule)
   var versionDiscoveryOptions = options
   versionDiscoveryOptions.ignoreSubmodules = true
+
+  # Fetch tags and use git show directly on repoDir (read-only git operations).
+  # Only create a tempDir copy if we need the fallback checkout path (rare).
+  var tags = initOrderedTable[Version, string]()
   try:
-    removeDir(tempDir)
-    copyDir(repoDir, tempDir)
-    var tags = initOrderedTable[Version, string]()
-    try:
-      gitFetchTags(tempDir, downloadMethod, versionDiscoveryOptions)
-      tags = getTagsList(tempDir, downloadMethod).getVersionList()
-    except NimbleGitError as e:
-      options.satResult.gitErrors.add(&"Git error fetching tags for {name} (could be a network issue): {e.msg}")
-      displayWarning(&"Git error fetching tags for {name}: {e.msg}", HighPriority)
-    except CatchableError as e:
-      displayWarning(&"Error fetching tags for {name}: {e.msg}", HighPriority)
+    gitFetchTags(repoDir, downloadMethod, versionDiscoveryOptions)
+    tags = getTagsList(repoDir, downloadMethod).getVersionList()
+  except NimbleGitError as e:
+    options.satResult.gitErrors.add(&"Git error fetching tags for {name} (could be a network issue): {e.msg}")
+    displayWarning(&"Git error fetching tags for {name}: {e.msg}", HighPriority)
+  except CatchableError as e:
+    displayWarning(&"Error fetching tags for {name}: {e.msg}", HighPriority)
 
-    # Process all tagged versions (no limit)
-    for (ver, tag) in tags.pairs:
+  # Lazy copy: only created when fallback checkout is needed
+  var tempDir = ""
+  var tempDirCreated = false
+
+  # Process all tagged versions (no limit)
+  for (ver, tag) in tags.pairs:
+    try:
+      let tagVersion = newVersion($ver)
+
+      if not tagVersion.withinRange(pkg[1]):
+        displayInfo(&"Ignoring {name}:{tagVersion} because out of range {pkg[1]}", LowPriority)
+        continue
+
+      # Try git show + declarative parser first (faster, avoids checkout)
+      var parsed = false
       try:
-        let tagVersion = newVersion($ver)
+        let nimbleFiles = gitListNimbleFilesInCommit(repoDir, tag)
+        if nimbleFiles.len > 0:
+          # Prefer nimble file matching package name
+          var nimbleFilePath = nimbleFiles[0]
+          let expectedName = name & ".nimble"
+          for nf in nimbleFiles:
+            if nf.endsWith(expectedName) or nf == expectedName:
+              nimbleFilePath = nf
+              break
 
-        if not tagVersion.withinRange(pkg[1]):
-          displayInfo(&"Ignoring {name}:{tagVersion} because out of range {pkg[1]}", LowPriority)
-          continue
+          let nimbleContent = gitShowFile(repoDir, tag, nimbleFilePath)
+          let minimalInfo = getMinimalInfoFromContent(nimbleContent, name, tagVersion, url = "", options)
+          if minimalInfo.isSome:
+            result.addUnique(minimalInfo.get)
+            parsed = true
+      except CatchableError:
+        discard  # Fall back to checkout approach
 
-        # Try git show + declarative parser first (faster, avoids checkout)
-        var parsed = false
-        try:
-          let nimbleFiles = gitListNimbleFilesInCommit(tempDir, tag)
-          if nimbleFiles.len > 0:
-            # Prefer nimble file matching package name
-            var nimbleFilePath = nimbleFiles[0]
-            let expectedName = name & ".nimble"
-            for nf in nimbleFiles:
-              if nf.endsWith(expectedName) or nf == expectedName:
-                nimbleFilePath = nf
-                break
+      # Fall back to checkout + VM parser if declarative parsing failed
+      if not parsed:
+        # Lazy copy: create tempDir only when we actually need to checkout
+        if not tempDirCreated:
+          tempDir = repoDir & "_versions"
+          removeDir(tempDir)
+          copyDir(repoDir, tempDir)
+          tempDirCreated = true
+        discard doCheckout(downloadMethod, tempDir, tag, versionDiscoveryOptions)
+        let nimbleFile = findNimbleFile(tempDir, true, options, warn = false)
+        if options.satResult.pass in {satNimSelection}:
+          result.addUnique getPkgInfoFromDirWithDeclarativeParser(tempDir, options, nimBin).getMinimalInfo(options)
+        else:
+          result.addUnique getMinimalInfo(nimbleFile, options, nimBin)
+        #here we copy the directory to its own folder so we have it cached for future usage
+        let downloadInfo = getPackageDownloadInfo((name, tagVersion.toVersionRange()), options)
+        if not dirExists(downloadInfo.downloadDir):
+          copyDir(tempDir, downloadInfo.downloadDir)
 
-            let nimbleContent = gitShowFile(tempDir, tag, nimbleFilePath)
-            let minimalInfo = getMinimalInfoFromContent(nimbleContent, name, tagVersion, url = "", options)
-            if minimalInfo.isSome:
-              result.addUnique(minimalInfo.get)
-              parsed = true
-        except CatchableError:
-          discard  # Fall back to checkout approach
-
-        # Fall back to checkout + VM parser if declarative parsing failed
-        if not parsed:
-          discard doCheckout(downloadMethod, tempDir, tag, versionDiscoveryOptions)
-          let nimbleFile = findNimbleFile(tempDir, true, options, warn = false)
-          if options.satResult.pass in {satNimSelection}:
-            result.addUnique getPkgInfoFromDirWithDeclarativeParser(tempDir, options, nimBin).getMinimalInfo(options)
-          else:
-            result.addUnique getMinimalInfo(nimbleFile, options, nimBin)
-          #here we copy the directory to its own folder so we have it cached for future usage
-          let downloadInfo = getPackageDownloadInfo((name, tagVersion.toVersionRange()), options)
-          if not dirExists(downloadInfo.downloadDir):
-            copyDir(tempDir, downloadInfo.downloadDir)
-
-      except CatchableError as e:
-        displayWarning(
-          &"Error reading tag {tag}: for package {name}. This may not be relevant as it could be an old version of the package. \n {e.msg}",
-           HighPriority)
-    
-    # Add HEAD version last (tagged releases take precedence if same version exists)
-    try:
-      if options.satResult.pass in {satNimSelection}:
-        result.addUnique getPkgInfoFromDirWithDeclarativeParser(repoDir, options, nimBin).getMinimalInfo(options)
-      else:
-        result.addUnique getPkgInfo(repoDir, options, nimBin).getMinimalInfo(options)
     except CatchableError as e:
-      displayWarning(&"Error getting package info for {name}: {e.msg}", HighPriority)
+      displayWarning(
+        &"Error reading tag {tag}: for package {name}. This may not be relevant as it could be an old version of the package. \n {e.msg}",
+         HighPriority)
 
-    if not (options.satResult.pass == satNimSelection and options.satResult.declarativeParseFailed):
-      #Dont save tagged versions if the declarative parser failed as this could cache the incorrect versions.
-      #its suboptimal in the sense that next packages after failure wont be saved in the first past but there is a guarantee that there is a second pass in the case
-      #the declarative parser fails so they will be saved then.
-      saveTaggedVersions(name, result, options)
-  finally:
+  # Add HEAD version last (tagged releases take precedence if same version exists)
+  try:
+    if options.satResult.pass in {satNimSelection}:
+      result.addUnique getPkgInfoFromDirWithDeclarativeParser(repoDir, options, nimBin).getMinimalInfo(options)
+    else:
+      result.addUnique getPkgInfo(repoDir, options, nimBin).getMinimalInfo(options)
+  except CatchableError as e:
+    displayWarning(&"Error getting package info for {name}: {e.msg}", HighPriority)
+
+  if not (options.satResult.pass == satNimSelection and options.satResult.declarativeParseFailed):
+    #Dont save tagged versions if the declarative parser failed as this could cache the incorrect versions.
+    #its suboptimal in the sense that next packages after failure wont be saved in the first past but there is a guarantee that there is a second pass in the case
+    #the declarative parser fails so they will be saved then.
+    saveTaggedVersions(name, result, options)
+
+  # Clean up tempDir if it was created
+  if tempDirCreated:
     try:
       removeDir(tempDir)
     except CatchableError as e:
