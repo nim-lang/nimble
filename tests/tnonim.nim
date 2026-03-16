@@ -22,6 +22,14 @@ suite "No global nim":
       removeFile("nimble.develop")
       removeDir("Nim")
 
+  proc checkNimBinaries(nimbleCacheDir: string) =
+    ## Verify that nim companion binaries (nimsuggest, etc.) are symlinked
+    let binDir = nimbleCacheDir / "bin"
+    when defined(windows):
+      check fileExists(binDir / "nimsuggest.cmd")
+    else:
+      check symlinkExists(binDir / "nimsuggest")
+
   test "No nim lock file":
     cleanup()
     cd "nimdep":
@@ -33,6 +41,9 @@ suite "No global nim":
       let usingNim = when defined(Windows): "nim.exe for compilation" else: "bin/nim for compilation"
       check output.contains(usingNim)
       check output.contains("compiling nim in ")
+
+      # Verify nimsuggest and other nim binaries are symlinked
+      checkNimBinaries(nimbleCacheDir)
 
       # check not compiled again
       let (outputAfterInstalled, exitCodeAfterInstalled) =

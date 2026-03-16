@@ -1182,9 +1182,19 @@ proc createBinSymlink(pkgInfo: PackageInfo, options: Options) =
 proc createBinSymlinkForNim(pkgInfo: PackageInfo, options: Options) =
   let binDir = options.getBinDir()
   createDir(binDir)
-  let symlinkDest =  pkgInfo.getNimbleFileDir() / "bin" / "nim".addFileExt(ExeExt)
-  let symlinkFilename = options.getBinDir() / "nim"
-  discard setupBinSymlink(symlinkDest, symlinkFilename, options)
+  let nimBinDir = pkgInfo.getNimbleFileDir() / "bin"
+  for kind, path in walkDir(nimBinDir):
+    if kind in {pcFile, pcLinkToFile}:
+      let filename = path.extractFilename
+      # Skip non-executable files (e.g., .bat files on unix, empty.txt)
+      when defined(windows):
+        if not (filename.endsWith(".exe") or filename.endsWith(".cmd") or filename.endsWith(".bat")):
+          continue
+      else:
+        if filename.endsWith(".bat") or filename.endsWith(".cmd"):
+          continue
+      let symlinkFilename = binDir / filename.changeFileExt("")
+      discard setupBinSymlink(path, symlinkFilename, options)
 
 proc solutionToFullInfo*(satResult: SATResult, options: var Options) {.instrument.} =
   # for pkg in satResult.pkgs:
