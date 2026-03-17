@@ -1186,6 +1186,10 @@ proc createBinSymlinkForNim(pkgInfo: PackageInfo, options: Options) =
   for kind, path in walkDir(nimBinDir):
     if kind in {pcFile, pcLinkToFile}:
       let filename = path.extractFilename
+      # Never replace nimble itself — we are nimble
+      let baseName = filename.changeFileExt("")
+      if baseName == "nimble":
+        continue
       # Skip non-executable files (e.g., .bat files on unix, empty.txt)
       when defined(windows):
         if not (filename.endsWith(".exe") or filename.endsWith(".cmd") or filename.endsWith(".bat")):
