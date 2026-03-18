@@ -136,7 +136,7 @@ suite "SAT solver":
 
   test "lenient resolves conflicting special versions with warning":
     proc initConflictingSpecialVersionsTable(): Table[string, PackageVersions] =
-
+      {
         "root": PackageVersions(pkgName: "root", versions: @[
           PackageMinimalInfo(name: "root", version: newVersion "1.0", requires: @[
             (name: "a", ver: parseVersionRange ">= 1.0"),
