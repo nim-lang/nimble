@@ -24,11 +24,14 @@ suite "No global nim":
 
   proc checkNimBinaries(nimbleCacheDir: string) =
     ## Verify that nim companion binaries (nimsuggest, etc.) are symlinked
+    ## but nimble itself is never replaced
     let binDir = nimbleCacheDir / "bin"
     when defined(windows):
       check fileExists(binDir / "nimsuggest.cmd")
+      check not fileExists(binDir / "nimble.cmd")
     else:
       check symlinkExists(binDir / "nimsuggest")
+      check not symlinkExists(binDir / "nimble")
 
   test "No nim lock file":
     cleanup()
