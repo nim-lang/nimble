@@ -126,14 +126,17 @@ suite "SAT solver":
     discard solvePackages(pkgInfo, @[], pkgsToInstall, options, output, solvedPkgs, nimBin)
     check solvedPkgs.len > 0
 
-    # lenient=false: should fail with NimbleError
+    # lenient=false: should fail with NimbleError on Linux/macOS where httpbeast is used (not used in windows)
     options.lenient = false
-    expect NimbleError:
+    when defined(windows):
       discard solvePackages(pkgInfo, @[], pkgsToInstall, options, output, solvedPkgs, nimBin)
+    else:
+      expect NimbleError:
+        discard solvePackages(pkgInfo, @[], pkgsToInstall, options, output, solvedPkgs, nimBin)
 
   test "lenient resolves conflicting special versions with warning":
     proc initConflictingSpecialVersionsTable(): Table[string, PackageVersions] =
-      {
+
         "root": PackageVersions(pkgName: "root", versions: @[
           PackageMinimalInfo(name: "root", version: newVersion "1.0", requires: @[
             (name: "a", ver: parseVersionRange ">= 1.0"),
