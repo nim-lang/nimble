@@ -9,6 +9,9 @@ import std/options as std_opt
 import strutils except toLower
 from unicode import toLower
 import sat/sat
+{.warning[UnusedImport]: off.}
+import nimblepkg/nimbledatafile
+{.warning[UnusedImport]: on.}
 import nimblepkg/packageinfotypes, nimblepkg/packageinfo, nimblepkg/version,
        nimblepkg/tools, nimblepkg/download, nimblepkg/common,
        nimblepkg/publish, nimblepkg/options, nimblepkg/packageparser,
@@ -16,7 +19,7 @@ import nimblepkg/packageinfotypes, nimblepkg/packageinfo, nimblepkg/version,
        nimblepkg/nimscriptexecutor, nimblepkg/init, nimblepkg/vcstools,
        nimblepkg/checksums, nimblepkg/lockfile,
        nimblepkg/nimscriptwrapper, nimblepkg/developfile, nimblepkg/paths,
-       nimblepkg/nimbledatafile, nimblepkg/packagemetadatafile,
+       nimblepkg/packagemetadatafile,
        nimblepkg/displaymessages, nimblepkg/sha1hashes, nimblepkg/syncfile,
        nimblepkg/deps, nimblepkg/nimblesat, nimblepkg/nimenv,
        nimblepkg/downloadnim, nimblepkg/declarativeparser,
@@ -1125,6 +1128,10 @@ proc installDevelopPackage(pkgTup: PkgTuple, options: var Options, nimBin: strin
   options.action.devActions.add(
     (datAdd, pkgInfo.getNimbleFileDir.normalizedPath))
 
+  # Create nimbledeps/ marker inside developed package for localdeps mode
+  if options.localdeps:
+    createDir(pkgInfo.getNimbleFileDir() / nimbledepsFolderName)
+
   return pkgInfo
 
 proc updateSyncFile(dependentPkg: PackageInfo, options: Options, nimBin: string)
@@ -1176,9 +1183,27 @@ proc develop(options: var Options, nimBin: string) =
     developFromDir(currentDirPkgInfo, options, topLevel = true, nimBin = nimBin)
 
   # Install each package.
-  for pkgTup in options.action.packages:
+  var developed = initHashSet[string]()
+  var toInstall = options.action.packages
+  # When developing from a project dir with --with-dependencies,
+  # also vendor the project's own dependencies.
+  if withDependencies and currentDirPkgInfo.isLoaded and not hasPackages:
+    developed.incl(currentDirPkgInfo.basicInfo.name.toLower)
+    for dep in currentDirPkgInfo.requires:
+      if not dep.name.isNim:
+        toInstall.add(dep)
+  while toInstall.len > 0:
+    let pkgTup = toInstall[0]
+    toInstall.delete(0)
+    if pkgTup.name.isNim or pkgTup.name.toLower in developed:
+      continue
     try:
-      discard installDevelopPackage(pkgTup, options, nimBin)
+      let pkgInfo = installDevelopPackage(pkgTup, options, nimBin)
+      developed.incl(pkgInfo.basicInfo.name.toLower)
+      if withDependencies:
+        for dep in pkgInfo.requires:
+          if not dep.name.isNim and dep.name.toLower notin developed:
+            toInstall.add(dep)
     except CatchableError as error:
       hasError = true
       displayError(&"Cannot install package \"{pkgTup}\" for develop.")
@@ -2328,7 +2353,7 @@ when isMainModule:
   except NimbleQuit as quit:
     exitCode = quit.exitCode
   except CatchableError as error:
-
+    exitCode = QuitFailure
     displayTip()
     echo error.getStackTrace()
     displayError(error)
