@@ -464,5 +464,5 @@ requires "nim >= 2.0.0"
 
   test "issue #1636 task exit code on failure":
     cd "issue1636":
-      let (output, exitCode) = execNimbleYes("failme")
+      let (_, exitCode) = execNimbleYes("failme")
       check exitCode == QuitFailure
