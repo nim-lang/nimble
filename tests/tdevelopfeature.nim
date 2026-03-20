@@ -72,12 +72,13 @@ suite "develop feature":
     cdCleanDir installDir:
       usePackageListFile &"../develop/{pkgListFileName}":
         # Create a project that requires packagea (available in the test package list)
-        writeFile("testproject.nimble",
-          "version = \"0.1.0\"\n" &
-          "author = \"Test\"\n" &
-          "description = \"Test\"\n" &
-          "license = \"MIT\"\n" &
-          "requires \"nim >= 1.6.0\", \"packagea\"\n")
+        writeFile("testproject.nimble", &"""
+version = "0.1.0"
+author = "Test"
+description = "Test"
+license = "MIT"
+requires "nim >= 1.6.0", "packagea"
+""")
         # develop --withDependencies from a project dir clones deps into vendor/
         # and should generate nimble.paths with vendor paths
         let (_, exitCode) = execNimble(
@@ -89,6 +90,38 @@ suite "develop feature":
         check pathsContent.contains(defaultPath)
         check pathsContent.toLowerAscii.contains("packagea")
         # Ensure paths point to vendor directory, not to pkgs2
+        check not pathsContent.contains("pkgs2")
+
+  test "develop prefers vendor over cached versions (hasVersion shadowing bug)":
+    cdCleanDir installDir:
+      usePackageListFile &"../develop/{pkgListFileName}":
+        # Seed tagged_versions.json cache with packagea
+        let pkgCacheDir = installDir / "pkgcache"
+        createDir(pkgCacheDir)
+        let taggedVersionsFile = pkgCacheDir / "tagged_versions.json"
+        writeFile(taggedVersionsFile, $(%*{
+          "packagea": [
+            {"name": "PackageA",
+             "version": {"version": "0.2.0", "speSemanticVersion": nil},
+             "requires": ["nim >= 0.11.0"],
+             "isRoot": false,
+             "url": "https://github.com/nimble-test/packagea.git"}
+          ]
+        }))
+        writeFile("testproject.nimble", &"""
+version = "0.1.0"
+author = "Test"
+description = "Test"
+license = "MIT"
+requires "nim >= 1.6.0", "packagea"
+""")
+        let (_, devExitCode) = execNimble(
+          "develop", "--with-dependencies")
+        check devExitCode == QuitSuccess
+        check fileExists("nimble.paths")
+        let pathsContent = readFile("nimble.paths")
+        check pathsContent.toLowerAscii.contains("packagea")
+        check pathsContent.contains(defaultPath)
         check not pathsContent.contains("pkgs2")
 
   test "can develop list of packages":
