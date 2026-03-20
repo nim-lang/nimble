@@ -466,3 +466,29 @@ requires "nim >= 2.0.0"
     cd "issue1636":
       let (_, exitCode) = execNimbleYes("failme")
       check exitCode == QuitFailure
+
+  test "issue #1609 ensure useSystemNim uses wrapper":
+    let binDir = getCurrentDir() / "issue1609" / "bin"
+    let nimWrapper = binDir / (when defined(windows): "nim.cmd" else: "nim")
+    proc checkWrapperInvoked(log: string, args: varargs[string]) =
+      removeFile(log)
+      defer: removeFile(log)
+      let res = execNimble(args)
+      check res.exitCode == QuitSuccess
+      check res.output.contains("Executing $1 c" % nimWrapper )
+      check fileExists(log)
+      check readFile(log).contains("c ")
+
+    cd "issue1609":
+      defer: removeFile("issue1609")
+
+      # Check 1: wrapper specified via --nim
+      checkWrapperInvoked(binDir / "calls.log", "--useSystemNim", "--nim:" & nimWrapper, "--debug", "build")
+
+      # Check 2: wrapper discovered via PATH (no --nim flag).
+      # Temporarily inject binDir into PATH so nimble finds the wrapper script
+      let sep = when defined(windows): ";" else: ":"
+      let oldPath = getEnv("PATH")
+      putEnv("PATH", binDir & sep & oldPath)
+      checkWrapperInvoked(binDir / "calls.log", "--useSystemNim", "--debug", "build")
+      putEnv("PATH", oldPath)

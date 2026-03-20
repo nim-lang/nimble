@@ -735,7 +735,8 @@ proc makeNimBin*(options: Options, path: string, nimVersion: Option[Version] = n
   var nimVersion = nimVersion
   if nimVersion.isNone:
     nimVersion = getNimVersionFromBin(path)
-  
+  if nimVersion.isNone:
+    raise nimbleError("Unable to get version from `nim` binary at " & path)
   return NimBin(path: path, version: nimVersion.get())
 
 proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
