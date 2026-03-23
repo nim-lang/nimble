@@ -288,7 +288,8 @@ proc readPackageInfo(pkgInfo: var PackageInfo, nf: NimbleFile, options: Options,
     pkgInfo = options.pkgInfoCache[nf]
     return
   pkgInfo = initPackageInfo(options, nf)
-  pkgInfo.isLink = not nf.startsWith(options.getPkgsDir)
+  if not nf.startsWith(options.getPkgsDir):
+    pkgInfo.source = psDevelop
 
   validatePackageName(nf.splitFile.name)
 
@@ -429,7 +430,7 @@ proc getInstalledPkgs*(nimBin: string, libsDir: string, options: Options): seq[P
           exc.hint = hintMsg % path
           raise exc
 
-        pkg.isInstalled = true
+        pkg.source = psInstalled
         result.add pkg
 
 proc isNimScript*(nimBin: string, nf: string, options: Options): bool =
@@ -440,14 +441,8 @@ proc isNimScript*(nimBin: string, nf: string, options: Options): bool =
 proc toFullInfo*(pkg: PackageInfo, options: Options, nimBin: string): PackageInfo =
   if pkg.isMinimal or pkg.infoKind == pikRequires:
     result = getPkgInfoFromFile(nimBin, pkg.mypath, options)
-    result.isInstalled = pkg.isInstalled
-    # The `isLink` data from the meta data file is with priority because of the
-    # old format develop packages.
-    result.isLink = pkg.isLink
+    result.source = pkg.source
     result.metaData.specialVersions.incl pkg.metaData.specialVersions
-
-    assert not (pkg.isInstalled and pkg.isLink),
-           "A package must not be simultaneously installed and linked."
 
     if result.isInstalled:
       assert result.metaData.vcsRevision == notSetSha1Hash,

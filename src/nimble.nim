@@ -185,7 +185,7 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
   var pkgInfo = getPkgInfo(dir, options, nimBin = nimBin)
   # Set the flag that the package is not in develop mode before saving it to the
   # reverse dependencies.
-  pkgInfo.isLink = false
+  pkgInfo.source = psInstalled
   if vcsRevision != notSetSha1Hash:
     ## In the case we downloaded the package as tarball we have to set the VCS
     ## revision returned by download procedure because it cannot be queried from
@@ -223,7 +223,7 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
 
   # Fill package Meta data
   pkgInfo.metaData.url = url
-  pkgInfo.isLink = false
+  pkgInfo.source = psInstalled
 
   # Don't copy artifacts if project local deps mode and "installing" the top
   # level package.
@@ -282,7 +282,7 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
   else:
     display("Warning:", "Skipped copy in project local deps mode", Warning)
 
-  pkgInfo.isInstalled = true
+  pkgInfo.source = psInstalled
 
   displaySuccess(pkgInstalledMsg(pkgInfo.basicInfo.name), MediumPriority)
 
@@ -355,7 +355,7 @@ proc installNimToPkgs2*(nimPkgInfo: PackageInfo, options: Options, nimBin: strin
   # Return PackageInfo pointing to pkgs2
   result = getPkgInfoFromDirWithDeclarativeParser(pkgDestDir, options, nimBin)
   result.basicInfo.checksum = nimChecksum
-  result.isInstalled = true
+  result.source = psInstalled
 
 proc developWithDependencies(options: Options): bool =
   ## Determines whether the current executed action is a develop sub-command
@@ -1875,7 +1875,7 @@ proc getPackageForAction(pkgInfo: PackageInfo, options: Options, nimBin: string)
       var fullPkg = getPkgInfo(pkg.getRealDir(), options, nimBin = nimBin)
       # Explicitly check for develop mode conditions in vnext
       if fullPkg.developFileExists or not fullPkg.myPath.startsWith(options.getPkgsDir):
-        fullPkg.isLink = true
+        fullPkg.source = psDevelop
       return fullPkg
 
   raise nimbleError(notFoundPkgWithNameInPkgDepTree(options.package))

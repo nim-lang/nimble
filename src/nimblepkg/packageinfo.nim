@@ -287,7 +287,7 @@ proc getInstalledPackageMin*(options: Options, pkgDir, nimbleFilePath: string): 
   result = initPackageInfo(options, nimbleFilePath)
   setNameVersionChecksum(result, pkgDir)
   result.infoKind = pikMinimal
-  result.isInstalled = true
+  result.source = psInstalled
   try:
     fillMetaData(result, pkgDir, true, options)
   except MetaDataError:

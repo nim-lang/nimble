@@ -47,11 +47,16 @@ type
     pikRequires #Declarative parser only Minimal + requires (No vm involved)
     pikFull #Full info
 
+  PackageSource* = enum
+    psLocal       ## Local/uninstalled package (e.g., current project directory)
+    psInstalled   ## Installed to pkgs2
+    psDevelop     ## Develop mode package (vendor/)
+
   PackageInfo* = object
     myPath*: string ## The path of this .nimble file
     isNimScript*: bool ## Determines if this pkg info was read from a nims file
     infoKind*: PackageInfoKind
-    isInstalled*: bool ## Determines if the pkg this info belongs to is installed
+    source*: PackageSource ## Where this package lives
     nimbleTasks*: HashSet[string] ## All tasks defined in the Nimble file
     postHooks*: HashSet[string] ## Useful to know so that Nimble doesn't execHook unnecessarily
     preHooks*: HashSet[string]
@@ -74,7 +79,6 @@ type
     basicInfo*: PackageBasicInfo
     lockedDeps*: AllLockFileDeps
     metaData*: PackageMetaData
-    isLink*: bool
     paths*: seq[string] 
     entryPoints*: seq[string] #useful for tools like the lsp.
     features*: Table[string, seq[PkgTuple]] #features requires defined in the nimble file. Declarative parser + SAT solver only.
@@ -155,6 +159,12 @@ proc `==`*(a, b: SolvedPackage): bool =
   
 proc isMinimal*(pkg: PackageInfo): bool =
   pkg.infoKind == pikMinimal
+
+proc isInstalled*(pkg: PackageInfo): bool =
+  pkg.source == psInstalled
+
+proc isLink*(pkg: PackageInfo): bool =
+  pkg.source == psDevelop
 
 const noTask* = "" # Means that noTask is being ran. Use this as key for base dependencies
 #Package name -> features. When a package requires a feature, it is added to this table. 

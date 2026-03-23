@@ -673,7 +673,7 @@ proc addReverseDeps*(satResult: SATResult, options: Options) =
     var reverseDepPkg = satResult.getPkgInfoFromSolved(solvedPkg, options)
     # Check if THIS package (the one that depends on others) is a development package
     if reverseDepPkg.isInDevelopMode(options):
-      reverseDepPkg.isLink = true
+      reverseDepPkg.source = psDevelop
     
     for dep in solvedPkg.deps:
       if dep.pkgName.isNim: continue 
@@ -804,7 +804,7 @@ proc installFromDirDownloadInfo(nimBin: string, downloadDir: string, url: string
 
   # Fill package Meta data
   pkgInfo.metaData.url = url
-  pkgInfo.isLink = false
+  pkgInfo.source = psLocal  # Not psDevelop — this is being installed, not developed
 
   # Don't copy artifacts if project local deps mode and "installing" the top level package.
   if not (options.localdeps and options.isInstallingTopLevel(dir)):
@@ -952,7 +952,7 @@ proc installFromDirDownloadInfo(nimBin: string, downloadDir: string, url: string
   else:
     display("Warning:", "Skipped copy in project local deps mode", Warning)
 
-  pkgInfo.isInstalled = true
+  pkgInfo.source = psInstalled
   displaySuccess(pkgInstalledMsg(pkgInfo.basicInfo.name), MediumPriority)
   pkgInfo
 
@@ -1225,8 +1225,8 @@ proc buildPkg*(nimBin: string, pkgToBuild: PackageInfo, isRootInRootDir: bool, o
               else:
                 @[]
   var pkgToBuild = pkgToBuild
-  if isRootInRootDir:
-    pkgToBuild.isInstalled = false
+  if isRootInRootDir and pkgToBuild.source == psInstalled:
+    pkgToBuild.source = psLocal
   buildFromDir(pkgToBuild, paths, "-d:release" & flags, options, nimBin)
   # For globally installed packages, always create symlinks
   # Only skip symlinks if we're building the root package in its own directory
@@ -1300,8 +1300,7 @@ proc installPkgs*(satResult: var SATResult, options: var Options) {.instrument.}
     if pv.name == rootName and (rootName notin installedPkgs.mapIt(it.basicInfo.name) or satResult.rootPackage.hasLockFile(options)): 
       if satResult.rootPackage.developFileExists or options.localdeps:
         # Treat as link package if in develop mode OR local deps mode
-        satResult.rootPackage.isInstalled = false
-        satResult.rootPackage.isLink = true
+        satResult.rootPackage.source = psDevelop
         installedPkgInfo = satResult.rootPackage
         wasNewlyInstalled = true
       else:
