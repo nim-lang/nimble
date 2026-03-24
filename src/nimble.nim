@@ -1182,28 +1182,12 @@ proc develop(options: var Options, nimBin: string) =
   if currentDirPkgInfo.isLoaded and (not hasPackages) and (not hasDevActions):
     developFromDir(currentDirPkgInfo, options, topLevel = true, nimBin = nimBin)
 
-  # Install each package.
-  var developed = initHashSet[string]()
-  var toInstall = options.action.packages
-  # When developing from a project dir with --with-dependencies,
-  # also vendor the project's own dependencies.
-  if withDependencies and currentDirPkgInfo.isLoaded and not hasPackages:
-    developed.incl(currentDirPkgInfo.basicInfo.name.toLower)
-    for dep in currentDirPkgInfo.requires:
-      if not dep.name.isNim:
-        toInstall.add(dep)
-  while toInstall.len > 0:
-    let pkgTup = toInstall[0]
-    toInstall.delete(0)
-    if pkgTup.name.isNim or pkgTup.name.toLower in developed:
-      continue
+  # Clone each explicitly requested package.
+  # Dependencies are NOT traversed here — when --with-dependencies is set,
+  # the SAT solver resolves deps and developFromSolution clones them.
+  for pkgTup in options.action.packages:
     try:
-      let pkgInfo = installDevelopPackage(pkgTup, options, nimBin)
-      developed.incl(pkgInfo.basicInfo.name.toLower)
-      if withDependencies:
-        for dep in pkgInfo.requires:
-          if not dep.name.isNim and dep.name.toLower notin developed:
-            toInstall.add(dep)
+      discard installDevelopPackage(pkgTup, options, nimBin)
     except CatchableError as error:
       hasError = true
       displayError(&"Cannot install package \"{pkgTup}\" for develop.")
@@ -1985,18 +1969,70 @@ proc solvePkgs(rootPackage: PackageInfo, options: var Options, nimBin: string) {
 
   options.satResult.pass = satDone 
 
+proc developFromSolution(rootPkgName: string, options: var Options, nimBin: string) =
+  ## Clones solved packages into vendor/ based on SAT solver results.
+  if options.action.path.len == 0:
+    options.action.path = defaultDevelopPath
+
+  var currentDirPkgInfo = initPackageInfo()
+  try:
+    currentDirPkgInfo = getPkgInfo(getCurrentDir(), options, nimBin = nimBin)
+  except CatchableError:
+    discard
+
+  for solvedPkg in options.satResult.solvedPkgs:
+    if solvedPkg.pkgName.isNim:
+      continue
+    if solvedPkg.pkgName.toLower == rootPkgName.toLower:
+      continue
+    let pkgTup: PkgTuple = (solvedPkg.pkgName,
+      parseVersionRange("== " & $solvedPkg.version))
+    try:
+      let pkgInfo = installDevelopPackage(pkgTup, options, nimBin)
+      options.satResult.pkgs.incl(pkgInfo)
+    except CatchableError as error:
+      displayError(&"Cannot vendor package \"{solvedPkg.pkgName}\" for develop.")
+      displayDetails(error)
+
+  # Update develop file
+  if currentDirPkgInfo.isLoaded:
+    options.developFile = developFileName
+  if options.developFile.len > 0:
+    discard updateDevelopFile(currentDirPkgInfo, options, nimBin)
+
 proc runVNext*(options: var Options, nimBin: string) {.instrument.} =
   #Make sure we set the righ verbosity for commands that output info:
   if options.action.typ in {actionShellEnv}:
     setVerbosity(SilentPriority)
     options.verbosity = SilentPriority
-  # For develop --withDependencies, run develop() first to clone vendor packages,
-  # then solve. This avoids a chicken-and-egg problem: the solver needs vendor
-  # packages on disk, but develop() is what creates them.
+  # For develop without --with-dependencies, just clone and return.
+  # For develop with --with-dependencies, solve first then clone from solution.
   if options.action.typ == actionDevelop:
     options.setNimBin()
-    develop(options, nimBin)
-    if not options.action.withDependencies or not options.thereIsNimbleFile:
+    if not options.action.withDependencies:
+      develop(options, nimBin)
+      return
+    # With dependencies: clone only the explicitly requested packages first
+    var developedPkgs: seq[PackageInfo] = @[]
+    if options.action.packages.len > 0:
+      let savedWithDeps = options.action.withDependencies
+      options.action.withDependencies = false
+      develop(options, nimBin)
+      options.action.withDependencies = savedWithDeps
+      for devAction in options.action.devActions:
+        if devAction.actionType == datAdd:
+          try:
+            developedPkgs.add getPkgInfo(devAction.argument, options, nimBin = nimBin)
+          except CatchableError:
+            discard
+    if not options.thereIsNimbleFile and developedPkgs.len == 0:
+      return
+    # For non-project-dir develops, solve from each cloned package as root
+    if not options.thereIsNimbleFile and developedPkgs.len > 0:
+      for rootPkg in developedPkgs:
+        options.satResult = initSATResult(satNimSelection)
+        solvePkgs(rootPkg, options, nimBin)
+        developFromSolution(rootPkg.basicInfo.name, options, nimBin)
       return
 
   #Install and in consequence builds the packages
@@ -2061,6 +2097,12 @@ proc runVNext*(options: var Options, nimBin: string) {.instrument.} =
     raise nimbleError(
       "Could not find a .nimble file in the current directory. " &
       "This command requires a Nimble package file.")
+
+  # For develop --with-dependencies: clone solved packages into vendor/
+  # instead of installing to pkgs2.
+  if options.action.typ == actionDevelop and options.action.withDependencies:
+    developFromSolution(rootPackage.basicInfo.name, options, nimBin)
+    return
 
   options.satResult.installPkgs(options)
   # echo "AFTER INSTALL PKG/S"
