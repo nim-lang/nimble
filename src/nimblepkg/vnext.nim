@@ -150,9 +150,17 @@ proc getNimFromSystem*(options: Options): Option[PackageInfo] =
                 effectivePnim = resolvedPath
           except CatchableError:
             discard # Fall back to original pnim
-    let dir = effectivePnim.parentDir.parentDir
+    var dir = effectivePnim.parentDir.parentDir
+    if not fileExists(dir / "nim.nimble"):
+      # Non-standard layout (e.g. NixOS wrapper, custom symlink): query the compiler
+      # directly for its lib path to find the actual installation root. See #1609.
+      let (output, exitCode) = doCmdEx(pnim.quoteShell & " --hints:off --eval:" & quoteShell("import std/compilesettings; echo querySetting(libPath)"))
+      if exitCode == 0:
+        dir = output.strip().parentDir
     try:
-      return some getPkgInfoFromDirWithDeclarativeParser(dir, options, nimBin = "") #Can be empty as the code path for nim doesnt need it.
+      var pkgInfo = getPkgInfoFromDirWithDeclarativeParser(dir, options, nimBin = "") #Can be empty as the code path for nim doesnt need it.
+      pkgInfo.nimBinPath = some pnim  # preserve the PATH-resolved binary for later use
+      return some pkgInfo
     except CatchableError:
       discard # Fall back to original pnim
   return none(PackageInfo)
@@ -511,6 +519,15 @@ proc solveLockFileDeps*(satResult: var SATResult, pkgList: seq[PackageInfo], opt
 
 proc setNimBin*(pkgInfo: PackageInfo, options: var Options) {.instrument.} =
   assert pkgInfo.basicInfo.name.isNim
+  if pkgInfo.nimBinPath.isSome():
+    # System nim with non-standard layout: set options.nimBin directly from the
+    # PATH-resolved binary rather than deriving from getRealDir. See #1609.
+    if options.nimBin.isSome and options.nimBin.get.path == pkgInfo.nimBinPath.get:
+      return
+    options.nimBin = some makeNimBin(options, pkgInfo.nimBinPath.get)
+    display("Info:", "using $1 for compilation" % pkgInfo.nimBinPath.get,
+            priority = HighPriority)
+    return
   if options.nimBin.isSome and options.nimBin.get.path == pkgInfo.getRealDir / "bin" / "nim":
     return #We dont want to set the same Nim twice. Notice, this can only happen when installing multiple packages outside of the project dir i.e nimble install pkg1 pkg2 if voth
   options.useNimFromDir(pkgInfo.getRealDir, pkgInfo.basicInfo.version.toVersionRange(), tryCompiling = true)
@@ -1006,10 +1023,7 @@ proc getNimBin(satResult: SATResult): string =
   #TODO change this so nim is passed as a parameter but we also need to change getPkgInfo so for the time being its also in options
   if satResult.nimResolved.pkg.isSome:
     let nimPkgInfo = satResult.nimResolved.pkg.get
-    var binaryPath = "bin" / "nim"
-    when defined(windows):
-      binaryPath &= ".exe" 
-    return nimPkgInfo.getNimbleFileDir() / binaryPath
+    return nimPkgInfo.getNimPath()  # respects nimBinPath for non-standard layouts
   else:
     raise newNimbleError[NimbleError]("No Nim found")
 

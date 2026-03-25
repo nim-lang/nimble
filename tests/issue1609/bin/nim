@@ -1,0 +1,13 @@
+#!/bin/sh
+# Nim wrapper for issue #1609 test.
+# Logs invocations to calls.log, then delegates to the real nim by
+# finding the first 'nim' executable in PATH that isn't this script's directory.
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+echo "$@" >> "$SCRIPT_DIR/calls.log"
+REAL_NIM=$(IFS=:; for dir in $PATH; do
+  if [ "$dir" != "$SCRIPT_DIR" ] && [ -x "$dir/nim" ]; then
+    echo "$dir/nim"
+    break
+  fi
+done)
+exec "$REAL_NIM" "$@"

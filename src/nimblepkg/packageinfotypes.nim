@@ -81,6 +81,8 @@ type
     activeFeatures*: Table[PkgTuple, seq[string]] #features that dependencies of this package have activated. #i.e. requires package[feature1, feature2]
     testEntryPoint*: string ## The entry point for the test task.
     declarativeParserErrors*: seq[string] ## Errors from declarative parser (shown only for packages in solution)
+    nimBinPath*: Option[string] ## path to the system nim binary. Only to be used by PackageInfo created for `nim` with --useSystemNim
+                                ## Used to preserve portability for non-standard layouts (NixOS, custom symlink). See #1609.
 
   Package* = object ## Definition of package from packages.json.
     # Required fields in a package.
@@ -185,10 +187,12 @@ proc initSATResult*(pass: SATPass): SATResult =
 proc getNimbleFileDir*(pkgInfo: PackageInfo): string =
   pkgInfo.myPath.splitFile.dir
 
-proc getNimPath*(pkgInfo: PackageInfo): string = 
+proc getNimPath*(pkgInfo: PackageInfo): string =
+  if pkgInfo.nimBinPath.isSome:
+    return pkgInfo.nimBinPath.get()
   var binaryPath = "bin" / "nim"
   when defined(windows):
-    binaryPath &= ".exe"      
+    binaryPath &= ".exe"
   pkgInfo.getNimbleFileDir() / binaryPath
 
 proc getNimBin*(nimResolved: NimResolved): string =
