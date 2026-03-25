@@ -39,6 +39,7 @@ import tfilepathrequires
 import tglobalinstall
 import tasynctools
 import tbuildinstall
+import tskipbin
 # # nonim tests are very slow and (often) break the CI.
 
 # # import tnonim

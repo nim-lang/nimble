@@ -808,13 +808,14 @@ proc installFromDirDownloadInfo(nimBin: string, downloadDir: string, url: string
   # Don't copy artifacts if project local deps mode and "installing" the top level package.
   if not (options.localdeps and options.isInstallingTopLevel(dir)):
     var filesInstalled: HashSet[string]
-    let hasBinaries = pkgInfo.bin.len > 0 and not pkgInfo.basicInfo.name.isNim
+    let shouldBuildBinaries = pkgInfo.bin.len > 0 and not pkgInfo.basicInfo.name.isNim and
+                               (not options.skipBin or options.isInstallingTopLevel(dir))
     let hasPreInstallHook = pkgInfo.hasBeforeInstallHook and not pkgInfo.basicInfo.name.isNim
 
     # Install pipeline: workDir → before-install hook → build → copy to pkgDestDir → after-install hook
     # Optimization: skip buildtemp when we know it's safe (no binaries, no before-install hook, no submodules)
     let hasSubmodules = not options.ignoreSubmodules and fileExists(downloadDir / ".gitmodules")
-    let canSkipBuildTemp = not hasBinaries and not hasPreInstallHook and not hasSubmodules
+    let canSkipBuildTemp = not shouldBuildBinaries and not hasPreInstallHook and not hasSubmodules
 
     var workDir, buildTempDir: string
     var workPkgInfo: PackageInfo
@@ -825,7 +826,7 @@ proc installFromDirDownloadInfo(nimBin: string, downloadDir: string, url: string
       workPkgInfo = pkgInfo
     else:
       display("Info:", "Using buildtemp for " & pkgInfo.basicInfo.name &
-              " (binaries: " & $hasBinaries & ", before-install hook: " & $hasPreInstallHook &
+              " (binaries: " & $shouldBuildBinaries & ", before-install hook: " & $hasPreInstallHook &
               ", submodules: " & $hasSubmodules & ")",
               priority = LowPriority)
       buildTempDir = options.getPkgBuildTempDir(
@@ -882,7 +883,7 @@ proc installFromDirDownloadInfo(nimBin: string, downloadDir: string, url: string
       executeHook(nimBin, workDir, options, actionInstall, before = true)
 
       # Build binaries (only if there are any)
-      if hasBinaries:
+      if shouldBuildBinaries:
         let paths = getPathsAllPkgs(options, nimBin)
         let flags = if options.action.typ in {actionInstall, actionPath, actionUninstall, actionDevelop}:
                       options.action.passNimFlags
@@ -921,7 +922,7 @@ proc installFromDirDownloadInfo(nimBin: string, downloadDir: string, url: string
       filesInstalled.incl copyFileD(workPkgInfo.myPath, nimbleFileDest)
 
       # Copy built binaries (only if there are any)
-      if hasBinaries:
+      if shouldBuildBinaries:
         for bin, src in workPkgInfo.bin:
           let binDest = if dirExists(pkgDestDir / bin): bin & ".out" else: bin
           let srcBin = workPkgInfo.getOutputDir(bin)
@@ -940,7 +941,7 @@ proc installFromDirDownloadInfo(nimBin: string, downloadDir: string, url: string
       executeHook(nimBin, pkgDestDir, options, actionInstall, before = false)
 
       # Create bin symlinks (only if there are binaries)
-      if hasBinaries:
+      if shouldBuildBinaries:
         createBinSymlink(pkgInfo, options)
 
     finally:
@@ -1432,7 +1433,7 @@ proc installPkgs*(satResult: var SATResult, options: var Options, nimBin: string
     if isRoot and options.action.typ in rootBuildActions:
       buildPkg(nimBin, pkgToBuild, isRoot, options)
       satResult.buildPkgs.add(pkgToBuild)
-    elif pkgToBuild.isLink:
+    elif pkgToBuild.isLink and not options.skipBin:
       # Build develop mode packages
       buildPkg(nimBin, pkgToBuild, false, options)
       satResult.buildPkgs.add(pkgToBuild)

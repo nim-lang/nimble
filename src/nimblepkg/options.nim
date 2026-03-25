@@ -47,6 +47,7 @@ type
     noColor*: bool
     disableValidation*: bool
     continueTestsOnFailure*: bool
+    skipBin*: bool # Whether to skip compilation of binaries for hybrid dependencies.
     ## Whether packages' repos should always be downloaded with their history.
     forceFullClone*: bool
     # Temporary storage of flags that have not been captured by any specific Action.
@@ -295,6 +296,7 @@ Nimble Options:
       --features                  Activate features. Only used when using the declarative parser.
       --ignoreSubmodules          Ignore submodules when cloning a repository.
       --asyncdownloads            Use async for package downloads. (temporary flag)
+      --skipBin                   Skip compilation of binaries of hybrid dependencies.
 For more information read the GitHub readme:
   https://github.com/nim-lang/nimble#readme
 """
@@ -787,6 +789,8 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
     result.useAsyncDownloads = true
   of "lenient":
     result.lenient = true
+  of "skipbin":
+    result.skipBin = true
   else: isGlobalFlag = false
 
   var wasFlagHandled = true
