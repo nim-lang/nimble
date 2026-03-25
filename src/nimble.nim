@@ -3215,7 +3215,7 @@ when isMainModule:
   except NimbleQuit as quit:
     exitCode = quit.exitCode
   except CatchableError as error:
-
+    exitCode = QuitFailure
     displayTip()
     echo error.getStackTrace()
     displayError(error)

@@ -461,3 +461,8 @@ requires "nim >= 2.0.0"
       check exitCode == QuitSuccess
       check output.contains("Added")
     removeDir("testadd_urldeps")
+
+  test "issue #1636 task exit code on failure":
+    cd "issue1636":
+      let (_, exitCode) = execNimbleYes("failme")
+      check exitCode == QuitFailure
