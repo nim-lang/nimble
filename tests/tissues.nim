@@ -471,17 +471,14 @@ requires "nim >= 2.0.0"
     let binDir = getCurrentDir() / "issue1609" / "bin"
     let nimWrapper = binDir / (when defined(windows): "nim.cmd" else: "nim")
     proc checkWrapperInvoked(log: string, args: varargs[string]) =
-      removeFile(log)
-      defer: removeFile(log)
+      cleanFiles log, "issue1609"
       let res = execNimble(args)
-      check res.exitCode == QuitSuccess
+      verify res
       check res.output.contains("Executing $1 c" % nimWrapper )
       check fileExists(log)
       check readFile(log).contains("c ")
 
     cd "issue1609":
-      defer: removeFile("issue1609")
-
       # Check 1: wrapper specified via --nim
       checkWrapperInvoked(binDir / "calls.log", "--useSystemNim", "--nim:" & nimWrapper, "--debug", "build")
 
