@@ -614,9 +614,6 @@ proc getRequiredNimVersion*(pkgInfo: PackageInfo): VersionRange =
     return nimPkgTupl[0].ver
   return VersionRange(kind: verAny)
 
-proc getNimBin*(options: Options): string =
-  return options.nim
-
 proc setRunOptions(result: var Options, key, val: string, isArg: bool) =
   if result.action.runFile.isNone():
     if isArg or val == "--":
