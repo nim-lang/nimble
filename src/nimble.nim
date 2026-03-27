@@ -2270,7 +2270,7 @@ when isMainModule:
     # Actions that don't need a Nim binary should not trigger downloading Nim.
     # This avoids e.g. `nimble --version` or `nimble list -i` fetching Nim binaries.
     const actionsNotNeedingNim = {actionRefresh, actionSearch, actionList,
-      actionPath, actionUninstall, actionClean, actionInit, actionManual,
+      actionPath, actionUninstall, actionClean, actionManual,
       actionNil}
     let needsNim = not opt.showVersion and not opt.showHelp and
       opt.action.typ notin actionsNotNeedingNim
