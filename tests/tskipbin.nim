@@ -23,10 +23,10 @@ template checkSkip(cmd: string, toSkip = false) =
     check hybridPkgDir.len > 0
     check "Building hybrid/hybrid" in res.output != toSkip
     check fileExists(hybridPkgDir / "hybrid".exe) != toSkip
-    check fileExists(installDir / "bin" / "hybrid".exe ) != toSkip
+    check fileExists(installDir / "bin" / "hybrid") != toSkip
     # --skipBin should not effect the root package
     if cmd == "install":
-      check fileExists(installDir / "bin" / "pkgWithHybridDep".exe)
+      check fileExists(installDir / "bin" / "pkgWithHybridDep")
 
 suite "--skipBin":
   for command in ["setup", "install"]:
