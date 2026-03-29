@@ -702,16 +702,26 @@ proc executeHook(nimBin: string, dir: string, options: var Options, action: Acti
       else:
         raise nimbleError("Post-hook prevented further execution.")
 
+proc binsExist(pkgInfo: PackageInfo, options: Options): bool =
+  let needsBinaries = pkgInfo.bin.len > 0 and not pkgInfo.basicInfo.name.isNim and not options.skipBin
+  if needsBinaries:
+    for bin in pkgInfo.bin.keys:
+      let binPath = pkgInfo.getOutputDir(bin)
+      if not fileExists(binPath):
+        return false
+  result = true
+
 proc packageExists(nimBin: string, pkgInfo: PackageInfo, options: Options):
     Option[PackageInfo] =
   ## Checks whether a package `pkgInfo` already exists in the Nimble cache. If a
   ## package already exists returns the `PackageInfo` of the package in the
-  ## cache otherwise returns `none`. Raises a `NimbleError` in the case the
-  ## package exists in the cache but it is not valid.
+  ## cache otherwise returns `none`. If a package exits but is missing expected binaries also returns `none`.
+  ## Raises a `NimbleError` in the case the package exists in the cache but it is not valid.
   ##
   ## Also checks for packages with the same name and checksum but different version
   ## to avoid storing the same content multiple times with different version labels.
   let pkgDestDir = pkgInfo.getPkgDest(options)
+
   if fileExists(pkgDestDir / packageMetaDataFileName):
     var oldPkgInfo = initPackageInfo()
     try:
@@ -720,6 +730,10 @@ proc packageExists(nimBin: string, pkgInfo: PackageInfo, options: Options):
       raise nimbleError(&"The package inside \"{pkgDestDir}\" is invalid.",
                         details = error)
     fillMetaData(oldPkgInfo, pkgDestDir, true, options)
+
+    if not binsExist(pkgInfo, options):
+      return none(PackageInfo)
+
     return some(oldPkgInfo)
 
   # Check if a package with the same name and checksum exists with a different version.
@@ -740,6 +754,10 @@ proc packageExists(nimBin: string, pkgInfo: PackageInfo, options: Options):
             except CatchableError:
               continue  # Skip invalid packages
             fillMetaData(oldPkgInfo, path, true, options)
+
+            if not binsExist(pkgInfo, options):
+              return none(PackageInfo)
+
             return some(oldPkgInfo)
 
   return none[PackageInfo]()

@@ -33,11 +33,7 @@ template runTest(name: string,  body: untyped) =
 
 suite "--skipBin":
   for command in ["setup", "install"]:
-    runTest command & " without --skipBin":
-      checkSkip(command, false)
-    runTest command & " with --skipBin":
-      checkSkip(command, true)
-    runTest command & " with --skipBin then without --skipBin":
+    runTest command & " with --skipBin & without --skipBin":
       checkSkip(command, true)
       checkSkip(command, false)
 
