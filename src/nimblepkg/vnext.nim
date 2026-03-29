@@ -14,13 +14,13 @@ After we resolve nim, we try to resolve the dependencies for a root package. Roo
 ]#
 import std/[sequtils, sets, options, os, strutils, tables, strformat, algorithm]
 import nimblesat, packageinfotypes, options, version, declarativeparser, packageinfo, common,
-  nimenv, lockfile, cli, downloadnim, packageparser, tools, nimscriptexecutor, packagemetadatafile,
+  lockfile, cli, downloadnim, packageparser, tools, nimscriptexecutor, packagemetadatafile,
   displaymessages, packageinstaller, reversedeps, developfile, urls, download, sha1hashes
 
 when defined(windows):
   import std/strscans
 
-proc getPathsAllPkgs*(options: Options): HashSet[string]
+proc getPathsAllPkgs*(options: Options, nimBin: string): HashSet[string]
 proc buildFromDir(pkgInfo: PackageInfo, paths: HashSet[string],
                   args: seq[string], options: Options, nimBin: string)
 proc createBinSymlink(pkgInfo: PackageInfo, options: Options)
@@ -150,9 +150,17 @@ proc getNimFromSystem*(options: Options): Option[PackageInfo] =
                 effectivePnim = resolvedPath
           except CatchableError:
             discard # Fall back to original pnim
-    let dir = effectivePnim.parentDir.parentDir
+    var dir = effectivePnim.parentDir.parentDir
+    if not fileExists(dir / "nim.nimble"):
+      # Non-standard layout (e.g. NixOS wrapper, custom symlink): query the compiler
+      # directly for its lib path to find the actual installation root. See #1609.
+      let (output, exitCode) = doCmdEx(pnim.quoteShell & " --hints:off --eval:" & quoteShell("import std/compilesettings; echo querySetting(libPath)"))
+      if exitCode == 0:
+        dir = output.strip().parentDir
     try:
-      return some getPkgInfoFromDirWithDeclarativeParser(dir, options, nimBin = "") #Can be empty as the code path for nim doesnt need it.
+      var pkgInfo = getPkgInfoFromDirWithDeclarativeParser(dir, options, nimBin = "") #Can be empty as the code path for nim doesnt need it.
+      pkgInfo.nimBinPath = some pnim  # preserve the PATH-resolved binary for later use
+      return some pkgInfo
     except CatchableError:
       discard # Fall back to original pnim
   return none(PackageInfo)
@@ -508,12 +516,6 @@ proc solveLockFileDeps*(satResult: var SATResult, pkgList: seq[PackageInfo], opt
       else:
         satResult.pkgsToInstall.add((name, dep.version))
     
-
-proc setNimBin*(pkgInfo: PackageInfo, options: var Options) {.instrument.} =
-  assert pkgInfo.basicInfo.name.isNim
-  if options.nimBin.isSome and options.nimBin.get.path == pkgInfo.getRealDir / "bin" / "nim":
-    return #We dont want to set the same Nim twice. Notice, this can only happen when installing multiple packages outside of the project dir i.e nimble install pkg1 pkg2 if voth
-  options.useNimFromDir(pkgInfo.getRealDir, pkgInfo.basicInfo.version.toVersionRange(), tryCompiling = true)
 
 proc setBootstrapNim*(systemNimPkg: Option[PackageInfo], pkgList: seq[PackageInfo], options: var Options) =
   var bootstrapNim: NimResolved
@@ -884,7 +886,7 @@ proc installFromDirDownloadInfo(nimBin: string, downloadDir: string, url: string
 
       # Build binaries (only if there are any)
       if hasBinaries:
-        let paths = getPathsAllPkgs(options)
+        let paths = getPathsAllPkgs(options, nimBin)
         let flags = if options.action.typ in {actionInstall, actionPath, actionUninstall, actionDevelop}:
                       options.action.passNimFlags
                     else:
@@ -994,24 +996,13 @@ proc getPathsToBuildFor*(satResult: SATResult, pkgInfo: PackageInfo, recursive: 
         result.incl(path)
   result.incl(pkgInfo.expandPaths(nimBin, options))
 
-proc getPathsAllPkgs*(options: Options): HashSet[string] =
+proc getPathsAllPkgs*(options: Options, nimBin: string): HashSet[string] =
   let satResult = options.satResult
   for pkg in satResult.pkgs:
     if pkg.basicInfo.name.isNim:
       continue  # Skip nim - it's the compiler, not a library dependency
-    for path in pkg.expandPaths(satResult.nimResolved.getNimBin(), options):
+    for path in pkg.expandPaths(nimBin, options):
       result.incl(path)
-
-proc getNimBin(satResult: SATResult): string =
-  #TODO change this so nim is passed as a parameter but we also need to change getPkgInfo so for the time being its also in options
-  if satResult.nimResolved.pkg.isSome:
-    let nimPkgInfo = satResult.nimResolved.pkg.get
-    var binaryPath = "bin" / "nim"
-    when defined(windows):
-      binaryPath &= ".exe" 
-    return nimPkgInfo.getNimbleFileDir() / binaryPath
-  else:
-    raise newNimbleError[NimbleError]("No Nim found")
 
 proc buildFromDir(pkgInfo: PackageInfo, paths: HashSet[string],
                   args: seq[string], options: Options, nimBin: string) =
@@ -1115,7 +1106,7 @@ proc buildFromDir(pkgInfo: PackageInfo, paths: HashSet[string],
         realDir / src.changeFileExt("nim")
 
     let cmd = "$# $# --colors:$# --noNimblePath $# $# $#" % [
-      options.satResult.getNimBin().quoteShell, pkgInfo.backend, if options.noColor: "off" else: "on", join(args, " "),
+      nimBin.quoteShell, pkgInfo.backend, if options.noColor: "off" else: "on", join(args, " "),
       outputOpt, input.quoteShell]
     try:
       doCmd(cmd)
@@ -1200,11 +1191,10 @@ proc createBinSymlinkForNim(pkgInfo: PackageInfo, options: Options) =
       let symlinkFilename = binDir / filename.changeFileExt("")
       discard setupBinSymlink(path, symlinkFilename, options)
 
-proc solutionToFullInfo*(satResult: SATResult, options: var Options) {.instrument.} =
+proc solutionToFullInfo*(satResult: SATResult, options: var Options, nimBin: string) {.instrument.} =
   # for pkg in satResult.pkgs:
-  #   if pkg.infoKind != pikFull:   
+  #   if pkg.infoKind != pikFull:
   #     satResult.pkgs.incl(getPkgInfo(pkg.getNimbleFileDir, options))
-  let nimBin = satResult.nimResolved.getNimBin()
   if satResult.rootPackage.infoKind != pikFull and not satResult.rootPackage.basicInfo.name.isNim: 
     satResult.rootPackage = getPkgInfo(satResult.rootPackage.getNimbleFileDir, options, nimBin = nimBin).toRequiresInfo(options, nimBin = nimBin)
     satResult.rootPackage.enableFeatures(options)
@@ -1214,7 +1204,7 @@ proc isRoot(pkgInfo: PackageInfo, satResult: SATResult): bool =
 
 proc buildPkg*(nimBin: string, pkgToBuild: PackageInfo, isRootInRootDir: bool, options: Options) {.instrument.} =
   # let paths = getPathsToBuildFor(options.satResult, pkgToBuild, recursive = true, options)
-  let paths = getPathsAllPkgs(options)
+  let paths = getPathsAllPkgs(options, nimBin)
   # echo "Paths ", paths
   # echo "Requires ", pkgToBuild.requires
   # echo "Package ", pkgToBuild.basicInfo.name
@@ -1243,9 +1233,9 @@ proc getVersionRangeFoPkgToInstall(satResult: SATResult, name: string, ver: Vers
         return parseVersionRange(specialVersion)  
   return ver.toVersionRange()
  
-proc installPkgs*(satResult: var SATResult, options: var Options) {.instrument.} =
+proc installPkgs*(satResult: var SATResult, options: var Options, nimBin: string) {.instrument.} =
   # options.debugSATResult("installPkgs")
-  #At this point the packages are already downloaded. 
+  #At this point the packages are already downloaded.
   #We still need to install them aka copy them from the cache to the nimbleDir + run preInstall and postInstall scripts
   let isInRootDir = options.startDir == satResult.rootPackage.myPath.parentDir
   var pkgsToInstall = satResult.pkgsToInstall
@@ -1259,13 +1249,12 @@ proc installPkgs*(satResult: var SATResult, options: var Options) {.instrument.}
   else:
     #Root can be assumed as installed as the only global action one can do is install
     installedPkgs.incl(satResult.rootPackage)
-    
+
   displaySatisfiedMsg(satResult.solvedPkgs, pkgsToInstall, options)
   #If package is in develop mode, we dont need to install it.
   var newlyInstalledPkgs = initHashSet[PackageInfo]()
   let rootName = satResult.rootPackage.basicInfo.name
   # options.debugSATResult()
-  let nimBin = satResult.nimResolved.getNimBin()
 
   # For develop, resolve pkgsToInstall from vendor packages instead of downloading.
   # The SAT solver may flag vendor packages for installation when cached versions

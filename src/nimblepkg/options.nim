@@ -614,9 +614,6 @@ proc getRequiredNimVersion*(pkgInfo: PackageInfo): VersionRange =
     return nimPkgTupl[0].ver
   return VersionRange(kind: verAny)
 
-proc getNimBin*(options: Options): string =
-  return options.nim
-
 proc setRunOptions(result: var Options, key, val: string, isArg: bool) =
   if result.action.runFile.isNone():
     if isArg or val == "--":
@@ -735,7 +732,8 @@ proc makeNimBin*(options: Options, path: string, nimVersion: Option[Version] = n
   var nimVersion = nimVersion
   if nimVersion.isNone:
     nimVersion = getNimVersionFromBin(path)
-  
+  if nimVersion.isNone:
+    raise nimbleError("Unable to get version from `nim` binary at " & path)
   return NimBin(path: path, version: nimVersion.get())
 
 proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =

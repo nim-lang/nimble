@@ -51,6 +51,7 @@ proc initPkgList(pkgInfo: PackageInfo, options: Options, nimBin: string): seq[Pa
 
 proc install(packages: seq[PkgTuple], options: Options,
              doPrompt, first, fromLockFile: bool,
+             nimBin: string = "",
              preferredPackages: seq[PackageInfo] = @[]): PackageDependenciesInfo
 
 proc getNimDir(options: var Options, nimBin: string): string
@@ -60,16 +61,6 @@ proc solvePkgs(rootPackage: PackageInfo, options: var Options, nimBin: string) {
 proc setup(options: Options, nimBin: string)
 
 proc develop(options: var Options, nimBin: string)
-
-proc setNimBin*(options: var Options)
-
-proc getNimBin*(pkgInfo: PackageInfo, options: Options): string =
-  if pkgInfo.basicInfo.name.isNim:
-    return getNimPath(pkgInfo)
-  else:
-    assert options.satResult.nimResolved.pkg.isSome, "Nim is not resolved yet"
-    result = getNimPath(options.satResult.nimResolved.pkg.get)
-  display("Info:", "compiling nim package using $1" % result, priority = HighPriority)
 
 proc cleanFromDir(pkgInfo: PackageInfo, nimBin: string, options: Options) =
   ## Clean up build files.
@@ -113,19 +104,18 @@ proc removeBinariesSymlinks(pkgInfo: PackageInfo, binDir: string) =
       removeFile(binDir / bin.changeFileExt("cmd"))
     removeFile(binDir / bin)
 
-proc reinstallSymlinksForOlderVersion(pkgDir: string, options: Options) =
+proc reinstallSymlinksForOlderVersion(pkgDir: string, options: Options, nimBin: string) =
   let (pkgName, _, _) = getNameVersionChecksum(pkgDir)
   let pkgList = getInstalledPkgsMin(options.getPkgsDir(), options)
   var newPkgInfo = initPackageInfo()
   if pkgList.findPkg((pkgName, newVRAny()), newPkgInfo):
-    let nimBin = getNimBin(options)
     newPkgInfo = newPkgInfo.toFullInfo(options, nimBin)
     for bin, _ in newPkgInfo.bin:
       let symlinkDest = newPkgInfo.getOutputDir(bin)
       let symlinkFilename = options.getBinDir() / bin.extractFilename
       discard setupBinSymlink(symlinkDest, symlinkFilename, options)
 
-proc removePackage(pkgInfo: PackageInfo, options: Options) =
+proc removePackage(pkgInfo: PackageInfo, options: Options, nimBin: string) =
   var pkgInfo = pkgInfo
   let pkgDestDir = pkgInfo.getPkgDest(options)
 
@@ -138,17 +128,16 @@ proc removePackage(pkgInfo: PackageInfo, options: Options) =
 
   removePackageDir(pkgInfo, pkgDestDir)
   removeBinariesSymlinks(pkgInfo, options.getBinDir())
-  reinstallSymlinksForOlderVersion(pkgDestDir, options)
+  reinstallSymlinksForOlderVersion(pkgDestDir, options, nimBin)
   options.nimbleData.removeRevDep(pkgInfo)
 
-proc packageExists(pkgInfo: PackageInfo, options: Options):
+proc packageExists(pkgInfo: PackageInfo, options: Options, nimBin: string):
     Option[PackageInfo] =
   ## Checks whether a package `pkgInfo` already exists in the Nimble cache. If a
   ## package already exists returns the `PackageInfo` of the package in the
   ## cache otherwise returns `none`. Raises a `NimbleError` in the case the
   ## package exists in the cache but it is not valid.
   let pkgDestDir = pkgInfo.getPkgDest(options)
-  let nimBin = getNimBin(options)
   if not fileExists(pkgDestDir / packageMetaDataFileName):
     return none[PackageInfo]()
   else:
@@ -163,6 +152,7 @@ proc packageExists(pkgInfo: PackageInfo, options: Options):
 
 proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
                     url: string, first: bool, fromLockFile: bool,
+                    nimBin: string,
                     vcsRevision = notSetSha1Hash,
                     deps: seq[PackageInfo] = @[],
                     preferredPackages: seq[PackageInfo] = @[]):
@@ -174,9 +164,6 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
   ##   True if this is the first level of the indirect recursion.
   ## ``fromLockFile``
   ##   True if we are installing dependencies from the lock file.
-
-  # Handle pre-`install` hook.
-  let nimBin = getNimBin(options)
   if not options.depsOnly:
     cd dir: # Make sure `execHook` executes the correct .nimble file.
       if not execHook(nimBin, options, actionInstall, true):
@@ -213,7 +200,7 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
     [pkginfo.basicInfo.name, $pkginfo.basicInfo.version],
     priority = MediumPriority)
 
-  let oldPkg = pkgInfo.packageExists(options)
+  let oldPkg = pkgInfo.packageExists(options, nimBin)
   if oldPkg.isSome:
     # In the case we already have the same package in the cache then only merge
     # the new package special versions to the old one.
@@ -369,6 +356,7 @@ proc raiseCannotCloneInExistingDirException(downloadDir: string) =
 
 proc install(packages: seq[PkgTuple], options: Options,
              doPrompt, first, fromLockFile: bool,
+             nimBin: string = "",
              preferredPackages: seq[PackageInfo] = @[]): PackageDependenciesInfo =
   ## ``first``
   ##   True if this is the first level of the indirect recursion.
@@ -376,7 +364,7 @@ proc install(packages: seq[PkgTuple], options: Options,
   ##   True if we are installing dependencies from the lock file.
   ## ``preferredPackages``
   ##   Prefer these packages when performing `processFreeDependencies`
-  
+
   if packages == @[]:
     let currentDir = getCurrentDir()
     if currentDir.developFileExists:
@@ -384,7 +372,7 @@ proc install(packages: seq[PkgTuple], options: Options,
         "Installing a package which currently has develop mode dependencies." &
         "\nThey will be ignored and installed as normal packages.")
     result = installFromDir(currentDir, newVRAny(), options, "", first,
-                            fromLockFile,
+                            fromLockFile, nimBin,
                             preferredPackages = preferredPackages)
   else:
     # Install each package.
@@ -396,14 +384,13 @@ proc install(packages: seq[PkgTuple], options: Options,
       if subdir == "": #Ignore the cache if subdir is set
           downloadPath =  getCacheDownloadDir(url, pv.ver, options)
       var nimInstalled = none(NimInstalled)
-      if pv.isNim: 
+      if pv.isNim:
         nimInstalled = installNimFromBinariesDir(pv, options)
-       
+
       let (downloadDir, downloadVersion, vcsRevision) =
         if nimInstalled.isSome():
           (nimInstalled.get().dir, nimInstalled.get().ver, notSetSha1Hash)
         else:
-          let nimBin = getNimBin(options)
           downloadPkg(url, pv.ver, meth, subdir, options,
                     downloadPath = downloadPath, vcsRevision = notSetSha1Hash, nimBin = nimBin)
       try:
@@ -413,7 +400,7 @@ proc install(packages: seq[PkgTuple], options: Options,
             compileNim(opt, downloadDir, pv.ver)
           opt.useNimFromDir(downloadDir, pv.ver, true)
         result = installFromDir(downloadDir, pv.ver, opt, url,
-                                first, fromLockFile, vcsRevision,
+                                first, fromLockFile, nimBin, vcsRevision,
                                 preferredPackages = preferredPackages)
       except BuildFailed as error:
         # The package failed to build.
@@ -431,21 +418,20 @@ proc install(packages: seq[PkgTuple], options: Options,
           if promptResult:
             let toInstall = @[(pv.name, headVer.toVersionRange())]
             result =  install(toInstall, options, doPrompt, first,
-                              fromLockFile = false)
+                              fromLockFile = false, nimBin = nimBin)
           else:
             raise buildFailed(
               "Aborting installation due to build failure.", details = error)
         else:
           raise
 
-proc addPackages(packages: seq[PkgTuple], options: var Options) =
+proc addPackages(packages: seq[PkgTuple], options: var Options, nimBin: string) =
   if packages.len == 0:
     raise nimbleError(
       "Expected packages to add to dependencies, got none."
     )
-  
-  let 
-    nimBin = getNimBin(options)
+
+  let
     dir = findNimbleFile(getCurrentDir(), true, options)
     pkgInfo = getPkgInfo(getCurrentDir(), options, nimBin = nimBin)
     pkgList = options.getPackageList()
@@ -523,18 +509,16 @@ proc addPackages(packages: seq[PkgTuple], options: var Options) =
       priority = HighPriority
     )
 
-proc clean(options: Options) =
+proc clean(options: Options, nimBin: string) =
   let dir = getCurrentDir()
-  let nimBin = getNimBin(options)
   let pkgInfo = getPkgInfo(dir, options, nimBin = nimBin)
   nimScriptHint(pkgInfo)
   cleanFromDir(pkgInfo, nimBin, options)
 
-proc execBackend(pkgInfo: PackageInfo, options: Options) =
+proc execBackend(pkgInfo: PackageInfo, options: Options, nimBin: string) =
   let
     bin = options.getCompilationBinary(pkgInfo).get("")
     binDotNim = bin.addFileExt("nim")
-    nimBin = getNimBin(options)
   if bin == "":
     raise nimbleError("You need to specify a file.")
 
@@ -549,7 +533,7 @@ proc execBackend(pkgInfo: PackageInfo, options: Options) =
     raise nimbleError("Pre-hook prevented further execution.")
 
   var args = @["-d:NimblePkgVersion=" & $pkgInfo.basicInfo.version]
-  for path in options.getPathsAllPkgs():
+  for path in options.getPathsAllPkgs(nimBin):
     args.add("--path:" & path.quoteShell)
   if options.verbosity >= HighPriority:
     # Hide Nim hints by default
@@ -575,7 +559,7 @@ proc execBackend(pkgInfo: PackageInfo, options: Options) =
             "backend") % [bin, pkgInfo.basicInfo.name, backend], priority = HighPriority)
 
   doCmd("$# $# --noNimblePath $# $# $#" %
-        [pkgInfo.getNimBin(options).quoteShell,
+        [nimBin.quoteShell,
          backend,
          join(args, " "),
          bin.quoteShell,
@@ -731,9 +715,8 @@ proc join(x: seq[PkgTuple]; y: string): string =
     result.add y
     result.add x[i][0] & " " & $x[i][1]
 
-proc getPackageByPattern(pattern: string, options: Options): PackageInfo =
+proc getPackageByPattern(pattern: string, options: Options, nimBin: string): PackageInfo =
   ## Search for a package file using multiple strategies.
-  let nimBin = getNimBin(options)
   if pattern == "":
     # Not specified - using current directory
     result = getPkgInfo(os.getCurrentDir(), options, nimBin = nimBin)
@@ -765,10 +748,9 @@ proc getEntryPoints(pkgInfo: PackageInfo, options: Options): seq[string] =
     result.add if entry.endsWith(".nim"): entry else: entry & ".nim"
   
 proc dump(options: var Options, nimBin: string) =
-  var p = getPackageByPattern(options.action.projName, options)
+  var p = getPackageByPattern(options.action.projName, options, nimBin)
   if options.action.collect or options.action.solve:
     p.requires &= options.extraRequires
-    let nimBin = getNimBin(options)
     let pkgList = initPkgList(p, options, nimBin).toSeq()
     if options.action.collect:
       dumpPackageVersionTable(p, pkgList.toSeq(), options, nimBin)
@@ -831,7 +813,7 @@ proc dump(options: var Options, nimBin: string) =
     s = j.pretty
   echo s
 
-proc init(options: Options) =
+proc init(options: Options, nimBin: string) =
   # Check whether the vcs is installed.
   let vcsBin = options.action.vcsOption
   if vcsBin != "" and findExe(vcsBin, true) == "":
@@ -956,7 +938,7 @@ Please specify a valid SPDX identifier.""",
       pkgLicense.add("-only")
 
   # Ask for Nim dependency
-  let nimDepDef = getNimrodVersion(options)
+  let nimDepDef = getNimrodVersion(options, nimBin)
   let pkgNimDep = promptCustom(options, "Lowest supported Nim version?",
     $nimDepDef)
   validateVersion(pkgNimDep)
@@ -989,13 +971,12 @@ Please specify a valid SPDX identifier.""",
   display("Success:", "Package $# created successfully" % [pkgName], Success,
     HighPriority)
 
-proc removePackages(pkgs: HashSet[ReverseDependency], options: var Options) =
-  let nimBin = getNimBin(options)
+proc removePackages(pkgs: HashSet[ReverseDependency], options: var Options, nimBin: string) =
   for pkg in pkgs:
     let pkgInfo = pkg.toPkgInfo(options, nimBin = nimBin)
     case pkg.kind
     of rdkInstalled:
-      pkgInfo.removePackage(options)
+      pkgInfo.removePackage(options, nimBin)
       display("Removed", $pkg, Success, HighPriority)
     of rdkDevelop:
       options.nimbleData.removeRevDep(pkgInfo)
@@ -1006,7 +987,7 @@ proc collectNames(pkgs: HashSet[ReverseDependency],
     if pkg.kind != rdkDevelop or includeDevelopRevDeps:
       result.add $pkg
 
-proc uninstall(options: var Options) =
+proc uninstall(options: var Options, nimBin: string) =
   if options.action.packages.len == 0:
     raise nimbleError(
         "Please specify the package(s) to uninstall.")
@@ -1042,7 +1023,7 @@ proc uninstall(options: var Options) =
   if not options.prompt(pkgsToDelete.collectNames(false).promptRemovePkgsMsg):
     raise nimbleQuit()
 
-  removePackages(pkgsToDelete, options)
+  removePackages(pkgsToDelete, options, nimBin)
 
 proc listTasks(options: Options, nimBin: string) =
   let nimbleFile = findNimbleFile(getCurrentDir(), true, options)
@@ -1136,9 +1117,9 @@ proc installDevelopPackage(pkgTup: PkgTuple, options: var Options, nimBin: strin
 
 proc updateSyncFile(dependentPkg: PackageInfo, options: Options, nimBin: string)
 
-proc updatePathsFile(pkgInfo: PackageInfo, options: Options) =
+proc updatePathsFile(pkgInfo: PackageInfo, options: Options, nimBin: string) =
   var paths = initHashSet[seq[string]]()
-  for path in options.getPathsAllPkgs():
+  for path in options.getPathsAllPkgs(nimBin):
     paths.incl @[path]
   var pathsFileContent = "--noNimblePath\n"
   for path in paths:
@@ -1182,28 +1163,12 @@ proc develop(options: var Options, nimBin: string) =
   if currentDirPkgInfo.isLoaded and (not hasPackages) and (not hasDevActions):
     developFromDir(currentDirPkgInfo, options, topLevel = true, nimBin = nimBin)
 
-  # Install each package.
-  var developed = initHashSet[string]()
-  var toInstall = options.action.packages
-  # When developing from a project dir with --with-dependencies,
-  # also vendor the project's own dependencies.
-  if withDependencies and currentDirPkgInfo.isLoaded and not hasPackages:
-    developed.incl(currentDirPkgInfo.basicInfo.name.toLower)
-    for dep in currentDirPkgInfo.requires:
-      if not dep.name.isNim:
-        toInstall.add(dep)
-  while toInstall.len > 0:
-    let pkgTup = toInstall[0]
-    toInstall.delete(0)
-    if pkgTup.name.isNim or pkgTup.name.toLower in developed:
-      continue
+  # Clone each explicitly requested package.
+  # Dependencies are NOT traversed here — when --with-dependencies is set,
+  # the SAT solver resolves deps and developFromSolution clones them.
+  for pkgTup in options.action.packages:
     try:
-      let pkgInfo = installDevelopPackage(pkgTup, options, nimBin)
-      developed.incl(pkgInfo.basicInfo.name.toLower)
-      if withDependencies:
-        for dep in pkgInfo.requires:
-          if not dep.name.isNim and dep.name.toLower notin developed:
-            toInstall.add(dep)
+      discard installDevelopPackage(pkgTup, options, nimBin)
     except CatchableError as error:
       hasError = true
       displayError(&"Cannot install package \"{pkgTup}\" for develop.")
@@ -1220,7 +1185,7 @@ proc develop(options: var Options, nimBin: string) =
       # sync and paths files.
       updateSyncFile(currentDirPkgInfo, options, nimBin)
       if fileExists(nimblePathsFileName):
-        updatePathsFile(currentDirPkgInfo, options)
+        updatePathsFile(currentDirPkgInfo, options, nimBin)
 
   if hasError:
     raise nimbleError(
@@ -1272,11 +1237,11 @@ proc test(options: Options, nimBin: string) =
       if options.continueTestsOnFailure:
         inc tests
         try:
-          execBackend(pkgInfo, optsCopy)
+          execBackend(pkgInfo, optsCopy, nimBin)
         except NimbleError:
           inc failures
       else:
-        execBackend(pkgInfo, optsCopy)
+        execBackend(pkgInfo, optsCopy, nimBin)
 
       let
         existsAfter = fileExists(binFileName)
@@ -1698,7 +1663,7 @@ proc sync(options: Options, nimBin: string) =
     # versions from the lock file.
     discard options.satResult.pkgs # deps already resolved by SAT
     if fileExists(nimblePathsFileName):
-      updatePathsFile(pkgInfo, options)
+      updatePathsFile(pkgInfo, options, nimBin)
 
   var errors: ValidationErrors
   findValidationErrorsOfDevDepsWithLockFile(pkgInfo, options, errors, nimBin)
@@ -1756,7 +1721,7 @@ when withDir(thisDir(), system.fileExists("{nimblePathsFileName}")):
     configFileContent = if lockFileExists: configFileContentWithLock
                         else: configFileContentNoLock
 
-  updatePathsFile(pkgInfo, options)
+  updatePathsFile(pkgInfo, options, nimBin)
 
   var
     writeFile = false
@@ -1837,7 +1802,7 @@ proc getAlteredPath(options: Options, nimBin: string): string =
       let folder = fullInfo.getOutputDir(bin).parentDir.quoteShell
       paths.add folder
   paths.reverse
-  let parentDir = options.nimBin.get.path.parentDir
+  let parentDir = nimBin.parentDir
   result = fmt "{getAppDir()}{separator}{paths.join(separator)}{separator}{parentDir}{separator}{getEnv(\"PATH\")}"
 
 proc shellenv(options: var Options, nimBin: string) =
@@ -1961,13 +1926,29 @@ proc solvePkgs(rootPackage: PackageInfo, options: var Options, nimBin: string) {
   # This returns a PackageInfo pointing to pkgs2 instead of nimbinaries
   let nimPkgInfo = installNimToPkgs2(resolvedNim.pkg.get, options, nimBin)
   resolvedNim.pkg = some nimPkgInfo
-  setNimBin(nimPkgInfo, options)
+  # Derive nimBin path from resolved package
+  let resolvedNimBin = if nimPkgInfo.nimBinPath.isSome:
+                         nimPkgInfo.nimBinPath.get  # System nim with non-standard layout (#1609)
+                       else:
+                         nimPkgInfo.getNimPath()  # Standard layout
+  options.nimBin = some makeNimBin(options, resolvedNimBin)
+  # Add nim to PATH for subprocesses and handle compilation (only for non-system nim in standard layout)
+  if nimPkgInfo.nimBinPath.isNone:
+    if not fileExists(resolvedNimBin):
+      if options.prompt("Develop version of nim was found but it is not compiled. Compile it now?"):
+        compileNim(options, nimPkgInfo.getRealDir, nimPkgInfo.basicInfo.version.toVersionRange())
+      else:
+        raise nimbleError("Trying to use nim from $1 " % nimPkgInfo.getRealDir,
+                          "If you are using develop mode nim make sure to compile it.")
+    let separator = when defined(windows): ";" else: ":"
+    putEnv("PATH", nimPkgInfo.getRealDir / "bin" & separator & getEnv("PATH"))
+  display("Info:", "using $1 for compilation" % resolvedNimBin, priority = HighPriority)
   options.satResult.nimResolved = resolvedNim #TODO maybe we should consider the sat fallback pass. Not sure if we should just warn the user so the packages are corrected
   options.satResult.pkgs.incl(nimPkgInfo) #Make sure its in the solution
   # Only add nim to solvedPkgs if there isn't already one (e.g., with a special version like #devel)
   if not options.satResult.solvedPkgs.anyIt(it.pkgName.isNim):
     addUnique(options.satResult.solvedPkgs, SolvedPackage(pkgName: "nim", version: resolvedNim.version))
-  options.satResult.solutionToFullInfo(options)
+  options.satResult.solutionToFullInfo(options, nimBin)
   if rootPackage.hasLockFile(options) and not options.disableLockFile:
     options.satResult.solveLockFileDeps(pkgList, options, nimBin)
 
@@ -1985,18 +1966,69 @@ proc solvePkgs(rootPackage: PackageInfo, options: var Options, nimBin: string) {
 
   options.satResult.pass = satDone 
 
+proc developFromSolution(rootPkgName: string, options: var Options, nimBin: string) =
+  ## Clones solved packages into vendor/ based on SAT solver results.
+  if options.action.path.len == 0:
+    options.action.path = defaultDevelopPath
+
+  var currentDirPkgInfo = initPackageInfo()
+  try:
+    currentDirPkgInfo = getPkgInfo(getCurrentDir(), options, nimBin = nimBin)
+  except CatchableError:
+    discard
+
+  for solvedPkg in options.satResult.solvedPkgs:
+    if solvedPkg.pkgName.isNim:
+      continue
+    if solvedPkg.pkgName.toLower == rootPkgName.toLower:
+      continue
+    let pkgTup: PkgTuple = (solvedPkg.pkgName,
+      parseVersionRange("== " & $solvedPkg.version))
+    try:
+      let pkgInfo = installDevelopPackage(pkgTup, options, nimBin)
+      options.satResult.pkgs.incl(pkgInfo)
+    except CatchableError as error:
+      displayError(&"Cannot vendor package \"{solvedPkg.pkgName}\" for develop.")
+      displayDetails(error)
+
+  # Update develop file
+  if currentDirPkgInfo.isLoaded:
+    options.developFile = developFileName
+  if options.developFile.len > 0:
+    discard updateDevelopFile(currentDirPkgInfo, options, nimBin)
+
 proc runVNext*(options: var Options, nimBin: string) {.instrument.} =
   #Make sure we set the righ verbosity for commands that output info:
   if options.action.typ in {actionShellEnv}:
     setVerbosity(SilentPriority)
     options.verbosity = SilentPriority
-  # For develop --withDependencies, run develop() first to clone vendor packages,
-  # then solve. This avoids a chicken-and-egg problem: the solver needs vendor
-  # packages on disk, but develop() is what creates them.
+  # For develop without --with-dependencies, just clone and return.
+  # For develop with --with-dependencies, solve first then clone from solution.
   if options.action.typ == actionDevelop:
-    options.setNimBin()
-    develop(options, nimBin)
-    if not options.action.withDependencies or not options.thereIsNimbleFile:
+    if not options.action.withDependencies:
+      develop(options, nimBin)
+      return
+    # With dependencies: clone only the explicitly requested packages first
+    var developedPkgs: seq[PackageInfo] = @[]
+    if options.action.packages.len > 0:
+      let savedWithDeps = options.action.withDependencies
+      options.action.withDependencies = false
+      develop(options, nimBin)
+      options.action.withDependencies = savedWithDeps
+      for devAction in options.action.devActions:
+        if devAction.actionType == datAdd:
+          try:
+            developedPkgs.add getPkgInfo(devAction.argument, options, nimBin = nimBin)
+          except CatchableError:
+            discard
+    if not options.thereIsNimbleFile and developedPkgs.len == 0:
+      return
+    # For non-project-dir develops, solve from each cloned package as root
+    if not options.thereIsNimbleFile and developedPkgs.len > 0:
+      for rootPkg in developedPkgs:
+        options.satResult = initSATResult(satNimSelection)
+        solvePkgs(rootPkg, options, nimBin)
+        developFromSolution(rootPkg.basicInfo.name, options, nimBin)
       return
 
   #Install and in consequence builds the packages
@@ -2019,7 +2051,7 @@ proc runVNext*(options: var Options, nimBin: string) {.instrument.} =
       deps: options.satResult.solvedPkgs.filterIt(it.pkgName.toLower != rootPackage.basicInfo.name.toLower)
     )
     options.satResult.solvedPkgs.add(rootSolvedPkg)
-    options.satResult.installPkgs(options)
+    options.satResult.installPkgs(options, nimBin)
     options.satResult.addReverseDeps(options)
     return
   elif options.thereIsNimbleFile and not isGlobalInstall and
@@ -2053,7 +2085,7 @@ proc runVNext*(options: var Options, nimBin: string) {.instrument.} =
         deps: options.satResult.solvedPkgs.filterIt(it.pkgName.toLower != rootPackage.basicInfo.name.toLower)
       )
       options.satResult.solvedPkgs.add(rootSolvedPkg)
-      options.satResult.installPkgs(options)
+      options.satResult.installPkgs(options, nimBin)
       options.satResult.addReverseDeps(options)
     return
   else:
@@ -2062,7 +2094,13 @@ proc runVNext*(options: var Options, nimBin: string) {.instrument.} =
       "Could not find a .nimble file in the current directory. " &
       "This command requires a Nimble package file.")
 
-  options.satResult.installPkgs(options)
+  # For develop --with-dependencies: clone solved packages into vendor/
+  # instead of installing to pkgs2.
+  if options.action.typ == actionDevelop and options.action.withDependencies:
+    developFromSolution(rootPackage.basicInfo.name, options, nimBin)
+    return
+
+  options.satResult.installPkgs(options, nimBin)
   # echo "AFTER INSTALL PKG/S"
   # options.debugSATResult()
   options.satResult.addReverseDeps(options)
@@ -2106,7 +2144,7 @@ proc getNimDir(options: var Options, nimBin: string): string =
     if options.action.typ == actionInstall:
       rootPackage.requires.add(options.action.packages)
     solvePkgs(rootPackage, options, nimBin)    
-    return options.nimBin.get(NimBin()).path.parentDir    
+    return nimBin.parentDir
 
 
 
@@ -2121,7 +2159,7 @@ proc doAction(options: var Options, nimBin: string) {.instrument.} =
   of actionInstall:
     discard # handled by runVNext
   of actionUninstall:
-    uninstall(options)
+    uninstall(options, nimBin)
   of actionSearch:
     search(options)
   of actionList:
@@ -2136,16 +2174,16 @@ proc doAction(options: var Options, nimBin: string) {.instrument.} =
   of actionBuild:
     discard # handled by runVNext
   of actionClean:
-    clean(options)
+    clean(options, nimBin)
   of actionRun:
     run(options, nimBin)
   of actionUpgrade:
     lock(options, nimBin)
   of actionCompile, actionDoc:
     var pkgInfo = getPkgInfo(getCurrentDir(), options, nimBin = nimBin)
-    execBackend(pkgInfo, options)
+    execBackend(pkgInfo, options, nimBin)
   of actionInit:
-    init(options)
+    init(options, nimBin)
   of actionPublish:
     var pkgInfo = getPkgInfo(getCurrentDir(), options, nimBin = nimBin)
     publish(pkgInfo, options)
@@ -2172,7 +2210,7 @@ proc doAction(options: var Options, nimBin: string) {.instrument.} =
   of actionNil:
     assert false
   of actionAdd:
-    addPackages(options.action.packages, options)
+    addPackages(options.action.packages, options, nimBin)
   of actionManual:
     openNimbleManual()
   of actionCustom:
@@ -2204,86 +2242,6 @@ proc doAction(options: var Options, nimBin: string) {.instrument.} =
                                "If you want a tutorial on how to use Nimble, run `nimble guide`."
                        )
 
-proc setNimBin*(options: var Options) =
-  # Find nim binary and set into options
-  if options.nimBin.isSome:
-    let nimBin = options.nimBin.get.path
-    # --nim:<path> takes priority...
-    if nimBin.splitPath().head.len == 0:
-      # Just filename, search in PATH - nim_temp shortcut
-      let pnim = findExe(nimBin)
-      if pnim.len != 0: 
-        options.nimBin = some makeNimBin(options, pnim)
-
-    if not fileExists(options.nimBin.get.path):
-      raise nimbleError("Unable to find `$1`" % options.nimBin.get.path)
-
-    # when nim is forced via command like don't try to be smart and just return
-    # it.
-    return
-
-  # Search PATH to find nim to continue with
-  var nimBin = findExe("nim")
-  if nimBin == "" and options.satResult.bootstrapNim.nimResolved.pkg.isSome:
-    nimBin = options.satResult.bootstrapNim.nimResolved.getNimBin()
-  if nimBin != "" or options.useSystemNim: #when using systemNim is on we want to fail if system nim is not found
-    options.nimBin = some makeNimBin(options, nimBin)
-    return #Prioritize Nim in path
-
-  proc install(package: PkgTuple, options: Options): HashSet[PackageInfo] =
-    result = install(@[package], options, doPrompt = false, first = false, fromLockFile = false).deps
-  
-  if options.nimBin.isNone:
-    # Search installed packages to continue with
-    let nimVersion = ("nim", VersionRange(kind: verAny))
-    let installedPkgs = getInstalledPkgsMin(options.getPkgsDir(), options)
-    #Is this actually needed? If so, guard it with the setNimBinaries flag
-    # & getInstalledPkgsMin(options.nimBinariesDir, options)
-    var pkg = initPackageInfo()
-    if findPkg(installedPkgs, nimVersion, pkg):
-      options.useNimFromDir(pkg.getRealDir, pkg.basicInfo.version.toVersionRange())
-    else:
-      # It still no nim found then download and install one to allow parsing of
-      # other packages.
-      if options.nimBin.isNone and not options.offline and options.prompt("No nim found. Download it now?"):
-        for pkg in install(nimVersion, options):
-          options.useNimFromDir(pkg.getRealDir, pkg.basicInfo.version.toVersionRange())
-
-  if options.nimBin.isNone:
-    raise nimbleError("Unable to find nim")
-
-  # try to switch to the version that is in the develop file
-  var pkgInfo: PackageInfo
-  try:
-    pkgInfo = getPkgInfo(getCurrentDir(), options, nimBin = nimBin)
-    for pkg in pkgInfo.processDevelopDependencies(options, nimBin = nimBin):
-      if pkg.name.isNim:
-        options.useNimFromDir(pkg.getRealDir, pkg.basicInfo.version.toVersionRange(), true)
-        return
-    options.pkgInfoCache.clear()
-  except NimbleError:
-    # not in nimble package
-    return
-
-
-  # when no develop nim, check the versions of the nim dependency if doesnt
-  # match the requires try to find/install a matching version before
-  # continuing. Note that we have to do 2 passes because we cannot parse the
-  # nimble file without nim initially.
-  let nimVer = getNimrodVersion(options)
-  for require in pkgInfo.requires:
-    if require.name.isNim and not withinRange(nimVer, require.ver):
-      let installedPkgs = getInstalledPkgsMin(options.getPkgsDir(), options)
-      var pkg = initPackageInfo()
-      if findPkg(installedPkgs, require, pkg):
-        options.useNimFromDir(pkg.getRealDir, require.ver)
-      else:
-        if not options.offline and options.prompt("No nim version matching $1. Download it now?" % $require.ver):
-          for pkg in install(require, options):
-            options.useNimFromDir(pkg.getRealDir, require.ver)
-        else:
-          let msg = "Unsatisfied dependency: " & require.name & " (" & $require.ver & ")"
-          raise nimbleError(msg)
 
 when isMainModule:
   var exitCode = QuitSuccess
@@ -2312,7 +2270,7 @@ when isMainModule:
     # Actions that don't need a Nim binary should not trigger downloading Nim.
     # This avoids e.g. `nimble --version` or `nimble list -i` fetching Nim binaries.
     const actionsNotNeedingNim = {actionRefresh, actionSearch, actionList,
-      actionPath, actionUninstall, actionClean, actionInit, actionManual,
+      actionPath, actionUninstall, actionClean, actionManual,
       actionNil}
     let needsNim = not opt.showVersion and not opt.showHelp and
       opt.action.typ notin actionsNotNeedingNim
@@ -2326,9 +2284,10 @@ when isMainModule:
         opt.task = opt.action.command.normalize
       runVNext(opt, nimBin)
     elif not opt.showVersion and not opt.showHelp:
-      #Even in vnext some actions need to have set Nim the old way i.e. initAction
-      #TODO review this and write specific logic to set Nim in this scenario.
-      opt.setNimBin()
+      # Non-vnext actions (publish, tasks, check, dump) just need a nim binary
+      # to parse nimble files. nimBin is already resolved by getBootstrapNimResolved above.
+      if nimBin != "":
+        opt.nimBin = some makeNimBin(opt, nimBin)
 
     #if the action is different than setup and in vnext we run setup
     #when not doing a global install (no nimble file in the current directory)

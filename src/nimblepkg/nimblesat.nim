@@ -707,13 +707,13 @@ proc downloadPkInfoForPv*(pv: PkgTuple, options: Options, doPrompt = false, nimB
   else:
     result = getPkgInfo(downloadRes[0].dir, options, nimBin, forValidation = false, onlyMinimalInfo = false)
 
-proc getAllNimReleases(options: Options): seq[PackageMinimalInfo] =
+proc getAllNimReleases(options: Options, nimVersion: Option[Version]): seq[PackageMinimalInfo] =
   let releases = getOfficialReleases(options)
   for release in releases:
     result.add PackageMinimalInfo(name: "nim", version: release)
 
-  if options.nimBin.isSome:
-    result.addUnique PackageMinimalInfo(name: "nim", version: options.nimBin.get.version)
+  if nimVersion.isSome:
+    result.addUnique PackageMinimalInfo(name: "nim", version: nimVersion.get)
 
 proc normalizePackageName*(pkgName: string): string =
   ## Normalizes a package name for use as cache key (lowercase for consistent lookups)
@@ -1124,7 +1124,7 @@ proc downloadMinimalPackage*(pv: PkgTuple, options: Options, nimBin: string): se
         if nimVersion != "":
           ver.speSemanticVersion = some(nimVersion)
       return @[PackageMinimalInfo(name: "nim", version: ver)]
-    return getAllNimReleases(options)
+    return getAllNimReleases(options, getNimVersionFromBin(nimBin))
   # During version discovery, we only need to read .nimble files, not compile code
   # So we ignore submodules to speed up cloning and avoid failures from broken submodules
   var versionDiscoveryOptions = options
@@ -1177,7 +1177,7 @@ proc downloadMinimalPackageAsyncImpl(pv: PkgTuple, options: Options, nimBin: str
       # For special versions, delegate to the sync version which handles downloading
       {.gcsafe.}:
         return downloadMinimalPackage(pv, options, nimBin)
-    return getAllNimReleases(options)
+    return getAllNimReleases(options, getNimVersionFromBin(nimBin))
 
   # During version discovery, we only need to read .nimble files, not compile code
   # So we ignore submodules to speed up cloning and avoid failures from broken submodules
@@ -1552,12 +1552,12 @@ proc topologicalSort*(solvedPkgs: seq[SolvedPackage]): seq[SolvedPackage] {.inst
       if inDegree[neighbor] == 0:
         zeroInDegree.add(neighbor) 
 
-proc isSystemNimCompatible*(solvedPkgs: seq[SolvedPackage], options: Options): bool =
+proc isSystemNimCompatible*(solvedPkgs: seq[SolvedPackage], options: Options, nimVersion: Option[Version]): bool =
   if options.action.typ in {actionLock, actionDeps} or options.hasNimInLockFile():
     return false
   for solvedPkg in solvedPkgs:
     for req in solvedPkg.requirements:
-      if req.isNim and options.nimBin.isSome and not options.nimBin.get.version.withinRange(req.ver):
+      if req.isNim and nimVersion.isSome and not nimVersion.get.withinRange(req.ver):
         return false
   true
 
@@ -1714,7 +1714,7 @@ proc solvePackages*(rootPkg: PackageInfo, pkgList: seq[PackageInfo], pkgsToInsta
   solvedPkgs = pkgVersionTable.getSolvedPackages(output, options).topologicalSort()
   solvedPkgs.postProcessSolvedPkgs(options, nimBin)
   
-  let systemNimCompatible = solvedPkgs.isSystemNimCompatible(options)
+  let systemNimCompatible = solvedPkgs.isSystemNimCompatible(options, getNimVersionFromBin(nimBin))
   # echo "DEBUG: SolvedPkgs after post processing: ", solvedPkgs.mapIt(it.pkgName & " " & $it.version).join(", ")
   # echo "ACTION IS ", options.action.typ
   for solvedPkg in solvedPkgs:
