@@ -38,7 +38,7 @@ proc debugSATResult*(options: Options, calledFrom: string) =
   else:
     echo "No Nim selected"
   echo color, "Bootstrap Nim: ", reset, "isSet: ", satResult.bootstrapNim.nimResolved.pkg.isSome, " version: ", satResult.bootstrapNim.nimResolved.version
-  echo color, "Declarative parser failed: ", reset, satResult.declarativeParseFailed
+
   let pkgsWithErrors = satResult.pkgs.toSeq.filterIt(it.declarativeParserErrors.len > 0)
   if pkgsWithErrors.len > 0:
     echo color, "Declarative parser errors: ", reset
@@ -639,9 +639,6 @@ proc resolveAndConfigureNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo]
   # setBootstrapNim(systemNimPkg, pkgListDecl, options)
   #TODO NEXT PR
   #At this point, if we failed before to parse the pkglist. We need to reparse with the bootsrapped nim as we may have missed some deps.
-  # if options.satResult.declarativeParseFailed:
-  #   echo "FAILED TO PARSE THE PKGLIST, REPARSING WITH BOOTSTRAPPED NIM"
-  #   debugSatResult(options, "resolveAndConfigureNim")
     
     
   var resolvedNim = resolveNim(rootPackage, pkgListDecl, systemNimPkg, options)

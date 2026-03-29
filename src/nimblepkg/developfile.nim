@@ -9,7 +9,7 @@ import sets, sequtils, os, strformat, tables, hashes, strutils, math,
 
 import typetraits except distinctBase
 import compat/json
-import common, cli, packageinfotypes, packageinfo, packageparser, options,
+import common, cli, packageinfotypes, packageinfo, options,
        version, paths, displaymessages, sha1hashes,
        tools, vcstools, syncfile, lockfile, declarativeparser
 
@@ -172,13 +172,7 @@ proc validatePackage(pkgPath: Path, options: Options, nimBin: string):
   ##                 not a valid package directory.
 
   try:
-    if options.satResult.pass == satNimSelection:
-      result.pkgInfo = getPkgInfoFromDirWithDeclarativeParser(string(pkgPath), options, nimBin)
-      #TODO find a way to validate the package, for now just mark the declarativeParser as failed
-      #as we dont have Nim selected yet.
-      options.satResult.declarativeParseFailed = true
-    else:
-      result.pkgInfo = getPkgInfo(string(pkgPath), options, nimBin, true)
+    result.pkgInfo = getPkgInfoFromDirWithDeclarativeParser(string(pkgPath), options, nimBin)
   except CatchableError as error:
     result.error = error
 

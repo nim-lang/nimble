@@ -2026,7 +2026,7 @@ proc runVNext*(options: var Options, nimBin: string) {.instrument.} =
     # For non-project-dir develops, solve from each cloned package as root
     if not options.thereIsNimbleFile and developedPkgs.len > 0:
       for rootPkg in developedPkgs:
-        options.satResult = initSATResult(satNimSelection)
+        options.satResult = initSATResult(satSolving)
         solvePkgs(rootPkg, options, nimBin)
         developFromSolution(rootPkg.basicInfo.name, options, nimBin)
       return
@@ -2041,7 +2041,7 @@ proc runVNext*(options: var Options, nimBin: string) {.instrument.} =
       options.action.packages.len == 0 and options.thereIsNimbleFile
   if isGlobalInstallRoot:
     # nimble install -g: install current project globally
-    options.satResult = initSATResult(satNimSelection)
+    options.satResult = initSATResult(satSolving)
     rootPackage = getPkgInfoFromDirWithDeclarativeParser(getCurrentDir(), options, nimBin = nimBin)
     solvePkgs(rootPackage, options, nimBin)
     let rootSolvedPkg = SolvedPackage(
@@ -2057,7 +2057,7 @@ proc runVNext*(options: var Options, nimBin: string) {.instrument.} =
   elif options.thereIsNimbleFile and not isGlobalInstall and
        not (findNimbleFile(getCurrentDir(), error = false, options, warn = false).splitFile.name.isNim and
             options.action.typ == actionInstall and options.action.packages.len > 0):
-    options.satResult = initSATResult(satNimSelection)
+    options.satResult = initSATResult(satSolving)
     options.isFilePathDiscovering = true
     #we need to skip validation for root
     rootPackage = getPkgInfoFromDirWithDeclarativeParser(getCurrentDir(), options, nimBin = nimBin)
@@ -2068,7 +2068,7 @@ proc runVNext*(options: var Options, nimBin: string) {.instrument.} =
   elif options.action.typ == actionInstall:
     #Global install
     for pkg in options.action.packages:
-      options.satResult = initSATResult(satNimSelection)
+      options.satResult = initSATResult(satSolving)
       # Download package info to pkgcache WITHOUT submodules - submodules are
       # populated in buildtemp during actual install to avoid mutating shared cache (issue #1592)
       # Force git clone (not tarball) so .git and .gitmodules are preserved for buildtemp

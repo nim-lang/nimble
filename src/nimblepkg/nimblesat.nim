@@ -90,10 +90,6 @@ proc getMinimalInfo*(pkg: PackageInfo, options: Options): PackageMinimalInfo =
   result.name = if pkg.basicInfo.name.isNim: "nim" else: pkg.basicInfo.name
   result.version = pkg.basicInfo.version
   result.requires = pkg.requires.map(convertNimAliasToNim)
-  if options.satResult.pass != satNimSelection and
-     (options.action.typ in {actionLock, actionDeps} or options.hasNimInLockFile()):
-    # Keep nim requirements with special versions (e.g., #devel, #commit-sha)
-    result.requires = result.requires.filterIt(not it.isNim or it.ver.kind == verSpecial)
   result.url = pkg.metadata.url
 
 proc getMinimalInfo*(nimbleFile: string, options: Options, nimBin: string): PackageMinimalInfo =
@@ -105,10 +101,6 @@ proc getMinimalInfo*(nimbleFile: string, options: Options, nimBin: string): Pack
   result.version = pkg.basicInfo.version
   result.requires = pkg.requires.map(convertNimAliasToNim)
   result.url = pkg.metadata.url
-  if options.satResult.pass != satNimSelection and
-     (options.action.typ in {actionLock, actionDeps} or options.hasNimInLockFile()):
-    # Keep nim requirements with special versions (e.g., #devel, #commit-sha)
-    result.requires = result.requires.filterIt(not it.isNim or it.ver.kind == verSpecial)
 
 proc getMinimalInfoFromContent*(content: string, name: string, version: Version,
                                  url: string, options: Options): Option[PackageMinimalInfo] =
@@ -126,11 +118,6 @@ proc getMinimalInfoFromContent*(content: string, name: string, version: Version,
   # Parse requires from string list to PkgTuple list
   var activeFeatures = initTable[PkgTuple, seq[string]]()
   pkgInfo.requires = info.getRequires(activeFeatures).map(convertNimAliasToNim)
-
-  if options.satResult.pass != satNimSelection and
-     (options.action.typ in {actionLock, actionDeps} or options.hasNimInLockFile()):
-    # Keep nim requirements with special versions (e.g., #devel, #commit-sha)
-    pkgInfo.requires = pkgInfo.requires.filterIt(not it.isNim or it.ver.kind == verSpecial)
 
   return some(pkgInfo)
 
@@ -702,10 +689,7 @@ proc downloadPkgFromUrl*(pv: PkgTuple, options: Options, doPrompt = false, nimBi
         
 proc downloadPkInfoForPv*(pv: PkgTuple, options: Options, doPrompt = false, nimBin: string): PackageInfo  =
   let downloadRes = downloadPkgFromUrl(pv, options, doPrompt, nimBin)
-  if options.satResult.pass in {satNimSelection}:
-    result = getPkgInfoFromDirWithDeclarativeParser(downloadRes[0].dir, options, nimBin)
-  else:
-    result = getPkgInfo(downloadRes[0].dir, options, nimBin, forValidation = false, onlyMinimalInfo = false)
+  result = getPkgInfoFromDirWithDeclarativeParser(downloadRes[0].dir, options, nimBin)
 
 proc getAllNimReleases(options: Options, nimVersion: Option[Version]): seq[PackageMinimalInfo] =
   let releases = getOfficialReleases(options)
@@ -857,11 +841,7 @@ proc getPackageMinimalVersionsFromRepo*(repoDir: string, pkg: PkgTuple, version:
           copyDir(repoDir, tempDir)
           tempDirCreated = true
         discard doCheckout(downloadMethod, tempDir, tag, versionDiscoveryOptions)
-        let nimbleFile = findNimbleFile(tempDir, true, options, warn = false)
-        if options.satResult.pass in {satNimSelection}:
-          result.addUnique getPkgInfoFromDirWithDeclarativeParser(tempDir, options, nimBin).getMinimalInfo(options)
-        else:
-          result.addUnique getMinimalInfo(nimbleFile, options, nimBin)
+        result.addUnique getPkgInfoFromDirWithDeclarativeParser(tempDir, options, nimBin).getMinimalInfo(options)
         #here we copy the directory to its own folder so we have it cached for future usage
         let downloadInfo = getPackageDownloadInfo((name, tagVersion.toVersionRange()), options)
         if not dirExists(downloadInfo.downloadDir):
@@ -874,18 +854,11 @@ proc getPackageMinimalVersionsFromRepo*(repoDir: string, pkg: PkgTuple, version:
 
   # Add HEAD version last (tagged releases take precedence if same version exists)
   try:
-    if options.satResult.pass in {satNimSelection}:
-      result.addUnique getPkgInfoFromDirWithDeclarativeParser(repoDir, options, nimBin).getMinimalInfo(options)
-    else:
-      result.addUnique getPkgInfo(repoDir, options, nimBin).getMinimalInfo(options)
+    result.addUnique getPkgInfoFromDirWithDeclarativeParser(repoDir, options, nimBin).getMinimalInfo(options)
   except CatchableError as e:
     displayWarning(&"Error getting package info for {name}: {e.msg}", HighPriority)
 
-  if not (options.satResult.pass == satNimSelection and options.satResult.declarativeParseFailed):
-    #Dont save tagged versions if the declarative parser failed as this could cache the incorrect versions.
-    #its suboptimal in the sense that next packages after failure wont be saved in the first past but there is a guarantee that there is a second pass in the case
-    #the declarative parser fails so they will be saved then.
-    saveTaggedVersions(name, result, options)
+  saveTaggedVersions(name, result, options)
 
   # Clean up tempDir if it was created
   if tempDirCreated:
@@ -954,11 +927,7 @@ proc getPackageMinimalVersionsFromRepoAsync*(repoDir: string, pkg: PkgTuple, ver
         # Fall back to checkout + VM parser if declarative parsing failed
         if not parsed:
           discard await doCheckoutAsync(downloadMethod, tempDir, tag, versionDiscoveryOptions)
-          let nimbleFile = findNimbleFile(tempDir, true, options, warn = false)
-          if options.satResult.pass in {satNimSelection}:
-            result.addUnique getPkgInfoFromDirWithDeclarativeParser(tempDir, options, nimBin).getMinimalInfo(options)
-          else:
-            result.addUnique getMinimalInfo(nimbleFile, options, nimBin)
+          result.addUnique getPkgInfoFromDirWithDeclarativeParser(tempDir, options, nimBin).getMinimalInfo(options)
           #here we copy the directory to its own folder so we have it cached for future usage
           let downloadInfo = getPackageDownloadInfo((name, tagVersion.toVersionRange()), options)
           if not dirExists(downloadInfo.downloadDir):
@@ -971,21 +940,14 @@ proc getPackageMinimalVersionsFromRepoAsync*(repoDir: string, pkg: PkgTuple, ver
 
     # Add HEAD version last (tagged releases take precedence if same version exists)
     try:
-      if options.satResult.pass in {satNimSelection}:
-        result.addUnique getPkgInfoFromDirWithDeclarativeParser(repoDir, options, nimBin).getMinimalInfo(options)
-      else:
-        result.addUnique getPkgInfo(repoDir, options, nimBin).getMinimalInfo(options)
+      result.addUnique getPkgInfoFromDirWithDeclarativeParser(repoDir, options, nimBin).getMinimalInfo(options)
     except CatchableError as e:
       displayWarning(&"Error getting package info for {name}: {e.msg}", HighPriority)
 
-    if not (options.satResult.pass == satNimSelection and options.satResult.declarativeParseFailed):
-      #Dont save tagged versions if the declarative parser failed as this could cache the incorrect versions.
-      #its suboptimal in the sense that next packages after failure wont be saved in the first past but there is a guarantee that there is a second pass in the case
-      #the declarative parser fails so they will be saved then.
-      try:
-        saveTaggedVersions(name, result, options)
-      except CatchableError as e:
-        displayWarning(&"Error saving tagged versions for {name}: {e.msg}", LowPriority)
+    try:
+      saveTaggedVersions(name, result, options)
+    except CatchableError as e:
+      displayWarning(&"Error saving tagged versions for {name}: {e.msg}", LowPriority)
   finally:
     try:
       removeDir(tempDir)
@@ -1162,10 +1124,7 @@ proc downloadPkgFromUrlAsync*(pv: PkgTuple, options: Options, doPrompt = false, 
 proc downloadPkInfoForPvAsync*(pv: PkgTuple, options: Options, doPrompt = false, nimBin: string): Future[PackageInfo] {.async.} =
   ## Async version of downloadPkInfoForPv that downloads and gets package info.
   let downloadRes = await downloadPkgFromUrlAsync(pv, options, doPrompt, nimBin)
-  if options.satResult.pass in {satNimSelection}:
-    return getPkgInfoFromDirWithDeclarativeParser(downloadRes[0].dir, options, nimBin)
-  else:
-    return getPkgInfo(downloadRes[0].dir, options, nimBin, forValidation = false, onlyMinimalInfo = false)
+  return getPkgInfoFromDirWithDeclarativeParser(downloadRes[0].dir, options, nimBin)
 
 var downloadCache {.threadvar.}: Table[string, Future[seq[PackageMinimalInfo]]]
 
