@@ -7,7 +7,7 @@ import parseutils, os, strutils, tables, uri, strformat,
 import compat/[json, osproc]
 from algorithm import SortOrder, sorted
 
-import packageinfotypes, packageparser, version, tools, common, options, cli,
+import packageinfotypes, version, tools, common, options, cli,
        sha1hashes, vcstools, displaymessages, packageinfo, config, declarativeparser, packagemetadatafile
 
 const userAgent = "nimble/" & nimbleVersion
@@ -919,10 +919,7 @@ proc downloadPkg*(url: string, verRange: VersionRange,
   var pkgInfo: PackageInfo
   ## Makes sure that the downloaded package's version satisfies the requested
   ## version range.
-  pkginfo = if options.satResult.pass == satNimSelection: #TODO later when in vnext we should just use this code path and fallback inside the toRequires if we can
-    getPkgInfoFromDirWithDeclarativeParser(result.dir, options, nimBin)
-  else:
-    getPkgInfo(result.dir, options, nimBin)
+  pkginfo = getPkgInfoFromDirWithDeclarativeParser(result.dir, options, nimBin)
   if pkginfo.basicInfo.version notin verRange:
     raise nimbleError(
       "Downloaded package's version does not satisfy requested version " &
@@ -999,10 +996,7 @@ proc downloadPkgAsync*(url: string, verRange: VersionRange,
   var pkgInfo: PackageInfo
   ## Makes sure that the downloaded package's version satisfies the requested
   ## version range.
-  pkginfo = if options.satResult.pass == satNimSelection: #TODO later when in vnext we should just use this code path and fallback inside the toRequires if we can
-    getPkgInfoFromDirWithDeclarativeParser(result.dir, options, nimBin)
-  else:
-    getPkgInfo(result.dir, options, nimBin)
+  pkginfo = getPkgInfoFromDirWithDeclarativeParser(result.dir, options, nimBin)
   if pkginfo.basicInfo.version notin verRange:
     raise nimbleError(
       "Downloaded package's version does not satisfy requested version " &

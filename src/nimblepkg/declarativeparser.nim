@@ -684,8 +684,7 @@ proc toRequiresInfo*(pkgInfo: PackageInfo, options: Options, nimBin: string, nim
     result.infoKind = pikRequires
 
   if nimbleFileInfo.nestedRequires and options.action.typ != actionCheck: #When checking we want to fail on porpuse
-    if options.satResult.pass == satNimSelection:
-      assert nimBin != "", "Cant fallback to the vm parser as there is no nim bin."
+    assert nimBin != "", "Cant fallback to the vm parser as there is no nim bin."
 
     if options.verbosity <= LowPriority:
       for line in nimbleFileInfo.declarativeParserErrorLines:

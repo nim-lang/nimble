@@ -110,8 +110,8 @@ type
 
   SATPass* = enum
     satNone
-    satLockFile #From a lock file. SAT is not ran.
-    satNimSelection #Declarative parser preferred. Fallback to VM parser if needed via bootstrapped nim
+    satLockFile  # From a lock file. SAT is not run.
+    satSolving   # SAT solver active, declarative parser with atomic VM fallback
     satDone
 
   NimResolved* = object
@@ -143,7 +143,6 @@ type
     pass*: SATPass
     installedPkgs*: seq[PackageInfo] #Packages installed in the current pass
     buildPkgs*: seq[PackageInfo] #Packages that were built in the current pass
-    declarativeParseFailed*: bool
     nimResolved*: NimResolved
     bootstrapNim*: BootstrapNim #The nim that we are going to use if we dont have a nim resolved yet and the declarative parser failed. Notice this is required to Atomic Parser fallback (not implemented)
     normalizedRequirements*: Table[string, string] #normalized -> old. Some packages are not published as nimble packages, we keep the url for installation.
@@ -178,7 +177,7 @@ proc getGloballyActiveFeatures*(): seq[string] =
   
 proc initSATResult*(pass: SATPass): SATResult =
   SATResult(pkgsToInstall: @[], solvedPkgs: @[], output: "", pkgs: initHashSet[PackageInfo](),
-    pass: pass, installedPkgs: @[], declarativeParseFailed: false,
+    pass: pass, installedPkgs: @[],
     normalizedRequirements: initTable[string, string](),
     gitErrors: @[],
     lockFileVcsRevisions: initTable[string, Sha1Hash]()
