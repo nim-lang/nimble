@@ -99,6 +99,7 @@ requires "nim >= 1.6.0", "packagea"
         let pkgCacheDir = installDir / "pkgcache"
         createDir(pkgCacheDir)
         let taggedVersionsFile = pkgCacheDir / "tagged_versions.json"
+        cleanFile taggedVersionsFile
         writeFile(taggedVersionsFile, $(%*{
           "packagea": [
             {"name": "PackageA",
