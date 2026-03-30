@@ -43,6 +43,7 @@ proc getNimblecache(): string =
 proc execNimscript(nimBin: string,
   nimbleFile, nimsFile, actionName: string, options: Options, isHook: bool
 ): tuple[output: string, exitCode: int, stdout: string] =
+  assert nimBin != ""
   let
     outFile = getNimbleTempDir() & ".out"
     isCustomTask = isCustomTask(actionName, options)
