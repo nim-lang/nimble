@@ -4,7 +4,7 @@
 import sets, os, hashes
 import compat/json
 import options, version, download, jsonhelpers, nimbledatafile, sha1hashes,
-       packageinfotypes, packageinfo, packageparser
+       packageinfotypes, packageinfo, declarativeparser
 
 type
   ReverseDependencyKind* = enum

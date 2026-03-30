@@ -643,13 +643,13 @@ proc getPkgInfoMaybeInTempDir(pkgDir: string, options: Options, nimBin: string, 
   ## Only copies to temp dir when the package is in pkgcache AND has state-modifying ops.
   ## This prevents the VM parser from creating files/directories in pkgcache.
   if not isInPkgCache(pkgDir, options):
-    return getPkgInfo(pkgDir, options, nimBin)
+    return getPkgInfoVm(pkgDir, options, nimBin)
   if not fileHasStateModifyingOps(nimbleFile):
-    return getPkgInfo(pkgDir, options, nimBin)
+    return getPkgInfoVm(pkgDir, options, nimBin)
   let tempDir = getNimbleTempDir() / "vmparse_" & $epochTime().int
   try:
     copyDirRec(pkgDir, tempDir)
-    result = getPkgInfo(tempDir, options, nimBin)
+    result = getPkgInfoVm(tempDir, options, nimBin)
     # Update myPath to point back to original location
     let nimbleFileName = result.myPath.extractFilename
     result.myPath = pkgDir / nimbleFileName
@@ -733,7 +733,7 @@ proc getNimPkgInfo*(dir: string, options: Options, nimBin: string): PackageInfo 
   fillPkgBasicInfo(result, nimbleFileInfo)
   result = toRequiresInfo(result, options, nimBin, some nimbleFileInfo)
 
-proc getPkgInfoFromDirWithDeclarativeParser*(dir: string, options: Options, nimBin: string, shouldError: bool = true): PackageInfo =
+proc getPkgInfoFromDirWithDeclarativeParser(dir: string, options: Options, nimBin: string, shouldError: bool = true): PackageInfo =
   let nimbleFile = findNimbleFile(dir, shouldError, options)
   let nimbleFileInfo = extractRequiresInfo(nimbleFile, options)
   result = initPackageInfo()
@@ -742,3 +742,16 @@ proc getPkgInfoFromDirWithDeclarativeParser*(dir: string, options: Options, nimB
     result.source = psDevelop
   result.metadata = loadMetaData(result.getNimbleFileDir(), raiseIfNotFound = false, options)
   result = toRequiresInfo(result, options, nimBin, some nimbleFileInfo)
+
+proc getPkgInfo*(dir: string, options: Options, nimBin: string,
+                 level: PackageInfoKind = pikFull,
+                 forValidation = false, shouldError = true): PackageInfo =
+  ## Unified entry point for package parsing. Tries declarative parser first,
+  ## falls back to VM parser.
+  ## level=pikFull: VM parser directly (full metadata needed anyway)
+  ## level=pikRequires: declarative parser with VM fallback for nestedRequires/babel
+  if level == pikRequires:
+    return getPkgInfoFromDirWithDeclarativeParser(dir, options, nimBin, shouldError)
+  # pikFull: go straight to VM — we need full metadata (author, license, etc.)
+  # which the declarative parser can't provide
+  return getPkgInfoVm(dir, options, nimBin, forValidation)
