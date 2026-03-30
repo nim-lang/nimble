@@ -176,7 +176,7 @@ when isMainModule:
       myPath: path,
       requires: requires.parseRequires,
       metaData: initMetaData(),
-      isLink: true)
+      source: psDevelop)
 
   proc initPackageInfo(name, version, checksum: string,
                        requires: RequiresSeq = @[]): PackageInfo =
@@ -184,7 +184,7 @@ when isMainModule:
       basicInfo: (name, version.newVersion, checksum.initSha1Hash),
       requires: requires.parseRequires,
       metaData: initMetaData(),
-      isLink: false)
+      source: psInstalled)
 
   let
     nimforum1 = initPackageInfo(
