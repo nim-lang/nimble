@@ -1,4 +1,4 @@
 # Ensure shell scripts have LF line endings
-nimble-guide/install.sh text eol=lf
+nimble-guide/docs/install.sh text eol=lf
 # Ensure PowerShell scripts have CRLF line endings
-nimble-guide/install.ps1 text eol=crlf
+nimble-guide/docs/install.ps1 text eol=crlf

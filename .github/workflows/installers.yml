@@ -4,9 +4,15 @@ on:
       - "v*"
     branches:
       - master
-    paths-ignore: ["nimble-guide/**", "**/*.md"]
+    paths-ignore:
+      - "nimble-guide/**"
+      - "!nimble-guide/docs/install.*"
+      - "**/*.md"
   pull_request:
-    paths-ignore: ["nimble-guide/**", "**/*.md"]
+    paths-ignore:
+      - "nimble-guide/**"
+      - "!nimble-guide/docs/install.*"
+      - "**/*.md"
   workflow_dispatch:
 
 jobs:
