@@ -709,7 +709,7 @@ proc binsExist(pkgInfo: PackageInfo, options: Options): bool =
       let binPath = pkgInfo.getOutputDir(bin)
       if not fileExists(binPath):
         return false
-  result = true
+  return true
 
 proc packageExists(nimBin: string, pkgInfo: PackageInfo, options: Options):
     Option[PackageInfo] =
