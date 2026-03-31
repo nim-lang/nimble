@@ -377,9 +377,9 @@ proc getPkgInfoFromFile*(nimBin: string,file: NimbleFile, options: Options,
     else:
       raise exc
 
-proc getPkgInfo*(dir: string, options: Options, nimBin: string, forValidation = false, onlyMinimalInfo = false):
+proc getPkgInfoVm*(dir: string, options: Options, nimBin: string, forValidation = false, onlyMinimalInfo = false):
     PackageInfo =
-  ## Find the .nimble file in ``dir`` and parses it, returning a PackageInfo.
+  ## Find the .nimble file in ``dir`` and parses it via VM, returning a PackageInfo.
   let nimbleFile = findNimbleFile(dir, true, options)
   result = getPkgInfoFromFile(nimBin, nimbleFile, options, forValidation, onlyMinimalInfo = onlyMinimalInfo)
 

@@ -1,6 +1,6 @@
 {.used.}
 import unittest
-import nimblepkg/[options, downloadnim, version, nimblesat, packageparser]
+import nimblepkg/[options, downloadnim, version, nimblesat, declarativeparser]
 import std/[os, options, osproc, strutils]
 import testscommon
 from nimblepkg/common import cd

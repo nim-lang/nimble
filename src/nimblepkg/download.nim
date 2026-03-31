@@ -919,7 +919,7 @@ proc downloadPkg*(url: string, verRange: VersionRange,
   var pkgInfo: PackageInfo
   ## Makes sure that the downloaded package's version satisfies the requested
   ## version range.
-  pkginfo = getPkgInfoFromDirWithDeclarativeParser(result.dir, options, nimBin)
+  pkginfo = getPkgInfo(result.dir, options, nimBin, pikRequires)
   if pkginfo.basicInfo.version notin verRange:
     raise nimbleError(
       "Downloaded package's version does not satisfy requested version " &
@@ -996,7 +996,7 @@ proc downloadPkgAsync*(url: string, verRange: VersionRange,
   var pkgInfo: PackageInfo
   ## Makes sure that the downloaded package's version satisfies the requested
   ## version range.
-  pkginfo = getPkgInfoFromDirWithDeclarativeParser(result.dir, options, nimBin)
+  pkginfo = getPkgInfo(result.dir, options, nimBin, pikRequires)
   if pkginfo.basicInfo.version notin verRange:
     raise nimbleError(
       "Downloaded package's version does not satisfy requested version " &

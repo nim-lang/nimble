@@ -1,7 +1,7 @@
 {.used.}
 import unittest, os, sequtils, strutils
 import testscommon
-import nimblepkg/[common, options, declarativeparser]
+import nimblepkg/[common, options, declarativeparser, packageinfotypes]
 import nimble
 
 suite "file path requires":
@@ -68,7 +68,7 @@ suite "file path requires":
     var options = initOptions()
     options.isFilePathDiscovering = true
     cd "filepathrequires/dep3file":
-      let entryPkg = getPkgInfoFromDirWithDeclarativeParser(getCurrentDir(), options, nimBin = "nim")
+      let entryPkg = getPkgInfo(getCurrentDir(), options, nimBin = "nim", level = pikRequires)
       loadFilePathPkgs(entryPkg, options, nimBin = "nim")
       check options.filePathPkgs.len == 2
 

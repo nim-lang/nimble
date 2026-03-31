@@ -340,7 +340,7 @@ proc installNimToPkgs2*(nimPkgInfo: PackageInfo, options: Options, nimBin: strin
             setFilePermissions(destBinPath, getFilePermissions(srcBinPath))
 
   # Return PackageInfo pointing to pkgs2
-  result = getPkgInfoFromDirWithDeclarativeParser(pkgDestDir, options, nimBin)
+  result = getPkgInfo(pkgDestDir, options, nimBin, pikRequires)
   result.basicInfo.checksum = nimChecksum
   result.source = psInstalled
 
@@ -1307,7 +1307,7 @@ proc validateParsedDependencies(pkgInfo: PackageInfo, options: Options, nimBin: 
 proc check(options: Options, nimBin: string) =
   try:
     let currentDir = getCurrentDir()
-    let pkgInfo = getPkgInfo(currentDir, options, nimBin = nimBin, true)
+    let pkgInfo = getPkgInfo(currentDir, options, nimBin = nimBin, forValidation = true)
     validateDevelopFile(pkgInfo, options, nimBin)
     let dependencies = options.satResult.pkgs.toSeq
     validateDevelopDependenciesVersionRanges(pkgInfo, dependencies, options, nimBin)
@@ -1433,7 +1433,7 @@ proc lock(options: var Options, nimBin: string) =
       # Get the PackageInfo for this solved package
       let pkgInfo = 
         if solvedPkg.pkgName.isFileURL:
-          getPkgInfoFromDirWithDeclarativeParser(solvedPkg.pkgName.extractFilePathFromURL(), options, nimBin)
+          getPkgInfo(solvedPkg.pkgName.extractFilePathFromURL(), options, nimBin, pikRequires)
         else:
           options.satResult.getPkgInfoFromSolved(solvedPkg, options)
       var vcsRevision = pkgInfo.metaData.vcsRevision
@@ -1886,7 +1886,7 @@ proc loadFilePathPkgs*(entryPkg: PackageInfo, options: var Options, nimBin: stri
   for require in entryPkg.requires:
     if require.name.isFileURL:
       let path = require.name.extractFilePathFromURL()
-      let pkg = getPkgInfoFromDirWithDeclarativeParser(path, options, nimBin = nimBin)
+      let pkg = getPkgInfo(path, options, nimBin = nimBin, level = pikRequires)
       pkg.loadFilePathPkgs(options, nimBin)
 
 proc loadFilePathPkgs(options: var Options, nimBin: string) =
@@ -1914,7 +1914,7 @@ proc solvePkgs(rootPackage: PackageInfo, options: var Options, nimBin: string) {
   if resolvedNim.pkg.isNone:
     let nimInstalled = installNimFromBinariesDir(("nim", resolvedNim.version.toVersionRange()), options)
     if nimInstalled.isSome:
-      resolvedNim.pkg = some getPkgInfoFromDirWithDeclarativeParser(nimInstalled.get.dir, options, nimBin = "") #Can be empty as the code path for nim doesnt need it. 
+      resolvedNim.pkg = some getPkgInfo(nimInstalled.get.dir, options, nimBin = "", level = pikRequires) #Can be empty as the code path for nim doesnt need it.
       resolvedNim.version = nimInstalled.get.ver
     else:
       raise nimbleError("Failed to install nim") #What to do here? Is this ever possible?
@@ -2042,7 +2042,7 @@ proc runVNext*(options: var Options, nimBin: string) {.instrument.} =
   if isGlobalInstallRoot:
     # nimble install -g: install current project globally
     options.satResult = initSATResult(satSolving)
-    rootPackage = getPkgInfoFromDirWithDeclarativeParser(getCurrentDir(), options, nimBin = nimBin)
+    rootPackage = getPkgInfo(getCurrentDir(), options, nimBin = nimBin, level = pikRequires)
     solvePkgs(rootPackage, options, nimBin)
     let rootSolvedPkg = SolvedPackage(
       pkgName: rootPackage.basicInfo.name,
@@ -2060,7 +2060,7 @@ proc runVNext*(options: var Options, nimBin: string) {.instrument.} =
     options.satResult = initSATResult(satSolving)
     options.isFilePathDiscovering = true
     #we need to skip validation for root
-    rootPackage = getPkgInfoFromDirWithDeclarativeParser(getCurrentDir(), options, nimBin = nimBin)
+    rootPackage = getPkgInfo(getCurrentDir(), options, nimBin = nimBin, level = pikRequires)
     options.isFilePathDiscovering = false
     if options.action.typ in {actionInstall, actionAdd}:
       rootPackage.requires.add(options.action.packages)
@@ -2137,7 +2137,7 @@ proc getNimDir(options: var Options, nimBin: string): string =
       if pkg.len > 0:
         projFolder = pkg[0].getRealDir
         
-    var rootPackage = getPkgInfoFromDirWithDeclarativeParser(projFolder, options, nimBin = nimBin)
+    var rootPackage = getPkgInfo(projFolder, options, nimBin = nimBin, level = pikRequires)
     #make it silent as we are going to capture the output
     setVerbosity(SilentPriority)
     options.isFilePathDiscovering = false

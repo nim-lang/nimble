@@ -172,7 +172,7 @@ proc validatePackage(pkgPath: Path, options: Options, nimBin: string):
   ##                 not a valid package directory.
 
   try:
-    result.pkgInfo = getPkgInfoFromDirWithDeclarativeParser(string(pkgPath), options, nimBin)
+    result.pkgInfo = getPkgInfo(string(pkgPath), options, nimBin, pikRequires)
   except CatchableError as error:
     result.error = error
 
