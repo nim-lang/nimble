@@ -75,7 +75,16 @@ proc debugSATResult*(options: Options, calledFrom: string) =
   echo "--------------------------------"
 
 proc nameMatches(pkg: PackageInfo, pv: PkgTuple, options: Options): bool =
-  pkg.basicInfo.name.toLowerAscii() == pv.resolveAlias(options).name.toLowerAscii() or pkg.metaData.url == pv.name
+  let pvName = pv.resolveAlias(options).name
+  if pkg.basicInfo.name.toLowerAscii() == pvName.toLowerAscii():
+    return true
+  if pkg.metaData.url == pv.name:
+    return true
+  # For file:// URLs, extract directory name and match against package name
+  if pv.name.isFileURL:
+    let dirName = extractFilePathFromURL(pv.name).lastPathPart.toLowerAscii()
+    if pkg.basicInfo.name.toLowerAscii() == dirName:
+      return true
 
 proc nameMatches*(pkg: PackageInfo, name: string, options: Options): bool =
   let resolvedName = resolveAlias(name, options).toLowerAscii()
@@ -170,8 +179,19 @@ proc enableFeatures*(rootPackage: var PackageInfo, options: var Options) =
     if feature in rootPackage.features:
       rootPackage.requires &= rootPackage.features[feature]
   for pkgName, activeFeatures in rootPackage.activeFeatures:
-    appendGloballyActiveFeatures(pkgName[0], activeFeatures)
-  
+    var resolvedName = pkgName[0]
+    if resolvedName.isFileURL:
+      resolvedName = extractFilePathFromURL(resolvedName).lastPathPart
+    appendGloballyActiveFeatures(resolvedName, activeFeatures)
+    # Add the feature's requires directly to the root package so the SAT solver
+    # always resolves them, regardless of which version of the dependency is picked
+    for pkg in options.filePathPkgs:
+      if cmpIgnoreCase(pkg.basicInfo.name, resolvedName) == 0:
+        for feature in activeFeatures:
+          if feature in pkg.features:
+            rootPackage.requires &= pkg.features[feature]
+        break
+
   #If root is a development package, we need to activate it as well:
   if rootPackage.isTopLevel(options) and ("dev" in rootPackage.features or "patch" in rootPackage.features):
     if "dev" in rootPackage.features:

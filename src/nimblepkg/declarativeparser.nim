@@ -605,7 +605,7 @@ proc getRequires*(nimbleFileInfo: NimbleFileInfo, pkgActiveFeatures: var Table[P
 proc getFeatures*(nimbleFileInfo: NimbleFileInfo): Table[string, seq[PkgTuple]] =
   result = initTable[string, seq[PkgTuple]]()
   for feature, requires in nimbleFileInfo.features:
-    result[feature] = requires.map(parseRequires)    
+    result[feature] = requires.map(parseRequires)
 
 proc copyDirRec(src, dest: string) =
   ## Recursively copy a directory, skipping nimbledeps and nimcache.

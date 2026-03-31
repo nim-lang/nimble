@@ -130,6 +130,7 @@ type
     name*: string
     version*: Version
     requires*: seq[PkgTuple]
+    features*: Table[string, seq[PkgTuple]]
     isRoot*: bool
     url*: string
 
@@ -170,14 +171,15 @@ proc isLink*(pkg: PackageInfo): bool =
 const noTask* = "" # Means that noTask is being ran. Use this as key for base dependencies
 #Package name -> features. When a package requires a feature, it is added to this table. 
 #For instance, if a dependency of a package requires the feature "feature1", it will be added to this table although the root package may not explicitly require it.
-var globallyActiveFeatures: Table[string, seq[string]] = initTable[string, seq[string]]()
+var globallyActiveFeatures {.threadvar.}: Table[string, seq[string]]
 
 proc appendGloballyActiveFeatures*(pkgName: string, features: seq[string]) =
   if pkgName notin globallyActiveFeatures:
     globallyActiveFeatures[pkgName] = features
   else:
     for feature in features:
-      globallyActiveFeatures[pkgName].add(feature)
+      if feature notin globallyActiveFeatures[pkgName]:
+        globallyActiveFeatures[pkgName].add(feature)
 
 proc getGloballyActiveFeatures*(): seq[string] = 
   #returns features.{pkgName}.{feature}

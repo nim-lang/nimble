@@ -90,6 +90,7 @@ proc getMinimalInfo*(pkg: PackageInfo, options: Options): PackageMinimalInfo =
   result.name = if pkg.basicInfo.name.isNim: "nim" else: pkg.basicInfo.name
   result.version = pkg.basicInfo.version
   result.requires = pkg.requires.map(convertNimAliasToNim)
+  result.features = pkg.features
   result.url = pkg.metadata.url
 
 proc getMinimalInfo*(nimbleFile: string, options: Options, nimBin: string): PackageMinimalInfo =
@@ -97,10 +98,7 @@ proc getMinimalInfo*(nimbleFile: string, options: Options, nimBin: string): Pack
   #TODO we need to handle the url here as well.
   # declarative parser is always used
   let pkg = getPkgInfo(nimbleFile.parentDir, options, nimBin, pikRequires)
-  result.name =  if pkg.basicInfo.name.isNim: "nim" else: pkg.basicInfo.name
-  result.version = pkg.basicInfo.version
-  result.requires = pkg.requires.map(convertNimAliasToNim)
-  result.url = pkg.metadata.url
+  result = pkg.getMinimalInfo(options)
 
 proc getMinimalInfoFromContent*(content: string, name: string, version: Version,
                                  url: string, options: Options): Option[PackageMinimalInfo] =
@@ -1245,6 +1243,17 @@ proc getMinimalFromPreferredAsync*(pv: PkgTuple, getMinimalPackage: GetPackageMi
     if result.len == 0:
       raise e
 
+proc expandActiveFeatures(pkgMin: var PackageMinimalInfo, versions: Table[string, PackageVersions]) =
+  ## If the package has globally active features, expand them into its requires.
+  for featureStr in getGloballyActiveFeatures():
+    let parts = featureStr.split(".")
+    if parts.len != 3: continue
+    if cmpIgnoreCase(parts[1], pkgMin.name) != 0: continue
+    let featureName = parts[2]
+    if featureName in pkgMin.features:
+      for req in pkgMin.features[featureName]:
+        pkgMin.requires.addUnique(convertNimAliasToNim(req))
+
 proc processRequirements(versions: var Table[string, PackageVersions], pv: PkgTuple, visited: var HashSet[PkgTuple], getMinimalPackage: GetPackageMinimal, preferredPackages: seq[PackageMinimalInfo] = newSeq[PackageMinimalInfo](), options: Options, nimBin: string) =
   if pv in visited:
     return
@@ -1306,6 +1315,8 @@ proc processRequirements(versions: var Table[string, PackageVersions], pv: PkgTu
           else:
             versions[pkgName].versions.addUnique pkgMin
 
+        # Expand any globally active features into this package's requires
+        expandActiveFeatures(pkgMin, versions)
         # Now recursively process the requirements (we know they're valid)
         for req in pkgMin.requires:
           processRequirements(versions, req, visited, getMinimalPackage, preferredPackages, options, nimBin)
@@ -1351,6 +1362,10 @@ proc processRequirementsAsync(pv: PkgTuple, visitedParam: HashSet[PkgTuple], get
   # This ensures the special version gets downloaded and added to the version table
   try:
     var pkgMins = await getMinimalFromPreferredAsync(pv, getMinimalPackage, preferredPackages, options, nimBin)
+
+    # Expand any globally active features into package requires
+    for pkgMin in pkgMins.mitems:
+      expandActiveFeatures(pkgMin, result)
 
     # Collect all unique requirements from all package versions first
     var allRequirements: seq[PkgTuple] = @[]
