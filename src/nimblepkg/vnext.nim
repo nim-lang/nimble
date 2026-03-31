@@ -715,7 +715,7 @@ proc packageExists(nimBin: string, pkgInfo: PackageInfo, options: Options):
     Option[PackageInfo] =
   ## Checks whether a package `pkgInfo` already exists in the Nimble cache. If a
   ## package already exists returns the `PackageInfo` of the package in the
-  ## cache otherwise returns `none`. If a package exits but is missing expected binaries also returns `none`.
+  ## cache otherwise returns `none`. If a package exists but is missing expected binaries also returns `none`.
   ## Raises a `NimbleError` in the case the package exists in the cache but it is not valid.
   ##
   ## Also checks for packages with the same name and checksum but different version
