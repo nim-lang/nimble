@@ -758,7 +758,7 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
   of "nocolor": result.noColor = true
   of "disablevalidation": result.disableValidation = true
   of "nim": result.nimBin = some makeNimBin(result, val)
-  of "localdeps", "l": result.localdeps = true
+  of "localdeps", "local", "l": result.localdeps = true
   of "global", "g":
     result.localdeps = false
     result.explicitGlobal = true
