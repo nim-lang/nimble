@@ -1,7 +1,7 @@
 {.used.}
 import unittest
 import testscommon
-import std/[options, tables, sequtils, os]
+import std/[options, tables, sequtils, os, strutils]
 import
   nimblepkg/[packageinfotypes, version, options, config, nimblesat, declarativeparser, cli, common]
 
@@ -155,7 +155,7 @@ suite "Declarative parser features":
   test "should activate features via file:// URL dependencies":
     cd "fileurlfeature":
       removeDir("nimbledeps")
-      let libPath = getCurrentDir().parentDir / "fileurlfeaturelib"
+      let libPath = (getCurrentDir().parentDir / "fileurlfeaturelib").replace("\\", "/")
       writeFile("fileurlfeature.nimble", """
 # Package
 version       = "0.1.0"
@@ -180,7 +180,7 @@ requires "file://""" & libPath & """[extra]"
     # both features should be activated
     cd "transitivefeatureconsumer":
       removeDir("nimbledeps")
-      let libPath = getCurrentDir().parentDir / "transitivefeaturelib"
+      let libPath = (getCurrentDir().parentDir / "transitivefeaturelib").replace("\\", "/")
       writeFile("transitivefeatureconsumer.nimble", """
 # Package
 version       = "0.1.0"
