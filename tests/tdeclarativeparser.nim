@@ -1,7 +1,7 @@
 {.used.}
 import unittest
 import testscommon
-import std/[options, tables, sequtils, os]
+import std/[options, tables, sequtils, os, strutils]
 import
   nimblepkg/[packageinfotypes, version, options, config, nimblesat, declarativeparser, cli, common]
 
@@ -151,6 +151,55 @@ suite "Declarative parser features":
       let (output, exitCode) = execNimble("--parser:declarative", "run")
       check exitCode == QuitSuccess
       check output.processOutput.inLines("dev is enabled")
+
+  test "should activate features via file:// URL dependencies":
+    cd "fileurlfeature":
+      removeDir("nimbledeps")
+      let libPath = (getCurrentDir().parentDir / "fileurlfeaturelib").replace("\\", "/")
+      writeFile("fileurlfeature.nimble", """
+# Package
+version       = "0.1.0"
+author        = "test"
+description   = "Consumer of file:// dependency with features"
+license       = "MIT"
+srcDir        = "src"
+bin           = @["fileurlfeature"]
+
+requires "nim"
+requires "file://""" & libPath & """[extra]"
+""")
+      let (output, exitCode) = execNimble("-l", "run")
+      let lines = output.processOutput()
+      check exitCode == QuitSuccess
+      check lines.inLines("extra is enabled")
+      check lines.inLines("consumer sees extra enabled")
+      removeDir("nimbledeps")
+
+  test "should activate features on deps when explicitly enabled in root":
+    # consumer requires lib[withresult] and result[resultfeature] explicitly
+    # both features should be activated
+    cd "transitivefeatureconsumer":
+      removeDir("nimbledeps")
+      let libPath = (getCurrentDir().parentDir / "transitivefeaturelib").replace("\\", "/")
+      writeFile("transitivefeatureconsumer.nimble", """
+# Package
+version       = "0.1.0"
+author        = "test"
+description   = "Consumer with explicit features"
+license       = "MIT"
+srcDir        = "src"
+bin           = @["transitivefeatureconsumer"]
+
+requires "nim"
+requires "file://""" & libPath & """[withresult]"
+requires "result[resultfeature]"
+""")
+      let (output, exitCode) = execNimble("-l", "run")
+      let lines = output.processOutput()
+      check exitCode == QuitSuccess
+      check lines.inLines("withresult is enabled")
+      check lines.inLines("transitive resultfeature is enabled")
+      removeDir("nimbledeps")
 
 suite "Declarative parser requires file":
   
