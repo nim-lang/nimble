@@ -481,8 +481,11 @@ proc getBinDir*(options: Options): string =
   options.getNimbleDir() / nimbleBinariesDirName
 
 proc getBuildTempDir*(options: Options): string =
-  ## Returns the temporary build directory path
-  options.getNimbleDir() / "buildtemp"
+  ## Returns the temporary build directory path.
+  ## Uses the system temp dir to avoid placing buildtemp inside the project tree
+  ## (which would cause the Nim compiler to pick up parent config.nims/nim.cfg
+  ## files from the project when building dependencies). See #1650.
+  getTempDir() / "nimble_buildtemp"
 
 proc getPkgBuildTempDir*(options: Options, pkgName: string, version: string, checksum: string): string =
   ## Returns the temporary build directory for a specific package.
