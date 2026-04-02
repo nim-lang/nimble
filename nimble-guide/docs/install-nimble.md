@@ -21,7 +21,7 @@ curl -sSL https://nim-lang.github.io/nimble/install.sh | sh
 Windows (PowerShell):
 
 ```powershell
-iex (Invoke-WebRequest -Uri https://nim-lang.github.io/nimble/install.ps1 -UseBasicParsing).Content
+iex ([System.Text.Encoding]::UTF8.GetString((iwr https://nim-lang.github.io/nimble/install.ps1).Content))
 ```
 
 
