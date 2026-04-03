@@ -1667,16 +1667,21 @@ proc solvePackages*(rootPkg: PackageInfo, pkgList: seq[PackageInfo], pkgsToInsta
   pkgVersionTable = cacheToPackageVersionTable(options)
   pkgVersionTable[root.name] = PackageVersions(pkgName: root.name, versions: @[root])
 
-  # Prefer already-installed package versions over cached ones. Replace cached
-  # versions with only the installed version so the SAT solver picks it. If the
-  # installed version doesn't satisfy constraints, processRequirements will
-  # download alternatives (hasVersion returns false). See #1648.
-  # Skip for upgrade/lock which need fresh resolution.
+  # Prefer already-installed package versions over cached ones so the SAT solver
+  # doesn't upgrade deps during build/test/run. For each installed package,
+  # cap cached versions to the installed one so the solver can't pick newer.
+  # If the installed version doesn't satisfy constraints, processRequirements
+  # will download alternatives (hasVersion returns false). See #1648.
+  # Skip for upgrade/lock which explicitly want fresh resolution.
   if options.action.typ notin {actionUpgrade, actionLock}:
-    let installedMinInfos = pkgList.mapIt(it.getMinimalInfo(options))
-    for mi in installedMinInfos:
-      if mi.name != root.name:
-        pkgVersionTable[mi.name] = PackageVersions(pkgName: mi.name, versions: @[mi])
+    for pkg in pkgList:
+      let mi = pkg.getMinimalInfo(options)
+      if mi.name == root.name or mi.name.isNim: continue
+      if mi.name in pkgVersionTable:
+        pkgVersionTable[mi.name].versions = pkgVersionTable[mi.name].versions.filterIt(
+          it.version <= mi.version)
+      if not hasVersion(pkgVersionTable, mi.name, mi.version):
+        pkgVersionTable.fillPackageTableFromPreferred(@[mi])
 
   if not options.useAsyncDownloads:
     collectAllVersions(pkgVersionTable, root, options, downloadMinimalPackage, pkgList.mapIt(it.getMinimalInfo(options)), nimBin)
