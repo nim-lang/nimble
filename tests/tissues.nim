@@ -489,3 +489,29 @@ requires "nim >= 2.0.0"
       putEnv("PATH", binDir & sep & oldPath)
       checkWrapperInvoked(binDir / "calls.log", "--useSystemNim", "--debug", "build")
       putEnv("PATH", oldPath)
+
+  test "issue #1650 root project config.nims should not leak into dep binary build":
+    # When building a dependency's binary in nimbledeps/buildtemp, the root
+    # project's config.nims should NOT be picked up by the Nim compiler. This
+    # happens because buildtemp is inside nimbledeps which is inside the project
+    # dir, so Nim walks up the directory tree and finds the project's config.nims.
+    cleanDir(installDir)
+
+    # file:// requires a git repo, so init one for the dep fixture
+    let depDir = getCurrentDir() / "issue1650dep"
+    discard execCmdEx("git -C " & depDir.quoteShell & " init")
+    discard execCmdEx("git -C " & depDir.quoteShell & " config user.name \"Test\"")
+    discard execCmdEx("git -C " & depDir.quoteShell & " config user.email \"test@test.com\"")
+    discard execCmdEx("git -C " & depDir.quoteShell & " add -A")
+    discard execCmdEx("git -C " & depDir.quoteShell & " commit -m init")
+    defer: removeDir(depDir / ".git")
+
+    # Point --nimbleDir inside issue1650/ so buildtemp ends up inside the project
+    # dir tree, reproducing the nimbledeps layout where Nim walks up from the
+    # dep source and finds the root project's config.nims.
+    let localNimbleDir = getCurrentDir() / "issue1650" / "testnimbledir"
+    defer: removeDir(localNimbleDir)
+    let (output, exitCode) = execNimbleYes("install", "--nimbleDir:" & localNimbleDir, "file://" & depDir)
+    checkpoint output
+    check exitCode == QuitSuccess
+    check output.contains("installed successfully")
