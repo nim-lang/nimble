@@ -1659,9 +1659,44 @@ proc postProcessSolvedPkgs*(solvedPkgs: var seq[SolvedPackage], options: Options
         break
   solvedPkgs = solvedPkgs.filterIt(it notin toReplace)
 
+proc solveLocalPackages(root: PackageMinimalInfo, pkgList: seq[PackageInfo], options: Options, output: var string, solvedPkgs: var seq[SolvedPackage], nimBin: string): HashSet[PackageInfo] =
+  ## Try to solve using only installed packages (no cache, no downloads).
+  ## Returns the solved packages if successful, or an empty set if local
+  ## packages don't satisfy all constraints. See #1648.
+  var localTable = initTable[string, PackageVersions]()
+  localTable[root.name] = PackageVersions(pkgName: root.name, versions: @[root])
+  localTable.fillPackageTableFromPreferred(pkgList.mapIt(it.getMinimalInfo(options)))
+  var localOutput = ""
+  let localSolved = localTable.getSolvedPackages(localOutput, options)
+  if localSolved.len == 0:
+    return  # Local solve failed, caller should fall back to full resolution
+  localTable.normalizeRequirements(options)
+  localTable.normalizeSpecialVersions(options)
+  options.satResult.pkgVersionTable = localTable
+  solvedPkgs = localTable.getSolvedPackages(output, options).topologicalSort()
+  solvedPkgs.postProcessSolvedPkgs(options, nimBin)
+  var pkgs: HashSet[PackageInfo]
+  for solvedPkg in solvedPkgs:
+    if solvedPkg.pkgName == root.name: continue
+    for pkgInfo in pkgList:
+      if (cmpIgnoreCase(pkgInfo.basicInfo.name, solvedPkg.pkgName) == 0 or cmpIgnoreCase(pkgInfo.metadata.url, solvedPkg.pkgName) == 0) and
+        pkgInfo.basicInfo.version == solvedPkg.version:
+        pkgs.incl pkgInfo
+        break
+  return pkgs
+
 proc solvePackages*(rootPkg: PackageInfo, pkgList: seq[PackageInfo], pkgsToInstall: var seq[(string, Version)], options: Options, output: var string, solvedPkgs: var seq[SolvedPackage], nimBin: string): HashSet[PackageInfo] {.instrument.} =
   var root: PackageMinimalInfo = rootPkg.getMinimalInfo(options)
   root.isRoot = true
+
+  # Try local solve first: if installed packages satisfy all constraints,
+  # use them without fetching newer versions. Skip for upgrade/lock which
+  # explicitly want fresh resolution.
+  if pkgList.len > 0 and options.action.typ notin {actionUpgrade, actionLock}:
+    let localResult = solveLocalPackages(root, pkgList, options, output, solvedPkgs, nimBin)
+    if localResult.len > 0 or solvedPkgs.len > 0:
+      return localResult
+
   var pkgVersionTable: Table[system.string, packageinfotypes.PackageVersions]
   # Load cached package versions to skip re-fetching known packages
   pkgVersionTable = cacheToPackageVersionTable(options)
