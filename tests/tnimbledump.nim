@@ -37,6 +37,12 @@ suite "nimble dump":
       check: exitCode == 0
       check: outp.processOutput.inLines("desc: \"Test package for dump command\"")
 
+  test "can dump for project file with absolute path":
+    let absPath = getCurrentDir() / "testdump" / "testdump.nimble"
+    let (outp, exitCode) = execNimble("dump", absPath)
+    check: exitCode == 0
+    check: outp.processOutput.inLines("desc: \"Test package for dump command\"")
+
   test "can dump when explicitly asking for INI format":
     let nimDir = parentDir findExe "nim"
     let nimblePath = "testdump" / "testdump.nimble"
