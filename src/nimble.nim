@@ -2127,10 +2127,10 @@ proc getNimDir(options: var Options, nimBin: string): string =
   block:
     #we relly on vnext mechanism to get the right Nim but we do not install anything (so the lsp doesnt hang)
     let projectName = options.action.projName
-    var projFolder = 
-      if projectName == "": getCurrentDir() 
-      elif projectName.endsWith(".nimble"): (getCurrentDir() / projectName).parentDir
-      else: getCurrentDir() / projectName
+    var projFolder =
+      if projectName == "": getCurrentDir()
+      elif projectName.endsWith(".nimble"): projectName.absolutePath.parentDir
+      else: projectName.absolutePath
     if not dirExists(projFolder):
       #dump for an installed package.
       let pkg = getInstalledPkgsMin(options.getPkgsDir(), options).filterIt(it.basicInfo.name == projectName)
