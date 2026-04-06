@@ -155,12 +155,43 @@ type
     gitErrors*: seq[string] # Git errors encountered during package discovery (could be network, auth, etc.)
     lockFileVcsRevisions*: Table[string, Sha1Hash] # package name -> vcsRevision from lock file, for exact commit matching
 
+  PackageDownloadInfo* = object
+    meth*: Option[DownloadMethod] #None for file dependencies. File dependencies are not copied over to the cache
+    url*: string
+    subdir*: string
+    downloadDir*: string
+    pv*: PkgTuple #Require request
+    vcsRevision*: Sha1Hash #From lock file, for exact commit matching
+
 proc `==`*(a, b: SolvedPackage): bool =
   a.pkgName == b.pkgName and
-  a.version == b.version 
-  
+  a.version == b.version
+
 proc isMinimal*(pkg: PackageInfo): bool =
   pkg.infoKind == pikMinimal
+
+proc hasVersion*(packageVersions: PackageVersions, pv: PkgTuple): bool =
+  for pkg in packageVersions.versions:
+    if pkg.name == pv.name:
+      # Special versions must match exactly for collection purposes
+      if pv.ver.kind == verSpecial:
+        return $pkg.version == $pv.ver
+      # Regular version ranges
+      elif pkg.version.withinRange(pv.ver):
+        return true
+  false
+
+proc hasVersion*(packagesVersions: Table[string, PackageVersions], pv: PkgTuple): bool =
+  if pv.name in packagesVersions:
+    return packagesVersions[pv.name].hasVersion(pv)
+  false
+
+proc hasVersion*(packagesVersions: Table[string, PackageVersions], name: string, ver: Version): bool =
+  if name in packagesVersions:
+    for pkg in packagesVersions[name].versions:
+      if pkg.version == ver:
+        return true
+  false
 
 proc isInstalled*(pkg: PackageInfo): bool =
   pkg.source == psInstalled

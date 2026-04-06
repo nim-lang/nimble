@@ -743,6 +743,38 @@ proc getPkgInfoFromDirWithDeclarativeParser(dir: string, options: Options, nimBi
   result.metadata = loadMetaData(result.getNimbleFileDir(), raiseIfNotFound = false, options)
   result = toRequiresInfo(result, options, nimBin, some nimbleFileInfo)
 
+proc convertNimAliasToNim*(pv: PkgTuple): PkgTuple =
+  #Compiler needs to be treated as Nim as long as it isnt a separated package. See https://github.com/nim-lang/Nim/issues/23049
+  #Also notice compiler and nim are aliases.
+  if pv.name notin ["nimrod", "compiler"]: pv
+  else: (name: "nim", ver: pv.ver)
+
+proc getMinimalInfo*(pkg: PackageInfo, options: Options): PackageMinimalInfo =
+  result.name = if pkg.basicInfo.name.isNim: "nim" else: pkg.basicInfo.name
+  result.version = pkg.basicInfo.version
+  result.requires = pkg.requires.map(convertNimAliasToNim)
+  result.features = pkg.features
+  result.url = pkg.metadata.url
+
+proc getMinimalInfoFromContent*(content: string, name: string, version: Version,
+                                 url: string, options: Options): Option[PackageMinimalInfo] =
+  ## Try to get minimal package info by parsing nimble file content with declarative parser.
+  ## Returns none if content is not parseable by declarative parser (has errors or nested requires).
+  if not isParsableByDeclarative(content, options):
+    return none(PackageMinimalInfo)
+
+  let info = extractRequiresInfoFromContent(content, options)
+  var pkgInfo: PackageMinimalInfo
+  pkgInfo.name = if name.isNim: "nim" else: name
+  pkgInfo.version = if info.version != "": newVersion(info.version) else: version
+  pkgInfo.url = url
+
+  # Parse requires from string list to PkgTuple list
+  var activeFeatures = initTable[PkgTuple, seq[string]]()
+  pkgInfo.requires = info.getRequires(activeFeatures).map(convertNimAliasToNim)
+
+  return some(pkgInfo)
+
 proc getPkgInfo*(dir: string, options: Options, nimBin: string,
                  level: PackageInfoKind = pikFull,
                  forValidation = false, shouldError = true): PackageInfo =
@@ -755,3 +787,11 @@ proc getPkgInfo*(dir: string, options: Options, nimBin: string,
   # pikFull: go straight to VM — we need full metadata (author, license, etc.)
   # which the declarative parser can't provide
   return getPkgInfoVm(dir, options, nimBin, forValidation)
+
+proc getMinimalInfo*(nimbleFile: string, options: Options, nimBin: string): PackageMinimalInfo =
+  #TODO we can use the new getPkgInfo to get the minimal info and add the features to the packageinfo type so this whole function can be removed
+  #TODO we need to handle the url here as well.
+  # declarative parser is always used
+  let pkg = getPkgInfo(nimbleFile.parentDir, options, nimBin, pikRequires)
+  result = pkg.getMinimalInfo(options)
+

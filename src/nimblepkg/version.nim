@@ -364,6 +364,17 @@ proc parseRequires*(req: string): PkgTuple =
   if result.name.isForgeAlias:
     result.name = newForge(result.name).expand()
 
+proc initFromJson*(dst: var PkgTuple, jsonNode: JsonNode, jsonPath: var string) =
+  dst = parseRequires(jsonNode.str)
+
+proc toJsonHook*(src: PkgTuple): JsonNode =
+  let ver = if src.ver.kind == verAny: "" else: $src.ver
+  case src.ver.kind
+  of verAny: newJString(src.name)
+  of verSpecial: newJString(src.name & ver)
+  else:
+    newJString(src.name & " " & ver)
+
 proc `$`*(verRange: VersionRange): string =
   case verRange.kind
   of verLater:

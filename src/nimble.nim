@@ -23,7 +23,7 @@ import nimblepkg/packageinfotypes, nimblepkg/packageinfo, nimblepkg/version,
        nimblepkg/displaymessages, nimblepkg/sha1hashes, nimblepkg/syncfile,
        nimblepkg/deps, nimblepkg/nimblesat, nimblepkg/nimenv,
        nimblepkg/downloadnim, nimblepkg/declarativeparser,
-      nimblepkg/vnext
+      nimblepkg/vnext, nimblepkg/versiondiscovery
 
 const
   nimblePathsFileName* = "nimble.paths"
