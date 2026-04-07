@@ -1,37 +1,11 @@
 {.used.}
 import unittest, os
 import testscommon
-import std/[tables, sequtils, json, jsonutils, strutils, options, strformat]
+import std/[tables, sequtils, strutils, options, strformat]
 import nimblepkg/[version, nimblesat, options, config, download, packageinfotypes, versiondiscovery]
 from nimblepkg/common import cd, NimbleError
 
 let nimBin = "nim"
-
-proc downloadAndStorePackageVersionTableFor(pkgName: string, options: Options) =
-  #Downloads all the dependencies for a given package and store the minimal version of the deps in a json file.
-  var fileName = pkgName
-  if pkgName.startsWith("https://"):
-    let pkgUrl = pkgName
-    fileName = pkgUrl.split("/")[^1].split(".")[0]
-
-  let path = "packageMinimal" / fileName & ".json"
-  if fileExists(path):
-    return
-  let pv: PkgTuple = (pkgName, VersionRange(kind: verAny))
-  var pkgInfo = downloadPkInfoForPv(pv, options, nimBin = nimBin)
-  var root = pkgInfo.getMinimalInfo(options)
-  root.isRoot = true
-  var pkgVersionTable = initTable[string, PackageVersions]()
-  collectAllVersions(pkgVersionTable, root, options, downloadMinimalPackage, nimBin = nimBin)
-  pkgVersionTable[pkgName] = PackageVersions(pkgName: pkgName, versions: @[root])
-  let json = pkgVersionTable.toJson()
-  writeFile(path, json.pretty())
-
-proc fromJsonHook(pv: var PkgTuple, jsonNode: JsonNode, opt = Joptions()) =
-  if jsonNode.kind == Jstring:
-    pv = parseRequires(jsonNode.getStr())
-  else:
-    raise newException(ValueError, "Expected a string for PkgTuple found: " & $jsonNode.kind & " val: " & $jsonNode)
 
 suite "Version Discovery":
   test "should be able to download a package and select its deps":
