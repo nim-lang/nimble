@@ -1,0 +1,856 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nimble — Roadmap</title>
+<style>
+  :root {
+    --bg: #1e1e2e;
+    --surface: #282840;
+    --surface2: #313147;
+    --text: #cdd6f4;
+    --subtext: #a6adc8;
+    --blue: #89b4fa;
+    --green: #a6e3a1;
+    --red: #f38ba8;
+    --yellow: #f9e2af;
+    --mauve: #cba6f7;
+    --teal: #94e2d5;
+    --peach: #fab387;
+    --border: #45475a;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    display: flex;
+    min-height: 100vh;
+  }
+  nav {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 280px;
+    height: 100vh;
+    overflow-y: auto;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    padding: 20px 0;
+    z-index: 10;
+  }
+  nav h2 {
+    color: var(--blue);
+    font-size: 14px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    padding: 0 20px;
+    margin-bottom: 12px;
+  }
+  nav a {
+    display: block;
+    color: var(--subtext);
+    text-decoration: none;
+    padding: 6px 20px;
+    font-size: 13px;
+    border-left: 3px solid transparent;
+    transition: all 0.15s;
+  }
+  nav a:hover, nav a.active {
+    color: var(--text);
+    background: var(--surface2);
+    border-left-color: var(--blue);
+  }
+  nav a.section {
+    color: var(--mauve);
+    font-weight: 600;
+    margin-top: 16px;
+    font-size: 13px;
+  }
+  main {
+    margin-left: 280px;
+    max-width: 900px;
+    padding: 40px 50px;
+    width: 100%;
+  }
+  h1 {
+    color: var(--blue);
+    font-size: 28px;
+    margin-bottom: 8px;
+    border-bottom: 2px solid var(--border);
+    padding-bottom: 12px;
+  }
+  h1 small {
+    display: block;
+    color: var(--subtext);
+    font-size: 14px;
+    font-weight: normal;
+    margin-top: 4px;
+  }
+  h2 {
+    color: var(--mauve);
+    font-size: 22px;
+    margin-top: 48px;
+    margin-bottom: 16px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--border);
+  }
+  h3 {
+    color: var(--teal);
+    font-size: 17px;
+    margin-top: 28px;
+    margin-bottom: 10px;
+  }
+  h4 {
+    color: var(--peach);
+    font-size: 15px;
+    margin-top: 20px;
+    margin-bottom: 8px;
+  }
+  p { margin-bottom: 12px; color: var(--text); }
+  .todo { background: rgba(249,226,175,0.2); color: var(--yellow); padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; margin-left: 8px; }
+  .done { background: rgba(166,227,161,0.2); color: var(--green); padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; margin-left: 8px; }
+  pre {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 16px;
+    overflow-x: auto;
+    font-size: 13px;
+    line-height: 1.5;
+    margin: 12px 0 16px;
+    font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  }
+  code {
+    font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+    font-size: 13px;
+  }
+  :not(pre) > code {
+    background: var(--surface);
+    padding: 2px 6px;
+    border-radius: 3px;
+    color: var(--peach);
+  }
+  .file-ref {
+    color: var(--blue);
+    font-size: 12px;
+    font-family: 'SF Mono', monospace;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 12px 0 20px;
+    font-size: 13px;
+  }
+  th {
+    background: var(--surface);
+    color: var(--blue);
+    text-align: left;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    font-weight: 600;
+  }
+  td {
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    vertical-align: top;
+  }
+  tr:hover td { background: rgba(137,180,250,0.05); }
+  .warn-box {
+    background: rgba(249,226,175,0.1);
+    border-left: 4px solid var(--yellow);
+    padding: 12px 16px;
+    margin: 16px 0;
+    border-radius: 0 6px 6px 0;
+  }
+  .info-box {
+    background: rgba(137,180,250,0.1);
+    border-left: 4px solid var(--blue);
+    padding: 12px 16px;
+    margin: 16px 0;
+    border-radius: 0 6px 6px 0;
+  }
+  ul { margin: 8px 0 12px 20px; }
+  ol { margin: 8px 0 12px 20px; }
+  li { margin-bottom: 4px; }
+  .highlight { color: var(--yellow); }
+  .kw { color: var(--mauve); }
+  .fn { color: var(--blue); }
+  .str { color: var(--green); }
+  .cmt { color: var(--subtext); font-style: italic; }
+  .typ { color: var(--teal); }
+</style>
+</head>
+<body>
+
+<nav>
+  <h2>Contents</h2>
+
+  <a href="#arch-refactor" class="section">Architecture Refactor</a>
+  <a href="#arch-motivation">Motivation</a>
+  <a href="#arch-phase1">Phase 1: Simplify Nim Resolution <span class="done">Done</span></a>
+  <a href="#arch-phase2">Phase 2: Unified Parsing <span class="done">Done</span></a>
+  <a href="#arch-phase3">Phase 3: Decouple Parser from SAT <span class="done">Done</span></a>
+  <a href="#arch-phase4">Phase 4: Dissolve vnext.nim <span class="todo">Todo</span></a>
+  <a href="#arch-phase5">Phase 5: Dead Code Cleanup <span class="todo">Todo</span></a>
+  <a href="#arch-phase6">Phase 6: Async Decision <span class="todo">Todo</span></a>
+
+  <a href="#cleanup" class="section">Code Cleanup</a>
+  <a href="#cleanup-validateparsed">validateParsedDependencies</a>
+  <a href="#cleanup-tofullinfo">toFullInfo calls</a>
+
+  <a href="#pkgcache-prepop" class="section">Package Cache Optimization</a>
+  <a href="#pkgcache-motivation">Motivation</a>
+  <a href="#pkgcache-packages">Packages to Prepopulate</a>
+  <a href="#pkgcache-affected">Affected Test Suites</a>
+  <a href="#pkgcache-approach">Implementation Approach</a>
+
+  <a href="#develop-docs" class="section">Develop Feature</a>
+  <a href="#develop-quickstart">Quick Start</a>
+  <a href="#develop-commands">Commands Reference</a>
+  <a href="#develop-files">Generated Files</a>
+  <a href="#develop-code">Code Architecture</a>
+  <a href="#develop-code-nodeps">Without --with-dependencies</a>
+  <a href="#develop-code-withdeps">With --with-dependencies</a>
+  <a href="#develop-rebuild">Rebuild Considerations</a>
+
+  <a href="#new-commands" class="section">New Commands</a>
+  <a href="#nimble-fetch">nimble fetch</a>
+
+  <a href="#solver" class="section">SAT Solver</a>
+  <a href="#solver-pubgrub">PubGrub error messages</a>
+</nav>
+
+<main>
+
+<h1>
+  Nimble Roadmap
+  <small>Pending work, optimization plans, and feature documentation</small>
+</h1>
+
+<!-- ========== ARCHITECTURE REFACTOR ========== -->
+<h2 id="arch-refactor">Architecture Refactor</h2>
+
+<div class="warn-box">
+<strong>Context (arnetheduck, 2026-03-26):</strong> The vnext/declarative parsing code was layered <em>on top</em> of the old architecture instead of integrated. The codebase is a path-dependent outcome of adding vnext on top of legacy. If you wrote nimble from scratch today with declarative-first intent, the code would not look like this. The goal is to reframe the architecture so declarative parsing is the default and VM parsing is the fallback &mdash; not the other way around. There should be no "vnext" module by the end &mdash; its logic should be assimilated into the natural modules.
+</div>
+
+<h3 id="arch-motivation">Motivation</h3>
+
+<p>The core architectural problem: <code>getPkgInfo</code> (packageparser.nim) was the canonical entry point for package metadata. Then the declarative parser was added, but only wired through <code>nimblesat.nim</code>. Now there are two parallel parsing paths:</p>
+
+<ul>
+  <li><code>getPkgInfo()</code> / <code>getPkgInfoFromFile()</code> &mdash; called from 12+ files, uses the VM parser</li>
+  <li><code>getPkgInfoFromDirWithDeclarativeParser()</code> &mdash; called from vnext.nim, nimblesat.nim, download.nim, developfile.nim</li>
+</ul>
+
+<p>These should be one entry point with a fallback chain: <strong>declarative &rarr; VM</strong>. All callers should go through the same function. This will eliminate an entire class of bugs where one code path sees different package info than another.</p>
+
+<h3 id="arch-phase1">Phase 1: Simplify Nim Resolution <span class="done">Done</span></h3>
+
+<p>There are <strong>7 different procs</strong> for getting/setting the nim binary. This should be 1-2 at most. This must come first because the unified <code>getPkgInfo</code> (Phase 2) needs a resolved nim binary &mdash; both the declarative parser and the VM parser require it.</p>
+
+<div class="info-box">
+<strong>Progress (2026-03-27):</strong> Phase 1 work is on branch <code>nim_refactor</code> (unstaged, pending review). 4 files changed, net &minus;26 lines. All tests pass (tissues suite: 37 OK, 1 pre-existing failure unrelated to changes). Summary of changes:
+
+<ol>
+  <li><strong><code>installPkgs</code>, <code>getPathsAllPkgs</code>, <code>solutionToFullInfo</code></strong> now receive <code>nimBin: string</code> as a parameter instead of extracting it from <code>satResult.nimResolved.getNimBin()</code>. Also threaded through <code>updatePathsFile</code> which wraps <code>getPathsAllPkgs</code>.</li>
+
+  <li><strong>Deleted <code>setNimBin*(pkgInfo, options)</code></strong> from vnext.nim (15 lines). Replaced with inline logic in <code>solvePkgs</code> that derives <code>resolvedNimBin</code> from <code>nimPkgInfo.nimBinPath</code> (system nim wrappers, #1609) or <code>nimPkgInfo.getNimPath()</code> (standard layout). Handles PATH mutation and compile-if-missing prompt explicitly.</li>
+
+  <li><strong>Removed <code>options.setNimBin()</code> call</strong> from <code>runVNext</code> develop path &mdash; redundant since nimBin is already resolved by bootstrap and passed as parameter.</li>
+
+  <li><strong>Threaded nimBin through all <code>doAction</code> functions</strong> in nimble.nim: <code>reinstallSymlinksForOlderVersion</code>, <code>reinstallOutOfDatePkgs</code>, <code>reinstallIncompatibleVersions</code>, <code>install</code>, <code>check</code>, <code>execBackend</code>, <code>getPackageByPattern</code>, <code>dump</code>, <code>listTasks</code>, <code>clean</code>, <code>uninstall</code>, <code>init</code>, <code>addPackages</code>, <code>removePackage</code>, <code>removePackages</code>, <code>installFromDir</code>, <code>packageExists</code>. Replaced ~11 <code>getNimBin(options)</code> reads with the parameter already in scope. Also replaced <code>pkgInfo.getNimBin(options).quoteShell</code> in <code>execBackend</code> with <code>nimBin.quoteShell</code>.</li>
+
+  <li><strong>Threaded nimBin through <code>nimblesat.nim</code></strong>: replaced 2 reads from <code>options.nimBin</code> (version addition to SAT package list, nim version compatibility check) with <code>nimVersion: Option[Version]</code> parameter passed from callers that already had nimBin.</li>
+
+  <li><strong>Deleted dead overloads:</strong> <code>getNimBin(satResult: SATResult)</code> from vnext.nim (private, compiler warned unused), <code>getNimBin*(pkgInfo, options)</code> from nimble.nim. Cleaned up <code>getNimDir</code> and <code>getAlteredPath</code> to use nimBin parameter instead of <code>options.nimBin.get.path</code>.</li>
+
+  <li><strong>Also updated <code>getNimrodVersion</code></strong> in tools.nim to receive <code>nimBin: string</code> parameter.</li>
+</ol>
+
+<strong>Also deleted:</strong>
+<ul>
+  <li><code>setNimBin*(options)</code> &mdash; the 70-line legacy proc in nimble.nim. Non-vnext actions (publish, tasks, check, dump) don't need solved deps &mdash; they just need a nim binary. <code>getBootstrapNimResolved</code> already resolves this before <code>doAction</code>, so the legacy proc was redundant.</li>
+  <li><code>getNimBin*(options)</code> in options.nim &mdash; zero callers after above deletion.</li>
+  <li>Forward declaration of <code>setNimBin</code> in nimble.nim.</li>
+</ul>
+
+<strong>Still alive:</strong>
+<ul>
+  <li><code>getNimBin*(nimResolved)</code> in packageinfotypes.nim &mdash; called by bootstrap and <code>resolveNim</code></li>
+  <li><code>useNimFromDir</code> in nimenv.nim &mdash; 1 caller: <code>install</code> proc when installing nim itself</li>
+  <li><code>options.nim</code> property in options.nim &mdash; used by <code>useNimFromDir</code> for display</li>
+  <li><code>options.nimBin</code> field &mdash; still written in <code>solvePkgs</code> and read by <code>useNimFromDir</code></li>
+</ul>
+
+<strong>Total: 5 files changed, &minus;111 lines net.</strong>
+</div>
+
+<h4>How Nim Resolution Works Now</h4>
+
+<p>Nim is resolved in two passes, which is the correct design &mdash; you need <em>some</em> nim before you can parse nimble files to feed the SAT solver.</p>
+
+<pre>
+<span class="cmt"># Pass 1: Bootstrap (before SAT solving)</span>
+<span class="cmt"># Called once in main. Finds a nim to use for parsing nimble files.</span>
+<span class="fn">getBootstrapNimResolved</span>(options) &rarr; nimBin: <span class="typ">string</span>
+  &rarr; <span class="fn">getNimFromSystem</span>()     <span class="cmt"># 1. System nim (PATH / --nim: flag)</span>
+  &rarr; <span class="fn">getNimBinariesPackages</span>() <span class="cmt"># 2. Previously downloaded nims</span>
+  &rarr; <span class="fn">getOfficialReleases</span>()   <span class="cmt"># 3. Download latest release</span>
+
+<span class="cmt"># Pass 2: SAT resolution (vnext actions only)</span>
+<span class="cmt"># May refine nim based on lock file or project requirements.</span>
+<span class="fn">resolveAndConfigureNim</span>(rootPkg, pkgList, options, nimBin)
+  &rarr; <span class="fn">resolveNim</span>()  <span class="cmt"># SAT-based nim selection</span>
+  &rarr; sets options.nimBin <span class="cmt"># for the few remaining consumers</span>
+
+<span class="cmt"># Non-vnext actions (publish, tasks, check, dump, init)</span>
+<span class="cmt"># Only the bootstrap result is needed &mdash; no SAT solving.</span>
+</pre>
+
+<p>The <code>nimBin: string</code> from bootstrap is passed as a parameter through the entire pipeline. <code>options.nimBin</code> is still written in <code>solvePkgs</code> as a bridge for <code>useNimFromDir</code> (1 caller: <code>install</code> when installing nim itself).</p>
+
+<h4>Deleted (7 &rarr; 2 procs)</h4>
+<table>
+  <tr><th>Proc</th><th>Was</th><th>Status</th></tr>
+  <tr><td><code>setNimBin*(options)</code></td><td>nimble.nim &mdash; 70-line legacy PATH search + auto-install</td><td>Deleted. <code>getBootstrapNimResolved</code> already does this.</td></tr>
+  <tr><td><code>setNimBin*(pkgInfo, options)</code></td><td>vnext.nim &mdash; post-SAT mutation of options</td><td>Deleted. Inlined in <code>solvePkgs</code>.</td></tr>
+  <tr><td><code>getNimBin*(options)</code></td><td>options.nim &mdash; read from options</td><td>Deleted. nimBin passed as parameter.</td></tr>
+  <tr><td><code>getNimBin*(pkgInfo, options)</code></td><td>nimble.nim &mdash; package-aware lookup</td><td>Deleted. Replaced with <code>nimBin.quoteShell</code>.</td></tr>
+  <tr><td><code>getNimBin(satResult)</code></td><td>vnext.nim &mdash; extract from SAT result</td><td>Deleted. nimBin passed as parameter.</td></tr>
+  <tr><td><code>getNimBin*(nimResolved)</code></td><td>packageinfotypes.nim</td><td><strong>Kept.</strong> Used by bootstrap and <code>resolveNim</code>.</td></tr>
+  <tr><td><code>getNimPath*(pkgInfo)</code></td><td>packageinfotypes.nim</td><td><strong>Kept.</strong> Used by <code>getNimBin(nimResolved)</code>.</td></tr>
+</table>
+
+<h4>Also fixed</h4>
+<ul>
+  <li><code>actionInit</code> was incorrectly in <code>actionsNotNeedingNim</code> &mdash; it calls <code>getNimrodVersion</code> to suggest a default Nim version. Removed from the set.</li>
+</ul>
+
+<h3 id="arch-phase2">Phase 2: Unified Package Parsing <span class="done">Done</span></h3>
+
+<p>Create a single canonical <code>getPkgInfo</code> that tries parsers in order: <strong>declarative &rarr; VM</strong>. All callers converge here. nimBin is now passed as a parameter (Phase 1), so the unified function receives it directly.</p>
+
+<h4>Current Entry Points (Too Many)</h4>
+<table>
+  <tr><th>Function</th><th>Defined In</th><th>What It Does</th></tr>
+  <tr><td><code>getPkgInfo(dir, options)</code></td><td>packageparser.nim:379</td><td>Finds .nimble file, calls VM parser</td></tr>
+  <tr><td><code>getPkgInfoFromFile(path, options)</code></td><td>packageparser.nim:365</td><td>VM parser on specific file</td></tr>
+  <tr><td><code>getPkgInfoFromDirWithDeclarativeParser(dir, options, nimBin)</code></td><td>declarativeparser.nim:737</td><td>Declarative parser, no VM</td></tr>
+  <tr><td><code>toFullInfo(pkgInfo, options)</code></td><td>packageparser.nim:440</td><td>Upgrades pikRequires &rarr; pikFull via VM</td></tr>
+  <tr><td><code>toRequiresInfo(pkgInfo, options)</code></td><td>declarativeparser.nim:664</td><td>Declarative-only requires extraction</td></tr>
+  <tr><td><code>getMinimalInfo(url, options)</code></td><td>nimblesat.nim</td><td>SAT-specific minimal info</td></tr>
+</table>
+
+<h4>Target: Single Entry Point</h4>
+<pre>
+<span class="kw">proc</span> <span class="fn">getPkgInfo</span>(dir: <span class="typ">string</span>, options: <span class="typ">Options</span>,
+               kind: <span class="typ">PackageInfoKind</span> = pikRequires): <span class="typ">PackageInfo</span> =
+  <span class="cmt">## Canonical entry point. Tries declarative parser first,</span>
+  <span class="cmt">## falls back to VM parser if declarative fails or if pikFull requested.</span>
+  <span class="kw">let</span> nimbleFile = findNimbleFile(dir)
+
+  <span class="cmt"># Step 1: Always try declarative first</span>
+  <span class="kw">try</span>:
+    result = parseDeclarative(nimbleFile, options)  <span class="cmt"># pikRequires</span>
+  <span class="kw">except</span>:
+    result = parseVm(nimbleFile, options)            <span class="cmt"># pikFull (fallback)</span>
+    <span class="kw">return</span>
+
+  <span class="cmt"># Step 2: If caller needs full info and declarative succeeded,</span>
+  <span class="cmt"># upgrade via VM for fields only NimScript can provide (bin, tasks, hooks)</span>
+  <span class="kw">if</span> kind == pikFull:
+    result = upgradeToFull(result, nimbleFile, options)
+</pre>
+
+<h4>Steps</h4>
+<ol>
+  <li>Create the unified <code>getPkgInfo</code> in <code>packageparser.nim</code> (or a new <code>packageinfo.nim</code> &mdash; the parsing entry point)</li>
+  <li>Migrate <code>declarativeparser.nim</code> to export a simple <code>parseDeclarative(nimbleFile, options): PackageInfo</code></li>
+  <li>Keep the existing VM parser as <code>parseVm(nimbleFile, options): PackageInfo</code></li>
+  <li>Replace all direct calls to <code>getPkgInfoFromDirWithDeclarativeParser</code> and <code>getPkgInfoFromFile</code> with the unified entry point</li>
+  <li>Audit every <code>toFullInfo</code> call &mdash; replace with <code>getPkgInfo(dir, options, pikFull)</code> where needed</li>
+</ol>
+
+<div class="info-box">
+<strong>Key insight:</strong> In a declarative-first world, most callers only need <code>pikRequires</code> (name, version, dependencies). Only build/install/task-running needs <code>pikFull</code>. The declarative parser handles 95% of use cases without spinning up a NimScript VM.
+</div>
+
+<h3 id="arch-phase3">Phase 3: Decouple Parser from SAT <span class="done">Done</span></h3>
+
+<p>Currently <code>nimblesat.nim</code> imports and directly calls the declarative parser for version discovery. Parsing packages is not a SAT concern &mdash; the SAT solver should receive a pre-built version table, not build it by parsing packages itself.</p>
+
+<h4>Current Flow (Wrong)</h4>
+<pre>
+nimblesat.collectAllVersions()
+  &rarr; nimblesat.processRequirements()
+    &rarr; nimblesat.downloadMinimalPackage()
+      &rarr; <span class="highlight">declarativeparser.getPkgInfoFromDirWithDeclarativeParser()</span>
+      &rarr; <span class="highlight">packageparser.getPkgInfoFromFile()</span>  <span class="cmt">(fallback)</span>
+  &rarr; builds pkgVersionTable internally
+  &rarr; passes to SAT formula builder
+</pre>
+
+<h4>Target Flow (Clean)</h4>
+<pre>
+<span class="cmt"># 1. Build version table (uses unified getPkgInfo, nothing SAT-specific)</span>
+versionTable = buildVersionTable(rootPkg, options)
+  &rarr; for each requirement, discover versions via getPkgInfo()
+  &rarr; returns <span class="typ">PkgVersionTable</span>
+
+<span class="cmt"># 2. SAT solver receives ready-made data</span>
+solution = solveSAT(versionTable)
+  &rarr; pure constraint solving, no I/O, no parsing
+</pre>
+
+<h4>Steps</h4>
+<ol>
+  <li>Extract <code>collectAllVersions</code> / <code>processRequirements</code> / <code>downloadMinimalPackage</code> out of nimblesat.nim into a new module (e.g. <code>versiondiscovery.nim</code> or fold into <code>packageinfo.nim</code>)</li>
+  <li>These functions should call the unified <code>getPkgInfo</code> from Phase 2</li>
+  <li><code>nimblesat.nim</code> shrinks to pure SAT logic: formula building, solving, result extraction</li>
+  <li>The SAT solver receives <code>PkgVersionTable</code> as input, returns <code>seq[SolvedPackage]</code> as output</li>
+</ol>
+
+<h3 id="arch-phase4">Phase 4: Dissolve vnext.nim <span class="todo">Todo</span></h3>
+
+<p><code>vnext.nim</code> is ~1300 lines containing ~60 procs. About half are general nimble logic that belongs in other modules. The "vnext" name is meaningless now &mdash; it's the only code path.</p>
+
+<h4>Where Things Should Go</h4>
+<table>
+  <tr><th>Current Location in vnext.nim</th><th>Natural Home</th><th>Reason</th></tr>
+  <tr><td><code>buildFromDir</code>, <code>buildPkg</code>, <code>getPathsAllPkgs</code></td><td><code>build.nim</code> (new) or <code>install.nim</code></td><td>Build logic is independent of vnext</td></tr>
+  <tr><td><code>installPkgs</code>, <code>copyInstallFiles</code>, <code>createBinSymlink</code></td><td><code>install.nim</code></td><td>Installation logic</td></tr>
+  <tr><td><code>resolveNim</code>, <code>getNimFromSystem</code>, <code>setNimBin</code></td><td><code>nimresolution.nim</code> (new) or inline into startup</td><td>Nim resolution (Phase 3 handles this)</td></tr>
+  <tr><td><code>solvePkgs</code>, <code>resolveAndConfigureNim</code></td><td><code>nimble.nim</code> (main pipeline)</td><td>Orchestration belongs at the top level</td></tr>
+  <tr><td><code>solveLockFileDeps</code></td><td><code>lockfile.nim</code></td><td>Lock file logic</td></tr>
+  <tr><td><code>executeHook</code></td><td><code>hooks.nim</code> (new) or <code>nimble.nim</code></td><td>Hook execution</td></tr>
+  <tr><td><code>addReverseDeps</code></td><td><code>reversedeps.nim</code></td><td>Already has its own module</td></tr>
+  <tr><td><code>getPkgInfoFromSolution</code>, <code>getPkgInfoFromSolved</code></td><td>Near SAT solver or unified <code>getPkgInfo</code></td><td>Solution &rarr; PackageInfo conversion</td></tr>
+  <tr><td><code>runVNext</code></td><td><code>nimble.nim</code> &mdash; becomes the main <code>run()</code></td><td>It IS the main pipeline now</td></tr>
+</table>
+
+<h4>Steps</h4>
+<ol>
+  <li>Do this <strong>last</strong>, after Phases 1-3 have cleaned up the interfaces</li>
+  <li>Move procs one logical group at a time, keeping tests green after each move</li>
+  <li>Rename <code>runVNext</code> to <code>run</code> or just inline it into the main dispatch</li>
+  <li>Delete <code>vnext.nim</code> when empty</li>
+  <li>Remove <code>vNextSupportedActions</code> &mdash; all actions go through the main pipeline</li>
+</ol>
+
+<h3 id="arch-phase5">Phase 5: Dead Code Cleanup <span class="todo">Todo</span></h3>
+
+<p>Final sweep after the architecture is clean.</p>
+
+<ul>
+  <li><code>validateParsedDependencies</code> &mdash; dead since legacy removal (see <a href="#cleanup-validateparsed">existing item</a>)</li>
+  <li><code>useDeclarativeParser</code> field in Options &mdash; always true, delete it</li>
+  <li><code>toFullInfo</code> audit &mdash; each call site needs individual check (see <a href="#cleanup-tofullinfo">existing item</a>)</li>
+  <li><code>isLegacy</code> / legacy references &mdash; grep for any remaining mentions</li>
+  <li>Unused imports after module moves</li>
+  <li>Remove "vnext" from all display messages, comments, and variable names</li>
+</ul>
+
+<h3 id="arch-phase6">Phase 6: Async Decision <span class="todo">Todo</span></h3>
+
+<p>There is a half-finished async download pipeline behind the <code>--asyncdownloads</code> flag (disabled by default, marked "temporary"). It parallelizes version discovery downloads using chronos. It's behind a flag and doesn't interfere with anything, so deal with it last once the architecture is clean.</p>
+
+<h4>Current State</h4>
+<table>
+  <tr><th>Location</th><th>What</th></tr>
+  <tr><td><code>tools.nim:58-87</code></td><td><code>doCmdExAsync</code>, <code>gitShowFileAsync</code>, <code>gitListNimbleFilesInCommitAsync</code></td></tr>
+  <tr><td><code>download.nim:33-622</code></td><td>12 async procs: <code>doCloneAsync</code>, <code>doCheckoutAsync</code>, <code>getTagsListAsync</code>, etc.</td></tr>
+  <tr><td><code>nimblesat.nim:897-1517</code></td><td><code>downloadMinimalPackageAsync</code>, <code>collectAllVersionsAsync</code>, <code>processRequirementsAsync</code></td></tr>
+  <tr><td><code>nimblesat.nim:1696-1770</code></td><td>Conditional branches: <code>if not options.useAsyncDownloads</code> &rarr; sync, else &rarr; async</td></tr>
+  <tr><td><code>options.nim:82,790,929</code></td><td><code>useAsyncDownloads</code> flag definition, CLI handler, default</td></tr>
+  <tr><td><code>tests/tasynctools.nim</code></td><td>503-line test file (some tests commented out)</td></tr>
+</table>
+
+<h4>Decision Required</h4>
+<ul>
+  <li><strong>Option A: Complete it.</strong> Enable by default, remove conditional branches, fix the <code>threadvar</code> download cache (should be module-level <code>var</code> for chronos), uncomment disabled tests, performance-test it.</li>
+  <li><strong>Option B: Roll it back.</strong> Delete all async procs from tools.nim, download.nim, nimblesat.nim. Delete the flag from options.nim. Delete tests/tasynctools.nim. Remove conditional branches &mdash; keep only sync paths. This is ~600 lines of deletion.</li>
+</ul>
+
+<p>By this point the architecture will be clean enough that either option is straightforward. The async code may need to be rewritten anyway to fit the new module structure.</p>
+
+<div class="info-box">
+<strong>Ordering matters.</strong> Each phase reduces the surface area for the next:
+<ol>
+  <li><strong>Phase 1</strong> (nim resolution) simplifies from 7 procs to 2, nimBin passed as parameter &mdash; prerequisite for unified parsing since <code>getPkgInfo</code> needs a resolved nim binary</li>
+  <li><strong>Phase 2</strong> (unified parsing) gives all callers one entry point, eliminating the dual-parser divergence</li>
+  <li><strong>Phase 3</strong> (decouple SAT) makes nimblesat.nim a pure solver with no I/O, no parsing</li>
+  <li><strong>Phase 4</strong> (dissolve vnext) is purely mechanical moves once interfaces are clean</li>
+  <li><strong>Phase 5</strong> (dead code) is the final sweep</li>
+  <li><strong>Phase 6</strong> (async) decide once architecture is stable &mdash; it's behind a flag and harmless until then</li>
+</ol>
+Each phase should be a separate PR that keeps tests green.
+</div>
+
+<!-- ========== CODE CLEANUP ========== -->
+<h2 id="cleanup">Code Cleanup</h2>
+
+<h3 id="cleanup-validateparsed"><code>validateParsedDependencies</code> <span class="todo">Todo</span></h3>
+
+<p>This function was designed to validate that the declarative parser and VM parser produce identical dependency lists. It toggles <code>useDeclarativeParser</code> between <code>true</code> and <code>false</code> and compares results.</p>
+
+<p><strong>Problem:</strong> With legacy removal, <code>useDeclarativeParser</code> is always <code>true</code> and toggling it has no effect — no code path checks it anymore. Both calls now go through the same parser, making the comparison meaningless.</p>
+
+<p><strong>Fix:</strong> Delete <code>validateParsedDependencies</code> (~12 lines) and its call in <code>check()</code> (nimble.nim:1324). This also makes the <code>useDeclarativeParser</code> field in <code>Options</code> fully unused, so it can be deleted too.</p>
+
+<p><strong>Locations:</strong></p>
+<ul>
+  <li><code>src/nimble.nim:1304-1315</code> — dead proc</li>
+  <li><code>src/nimble.nim:1324</code> — call site in <code>check()</code></li>
+  <li><code>src/nimblepkg/options.nim:75</code> — vestigial <code>useDeclarativeParser</code> field</li>
+  <li><code>src/nimblepkg/options.nim:924</code> — default value initialization</li>
+</ul>
+
+<h3 id="cleanup-tofullinfo"><code>toFullInfo</code> calls <span class="todo">Todo</span></h3>
+
+<p>With vnext as the only mode, several <code>toFullInfo</code> calls (which invoke the VM parser to expand <code>bin</code>, <code>installDirs</code>, etc.) may be unnecessary if the declarative parser already populates those fields.</p>
+
+<p><strong>Locations to audit:</strong></p>
+<ul>
+  <li><code>src/nimblepkg/vnext.nim:972</code> — has a <code>#TODO is this needed in VNEXT? I dont think so</code> comment</li>
+  <li><code>src/nimble.nim:119</code> — in <code>reinstallSymlinksForOlderVersion</code></li>
+  <li><code>src/nimble.nim:1810</code> — in <code>getAlteredPath</code></li>
+  <li><code>src/nimblepkg/packageparser.nim:467</code> — in <code>getInstalledPkgs</code></li>
+</ul>
+
+<p><strong>Approach:</strong> Each call site needs individual investigation — <code>toFullInfo</code> is still needed when the declarative parser doesn't populate all fields (e.g. <code>bin</code> from NimScript expressions). Don't bulk-delete without testing each.</p>
+
+<!-- ========== PACKAGE CACHE PREPOPULATION ========== -->
+<h2 id="pkgcache-prepop">Package Cache Optimization</h2>
+
+<h3 id="pkgcache-motivation">Motivation</h3>
+
+<p>CI timing shows <strong>git clone operations account for ~55% of total test runtime</strong>. The same packages are cloned repeatedly across tests because each test clears <code>installDir</code> and re-downloads from scratch.</p>
+
+<p>The top 3 suites (issues 400s, SAT solver 391s, lock file 225s) take ~1016s combined. Most time is cloning the same packages from GitHub.</p>
+
+<h3 id="pkgcache-packages">Packages to Prepopulate</h3>
+
+<table>
+  <tr><th>Package</th><th>URL</th><th># Test Files</th><th>Top Users</th></tr>
+  <tr>
+    <td><code>packagea</code></td>
+    <td><code>github.com/nimble-test/packagea</code></td>
+    <td>7 files, ~16 usages</td>
+    <td>tmisctests (4), tdevelopfeature (4), tuninstall (3), tbuildinstall (2)</td>
+  </tr>
+  <tr>
+    <td><code>packagebin2</code></td>
+    <td><code>github.com/nimble-test/packagebin2</code></td>
+    <td>4 files, ~6 usages</td>
+    <td>tuninstall (2), toffline (2), tmisctests (1)</td>
+  </tr>
+  <tr>
+    <td><code>packageb</code></td>
+    <td><code>github.com/nimble-test/packageb</code></td>
+    <td>2 files</td>
+    <td>tuninstall, tissues</td>
+  </tr>
+  <tr>
+    <td><code>packagebin</code></td>
+    <td><code>github.com/nimble-test/packagebin</code></td>
+    <td>2 files</td>
+    <td>tuninstall, tissues</td>
+  </tr>
+  <tr>
+    <td><code>multi (alpha/beta)</code></td>
+    <td><code>github.com/nimble-test/multi</code></td>
+    <td>3 files, ~5 usages</td>
+    <td>tmultipkgs (3), tmisctests (2)</td>
+  </tr>
+  <tr>
+    <td><code>nimlangserver</code></td>
+    <td><code>github.com/nim-lang/langserver</code></td>
+    <td>2 files</td>
+    <td>tdeclarativeparser, tlockfile (heaviest — pulls ~15 transitive deps)</td>
+  </tr>
+  <tr>
+    <td><code>nitter</code></td>
+    <td><code>github.com/zedeus/nitter</code></td>
+    <td>1 file</td>
+    <td>tsat (but 25s per test due to transitive deps)</td>
+  </tr>
+  <tr>
+    <td><code>libbacktrace</code></td>
+    <td><code>github.com/status-im/nim-libbacktrace</code></td>
+    <td>1 file</td>
+    <td>tbuildinstall (submodule tests, ~17s)</td>
+  </tr>
+</table>
+
+<h3 id="pkgcache-affected">Affected Test Suites</h3>
+
+<table>
+  <tr><th>Suite</th><th>CI Time</th><th><code>cleanDir</code> calls</th><th>Expected Savings</th></tr>
+  <tr><td>issues</td><td>400s</td><td>implied</td><td>~40-60%</td></tr>
+  <tr><td>SAT solver</td><td>391s</td><td>per-test</td><td>~50-70%</td></tr>
+  <tr><td>lock file</td><td>225s</td><td>2 explicit</td><td>~20-30% (111s is nim compile)</td></tr>
+  <tr><td>Nim binaries</td><td>107s</td><td>per-test</td><td>~10%</td></tr>
+  <tr><td>Declarative parsing</td><td>100s</td><td>per-test</td><td>~50-60%</td></tr>
+  <tr><td>requires flag</td><td>98s</td><td>per-test</td><td>~40-50%</td></tr>
+  <tr><td>Build/Install</td><td>59s</td><td>1 in setup</td><td>~30-40%</td></tr>
+  <tr><td>misc tests</td><td>59s</td><td>9 explicit</td><td>~40-50%</td></tr>
+  <tr><td>develop feature</td><td>34s</td><td>10 explicit</td><td>~30-40%</td></tr>
+  <tr><td>uninstall</td><td>27s</td><td>3 explicit</td><td>~40-50%</td></tr>
+</table>
+
+<p><strong>Estimated total savings: ~500-700s on CI</strong> (out of ~1700s total), bringing the full test run from ~28 min to ~15-18 min.</p>
+
+<h3 id="pkgcache-approach">Implementation Approach</h3>
+
+<p><strong>Recommended: <code>NIMBLE_PKGCACHE</code> env var as read-only fallback cache.</strong></p>
+
+<p>Add a <code>NIMBLE_PKGCACHE</code> env var that nimble checks as a read-only fallback cache. The test infrastructure sets this to a pre-populated directory.</p>
+
+<ul>
+  <li>No changes to test code or <code>cleanDir</code> logic</li>
+  <li>Each test still gets a clean <code>installDir</code> — behavioral purity preserved</li>
+  <li>The fallback cache is read-only, so tests can't corrupt it</li>
+  <li>Useful outside tests too (CI pipelines, monorepos)</li>
+</ul>
+
+<p>The nimble change is small: in the clone/fetch logic (download.nim), before doing a fresh <code>git clone</code>, check if <code>NIMBLE_PKGCACHE</code> is set and contains a cached repo for this URL. If so, do a local <code>git clone --reference</code> from the cached repo (near-instant).</p>
+
+<!-- ========== DEVELOP FEATURE ========== -->
+<h2 id="develop-docs">Develop Feature</h2>
+
+<h3 id="develop-quickstart">Quick Start</h3>
+
+<p>Develop a dependency locally in an empty folder:</p>
+
+<pre>
+mkdir myproject && cd myproject
+nimble init          <span class="cmt"># creates myproject.nimble</span>
+</pre>
+
+<p>Add a dependency to <code>myproject.nimble</code>:</p>
+<pre>
+requires "nim >= 2.0.0"
+requires "chronos"
+</pre>
+
+<p>Clone it for local editing:</p>
+<pre>
+nimble develop chronos --withDependencies
+</pre>
+
+<p>This creates:</p>
+<pre>
+myproject/
+  myproject.nimble
+  nimble.develop       <span class="cmt"># tracks vendor packages</span>
+  nimble.paths         <span class="cmt"># --path: flags for nim compiler</span>
+  vendor/
+    chronos/           <span class="cmt"># full git clone, editable</span>
+    stew/              <span class="cmt"># transitive dep</span>
+    bearssl/           <span class="cmt"># transitive dep</span>
+    ...
+</pre>
+
+<p>Edit, build, test:</p>
+<pre>
+vim vendor/chronos/chronos/transports/common.nim
+nimble build         <span class="cmt"># picks up vendor/ via nimble.paths</span>
+</pre>
+
+<h3 id="develop-commands">Commands Reference</h3>
+
+<pre>
+<span class="cmt"># Clone a package + all transitive deps into vendor/</span>
+nimble develop pkgName --withDependencies
+
+<span class="cmt"># Clone from URL</span>
+nimble develop https://github.com/user/repo
+
+<span class="cmt"># Clone to custom dir</span>
+nimble develop -p:/path/to/dir pkgName
+
+<span class="cmt"># Register globally (all projects see it)</span>
+nimble develop --global pkgName
+
+<span class="cmt"># Unregister a global develop package</span>
+nimble develop -r pkgName --global
+</pre>
+
+<h3 id="develop-files">Generated Files</h3>
+
+<table>
+  <tr><th>File</th><th>Purpose</th></tr>
+  <tr><td><code>nimble.develop</code></td><td>JSON tracking which packages are in develop mode and their paths</td></tr>
+  <tr><td><code>nimble.paths</code></td><td>Auto-generated <code>--path:</code> directives for the Nim compiler</td></tr>
+  <tr><td><code>.nimble.sync</code></td><td>Tracks VCS revisions at last lock/sync</td></tr>
+  <tr><td><code>vendor/</code></td><td>Full git clones of developed packages</td></tr>
+  <tr><td><code>~/.nimble/links/&lt;pkg&gt;/link</code></td><td>Only for <code>--global</code>: points to local package dir</td></tr>
+</table>
+
+<h4>Develop vs Install</h4>
+<table>
+  <tr><th></th><th><code>nimble develop</code></th><th><code>nimble install</code></th></tr>
+  <tr><td>Location</td><td><code>vendor/</code> (project-local)</td><td><code>~/.nimble/pkgs2/</code> (global)</td></tr>
+  <tr><td>Editable</td><td>Yes</td><td>No</td></tr>
+  <tr><td>Priority</td><td>Higher (shadows installed)</td><td>Lower</td></tr>
+  <tr><td>Binaries</td><td>Skipped</td><td>Compiled + symlinked</td></tr>
+</table>
+
+<h3 id="develop-code">Code Architecture</h3>
+
+<h4>Without --with-dependencies</h4>
+<pre>
+runVNext()                                   <span class="cmt"># nimble.nim</span>
+  +- setNimBin()                             <span class="cmt"># Find/configure nim</span>
+  +- develop(options, nimBin)                 <span class="cmt"># Clone requested packages only</span>
+  |   +- installDevelopPackage()              <span class="cmt"># Download/clone to vendor/</span>
+  |   |   +- developFromDir()                <span class="cmt"># Run hooks, display success</span>
+  |   +- updateDevelopFile()                  <span class="cmt"># Write nimble.develop</span>
+  +- return                                  <span class="cmt"># No solving needed</span></pre>
+
+<h4>With --with-dependencies (solve-first)</h4>
+<pre>
+runVNext()                                   <span class="cmt"># nimble.nim</span>
+  +- setNimBin()                             <span class="cmt"># Find/configure nim</span>
+  +- develop(options, nimBin)                 <span class="cmt"># Clone ONLY explicit packages (no BFS)</span>
+  |                                          <span class="cmt"># e.g. "develop PackageB" clones PackageB</span>
+  |                                          <span class="cmt"># For project-dir develop: nothing to clone</span>
+  +- solvePkgs()                             <span class="cmt"># SAT solver resolves ALL deps</span>
+  |   +- initPkgList()                       <span class="cmt"># Scans pkgs2 + any vendor/ already cloned</span>
+  |   +- resolveAndConfigureNim()
+  |   +- solvePackages()                     <span class="cmt"># Uses pkgcache metadata, not vendor/</span>
+  |       +- cacheToPackageVersionTable()    <span class="cmt"># Load tagged_versions.json</span>
+  |       +- collectAllVersions()            <span class="cmt"># Download metadata to pkgcache</span>
+  |       +- getSolvedPackages()             <span class="cmt"># SAT constraint solving</span>
+  +- developFromSolution()                   <span class="cmt"># Clone solved deps into vendor/</span>
+  |   +- for each solvedPkg (skip nim, skip root):
+  |   |   +- installDevelopPackage(exact ver) <span class="cmt"># Clone to vendor/</span>
+  |   +- updateDevelopFile()                  <span class="cmt"># Write nimble.develop</span>
+  +- setup()                                 <span class="cmt"># Write nimble.paths from satResult.pkgs</span></pre>
+
+<div class="info-box">
+<strong>Solve-first design:</strong> The SAT solver resolves dependencies using metadata from pkgcache
+(shallow clones used only for reading <code>.nimble</code> files). Only after the full dependency graph is
+solved does <code>developFromSolution()</code> clone the exact resolved versions into <code>vendor/</code>. This
+avoids the old chicken-and-egg problem and fixes the <code>hasVersion</code> shadowing bug where
+<code>tagged_versions.json</code> cache caused the solver to pick pkgs2 versions over vendor packages.
+</div>
+
+<h4>Key Files</h4>
+<table>
+  <tr><th>File</th><th>Role</th></tr>
+  <tr><td><code>nimble.nim</code> — <code>develop()</code>, <code>developFromDir()</code></td><td>Entry point, orchestrates clone + file updates</td></tr>
+  <tr><td><code>developfile.nim</code></td><td>Develop file I/O, recursive loading, validation</td></tr>
+  <tr><td><code>syncfile.nim</code></td><td>Sync file I/O, VCS revision tracking</td></tr>
+  <tr><td><code>vnext.nim</code> — <code>getPathsAllPkgs()</code></td><td>Generates nimble.paths from satResult.pkgs</td></tr>
+</table>
+
+<h3 id="develop-rebuild">Rebuild Considerations</h3>
+
+<ol>
+  <li><strong><s>Chicken-and-egg with SAT solver.</s> Fixed.</strong> The solve-first refactor resolves this: the SAT solver now runs before cloning, using pkgcache metadata. <code>developFromSolution()</code> then clones the exact solved versions into <code>vendor/</code>. This also fixed the <code>hasVersion</code> shadowing bug where <code>tagged_versions.json</code> cache caused the solver to pick pkgs2 versions instead of vendor packages. See <a href="#develop-code">Code Architecture</a> above.</li>
+
+  <li><strong>Too many state files.</strong> Four files interact: <code>nimble.develop</code>, <code>nimble.lock</code>, <code>.nimble.sync</code>, and <code>nimble.paths</code>. Consider merging sync into lock (add a <code>syncedRevision</code> field).</li>
+
+  <li><strong>Recursive develop includes add complexity.</strong> <code>nimble.develop</code> supports <code>includes</code> creating a tree with reference counting. Rarely used. A flat list of vendor paths would be simpler.</li>
+
+  <li><strong><code>isLink</code> is fragile.</strong> The develop vs installed distinction hinges on a boolean that must be set correctly in multiple code paths. A more robust approach: explicit package source enum (<code>psInstalled, psDevelop, psCache</code>).</li>
+
+  <li><strong>Global develop is a separate mechanism.</strong> Creates link files in <code>~/.nimble/links/</code>, completely separate from local <code>vendor/</code>. Consider unifying.</li>
+
+  <li><strong>Make <code>nimble.paths</code> deterministic.</strong> Sort paths alphabetically. Ensure <code>nimble setup</code> is idempotent.</li>
+</ol>
+
+<!-- ========== NEW COMMANDS ========== -->
+<h2 id="new-commands">New Commands</h2>
+
+<h3 id="nimble-fetch"><code>nimble fetch</code> <span class="todo">Todo</span></h3>
+
+<p>Users have no way to update unconstrained deps (<code>requires "pkg"</code>) to their latest versions.
+<code>nimble install</code> skips packages already in <code>pkgs2/</code>, and the <code>tagged_versions.json</code> cache
++ pkgcache clones prevent discovery of new upstream tags. <code>nimble upgrade</code> only regenerates
+the lock file — it doesn't re-fetch or reinstall.</p>
+
+<h4>Problem</h4>
+<p>Three layers of caching prevent updates:</p>
+<ol>
+  <li><strong><code>tagged_versions.json</code></strong> — <code>cacheToPackageVersionTable()</code> loads stale version data into the SAT solver before it even starts resolving</li>
+  <li><strong>pkgcache clones</strong> — <code>isCacheValid()</code> returns <code>true</code> immediately for <code>verAny</code> ranges, so stale clones are reused without fetching new tags</li>
+  <li><strong><code>pkgs2/</code> entries</strong> — <code>hasVersion()</code> finds existing installations and skips re-downloading</li>
+</ol>
+
+<h4>Proposed behavior</h4>
+<pre>
+<span class="cmt"># Update all dependencies to latest versions</span>
+nimble fetch
+
+<span class="cmt"># Update specific packages</span>
+nimble fetch packagea chronos
+</pre>
+
+<p>Implementation steps:</p>
+<ol>
+  <li>Clear <code>tagged_versions.json</code> entries for target packages (or all if no args)</li>
+  <li>Delete or <code>git fetch</code> the pkgcache clones so new tags are discovered</li>
+  <li>Remove <code>pkgs2/</code> entries for those packages</li>
+  <li>Re-resolve and install</li>
+</ol>
+
+<h4>Key code locations</h4>
+<table>
+  <tr><th>Cache layer</th><th>File</th><th>Function</th></tr>
+  <tr><td><code>tagged_versions.json</code></td><td><code>nimblesat.nim</code></td><td><code>readTaggedVersionsCache()</code>, <code>cacheToPackageVersionTable()</code></td></tr>
+  <tr><td>pkgcache validity</td><td><code>download.nim</code></td><td><code>isCacheValid()</code> — returns <code>true</code> for <code>verAny</code> without checking remote</td></tr>
+  <tr><td>pkgs2 installed check</td><td><code>nimblesat.nim</code></td><td><code>hasVersion()</code>, <code>fillPackageTableFromPreferred()</code></td></tr>
+</table>
+
+<!-- ========== SAT SOLVER ========== -->
+<h2 id="solver">SAT Solver</h2>
+
+<h3 id="solver-pubgrub">PubGrub-style error messages <span class="todo">Todo</span></h3>
+
+<p>When dependency resolution fails, the current SAT solver produces minimal error messages like
+<em>"Dependency resolution failed: requirement 'b >= 0.5.0' required by 'a 3.0' could not be satisfied."</em>
+This tells you which constraint failed but not <strong>why</strong> — the chain of decisions that led to the conflict.</p>
+
+<p><a href="https://nex3.medium.com/pubgrub-2fb6470504f">PubGrub</a> (used by Dart's pub, Rust's cargo via pubgrub-rs)
+solves this by tracking <strong>incompatibilities</strong> — each resolution failure remembers the derivation chain.
+When resolution fails, it can produce human-readable explanations like:</p>
+
+<pre>
+Because <span class="str">chronos >= 4.0</span> depends on <span class="str">stew >= 0.4</span>
+  and <span class="str">bearssl < 0.2</span> depends on <span class="str">stew < 0.4</span>,
+  <span class="str">chronos >= 4.0</span> is incompatible with <span class="str">bearssl < 0.2</span>.
+
+And because <span class="str">myproject</span> depends on both <span class="str">chronos >= 4.0</span> and <span class="str">bearssl 0.1.8</span>,
+  version solving failed.
+</pre>
+
+<h4>Approach: hybrid SAT + PubGrub</h4>
+<p>Keep the SAT solver for resolution (it works), add PubGrub only for error reporting:</p>
+<ul>
+  <li><strong>Happy path</strong> (resolution succeeds): SAT solver runs as today, no change</li>
+  <li><strong>Error path</strong> (resolution fails): run PubGrub on the same <code>pkgVersionTable</code> inputs to produce a human-readable derivation of the conflict</li>
+</ul>
+<p>PubGrub is purpose-built for explaining version conflicts via incompatibility tracking.
+Rather than hacking clause tracking into the SAT solver (which wasn't designed for it),
+a standalone PubGrub implementation gives correct error messages by design. The glue code
+(mapping nimble's package model onto PubGrub's abstraction) is the same effort either way.</p>
+<p>Entry point: <code>getSolvedPackages()</code> in <code>nimblesat.nim</code> — when the SAT formula is unsatisfiable,
+call into the PubGrub module with the same version table to generate the error message.</p>
+
+<h4>References</h4>
+<ul>
+  <li><a href="https://nex3.medium.com/pubgrub-2fb6470504f">PubGrub: Next-Generation Version Solving</a> — algorithm description</li>
+  <li><a href="https://github.com/dart-lang/pub/blob/master/lib/src/solver.dart">Dart pub solver</a> — reference implementation</li>
+  <li><a href="https://github.com/pubgrub-rs/pubgrub">pubgrub-rs</a> — Rust implementation (cargo uses this)</li>
+</ul>
+
+</main>
+
+</body>
+</html>

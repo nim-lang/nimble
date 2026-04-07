@@ -15,7 +15,8 @@ After we resolve nim, we try to resolve the dependencies for a root package. Roo
 import std/[sequtils, sets, options, os, strutils, tables, strformat, algorithm]
 import nimblesat, packageinfotypes, options, version, declarativeparser, packageinfo, common,
   lockfile, cli, downloadnim, packageparser, tools, nimscriptexecutor, packagemetadatafile,
-  displaymessages, packageinstaller, reversedeps, developfile, urls, download, sha1hashes
+  displaymessages, packageinstaller, reversedeps, developfile, urls, download, sha1hashes,
+  versiondiscovery
 
 when defined(windows):
   import std/strscans

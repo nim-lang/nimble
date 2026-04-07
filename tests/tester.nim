@@ -30,6 +30,7 @@ import ttwobinaryversions
 import toffline
 import tuninstall
 import tsat
+import tversiondiscovery
 import tniminstall
 import trequireflag
 import tdeclarativeparser

@@ -679,6 +679,8 @@ proc getNameAndVersion*(pkgInfo: PackageInfo): string =
 proc isNim*(name: string): bool =
   result = name == "nim" or name == "nimrod" or name == "compiler"
 
+proc isNim*(pv: PkgTuple): bool = pv.name.isNim
+
 proc hasLockFile*(pkgInfo: PackageInfo, options: Options): bool =
   return options.lockFile(pkgInfo.myPath.parentDir()).fileExists
 
