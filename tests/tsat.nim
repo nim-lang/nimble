@@ -2,8 +2,8 @@
 import unittest, os, osproc
 import testscommon
 # from nimblepkg/common import cd, NimbleError Used in the commented tests
-import std/[tables, sequtils, json, jsonutils, strutils, times, options, strformat]
-import nimblepkg/[version, nimblesat, options, config, download, packageinfotypes, versiondiscovery]
+import std/[tables, json, jsonutils, strutils, times, options]
+import nimblepkg/[version, nimblesat, options, config, packageinfotypes, versiondiscovery]
 from nimblepkg/common import cd, NimbleError
 
 let nimBin = "nim"

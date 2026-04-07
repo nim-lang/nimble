@@ -3,7 +3,7 @@ import unittest
 import testscommon
 import std/[options, tables, sequtils, os, strutils]
 import
-  nimblepkg/[packageinfotypes, version, options, config, nimblesat, declarativeparser, versiondiscovery, cli, common]
+  nimblepkg/[packageinfotypes, version, options, config, declarativeparser, versiondiscovery, cli, common]
 
 proc getNimbleFileFromPkgNameHelper(pkgName: string, ver = VersionRange(kind: verAny)): string =
   let pv: PkgTuple = (pkgName, ver)

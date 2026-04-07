@@ -1,7 +1,7 @@
 {.used.}
-import unittest, os, osproc
+import unittest, os
 import testscommon
-import std/[tables, sequtils, json, jsonutils, strutils, times, options, strformat]
+import std/[tables, sequtils, json, jsonutils, strutils, options, strformat]
 import nimblepkg/[version, nimblesat, options, config, download, packageinfotypes, versiondiscovery]
 from nimblepkg/common import cd, NimbleError
 
