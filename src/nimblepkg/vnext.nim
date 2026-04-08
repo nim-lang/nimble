@@ -723,16 +723,26 @@ proc executeHook(nimBin: string, dir: string, options: var Options, action: Acti
       else:
         raise nimbleError("Post-hook prevented further execution.")
 
+proc binsExist(pkgInfo: PackageInfo, options: Options): bool =
+  let needsBinaries = pkgInfo.bin.len > 0 and not pkgInfo.basicInfo.name.isNim and not options.skipBin
+  if needsBinaries:
+    for bin in pkgInfo.bin.keys:
+      let binPath = pkgInfo.getOutputDir(bin)
+      if not fileExists(binPath):
+        return false
+  return true
+
 proc packageExists(nimBin: string, pkgInfo: PackageInfo, options: Options):
     Option[PackageInfo] =
   ## Checks whether a package `pkgInfo` already exists in the Nimble cache. If a
   ## package already exists returns the `PackageInfo` of the package in the
-  ## cache otherwise returns `none`. Raises a `NimbleError` in the case the
-  ## package exists in the cache but it is not valid.
+  ## cache otherwise returns `none`. If a package exists but is missing expected binaries also returns `none`.
+  ## Raises a `NimbleError` in the case the package exists in the cache but it is not valid.
   ##
   ## Also checks for packages with the same name and checksum but different version
   ## to avoid storing the same content multiple times with different version labels.
   let pkgDestDir = pkgInfo.getPkgDest(options)
+
   if fileExists(pkgDestDir / packageMetaDataFileName):
     var oldPkgInfo = initPackageInfo()
     try:
@@ -741,6 +751,10 @@ proc packageExists(nimBin: string, pkgInfo: PackageInfo, options: Options):
       raise nimbleError(&"The package inside \"{pkgDestDir}\" is invalid.",
                         details = error)
     fillMetaData(oldPkgInfo, pkgDestDir, true, options)
+
+    if not binsExist(pkgInfo, options):
+      return none(PackageInfo)
+
     return some(oldPkgInfo)
 
   # Check if a package with the same name and checksum exists with a different version.
@@ -761,6 +775,10 @@ proc packageExists(nimBin: string, pkgInfo: PackageInfo, options: Options):
             except CatchableError:
               continue  # Skip invalid packages
             fillMetaData(oldPkgInfo, path, true, options)
+
+            if not binsExist(pkgInfo, options):
+              return none(PackageInfo)
+
             return some(oldPkgInfo)
 
   return none[PackageInfo]()
@@ -829,13 +847,14 @@ proc installFromDirDownloadInfo(nimBin: string, downloadDir: string, url: string
   # Don't copy artifacts if project local deps mode and "installing" the top level package.
   if not (options.localdeps and options.isInstallingTopLevel(dir)):
     var filesInstalled: HashSet[string]
-    let hasBinaries = pkgInfo.bin.len > 0 and not pkgInfo.basicInfo.name.isNim
+    let shouldBuildBinaries = pkgInfo.bin.len > 0 and not pkgInfo.basicInfo.name.isNim and
+                               (not options.skipBin or options.isInstallingTopLevel(dir))
     let hasPreInstallHook = pkgInfo.hasBeforeInstallHook and not pkgInfo.basicInfo.name.isNim
 
     # Install pipeline: workDir → before-install hook → build → copy to pkgDestDir → after-install hook
     # Optimization: skip buildtemp when we know it's safe (no binaries, no before-install hook, no submodules)
     let hasSubmodules = not options.ignoreSubmodules and fileExists(downloadDir / ".gitmodules")
-    let canSkipBuildTemp = not hasBinaries and not hasPreInstallHook and not hasSubmodules
+    let canSkipBuildTemp = not shouldBuildBinaries and not hasPreInstallHook and not hasSubmodules
 
     var workDir, buildTempDir: string
     var workPkgInfo: PackageInfo
@@ -846,7 +865,7 @@ proc installFromDirDownloadInfo(nimBin: string, downloadDir: string, url: string
       workPkgInfo = pkgInfo
     else:
       display("Info:", "Using buildtemp for " & pkgInfo.basicInfo.name &
-              " (binaries: " & $hasBinaries & ", before-install hook: " & $hasPreInstallHook &
+              " (binaries: " & $shouldBuildBinaries & ", before-install hook: " & $hasPreInstallHook &
               ", submodules: " & $hasSubmodules & ")",
               priority = LowPriority)
       buildTempDir = options.getPkgBuildTempDir(
@@ -903,7 +922,7 @@ proc installFromDirDownloadInfo(nimBin: string, downloadDir: string, url: string
       executeHook(nimBin, workDir, options, actionInstall, before = true)
 
       # Build binaries (only if there are any)
-      if hasBinaries:
+      if shouldBuildBinaries:
         let paths = getPathsAllPkgs(options, nimBin)
         let flags = if options.action.typ in {actionInstall, actionPath, actionUninstall, actionDevelop}:
                       options.action.passNimFlags
@@ -942,7 +961,7 @@ proc installFromDirDownloadInfo(nimBin: string, downloadDir: string, url: string
       filesInstalled.incl copyFileD(workPkgInfo.myPath, nimbleFileDest)
 
       # Copy built binaries (only if there are any)
-      if hasBinaries:
+      if shouldBuildBinaries:
         for bin, src in workPkgInfo.bin:
           let binDest = if dirExists(pkgDestDir / bin): bin & ".out" else: bin
           let srcBin = workPkgInfo.getOutputDir(bin)
@@ -961,7 +980,7 @@ proc installFromDirDownloadInfo(nimBin: string, downloadDir: string, url: string
       executeHook(nimBin, pkgDestDir, options, actionInstall, before = false)
 
       # Create bin symlinks (only if there are binaries)
-      if hasBinaries:
+      if shouldBuildBinaries:
         createBinSymlink(pkgInfo, options)
 
     finally:
@@ -1453,7 +1472,7 @@ proc installPkgs*(satResult: var SATResult, options: var Options, nimBin: string
     if isRoot and options.action.typ in rootBuildActions:
       buildPkg(nimBin, pkgToBuild, isRoot, options)
       satResult.buildPkgs.add(pkgToBuild)
-    elif pkgToBuild.isLink:
+    elif pkgToBuild.isLink and not options.skipBin:
       # Build develop mode packages
       buildPkg(nimBin, pkgToBuild, false, options)
       satResult.buildPkgs.add(pkgToBuild)
