@@ -1,6 +1,4 @@
 ## Nim binary discovery, bootstrap, and SAT-driven Nim selection.
-##
-## Extracted from vnext.nim during Phase 4 of the vnext dissolution.
 
 import std/[sequtils, sets, options, os, strutils, algorithm]
 import nimblesat, packageinfotypes, options, version, declarativeparser,

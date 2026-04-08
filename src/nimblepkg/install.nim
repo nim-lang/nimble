@@ -1,18 +1,5 @@
-## Package install pipeline for vnext.
-##
-## Pulled out of vnext.nim during the Phase 4 refactor. Owns the install
-## cluster: downloading (via download.nim), copying into pkgcache/pkgs2,
-## before/after hooks, bin symlinks and reverse-dep bookkeeping.
-##
-## NOTE: getPkgInfoFromSolved, isInDevelopMode, displaySatisfiedMsg and
-## activateSolvedPkgFeatures are temporarily hosted here because they are only
-## used by the install pipeline. Per the Phase 4 plan they will move to
-## nimblesat.nim (alongside the other SATResult helpers) in Step 4.
-##
-## NOTE: createBinSymlink still lives in build.nim (not here as originally
-## planned) to avoid a module cycle: build.nim's buildPkg calls
-## createBinSymlink, and install.nim imports build.nim, so moving
-## createBinSymlink into install.nim would introduce build -> install.
+## Package install pipeline: downloading (via download.nim), copying into
+## pkgcache/pkgs2, before/after hooks, bin symlinks and reverse-dep bookkeeping.
 
 import std/[sequtils, sets, options, os, strutils, tables, strformat]
 import nimblesat, packageinfotypes, options, version, declarativeparser, packageinfo, common,

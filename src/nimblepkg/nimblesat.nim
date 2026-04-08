@@ -1024,10 +1024,6 @@ proc dumpPackageVersionTable*(pkg: PackageInfo, pkgList: seq[PackageInfo], optio
   let pkgVersionTable = getPkgVersionTable(pkg, pkgList, options, nimBin)
   dumpPackageVersionTable(pkg, pkgVersionTable, options, nimBin)
 
-# ---------------------------------------------------------------------------
-# SAT/solution helpers (relocated from vnext.nim — Phase 4 Step 4)
-# ---------------------------------------------------------------------------
-
 proc debugSATResult*(options: Options, calledFrom: string) =
   let satResult = options.satResult
   let color = "\e[32m"

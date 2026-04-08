@@ -1,13 +1,6 @@
-## Build orchestration and path collection for vnext.
-##
-## Pulled out of vnext.nim during the Phase 4 refactor. Contains the build
-## cluster (buildFromDir / buildPkg) plus the helpers used to assemble the
-## `--path` flag list, and the bin-symlink helper that buildPkg invokes.
-##
-## NOTE: nameMatches and getPkgInfoFromSolution are temporarily hosted here
-## (instead of vnext.nim) so that build.nim has no dependency on vnext.nim.
-## Per the Phase 4 plan they will eventually move to nimblesat.nim alongside
-## the other SATResult helpers.
+## Build orchestration and path collection. Contains buildFromDir / buildPkg
+## plus the helpers used to assemble the `--path` flag list and the bin-symlink
+## helper that buildPkg invokes.
 
 import std/[sets, options, os, strutils, tables, strformat]
 import packageinfotypes, options, version, packageinfo, common,
