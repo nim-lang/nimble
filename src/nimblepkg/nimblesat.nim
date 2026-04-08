@@ -1,9 +1,10 @@
 import sat/[sat, satvars]
 import version, packageinfotypes, packageinfo, options, tools, cli, common, urls
 import versiondiscovery
+import lockfile, declarativeparser, sha1hashes
 
 import compat/[sequtils]
-import std/[tables, algorithm, sets, strutils, options, strformat]
+import std/[tables, algorithm, sets, strutils, options, strformat, os]
 import chronos
 
 type  
@@ -1022,3 +1023,236 @@ proc dumpPackageVersionTable*(pkg: PackageInfo, pkgVersionTable: Table[string, P
 proc dumpPackageVersionTable*(pkg: PackageInfo, pkgList: seq[PackageInfo], options: Options, nimBin: string) =
   let pkgVersionTable = getPkgVersionTable(pkg, pkgList, options, nimBin)
   dumpPackageVersionTable(pkg, pkgVersionTable, options, nimBin)
+
+proc debugSATResult*(options: Options, calledFrom: string) =
+  let satResult = options.satResult
+  let color = "\e[32m"
+  let reset = "\e[0m"
+  echo "=== DEBUG SAT RESULT ==="
+  echo "Called from: ", calledFrom
+  echo "--------------------------------"
+  echo color, "Pass: ", reset, satResult.pass
+  if satResult.nimResolved.pkg.isSome:
+    echo color, "Selected Nim: ", reset, satResult.nimResolved.pkg.get.basicInfo.name, " ", satResult.nimResolved.version
+  else:
+    echo "No Nim selected"
+  echo color, "Bootstrap Nim: ", reset, "isSet: ", satResult.bootstrapNim.nimResolved.pkg.isSome, " version: ", satResult.bootstrapNim.nimResolved.version
+
+  let pkgsWithErrors = satResult.pkgs.toSeq.filterIt(it.declarativeParserErrors.len > 0)
+  if pkgsWithErrors.len > 0:
+    echo color, "Declarative parser errors: ", reset
+    for pkg in pkgsWithErrors:
+      echo "  ", pkg.basicInfo.name, " ", pkg.basicInfo.version, ": ", pkg.declarativeParserErrors
+
+  if satResult.rootPackage.hasLockFile(options):
+    echo "Root package has lock file: ", satResult.rootPackage.myPath.parentDir() / "nimble.lock"
+  else:
+    echo "Root package does not have lock file"
+  echo color, "Root package: ", reset, satResult.rootPackage.basicInfo.name, " ", satResult.rootPackage.basicInfo.version, " ", satResult.rootPackage.myPath
+  echo color, "Root requires: ", reset, satResult.rootPackage.requires.mapIt(it.name & " " & $it.ver)
+  echo color, "Solved packages: ", reset, satResult.solvedPkgs.mapIt(it.pkgName & " " & $it.version & " " & $it.deps.mapIt(it.pkgName))
+  echo color, "Solution as Packages Info: ", reset, satResult.pkgs.mapIt(it.basicInfo.name & " " & $it.basicInfo.version)
+  if options.action.typ == actionUpgrade:
+    echo color, "Upgrade versions: ", reset, options.action.packages.mapIt(it.name & " " & $it.ver)
+    echo color, "RESULT REVISIONS ", reset, satResult.pkgs.mapIt(it.basicInfo.name & " " & $it.metaData.vcsRevision)
+    echo color, "PKG LIST REVISIONS ", reset, satResult.pkgList.mapIt(it.basicInfo.name & " " & $it.metaData.vcsRevision)
+  echo color, "Packages to install: ", reset, satResult.pkgsToInstall
+  echo color, "Installed pkgs: ", reset, satResult.pkgs.mapIt(it.basicInfo.name)
+  echo color, "Build pkgs: ", reset, satResult.buildPkgs.mapIt(it.basicInfo.name)
+  echo color, "Packages url: ", reset, satResult.pkgs.mapIt(it.metaData.url)
+  echo color, "Package list: ", reset, satResult.pkgList.mapIt(it.basicInfo.name)
+  echo color, "PkgList path: ", reset, satResult.pkgList.mapIt(it.myPath.parentDir)
+  echo color, "Nimbledir: ", reset, options.getNimbleDir()
+  echo color, "Nimble Action: ", reset, options.action.typ
+  if options.action.typ == actionDevelop:
+    echo color, "Path: ", reset, options.action.packages.mapIt(it.name)
+    echo color, "Dev actions: ", reset, options.action.devActions.mapIt(it.actionType)
+    echo color, "Dependencies: ", reset, options.action.packages.mapIt(it.name)
+    for devAction in options.action.devActions:
+      echo color, "Dev action: ", reset, devAction.actionType
+      echo color, "Argument: ", reset, devAction.argument
+  echo "--------------------------------"
+
+proc getSolvedPkg*(satResult: SATResult, pkgInfo: PackageInfo): SolvedPackage =
+  for solvedPkg in satResult.solvedPkgs:
+    if pkgInfo.basicInfo.name.toLowerAscii() == solvedPkg.pkgName.toLowerAscii(): #No need to check version as they should match by design
+      return solvedPkg
+  raise newNimbleError[NimbleError]("Package not found in solution: " & $pkgInfo.basicInfo.name & " " & $pkgInfo.basicInfo.version)
+
+proc enableFeatures*(rootPackage: var PackageInfo, options: var Options) =
+  for feature in options.features:
+    if feature in rootPackage.features:
+      rootPackage.requires &= rootPackage.features[feature]
+  for pkgName, activeFeatures in rootPackage.activeFeatures:
+    var resolvedName = pkgName[0]
+    if resolvedName.isFileURL:
+      resolvedName = extractFilePathFromURL(resolvedName).lastPathPart
+    appendGloballyActiveFeatures(resolvedName, activeFeatures)
+    # Add the feature's requires directly to the root package so the SAT solver
+    # always resolves them, regardless of which version of the dependency is picked
+    for pkg in options.filePathPkgs:
+      if cmpIgnoreCase(pkg.basicInfo.name, resolvedName) == 0:
+        for feature in activeFeatures:
+          if feature in pkg.features:
+            rootPackage.requires &= pkg.features[feature]
+        break
+
+  #If root is a development package, we need to activate it as well:
+  if rootPackage.isTopLevel(options) and ("dev" in rootPackage.features or "patch" in rootPackage.features):
+    if "dev" in rootPackage.features:
+      rootPackage.requires &= rootPackage.features["dev"]
+      appendGloballyActiveFeatures(rootPackage.basicInfo.name, @["dev"])
+    if "patch" in rootPackage.features:
+      rootPackage.requires &= rootPackage.features["patch"]
+      appendGloballyActiveFeatures(rootPackage.basicInfo.name, @["patch"])
+
+proc getSolvedPkgFromInstalledPkgs*(satResult: SATResult, solvedPkg: SolvedPackage, options: Options, vcsRevision: Sha1Hash = notSetSha1Hash): Option[PackageInfo] =
+  for pkg in satResult.pkgList:
+    if pkg.basicInfo.name == solvedPkg.pkgName and pkg.basicInfo.version == solvedPkg.version:
+      # If vcsRevision is specified (from lock file), also check that it matches
+      if vcsRevision != notSetSha1Hash and pkg.metaData.vcsRevision != vcsRevision:
+        continue
+      return some(pkg)
+  return none(PackageInfo)
+
+proc solveLockFileDeps*(satResult: var SATResult, pkgList: seq[PackageInfo], options: Options, nimBin: string) =
+  let lockFile = options.lockFile(satResult.rootPackage.myPath.parentDir())
+  let currentRequires = satResult.rootPackage.requires
+  var existingRequires = newSeq[(string, Version)]()
+  for name, dep in lockFile.getLockedDependencies.lockedDepsFor(options):
+    existingRequires.add((name, dep.version))
+
+  # Check for new requirements not in lock file
+  var shouldSolve = false
+  for current in currentRequires:
+    let currentName = current.name.resolveAlias(options).toLowerAscii()
+    var found = false
+    for existing in existingRequires:
+      let existingName = existing[0].resolveAlias(options).toLowerAscii()
+      if currentName == existingName and existing[1].withinRange(current.ver):
+        found = true
+        break
+    if not found:
+      if current.name.isNim:
+        #ignore if nim wasnt present in the lock file as by default we dont save nim in the lock file
+        if not existingRequires.anyIt(it[0].isNim):
+          continue
+      shouldSolve = true
+      break
+
+  var pkgListDecl = pkgList.mapIt(it.toRequiresInfo(options, nimBin))
+
+  # Skip the re-solve when running outside a project dir.
+  if not options.thereIsNimbleFile:
+    shouldSolve = false
+
+  satResult.pkgList = pkgListDecl.toHashSet()
+  if shouldSolve:
+    # Create fresh package list and solve ALL requirements
+    satResult.pkgs = solvePackages(
+      satResult.rootPackage,
+      pkgListDecl,
+      satResult.pkgsToInstall,
+      options,
+      satResult.output,
+      satResult.solvedPkgs,
+      nimBin
+    )
+    if satResult.solvedPkgs.len == 0:
+      displayError(satResult.output)
+      raise newNimbleError[NimbleError]("Couldn't find a solution for the packages.")
+  elif options.action.typ == actionUpgrade:
+    #[
+    Retrocompatibility (goes against SAT in some edge cases)
+    When upgrading dep1: Only dep1 should change, dep2 should stay at it is
+    We also need to check if the upgraded version adds or removes any other deps.
+    ]#
+    for name, dep in lockFile.getLockedDependencies.lockedDepsFor(options):
+      if name.isNim: continue
+      # Populate requirements from lock file dependencies to preserve them
+      let requirements = dep.dependencies.mapIt((name: it, ver: VersionRange(kind: verAny)))
+      let solvedPkg = SolvedPackage(pkgName: name, version: dep.version, requirements: requirements)
+      if options.action.typ == actionUpgrade:
+        if solvedPkg.pkgName in satResult.solvedPkgs.mapIt(it.pkgName):
+          satResult.solvedPkgs = satResult.solvedPkgs.filterIt(it.pkgName != name)
+          satResult.pkgs = satResult.pkgs.toSeq.filterIt(it.basicInfo.name != name).toHashSet()
+        var addedUpgradePkg = false
+        for upgradePkg in options.action.packages:
+          if upgradePkg.name == name:
+            satResult.pkgsToInstall.add((name, upgradePkg.ver.spe))
+            addedUpgradePkg = true
+        if not addedUpgradePkg:
+          for pkg in pkgListDecl.toHashSet():
+            if pkg.basicInfo.name == name and pkg.basicInfo.version == dep.version and pkg.metaData.vcsRevision == dep.vcsRevision:
+              satResult.pkgs.incl(pkg)
+              break
+        satResult.solvedPkgs.add(solvedPkg)
+      var pkgListDecl = pkgListDecl
+      for upgradePkg in options.action.packages:
+        for pkg in pkgList:
+          if pkg.basicInfo.name == upgradePkg.name:
+            pkgListDecl = pkgListDecl.filterIt(it.name != upgradePkg.name)
+            for req in satResult.rootPackage.requires.mitems:
+              if req.name == upgradePkg.name:
+                req.ver = upgradePkg.ver
+                break
+            break
+
+      var tempSatResult = initSATResult(satResult.pass)
+      var newPkgsToInstall = newSeq[(string, Version)]()
+      discard solvePackages(
+            satResult.rootPackage,
+            pkgListDecl,
+            newPkgsToInstall,
+            options,
+            tempSatResult.output,
+            tempSatResult.solvedPkgs,
+            nimBin
+          )
+      for newPkgToInstall in newPkgsToInstall:
+        if newPkgToInstall[0] notin satResult.pkgsToInstall.mapIt(it[0]):
+          satResult.pkgsToInstall.add(newPkgToInstall)
+      for solvedPkg in tempSatResult.solvedPkgs:
+        if solvedPkg.pkgName notin satResult.solvedPkgs.mapIt(it.pkgName):
+          satResult.solvedPkgs.add(solvedPkg)
+
+      for upgradePkg in options.action.packages:
+        satResult.pkgs = satResult.pkgs.toSeq.filterIt(it.basicInfo.name != upgradePkg.name).toHashSet()
+
+      var actuallyNeededDeps = initHashSet[string]()
+      for solvedPkg in tempSatResult.solvedPkgs:
+        actuallyNeededDeps.incl(solvedPkg.pkgName)
+      for upgradePkg in options.action.packages:
+        actuallyNeededDeps.incl(upgradePkg.name)
+
+      satResult.solvedPkgs = satResult.solvedPkgs.filterIt(
+        it.pkgName in actuallyNeededDeps or it.pkgName == satResult.rootPackage.basicInfo.name
+      )
+      satResult.pkgs = satResult.pkgs.toSeq.filterIt(
+        it.basicInfo.name in actuallyNeededDeps or it.basicInfo.name == satResult.rootPackage.basicInfo.name
+      ).toHashSet()
+      satResult.pkgsToInstall = satResult.pkgsToInstall.filterIt(
+        it[0] in actuallyNeededDeps
+      )
+
+  else:
+    # No new requirements and not upgrading
+    satResult.solvedPkgs = satResult.solvedPkgs.filterIt(not it.pkgName.isNim)
+    satResult.pkgsToInstall = @[]
+    satResult.pkgs.clear()
+    for name, dep in lockFile.getLockedDependencies.lockedDepsFor(options):
+      let requirements = dep.dependencies.mapIt((name: it, ver: VersionRange(kind: verAny)))
+      let solvedPkg = SolvedPackage(pkgName: name, version: dep.version, requirements: requirements)
+      satResult.solvedPkgs.add(solvedPkg)
+      options.satResult.lockFileVcsRevisions[name] = dep.vcsRevision
+      if name.isNim: continue
+      let depInfo = satResult.getSolvedPkgFromInstalledPkgs(solvedPkg, options, dep.vcsRevision)
+      if depInfo.isSome:
+        satResult.pkgs.incl(depInfo.get)
+      else:
+        satResult.pkgsToInstall.add((name, dep.version))
+
+proc solutionToFullInfo*(satResult: SATResult, options: var Options, nimBin: string) {.instrument.} =
+  if satResult.rootPackage.infoKind != pikFull and not satResult.rootPackage.basicInfo.name.isNim:
+    satResult.rootPackage = getPkgInfo(satResult.rootPackage.getNimbleFileDir, options, nimBin = nimBin).toRequiresInfo(options, nimBin = nimBin)
+    satResult.rootPackage.enableFeatures(options)
