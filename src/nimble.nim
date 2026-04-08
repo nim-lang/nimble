@@ -23,7 +23,8 @@ import nimblepkg/packageinfotypes, nimblepkg/packageinfo, nimblepkg/version,
        nimblepkg/displaymessages, nimblepkg/sha1hashes, nimblepkg/syncfile,
        nimblepkg/deps, nimblepkg/nimblesat, nimblepkg/nimenv,
        nimblepkg/downloadnim, nimblepkg/declarativeparser,
-      nimblepkg/vnext, nimblepkg/versiondiscovery
+      nimblepkg/build, nimblepkg/install,
+      nimblepkg/versiondiscovery, nimblepkg/nimresolution
 
 const
   nimblePathsFileName* = "nimble.paths"
@@ -1845,7 +1846,8 @@ proc getPackageForAction(pkgInfo: PackageInfo, options: Options, nimBin: string)
 
   raise nimbleError(notFoundPkgWithNameInPkgDepTree(options.package))
 
-proc run(options: Options, nimBin: string) =
+proc runAction(options: Options, nimBin: string) =
+  ## Handles `actionRun`: runs a compiled binary from the current package.
   var pkgInfo: PackageInfo
   pkgInfo = options.satResult.rootPackage
   pkgInfo = getPackageForAction(pkgInfo, options, nimBin)
@@ -1997,53 +1999,66 @@ proc developFromSolution(rootPkgName: string, options: var Options, nimBin: stri
   if options.developFile.len > 0:
     discard updateDevelopFile(currentDirPkgInfo, options, nimBin)
 
-proc runVNext*(options: var Options, nimBin: string) {.instrument.} =
-  #Make sure we set the righ verbosity for commands that output info:
-  if options.action.typ in {actionShellEnv}:
-    setVerbosity(SilentPriority)
-    options.verbosity = SilentPriority
-  # For develop without --with-dependencies, just clone and return.
-  # For develop with --with-dependencies, solve first then clone from solution.
-  if options.action.typ == actionDevelop:
-    if not options.action.withDependencies:
-      develop(options, nimBin)
-      return
-    # With dependencies: clone only the explicitly requested packages first
-    var developedPkgs: seq[PackageInfo] = @[]
-    if options.action.packages.len > 0:
-      let savedWithDeps = options.action.withDependencies
-      options.action.withDependencies = false
-      develop(options, nimBin)
-      options.action.withDependencies = savedWithDeps
-      for devAction in options.action.devActions:
-        if devAction.actionType == datAdd:
-          try:
-            developedPkgs.add getPkgInfo(devAction.argument, options, nimBin = nimBin)
-          except CatchableError:
-            discard
-    if not options.thereIsNimbleFile and developedPkgs.len == 0:
-      return
-    # For non-project-dir develops, solve from each cloned package as root
-    if not options.thereIsNimbleFile and developedPkgs.len > 0:
-      for rootPkg in developedPkgs:
-        options.satResult = initSATResult(satSolving)
-        solvePkgs(rootPkg, options, nimBin)
-        developFromSolution(rootPkg.basicInfo.name, options, nimBin)
-      return
+proc runDevelopAction(options: var Options, nimBin: string): bool =
+  ## Handles `actionDevelop`. Returns `true` if fully handled (caller should
+  ## `return`), `false` if the caller should fall through to the normal
+  ## solve/install flow (the `--with-dependencies` project-dir case).
+  if not options.action.withDependencies:
+    develop(options, nimBin)
+    return true
+  # With dependencies: clone only the explicitly requested packages first
+  var developedPkgs: seq[PackageInfo] = @[]
+  if options.action.packages.len > 0:
+    let savedWithDeps = options.action.withDependencies
+    options.action.withDependencies = false
+    develop(options, nimBin)
+    options.action.withDependencies = savedWithDeps
+    for devAction in options.action.devActions:
+      if devAction.actionType == datAdd:
+        try:
+          developedPkgs.add getPkgInfo(devAction.argument, options, nimBin = nimBin)
+        except CatchableError:
+          discard
+  if not options.thereIsNimbleFile and developedPkgs.len == 0:
+    return true
+  # For non-project-dir develops, solve from each cloned package as root
+  if not options.thereIsNimbleFile and developedPkgs.len > 0:
+    for rootPkg in developedPkgs:
+      options.satResult = initSATResult(satSolving)
+      solvePkgs(rootPkg, options, nimBin)
+      developFromSolution(rootPkg.basicInfo.name, options, nimBin)
+    return true
+  return false
 
-  #Install and in consequence builds the packages
-  let isGlobalInstall = options.explicitGlobal and
-    options.action.typ == actionInstall and options.action.packages.len > 0
-  var rootPackage: PackageInfo
-  var isGlobalInstallRoot = false
-  if options.action.typ == actionInstall:
-    isGlobalInstallRoot = options.action.global and
-      options.action.packages.len == 0 and options.thereIsNimbleFile
-  if isGlobalInstallRoot:
-    # nimble install -g: install current project globally
+proc runInstallRootGloballyAction(options: var Options, nimBin: string) =
+  ## `nimble install -g` inside a project directory: install the current
+  ## project globally.
+  options.satResult = initSATResult(satSolving)
+  let rootPackage = getPkgInfo(getCurrentDir(), options, nimBin = nimBin, level = pikRequires)
+  solvePkgs(rootPackage, options, nimBin)
+  let rootSolvedPkg = SolvedPackage(
+    pkgName: rootPackage.basicInfo.name,
+    version: rootPackage.basicInfo.version,
+    requirements: rootPackage.requires,
+    deps: options.satResult.solvedPkgs.filterIt(it.pkgName.toLower != rootPackage.basicInfo.name.toLower)
+  )
+  options.satResult.solvedPkgs.add(rootSolvedPkg)
+  options.satResult.installPkgs(options, nimBin)
+  options.satResult.addReverseDeps(options)
+
+proc runInstallPackagesAction(options: var Options, nimBin: string) =
+  ## Global install of named packages: `nimble install foo bar`.
+  for pkg in options.action.packages:
     options.satResult = initSATResult(satSolving)
-    rootPackage = getPkgInfo(getCurrentDir(), options, nimBin = nimBin, level = pikRequires)
+    # Download package info to pkgcache WITHOUT submodules - submodules are
+    # populated in buildtemp during actual install to avoid mutating shared cache (issue #1592)
+    # Force git clone (not tarball) so .git and .gitmodules are preserved for buildtemp
+    var dlOptions = options
+    dlOptions.ignoreSubmodules = true
+    dlOptions.enableTarballs = false
+    var rootPackage = downloadPkInfoForPv(pkg, dlOptions, doPrompt = true, nimBin = nimBin)
     solvePkgs(rootPackage, options, nimBin)
+
     let rootSolvedPkg = SolvedPackage(
       pkgName: rootPackage.basicInfo.name,
       version: rootPackage.basicInfo.version,
@@ -2053,40 +2068,63 @@ proc runVNext*(options: var Options, nimBin: string) {.instrument.} =
     options.satResult.solvedPkgs.add(rootSolvedPkg)
     options.satResult.installPkgs(options, nimBin)
     options.satResult.addReverseDeps(options)
+
+proc runLocalProjectAction(options: var Options, nimBin: string): PackageInfo =
+  ## Loads the local project root package and runs the SAT solver. Returns
+  ## the root package so the caller can feed it into the post-solve tail.
+  options.satResult = initSATResult(satSolving)
+  options.isFilePathDiscovering = true
+  #we need to skip validation for root
+  result = getPkgInfo(getCurrentDir(), options, nimBin = nimBin, level = pikRequires)
+  options.isFilePathDiscovering = false
+  if options.action.typ in {actionInstall, actionAdd}:
+    result.requires.add(options.action.packages)
+  solvePkgs(result, options, nimBin)
+
+proc warnVersionMismatches(options: Options) =
+  ## Warn when an installed package's directory/tag version doesn't match the
+  ## version declared in its `.nimble` file. Skips special versions (`#devel`).
+  for pkgInfo in options.satResult.pkgs:
+    try:
+      if pkgInfo.basicInfo.version.isSpecial:
+        continue
+      let nimbleFileInfo = extractRequiresInfo(pkgInfo.myPath, options)
+      if nimbleFileInfo.version != "" and newVersion(nimbleFileInfo.version) != pkgInfo.basicInfo.version:
+        displayWarning(&"Version mismatch for {pkgInfo.basicInfo.name}: installed version is {pkgInfo.basicInfo.version} but .nimble file declares {nimbleFileInfo.version}. ({pkgInfo.myPath})", HighPriority)
+    except CatchableError:
+      discard
+
+proc run*(options: var Options, nimBin: string) {.instrument.} =
+  ## Main pipeline entry. Dispatches to the appropriate branch helper and
+  ## runs the shared post-solve install/reverse-deps tail for branches that
+  ## fall through.
+  #Make sure we set the right verbosity for commands that output info:
+  if options.action.typ in {actionShellEnv}:
+    setVerbosity(SilentPriority)
+    options.verbosity = SilentPriority
+
+  # For develop without --with-dependencies, just clone and return.
+  # For develop with --with-dependencies, solve first then clone from solution.
+  if options.action.typ == actionDevelop:
+    if runDevelopAction(options, nimBin): return
+
+  let isGlobalInstall = options.explicitGlobal and
+    options.action.typ == actionInstall and options.action.packages.len > 0
+  var isGlobalInstallRoot = false
+  if options.action.typ == actionInstall:
+    isGlobalInstallRoot = options.action.global and
+      options.action.packages.len == 0 and options.thereIsNimbleFile
+
+  var rootPackage: PackageInfo
+  if isGlobalInstallRoot:
+    runInstallRootGloballyAction(options, nimBin)
     return
   elif options.thereIsNimbleFile and not isGlobalInstall and
        not (findNimbleFile(getCurrentDir(), error = false, options, warn = false).splitFile.name.isNim and
             options.action.typ == actionInstall and options.action.packages.len > 0):
-    options.satResult = initSATResult(satSolving)
-    options.isFilePathDiscovering = true
-    #we need to skip validation for root
-    rootPackage = getPkgInfo(getCurrentDir(), options, nimBin = nimBin, level = pikRequires)
-    options.isFilePathDiscovering = false
-    if options.action.typ in {actionInstall, actionAdd}:
-      rootPackage.requires.add(options.action.packages)
-    solvePkgs(rootPackage, options, nimBin)
+    rootPackage = runLocalProjectAction(options, nimBin)
   elif options.action.typ == actionInstall:
-    #Global install
-    for pkg in options.action.packages:
-      options.satResult = initSATResult(satSolving)
-      # Download package info to pkgcache WITHOUT submodules - submodules are
-      # populated in buildtemp during actual install to avoid mutating shared cache (issue #1592)
-      # Force git clone (not tarball) so .git and .gitmodules are preserved for buildtemp
-      var dlOptions = options
-      dlOptions.ignoreSubmodules = true
-      dlOptions.enableTarballs = false
-      var rootPackage = downloadPkInfoForPv(pkg, dlOptions, doPrompt = true, nimBin = nimBin)
-      solvePkgs(rootPackage, options, nimBin)
-
-      let rootSolvedPkg = SolvedPackage(
-        pkgName: rootPackage.basicInfo.name,
-        version: rootPackage.basicInfo.version,
-        requirements: rootPackage.requires,
-        deps: options.satResult.solvedPkgs.filterIt(it.pkgName.toLower != rootPackage.basicInfo.name.toLower)
-      )
-      options.satResult.solvedPkgs.add(rootSolvedPkg)
-      options.satResult.installPkgs(options, nimBin)
-      options.satResult.addReverseDeps(options)
+    runInstallPackagesAction(options, nimBin)
     return
   else:
     # No nimble file and action requires one - raise a friendly error
@@ -2101,24 +2139,10 @@ proc runVNext*(options: var Options, nimBin: string) {.instrument.} =
     return
 
   options.satResult.installPkgs(options, nimBin)
-  # echo "AFTER INSTALL PKG/S"
-  # options.debugSATResult()
   options.satResult.addReverseDeps(options)
-  
-  # Warn about version mismatches for packages in the solution
-  # Compare installed version (from directory/tag) with the version in the .nimble file
-  for pkgInfo in options.satResult.pkgs:
-    try:
-      # Skip warning for special versions (like #devel) - they have a special version string
-      # but the .nimble file declares the actual semantic version from compilation.nim
-      if pkgInfo.basicInfo.version.isSpecial:
-        continue
-      let nimbleFileInfo = extractRequiresInfo(pkgInfo.myPath, options)
-      if nimbleFileInfo.version != "" and newVersion(nimbleFileInfo.version) != pkgInfo.basicInfo.version:
-        displayWarning(&"Version mismatch for {pkgInfo.basicInfo.name}: installed version is {pkgInfo.basicInfo.version} but .nimble file declares {nimbleFileInfo.version}. ({pkgInfo.myPath})", HighPriority)
-    except CatchableError:
-      discard 
-  
+  warnVersionMismatches(options)
+
+
 proc getNimDir(options: var Options, nimBin: string): string =
   ## returns the nim directory prioritizing the nimBin one if it satisfais the requirement of the project
   ## otherwise it returns the major version of the nim installed packages that satisfies the requirement of the project
@@ -2172,11 +2196,11 @@ proc doAction(options: var Options, nimBin: string) {.instrument.} =
   of actionPath:
     listPaths(options)
   of actionBuild:
-    discard # handled by runVNext
+    discard # handled by run
   of actionClean:
     clean(options, nimBin)
   of actionRun:
-    run(options, nimBin)
+    runAction(options, nimBin)
   of actionUpgrade:
     lock(options, nimBin)
   of actionCompile, actionDoc:
@@ -2255,14 +2279,18 @@ when isMainModule:
       # Implicitly disable package validation for these commands.
       opt.disableValidation = true
     
-    var shouldRunVNext = opt.action.typ in vNextSupportedActions
+    # Actions that don't go through the main resolving pipeline (no SAT solve / install).
+    const nonResolvingActions = {actionNil, actionRefresh, actionInit, actionDump,
+      actionPublish, actionSearch, actionList, actionPath, actionUninstall,
+      actionCheck, actionTasks, actionClean, actionManual}
+    var shouldRun = opt.action.typ notin nonResolvingActions
 
     # Check if nimble file is required but not present
     # Actions like build, test, run, etc. require a nimble file
     const actionsRequiringNimbleFile = {actionBuild, actionSetup, actionRun,
       actionLock, actionCustom, actionSync, actionUpgrade, actionDoc,
       actionCompile, actionDeps, actionAdd}
-    if shouldRunVNext and opt.action.typ in actionsRequiringNimbleFile and not opt.thereIsNimbleFile:
+    if shouldRun and opt.action.typ in actionsRequiringNimbleFile and not opt.thereIsNimbleFile:
       raise nimbleError(
         "Could not find a .nimble file in the current directory. " &
         "This command requires a Nimble package file.")
@@ -2278,11 +2306,11 @@ when isMainModule:
     if needsNim:
       let bootstrapNimRes = getBootstrapNimResolved(opt)
       nimBin = bootstrapNimRes.getNimBin()
-    if shouldRunVNext:
-      # For actionCustom, set the task name before calling runVNext
+    if shouldRun:
+      # For actionCustom, set the task name before calling run
       if opt.action.typ == actionCustom:
         opt.task = opt.action.command.normalize
-      runVNext(opt, nimBin)
+      run(opt, nimBin)
     elif not opt.showVersion and not opt.showHelp:
       # Non-vnext actions (publish, tasks, check, dump) just need a nim binary
       # to parse nimble files. nimBin is already resolved by getBootstrapNimResolved above.
@@ -2295,7 +2323,7 @@ when isMainModule:
     if opt.action.typ == actionInstall:
       isGlobalInstallPost = (opt.explicitGlobal and opt.action.packages.len > 0) or
         (opt.action.global and opt.action.packages.len == 0)
-    var shouldRunSetup = shouldRunVNext and opt.action.typ in {actionCompile, actionRun, actionDevelop, actionCustom} and opt.thereIsNimbleFile and not isGlobalInstallPost
+    var shouldRunSetup = shouldRun and opt.action.typ in {actionCompile, actionRun, actionDevelop, actionCustom} and opt.thereIsNimbleFile and not isGlobalInstallPost
     # For develop without --withDependencies, no solving happened - skip setup
     if opt.action.typ == actionDevelop and not opt.action.withDependencies:
       shouldRunSetup = false
@@ -2305,8 +2333,8 @@ when isMainModule:
     if shouldRunSetup:
       setup(opt, nimBin)
 
-    # develop is handled inside runVNext (it must run before the solver)
-    if not shouldRunVNext or opt.action.typ != actionDevelop:
+    # develop is handled inside run (it must run before the solver)
+    if not shouldRun or opt.action.typ != actionDevelop:
       opt.doAction(nimBin)
 
   except NimbleQuit as quit:

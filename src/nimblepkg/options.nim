@@ -302,13 +302,6 @@ For more information read the GitHub readme:
 const
   visitedHooksEnvVar = "NIMBLE_VISITED_HOOKS"
   noHookActions* = {actionCheck}
- #Notice some actions dont need to be touched in vnext. Some other partially incercepted (setup) and some others fully changed (i.e build, install)
-const vNextSupportedActions* = { actionInstall, actionBuild,
-  actionSetup, actionRun, actionLock, actionCustom, actionSync,
-  actionShellEnv, actionShell, actionUpgrade, actionDoc, actionCompile,
-  actionDeps, actionAdd, actionDevelop
-}
-
 proc `$`*(hook: VisitedHook): string =
   ## Converts a VisitedHook to a string for serialization
   result = hook.pkgName & "|" & $ord(hook.action) & "|" & $ord(hook.before)
@@ -531,6 +524,17 @@ proc findNimbleFile*(dir: string; error: bool, options: Options, warn = true): s
     else:
       if not dir.isSubdirOf(options.nimBinariesDir) and warn:
         displayWarning(&"No .nimble file found for {dir}")
+
+proc thereIsNimbleFile*(options: Options): bool =
+  ## Returns true when the current working directory contains a .nimble file.
+  ## Buildtemp directories are excluded so that hooks running inside buildtemp
+  ## don't cause a nested nimble invocation to misinterpret the context as a
+  ## local project install.
+  let cwd = getCurrentDir()
+  let buildTempDir = options.getBuildTempDir()
+  if buildTempDir.len > 0 and cwd.startsWith(buildTempDir):
+    return false
+  return findNimbleFile(cwd, error = false, options, warn = false) != ""
 
 proc setNimbleDir*(options: var Options) =
   var
