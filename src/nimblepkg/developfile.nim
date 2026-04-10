@@ -5,7 +5,7 @@
 ## files.
 
 import sets, sequtils, os, strformat, tables, hashes, strutils, math,
-       std/jsonutils
+       std/jsonutils, std/options
 
 import typetraits except distinctBase
 import compat/json
@@ -159,7 +159,7 @@ proc developFileExists*(pkg: PackageInfo): bool =
   ## the directory of the package's `pkg` `.nimble` file or `false` otherwise.
   pkg.getNimbleFilePath.developFileExists
 
-proc validatePackage(pkgPath: Path, options: Options, nimBin: string):
+proc validatePackage(pkgPath: Path, options: Options, nimBin: Option[string]):
     tuple[pkgInfo: PackageInfo, error: ref CatchableError] =
   ## By given file system path `pkgPath`, determines whether it points to a
   ## valid Nimble package.
@@ -314,7 +314,7 @@ proc mergeFollowedDevFileData(lhs: var DevelopFileData, rhs: DevelopFileData,
                   errors.collidingNames)
 
 proc load(cache: var DevelopCache, path: Path, dependentPkg: PackageInfo, options: Options,
-          silentIfFileNotExists, raiseOnValidationErrors, loadGlobalDeps: bool, nimBin: string):
+          silentIfFileNotExists, raiseOnValidationErrors, loadGlobalDeps: bool, nimBin: Option[string]):
     DevelopFileData
 
 template load(cache: var DevelopCache, dependentPkg: PackageInfo, args: varargs[untyped]):
@@ -328,7 +328,7 @@ template load(cache: var DevelopCache, dependentPkg: PackageInfo, args: varargs[
 proc loadGlobalDependencies(result: var DevelopFileData,
                             collidingNames: var CollidingNames,
                             options: Options,
-                            nimBin: string) =
+                            nimBin: Option[string]) =
   ## Loads data from the `links` subdirectory in the Nimble cache. The links
   ## in the cache are treated as paths in a global develop file used when a
   ## local one does not exist.
@@ -356,7 +356,7 @@ proc loadGlobalDependencies(result: var DevelopFileData,
       displayDetails(error.msg)
 
 proc load(cache: var DevelopCache, path: Path, dependentPkg: PackageInfo, options: Options,
-          silentIfFileNotExists, raiseOnValidationErrors, loadGlobalDeps: bool, nimBin: string):
+          silentIfFileNotExists, raiseOnValidationErrors, loadGlobalDeps: bool, nimBin: Option[string]):
     DevelopFileData =
   ## Loads data from a develop file at path `path`.
   ##
@@ -485,7 +485,7 @@ proc addDevelopPackage(data: var DevelopFileData, pkg: PackageInfo): bool =
   return true
 
 proc addDevelopPackage(data: var DevelopFileData, path: Path,
-                       options: Options, nimBin: string): bool =
+                       options: Options, nimBin: Option[string]): bool =
   ## Adds path `path` to some package directory to the develop file.
   ##
   ## Returns `true` if:
@@ -604,7 +604,7 @@ proc removeDevelopPackageByName(data: var DevelopFileData, name: string): bool =
   return success
 
 proc includeDevelopFile(cache: var DevelopCache, data: var DevelopFileData, path: Path,
-                        options: Options, nimBin: string): bool =
+                        options: Options, nimBin: Option[string]): bool =
   ## Includes a develop file at path `path` to the current project's develop
   ## file.
   ##
@@ -681,7 +681,7 @@ proc assertDevelopActionIsSet(options: Options) =
   assert options.action.typ == actionDevelop,
          "This procedure must be called only on develop command."
 
-proc updateDevelopFile*(dependentPkg: PackageInfo, options: Options, nimBin: string): bool =
+proc updateDevelopFile*(dependentPkg: PackageInfo, options: Options, nimBin: Option[string]): bool =
   ## Updates a dependent package `dependentPkg`'s develop file with an
   ## information from the Nimble's command line.
   ##   - Adds newly installed develop packages.
@@ -728,7 +728,7 @@ proc updateDevelopFile*(dependentPkg: PackageInfo, options: Options, nimBin: str
 
   return not hasError
 
-proc processDevelopDependencies*(dependentPkg: PackageInfo, options: Options, nimBin: string):
+proc processDevelopDependencies*(dependentPkg: PackageInfo, options: Options, nimBin: Option[string]):
     seq[PackageInfo] =
   ## Returns a sequence with the develop mode dependencies of the `dependentPkg`
   ## and recursively all of their develop mode dependencies.
@@ -743,7 +743,7 @@ proc processDevelopDependencies*(dependentPkg: PackageInfo, options: Options, ni
   # echo "SAT RESULT ", options.satResult.pkgs.mapIt(it.basicInfo.name)
   # options.debugSATResult()
 
-proc getDevelopDependencies*(dependentPkg: PackageInfo, options: Options, raiseOnValidationErrors = true, nimBin: string):
+proc getDevelopDependencies*(dependentPkg: PackageInfo, options: Options, raiseOnValidationErrors = true, nimBin: Option[string]):
     Table[string, ref PackageInfo] =
   ## Returns a table with a mapping between names and `PackageInfo`s of develop
   ## mode dependencies of package `dependentPkg` and recursively all of their
@@ -924,7 +924,7 @@ template addError(error: ValidationErrorKind) =
 
 proc findValidationErrorsOfDevDepsWithLockFile*(
     dependentPkg: PackageInfo, options: Options,
-    errors: var ValidationErrors, nimBin: string) =
+    errors: var ValidationErrors, nimBin: Option[string]) =
   ## Collects validation errors for the develop mode dependencies with the
   ## content of the lock file by getting in consideration the information from
   ## the sync file. In the case of discrepancy, gives a useful advice what have
@@ -961,7 +961,7 @@ proc validationErrors*(errors: ValidationErrors): ref NimbleError =
     hint = errors.getValidationsErrorsHint)
 
 proc validateDevelopFileAgainstLockFile(
-    dependentPkg: PackageInfo, options: Options, nimBin: string) =
+    dependentPkg: PackageInfo, options: Options, nimBin: Option[string]) =
   ## Does validation of the develop file dependencies against the data written
   ## in the lock file.
 
@@ -971,7 +971,7 @@ proc validateDevelopFileAgainstLockFile(
   if errors.len > 0:
     raise validationErrors(errors)
 
-proc validateDevelopFile*(dependentPkg: PackageInfo, options: Options, nimBin: string) =
+proc validateDevelopFile*(dependentPkg: PackageInfo, options: Options, nimBin: Option[string]) =
   ## The procedure is used in the Nimble's `check` command to transitively
   ## validate the contents of the develop files.
 

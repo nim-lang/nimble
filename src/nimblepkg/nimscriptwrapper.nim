@@ -4,6 +4,7 @@
 ## Implements the new configuration system for Nimble. Uses Nim as a
 ## scripting language.
 
+import std/options as stdoptions
 import hashes, os, strutils, tables, times
 import compat/json
 import common, options, cli, tools
@@ -40,7 +41,7 @@ proc writeExecutionOutput(data: string) =
 proc getNimblecache(): string =
   getTempDir() / "nimblecache-" & $getEnv("USER").hash().abs()
 
-proc execNimscript(nimBin: string,
+proc execNimscript(nimBin: Option[string],
   nimbleFile, nimsFile, actionName: string, options: Options, isHook: bool
 ): tuple[output: string, exitCode: int, stdout: string] =
   let
@@ -57,7 +58,7 @@ proc execNimscript(nimBin: string,
   let nimbleVersion = common.nimbleVersion.split(".")
   var cmd = (
     "$# e $# $# --colors:on $# $# $# $# $# $# $# $# $#" % [
-      nimBin,
+      nimBin.get,
       "--hints:off --verbosity:0",
       "--define:nimbleExe=" & getAppFilename().quoteShell,
       "--define:NimbleVersion=" & common.nimbleVersion,
@@ -132,7 +133,7 @@ onExit()
 
   result = nimsFile
 
-proc getIniFile*(scriptName: string, options: Options, nimBin: string): string =
+proc getIniFile*(scriptName: string, options: Options, nimBin: Option[string]): string =
   let
     nimsFile = getNimsFile(scriptName, options)
 
@@ -155,7 +156,7 @@ proc getIniFile*(scriptName: string, options: Options, nimBin: string): string =
       raise nimbleError(stdout & "\nprintPkgInfo() failed")
 
 proc execScript(
-  nimBin: string, scriptName, actionName: string, options: Options, isHook: bool
+  nimBin: Option[string], scriptName, actionName: string, options: Options, isHook: bool
 ): ExecutionResult[bool] =
   let nimsFile = getNimsFile(scriptName, options)
 
@@ -193,7 +194,7 @@ proc execScript(
 
   stdout.writeExecutionOutput()
 
-proc execTask*(nimBin: string, scriptName, taskName: string,
+proc execTask*(nimBin: Option[string], scriptName, taskName: string,
     options: Options): ExecutionResult[bool] =
   ## Executes the specified task in the specified script.
   ##
@@ -203,7 +204,7 @@ proc execTask*(nimBin: string, scriptName, taskName: string,
 
   result = execScript(nimBin, scriptName, taskName, options, isHook=false)
 
-proc execHook*(nimBin: string, scriptName, actionName: string, before: bool,
+proc execHook*(nimBin: Option[string], scriptName, actionName: string, before: bool,
     options: Options): ExecutionResult[bool] =
   ## Executes the specified action's hook. Depending on ``before``, either
   ## the "before" or the "after" hook.
@@ -221,5 +222,5 @@ proc hasTaskRequestedCommand*(execResult: ExecutionResult): bool =
   ## Determines whether the last executed task used ``setCommand``
   return execResult.command != internalCmd
 
-proc listTasks*(nimBin: string, scriptName: string, options: Options) =
+proc listTasks*(nimBin: Option[string], scriptName: string, options: Options) =
   discard execScript(nimBin, scriptName, "", options, isHook=false)

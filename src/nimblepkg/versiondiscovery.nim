@@ -9,8 +9,8 @@ import compat/[sequtils]
 export declarativeparser
 
 type
-  GetPackageMinimal* = proc (pv: PkgTuple, options: Options, nimBin: string): seq[PackageMinimalInfo]
-  GetPackageMinimalAsync* = proc (pv: PkgTuple, options: Options, nimBin: string): Future[seq[PackageMinimalInfo]] {.async.}
+  GetPackageMinimal* = proc (pv: PkgTuple, options: Options, nimBin: Option[string]): seq[PackageMinimalInfo]
+  GetPackageMinimalAsync* = proc (pv: PkgTuple, options: Options, nimBin: Option[string]): Future[seq[PackageMinimalInfo]] {.async.}
 
   TaggedVersionsCache* = Table[string, seq[PackageMinimalInfo]]
     ## Central cache for all package tagged versions, keyed by normalized package name
@@ -71,11 +71,11 @@ proc getPackageDownloadInfo*(pv: PkgTuple, options: Options, doPrompt = false, v
   let downloadDir = getCacheDownloadDir(url, pv.ver, options, vcsRevision)
   PackageDownloadInfo(meth: some meth, url: url, subdir: subdir, downloadDir: downloadDir, pv: pv, vcsRevision: vcsRevision)
 
-proc getPackageFromFileUrl*(fileUrl: string, options: Options, nimBin: string): PackageInfo = 
+proc getPackageFromFileUrl*(fileUrl: string, options: Options, nimBin: Option[string]): PackageInfo = 
   let absPath = extractFilePathFromURL(fileUrl)
   getPkgInfo(absPath, options, nimBin, pikRequires)
 
-proc downloadFromDownloadInfo*(dlInfo: PackageDownloadInfo, options: Options, nimBin: string): (DownloadPkgResult, Option[DownloadMethod]) =
+proc downloadFromDownloadInfo*(dlInfo: PackageDownloadInfo, options: Options, nimBin: Option[string]): (DownloadPkgResult, Option[DownloadMethod]) =
   if dlInfo.isFileUrl:
     let pkgInfo = getPackageFromFileUrl(dlInfo.url, options, nimBin)
     let downloadRes = (dir: pkgInfo.getNimbleFileDir(), version: pkgInfo.basicInfo.version, vcsRevision: notSetSha1Hash)
@@ -85,11 +85,11 @@ proc downloadFromDownloadInfo*(dlInfo: PackageDownloadInfo, options: Options, ni
                   dlInfo.downloadDir, vcsRevision = dlInfo.vcsRevision, nimBin = nimBin)
     (downloadRes, dlInfo.meth)
 
-proc downloadPkgFromUrl*(pv: PkgTuple, options: Options, doPrompt = false, nimBin: string): (DownloadPkgResult, Option[DownloadMethod]) = 
+proc downloadPkgFromUrl*(pv: PkgTuple, options: Options, doPrompt = false, nimBin: Option[string]): (DownloadPkgResult, Option[DownloadMethod]) = 
   let dlInfo = getPackageDownloadInfo(pv, options, doPrompt)
   downloadFromDownloadInfo(dlInfo, options, nimBin)
         
-proc downloadPkInfoForPv*(pv: PkgTuple, options: Options, doPrompt = false, nimBin: string): PackageInfo  =
+proc downloadPkInfoForPv*(pv: PkgTuple, options: Options, doPrompt = false, nimBin: Option[string]): PackageInfo  =
   let downloadRes = downloadPkgFromUrl(pv, options, doPrompt, nimBin)
   result = getPkgInfo(downloadRes[0].dir, options, nimBin, pikRequires)
 
@@ -174,7 +174,7 @@ proc cacheToPackageVersionTable*(options: Options): Table[string, PackageVersion
     if validVersions.len > 0:
       result[pkgName] = PackageVersions(pkgName: pkgName, versions: validVersions)
 
-proc getPackageMinimalVersionsFromRepo*(repoDir: string, pkg: PkgTuple, version: Version, downloadMethod: DownloadMethod, options: Options, nimBin: string): seq[PackageMinimalInfo] =
+proc getPackageMinimalVersionsFromRepo*(repoDir: string, pkg: PkgTuple, version: Version, downloadMethod: DownloadMethod, options: Options, nimBin: Option[string]): seq[PackageMinimalInfo] =
   result = newSeq[PackageMinimalInfo]()
 
   let name = pkg[0]
@@ -269,7 +269,7 @@ proc getPackageMinimalVersionsFromRepo*(repoDir: string, pkg: PkgTuple, version:
     except CatchableError as e:
       displayWarning(&"Error cleaning up temporary directory {tempDir}: {e.msg}", LowPriority)
 
-proc getPackageMinimalVersionsFromRepoAsync*(repoDir: string, pkg: PkgTuple, version: Version, downloadMethod: DownloadMethod, options: Options, nimBin: string): Future[seq[PackageMinimalInfo]] {.async.} =
+proc getPackageMinimalVersionsFromRepoAsync*(repoDir: string, pkg: PkgTuple, version: Version, downloadMethod: DownloadMethod, options: Options, nimBin: Option[string]): Future[seq[PackageMinimalInfo]] {.async.} =
   ## Async version of getPackageMinimalVersionsFromRepo that uses async operations for VCS commands.
   result = newSeq[PackageMinimalInfo]()
 
@@ -361,7 +361,7 @@ proc getPackageMinimalVersionsFromRepoAsyncFast*(
     pkg: PkgTuple,
     downloadMethod: DownloadMethod,
     options: Options,
-    nimBin: string
+    nimBin: Option[string]
 ): Future[seq[PackageMinimalInfo]] {.async.} =
   ## Fast version that reads nimble files directly from git tags without checkout.
   ## Uses git ls-tree and git show to avoid expensive checkout + copyDir operations.
@@ -474,7 +474,7 @@ proc getPackageMinimalVersionsFromRepoAsyncFast*(
   except CatchableError as e:
     displayWarning(&"Error saving tagged versions for {name}: {e.msg}", LowPriority)
 
-proc downloadMinimalPackage*(pv: PkgTuple, options: Options, nimBin: string): seq[PackageMinimalInfo] =
+proc downloadMinimalPackage*(pv: PkgTuple, options: Options, nimBin: Option[string]): seq[PackageMinimalInfo] =
   if pv.name == "": return newSeq[PackageMinimalInfo]()
   if pv.isNim and not options.disableNimBinaries:
     if pv.ver.kind == verSpecial:
@@ -488,7 +488,7 @@ proc downloadMinimalPackage*(pv: PkgTuple, options: Options, nimBin: string): se
         if nimVersion != "":
           ver.speSemanticVersion = some(nimVersion)
       return @[PackageMinimalInfo(name: "nim", version: ver)]
-    return getAllNimReleases(options, getNimVersionFromBin(nimBin))
+    return getAllNimReleases(options, getNimVersionFromBin(nimBin.get))
   # During version discovery, we only need to read .nimble files, not compile code
   # So we ignore submodules to speed up cloning and avoid failures from broken submodules
   var versionDiscoveryOptions = options
@@ -507,7 +507,7 @@ proc downloadMinimalPackage*(pv: PkgTuple, options: Options, nimBin: string): se
       if r.url == "":
         r.url = pv.name
 
-proc downloadFromDownloadInfoAsync*(dlInfo: PackageDownloadInfo, options: Options, nimBin: string): Future[(DownloadPkgResult, Option[DownloadMethod])] {.async.} =
+proc downloadFromDownloadInfoAsync*(dlInfo: PackageDownloadInfo, options: Options, nimBin: Option[string]): Future[(DownloadPkgResult, Option[DownloadMethod])] {.async.} =
   ## Async version of downloadFromDownloadInfo that uses async download operations.
   if dlInfo.isFileUrl:
     let pkgInfo = getPackageFromFileUrl(dlInfo.url, options, nimBin)
@@ -518,19 +518,19 @@ proc downloadFromDownloadInfoAsync*(dlInfo: PackageDownloadInfo, options: Option
                   dlInfo.downloadDir, vcsRevision = dlInfo.vcsRevision, nimBin = nimBin)
     return (downloadRes, dlInfo.meth)
 
-proc downloadPkgFromUrlAsync*(pv: PkgTuple, options: Options, doPrompt = false, nimBin: string): Future[(DownloadPkgResult, Option[DownloadMethod])] {.async.} =
+proc downloadPkgFromUrlAsync*(pv: PkgTuple, options: Options, doPrompt = false, nimBin: Option[string]): Future[(DownloadPkgResult, Option[DownloadMethod])] {.async.} =
   ## Async version of downloadPkgFromUrl that downloads from a package URL.
   let dlInfo = getPackageDownloadInfo(pv, options, doPrompt)
   return await downloadFromDownloadInfoAsync(dlInfo, options, nimBin)
 
-proc downloadPkInfoForPvAsync*(pv: PkgTuple, options: Options, doPrompt = false, nimBin: string): Future[PackageInfo] {.async.} =
+proc downloadPkInfoForPvAsync*(pv: PkgTuple, options: Options, doPrompt = false, nimBin: Option[string]): Future[PackageInfo] {.async.} =
   ## Async version of downloadPkInfoForPv that downloads and gets package info.
   let downloadRes = await downloadPkgFromUrlAsync(pv, options, doPrompt, nimBin)
   return getPkgInfo(downloadRes[0].dir, options, nimBin, pikRequires)
 
 var downloadCache {.threadvar.}: Table[string, Future[seq[PackageMinimalInfo]]]
 
-proc downloadMinimalPackageAsyncImpl(pv: PkgTuple, options: Options, nimBin: string): Future[seq[PackageMinimalInfo]] {.async.} =
+proc downloadMinimalPackageAsyncImpl(pv: PkgTuple, options: Options, nimBin: Option[string]): Future[seq[PackageMinimalInfo]] {.async.} =
   ## Internal implementation of async download without caching.
   if pv.name == "": return newSeq[PackageMinimalInfo]()
   if pv.isNim and not options.disableNimBinaries:
@@ -538,7 +538,7 @@ proc downloadMinimalPackageAsyncImpl(pv: PkgTuple, options: Options, nimBin: str
       # For special versions, delegate to the sync version which handles downloading
       {.gcsafe.}:
         return downloadMinimalPackage(pv, options, nimBin)
-    return getAllNimReleases(options, getNimVersionFromBin(nimBin))
+    return getAllNimReleases(options, getNimVersionFromBin(nimBin.get))
 
   # During version discovery, we only need to read .nimble files, not compile code
   # So we ignore submodules to speed up cloning and avoid failures from broken submodules
@@ -561,7 +561,7 @@ proc downloadMinimalPackageAsyncImpl(pv: PkgTuple, options: Options, nimBin: str
       # Always set URL for URL-based packages to ensure subdirectories have correct URL
       r.url = pv.name
 
-proc downloadMinimalPackageAsync*(pv: PkgTuple, options: Options, nimBin: string): Future[seq[PackageMinimalInfo]] {.async.} =
+proc downloadMinimalPackageAsync*(pv: PkgTuple, options: Options, nimBin: Option[string]): Future[seq[PackageMinimalInfo]] {.async.} =
   ## Async version of downloadMinimalPackage with deduplication.
   ## If multiple calls request the same package concurrently, they share the same download.
   ## Cache key uses canonical package URL (not version) since we download all versions anyway.
@@ -614,7 +614,7 @@ proc fillPackageTableFromPreferred*(packages: var Table[string, PackageVersions]
 proc getInstalledMinimalPackages*(options: Options): seq[PackageMinimalInfo] =
   getInstalledPkgsMin(options.getPkgsDir(), options).mapIt(it.getMinimalInfo(options))
 
-proc getMinimalFromPreferred(pv: PkgTuple,  getMinimalPackage: GetPackageMinimal, preferredPackages: seq[PackageMinimalInfo], options: Options, nimBin: string): seq[PackageMinimalInfo] =
+proc getMinimalFromPreferred(pv: PkgTuple,  getMinimalPackage: GetPackageMinimal, preferredPackages: seq[PackageMinimalInfo], options: Options, nimBin: Option[string]): seq[PackageMinimalInfo] =
   # Check if we have a preferred package first
   for pp in preferredPackages:
     if (pp.name == pv.name or pp.url == pv.name) and pp.version.withinRange(pv.ver):
@@ -630,7 +630,7 @@ proc getMinimalFromPreferred(pv: PkgTuple,  getMinimalPackage: GetPackageMinimal
     if result.len == 0:
       raise
 
-proc getMinimalFromPreferredAsync*(pv: PkgTuple, getMinimalPackage: GetPackageMinimalAsync, preferredPackages: seq[PackageMinimalInfo], options: Options, nimBin: string): Future[seq[PackageMinimalInfo]] {.async.} =
+proc getMinimalFromPreferredAsync*(pv: PkgTuple, getMinimalPackage: GetPackageMinimalAsync, preferredPackages: seq[PackageMinimalInfo], options: Options, nimBin: Option[string]): Future[seq[PackageMinimalInfo]] {.async.} =
   ## Async version of getMinimalFromPreferred that uses async package fetching.
   # Check if we have a preferred package first
   for pp in preferredPackages:
@@ -658,7 +658,7 @@ proc expandActiveFeatures(pkgMin: var PackageMinimalInfo, versions: Table[string
       for req in pkgMin.features[featureName]:
         pkgMin.requires.addUnique(convertNimAliasToNim(req))
 
-proc processRequirements(versions: var Table[string, PackageVersions], pv: PkgTuple, visited: var HashSet[PkgTuple], getMinimalPackage: GetPackageMinimal, preferredPackages: seq[PackageMinimalInfo] = newSeq[PackageMinimalInfo](), options: Options, nimBin: string) =
+proc processRequirements(versions: var Table[string, PackageVersions], pv: PkgTuple, visited: var HashSet[PkgTuple], getMinimalPackage: GetPackageMinimal, preferredPackages: seq[PackageMinimalInfo] = newSeq[PackageMinimalInfo](), options: Options, nimBin: Option[string]) =
   if pv in visited:
     return
 
@@ -747,7 +747,7 @@ proc processRequirements(versions: var Table[string, PackageVersions], pv: PkgTu
     # we need to avoid adding it to the package table as this will cause the solver to fail
     displayWarning(&"Error processing requirements for {pv.name}: {e.msg}", HighPriority)
 
-proc processRequirementsAsync*(pv: PkgTuple, visitedParam: HashSet[PkgTuple], getMinimalPackage: GetPackageMinimalAsync, preferredPackages: seq[PackageMinimalInfo] = newSeq[PackageMinimalInfo](), options: Options, nimBin: string): Future[Table[string, PackageVersions]] {.async.} =
+proc processRequirementsAsync*(pv: PkgTuple, visitedParam: HashSet[PkgTuple], getMinimalPackage: GetPackageMinimalAsync, preferredPackages: seq[PackageMinimalInfo] = newSeq[PackageMinimalInfo](), options: Options, nimBin: Option[string]): Future[Table[string, PackageVersions]] {.async.} =
   ## Async version of processRequirements that returns computed versions instead of mutating shared state.
   ## This allows for safe parallel execution since there's no shared mutable state.
   ## Takes visited by value since we pass separate copies to each top-level dependency branch.
@@ -856,7 +856,7 @@ proc processRequirementsAsync*(pv: PkgTuple, visitedParam: HashSet[PkgTuple], ge
     # we need to avoid adding it to the package table as this will cause the solver to fail
     displayWarning(&"Error processing requirements for {pv.name}: {e.msg}", HighPriority)
 
-proc collectAllVersions*(versions: var Table[string, PackageVersions], package: PackageMinimalInfo, options: Options, getMinimalPackage: GetPackageMinimal, preferredPackages: seq[PackageMinimalInfo] = newSeq[PackageMinimalInfo](), nimBin: string) =
+proc collectAllVersions*(versions: var Table[string, PackageVersions], package: PackageMinimalInfo, options: Options, getMinimalPackage: GetPackageMinimal, preferredPackages: seq[PackageMinimalInfo] = newSeq[PackageMinimalInfo](), nimBin: Option[string]) =
   var visited = initHashSet[PkgTuple]()
   for pv in package.requires:
     processRequirements(versions, pv, visited, getMinimalPackage, preferredPackages, options, nimBin)
@@ -872,7 +872,7 @@ proc mergeVersionTables(dest: var Table[string, PackageVersions], source: Table[
       for ver in pkgVersions.versions:
         dest[pkgName].versions.addUnique ver
 
-proc collectAllVersionsAsync*(package: PackageMinimalInfo, options: Options, getMinimalPackage: GetPackageMinimalAsync, preferredPackages: seq[PackageMinimalInfo] = newSeq[PackageMinimalInfo](), nimBin: string): Future[Table[string, PackageVersions]] {.async.} =
+proc collectAllVersionsAsync*(package: PackageMinimalInfo, options: Options, getMinimalPackage: GetPackageMinimalAsync, preferredPackages: seq[PackageMinimalInfo] = newSeq[PackageMinimalInfo](), nimBin: Option[string]): Future[Table[string, PackageVersions]] {.async.} =
   ## Async version of collectAllVersions that processes top-level dependencies in parallel.
   ## Uses return-based approach: each branch returns its computed versions, then we merge them.
   ## This allows for safe parallel execution with no shared mutable state during processing.

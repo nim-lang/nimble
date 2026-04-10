@@ -2,7 +2,7 @@
 # BSD License. Look at license.txt for more info.
 
 import parseutils, os, strutils, tables, uri, strformat,
-       httpclient, sequtils, urls, chronos
+       httpclient, sequtils, urls, chronos, std/options
 
 import compat/[json, osproc]
 from algorithm import SortOrder, sorted
@@ -871,7 +871,7 @@ proc downloadPkg*(url: string, verRange: VersionRange,
                   options: Options,
                   downloadPath: string,
                   vcsRevision: Sha1Hash,
-                  nimBin: string,
+                  nimBin: Option[string],
                   validateRange = true): DownloadPkgResult =
   ## Downloads the repository as specified by ``url`` and ``verRange`` using
   ## the download method specified.
@@ -947,7 +947,7 @@ proc downloadPkgAsync*(url: string, verRange: VersionRange,
                        options: Options,
                        downloadPath: string,
                        vcsRevision: Sha1Hash,
-                       nimBin: string,
+                       nimBin: Option[string],
                        validateRange = true): Future[DownloadPkgResult] {.async.} =
   ## Async version of downloadPkg that uses async operations for cloning and downloading.
   ## Downloads the repository as specified by ``url`` and ``verRange`` using

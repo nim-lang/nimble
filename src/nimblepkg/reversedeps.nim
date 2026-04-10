@@ -1,7 +1,7 @@
 # Copyright (C) Dominik Picheta. All rights reserved.
 # BSD License. Look at license.txt for more info.
 
-import sets, os, hashes
+import sets, os, hashes, std/options
 import compat/json
 import options, version, download, jsonhelpers, nimbledatafile, sha1hashes,
        packageinfotypes, packageinfo, declarativeparser
@@ -132,7 +132,7 @@ proc getRevDeps*(nimbleData: JsonNode, pkg: ReverseDependency):
          checksum: revDep[$ndjkRevDepChecksum].str.initSha1Hash)
       result.incl ReverseDependency(kind: rdkInstalled, pkgInfo: pkgBasicInfo)
 
-proc toPkgInfo*(revDep: ReverseDependency, options: Options, nimBin: string): PackageInfo =
+proc toPkgInfo*(revDep: ReverseDependency, options: Options, nimBin: Option[string]): PackageInfo =
   case revDep.kind
   of rdkInstalled:
     let pkgDir = revDep.pkgInfo.getPkgDest(options)

@@ -2,6 +2,7 @@
 # BSD License. Look at license.txt for more info.
 #
 # Various miscellaneous utility functions reside here.
+import std/options as stdoptions
 import compat/pegs, strutils, os, uri, sets, json, parseutils, strformat,
        sequtils, macros, times
 
@@ -135,8 +136,8 @@ proc tryDoCmdEx*(cmd: string): string {.discardable.} =
       raise nimbleError(errorMsg)
   return output
 
-proc getNimrodVersion*(options: Options, nimBin: string): Version =
-  let vOutput = doCmdEx(nimBin.quoteShell & " -v").output
+proc getNimrodVersion*(options: Options, nimBin: Option[string]): Version =
+  let vOutput = doCmdEx(nimBin.get.quoteShell & " -v").output
   var matches: array[0..MaxSubpatterns, string]
   if vOutput.find(peg"'Version'\s{(\d+\.)+\d+}", matches) == -1:
     if vOutput.find(peg"'Nim:'\s{(\d+\.)+\d+}", matches) == -1:

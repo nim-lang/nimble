@@ -19,6 +19,10 @@ type
   PackageNotFoundError* = object of NimbleError
     ## Raised when a package cannot be found in any repository
 
+  NeedsNimBinError* = object of NimbleError
+    ## Raised by the declarative parser when VM fallback is needed but nimBin is
+    ## not yet resolved. Callers catch this and retry after bootstrap resolution.
+
   ## Same as quit(QuitSuccess) or quit(QuitFailure), but allows cleanup.
   ## Inheriting from `Defect` is workaround to avoid accidental catching of
   ## `NimbleQuit` by `CatchableError` handlers.

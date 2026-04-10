@@ -41,7 +41,7 @@ proc getNimFromSystem*(options: Options): Option[PackageInfo] =
       if exitCode == 0:
         dir = output.strip().parentDir
     try:
-      var pkgInfo = getPkgInfo(dir, options, nimBin = "", level = pikRequires) #Can be empty as the code path for nim doesnt need it.
+      var pkgInfo = getPkgInfo(dir, options, nimBin = none(string), level = pikRequires) #Can be empty as the code path for nim doesnt need it.
       pkgInfo.nimBinPath = some pnim  # preserve the PATH-resolved binary for later use
       return some pkgInfo
     except CatchableError:
@@ -59,7 +59,7 @@ proc solvePackagesWithSystemNimFallback*(
     rootPackage: PackageInfo,
     pkgList: seq[PackageInfo],
     options: var Options,
-    resolvedNim: Option[NimResolved], nimBin: string): HashSet[PackageInfo] {.instrument.} =
+    resolvedNim: Option[NimResolved], nimBin: Option[string]): HashSet[PackageInfo] {.instrument.} =
   ## Solves packages with system Nim as a hard requirement, falling back to
   ## solving without it if the first attempt fails due to unsatisfiable dependencies.
 
@@ -130,18 +130,18 @@ proc resolveNim*(rootPackage: PackageInfo, pkgListDecl: seq[PackageInfo], system
   var resolvedNim: Option[NimResolved]
   if systemNimPkg.isSome:
     resolvedNim = some(NimResolved(pkg: systemNimPkg, version: systemNimPkg.get.basicInfo.version))
-  var nimBin: string
+  var nimBin: Option[string]
   if resolvedNim.isSome:
-    nimBin = resolvedNim.get.getNimBin()
+    nimBin = some(resolvedNim.get.getNimBin())
   else:
     if options.satResult.bootstrapNim.nimResolved.pkg.isNone:
       let nimPkg = (name: "nim", ver: parseVersionRange(options.satResult.bootstrapNim.nimResolved.version))
       let nimInstalled = installNimFromBinariesDir(nimPkg, options)
       if nimInstalled.isSome:
-        options.satResult.bootstrapNim.nimResolved.pkg = some getPkgInfo(nimInstalled.get.dir, options, nimBin = "", level = pikRequires) #Can be empty as the code path for nim doesnt need it.
+        options.satResult.bootstrapNim.nimResolved.pkg = some getPkgInfo(nimInstalled.get.dir, options, nimBin = none(string), level = pikRequires) #Can be empty as the code path for nim doesnt need it.
       else:
         raise newNimbleError[NimbleError]("Failed to install nim")
-    nimBin = options.satResult.bootstrapNim.nimResolved.getNimBin()
+    nimBin = some(options.satResult.bootstrapNim.nimResolved.getNimBin())
 
   options.satResult.pkgs = solvePackagesWithSystemNimFallback(
       rootPackage, pkgListDecl, options,  resolvedNim, nimBin)
@@ -190,7 +190,7 @@ proc resolveNim*(rootPackage: PackageInfo, pkgListDecl: seq[PackageInfo], system
   result.pkg = some(nims[0])
   result.version = nims[0].basicInfo.version
 
-proc setBootstrapNim*(systemNimPkg: Option[PackageInfo], pkgList: seq[PackageInfo], options: var Options) =
+proc setBootstrapNim*(systemNimPkg: Option[PackageInfo], pkgList: seq[PackageInfo], options: Options) =
   var bootstrapNim: NimResolved
   let nimPkgList = pkgList.filterIt(it.basicInfo.name.isNim)
   #we want to use actual systemNimPkg as bootstrap nim.
@@ -222,7 +222,7 @@ proc getNimBinariesPackages*(options: Options): seq[PackageInfo] =
     if kind == pcDir:
       let nimbleFile = path / "nim.nimble"
       if fileExists(nimbleFile):
-        var pkgInfo = getNimPkgInfo(nimbleFile.parentDir, options, nimBin = "") #Can be empty as the code path for nim doesnt need it.
+        var pkgInfo = getNimPkgInfo(nimbleFile.parentDir, options, nimBin = none(string)) #Can be empty as the code path for nim doesnt need it.
         # Check if directory name indicates a special version (e.g., nim-#devel)
         # The directory name format is "nim-<version>"
         let dirName = path.extractFilename
@@ -236,7 +236,12 @@ proc getNimBinariesPackages*(options: Options): seq[PackageInfo] =
           pkgInfo.basicInfo.version = specialVer
         result.add pkgInfo
 
-proc getBootstrapNimResolved*(options: var Options): NimResolved =
+proc getBootstrapNimResolved*(options: Options): NimResolved =
+  # Instrumentation hook for tests: setting NIMBLE_TRACE_BOOTSTRAP=1 prints a
+  # marker to stderr every time bootstrap resolution actually runs. Tests can
+  # count occurrences to prove laziness.
+  if existsEnv("NIMBLE_TRACE_BOOTSTRAP"):
+    stderr.writeLine("NIMBLE_BOOTSTRAP_RESOLVED")
   var pkgList: seq[PackageInfo] = @[] #Should we use the install nim pkgs? In most cases they should already be in the nim binaries dir
   let nimBinariesPackages = getNimBinariesPackages(options).sortedByIt(it.basicInfo.version).reversed()
   pkgList.add(nimBinariesPackages)
@@ -245,13 +250,19 @@ proc getBootstrapNimResolved*(options: var Options): NimResolved =
   if bootstrapNim.nimResolved.pkg.isNone:
     let nimInstalled = installNimFromBinariesDir(("nim", bootstrapNim.nimResolved.version.toVersionRange()), options)
     if nimInstalled.isSome:
-      bootstrapNim.nimResolved.pkg = some getPkgInfo(nimInstalled.get.dir, options, nimBin = "", level = pikRequires) #Can be empty as the code path for nim doesnt need it.
+      bootstrapNim.nimResolved.pkg = some getPkgInfo(nimInstalled.get.dir, options, nimBin = none(string), level = pikRequires) #Can be empty as the code path for nim doesnt need it.
     else:
       raise nimbleError("Failed to install nim") #What to do here? Is this ever possible?
   options.satResult.bootstrapNim = bootstrapNim
   return bootstrapNim.nimResolved
 
-proc resolveAndConfigureNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo], options: var Options, nimBin: string): NimResolved {.instrument.} =
+proc ensureBootstrapNim*(options: Options): string =
+  let existing = options.satResult.bootstrapNim.nimResolved
+  if existing.pkg.isSome:
+    return existing.getNimBin()
+  return getBootstrapNimResolved(options).getNimBin()
+
+proc resolveAndConfigureNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo], options: var Options, nimBin: Option[string]): NimResolved {.instrument.} =
   #Before resolving nim, we bootstrap it, so if we fail resolving it when can use the bootstrapped version.
   #Notice when implemented it would make the second sat pass obsolete.
   let systemNimPkg = getNimFromSystem(options)
@@ -287,11 +298,11 @@ proc resolveAndConfigureNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo]
     let nimInstalled = installNimFromBinariesDir(nimPkg, options)
     if nimInstalled.isSome:
       let resolvedNim = NimResolved(
-        pkg: some getPkgInfo(nimInstalled.get.dir, options, nimBin = "", level = pikRequires), #Can be empty as the code path for nim doesnt need it.
+        pkg: some getPkgInfo(nimInstalled.get.dir, options, nimBin = none(string), level = pikRequires), #Can be empty as the code path for nim doesnt need it.
         version: nimInstalled.get.ver
       )
       # Still need to set bootstrap nim and configure it
-      var pkgListDecl = pkgList.mapIt(it.toRequiresInfo(options, resolvedNim.getNimBin()))
+      var pkgListDecl = pkgList.mapIt(it.toRequiresInfo(options, some(resolvedNim.getNimBin())))
       if systemNimPkg.isSome:
         pkgListDecl.add(systemNimPkg.get)
       pkgListDecl.sort(compPkgListByVersion)
@@ -323,7 +334,7 @@ proc resolveAndConfigureNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo]
     #forcing a recompilation of nim.
     let nimInstalled = installNimFromBinariesDir(nimPkg, options)
     if nimInstalled.isSome:
-      resolvedNim.pkg = some getPkgInfo(nimInstalled.get.dir, options, nimBin = "", level = pikRequires) #Can be empty as the code path for nim doesnt need it.
+      resolvedNim.pkg = some getPkgInfo(nimInstalled.get.dir, options, nimBin = none(string), level = pikRequires) #Can be empty as the code path for nim doesnt need it.
       resolvedNim.version = nimInstalled.get.ver
     elif rootPackage.basicInfo.name.isNim: #special version/not in releases nim binaries
       resolvedNim.pkg = some rootPackage

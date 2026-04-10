@@ -57,7 +57,7 @@ proc addReverseDeps*(satResult: SATResult, options: Options) =
         # This can happen when packages are installed recursively during hooks
         displayInfo("Skipping reverse dependency for package not found in solution: " & $dep, MediumPriority)
 
-proc executeHook(nimBin: string, dir: string, options: var Options, action: ActionType, before: bool) =
+proc executeHook(nimBin: Option[string], dir: string, options: var Options, action: ActionType, before: bool) =
   let nimbleFile = findNimbleFile(dir, false, options).splitFile.name
   let hook = VisitedHook(pkgName: nimbleFile, action: action, before: before)
   if hook in options.visitedHooks:
@@ -71,7 +71,7 @@ proc executeHook(nimBin: string, dir: string, options: var Options, action: Acti
       else:
         raise nimbleError("Post-hook prevented further execution.")
 
-proc packageExists(nimBin: string, pkgInfo: PackageInfo, options: Options):
+proc packageExists(nimBin: Option[string], pkgInfo: PackageInfo, options: Options):
     Option[PackageInfo] =
   ## Checks whether a package `pkgInfo` already exists in the Nimble cache. If a
   ## package already exists returns the `PackageInfo` of the package in the
@@ -136,7 +136,7 @@ proc copyInstallFiles(srcDir, destDir: string, pkgInfo: PackageInfo,
   copied
 
 
-proc installFromDirDownloadInfo(nimBin: string, downloadDir: string, url: string, pv: PkgTuple, options: var Options): PackageInfo {.instrument.} =
+proc installFromDirDownloadInfo(nimBin: Option[string], downloadDir: string, url: string, pv: PkgTuple, options: var Options): PackageInfo {.instrument.} =
   ## Installs a package from a download directory (pkgcache).
   ## flow: pkgcache -> buildtemp (build) -> pkgs2 (install minimum)
 
@@ -337,7 +337,7 @@ proc getVersionRangeFoPkgToInstall(satResult: SATResult, name: string, ver: Vers
         return parseVersionRange(specialVersion)
   return ver.toVersionRange()
 
-proc installPkgs*(satResult: var SATResult, options: var Options, nimBin: string) {.instrument.} =
+proc installPkgs*(satResult: var SATResult, options: var Options, nimBin: Option[string]) {.instrument.} =
   # options.debugSATResult("installPkgs")
   #At this point the packages are already downloaded.
   #We still need to install them aka copy them from the cache to the nimbleDir + run preInstall and postInstall scripts
