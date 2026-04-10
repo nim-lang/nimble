@@ -667,13 +667,18 @@ proc toRequiresInfo*(pkgInfo: PackageInfo, options: Options, nimBin: Option[stri
   #we need to use the vm to get the version. Another option could be to use the binary and ask for the version
   # echo "toRequiresInfo: ", $pkgInfo.basicInfo, $pkgInfo.requires
   result = pkgInfo
+  # Helper: resolve nimBin from parameter, memoized bootstrap, or raise NeedsNimBinError
+  proc resolveNimBin(nimBin: Option[string], options: Options): string =
+    if nimBin.isSome: return nimBin.get
+    if options.satResult.bootstrapNim.nimResolved.pkg.isSome:
+      return options.satResult.bootstrapNim.nimResolved.getNimBin()
+    raise newNimbleError[NeedsNimBinError]("VM parser needed but no Nim binary available yet")
+
   if pkgInfo.myPath.splitFile.ext == ".babel":
     let babelWarning = &"Package {pkgInfo.basicInfo.name} is a babel package, skipping declarative parser"
     if options.verbosity <= LowPriority:
       displayWarning babelWarning
-    if nimBin.isNone:
-      raise newNimbleError[NeedsNimBinError]("Babel package requires VM parser but no Nim binary available yet")
-    result = getPkgInfoMaybeInTempDir(pkgInfo.myPath.parentDir, options, nimBin.get, pkgInfo.myPath)
+    result = getPkgInfoMaybeInTempDir(pkgInfo.myPath.parentDir, options, resolveNimBin(nimBin, options), pkgInfo.myPath)
     fillMetaData(result, result.getRealDir(), false, options)
     if babelWarning notin result.declarativeParserErrors:
       result.declarativeParserErrors.add(babelWarning)
@@ -687,14 +692,13 @@ proc toRequiresInfo*(pkgInfo: PackageInfo, options: Options, nimBin: Option[stri
     result.infoKind = pikRequires
 
   if nimbleFileInfo.nestedRequires and options.action.typ != actionCheck: #When checking we want to fail on porpuse
-    if nimBin.isNone:
-      raise newNimbleError[NeedsNimBinError]("Nested requires detected — VM parser needed but no Nim binary available yet")
+    let resolvedBin = resolveNimBin(nimBin, options)
 
     if options.verbosity <= LowPriority:
       for line in nimbleFileInfo.declarativeParserErrorLines:
         displayWarning line
 
-    result = getPkgInfoMaybeInTempDir(result.myPath.parentDir, options, nimBin.get, result.myPath)
+    result = getPkgInfoMaybeInTempDir(result.myPath.parentDir, options, resolvedBin, result.myPath)
     for line in nimbleFileInfo.declarativeParserErrorLines:
       if line notin result.declarativeParserErrors:
         result.declarativeParserErrors.add(line)

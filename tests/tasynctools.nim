@@ -1,4 +1,5 @@
 import unittest, chronos, strutils, os, tables
+import std/options
 import nimblepkg/[tools, download, options, packageinfotypes, sha1hashes, version, versiondiscovery]
 
 {.used.}
@@ -162,8 +163,8 @@ suite "Async Tools":
     let verRange = parseVersionRange("#v0.4.0")
 
     # Find nim binary for validation
-    let nimBin = findExe("nim")
-    if nimBin == "":
+    let nimBin = some(findExe("nim"))
+    if nimBin.get == "":
       skip()
 
     let result = waitFor downloadPkgAsync(
@@ -201,8 +202,8 @@ suite "Async Tools":
                          onlyTip = false, options = options)
 
     # Find nim binary
-    let nimBin = findExe("nim")
-    if nimBin == "":
+    let nimBin = some(findExe("nim"))
+    if nimBin.get == "":
       skip()
 
     # Get minimal versions for a version range
@@ -264,8 +265,8 @@ suite "Async Tools":
     createDir(tmpDir)
 
     # Find nim binary
-    let nimBin = findExe("nim")
-    if nimBin == "":
+    let nimBin = some(findExe("nim"))
+    if nimBin.get == "":
       skip()
 
     # Create options
@@ -312,8 +313,8 @@ suite "Async Tools":
     createDir(tmpDir)
 
     # Find nim binary
-    let nimBin = findExe("nim")
-    if nimBin == "":
+    let nimBin = some(findExe("nim"))
+    if nimBin.get == "":
       skip()
 
     # Create options
@@ -365,8 +366,8 @@ suite "Async Tools":
     createDir(tmpDir)
 
     # Find nim binary
-    let nimBin = findExe("nim")
-    if nimBin == "":
+    let nimBin = some(findExe("nim"))
+    if nimBin.get == "":
       skip()
 
     # Create options with async enabled (not legacy)
@@ -477,8 +478,8 @@ suite "Async Tools":
                          onlyTip = false, options = options)
 
     # Find nim binary
-    let nimBin = findExe("nim")
-    if nimBin == "":
+    let nimBin = some(findExe("nim"))
+    if nimBin.get == "":
       skip()
 
     # Get minimal versions using the FAST method (no checkout)

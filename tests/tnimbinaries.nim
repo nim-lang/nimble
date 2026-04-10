@@ -28,7 +28,7 @@ suite "Nim binaries":
     var options = initOptions()
     let pv = ("nim", VersionRange(kind: verAny))
     let releases: seq[Version] = getOfficialReleases(options)
-    let nimBin = "nim"
+    let nimBin = some("nim")
     let minimalPgks = downloadMinimalPackage(pv, options, nimBin)
 
     check minimalPgks.len > 0
@@ -50,7 +50,7 @@ suite "Nim binaries":
     check nimInstalled.isSome
     check nimInstalled.get().ver == newVersion("2.0.4")
     options.nimBin = some options.makeNimBin("nim")
-    let pkgInfo = getPkgInfo(nimInstalled.get().dir, options, nimBin = "nim")
+    let pkgInfo = getPkgInfo(nimInstalled.get().dir, options, nimBin = some("nim"))
     check pkgInfo.basicInfo.name == "nim"
 
   test "Should be able to reuse -without compiling- a Nim version":
