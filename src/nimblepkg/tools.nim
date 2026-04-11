@@ -137,6 +137,8 @@ proc tryDoCmdEx*(cmd: string): string {.discardable.} =
   return output
 
 proc getNimrodVersion*(options: Options, nimBin: Option[string]): Version =
+  if nimBin.isNone:
+    raise newNimbleError[NeedsNimBinError]("Nim version query requires a Nim binary but none is available yet")
   let vOutput = doCmdEx(nimBin.get.quoteShell & " -v").output
   var matches: array[0..MaxSubpatterns, string]
   if vOutput.find(peg"'Version'\s{(\d+\.)+\d+}", matches) == -1:

@@ -2084,7 +2084,9 @@ proc runInstallPackagesAction(options: var Options, nimBin: var Option[string]) 
     var dlOptions = options
     dlOptions.ignoreSubmodules = true
     dlOptions.enableTarballs = false
-    var rootPackage = downloadPkInfoForPv(pkg, dlOptions, doPrompt = true, nimBin = nimBin)
+    var rootPackage: PackageInfo
+    withNimBinFallback(nimBin, options):
+      rootPackage = downloadPkInfoForPv(pkg, dlOptions, doPrompt = true, nimBin = nimBin)
     solvePkgs(rootPackage, options, nimBin)
 
     let rootSolvedPkg = SolvedPackage(
@@ -2245,6 +2247,7 @@ proc doAction(options: var Options, nimBinParam: Option[string]) {.instrument.} 
     var pkgInfo = getPkgInfo(getCurrentDir(), options, nimBin = nimBin)
     execBackend(pkgInfo, options, nimBin)
   of actionInit:
+    needNim()
     init(options, nimBin)
   of actionPublish:
     needNim()

@@ -44,6 +44,8 @@ proc getNimblecache(): string =
 proc execNimscript(nimBin: Option[string],
   nimbleFile, nimsFile, actionName: string, options: Options, isHook: bool
 ): tuple[output: string, exitCode: int, stdout: string] =
+  if nimBin.isNone:
+    raise newNimbleError[NeedsNimBinError]("VM evaluation requires a Nim binary but none is available yet")
   let
     outFile = getNimbleTempDir() & ".out"
     isCustomTask = isCustomTask(actionName, options)
