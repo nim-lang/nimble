@@ -48,7 +48,7 @@ proc getDepsPkgInfo*(satResult: SATResult, pkgInfo: PackageInfo, options: Option
     let depInfo = getPkgInfoFromSolution(satResult, solvedPkg, options)
     result.add(depInfo)
 
-proc expandPaths*(pkgInfo: PackageInfo, nimBin: string, options: Options): seq[string] =
+proc expandPaths*(pkgInfo: PackageInfo, nimBin: Option[string], options: Options): seq[string] =
   var pkgInfo = pkgInfo.toFullInfo(options, nimBin = nimBin) #TODO is this needed in VNEXT? I dont think so
   pkgInfo = pkgInfo.toRequiresInfo(options, nimBin = nimBin)
   let baseDir = pkgInfo.getRealDir()
@@ -65,7 +65,7 @@ proc expandPaths*(pkgInfo: PackageInfo, nimBin: string, options: Options): seq[s
       result.add path
 
 proc getPathsToBuildFor*(satResult: SATResult, pkgInfo: PackageInfo, recursive: bool, options: Options): HashSet[string] =
-  let nimBin = satResult.nimResolved.getNimBin()
+  let nimBin = some(satResult.nimResolved.getNimBin())
   for depInfo in getDepsPkgInfo(satResult, pkgInfo, options):
     for path in depInfo.expandPaths(nimBin, options):
       result.incl(path)
@@ -74,7 +74,7 @@ proc getPathsToBuildFor*(satResult: SATResult, pkgInfo: PackageInfo, recursive: 
         result.incl(path)
   result.incl(pkgInfo.expandPaths(nimBin, options))
 
-proc getPathsAllPkgs*(options: Options, nimBin: string): HashSet[string] =
+proc getPathsAllPkgs*(options: Options, nimBin: Option[string]): HashSet[string] =
   let satResult = options.satResult
   for pkg in satResult.pkgs:
     if pkg.basicInfo.name.isNim:
@@ -83,7 +83,7 @@ proc getPathsAllPkgs*(options: Options, nimBin: string): HashSet[string] =
       result.incl(path)
 
 proc buildFromDir*(pkgInfo: PackageInfo, paths: HashSet[string],
-                   args: seq[string], options: Options, nimBin: string) =
+                   args: seq[string], options: Options, nimBin: Option[string]) =
   ## Builds a package as specified by ``pkgInfo``.
   # Handle pre-`build` hook.
   let
@@ -184,7 +184,7 @@ proc buildFromDir*(pkgInfo: PackageInfo, paths: HashSet[string],
         realDir / src.changeFileExt("nim")
 
     let cmd = "$# $# --colors:$# --noNimblePath $# $# $#" % [
-      nimBin.quoteShell, pkgInfo.backend, if options.noColor: "off" else: "on", join(args, " "),
+      nimBin.getNimBin.quoteShell, pkgInfo.backend, if options.noColor: "off" else: "on", join(args, " "),
       outputOpt, input.quoteShell]
     try:
       doCmd(cmd)
@@ -247,7 +247,7 @@ proc createBinSymlink*(pkgInfo: PackageInfo, options: Options) =
       binariesInstalled.incl(
         setupBinSymlink(symlinkDest, symlinkFilename, options))
 
-proc buildPkg*(nimBin: string, pkgToBuild: PackageInfo, isRootInRootDir: bool, options: Options) {.instrument.} =
+proc buildPkg*(nimBin: Option[string], pkgToBuild: PackageInfo, isRootInRootDir: bool, options: Options) {.instrument.} =
   # let paths = getPathsToBuildFor(options.satResult, pkgToBuild, recursive = true, options)
   let paths = getPathsAllPkgs(options, nimBin)
   # echo "Paths ", paths

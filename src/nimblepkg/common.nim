@@ -4,6 +4,7 @@
 # Various miscellaneous common types reside here, to avoid problems with
 # recursive imports
 
+import std/options as stdoptions
 import sugar, macros, hashes, strutils, sets
 export sugar.dump
 
@@ -19,6 +20,10 @@ type
   PackageNotFoundError* = object of NimbleError
     ## Raised when a package cannot be found in any repository
 
+  NeedsNimBinError* = object of NimbleError
+    ## Raised when a Nim binary is needed but nimBin is not yet resolved.
+    ## Callers catch this and retry after bootstrap resolution.
+
   ## Same as quit(QuitSuccess) or quit(QuitFailure), but allows cleanup.
   ## Inheriting from `Defect` is workaround to avoid accidental catching of
   ## `NimbleQuit` by `CatchableError` handlers.
@@ -27,7 +32,7 @@ type
 
   ProcessOutput* = tuple[output: string, exitCode: int]
 
-proc getVersionFromNimble(): string = 
+proc getVersionFromNimble(): string =
   const content = staticRead("../../nimble.nimble")
   for v in content.splitLines:
     if v.startsWith("version"):
@@ -61,6 +66,14 @@ proc nimbleGitError*(msg: string, hint = "", details: ref CatchableError = nil):
 proc nimbleQuit*(exitCode = QuitSuccess): ref NimbleQuit =
   result = newException(NimbleQuit, "")
   result.exitCode = exitCode
+
+proc getNimBin*(nimBin: Option[string]): string {.raises: [NeedsNimBinError].} =
+  ## Safe extraction of nimBin from Option[string]. Raises NeedsNimBinError
+  ## (a CatchableError) instead of UnpackDefect (a Defect), so callers —
+  ## including async procs — can catch and lazily resolve bootstrap nim.
+  if nimBin.isNone:
+    raise newNimbleError[NeedsNimBinError]("Nim binary needed but not yet resolved")
+  nimBin.unsafeGet
 
 template newClone*[T: not ref](obj: T): ref T =
   ## Creates a garbage collected heap copy of not a reference object.

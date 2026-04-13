@@ -1,6 +1,6 @@
 # Copyright (C) Dominik Picheta. All rights reserved.
 # BSD License. Look at license.txt for more info.
-import sets, streams, strutils, os, tables, sugar, strformat
+import sets, streams, strutils, os, tables, sugar, strformat, std/options
 from sequtils import apply, map, toSeq
 import compat/parsecfg
 
@@ -248,7 +248,7 @@ proc readPackageInfoFromNimble(path: string; result: var PackageInfo) =
   else:
     raise nimbleError("Cannot open package info: " & path)
 
-proc readPackageInfoFromNims(nimBin: string, scriptName: string, options: Options,
+proc readPackageInfoFromNims(nimBin: Option[string], scriptName: string, options: Options,
     result: var PackageInfo) =
   let
     iniFile = getIniFile(scriptName, options, nimBin)
@@ -267,7 +267,7 @@ proc inferInstallRules(pkgInfo: var PackageInfo, options: Options) =
     if fileExists(pkgInfo.getRealDir() / pkgInfo.basicInfo.name.addFileExt("nim")):
       pkgInfo.installFiles.add(pkgInfo.basicInfo.name.addFileExt("nim"))
 
-proc readPackageInfo(pkgInfo: var PackageInfo, nf: NimbleFile, options: Options, nimBin: string, onlyMinimalInfo=false, useCache=true) =
+proc readPackageInfo(pkgInfo: var PackageInfo, nf: NimbleFile, options: Options, nimBin: Option[string], onlyMinimalInfo=false, useCache=true) =
   ## Reads package info from the specified Nimble file.
   ##
   ## Attempts to read it using the "old" Nimble ini format first, if that
@@ -363,7 +363,7 @@ proc readPackageInfo(pkgInfo: var PackageInfo, nf: NimbleFile, options: Options,
     validateVersion($pkgInfo.basicInfo.version)
     validatePackageInfo(pkgInfo, options)
 
-proc getPkgInfoFromFile*(nimBin: string,file: NimbleFile, options: Options,
+proc getPkgInfoFromFile*(nimBin: Option[string],file: NimbleFile, options: Options,
                          forValidation = false, useCache = true, onlyMinimalInfo = false): PackageInfo =
   ## Reads the specified .nimble file and returns its data as a PackageInfo
   ## object. Any validation errors are handled and displayed as warnings.
@@ -377,13 +377,13 @@ proc getPkgInfoFromFile*(nimBin: string,file: NimbleFile, options: Options,
     else:
       raise exc
 
-proc getPkgInfoVm*(dir: string, options: Options, nimBin: string, forValidation = false, onlyMinimalInfo = false):
+proc getPkgInfoVm*(dir: string, options: Options, nimBin: Option[string], forValidation = false, onlyMinimalInfo = false):
     PackageInfo =
   ## Find the .nimble file in ``dir`` and parses it via VM, returning a PackageInfo.
   let nimbleFile = findNimbleFile(dir, true, options)
   result = getPkgInfoFromFile(nimBin, nimbleFile, options, forValidation, onlyMinimalInfo = onlyMinimalInfo)
 
-proc getInstalledPkgs*(nimBin: string, libsDir: string, options: Options): seq[PackageInfo] =
+proc getInstalledPkgs*(nimBin: Option[string], libsDir: string, options: Options): seq[PackageInfo] =
   ## Gets a list of installed packages.
   ##
   ## ``libsDir`` is in most cases: ~/.nimble/pkgs/
@@ -433,12 +433,12 @@ proc getInstalledPkgs*(nimBin: string, libsDir: string, options: Options): seq[P
         pkg.source = psInstalled
         result.add pkg
 
-proc isNimScript*(nimBin: string, nf: string, options: Options): bool =
+proc isNimScript*(nimBin: Option[string], nf: string, options: Options): bool =
   var pkg = initPackageInfo()
   readPackageInfo(pkg, nf, options, nimBin)
   result = pkg.isNimScript
 
-proc toFullInfo*(pkg: PackageInfo, options: Options, nimBin: string): PackageInfo =
+proc toFullInfo*(pkg: PackageInfo, options: Options, nimBin: Option[string]): PackageInfo =
   if pkg.isMinimal or pkg.infoKind == pikRequires:
     result = getPkgInfoFromFile(nimBin, pkg.mypath, options)
     result.source = pkg.source
@@ -454,7 +454,7 @@ proc toFullInfo*(pkg: PackageInfo, options: Options, nimBin: string): PackageInf
   else:
     return pkg
 
-proc getConcreteVersion*(pkgInfo: PackageInfo, options: Options, nimBin: string): Version =
+proc getConcreteVersion*(pkgInfo: PackageInfo, options: Options, nimBin: Option[string]): Version =
   ## Returns a non-special version from the specified ``pkgInfo``. If the
   ## ``pkgInfo`` is minimal it looks it up and retrieves the concrete version.
   result = pkgInfo.basicInfo.version

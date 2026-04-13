@@ -1,11 +1,11 @@
 # Copyright (C) Dominik Picheta. All rights reserved.
 # BSD License. Look at license.txt for more info.
 
-import os, strutils, sets
+import os, strutils, sets, std/options
 
 import packageparser, common, options, nimscriptwrapper, cli
 
-proc execHook*(nimBin: string, options: Options, hookAction: ActionType, before: bool): bool =
+proc execHook*(nimBin: Option[string], options: Options, hookAction: ActionType, before: bool): bool =
   ## Returns whether to continue.
   result = true
 
@@ -30,7 +30,7 @@ proc execHook*(nimBin: string, options: Options, hookAction: ActionType, before:
     if res.success:
       result = res.retVal
 
-proc execCustom*(nimBin: string, nimbleFile: string, options: Options,
+proc execCustom*(nimBin: Option[string], nimbleFile: string, options: Options,
                  execResult: var ExecutionResult[bool]): bool =
   ## Executes the custom command using the nimscript backend.
 

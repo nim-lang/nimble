@@ -5,7 +5,7 @@ import std/[tables, sequtils, strutils, options, strformat]
 import nimblepkg/[version, nimblesat, options, config, download, packageinfotypes, versiondiscovery]
 from nimblepkg/common import cd, NimbleError
 
-let nimBin = "nim"
+let nimBin = some("nim")
 
 suite "Version Discovery":
   test "should be able to download a package and select its deps":
@@ -175,7 +175,7 @@ suite "Version Discovery":
     # and another requires a normal version, both should be kept in the version table.
 
     # Mock getMinimalPackage that returns controlled versions
-    proc mockGetMinimalPackage(pv: PkgTuple, options: Options, nimBin: string): seq[PackageMinimalInfo] =
+    proc mockGetMinimalPackage(pv: PkgTuple, options: Options, nimBin: Option[string]): seq[PackageMinimalInfo] =
       case pv.name
       of "dep":
         if pv.ver.kind == verSpecial:
@@ -220,7 +220,7 @@ suite "Version Discovery":
     pkgVersionTable["root"] = PackageVersions(pkgName: "root", versions: @[root])
 
     # Collect all versions - this triggers processRequirements
-    collectAllVersions(pkgVersionTable, root, options, mockGetMinimalPackage, nimBin = "nim")
+    collectAllVersions(pkgVersionTable, root, options, mockGetMinimalPackage, nimBin = some("nim"))
 
     check pkgVersionTable.hasKey("dep")
     let depVersions = pkgVersionTable["dep"].versions.mapIt($it.version)

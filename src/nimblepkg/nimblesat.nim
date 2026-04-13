@@ -51,7 +51,7 @@ type
 
 # var urlToName: Table[string, string] = initTable[string, string]()
 
-proc dumpPackageVersionTable*(pkg: PackageInfo, pkgVersionTable: Table[string, PackageVersions], options: Options, nimBin: string)
+proc dumpPackageVersionTable*(pkg: PackageInfo, pkgVersionTable: Table[string, PackageVersions], options: Options, nimBin: Option[string])
 
 
 proc hasKey(packageToDependency: Table[string, int], dep: string): bool =
@@ -679,7 +679,7 @@ proc normalizeSpecialVersions*(pkgVersionTable: var Table[string, PackageVersion
           let reqName = req.name.toLower
           if reqName in winners and req.ver.kind == verSpecial and req.ver.spe != winners[reqName]:
             req.ver = VersionRange(kind: verSpecial, spe: winners[reqName])
-proc postProcessSolvedPkgs*(solvedPkgs: var seq[SolvedPackage], options: Options, nimBin: string) {.instrument.} =
+proc postProcessSolvedPkgs*(solvedPkgs: var seq[SolvedPackage], options: Options, nimBin: Option[string]) {.instrument.} =
   #Prioritizes fileUrl packages over the regular packages defined in the requirements
   var fileUrlPkgs: seq[PackageInfo] = @[]
   for solved in solvedPkgs:
@@ -694,7 +694,7 @@ proc postProcessSolvedPkgs*(solvedPkgs: var seq[SolvedPackage], options: Options
         break
   solvedPkgs = solvedPkgs.filterIt(it notin toReplace)
 
-proc solveLocalPackages(root: PackageMinimalInfo, pkgList: seq[PackageInfo], options: Options, output: var string, solvedPkgs: var seq[SolvedPackage], nimBin: string): HashSet[PackageInfo] =
+proc solveLocalPackages(root: PackageMinimalInfo, pkgList: seq[PackageInfo], options: Options, output: var string, solvedPkgs: var seq[SolvedPackage], nimBin: Option[string]): HashSet[PackageInfo] =
   ## Try to solve using only installed packages (no cache, no downloads).
   ## Returns the solved packages if successful, or an empty set if local
   ## packages don't satisfy all constraints. See #1648.
@@ -720,7 +720,7 @@ proc solveLocalPackages(root: PackageMinimalInfo, pkgList: seq[PackageInfo], opt
         break
   return pkgs
 
-proc solvePackages*(rootPkg: PackageInfo, pkgList: seq[PackageInfo], pkgsToInstall: var seq[(string, Version)], options: Options, output: var string, solvedPkgs: var seq[SolvedPackage], nimBin: string): HashSet[PackageInfo] {.instrument.} =
+proc solvePackages*(rootPkg: PackageInfo, pkgList: seq[PackageInfo], pkgsToInstall: var seq[(string, Version)], options: Options, output: var string, solvedPkgs: var seq[SolvedPackage], nimBin: Option[string]): HashSet[PackageInfo] {.instrument.} =
   var root: PackageMinimalInfo = rootPkg.getMinimalInfo(options)
   root.isRoot = true
 
@@ -758,7 +758,7 @@ proc solvePackages*(rootPkg: PackageInfo, pkgList: seq[PackageInfo], pkgsToInsta
   solvedPkgs = pkgVersionTable.getSolvedPackages(output, options).topologicalSort()
   solvedPkgs.postProcessSolvedPkgs(options, nimBin)
   
-  let systemNimCompatible = solvedPkgs.isSystemNimCompatible(options, getNimVersionFromBin(nimBin))
+  let systemNimCompatible = solvedPkgs.isSystemNimCompatible(options, getNimVersionFromBin(nimBin.getNimBin))
   # echo "DEBUG: SolvedPkgs after post processing: ", solvedPkgs.mapIt(it.pkgName & " " & $it.version).join(", ")
   # echo "ACTION IS ", options.action.typ
   for solvedPkg in solvedPkgs:
@@ -796,7 +796,7 @@ proc getPackageInfo*(name: string, pkgs: seq[PackageInfo], version: Option[Versi
         else: #No version passed over first match
           return some pkg
 
-proc getPkgVersionTable*(pkgInfo: PackageInfo, pkgList: seq[PackageInfo], options: Options, nimBin: string): Table[string, PackageVersions] =
+proc getPkgVersionTable*(pkgInfo: PackageInfo, pkgList: seq[PackageInfo], options: Options, nimBin: Option[string]): Table[string, PackageVersions] =
   # Load cached package versions to skip re-fetching known packages
   result = cacheToPackageVersionTable(options)
   var root = pkgInfo.getMinimalInfo(options)
@@ -833,7 +833,7 @@ proc formatPkgName(pkgName: string, maxWidth = maxPkgNameDisplayWidth): string =
   if result.len > maxWidth - 3:
     result = result[0..<(maxWidth - 3)] & "..."
 
-proc dumpSolvedPackages*(pkgInfo: PackageInfo, pkgList: seq[PackageInfo], options: Options, nimBin: string) =
+proc dumpSolvedPackages*(pkgInfo: PackageInfo, pkgList: seq[PackageInfo], options: Options, nimBin: Option[string]) =
   var pkgToInstall: seq[(string, Version)] = @[]
   var output = ""
   var solvedPkgs: seq[SolvedPackage] = @[]
@@ -951,7 +951,7 @@ proc dumpSolvedPackages*(pkgInfo: PackageInfo, pkgList: seq[PackageInfo], option
       
       echo " ".repeat(maxPkgNameDisplayWidth + maxVersionDisplayWidth + 3), currentLine
 
-proc dumpPackageVersionTable*(pkg: PackageInfo, pkgVersionTable: Table[string, PackageVersions], options: Options, nimBin: string) =
+proc dumpPackageVersionTable*(pkg: PackageInfo, pkgVersionTable: Table[string, PackageVersions], options: Options, nimBin: Option[string]) =
   # Display header
   echo "PACKAGE".alignLeft(maxPkgNameDisplayWidth), "VERSION".alignLeft(maxVersionDisplayWidth), "REQUIREMENTS"
   echo "-".repeat(maxPkgNameDisplayWidth + maxVersionDisplayWidth + 4)
@@ -1020,7 +1020,7 @@ proc dumpPackageVersionTable*(pkg: PackageInfo, pkgVersionTable: Table[string, P
       
       isFirstVersion = false
 
-proc dumpPackageVersionTable*(pkg: PackageInfo, pkgList: seq[PackageInfo], options: Options, nimBin: string) =
+proc dumpPackageVersionTable*(pkg: PackageInfo, pkgList: seq[PackageInfo], options: Options, nimBin: Option[string]) =
   let pkgVersionTable = getPkgVersionTable(pkg, pkgList, options, nimBin)
   dumpPackageVersionTable(pkg, pkgVersionTable, options, nimBin)
 
@@ -1115,7 +1115,7 @@ proc getSolvedPkgFromInstalledPkgs*(satResult: SATResult, solvedPkg: SolvedPacka
       return some(pkg)
   return none(PackageInfo)
 
-proc solveLockFileDeps*(satResult: var SATResult, pkgList: seq[PackageInfo], options: Options, nimBin: string) =
+proc solveLockFileDeps*(satResult: var SATResult, pkgList: seq[PackageInfo], options: Options, nimBin: Option[string]) =
   let lockFile = options.lockFile(satResult.rootPackage.myPath.parentDir())
   let currentRequires = satResult.rootPackage.requires
   var existingRequires = newSeq[(string, Version)]()
@@ -1252,7 +1252,7 @@ proc solveLockFileDeps*(satResult: var SATResult, pkgList: seq[PackageInfo], opt
       else:
         satResult.pkgsToInstall.add((name, dep.version))
 
-proc solutionToFullInfo*(satResult: SATResult, options: var Options, nimBin: string) {.instrument.} =
+proc solutionToFullInfo*(satResult: SATResult, options: var Options, nimBin: Option[string]) {.instrument.} =
   if satResult.rootPackage.infoKind != pikFull and not satResult.rootPackage.basicInfo.name.isNim:
     satResult.rootPackage = getPkgInfo(satResult.rootPackage.getNimbleFileDir, options, nimBin = nimBin).toRequiresInfo(options, nimBin = nimBin)
     satResult.rootPackage.enableFeatures(options)

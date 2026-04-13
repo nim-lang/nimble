@@ -1,4 +1,5 @@
 {.used.}
+import std/options as stdoptions
 import unittest, os, sequtils, strutils
 import testscommon
 import nimblepkg/[common, options, declarativeparser, packageinfotypes]
@@ -68,8 +69,8 @@ suite "file path requires":
     var options = initOptions()
     options.isFilePathDiscovering = true
     cd "filepathrequires/dep3file":
-      let entryPkg = getPkgInfo(getCurrentDir(), options, nimBin = "nim", level = pikRequires)
-      loadFilePathPkgs(entryPkg, options, nimBin = "nim")
+      let entryPkg = getPkgInfo(getCurrentDir(), options, nimBin = some("nim"), level = pikRequires)
+      loadFilePathPkgs(entryPkg, options, nimBin = some("nim"))
       check options.filePathPkgs.len == 2
 
   test "should not allow filepath requires in other deps if they werent openened through a filepath require":

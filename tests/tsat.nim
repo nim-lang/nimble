@@ -6,7 +6,7 @@ import std/[tables, json, jsonutils, strutils, times, options]
 import nimblepkg/[version, nimblesat, options, config, packageinfotypes, versiondiscovery]
 from nimblepkg/common import cd, NimbleError
 
-let nimBin = "nim"
+let nimBin = some("nim")
 #Test utils:
 proc downloadAndStorePackageVersionTableFor(pkgName: string, options: Options) =
   #Downloads all the dependencies for a given package and store the minimal version of the deps in a json file.

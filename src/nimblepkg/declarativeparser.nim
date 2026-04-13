@@ -642,14 +642,15 @@ proc getPkgInfoMaybeInTempDir(pkgDir: string, options: Options, nimBin: string, 
   ## Runs getPkgInfo, potentially in a temp directory copy.
   ## Only copies to temp dir when the package is in pkgcache AND has state-modifying ops.
   ## This prevents the VM parser from creating files/directories in pkgcache.
+  let nimBinOpt = some(nimBin)
   if not isInPkgCache(pkgDir, options):
-    return getPkgInfoVm(pkgDir, options, nimBin)
+    return getPkgInfoVm(pkgDir, options, nimBinOpt)
   if not fileHasStateModifyingOps(nimbleFile):
-    return getPkgInfoVm(pkgDir, options, nimBin)
+    return getPkgInfoVm(pkgDir, options, nimBinOpt)
   let tempDir = getNimbleTempDir() / "vmparse_" & $epochTime().int
   try:
     copyDirRec(pkgDir, tempDir)
-    result = getPkgInfoVm(tempDir, options, nimBin)
+    result = getPkgInfoVm(tempDir, options, nimBinOpt)
     # Update myPath to point back to original location
     let nimbleFileName = result.myPath.extractFilename
     result.myPath = pkgDir / nimbleFileName
@@ -661,16 +662,24 @@ proc getPkgInfoMaybeInTempDir(pkgDir: string, options: Options, nimBin: string, 
       except CatchableError:
         discard # Ignore cleanup errors
 
-proc toRequiresInfo*(pkgInfo: PackageInfo, options: Options, nimBin: string, nimbleFileInfo: Option[NimbleFileInfo] = none(NimbleFileInfo)): PackageInfo =
+proc toRequiresInfo*(pkgInfo: PackageInfo, options: Options, nimBin: Option[string], nimbleFileInfo: Option[NimbleFileInfo] = none(NimbleFileInfo)): PackageInfo =
   #For nim we only need the version. Since version is usually in the form of `version = $NimMajor & "." & $NimMinor & "." & $NimPatch
   #we need to use the vm to get the version. Another option could be to use the binary and ask for the version
   # echo "toRequiresInfo: ", $pkgInfo.basicInfo, $pkgInfo.requires
   result = pkgInfo
+  # Resolve nimBin from parameter, memoized bootstrap, or raise NeedsNimBinError.
+  # Uses memoized bootstrap result when available, avoiding repeated resolution.
+  proc resolveNimBinOrBootstrap(nimBin: Option[string], options: Options): string =
+    if nimBin.isSome: return nimBin.unsafeGet
+    if options.satResult.bootstrapNim.nimResolved.pkg.isSome:
+      return options.satResult.bootstrapNim.nimResolved.getNimBin()
+    raise newNimbleError[NeedsNimBinError]("VM parser needed but no Nim binary available yet")
+
   if pkgInfo.myPath.splitFile.ext == ".babel":
     let babelWarning = &"Package {pkgInfo.basicInfo.name} is a babel package, skipping declarative parser"
     if options.verbosity <= LowPriority:
       displayWarning babelWarning
-    result = getPkgInfoMaybeInTempDir(pkgInfo.myPath.parentDir, options, nimBin, pkgInfo.myPath)
+    result = getPkgInfoMaybeInTempDir(pkgInfo.myPath.parentDir, options, resolveNimBinOrBootstrap(nimBin, options), pkgInfo.myPath)
     fillMetaData(result, result.getRealDir(), false, options)
     if babelWarning notin result.declarativeParserErrors:
       result.declarativeParserErrors.add(babelWarning)
@@ -684,13 +693,13 @@ proc toRequiresInfo*(pkgInfo: PackageInfo, options: Options, nimBin: string, nim
     result.infoKind = pikRequires
 
   if nimbleFileInfo.nestedRequires and options.action.typ != actionCheck: #When checking we want to fail on porpuse
-    assert nimBin != "", "Cant fallback to the vm parser as there is no nim bin."
+    let resolvedBin = resolveNimBinOrBootstrap(nimBin, options)
 
     if options.verbosity <= LowPriority:
       for line in nimbleFileInfo.declarativeParserErrorLines:
         displayWarning line
 
-    result = getPkgInfoMaybeInTempDir(result.myPath.parentDir, options, nimBin, result.myPath)
+    result = getPkgInfoMaybeInTempDir(result.myPath.parentDir, options, resolvedBin, result.myPath)
     for line in nimbleFileInfo.declarativeParserErrorLines:
       if line notin result.declarativeParserErrors:
         result.declarativeParserErrors.add(line)
@@ -725,7 +734,7 @@ proc fillPkgBasicInfo(pkgInfo: var PackageInfo, nimbleFileInfo: NimbleFileInfo) 
   pkgInfo.basicInfo.version = newVersion nimbleFileInfo.version
   pkgInfo.srcDir = nimbleFileInfo.srcDir
 
-proc getNimPkgInfo*(dir: string, options: Options, nimBin: string): PackageInfo =
+proc getNimPkgInfo*(dir: string, options: Options, nimBin: Option[string]): PackageInfo =
   let nimbleFile = dir / "nim.nimble"
   assert fileExists(nimbleFile), "Nim.nimble file not found in " & dir
   let nimbleFileInfo = extractRequiresInfo(nimbleFile, options)
@@ -733,7 +742,7 @@ proc getNimPkgInfo*(dir: string, options: Options, nimBin: string): PackageInfo 
   fillPkgBasicInfo(result, nimbleFileInfo)
   result = toRequiresInfo(result, options, nimBin, some nimbleFileInfo)
 
-proc getPkgInfoFromDirWithDeclarativeParser(dir: string, options: Options, nimBin: string, shouldError: bool = true): PackageInfo =
+proc getPkgInfoFromDirWithDeclarativeParser(dir: string, options: Options, nimBin: Option[string], shouldError: bool = true): PackageInfo =
   let nimbleFile = findNimbleFile(dir, shouldError, options)
   let nimbleFileInfo = extractRequiresInfo(nimbleFile, options)
   result = initPackageInfo()
@@ -775,7 +784,7 @@ proc getMinimalInfoFromContent*(content: string, name: string, version: Version,
 
   return some(pkgInfo)
 
-proc getPkgInfo*(dir: string, options: Options, nimBin: string,
+proc getPkgInfo*(dir: string, options: Options, nimBin: Option[string],
                  level: PackageInfoKind = pikFull,
                  forValidation = false, shouldError = true): PackageInfo =
   ## Unified entry point for package parsing. Tries declarative parser first,
@@ -788,7 +797,7 @@ proc getPkgInfo*(dir: string, options: Options, nimBin: string,
   # which the declarative parser can't provide
   return getPkgInfoVm(dir, options, nimBin, forValidation)
 
-proc getMinimalInfo*(nimbleFile: string, options: Options, nimBin: string): PackageMinimalInfo =
+proc getMinimalInfo*(nimbleFile: string, options: Options, nimBin: Option[string]): PackageMinimalInfo =
   #TODO we can use the new getPkgInfo to get the minimal info and add the features to the packageinfo type so this whole function can be removed
   #TODO we need to handle the url here as well.
   # declarative parser is always used
