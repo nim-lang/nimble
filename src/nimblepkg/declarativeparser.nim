@@ -667,9 +667,10 @@ proc toRequiresInfo*(pkgInfo: PackageInfo, options: Options, nimBin: Option[stri
   #we need to use the vm to get the version. Another option could be to use the binary and ask for the version
   # echo "toRequiresInfo: ", $pkgInfo.basicInfo, $pkgInfo.requires
   result = pkgInfo
-  # Helper: resolve nimBin from parameter, memoized bootstrap, or raise NeedsNimBinError
-  proc resolveNimBin(nimBin: Option[string], options: Options): string =
-    if nimBin.isSome: return nimBin.get
+  # Resolve nimBin from parameter, memoized bootstrap, or raise NeedsNimBinError.
+  # Uses memoized bootstrap result when available, avoiding repeated resolution.
+  proc resolveNimBinOrBootstrap(nimBin: Option[string], options: Options): string =
+    if nimBin.isSome: return nimBin.unsafeGet
     if options.satResult.bootstrapNim.nimResolved.pkg.isSome:
       return options.satResult.bootstrapNim.nimResolved.getNimBin()
     raise newNimbleError[NeedsNimBinError]("VM parser needed but no Nim binary available yet")
@@ -678,7 +679,7 @@ proc toRequiresInfo*(pkgInfo: PackageInfo, options: Options, nimBin: Option[stri
     let babelWarning = &"Package {pkgInfo.basicInfo.name} is a babel package, skipping declarative parser"
     if options.verbosity <= LowPriority:
       displayWarning babelWarning
-    result = getPkgInfoMaybeInTempDir(pkgInfo.myPath.parentDir, options, resolveNimBin(nimBin, options), pkgInfo.myPath)
+    result = getPkgInfoMaybeInTempDir(pkgInfo.myPath.parentDir, options, resolveNimBinOrBootstrap(nimBin, options), pkgInfo.myPath)
     fillMetaData(result, result.getRealDir(), false, options)
     if babelWarning notin result.declarativeParserErrors:
       result.declarativeParserErrors.add(babelWarning)
@@ -692,7 +693,7 @@ proc toRequiresInfo*(pkgInfo: PackageInfo, options: Options, nimBin: Option[stri
     result.infoKind = pikRequires
 
   if nimbleFileInfo.nestedRequires and options.action.typ != actionCheck: #When checking we want to fail on porpuse
-    let resolvedBin = resolveNimBin(nimBin, options)
+    let resolvedBin = resolveNimBinOrBootstrap(nimBin, options)
 
     if options.verbosity <= LowPriority:
       for line in nimbleFileInfo.declarativeParserErrorLines:

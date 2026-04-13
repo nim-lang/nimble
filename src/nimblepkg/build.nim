@@ -184,7 +184,7 @@ proc buildFromDir*(pkgInfo: PackageInfo, paths: HashSet[string],
         realDir / src.changeFileExt("nim")
 
     let cmd = "$# $# --colors:$# --noNimblePath $# $# $#" % [
-      nimBin.get.quoteShell, pkgInfo.backend, if options.noColor: "off" else: "on", join(args, " "),
+      nimBin.getNimBin.quoteShell, pkgInfo.backend, if options.noColor: "off" else: "on", join(args, " "),
       outputOpt, input.quoteShell]
     try:
       doCmd(cmd)

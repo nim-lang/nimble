@@ -758,7 +758,7 @@ proc solvePackages*(rootPkg: PackageInfo, pkgList: seq[PackageInfo], pkgsToInsta
   solvedPkgs = pkgVersionTable.getSolvedPackages(output, options).topologicalSort()
   solvedPkgs.postProcessSolvedPkgs(options, nimBin)
   
-  let systemNimCompatible = solvedPkgs.isSystemNimCompatible(options, getNimVersionFromBin(nimBin.get))
+  let systemNimCompatible = solvedPkgs.isSystemNimCompatible(options, getNimVersionFromBin(nimBin.getNimBin))
   # echo "DEBUG: SolvedPkgs after post processing: ", solvedPkgs.mapIt(it.pkgName & " " & $it.version).join(", ")
   # echo "ACTION IS ", options.action.typ
   for solvedPkg in solvedPkgs:

@@ -570,7 +570,7 @@ proc execBackend(pkgInfo: PackageInfo, options: Options, nimBin: Option[string])
             "backend") % [bin, pkgInfo.basicInfo.name, backend], priority = HighPriority)
 
   doCmd("$# $# --noNimblePath $# $# $#" %
-        [nimBin.get.quoteShell,
+        [nimBin.getNimBin.quoteShell,
          backend,
          join(args, " "),
          bin.quoteShell,
@@ -1823,7 +1823,7 @@ proc getAlteredPath(options: Options, nimBin: Option[string]): string =
       let folder = fullInfo.getOutputDir(bin).parentDir.quoteShell
       paths.add folder
   paths.reverse
-  let parentDir = nimBin.get.parentDir
+  let parentDir = nimBin.getNimBin.parentDir
   result = fmt "{getAppDir()}{separator}{paths.join(separator)}{separator}{parentDir}{separator}{getEnv(\"PATH\")}"
 
 proc shellenv(options: var Options, nimBin: Option[string]) =
@@ -2199,7 +2199,7 @@ proc getNimDir(options: var Options, nimBin: var Option[string]): string =
     if options.action.typ == actionInstall:
       rootPackage.requires.add(options.action.packages)
     solvePkgs(rootPackage, options, nimBin)    
-    return nimBin.get.parentDir
+    return nimBin.getNimBin.parentDir
 
 
 
@@ -2216,7 +2216,7 @@ proc doAction(options: var Options, nimBinParam: Option[string]) {.instrument.} 
     if nimBin.isNone:
       nimBin = some(ensureBootstrapNim(options))
       if options.nimBin.isNone:
-        options.nimBin = some makeNimBin(options, nimBin.get)
+        options.nimBin = some makeNimBin(options, nimBin.getNimBin)
   case options.action.typ
   of actionRefresh:
     refresh(options)

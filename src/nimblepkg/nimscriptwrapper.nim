@@ -44,8 +44,6 @@ proc getNimblecache(): string =
 proc execNimscript(nimBin: Option[string],
   nimbleFile, nimsFile, actionName: string, options: Options, isHook: bool
 ): tuple[output: string, exitCode: int, stdout: string] =
-  if nimBin.isNone:
-    raise newNimbleError[NeedsNimBinError]("VM evaluation requires a Nim binary but none is available yet")
   let
     outFile = getNimbleTempDir() & ".out"
     isCustomTask = isCustomTask(actionName, options)
@@ -60,7 +58,7 @@ proc execNimscript(nimBin: Option[string],
   let nimbleVersion = common.nimbleVersion.split(".")
   var cmd = (
     "$# e $# $# --colors:on $# $# $# $# $# $# $# $# $#" % [
-      nimBin.get,
+      nimBin.getNimBin,
       "--hints:off --verbosity:0",
       "--define:nimbleExe=" & getAppFilename().quoteShell,
       "--define:NimbleVersion=" & common.nimbleVersion,
