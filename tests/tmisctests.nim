@@ -369,7 +369,7 @@ Requires: "nim >= 0.9.2"
     cd testDir:
       # Install should succeed since deptest doesn't depend on fakebabelpkg.
       # The babel package in the cache should be silently skipped.
-      let (output, exitCode) = execNimbleYes("install")
+      let (_, exitCode) = execNimbleYes("install")
       check exitCode == QuitSuccess
 
     removeDir(testDir)
