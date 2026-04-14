@@ -41,14 +41,6 @@ proc parseConfig*(): Config =
   var confFile = getConfigDir() / "nimble" / "nimble.ini"
 
   var f = newFileStream(confFile, fmRead)
-  if f == nil:
-    # Try the old deprecated babel.ini
-    # TODO: This can be removed.
-    confFile = getConfigDir() / "babel" / "babel.ini"
-    f = newFileStream(confFile, fmRead)
-    if f != nil:
-      display("Warning", "Using deprecated config file at " & confFile,
-              Warning, HighPriority)
   if f != nil:
     display("Reading", "config file at " & confFile, priority = LowPriority)
     var p: CfgParser
@@ -78,9 +70,7 @@ proc parseConfig*(): Config =
       of cfgKeyValuePair, cfgOption:
         case e.key.normalize
         of "nimbledir":
-          # Ensure we don't restore the deprecated nimble dir.
-          if e.value != getHomeDir() / ".babel":
-            result.nimbleDir = e.value
+          result.nimbleDir = e.value
         of "chcp":
           result.chcp = parseBool(e.value)
         of "cloneusinghttps":

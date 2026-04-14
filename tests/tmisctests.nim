@@ -132,7 +132,7 @@ suite "misc tests":
 
   test "recovers from corrupted pkgcache":
     # This test verifies that nimble can recover when a pkgcache directory exists
-    # but is corrupted (has no .nimble/.babel file). This can happen due to:
+    # but is corrupted (has no .nimble file). This can happen due to:
     # - Interrupted downloads
     # - File system corruption
     # - Concurrent nimble processes
@@ -161,11 +161,9 @@ suite "misc tests":
       elif kind == pcDir and not path.endsWith(".git"):
         removeDir(path)
 
-    # Verify corruption (no .nimble or .babel file)
+    # Verify corruption (no .nimble file)
     var hasNimbleFile = false
     for file in walkFiles(corruptedDir / "*.nimble"):
-      hasNimbleFile = true
-    for file in walkFiles(corruptedDir / "*.babel"):
       hasNimbleFile = true
     check not hasNimbleFile
 
@@ -227,15 +225,11 @@ suite "misc tests":
 
     check cacheDir != ""
 
-    # Modify the cached nimble/babel file to declare a version below the requested range
+    # Modify the cached nimble file to declare a version below the requested range
     var nimbleFile = ""
     for file in walkFiles(cacheDir / "*.nimble"):
       nimbleFile = file
       break
-    if nimbleFile == "":
-      for file in walkFiles(cacheDir / "*.babel"):
-        nimbleFile = file
-        break
     check nimbleFile != ""
 
     writeFile(nimbleFile,

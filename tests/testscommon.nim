@@ -12,10 +12,10 @@ from nimblepkg/developfile import developFileVersion
 
 const
   stringNotFound* = -1
-  pkgAUrl* = "https://github.com/nimble-test/packagea.git"
-  pkgBUrl* = "https://github.com/nimble-test/packageb.git"
-  pkgBinUrl* = "https://github.com/nimble-test/packagebin.git"
-  pkgBin2Url* = "https://github.com/nimble-test/packagebin2.git"
+  pkgAUrl* = "https://github.com/jmgomez/packagea.git"
+  pkgBUrl* = "https://github.com/jmgomez/packageb.git"
+  pkgBinUrl* = "https://github.com/jmgomez/packagebin.git"
+  pkgBin2Url* = "https://github.com/jmgomez/packagebin2.git"
   pkgMultiUrl = "https://github.com/nimble-test/multi"
   pkgMultiAlphaUrl* = &"{pkgMultiUrl}?subdir=alpha"
   pkgMultiBetaUrl* = &"{pkgMultiUrl}?subdir=beta"

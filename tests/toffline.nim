@@ -22,7 +22,7 @@ suite "offline mode":
   test "cannot check URL type in --offline mode":
     cleanDir(installDir)
     # Using a raw URL (not a known package name) triggers checkUrlType
-    let args = ["--offline", "install", "https://github.com/nimble-test/packagea.git"]
+    let args = ["--offline", "install", "https://github.com/jmgomez/packagea.git"]
     let (output, exitCode) = execNimbleYes(args)
     check exitCode != QuitSuccess
     check output.contains("offline mode")

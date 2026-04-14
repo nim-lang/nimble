@@ -1,7 +1,7 @@
 [
   {
     "name": "packagea",
-    "url": "https://github.com/nimble-test/packagea.git",
+    "url": "https://github.com/jmgomez/packagea.git",
     "method": "git",
     "tags": [ "test" ], 
     "description": "A test package.",
@@ -9,7 +9,7 @@
   },
   {
     "name": "packageb",
-    "url": "https://github.com/nimble-test/packageb.git",
+    "url": "https://github.com/jmgomez/packageb.git",
     "method": "git",
     "tags": [ "test" ],
     "description": "A test package.",
