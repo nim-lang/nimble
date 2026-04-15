@@ -200,7 +200,7 @@ proc installFromDir(dir: string, requestedVer: VersionRange, options: Options,
     # special one.
     pkgInfo.metaData.specialVersions.incl requestedVer.spe
 
-  # Dependencies are already resolved by the SAT solver in vnext
+  # Dependencies are already resolved by the SAT solver
   result.deps = deps.toHashSet
 
   if options.depsOnly:
@@ -485,7 +485,7 @@ proc addPackages(packages: seq[PkgTuple], options: var Options, nimBin: Option[s
     if not doAppend:
       continue
 
-    # Packages are already installed by runVNext
+    # Packages are already installed during resolution
     # Get the version from the solved packages
     var finalVer = if version.len < 1:
       var foundVer = ""
@@ -1072,7 +1072,7 @@ proc developFromDir(pkgInfo: PackageInfo, options: var Options, topLevel = false
     displayWarning(
       "This package's binaries will not be compiled for development.")
 
-  # Dependencies are resolved by the SAT solver in the vnext pipeline
+  # Dependencies are resolved by the SAT solver
   # (via solvePkgs + setup after develop completes)
 
   if options.action.global:
@@ -1437,7 +1437,7 @@ proc lock(options: var Options, nimBin: Option[string]) =
     # Check for develop dependency validation errors
     # Create a minimal graph for error checking - only include actual dependencies, not root package
     #TODO Some errors are not checked here.
-    var vnextGraph: LockFileDeps
+    var depGraph: LockFileDeps
     let rootPkgName = pkgInfo.basicInfo.name
     let rootReqNim = pkgInfo.requires.anyIt(it.isNim)
     #Only add nim to the lock file when root requires Nim
@@ -1445,8 +1445,8 @@ proc lock(options: var Options, nimBin: Option[string]) =
 
     for solvedPkg in options.satResult.solvedPkgs:
       if (not solvedPkg.pkgName.isNim or (shouldAddNim and solvedPkg.pkgName.isNim)) and solvedPkg.pkgName != rootPkgName:
-        vnextGraph[solvedPkg.pkgName] = LockFileDep()  # Minimal entry for error checking
-    errors.check(vnextGraph)
+        depGraph[solvedPkg.pkgName] = LockFileDep()  # Minimal entry for error checking
+    errors.check(depGraph)
     for solvedPkg in options.satResult.solvedPkgs:
       if solvedPkg.pkgName.isNim and not shouldAddNim: continue
       if solvedPkg.pkgName == rootPkgName: continue
@@ -1859,7 +1859,7 @@ proc getPackageForAction(pkgInfo: PackageInfo, options: Options, nimBin: Option[
   for pkg in options.satResult.pkgs:
     if pkg.basicInfo.name == options.package:
       var fullPkg = getPkgInfo(pkg.getRealDir(), options, nimBin = nimBin)
-      # Explicitly check for develop mode conditions in vnext
+      # Explicitly check for develop mode conditions
       if fullPkg.developFileExists or not fullPkg.myPath.startsWith(options.getPkgsDir):
         fullPkg.source = psDevelop
       return fullPkg
@@ -1880,7 +1880,7 @@ proc runAction(options: Options, nimBin: Option[string]) =
     raise nimbleError(binaryNotDefinedInPkgMsg(binary, pkgInfo.basicInfo.name))
 
   if pkgInfo.isLink:
-    # Use vnext buildPkg for develop mode packages
+    # Use buildPkg for develop mode packages
     let isInRootDir = options.startDir == pkgInfo.myPath.parentDir and
       options.satResult.rootPackage.basicInfo.name == pkgInfo.basicInfo.name
     buildPkg(nimBin, pkgInfo, isInRootDir, options)
@@ -2180,7 +2180,7 @@ proc getNimDir(options: var Options, nimBin: var Option[string]): string =
   ## if no nim package satisfies the requirement of the project it returns the nimBin parent directory
   ## only used by the `nimble dump` command which is used to drive the lsp
   block:
-    #we relly on vnext mechanism to get the right Nim but we do not install anything (so the lsp doesnt hang)
+    #we rely on the SAT solver to get the right Nim but we do not install anything (so the lsp doesnt hang)
     let projectName = options.action.projName
     var projFolder =
       if projectName == "": getCurrentDir()
@@ -2221,7 +2221,7 @@ proc doAction(options: var Options, nimBinParam: Option[string]) {.instrument.} 
   of actionRefresh:
     refresh(options)
   of actionInstall:
-    discard # handled by runVNext
+    discard # handled by resolution pipeline
   of actionUninstall:
     uninstall(options, nimBin)
   of actionSearch:
@@ -2365,7 +2365,7 @@ when isMainModule:
       if opt.satResult.nimResolved.pkg.isSome:
         nimBin = some(opt.satResult.nimResolved.getNimBin())
 
-    #if the action is different than setup and in vnext we run setup
+    #if the action is different than setup we run setup
     #when not doing a global install (no nimble file in the current directory)
     var isGlobalInstallPost = false
     if opt.action.typ == actionInstall:
