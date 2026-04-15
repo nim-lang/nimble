@@ -10,7 +10,7 @@ bin           = @["localdeps"]
 
 # Dependencies
 
-requires "nim >= 0.20.2", "https://github.com/nimble-test/packagea"
+requires "nim >= 0.20.2", "https://github.com/jmgomez/packagea"
 
 after install:
   exec "./localdeps"

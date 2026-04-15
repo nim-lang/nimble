@@ -24,6 +24,9 @@ type
     ## Raised when a Nim binary is needed but nimBin is not yet resolved.
     ## Callers catch this and retry after bootstrap resolution.
 
+  BabelPackageError* = object of NimbleError
+    ## Raised when a .babel package is encountered (unsupported format)
+
   ## Same as quit(QuitSuccess) or quit(QuitFailure), but allows cleanup.
   ## Inheriting from `Defect` is workaround to avoid accidental catching of
   ## `NimbleQuit` by `CatchableError` handlers.

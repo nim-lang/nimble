@@ -1140,7 +1140,12 @@ proc solveLockFileDeps*(satResult: var SATResult, pkgList: seq[PackageInfo], opt
       shouldSolve = true
       break
 
-  var pkgListDecl = pkgList.mapIt(it.toRequiresInfo(options, nimBin))
+  var pkgListDecl: seq[PackageInfo]
+  for pkg in pkgList:
+    try:
+      pkgListDecl.add(pkg.toRequiresInfo(options, nimBin))
+    except BabelPackageError:
+      discard # babel packages are unsupported — skip them, warning already displayed
 
   # Skip the re-solve when running outside a project dir.
   if not options.thereIsNimbleFile:

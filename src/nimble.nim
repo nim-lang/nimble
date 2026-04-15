@@ -2336,6 +2336,16 @@ when isMainModule:
       actionLock, actionCustom, actionSync, actionUpgrade, actionDoc,
       actionCompile, actionDeps, actionAdd}
     if shouldRun and opt.action.typ in actionsRequiringNimbleFile and not opt.thereIsNimbleFile:
+      # Check for deprecated .babel files
+      var hasBabel = false
+      for kind, path in walkDir(getCurrentDir()):
+        if kind in {pcFile, pcLinkToFile} and path.splitFile.ext == ".babel":
+          hasBabel = true
+          break
+      if hasBabel:
+        raise nimbleError(
+          "Found .babel file but .babel format is no longer supported. " &
+          "Please rename it to .nimble and convert to nimscript format.")
       raise nimbleError(
         "Could not find a .nimble file in the current directory. " &
         "This command requires a Nimble package file.")

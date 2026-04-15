@@ -263,7 +263,7 @@ proc getNameVersionChecksum*(pkgpath: string): PackageBasicInfo =
   ## Also works for file paths like:
   ## ``/home/user/.nimble/pkgs/package-0.1-febadeaea2345e777f0f6f8433f7f0a52edd5d1b/package.nimble``
 
-  if pkgPath.splitFile.ext in [".nimble", ".babel"]:
+  if pkgPath.splitFile.ext == ".nimble":
     return getNameVersionChecksum(pkgPath.splitPath.head)
 
   let (name, version, checksum) = getPathVersionChecksum(pkgPath.splitPath.tail)

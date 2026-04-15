@@ -11,5 +11,5 @@ srcDir        = "src"
 # Dependencies
 
 requires "nim >= 0.16.0"
-requires "https://github.com/nimble-test/packagea#head",
-         "https://github.com/nimble-test/packagebin2"
+requires "https://github.com/jmgomez/packagea#head",
+         "https://github.com/jmgomez/packagebin2"

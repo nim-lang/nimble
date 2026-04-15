@@ -132,7 +132,7 @@ suite "misc tests":
 
   test "recovers from corrupted pkgcache":
     # This test verifies that nimble can recover when a pkgcache directory exists
-    # but is corrupted (has no .nimble/.babel file). This can happen due to:
+    # but is corrupted (has no .nimble file). This can happen due to:
     # - Interrupted downloads
     # - File system corruption
     # - Concurrent nimble processes
@@ -161,11 +161,9 @@ suite "misc tests":
       elif kind == pcDir and not path.endsWith(".git"):
         removeDir(path)
 
-    # Verify corruption (no .nimble or .babel file)
+    # Verify corruption (no .nimble file)
     var hasNimbleFile = false
     for file in walkFiles(corruptedDir / "*.nimble"):
-      hasNimbleFile = true
-    for file in walkFiles(corruptedDir / "*.babel"):
       hasNimbleFile = true
     check not hasNimbleFile
 
@@ -227,15 +225,11 @@ suite "misc tests":
 
     check cacheDir != ""
 
-    # Modify the cached nimble/babel file to declare a version below the requested range
+    # Modify the cached nimble file to declare a version below the requested range
     var nimbleFile = ""
     for file in walkFiles(cacheDir / "*.nimble"):
       nimbleFile = file
       break
-    if nimbleFile == "":
-      for file in walkFiles(cacheDir / "*.babel"):
-        nimbleFile = file
-        break
     check nimbleFile != ""
 
     writeFile(nimbleFile,
@@ -313,3 +307,70 @@ echo "hello"
     check exitCode == QuitSuccess
     check output.contains("alpha installed successfully")
     check output.contains("beta installed successfully")
+
+  test "babel root package errors with migration message":
+    # Running nimble in a directory with only a .babel file should error
+    # with a clear migration message.
+    let testDir = getTempDir() / "nimble_babel_root_test"
+    if dirExists(testDir):
+      removeDir(testDir)
+    createDir(testDir)
+
+    writeFile(testDir / "mybabel.babel", """
+[Package]
+name = "mybabel"
+version = "0.1.0"
+author = "test"
+description = "test"
+license = "MIT"
+
+[Deps]
+Requires: "nim >= 0.9.2"
+""")
+    cd testDir:
+      let (output, exitCode) = execNimble("build")
+      check exitCode != QuitSuccess
+      check output.contains(".babel") and output.contains("no longer supported")
+
+    removeDir(testDir)
+
+  test "babel dependency version is skipped during resolution":
+    # When a package has a .babel file, it should be skipped during
+    # SAT resolution with a warning. If no .nimble version exists,
+    # the solver should fail gracefully.
+    let testDir = getTempDir() / "nimble_babel_dep_test"
+    if dirExists(testDir):
+      removeDir(testDir)
+    createDir(testDir)
+
+    writeFile(testDir / "deptest.nimble", """
+version = "0.1.0"
+author = "test"
+description = "test"
+license = "MIT"
+requires "nim >= 0.9.2"
+""")
+    writeFile(testDir / "deptest.nim", "echo \"ok\"")
+
+    # Create a fake pkgcache entry with only a .babel file
+    let fakePkgDir = installDir / "pkgcache" / "fakebabelpkg_01"
+    createDir(fakePkgDir)
+    writeFile(fakePkgDir / "fakebabelpkg.babel", """
+[Package]
+name = "fakebabelpkg"
+version = "0.1.0"
+author = "test"
+description = "test"
+license = "MIT"
+[Deps]
+Requires: "nim >= 0.9.2"
+""")
+
+    cd testDir:
+      # Install should succeed since deptest doesn't depend on fakebabelpkg.
+      # The babel package in the cache should be silently skipped.
+      let (_, exitCode) = execNimbleYes("install")
+      check exitCode == QuitSuccess
+
+    removeDir(testDir)
+    removeDir(fakePkgDir)

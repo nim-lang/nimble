@@ -509,7 +509,7 @@ proc findNimbleFile*(dir: string; error: bool, options: Options, warn = true): s
       if fileName.startsWith("._"):
         continue
       case ext
-      of ".babel", ".nimble":
+      of ".nimble":
         result = path
         inc hits
       else: discard
@@ -517,6 +517,15 @@ proc findNimbleFile*(dir: string; error: bool, options: Options, warn = true): s
     raise nimbleError(
         "Only one .nimble file should be present in " & dir)
   elif hits == 0:
+    # Check for deprecated .babel files
+    for kind, path in walkDir(dir):
+      if kind in {pcFile, pcLinkToFile}:
+        if path.splitFile.ext == ".babel":
+          if error:
+            raise nimbleError(
+              "Found .babel file in " & dir & " but .babel format is no longer supported. " &
+              "Please rename it to .nimble and convert to nimscript format.")
+          break
     if error:
       raise nimbleError(
         "Could not find a file with a .nimble extension inside the specified " &

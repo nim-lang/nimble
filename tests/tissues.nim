@@ -315,12 +315,12 @@ suite "issues":
 
   test "issue 129 (installing commit hash)":
     cleanDir(installDir)
-    let arguments = @["install", &"{pkgAUrl}@#1f9cb289c89"]
+    let arguments = @["install", &"{pkgAUrl}@#4178f977d3e"]
     check execNimbleYes(arguments).exitCode == QuitSuccess
     # Verify that it was installed correctly.
     check packageDirExists(pkgsDir, "PackageA-0.6.0")
     # Remove it so that it doesn't interfere with the uninstall tests.
-    check execNimbleYes("uninstall", "packagea@#1f9cb289c89").exitCode ==
+    check execNimbleYes("uninstall", "packagea@#4178f977d3e").exitCode ==
           QuitSuccess
 
   test "issue #126":

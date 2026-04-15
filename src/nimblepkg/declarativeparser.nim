@@ -676,14 +676,9 @@ proc toRequiresInfo*(pkgInfo: PackageInfo, options: Options, nimBin: Option[stri
     raise newNimbleError[NeedsNimBinError]("VM parser needed but no Nim binary available yet")
 
   if pkgInfo.myPath.splitFile.ext == ".babel":
-    let babelWarning = &"Package {pkgInfo.basicInfo.name} is a babel package, skipping declarative parser"
-    if options.verbosity <= LowPriority:
-      displayWarning babelWarning
-    result = getPkgInfoMaybeInTempDir(pkgInfo.myPath.parentDir, options, resolveNimBinOrBootstrap(nimBin, options), pkgInfo.myPath)
-    fillMetaData(result, result.getRealDir(), false, options)
-    if babelWarning notin result.declarativeParserErrors:
-      result.declarativeParserErrors.add(babelWarning)
-    return result
+    let msg = &"Package '{pkgInfo.basicInfo.name}' version {pkgInfo.basicInfo.version} uses the unsupported .babel format — skipping. Migrate to a .nimble file."
+    display("Warning", msg, Warning, HighPriority)
+    raise newNimbleError[BabelPackageError](msg)
 
   let nimbleFileInfo = nimbleFileInfo.get(extractRequiresInfo(pkgInfo.myPath, options))
   result.requires = getRequires(nimbleFileInfo, result.activeFeatures)
@@ -790,7 +785,7 @@ proc getPkgInfo*(dir: string, options: Options, nimBin: Option[string],
   ## Unified entry point for package parsing. Tries declarative parser first,
   ## falls back to VM parser.
   ## level=pikFull: VM parser directly (full metadata needed anyway)
-  ## level=pikRequires: declarative parser with VM fallback for nestedRequires/babel
+  ## level=pikRequires: declarative parser with VM fallback for nestedRequires
   if level == pikRequires:
     return getPkgInfoFromDirWithDeclarativeParser(dir, options, nimBin, shouldError)
   # pikFull: go straight to VM — we need full metadata (author, license, etc.)

@@ -106,7 +106,7 @@ requires "nim >= 1.6.0", "packagea"
              "version": {"version": "0.2.0", "speSemanticVersion": nil},
              "requires": ["nim >= 0.11.0"],
              "isRoot": false,
-             "url": "https://github.com/nimble-test/packagea.git"}
+             "url": "https://github.com/jmgomez/packagea.git"}
           ]
         }))
         writeFile("testproject.nimble", &"""
