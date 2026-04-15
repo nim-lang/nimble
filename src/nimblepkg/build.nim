@@ -49,7 +49,7 @@ proc getDepsPkgInfo*(satResult: SATResult, pkgInfo: PackageInfo, options: Option
     result.add(depInfo)
 
 proc expandPaths*(pkgInfo: PackageInfo, nimBin: Option[string], options: Options): seq[string] =
-  var pkgInfo = pkgInfo.toFullInfo(options, nimBin = nimBin) #TODO is this needed in VNEXT? I dont think so
+  var pkgInfo = pkgInfo.toFullInfo(options, nimBin = nimBin) #TODO is this still needed? (Phase 5e)
   pkgInfo = pkgInfo.toRequiresInfo(options, nimBin = nimBin)
   let baseDir = pkgInfo.getRealDir()
   result = @[baseDir]
@@ -248,7 +248,6 @@ proc createBinSymlink*(pkgInfo: PackageInfo, options: Options) =
         setupBinSymlink(symlinkDest, symlinkFilename, options))
 
 proc buildPkg*(nimBin: Option[string], pkgToBuild: PackageInfo, isRootInRootDir: bool, options: Options) {.instrument.} =
-  # let paths = getPathsToBuildFor(options.satResult, pkgToBuild, recursive = true, options)
   let paths = getPathsAllPkgs(options, nimBin)
   # echo "Paths ", paths
   # echo "Requires ", pkgToBuild.requires

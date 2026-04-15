@@ -39,7 +39,7 @@ proc allDependencies(requires: seq[PkgTuple], packages: seq[PackageInfo], option
 proc deleteStaleDependencies*(packages: seq[PackageInfo],
                       rootPackage: PackageInfo,
                       options: Options): seq[PackageInfo] =
-  # For lock operations in vnext mode, only include packages that are actual dependencies
+  # For lock operations, only include packages that are actual dependencies
   # This filters out packages in the develop file that are not real dependencies
   # Only apply this filtering for direct lock operations (no packages specified), not for upgrade operations
   if options.action.typ == actionLock and options.action.packages.len == 0:

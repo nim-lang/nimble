@@ -27,7 +27,7 @@ type NimbleFileInfo* = object
   hasErrors*: bool
   nestedRequires*: bool #if true, the requires section contains nested requires meaning that the package is incorrectly defined
   declarativeParserErrorLines*: seq[string]
-  #In vnext this means that we will need to re-run sat after selecting nim to get the correct requires
+  #This means we will need to re-run sat after selecting nim to get the correct requires
 
 proc eqIdent(a, b: string): bool {.inline.} =
   cmpIgnoreCase(a, b) == 0 and a[0] == b[0]
