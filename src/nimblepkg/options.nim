@@ -72,8 +72,7 @@ type
     extraRequires*: seq[PkgTuple] # extra requires parsed from the command line
     nimBinariesDir*: string # Directory where nim binaries are stored. Separated from nimbleDir as it can be changed by the user/tests
     disableNimBinaries*: bool # Whether to disable the use of nim binaries
-    useDeclarativeParser*: bool # Always true; toggled only in validateParsedDependencies for comparison.
-    features*: seq[string] # Features to be activated. Only used when using the declarative parser
+    features*: seq[string] # Features to be activated
     ignoreSubmodules*: bool # Whether to ignore submodules when cloning a repository
     satResult*: SatResult
     filePathPkgs*: seq[PackageInfo] #Packages loaded from file:// requires. Top level is always included.
@@ -936,7 +935,6 @@ proc initOptions*(): Options =
     noColor: not isatty(stdout),
     startDir: getCurrentDir(),
     nimBinariesDir: getHomeDir() / ".nimble" / "nimbinaries",
-    useDeclarativeParser: true,
     satResult: SatResult(),
     # TEMPORARY: Changed to global-by-default. To revert to local-by-default, change to: localDeps: true
     localDeps: false,

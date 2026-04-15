@@ -1,7 +1,7 @@
 # Copyright (C) Dominik Picheta. All rights reserved.
 # BSD License. Look at license.txt for more info.
 
-import os, tables, strtabs, browsers, algorithm, sets, uri, sugar, strformat
+import os, tables, browsers, algorithm, sets, sugar, strformat
 
 import nimblepkg/compat/[json, sequtils, osproc]
 import std/options as std_opt
@@ -1314,11 +1314,7 @@ proc validateDevelopDependenciesVersionRanges(dependentPkg: PackageInfo,
 
 proc validateParsedDependencies(pkgInfo: PackageInfo, options: Options, nimBin: Option[string]) =
   displayInfo(&"Validating dependencies for pkgInfo {pkgInfo.infoKind}", HighPriority)
-  var options = options
-  options.useDeclarativeParser = true
   let declDeps = pkgInfo.toRequiresInfo(options, nimBin).requires
-
-  options.useDeclarativeParser = false
   let vmDeps = pkgInfo.toFullInfo(options, nimBin).requires
   displayInfo(&"Parsed declarative dependencies: {declDeps}", HighPriority)
   displayInfo(&"Parsed VM dependencies: {vmDeps}", HighPriority)
