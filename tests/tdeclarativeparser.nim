@@ -67,7 +67,6 @@ suite "Declarative parsing":
         ],
     )
     options.pkgCachePath = "./nimbleDir/pkgcache"
-    options.useDeclarativeParser = true
     options.noColor = true
     options.verbosity = DebugPriority
     options.localDeps = false
