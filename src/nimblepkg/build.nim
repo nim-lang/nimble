@@ -42,12 +42,6 @@ proc getPkgInfoFromSolution*(satResult: SATResult, pv: PkgTuple, options: Option
       return pkg
   raise newNimbleError[NimbleError]("Package not found in solution: " & $pv)
 
-#We could cache this info in the satResult (if called multiple times down the road)
-proc getDepsPkgInfo*(satResult: SATResult, pkgInfo: PackageInfo, options: Options): seq[PackageInfo] =
-  for solvedPkg in pkgInfo.requires:
-    let depInfo = getPkgInfoFromSolution(satResult, solvedPkg, options)
-    result.add(depInfo)
-
 proc expandPaths*(pkgInfo: PackageInfo, nimBin: Option[string], options: Options): seq[string] =
   var pkgInfo = pkgInfo.toFullInfo(options, nimBin = nimBin) #TODO is this still needed? (Phase 5e)
   pkgInfo = pkgInfo.toRequiresInfo(options, nimBin = nimBin)
@@ -63,16 +57,6 @@ proc expandPaths*(pkgInfo: PackageInfo, nimBin: Option[string], options: Options
     let path = baseDir & "/" & relativePath
     if path.isSubdirOf(baseDir):
       result.add path
-
-proc getPathsToBuildFor*(satResult: SATResult, pkgInfo: PackageInfo, recursive: bool, options: Options): HashSet[string] =
-  let nimBin = some(satResult.nimResolved.getNimBin())
-  for depInfo in getDepsPkgInfo(satResult, pkgInfo, options):
-    for path in depInfo.expandPaths(nimBin, options):
-      result.incl(path)
-    if recursive:
-      for path in satResult.getPathsToBuildFor(depInfo, recursive = true, options):
-        result.incl(path)
-  result.incl(pkgInfo.expandPaths(nimBin, options))
 
 proc getPathsAllPkgs*(options: Options, nimBin: Option[string]): HashSet[string] =
   let satResult = options.satResult
