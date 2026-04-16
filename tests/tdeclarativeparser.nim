@@ -299,6 +299,50 @@ json_rpc
     # Clean up
     removeDir(testDir)
 
+suite "Declarative parser paths":
+  test "should parse paths from nimble content":
+    let content = """
+version = "0.1.0"
+author = "test"
+description = "Test package"
+license = "MIT"
+paths = @["src", "lib"]
+
+requires "nim >= 1.6.0"
+"""
+    var options = initOptions()
+    let nimbleFileInfo = extractRequiresInfoFromContent(content, options)
+    check nimbleFileInfo.paths.len == 2
+    check nimbleFileInfo.paths[0] == "src"
+    check nimbleFileInfo.paths[1] == "lib"
+
+  test "should parse empty paths":
+    let content = """
+version = "0.1.0"
+author = "test"
+description = "Test package"
+license = "MIT"
+paths = @[]
+
+requires "nim >= 1.6.0"
+"""
+    var options = initOptions()
+    let nimbleFileInfo = extractRequiresInfoFromContent(content, options)
+    check nimbleFileInfo.paths.len == 0
+
+  test "should have empty paths when not specified":
+    let content = """
+version = "0.1.0"
+author = "test"
+description = "Test package"
+license = "MIT"
+
+requires "nim >= 1.6.0"
+"""
+    var options = initOptions()
+    let nimbleFileInfo = extractRequiresInfoFromContent(content, options)
+    check nimbleFileInfo.paths.len == 0
+
 suite "isParsableByDeclarative":
   test "should return true for simple nimble content":
     let content = """

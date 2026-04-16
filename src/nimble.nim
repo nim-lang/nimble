@@ -1814,9 +1814,8 @@ proc getAlteredPath(options: Options, nimBin: Option[string]): string =
 
   var paths: seq[string] = @[]
   for pkg in pkgs:
-    let fullInfo = pkg.toFullInfo(options, nimBin)
-    for bin, _ in fullInfo.bin:
-      let folder = fullInfo.getOutputDir(bin).parentDir.quoteShell
+    for bin, _ in pkg.bin:
+      let folder = pkg.getOutputDir(bin).parentDir.quoteShell
       paths.add folder
   paths.reverse
   let parentDir = nimBin.getNimBin.parentDir

@@ -22,6 +22,7 @@ type NimbleFileInfo* = object
   tasks*: seq[(string, string)]
   features*: Table[string, seq[string]]
   bin*: Table[string, string]
+  paths*: seq[string]
   preHooks*: HashSet[string]
   postHooks*: HashSet[string]
   hasErrors*: bool
@@ -308,9 +309,11 @@ proc extract(n: PNode, conf: ConfigRef, result: var NimbleFileInfo, options: Opt
       for bin in binSeq:
         when defined(windows):
           var bin = bin & ".exe"
-          result.bin[bin] = bin 
+          result.bin[bin] = bin
         else:
-          result.bin[bin] = bin        
+          result.bin[bin] = bin
+    elif n[0].kind == nkIdent and eqIdent(n[0].ident.s, "paths"):
+      result.paths = extractSeqLiteral(n[1], conf, "paths")
     else:
       discard
   else:
@@ -701,6 +704,7 @@ proc toRequiresInfo*(pkgInfo: PackageInfo, options: Options, nimBin: Option[stri
 
   result.features = getFeatures(nimbleFileInfo)
   result.srcDir = nimbleFileInfo.srcDir
+  result.paths = nimbleFileInfo.paths
   fillMetaData(result, result.getRealDir(), false, options)
   
   # For develop mode dependencies, ensure VCS revision is set
