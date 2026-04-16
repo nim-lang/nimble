@@ -4,7 +4,7 @@
 
 import std/[sets, options, os, strutils, tables, strformat]
 import packageinfotypes, options, version, packageinfo, common,
-  cli, packageparser, tools, packageinstaller, urls,
+  cli, tools, packageinstaller, urls,
   declarativeparser, nimscriptexecutor, displaymessages
 
 proc nameMatches*(pkg: PackageInfo, pv: PkgTuple, options: Options): bool =
@@ -43,8 +43,7 @@ proc getPkgInfoFromSolution*(satResult: SATResult, pv: PkgTuple, options: Option
   raise newNimbleError[NimbleError]("Package not found in solution: " & $pv)
 
 proc expandPaths*(pkgInfo: PackageInfo, nimBin: Option[string], options: Options): seq[string] =
-  var pkgInfo = pkgInfo.toFullInfo(options, nimBin = nimBin) #TODO is this still needed? (Phase 5e)
-  pkgInfo = pkgInfo.toRequiresInfo(options, nimBin = nimBin)
+  var pkgInfo = pkgInfo.toRequiresInfo(options, nimBin = nimBin)
   let baseDir = pkgInfo.getRealDir()
   result = @[baseDir]
   # Also add srcDir if it exists and is different from baseDir
