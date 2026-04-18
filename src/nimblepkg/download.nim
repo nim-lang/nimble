@@ -173,13 +173,13 @@ proc getTagsList*(dir: string, meth: DownloadMethod): seq[string] =
 
 proc getTagsListAsync*(dir: string, meth: DownloadMethod): Future[seq[string]] {.async.} =
   ## Async version of getTagsList that uses doCmdExAsync for non-blocking execution.
+  ## Uses -C flag instead of cd to avoid corrupting process-wide cwd during concurrent async ops.
   var output: string
-  cd dir:
-    case meth
-    of DownloadMethod.git:
-      output = await tryDoCmdExAsync("git tag")
-    of DownloadMethod.hg:
-      output = await tryDoCmdExAsync("hg tags")
+  case meth
+  of DownloadMethod.git:
+    output = await tryDoCmdExAsync(&"git -C {dir.quoteShell} tag")
+  of DownloadMethod.hg:
+    output = await tryDoCmdExAsync(&"hg --cwd {dir.quoteShell} tags")
   if output.len > 0:
     case meth
     of DownloadMethod.git:
@@ -900,12 +900,14 @@ proc downloadPkg*(url: string, verRange: VersionRange,
   let downloadMethod = if downloadTarball(modUrl, options):
     "http" else: $downMethod
 
+  let verStr = if verRange.kind == verAny: "" else: " (" & $verRange & ")"
+  let category = if options.satResult.pass != satDone: "Fetching" else: "Downloading"
   if subdir.len > 0:
-    display("Downloading", "$1 using $2 (subdir is '$3')" %
-                           [modUrl, downloadMethod, subdir],
+    display(category, "$1$2 using $3 (subdir is '$4')" %
+                           [modUrl, verStr, downloadMethod, subdir],
             priority = HighPriority)
   else:
-    display("Downloading", "$1 using $2" % [modUrl, downloadMethod],
+    display(category, "$1$2 using $3" % [modUrl, verStr, downloadMethod],
             priority = HighPriority)
 
   (result.version, result.vcsRevision) = doDownload(
@@ -966,12 +968,14 @@ proc downloadPkgAsync*(url: string, verRange: VersionRange,
   let downloadMethod = if downloadTarball(modUrl, options):
     "http" else: $downMethod
 
+  let verStr = if verRange.kind == verAny: "" else: " (" & $verRange & ")"
+  let category = if options.satResult.pass != satDone: "Fetching" else: "Downloading"
   if subdir.len > 0:
-    display("Downloading", "$1 using $2 (subdir is '$3')" %
-                           [modUrl, downloadMethod, subdir],
+    display(category, "$1$2 using $3 (subdir is '$4')" %
+                           [modUrl, verStr, downloadMethod, subdir],
             priority = HighPriority)
   else:
-    display("Downloading", "$1 using $2" % [modUrl, downloadMethod],
+    display(category, "$1$2 using $3" % [modUrl, verStr, downloadMethod],
             priority = HighPriority)
 
   (result.version, result.vcsRevision) = await doDownloadAsync(

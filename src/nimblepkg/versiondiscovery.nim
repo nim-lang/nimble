@@ -595,19 +595,18 @@ proc downloadMinimalPackageAsync*(pv: PkgTuple, options: Options, nimBin: Option
       # If any check fails, use name as-is
       cacheKey = pv.name
 
-    # Check if download is already in progress
+    # Check if download is already in progress (concurrent dedup)
     if downloadCache.hasKey(cacheKey):
-      # Wait for the existing download to complete and reuse all versions
       return await downloadCache[cacheKey]
 
-    # Start new download and cache the future
+    # Start new download and cache the future for concurrent dedup
     let downloadFuture = downloadMinimalPackageAsyncImpl(pv, options, nimBin)
     downloadCache[cacheKey] = downloadFuture
 
     try:
       result = await downloadFuture
     finally:
-      # Remove from cache after completion (success or failure)
+      # Remove after completion — cache is only for concurrent dedup within a single pass
       downloadCache.del(cacheKey)
 
 proc fillPackageTableFromPreferred*(packages: var Table[string, PackageVersions], preferredPackages: seq[PackageMinimalInfo]) =
@@ -792,15 +791,13 @@ proc processRequirementsAsync*(pv: PkgTuple, visitedParam: HashSet[PkgTuple], ge
           if not found:
             allRequirements.add req
 
-      # Process all unique requirements in parallel FIRST (before adding to result)
-      # This way we discover invalid dependencies before committing
+      # Process all unique requirements in parallel
       var reqFutures: seq[Future[Table[string, PackageVersions]]] = @[]
       var reqNames: seq[string] = @[]
       for req in allRequirements:
         reqFutures.add processRequirementsAsync(req, visited, getMinimalPackage, preferredPackages, options, nimBin)
         reqNames.add req.name
 
-      # Wait for all requirement processing to complete
       if reqFutures.len > 0:
         await allFutures(reqFutures)
 
@@ -885,11 +882,10 @@ proc collectAllVersionsAsync*(package: PackageMinimalInfo, options: Options, get
   {.cast(raises: [CatchableError]).}:
     ## Async version of collectAllVersions that processes top-level dependencies in parallel.
     ## Uses return-based approach: each branch returns its computed versions, then we merge them.
-    ## This allows for safe parallel execution with no shared mutable state during processing.
+    ## Each branch gets its own visited set to avoid race conditions on shared state.
     ## Returns the merged version table instead of mutating a parameter.
 
-    # Process all top-level requirements in parallel
-    # Each gets its own visited set to avoid race conditions
+    # Fire off all top-level requirements in parallel
     var futures: seq[Future[Table[string, PackageVersions]]] = @[]
     for pv in package.requires:
       var visitedCopy = initHashSet[PkgTuple]()
@@ -898,8 +894,8 @@ proc collectAllVersionsAsync*(package: PackageMinimalInfo, options: Options, get
     # Wait for all to complete
     await allFutures(futures)
 
-    # Merge all results into a new table
+    # Merge all results
     result = initTable[string, PackageVersions]()
     for fut in futures:
-      let resultTable = fut.read()
-      mergeVersionTables(result, resultTable)
+      if not fut.failed:
+        mergeVersionTables(result, fut.read())
