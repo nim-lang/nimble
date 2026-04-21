@@ -747,9 +747,7 @@ proc solvePackages*(rootPkg: PackageInfo, pkgList: seq[PackageInfo], pkgsToInsta
         pkgVersionTable[pkgName] = pkgVersions
       else:
         for ver in pkgVersions.versions:
-          pkgVersionTable[pkgName].versions.addUnique ver
-
-  # dumpPackageVersionTable(rootPkg, pkgVersionTable, options, nimBin)
+          pkgVersionTable[pkgName].versions.addVersionUnique ver
 
   pkgVersionTable.normalizeRequirements(options)
   pkgVersionTable.normalizeSpecialVersions(options)
@@ -811,7 +809,7 @@ proc getPkgVersionTable*(pkgInfo: PackageInfo, pkgList: seq[PackageInfo], option
         result[pkgName] = pkgVersions
       else:
         for ver in pkgVersions.versions:
-          result[pkgName].versions.addUnique ver
+          result[pkgName].versions.addVersionUnique ver
   else:
     # Use sync version (default, stable behavior)
     collectAllVersions(result, root, options, downloadMinimalPackage, pkgList.mapIt(it.getMinimalInfo(options)), nimBin)

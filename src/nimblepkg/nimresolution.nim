@@ -70,9 +70,15 @@ proc solvePackagesWithSystemNimFallback*(
   # as a hard requirement. If it fails, we will fallback to
   # retry without it as a hard requirement. The idea behind it is that a
   # compatible version of the packages is used for the current nim.
+  # Skip the system nim pass if the root requires an exact nim version that
+  # doesn't match system nim — the pass would be guaranteed to fail.
   if resolvedNim.isSome and resolvedNim.get.isSystemNim(options):
-    rootPackageWithSystemNim.requires.add(parseRequires("nim " & $resolvedNim.get.version))
-    systemNimPass = true
+    let nimReqs = rootPackage.requires.filterIt(it.name.isNim)
+    let exactMismatch = nimReqs.anyIt(
+      it.ver.kind == verEq and it.ver.ver != resolvedNim.get.version)
+    if not exactMismatch:
+      rootPackageWithSystemNim.requires.add(parseRequires("nim " & $resolvedNim.get.version))
+      systemNimPass = true
 
   result = solvePackages(rootPackageWithSystemNim, pkgList,
                         options.satResult.pkgsToInstall, options,

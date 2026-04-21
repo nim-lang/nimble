@@ -754,6 +754,24 @@ proc processRequirements(versions: var Table[string, PackageVersions], pv: PkgTu
     # we need to avoid adding it to the package table as this will cause the solver to fail
     displayWarning(&"Error processing requirements for {pv.name}: {e.msg}", HighPriority)
 
+proc addVersionUnique*(versions: var seq[PackageMinimalInfo], ver: PackageMinimalInfo) =
+  ## Adds a version if no entry with the same name+version already exists.
+  ## Uses name+version comparison instead of full struct equality to avoid
+  ## duplicates from parallel branches that discover the same package independently.
+  for existing in versions:
+    if cmpIgnoreCase(existing.name, ver.name) == 0 and existing.version == ver.version:
+      return
+  versions.add ver
+
+proc mergeVersionTables(dest: var Table[string, PackageVersions], source: Table[string, PackageVersions]) =
+  ## Helper proc to merge version tables.
+  for pkgName, pkgVersions in source:
+    if pkgName notin dest:
+      dest[pkgName] = pkgVersions
+    else:
+      for ver in pkgVersions.versions:
+        dest[pkgName].versions.addVersionUnique ver
+
 proc processRequirementsAsync*(pv: PkgTuple, visitedParam: HashSet[PkgTuple], getMinimalPackage: GetPackageMinimalAsync, preferredPackages: seq[PackageMinimalInfo] = newSeq[PackageMinimalInfo](), options: Options, nimBin: Option[string]): Future[Table[string, PackageVersions]] {.async.} =
   {.cast(raises: [CatchableError]).}:
     ## Async version of processRequirements that returns computed versions instead of mutating shared state.
@@ -837,21 +855,16 @@ proc processRequirementsAsync*(pv: PkgTuple, visitedParam: HashSet[PkgTuple], ge
           if pkgName notin result:
             result[pkgName] = PackageVersions(pkgName: pkgName, versions: @[pkgMin])
           else:
-            result[pkgName].versions.addUnique pkgMin
+            result[pkgName].versions.addVersionUnique pkgMin
         else:
           if pkgName notin result:
             result[pkgName] = PackageVersions(pkgName: pkgName, versions: @[pkgMin])
           else:
-            result[pkgName].versions.addUnique pkgMin
+            result[pkgName].versions.addVersionUnique pkgMin
 
       # Merge all successful requirement results
       for reqResult in reqResults:
-        for pkgName, pkgVersions in reqResult:
-          if not result.hasKey(pkgName):
-            result[pkgName] = pkgVersions
-          else:
-            for ver in pkgVersions.versions:
-              result[pkgName].versions.addUnique ver
+        mergeVersionTables(result, reqResult)
 
       # Only add URL packages if we have valid versions
       if pv.name.isUrl and validPkgMins.len > 0:
@@ -866,17 +879,6 @@ proc collectAllVersions*(versions: var Table[string, PackageVersions], package: 
   var visited = initHashSet[PkgTuple]()
   for pv in package.requires:
     processRequirements(versions, pv, visited, getMinimalPackage, preferredPackages, options, nimBin)
-
-proc mergeVersionTables(dest: var Table[string, PackageVersions], source: Table[string, PackageVersions]) =
-  ## Helper proc to merge version tables. Synchronous to avoid closure capture issues.
-  ## All versions (including special versions) are added alongside existing versions.
-  ## The SAT solver will choose the best version based on the cmp function.
-  for pkgName, pkgVersions in source:
-    if pkgName notin dest:
-      dest[pkgName] = pkgVersions
-    else:
-      for ver in pkgVersions.versions:
-        dest[pkgName].versions.addUnique ver
 
 proc collectAllVersionsAsync*(package: PackageMinimalInfo, options: Options, getMinimalPackage: GetPackageMinimalAsync, preferredPackages: seq[PackageMinimalInfo] = newSeq[PackageMinimalInfo](), nimBin: Option[string]): Future[Table[string, PackageVersions]] {.async.} =
   {.cast(raises: [CatchableError]).}:

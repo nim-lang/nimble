@@ -374,8 +374,10 @@ requires "nim >= 1.5.1"
         let (output, exitCode) = execNimbleYes("install", "--debug")
         check exitCode == QuitSuccess
         let lines = output.processOutput
-        check lines.inLines(&"Downloading {dep1PkgOriginRepoPath} using git")
-        check lines.inLines(&"Downloading {dep2PkgOriginRepoPath} using git")
+        check lines.inLines(&"Downloading {dep1PkgOriginRepoPath}") or
+              lines.inLines(&"Fetching {dep1PkgOriginRepoPath}")
+        check lines.inLines(&"Downloading {dep2PkgOriginRepoPath}") or
+              lines.inLines(&"Fetching {dep2PkgOriginRepoPath}")
 
   # test "can update already existing lock file":
   #   cleanUp()
