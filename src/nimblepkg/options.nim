@@ -938,7 +938,7 @@ proc initOptions*(): Options =
     satResult: SatResult(),
     # TEMPORARY: Changed to global-by-default. To revert to local-by-default, change to: localDeps: true
     localDeps: false,
-    useAsyncDownloads: true,
+    useAsyncDownloads: false,
     lenient: true
   )
 
