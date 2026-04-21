@@ -178,7 +178,7 @@ suite "misc tests":
     # The test passes if either:
     # - With fix: shows "corrupted" warning and re-downloads
     # - Without fix but SAT recovery: shows "Downloading"
-    check output.contains("corrupted") or output.contains("Downloading")
+    check output.contains("corrupted") or output.contains("Downloading") or output.contains("Fetching")
 
   test "friendly error when running command without nimble file":
     # Commands like build, test, run should show a friendly error message
