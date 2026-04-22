@@ -2,6 +2,7 @@
 import unittest
 import nimblepkg/[options, downloadnim, version, declarativeparser, versiondiscovery]
 import std/[os, options, osproc, strutils]
+import chronos
 import testscommon
 from nimblepkg/common import cd
 
@@ -29,7 +30,7 @@ suite "Nim binaries":
     let pv = ("nim", VersionRange(kind: verAny))
     let releases: seq[Version] = getOfficialReleases(options)
     let nimBin = some("nim")
-    let minimalPgks = downloadMinimalPackage(pv, options, nimBin)
+    let minimalPgks = waitFor downloadMinimalPackage(pv, options, nimBin)
 
     check minimalPgks.len > 0
     check minimalPgks.len == releases.len

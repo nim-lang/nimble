@@ -223,7 +223,7 @@ suite "Async Tools":
 
     removeDir(tmpDir)
 
-  # test "downloadMinimalPackageAsync downloads package with versions":
+  # test "downloadMinimalPackage downloads package with versions":
   #   let tmpDir = getTempDir() / "nimble_async_test_minimalpackage"
 
   #   if dirExists(tmpDir):
@@ -240,10 +240,10 @@ suite "Async Tools":
   #   options.pkgCachePath = tmpDir / "cache"
   #   createDir(options.pkgCachePath)
 
-  #   # Download nim-results package using downloadMinimalPackageAsync
+  #   # Download nim-results package using downloadMinimalPackage
   #   # Use a version range to test the full flow of downloading and fetching versions
   #   let pkg: PkgTuple = ("https://github.com/arnetheduck/nim-results", parseVersionRange(">= 0.4.0"))
-  #   let versions = waitFor downloadMinimalPackageAsync(pkg, options, nimBin)
+  #   let versions = waitFor downloadMinimalPackage(pkg, options, nimBin)
 
   #   # Verify we got multiple versions
   #   check versions.len > 0
@@ -257,7 +257,7 @@ suite "Async Tools":
 
   #   removeDir(tmpDir)
 
-  test "getMinimalFromPreferredAsync returns preferred package":
+  test "getMinimalFromPreferred returns preferred package":
     let tmpDir = getTempDir() / "nimble_async_test_preferred"
 
     if dirExists(tmpDir):
@@ -285,15 +285,15 @@ suite "Async Tools":
 
     # Test 1: Request matching preferred package - should return preferred without downloading
     let pkg1: PkgTuple = ("results", parseVersionRange("0.4.0"))
-    let versions1 = waitFor getMinimalFromPreferredAsync(pkg1, downloadMinimalPackageAsync, preferredPackages, options, nimBin)
+    let versions1 = waitFor getMinimalFromPreferred(pkg1, downloadMinimalPackage, preferredPackages, options, nimBin)
 
     check versions1.len == 1
     check versions1[0].name == "results"
     check versions1[0].version == newVersion("0.4.0")
 
-    # Test 2: Request non-matching package - should fall back to downloadMinimalPackageAsync
+    # Test 2: Request non-matching package - should fall back to downloadMinimalPackage
     let pkg2: PkgTuple = ("https://github.com/arnetheduck/nim-results", parseVersionRange(">= 0.3.0"))
-    let versions2 = waitFor getMinimalFromPreferredAsync(pkg2, downloadMinimalPackageAsync, preferredPackages, options, nimBin)
+    let versions2 = waitFor getMinimalFromPreferred(pkg2, downloadMinimalPackage, preferredPackages, options, nimBin)
 
     check versions2.len > 0  # Should download and return multiple versions
     var foundPreferred = false
@@ -305,7 +305,7 @@ suite "Async Tools":
 
     removeDir(tmpDir)
 
-  test "collectAllVersionsAsync collects versions in parallel":
+  test "collectAllVersions collects versions in parallel":
     let tmpDir = getTempDir() / "nimble_async_test_collectall"
 
     if dirExists(tmpDir):
@@ -335,7 +335,7 @@ suite "Async Tools":
     )
 
     # Collect all versions using async
-    let versions = waitFor collectAllVersionsAsync(mockPackage, options, downloadMinimalPackageAsync, @[], nimBin)
+    let versions = waitFor collectAllVersions(mockPackage, options, downloadMinimalPackage, @[], nimBin)
 
     # Verify we got versions for both dependencies
     check versions.len >= 1  # At least nim-results should be found
@@ -358,7 +358,7 @@ suite "Async Tools":
 
     removeDir(tmpDir)
 
-  test "collectAllVersionsAsync processes dependencies in parallel":
+  test "collectAllVersions processes dependencies in parallel":
     let tmpDir = getTempDir() / "nimble_async_test_solve"
 
     if dirExists(tmpDir):
@@ -384,8 +384,8 @@ suite "Async Tools":
       requires: @[("https://github.com/arnetheduck/nim-results", parseVersionRange(">= 0.4.0"))]
     )
 
-    # Use collectAllVersionsAsync directly
-    let versions = waitFor collectAllVersionsAsync(rootPkg, options, downloadMinimalPackageAsync, @[], nimBin)
+    # Use collectAllVersions directly
+    let versions = waitFor collectAllVersions(rootPkg, options, downloadMinimalPackage, @[], nimBin)
 
     # Verify that nim-results was collected
     check versions.len > 0

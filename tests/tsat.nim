@@ -3,6 +3,7 @@ import unittest, os, osproc
 import testscommon
 # from nimblepkg/common import cd, NimbleError Used in the commented tests
 import std/[tables, json, jsonutils, strutils, times, options]
+import chronos
 import nimblepkg/[version, nimblesat, options, config, packageinfotypes, versiondiscovery]
 from nimblepkg/common import cd, NimbleError
 
@@ -22,8 +23,7 @@ proc downloadAndStorePackageVersionTableFor(pkgName: string, options: Options) =
   var pkgInfo = downloadPkInfoForPv(pv, options, nimBin = nimBin)
   var root = pkgInfo.getMinimalInfo(options)
   root.isRoot = true
-  var pkgVersionTable = initTable[string, PackageVersions]()
-  collectAllVersions(pkgVersionTable, root, options, downloadMinimalPackage, nimBin = nimBin)
+  var pkgVersionTable = waitFor collectAllVersions(root, options, downloadMinimalPackage, nimBin = nimBin)
   pkgVersionTable[pkgName] = PackageVersions(pkgName: pkgName, versions: @[root])
   let json = pkgVersionTable.toJson()
   writeFile(path, json.pretty())
