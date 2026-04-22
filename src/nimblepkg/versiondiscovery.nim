@@ -670,13 +670,16 @@ proc processRequirements*(pv: PkgTuple, visitedParam: HashSet[PkgTuple], getMini
       for pkgMin in pkgMins.mitems:
         expandActiveFeatures(pkgMin, result)
 
-      # Collect all unique requirements from all package versions first
+      # Collect all unique requirements from all package versions.
+      # Special versions (like #head) are kept separately even if the same
+      # package name exists with a normal version, since they need their own resolution.
       var allRequirements: seq[PkgTuple] = @[]
       for pkgMin in pkgMins:
         for req in pkgMin.requires:
           var found = false
           for existing in allRequirements:
-            if existing.name == req.name:
+            if existing.name == req.name and
+               existing.ver.kind == req.ver.kind:
               found = true
               break
           if not found:
