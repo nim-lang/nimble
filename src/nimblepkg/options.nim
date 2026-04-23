@@ -293,7 +293,7 @@ Nimble Options:
       --parser:declarative|nimvm  Use the declarative parser or the nimvm parser (default).
       --features                  Activate features. Only used when using the declarative parser.
       --ignoreSubmodules          Ignore submodules when cloning a repository.
-      --discovery:sync|async      Package version discovery mode (default: sync).
+      --discovery:sync|async      Package version discovery mode (default: async).
 For more information read the GitHub readme:
   https://github.com/nim-lang/nimble#readme
 """
@@ -944,7 +944,7 @@ proc initOptions*(): Options =
     satResult: SatResult(),
     # TEMPORARY: Changed to global-by-default. To revert to local-by-default, change to: localDeps: true
     localDeps: false,
-    parallelDiscovery: false,
+    parallelDiscovery: true,
     lenient: true
   )
 
