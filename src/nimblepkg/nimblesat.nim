@@ -737,17 +737,13 @@ proc solvePackages*(rootPkg: PackageInfo, pkgList: seq[PackageInfo], pkgsToInsta
   pkgVersionTable = cacheToPackageVersionTable(options)
   pkgVersionTable[root.name] = PackageVersions(pkgName: root.name, versions: @[root])
 
-  if not options.useAsyncDownloads:
-    collectAllVersions(pkgVersionTable, root, options, downloadMinimalPackage, pkgList.mapIt(it.getMinimalInfo(options)), nimBin)
-  else:
-    # Async version: collect versions in parallel, then merge with cache
-    let asyncVersions = waitFor collectAllVersionsAsync(root, options, downloadMinimalPackageAsync, pkgList.mapIt(it.getMinimalInfo(options)), nimBin)
-    for pkgName, pkgVersions in asyncVersions:
-      if pkgName notin pkgVersionTable:
-        pkgVersionTable[pkgName] = pkgVersions
-      else:
-        for ver in pkgVersions.versions:
-          pkgVersionTable[pkgName].versions.addVersionUnique ver
+  let discoveredVersions = waitFor collectAllVersions(root, options, downloadMinimalPackage, pkgList.mapIt(it.getMinimalInfo(options)), nimBin)
+  for pkgName, pkgVersions in discoveredVersions:
+    if pkgName notin pkgVersionTable:
+      pkgVersionTable[pkgName] = pkgVersions
+    else:
+      for ver in pkgVersions.versions:
+        pkgVersionTable[pkgName].versions.addVersionUnique ver
 
   pkgVersionTable.normalizeRequirements(options)
   pkgVersionTable.normalizeSpecialVersions(options)
@@ -800,19 +796,13 @@ proc getPkgVersionTable*(pkgInfo: PackageInfo, pkgList: seq[PackageInfo], option
   var root = pkgInfo.getMinimalInfo(options)
   root.isRoot = true
   result[root.name] = PackageVersions(pkgName: root.name, versions: @[root])
-  if options.useAsyncDownloads:
-    # Use async version for parallel downloading
-    let asyncVersions = waitFor collectAllVersionsAsync(root, options, downloadMinimalPackageAsync, pkgList.mapIt(it.getMinimalInfo(options)), nimBin)
-    # Merge async results into the result table
-    for pkgName, pkgVersions in asyncVersions:
-      if not result.hasKey(pkgName):
-        result[pkgName] = pkgVersions
-      else:
-        for ver in pkgVersions.versions:
-          result[pkgName].versions.addVersionUnique ver
-  else:
-    # Use sync version (default, stable behavior)
-    collectAllVersions(result, root, options, downloadMinimalPackage, pkgList.mapIt(it.getMinimalInfo(options)), nimBin)
+  let discoveredVersions = waitFor collectAllVersions(root, options, downloadMinimalPackage, pkgList.mapIt(it.getMinimalInfo(options)), nimBin)
+  for pkgName, pkgVersions in discoveredVersions:
+    if not result.hasKey(pkgName):
+      result[pkgName] = pkgVersions
+    else:
+      for ver in pkgVersions.versions:
+        result[pkgName].versions.addVersionUnique ver
 
 
 const maxPkgNameDisplayWidth = 40  # Cap package name width

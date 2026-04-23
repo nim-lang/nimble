@@ -2,6 +2,7 @@
 import unittest, os
 import testscommon
 import std/[tables, sequtils, strutils, options, strformat]
+import chronos
 import nimblepkg/[version, nimblesat, options, config, download, packageinfotypes, versiondiscovery]
 from nimblepkg/common import cd, NimbleError
 
@@ -22,8 +23,7 @@ suite "Version Discovery":
     var pkgInfo = downloadPkInfoForPv(pv, options, nimBin = nimBin)
     var root = pkgInfo.getMinimalInfo(options)
     root.isRoot = true
-    var pkgVersionTable = initTable[string, PackageVersions]()
-    collectAllVersions(pkgVersionTable, root, options, downloadMinimalPackage, nimBin = nimBin)
+    var pkgVersionTable = waitFor collectAllVersions(root, options, downloadMinimalPackage, nimBin = nimBin)
     pkgVersionTable[pkgName] = PackageVersions(pkgName: pkgName, versions: @[root])
 
     var graph = pkgVersionTable.toDepGraph()
@@ -68,7 +68,11 @@ suite "Version Discovery":
     var pkgVersionTable = initTable[string, PackageVersions]()
     pkgVersionTable["a"] = PackageVersions(pkgName: "a", versions: @[root])
     fillPackageTableFromPreferred(pkgVersionTable, pkgs)
-    collectAllVersions(pkgVersionTable, root, options, downloadMinimalPackage, nimBin = nimBin)
+    let discovered = waitFor collectAllVersions(root, options, downloadMinimalPackage, nimBin = nimBin)
+    for k, v in discovered:
+      if k notin pkgVersionTable: pkgVersionTable[k] = v
+      else:
+        for ver in v.versions: pkgVersionTable[k].versions.addVersionUnique ver
     var output = ""
     let solvedPkgs = pkgVersionTable.getSolvedPackages(output, options)
     let pkgB = solvedPkgs.filterIt(it.pkgName == "b")[0]
@@ -145,8 +149,7 @@ suite "Version Discovery":
     var pkgInfo = downloadPkInfoForPv(pv, options, nimBin = nimBin)
     var root = pkgInfo.getMinimalInfo(options)
     root.isRoot = true
-    var pkgVersionTable = initTable[string, PackageVersions]()
-    collectAllVersions(pkgVersionTable, root, options, downloadMinimalPackage, nimBin = nimBin)
+    var pkgVersionTable = waitFor collectAllVersions(root, options, downloadMinimalPackage, nimBin = nimBin)
     for k, v in pkgVersionTable:
       # All packages should have at least one version
       check v.versions.len > 0
@@ -175,23 +178,20 @@ suite "Version Discovery":
     # and another requires a normal version, both should be kept in the version table.
 
     # Mock getMinimalPackage that returns controlled versions
-    proc mockGetMinimalPackage(pv: PkgTuple, options: Options, nimBin: Option[string]): seq[PackageMinimalInfo] =
+    proc mockGetMinimalPackage(pv: PkgTuple, options: Options, nimBin: Option[string]): Future[seq[PackageMinimalInfo]] {.async.} =
       case pv.name
       of "dep":
         if pv.ver.kind == verSpecial:
-          # When #head is requested, return #head version
           var headVer = newVersion("#head")
           headVer.speSemanticVersion = some("0.3.0")
           return @[PackageMinimalInfo(name: "dep", version: headVer)]
         else:
-          # Return tagged versions
           return @[
             PackageMinimalInfo(name: "dep", version: newVersion("0.2.5")),
             PackageMinimalInfo(name: "dep", version: newVersion("0.2.0")),
             PackageMinimalInfo(name: "dep", version: newVersion("0.1.0"))
           ]
       of "wrapper":
-        # Return both versions of wrapper
         return @[
           PackageMinimalInfo(name: "wrapper", version: newVersion("1.0.0"), requires: @[
             (name: "dep", ver: parseVersionRange(">= 0.2.0"))
@@ -216,11 +216,9 @@ suite "Version Discovery":
       isRoot: true
     )
 
-    var pkgVersionTable = initTable[string, PackageVersions]()
-    pkgVersionTable["root"] = PackageVersions(pkgName: "root", versions: @[root])
-
     # Collect all versions - this triggers processRequirements
-    collectAllVersions(pkgVersionTable, root, options, mockGetMinimalPackage, nimBin = some("nim"))
+    var pkgVersionTable = waitFor collectAllVersions(root, options, mockGetMinimalPackage, nimBin = some("nim"))
+    pkgVersionTable["root"] = PackageVersions(pkgName: "root", versions: @[root])
 
     check pkgVersionTable.hasKey("dep")
     let depVersions = pkgVersionTable["dep"].versions.mapIt($it.version)
