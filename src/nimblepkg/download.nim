@@ -65,6 +65,9 @@ proc doCheckout*(meth: DownloadMethod, downloadDir, branch: string, options: Opt
   of DownloadMethod.hg:
     let (_, exitCode) = doCmdEx(&"hg --cwd {downloadDir.quoteShell} checkout {branch.quoteShell}")
     return exitCode == 0
+  of DownloadMethod.http:
+    # HTTP packages are extracted directly, no checkout needed
+    return true
 
 proc doCheckoutAsync*(meth: DownloadMethod, downloadDir, branch: string, options: Options): Future[bool] {.async.} =
   ## Async version of doCheckout that uses doCmdExAsync for non-blocking execution.
@@ -86,6 +89,9 @@ proc doCheckoutAsync*(meth: DownloadMethod, downloadDir, branch: string, options
   of DownloadMethod.hg:
     let (_, exitCode) = await doCmdExAsync(&"hg --cwd {downloadDir.quoteShell} checkout {branch.quoteShell}")
     return exitCode == 0
+  of DownloadMethod.http:
+    # HTTP packages are extracted directly, no checkout needed
+    return true
 
 proc doClone(meth: DownloadMethod, url, downloadDir: string, branch = "",
              onlyTip = true, options: Options) =
@@ -105,6 +111,9 @@ proc doClone(meth: DownloadMethod, url, downloadDir: string, branch = "",
       tipArg = if onlyTip: "-r tip " else: ""
       branchArg = if branch == "": "" else: &"-b {branch.quoteShell}"
     discard tryDoCmdEx(&"hg clone {tipArg} {branchArg} {url} {downloadDir.quoteShell}")
+  of DownloadMethod.http:
+    # HTTP packages are downloaded as tarballs, not cloned
+    discard
 
 proc doCloneAsync*(meth: DownloadMethod, url, downloadDir: string, branch = "",
                    onlyTip = true, options: Options): Future[void] {.async.} =
@@ -125,6 +134,9 @@ proc doCloneAsync*(meth: DownloadMethod, url, downloadDir: string, branch = "",
       tipArg = if onlyTip: "-r tip " else: ""
       branchArg = if branch == "": "" else: &"-b {branch.quoteShell}"
     discard await tryDoCmdExAsync(&"hg clone {tipArg} {branchArg} {url} {downloadDir.quoteShell}")
+  of DownloadMethod.http:
+    # HTTP packages are downloaded as tarballs, not cloned
+    discard
 
 proc gitFetchTags*(repoDir: string, downloadMethod: DownloadMethod, options: Options) =
   case downloadMethod:
@@ -134,6 +146,9 @@ proc gitFetchTags*(repoDir: string, downloadMethod: DownloadMethod, options: Opt
     of DownloadMethod.hg:
       # In Mercurial, pulling updates also fetches all remote tags
       tryDoCmdEx(&"hg --cwd {repoDir} pull")
+    of DownloadMethod.http:
+      # HTTP packages have no remote tags to fetch
+      discard
 
 proc gitFetchTagsAsync*(repoDir: string, downloadMethod: DownloadMethod, options: Options): Future[void] {.async.} =
   ## Async version of gitFetchTags that uses doCmdExAsync for non-blocking execution.
@@ -144,6 +159,9 @@ proc gitFetchTagsAsync*(repoDir: string, downloadMethod: DownloadMethod, options
     of DownloadMethod.hg:
       # In Mercurial, pulling updates also fetches all remote tags
       discard await tryDoCmdExAsync(&"hg --cwd {repoDir} pull")
+    of DownloadMethod.http:
+      # HTTP packages have no remote tags to fetch
+      discard
 
 proc getTagsList*(dir: string, meth: DownloadMethod): seq[string] =
   var output: string
@@ -153,6 +171,9 @@ proc getTagsList*(dir: string, meth: DownloadMethod): seq[string] =
       output = tryDoCmdEx("git tag")
     of DownloadMethod.hg:
       output = tryDoCmdEx("hg tags")
+    of DownloadMethod.http:
+      # HTTP packages have no tags
+      return @[]
   if output.len > 0:
     case meth
     of DownloadMethod.git:
@@ -168,6 +189,9 @@ proc getTagsList*(dir: string, meth: DownloadMethod): seq[string] =
         discard parseUntil(i, tag, ' ')
         if tag != "tip":
           result.add(tag)
+    of DownloadMethod.http:
+      # HTTP packages have no tags
+      result = @[]
   else:
     result = @[]
 
@@ -180,6 +204,9 @@ proc getTagsListAsync*(dir: string, meth: DownloadMethod): Future[seq[string]] {
     output = await tryDoCmdExAsync(&"git -C {dir.quoteShell} tag")
   of DownloadMethod.hg:
     output = await tryDoCmdExAsync(&"hg --cwd {dir.quoteShell} tags")
+  of DownloadMethod.http:
+    # HTTP packages have no tags
+    return @[]
   if output.len > 0:
     case meth
     of DownloadMethod.git:
@@ -195,6 +222,9 @@ proc getTagsListAsync*(dir: string, meth: DownloadMethod): Future[seq[string]] {
         discard parseUntil(i, tag, ' ')
         if tag != "tip":
           result.add(tag)
+    of DownloadMethod.http:
+      # HTTP packages have no tags
+      result = @[]
   else:
     result = @[]
 
@@ -217,6 +247,9 @@ proc getTagsListRemote*(url: string, meth: DownloadMethod): seq[string] =
   of DownloadMethod.hg:
     # http://stackoverflow.com/questions/2039150/show-tags-for-remote-hg-repository
     raise nimbleError("Hg doesn't support remote tag querying.")
+  of DownloadMethod.http:
+    # HTTP packages have no remote tags to query
+    return @[]
 
 proc getTagsListRemoteAsync*(url: string, meth: DownloadMethod): Future[seq[string]] {.async.} =
   ## Async version of getTagsListRemote that uses doCmdExAsync for non-blocking execution.
@@ -238,6 +271,9 @@ proc getTagsListRemoteAsync*(url: string, meth: DownloadMethod): Future[seq[stri
   of DownloadMethod.hg:
     # http://stackoverflow.com/questions/2039150/show-tags-for-remote-hg-repository
     raise nimbleError("Hg doesn't support remote tag querying.")
+  of DownloadMethod.http:
+    # HTTP packages have no remote tags to query
+    return @[]
 
 proc getVersionList*(tags: seq[string]): OrderedTable[Version, string] =
   ## Return an ordered table of Version -> git tag label.  Ordering is
@@ -261,6 +297,7 @@ proc getHeadName*(meth: DownloadMethod): Version =
   case meth
   of DownloadMethod.git: newVersion("#head")
   of DownloadMethod.hg: newVersion("#tip")
+  of DownloadMethod.http: newVersion("#head")
 
 proc checkUrlType*(url: string, options: Options): DownloadMethod =
   ## Determines the download method based on the URL.
@@ -303,6 +340,8 @@ proc cloneSpecificRevision(downloadMethod: DownloadMethod,
       downloadDir.updateSubmodules
   of DownloadMethod.hg:
     discard tryDoCmdEx(&"hg clone {url} -r {($vcsRevision).quoteShell}")
+  of DownloadMethod.http:
+    raise nimbleError("HTTP method does not support cloning specific revisions.")
 
 proc cloneSpecificRevisionAsync*(downloadMethod: DownloadMethod,
                                   url, downloadDir: string,
@@ -325,6 +364,8 @@ proc cloneSpecificRevisionAsync*(downloadMethod: DownloadMethod,
       await downloadDir.updateSubmodulesAsync()
   of DownloadMethod.hg:
     discard await tryDoCmdExAsync(&"hg clone {url} -r {($vcsRevision).quoteShell}")
+  of DownloadMethod.http:
+    raise nimbleError("HTTP method does not support cloning specific revisions.")
 
 var tarExePathCache {.threadvar.}: string
 
@@ -709,8 +750,55 @@ proc doDownload(url, downloadDir: string, verRange: VersionRange,
       else:
         display("Warning:", &"The package {url} has no tagged releases, downloading HEAD instead.", Warning,
                   priority = HighPriority)
+    of DownloadMethod.http:
+      let downloadUrl =
+        case verRange.kind
+        of verSpecial:
+          url & "/" & substr($verRange.spe, 1)
+        of verEq:
+          url & "/" & $verRange.ver
+        else:
+          url & "/head"
+      display("Downloading", downloadUrl)
+      let data = retrieveUrl(downloadUrl)
+      display("Completed", "downloading " & downloadUrl)
 
-  if result.vcsRevision == notSetSha1Hash:
+      let filePath = downloadDir / "package.tar.gz"
+      display("Saving", filePath)
+      downloadDir.createDir
+      writeFile(filePath, data)
+      display("Completed", "saving " & filePath)
+
+      display("Unpacking", filePath)
+      let cmd = getTarCmdLine(downloadDir, filePath)
+      let (output, exitCode) = doCmdEx(cmd)
+      if exitCode != QuitSuccess and not output.contains("Cannot create symlink to"):
+        raise nimbleError(tryDoCmdExErrorMessage(cmd, output, exitCode))
+      display("Completed", "unpacking " & filePath)
+
+      when defined(windows):
+        let listCmd = &"{getTarExePath()} -ztvf {filePath} --force-local"
+        let (cmdOutput, cmdExitCode) = doCmdEx(listCmd)
+        if cmdExitCode != QuitSuccess:
+          raise nimbleError(tryDoCmdExErrorMessage(listCmd, cmdOutput, cmdExitCode))
+        for line in cmdOutput.splitLines():
+          if line.contains(" -> "):
+            let parts = line.split
+            let linkPath = parts[^1]
+            let linkNameParts = parts[^3].split('/')
+            let linkName = linkNameParts[1 .. ^1].foldl(a / b)
+            writeFile(downloadDir / linkName, linkPath)
+
+      filePath.removeFile
+
+      let nimbleFile = findNimbleFile(downloadDir, true, options)
+      let info = extractRequiresInfo(nimbleFile, options)
+      if info.version != "":
+        result.version = newVersion(info.version)
+      else:
+        raise nimbleError("Could not determine version from downloaded package at " & downloadUrl)
+
+  if result.vcsRevision == notSetSha1Hash and downMethod != DownloadMethod.http:
     # In the case the package in not downloaded as tarball we must query its
     # VCS revision from its download directory.
     result.vcsRevision = downloadDir.getVcsRevision
@@ -811,8 +899,55 @@ proc doDownloadAsync(url, downloadDir: string, verRange: VersionRange,
       else:
         display("Warning:", &"The package {url} has no tagged releases, downloading HEAD instead.", Warning,
                   priority = HighPriority)
+    of DownloadMethod.http:
+      let downloadUrl =
+        case verRange.kind
+        of verSpecial:
+          url & "/" & substr($verRange.spe, 1)
+        of verEq:
+          url & "/" & $verRange.ver
+        else:
+          url & "/head"
+      display("Downloading", downloadUrl)
+      let data = retrieveUrl(downloadUrl)
+      display("Completed", "downloading " & downloadUrl)
 
-  if result.vcsRevision == notSetSha1Hash:
+      let filePath = downloadDir / "package.tar.gz"
+      display("Saving", filePath)
+      downloadDir.createDir
+      writeFile(filePath, data)
+      display("Completed", "saving " & filePath)
+
+      display("Unpacking", filePath)
+      let cmd = getTarCmdLine(downloadDir, filePath)
+      let (output, exitCode) = await doCmdExAsync(cmd)
+      if exitCode != QuitSuccess and not output.contains("Cannot create symlink to"):
+        raise nimbleError(tryDoCmdExErrorMessage(cmd, output, exitCode))
+      display("Completed", "unpacking " & filePath)
+
+      when defined(windows):
+        let listCmd = &"{getTarExePath()} -ztvf {filePath} --force-local"
+        let (cmdOutput, cmdExitCode) = await doCmdExAsync(listCmd)
+        if cmdExitCode != QuitSuccess:
+          raise nimbleError(tryDoCmdExErrorMessage(listCmd, cmdOutput, cmdExitCode))
+        for line in cmdOutput.splitLines():
+          if line.contains(" -> "):
+            let parts = line.split
+            let linkPath = parts[^1]
+            let linkNameParts = parts[^3].split('/')
+            let linkName = linkNameParts[1 .. ^1].foldl(a / b)
+            writeFile(downloadDir / linkName, linkPath)
+
+      filePath.removeFile
+
+      let nimbleFile = findNimbleFile(downloadDir, true, options)
+      let info = extractRequiresInfo(nimbleFile, options)
+      if info.version != "":
+        result.version = newVersion(info.version)
+      else:
+        raise nimbleError("Could not determine version from downloaded package at " & downloadUrl)
+
+  if result.vcsRevision == notSetSha1Hash and downMethod != DownloadMethod.http:
     # In the case the package in not downloaded as tarball we must query its
     # VCS revision from its download directory.
     result.vcsRevision = downloadDir.getVcsRevision
@@ -1018,6 +1153,8 @@ proc echoPackageVersions*(pkg: Package) =
   of DownloadMethod.hg:
     displayInfoLine("  versions:    ", "(Remote tag retrieval not supported by " &
                                         $pkg.downloadMethod & ")")
+  of DownloadMethod.http:
+    displayInfoLine("  versions:    ", "(Version info from registry only)")
 
 proc removeTrailingSlash(s: string): string =
   s.strip(chars = {'/'}, leading = false)

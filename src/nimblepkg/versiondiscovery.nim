@@ -181,6 +181,15 @@ proc getPackageMinimalVersionsFromRepo*(repoDir: string, pkg: PkgTuple, version:
   if taggedVersions.isSome:
     return taggedVersions.get
 
+  # HTTP packages have no VCS history; just return the single downloaded version
+  if downloadMethod == DownloadMethod.http:
+    try:
+      result.addUnique getPkgInfo(repoDir, options, nimBin, pikRequires).getMinimalInfo(options)
+    except CatchableError as e:
+      displayWarning(&"Error getting package info for {name}: {e.msg}", HighPriority)
+    saveTaggedVersions(name, result, options)
+    return result
+
   # During version discovery, we only need to read .nimble files, not compile code
   # So we can safely ignore submodules to avoid issues with repos that have
   # submodules that fail to clone (e.g., waku's zerokit submodule)
@@ -281,6 +290,15 @@ proc getPackageMinimalVersionsFromRepoAsync*(repoDir: string, pkg: PkgTuple, ver
     except CatchableError:
       discard # Continue with fetching from repo
 
+    # HTTP packages have no VCS history; just return the single downloaded version
+    if downloadMethod == DownloadMethod.http:
+      try:
+        result.addUnique getPkgInfo(repoDir, options, nimBin, pikRequires).getMinimalInfo(options)
+      except CatchableError as e:
+        displayWarning(&"Error getting package info for {name}: {e.msg}", HighPriority)
+      saveTaggedVersions(name, result, options)
+      return result
+
     let tempDir = repoDir & "_versions"
     # During version discovery, we only need to read .nimble files, not compile code
     # So we can safely ignore submodules to avoid issues with repos that have
@@ -368,6 +386,15 @@ proc getPackageMinimalVersionsFromRepoAsyncFast*(
     ## Uses git ls-tree and git show to avoid expensive checkout + copyDir operations.
     result = newSeq[PackageMinimalInfo]()
     let name = pkg[0]
+
+    # HTTP packages have no VCS history; just return the single downloaded version
+    if downloadMethod == DownloadMethod.http:
+      try:
+        result.addUnique getPkgInfo(repoDir, options, nimBin, pikRequires).getMinimalInfo(options)
+      except CatchableError as e:
+        displayWarning(&"Error getting package info for {name}: {e.msg}", HighPriority)
+      saveTaggedVersions(name, result, options)
+      return result
 
     # Find the git repository root (repoDir might be a subdirectory)
     var gitRoot = repoDir

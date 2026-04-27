@@ -22,23 +22,21 @@ proc initConfig(): Config =
   result.httpProxy = initUri()
   result.chcp = true
   result.cloneUsingHttps = true
-  result.packageLists["official"] = PackageList(name: "Official", urls: @[
-    "https://raw.githubusercontent.com/nim-lang/packages/master/packages.json",
-    "https://nim-lang.org/nimble/packages.json"
-  ])
 
 proc clear(pkgList: var PackageList) =
   pkgList.name = ""
   pkgList.urls = @[]
   pkgList.path = ""
 
-proc addCurrentPkgList(config: var Config, currentPackageList: PackageList) =
+proc addCurrentPkgList(config: var Config, currentPackageList: PackageList, hasUserPackageList: var bool) =
   if currentPackageList.name.len > 0:
     config.packageLists[currentPackageList.name.normalize] = currentPackageList
+    hasUserPackageList = true
 
 proc parseConfig*(): Config =
   result = initConfig()
   var confFile = getConfigDir() / "nimble" / "nimble.ini"
+  var hasUserPackageList = false
 
   var f = newFileStream(confFile, fmRead)
   if f != nil:
@@ -56,10 +54,10 @@ proc parseConfig*(): Config =
             raise nimbleError("Package list '$1' requires either url or path" % currentPackageList.name)
           if currentPackageList.urls.len > 0 and currentPackageList.path != "":
             raise nimbleError("Attempted to specify `url` and `path` for the same package list '$1'" % currentPackageList.name)
-          addCurrentPkgList(result, currentPackageList)
+          addCurrentPkgList(result, currentPackageList, hasUserPackageList)
         break
       of cfgSectionStart:
-        addCurrentPkgList(result, currentPackageList)
+        addCurrentPkgList(result, currentPackageList, hasUserPackageList)
         currentSection = e.section
         case currentSection.normalize
         of "packagelist":
@@ -104,3 +102,8 @@ proc parseConfig*(): Config =
       of cfgError:
         raise nimbleError("Unable to parse config file: " & e.msg)
     close(p)
+  if not hasUserPackageList:
+    result.packageLists["official"] = PackageList(name: "Official", urls: @[
+      "https://raw.githubusercontent.com/nim-lang/packages/master/packages.json",
+      "https://nim-lang.org/nimble/packages.json"
+    ])
