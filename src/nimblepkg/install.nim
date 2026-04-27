@@ -2,10 +2,20 @@
 ## pkgcache/pkgs2, before/after hooks, bin symlinks and reverse-dep bookkeeping.
 
 import std/[sequtils, sets, options, os, strutils, tables, strformat]
+import chronos
 import nimblesat, packageinfotypes, options, version, declarativeparser, packageinfo, common,
   cli, tools, nimscriptexecutor, packagemetadatafile,
   displaymessages, reversedeps, developfile, urls, download, sha1hashes,
   versiondiscovery, nimresolution, build
+
+type PkgDownloadEntry = object
+  name: string 
+  ver: Version 
+  pv: PkgTuple 
+  vcsRevision: Sha1Hash 
+  isRoot: bool 
+  dlInfo: Option[PackageDownloadInfo] # resolved after collectDownloadEntries, before download
+  download: Future[void] # set during downloadPkgs; nil if cached or skipped
 
 proc getPkgInfoFromSolved*(satResult: SATResult, solvedPkg: SolvedPackage, options: Options): PackageInfo =
   for pkg in satResult.pkgs.toSeq:
@@ -337,6 +347,125 @@ proc getVersionRangeFoPkgToInstall(satResult: SATResult, name: string, ver: Vers
         return parseVersionRange(specialVersion)
   return ver.toVersionRange()
 
+proc collectDownloadEntries(satResult: SATResult, pkgsToInstall: seq[(string, Version)],
+                            rootName: string, installedPkgs: HashSet[PackageInfo],
+                            options: Options): seq[PkgDownloadEntry] =
+  for (name, ver) in pkgsToInstall:
+    let verRange = satResult.getVersionRangeFoPkgToInstall(name, ver)
+    let vcsRevision = if name in options.satResult.lockFileVcsRevisions:
+      options.satResult.lockFileVcsRevisions[name]
+    else:
+      notSetSha1Hash
+    var pv = (name: name, ver: verRange)
+    let isRootPkg = pv.name == rootName and
+      (rootName notin installedPkgs.mapIt(it.basicInfo.name) or satResult.rootPackage.hasLockFile(options))
+    if not isRootPkg and pv.name in options.satResult.normalizedRequirements:
+      pv.name = options.satResult.normalizedRequirements[pv.name]
+    result.add(PkgDownloadEntry(name: name, ver: ver, pv: pv, vcsRevision: vcsRevision,
+                isRoot: isRootPkg))
+
+proc resolveDownloadInfo(entries: var seq[PkgDownloadEntry], options: Options) =
+  for i in 0 ..< entries.len:
+    if entries[i].isRoot:
+      continue
+    var pv = entries[i].pv
+    var dlInfo: PackageDownloadInfo
+    try:
+      dlInfo = getPackageDownloadInfo(pv, options, doPrompt = true, vcsRevision = entries[i].vcsRevision)
+    except CatchableError as e:
+      let url = getUrlFromPkgName(pv.name, options.satResult.pkgVersionTable, options)
+      if url != "":
+        pv.name = url
+        entries[i].pv = pv
+        dlInfo = getPackageDownloadInfo(pv, options, doPrompt = true, vcsRevision = entries[i].vcsRevision)
+      else:
+        raise e
+    entries[i].dlInfo = some(dlInfo)
+
+proc doDownload(dlInfo: PackageDownloadInfo, options: Options, nimBin: Option[string]): Future[void] {.async.} =
+  discard await downloadFromDownloadInfoAsync(dlInfo, options, nimBin)
+
+proc downloadPkgs(entries: var seq[PkgDownloadEntry], options: Options, nimBin: Option[string]) =
+  # Deduplicate by downloadDir so packages sharing a repo (different subdirs) only clone once
+  var started: Table[string, Future[void]]
+
+  for i in 0 ..< entries.len:
+    if entries[i].isRoot or entries[i].pv.name.isFileURL:
+      continue
+    let dlInfo = entries[i].dlInfo.get
+    if dirExists(dlInfo.downloadDir) and pkgDirHasNimble(dlInfo.downloadDir, options):
+      continue
+    if dirExists(dlInfo.downloadDir) and not pkgDirHasNimble(dlInfo.downloadDir, options):
+      displayWarning(&"Cache directory is corrupted (no .nimble file found): {dlInfo.downloadDir}", HighPriority)
+      displayWarning("Removing corrupted cache and re-downloading...", HighPriority)
+      try:
+        removeDir(dlInfo.downloadDir)
+      except CatchableError as e:
+        displayWarning(&"Failed to remove corrupted cache: {e.msg}", HighPriority)
+
+    if dlInfo.downloadDir in started:
+      entries[i].download = started[dlInfo.downloadDir]
+    else:
+      var dlOptions = options
+      dlOptions.ignoreSubmodules = true
+      dlOptions.enableTarballs = false
+      entries[i].download = doDownload(dlInfo, dlOptions, nimBin)
+      started[dlInfo.downloadDir] = entries[i].download
+
+    if not options.parallelDiscovery:
+      waitFor entries[i].download
+
+  if options.parallelDiscovery:
+    var pending: seq[Future[void]] = @[]
+    for entry in entries:
+      if not entry.download.isNil:
+        pending.add entry.download
+    if pending.len > 0:
+      waitFor allFutures(pending)
+
+  var errors: seq[string] = @[]
+  for entry in entries:
+    if not entry.download.isNil and entry.download.failed:
+      errors.add("Failed to download " & entry.name & ": " & entry.download.error.msg)
+  if errors.len > 0:
+    raise nimbleError(errors.join("\n"))
+
+proc installEntry(entry: PkgDownloadEntry, satResult: var SATResult,
+                  options: var Options, nimBin: Option[string]): (PackageInfo, bool) =
+  var installedPkgInfo: PackageInfo
+  var wasNewlyInstalled = false
+  if entry.isRoot:
+    if satResult.rootPackage.developFileExists or options.localdeps:
+      satResult.rootPackage.source = psDevelop
+      installedPkgInfo = satResult.rootPackage
+      wasNewlyInstalled = true
+    else:
+      if satResult.rootPackage.basicInfo.name.isNim:
+        createBinSymlinkForNim(satResult.rootPackage, options)
+        installedPkgInfo = satResult.rootPackage
+        wasNewlyInstalled = true
+      else:
+        let tempPkgInfo = getPkgInfo(satResult.rootPackage.getNimbleFileDir(), options, nimBin = nimBin)
+        let oldPkg = packageExists(nimBin, tempPkgInfo, options)
+        installedPkgInfo = installFromDirDownloadInfo(nimBin, satResult.rootPackage.getNimbleFileDir(), satResult.rootPackage.metaData.url, entry.pv, options).toRequiresInfo(options, nimBin = nimBin)
+        wasNewlyInstalled = oldPkg.isNone
+  else:
+    let dlInfo = entry.dlInfo.get
+    var downloadDir = dlInfo.downloadDir / dlInfo.subdir
+    if entry.pv.name.isFileURL:
+      downloadDir = dlInfo.url.extractFilePathFromURL()
+    assert dirExists(downloadDir)
+    if entry.pv.name.isFileURL:
+      installedPkgInfo = getPackageFromFileUrl(dlInfo.url, options, nimBin = nimBin).toRequiresInfo(options, nimBin = nimBin)
+    else:
+      let tempPkgInfo = getPkgInfo(downloadDir, options, nimBin = nimBin)
+      let oldPkg = packageExists(nimBin, tempPkgInfo, options)
+      installedPkgInfo = installFromDirDownloadInfo(nimBin, downloadDir, dlInfo.url, entry.pv, options).toRequiresInfo(options, nimBin = nimBin)
+      wasNewlyInstalled = oldPkg.isNone
+      if installedPkgInfo.metadata.url == "" and entry.pv.name.isUrl:
+        installedPkgInfo.metadata.url = entry.pv.name
+  (installedPkgInfo, wasNewlyInstalled)
+
 proc installPkgs*(satResult: var SATResult, options: var Options, nimBin: Option[string]) {.instrument.} =
   # options.debugSATResult("installPkgs")
   #At this point the packages are already downloaded.
@@ -380,103 +509,13 @@ proc installPkgs*(satResult: var SATResult, options: var Options, nimBin: Option
   if isInRootDir and options.action.typ == actionInstall and not options.depsOnly:
     executeHook(nimBin, getCurrentDir(), options, actionInstall, before = true)
 
-  for (name, ver) in pkgsToInstall:
-    var verRange = satResult.getVersionRangeFoPkgToInstall(name, ver)
-    # Get vcsRevision from lock file if available - will be passed to download functions
-    let vcsRevision = if name in options.satResult.lockFileVcsRevisions:
-      options.satResult.lockFileVcsRevisions[name]
-    else:
-      notSetSha1Hash
-    var pv = (name: name, ver: verRange)
-    var installedPkgInfo: PackageInfo
-    var wasNewlyInstalled = false
-    if pv.name == rootName and (rootName notin installedPkgs.mapIt(it.basicInfo.name) or satResult.rootPackage.hasLockFile(options)):
-      if satResult.rootPackage.developFileExists or options.localdeps:
-        # Treat as link package if in develop mode OR local deps mode
-        satResult.rootPackage.source = psDevelop
-        installedPkgInfo = satResult.rootPackage
-        wasNewlyInstalled = true
-      else:
-        if satResult.rootPackage.basicInfo.name.isNim:
-          # When installing nim itself, use the root package (the nim version we're installing)
-          # not the nimResolved (which is the nim used for compilation)
-          createBinSymlinkForNim(satResult.rootPackage, options)
-          installedPkgInfo = satResult.rootPackage
-          wasNewlyInstalled = true
-        else:
-          # Check if package already exists before installing
-          let tempPkgInfo = getPkgInfo(satResult.rootPackage.getNimbleFileDir(), options, nimBin = nimBin)
-          let oldPkg = packageExists(nimBin, tempPkgInfo, options)
-          installedPkgInfo = installFromDirDownloadInfo(nimBin, satResult.rootPackage.getNimbleFileDir(), satResult.rootPackage.metaData.url, pv, options).toRequiresInfo(options, nimBin = nimBin)
-          wasNewlyInstalled = oldPkg.isNone
+  var downloadEntries = collectDownloadEntries(satResult, pkgsToInstall, rootName, installedPkgs, options)
+  resolveDownloadInfo(downloadEntries, options)
+  downloadPkgs(downloadEntries, options, nimBin)
 
-    else:
-      # echo "NORMALIZING REQUIREMENT: ", pv.name
-      # echo "ROOT PACKAGE: ", satResult.rootPackage.basicInfo.name, " ", $satResult.rootPackage.basicInfo.version, " ", satResult.rootPackage.metaData.url
-      # options.debugSATResult()
-      if pv.name in options.satResult.normalizedRequirements:
-        pv.name = options.satResult.normalizedRequirements[pv.name]
-
-      var dlInfo: PackageDownloadInfo
-      try:
-        dlInfo = getPackageDownloadInfo(pv, options, doPrompt = true, vcsRevision = vcsRevision)
-      except CatchableError as e:
-        #if we fail, we try to find the url for the req:
-        let url = getUrlFromPkgName(pv.name, options.satResult.pkgVersionTable, options)
-        if url != "":
-          pv.name = url
-          dlInfo = getPackageDownloadInfo(pv, options, doPrompt = true, vcsRevision = vcsRevision)
-        else:
-          raise e
-      var downloadDir = dlInfo.downloadDir / dlInfo.subdir
-      if not dirExists(dlInfo.downloadDir):
-        #The reason for this is that the download cache may have a constrained version
-        #this could be improved by creating a copy of the package in the cache dir when downloading
-        #and also when enumerating.
-        #Instead of redownload the actual version of the package here. Not important as this only happens per
-        #package once across all nimble projects (even in local mode)
-        #But it would still be needed for the lock file case, although we could constraint it.
-        if pv.name.isFileURL:
-          downloadDir = dlInfo.url.extractFilePathFromURL()
-        else:
-          #Since cache expansion is implemented, this point shouldnt be reached anymore.
-
-          var dlOptions = options
-          dlOptions.ignoreSubmodules = true
-          dlOptions.enableTarballs = false
-          let downloadPkgResult = downloadFromDownloadInfo(dlInfo, dlOptions, nimBin)
-          discard downloadPkgResult
-        # dlInfo.downloadDir = downloadPkgResult.dir
-      assert dirExists(downloadDir)
-
-      # Check if cache is corrupted (directory exists but has no nimble file)
-      if not pv.name.isFileURL and not pkgDirHasNimble(dlInfo.downloadDir, options):
-        displayWarning(&"Cache directory is corrupted (no .nimble file found): {dlInfo.downloadDir}", HighPriority)
-        displayWarning("Removing corrupted cache and re-downloading...", HighPriority)
-        try:
-          removeDir(dlInfo.downloadDir)
-        except CatchableError as e:
-          displayWarning(&"Failed to remove corrupted cache: {e.msg}", HighPriority)
-        # Re-download to pkgcache WITHOUT submodules (issue #1592)
-        # Force git clone (not tarball) so .git and .gitmodules are preserved for buildtemp
-        var dlOptions = options
-        dlOptions.ignoreSubmodules = true
-        dlOptions.enableTarballs = false
-        let downloadPkgResult = downloadFromDownloadInfo(dlInfo, dlOptions, nimBin)
-        discard downloadPkgResult
-      if pv.name.isFileURL:
-        # echo "*** GETTING PACKAGE FROM FILE URL: ", dlInfo.url
-        installedPkgInfo = getPackageFromFileUrl(dlInfo.url, options, nimBin = nimBin).toRequiresInfo(options, nimBin = nimBin)
-      else:
-        #TODO this : PackageInfoneeds to be improved as we are redonwloading certain packages
-        # Check if package already exists before installing
-        let tempPkgInfo = getPkgInfo(downloadDir, options, nimBin = nimBin)
-        let oldPkg = packageExists(nimBin, tempPkgInfo, options)
-        installedPkgInfo = installFromDirDownloadInfo(nimBin, downloadDir, dlInfo.url, pv, options).toRequiresInfo(options, nimBin = nimBin)
-        wasNewlyInstalled = oldPkg.isNone
-        if installedPkgInfo.metadata.url == "" and pv.name.isUrl:
-          installedPkgInfo.metadata.url = pv.name
-
+  # === Phase 2: Install all packages sequentially ===
+  for i in 0 ..< downloadEntries.len:
+    let (installedPkgInfo, wasNewlyInstalled) = installEntry(downloadEntries[i], satResult, options, nimBin)
     satResult.pkgs.incl(installedPkgInfo)
     installedPkgs.incl(installedPkgInfo)
     if wasNewlyInstalled:

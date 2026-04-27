@@ -759,7 +759,7 @@ proc processRequirements*(pv: PkgTuple, visitedParam: HashSet[PkgTuple], getMini
 proc collectAllVersions*(package: PackageMinimalInfo, options: Options, getMinimalPackage: GetPackageMinimal, preferredPackages: seq[PackageMinimalInfo] = newSeq[PackageMinimalInfo](), nimBin: Option[string]): Future[Table[string, PackageVersions]] {.async.} =
   {.cast(raises: [CatchableError]).}:
     ## Collects all package versions for dependency resolution.
-    ## Processes top-level dependencies in parallel (with --discovery:async) or sequentially.
+    ## Processes top-level dependencies in parallel (default) or sequentially (with --sync).
     ## Each branch gets its own visited set to avoid race conditions on shared state.
     ## Returns the merged version table.
 
