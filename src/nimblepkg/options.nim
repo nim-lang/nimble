@@ -78,7 +78,7 @@ type
     filePathPkgs*: seq[PackageInfo] #Packages loaded from file:// requires. Top level is always included.
     isFilePathDiscovering*: bool # Whether we are discovering file:// requires to fill up filePathPkgs. If true, it wont validate file:// requires.
     visitedHooks*: seq[VisitedHook] # Whether we are executing hooks.
-    parallelDiscovery*: bool # When true, version discovery downloads happen in parallel
+    parallelDiscovery*: bool # When true (default), downloads and version discovery happen in parallel. Disabled with --sync
     explicitGlobal*: bool # Whether -g/--global was explicitly passed by the user
     lenient*: bool # When true, conflicting special versions produce warnings. When false, they error. For now it cant be disabled.
     
@@ -293,7 +293,7 @@ Nimble Options:
       --parser:declarative|nimvm  Use the declarative parser or the nimvm parser (default).
       --features                  Activate features. Only used when using the declarative parser.
       --ignoreSubmodules          Ignore submodules when cloning a repository.
-      --discovery:sync|async      Package version discovery mode (default: async).
+      --sync                       Disable parallel downloads and version discovery.
 For more information read the GitHub readme:
   https://github.com/nim-lang/nimble#readme
 """
@@ -799,14 +799,8 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
     result.features = val.split(";").mapIt(it.strip)
   of "ignoresubmodules":
     result.ignoreSubmodules = true
-  of "discovery":
-    case val.normalize()
-    of "async":
-      result.parallelDiscovery = true
-    of "sync", "":
-      result.parallelDiscovery = false
-    else:
-      raise nimbleError("Invalid discovery mode: " & val & ". Use sync or async.")
+  of "sync":
+    result.parallelDiscovery = false
   of "lenient":
     result.lenient = true
   else: isGlobalFlag = false
