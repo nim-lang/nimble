@@ -155,7 +155,8 @@ proc fetchList*(list: PackageList, options: Options) =
 
       try:
         let ctx = newSSLContext(options.disableSslCertCheck)
-        let client = newHttpClient(proxy = proxy, sslContext = ctx)
+        let client = newHttpClient(proxy = proxy, sslContext = ctx,
+                                   userAgent = nimbleUserAgent)
         client.headers = newHttpHeaders({"Accept-Encoding": "gzip"})
         let resp = client.get(url)
         if resp.code.is4xx or resp.code.is5xx:
