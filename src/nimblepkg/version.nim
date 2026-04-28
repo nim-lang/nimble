@@ -183,10 +183,7 @@ proc satisfiesConstraint*(ver: Version, ran: VersionRange): bool =
     let semanticVer = newVersion(ver.speSemanticVersion.get)
     case ran.kind
     of verSpecial:
-      # Compare the hash/branch part only, ignoring speSemanticVersion.
-      # ver has speSemanticVersion set (e.g. #abc123 with semver "4.2.4")
-      # but ran.spe is a plain version from the requirement (e.g. #abc123, no semver).
-      return ver.version.toLowerAscii() == ran.spe.version.toLowerAscii()
+      return ver == ran.spe  # Must match exactly for special ranges
     else:
       return withinRange(semanticVer, ran)  # Use semantic version for comparisons
 
@@ -194,7 +191,7 @@ proc satisfiesConstraint*(ver: Version, ran: VersionRange): bool =
   of verSpecial:
     # For SAT constraints: special version requirements require exact special version match.
     # Normal versions do NOT satisfy special requirements.
-    return ver.isSpecial and ver.version.toLowerAscii() == ran.spe.version.toLowerAscii()
+    return ver.isSpecial and ver == ran.spe
   of verAny:
     # Any version satisfies verAny, including special versions
     return true
