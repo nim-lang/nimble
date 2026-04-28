@@ -582,18 +582,27 @@ proc areAllReqAny(dep: SolvedPackage): bool =
           return false
   true
 
+proc normalizeGitUrl*(url: string): string =
+  ## Normalize a git URL for comparison: strip trailing ".git" and "/", lowercase.
+  ## e.g. "https://github.com/user/repo.git" == "https://github.com/user/repo"
+  result = url.strip(chars = {'/'})
+  if result.endsWith(".git"):
+    result = result[0..^5]
+  result = result.toLowerAscii()
+
 proc getPackageNameFromUrl*(pv: PkgTuple, pkgVersionTable: Table[string, PackageVersions], options: Options): string =
+  let normalizedPvName = normalizeGitUrl(pv.name)
   var candidates: seq[string] = @[]
   for pkgName, pkgVersions in pkgVersionTable:
     for pkgVersion in pkgVersions.versions:
-      if pkgVersion.url == pv.name:
+      if normalizeGitUrl(pkgVersion.url) == normalizedPvName:
         candidates.add(pkgName)
-  
+
   # Prefer package names that are not URLs
   for candidate in candidates:
     if not candidate.isUrl:
       return candidate
-  
+
   # If no non-URL candidate, return the first one
   if candidates.len > 0:
     return candidates[0]

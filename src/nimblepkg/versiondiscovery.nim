@@ -544,6 +544,15 @@ proc downloadMinimalPackageImpl(pv: PkgTuple, options: Options, nimBin: Option[s
       for r in result.mitems:
         # Always set URL for URL-based packages to ensure subdirectories have correct URL
         r.url = pv.name
+    elif result.len > 0 and result[0].url == "":
+      # For name-based discovery, resolve the canonical URL so that
+      # normalizeRequirements can match URL-based requirements to this package.
+      try:
+        let dlInfo = getPackageDownloadInfo(pv, versionDiscoveryOptions, doPrompt = false)
+        for r in result.mitems:
+          r.url = dlInfo.url
+      except CatchableError:
+        discard
 
 proc downloadMinimalPackage*(pv: PkgTuple, options: Options, nimBin: Option[string]): Future[seq[PackageMinimalInfo]] {.async.} =
   {.cast(raises: [CatchableError]).}:
