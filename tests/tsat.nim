@@ -518,3 +518,68 @@ suite "SAT solver":
     check rootReqs[0].name == "chronos"
     check(not rootReqs[0].name.isUrl)
 
+  test "URL-keyed table entries cause SAT failure":
+    # When processRequirements adds packages under URL keys instead of
+    # .nimble package names, the SAT solver sees them as separate packages
+    # and can't find a version that satisfies both the range and hash requirements.
+    var pkgVersionTable = {
+      "root": PackageVersions(pkgName: "root", versions: @[
+        PackageMinimalInfo(name: "root", version: newVersion "1.0", requires: @[
+          (name: "stew", ver: parseVersionRange(">= 0.4.2")),
+          (name: "stew", ver: VersionRange(kind: verSpecial, spe: newVersion "#commit_b")),
+        ], isRoot: true),
+      ]),
+      # Name-keyed entry: tagged versions only
+      "stew": PackageVersions(pkgName: "stew", versions: @[
+        PackageMinimalInfo(name: "stew", version: newVersion "0.5.0"),
+        PackageMinimalInfo(name: "stew", version: newVersion "0.4.0"),
+      ]),
+      # BUG: URL-keyed duplicate — special version is here instead of under "stew"
+      "https://github.com/status-im/nim-stew": PackageVersions(
+        pkgName: "https://github.com/status-im/nim-stew", versions: @[
+          PackageMinimalInfo(name: "stew", version: newVersion "#commit_b",
+            url: "https://github.com/status-im/nim-stew"),
+        ]),
+    }.toTable()
+    pkgVersionTable["https://github.com/status-im/nim-stew"].versions[0].version.speSemanticVersion = some("0.5.0")
+
+    var options = initOptions()
+    pkgVersionTable.normalizeRequirements(options)
+
+    var graph = pkgVersionTable.toDepGraph()
+    let form = toFormular(graph)
+    var packages = initTable[string, Version]()
+    var output = ""
+    # Fails: the "stew" node has no special version, so #commit_b can't be satisfied
+    check(not solve(graph, form, packages, output, options))
+
+  test "package-name-keyed table entries solve correctly":
+    # Same scenario but with special version correctly under the package name.
+    # This is what the fixed processRequirements produces.
+    var pkgVersionTable = {
+      "root": PackageVersions(pkgName: "root", versions: @[
+        PackageMinimalInfo(name: "root", version: newVersion "1.0", requires: @[
+          (name: "stew", ver: parseVersionRange(">= 0.4.2")),
+          (name: "stew", ver: VersionRange(kind: verSpecial, spe: newVersion "#commit_b")),
+        ], isRoot: true),
+      ]),
+      "stew": PackageVersions(pkgName: "stew", versions: @[
+        PackageMinimalInfo(name: "stew", version: newVersion "0.5.0"),
+        PackageMinimalInfo(name: "stew", version: newVersion "0.4.0"),
+      ]),
+    }.toTable()
+
+    var stewSpecial = newVersion("#commit_b")
+    stewSpecial.speSemanticVersion = some("0.5.0")
+    pkgVersionTable["stew"].versions.add PackageMinimalInfo(
+      name: "stew", version: stewSpecial,
+      url: "https://github.com/status-im/nim-stew")
+
+    var options = initOptions()
+    var graph = pkgVersionTable.toDepGraph()
+    let form = toFormular(graph)
+    var packages = initTable[string, Version]()
+    var output = ""
+    check solve(graph, form, packages, output, options)
+    check packages["stew"] == stewSpecial
+
