@@ -2,9 +2,9 @@
 import unittest, os, osproc
 import testscommon
 # from nimblepkg/common import cd, NimbleError Used in the commented tests
-import std/[tables, json, jsonutils, strutils, times, options]
+import std/[tables, json, jsonutils, strutils, sequtils, times, options]
 import chronos
-import nimblepkg/[version, nimblesat, options, config, packageinfotypes, versiondiscovery]
+import nimblepkg/[version, nimblesat, options, config, packageinfotypes, versiondiscovery, urls]
 from nimblepkg/common import cd, NimbleError
 
 let nimBin = some("nim")
@@ -444,4 +444,77 @@ suite "SAT solver":
     echo "waku selected: ", packages["waku"]
     check packages["waku"] == newVersion("0.36.0")
 
+  test "normalizeRequirements resolves URL to nimble package name":
+    # Reproduces nim-libp2p issue (github.com/vacp2p/nim-libp2p/pull/2348):
+    # nimble file requires "https://github.com/user/nim-jwt.git#hash"
+    # while CLI install adds "https://github.com/user/nim-jwt#hash" (no .git)
+    # Both should normalize to the actual package name "jwt" from the .nimble file,
+    # not keep the git URL as the dependency name.
+    var pkgVersionTable = {
+      "root": PackageVersions(pkgName: "root", versions: @[
+        PackageMinimalInfo(name: "root", version: newVersion "1.0", requires: @[
+          # From nimble file: URL with .git suffix
+          (name: "https://github.com/vacp2p/nim-jwt.git", ver: VersionRange(kind: verSpecial, spe: newVersion "#abc123")),
+          # From CLI install: URL without .git suffix
+          (name: "https://github.com/vacp2p/nim-jwt", ver: VersionRange(kind: verSpecial, spe: newVersion "#abc123")),
+          (name: "bearssl", ver: parseVersionRange(">= 0.2.7")),
+        ], isRoot: true),
+      ]),
+      "jwt": PackageVersions(pkgName: "jwt", versions: @[
+        PackageMinimalInfo(name: "jwt", version: newVersion "#abc123",
+          url: "https://github.com/vacp2p/nim-jwt.git",
+          requires: @[
+            (name: "bearssl", ver: parseVersionRange(">= 0.2.7")),
+          ]),
+      ]),
+      "bearssl": PackageVersions(pkgName: "bearssl", versions: @[
+        PackageMinimalInfo(name: "bearssl", version: newVersion "0.2.8"),
+      ]),
+    }.toTable()
+    # Set speSemanticVersion on the special version
+    pkgVersionTable["jwt"].versions[0].version.speSemanticVersion = some("0.1.0")
+
+    var options = initOptions()
+    pkgVersionTable.normalizeRequirements(options)
+
+    # Both URL requirements should be normalized to "jwt" (the .nimble name)
+    let rootReqs = pkgVersionTable["root"].versions[0].requires
+    for req in rootReqs:
+      check(not req.name.isUrl)
+    let jwtReqs = rootReqs.filterIt(it.name == "jwt")
+    check jwtReqs.len == 2
+
+    # The SAT solver should find a valid solution using the package name
+    var graph = pkgVersionTable.toDepGraph()
+    let form = toFormular(graph)
+    var packages = initTable[string, Version]()
+    var output = ""
+    check solve(graph, form, packages, output, options)
+    check packages.hasKey("jwt")
+    check packages.hasKey("bearssl")
+
+  test "normalizeRequirements resolves URL via canonical url field":
+    # Name-based discovery now sets the canonical url field on versions
+    # (from packages.json). This lets normalizeRequirements match URL-based
+    # requirements even when the URL differs from the discovery URL.
+    var pkgVersionTable = {
+      "root": PackageVersions(pkgName: "root", versions: @[
+        PackageMinimalInfo(name: "root", version: newVersion "1.0", requires: @[
+          (name: "https://github.com/status-im/nim-chronos", ver: parseVersionRange(">= 4.0")),
+        ], isRoot: true),
+      ]),
+      "chronos": PackageVersions(pkgName: "chronos", versions: @[
+        # Discovered by name — url field set to canonical URL from packages.json
+        PackageMinimalInfo(name: "chronos", version: newVersion "4.2.0",
+          url: "https://github.com/status-im/nim-chronos.git"),
+      ]),
+    }.toTable()
+
+    var options = initOptions()
+    pkgVersionTable.normalizeRequirements(options)
+
+    # URL requirement should be normalized to "chronos" (the .nimble name)
+    let rootReqs = pkgVersionTable["root"].versions[0].requires
+    check rootReqs[0].name == "chronos"
+    check(not rootReqs[0].name.isUrl)
 
