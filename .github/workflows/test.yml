@@ -19,6 +19,7 @@ jobs:
           - stable
     name: ${{ matrix.os }} - ${{ matrix.nimversion }}
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 120
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
