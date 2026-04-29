@@ -691,12 +691,23 @@ proc normalizeSpecialVersions*(pkgVersionTable: var Table[string, PackageVersion
 proc postProcessSolvedPkgs*(solvedPkgs: var seq[SolvedPackage], options: Options, nimBin: Option[string]) {.instrument.} =
   #Prioritizes fileUrl packages over the regular packages defined in the requirements
   var fileUrlPkgs: seq[PackageInfo] = @[]
+  var fileUrlSolvedNames: seq[string] = @[] # Names of solved packages that are file:// URLs
   for solved in solvedPkgs:
-    if solved.pkgName.isFileURL:
-      let pkg = getPackageFromFileUrl(solved.pkgName, options, nimBin)
+    # Check both direct file:// pkgName and normalizedRequirements lookup
+    let originalUrl = options.satResult.normalizedRequirements.getOrDefault(solved.pkgName, "")
+    let fileUrl = if solved.pkgName.isFileURL: solved.pkgName
+                  elif originalUrl.isFileURL: originalUrl
+                  else: ""
+    if fileUrl != "":
+      let pkg = getPackageFromFileUrl(fileUrl, options, nimBin)
       fileUrlPkgs.add pkg
+      fileUrlSolvedNames.add solved.pkgName
+  # Remove non-file:// solved packages that have the same name as a file:// package
+  # (the file:// version takes priority). Don't remove the file:// entry itself.
   var toReplace: seq[SolvedPackage] = @[]
   for solved in solvedPkgs:
+    if solved.pkgName in fileUrlSolvedNames:
+      continue # This IS the file:// package, keep it
     for fileUrlPkg in fileUrlPkgs:
       if solved.pkgName == fileUrlPkg.basicInfo.name:
         toReplace.add solved
@@ -755,6 +766,25 @@ proc solvePackages*(rootPkg: PackageInfo, pkgList: seq[PackageInfo], pkgsToInsta
         pkgVersionTable[pkgName].versions.addVersionUnique ver
 
   pkgVersionTable.normalizeRequirements(options)
+
+  # Merge URL-keyed table entries into their name-keyed counterparts.
+  # processRequirements adds packages under both the .nimble name (line 745)
+  # and the URL (line 761). After normalizeRequirements rewrites URL-based
+  # requirements to package names, the URL-keyed entries are redundant and
+  # cause the SAT solver to create duplicate nodes. Merge them and remove.
+  var urlKeysToRemove: seq[string] = @[]
+  for pkgName in pkgVersionTable.keys:
+    if pkgName.isUrl:
+      let versions = pkgVersionTable[pkgName].versions
+      if versions.len > 0:
+        let actualName = versions[0].name.toLower
+        if actualName != pkgName and pkgVersionTable.hasKey(actualName):
+          for v in versions:
+            pkgVersionTable[actualName].versions.addVersionUnique v
+          urlKeysToRemove.add pkgName
+  for key in urlKeysToRemove:
+    pkgVersionTable.del key
+
   pkgVersionTable.normalizeSpecialVersions(options)
 
   options.satResult.pkgVersionTable = pkgVersionTable

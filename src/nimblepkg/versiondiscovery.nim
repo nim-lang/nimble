@@ -758,20 +758,9 @@ proc processRequirements*(pv: PkgTuple, visitedParam: HashSet[PkgTuple], getMini
       for reqResult in reqResults:
         mergeVersionTables(result, reqResult)
 
-      # For URL-based requirements, also ensure the versions are indexed by the
-      # actual package name (from the .nimble file), not the URL.
-      # file:// URLs keep the URL as key because postProcessSolvedPkgs and
-      # getReachablePackages need to find them by file:// path.
+      # Only add URL packages if we have valid versions
       if pv.name.isUrl and validPkgMins.len > 0:
-        if pv.name.isFileURL:
-          result[pv.name] = PackageVersions(pkgName: pv.name, versions: validPkgMins)
-        else:
-          let actualName = validPkgMins[0].name.toLower
-          if actualName notin result:
-            result[actualName] = PackageVersions(pkgName: actualName, versions: validPkgMins)
-          else:
-            for v in validPkgMins:
-              result[actualName].versions.addVersionUnique v
+        result[pv.name] = PackageVersions(pkgName: pv.name, versions: validPkgMins)
 
     except CatchableError as e:
       # Some old packages may have invalid requirements (i.e repos that doesn't exist anymore)
