@@ -530,7 +530,9 @@ proc downloadMinimalPackageImpl(pv: PkgTuple, options: Options, nimBin: Option[s
     versionDiscoveryOptions.ignoreSubmodules = true
 
     if pv.name.isFileURL:
-      return @[getPackageFromFileUrl(pv.name, versionDiscoveryOptions, nimBin).getMinimalInfo(versionDiscoveryOptions)]
+      var info = getPackageFromFileUrl(pv.name, versionDiscoveryOptions, nimBin).getMinimalInfo(versionDiscoveryOptions)
+      info.url = pv.name
+      return @[info]
 
     if pv.ver.kind in [verSpecial, verEq]: #if special or equal, we dont retrieve more versions as we only need one.
       let pkgInfo = await downloadPkInfoForPvAsync(pv, versionDiscoveryOptions, false, nimBin)
