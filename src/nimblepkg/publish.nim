@@ -56,7 +56,8 @@ proc requestNewToken(cfg: Config): string =
 proc getGithubAuth(o: Options): Auth =
   let cfg = o.config
   let ctx = newSSLContext(o.disableSslCertCheck)
-  result.http = newHttpClient(proxy = getProxy(o), sslContext = ctx)
+  result.http = newHttpClient(proxy = getProxy(o), sslContext = ctx,
+                              userAgent = nimbleUserAgent)
   # always prefer the environment variable to asking for a new one
   if existsEnv(ApiTokenEnvironmentVariable):
     result.token = getEnv(ApiTokenEnvironmentVariable)

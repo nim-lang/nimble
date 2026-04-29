@@ -10,8 +10,6 @@ from algorithm import SortOrder, sorted
 import packageinfotypes, version, tools, common, options, cli,
        sha1hashes, vcstools, displaymessages, packageinfo, config, declarativeparser, packagemetadatafile
 
-const userAgent = "nimble/" & nimbleVersion
-
 type
   DownloadPkgResult* = tuple
     dir: string
@@ -455,7 +453,7 @@ proc getProxy*(): Proxy =
 proc retrieveUrl*(url: string): string =
   display("Http", "Requesting " & url, priority = DebugPriority)
   {.cast(raises: [CatchableError]).}:
-    var client = newHttpClient(proxy = getProxy(), userAgent = userAgent)
+    var client = newHttpClient(proxy = getProxy(), userAgent = nimbleUserAgent)
     return client.getContent(url)
 
 {.warning[ProveInit]: off.}

@@ -345,7 +345,7 @@ when defined(curl):
 
 proc downloadFileNim(url, outputPath: string) =
   displayDebug("Downloading using HttpClient")
-  var client = newHttpClient(proxy = getProxy())
+  var client = newHttpClient(proxy = getProxy(), userAgent = nimbleUserAgent)
 
   var lastProgressPos = 0
   proc onProgressChanged(total, progress, speed: BiggestInt) {.closure, gcsafe.} =

@@ -44,6 +44,7 @@ proc getVersionFromNimble(): string =
 
 const
   nimbleVersion* = getVersionFromNimble()
+  nimbleUserAgent* = "nimble/" & nimbleVersion
   nimblePackagesDirName* = "pkgs2"
   nimblePackagesLinksDirName* ="links"
   nimbleBinariesDirName* = "bin"
