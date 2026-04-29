@@ -530,7 +530,9 @@ proc downloadMinimalPackageImpl(pv: PkgTuple, options: Options, nimBin: Option[s
     versionDiscoveryOptions.ignoreSubmodules = true
 
     if pv.name.isFileURL:
-      return @[getPackageFromFileUrl(pv.name, versionDiscoveryOptions, nimBin).getMinimalInfo(versionDiscoveryOptions)]
+      var info = getPackageFromFileUrl(pv.name, versionDiscoveryOptions, nimBin).getMinimalInfo(versionDiscoveryOptions)
+      info.url = pv.name
+      return @[info]
 
     if pv.ver.kind in [verSpecial, verEq]: #if special or equal, we dont retrieve more versions as we only need one.
       let pkgInfo = await downloadPkInfoForPvAsync(pv, versionDiscoveryOptions, false, nimBin)
@@ -758,13 +760,18 @@ proc processRequirements*(pv: PkgTuple, visitedParam: HashSet[PkgTuple], getMini
 
       # For URL-based requirements, also ensure the versions are indexed by the
       # actual package name (from the .nimble file), not the URL.
+      # file:// URLs keep the URL as key because postProcessSolvedPkgs and
+      # getReachablePackages need to find them by file:// path.
       if pv.name.isUrl and validPkgMins.len > 0:
-        let actualName = validPkgMins[0].name.toLower
-        if actualName notin result:
-          result[actualName] = PackageVersions(pkgName: actualName, versions: validPkgMins)
+        if pv.name.isFileURL:
+          result[pv.name] = PackageVersions(pkgName: pv.name, versions: validPkgMins)
         else:
-          for v in validPkgMins:
-            result[actualName].versions.addVersionUnique v
+          let actualName = validPkgMins[0].name.toLower
+          if actualName notin result:
+            result[actualName] = PackageVersions(pkgName: actualName, versions: validPkgMins)
+          else:
+            for v in validPkgMins:
+              result[actualName].versions.addVersionUnique v
 
     except CatchableError as e:
       # Some old packages may have invalid requirements (i.e repos that doesn't exist anymore)
