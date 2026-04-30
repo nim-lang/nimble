@@ -6,6 +6,8 @@ import system except TResult
 import hashes, strutils, os, sets, tables, times, httpclient, strformat
 from net import SslError
 
+import zippy
+
 import compat/json
 # Local imports
 import version, tools, common, options, cli, config, lockfile, packageinfotypes,
@@ -153,8 +155,18 @@ proc fetchList*(list: PackageList, options: Options) =
 
       try:
         let ctx = newSSLContext(options.disableSslCertCheck)
-        let client = newHttpClient(proxy = proxy, sslContext = ctx)
-        client.downloadFile(url, tempPath)
+        let client = newHttpClient(proxy = proxy, sslContext = ctx,
+                                   userAgent = nimbleUserAgent)
+        client.headers = newHttpHeaders({"Accept-Encoding": "gzip"})
+        let resp = client.get(url)
+        if resp.code.is4xx or resp.code.is5xx:
+          raise newException(HttpRequestError,
+            "Server returned status: " & $resp.code & " " & resp.status)
+        var body = resp.body
+        let encoding = ($resp.headers.getOrDefault("content-encoding")).strip.toLowerAscii
+        if encoding == "gzip":
+          body = uncompress(body, dfGzip)
+        writeFile(tempPath, body)
       except SslError:
         let message = "Failed to verify the SSL certificate for " & url
         raise nimbleError(message, "Use --noSSLCheck to ignore this error.")
