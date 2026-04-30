@@ -23,6 +23,7 @@ proc initConfig(): Config =
   result.chcp = true
   result.cloneUsingHttps = true
   result.packageLists["official"] = PackageList(name: "Official", urls: @[
+    "https://packages.nim-lang.org/packages.json",
     "https://raw.githubusercontent.com/nim-lang/packages/master/packages.json",
     "https://nim-lang.org/nimble/packages.json"
   ])
