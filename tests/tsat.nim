@@ -417,11 +417,33 @@ suite "SAT solver":
   #     let (_, exitCode) = execNimbleYes("install", "-l")
   #     check exitCode == QuitSuccess
 
-  test "should be able to install packages with cycles in the requirements":
-    cd "sattests" / "cycletest":
-      removeDir("nimbledeps")
-      let (_, exitCode) = execNimbleYes("install", "-l")
-      check exitCode == QuitSuccess
+  test "should be able to solve packages with cycles in the requirements":
+    # Packages with circular dependencies: a requires b, b requires a.
+    # The SAT solver should handle this without hanging or crashing.
+    let pkgVersionTable = {
+      "root": PackageVersions(pkgName: "root", versions: @[
+        PackageMinimalInfo(name: "root", version: newVersion "1.0", requires: @[
+          (name: "a", ver: parseVersionRange(">= 1.0")),
+        ], isRoot: true),
+      ]),
+      "a": PackageVersions(pkgName: "a", versions: @[
+        PackageMinimalInfo(name: "a", version: newVersion "1.0", requires: @[
+          (name: "b", ver: parseVersionRange(">= 1.0")),
+        ]),
+      ]),
+      "b": PackageVersions(pkgName: "b", versions: @[
+        PackageMinimalInfo(name: "b", version: newVersion "1.0", requires: @[
+          (name: "a", ver: parseVersionRange(">= 1.0")),
+        ]),
+      ]),
+    }.toTable()
+    var graph = pkgVersionTable.toDepGraph()
+    let form = toFormular(graph)
+    var packages = initTable[string, Version]()
+    var output = ""
+    check solve(graph, form, packages, output, initOptions())
+    check packages["a"] == newVersion "1.0"
+    check packages["b"] == newVersion "1.0"
 
   test "should prefer newer versions (waku@0.36.0 over 0.1.0)":
     # This test verifies that the SAT solver prefers newer versions of packages
