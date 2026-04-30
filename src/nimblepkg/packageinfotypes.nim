@@ -6,7 +6,7 @@ import version, sha1hashes
 
 type
   DownloadMethod* {.pure.} = enum
-    git = "git", hg = "hg"
+    git = "git", hg = "hg", http = "http"
 
   Checksums* = object
     sha1*: Sha1Hash

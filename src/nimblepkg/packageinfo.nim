@@ -81,6 +81,7 @@ proc parseDownloadMethod*(meth: string): DownloadMethod =
   case meth
   of "git": return DownloadMethod.git
   of "hg", "mercurial": return DownloadMethod.hg
+  of "http": return DownloadMethod.http
   else:
     raise nimbleError("Invalid download method: " & meth)
 
