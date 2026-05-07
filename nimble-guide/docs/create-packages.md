@@ -160,6 +160,7 @@ Nimble currently supports the installation of packages from a local directory, a
 requires "nim >= 2.0.0"
 requires "fizzbuzz == 1.0"
 requires "https://github.com/user/pkg#5a54b5e"
+requires "https://github.com/user/pkg >= 2.0.0"
 requires "foobar#head"
 ```
 
