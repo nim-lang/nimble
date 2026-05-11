@@ -394,7 +394,12 @@ proc downloadPkgs(entries: var seq[PkgDownloadEntry], options: Options, nimBin: 
       continue
     let dlInfo = entries[i].dlInfo.get
     if dirExists(dlInfo.downloadDir) and pkgDirHasNimble(dlInfo.downloadDir, options):
-      continue
+      # Validate cached version matches expected version (issue #1692)
+      if not isCacheVersionValid(dlInfo.downloadDir, entries[i].pv.ver, options):
+        displayWarning(&"Cached version doesn't match expected {entries[i].pv.ver} for {entries[i].name}, re-downloading", HighPriority)
+        removeDir(dlInfo.downloadDir)
+      else:
+        continue
     if dirExists(dlInfo.downloadDir) and not pkgDirHasNimble(dlInfo.downloadDir, options):
       displayWarning(&"Cache directory is corrupted (no .nimble file found): {dlInfo.downloadDir}", HighPriority)
       displayWarning("Removing corrupted cache and re-downloading...", HighPriority)

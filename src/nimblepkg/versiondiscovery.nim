@@ -241,7 +241,10 @@ proc getPackageMinimalVersionsFromRepo*(repoDir: string, pkg: PkgTuple, version:
           removeDir(tempDir)
           copyDir(repoDir, tempDir)
           tempDirCreated = true
-        discard doCheckout(downloadMethod, tempDir, tag, versionDiscoveryOptions)
+        let checkoutOk = doCheckout(downloadMethod, tempDir, tag, versionDiscoveryOptions)
+        if not checkoutOk:
+          displayWarning(&"Failed to checkout tag {tag} for {name}, skipping", HighPriority)
+          continue
         result.addUnique getPkgInfo(tempDir, options, nimBin, pikRequires).getMinimalInfo(options)
         #here we copy the directory to its own folder so we have it cached for future usage
         let downloadInfo = getPackageDownloadInfo((name, tagVersion.toVersionRange()), options)
