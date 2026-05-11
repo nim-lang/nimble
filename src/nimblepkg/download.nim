@@ -52,10 +52,13 @@ proc doCheckout*(meth: DownloadMethod, downloadDir, branch: string, options: Opt
     # has happened. Like in the case of git on Windows where it messes up the
     # damn line endings.
     let (_, exitCode) = doCmdEx(&"git -C {downloadDir.quoteShell} checkout --force {branch.quoteShell}")
-    if exitCode != 0 and not branch.startsWith("v"):
-      # Try with 'v' prefix as fallback (common convention for version tags)
-      let (_, exitCode2) = doCmdEx(&"git -C {downloadDir.quoteShell} checkout --force v{branch.quoteShell}")
-      if exitCode2 != 0:
+    if exitCode != 0:
+      if not branch.startsWith("v"):
+        # Try with 'v' prefix as fallback (common convention for version tags)
+        let (_, exitCode2) = doCmdEx(&"git -C {downloadDir.quoteShell} checkout --force v{branch.quoteShell}")
+        if exitCode2 != 0:
+          return false
+      else:
         return false
     if not options.ignoreSubmodules:
       downloadDir.updateSubmodules
@@ -73,10 +76,13 @@ proc doCheckoutAsync*(meth: DownloadMethod, downloadDir, branch: string, options
     # has happened. Like in the case of git on Windows where it messes up the
     # damn line endings.
     let (_, exitCode) = await doCmdExAsync(&"git -C {downloadDir.quoteShell} checkout --force {branch.quoteShell}")
-    if exitCode != 0 and not branch.startsWith("v"):
-      # Try with 'v' prefix as fallback (common convention for version tags)
-      let (_, exitCode2) = await doCmdExAsync(&"git -C {downloadDir.quoteShell} checkout --force v{branch.quoteShell}")
-      if exitCode2 != 0:
+    if exitCode != 0:
+      if not branch.startsWith("v"):
+        # Try with 'v' prefix as fallback (common convention for version tags)
+        let (_, exitCode2) = await doCmdExAsync(&"git -C {downloadDir.quoteShell} checkout --force v{branch.quoteShell}")
+        if exitCode2 != 0:
+          return false
+      else:
         return false
     if not options.ignoreSubmodules:
       await downloadDir.updateSubmodulesAsync()

@@ -584,30 +584,44 @@ requires "nim >= 1.6.0"
 
   test "issue #1692: version discovery fallback must skip on checkout failure":
     ## During version discovery, the fallback path (when declarative parsing
-    ## fails) checks out each tag in a tempDir. If checkout fails, tempDir
-    ## retains content from the previous tag. The code must NOT use this
-    ## stale content — it must skip the failed tag entirely.
+    ## fails) checks out each tag in a tempDir. If checkout of a tag fails,
+    ## tempDir retains content from a previous tag. The code must NOT use
+    ## this stale content — it must skip the failed tag entirely.
     ##
-    ## getMinimalInfoFromContent must use the tag version, not the .nimble
-    ## version, to prevent cache poisoning when the two disagree.
-    var options = initOptions()
+    ## doCheckout returns false on failure. The fallback path must check this
+    ## and `continue` instead of reading stale content and poisoning the cache.
+    ##
+    ## This test simulates the fallback path: creates a repo with v2.0.0 tag,
+    ## checks it out (succeeds, nimble says 2.0.0), then tries a nonexistent tag
+    ## (fails). After the failed checkout the nimble file still says 2.0.0
+    ## (stale). isCacheVersionValid must reject this for verEq 1.0.0.
+    let tempDir = getTempDir() / "nimble_test_1692_checkout"
+    try:
+      removeDir(tempDir)
+      createDir(tempDir)
 
-    # Tag says v4.0.5 but .nimble content (from failed checkout) says 4.2.2
-    let staleContent = """
-# Package
-version       = "4.2.2"
-author        = "Status Research"
-description   = "Chronos"
-license       = "MIT"
+      # Create a git repo simulating the version discovery tempDir
+      discard execCmdEx("git -C " & tempDir & " init")
+      discard execCmdEx("git -C " & tempDir & " config user.email test@test.com")
+      discard execCmdEx("git -C " & tempDir & " config user.name test")
+      writeFile(tempDir / "chronos.nimble",
+        "version = \"2.0.0\"\nrequires \"nim >= 1.6.0\"\n")
+      discard execCmdEx("git -C " & tempDir & " add .")
+      discard execCmdEx("git -C " & tempDir & " commit -m 'v2.0.0'")
+      discard execCmdEx("git -C " & tempDir & " tag v2.0.0")
 
-requires "nim >= 1.6.0", "stew >= 0.2.0"
-"""
-    let tagVersion = newVersion("4.0.5")
-    let minimalInfo = getMinimalInfoFromContent(staleContent, "chronos", tagVersion, url = "", options)
+      var options = initOptions()
 
-    check minimalInfo.isSome
-    # The version should come from the tag, not from the stale .nimble content.
-    # This prevents poisoning the cache when checkout fails and tempDir has
-    # leftover content from a different version.
-    check minimalInfo.get.version == tagVersion
+      # Checkout v2.0.0 succeeds — tempDir has correct content
+      check doCheckout(DownloadMethod.git, tempDir, "v2.0.0", options) == true
+
+      # Checkout of nonexistent tag fails — tempDir still has v2.0.0 content
+      check doCheckout(DownloadMethod.git, tempDir, "v1.0.0", options) == false
+
+      # After failed checkout, the cache has STALE content (v2.0.0)
+      # isCacheVersionValid must reject it for a different version
+      check isCacheVersionValid(tempDir, parseVersionRange("1.0.0"), options) == false
+
+    finally:
+      removeDir(tempDir)
 
