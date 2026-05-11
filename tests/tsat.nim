@@ -4,7 +4,7 @@ import testscommon
 # from nimblepkg/common import cd, NimbleError Used in the commented tests
 import std/[tables, json, jsonutils, strutils, sequtils, times, options]
 import chronos
-import nimblepkg/[version, nimblesat, options, config, packageinfotypes, versiondiscovery, urls]
+import nimblepkg/[version, nimblesat, options, config, packageinfotypes, versiondiscovery, urls, download, declarativeparser]
 from nimblepkg/common import cd, NimbleError
 
 let nimBin = some("nim")
@@ -539,4 +539,75 @@ suite "SAT solver":
     let rootReqs = pkgVersionTable["root"].versions[0].requires
     check rootReqs[0].name == "chronos"
     check(not rootReqs[0].name.isUrl)
+
+  test "issue #1692: findLatest correctly maps verEq to tag":
+    ## The lock file picks chronos 4.0.5. During download, findLatest must
+    ## map verEq("4.0.5") to git tag "v4.0.5" — not to a different tag.
+    let versions = @["v4.0.4", "v4.0.5", "v4.2.0", "v4.2.2"].getVersionList()
+    let latest = findLatest(parseVersionRange("4.0.5"), versions)
+    check latest.ver == newVersion("4.0.5")
+    check latest.tag == "v4.0.5"
+
+  test "issue #1692: stale download cache must be invalidated":
+    ## Scenario: lock file says chronos 4.0.5, solver picks it. But the
+    ## download cache directory already contains content from version 4.2.2
+    ## (left behind by version discovery fallback on checkout failure).
+    ##
+    ## downloadPkgs (install.nim:396) must detect this version mismatch
+    ## and invalidate the cache, not silently reuse the wrong content.
+    let tempDir = getTempDir() / "nimble_test_1692"
+    try:
+      removeDir(tempDir)
+      createDir(tempDir)
+
+      # Simulate stale cache: directory is keyed for 4.0.5 but content is 4.2.2
+      writeFile(tempDir / "chronos.nimble", """
+# Package
+version       = "4.2.2"
+author        = "Status Research"
+description   = "Chronos"
+license       = "MIT"
+
+requires "nim >= 1.6.0"
+""")
+
+      var options = initOptions()
+      let verRange = parseVersionRange("4.0.5")  # verEq 4.0.5
+
+      # The cache has a .nimble but it's the wrong version.
+      # pkgDirHasNimble alone is not enough — must also validate version.
+      check pkgDirHasNimble(tempDir, options) == true
+      check isCacheVersionValid(tempDir, verRange, options) == false
+
+    finally:
+      removeDir(tempDir)
+
+  test "issue #1692: version discovery fallback must skip on checkout failure":
+    ## During version discovery, the fallback path (when declarative parsing
+    ## fails) checks out each tag in a tempDir. If checkout fails, tempDir
+    ## retains content from the previous tag. The code must NOT use this
+    ## stale content — it must skip the failed tag entirely.
+    ##
+    ## getMinimalInfoFromContent must use the tag version, not the .nimble
+    ## version, to prevent cache poisoning when the two disagree.
+    var options = initOptions()
+
+    # Tag says v4.0.5 but .nimble content (from failed checkout) says 4.2.2
+    let staleContent = """
+# Package
+version       = "4.2.2"
+author        = "Status Research"
+description   = "Chronos"
+license       = "MIT"
+
+requires "nim >= 1.6.0", "stew >= 0.2.0"
+"""
+    let tagVersion = newVersion("4.0.5")
+    let minimalInfo = getMinimalInfoFromContent(staleContent, "chronos", tagVersion, url = "", options)
+
+    check minimalInfo.isSome
+    # The version should come from the tag, not from the stale .nimble content.
+    # This prevents poisoning the cache when checkout fails and tempDir has
+    # leftover content from a different version.
+    check minimalInfo.get.version == tagVersion
 

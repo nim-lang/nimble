@@ -823,6 +823,23 @@ proc pkgDirHasNimble*(dir: string, options: Options): bool =
     #Continue with the download
     discard
 
+proc isCacheVersionValid*(dir: string, verRange: VersionRange, options: Options): bool =
+  ## Checks if a cached package directory's version matches the requested range.
+  ## Returns false if the cached .nimble file declares a version outside verRange.
+  ## Used by downloadPkgs to detect stale cache entries (issue #1692).
+  if not pkgDirHasNimble(dir, options):
+    return false
+  if verRange.kind in {verAny, verSpecial}:
+    return true
+  try:
+    let nimbleFile = findNimbleFile(dir, error = false, options, warn = false)
+    let cachedInfo = extractRequiresInfo(nimbleFile, options)
+    if cachedInfo.version != "" and newVersion(cachedInfo.version) notin verRange:
+      return false
+  except CatchableError:
+    discard
+  return true
+
 proc isCacheValid(pkgDir, downloadDir, downloadPath: string,
                    verRange: VersionRange, options: Options): bool =
   ## Checks if a cached package directory can be reused.

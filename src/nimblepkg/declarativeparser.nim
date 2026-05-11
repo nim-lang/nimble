@@ -774,7 +774,10 @@ proc getMinimalInfoFromContent*(content: string, name: string, version: Version,
   let info = extractRequiresInfoFromContent(content, options)
   var pkgInfo: PackageMinimalInfo
   pkgInfo.name = if name.isNim: "nim" else: name
-  pkgInfo.version = if info.version != "": newVersion(info.version) else: version
+  # Prefer the tag version (passed as `version` parameter) over the .nimble
+  # version. The tag is authoritative — the .nimble content may be stale
+  # (e.g., from a failed checkout in version discovery fallback). See #1692.
+  pkgInfo.version = version
   pkgInfo.url = url
 
   # Parse requires from string list to PkgTuple list
