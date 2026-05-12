@@ -703,6 +703,67 @@ proc postProcessSolvedPkgs*(solvedPkgs: var seq[SolvedPackage], options: Options
         break
   solvedPkgs = solvedPkgs.filterIt(it notin toReplace)
 
+proc buildCompatTable*(satResult: SATResult, solvedPkgs: seq[SolvedPackage],
+    freshSolvedPkgs: seq[SolvedPackage], pkgListDecl: seq[PackageInfo],
+    options: Options): Table[string, PackageVersions] =
+  ## Build a pkgVersionTable with one version per package for compatibility
+  ## checking. Uses real requires from pkgListDecl for locked packages and
+  ## from freshSolvedPkgs for upgraded/new packages.
+  var freshLookup = initTable[string, SolvedPackage]()
+  for sp in freshSolvedPkgs:
+    freshLookup[sp.pkgName.toLowerAscii()] = sp
+
+  var rootMinimal = satResult.rootPackage.getMinimalInfo(options)
+  rootMinimal.isRoot = true
+  result[rootMinimal.name] = PackageVersions(pkgName: rootMinimal.name, versions: @[rootMinimal])
+
+  # Add nim so that `requires "nim >= X"` constraints can be validated
+  let nimVersion = satResult.nimResolved.version
+  if nimVersion != notSetVersion:
+    let nimMinimal = PackageMinimalInfo(name: "nim", version: nimVersion)
+    result["nim"] = PackageVersions(pkgName: "nim", versions: @[nimMinimal])
+
+  for solvedPkg in solvedPkgs:
+    if solvedPkg.pkgName == satResult.rootPackage.basicInfo.name: continue
+    if solvedPkg.pkgName.isNim: continue
+    let key = solvedPkg.pkgName.toLowerAscii()
+    # For upgraded/new packages, use requirements from the fresh SAT solve
+    if key in freshLookup:
+      let tempPkg = freshLookup[key]
+      let minimal = PackageMinimalInfo(
+        name: solvedPkg.pkgName, version: tempPkg.version,
+        requires: tempPkg.requirements)
+      result[solvedPkg.pkgName] = PackageVersions(
+        pkgName: solvedPkg.pkgName, versions: @[minimal])
+      continue
+    # For locked packages, get real requires from installed packages
+    var found = false
+    for pkg in pkgListDecl:
+      if cmpIgnoreCase(pkg.basicInfo.name, solvedPkg.pkgName) == 0 and
+        pkg.basicInfo.version == solvedPkg.version:
+        result[solvedPkg.pkgName] = PackageVersions(
+          pkgName: solvedPkg.pkgName, versions: @[pkg.getMinimalInfo(options)])
+        found = true
+        break
+    if not found:
+      let minimal = PackageMinimalInfo(
+        name: solvedPkg.pkgName, version: solvedPkg.version,
+        requires: solvedPkg.requirements)
+      result[solvedPkg.pkgName] = PackageVersions(
+        pkgName: solvedPkg.pkgName, versions: @[minimal])
+
+proc validateUpgradeCompat*(satResult: SATResult, solvedPkgs: seq[SolvedPackage],
+    freshSolvedPkgs: seq[SolvedPackage], pkgListDecl: seq[PackageInfo],
+    options: Options) =
+  ## Verify that the upgraded packages are compatible with the locked deps.
+  ## Raises NimbleError if the combination is unsatisfiable.
+  let compatTable = buildCompatTable(satResult, solvedPkgs, freshSolvedPkgs, pkgListDecl, options)
+  var output = ""
+  let solved = compatTable.getSolvedPackages(output, options)
+  if solved.len == 0:
+    raise newNimbleError[NimbleError](
+      "Upgrade is incompatible with locked dependencies:\n" & output)
+
 proc solveLocalPackages(root: PackageMinimalInfo, pkgList: seq[PackageInfo], options: Options, output: var string, solvedPkgs: var seq[SolvedPackage], nimBin: Option[string]): HashSet[PackageInfo] =
   ## Try to solve using only installed packages (no cache, no downloads).
   ## Returns the solved packages if successful, or an empty set if local
@@ -1121,8 +1182,18 @@ proc solveLockFileDeps*(satResult: var SATResult, pkgList: seq[PackageInfo], opt
 
   # Check for new requirements not in lock file
   var shouldSolve = false
+  # Collect the names of packages being explicitly upgraded so we can skip them
+  # in the shouldSolve check. When upgrading, changed requirements for the
+  # upgraded packages are expected and should not trigger a full re-solve.
+  var upgradePkgNames: seq[string]
+  if options.action.typ == actionUpgrade:
+    for pkg in options.action.packages:
+      upgradePkgNames.add(pkg.name.resolveAlias(options).toLowerAscii())
   for current in currentRequires:
     let currentName = current.name.resolveAlias(options).toLowerAscii()
+    # Skip packages being explicitly upgraded — their requirements are expected to change
+    if currentName in upgradePkgNames:
+      continue
     var found = false
     for existing in existingRequires:
       let existingName = existing[0].resolveAlias(options).toLowerAscii()
@@ -1181,7 +1252,10 @@ proc solveLockFileDeps*(satResult: var SATResult, pkgList: seq[PackageInfo], opt
         var addedUpgradePkg = false
         for upgradePkg in options.action.packages:
           if upgradePkg.name == name:
-            satResult.pkgsToInstall.add((name, upgradePkg.ver.spe))
+            if upgradePkg.ver.kind == verSpecial:
+              satResult.pkgsToInstall.add((name, upgradePkg.ver.spe))
+            # For verAny (no version specified), the temp SAT solve below
+            # will determine the correct version to install.
             addedUpgradePkg = true
         if not addedUpgradePkg:
           for pkg in pkgListDecl.toHashSet():
@@ -1236,6 +1310,9 @@ proc solveLockFileDeps*(satResult: var SATResult, pkgList: seq[PackageInfo], opt
       satResult.pkgsToInstall = satResult.pkgsToInstall.filterIt(
         it[0] in actuallyNeededDeps
       )
+
+      validateUpgradeCompat(satResult, satResult.solvedPkgs,
+        tempSatResult.solvedPkgs, pkgListDecl, options)
 
   else:
     # No new requirements and not upgrading

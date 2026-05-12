@@ -625,3 +625,25 @@ requires "nim >= 1.6.0"
     finally:
       removeDir(tempDir)
 
+  test "PkgTuple JSON round-trip produces valid version strings":
+    # Regression test: toJsonHook must be defined after `$ VersionRange`
+    # to avoid corrupted cache writes (e.g. "(kind: verEqLater, ...)" instead of ">= 1.0")
+    let cases = @[
+      parseRequires("nim >= 2.0.0"),
+      parseRequires("stew"),
+      parseRequires("chronicles#head"),
+      parseRequires("results >= 0.3 & < 1.0"),
+    ]
+    for original in cases:
+      let jsonNode = original.toJsonHook()
+      let serialized = jsonNode.getStr()
+      # Must not contain struct-like output from generic $
+      check "(kind:" notin serialized
+      check "verEq" notin serialized
+      # Round-trip: deserialize back and compare
+      var roundTripped: PkgTuple
+      var path = ""
+      initFromJson(roundTripped, jsonNode, path)
+      check roundTripped.name == original.name
+      check roundTripped.ver.kind == original.ver.kind
+
