@@ -688,6 +688,92 @@ requires "nim >= 1.5.1"
           check "dep1" in pkgs
           check "dep2" notin pkgs
 
+  test "can upgrade: changing nimble requirement only upgrades target pkg (#1693)":
+    # Reproduces https://github.com/nim-lang/nimble/issues/1693
+    # When the .nimble file's version requirement for a package changes,
+    # `nimble upgrade pkg` should only upgrade that package, not the entire lock file.
+    cleanUp()
+    withPkgListFile:
+      initNewNimblePackage(mainPkgOriginRepoPath, mainPkgRepoPath,
+                           @[dep1PkgName, dep2PkgName])
+      initNewNimblePackage(dep1PkgOriginRepoPath, dep1PkgRepoPath)
+      initNewNimblePackage(dep2PkgOriginRepoPath, dep2PkgRepoPath)
+
+      var dep2RevisionBefore: string
+      cd mainPkgRepoPath:
+        check execNimbleYes("lock").exitCode == QuitSuccess
+        dep2RevisionBefore = getRevision(dep2PkgName)
+
+      # Bump dep1 to version 0.2.0 in its origin repo
+      cd dep1PkgOriginRepoPath:
+        let nimbleFile = dep1PkgName & ".nimble"
+        writeFile(nimbleFile, """
+version       = "0.2.0"
+author        = "Ivan Bobev"
+description   = "A new awesome nimble package"
+license       = "MIT"
+requires "nim >= 1.5.1"
+""")
+        addFiles(nimbleFile)
+        commit("Bump to 0.2.0")
+
+      # Also add a new commit to dep2 (simulating upstream activity)
+      cd dep2PkgOriginRepoPath:
+        addAdditionalFileToTheRepo("dep2_extra.nim", "echo \"extra\"")
+
+      # Update main's .nimble to require dep1 >= 0.2.0
+      cd mainPkgRepoPath:
+        let mainNimbleFile = mainPkgName & ".nimble"
+        writeFile(mainNimbleFile, newNimbleFileContent(mainPkgName, """
+version       = "0.1.0"
+author        = "Ivan Bobev"
+description   = "A new awesome nimble package"
+license       = "MIT"
+requires "nim >= 1.5.1"
+""", @[dep2PkgName]) & "\n" & "requires \"dep1 >= 0.2.0\"")
+        addFiles(mainNimbleFile)
+        commit("Bump dep1 requirement")
+
+        # Upgrade only dep1
+        let res = execNimbleYes("upgrade", dep1PkgName)
+        check res.exitCode == QuitSuccess
+
+        # dep2 should NOT have been upgraded — its revision must be unchanged
+        let dep2RevisionAfter = getRevision(dep2PkgName)
+        check dep2RevisionBefore == dep2RevisionAfter
+
+  test "can upgrade: detects incompatible upgrade with locked deps":
+    # When the upgraded package's new version has requirements incompatible
+    # with the locked dependencies, the upgrade should fail with a clear error.
+    cleanUp()
+    withPkgListFile:
+      initNewNimblePackage(mainPkgOriginRepoPath, mainPkgRepoPath,
+                           @[dep1PkgName, dep2PkgName])
+      initNewNimblePackage(dep1PkgOriginRepoPath, dep1PkgRepoPath)
+      initNewNimblePackage(dep2PkgOriginRepoPath, dep2PkgRepoPath)
+
+      cd mainPkgRepoPath:
+        check execNimbleYes("lock").exitCode == QuitSuccess
+
+      # Bump dep1 to require dep2 >= 0.9.0 (locked dep2 is 0.1.0, incompatible)
+      cd dep1PkgOriginRepoPath:
+        let nimbleFile = dep1PkgName & ".nimble"
+        writeFile(nimbleFile, """
+version       = "0.2.0"
+author        = "Ivan Bobev"
+description   = "A new awesome nimble package"
+license       = "MIT"
+requires "nim >= 1.5.1"
+requires "dep2 >= 0.9.0"
+""")
+        addFiles(nimbleFile)
+        commit("Bump to 0.2.0 with incompatible dep2 requirement")
+
+      cd mainPkgRepoPath:
+        let res = execNimbleYes("upgrade", dep1PkgName & "@#HEAD")
+        check res.exitCode != QuitSuccess
+        check "incompatible" in res.output.toLowerAscii()
+
   test "can lock with --developFile argument":
     cleanUp()
     withPkgListFile:
