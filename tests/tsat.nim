@@ -647,3 +647,40 @@ requires "nim >= 1.6.0"
       check roundTripped.name == original.name
       check roundTripped.ver.kind == original.ver.kind
 
+  test "issue #1691: solver succeeds when old versions depend on missing packages":
+    # Reproduces: prologue 0.3.x depends on "cookies" which no longer exists.
+    # Newer versions (0.6.x) don't need it. The solver should skip old versions
+    # and find a solution using the newer versions.
+    var pkgVersionTable = initTable[string, PackageVersions]()
+    # Root package requires prologue >= 0.6.0
+    let root = PackageMinimalInfo(
+      name: "testpkg", version: newVersion("0.1.0"), isRoot: true,
+      requires: @[("prologue", parseVersionRange(">= 0.6.0"))])
+    pkgVersionTable["testpkg"] = PackageVersions(pkgName: "testpkg", versions: @[root])
+    # prologue has old version needing "cookies" (missing) and new version that doesn't
+    let prologueOld = PackageMinimalInfo(
+      name: "prologue", version: newVersion("0.3.2"),
+      requires: @[("cookies", parseVersionRange(">= 0.2.0"))])
+    let prologueNew = PackageMinimalInfo(
+      name: "prologue", version: newVersion("0.6.8"),
+      requires: @[("cookiejar", parseVersionRange(">= 0.2.0"))])
+    pkgVersionTable["prologue"] = PackageVersions(
+      pkgName: "prologue", versions: @[prologueOld, prologueNew])
+    # cookiejar exists, cookies does NOT
+    let cookiejar = PackageMinimalInfo(
+      name: "cookiejar", version: newVersion("0.3.1"), requires: @[])
+    pkgVersionTable["cookiejar"] = PackageVersions(
+      pkgName: "cookiejar", versions: @[cookiejar])
+
+    var output = ""
+    var options = initOptions()
+    let solved = pkgVersionTable.getSolvedPackages(output, options)
+    # Should find a solution using prologue 0.6.8 + cookiejar
+    check solved.len > 0
+    var foundPrologue = false
+    for pkg in solved:
+      if pkg.pkgName == "prologue":
+        check pkg.version == newVersion("0.6.8")
+        foundPrologue = true
+    check foundPrologue
+
