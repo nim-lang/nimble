@@ -176,7 +176,11 @@ proc toFormular*(g: var DepGraph): Form =
       # First check if all dependencies can be satisfied
       for dep, q in items g.reqs[ver.req].deps:
         let depIdx = findDependencyForDep(g, dep)
-        if depIdx < 0: continue
+        if depIdx < 0:
+          # Dependency not in the graph at all (e.g. removed from registry).
+          # This version cannot be selected.
+          allDepsCompatible = false
+          break
         let depNode = g.nodes[depIdx]
 
         var hasCompatible = false
@@ -477,9 +481,38 @@ proc getSolvedPackages*(pkgVersionTable: Table[string, PackageVersions], output:
     lowerCasePackages.incl(key.toLowerAscii)
 
   let reachable = getReachablePackages(graph)
+  var missingDeps: seq[string]
   for pkgName in reachable:
     if pkgName.toLowerAscii notin lowerCasePackages:
-      output.add &"Dependency {pkgName} not found in the graph \n"
+      missingDeps.add pkgName
+  if missingDeps.len > 0:
+    # Check if ALL versions that require the missing deps also have alternative
+    # versions that don't. If so, the solver can still find a solution by picking
+    # versions that don't need the missing packages.
+    var allMissingAreOptional = true
+    for missing in missingDeps:
+      # Find which packages require this missing dep
+      for node in graph.nodes:
+        var hasVersionWithout = false
+        var hasVersionWith = false
+        for ver in node.versions:
+          var needsMissing = false
+          for dep, q in items graph.reqs[ver.req].deps:
+            if dep.toLowerAscii == missing.toLowerAscii:
+              needsMissing = true
+              break
+          if needsMissing:
+            hasVersionWith = true
+          else:
+            hasVersionWithout = true
+        # If a package has versions requiring the missing dep but no alternatives, it's fatal
+        if hasVersionWith and not hasVersionWithout:
+          allMissingAreOptional = false
+          break
+      if not allMissingAreOptional:
+        break
+    if not allMissingAreOptional:
+      output.add "Missing dependencies: " & missingDeps.join(", ") & "\n"
       for k, v in pkgVersionTable:
         output.add &"Package {k} \n"
         for v in v.versions:
