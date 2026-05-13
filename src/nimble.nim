@@ -2008,6 +2008,10 @@ proc developFromSolution(rootPkgName: string, options: var Options, nimBin: Opti
       parseVersionRange("== " & $solvedPkg.version))
     try:
       let pkgInfo = installDevelopPackage(pkgTup, options, nimBin)
+      let pkgName = pkgInfo.basicInfo.name.toLowerAscii()
+      options.satResult.pkgs = options.satResult.pkgs.toSeq
+        .filterIt(it.basicInfo.name.toLowerAscii() != pkgName)
+        .toHashSet()
       options.satResult.pkgs.incl(pkgInfo)
     except CatchableError as error:
       displayError(&"Cannot vendor package \"{solvedPkg.pkgName}\" for develop.")

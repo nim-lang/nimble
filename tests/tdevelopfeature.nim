@@ -92,6 +92,37 @@ requires "nim >= 1.6.0", "packagea"
         # Ensure paths point to vendor directory, not to pkgs2
         check not pathsContent.contains("pkgs2")
 
+  test "develop --withDeps vendors all deps even when some are in pkgs2":
+    cleanDir installDir
+    # Step 1: Pre-install packagea into pkgs2/ so it's "cached"
+    usePackageListFile &"develop/{pkgListFileName}":
+      let (_, installExitCode) = execNimbleYes("install", pkgAUrl)
+      check installExitCode == QuitSuccess
+      check getPackageDir(pkgsDir, "packagea-").len > 0 or
+            getPackageDir(pkgsDir, "PackageA-").len > 0
+    # Step 2: Create a project that requires packagea and run develop --withDeps
+    cdCleanDir installDir / "testproject":
+      usePackageListFile &"../../develop/{pkgListFileName}":
+        writeFile("testproject.nimble", """
+version = "0.1.0"
+author = "Test"
+description = "Test"
+license = "MIT"
+requires "nim >= 1.6.0", "packagea"
+""")
+        let (_, exitCode) = execNimble(
+          "develop", "--with-dependencies")
+        check exitCode == QuitSuccess
+        # packagea should be cloned into vendor/
+        let vendorPkgADir = getCurrentDir() / defaultPath / "packagea"
+        check dirExists(vendorPkgADir)
+        # nimble.paths should reference vendor, not pkgs2
+        check fileExists("nimble.paths")
+        let pathsContent = readFile("nimble.paths")
+        check pathsContent.toLowerAscii.contains("packagea")
+        check pathsContent.contains(defaultPath)
+        check not pathsContent.contains("pkgs2")
+
   test "develop prefers vendor over cached versions (hasVersion shadowing bug)":
     cdCleanDir installDir:
       usePackageListFile &"../develop/{pkgListFileName}":
