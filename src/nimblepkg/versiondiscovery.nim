@@ -151,6 +151,21 @@ proc saveTaggedVersions*(pkgName: string, versions: seq[PackageMinimalInfo], opt
   cache[normalizedName] = versions
   writeTaggedVersionsCache(cache, options)
 
+proc cachedTagsCoverLocalTags*(cached: seq[PackageMinimalInfo], tagsList: seq[string]): bool =
+  ## Returns true iff every parsed git tag has a corresponding version in `cached`.
+  ## Used to detect stale tagged_versions.json entries when the local repo has tags
+  ## that aren't represented in the cache (cache predates a newer release).
+  let parsedTags = tagsList.getVersionList()
+  for ver, _ in parsedTags.pairs:
+    var found = false
+    for c in cached:
+      if c.version == ver:
+        found = true
+        break
+    if not found:
+      return false
+  return true
+
 proc cacheToPackageVersionTable*(options: Options): Table[string, PackageVersions] =
   ## Loads the tagged versions cache and converts it to a package version table.
   ## This allows reusing cached package versions instead of re-fetching them.
@@ -179,7 +194,14 @@ proc getPackageMinimalVersionsFromRepo*(repoDir: string, pkg: PkgTuple, version:
   let name = pkg[0]
   let taggedVersions = getTaggedVersions(name, options)
   if taggedVersions.isSome:
-    return taggedVersions.get
+    var cacheFresh = true
+    try:
+      let localTags = getTagsList(repoDir, downloadMethod)
+      cacheFresh = cachedTagsCoverLocalTags(taggedVersions.get, localTags)
+    except CatchableError:
+      discard
+    if cacheFresh:
+      return taggedVersions.get
 
   # During version discovery, we only need to read .nimble files, not compile code
   # So we can safely ignore submodules to avoid issues with repos that have
@@ -280,7 +302,14 @@ proc getPackageMinimalVersionsFromRepoAsync*(repoDir: string, pkg: PkgTuple, ver
     try:
       let taggedVersions = getTaggedVersions(name, options)
       if taggedVersions.isSome:
-        return taggedVersions.get
+        var cacheFresh = true
+        try:
+          let localTags = await getTagsListAsync(repoDir, downloadMethod)
+          cacheFresh = cachedTagsCoverLocalTags(taggedVersions.get, localTags)
+        except CatchableError:
+          discard
+        if cacheFresh:
+          return taggedVersions.get
     except CatchableError:
       discard # Continue with fetching from repo
 
@@ -397,7 +426,14 @@ proc getPackageMinimalVersionsFromRepoAsyncFast*(
     try:
       let taggedVersions = getTaggedVersions(name, options)
       if taggedVersions.isSome:
-        return taggedVersions.get
+        var cacheFresh = true
+        try:
+          let localTags = await getTagsListAsync(gitRoot, downloadMethod)
+          cacheFresh = cachedTagsCoverLocalTags(taggedVersions.get, localTags)
+        except CatchableError:
+          discard
+        if cacheFresh:
+          return taggedVersions.get
     except:
       discard
 

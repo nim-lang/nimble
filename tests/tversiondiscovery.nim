@@ -228,6 +228,31 @@ suite "Version Discovery":
     # Should also have #head
     check "#head" in depVersions
 
+  test "cachedTagsCoverLocalTags detects stale tagged_versions.json":
+    # Regression for: SAT solver doesn't fetch git tags when resolving
+    # `requires "pkg >= X.Y.Z"` by name. Stale tagged_versions.json entries
+    # must be detected so the resolution path refreshes them instead of
+    # returning only locally-installed versions.
+
+    # Cache has only 0.1.0, but the repo has v0.1.0 and v0.1.1 tagged locally.
+    let cached = @[
+      PackageMinimalInfo(name: "kairos", version: newVersion("0.1.0"))
+    ]
+    check not cachedTagsCoverLocalTags(cached, @["v0.1.0", "v0.1.1"])
+
+    # Cache covers all local tags — fresh.
+    let cachedFresh = @[
+      PackageMinimalInfo(name: "kairos", version: newVersion("0.1.0")),
+      PackageMinimalInfo(name: "kairos", version: newVersion("0.1.1"))
+    ]
+    check cachedTagsCoverLocalTags(cachedFresh, @["v0.1.0", "v0.1.1"])
+
+    # Cache has MORE than local — fresh (local repo just hasn't fetched all tags).
+    check cachedTagsCoverLocalTags(cachedFresh, @["v0.1.0"])
+
+    # Empty tag list — vacuously fresh.
+    check cachedTagsCoverLocalTags(cached, @[])
+
   test "verAny uses version-agnostic cache directory for discovery":
     # Test that verAny (used during package discovery) uses version-agnostic cache
     # to avoid downloading the same repo multiple times.
