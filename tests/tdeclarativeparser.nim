@@ -2,6 +2,7 @@
 import unittest
 import testscommon
 import std/[options, tables, sequtils, os, strutils]
+import chronos
 import
   nimblepkg/[packageinfotypes, version, options, config, declarativeparser, versiondiscovery, cli, common]
 
@@ -77,8 +78,8 @@ suite "Declarative parsing":
       #This is just to setup the test. We need a git dir to work on
     let repoDir = downloadRes.dir
     let downloadMethod = DownloadMethod git
-    let packageVersions = getPackageMinimalVersionsFromRepo(
-      repoDir, pv, downloadRes.version, downloadMethod, options, nimBin = some("nim")
+    let packageVersions = waitFor getPackageMinimalVersionsFromRepo(
+      repoDir, pv, downloadMethod, options, nimBin = some("nim")
     )
 
     #we know these versions are available

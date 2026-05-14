@@ -188,207 +188,7 @@ proc cacheToPackageVersionTable*(options: Options): Table[string, PackageVersion
     if validVersions.len > 0:
       result[pkgName] = PackageVersions(pkgName: pkgName, versions: validVersions)
 
-proc getPackageMinimalVersionsFromRepo*(repoDir: string, pkg: PkgTuple, version: Version, downloadMethod: DownloadMethod, options: Options, nimBin: Option[string]): seq[PackageMinimalInfo] =
-  result = newSeq[PackageMinimalInfo]()
-
-  let name = pkg[0]
-  let taggedVersions = getTaggedVersions(name, options)
-  if taggedVersions.isSome:
-    var cacheFresh = true
-    try:
-      let localTags = getTagsList(repoDir, downloadMethod)
-      cacheFresh = cachedTagsCoverLocalTags(taggedVersions.get, localTags)
-    except CatchableError:
-      discard
-    if cacheFresh:
-      return taggedVersions.get
-
-  # During version discovery, we only need to read .nimble files, not compile code
-  # So we can safely ignore submodules to avoid issues with repos that have
-  # submodules that fail to clone (e.g., waku's zerokit submodule)
-  var versionDiscoveryOptions = options
-  versionDiscoveryOptions.ignoreSubmodules = true
-
-  # Fetch tags and use git show directly on repoDir (read-only git operations).
-  # Only create a tempDir copy if we need the fallback checkout path (rare).
-  var tags = initOrderedTable[Version, string]()
-  try:
-    gitFetchTags(repoDir, downloadMethod, versionDiscoveryOptions)
-    tags = getTagsList(repoDir, downloadMethod).getVersionList()
-  except NimbleGitError as e:
-    options.satResult.gitErrors.add(&"Git error fetching tags for {name} (could be a network issue): {e.msg}")
-    displayWarning(&"Git error fetching tags for {name}: {e.msg}", HighPriority)
-  except CatchableError as e:
-    displayWarning(&"Error fetching tags for {name}: {e.msg}", HighPriority)
-
-  # Lazy copy: only created when fallback checkout is needed
-  var tempDir = ""
-  var tempDirCreated = false
-
-  # Process all tagged versions (no limit)
-  for (ver, tag) in tags.pairs:
-    try:
-      let tagVersion = newVersion($ver)
-
-      if not tagVersion.withinRange(pkg[1]):
-        displayInfo(&"Ignoring {name}:{tagVersion} because out of range {pkg[1]}", LowPriority)
-        continue
-
-      # Try git show + declarative parser first (faster, avoids checkout)
-      var parsed = false
-      try:
-        let nimbleFiles = gitListNimbleFilesInCommit(repoDir, tag)
-        if nimbleFiles.len > 0:
-          # Prefer nimble file matching package name
-          var nimbleFilePath = nimbleFiles[0]
-          let expectedName = name & ".nimble"
-          for nf in nimbleFiles:
-            if nf.endsWith(expectedName) or nf == expectedName:
-              nimbleFilePath = nf
-              break
-
-          let nimbleContent = gitShowFile(repoDir, tag, nimbleFilePath)
-          let minimalInfo = getMinimalInfoFromContent(nimbleContent, name, tagVersion, url = "", options)
-          if minimalInfo.isSome:
-            result.addUnique(minimalInfo.get)
-            parsed = true
-      except CatchableError:
-        discard  # Fall back to checkout approach
-
-      # Fall back to checkout + VM parser if declarative parsing failed
-      if not parsed:
-        # Lazy copy: create tempDir only when we actually need to checkout
-        if not tempDirCreated:
-          tempDir = repoDir & "_versions"
-          removeDir(tempDir)
-          copyDir(repoDir, tempDir)
-          tempDirCreated = true
-        let checkoutOk = doCheckout(downloadMethod, tempDir, tag, versionDiscoveryOptions)
-        if not checkoutOk:
-          displayWarning(&"Failed to checkout tag {tag} for {name}, skipping", HighPriority)
-          continue
-        result.addUnique getPkgInfo(tempDir, options, nimBin, pikRequires).getMinimalInfo(options)
-        #here we copy the directory to its own folder so we have it cached for future usage
-        let downloadInfo = getPackageDownloadInfo((name, tagVersion.toVersionRange()), options)
-        if not dirExists(downloadInfo.downloadDir):
-          copyDir(tempDir, downloadInfo.downloadDir)
-
-    except CatchableError as e:
-      displayWarning(
-        &"Error reading tag {tag}: for package {name}. This may not be relevant as it could be an old version of the package. \n {e.msg}",
-         HighPriority)
-
-  # Add HEAD version last (tagged releases take precedence if same version exists)
-  try:
-    result.addUnique getPkgInfo(repoDir, options, nimBin, pikRequires).getMinimalInfo(options)
-  except CatchableError as e:
-    displayWarning(&"Error getting package info for {name}: {e.msg}", HighPriority)
-
-  saveTaggedVersions(name, result, options)
-
-  # Clean up tempDir if it was created
-  if tempDirCreated:
-    try:
-      removeDir(tempDir)
-    except CatchableError as e:
-      displayWarning(&"Error cleaning up temporary directory {tempDir}: {e.msg}", LowPriority)
-
-proc getPackageMinimalVersionsFromRepoAsync*(repoDir: string, pkg: PkgTuple, version: Version, downloadMethod: DownloadMethod, options: Options, nimBin: Option[string]): Future[seq[PackageMinimalInfo]] {.async.} =
-  {.cast(raises: [CatchableError]).}:
-    ## Async version of getPackageMinimalVersionsFromRepo that uses async operations for VCS commands.
-    result = newSeq[PackageMinimalInfo]()
-
-    let name = pkg[0]
-    try:
-      let taggedVersions = getTaggedVersions(name, options)
-      if taggedVersions.isSome:
-        var cacheFresh = true
-        try:
-          let localTags = await getTagsListAsync(repoDir, downloadMethod)
-          cacheFresh = cachedTagsCoverLocalTags(taggedVersions.get, localTags)
-        except CatchableError:
-          discard
-        if cacheFresh:
-          return taggedVersions.get
-    except CatchableError:
-      discard # Continue with fetching from repo
-
-    let tempDir = repoDir & "_versions"
-    # During version discovery, we only need to read .nimble files, not compile code
-    # So we can safely ignore submodules to avoid issues with repos that have
-    # submodules that fail to clone (e.g., waku's zerokit submodule)
-    var versionDiscoveryOptions = options
-    versionDiscoveryOptions.ignoreSubmodules = true
-    try:
-      removeDir(tempDir)
-      copyDir(repoDir, tempDir)
-      var tags = initOrderedTable[Version, string]()
-      try:
-        await gitFetchTagsAsync(tempDir, downloadMethod, versionDiscoveryOptions)
-        tags = (await getTagsListAsync(tempDir, downloadMethod)).getVersionList()
-      except ref NimbleGitError as e:
-        options.satResult.gitErrors.add(&"Git error fetching tags for {name} (could be a network issue): {e.msg}")
-        displayWarning(&"Git error fetching tags for {name}: {e.msg}", HighPriority)
-      except CatchableError as e:
-        displayWarning(&"Error fetching tags for {name}: {e.msg}", HighPriority)
-
-      # Process all tagged versions (no limit)
-      for (ver, tag) in tags.pairs:
-        try:
-          let tagVersion = newVersion($ver)
-
-          # Try git show + declarative parser first (faster, avoids checkout)
-          var parsed = false
-          try:
-            let nimbleFiles = await gitListNimbleFilesInCommitAsync(tempDir, tag)
-            if nimbleFiles.len > 0:
-              # Prefer nimble file matching package name
-              var nimbleFilePath = nimbleFiles[0]
-              let expectedName = name & ".nimble"
-              for nf in nimbleFiles:
-                if nf.endsWith(expectedName) or nf == expectedName:
-                  nimbleFilePath = nf
-                  break
-
-              let nimbleContent = await gitShowFileAsync(tempDir, tag, nimbleFilePath)
-              let minimalInfo = getMinimalInfoFromContent(nimbleContent, name, tagVersion, url = "", options)
-              if minimalInfo.isSome:
-                result.addUnique(minimalInfo.get)
-                parsed = true
-          except CatchableError:
-            discard  # Fall back to checkout approach
-
-          # Fall back to checkout + VM parser if declarative parsing failed
-          if not parsed:
-            discard await doCheckoutAsync(downloadMethod, tempDir, tag, versionDiscoveryOptions)
-            result.addUnique getPkgInfo(tempDir, options, nimBin, pikRequires).getMinimalInfo(options)
-            #here we copy the directory to its own folder so we have it cached for future usage
-            let downloadInfo = getPackageDownloadInfo((name, tagVersion.toVersionRange()), options)
-            if not dirExists(downloadInfo.downloadDir):
-              copyDir(tempDir, downloadInfo.downloadDir)
-
-        except CatchableError as e:
-          displayWarning(
-            &"Error reading tag {tag}: for package {name}. This may not be relevant as it could be an old version of the package. \n {e.msg}",
-             HighPriority)
-
-      # Add HEAD version last (tagged releases take precedence if same version exists)
-      try:
-        result.addUnique getPkgInfo(repoDir, options, nimBin, pikRequires).getMinimalInfo(options)
-      except CatchableError as e:
-        displayWarning(&"Error getting package info for {name}: {e.msg}", HighPriority)
-
-      try:
-        saveTaggedVersions(name, result, options)
-      except CatchableError as e:
-        displayWarning(&"Error saving tagged versions for {name}: {e.msg}", LowPriority)
-    finally:
-      try:
-        removeDir(tempDir)
-      except CatchableError as e:
-        displayWarning(&"Error cleaning up temporary directory {tempDir}: {e.msg}", LowPriority)
-
-proc getPackageMinimalVersionsFromRepoAsyncFast*(
+proc getPackageMinimalVersionsFromRepo*(
     repoDir: string,
     pkg: PkgTuple,
     downloadMethod: DownloadMethod,
@@ -396,8 +196,8 @@ proc getPackageMinimalVersionsFromRepoAsyncFast*(
     nimBin: Option[string]
 ): Future[seq[PackageMinimalInfo]] {.async.} =
   {.cast(raises: [CatchableError]).}:
-    ## Fast version that reads nimble files directly from git tags without checkout.
-    ## Uses git ls-tree and git show to avoid expensive checkout + copyDir operations.
+    ## Reads nimble files directly from git tags without checkout, using
+    ## git ls-tree and git show to avoid expensive checkout + copyDir operations.
     result = newSeq[PackageMinimalInfo]()
     let name = pkg[0]
 
@@ -576,7 +376,7 @@ proc downloadMinimalPackageImpl(pv: PkgTuple, options: Options, nimBin: Option[s
       result = @[pkgInfo.getMinimalInfo(versionDiscoveryOptions)]
     else:
       let (downloadRes, downloadMeth) = await downloadPkgFromUrlAsync(pv, versionDiscoveryOptions, false, nimBin)
-      result = await getPackageMinimalVersionsFromRepoAsyncFast(downloadRes.dir, pv, downloadMeth.get, versionDiscoveryOptions, nimBin)
+      result = await getPackageMinimalVersionsFromRepo(downloadRes.dir, pv, downloadMeth.get, versionDiscoveryOptions, nimBin)
 
     #Make sure the url is set for the package
     if pv.name.isUrl:

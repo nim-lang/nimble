@@ -187,7 +187,7 @@ suite "Async Tools":
 
     removeDir(tmpDir)
 
-  test "getPackageMinimalVersionsFromRepoAsync gets package versions":
+  test "getPackageMinimalVersionsFromRepo gets package versions":
     let tmpDir = getTempDir() / "nimble_async_test_minimalversions"
     let repoDir = tmpDir / "repo"
 
@@ -208,8 +208,8 @@ suite "Async Tools":
 
     # Get minimal versions for a version range
     let pkg: PkgTuple = ("results", parseVersionRange(">= 0.4.0"))
-    let versions = waitFor getPackageMinimalVersionsFromRepoAsync(
-      repoDir, pkg, newVersion("0.4.0"), DownloadMethod.git, options, nimBin)
+    let versions = waitFor getPackageMinimalVersionsFromRepo(
+      repoDir, pkg, DownloadMethod.git, options, nimBin)
 
     # Verify we got some versions
     check versions.len > 0
@@ -463,7 +463,7 @@ suite "Async Tools":
 
     removeDir(tmpDir)
 
-  test "getPackageMinimalVersionsFromRepoAsyncFast gets versions without checkout":
+  test "getPackageMinimalVersionsFromRepo gets versions without checkout":
     let tmpDir = getTempDir() / "nimble_async_test_fast"
     let repoDir = tmpDir / "repo"
 
@@ -484,7 +484,7 @@ suite "Async Tools":
 
     # Get minimal versions using the FAST method (no checkout)
     let pkg: PkgTuple = ("results", parseVersionRange(">= 0.4.0"))
-    let versions = waitFor getPackageMinimalVersionsFromRepoAsyncFast(
+    let versions = waitFor getPackageMinimalVersionsFromRepo(
       repoDir, pkg, DownloadMethod.git, options, nimBin)
 
     # Verify we got versions
