@@ -156,6 +156,32 @@ requires "nim >= 1.6.0", "packagea"
         check pathsContent.contains(defaultPath)
         check not pathsContent.contains("pkgs2")
 
+  test "bare 'nimble develop' implies --with-dependencies (#1510)":
+    # Regression for develop_issues.md #4 / nim-lang/nimble#1510:
+    # Bare `nimble develop` (no args, no flags) currently does nothing useful.
+    # It should behave as `nimble develop --with-dependencies` — clone deps
+    # into vendor/ and produce nimble.develop + nimble.paths.
+    # `-l` forces local mode (test infra otherwise injects --global, which
+    # selects the legacy global-develop workflow).
+    cdCleanDir installDir:
+      usePackageListFile &"../develop/{pkgListFileName}":
+        writeFile("testproject.nimble", &"""
+version = "0.1.0"
+author = "Test"
+description = "Test"
+license = "MIT"
+requires "nim >= 1.6.0", "packagea"
+""")
+        let (_, exitCode) = execNimble("develop", "-l")
+        check exitCode == QuitSuccess
+        check dirExists(getCurrentDir() / defaultPath / "packagea")
+        check fileExists("nimble.develop")
+        check fileExists("nimble.paths")
+        let pathsContent = readFile("nimble.paths")
+        check pathsContent.toLowerAscii.contains("packagea")
+        check pathsContent.contains(defaultPath)
+        check not pathsContent.contains("pkgs2")
+
   test "can develop list of packages":
     cdCleanDir installDir:
       usePackageListFile &"../develop/{pkgListFileName}":
