@@ -2323,6 +2323,17 @@ when isMainModule:
       # Implicitly disable package validation for these commands.
       opt.disableValidation = true
     
+    #no arg develop action is --withDependencies
+    if opt.action.typ == actionDevelop and
+       opt.action.packages.len == 0 and
+       opt.action.devActions.len == 0 and
+       opt.action.path.len == 0 and
+       not opt.action.withDependencies and
+       not opt.action.global and
+       not opt.explicitGlobal and
+       opt.thereIsNimbleFile:
+      opt.action.withDependencies = true
+    
     # Actions that don't go through the main resolving pipeline (no SAT solve / install).
     const nonResolvingActions = {actionNil, actionRefresh, actionInit, actionDump,
       actionPublish, actionSearch, actionList, actionPath, actionUninstall,
