@@ -360,7 +360,8 @@ proc readPackageInfo(pkgInfo: var PackageInfo, nf: NimbleFile, options: Options,
 
   # Validate the rest of the package info last.
   if not options.disableValidation:
-    validateVersion($pkgInfo.basicInfo.version)
+    if pkgInfo.basicInfo.version != notSetVersion:
+      validateVersion($pkgInfo.basicInfo.version)
     validatePackageInfo(pkgInfo, options)
 
 proc getPkgInfoFromFile*(nimBin: Option[string],file: NimbleFile, options: Options,
