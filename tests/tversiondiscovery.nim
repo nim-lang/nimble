@@ -95,7 +95,7 @@ suite "Version Discovery":
     let downloadRes = pv.downloadPkgFromUrl(options, nimBin = nimBin)[0] #This is just to setup the test. We need a git dir to work on
     let repoDir = downloadRes.dir
     let downloadMethod = DownloadMethod git
-    let packageVersions = getPackageMinimalVersionsFromRepo(repoDir, pv, downloadRes.version, downloadMethod, options, nimBin = nimBin)
+    let packageVersions = waitFor getPackageMinimalVersionsFromRepo(repoDir, pv, downloadMethod, options, nimBin = nimBin)
 
     #we know these versions are available
     let availableVersions = @["0.3.4", "0.3.5", "0.3.6", "0.4.5", "0.4.4"].mapIt(newVersion(it))
@@ -122,7 +122,7 @@ suite "Version Discovery":
     let pvPrev = parseRequires("nimfp >= 0.3.4")
     let downloadResPrev = pvPrev.downloadPkgFromUrl(options, nimBin = nimBin)[0]
     let repoDirPrev = downloadResPrev.dir
-    discard getPackageMinimalVersionsFromRepo(repoDirPrev, pvPrev, downloadResPrev.version,  DownloadMethod.git, options, nimBin = nimBin)
+    discard waitFor getPackageMinimalVersionsFromRepo(repoDirPrev, pvPrev, DownloadMethod.git, options, nimBin = nimBin)
     # Check that the centralized cache file exists
     check fileExists(options.pkgCachePath / TaggedVersionsFileName)
 
@@ -132,7 +132,7 @@ suite "Version Discovery":
     let repoDir = downloadRes.dir
 
     # The second call should use the cached versions from the centralized cache
-    let packageVersions = getPackageMinimalVersionsFromRepo(repoDir, pv, downloadRes.version, DownloadMethod.git, options, nimBin = nimBin)
+    let packageVersions = waitFor getPackageMinimalVersionsFromRepo(repoDir, pv, DownloadMethod.git, options, nimBin = nimBin)
     #we know these versions are available
     let availableVersions = @["0.4.5", "0.4.4"].mapIt(newVersion(it))
     for version in availableVersions:
