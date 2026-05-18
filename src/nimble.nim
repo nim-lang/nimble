@@ -1203,8 +1203,10 @@ proc develop(options: var Options, nimBinParam: Option[string]) =
     if currentDirPkgInfo.isLoaded and
        options.developFile == developFileName:
       # If we are updated package's develop file we have to update also
-      # sync and paths files.
-      updateSyncFile(currentDirPkgInfo, options, nimBin)
+      # sync and paths files. The sync file records VCS revisions, so skip
+      # it when the package directory isn't under version control (#1509).
+      if currentDirPkgInfo.getNimbleFileDir.Path.getVcsType != vcsTypeNone:
+        updateSyncFile(currentDirPkgInfo, options, nimBin)
       if fileExists(nimblePathsFileName):
         updatePathsFile(currentDirPkgInfo, options, nimBin)
 

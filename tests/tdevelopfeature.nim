@@ -204,6 +204,40 @@ requires "nim >= 1.6.0", "https://github.com/jmgomez/packagea.git#head"
         check dirExists(getCurrentDir() / defaultPath / "packagea")
         check fileExists("nimble.develop")
 
+  test "develop works in a directory not under version control (#1509)":
+    # Regression for nim-lang/nimble#1509 / develop_issues.md #5:
+    # Running `nimble develop --add:<pkg>` in a non-VCS directory failed with
+    # "Sync file require current working directory to be under some supported
+    # type of version control." The sync file is only meaningful when there's
+    # a VCS to record revisions against — a vendor folder in a plain directory
+    # should work without it.
+    # Uses /tmp so that `getVcsTypeAndSpecialDirPath`'s parent walk doesn't
+    # find the nimble repo's own .git as an ancestor.
+    let noVcsDir = getTempDir() / "nimble_t1509"
+    cleanDir noVcsDir
+    createDir noVcsDir
+    let depDir = getTempDir() / "nimble_t1509_dep"
+    cleanDir depDir
+    createDir depDir
+    writeFile(depDir / "depa.nimble", """
+version = "0.1.0"
+author = "Test"
+description = "Test"
+license = "MIT"
+""")
+    cd noVcsDir:
+      writeFile("testproject.nimble", """
+version = "0.1.0"
+author = "Test"
+description = "Test"
+license = "MIT"
+requires "nim >= 1.6.0"
+""")
+      let (output, exitCode) = execNimble("develop", "-l", "--add:" & depDir)
+      check exitCode == QuitSuccess
+      check not output.contains("supported type of version control")
+      check fileExists("nimble.develop")
+
   test "can develop list of packages":
     cdCleanDir installDir:
       usePackageListFile &"../develop/{pkgListFileName}":
