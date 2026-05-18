@@ -182,6 +182,28 @@ requires "nim >= 1.6.0", "packagea"
         check pathsContent.contains(defaultPath)
         check not pathsContent.contains("pkgs2")
 
+  test "develop --withDeps handles URL deps with branch refs (#1567)":
+    # Regression for nim-lang/nimble#1567 / develop_issues.md #2:
+    # When the root requires a URL dep with a branch ref (`.git#branch`), the
+    # SAT solver resolves it to a special version (e.g. `#head`). Previously,
+    # developFromSolution built a PkgTuple via `parseVersionRange("== " & $ver)`
+    # which produced the invalid string `== #head` and crashed with
+    # "Unexpected char in version range '== #head': #".
+    cdCleanDir installDir:
+      usePackageListFile &"../develop/{pkgListFileName}":
+        writeFile("testproject.nimble", &"""
+version = "0.1.0"
+author = "Test"
+description = "Test"
+license = "MIT"
+requires "nim >= 1.6.0", "https://github.com/jmgomez/packagea.git#head"
+""")
+        let (output, exitCode) = execNimble("develop", "-l", "--with-dependencies")
+        check exitCode == QuitSuccess
+        check not output.contains("Unexpected char in version range")
+        check dirExists(getCurrentDir() / defaultPath / "packagea")
+        check fileExists("nimble.develop")
+
   test "can develop list of packages":
     cdCleanDir installDir:
       usePackageListFile &"../develop/{pkgListFileName}":

@@ -2004,8 +2004,7 @@ proc developFromSolution(rootPkgName: string, options: var Options, nimBin: Opti
       continue
     if solvedPkg.pkgName.toLower == rootPkgName.toLower:
       continue
-    let pkgTup: PkgTuple = (solvedPkg.pkgName,
-      parseVersionRange("== " & $solvedPkg.version))
+    let pkgTup: PkgTuple = (solvedPkg.pkgName, solvedPkg.version.toVersionRange)
     try:
       let pkgInfo = installDevelopPackage(pkgTup, options, nimBin)
       let pkgName = pkgInfo.basicInfo.name.toLowerAscii()
