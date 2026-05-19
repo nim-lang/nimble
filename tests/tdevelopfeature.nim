@@ -182,6 +182,30 @@ requires "nim >= 1.6.0", "packagea"
         check pathsContent.contains(defaultPath)
         check not pathsContent.contains("pkgs2")
 
+  test "nimble path respects develop file (#1344)":
+    # `nimble path <pkg>` only consulted installed packages in pkgs2/,
+    # ignoring the develop file. After `develop --with-dependencies`, asking
+    # for the path of a vendored dep should return the vendor path, not a
+    # cached pkgs2/ copy (and must succeed even if pkgs2/ has no entry).
+    cdCleanDir installDir:
+      usePackageListFile &"../develop/{pkgListFileName}":
+        writeFile("testproject.nimble", &"""
+version = "0.1.0"
+author = "Test"
+description = "Test"
+license = "MIT"
+requires "nim >= 1.6.0", "packagea"
+""")
+        let (_, devExit) = execNimble("develop", "-l", "--with-dependencies")
+        check devExit == QuitSuccess
+        let vendorPkgA = getCurrentDir() / defaultPath / "packagea"
+        check dirExists(vendorPkgA)
+
+        let (pathOut, pathExit) = execNimble("path", "-l", "packagea")
+        check pathExit == QuitSuccess
+        check pathOut.contains(defaultPath)
+        check not pathOut.contains("pkgs2")
+
   test "develop --withDeps handles URL deps with branch refs (#1567)":
     # Regression for nim-lang/nimble#1567 / develop_issues.md #2:
     # When the root requires a URL dep with a branch ref (`.git#branch`), the
