@@ -681,8 +681,11 @@ proc listInstalled(options: Options) =
 
 type VersionAndPath = tuple[version: Version, path: string]
 
-proc listPaths(options: Options) =
+proc listPaths(options: Options, nimBin: var Option[string]) =
   ## Loops over the specified packages displaying their installed paths.
+  ##
+  ## If the current directory is a nimble project with a develop file, develop
+  ## links take priority over installed `pkgs2/` copies (#1344).
   ##
   ## If there are several packages installed, all of them will be displayed.
   ## If any package name is not found, the proc displays a missing message and
@@ -697,9 +700,38 @@ proc listPaths(options: Options) =
   if options.action.packages.len == 0:
     raise nimbleError("A package name needs to be specified")
 
+  # Collect develop dependencies of the current project, if any. They take
+  # priority over installed packages so `nimble path` reflects the develop
+  # file's overrides instead of the cached pkgs2 copy.
+  var developPkgs: Table[string, ref PackageInfo]
+  if options.thereIsNimbleFile:
+    var currentDirPkgInfo = initPackageInfo()
+    try:
+      withNimBinFallback(nimBin, options):
+        currentDirPkgInfo = getPkgInfo(getCurrentDir(), options, nimBin = nimBin)
+    except CatchableError:
+      discard
+    if currentDirPkgInfo.isLoaded:
+      try:
+        withNimBinFallback(nimBin, options):
+          developPkgs = getDevelopDependencies(currentDirPkgInfo, options,
+            raiseOnValidationErrors = false, nimBin = nimBin)
+      except CatchableError:
+        discard
+
   var errors = 0
   let pkgs = getInstalledPkgsMin(options.getPkgsDir(), options)
   for name, version in options.action.packages.items:
+    var matched = false
+    for devName, devPkg in developPkgs:
+      if cmpIgnoreCase(devName, name) == 0 and
+         withinRange(devPkg[].basicInfo.version, version):
+        echo devPkg[].getRealDir
+        matched = true
+        break
+    if matched:
+      continue
+
     var installed: seq[VersionAndPath] = @[]
     # There may be several, list all available ones and sort by version.
     for pkg in pkgs:
@@ -2232,7 +2264,7 @@ proc doAction(options: var Options, nimBinParam: Option[string]) {.instrument.} 
     else:
       list(options)
   of actionPath:
-    listPaths(options)
+    listPaths(options, nimBin)
   of actionBuild:
     discard # handled by run
   of actionClean:
