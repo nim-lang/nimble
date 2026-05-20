@@ -1360,8 +1360,6 @@ proc check(options: Options, nimBin: Option[string]) =
     let currentDir = getCurrentDir()
     let pkgInfo = getPkgInfo(currentDir, options, nimBin = nimBin, forValidation = true)
     validateDevelopFile(pkgInfo, options, nimBin)
-    let dependencies = options.satResult.pkgs.toSeq
-    validateDevelopDependenciesVersionRanges(pkgInfo, dependencies, options, nimBin)
     validateParsedDependencies(pkgInfo, options, nimBin)
     displaySuccess(&"The package \"{pkgInfo.basicInfo.name}\" is valid.")
   except CatchableError as error:
