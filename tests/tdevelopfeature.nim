@@ -3,7 +3,7 @@
 
 {.used.}
 
-import unittest, os, strutils, strformat, json, sets
+import unittest, os, osproc, strutils, strformat, json, sets
 import testscommon, nimblepkg/displaymessages, nimblepkg/paths
 
 from nimblepkg/common import cd, getLinkFileName, getLinkFileDir
@@ -205,6 +205,46 @@ requires "nim >= 1.6.0", "packagea"
         check pathExit == QuitSuccess
         check pathOut.contains(defaultPath)
         check not pathOut.contains("pkgs2")
+
+  test "develop --withDeps vendors under canonical name not git repo name (#1508)":
+    let repoDir = getTempDir() / "nim-funkylib-repo"
+    let pkgListFile = getTempDir() / "t1508_packages.json"
+    cleanDir repoDir
+    createDir repoDir
+    writeFile(repoDir / "funkylib.nimble", """
+version = "0.1.0"
+author = "Test"
+description = "Test"
+license = "MIT"
+""")
+    cd repoDir:
+      check execCmdEx("git init -q").exitCode == 0
+      check execCmdEx("git config user.name t").exitCode == 0
+      check execCmdEx("git config user.email t@t").exitCode == 0
+      check execCmdEx("git add .").exitCode == 0
+      check execCmdEx("git commit -q -m initial").exitCode == 0
+      check execCmdEx("git tag v0.1.0").exitCode == 0
+    writeFile(pkgListFile, """[
+  {"name": "funkylib", "url": "file://""" & repoDir & """", "method": "git",
+   "tags": ["test"], "description": "Test", "license": "MIT"}
+]""")
+    defer:
+      removeDir repoDir
+      removeFile pkgListFile
+    cdCleanDir installDir:
+      usePackageListFile pkgListFile:
+        writeFile("testproject.nimble", """
+version = "0.1.0"
+author = "Test"
+description = "Test"
+license = "MIT"
+requires "nim >= 1.6.0", "funkylib"
+""")
+        let (_, exitCode) = execNimble("develop", "-l", "--with-dependencies")
+        check exitCode == QuitSuccess
+        # Vendor dir must use canonical name "funkylib", not URL tail "nim-funkylib-repo".
+        check dirExists(getCurrentDir() / defaultPath / "funkylib")
+        check not dirExists(getCurrentDir() / defaultPath / "nim-funkylib-repo")
 
   test "develop overrides == pinned dependency (#1000)":
     let depDir = getTempDir() / "nimble_t1000_depa"
