@@ -224,10 +224,17 @@ license = "MIT"
       check execCmdEx("git add .").exitCode == 0
       check execCmdEx("git commit -q -m initial").exitCode == 0
       check execCmdEx("git tag v0.1.0").exitCode == 0
-    writeFile(pkgListFile, """[
-  {"name": "funkylib", "url": "file://""" & repoDir & """", "method": "git",
-   "tags": ["test"], "description": "Test", "license": "MIT"}
-]""")
+    # Use %* so backslashes in Windows paths get JSON-escaped properly —
+    # otherwise `\n` in `\nim-funkylib-repo` is parsed as a newline.
+    let pkgList = %* [{
+      "name": "funkylib",
+      "url": "file://" & repoDir,
+      "method": "git",
+      "tags": ["test"],
+      "description": "Test",
+      "license": "MIT"
+    }]
+    writeFile(pkgListFile, $pkgList)
     defer:
       removeDir repoDir
       removeFile pkgListFile
