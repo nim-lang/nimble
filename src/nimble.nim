@@ -1121,7 +1121,15 @@ proc installDevelopPackage(pkgTup: PkgTuple, options: var Options, nimBinParam: 
   var nimBin = nimBinParam
   let (meth, url, metadata) = getDownloadInfo(pkgTup, options, true)
   let subdir = metadata.getOrDefault("subdir")
-  let downloadDir = getDevelopDownloadDir(url, subdir, options)
+  # Prefer the canonical nimble package name (from packages.json) for the
+  # vendor directory so a repo like `nim-web3` lands in `vendor/web3`
+  # resolveAlias returns the registered casing too, so a user
+  # typing `develop PackageA` still vendors at `vendor/packagea`. When the
+  # user required the dep by URL, fall back to the URL-derived tail.
+  let canonicalName =
+    if pkgTup.name.isURL: ""
+    else: resolveAlias(pkgTup.name, options)
+  let downloadDir = getDevelopDownloadDir(url, subdir, options, canonicalName)
 
   if dirExists(downloadDir):
     if options.developWithDependencies:

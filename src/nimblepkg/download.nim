@@ -1043,15 +1043,22 @@ proc echoPackageVersions*(pkg: Package) =
 proc removeTrailingSlash(s: string): string =
   s.strip(chars = {'/'}, leading = false)
 
-proc getDevelopDownloadDir*(url, subdir: string, options: Options): string =
+proc getDevelopDownloadDir*(url, subdir: string, options: Options,
+    canonicalName: string = ""): string =
   ## Returns the download dir for a develop mode dependency.
+  ##
+  ## If `canonicalName` is provided (i.e. the resolved package name from
+  ## packages.json), the vendor directory uses it. Otherwise the URL's path
+  ## tail is used. 
   assert isURL(url), &"The string \"{url}\" is not a URL."
 
   let url = url.removeTrailingSlash
   let subdir = subdir.removeTrailingSlash
 
   let downloadDirName =
-    if subdir.len == 0:
+    if canonicalName.len > 0 and subdir.len == 0:
+      canonicalName
+    elif subdir.len == 0:
       parseUri(url).path.splitFile.name
     else:
       subdir.splitFile.name
