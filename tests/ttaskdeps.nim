@@ -112,8 +112,8 @@ suite "Task level dependencies":
       verify execNimbleYes("develop", "unittest2@0.0.4")
       # # Add in a file to the develop file
       # # We will then try and import this
-      createDir "vendor/nim-unittest2/unittest2"
-      "vendor/nim-unittest2/unittest2/customFile.nim".writeFile("")
+      createDir "vendor/unittest2/unittest2"
+      "vendor/unittest2/unittest2/customFile.nim".writeFile("")
       let (output, exitCode) = execNimbleYes("-d:useDevelop", "test")
       check exitCode == QuitSuccess
       check "Using custom file" in output
