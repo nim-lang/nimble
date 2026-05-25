@@ -285,11 +285,17 @@ requires "nim >= 1.6.0", "t1566dep"
         check execCmdEx("git tag v0.1.0").exitCode == 0
     initRepo(depRepo)
     initRepo(topRepo)
-    # Normalize backslashes to forward slashes in the URL so the path
-    # round-trips through URL parsing on Windows. Same pattern used in
-    # tdeclarativeparser.nim's file:// tests.
-    let topUrl = "file://" & topRepo.replace("\\", "/")
-    let depUrl = "file://" & depRepo.replace("\\", "/")
+    # Build a Windows-safe file URL. On Windows the path has a drive
+    # letter; the double-slash form (file://C:/...) breaks because
+    # parseUri treats `C` as the host and re-serializes without the
+    # colon — git then sees `file://C/...` and fails. The triple-slash
+    # form (file:///C:/...) parses with empty host + full path and
+    # round-trips intact. On unix the double-slash form is correct.
+    proc toFileUrl(p: string): string =
+      when defined(windows): "file:///" & p.replace('\\', '/')
+      else: "file://" & p
+    let topUrl = toFileUrl(topRepo)
+    let depUrl = toFileUrl(depRepo)
     let pkgList = %* [
       {"name": "t1566lib", "url": topUrl, "method": "git",
        "tags": ["test"], "description": "Test", "license": "MIT"},
