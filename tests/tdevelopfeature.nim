@@ -285,10 +285,15 @@ requires "nim >= 1.6.0", "t1566dep"
         check execCmdEx("git tag v0.1.0").exitCode == 0
     initRepo(depRepo)
     initRepo(topRepo)
+    # Normalize backslashes to forward slashes in the URL so the path
+    # round-trips through URL parsing on Windows. Same pattern used in
+    # tdeclarativeparser.nim's file:// tests.
+    let topUrl = "file://" & topRepo.replace("\\", "/")
+    let depUrl = "file://" & depRepo.replace("\\", "/")
     let pkgList = %* [
-      {"name": "t1566lib", "url": "file://" & topRepo, "method": "git",
+      {"name": "t1566lib", "url": topUrl, "method": "git",
        "tags": ["test"], "description": "Test", "license": "MIT"},
-      {"name": "t1566dep", "url": "file://" & depRepo, "method": "git",
+      {"name": "t1566dep", "url": depUrl, "method": "git",
        "tags": ["test"], "description": "Test", "license": "MIT"}
     ]
     writeFile(pkgListFile, $pkgList)
