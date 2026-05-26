@@ -251,6 +251,89 @@ requires "nim >= 1.6.0", "funkylib"
         check dirExists(getCurrentDir() / defaultPath / "funkylib")
         check not dirExists(getCurrentDir() / defaultPath / "nim-funkylib-repo")
 
+  test "nimble setup after develop --withDeps reuses vendor packages (#1566)":
+    # After `nimble develop --with-dependencies` clones deps into vendor/ and
+    # writes nimble.develop, a follow-up `nimble setup` should NOT re-download
+    # the same packages from git. Vendor copies must be reused.
+    let topRepo = getTempDir() / "t1566-t1566lib-repo"
+    let depRepo = getTempDir() / "t1566-t1566dep-repo"
+    let pkgListFile = getTempDir() / "t1566_packages.json"
+    removeDir topRepo
+    removeDir depRepo
+    createDir topRepo
+    createDir depRepo
+    writeFile(depRepo / "t1566dep.nimble", """
+version = "0.1.0"
+author = "Test"
+description = "Test"
+license = "MIT"
+""")
+    writeFile(topRepo / "t1566lib.nimble", """
+version = "0.1.0"
+author = "Test"
+description = "Test"
+license = "MIT"
+requires "nim >= 1.6.0", "t1566dep"
+""")
+    proc initRepo(d: string) =
+      cd d:
+        check execCmdEx("git init -q").exitCode == 0
+        check execCmdEx("git config user.name t").exitCode == 0
+        check execCmdEx("git config user.email t@t").exitCode == 0
+        check execCmdEx("git add .").exitCode == 0
+        check execCmdEx("git commit -q -m initial").exitCode == 0
+        check execCmdEx("git tag v0.1.0").exitCode == 0
+    initRepo(depRepo)
+    initRepo(topRepo)
+    # Build a Windows-safe file URL. On Windows the path has a drive
+    # letter; the double-slash form (file://C:/...) breaks because
+    # parseUri treats `C` as the host and re-serializes without the
+    # colon — git then sees `file://C/...` and fails. The triple-slash
+    # form (file:///C:/...) parses with empty host + full path and
+    # round-trips intact. On unix the double-slash form is correct.
+    proc toFileUrl(p: string): string =
+      when defined(windows): "file:///" & p.replace('\\', '/')
+      else: "file://" & p
+    let topUrl = toFileUrl(topRepo)
+    let depUrl = toFileUrl(depRepo)
+    let pkgList = %* [
+      {"name": "t1566lib", "url": topUrl, "method": "git",
+       "tags": ["test"], "description": "Test", "license": "MIT"},
+      {"name": "t1566dep", "url": depUrl, "method": "git",
+       "tags": ["test"], "description": "Test", "license": "MIT"}
+    ]
+    writeFile(pkgListFile, $pkgList)
+    defer:
+      removeDir topRepo
+      removeDir depRepo
+      removeFile pkgListFile
+    cdCleanDir installDir:
+      usePackageListFile pkgListFile:
+        # Pre-install t1566dep into pkgs2/ to mimic "this dep was already
+        # cached from prior work" — closer to arnetheduck's nora-poc state,
+        # where some deps are already installed before `develop --withDeps`
+        # runs. If develop short-circuits transitive discovery for already-
+        # installed deps, t1566dep would still end up missing from vendor/.
+        let (_, instExit) = execNimbleYes("install", "t1566dep")
+        check instExit == QuitSuccess
+        writeFile("testproject.nimble", """
+version = "0.1.0"
+author = "Test"
+description = "Test"
+license = "MIT"
+requires "nim >= 1.6.0", "t1566lib"
+""")
+        let (_, devExit) = execNimble("develop", "-l", "--with-dependencies")
+        check devExit == QuitSuccess
+        check dirExists(getCurrentDir() / defaultPath / "t1566lib")
+        check dirExists(getCurrentDir() / defaultPath / "t1566dep")
+        # Now run setup: it must NOT re-download t1566lib or t1566dep.
+        let (setupOut, setupExit) = execNimble("setup", "-l")
+        check setupExit == QuitSuccess
+        check not setupOut.contains("Downloading file://")
+        check dirExists(getCurrentDir() / defaultPath / "t1566lib")
+        check dirExists(getCurrentDir() / defaultPath / "t1566dep")
+
   test "develop overrides == pinned dependency (#1000)":
     let depDir = getTempDir() / "nimble_t1000_depa"
     cleanDir depDir
