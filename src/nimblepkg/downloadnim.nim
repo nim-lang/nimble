@@ -123,7 +123,7 @@ proc getPlatformString*(arch: int): string =
       "macosx"
     else:
       # For other platforms, fall back to source
-      return "source_tar"
+      "source_tar"
 
   when defined(macosx):
     if isAppleSilicon():
