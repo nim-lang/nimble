@@ -1100,10 +1100,6 @@ proc developFromDir(pkgInfo: PackageInfo, options: var Options, topLevel = false
     if not execHook(nimBin, options, actionDevelop, true):
       raise nimbleError("Pre-hook prevented further execution.")
 
-  if pkgInfo.bin.len > 0:
-    displayWarning(
-      "This package's binaries will not be compiled for development.")
-
   # Dependencies are resolved by the SAT solver
   # (via solvePkgs + setup after develop completes)
 

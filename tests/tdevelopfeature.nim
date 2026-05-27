@@ -473,7 +473,10 @@ requires "nim >= 1.6.0"
       let (output, exitCode) = execNimble("develop")
       check exitCode == QuitSuccess
       var lines = output.processOutput
-      check lines.inLinesOrdered("will not be compiled")
+      # #853: the misleading "binaries will not be compiled" warning was
+      # removed for binary and hybrid packages. `nimble build` still builds
+      # the binary; develop only sets up dependencies.
+      check not lines.inLines("will not be compiled")
       check lines.inLinesOrdered(
         pkgSetupInDevModeMsg(pkgHybridName, getCurrentDir()))
 
