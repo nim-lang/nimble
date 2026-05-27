@@ -468,6 +468,54 @@ requires "nim >= 1.6.0"
       check output.processOutput.inLines(
         pkgSetupInDevModeMsg("binary", getCurrentDir()))
 
+  test "develop lib + bin simultaneously picks up live lib changes (#1165)":
+    # Regression for nim-lang/nimble#1165: a binary linked via
+    # `develop -a:` to a local library must observe edits to that library
+    # without re-installing it. Builds the bin once with the lib at "v1",
+    # edits the lib source to "v2", rebuilds, and asserts the bin's runtime
+    # output reflects the edit — proving the develop link is live.
+    cdCleanDir installDir:
+      # Lib package: exports a single proc returning a literal.
+      createDir(installDir / "mylib" / "src")
+      writeFile(installDir / "mylib" / "mylib.nimble", """
+version = "0.1.0"
+author = "Test"
+description = "lib"
+license = "MIT"
+srcDir = "src"
+requires "nim >= 1.6.0"
+""")
+      writeFile(installDir / "mylib" / "src" / "mylib.nim",
+                "proc greet*(): string = \"v1\"\n")
+      # Bin package: imports the lib and echoes its return value.
+      createDir(installDir / "myapp" / "src")
+      writeFile(installDir / "myapp" / "myapp.nimble", """
+version = "0.1.0"
+author = "Test"
+description = "bin"
+license = "MIT"
+srcDir = "src"
+bin = @["myapp"]
+requires "nim >= 1.6.0", "mylib"
+""")
+      writeFile(installDir / "myapp" / "src" / "myapp.nim",
+                "import mylib\necho greet()\n")
+
+      cd installDir / "myapp":
+        let (_, devExit) = execNimble("develop", "-l", "-a:" & (installDir / "mylib"))
+        check devExit == QuitSuccess
+        # First run: bin should print "v1".
+        let (out1, run1Exit) = execNimble("run", "-l")
+        check run1Exit == QuitSuccess
+        check out1.contains("v1")
+        # Edit the lib source — develop link must point at this exact file.
+        writeFile(installDir / "mylib" / "src" / "mylib.nim",
+                  "proc greet*(): string = \"v2\"\n")
+        # Second run: bin must reflect the lib edit, not the previous build.
+        let (out2, run2Exit) = execNimble("run", "-l")
+        check run2Exit == QuitSuccess
+        check out2.contains("v2")
+
   test "can develop hybrid":
     cd &"develop/{pkgHybridName}":
       let (output, exitCode) = execNimble("develop")
