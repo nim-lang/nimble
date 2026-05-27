@@ -639,6 +639,25 @@ requires "nim >= 1.6.0", "mylib"
         check exitCode == QuitSuccess
         check packageDirExists(pkgsDir, pkgAName & "-0.5.0")
 
+  test "build reports which deps are develop-linked (#405)":
+    # Regression for nim-lang/nimble#405: it's hard to tell whether a
+    # `develop -a:` link is actually being consumed by a build. The output
+    # must name the develop-linked dependency together with its source
+    # directory so users can confirm the link is active without inspecting
+    # nimble.paths by hand.
+    cleanDir installDir
+    cd dependentPkgPath:
+      usePackageListFile &"../{pkgListFileName}":
+        cleanFiles developFileName, dependentPkgName.addFileExt(ExeExt)
+        let (_, devExit) = execNimble("develop", &"-a:{depPath}")
+        check devExit == QuitSuccess
+        let (output, runExit) = execNimble("run")
+        check runExit == QuitSuccess
+        let lines = output.processOutput
+        # Develop status surfaced for the linked dep at default verbosity.
+        let depAbs = depPath.absolutePath.normalizedPath
+        check lines.inLines(&"{depName} [develop: {depAbs}]")
+
   test "warning on attempt to add the same package twice":
     cd dependentPkgPath:
       cleanFile developFileName

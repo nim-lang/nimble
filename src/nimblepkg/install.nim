@@ -41,6 +41,15 @@ proc displaySatisfiedMsg*(solvedPkgs: seq[SolvedPackage], pkgToInstall: seq[(str
         for req in pkg.requirements:
           displayInfo(pkgDepsAlreadySatisfiedMsg(req), MediumPriority)
 
+proc displayDevelopDepsMsg*(satResult: SATResult, options: Options) =
+  ## Surface develop-linked dependencies so users can confirm the link is active
+  for pkg in satResult.pkgs:
+    if pkg.basicInfo.name.isNim: continue
+    if pkg.basicInfo.name == satResult.rootPackage.basicInfo.name: continue
+    if pkg.isInDevelopMode(options):
+      let srcDir = pkg.myPath.parentDir
+      displayInfo(&"{pkg.basicInfo.name} [develop: {srcDir}]", HighPriority)
+
 proc activateSolvedPkgFeatures*(satResult: SATResult, options: Options) =
   for pkg in satResult.pkgs:
     for pkgTuple, activeFeatures in pkg.activeFeatures:
@@ -489,6 +498,7 @@ proc installPkgs*(satResult: var SATResult, options: var Options, nimBin: Option
     installedPkgs.incl(satResult.rootPackage)
 
   displaySatisfiedMsg(satResult.solvedPkgs, pkgsToInstall, options)
+  displayDevelopDepsMsg(satResult, options)
   #If package is in develop mode, we dont need to install it.
   var newlyInstalledPkgs = initHashSet[PackageInfo]()
   let rootName = satResult.rootPackage.basicInfo.name
