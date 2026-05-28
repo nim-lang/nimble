@@ -322,6 +322,19 @@ proc installFromDirDownloadInfo(nimBin: Option[string], downloadDir: string, url
       if pv.ver.kind == verSpecial:
         pkgInfo.metadata.specialVersions.incl pv.ver.spe
 
+      # Cache parsed requires/features to avoid re-parsing installed packages at runtime
+      let nimbleFileInfo = extractRequiresInfo(pkgInfo.myPath, options)
+      pkgInfo.metaData.requires = pkgInfo.requires.mapIt($it)
+      for feature, reqs in pkgInfo.features:
+        pkgInfo.metaData.features[feature] = reqs.mapIt($it)
+      pkgInfo.metaData.srcDir = pkgInfo.srcDir
+      pkgInfo.metaData.paths = pkgInfo.paths
+      for hook in pkgInfo.preHooks:
+        pkgInfo.metaData.preHooks.add hook
+      for hook in pkgInfo.postHooks:
+        pkgInfo.metaData.postHooks.add hook
+      pkgInfo.metaData.nestedRequires = nimbleFileInfo.nestedRequires
+
       saveMetaData(pkgInfo.metaData, pkgDestDir)
 
       # Run after-install hook

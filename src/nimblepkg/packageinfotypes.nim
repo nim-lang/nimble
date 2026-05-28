@@ -35,6 +35,17 @@ type
       # Special versions are aliases with which a single package can be
       # referred. For example a package can be versions `0.1.0`, `#head` and
       # `#master` at the same time.
+    # Cached fields from declarative/VM parser to avoid re-parsing installed packages
+    requires*: seq[string]
+      # String-form requires as extracted by the declarative parser (or VM fallback)
+    features*: Table[string, seq[string]]
+      # String-form features as extracted by the declarative parser
+    srcDir*: string
+    paths*: seq[string]
+    preHooks*: seq[string]
+    postHooks*: seq[string]
+    nestedRequires*: bool
+      # True if the package has requires nested in control flow (needs VM parser)
 
   PackageBasicInfo* = tuple
     name: string

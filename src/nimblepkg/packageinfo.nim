@@ -3,7 +3,7 @@
 
 # Stdlib imports
 import system except TResult
-import hashes, strutils, os, sets, tables, times, httpclient, strformat
+import hashes, strutils, os, sets, tables, times, httpclient, strformat, sequtils
 from net import SslError
 
 import zippy
@@ -304,6 +304,19 @@ proc getInstalledPackageMin*(options: Options, pkgDir, nimbleFilePath: string): 
     fillMetaData(result, pkgDir, true, options)
   except MetaDataError:
     discard
+  
+  # Populate cached requires/features from metadata to avoid re-parsing
+  if result.metaData.requires.len > 0:
+    result.requires = result.metaData.requires.map(parseRequires)
+    for feature, reqs in result.metaData.features:
+      result.features[feature] = reqs.map(parseRequires)
+    result.srcDir = result.metaData.srcDir
+    result.paths = result.metaData.paths
+    for hook in result.metaData.preHooks:
+      result.preHooks.incl hook
+    for hook in result.metaData.postHooks:
+      result.postHooks.incl hook
+    result.infoKind = if result.metaData.nestedRequires: pikFull else: pikRequires
 
 proc getInstalledPkgsMin*(libsDir: string, options: Options): seq[PackageInfo] =
   ## Gets a list of installed packages. The resulting package info is

@@ -1,7 +1,7 @@
 # Copyright (C) Dominik Picheta. All rights reserved.
 # BSD License. Look at license.txt for more info.
 
-import os, strformat, sets, sequtils
+import os, strformat, sets, sequtils, tables
 import common, version, packageinfotypes, cli, tools, sha1hashes, options
 import compat/json
 
@@ -41,6 +41,58 @@ proc initFromJson(specialVersions: var HashSet[Version], jsonNode: JsonNode,
       jsonPath.setLen originalJsonPathLen
   else:
     assert false, "The `jsonNode` must be of kind JArray."
+
+proc `%`(features: Table[string, seq[string]]): JsonNode =
+  result = newJObject()
+  for k, v in features:
+    result[k] = %v
+
+proc initFromJson(features: var Table[string, seq[string]], jsonNode: JsonNode,
+                  jsonPath: var string) =
+  features = initTable[string, seq[string]]()
+  if jsonNode.kind == JObject:
+    for k, v in jsonNode:
+      var seqVal: seq[string]
+      if v.kind == JArray:
+        for item in v:
+          if item.kind == JString:
+            seqVal.add item.str
+      features[k] = seqVal
+
+proc initFromJson(dst: var PackageMetaData, jsonNode: JsonNode, jsonPath: var string) =
+  ## Custom initFromJson that tolerates missing fields for backward compatibility.
+  if jsonNode.kind != JObject: return
+  for key, val in jsonNode:
+    case key
+    of "url": dst.url = val.getStr
+    of "downloadMethod": 
+      if val.kind == JString:
+        case val.str
+        of "git": dst.downloadMethod = git
+        of "hg": dst.downloadMethod = hg
+    of "vcsRevision": initFromJson(dst.vcsRevision, val, jsonPath)
+    of "files":
+      if val.kind == JArray:
+        for item in val: dst.files.add item.getStr
+    of "binaries":
+      if val.kind == JArray:
+        for item in val: dst.binaries.add item.getStr
+    of "specialVersions": initFromJson(dst.specialVersions, val, jsonPath)
+    of "requires":
+      if val.kind == JArray:
+        for item in val: dst.requires.add item.getStr
+    of "features": initFromJson(dst.features, val, jsonPath)
+    of "srcDir": dst.srcDir = val.getStr
+    of "paths":
+      if val.kind == JArray:
+        for item in val: dst.paths.add item.getStr
+    of "preHooks":
+      if val.kind == JArray:
+        for item in val: dst.preHooks.add item.getStr
+    of "postHooks":
+      if val.kind == JArray:
+        for item in val: dst.postHooks.add item.getStr
+    of "nestedRequires": dst.nestedRequires = val.getBool
 
 proc saveMetaData*(metaData: PackageMetaData, dirName: string,
                    changeRoots = true) =
