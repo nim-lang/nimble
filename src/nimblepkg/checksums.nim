@@ -1,7 +1,7 @@
 # Copyright (C) Dominik Picheta. All rights reserved.
 # BSD License. Look at license.txt for more info.
 
-import os, strformat, algorithm
+import os, strformat, strutils, algorithm
 import common, version, sha1hashes, vcstools, paths, cli
 import pkg/checksums/sha1
 
@@ -57,9 +57,11 @@ proc updateSha1Checksum(checksum: var Sha1State, fileName, filePath: string) =
       if bytesRead == 0: break
       checksum.update(buffer.toOpenArray(0, bytesRead - 1))
 
-proc calculateDirSha1Checksum*(dir: string): Sha1Hash =
+proc calculateDirSha1Checksum*(dir: string, skipDirs: seq[string] = @[]): Sha1Hash =
   ## Recursively calculates the sha1 checksum of the contents of the directory
   ## `dir` and its subdirectories.
+  ##
+  ## Files inside directories listed in `skipDirs` are excluded from the checksum.
   ##
   ## Raises a `NimbleError` if:
   ##   - the external command for getting the package file list fails.
@@ -69,5 +71,12 @@ proc calculateDirSha1Checksum*(dir: string): Sha1Hash =
   packageFiles.sort
   var checksum = newSha1State()
   for file in packageFiles:
-    updateSha1Checksum(checksum, file, dir / file)
+    var shouldSkip = false
+    for skipDir in skipDirs:
+      let normalizedSkipDir = skipDir.strip(leading = false, trailing = true, chars = {'/'})
+      if file == normalizedSkipDir or file.startsWith(normalizedSkipDir & "/"):
+        shouldSkip = true
+        break
+    if not shouldSkip:
+      updateSha1Checksum(checksum, file, dir / file)
   result = initSha1Hash($SecureHash(checksum.finalize()))
