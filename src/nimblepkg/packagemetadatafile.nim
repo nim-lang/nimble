@@ -65,7 +65,7 @@ proc initFromJson(dst: var PackageMetaData, jsonNode: JsonNode, jsonPath: var st
   for key, val in jsonNode:
     case key
     of "url": dst.url = val.getStr
-    of "downloadMethod": 
+    of "downloadMethod":
       if val.kind == JString:
         case val.str
         of "git": dst.downloadMethod = git
