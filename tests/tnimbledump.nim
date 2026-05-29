@@ -44,7 +44,6 @@ suite "nimble dump":
     check: outp.processOutput.inLines("desc: \"Test package for dump command\"")
 
   test "can dump when explicitly asking for INI format":
-    let nimDir = parentDir findExe "nim"
     let nimblePath = "testdump" / "testdump.nimble"
 
     let outpExpected = &"""
@@ -66,7 +65,6 @@ binDir: ""
 srcDir: ""
 backend: "c"
 paths: "path"
-nimDir: {nimDir.escape}
 entryPoints: "testdump.nim, entrypoint.nim"
 testEntryPoint: "tests/tall.nim"
 """
@@ -75,7 +73,6 @@ testEntryPoint: "tests/tall.nim"
     check: outp == outpExpected
 
   test "can dump in JSON format":
-    let nimDir = parentDir findExe "nim"
     let nimblePath = "testdump" / "testdump.nimble"
 
     let outpExpected = &"""
@@ -100,7 +97,6 @@ testEntryPoint: "tests/tall.nim"
   "paths": [
     "path"
   ],
-  "nimDir": {nimDir.escape},
   "entryPoints": [
     "testdump.nim",
     "entrypoint.nim"
@@ -111,3 +107,11 @@ testEntryPoint: "tests/tall.nim"
     let (outp, exitCode) = execNimble("dump", "--json", "testdump")
     check: exitCode == 0
     check: outp == outpExpected
+
+  test "can get nimdir for current project":
+    cd "testdump":
+      let (outp, exitCode) = execNimble("getnimdir")
+      check: exitCode == 0
+      check: outp.strip.len > 0
+      check: dirExists(outp.strip)
+      check: fileExists(outp.strip / "nim".addFileExt(ExeExt))
