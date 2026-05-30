@@ -133,59 +133,60 @@ suite "issues":
       "https://github.com/nimble-test/issue280and524.git").exitCode == 0
 
   test "issues #308 and #515":
-    let
-      ext = when defined(Windows): ExeExt else: "out"
-    cleanDir(installDir)
-    cd "issue308515" / "v1":
-      var (output, exitCode) = execNimble(["run", "binname", "--silent"])
-      check exitCode == QuitSuccess
-      check output.contains "binname"
+    withBuild:
+      let
+        ext = when defined(Windows): ExeExt else: "out"
+      cleanDir(installDir)
+      cd "issue308515" / "v1":
+        var (output, exitCode) = execNimble(["run", "binname", "--silent"])
+        check exitCode == QuitSuccess
+        check output.contains "binname"
 
-      (output, exitCode) = execNimble(["run", "binname-2", "--silent"])
-      check exitCode == QuitSuccess
-      check output.contains "binname-2"
+        (output, exitCode) = execNimble(["run", "binname-2", "--silent"])
+        check exitCode == QuitSuccess
+        check output.contains "binname-2"
 
-      # Install v1 and check
-      (output, exitCode) = execNimbleYes(["install", "--verbose"])
-      check exitCode == QuitSuccess
-      check output.contains getPackageDir(pkgsDir, "binname-0.1.0") /
-                            "binname".addFileExt(ext)
-      check output.contains getPackageDir(pkgsDir, "binname-0.1.0") /
-                            "binname-2"
+        # Install v1 and check
+        (output, exitCode) = execNimbleYes(["install", "--verbose"])
+        check exitCode == QuitSuccess
+        check output.contains getPackageDir(pkgsDir, "binname-0.1.0") /
+                              "binname".addFileExt(ext)
+        check output.contains getPackageDir(pkgsDir, "binname-0.1.0") /
+                              "binname-2"
 
-      (output, exitCode) = execBin("binname")
-      check exitCode == QuitSuccess
-      check output.contains "binname 0.1.0"
-      (output, exitCode) = execBin("binname-2")
-      check exitCode == QuitSuccess
-      check output.contains "binname-2 0.1.0"
+        (output, exitCode) = execBin("binname")
+        check exitCode == QuitSuccess
+        check output.contains "binname 0.1.0"
+        (output, exitCode) = execBin("binname-2")
+        check exitCode == QuitSuccess
+        check output.contains "binname-2 0.1.0"
 
-    cd "issue308515" / "v2":
-      # Install v2 and check
-      var (output, exitCode) = execNimbleYes(["install", "--verbose"])
-      check exitCode == QuitSuccess
-      check output.contains getPackageDir(pkgsDir, "binname-0.2.0") /
-                            "binname".addFileExt(ext)
-      check output.contains getPackageDir(pkgsDir, "binname-0.2.0") /
-                            "binname-2"
+      cd "issue308515" / "v2":
+        # Install v2 and check
+        var (output, exitCode) = execNimbleYes(["install", "--verbose"])
+        check exitCode == QuitSuccess
+        check output.contains getPackageDir(pkgsDir, "binname-0.2.0") /
+                              "binname".addFileExt(ext)
+        check output.contains getPackageDir(pkgsDir, "binname-0.2.0") /
+                              "binname-2"
 
-      (output, exitCode) = execBin("binname")
-      check exitCode == QuitSuccess
-      check output.contains "binname 0.2.0"
-      (output, exitCode) = execBin("binname-2")
-      check exitCode == QuitSuccess
-      check output.contains "binname-2 0.2.0"
+        (output, exitCode) = execBin("binname")
+        check exitCode == QuitSuccess
+        check output.contains "binname 0.2.0"
+        (output, exitCode) = execBin("binname-2")
+        check exitCode == QuitSuccess
+        check output.contains "binname-2 0.2.0"
 
-      # Uninstall and check v1 back
-      (output, exitCode) = execNimbleYes("uninstall", "binname@0.2.0")
-      check exitCode == QuitSuccess
+        # Uninstall and check v1 back
+        (output, exitCode) = execNimbleYes("uninstall", "binname@0.2.0")
+        check exitCode == QuitSuccess
 
-      (output, exitCode) = execBin("binname")
-      check exitCode == QuitSuccess
-      check output.contains "binname 0.1.0"
-      (output, exitCode) = execBin("binname-2")
-      check exitCode == QuitSuccess
-      check output.contains "binname-2 0.1.0"
+        (output, exitCode) = execBin("binname")
+        check exitCode == QuitSuccess
+        check output.contains "binname 0.1.0"
+        (output, exitCode) = execBin("binname-2")
+        check exitCode == QuitSuccess
+        check output.contains "binname-2 0.1.0"
 
   test "issue 432":
     cd "issue432":
@@ -206,13 +207,14 @@ suite "issues":
       check not (dummyPkgDir / "nimbleDir").dirExists
 
   test "issue 399":
-    cd "issue399":
-      var (output, exitCode) = execNimbleYes("install")
-      check exitCode == QuitSuccess
+    withBuild:
+      cd "issue399":
+        var (output, exitCode) = execNimbleYes("install")
+        check exitCode == QuitSuccess
 
-      (output, exitCode) = execBin("subbin")
-      check exitCode == QuitSuccess
-      check output.contains("subbin-1")
+        (output, exitCode) = execBin("subbin")
+        check exitCode == QuitSuccess
+        check output.contains("subbin-1")
 
   test "can pass args with spaces to Nim (#351)":
     cd "binaryPackage/v2":
@@ -337,32 +339,33 @@ suite "issues":
       check inLines(lines1, "The .nimble file name must match name specified inside")
 
   test "issue 113 (uninstallation problems)":
-    cleanDir(installDir)
+    withBuild:
+      cleanDir(installDir)
 
-    cd "issue113/c":
-      check execNimbleYes("install").exitCode == QuitSuccess
-    cd "issue113/b":
-      check execNimbleYes("install").exitCode == QuitSuccess
-    cd "issue113/a":
-      check execNimbleYes("install").exitCode == QuitSuccess
+      cd "issue113/c":
+        check execNimbleYes("install").exitCode == QuitSuccess
+      cd "issue113/b":
+        check execNimbleYes("install").exitCode == QuitSuccess
+      cd "issue113/a":
+        check execNimbleYes("install").exitCode == QuitSuccess
 
-    # Try to remove c.
-    let
-      (output, exitCode) = execNimbleYes(["remove", "c"])
-      lines = output.strip.processOutput()
-      pkgBInstallDir = getPackageDir(pkgsDir, "b-0.1.0").splitPath.tail
+      # Try to remove c.
+      let
+        (output, exitCode) = execNimbleYes(["remove", "c"])
+        lines = output.strip.processOutput()
+        pkgBInstallDir = getPackageDir(pkgsDir, "b-0.1.0").splitPath.tail
 
-    check exitCode != QuitSuccess
-    check lines.inLines(
-      cannotUninstallPkgMsg("c", newVersion("0.1.0"), @[pkgBInstallDir]))
+      check exitCode != QuitSuccess
+      check lines.inLines(
+        cannotUninstallPkgMsg("c", newVersion("0.1.0"), @[pkgBInstallDir]))
 
-    check execNimbleYes(["remove", "a"]).exitCode == QuitSuccess
-    check execNimbleYes(["remove", "b"]).exitCode == QuitSuccess
+      check execNimbleYes(["remove", "a"]).exitCode == QuitSuccess
+      check execNimbleYes(["remove", "b"]).exitCode == QuitSuccess
 
-    cd "issue113/buildfail":
-      check execNimbleYes("install").exitCode != QuitSuccess
+      cd "issue113/buildfail":
+        check execNimbleYes("install").exitCode != QuitSuccess
 
-    check execNimbleYes(["remove", "c"]).exitCode == QuitSuccess
+      check execNimbleYes(["remove", "c"]).exitCode == QuitSuccess
 
   test "issue #108":
     cd "issue108":

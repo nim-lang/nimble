@@ -33,6 +33,17 @@ var testNoBuild* = true
   ## inherently compile (install, develop, lock, etc.).
   ## Test files that explicitly verify built binaries can set this to false.
 
+template withBuild*(body: untyped) =
+  ## Temporarily disables --noBuild auto-injection for a block of code.
+  ## Use in individual tests that explicitly verify built binaries
+  ## or expect install to fail due to build errors.
+  let prev = testNoBuild
+  testNoBuild = false
+  try:
+    body
+  finally:
+    testNoBuild = prev
+
 proc execNimble*(args: varargs[string]): ProcessOutput =
   var quotedArgs = @args
   quotedArgs.insert("--info")
