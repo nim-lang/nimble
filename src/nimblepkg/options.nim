@@ -73,6 +73,7 @@ type
     nimBinariesDir*: string # Directory where nim binaries are stored. Separated from nimbleDir as it can be changed by the user/tests
     disableNimBinaries*: bool # Whether to disable the use of nim binaries
     features*: seq[string] # Features to be activated
+    noBuild*: bool # Skip building binaries during install
     ignoreSubmodules*: bool # Whether to ignore submodules when cloning a repository
     satResult*: SatResult
     filePathPkgs*: seq[PackageInfo] #Packages loaded from file:// requires. Top level is always included.
@@ -797,6 +798,8 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
     result.disableNimBinaries = true
   of "features":
     result.features = val.split(";").mapIt(it.strip)
+  of "nobuild":
+    result.noBuild = true
   of "ignoresubmodules":
     result.ignoreSubmodules = true
   of "sync":
