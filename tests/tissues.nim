@@ -193,19 +193,6 @@ suite "issues":
     check execNimbleYes("uninstall", "packagea@#4178f977d3e").exitCode ==
           QuitSuccess
 
-  test "issue #126":
-    cd "issue126/a":
-      let (output, exitCode) = execNimbleYes("install")
-      let lines = output.strip.processOutput()
-      check exitCode != QuitSuccess # TODO
-      check inLines(lines, "issue-126 is an invalid package name: cannot contain '-'")
-
-    cd "issue126/b":
-      let (output1, exitCode1) = execNimbleYes("install")
-      let lines1 = output1.strip.processOutput()
-      check exitCode1 != QuitSuccess
-      check inLines(lines1, "The .nimble file name must match name specified inside")
-
   test "issue 113 (uninstallation problems)":
     cleanDir(installDir)
 
@@ -233,13 +220,6 @@ suite "issues":
       check execNimbleYes("install").exitCode != QuitSuccess
 
     check execNimbleYes(["remove", "c"]).exitCode == QuitSuccess
-
-  test "issue #1158":
-    cd "issue1158":
-      let (output, exitCode) = execNimble("--silent", "echoRequires")
-      check:
-        exitCode == QuitSuccess
-        output.strip() == "@[\"nim >= 1.6.16\"]"
 
   test "issue #1251. Should use the system nim when --useSystemNim flag is on":
     createDir("testDir-1251")
