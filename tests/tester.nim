@@ -9,7 +9,6 @@ import tdevelopfeature
 import tissues
 import tlockfile
 import tmisctests
-import tmoduletests
 import tmultipkgs
 import tnimblerefresh
 import tshellenv
@@ -22,7 +21,6 @@ import tsat
 import tversiondiscovery
 import tniminstall
 import trequireflag
-import tforgeinstall
 import tfilepathrequires
 import tglobalinstall
 import tasynctools

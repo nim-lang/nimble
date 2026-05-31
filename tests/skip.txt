@@ -8,7 +8,6 @@ tdevelopfeature.nim
 tissues.nim
 tlockfile.nim
 tmisctests.nim
-tmoduletests.nim
 tmultipkgs.nim
 tnimblerefresh.nim
 tshellenv.nim
@@ -21,7 +20,6 @@ tsat.nim
 tversiondiscovery.nim
 tniminstall.nim
 trequireflag.nim
-tforgeinstall.nim
 tfilepathrequires.nim
 tglobalinstall.nim
 tasynctools.nim
