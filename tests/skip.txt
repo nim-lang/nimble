@@ -1,3 +1,41 @@
 # Tests to skip when running via testament
+# These are already run by tests/tester.nim (monolithic test runner)
+# and are skipped here to avoid running them twice.
+ttaskdeps.nim
+tnimbinaries.nim
+tinitcommand.nim
+tcheckcommand.nim
+tcleancommand.nim
+tdevelopfeature.nim
+tissues.nim
+tlocaldeps.nim
+tlockfile.nim
+tmisctests.nim
+tmoduletests.nim
+tmultipkgs.nim
+tnimbledump.nim
+tnimblerefresh.nim
+tnimbletasks.nim
+tnimscript.nim
+tshellenv.nim
+tpathcommand.nim
+treversedeps.nim
+truncommand.nim
+tsetupcommand.nim
+ttestcommand.nim
+ttwobinaryversions.nim
+toffline.nim
+tuninstall.nim
+tsat.nim
+tversiondiscovery.nim
+tniminstall.nim
+trequireflag.nim
+tdeclarativeparser.nim
+tforgeinstall.nim
+tforgeparser.nim
+tfilepathrequires.nim
+tglobalinstall.nim
+tasynctools.nim
+tbuildinstall.nim
 # tnonim is very slow and often breaks CI
 tnonim.nim
