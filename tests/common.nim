@@ -3,7 +3,7 @@
 
 {.used.}
 
-import sequtils, strutils, strformat, os, osproc, sugar, unittest, macros
+import sequtils, strutils, strformat, os, osproc, sugar, unittest, macros, std/times
 import pkg/checksums/sha1
 
 import nimblepkg/cli
@@ -214,11 +214,15 @@ putEnv("NIMBLE_TEST_BINARY_PATH", nimblePath)
 setVerbosity(MediumPriority)
 setShowColor(false)
 
-# Always recompile.
+# Compile nimble if binary is missing or source is newer.
 block:
-  # Verbose name is used for exit code so assert is clearer
-  let (output, nimbleCompileExitCode) = execCmdEx("nim c " & nimbleCompilePath)
-  doAssert nimbleCompileExitCode == QuitSuccess, output
+  let nimbleBin = rootDir / "src" / addFileExt("nimble", ExeExt)
+  let needsCompile = not nimbleBin.fileExists or
+                     nimbleBin.getLastModificationTime < nimbleCompilePath.getLastModificationTime
+  if needsCompile:
+    # Verbose name is used for exit code so assert is clearer
+    let (output, nimbleCompileExitCode) = execCmdEx("nim c " & nimbleCompilePath)
+    doAssert nimbleCompileExitCode == QuitSuccess, output
 
 # Test timing instrumentation — compile with -d:timedTests to enable
 when defined(timedTests):
