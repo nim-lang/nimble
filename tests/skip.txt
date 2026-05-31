@@ -19,9 +19,9 @@ tsat.nim
 tversiondiscovery.nim
 tniminstall.nim
 trequireflag.nim
-tfilepathrequires.nim
 tglobalinstall.nim
 tasynctools.nim
 tbuildinstall.nim
+tgetpaths.nim
 # tnonim is very slow and often breaks CI
 tnonim.nim
