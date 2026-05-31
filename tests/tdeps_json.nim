@@ -8,8 +8,8 @@ discard """
 import os, osproc, strutils, common
 from nimblepkg/common import cd
 
-cd "deps":
-  let (output, exitCode) = execCmdEx(nimblePath & " --silent deps -y")
+cd "issue727":
+  let (output, exitCode) = execCmdEx(nimblePath & " --format:json deps -y")
   doAssert exitCode == QuitSuccess, output
-  doAssert output.contains("deps (@0.1.0)"), output
-  doAssert output.contains("timezones 0.5.4 (@0.5.4)"), output
+  doAssert output.contains("\"name\": \"timezones\""), output
+  doAssert output.contains("\"resolvedTo\": \"0.5.4\""), output

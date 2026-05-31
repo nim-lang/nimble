@@ -1,6 +1,8 @@
 # Tests to skip when running via testament
 # These are already run by tests/tester.nim (monolithic test runner)
 # and are skipped here to avoid running them twice.
+# Also skip tester.nim itself since it's the runner, not a standalone test.
+tester.nim
 ttaskdeps.nim
 tnimbinaries.nim
 tdevelopfeature.nim
