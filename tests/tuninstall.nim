@@ -4,7 +4,7 @@
 {.used.}
 
 import unittest, strutils, os, strformat
-import testscommon
+import common
 
 from nimblepkg/displaymessages import cannotUninstallPkgMsg
 from nimblepkg/common import cd

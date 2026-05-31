@@ -3,7 +3,7 @@ import unittest
 import nimblepkg/[options, downloadnim, version, declarativeparser, versiondiscovery]
 import std/[os, options, osproc, strutils]
 import chronos
-import testscommon
+import common
 from nimblepkg/common import cd
 
 suite "Nim binaries":

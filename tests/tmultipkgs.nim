@@ -4,7 +4,7 @@
 {.used.}
 
 import unittest, os
-import testscommon
+import common
 
 from nimblepkg/common import nimblePackagesDirName
 from nimblepkg/version import `$`

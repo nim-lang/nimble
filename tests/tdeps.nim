@@ -4,7 +4,7 @@
 {.used.}
 
 import unittest, os, osproc, strutils, strformat
-import testscommon
+import common
 from nimblepkg/common import cd
 
 suite "nimble deps":

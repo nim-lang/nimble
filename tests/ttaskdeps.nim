@@ -4,7 +4,7 @@
 {.used.}
 
 import unittest, strutils, os
-import testscommon
+import common
 import json
 from nimblepkg/common import cd
 
