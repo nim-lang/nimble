@@ -22,7 +22,6 @@ import tsat
 import tversiondiscovery
 import tniminstall
 import trequireflag
-import tdeclarativeparser
 import tforgeinstall
 import tfilepathrequires
 import tglobalinstall

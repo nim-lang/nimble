@@ -21,7 +21,6 @@ tsat.nim
 tversiondiscovery.nim
 tniminstall.nim
 trequireflag.nim
-tdeclarativeparser.nim
 tforgeinstall.nim
 tfilepathrequires.nim
 tglobalinstall.nim
