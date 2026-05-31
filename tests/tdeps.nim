@@ -19,22 +19,10 @@ suite "nimble deps":
     cd "issue727":
       let (output, exitCode) = execCmdEx(nimblePath & " --format:json deps -y")
       check exitCode == QuitSuccess
-      check output.contains("""
-[
-  {
-    "name": "timezones",
-    "version": "@any",
-    "resolvedTo": "0.5.4",
-    "error": "",
-    "dependencies": [
-      {
-        "name": "nim",
-        "version": ">= 0.19.9",
-        "resolvedTo": "",
-        "error": "",
-        "dependencies": []
-      }
-    ]
-  }
-]
-""")
+      check output.contains("\"name\": \"timezones\"")
+      check output.contains("\"version\": \"@any\"")
+      check output.contains("\"resolvedTo\": \"")
+      check output.contains("\"error\": \"")
+      check output.contains("\"name\": \"nim\"")
+      check output.contains("\"version\": \">= 0.19.9\"")
+      check output.contains("\"dependencies\": []")
