@@ -3,7 +3,7 @@
 
 {.used.}
 
-import unittest, os, osproc, strutils, json
+import unittest, os, osproc, strutils, strformat
 import common
 from nimblepkg/common import cd
 
@@ -19,19 +19,22 @@ suite "nimble deps":
     cd "issue727":
       let (output, exitCode) = execCmdEx(nimblePath & " --format:json deps -y")
       check exitCode == QuitSuccess
-      # Extract JSON from output (nimble may print warnings before the JSON)
-      let jsonStart = output.find('[')
-      check jsonStart != stringNotFound
-      let deps = parseJson(output[jsonStart .. ^1])
-      check deps.len == 1
-      check deps[0]["name"].getStr == "timezones"
-      check deps[0]["version"].getStr == "@any"
-      check deps[0]["resolvedTo"].getStr.len > 0
-      check deps[0]["error"].getStr == ""
-      let nimDeps = deps[0]["dependencies"]
-      check nimDeps.len == 1
-      check nimDeps[0]["name"].getStr == "nim"
-      check nimDeps[0]["version"].getStr == ">= 0.19.9"
-      check nimDeps[0]["resolvedTo"].getStr == ""
-      check nimDeps[0]["error"].getStr == ""
-      check nimDeps[0]["dependencies"].len == 0
+      check output.contains("""
+[
+  {
+    "name": "timezones",
+    "version": "@any",
+    "resolvedTo": "0.5.4",
+    "error": "",
+    "dependencies": [
+      {
+        "name": "nim",
+        "version": ">= 0.19.9",
+        "resolvedTo": "",
+        "error": "",
+        "dependencies": []
+      }
+    ]
+  }
+]
+""")

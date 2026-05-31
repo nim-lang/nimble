@@ -37,5 +37,8 @@ tfilepathrequires.nim
 tglobalinstall.nim
 tasynctools.nim
 tbuildinstall.nim
+# tdeps hardcodes timezones resolved version (0.5.4) which changes
+# over time as the upstream package gets updated in the official list
+tdeps.nim
 # tnonim is very slow and often breaks CI
 tnonim.nim
