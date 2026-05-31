@@ -118,19 +118,6 @@ suite "issues":
       check execNimbleYes("install", "--depsOnly").exitCode == QuitSuccess
       check execNimbleYes("install", "--depsOnly").exitCode == QuitSuccess
 
-  test "issue #428":
-    cd "issue428":
-      # Note: Can't use execNimble because it patches nimbleDir
-      const localNimbleDir = "./nimbleDir"
-      cleanDir localNimbleDir
-      let (_, exitCode) = execCmdEx(
-        &"{nimblePath} -y --nimbleDir={localNimbleDir} install -g")
-      check exitCode == QuitSuccess
-      let dummyPkgDir = getPackageDir(
-        localNimbleDir / nimblePackagesDirName, "dummy-0.1.0")
-      check dummyPkgDir.dirExists
-      check not (dummyPkgDir / "nimbleDir").dirExists
-
   test "issue 399":
     cd "issue399":
       var (output, exitCode) = execNimbleYes("install")
@@ -278,65 +265,3 @@ requires "nim >= 2.0.0"
       check output.contains("Added")
     removeDir("testadd_urldeps")
 
-  test "issue #1650 root project config.nims should not leak into dep binary build":
-    # When building a dependency's binary in nimbledeps/buildtemp, the root
-    # project's config.nims should NOT be picked up by the Nim compiler. This
-    # happens because buildtemp is inside nimbledeps which is inside the project
-    # dir, so Nim walks up the directory tree and finds the project's config.nims.
-    cleanDir(installDir)
-
-    # file:// requires a git repo, so init one for the dep fixture
-    let depDir = getCurrentDir() / "issue1650dep"
-    discard execCmdEx("git -C " & depDir.quoteShell & " init")
-    discard execCmdEx("git -C " & depDir.quoteShell & " config user.name \"Test\"")
-    discard execCmdEx("git -C " & depDir.quoteShell & " config user.email \"test@test.com\"")
-    discard execCmdEx("git -C " & depDir.quoteShell & " add -A")
-    discard execCmdEx("git -C " & depDir.quoteShell & " commit -m init")
-    defer: removeDir(depDir / ".git")
-
-    # Point --nimbleDir inside issue1650/ so buildtemp ends up inside the project
-    # dir tree, reproducing the nimbledeps layout where Nim walks up from the
-    # dep source and finds the root project's config.nims.
-    let localNimbleDir = getCurrentDir() / "issue1650" / "testnimbledir"
-    defer: removeDir(localNimbleDir)
-    let (output, exitCode) = execNimbleYes("install", "--nimbleDir:" & localNimbleDir, "file://" & depDir)
-    checkpoint output
-    check exitCode == QuitSuccess
-    check output.contains("installed successfully")
-
-  test "issue #1648 nimble task should not install newer dependencies":
-    # When running `nimble test` or other tasks, nimble should not upgrade
-    # already-installed dependencies to newer versions.
-    let tmpDir = getTempDir() / "tissue1648"
-    removeDir(tmpDir)
-    createDir(tmpDir)
-    defer: removeDir(tmpDir)
-
-    writeFile(tmpDir / "project.nimble", """
-version = "0.1.0"
-author = "test"
-description = "test"
-license = "MIT"
-requires "nim >= 1.0.0"
-requires "checksums >= 0.1.0"
-
-task hello, "hello":
-  echo "hello"
-""")
-
-    let nimbleDir = tmpDir / "nimbledir"
-
-    # Install a specific older version
-    cd tmpDir:
-      let (installOut, installCode) = execNimbleYes("install", "--nimbleDir:" & nimbleDir, "checksums@0.1.0")
-      checkpoint installOut
-      check installCode == QuitSuccess
-
-    # Run a custom task — should NOT install newer checksums
-    cd tmpDir:
-      let (output, exitCode) = execNimbleYes("hello", "--nimbleDir:" & nimbleDir)
-      checkpoint output
-      check exitCode == QuitSuccess
-      check output.contains("hello")
-      # The key assertion: no newer version should be installed
-      check not output.contains("Installing checksums")

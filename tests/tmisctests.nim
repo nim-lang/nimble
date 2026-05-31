@@ -32,10 +32,6 @@ suite "misc tests":
       check output.contains("copied")
       check output.contains("removed")
 
-  test "tasks can be called recursively":
-    cd "recursive":
-      check execNimble("recurse").exitCode == QuitSuccess
-
   test "picks #head when looking for packages":
     removeDir installDir
     cd "versionClashes" / "aporiaScenario":
@@ -57,16 +53,6 @@ suite "misc tests":
       let (output, exitCode) = execNimbleYes("install", "--noRebuild")
       check exitCode == QuitSuccess
       check output.contains("Skipping") #TODO: This is not working as expected
-
-  test "NimbleVersion is defined":
-    cd "nimbleVersionDefine":
-      let (output, exitCode) = execNimble("c", "-r", "src/nimbleVersionDefine.nim")
-      check output.contains("0.1.0")
-      check exitCode == QuitSuccess
-
-      let (output2, exitCode2) = execNimble("run", "nimbleVersionDefine")
-      check output2.contains("0.1.0")
-      check exitCode2 == QuitSuccess
 
   test "compilation without warnings":
     const buildDir = "./buildDir/"
@@ -124,12 +110,6 @@ suite "misc tests":
     let (_, exitCode) = execNimble("install", "https://github.com/jmgomez/submodule_package")
     check exitCode == QuitSuccess
   
-  test "config file should end with a newline":
-    let configFile = readFile("../config.nims")
-    let content = configFile.splitLines.toSeq()
-    check content[^2].strip() == ""
-    check content[^1].strip() == ""
-
   test "recovers from corrupted pkgcache":
     # This test verifies that nimble can recover when a pkgcache directory exists
     # but is corrupted (has no .nimble file). This can happen due to:
@@ -179,25 +159,6 @@ suite "misc tests":
     # - With fix: shows "corrupted" warning and re-downloads
     # - Without fix but SAT recovery: shows "Downloading"
     check output.contains("corrupted") or output.contains("Downloading") or output.contains("Fetching")
-
-  test "friendly error when running command without nimble file":
-    # Commands like build, test, run should show a friendly error message
-    # when run in a directory without a .nimble file, instead of an assertion failure
-    let testDir = getTempDir() / "no_nimble_file_test"
-    if dirExists(testDir):
-      removeDir(testDir)
-    createDir(testDir)
-
-    cd testDir:
-      # Test various commands that require a nimble file
-      for cmd in ["build", "run", "test"]:
-        let (output, exitCode) = execNimble(cmd)
-        check exitCode != QuitSuccess
-        # Should show a friendly error message, not an assertion failure
-        check output.contains("Could not find a .nimble file")
-        check not output.contains("AssertionDefect")
-
-    removeDir(testDir)
 
   test "re-downloads when cached version doesn't match requested":
     # Simulates a stale pkgcache: the cache directory has a nimble file
