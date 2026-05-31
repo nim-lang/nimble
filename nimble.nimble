@@ -23,7 +23,7 @@ before install:
   exec "git submodule update --init"
 
 task test, "Run the Nimble tester!":
-  exec "testament --directory:tests --megatest:off --skipFrom:skip.txt pattern 't*.nim'"
+  exec "testament --directory:tests --megatest:off --skipFrom:skip.txt pattern t*.nim"
 
 task cibenchmark, "Run tests with timing instrumentation":
-  exec "testament --directory:tests --megatest:off --skipFrom:skip.txt pattern 't*.nim' -d:timedTests"
+  exec "testament --directory:tests --megatest:off --skipFrom:skip.txt pattern t*.nim -d:timedTests"
