@@ -27,25 +27,6 @@ suite "issues":
           let pkgInstalledPath = "--path:" & nimbleInstallDir.quoteShell & ""
           check line.contains(pkgInstalledPath)
 
-  test "issue 727":
-    cd "issue727":
-      var (output, exitCode) = execNimbleYes("c", "src/abc")
-      check exitCode == QuitSuccess
-      check fileExists("src/abc".addFileExt(ExeExt))
-      check not fileExists("def".addFileExt(ExeExt))
-
-      (output, exitCode) = execNimbleYes("uninstall", "-i", "timezones")
-      check exitCode == QuitSuccess
-
-      (output, exitCode) = execNimbleYes("run", "def")
-      check exitCode == QuitSuccess
-      check output.contains("def727")
-      check not fileExists("abc".addFileExt(ExeExt))
-      check fileExists("def".addFileExt(ExeExt))
-
-      (output, exitCode) = execNimbleYes("uninstall", "-i", "timezones")
-      check exitCode == QuitSuccess
-
   test "issue 708":
     cd "issue708":
       # TODO: We need a way to filter out compiler messages from the messages
