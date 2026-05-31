@@ -4,7 +4,7 @@
 {.used.}
 
 import unittest, os, strutils
-import testscommon
+import common
 
 suite "nimble refresh":
   test "can refresh with default urls":

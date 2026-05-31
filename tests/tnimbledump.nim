@@ -4,7 +4,7 @@
 {.used.}
 
 import unittest, os
-import testscommon
+import common
 import std/[strformat, strutils]
 from nimblepkg/common import cd
 

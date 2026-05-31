@@ -4,7 +4,7 @@
 {.used.}
 
 import unittest, os, strutils, sequtils
-import testscommon
+import common
 from nimblepkg/common import cd
 
 suite "nimscript":

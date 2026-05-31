@@ -5,7 +5,7 @@
 
 import unittest, os, strformat, json, strutils, sequtils, tables
 
-import testscommon
+import common
 
 import nimblepkg/displaymessages
 import nimblepkg/sha1hashes

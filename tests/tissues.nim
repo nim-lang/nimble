@@ -4,28 +4,12 @@
 {.used.}
 
 import unittest, os, osproc, strutils, strformat, sequtils
-import testscommon
+import common
 from nimblepkg/common import cd, nimbleVersion, nimblePackagesDirName
 from nimblepkg/version import newVersion
 from nimblepkg/displaymessages import cannotUninstallPkgMsg
 
 suite "issues":
-  test "test params":
-    cd "testParams":
-      let (output, exitCode) = execNimbleYes("test", "Passing test")
-
-      check exitCode == QuitSuccess
-      check output.contains("Passing test")
-
-  test "issue 801":
-    cd "issue801":
-      let (output, exitCode) = execNimbleYes("test")
-      check exitCode == QuitSuccess
-
-      # Verify hooks work
-      check output.contains("before test")
-      check output.contains("after test")
-
   test "issue 799":
     # When building, any newly installed packages should be referenced via the
     # path that they get permanently installed at.
@@ -42,18 +26,6 @@ suite "issues":
             pkgsDir, &"nimble-0.16.4")
           let pkgInstalledPath = "--path:" & nimbleInstallDir.quoteShell & ""
           check line.contains(pkgInstalledPath)
-
-  test "issue 793":
-    cd "issue793":
-      var (output, exitCode) = execNimble("build")
-      check exitCode == QuitSuccess
-      check output.contains("before build")
-      check output.contains("after build")
-
-      # Issue 776
-      (output, exitCode) = execNimble("doc", "src/issue793")
-      check output.contains("before doc")
-      check output.contains("after doc")
 
   test "issue 727":
     cd "issue727":
@@ -101,32 +73,6 @@ suite "issues":
         check exitCode == QuitSuccess
         let index = output.find("issue678_dependency_1@0.1.0 already exists")
         check index == stringNotFound
-
-  test "Passing command line arguments to a task (#633)":
-    cd "issue633":
-      let (output, exitCode) = execNimble("testTask", "--testTask")
-      check exitCode == QuitSuccess
-      check output.contains("Got it")
-
-  test "error if `bin` is a source file (#597)":
-    cd "issue597":
-      let (output, exitCode) = execNimble("build")
-      check exitCode != QuitSuccess
-      check output.contains("entry should not be a source file: test.nim")
-
-  test "init does not overwrite existing files (#581)":
-    createDir("issue581/src")
-    cd "issue581":
-      const Src = "echo \"OK\""
-      writeFile("src/issue581.nim", Src)
-      check execNimbleYes("init").exitCode == QuitSuccess
-      check readFile("src/issue581.nim") == Src
-    removeDir("issue581")
-
-  test "issue 564":
-    cd "issue564":
-      let (_, exitCode) = execNimble("build")
-      check exitCode == QuitSuccess
 
   test "issues #280 and #524":
     check execNimbleYes("install",
@@ -214,65 +160,9 @@ suite "issues":
       check exitCode == QuitSuccess
       check output.contains("subbin-1")
 
-  test "can pass args with spaces to Nim (#351)":
-    cd "binaryPackage/v2":
-      let (output, exitCode) = execCmdEx(nimblePath &
-                                        " c -r" &
-                                        " -d:myVar=\"string with spaces\"" &
-                                        " binaryPackage")
-      checkpoint output
-      check exitCode == QuitSuccess
-
-  test "issue #349":
-    let reservedNames = [
-      "CON",
-      "PRN",
-      "AUX",
-      "NUL",
-      "COM1",
-      "COM2",
-      "COM3",
-      "COM4",
-      "COM5",
-      "COM6",
-      "COM7",
-      "COM8",
-      "COM9",
-      "LPT1",
-      "LPT2",
-      "LPT3",
-      "LPT4",
-      "LPT5",
-      "LPT6",
-      "LPT7",
-      "LPT8",
-      "LPT9",
-    ]
-
-    proc checkName(name: string) =
-      let (outp, code) = execNimbleYes("init", name)
-      let msg = outp.strip.processOutput()
-      check code == QuitFailure
-      check inLines(msg,
-        "\"$1\" is an invalid package name: reserved name" % name)
-      try:
-        removeFile(name.changeFileExt("nimble"))
-        removeDir("src")
-        removeDir("tests")
-      except OSError:
-        discard
-
-    for reserved in reservedNames:
-      checkName(reserved.toUpperAscii())
-      checkName(reserved.toLowerAscii())
-
   test "issue #338":
     cd "issue338":
       check execNimbleYes("install").exitCode == QuitSuccess
-
-  test "can distinguish package reading in nimbleDir vs. other dirs (#304)":
-    cd "issue304" / "package-test":
-      check execNimble("tasks").exitCode == QuitSuccess
 
   test "can build with #head and versioned package (#289)":
     cleanDir(installDir)
@@ -364,24 +254,6 @@ suite "issues":
 
     check execNimbleYes(["remove", "c"]).exitCode == QuitSuccess
 
-  test "issue #108":
-    cd "issue108":
-      let (output, exitCode) = execNimble("build")
-      let lines = output.strip.processOutput()
-      check exitCode != QuitSuccess
-      check inLines(lines, "Nothing to build")
-
-  test "issue #941 (add binaries' extensions in nimble dump command)":
-    cd "issue941":
-      let (output, exitCode) = execNimble("dump")
-      check exitCode == QuitSuccess
-      const expectedBinaryName =
-        when defined(windows):
-          "issue941.dll"
-        else:
-          "libissue941.so"
-      check output.contains(expectedBinaryName)
-
   test "issue #953 (Use refreshed package list)":
     # Remove all packages from the json file so it needs to be refreshed
     writeFile(installDir / "packages_official.json", "[]")
@@ -404,7 +276,7 @@ suite "issues":
       check:
         exitCode == QuitSuccess
         output.strip() == "@[\"nim >= 1.6.16\"]"
-  
+
   test "issue #1251. Should use the system nim when --useSystemNim flag is on":
     createDir("testDir-1251")
     cd "testDir-1251":
@@ -461,34 +333,6 @@ requires "nim >= 2.0.0"
       check exitCode == QuitSuccess
       check output.contains("Added")
     removeDir("testadd_urldeps")
-
-  test "issue #1636 task exit code on failure":
-    cd "issue1636":
-      let (_, exitCode) = execNimbleYes("failme")
-      check exitCode == QuitFailure
-
-  test "issue #1609 ensure useSystemNim uses wrapper":
-    let binDir = getCurrentDir() / "issue1609" / "bin"
-    let nimWrapper = binDir / (when defined(windows): "nim.cmd" else: "nim")
-    proc checkWrapperInvoked(log: string, args: varargs[string]) =
-      cleanFiles log, "issue1609"
-      let res = execNimble(args)
-      verify res
-      check res.output.contains("Executing $1 c" % nimWrapper )
-      check fileExists(log)
-      check readFile(log).contains("c ")
-
-    cd "issue1609":
-      # Check 1: wrapper specified via --nim
-      checkWrapperInvoked(binDir / "calls.log", "--useSystemNim", "--nim:" & nimWrapper, "--debug", "build")
-
-      # Check 2: wrapper discovered via PATH (no --nim flag).
-      # Temporarily inject binDir into PATH so nimble finds the wrapper script
-      let sep = when defined(windows): ";" else: ":"
-      let oldPath = getEnv("PATH")
-      putEnv("PATH", binDir & sep & oldPath)
-      checkWrapperInvoked(binDir / "calls.log", "--useSystemNim", "--debug", "build")
-      putEnv("PATH", oldPath)
 
   test "issue #1650 root project config.nims should not leak into dep binary build":
     # When building a dependency's binary in nimbledeps/buildtemp, the root

@@ -1,6 +1,6 @@
 {.used.}
 import unittest, os, osproc
-import testscommon
+import common
 # from nimblepkg/common import cd, NimbleError Used in the commented tests
 import std/[tables, json, jsonutils, strutils, sequtils, times, options]
 import chronos

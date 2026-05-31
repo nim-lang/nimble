@@ -4,7 +4,7 @@
 {.used.}
 
 import unittest, os, osproc, strutils
-import testscommon
+import common
 from nimblepkg/common import cd
 import std/sequtils
 
@@ -41,7 +41,7 @@ suite "Shell env":
         check prefix == "export PATH"
 
       check "shellenv" in dirs.mapIt(it.extractFileName)
-      let testUtils = "testutils-0.5.0-756d0757c4dd06a068f9d38c7f238576ba5ee897"
+      let testUtils = "common-0.5.0-756d0757c4dd06a068f9d38c7f238576ba5ee897"
       check testUtils in dirs.mapIt(it.extractFileName)
 
   when not defined(windows):

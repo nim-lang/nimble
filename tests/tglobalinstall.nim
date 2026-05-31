@@ -2,7 +2,7 @@
 {.used.}
 
 import unittest, os
-import testscommon
+import common
 from nimblepkg/common import cd
 
 suite "Global install":

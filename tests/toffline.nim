@@ -4,7 +4,7 @@
 {.used.}
 
 import unittest, strutils, os
-import testscommon
+import common
 
 suite "offline mode":
   test "cannot install packagebin2 in --offline mode":

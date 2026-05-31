@@ -1,6 +1,6 @@
 {.used.}
 import unittest
-import testscommon
+import common
 import std/[options, tables, sequtils, os, strutils]
 import chronos
 import

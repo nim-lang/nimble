@@ -4,7 +4,7 @@
 {.used.}
 
 import unittest, strutils, os
-import testscommon
+import common
 from nimblepkg/common import cd
 
 suite "nimble tasks":

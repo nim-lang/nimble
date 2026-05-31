@@ -3,7 +3,7 @@
 
 {.used.}
 
-import unittest, os, osproc, strutils, testscommon
+import unittest, os, osproc, strutils, common
 
 suite "Module tests":
   template moduleTest(modulePath: string) =

@@ -8,7 +8,7 @@
 {.used.}
 
 import unittest, os, osproc, strutils, strtabs, sequtils, streams
-import testscommon
+import common
 
 proc countBootstrap(args: varargs[string], cwd = ""): tuple[count: int, exitCode: int, output: string] =
   var quotedArgs = @args

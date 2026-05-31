@@ -4,7 +4,7 @@
 {.used.}
 
 import unittest, os, strutils, strformat
-import testscommon
+import common
 import nimblepkg/displaymessages
 from nimblepkg/common import cd
 from nimblepkg/developfile import developFileName
