@@ -1,3 +1,7 @@
+discard """
+  exitcode: 0
+"""
+
 import unittest, chronos, strutils, os, tables
 import std/options
 import nimblepkg/[tools, download, options, packageinfotypes, sha1hashes, version, versiondiscovery]
