@@ -14,7 +14,6 @@ tshellenv.nim
 treversedeps.nim
 truncommand.nim
 tsetupcommand.nim
-ttwobinaryversions.nim
 tuninstall.nim
 tsat.nim
 tversiondiscovery.nim

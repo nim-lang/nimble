@@ -15,7 +15,6 @@ import tshellenv
 import treversedeps
 import truncommand
 import tsetupcommand
-import ttwobinaryversions
 import tuninstall
 import tsat
 import tversiondiscovery
