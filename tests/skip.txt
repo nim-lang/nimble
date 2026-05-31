@@ -1,0 +1,3 @@
+# Tests to skip when running via testament
+# tnonim is very slow and often breaks CI
+tnonim.nim

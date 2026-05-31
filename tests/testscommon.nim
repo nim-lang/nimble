@@ -21,7 +21,7 @@ const
   pkgMultiBetaUrl* = &"{pkgMultiUrl}?subdir=beta"
 
 let
-  rootDir = getCurrentDir().parentDir
+  rootDir = currentSourcePath().parentDir.parentDir
   nimblePath* = rootDir / "src" / addFileExt("nimble", ExeExt)
   nimbleCompilePath = rootDir / "src" / "nimble.nim"
   installDir* = rootDir / "tests" / "nimbleDir"
@@ -39,7 +39,7 @@ proc execNimble*(args: varargs[string]): ProcessOutput =
   quotedArgs.insert(nimblePath)
   quotedArgs = quotedArgs.map((x: string) => x.quoteShell)
 
-  let path {.used.} = getCurrentDir().parentDir() / "src"
+  let path {.used.} = rootDir / "src"
 
   var cmd =
     when not defined(windows):
