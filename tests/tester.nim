@@ -5,7 +5,6 @@ import common
 
 # suits imports
 import ttaskdeps
-import tnimbinaries
 import tdevelopfeature
 import tissues
 import tlockfile

@@ -4,7 +4,6 @@
 # Also skip tester.nim itself since it's the runner, not a standalone test.
 tester.nim
 ttaskdeps.nim
-tnimbinaries.nim
 tdevelopfeature.nim
 tissues.nim
 tlockfile.nim
