@@ -835,6 +835,13 @@ proc solvePackages*(rootPkg: PackageInfo, pkgList: seq[PackageInfo], pkgsToInsta
     if localResult.len > 0 or solvedPkgs.len > 0:
       return localResult
 
+  #`nimble dump` is a read-only command and must never trigger
+  # network discovery. When the local solve fails, just return — callers
+  # (getNimDir) interpret the empty result as "no nim resolved" and emit an
+  # empty nimDir, letting the langserver prompt the user to install.
+  if options.action.typ == actionDump:
+    return
+
   var pkgVersionTable: Table[system.string, packageinfotypes.PackageVersions]
   # Load cached package versions to skip re-fetching known packages
   pkgVersionTable = cacheToPackageVersionTable(options)
