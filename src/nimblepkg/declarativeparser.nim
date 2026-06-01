@@ -320,9 +320,13 @@ proc extract(n: PNode, conf: ConfigRef, result: var NimbleFileInfo, options: Opt
     discard
 
 proc isNimbleFileNim(nimbleFilePath: string): bool =
+  # Nim 1.x distributions ship `compiler.nimble` (renamed to `nim.nimble` in
+  # 2.x). Both refer to the compiler package and need the special version
+  # extraction path that walks `compiler/compilation.nim` instead of treating
+  # `version = NimVersion` as an invalid string-literal assignment.
   let file = nimbleFilePath.splitFile
   let nimbleFile = file.name & file.ext
-  nimbleFile == "nim.nimble"
+  nimbleFile == "nim.nimble" or nimbleFile == "compiler.nimble"
 
 proc getNimCompilationPath*(nimbleFile: string): string =
   ## Extracts the path to the Nim compilation.nim file from the nimble file
