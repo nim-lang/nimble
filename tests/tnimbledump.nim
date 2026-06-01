@@ -43,6 +43,30 @@ suite "nimble dump":
     check: exitCode == 0
     check: outp.processOutput.inLines("desc: \"Test package for dump command\"")
 
+  test "nimble dump skips dep discovery when local solve fails (#1713)":
+    # Regression for nim-lang/nimble#1713: dump must be a read-only operation
+    # and never trigger network discovery. When a dep isn't installed
+    # locally, `solveLocalPackages` correctly refuses to solve — dump should
+    # return `nimDir: ""` so the langserver can detect the situation and
+    # prompt the user to run `nimble install` instead of waiting on a hung
+    # `processRequirements` walk.
+    cleanDir installDir
+    cd "testdump":
+      # Write a temp .nimble that requires a package guaranteed not installed.
+      let nimbleBackup = readFile("testdump.nimble")
+      defer: writeFile("testdump.nimble", nimbleBackup)
+      writeFile("testdump.nimble", """
+description = "Test package for dump command"
+version = "0.1.0"
+author = "nigredo-tori"
+license = "BSD"
+
+requires "definitely_not_installed_pkg_xyz"
+""")
+      let (outp, exitCode) = execNimble("dump")
+      check exitCode == QuitSuccess
+      check outp.processOutput.inLines("nimDir: \"\"")
+
   test "can dump when explicitly asking for INI format":
     let nimDir = parentDir findExe "nim"
     let nimblePath = "testdump" / "testdump.nimble"
