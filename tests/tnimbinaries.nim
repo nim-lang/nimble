@@ -1,6 +1,6 @@
 {.used.}
 import unittest
-import nimblepkg/[options, downloadnim, version, declarativeparser, versiondiscovery]
+import nimblepkg/[options, downloadnim, version, declarativeparser, versiondiscovery, nimenv]
 import std/[os, options, osproc, strutils]
 import chronos
 import testscommon
@@ -11,6 +11,31 @@ suite "Nim binaries":
     var options = initOptions()
     let releases = getOfficialReleases(options)
     check releases.len > 0
+
+  test "getCsourcesInfoForNim returns pinned hash for v2.0.0":
+    # Regression for the csources bootstrap mismatch:
+    # when nimble has to build Nim from source, it must use the EXACT
+    # csources commit Nim itself was built against (recorded in Nim's
+    # `config/build_config.txt`), not csources_v2/v3 HEAD which drifts.
+    let info = getCsourcesInfoForNim(newVersion("2.0.0"))
+    check info.isSome
+    let i = info.get
+    check i.dir == "csources_v2"
+    check i.url == "https://github.com/nim-lang/csources_v2.git"
+    check i.branch == "master"
+    check i.hash == "86742fb02c6606ab01a532a0085784effb2e753e"
+
+  test "getCsourcesInfoForNim returns pinned hash for v2.2.10":
+    let info = getCsourcesInfoForNim(newVersion("2.2.10"))
+    check info.isSome
+    let i = info.get
+    check i.dir == "csources_v3"
+    check i.url == "https://github.com/nim-lang/csources_v3.git"
+    check i.hash == "eeab3ac46e93f10efda8e58c4db02b9438319d71"
+
+  test "getCsourcesInfoForNim returns none for nonexistent version":
+    let info = getCsourcesInfoForNim(newVersion("999.999.999"))
+    check info.isNone
 
   test "can download a concrete version":
     var options = initOptions()
