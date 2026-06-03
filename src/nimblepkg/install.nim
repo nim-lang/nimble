@@ -491,7 +491,8 @@ proc installPkgs*(satResult: var SATResult, options: var Options, nimBin: Option
    #If we are not in the root folder, means user is installing a package globally so we need to install root
   var installedPkgs = initHashSet[PackageInfo]()
   # echo "isInRootDir ", isInRootDir, " startDir ", options.startDir, " rootDir ", satResult.rootPackage.myPath.parentDir
-  if options.action.typ == actionInstall and not options.depsOnly: #only install action install the root package: #skip root when in localdeps mode and in rootdir
+  if options.action.typ == actionInstall and not options.depsOnly and
+     not (isInRootDir and options.action.packages.len > 0): #only install action install the root package: #skip root when in localdeps mode and in rootdir or when installing specific packages from root
     pkgsToInstall.add((name: satResult.rootPackage.basicInfo.name, ver: satResult.rootPackage.basicInfo.version))
   else:
     #Root can be assumed as installed as the only global action one can do is install

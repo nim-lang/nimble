@@ -276,6 +276,39 @@ echo "hello"
 
     removeDir(testDir)
 
+  test "install pkg from inside a binary package does not install the current package":
+    # Regression test for https://github.com/nim-lang/nimble/issues/1721
+    # When running `nimble install <pkg>` from inside a binary nimble package,
+    # nimble was incorrectly adding the current project to the install list.
+    let testDir = getTempDir() / "nimble_test_install_from_binary_pkg"
+    removeDir(testDir)
+    createDir(testDir)
+
+    writeFile(testDir / "testapp.nimble", """
+version = "0.1.0"
+author = "test"
+description = "test"
+license = "MIT"
+srcDir = "."
+bin = @["testapp"]
+
+requires "nim >= 2.0.0"
+""")
+    writeFile(testDir / "testapp.nim", """
+echo "hello"
+""")
+
+    cleanDir(installDir)
+    cd testDir:
+      let (output, exitCode) = execNimbleYes("--nimbleDir:" & installDir, "install", "unicodedb")
+      check exitCode == QuitSuccess
+      # unicodedb (the requested package) should be installed
+      check output.contains("unicodedb")
+      # The current binary package should NOT be installed into pkgs2
+      check not packageDirExists(installDir / nimblePackagesDirName, "testapp")
+
+    removeDir(testDir)
+
   test "install -g inside a project dir installs globally":
     # nimble install -g with no packages inside a project dir should install the
     # current project to the global nimble dir, not do a local install.
