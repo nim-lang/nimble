@@ -346,3 +346,19 @@ suite "Build/Install refactor":
           hasContent = true
           break
         check not hasContent
+
+  test "installing a root builds a binary dependency with a symlinked file (#1730)":
+    # Regression test for issue #1730. The root package (buildInstall/symlinkroot)
+    # depends on a binary package, https://github.com/jmgomez/symlink_dep, whose
+    # binary imports a module through a symlink (src/shared.nim -> realmod/shared.nim).
+    # Installing the root builds that dependency in buildtemp; if symlinked files
+    # are not copied there, the build fails with "cannot open file: shared".
+    when defined(windows):
+      # git does not preserve symlinks on Windows by default, so the fixture
+      # repository can't reproduce the symlink condition there.
+      skip()
+    else:
+      cd "buildInstall/symlinkroot":
+        let (output, exitCode) = execNimbleYes("install")
+        check exitCode == QuitSuccess
+        check not output.contains("cannot open file")
