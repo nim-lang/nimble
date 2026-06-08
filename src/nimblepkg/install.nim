@@ -236,7 +236,11 @@ proc installFromDirDownloadInfo(nimBin: Option[string], downloadDir: string, url
                                        nimbleDirBase.startsWith(downloadDir & "/")
 
       # Use yieldFilter to also yield directories (important for empty dirs like .git/refs/)
-      for path in walkDirRec(downloadDir, yieldFilter = {pcFile, pcDir}):
+      # and symlinks. Issue #1730: symlinked files (a shared source module a binary
+      # imports, a shared binary.nim.cfg, ...) were skipped here, so the build in
+      # buildtemp failed even though `nimble build` (which builds in place) worked.
+      for path in walkDirRec(downloadDir,
+                             yieldFilter = {pcFile, pcDir, pcLinkToFile, pcLinkToDir}):
         if buildTempIsInsideDownload and path.startsWith(buildTempBase):
           continue
         if nimbleDirIsInsideDownload and path.startsWith(nimbleDirBase):
@@ -251,7 +255,18 @@ proc installFromDirDownloadInfo(nimBin: Option[string], downloadDir: string, url
           continue
 
         let destPath = changeRoot(downloadDir, buildTempDir, path)
-        if path.dirExists:
+        if path.symlinkExists:
+          # Recreate the symlink so the build can resolve it (e.g. a shared
+          # source module or binary.nim.cfg). Fall back to copying the
+          # dereferenced content when the symlink can't be recreated (e.g.
+          # unprivileged Windows).
+          createDir(destPath.splitFile.dir)
+          try:
+            createSymlink(expandSymlink(path), destPath)
+          except OSError:
+            if path.fileExists:
+              discard copyFileD(path, destPath)
+        elif path.dirExists:
           createDir(destPath)
         else:
           createDir(destPath.splitFile.dir)
