@@ -359,6 +359,104 @@ requires "nim >= 1.5.1"
           output.processOutput.inLines(
           "Downloaded package's version does not satisfy requested version range: wanted > 0.1.0 got 0.1.0.")
 
+  test "lock aligns an out-of-range develop dependency to the resolved version":
+    cleanUp()
+    withPkgListFile:
+      initNewNimblePackage(mainPkgOriginRepoPath, mainPkgRepoPath, @[dep1PkgName])
+
+      # dep1 origin with TWO tagged versions: 0.1.0 then 0.2.0.
+      cdNewDir dep1PkgOriginRepoPath:
+        initRepo()
+        discard dep1PkgOriginRepoPath.initNewNimbleFile()   # version 0.1.0
+        addFiles(dep1PkgNimbleFileName)
+        commit("v0.1.0")
+        tryDoCmdEx("git tag v0.1.0")
+        # bump to 0.2.0
+        writeFile(dep1PkgNimbleFileName,
+          readFile(dep1PkgNimbleFileName).replace("0.1.0", "0.2.0"))
+        commit("v0.2.0")
+        tryDoCmdEx("git tag v0.2.0")
+
+      # develop clone has BOTH tags; park it on the OLD version 0.1.0.
+      clone(dep1PkgOriginRepoPath, dep1PkgRepoPath)
+      var oldRev, newRev: string
+      cd dep1PkgRepoPath:
+        checkout("v0.1.0")
+        oldRev = getRepoRevision()
+        newRev = tryDoCmdEx("git rev-parse v0.2.0").replace("\n", "")
+      check oldRev != newRev
+
+      cd mainPkgRepoPath:
+        # require the NEW version; develop checkout (0.1.0) is out of range.
+        let nimbleFileContent = mainPkgNimbleFileName.readFile
+        mainPkgNimbleFileName.writeFile(
+          nimbleFileContent.replace(&"\"{dep1PkgName}\"", &"\"{dep1PkgName} >= 0.2.0\""))
+        writeDevelopFile(developFileName, @[], @[dep1PkgRepoPath])
+
+        let (output {.used.}, exitCode) = execNimbleYes("lock")
+        check exitCode == QuitSuccess
+        # the develop checkout was moved from v0.1.0 to the v0.2.0 commit
+        cd dep1PkgRepoPath: check getRepoRevision() == newRev
+        # and the lock records dep1 at the aligned (v0.2.0) revision
+        check getRevision(dep1PkgName) == newRev
+
+  test "lock refuses to align a develop dependency with a dirty working copy":
+    cleanUp()
+    withPkgListFile:
+      initNewNimblePackage(mainPkgOriginRepoPath, mainPkgRepoPath, @[dep1PkgName])
+
+      cdNewDir dep1PkgOriginRepoPath:
+        initRepo()
+        discard dep1PkgOriginRepoPath.initNewNimbleFile()
+        addFiles(dep1PkgNimbleFileName)
+        commit("v0.1.0")
+        tryDoCmdEx("git tag v0.1.0")
+        writeFile(dep1PkgNimbleFileName,
+          readFile(dep1PkgNimbleFileName).replace("0.1.0", "0.2.0"))
+        commit("v0.2.0")
+        tryDoCmdEx("git tag v0.2.0")
+
+      clone(dep1PkgOriginRepoPath, dep1PkgRepoPath)
+      cd dep1PkgRepoPath:
+        checkout("v0.1.0")
+        # Dirty a TRACKED file. `isWorkingCopyClean` runs `git status
+        # --untracked-files=no`, so an untracked file would NOT count as dirty.
+        writeFile(dep1PkgNimbleFileName,
+          readFile(dep1PkgNimbleFileName) & "\n# dirty\n")
+
+      cd mainPkgRepoPath:
+        let nimbleFileContent = mainPkgNimbleFileName.readFile
+        mainPkgNimbleFileName.writeFile(
+          nimbleFileContent.replace(&"\"{dep1PkgName}\"", &"\"{dep1PkgName} >= 0.2.0\""))
+        writeDevelopFile(developFileName, @[], @[dep1PkgRepoPath])
+
+        var revBefore: string
+        cd dep1PkgRepoPath: revBefore = getRepoRevision()
+        let (output, exitCode) = execNimbleYes("lock")
+        check exitCode == QuitFailure
+        check output.contains("uncommitted changes")
+        check output.contains(dep1PkgName)
+        # checkout did NOT move (we raise before doCheckout on a dirty repo)
+        var revAfter: string
+        cd dep1PkgRepoPath: revAfter = getRepoRevision()
+        check revAfter == revBefore
+
+  test "lock leaves an in-range develop dependency untouched":
+    cleanUp()
+    withPkgListFile:
+      initNewNimblePackage(mainPkgOriginRepoPath, mainPkgRepoPath, @[dep1PkgName])
+      initNewNimblePackage(dep1PkgOriginRepoPath, dep1PkgRepoPath)   # single version 0.1.0
+      cd mainPkgRepoPath:
+        writeDevelopFile(developFileName, @[], @[dep1PkgRepoPath])
+        var revBefore: string
+        cd dep1PkgRepoPath: revBefore = getRepoRevision()
+        let (_, exitCode) = execNimbleYes("lock")
+        check exitCode == QuitSuccess
+        var revAfter: string
+        cd dep1PkgRepoPath: revAfter = getRepoRevision()
+        check revAfter == revBefore                  # no move
+        check getRevision(dep1PkgName) == revBefore
+
   test "can download locked dependencies":
     cleanUp()
     withPkgListFile:

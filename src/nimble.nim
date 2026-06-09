@@ -1345,7 +1345,12 @@ proc validateDevelopDependenciesVersionRanges(dependentPkg: PackageInfo,
       if not findPkg(developDependencies, dep, depPkg):
         # This dependency is not part of the develop mode dependencies.
         continue
-      if not withinRange(depPkg, dep.ver):
+      # Develop mode dependencies have a single concrete version (the checkout)
+      # and no special versions, so validate the ordinary version directly. The
+      # `withinRange(PackageInfo, ...)` overload checks `metaData.specialVersions`,
+      # which the declarative parser does not populate for develop deps (it stays
+      # empty), making every concrete range fail. See develop_wf_issues.md.
+      if not withinRange(depPkg.basicInfo.version, dep.ver):
         errors.add notInRequiredRangeMsg(pkg, depPkg, dep.ver)
   if errors.len > 0:
     raise nimbleError(invalidDevelopDependenciesVersionsMsg(errors))
@@ -1442,9 +1447,38 @@ proc check(errors: ValidationErrors, graph: LockFileDeps) =
   if err.len > 0:
     raise validationErrors(err)
 
+proc alignDevelopCheckouts(rootPkg: PackageInfo, options: Options,
+                           nimBin: Option[string]) =
+  ## When the resolved solution needs a develop dependency at a version
+  ## different from its current checkout, git-checkout the vendor repo to the
+  ## resolved version ("align"). Stops on the first problem (dirty working copy
+  ## or failed checkout); never touches a dirty repo (doCheckout is --force).
+  var resolved = initTable[string, Version]()
+  for sp in options.satResult.solvedPkgs:
+    resolved[sp.pkgName.toLowerAscii] = sp.version
+
+  for dep in processDevelopDependencies(rootPkg, options, nimBin):
+    let key = dep.basicInfo.name.toLowerAscii
+    if key notin resolved or resolved[key] == dep.basicInfo.version:
+      continue   # not in the solution, or already aligned
+    let
+      dir = dep.getNimbleFileDir
+      target = resolved[key]
+    if not isWorkingCopyClean(dir.Path):
+      raise nimbleError(
+        &"Cannot align develop dependency {dep.basicInfo.name}: {dir} has " &
+        "uncommitted changes; commit, stash, or exclude it and retry.")
+    displayInfo(
+      &"Aligning develop dependency {dep.basicInfo.name} " &
+      &"{dep.basicInfo.version} -> {target}", HighPriority)
+    if not doCheckout(DownloadMethod.git, dir, $target, options):
+      raise nimbleError(
+        &"Failed to checkout {dep.basicInfo.name} to version {target} at {dir}. " &
+        "The version may not be present in the local clone (fetch it and retry).")
+
 proc lock(options: var Options, nimBin: Option[string]) =
   ## Generates a lock file for the package in the current directory or updates
-  ## it if it already exists.  
+  ## it if it already exists.
   let currentDir = getCurrentDir()
   
   let
@@ -1457,6 +1491,7 @@ proc lock(options: var Options, nimBin: Option[string]) =
   if options.useSystemNim:
     baseDeps = baseDeps.filterIt(not it.name.isNim)
 
+  alignDevelopCheckouts(pkgInfo, options, nimBin)
   pkgInfo.validateDevelopDependenciesVersionRanges(baseDeps, options, nimBin)
 
   var
