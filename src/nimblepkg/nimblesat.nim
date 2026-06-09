@@ -376,12 +376,12 @@ proc solve*(g: var DepGraph; f: Form, packages: var Table[string, Version], outp
         let item = f.mapping[v.v]
         if s.isTrue(v.v):
           packages[item.pkg] = item.version
-          output.add &"item.pkg  [x]  {toString item} \n"
+          output.add &"{item.pkg}  [x]  {toString item} \n"
         else:
-          output.add &"item.pkg  [ ]  {toString item} \n"
+          output.add &"{item.pkg}  [ ]  {toString item} \n"
     return true
   else:    
-    output.add "\nFailed to find satisfiable solution (pass: {options.satResult.pass}):\n"
+    output.add &"\nFailed to find satisfiable solution (pass: {options.satResult.pass}):\n"
     output.add analyzeVersionSelection(g, f, s)
     let (failingSet, errorMsg) = findMinimalFailingSet(g)
     if failingSet.len > 0:
