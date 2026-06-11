@@ -1349,7 +1349,7 @@ proc validateDevelopDependenciesVersionRanges(dependentPkg: PackageInfo,
       # and no special versions, so validate the ordinary version directly. The
       # `withinRange(PackageInfo, ...)` overload checks `metaData.specialVersions`,
       # which the declarative parser does not populate for develop deps (it stays
-      # empty), making every concrete range fail. See develop_wf_issues.md.
+      # empty), making every concrete range fail. 
       if not withinRange(depPkg.basicInfo.version, dep.ver):
         errors.add notInRequiredRangeMsg(pkg, depPkg, dep.ver)
   if errors.len > 0:
@@ -1452,7 +1452,7 @@ proc alignDevelopCheckouts(rootPkg: PackageInfo, options: Options,
   ## When the resolved solution needs a develop dependency at a version
   ## different from its current checkout, git-checkout the vendor repo to the
   ## resolved version ("align"). Stops on the first problem (dirty working copy
-  ## or failed checkout); never touches a dirty repo (doCheckout is --force).
+  ## or failed checkout); never touches a dirty repo 
   var resolved = initTable[string, Version]()
   for sp in options.satResult.solvedPkgs:
     resolved[sp.pkgName.toLowerAscii] = sp.version

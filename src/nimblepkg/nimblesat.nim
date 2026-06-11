@@ -1217,8 +1217,11 @@ proc solveLockFileDeps*(satResult: var SATResult, pkgList: seq[PackageInfo], opt
   let lockFile = options.lockFile(satResult.rootPackage.myPath.parentDir())
   let currentRequires = satResult.rootPackage.requires
   var existingRequires = newSeq[(string, Version)]()
+  var lockedNimVer = notSetVersion
   for name, dep in lockFile.getLockedDependencies.lockedDepsFor(options):
     existingRequires.add((name, dep.version))
+    if name.isNim:
+      lockedNimVer = dep.version
 
   # Check for new requirements not in lock file
   var shouldSolve = false
@@ -1247,6 +1250,20 @@ proc solveLockFileDeps*(satResult: var SATResult, pkgList: seq[PackageInfo], opt
           continue
       shouldSolve = true
       break
+
+  # No-arg `nimble upgrade` = upgrade-all: re-solve the whole graph to the newest
+  # compatible versions. The incremental actionUpgrade branch below only bumps the
+  # named packages and keeps the rest locked, which is the wrong model here, so force
+  # the full fresh solve. (The install-preferring local solve in solvePackages is
+  # already skipped for actionUpgrade, so this resolves to newest.)
+  if options.action.typ == actionUpgrade and options.action.packages.len == 0:
+    shouldSolve = true
+    # Keep nim at the version it is locked to — upgrading the libraries must not
+    # move the compiler. Pin only when nim is actually present in the lock file;
+    # for projects that don't lock nim we add no constraint, so the fresh solve
+    # neither bumps nim nor introduces a spurious nim entry into the new lock.
+    if lockedNimVer != notSetVersion:
+      satResult.rootPackage.requires.add (name: "nim", ver: VersionRange(kind: verEq, ver: lockedNimVer))
 
   var pkgListDecl: seq[PackageInfo]
   for pkg in pkgList:
