@@ -1486,6 +1486,16 @@ proc lock(options: var Options, nimBin: Option[string]) =
     currentLockFile = options.lockFile(currentDir)
     lockExists = displayLockOperationStart(currentLockFile)
 
+  # For no-arg `nimble upgrade`, preserve the lock file's nim entry verbatim so
+  # upgrading the libraries never moves the compiler. Captured here, BEFORE the
+  # lock is rewritten below; written back in the dependency loop. 
+  var prevNimDep = none(LockFileDep)
+  if options.action.typ == actionUpgrade and options.action.packages.len == 0 and lockExists:
+    for name, dep in currentLockFile.getLockedDependencies.lockedDepsFor(options):
+      if name.isNim:
+        prevNimDep = some(dep)
+        break
+
   var baseDeps = options.satResult.pkgs.toSeq
 
   if options.useSystemNim:
@@ -1517,7 +1527,11 @@ proc lock(options: var Options, nimBin: Option[string]) =
     for solvedPkg in options.satResult.solvedPkgs:
       if solvedPkg.pkgName.isNim and not shouldAddNim: continue
       if solvedPkg.pkgName == rootPkgName: continue
-      
+
+      if solvedPkg.pkgName.isNim and prevNimDep.isSome:
+        lockDeps[noTask][solvedPkg.pkgName] = prevNimDep.get
+        continue
+
       # Get the PackageInfo for this solved package
       let pkgInfo =
         if solvedPkg.pkgName.isFileURL:
