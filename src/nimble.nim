@@ -1519,7 +1519,7 @@ proc lock(options: var Options, nimBin: Option[string]) =
       if solvedPkg.pkgName == rootPkgName: continue
       
       # Get the PackageInfo for this solved package
-      let pkgInfo = 
+      let pkgInfo =
         if solvedPkg.pkgName.isFileURL:
           getPkgInfo(solvedPkg.pkgName.extractFilePathFromURL(), options, nimBin, pikRequires)
         else:

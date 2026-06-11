@@ -25,6 +25,11 @@ proc getPkgInfoFromSolved*(satResult: SATResult, solvedPkg: SolvedPackage, optio
     #For the pkg list we need to check the version as there may be multiple versions of the same package
     if nameMatches(pkg, solvedPkg.pkgName, options) and pkg.basicInfo.version == solvedPkg.version:
       return pkg
+  if solvedPkg.pkgName.isNim:
+    result = initPackageInfo()
+    result.basicInfo.name = solvedPkg.pkgName
+    result.basicInfo.version = solvedPkg.version
+    return
   writeStackTrace()
   raise newNimbleError[NimbleError]("Package not found in solution: " & $solvedPkg.pkgName & " " & $solvedPkg.version)
 

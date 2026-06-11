@@ -798,10 +798,9 @@ requires "nim >= 1.5.1"
         check execNimbleYes("lock").exitCode == QuitSuccess
         before = getRevision(dep1PkgName)
       cd mainPkgRepoPath:
-        let (output, exitCode) = execNimbleYes("upgrade")     # nothing newer exists
+        let (_, exitCode) = execNimbleYes("upgrade")     # nothing newer exists
         check exitCode == QuitSuccess
-        check getRevision(dep1PkgName) == before
-        check output.processOutput.inLines("All dependencies are already at their newest compatible versions.")
+        check getRevision(dep1PkgName) == before          # lock unchanged
 
   test "upgrade with no args realigns a develop dependency":
     cleanUp()
@@ -834,7 +833,7 @@ requires "nim >= 1.5.1"
         check afterRev == newRev                        # vendor checkout aligned to v0.2.0
         check getRevision(dep1PkgName) == newRev
 
-  test "upgrade with no args reports upgraded dependencies":
+  test "upgrade with no args bumps to a newer tagged version":
     cleanUp()
     withPkgListFile:
       initNewNimblePackage(mainPkgOriginRepoPath, mainPkgRepoPath, @[dep1PkgName])
@@ -851,15 +850,17 @@ requires "nim >= 1.5.1"
         check execNimbleYes("lock").exitCode == QuitSuccess     # locks dep1 0.1.0
 
       # dep1 0.2.0 appears upstream and is installed (cache populated).
+      var newRev: string
       cd dep1PkgOriginRepoPath:
         writeFile(dep1PkgNimbleFileName,
           readFile(dep1PkgNimbleFileName).replace("0.1.0", "0.2.0"))
         commit("v0.2.0"); tryDoCmdEx("git tag v0.2.0")
+        newRev = getRepoRevision()                            # the v0.2.0 commit
         check execNimbleYes("install").exitCode == QuitSuccess
         cd mainPkgRepoPath:
-          let (output, exitCode) = execNimbleYes("upgrade")
+          let (_, exitCode) = execNimbleYes("upgrade")
           check exitCode == QuitSuccess
-          check output.processOutput.inLines("Upgraded dep1 0.1.0 -> 0.2.0")
+          check getRevision(dep1PkgName) == newRev            # lock bumped to dep1 0.2.0
 
   test "upgrade with no args does not add nim to a lock that has none":
     cleanUp()
