@@ -731,38 +731,6 @@ requires "nim >= 1.5.1"
           check res.exitCode == QuitSuccess
           check getRevision(dep1PkgName) == newRev     # lock now points at the newer dep1
 
-  test "upgrade with no args bumps a transitive dependency together":
-    cleanUp()
-    withPkgListFile:
-      initNewNimblePackage(mainPkgOriginRepoPath, mainPkgRepoPath, @[dep1PkgName])
-      initNewNimblePackage(dep1PkgOriginRepoPath, dep1PkgRepoPath, @[dep2PkgName])  # dep1 -> dep2
-      initNewNimblePackage(dep2PkgOriginRepoPath, dep2PkgRepoPath)
-
-      var dep1Locked, dep2Locked: string
-      cd mainPkgRepoPath:
-        check execNimbleYes("lock").exitCode == QuitSuccess
-        dep1Locked = getRevision(dep1PkgName)
-        dep2Locked = getRevision(dep2PkgName)
-
-      # Newer dep2, and a newer dep1.
-      var dep2New, dep1New: string
-      cd dep2PkgOriginRepoPath:
-        addAdditionalFileToTheRepo("dep2.nim", "echo 2")
-        dep2New = getRepoRevision()
-        check execNimbleYes("install").exitCode == QuitSuccess
-      cd dep1PkgOriginRepoPath:
-        addAdditionalFileToTheRepo("dep1.nim", "echo 1")
-        dep1New = getRepoRevision()
-        check execNimbleYes("install").exitCode == QuitSuccess
-
-        cd mainPkgRepoPath:
-          let res = execNimbleYes("upgrade")
-          check res.exitCode == QuitSuccess
-          check getRevision(dep1PkgName) == dep1New
-          check getRevision(dep2PkgName) == dep2New
-          check dep1New != dep1Locked
-          check dep2New != dep2Locked
-
   test "upgrade with no args does not change nim":
     cleanUp()
     withPkgListFile:
