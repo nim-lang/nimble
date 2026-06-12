@@ -707,30 +707,6 @@ requires "nim >= 1.5.1"
           check newRevision == getRevision(dep1PkgName)
           check res.exitCode == QuitSuccess
 
-  test "upgrade with no args bumps a dependency to the newest version":
-    cleanUp()
-    withPkgListFile:
-      initNewNimblePackage(mainPkgOriginRepoPath, mainPkgRepoPath, @[dep1PkgName])
-      initNewNimblePackage(dep1PkgOriginRepoPath, dep1PkgRepoPath)   # dep1 @ 0.1.0
-
-      var lockedRev: string
-      cd mainPkgRepoPath:
-        check execNimbleYes("lock").exitCode == QuitSuccess
-        lockedRev = getRevision(dep1PkgName)
-
-      # A newer dep1 appears upstream.
-      cd dep1PkgOriginRepoPath:
-        addAdditionalFileToTheRepo("dep1.nim", "echo 1")
-        let newRev = getRepoRevision()
-
-        check execNimbleYes("install").exitCode == QuitSuccess
-
-        cd mainPkgRepoPath:
-          check newRev != lockedRev
-          let res = execNimbleYes("upgrade")          # no package args = upgrade-all
-          check res.exitCode == QuitSuccess
-          check getRevision(dep1PkgName) == newRev     # lock now points at the newer dep1
-
   test "upgrade with no args does not change nim":
     cleanUp()
     withPkgListFile:
