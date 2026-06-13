@@ -1,6 +1,6 @@
 {.used.}
 import unittest, os, strutils, sequtils# strformat, osproc
-import testscommon
+import common
 from nimblepkg/common import cd
 from nimble import nimblePathsFileName
 

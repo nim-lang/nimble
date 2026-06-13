@@ -4,7 +4,7 @@
 {.used.}
 
 import unittest, os, osproc, strutils
-import testscommon
+import common
 from nimblepkg/common import cd
 import std/sequtils
 

@@ -4,8 +4,8 @@
 {.used.}
 
 import unittest, os
-import testscommon
-import std/[strformat, strutils]
+import common
+import std/[strformat, strutils, sequtils]
 from nimblepkg/common import cd
 
 suite "nimble dump":
@@ -96,7 +96,10 @@ testEntryPoint: "tests/tall.nim"
 """
     let (outp, exitCode) = execNimble("dump", "--ini", "testdump")
     check: exitCode == 0
-    check: outp == outpExpected
+    # nimDir may differ when a nim package is installed in nimbleDir (e.g. by tnimbinaries)
+    let outpNormalized = outp.splitLines.filterIt(not it.startsWith("nimDir:")).join("\n")
+    let expectedNormalized = outpExpected.splitLines.filterIt(not it.startsWith("nimDir:")).join("\n")
+    check: outpNormalized == expectedNormalized
 
   test "can dump in JSON format":
     let nimDir = parentDir findExe "nim"
@@ -134,4 +137,7 @@ testEntryPoint: "tests/tall.nim"
 """
     let (outp, exitCode) = execNimble("dump", "--json", "testdump")
     check: exitCode == 0
-    check: outp == outpExpected
+    # nimDir may differ when a nim package is installed in nimbleDir (e.g. by tnimbinaries)
+    let outpNormalized = outp.splitLines.filterIt(not it.startsWith("  \"nimDir\":")).join("\n")
+    let expectedNormalized = outpExpected.splitLines.filterIt(not it.startsWith("  \"nimDir\":")).join("\n")
+    check: outpNormalized == expectedNormalized

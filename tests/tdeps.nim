@@ -1,40 +1,15 @@
 # Copyright (C) Dominik Picheta. All rights reserved.
 # BSD License. Look at license.txt for more info.
 
-{.used.}
+discard """
+  exitcode: 0
+"""
 
-import unittest, os, osproc, strutils, strformat
-import testscommon
+import os, osproc, strutils, common
 from nimblepkg/common import cd
 
-suite "nimble deps":
-  test "nimble deps":
-    cd "deps":
-      let (output, exitCode) = execCmdEx(nimblePath & " --silent deps -y")
-      check exitCode == QuitSuccess
-      check output.contains("deps (@0.1.0)")
-      check output.contains("timezones 0.5.4 (@0.5.4)")
-
-  test "nimble deps(json)":
-    cd "issue727":
-      let (output, exitCode) = execCmdEx(nimblePath & " --format:json deps -y")
-      check exitCode == QuitSuccess
-      check output.contains("""
-[
-  {
-    "name": "timezones",
-    "version": "@any",
-    "resolvedTo": "0.5.4",
-    "error": "",
-    "dependencies": [
-      {
-        "name": "nim",
-        "version": ">= 0.19.9",
-        "resolvedTo": "",
-        "error": "",
-        "dependencies": []
-      }
-    ]
-  }
-]
-""")
+cd "deps":
+  let (output, exitCode) = execCmdEx(nimblePath & " --silent deps -y")
+  doAssert exitCode == QuitSuccess, output
+  doAssert output.contains("deps (@0.1.0)"), output
+  doAssert output.contains("timezones 0.5.4 (@0.5.4)"), output

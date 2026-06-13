@@ -1,7 +1,7 @@
 {.used.}
 import std/options as stdoptions
 import unittest, os, sequtils, strutils
-import testscommon
+import common
 import nimblepkg/[common, options, declarativeparser, packageinfotypes]
 import nimble
 

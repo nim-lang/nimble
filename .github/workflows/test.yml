@@ -46,7 +46,7 @@ jobs:
           hg --version
       - name: Install dependencies
         run: nimble install -y
-      - name: Run nim c -r tester
+      - name: Run tests
         run: |
           nimble test
       - name: Install nimble

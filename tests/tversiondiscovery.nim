@@ -1,6 +1,6 @@
 {.used.}
 import unittest, os
-import testscommon
+import common
 import std/[tables, sequtils, strutils, options, strformat]
 import chronos
 import nimblepkg/[version, nimblesat, options, config, download, packageinfotypes, versiondiscovery]

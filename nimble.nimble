@@ -22,18 +22,14 @@ when defined(nimdistros):
 before install:
   exec "git submodule update --init"
 
-proc runTester(extraFlags = "") =
-  var extraParams = ""
-  for i in 0 .. paramCount():
-    if "::" in paramStr(i):
-      extraParams = "test "
-      extraParams.addQuoted paramStr(i)
-
-  withDir "tests":
-    exec "nim c " & extraFlags & " -r tester " & extraParams
-
 task test, "Run the Nimble tester!":
-  runTester()
+  exec "testament --directory:tests --megatest:off --skipFrom:skip.txt pattern t*.nim"
+  exec "testament --directory:tests/tissues --megatest:off pattern tissue_*.nim"
+  exec "testament --directory:tests/sat --megatest:off pattern t*.nim"
+  exec "cd tests && nim c -r tester.nim"
 
 task cibenchmark, "Run tests with timing instrumentation":
-  runTester("-d:timedTests")
+  exec "testament --directory:tests --megatest:off --skipFrom:skip.txt pattern t*.nim -d:timedTests"
+  exec "testament --directory:tests/tissues --megatest:off pattern tissue_*.nim -d:timedTests"
+  exec "testament --directory:tests/sat --megatest:off pattern t*.nim -d:timedTests"
+  exec "cd tests && nim c -r -d:timedTests tester.nim"

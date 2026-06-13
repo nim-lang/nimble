@@ -4,7 +4,7 @@
 {.used.}
 
 import unittest, os, osproc, strutils, strformat, json, sets
-import testscommon, nimblepkg/displaymessages, nimblepkg/paths
+import common, nimblepkg/displaymessages, nimblepkg/paths
 
 from nimblepkg/common import cd, getLinkFileName, getLinkFileDir
 from nimblepkg/developfile import developFileName, pkgFoundMoreThanOnceMsg

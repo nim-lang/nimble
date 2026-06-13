@@ -1,10 +1,12 @@
 {.used.}
 import unittest
-import testscommon
+import common
 import std/[options, tables, sequtils, os, strutils]
 import chronos
 import
   nimblepkg/[packageinfotypes, version, options, config, declarativeparser, versiondiscovery, cli, common]
+
+let fixtureDir* = currentSourcePath().parentDir / "declarativeparserfixture"
 
 proc getNimbleFileFromPkgNameHelper(pkgName: string, ver = VersionRange(kind: verAny)): string =
   let pv: PkgTuple = (pkgName, ver)
@@ -27,7 +29,7 @@ suite "Declarative parsing":
     removeDir("nimbleDir")
 
   test "should parse requires from a nimble file":
-    let nimbleFile = getNimbleFileFromPkgNameHelper("nimlangserver")
+    let nimbleFile = fixtureDir / "declarativeparserfixture.nimble"
     var options = initOptions()
     let nimbleFileInfo = extractRequiresInfo(nimbleFile, options)
     var activeFeatures = initTable[PkgTuple, seq[string]]()
@@ -39,7 +41,7 @@ suite "Declarative parsing":
       check pkg in requires.mapIt(it[0])
   
   test "should detect nested requires and fail":
-    let nimbleFile = getNimbleFileFromPkgNameHelper("jester")
+    let nimbleFile = fixtureDir / "jesterfixture" / "jesterfixture.nimble"
     var options = initOptions()
     let nimbleFileInfo = extractRequiresInfo(nimbleFile, options)
 
@@ -47,14 +49,14 @@ suite "Declarative parsing":
   
   
   test "should parse bin from a nimble file":
-    let nimbleFile = getNimbleFileFromPkgNameHelper("nimlangserver")
+    let nimbleFile = fixtureDir / "declarativeparserfixture.nimble"
     var options = initOptions()
     let nimbleFileInfo = extractRequiresInfo(nimbleFile, options)
     check nimbleFileInfo.bin.len == 1
     when defined(windows):
-      check nimbleFileInfo.bin["nimlangserver.exe"] == "nimlangserver.exe"
+      check nimbleFileInfo.bin["declarativeparserfixture.exe"] == "declarativeparserfixture.exe"
     else:
-      check nimbleFileInfo.bin["nimlangserver"] == "nimlangserver"
+      check nimbleFileInfo.bin["declarativeparserfixture"] == "declarativeparserfixture"
 
   test "should be able to get all the released PackageVersions from a git local repository using the declarative parser":
     var options = initOptions()
@@ -91,14 +93,15 @@ suite "Declarative parsing":
     check fileExists(options.pkgCachePath / TaggedVersionsFileName)
 
   test "should be able to install a package using the declarative parser":
-    let (output, exitCode) = execNimble("--parser:declarative", "install", "nimlangserver@#head")
-    echo output
-    check exitCode == QuitSuccess
+    cd "buildInstall/pkgNoBinary":
+      let (output, exitCode) = execNimble("--parser:declarative", "install")
+      echo output
+      check exitCode == QuitSuccess
 
   test "should be able to retrieve the nim info from a nim directory":
     let versions = @["1.6.12", "2.2.0"]
     for ver in versions:
-      let nimbleFile = getNimbleFileFromPkgNameHelper("nim", parseVersionRange(ver))
+      let nimbleFile = fixtureDir / "nim_" & ver.replace(".", "_") / "nim.nimble"
       check extractNimVersion(nimbleFile) == ver
 
 suite "Declarative parser features":

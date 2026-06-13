@@ -3,7 +3,7 @@
 
 {.used.}
 
-import sequtils, strutils, strformat, os, osproc, sugar, unittest, macros
+import sequtils, strutils, strformat, os, osproc, sugar, unittest, macros, std/times
 import pkg/checksums/sha1
 
 import nimblepkg/cli
@@ -21,7 +21,7 @@ const
   pkgMultiBetaUrl* = &"{pkgMultiUrl}?subdir=beta"
 
 let
-  rootDir = getCurrentDir().parentDir
+  rootDir = currentSourcePath().parentDir.parentDir
   nimblePath* = rootDir / "src" / addFileExt("nimble", ExeExt)
   nimbleCompilePath = rootDir / "src" / "nimble.nim"
   installDir* = rootDir / "tests" / "nimbleDir"
@@ -39,7 +39,7 @@ proc execNimble*(args: varargs[string]): ProcessOutput =
   quotedArgs.insert(nimblePath)
   quotedArgs = quotedArgs.map((x: string) => x.quoteShell)
 
-  let path {.used.} = getCurrentDir().parentDir() / "src"
+  let path {.used.} = rootDir / "src"
 
   var cmd =
     when not defined(windows):
@@ -214,11 +214,15 @@ putEnv("NIMBLE_TEST_BINARY_PATH", nimblePath)
 setVerbosity(MediumPriority)
 setShowColor(false)
 
-# Always recompile.
+# Compile nimble if binary is missing or source is newer.
 block:
-  # Verbose name is used for exit code so assert is clearer
-  let (output, nimbleCompileExitCode) = execCmdEx("nim c " & nimbleCompilePath)
-  doAssert nimbleCompileExitCode == QuitSuccess, output
+  let nimbleBin = rootDir / "src" / addFileExt("nimble", ExeExt)
+  let needsCompile = not nimbleBin.fileExists or
+                     nimbleBin.getLastModificationTime < nimbleCompilePath.getLastModificationTime
+  if needsCompile:
+    # Verbose name is used for exit code so assert is clearer
+    let (output, nimbleCompileExitCode) = execCmdEx("nim c " & nimbleCompilePath)
+    doAssert nimbleCompileExitCode == QuitSuccess, output
 
 # Test timing instrumentation — compile with -d:timedTests to enable
 when defined(timedTests):

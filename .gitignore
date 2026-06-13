@@ -63,9 +63,11 @@ src/nimblepkg/version
 # Test procedure artifacts
 *.nims
 /buildTests
+/testresults/
 /tests/**/.gitignore
 /tests/**/nimble.lock
 /tests/nimdep/localnimbledeps/
+/tests/testresults/
 
 # Nimble Guide files
 nimble-guide/site/

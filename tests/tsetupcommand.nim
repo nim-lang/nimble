@@ -4,7 +4,7 @@
 {.used.}
 
 import unittest, os, strutils, osproc
-import testscommon
+import common
 from nimble import nimblePathsFileName, nimbleConfigFileName
 from nimblepkg/common import cd
 from nimblepkg/developfile import developFileName
