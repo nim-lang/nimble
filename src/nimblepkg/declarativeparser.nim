@@ -754,6 +754,15 @@ proc getPkgInfoFromDirWithDeclarativeParser(dir: string, options: Options, nimBi
     result.source = psDevelop
   result.metadata = loadMetaData(result.getNimbleFileDir(), raiseIfNotFound = false, options)
   result = toRequiresInfo(result, options, nimBin, some nimbleFileInfo)
+  # Uphold the invariant withinRange(pkgInfo, range) relies on (packageinfo.nim): for a
+  # non-installed (develop) package the ordinary version is part of specialVersions.
+  # Mirrors the legacy reader (packageparser.nim:330) — installed packages instead get
+  # this from their metadata file, so they are left untouched here. Without it, concrete
+  # version ranges on develop deps are false negatives. Done after toRequiresInfo, which
+  # can replace `metadata`.
+  if not nimbleFile.startsWith(options.getPkgsDir) and
+      result.basicInfo.version != notSetVersion:
+    result.metadata.specialVersions.incl result.basicInfo.version
 
 proc convertNimAliasToNim*(pv: PkgTuple): PkgTuple =
   #Compiler needs to be treated as Nim as long as it isnt a separated package. See https://github.com/nim-lang/Nim/issues/23049

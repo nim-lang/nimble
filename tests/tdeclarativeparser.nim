@@ -1,10 +1,10 @@
 {.used.}
 import unittest
 import testscommon
-import std/[options, tables, sequtils, os, strutils]
+import std/[options, tables, sequtils, os, strutils, sets]
 import chronos
 import
-  nimblepkg/[packageinfotypes, version, options, config, declarativeparser, versiondiscovery, cli, common]
+  nimblepkg/[packageinfotypes, packageinfo, version, options, config, declarativeparser, versiondiscovery, cli, common]
 
 proc getNimbleFileFromPkgNameHelper(pkgName: string, ver = VersionRange(kind: verAny)): string =
   let pv: PkgTuple = (pkgName, ver)
@@ -100,6 +100,31 @@ suite "Declarative parsing":
     for ver in versions:
       let nimbleFile = getNimbleFileFromPkgNameHelper("nim", parseVersionRange(ver))
       check extractNimVersion(nimbleFile) == ver
+
+  test "develop package read by the declarative parser seeds specialVersions with its version":
+    # A develop-mode package (nimble file NOT under pkgsDir) read via the declarative
+    # parser must seed metaData.specialVersions with its ordinary version, upholding the
+    # invariant withinRange(pkgInfo, range) relies on ("the ordinary version is always
+    # added to the special versions set"). The legacy reader does this; the declarative
+    # one did not, so any concrete version range on a develop dep was a false negative.
+    let testDir = "test_develop_specialversions"
+    removeDir(testDir)
+    createDir(testDir)
+    writeFile(testDir / "pkgdev.nimble", """
+version = "0.2.0"
+author = "test"
+description = "develop package"
+license = "MIT"
+
+requires "nim"
+""")
+    var options = initOptions()
+    options.nimBin = some options.makeNimBin("nim")
+    let pkgInfo = getPkgInfo(testDir, options, nimBin = some("nim"), level = pikRequires)
+    check pkgInfo.basicInfo.version == newVersion("0.2.0")
+    check pkgInfo.basicInfo.version in pkgInfo.metaData.specialVersions
+    check withinRange(pkgInfo, parseVersionRange(">= 0.2.0"))
+    removeDir(testDir)
 
 suite "Declarative parser features":
   test "should be able to parse features from a nimble file":
