@@ -1248,6 +1248,14 @@ proc solveLockFileDeps*(satResult: var SATResult, pkgList: seq[PackageInfo], opt
       shouldSolve = true
       break
 
+  # No-arg `nimble upgrade` = upgrade-all: re-solve the whole graph to the newest
+  # compatible versions. The incremental actionUpgrade branch below only bumps the
+  # named packages and keeps the rest locked, which is the wrong model here, so force
+  # the full fresh solve. (The install-preferring local solve in solvePackages is
+  # already skipped for actionUpgrade, so this resolves to newest.)
+  if options.action.typ == actionUpgrade and options.action.packages.len == 0:
+    shouldSolve = true
+
   var pkgListDecl: seq[PackageInfo]
   for pkg in pkgList:
     try:

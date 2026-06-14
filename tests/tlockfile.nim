@@ -707,6 +707,125 @@ requires "nim >= 1.5.1"
           check newRevision == getRevision(dep1PkgName)
           check res.exitCode == QuitSuccess
 
+  test "upgrade with no args does not change nim":
+    cleanUp()
+    withPkgListFile:
+      initNewNimblePackage(mainPkgOriginRepoPath, mainPkgRepoPath, @[dep1PkgName])
+      initNewNimblePackage(dep1PkgOriginRepoPath, dep1PkgRepoPath)
+
+      var nimBefore: string
+      cd mainPkgRepoPath:
+        check execNimbleYes("lock").exitCode == QuitSuccess
+        let j = defaultLockFileName.readFile.parseJson
+        nimBefore =
+          if "nim" in j{$lfjkPackages}: j{$lfjkPackages}{"nim"}{$lfjkPkgVcsRevision}.str
+          else: ""
+
+      cd dep1PkgOriginRepoPath:
+        addAdditionalFileToTheRepo("dep1.nim", "echo 1")
+        check execNimbleYes("install").exitCode == QuitSuccess
+        cd mainPkgRepoPath:
+          check execNimbleYes("upgrade").exitCode == QuitSuccess
+          let j2 = defaultLockFileName.readFile.parseJson
+          let nimAfter =
+            if "nim" in j2{$lfjkPackages}: j2{$lfjkPackages}{"nim"}{$lfjkPkgVcsRevision}.str
+            else: ""
+          check nimAfter == nimBefore     # nim unchanged
+
+  test "upgrade with no args is a no-op when already newest":
+    cleanUp()
+    withPkgListFile:
+      initNewNimblePackage(mainPkgOriginRepoPath, mainPkgRepoPath, @[dep1PkgName])
+      initNewNimblePackage(dep1PkgOriginRepoPath, dep1PkgRepoPath)
+      var before: string
+      cd mainPkgRepoPath:
+        check execNimbleYes("lock").exitCode == QuitSuccess
+        before = getRevision(dep1PkgName)
+      cd mainPkgRepoPath:
+        let (_, exitCode) = execNimbleYes("upgrade")     # nothing newer exists
+        check exitCode == QuitSuccess
+        check getRevision(dep1PkgName) == before          # lock unchanged
+
+  test "upgrade with no args realigns a develop dependency":
+    cleanUp()
+    withPkgListFile:
+      initNewNimblePackage(mainPkgOriginRepoPath, mainPkgRepoPath, @[dep1PkgName])
+
+      cdNewDir dep1PkgOriginRepoPath:
+        initRepo()
+        discard dep1PkgOriginRepoPath.initNewNimbleFile()
+        addFiles(dep1PkgNimbleFileName)
+        commit("v0.1.0"); tryDoCmdEx("git tag v0.1.0")
+        writeFile(dep1PkgNimbleFileName, readFile(dep1PkgNimbleFileName).replace("0.1.0", "0.2.0"))
+        commit("v0.2.0"); tryDoCmdEx("git tag v0.2.0")
+
+      clone(dep1PkgOriginRepoPath, dep1PkgRepoPath)
+      var oldRev, newRev: string
+      cd dep1PkgRepoPath:
+        checkout("v0.1.0"); oldRev = getRepoRevision()
+        newRev = tryDoCmdEx("git rev-parse v0.2.0").replace("\n", "")
+      check oldRev != newRev
+
+      cd mainPkgRepoPath:
+        let nf = mainPkgNimbleFileName.readFile
+        mainPkgNimbleFileName.writeFile(nf.replace(&"\"{dep1PkgName}\"", &"\"{dep1PkgName} >= 0.2.0\""))
+        writeDevelopFile(developFileName, @[], @[dep1PkgRepoPath])
+        let res = execNimbleYes("upgrade")
+        check res.exitCode == QuitSuccess
+        var afterRev: string
+        cd dep1PkgRepoPath: afterRev = getRepoRevision()
+        check afterRev == newRev                        # vendor checkout aligned to v0.2.0
+        check getRevision(dep1PkgName) == newRev
+
+  test "upgrade with no args bumps to a newer tagged version":
+    cleanUp()
+    withPkgListFile:
+      initNewNimblePackage(mainPkgOriginRepoPath, mainPkgRepoPath, @[dep1PkgName])
+
+      # dep1 origin starts at version 0.1.0 (one tag).
+      cdNewDir dep1PkgOriginRepoPath:
+        initRepo()
+        discard dep1PkgOriginRepoPath.initNewNimbleFile()   # version 0.1.0
+        addFiles(dep1PkgNimbleFileName)
+        commit("v0.1.0"); tryDoCmdEx("git tag v0.1.0")
+      clone(dep1PkgOriginRepoPath, dep1PkgRepoPath)
+
+      cd mainPkgRepoPath:
+        check execNimbleYes("lock").exitCode == QuitSuccess     # locks dep1 0.1.0
+
+      # dep1 0.2.0 appears upstream and is installed (cache populated).
+      var newRev: string
+      cd dep1PkgOriginRepoPath:
+        writeFile(dep1PkgNimbleFileName,
+          readFile(dep1PkgNimbleFileName).replace("0.1.0", "0.2.0"))
+        commit("v0.2.0"); tryDoCmdEx("git tag v0.2.0")
+        newRev = getRepoRevision()                            # the v0.2.0 commit
+        check execNimbleYes("install").exitCode == QuitSuccess
+        cd mainPkgRepoPath:
+          let (_, exitCode) = execNimbleYes("upgrade")
+          check exitCode == QuitSuccess
+          check getRevision(dep1PkgName) == newRev            # lock bumped to dep1 0.2.0
+
+  test "upgrade with no args does not add nim to a lock that has none":
+    cleanUp()
+    withPkgListFile:
+      initNewNimblePackage(mainPkgOriginRepoPath, mainPkgRepoPath, @[dep1PkgName])
+      initNewNimblePackage(dep1PkgOriginRepoPath, dep1PkgRepoPath)
+
+      cd mainPkgRepoPath:
+        # Drop the `requires "nim >= 1.5.1"` line so nim is never locked.
+        let nf = mainPkgNimbleFileName.readFile
+        mainPkgNimbleFileName.writeFile(nf.replace("requires \"nim >= 1.5.1\"", ""))
+        check execNimbleYes("lock").exitCode == QuitSuccess
+        check "nim" notin defaultLockFileName.readFile.parseJson{$lfjkPackages}
+
+      cd dep1PkgOriginRepoPath:
+        addAdditionalFileToTheRepo("dep1.nim", "echo 1")
+        check execNimbleYes("install").exitCode == QuitSuccess
+        cd mainPkgRepoPath:
+          check execNimbleYes("upgrade").exitCode == QuitSuccess
+          check "nim" notin defaultLockFileName.readFile.parseJson{$lfjkPackages}   # still no nim
+
   test "can upgrade: the new version of the package has a new dep":
     cleanUp()
     withPkgListFile:

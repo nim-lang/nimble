@@ -1349,7 +1349,7 @@ proc validateDevelopDependenciesVersionRanges(dependentPkg: PackageInfo,
       # and no special versions, so validate the ordinary version directly. The
       # `withinRange(PackageInfo, ...)` overload checks `metaData.specialVersions`,
       # which the declarative parser does not populate for develop deps (it stays
-      # empty), making every concrete range fail. See develop_wf_issues.md.
+      # empty), making every concrete range fail. 
       if not withinRange(depPkg.basicInfo.version, dep.ver):
         errors.add notInRequiredRangeMsg(pkg, depPkg, dep.ver)
   if errors.len > 0:
@@ -1452,7 +1452,7 @@ proc alignDevelopCheckouts(rootPkg: PackageInfo, options: Options,
   ## When the resolved solution needs a develop dependency at a version
   ## different from its current checkout, git-checkout the vendor repo to the
   ## resolved version ("align"). Stops on the first problem (dirty working copy
-  ## or failed checkout); never touches a dirty repo (doCheckout is --force).
+  ## or failed checkout); never touches a dirty repo 
   var resolved = initTable[string, Version]()
   for sp in options.satResult.solvedPkgs:
     resolved[sp.pkgName.toLowerAscii] = sp.version
@@ -1486,6 +1486,16 @@ proc lock(options: var Options, nimBin: Option[string]) =
     currentLockFile = options.lockFile(currentDir)
     lockExists = displayLockOperationStart(currentLockFile)
 
+  # For no-arg `nimble upgrade`, preserve the lock file's nim entry verbatim so
+  # upgrading the libraries never moves the compiler. Captured here, BEFORE the
+  # lock is rewritten below; written back in the dependency loop. 
+  var prevNimDep = none(LockFileDep)
+  if options.action.typ == actionUpgrade and options.action.packages.len == 0 and lockExists:
+    for name, dep in currentLockFile.getLockedDependencies.lockedDepsFor(options):
+      if name.isNim:
+        prevNimDep = some(dep)
+        break
+
   var baseDeps = options.satResult.pkgs.toSeq
 
   if options.useSystemNim:
@@ -1517,9 +1527,13 @@ proc lock(options: var Options, nimBin: Option[string]) =
     for solvedPkg in options.satResult.solvedPkgs:
       if solvedPkg.pkgName.isNim and not shouldAddNim: continue
       if solvedPkg.pkgName == rootPkgName: continue
-      
+
+      if solvedPkg.pkgName.isNim and prevNimDep.isSome:
+        lockDeps[noTask][solvedPkg.pkgName] = prevNimDep.get
+        continue
+
       # Get the PackageInfo for this solved package
-      let pkgInfo = 
+      let pkgInfo =
         if solvedPkg.pkgName.isFileURL:
           getPkgInfo(solvedPkg.pkgName.extractFilePathFromURL(), options, nimBin, pikRequires)
         else:
