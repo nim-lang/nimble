@@ -182,11 +182,6 @@ Commands:
          [-e, --exclude file]     Excludes a develop file from a specified
                                   develop file or from `nimble.develop` if not
                                   specified and executed in package's directory.
-         [-g, --global]           Creates an old style link file in the special
-                                  `links` directory. It is read by Nim to be
-                                  able to use global develop mode packages.
-                                  Nimble uses it as a global develop file if a
-                                  local one does not exist.
   check                           Verifies the validity of a package in the
                                   current working directory.
   init         [pkgname]          Initializes a new Nimble project in the
@@ -465,9 +460,6 @@ proc getNimbleDir*(options: Options): string =
 
 proc getPkgsDir*(options: Options): string =
   options.getNimbleDir() / nimblePackagesDirName
-
-proc getPkgsLinksDir*(options: Options): string =
-  options.getNimbleDir() / nimblePackagesLinksDirName
 
 proc getBinDir*(options: Options): string =
   options.getNimbleDir() / nimbleBinariesDirName

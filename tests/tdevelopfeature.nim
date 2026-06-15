@@ -6,7 +6,7 @@
 import unittest, os, osproc, strutils, strformat, json, sets
 import testscommon, nimblepkg/displaymessages, nimblepkg/paths
 
-from nimblepkg/common import cd, getLinkFileName, getLinkFileDir
+from nimblepkg/common import cd
 from nimblepkg/developfile import developFileName, pkgFoundMoreThanOnceMsg
 from nimblepkg/version import newVersion, parseVersionRange
 from nimblepkg/nimbledatafile import nimbleDataFileName, NimbleDataJsonKeys
@@ -428,33 +428,6 @@ requires "nim >= 1.6.0"
           pkgAName, installDir / defaultPath / pkgAName))
         check lines.inLines(pkgSetupInDevModeMsg(
           pkgBName, installDir / defaultPath / pkgBName))
-
-  test "can develop global":
-    cleanDir installDir
-    usePackageListFile &"develop/{pkgListFileName}":
-      let dependencyPath = getCurrentDir() / "develop" / "dependency"
-
-      # Check that a link file can be created for a global develop dependency.
-      cd dependencyPath:
-        let (output, exitCode) = execNimble("develop", "--global")
-        check exitCode == QuitSuccess
-        var lines = output.processOutput
-        let linkFilePath = installDir / "links" / depName.getLinkFileDir /
-                           depName.getLinkFileName
-        check lines.inLinesOrdered(pkgLinkFileSavedMsg(linkFilePath))
-        check lines.inLinesOrdered(pkgSetupInDevModeMsg(
-          depName, dependencyPath ))
-        check linkFilePath.fileExists
-        let linkFileLines = linkFilePath.readFile.split('\n')
-        let expectedLinkNimbleFilePath = dependencyPath / depName & ".nimble"
-        check linkFileLines[0] == expectedLinkNimbleFilePath
-        check linkFileLines[1] == dependencyPath
-
-      # Check that a link file can be used for finding the dependency.
-      cd "develop/dependent":
-        cleanFile dependentPkgName.addFileExt(ExeExt)
-        let (_, exitCode) = execNimble("run")
-        check exitCode == QuitSuccess
 
   # Skipped: In vnext, develop does not install dependencies to pkgs2,
   # so the "remove" command can't find them. This reverse-dependency check

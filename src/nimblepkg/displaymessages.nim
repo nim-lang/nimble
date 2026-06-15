@@ -168,5 +168,9 @@ proc notFoundPkgWithNameInPkgDepTree*(pkgName: string): string =
   &"Not found package with name '{pkgName}' in the current package's " &
    "dependency tree."
 
-proc pkgLinkFileSavedMsg*(path: string): string =
-  &"Package link file \"{path}\" is saved."
+const globalDevelopRemovedMsg* =
+  "Global develop mode (`-g`/`--global`) has been removed. It relied on the Nim " &
+  "compiler's implicit `.nimble-link` lookup, which is at odds with Nim's move to " &
+  "explicit module paths. Use local develop instead: run `nimble develop --add <path>` " &
+  "(or `nimble develop <pkg>`) from your project, which generates an explicit " &
+  "`nimble.paths`."
