@@ -1072,21 +1072,6 @@ proc listTasks(options: Options, nimBin: Option[string]) =
   let nimbleFile = findNimbleFile(getCurrentDir(), true, options)
   nimscriptwrapper.listTasks(nimBin, nimbleFile, options)
 
-proc saveLinkFile(pkgInfo: PackageInfo, options: Options) =
-  let
-    pkgName = pkgInfo.basicInfo.name
-    pkgLinkDir = options.getPkgsLinksDir / pkgName.getLinkFileDir
-    pkgLinkFilePath = pkgLinkDir / pkgName.getLinkFileName
-    pkgLinkFileContent = pkgInfo.myPath & "\n" & pkgInfo.getNimbleFileDir
-
-  if pkgLinkDir.dirExists and not options.prompt(
-    &"The link file for {pkgName} already exists. Overwrite?"):
-    return
-
-  pkgLinkDir.createDir
-  writeFile(pkgLinkFilePath, pkgLinkFileContent)
-  displaySuccess(pkgLinkFileSavedMsg(pkgLinkFilePath))
-
 proc developFromDir(pkgInfo: PackageInfo, options: var Options, topLevel = false, nimBin: Option[string]) =
   assert options.action.typ == actionDevelop,
     "This procedure should be called only when executing develop sub-command."
@@ -1102,9 +1087,6 @@ proc developFromDir(pkgInfo: PackageInfo, options: var Options, topLevel = false
 
   # Dependencies are resolved by the SAT solver
   # (via solvePkgs + setup after develop completes)
-
-  if options.action.global:
-    saveLinkFile(pkgInfo, options)
 
   displaySuccess(pkgSetupInDevModeMsg(pkgInfo.basicInfo.name, dir))
 
@@ -1184,6 +1166,8 @@ proc updatePathsFile(pkgInfo: PackageInfo, options: Options, nimBin: Option[stri
 
 proc develop(options: var Options, nimBinParam: Option[string]) =
   var nimBin = nimBinParam
+  if options.action.global:
+    raise nimbleError(globalDevelopRemovedMsg)
   if options.action.path.len == 0:
     # If no path is provided, use the vendor folder as default
     options.action.path = defaultDevelopPath

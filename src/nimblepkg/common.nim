@@ -46,7 +46,6 @@ const
   nimbleVersion* = getVersionFromNimble()
   nimbleUserAgent* = "nimble/" & nimbleVersion
   nimblePackagesDirName* = "pkgs2"
-  nimblePackagesLinksDirName* ="links"
   nimbleBinariesDirName* = "bin"
 
 proc newNimbleError*[ErrorType](msg: string, hint = "",
@@ -113,8 +112,3 @@ template cdNewDir*(dir: string, body: untyped) =
   cd dir:
     body
 
-proc getLinkFileDir*(pkgName: string): string =
-  pkgName & "-#head"
-
-proc getLinkFileName*(pkgName: string): string =
-  pkgName & ".nimble-link"
