@@ -56,6 +56,35 @@ suite "develop feature":
         check lines.inLines(
           pkgSetupInDevModeMsg(pkgBName, installDir / defaultPath / pkgBName))
 
+  test "develop <pkg> outside a project records a free develop file":
+    cdCleanDir installDir:
+      usePackageListFile &"../develop/{pkgListFileName}":
+        let (output, exitCode) = execNimble("develop", pkgBName)
+        check exitCode == QuitSuccess
+        # The free develop file is created and records the developed package.
+        check fileExists(developFileName)
+        check pkgBName.toLowerAscii in readFile(developFileName).toLowerAscii
+
+  test "develop --with-dependencies outside a project records deps in the free develop file":
+    cdCleanDir installDir:
+      usePackageListFile &"../develop/{pkgListFileName}":
+        let (_, exitCode) = execNimble("develop", "--with-dependencies", pkgBName)
+        check exitCode == QuitSuccess
+        check fileExists(developFileName)
+        let devContent = readFile(developFileName).toLowerAscii
+        # The requested package and its develop'd dependency are both recorded.
+        check pkgBName.toLowerAscii in devContent
+        check pkgAName.toLowerAscii in devContent
+
+  test "explicit --developFile wins over the default free develop file":
+    cdCleanDir installDir:
+      usePackageListFile &"../develop/{pkgListFileName}":
+        let (_, exitCode) = execNimble(
+          "develop", pkgBName, "--developFile:custom.develop")
+        check exitCode == QuitSuccess
+        check fileExists("custom.develop")
+        check not fileExists(developFileName)
+
   test "can develop with dependencies":
     cdCleanDir installDir:
       usePackageListFile &"../develop/{pkgListFileName}":

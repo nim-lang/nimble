@@ -1215,7 +1215,7 @@ proc develop(options: var Options, nimBinParam: Option[string]) =
       displayError(&"Cannot install package \"{pkgTup}\" for develop.")
       displayDetails(error)
 
-  if currentDirPkgInfo.isLoaded and not hasDevFile:
+  if (currentDirPkgInfo.isLoaded or hasPackages) and not hasDevFile:
     options.developFile = developFileName
 
   if options.developFile.len > 0:
