@@ -59,7 +59,7 @@ suite "develop feature":
   test "develop <pkg> outside a project records a free develop file":
     cdCleanDir installDir:
       usePackageListFile &"../develop/{pkgListFileName}":
-        let (output, exitCode) = execNimble("develop", pkgBName)
+        let (_, exitCode) = execNimble("develop", pkgBName)
         check exitCode == QuitSuccess
         # The free develop file is created and records the developed package.
         check fileExists(developFileName)
