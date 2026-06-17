@@ -11,6 +11,7 @@ from nimblepkg/version import `$`
 from nimblepkg/sha1hashes import `$`
 from nimblepkg/displaymessages import pkgAlreadyExistsInTheCacheMsg
 from nimblepkg/tools import getNameVersionChecksum
+from nimblepkg/developfile import developFileName
 
 template installAlpha =
   cleanDir installDir
@@ -39,4 +40,5 @@ suite "multi":
 
   test "can develop package from git subdir":
     cleanDir "beta"
+    removeFile developFileName
     check execNimbleYes("develop", pkgMultiBetaUrl).exitCode == QuitSuccess
