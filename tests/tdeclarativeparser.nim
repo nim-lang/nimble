@@ -18,13 +18,13 @@ proc getNimbleFileFromPkgNameHelper(pkgName: string, ver = VersionRange(kind: ve
         "https://nim-lang.org/nimble/packages.json",
       ],
   )
-  options.pkgCachePath = "./nimbleDir/pkgcache"
+  options.pkgCachePath = installDir / "pkgcache"
   let pkgInfo = downloadPkInfoForPv(pv, options, nimBin = some("nim"))
   pkgInfo.myPath
 
 suite "Declarative parsing":
   setup:
-    removeDir("nimbleDir")
+    removeDir(installDir)
 
   test "should parse requires from a nimble file":
     let nimbleFile = getNimbleFileFromPkgNameHelper("nimlangserver")
@@ -67,7 +67,7 @@ suite "Declarative parsing":
           "https://nim-lang.org/nimble/packages.json",
         ],
     )
-    options.pkgCachePath = "./nimbleDir/pkgcache"
+    options.pkgCachePath = installDir / "pkgcache"
     options.noColor = true
     options.verbosity = DebugPriority
     options.localDeps = false

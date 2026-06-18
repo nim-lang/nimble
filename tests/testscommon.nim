@@ -24,7 +24,8 @@ let
   rootDir = getCurrentDir().parentDir
   nimblePath* = rootDir / "src" / addFileExt("nimble", ExeExt)
   nimbleCompilePath = rootDir / "src" / "nimble.nim"
-  installDir* = rootDir / "tests" / "nimbleDir"
+  testWorkDir = getEnv("NIMBLE_TEST_DIR", getTempDir() / "nimble_test_dir")
+  installDir* = testWorkDir / "nimbleDir"
   buildTests* = rootDir / "buildTests"
   pkgsDir* = installDir / nimblePackagesDirName
 

@@ -88,7 +88,7 @@ suite "issues":
   test "do not install single dependency multiple times (#678)":
     # for the test to be correct, the tested package and its dependencies must not
     # exist in the local cache
-    removeDir("nimbleDir")
+    removeDir(installDir)
     cd "issue678":
       testRefresh():
         writeFile(configFile, """
@@ -426,7 +426,7 @@ suite "issues":
         discard
   
   test "issue #1454":
-    removeDir("nimbleDir")
+    removeDir(installDir)
     cd "issue1454":
       let (_, exitCode) = execNimble("setup")
       check exitCode == QuitSuccess
