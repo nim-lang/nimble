@@ -940,3 +940,24 @@ proc validateDevelopFile*(dependentPkg: PackageInfo, options: Options, nimBin: O
   discard load(cache, dependentPkg, options, true, true, nimBin)
   if dependentPkg.areLockedDepsLoaded:
     validateDevelopFileAgainstLockFile(dependentPkg, options, nimBin)
+
+proc developRootVendor*(dir: string): Option[string] =
+  ## If `dir` is a develop dependency listed in some ancestor's develop file,
+  ## return the directory that contains `dir` (where its develop siblings live).
+  ## Otherwise none. Used to keep transitive develop deps flat, not nested.
+  let target = dir.normalizedPath
+  var cur = dir.parentDir
+  while cur.len > 0 and cur != cur.parentDir:
+    let df = cur / developFileName
+    if fileExists(df):
+      var data: DevelopFileJsonData
+      try:
+        fromJson(data, parseFile(df), Joptions(allowExtraKeys: true))
+        for dep in data.dependencies:
+          if not ($dep).isAbsolute: continue
+          if ($dep).normalizedPath == target:
+            return some(dir.parentDir)
+      except CatchableError:
+        discard
+    cur = cur.parentDir
+  return none(string)
