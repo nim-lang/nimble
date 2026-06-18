@@ -2095,6 +2095,13 @@ proc runDevelopAction(options: var Options, nimBin: Option[string]): bool =
   ## Handles `actionDevelop`. Returns `true` if fully handled (caller should
   ## `return`), `false` if the caller should fall through to the normal
   ## solve/install flow (the `--with-dependencies` project-dir case).
+  # When developing inside a package that is itself a vendored develop dep of a
+  # parent workspace, clone new deps next to it (the develop root) so the whole
+  # set stays flat instead of nesting under vendor/<pkg>/vendor/...
+  if options.action.path.len == 0:
+    let root = developRootVendor(getCurrentDir())
+    if root.isSome:
+      options.action.path = root.get.normalizedPath
   if not options.action.withDependencies:
     develop(options, nimBin)
     return true

@@ -68,6 +68,67 @@ suite "develop feature":
         check lines.inLines(
           pkgSetupInDevModeMsg(pkgBName, installDir / defaultPath / pkgBName))
 
+  test "develop inside a vendored package clones deps flat (no nesting)":
+    cdCleanDir installDir:
+      usePackageListFile &"../develop/{pkgListFileName}":
+        # Host project so `develop packageb` records packageb in the project's
+        # nimble.develop (does not rely on the no-host free-develop-file feature).
+        writeFile("host.nimble", """
+version = "0.1.0"
+author = "Test"
+description = "host"
+license = "MIT"
+requires "nim"
+""")
+        let (_, e1) = execNimble("develop", pkgBName)
+        check e1 == QuitSuccess
+        check fileExists(developFileName)
+        var pkgBDir = ""
+        for kind, d in walkDir(installDir / defaultPath):
+          if kind == pcDir and d.splitPath.tail.toLowerAscii.contains("packageb"):
+            pkgBDir = d
+        check pkgBDir.len > 0
+        cd pkgBDir:
+          let (_, e2) = execNimble("develop", "--with-dependencies")
+          check e2 == QuitSuccess
+        var packageaFlat = false
+        var anyNested = false
+        for kind, d in walkDir(installDir / defaultPath):
+          if kind != pcDir: continue
+          if d.splitPath.tail.toLowerAscii.contains("packagea"):
+            packageaFlat = true
+          if dirExists(d / defaultPath):
+            anyNested = true
+        check packageaFlat
+        check not anyNested
+
+  test "develop inside a vendored package respects an explicit --path":
+    cdCleanDir installDir:
+      usePackageListFile &"../develop/{pkgListFileName}":
+        writeFile("host.nimble", """
+version = "0.1.0"
+author = "Test"
+description = "host"
+license = "MIT"
+requires "nim"
+""")
+        let (_, e1) = execNimble("develop", pkgBName)
+        check e1 == QuitSuccess
+        var pkgBDir = ""
+        for kind, d in walkDir(installDir / defaultPath):
+          if kind == pcDir and d.splitPath.tail.toLowerAscii.contains("packageb"):
+            pkgBDir = d
+        check pkgBDir.len > 0
+        cd pkgBDir:
+          let (_, e2) = execNimble("develop", "--with-dependencies", "--path:mydeps")
+          check e2 == QuitSuccess
+          check dirExists("mydeps")
+        var packageaFlat = false
+        for kind, d in walkDir(installDir / defaultPath):
+          if kind == pcDir and d.splitPath.tail.toLowerAscii.contains("packagea"):
+            packageaFlat = true
+        check not packageaFlat
+
   test "develop with dependencies generates nimble.paths with vendor paths":
     cdCleanDir installDir:
       usePackageListFile &"../develop/{pkgListFileName}":
