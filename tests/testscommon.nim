@@ -33,7 +33,15 @@ let
   rootDir = getCurrentDir().parentDir
   nimblePath* = rootDir / "src" / addFileExt("nimble", ExeExt)
   nimbleCompilePath = rootDir / "src" / "nimble.nim"
-  testWorkDir = getEnv("NIMBLE_TEST_DIR", testTempBase() / "nimble_test_dir")
+  testWorkDir =
+    when defined(windows):
+      # Windows MAX_PATH (260): a deep temp base plus packages with long nested
+      # paths (e.g. nim-libp2p → lsquic/boringssl testdata, ~150 chars on their
+      # own) overflow it. Keep the short in-repo location on Windows — the
+      # out-of-repo move is only about local-dev git hygiene on unix.
+      getEnv("NIMBLE_TEST_DIR", rootDir / "tests")
+    else:
+      getEnv("NIMBLE_TEST_DIR", testTempBase() / "nimble_test_dir")
   installDir* = testWorkDir / "nimbleDir"
   # Absolute path to the tests/ dir with the checked-in fixtures (package lists,
   # develop fixtures, …). Tests that `cd` into installDir (now outside the repo)
