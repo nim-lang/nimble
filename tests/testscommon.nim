@@ -20,12 +20,25 @@ const
   pkgMultiAlphaUrl* = &"{pkgMultiUrl}?subdir=alpha"
   pkgMultiBetaUrl* = &"{pkgMultiUrl}?subdir=beta"
 
+proc testTempBase(): string =
+  ## Base dir for the out-of-repo test work tree. On macOS getTempDir() yields a
+  ## /var/folders/… path, but /var is a symlink to /private/var and nimble
+  ## reports the resolved path — so canonicalize here, otherwise test path
+  ## comparisons against installDir would mismatch nimble's output.
+  result = getTempDir()
+  try: result = result.expandFilename
+  except CatchableError: discard
+
 let
   rootDir = getCurrentDir().parentDir
   nimblePath* = rootDir / "src" / addFileExt("nimble", ExeExt)
   nimbleCompilePath = rootDir / "src" / "nimble.nim"
-  testWorkDir = getEnv("NIMBLE_TEST_DIR", getTempDir() / "nimble_test_dir")
+  testWorkDir = getEnv("NIMBLE_TEST_DIR", testTempBase() / "nimble_test_dir")
   installDir* = testWorkDir / "nimbleDir"
+  # Absolute path to the tests/ dir with the checked-in fixtures (package lists,
+  # develop fixtures, …). Tests that `cd` into installDir (now outside the repo)
+  # must reach fixtures through this, not via cwd-relative `../` paths.
+  testsDir* = rootDir / "tests"
   buildTests* = rootDir / "buildTests"
   pkgsDir* = installDir / nimblePackagesDirName
 
