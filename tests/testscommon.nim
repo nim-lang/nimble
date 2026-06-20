@@ -20,7 +20,7 @@ const
   pkgMultiAlphaUrl* = &"{pkgMultiUrl}?subdir=alpha"
   pkgMultiBetaUrl* = &"{pkgMultiUrl}?subdir=beta"
 
-proc testTempBase(): string =
+proc testTempBase(): string {.used.} =  # unused on Windows (see testWorkDir below)
   ## Base dir for the out-of-repo test work tree. On macOS getTempDir() yields a
   ## /var/folders/… path, but /var is a symlink to /private/var and nimble
   ## reports the resolved path — so canonicalize here, otherwise test path
