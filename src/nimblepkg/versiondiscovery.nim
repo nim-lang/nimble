@@ -402,10 +402,15 @@ proc computeDownloadCacheKey*(pv: PkgTuple, options: Options): string =
       # For special cases, use the name as-is
       return pv.name
     else:
-      # For package names, resolve to canonical URL for proper deduplication
+      # For package names, resolve to canonical URL for proper deduplication.
+      # Include the subdir so packages that are different subdirs of the same
+      # repo (e.g. issue678 dependency_1 / dependency_2) get distinct keys.
       try:
         let dlInfo = getPackageDownloadInfo(pv, options, doPrompt = false)
-        return dlInfo.url
+        result = dlInfo.url
+        if dlInfo.subdir.len > 0:
+          result.add "?subdir=" & dlInfo.subdir
+        return result
       except:
         return pv.name
   except:
@@ -413,6 +418,7 @@ proc computeDownloadCacheKey*(pv: PkgTuple, options: Options): string =
 
 proc memoizedDownloadMinimal*(pv: PkgTuple, options: Options, nimBin: Option[string],
     fetch: GetPackageMinimal): Future[seq[PackageMinimalInfo]] {.async.} =
+  {.cast(raises: [CatchableError]).}:
     ## Memoizes version discovery downloads for the lifetime of a resolution pass.
     let cacheKey = computeDownloadCacheKey(pv, options)
 
@@ -429,6 +435,7 @@ proc memoizedDownloadMinimal*(pv: PkgTuple, options: Options, nimBin: Option[str
       raise
 
 proc downloadMinimalPackage*(pv: PkgTuple, options: Options, nimBin: Option[string]): Future[seq[PackageMinimalInfo]] {.async.} =
+  {.cast(raises: [CatchableError]).}:
     ## Async version of downloadMinimalPackage with deduplication.
     ## If multiple calls request the same package concurrently, they share the same download.
     ## Cache key uses canonical package URL (not version) since we download all versions anyway.
