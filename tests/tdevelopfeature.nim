@@ -48,37 +48,35 @@ suite "develop feature":
     cdCleanDir installDir:
       let (output, exitCode) = execNimble("develop", pkgAUrl)
       check exitCode == QuitSuccess
+      # No host project + single package: PackageA is cloned as the root (./PackageA).
+      check dirExists(installDir / pkgAName.toLowerAscii)
       check output.processOutput.inLines(
-        pkgSetupInDevModeMsg(pkgAName, installDir / defaultPath / pkgAName))
+        pkgSetupInDevModeMsg(pkgAName, installDir / pkgAName.toLowerAscii))
 
   test "can develop from package name":
     cdCleanDir installDir:
       usePackageListFile developPkgList:
         let (output, exitCode) = execNimble("develop", pkgBName)
         check exitCode == QuitSuccess
-        var lines = output.processOutput
-        check lines.inLines(
-          pkgSetupInDevModeMsg(pkgBName, installDir / defaultPath / pkgBName))
+        # Single pkg, no host: PackageB is the root; bare (no --with-dependencies)
+        # so its dep PackageA is installed normally, NOT vendored under PackageB/.
+        check dirExists(installDir / pkgBName.toLowerAscii)
+        check not dirExists(
+          installDir / pkgBName.toLowerAscii / defaultPath / pkgAName.toLowerAscii)
+        check output.processOutput.inLines(
+          pkgSetupInDevModeMsg(pkgBName, installDir / pkgBName.toLowerAscii))
 
-  test "develop <pkg> outside a project records a free develop file":
+  test "develop multiple pkgs outside a project records a free develop file":
     cdCleanDir installDir:
       usePackageListFile developPkgList:
-        let (_, exitCode) = execNimble("develop", pkgBName)
-        check exitCode == QuitSuccess
-        # The free develop file is created and records the developed package.
-        check fileExists(developFileName)
-        check pkgBName.toLowerAscii in readFile(developFileName).toLowerAscii
-
-  test "develop --with-dependencies outside a project records deps in the free develop file":
-    cdCleanDir installDir:
-      usePackageListFile developPkgList:
-        let (_, exitCode) = execNimble("develop", "--with-dependencies", pkgBName)
+        # Multiple packages with no host project fall back to a parent free
+        # develop file — there's no single root to attach them to.
+        let (_, exitCode) = execNimble("develop", pkgAName, pkgBName)
         check exitCode == QuitSuccess
         check fileExists(developFileName)
-        let devContent = readFile(developFileName).toLowerAscii
-        # The requested package and its develop'd dependency are both recorded.
-        check pkgBName.toLowerAscii in devContent
-        check pkgAName.toLowerAscii in devContent
+        let dev = readFile(developFileName).toLowerAscii
+        check pkgAName.toLowerAscii in dev
+        check pkgBName.toLowerAscii in dev
 
   test "explicit --developFile wins over the default free develop file":
     cdCleanDir installDir:
@@ -89,17 +87,24 @@ suite "develop feature":
         check fileExists("custom.develop")
         check not fileExists(developFileName)
 
-  test "can develop with dependencies":
+  test "develop <pkg> --with-dependencies (no host) makes the pkg the root":
+    # `nimble develop PackageB --with-dependencies` in a dir with no host project
+    # is equivalent to `git clone PackageB && cd PackageB && nimble develop
+    # --with-dependencies`: PackageB is cloned as the root (./PackageB, not under
+    # vendor/) and its dependency PackageA is vendored under PackageB/vendor/.
     cdCleanDir installDir:
       usePackageListFile developPkgList:
-        let (output, exitCode) = execNimble(
+        let (_, exitCode) = execNimble(
           "develop", "--with-dependencies", pkgBName)
         check exitCode == QuitSuccess
-        var lines = output.processOutput
-        check lines.inLines(
-          pkgSetupInDevModeMsg(pkgAName, installDir / defaultPath / pkgAName))
-        check lines.inLines(
-          pkgSetupInDevModeMsg(pkgBName, installDir / defaultPath / pkgBName))
+        let pkgBRoot = installDir / pkgBName.toLowerAscii
+        # PackageB is the root (./PackageB), NOT vendored under ./vendor/
+        check dirExists(pkgBRoot)
+        check not dirExists(installDir / defaultPath / pkgBName.toLowerAscii)
+        # its dependency PackageA is vendored under PackageB/vendor/
+        check dirExists(pkgBRoot / defaultPath / pkgAName.toLowerAscii)
+        # paths file is generated inside the root package
+        check fileExists(pkgBRoot / "nimble.paths")
 
   test "develop inside a vendored package clones deps flat (no nesting)":
     cdCleanDir installDir:
@@ -250,13 +255,11 @@ requires "nim >= 1.6.0", "packagea"
         check pathsContent.contains(defaultPath)
         check not pathsContent.contains("pkgs2")
 
-  test "bare 'nimble develop' implies --with-dependencies (#1510)":
-    # Regression for develop_issues.md #4 / nim-lang/nimble#1510:
-    # Bare `nimble develop` (no args, no flags) currently does nothing useful.
-    # It should behave as `nimble develop --with-dependencies` — clone deps
-    # into vendor/ and produce nimble.develop + nimble.paths.
-    # `-l` forces local mode (test infra otherwise injects --global, which
-    # selects the legacy global-develop workflow).
+  test "bare 'nimble develop' installs deps without vendoring (#1510)":
+    # Only `--with-dependencies` creates a vendor/. Bare `nimble develop` in a
+    # project installs its dependencies through the regular (non-develop) route
+    # and generates nimble.paths pointing at pkgs2 — no vendor/ is created.
+    # `-l` forces local mode (test infra otherwise injects --global).
     cdCleanDir installDir:
       usePackageListFile developPkgList:
         writeFile("testproject.nimble", &"""
@@ -268,13 +271,13 @@ requires "nim >= 1.6.0", "packagea"
 """)
         let (_, exitCode) = execNimble("develop", "-l")
         check exitCode == QuitSuccess
-        check dirExists(getCurrentDir() / defaultPath / "packagea")
-        check fileExists("nimble.develop")
+        # bare ⇒ no vendor/ is created
+        check not dirExists(getCurrentDir() / defaultPath / "packagea")
         check fileExists("nimble.paths")
         let pathsContent = readFile("nimble.paths")
         check pathsContent.toLowerAscii.contains("packagea")
-        check pathsContent.contains(defaultPath)
-        check not pathsContent.contains("pkgs2")
+        # deps come from the regular install location, not a vendor
+        check pathsContent.contains("pkgs2")
 
   test "nimble path respects develop file (#1344)":
     # `nimble path <pkg>` only consulted installed packages in pkgs2/,

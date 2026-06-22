@@ -2102,8 +2102,62 @@ proc runDevelopAction(options: var Options, nimBin: Option[string]): bool =
     let root = developRootVendor(getCurrentDir())
     if root.isSome:
       options.action.path = root.get.normalizedPath
+
+  # No host project + exactly one requested package + no explicit `-p`: clone the
+  # package AS the root (./<pkg>, not ./vendor/<pkg>) and run develop on it — the
+  # "git clone <pkg> && cd <pkg> && nimble develop" model. With --with-dependencies
+  # its deps are vendored under <pkg>/vendor/; without, they go through the regular
+  # install route. Either way a usable <pkg>/nimble.paths is generated.
+  if not options.thereIsNimbleFile and
+     options.action.packages.len == 1 and
+     options.action.devActions.len == 0 and
+     options.action.path.len == 0 and
+     options.developFile.len == 0:
+    var nimBinLocal = nimBin
+    if nimBinLocal.isNone:
+      nimBinLocal = some(ensureBootstrapNim(options))
+    let withDeps = options.action.withDependencies
+    options.action.path = "."  # clone destination is ./<pkg>
+    var rootPkg: PackageInfo
+    try:
+      rootPkg = installDevelopPackage(options.action.packages[0], options, nimBinLocal)
+    except CatchableError as error:
+      displayError(&"Cannot install package \"{options.action.packages[0]}\" for develop.")
+      displayDetails(error)
+      return true
+    let rootDir = rootPkg.getNimbleFileDir
+    cd rootDir:
+      # Now behave as if the user had cd'd into the cloned package and run develop.
+      options.satResult = initSATResult(satSolving)
+      solvePkgs(rootPkg, options, nimBinLocal)
+      if withDeps:
+        options.action.path = defaultDevelopPath  # vendor deps under <pkg>/vendor/
+        developFromSolution(rootPkg.basicInfo.name, options, nimBinLocal)
+      else:
+        options.satResult.installPkgs(options, nimBinLocal)  # regular (non-develop) install
+        options.satResult.addReverseDeps(options)
+      setup(options, nimBinLocal)  # generate <pkg>/nimble.paths (+ config.nims)
+    displayInfo(&"cd {rootDir.splitPath.tail} to start working", HighPriority)
+    return true
+
   if not options.action.withDependencies:
     develop(options, nimBin)
+    # Bare develop in a project installs its deps through the regular (non-develop)
+    # route and generates nimble.paths — only --with-dependencies vendors.
+    if options.thereIsNimbleFile and options.action.devActions.len == 0:
+      var nimBinLocal = nimBin
+      if nimBinLocal.isNone:
+        nimBinLocal = some(ensureBootstrapNim(options))
+      try:
+        let rootPkg = getPkgInfo(getCurrentDir(), options, nimBin = nimBinLocal)
+        options.satResult = initSATResult(satSolving)
+        solvePkgs(rootPkg, options, nimBinLocal)
+        options.satResult.installPkgs(options, nimBinLocal)
+        options.satResult.addReverseDeps(options)
+        setup(options, nimBinLocal)
+      except CatchableError as error:
+        displayError("Could not install dependencies for develop.")
+        displayDetails(error)
     return true
   # With dependencies: clone only the explicitly requested packages first
   var developedPkgs: seq[PackageInfo] = @[]
@@ -2404,17 +2458,6 @@ when isMainModule:
     if opt.action.typ in {actionTasks, actionRun, actionBuild, actionCompile, actionDevelop}:
       # Implicitly disable package validation for these commands.
       opt.disableValidation = true
-    
-    #no arg develop action is --withDependencies
-    if opt.action.typ == actionDevelop and
-       opt.action.packages.len == 0 and
-       opt.action.devActions.len == 0 and
-       opt.action.path.len == 0 and
-       not opt.action.withDependencies and
-       not opt.action.global and
-       not opt.explicitGlobal and
-       opt.thereIsNimbleFile:
-      opt.action.withDependencies = true
     
     # Actions that don't go through the main resolving pipeline (no SAT solve / install).
     const nonResolvingActions = {actionNil, actionRefresh, actionInit, actionDump,

@@ -56,10 +56,15 @@ suite "project local deps mode":
       check dirExists("nimbledeps")
 
   test "localdeps develop":
+    # With no host project, `develop <pkg>` clones the package as the root (./packagea).
+    # `--localdeps` installs its dependencies into the package's own nimbledeps,
+    # not into a vendor dir and not into the current directory.
     cleanDir("nimbledeps")
+    cleanDir("packagea")
     cleanDir(defaultDevelopPath)
     let (_, exitCode) = execCmdEx(nimblePath &
       &" develop {pkgAUrl} --localdeps -y")
     check exitCode == QuitSuccess
-    check dirExists(defaultDevelopPath / "packagea" / "nimbledeps")
+    check dirExists("packagea" / "nimbledeps")
     check not dirExists("nimbledeps")
+    check not dirExists(defaultDevelopPath)
