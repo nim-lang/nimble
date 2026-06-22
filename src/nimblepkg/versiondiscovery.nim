@@ -393,47 +393,46 @@ proc downloadMinimalPackageImpl(pv: PkgTuple, options: Options, nimBin: Option[s
       except CatchableError:
         discard
 
-proc downloadMinimalPackage*(pv: PkgTuple, options: Options, nimBin: Option[string]): Future[seq[PackageMinimalInfo]] {.async.} =
-  {.cast(raises: [CatchableError]).}:
-    ## Async version of downloadMinimalPackage with deduplication.
-    ## If multiple calls request the same package concurrently, they share the same download.
-    ## Cache key uses canonical package URL (not version) since we download all versions anyway.
+proc computeDownloadCacheKey*(pv: PkgTuple, options: Options): string =
+  ## Canonical cache key for a package's version discovery download.
+  ## Uses the package URL (not the version) since we download all versions anyway,
+  ## so name- and URL-based requirements for the same repo can share one download.
+  try:
+    if pv.name.isFileURL or pv.name.isURL or (pv.isNim and not options.disableNimBinaries):
+      # For special cases, use the name as-is
+      return pv.name
+    else:
+      # For package names, resolve to canonical URL for proper deduplication
+      try:
+        let dlInfo = getPackageDownloadInfo(pv, options, doPrompt = false)
+        return dlInfo.url
+      except:
+        return pv.name
+  except:
+    pv.name
 
-    # Get canonical URL to use as cache key (handles both short names and full URLs)
-    var cacheKey: string
-    try:
-      if pv.name.isFileURL or pv.name == "" or (pv.isNim and not options.disableNimBinaries):
-        # For special cases, use the name as-is
-        cacheKey = pv.name
-      elif pv.name.isUrl:
-        # For direct URLs (including subdirectories), use the URL as-is
-        # Don't normalize because subdirectories must be treated as separate packages
-        cacheKey = pv.name
-      else:
-        # For package names, resolve to canonical URL for proper deduplication
-        try:
-          let dlInfo = getPackageDownloadInfo(pv, options, doPrompt = false)
-          cacheKey = dlInfo.url
-        except:
-          # If resolution fails, fall back to using name
-          cacheKey = pv.name
-    except:
-      # If any check fails, use name as-is
-      cacheKey = pv.name
+proc memoizedDownloadMinimal*(pv: PkgTuple, options: Options, nimBin: Option[string],
+    fetch: GetPackageMinimal): Future[seq[PackageMinimalInfo]] {.async.} =
+    ## Memoizes version discovery downloads for the lifetime of a resolution pass.
+    let cacheKey = computeDownloadCacheKey(pv, options)
 
-    # Check if download is already in progress (concurrent dedup)
     if downloadCache.hasKey(cacheKey):
       return await downloadCache[cacheKey]
 
-    # Start new download and cache the future for concurrent dedup
-    let downloadFuture = downloadMinimalPackageImpl(pv, options, nimBin)
+    let downloadFuture = fetch(pv, options, nimBin)
     downloadCache[cacheKey] = downloadFuture
 
     try:
       result = await downloadFuture
-    finally:
-      # Remove after completion — cache is only for concurrent dedup within a single pass
+    except CatchableError:
       downloadCache.del(cacheKey)
+      raise
+
+proc downloadMinimalPackage*(pv: PkgTuple, options: Options, nimBin: Option[string]): Future[seq[PackageMinimalInfo]] {.async.} =
+    ## Async version of downloadMinimalPackage with deduplication.
+    ## If multiple calls request the same package concurrently, they share the same download.
+    ## Cache key uses canonical package URL (not version) since we download all versions anyway.
+    return await memoizedDownloadMinimal(pv, options, nimBin, downloadMinimalPackageImpl)
 
 proc fillPackageTableFromPreferred*(packages: var Table[string, PackageVersions], preferredPackages: seq[PackageMinimalInfo]) =
   for pkg in preferredPackages:
