@@ -75,3 +75,11 @@ nimbledeps
 nimble.develop
 nimble.paths
 docs/
+
+# Test-generated artifacts (test nimbleDir, vendored deps, downloaded packages).
+# NOTE: nim-version fixture dirs like tests/nimnimble/nim1.6.20/ are TRACKED — do
+# not ignore them. The actual nim/dep downloads land in nimbledeps/ and
+# tests/nimbleDir/ (already ignored), plus vendor/ and gitlabcom_* below.
+tests/nimbleDir/
+vendor/
+gitlabcom_*

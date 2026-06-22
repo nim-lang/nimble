@@ -7,7 +7,7 @@ from nimblepkg/common import cd
 
 suite "Global install":
   test "can install a package with a binDir directory":
-    removeDir("nimbleDir")
+    removeDir(installDir)
     defer:
       removeDir("globalinstall")
     createDir("globalinstall")

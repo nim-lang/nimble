@@ -64,7 +64,7 @@ suite "Task level dependencies":
       check tasks["test"]["unittest2"]["version"].getStr() == "0.0.4"
 
   test "Task dependencies from lock file are used":
-    removeDir("nimbleDir")
+    removeDir(installDir)
     inDir:
       makeLockFile()
       uninstallDeps()

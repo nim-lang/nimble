@@ -30,6 +30,10 @@ suite "develop feature":
     defaultPath = "vendor"
   
   let anyVersion = parseVersionRange("")
+  # Absolute path to the develop package list fixture. Tests below `cd` into
+  # installDir (outside the repo), so the old cwd-relative `../develop/...`
+  # spelling no longer resolves to tests/develop/. Anchor it absolutely.
+  let developPkgList = testsDir / "develop" / pkgListFileName
 
   test "can develop from dir with srcDir":
     cd &"develop/{pkgSrcDirTestName}":
@@ -49,7 +53,7 @@ suite "develop feature":
 
   test "can develop from package name":
     cdCleanDir installDir:
-      usePackageListFile &"../develop/{pkgListFileName}":
+      usePackageListFile developPkgList:
         let (output, exitCode) = execNimble("develop", pkgBName)
         check exitCode == QuitSuccess
         var lines = output.processOutput
@@ -58,7 +62,7 @@ suite "develop feature":
 
   test "develop <pkg> outside a project records a free develop file":
     cdCleanDir installDir:
-      usePackageListFile &"../develop/{pkgListFileName}":
+      usePackageListFile developPkgList:
         let (_, exitCode) = execNimble("develop", pkgBName)
         check exitCode == QuitSuccess
         # The free develop file is created and records the developed package.
@@ -67,7 +71,7 @@ suite "develop feature":
 
   test "develop --with-dependencies outside a project records deps in the free develop file":
     cdCleanDir installDir:
-      usePackageListFile &"../develop/{pkgListFileName}":
+      usePackageListFile developPkgList:
         let (_, exitCode) = execNimble("develop", "--with-dependencies", pkgBName)
         check exitCode == QuitSuccess
         check fileExists(developFileName)
@@ -78,7 +82,7 @@ suite "develop feature":
 
   test "explicit --developFile wins over the default free develop file":
     cdCleanDir installDir:
-      usePackageListFile &"../develop/{pkgListFileName}":
+      usePackageListFile developPkgList:
         let (_, exitCode) = execNimble(
           "develop", pkgBName, "--developFile:custom.develop")
         check exitCode == QuitSuccess
@@ -87,7 +91,7 @@ suite "develop feature":
 
   test "can develop with dependencies":
     cdCleanDir installDir:
-      usePackageListFile &"../develop/{pkgListFileName}":
+      usePackageListFile developPkgList:
         let (output, exitCode) = execNimble(
           "develop", "--with-dependencies", pkgBName)
         check exitCode == QuitSuccess
@@ -99,7 +103,7 @@ suite "develop feature":
 
   test "develop inside a vendored package clones deps flat (no nesting)":
     cdCleanDir installDir:
-      usePackageListFile &"../develop/{pkgListFileName}":
+      usePackageListFile developPkgList:
         # Host project so `develop packageb` records packageb in the project's
         # nimble.develop (does not rely on the no-host free-develop-file feature).
         writeFile("host.nimble", """
@@ -133,7 +137,7 @@ requires "nim"
 
   test "develop inside a vendored package respects an explicit --path":
     cdCleanDir installDir:
-      usePackageListFile &"../develop/{pkgListFileName}":
+      usePackageListFile developPkgList:
         writeFile("host.nimble", """
 version = "0.1.0"
 author = "Test"
@@ -160,7 +164,7 @@ requires "nim"
 
   test "develop with dependencies generates nimble.paths with vendor paths":
     cdCleanDir installDir:
-      usePackageListFile &"../develop/{pkgListFileName}":
+      usePackageListFile developPkgList:
         # Create a project that requires packagea (available in the test package list)
         writeFile("testproject.nimble", &"""
 version = "0.1.0"
@@ -192,7 +196,7 @@ requires "nim >= 1.6.0", "packagea"
             getPackageDir(pkgsDir, "PackageA-").len > 0
     # Step 2: Create a project that requires packagea and run develop --withDeps
     cdCleanDir installDir / "testproject":
-      usePackageListFile &"../../develop/{pkgListFileName}":
+      usePackageListFile developPkgList:
         writeFile("testproject.nimble", """
 version = "0.1.0"
 author = "Test"
@@ -215,7 +219,7 @@ requires "nim >= 1.6.0", "packagea"
 
   test "develop prefers vendor over cached versions (hasVersion shadowing bug)":
     cdCleanDir installDir:
-      usePackageListFile &"../develop/{pkgListFileName}":
+      usePackageListFile developPkgList:
         # Seed tagged_versions.json cache with packagea
         let pkgCacheDir = installDir / "pkgcache"
         createDir(pkgCacheDir)
@@ -254,7 +258,7 @@ requires "nim >= 1.6.0", "packagea"
     # `-l` forces local mode (test infra otherwise injects --global, which
     # selects the legacy global-develop workflow).
     cdCleanDir installDir:
-      usePackageListFile &"../develop/{pkgListFileName}":
+      usePackageListFile developPkgList:
         writeFile("testproject.nimble", &"""
 version = "0.1.0"
 author = "Test"
@@ -278,7 +282,7 @@ requires "nim >= 1.6.0", "packagea"
     # for the path of a vendored dep should return the vendor path, not a
     # cached pkgs2/ copy (and must succeed even if pkgs2/ has no entry).
     cdCleanDir installDir:
-      usePackageListFile &"../develop/{pkgListFileName}":
+      usePackageListFile developPkgList:
         writeFile("testproject.nimble", &"""
 version = "0.1.0"
 author = "Test"
@@ -459,7 +463,7 @@ requires "nim >= 1.6.0", "depa == 0.1.0"
     # which produced the invalid string `== #head` and crashed with
     # "Unexpected char in version range '== #head': #".
     cdCleanDir installDir:
-      usePackageListFile &"../develop/{pkgListFileName}":
+      usePackageListFile developPkgList:
         writeFile("testproject.nimble", &"""
 version = "0.1.0"
 author = "Test"
@@ -509,7 +513,7 @@ requires "nim >= 1.6.0"
 
   test "can develop list of packages":
     cdCleanDir installDir:
-      usePackageListFile &"../develop/{pkgListFileName}":
+      usePackageListFile developPkgList:
         let (output, exitCode) = execNimble(
           "develop", pkgAName, pkgBName)
         check exitCode == QuitSuccess
@@ -1349,7 +1353,7 @@ requires "nim >= 1.6.0", "mylib"
   test "add develop --with-dependencies packages to free develop file":
     cdCleanDir installDir:
       const developFile = "develop.json"
-      usePackageListFile &"../develop/{pkgListFileName}":
+      usePackageListFile developPkgList:
         let (output, exitCode) = execNimble("--debug", "develop",
           "--with-dependencies", &"--develop-file:{developFile}", pkgBName)
         check exitCode == QuitSuccess

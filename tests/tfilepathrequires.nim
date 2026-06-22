@@ -7,23 +7,23 @@ import nimble
 
 suite "file path requires":
   test "can specify a dependency as a file path":
-    removeDir "nimbleDir"
+    removeDir installDir
     cd "filepathrequires/mainfile":
       let (_, exitCode) = execNimble("run", "--requires: file://../depfile")
       check exitCode == QuitSuccess
     #Make sure the package wasnt installed
-    let pkgCounts = walkDir("nimbleDir/pkgs2/").toSeq.len
+    let pkgCounts = walkDir(pkgsDir).toSeq.len
     check pkgCounts == 1 #Depfile depends on results so it should be installed
         
   test "can specify a dependency as an absolute path":
-    removeDir "nimbleDir"
+    removeDir installDir
     let depPath = getCurrentDir() / "filepathrequires" / "depfile"
     cd "filepathrequires/mainfile":
       let (_, exitCode) = execNimble("run", "--requires: file://" & depPath)
       check exitCode == QuitSuccess
 
   test "can specify a dependency with a space in the path":
-    removeDir "nimbleDir"
+    removeDir installDir
     cd "filepathrequires/mainfile":
       let depPath = "../space folder/dep2file"
       let allReqs = @["file://" & depPath, "file://../depfile"] #we need to add depfile as the main package needs it
@@ -33,17 +33,17 @@ suite "file path requires":
   test "should override a version requirement": 
     #depfile depends on results 0.5.0
     #we are going to use our custom version results (0.5.1)
-    removeDir "nimbleDir"
+    removeDir installDir
     cd "filepathrequires/mainfile":
       let (_, exitCode) = execNimble("run", "-d:withResults", "--requires: file://../depfile;file://../nim-results")
       check exitCode == QuitSuccess
     #Make sure the package wasnt installed
-    let pkgCounts = walkDir("nimbleDir/pkgs2/").toSeq.len
+    let pkgCounts = walkDir(pkgsDir).toSeq.len
     check pkgCounts == 0 #Should not install anything as depfile dep should be overridden by the custom version
     
 
   test "can add new deps to the new package":
-    removeDir "nimbleDir"
+    removeDir installDir
     let depRequire = """requires "unittest2""""
     let resultsNimblePath = getCurrentDir() / "filepathrequires" / "nim-results"
     let resultsNimble = readFile(resultsNimblePath / "results.nimble")
@@ -56,11 +56,11 @@ suite "file path requires":
       let (_, exitCode) = execNimble("run", "-d:withResults", "--requires: file://../depfile;file://../nim-results")
       check exitCode == QuitSuccess
     #Make sure the package wasnt installed
-    let pkgCounts = walkDir("nimbleDir/pkgs2/").toSeq.len
+    let pkgCounts = walkDir(pkgsDir).toSeq.len
     check pkgCounts == 1 #Should install the new dep on results
 
   test "can specify transitive dependencies": 
-    removeDir "nimbleDir"
+    removeDir installDir
     cd "filepathrequires/mainfile":
       let (_, exitCode) = execNimble("run", "--requires: file://../dep3file")
       check exitCode == QuitSuccess
