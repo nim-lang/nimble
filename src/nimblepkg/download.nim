@@ -1,7 +1,7 @@
 # Copyright (C) Dominik Picheta. All rights reserved.
 # BSD License. Look at license.txt for more info.
 
-import parseutils, os, strutils, tables, uri, strformat,
+import parseutils, os, strutils, strscans, tables, uri, strformat,
        httpclient, sequtils, urls, chronos, std/options
 
 import compat/[json, osproc]
@@ -243,17 +243,25 @@ proc getTagsListRemoteAsync*(url: string, meth: DownloadMethod): Future[seq[stri
     # http://stackoverflow.com/questions/2039150/show-tags-for-remote-hg-repository
     raise nimbleError("Hg doesn't support remote tag querying.")
 
+proc isReleaseVersionTag*(tag: string): bool =
+  ## True if `tag` looks like a real release version tag: an optional non-digit
+  ## prefix (e.g. `v`, `release-`) followed by a dotted numeric version with at
+  ## least a major.minor (`1.2`, `v0.6.0`, `23.2.0-rc1`). Junk tags (`nightly`,
+  ## `delete`, `201903-testnet0`, `altona_v1`, `altair-beta`) are rejected so
+  ## they are not parsed into bogus versions that pollute version discovery
+  let i = skipUntil(tag, Digits)   # skip an optional non-digit prefix (e.g. `v`)
+  var major, minor: int
+  i < tag.len and scanf(tag[i .. ^1], "$i.$i", major, minor)
+
 proc getVersionList*(tags: seq[string]): OrderedTable[Version, string] =
   ## Return an ordered table of Version -> git tag label.  Ordering is
   ## in descending order with the most recent version first.
   let taggedVers: seq[tuple[ver: Version, tag: string]] =
     tags
-      .filterIt(it != "")
+      .filterIt(it != "" and it.isReleaseVersionTag)
       .map(proc(s: string): tuple[ver: Version, tag: string] =
         # skip any chars before the version
         let i = skipUntil(s, Digits)
-        # TODO: Better checking, tags can have any
-        # names. Add warnings and such.
         result = (newVersion(s[i .. s.len-1]), s))
       .sorted(proc(a, b: (Version, string)): int = cmp(a[0], b[0]),
               SortOrder.Descending)

@@ -333,3 +333,24 @@ suite "Version Discovery":
 
     # Different special versions should have different directories
     check cacheDir4 != cacheDir5
+
+  test "getVersionList ignores tags that are not real version tags":
+    let tags = @[
+      "v1.0.0", "0.6.0", "v23.2.0-rc1", "v1.0.5",       # real version tags
+      "201903-testnet0", "delete", "nightly", "latest", # junk
+      "not_a_release_0", "altona_v1", "altair-beta",    # junk
+    ]
+    let kept = toSeq(getVersionList(tags).values)
+    # real version tags are kept
+    check "v1.0.0" in kept
+    check "0.6.0" in kept
+    check "v23.2.0-rc1" in kept
+    check "v1.0.5" in kept
+    # junk tags are dropped
+    check "201903-testnet0" notin kept
+    check "delete" notin kept
+    check "nightly" notin kept
+    check "latest" notin kept
+    check "not_a_release_0" notin kept
+    check "altona_v1" notin kept
+    check "altair-beta" notin kept
