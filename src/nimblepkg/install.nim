@@ -342,6 +342,26 @@ proc installFromDirDownloadInfo(nimBin: Option[string], downloadDir: string, url
       if pv.ver.kind == verSpecial:
         pkgInfo.metadata.specialVersions.incl pv.ver.spe
 
+      # Cache parsed requires/features to avoid re-parsing installed packages at runtime
+      let nimbleFileInfo = extractRequiresInfo(pkgInfo.myPath, options)
+      proc serializeRequires(dep: PkgTuple): string =
+        ## Serializes a PkgTuple to a string that parseRequires can parse.
+        ## Matches toJsonHook behavior: no space for verSpecial, space for others.
+        case dep.ver.kind
+        of verAny: dep.name
+        of verSpecial: dep.name & $dep.ver
+        else: dep.name & " " & $dep.ver
+      pkgInfo.metaData.requires = pkgInfo.requires.map(serializeRequires)
+      for feature, reqs in pkgInfo.features:
+        pkgInfo.metaData.features[feature] = reqs.map(serializeRequires)
+      pkgInfo.metaData.srcDir = pkgInfo.srcDir
+      pkgInfo.metaData.paths = pkgInfo.paths
+      for hook in pkgInfo.preHooks:
+        pkgInfo.metaData.preHooks.add hook
+      for hook in pkgInfo.postHooks:
+        pkgInfo.metaData.postHooks.add hook
+      pkgInfo.metaData.nestedRequires = nimbleFileInfo.nestedRequires
+
       saveMetaData(pkgInfo.metaData, pkgDestDir)
 
       # Run after-install hook

@@ -687,6 +687,10 @@ proc toRequiresInfo*(pkgInfo: PackageInfo, options: Options, nimBin: Option[stri
     display("Warning", msg, Warning, HighPriority)
     raise newNimbleError[BabelPackageError](msg)
 
+  # Skip re-parsing installed packages that have cached requires in metadata
+  if pkgInfo.source == psInstalled and pkgInfo.requires.len > 0 and pkgInfo.infoKind >= pikRequires:
+    return pkgInfo
+
   let nimbleFileInfo = nimbleFileInfo.get(extractRequiresInfo(pkgInfo.myPath, options))
   result.requires = getRequires(nimbleFileInfo, result.activeFeatures)
   if pkgInfo.basicInfo.name.isNim:
