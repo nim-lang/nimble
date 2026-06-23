@@ -434,6 +434,58 @@ else:
     var options = initOptions()
     check isParsableByDeclarative(content, options) == false
 
+  test "non-literal version flags nfiNonLiteralVersion, not a hard error":
+    # Real beacon_chain.nimble shape: `version` is an identifier imported from
+    # another module (a computed const). The declarative parser can't resolve it
+    # without running code, so it records a distinct issue (nfiNonLiteralVersion)
+    # that routes the file to the VM parser 
+    let content = """
+mode = ScriptMode.Verbose
+
+import
+  beacon_chain/version as ver
+
+packageName   = "beacon_chain"
+version       = versionAsStr
+author        = "Status Research & Development GmbH"
+description   = "Eth2.0 research implementation of the beacon chain"
+license       = "MIT or Apache License 2.0"
+
+requires "nim >= 1.6.0"
+requires "chronos"
+"""
+    var options = initOptions()
+    let info = extractRequiresInfoFromContent(content, options)
+    check nfiNonLiteralVersion in info.issues   # the distinct issue for this case
+    check nfiNestedRequires notin info.issues   # not conflated with nested requires
+    check info.requiresVmFallback               # routes to the VM parser
+    check not info.hasErrors                    # but NOT a hard parse error
+    var activeFeatures = initTable[PkgTuple, seq[string]]()
+    let reqs = info.getRequires(activeFeatures)
+    check reqs.anyIt(it.name == "chronos")
+    # Not parseable by the declarative path alone -> routes to the VM fallback.
+    check isParsableByDeclarative(content, options) == false
+
+  test "non-literal version: VM fallback computes the real version":
+    let testDir = "test_nonliteral_version"
+    removeDir(testDir)
+    createDir(testDir / "pkgnlv")
+    writeFile(testDir / "pkgnlv" / "buildver.nim", "const pkgVersion* = \"0.5.0\"\n")
+    writeFile(testDir / "pkgnlv.nimble", """
+import pkgnlv/buildver
+version       = pkgVersion
+author        = "test"
+description   = "non-literal version package"
+license       = "MIT"
+
+requires "nim"
+""")
+    var options = initOptions()
+    options.nimBin = some options.makeNimBin("nim")
+    let pkgInfo = getPkgInfo(testDir, options, nimBin = some("nim"), level = pikRequires)
+    check pkgInfo.basicInfo.version == newVersion("0.5.0")
+    removeDir(testDir)
+
 suite "fileHasStateModifyingOps":
   test "should detect state ops in fixture with mkDir":
     check fileHasStateModifyingOps("buildInstall/pkgWithStateOps/pkgWithStateOps.nimble") == true

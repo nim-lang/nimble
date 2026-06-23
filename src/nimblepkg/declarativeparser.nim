@@ -14,21 +14,38 @@ import sha1hashes, vcstools, urls
 import std/[tables, strscans, strformat, os, options, sets, times]
 import tools
 
-type NimbleFileInfo* = object
-  nimbleFile*: string
-  requires*: seq[string]
-  srcDir*: string
-  version*: string
-  tasks*: seq[(string, string)]
-  features*: Table[string, seq[string]]
-  bin*: Table[string, string]
-  paths*: seq[string]
-  preHooks*: HashSet[string]
-  postHooks*: HashSet[string]
-  hasErrors*: bool
-  nestedRequires*: bool #if true, the requires section contains nested requires meaning that the package is incorrectly defined
-  declarativeParserErrorLines*: seq[string]
-  #This means we will need to re-run sat after selecting nim to get the correct requires
+type
+  NimbleFileIssue* = enum
+    ## Conditions the declarative parser detected that prevent fully static
+    ## parsing. Most route the nimble file to the VM parser fallback so the
+    ## value can be evaluated; a parse error is a genuine failure instead.
+    nfiParseError          ## hard parse/validation error (syntax, invalid literal)
+    nfiNestedRequires      ## `requires`/`taskRequires` nested in control flow
+    nfiNonLiteralVersion   ## `version` assigned a non-string-literal expression
+
+  NimbleFileInfo* = object
+    nimbleFile*: string
+    requires*: seq[string]
+    srcDir*: string
+    version*: string
+    tasks*: seq[(string, string)]
+    features*: Table[string, seq[string]]
+    bin*: Table[string, string]
+    paths*: seq[string]
+    preHooks*: HashSet[string]
+    postHooks*: HashSet[string]
+    issues*: set[NimbleFileIssue]
+      ## Problems found while parsing; empty means fully statically parseable.
+    declarativeParserErrorLines*: seq[string]
+
+proc hasErrors*(info: NimbleFileInfo): bool =
+  nfiParseError in info.issues
+
+proc nestedRequires*(info: NimbleFileInfo): bool =
+  nfiNestedRequires in info.issues
+
+proc requiresVmFallback*(info: NimbleFileInfo): bool =
+  {nfiNestedRequires, nfiNonLiteralVersion} * info.issues != {}
 
 proc eqIdent(a, b: string): bool {.inline.} =
   cmpIgnoreCase(a, b) == 0 and a[0] == b[0]
@@ -52,34 +69,32 @@ proc collectRequiresFromNode(n: PNode, result: var seq[string]) =
   else:
     discard
 
-proc validateNoNestedRequires(nfl: var NimbleFileInfo, n: PNode, conf: ConfigRef, hasErrors: var bool, nestedRequires: var bool, inControlFlow: bool = false) =
+proc validateNoNestedRequires(nfl: var NimbleFileInfo, n: PNode, conf: ConfigRef, inControlFlow: bool = false) =
   case n.kind
   of nkStmtList, nkStmtListExpr:
     for child in n:
-      validateNoNestedRequires(nfl, child, conf, hasErrors, nestedRequires, inControlFlow)
+      validateNoNestedRequires(nfl, child, conf, inControlFlow)
   of nkWhenStmt, nkIfStmt, nkIfExpr, nkElifBranch, nkElse, nkElifExpr, nkElseExpr:
     for child in n:
-      validateNoNestedRequires(nfl, child, conf, hasErrors, nestedRequires, true)
+      validateNoNestedRequires(nfl, child, conf, true)
   of nkCallKinds:
     if n[0].kind == nkIdent:
       if n[0].ident.s == "requires":
         if inControlFlow:
-          nestedRequires = true
+          nfl.issues.incl nfiNestedRequires
           let errorLine = &"{nfl.nimbleFile}({n.info.line}, {n.info.col}) 'requires' cannot be nested inside control flow statements"
           nfl.declarativeParserErrorLines.add errorLine
-          hasErrors = true
       elif n[0].ident.s == "taskRequires":
         # taskRequires is not supported in declarative parser yet
-        nestedRequires = true
+        nfl.issues.incl nfiNestedRequires
         let errorLine = &"{nfl.nimbleFile}({n.info.line}, {n.info.col}) 'taskRequires' is not supported in declarative parser"
         nfl.declarativeParserErrorLines.add errorLine
-        hasErrors = true
       else:
         for child in n:
-          validateNoNestedRequires(nfl, child, conf, hasErrors, nestedRequires, inControlFlow)
+          validateNoNestedRequires(nfl, child, conf, inControlFlow)
     else:
       for child in n:
-        validateNoNestedRequires(nfl, child, conf, hasErrors, nestedRequires, inControlFlow)
+        validateNoNestedRequires(nfl, child, conf, inControlFlow)
   else:
     discard
 
@@ -97,7 +112,7 @@ proc extractSeqLiteral(n: PNode, conf: ConfigRef, varName: string): seq[string] 
   else:
     localError(conf, n.info, &"'{varName}' must be assigned a sequence with @ prefix")
 
-proc validateFileUrlRequires(nfl: var NimbleFileInfo, n: PNode, conf: ConfigRef, hasErrors: var bool, nestedRequires: var bool, currentFeature: string = "", options: Options) =  
+proc validateFileUrlRequires(nfl: var NimbleFileInfo, n: PNode, conf: ConfigRef, currentFeature: string = "", options: Options) =
   if options.isFilePathDiscovering:
     return
   let pkgPaths = options.filePathPkgs.mapIt(it.myPath)
@@ -105,7 +120,7 @@ proc validateFileUrlRequires(nfl: var NimbleFileInfo, n: PNode, conf: ConfigRef,
   case n.kind
   of nkStmtList, nkStmtListExpr:
     for child in n:
-      validateFileUrlRequires(nfl, child, conf, hasErrors, nestedRequires, currentFeature, options)
+      validateFileUrlRequires(nfl, child, conf, currentFeature, options)
   of nkCallKinds:
     if n[0].kind == nkIdent and n[0].ident.s == "requires":
       for i in 1 ..< n.len:
@@ -114,7 +129,7 @@ proc validateFileUrlRequires(nfl: var NimbleFileInfo, n: PNode, conf: ConfigRef,
           ch = ch.lastSon
         if ch.kind in {nkStrLit .. nkTripleStrLit}:
           let requireStr = ch.strVal
-          if requireStr.isFileURL and not isAllowedToHaveFileUrlRequires:            
+          if requireStr.isFileURL and not isAllowedToHaveFileUrlRequires:
             let errorLine = &"{nfl.nimbleFile}({n.info.line}, {n.info.col}) 'file://' requires are only allowed in top level requires or requires opened from a file:// require"
             # echo "Allowed to have file:// requires: ", isAllowedToHaveFileUrlRequires
             # echo "Package paths: ", pkgPaths
@@ -123,21 +138,21 @@ proc validateFileUrlRequires(nfl: var NimbleFileInfo, n: PNode, conf: ConfigRef,
             raise nimbleError(errorLine)
     else:
       for child in n:
-        validateFileUrlRequires(nfl, child, conf, hasErrors, nestedRequires, currentFeature, options)
+        validateFileUrlRequires(nfl, child, conf, currentFeature, options)
   else:
     discard
 
-proc extractFeatures(featureNode: PNode, conf: ConfigRef, hasErrors: var bool, nestedRequires: var bool, nfl: var NimbleFileInfo, featureName: string = "", options: Options): seq[string] =
+proc extractFeatures(featureNode: PNode, conf: ConfigRef, nfl: var NimbleFileInfo, featureName: string = "", options: Options): seq[string] =
   ## Extracts requirements from a feature declaration
   if featureNode.kind in {nkStmtList, nkStmtListExpr}:
     for stmt in featureNode:
-      if stmt.kind in nkCallKinds and stmt[0].kind == nkIdent and 
+      if stmt.kind in nkCallKinds and stmt[0].kind == nkIdent and
          stmt[0].ident.s == "requires":
         var requires: seq[string]
         collectRequiresFromNode(stmt, requires)
         result.add requires
         # Validate file:// requires in this feature context
-        validateFileUrlRequires(nfl, stmt, conf, hasErrors, nestedRequires, featureName, options)
+        validateFileUrlRequires(nfl, stmt, conf, featureName, options)
 
 proc extractHooksOnly(n: PNode, result: var NimbleFileInfo) =
   ## Extract only before/after install hooks from conditional blocks.
@@ -253,7 +268,7 @@ proc contentHasStateModifyingOps*(content: string): bool =
   closeParser(parser)
 
 proc extract(n: PNode, conf: ConfigRef, result: var NimbleFileInfo, options: Options)  {.raises: [CatchableError].}=
-  validateNoNestedRequires(result, n, conf, result.hasErrors, result.nestedRequires)
+  validateNoNestedRequires(result, n, conf)
   case n.kind
   of nkStmtList, nkStmtListExpr:
     for child in n:
@@ -267,18 +282,18 @@ proc extract(n: PNode, conf: ConfigRef, result: var NimbleFileInfo, options: Opt
       of "requires":
         collectRequiresFromNode(n, result.requires)
         # Validate file:// requires in global scope
-        validateFileUrlRequires(result, n, conf, result.hasErrors, result.nestedRequires, "", options)
+        validateFileUrlRequires(result, n, conf, "", options)
       of "feature":
         if n.len >= 3 and n[1].kind in {nkStrLit .. nkTripleStrLit}:
           let featureName = n[1].strVal
           if not result.features.hasKey(featureName):
             result.features[featureName] = @[]
-          result.features[featureName] = extractFeatures(n[2], conf, result.hasErrors, result.nestedRequires, result, featureName, options)
+          result.features[featureName] = extractFeatures(n[2], conf, result, featureName, options)
       of "dev":
         let featureName = "dev"
         if not result.features.hasKey(featureName):
           result.features[featureName] = @[]
-        result.features[featureName] = extractFeatures(n[1], conf, result.hasErrors, result.nestedRequires, result, featureName, options)      
+        result.features[featureName] = extractFeatures(n[1], conf, result, featureName, options)
       of "task":
         if n.len >= 3 and n[1].kind == nkIdent and
             n[2].kind in {nkStrLit .. nkTripleStrLit}:
@@ -297,13 +312,17 @@ proc extract(n: PNode, conf: ConfigRef, result: var NimbleFileInfo, options: Opt
         result.srcDir = n[1].strVal
       else:
         localError(conf, n[1].info, "assignments to 'srcDir' must be string literals")
-        result.hasErrors = true
+        result.issues.incl nfiParseError
     elif n[0].kind == nkIdent and eqIdent(n[0].ident.s, "version"):
       if n[1].kind in {nkStrLit .. nkTripleStrLit}:
         result.version = n[1].strVal
       else:
-        localError(conf, n[1].info, "assignments to 'version' must be string literals")
-        result.hasErrors = true
+        # A non-literal version (e.g. `version = versionAsStr` imported from
+        # another module) can't be read statically. Don't hard-fail — flag the
+        # file as needing the VM parser2.
+        result.issues.incl nfiNonLiteralVersion
+        result.declarativeParserErrorLines.add(
+          &"{result.nimbleFile}({n[1].info.line}, {n[1].info.col}) 'version' is not a string literal; falling back to the VM parser")
     elif n[0].kind == nkIdent and eqIdent(n[0].ident.s, "bin"):
       let binSeq = extractSeqLiteral(n[1], conf, "bin")
       for bin in binSeq:
@@ -473,7 +492,8 @@ proc extractRequiresInfo*(nimbleFile: string, options: Options): NimbleFileInfo 
     let ast = parseAll(parser)
     extract(ast, conf, result, options)
     closeParser(parser)
-  result.hasErrors = result.hasErrors or conf.errorCounter > 0
+  if conf.errorCounter > 0:
+    result.issues.incl nfiParseError
 
   # Add requires from external requires file
   let nimbleDir = nimbleFile.splitFile.dir
@@ -502,14 +522,15 @@ proc extractRequiresInfoFromContent*(content: string, options: Options): NimbleF
   let ast = parseAll(parser)
   extract(ast, conf, result, options)
   closeParser(parser)
-  result.hasErrors = result.hasErrors or conf.errorCounter > 0
+  if conf.errorCounter > 0:
+    result.issues.incl nfiParseError
 
 proc isParsableByDeclarative*(content: string, options: Options): bool =
   ## Check if nimble file content can be fully parsed by the declarative parser.
   ## Returns true if the content has no errors and no nested requires
   ## (i.e., requires inside if/when blocks that need VM evaluation).
   let info = extractRequiresInfoFromContent(content, options)
-  result = not info.hasErrors and not info.nestedRequires
+  result = info.issues == {}
 
 type PluginInfo* = object
   builderPatterns*: seq[(string, string)]
@@ -694,7 +715,7 @@ proc toRequiresInfo*(pkgInfo: PackageInfo, options: Options, nimBin: Option[stri
   if pkgInfo.infoKind != pikFull: #dont update as full implies pik requires
     result.infoKind = pikRequires
 
-  if nimbleFileInfo.nestedRequires and options.action.typ != actionCheck: #When checking we want to fail on porpuse
+  if nimbleFileInfo.requiresVmFallback and options.action.typ != actionCheck: #When checking we want to fail on porpuse
     let resolvedBin = resolveNimBinOrBootstrap(nimBin, options)
 
     if options.verbosity <= LowPriority:
@@ -802,7 +823,8 @@ proc getPkgInfo*(dir: string, options: Options, nimBin: Option[string],
   ## Unified entry point for package parsing. Tries declarative parser first,
   ## falls back to VM parser.
   ## level=pikFull: VM parser directly (full metadata needed anyway)
-  ## level=pikRequires: declarative parser with VM fallback for nestedRequires
+  ## level=pikRequires: declarative parser with VM fallback for files that need it
+  ##   (nested requires, computed/non-literal version — see NimbleFileIssue)
   if level == pikRequires:
     return getPkgInfoFromDirWithDeclarativeParser(dir, options, nimBin, shouldError)
   # pikFull: go straight to VM — we need full metadata (author, license, etc.)
