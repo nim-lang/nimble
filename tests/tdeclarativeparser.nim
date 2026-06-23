@@ -434,7 +434,7 @@ else:
     var options = initOptions()
     check isParsableByDeclarative(content, options) == false
 
-  test "non-literal version flags nfiNonLiteralVersion, not a hard error" 
+  test "non-literal version flags nfiNonLiteralVersion, not a hard error":
     # Real beacon_chain.nimble shape: `version` is an identifier imported from
     # another module (a computed const). The declarative parser can't resolve it
     # without running code, so it records a distinct issue (nfiNonLiteralVersion)
