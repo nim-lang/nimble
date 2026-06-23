@@ -253,6 +253,49 @@ suite "Version Discovery":
     # Empty tag list — vacuously fresh.
     check cachedTagsCoverLocalTags(cached, @[])
 
+  test "downloadMinimalPackage memoizes a dep reached by many branches (75x ls-remote bug)":
+    # A near-universal transitive dep (e.g. unittest2 in nimbus-eth1) is reached by
+    # many top-level dependency branches, each with its own `visited` set. It must be
+    # downloaded ONCE per resolution pass. The bug: the cache evicted each entry the
+    # moment its download completed, so every branch that reached the dep *afterward*
+    # re-ran `git ls-remote` — 75 times in the wild. Remote tags don't change within a
+    # single invocation, so the result must be memoized for the whole pass.
+    var fetchCount = 0
+    proc countingFetch(pv: PkgTuple, options: Options, nimBin: Option[string]): Future[seq[PackageMinimalInfo]] {.async.} =
+      inc fetchCount
+      return @[PackageMinimalInfo(name: "diamonddep", version: newVersion("1.0.0"))]
+
+    let pv: PkgTuple = ("https://github.com/example/diamonddep.git", VersionRange(kind: verAny))
+    var options = initOptions()
+
+    # Branches reach the same dep one after another (staggered, not concurrent).
+    for i in 0 ..< 10:
+      let res = waitFor memoizedDownloadMinimal(pv, options, nimBin, countingFetch)
+      check res.len == 1
+
+    check fetchCount == 1
+
+  test "downloadMinimalPackage does not memoize a failed download":
+    # A failed discovery must be evicted so a later reach can retry (and so the real
+    # error surfaces) instead of replaying a cached failure for the rest of the pass.
+    var attempt = 0
+    proc flakyFetch(pv: PkgTuple, options: Options, nimBin: Option[string]): Future[seq[PackageMinimalInfo]] {.async.} =
+      inc attempt
+      if attempt == 1:
+        raise newException(NimbleError, "transient failure")
+      return @[PackageMinimalInfo(name: "flakydep", version: newVersion("2.0.0"))]
+
+    let pv: PkgTuple = ("https://github.com/example/flakydep.git", VersionRange(kind: verAny))
+    var options = initOptions()
+
+    expect CatchableError:
+      discard waitFor memoizedDownloadMinimal(pv, options, nimBin, flakyFetch)
+
+    # Second reach must retry, not replay the cached failure.
+    let res = waitFor memoizedDownloadMinimal(pv, options, nimBin, flakyFetch)
+    check res.len == 1
+    check attempt == 2
+
   test "verAny uses version-agnostic cache directory for discovery":
     # Test that verAny (used during package discovery) uses version-agnostic cache
     # to avoid downloading the same repo multiple times.
