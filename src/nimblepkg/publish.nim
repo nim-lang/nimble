@@ -15,7 +15,8 @@ type
   Auth = object
     user: string
     token: string  ## GitHub access token
-    http: HttpClient ## http client for doing API requests
+    session: HttpSessionRef ## http session for doing API requests
+    headers: seq[HttpHeaderTuple]
 
 const
   ApiKeyFile = "github_api_token"
