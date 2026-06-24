@@ -216,7 +216,6 @@ const
 
 const # Windows-only
   mingwUrl = "https://nim-lang.org/download/mingw$1.zip"
-  dllsUrl = "https://nim-lang.org/download/dlls.zip"
 
 const progressBarLength = 50
 
@@ -622,15 +621,6 @@ proc downloadMingw*(options: Options): string =
 
   display("Downloading", "C compiler (Mingw$1)" % $arch, priority = HighPriority)
   downloadFile(url, outputPath)
-  return outputPath
-
-proc downloadDLLs*(options: Options): string =
-  var outputPath: string
-  if not needsDownload(dllsUrl, outputPath, options):
-    return outputPath
-
-  display("Downloading", "DLLs (openssl, pcre, ...)", priority = HighPriority)
-  downloadFile(dllsUrl, outputPath)
   return outputPath
 
 proc getOfficialReleases*(options: Options): seq[Version] {.raises: [CatchableError].} =
