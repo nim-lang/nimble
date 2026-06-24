@@ -337,6 +337,8 @@ suite "Version Discovery":
   test "getVersionList ignores tags that are not real version tags":
     let tags = @[
       "v1.0.0", "0.6.0", "v23.2.0-rc1", "v1.0.5",       # real version tags
+      "v7", "v20240112",                                 # single-segment versions (require a `v`)
+      "2024",                                            # single-segment WITHOUT `v` -> rejected
       "201903-testnet0", "delete", "nightly", "latest", # junk
       "not_a_release_0", "altona_v1", "altair-beta",    # junk
     ]
@@ -346,7 +348,11 @@ suite "Version Discovery":
     check "0.6.0" in kept
     check "v23.2.0-rc1" in kept
     check "v1.0.5" in kept
-    # junk tags are dropped
+    # single-segment versions are kept only with a `v` prefix
+    check "v7" in kept
+    check "v20240112" in kept
+    check "2024" notin kept
+    # junk tags are dropped (incl. junk that merely starts/ends with digits)
     check "201903-testnet0" notin kept
     check "delete" notin kept
     check "nightly" notin kept
