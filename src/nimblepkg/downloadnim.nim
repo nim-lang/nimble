@@ -372,20 +372,60 @@ proc finish(tracker: var ProgressTracker) =
     echo ""
 
 proc downloadFileNim(url, outputPath: string) =
-  displayDebug("Downloading using HttpClient")
-  var client = newHttpClient(proxy = getProxy(), userAgent = nimbleUserAgent)
+  displayDebug("Downloading using Chronos")
+  let session = HttpSessionRef.new(provider = getProvider())
 
-  var lastProgressPos = 0
-  proc onProgressChanged(total, progress, speed: BiggestInt) {.closure, gcsafe.} =
-    let fraction = progress.float / total.float
-    if fraction == Inf:
-      showIndeterminateBar(progress, speed, lastProgressPos)
-    else:
-      showBar(fraction, speed)
+  try:
+    let
+      request = HttpClientRequestRef.new(
+        session, url, headers = [(UserAgentHeader, nimbleUserAgent)]
+      ).valueOr:
+        raise newException(HttpRequestError, error)
+      response =
+        try:
+          waitFor request.send()
+        finally:
+          waitFor request.closeWait()
 
-  client.onProgressChanged = onProgressChanged
+    try:
+      const bufSize = 65536
 
-  client.downloadFile(url, outputPath)
+      let
+        file = open(outputPath, fmWrite)
+        reader = response.getBodyReader()
+
+      var tracker = ProgressTracker(
+        contentLen: response.contentLength,
+        lastSpeedUpdate: epochTime(),
+      )
+
+      try:
+        var buf = newSeq[byte](bufSize)
+
+        while not reader.atEof:
+          let n = waitFor(reader.readOnce(addr buf[0], buf.len))
+
+          if n == 0:
+            break
+
+          discard file.writeBuffer(addr buf[0], n)
+
+          tracker.totalRead += n
+          tracker.bytesSinceUpdate += n
+          tracker.hadProgress = true
+          tracker.tick()
+      finally:
+        waitFor reader.closeWait()
+        close(file)
+
+      tracker.finish()
+    finally:
+      waitFor response.closeWait()
+
+  except CatchableError:
+    raise newException(HttpRequestError, getCurrentExceptionMsg())
+  finally:
+    waitFor session.closeWait()
 
 proc downloadFile*(url, outputPath: string) =
   # For debugging.
