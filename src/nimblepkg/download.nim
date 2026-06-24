@@ -2,7 +2,9 @@
 # BSD License. Look at license.txt for more info.
 
 import parseutils, os, strutils, tables, uri, strformat,
-       httpclient, sequtils, urls, chronos, std/options
+       sequtils, urls, chronos, std/options
+
+import chronos/apps/http/httpclient
 
 import compat/[json, osproc]
 from algorithm import SortOrder, sorted
