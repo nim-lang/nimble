@@ -3,9 +3,9 @@
 
 # Stdlib imports
 import system except TResult
-import hashes, strutils, os, sets, tables, times, httpclient, strformat
-from net import SslError
+import hashes, strutils, os, sets, tables, times, strformat
 
+import chronos/apps/http/httpclient
 import zippy
 
 import compat/json
