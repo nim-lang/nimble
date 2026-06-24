@@ -4,11 +4,9 @@
 import parseutils, os, strutils, tables, uri, strformat,
        sequtils, urls, chronos, std/options
 
-import chronos/apps/http/httpclient
-import chronos/apps/http/httpcommon
+import chronos/apps/http/[httpclient, httpcommon]
 
 import compat/[json, osproc]
-
 from algorithm import SortOrder, sorted
 
 import packageinfotypes, version, tools, common, options, cli,
