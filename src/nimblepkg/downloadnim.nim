@@ -378,7 +378,7 @@ proc downloadFileNim(url, outputPath: string) =
   try:
     let
       request = HttpClientRequestRef.new(
-        session, url, headers = [(UserAgentHeader, nimbleUserAgent)]
+        session, url, headers = {UserAgentHeader: nimbleUserAgent}
       ).valueOr:
         raise newException(HttpRequestError, error)
       response =

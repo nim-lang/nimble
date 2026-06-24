@@ -438,7 +438,7 @@ proc retrieveUrl*(url: string): string =
   try:
     let
       request = HttpClientRequestRef.new(
-        session, url, headers = [(UserAgentHeader, nimbleUserAgent)]
+        session, url, headers = {UserAgentHeader: nimbleUserAgent}
       ).valueOr:
         raise newException(HttpRequestError, error)
       response = waitFor fetch(request)
