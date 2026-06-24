@@ -10,7 +10,6 @@ import common, tools, cli, config, options, packageinfotypes, sha1hashes, versio
 import strformat, sequtils, sets
 import chronos/apps/http/httpclient
 {.warning[UnusedImport]: off.}
-from net import SslCVerifyMode, newContext
 
 type
   Auth = object
