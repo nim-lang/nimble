@@ -10,6 +10,8 @@ switch("path", "vendor" / "checksums" / "src")
 switch("path", "vendor" / "chronos")
 switch("path", "vendor" / "results")
 switch("path", "vendor" / "stew")
+switch("path", "vendor" / "httputils")
+switch("path", "vendor" / "bearssl")
 switch("define", "zippyNoSimd")
 # begin Nimble config (version 2)
 when withDir(thisDir(), system.fileExists("nimble.paths")):
