@@ -1,7 +1,7 @@
 # Copyright (C) Dominik Picheta. All rights reserved.
 # BSD License. Look at license.txt for more info.
 
-import parseutils, os, strutils, tables, uri, strformat,
+import parseutils, os, strutils, strscans, tables, uri, strformat,
        httpclient, sequtils, urls, chronos, std/options
 
 import compat/[json, osproc]
@@ -243,17 +243,36 @@ proc getTagsListRemoteAsync*(url: string, meth: DownloadMethod): Future[seq[stri
     # http://stackoverflow.com/questions/2039150/show-tags-for-remote-hg-repository
     raise nimbleError("Hg doesn't support remote tag querying.")
 
+proc isReleaseVersionTag*(tag: string): bool =
+  ## True if `tag` looks like a real release version tag: an optional non-digit
+  ## prefix (e.g. `v`, `release-`) followed by a numeric `N(.N)*` version. A
+  ## single-segment version (`v7`, date-like `v20240112`) is allowed only with a
+  ## `v` prefix — a bare `2024` is rejected, since releases should be namespaced
+  ## with `v` and there are no known bare single-segment versions to support.
+  ## Junk tags (`nightly`, `delete`, `201903-testnet0`, `altona_v1`,
+  ## `altair-beta`) are rejected so they don't pollute version discovery.
+  let i = skipUntil(tag, Digits)   # skip an optional non-digit prefix (e.g. `v`)
+  if i >= tag.len:
+    return false
+  let v = tag[i .. ^1]
+  var major, minor: int
+  if scanf(v, "$i.$i", major, minor):
+    return true                    # major.minor[.…]; a trailing pre-release is ignored
+  # No dot: a single segment is only a version when written `v<digits>`, so a
+  # bare number (`2024`) and an incidental trailing digit (`altona_v1`,
+  # `201903-testnet0`) are all rejected.
+  let prefix = tag[0 ..< i]
+  prefix.len == 1 and prefix[0] in {'v', 'V'} and v.allCharsInSet(Digits)
+
 proc getVersionList*(tags: seq[string]): OrderedTable[Version, string] =
   ## Return an ordered table of Version -> git tag label.  Ordering is
   ## in descending order with the most recent version first.
   let taggedVers: seq[tuple[ver: Version, tag: string]] =
     tags
-      .filterIt(it != "")
+      .filterIt(it.isReleaseVersionTag)
       .map(proc(s: string): tuple[ver: Version, tag: string] =
         # skip any chars before the version
         let i = skipUntil(s, Digits)
-        # TODO: Better checking, tags can have any
-        # names. Add warnings and such.
         result = (newVersion(s[i .. s.len-1]), s))
       .sorted(proc(a, b: (Version, string)): int = cmp(a[0], b[0]),
               SortOrder.Descending)
