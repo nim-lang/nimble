@@ -111,8 +111,12 @@ proc forkExists(a: Auth): bool =
 
 proc createFork(a: Auth) =
   try:
-    discard a.http.postContent(ReposUrl & "nim-lang/packages/forks")
-  except HttpRequestError:
+    let req = HttpClientRequestRef.new(
+      a.session, ReposUrl & "nim-lang/packages/forks", MethodPost
+    ).valueOr:
+        raise nimbleError("Unable to create fork request: " & $error)
+    discard waitFor req.send()
+  except HttpError:
     raise nimbleError("Unable to create fork. Access token" &
                        " might not have enough permissions.")
 
