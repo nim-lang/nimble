@@ -146,28 +146,39 @@ proc fetchList*(list: PackageList, options: Options) =
       let tempPath = options.getNimbleDir() / "packages_temp.json"
 
       # Grab the proxy
-      let proxy = getProxy(options)
-      if not proxy.isNil:
-        var maskedUrl = proxy.url
+      let proxyUrl = getProxyUrl($options.config.httpProxy)
+      if proxyUrl.isSome:
+        var maskedUrl = parseUri(proxyUrl.get())
         if maskedUrl.password.len > 0: maskedUrl.password = "***"
         display("Connecting", "to proxy at " & $maskedUrl,
                 priority = LowPriority)
 
+      let
+        flags = if options.disableSslCertCheck:
+          {HttpClientFlag.NoVerifyHost, HttpClientFlag.NoVerifyServerName}
+        else:
+          {}
+
       try:
-        let ctx = newSSLContext(options.disableSslCertCheck)
-        let client = newHttpClient(proxy = proxy, sslContext = ctx,
-                                   userAgent = nimbleUserAgent)
-        client.headers = newHttpHeaders({"Accept-Encoding": "gzip"})
-        let resp = client.get(url)
-        if resp.code.is4xx or resp.code.is5xx:
-          raise newException(HttpRequestError,
-            "Server returned status: " & $resp.code & " " & resp.status)
-        var body = resp.body
-        let encoding = ($resp.headers.getOrDefault("content-encoding")).strip.toLowerAscii
-        if encoding == "gzip":
-          body = uncompress(body, dfGzip)
-        writeFile(tempPath, body)
-      except SslError:
+        let session = HttpSessionRef.new(flags = flags, provider = getProvider($options.config.httpProxy))
+        try:
+          let
+            request = HttpClientRequestRef.new(
+              session, url, headers = {UserAgentHeader: nimbleUserAgent, "Accept-Encoding": "gzip"}
+            ).valueOr:
+              raise newException(HttpRequestError, error)
+            response = waitFor request.send()
+          if response.status >= 400:
+            raise newException(HttpRequestError,
+              "Server returned status: " & $response.status)
+          var body = bytesToString(waitFor response.getBodyBytes())
+          let encoding = response.headers.getLastString("content-encoding").strip.toLowerAscii
+          if encoding == "gzip":
+            body = uncompress(body, dfGzip)
+          writeFile(tempPath, body)
+        finally:
+          waitFor session.closeWait()
+      except HttpConnectionError:
         let message = "Failed to verify the SSL certificate for " & url
         raise nimbleError(message, "Use --noSSLCheck to ignore this error.")
 
