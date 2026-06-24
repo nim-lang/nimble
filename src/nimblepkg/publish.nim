@@ -27,12 +27,13 @@ const
 proc userAborted() =
   raise nimbleError("User aborted the process.")
 
-proc createHeaders(a: Auth) =
-  a.http.headers = newHttpHeaders({
+proc createHeaders(a: var Auth) =
+  a.headers = @{
+    UserAgentHeader: nimbleUserAgent,
     "Authorization": "token $1" % a.token,
     "Content-Type": "application/x-www-form-urlencoded",
     "Accept": "*/*"
-  })
+  }
 
 proc requestNewToken(cfg: Config): string =
   display("Info:", "Please create a new personal access token on GitHub in" &
