@@ -1010,17 +1010,17 @@ proc parseCmdLine*(): Options =
 proc getProxyUrl*(proxyConfig = ""): Opt[string] =
   ## Checks configProxy if non-empty, then falls through to env vars.
   if len(proxyConfig) > 0:
-    Opt.some(proxyConfig)
+    ok(proxyConfig)
   else:
     try:
       if existsEnv("http_proxy"):
-        Opt.some(getEnv("http_proxy"))
+        ok(getEnv("http_proxy"))
       elif existsEnv("https_proxy"):
-        Opt.some(getEnv("https_proxy"))
+        ok(getEnv("https_proxy"))
       elif existsEnv("HTTP_PROXY"):
-        Opt.some(getEnv("HTTP_PROXY"))
+        ok(getEnv("HTTP_PROXY"))
       elif existsEnv("HTTPS_PROXY"):
-        Opt.some(getEnv("HTTPS_PROXY"))
+        ok(getEnv("HTTPS_PROXY"))
       else:
         Opt.none(string)
     except ValueError:
