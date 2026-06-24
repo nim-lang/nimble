@@ -342,6 +342,35 @@ when defined(curl):
         HTTPRequestError, "Expected HTTP code $1 got $2" % [$200, $responseCode]
       )
 
+type
+  ProgressTracker = object
+    totalRead: int
+    lastSpeedUpdate: float
+    bytesSinceUpdate: int
+    speed: int
+    lastPos: int
+    hadProgress: bool
+    contentLen: uint64
+
+proc tick(tracker: var ProgressTracker) =
+  let now = epochTime()
+  const updateInterval = 0.25
+
+  if now - tracker.lastSpeedUpdate > updateInterval:
+    tracker.speed = (tracker.bytesSinceUpdate.float / (now - tracker.lastSpeedUpdate)).int
+    tracker.bytesSinceUpdate = 0
+    tracker.lastSpeedUpdate = now
+
+  if tracker.contentLen > 0:
+    showBar(tracker.totalRead.float / tracker.contentLen.float, tracker.speed)
+  else:
+    showIndeterminateBar(tracker.totalRead, tracker.speed, tracker.lastPos)
+
+proc finish(tracker: var ProgressTracker) =
+  if tracker.hadProgress:
+    showBar(1, 0)
+    echo ""
+
 proc downloadFileNim(url, outputPath: string) =
   displayDebug("Downloading using HttpClient")
   var client = newHttpClient(proxy = getProxy(), userAgent = nimbleUserAgent)
