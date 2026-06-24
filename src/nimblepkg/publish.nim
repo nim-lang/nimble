@@ -5,9 +5,10 @@
 ## nim-lang/packages automatically.
 
 import system except TResult
-import httpclient, strutils, json, os, browsers, times, uri
+import strutils, json, os, browsers, times, uri
 import common, tools, cli, config, options, packageinfotypes, sha1hashes, version, download
 import strformat, sequtils, sets
+import chronos/apps/http/httpclient
 {.warning[UnusedImport]: off.}
 from net import SslCVerifyMode, newContext
 
