@@ -56,10 +56,18 @@ proc requestNewToken(cfg: Config): string =
   return token
 
 proc getGithubAuth(o: Options): Auth =
-  let cfg = o.config
-  let ctx = newSSLContext(o.disableSslCertCheck)
-  result.http = newHttpClient(proxy = getProxy(o), sslContext = ctx,
-                              userAgent = nimbleUserAgent)
+  let
+    cfg = o.config
+    flags =
+      if o.disableSslCertCheck:
+        {HttpClientFlag.NoVerifyHost, HttpClientFlag.NoVerifyServerName}
+      else:
+        {}
+
+  result.session = HttpSessionRef.new(
+    flags = flags, provider = getProvider($o.config.httpProxy)
+  )
+
   # always prefer the environment variable to asking for a new one
   if existsEnv(ApiTokenEnvironmentVariable):
     result.token = getEnv(ApiTokenEnvironmentVariable)
@@ -76,9 +84,15 @@ proc getGithubAuth(o: Options): Auth =
     except IOError:
       result.token = requestNewToken(cfg)
   createHeaders(result)
-  let resp = result.http.getContent("https://api.github.com/user").parseJson()
+  let
+    req = HttpClientRequestRef.new(
+      result.session, "https://api.github.com/user", headers = result.headers
+    ).valueOr:
+      raise newException(HttpRequestError, error)
+    resp = waitFor req.send()
+    respData = parseJson(bytesToString(waitFor response.getBodyBytes()))
 
-  result.user = resp["login"].str
+  result.user = respData["login"].str
   display("Success:", "Verified as " & result.user, Success, HighPriority)
 
 proc isCorrectFork(j: JsonNode): bool =
