@@ -1,7 +1,7 @@
 # Copyright (C) Dominik Picheta. All rights reserved.
 # BSD License. Look at license.txt for more info.
 
-import parseutils, os, strutils, tables, uri, strformat,
+import parseutils, os, strutils, strscans, tables, uri, strformat,
        sequtils, urls, chronos, std/options
 
 import chronos/apps/http/[httpclient, httpcommon]
