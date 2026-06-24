@@ -5,8 +5,10 @@ import parseutils, os, strutils, tables, uri, strformat,
        sequtils, urls, chronos, std/options
 
 import chronos/apps/http/httpclient
+import chronos/apps/http/httpcommon
 
 import compat/[json, osproc]
+
 from algorithm import SortOrder, sorted
 
 import packageinfotypes, version, tools, common, options, cli,
@@ -431,9 +433,17 @@ proc getGitHubApiUrl(url, commit: string): string =
 
 proc retrieveUrl*(url: string): string =
   display("Http", "Requesting " & url, priority = DebugPriority)
-  {.cast(raises: [CatchableError]).}:
-    var client = newHttpClient(proxy = getProxy(), userAgent = nimbleUserAgent)
-    return client.getContent(url)
+  let session = HttpSessionRef.new(provider = getProvider())
+
+  try:
+    let
+      request = HttpClientRequestRef.new(session, url, headers = [(UserAgentHeader, nimbleUserAgent)]).valueOr:
+        raise newException(HttpRequestError, error)
+      response = waitFor fetch(request)
+
+    bytesToString(response.data)
+  finally:
+    waitFor(session.closeWait())
 
 {.warning[ProveInit]: off.}
 proc getFullRevisionFromGitHubApi(url, version: string): Sha1Hash =
