@@ -103,10 +103,10 @@ proc isCorrectFork(j: JsonNode): bool =
 
 proc forkExists(a: Auth): bool =
   try:
-    let x = a.http.getContent(ReposUrl & a.user & "/packages")
-    let j = parseJson(x)
+    let x = waitFor a.session.fetch(parseUri(ReposUrl & a.user & "/packages"))
+    let j = parseJson(bytesToString(resp.data))
     result = isCorrectFork(j)
-  except JsonParsingError, IOError:
+  except JsonParsingError, HttpError:
     result = false
 
 proc createFork(a: Auth) =
