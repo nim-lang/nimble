@@ -448,9 +448,6 @@ proc downloadFile*(url, outputPath: string) =
 
   moveFile(tempOutputPath, outputPath)
 
-  showBar(1, 0)
-  echo("")
-
 proc getDownloadPath*(downloadUrl: string, options: Options): string =
   let (_, name, ext) = downloadUrl.splitFile()
   getNimBinariesDir(options) / name & ext
