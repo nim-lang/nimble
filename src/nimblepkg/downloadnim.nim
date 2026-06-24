@@ -1,9 +1,8 @@
-import
-  std/[
-    httpclient, strutils, os, terminal, times, uri, sequtils, options,
-    jsonutils,
-  ]
+import std/[strutils, os, terminal, times, uri, sequtils, options, jsonutils]
 import compat/[json, osproc]
+
+import chronos/apps/http/httpclient
+import chronos/apps/http/httpcommon
 
 import zippy/tarballs as zippy_tarballs
 import zippy/ziparchives as zippy_zips
