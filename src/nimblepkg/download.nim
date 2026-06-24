@@ -453,14 +453,28 @@ proc retrieveUrl*(url: string): string =
   let session = HttpSessionRef.new(provider = getProvider())
 
   try:
-    let
-      request = HttpClientRequestRef.new(
-        session, url, headers = {UserAgentHeader: nimbleUserAgent}
-      ).valueOr:
-        raise newException(HttpRequestError, error)
-      response = waitFor fetch(request)
+    var request = HttpClientRequestRef.new(
+      session, url, headers = {UserAgentHeader: nimbleUserAgent}
+    ).valueOr:
+      raise newException(HttpRequestError, error)
 
-    bytesToString(response.data)
+    while true:
+      let response = waitFor request.send()
+      if response.status >= 300 and response.status < 400:
+        let newLocation = response.getNewLocation().valueOr:
+          raise newException(HttpRequestError, error)
+        waitFor response.closeWait()
+        request = request.redirect(newLocation).valueOr:
+          raise newException(HttpRequestError, error)
+        continue
+      elif response.status >= 400:
+        waitFor response.closeWait()
+        raise newException(HttpRequestError,
+                           "Server returned status: " & $response.status)
+      else:
+        let data = bytesToString(waitFor response.getBodyBytes())
+        waitFor response.closeWait()
+        return data
   finally:
     waitFor(session.closeWait())
 
