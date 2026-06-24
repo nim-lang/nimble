@@ -429,35 +429,6 @@ proc getGitHubApiUrl(url, commit: string): string =
   ## an URL for the GitHub REST API query for the full commit hash.
   &"https://api.github.com/repos/{extractOwnerAndRepo(url)}/commits/{commit}"
 
-proc getProxy*(): Proxy =
-  ## Returns ``nil`` if no proxy is specified.
-  var url = ""
-  try:
-    if existsEnv("http_proxy"):
-      url = getEnv("http_proxy")
-    elif existsEnv("https_proxy"):
-      url = getEnv("https_proxy")
-  except ValueError:
-    display(
-      "Warning:",
-      "Unable to parse proxy from environment: " & getCurrentExceptionMsg(),
-      Warning,
-      HighPriority,
-    )
-
-  if url.len > 0:
-    var parsed = parseUri(url)
-    if parsed.scheme.len == 0 or parsed.hostname.len == 0:
-      parsed = parseUri("http://" & url)
-    let auth =
-      if parsed.username.len > 0:
-        parsed.username & ":" & parsed.password
-      else:
-        ""
-    return newProxy($parsed, auth)
-  else:
-    return nil
-
 proc retrieveUrl*(url: string): string =
   display("Http", "Requesting " & url, priority = DebugPriority)
   {.cast(raises: [CatchableError]).}:
