@@ -90,7 +90,7 @@ proc getGithubAuth(o: Options): Auth =
     ).valueOr:
       raise newException(HttpRequestError, error)
     resp = waitFor req.send()
-    respData = parseJson(bytesToString(waitFor response.getBodyBytes()))
+    respData = parseJson(bytesToString(waitFor resp.getBodyBytes()))
 
   result.user = respData["login"].str
   display("Success:", "Verified as " & result.user, Success, HighPriority)
@@ -104,7 +104,7 @@ proc isCorrectFork(j: JsonNode): bool =
 proc forkExists(a: Auth): bool =
   try:
     let x = waitFor a.session.fetch(parseUri(ReposUrl & a.user & "/packages"))
-    let j = parseJson(bytesToString(resp.data))
+    let j = parseJson(bytesToString(x.data))
     result = isCorrectFork(j)
   except JsonParsingError, HttpError:
     result = false
@@ -128,7 +128,16 @@ proc createPullRequest(a: Auth, pkg: PackageInfo, url, branch: string): string =
       "base": defaultBranch,
       "body": &"{pkg.description}\n\n{url}"
   }
-  var body = a.http.postContent(ReposUrl & "nim-lang/packages/pulls", $payload)
+  let req = HttpClientRequestRef.new(
+      a.session,
+      ReposUrl & "nim-lang/packages/pulls",
+      MethodPost,
+      headers = a.headers,
+      body = stringToBytes($payload)
+    ).valueOr:
+      raise nimbleError("Unable to create PR request: " & $error)
+  let resp = waitFor req.send()
+  let body = bytesToString(waitFor resp.getBodyBytes())
   var pr = parseJson(body)
   return pr{"html_url"}.getStr()
 
@@ -268,3 +277,4 @@ proc publish*(p: PackageInfo, o: Options) =
     doCmd("git push https://" & auth.token & "@github.com/" & auth.user & "/packages " & branchName)
     let prUrl = createPullRequest(auth, p, url, branchName)
     display("Success:", "Pull request successful, check at " & prUrl , Success, HighPriority)
+  waitFor auth.session.closeWait()
