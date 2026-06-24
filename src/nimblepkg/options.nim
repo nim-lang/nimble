@@ -1026,6 +1026,7 @@ proc getProxyUrl*(proxyConfig = ""): Opt[string] =
     except ValueError:
       display("Warning:", "Unable to parse proxy from environment: " &
           getCurrentExceptionMsg(), Warning, HighPriority)
+      Opt.none(string)
 
 proc getProvider*(configProxy = ""): HttpConnectionProvider =
   ## Creates an HttpConnectionProvider from a proxy URL (env var or config).
