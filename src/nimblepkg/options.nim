@@ -574,7 +574,7 @@ proc setNimbleDir*(options: var Options) =
     let env = getEnv("NIMBLE_DIR")
     if env.len != 0:
       display("Info:", "Using the environment variable: NIMBLE_DIR='" &
-              env & "'", Success, priority = HighPriority)
+              env & "'", DisplayType.Success, priority = HighPriority)
       nimbleDir = env
       setPackageCache(options, options.config.nimbleDir) #Use the global nimbleDir so pkgcache is shared
     else:
