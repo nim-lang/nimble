@@ -93,7 +93,7 @@ proc getGithubAuth(o: Options): Auth =
     respData = parseJson(bytesToString(waitFor resp.getBodyBytes()))
 
   result.user = respData["login"].str
-  display("Success:", "Verified as " & result.user, Success, HighPriority)
+  display("Success:", "Verified as " & result.user, DisplayType.Success, HighPriority)
 
 proc isCorrectFork(j: JsonNode): bool =
   # Check whether this is a fork of the nimble packages repo.
@@ -276,5 +276,5 @@ proc publish*(p: PackageInfo, o: Options) =
     display("Pushing", "to remote of fork.", priority = HighPriority)
     doCmd("git push https://" & auth.token & "@github.com/" & auth.user & "/packages " & branchName)
     let prUrl = createPullRequest(auth, p, url, branchName)
-    display("Success:", "Pull request successful, check at " & prUrl , Success, HighPriority)
+    display("Success:", "Pull request successful, check at " & prUrl , DisplayType.Success, HighPriority)
   waitFor auth.session.closeWait()
