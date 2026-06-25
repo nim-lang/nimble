@@ -204,7 +204,7 @@ proc fetchList*(list: PackageList, options: Options) =
       display("Warning:", lastError & ", discarding.", Warning)
     else:
       copyFromPath = list.path
-      display("Success", "Package list copied.", Success, HighPriority)
+      display("Success", "Package list copied.", DisplayType.Success, HighPriority)
 
   if lastError.len != 0:
     if list.name == "local":
