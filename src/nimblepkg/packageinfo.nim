@@ -194,7 +194,7 @@ proc fetchList*(list: PackageList, options: Options) =
         continue
 
       copyFromPath = tempPath
-      display("Success", "Package list downloaded.", Success, HighPriority)
+      display("Success", "Package list downloaded.", DisplayType.Success, HighPriority)
       lastError = ""
       break
 
