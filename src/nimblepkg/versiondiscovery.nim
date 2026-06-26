@@ -319,6 +319,9 @@ proc downloadNimSpecialVersion*(pv: PkgTuple, options: Options): seq[PackageMini
   ## Used as a sync fallback from the async path since nim binary downloads don't benefit from async.
   let extractedDir = downloadAndExtractNimMatchedVersion(pv.ver, options)
   var ver = newVersion($pv.ver)
+  # Guard for the case when extraction failed (e.g. when a corrupt archive was downloaded).
+  if extractedDir.isNone:
+    return
   let nimbleFile = extractedDir.get / "nim.nimble"
   if nimbleFile.fileExists:
     let nimVersion = extractNimVersion(nimbleFile)
