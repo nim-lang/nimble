@@ -803,7 +803,9 @@ proc solveLocalPackages(root: PackageMinimalInfo, pkgList: seq[PackageInfo], opt
   ## packages don't satisfy all constraints. See #1648.
   var localTable = initTable[string, PackageVersions]()
   localTable[root.name] = PackageVersions(pkgName: root.name, versions: @[root])
-  localTable.fillPackageTableFromPreferred(pkgList.mapIt(it.getMinimalInfo(options)))
+  let rootPkgName = root.name.toLowerAscii()
+  let nonRootPkgs = pkgList.filterIt(it.basicInfo.name.toLowerAscii() != rootPkgName)
+  localTable.fillPackageTableFromPreferred(nonRootPkgs.mapIt(it.getMinimalInfo(options)))
   var localOutput = ""
   let localSolved = localTable.getSolvedPackages(localOutput, options)
   if localSolved.len == 0:
