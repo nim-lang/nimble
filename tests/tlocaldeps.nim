@@ -5,8 +5,30 @@
 
 import unittest, os, osproc, strutils, strformat
 import testscommon
-from nimblepkg/common import cd
+from nimblepkg/common import cd, NimbleError
 import nimblepkg/[options, config]
+
+suite "flag parsing":
+  test "a valueless flag rejects a value (#1037)":
+    # `-l`/`--localdeps` is a boolean flag. Giving it a value (users type
+    # `-l:-static` expecting a linker flag) must error, not silently enable
+    # localdeps mode and drop the value.
+    var opts = initOptions()
+    expect NimbleError:
+      parseFlag("localdeps", "foo", opts)
+    expect NimbleError:
+      parseFlag("l", "-static", opts)
+
+    # control: a genuine value flag is unaffected
+    parseFlag("nimbledir", "/tmp/x", opts)
+    check opts.nimbleDir == "/tmp/x"
+
+    # control: a short flag that legitimately takes a value in its action context
+    # (`nimble develop -n:<name>` = remove by name) must still work — the guard
+    # must not break overloaded flags.
+    opts.action = Action(typ: actionDevelop)
+    parseFlag("n", "somepkg", opts)
+    check opts.action.devActions.len == 1
 
 suite "project local deps mode":
   setup:
