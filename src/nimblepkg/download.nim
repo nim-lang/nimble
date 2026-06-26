@@ -448,9 +448,12 @@ proc getGitHubApiUrl(url, commit: string): string =
   ## an URL for the GitHub REST API query for the full commit hash.
   &"https://api.github.com/repos/{extractOwnerAndRepo(url)}/commits/{commit}"
 
-proc retrieveUrl*(url: string): string =
+proc retrieveUrl*(url: string, disableSslCertCheck = false): string =
   display("Http", "Requesting " & url, priority = DebugPriority)
-  let session = HttpSessionRef.new(provider = getProvider())
+  let flags = if disableSslCertCheck:
+    {HttpClientFlag.NoVerifyHost, HttpClientFlag.NoVerifyServerName}
+  else: {}
+  let session = HttpSessionRef.new(flags = flags, provider = getProvider())
 
   try:
     var request = HttpClientRequestRef.new(
