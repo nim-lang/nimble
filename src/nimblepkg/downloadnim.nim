@@ -378,12 +378,22 @@ proc downloadFileNim(url, outputPath: string, disableSslCertCheck = false) =
   let session = HttpSessionRef.new(flags = flags, provider = getProvider())
 
   try:
-    let
-      request = HttpClientRequestRef.new(
-        session, url, headers = {UserAgentHeader: nimbleUserAgent}
-      ).valueOr:
+    var request = HttpClientRequestRef.new(
+      session, url, headers = {UserAgentHeader: nimbleUserAgent}
+    ).valueOr:
+      raise newException(HttpRequestError, error)
+
+    var response = waitFor request.send()
+    while response.status >= 300 and response.status < 400:
+      let newLocation = response.getNewLocation().valueOr:
+        raise newException(HttpRequestError, error)
+      waitFor response.closeWait()
+      request = request.redirect(newLocation).valueOr:
         raise newException(HttpRequestError, error)
       response = waitFor request.send()
+    if response.status >= 400:
+      waitFor response.closeWait()
+      raise newException(HttpRequestError, "Server returned status: " & $response.status)
 
     try:
       const bufSize = 65536
