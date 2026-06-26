@@ -874,7 +874,9 @@ proc downloadAndExtractNim*(version: Version, options: Options): Option[string] 
       return some extractDir
     else:
       return none(string)
-  except:
+  except CatchableError as e:
+    display("Warning", "Failed to download/extract Nim $1: $2" % [$version, e.msg],
+            Warning, HighPriority)
     return none(string)
 
 proc downloadAndExtractNimMatchedVersion*(
