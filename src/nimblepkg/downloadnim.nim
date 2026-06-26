@@ -380,11 +380,7 @@ proc downloadFileNim(url, outputPath: string) =
         session, url, headers = {UserAgentHeader: nimbleUserAgent}
       ).valueOr:
         raise newException(HttpRequestError, error)
-      response =
-        try:
-          waitFor request.send()
-        finally:
-          waitFor request.closeWait()
+      response = waitFor request.send()
 
     try:
       const bufSize = 65536
