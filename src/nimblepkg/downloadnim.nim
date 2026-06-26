@@ -514,7 +514,7 @@ proc downloadImpl(version: Version, options: Options): string =
             Warning, HighPriority,
           )
         reference = if reference.len == 0: "devel" else: reference
-      except HTTPRequestError:
+      except HttpRequestError:
         # Unable to get nightlies release json from github API, fallback
         # to `choosenim devel --latest`
         display(
