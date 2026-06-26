@@ -798,6 +798,22 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
     result.lenient = true
   else: isGlobalFlag = false
 
+  # Reject a value given to a global boolean flag, e.g. `-l:-static` or
+  # `--localdeps:foo`. Without this such a flag silently sets the boolean and
+  # drops the value (issue #1037). Only flags whose every meaning is valueless
+  # are listed — `n` (global reject AND develop remove-by-name) and `parser`
+  # (`--parser:declarative`, value discarded) are intentionally excluded so
+  # legitimate `flag:value` uses keep working.
+  const valuelessGlobalFlags = [
+    "help", "h", "version", "v", "accept", "y", "reject",
+    "silent", "info", "verbose", "debug", "offline", "nocolor",
+    "disablevalidation", "localdeps", "local", "l", "global", "g",
+    "nosslcheck", "nolockfile", "tarballs", "t", "usesystemnim",
+    "disablenimbinaries", "ignoresubmodules", "sync", "lenient"]
+  if isGlobalFlag and val.len > 0 and f in valuelessGlobalFlags:
+    raise nimbleError("The flag '" & getFlagString(kind, flag, "") &
+      "' does not take a value (got '" & val & "').")
+
   var wasFlagHandled = true
   # Action-specific flags.
   case result.action.typ
