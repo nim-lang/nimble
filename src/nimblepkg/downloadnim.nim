@@ -370,9 +370,12 @@ proc finish(tracker: var ProgressTracker) =
     showBar(1, 0)
     echo ""
 
-proc downloadFileNim(url, outputPath: string) =
+proc downloadFileNim(url, outputPath: string, disableSslCertCheck = false) =
   displayDebug("Downloading using Chronos")
-  let session = HttpSessionRef.new(provider = getProvider())
+  let flags = if disableSslCertCheck:
+    {HttpClientFlag.NoVerifyHost, HttpClientFlag.NoVerifyServerName}
+  else: {}
+  let session = HttpSessionRef.new(flags = flags, provider = getProvider())
 
   try:
     let
@@ -422,7 +425,7 @@ proc downloadFileNim(url, outputPath: string) =
   finally:
     waitFor session.closeWait()
 
-proc downloadFile*(url, outputPath: string) =
+proc downloadFile*(url, outputPath: string, disableSslCertCheck = false) =
   # For debugging.
   display("GET:", url, priority = DebugPriority)
 
@@ -432,7 +435,7 @@ proc downloadFile*(url, outputPath: string) =
   # Download to temporary file to prevent problems when choosenim crashes.
   let tempOutputPath = outputPath & "_temp"
   try:
-    downloadFileNim(url, tempOutputPath)
+    downloadFileNim(url, tempOutputPath, disableSslCertCheck)
   except HttpRequestError:
     echo("") # Skip line with progress bar.
     let msg =
@@ -462,11 +465,11 @@ proc needsDownload(
     display("Info:", "$1 already downloaded" % outputPath, priority = HighPriority)
     return false
 
-proc getBinaryUrlFromReleases*(version: Version, arch: int): Option[string] =
+proc getBinaryUrlFromReleases*(version: Version, arch: int, disableSslCertCheck = false): Option[string] =
   ## Get the binary download URL for a specific version and platform from releases.json
   ## Returns None if the platform/version combination is not available
   try:
-    let rawContents = retrieveUrl(releasesJsonUrl)
+    let rawContents = retrieveUrl(releasesJsonUrl, disableSslCertCheck)
     let parsedContents = parseJson(rawContents)
     let versionStr = $version
 
@@ -500,7 +503,7 @@ proc downloadImpl(version: Version, options: Options): string =
     if $version in ["#devel", "#head"]: # and not params.latest:
       # Install nightlies by default for devel channel
       try:
-        let rawContents = retrieveUrl(githubNightliesReleasesUrl)
+        let rawContents = retrieveUrl(githubNightliesReleasesUrl, options.disableSslCertCheck)
         let parsedContents = parseJson(rawContents)
         (url, reference) = getNightliesUrl(parsedContents, arch)
         if url.len == 0:
@@ -536,7 +539,7 @@ proc downloadImpl(version: Version, options: Options): string =
     if not needsDownload(url, outputPath, options):
       return outputPath
 
-    downloadFile(url, outputPath)
+    downloadFile(url, outputPath, options.disableSslCertCheck)
     result = outputPath
   else:
     display(
@@ -548,13 +551,13 @@ proc downloadImpl(version: Version, options: Options): string =
     var outputPath: string
 
     # Try to get binary URL from releases.json
-    let binaryUrlOpt = getBinaryUrlFromReleases(version, arch)
+    let binaryUrlOpt = getBinaryUrlFromReleases(version, arch, options.disableSslCertCheck)
     if binaryUrlOpt.isSome():
       let binUrl = binaryUrlOpt.get()
       if not needsDownload(binUrl, outputPath, options):
         return outputPath
       try:
-        downloadFile(binUrl, outputPath)
+        downloadFile(binUrl, outputPath, options.disableSslCertCheck)
         return outputPath
       except HttpRequestError:
         display(
@@ -583,7 +586,7 @@ proc downloadImpl(version: Version, options: Options): string =
     let url = (if hasUnxz: websiteUrlXz else: websiteUrlGz) % $version
     if not needsDownload(url, outputPath, options):
       return outputPath
-    downloadFile(url, outputPath)
+    downloadFile(url, outputPath, options.disableSslCertCheck)
     result = outputPath
 
 proc downloadNim*(version: Version, options: Options): string =
@@ -604,7 +607,7 @@ proc downloadCSources*(options: Options): string =
     return outputPath
 
   display("Downloading", "Nim C sources from GitHub", priority = HighPriority)
-  downloadFile(csourcesArchiveUrl, outputPath)
+  downloadFile(csourcesArchiveUrl, outputPath, options.disableSslCertCheck)
   return outputPath
 
 proc downloadMingw*(options: Options): string =
@@ -616,7 +619,7 @@ proc downloadMingw*(options: Options): string =
     return outputPath
 
   display("Downloading", "C compiler (Mingw$1)" % $arch, priority = HighPriority)
-  downloadFile(url, outputPath)
+  downloadFile(url, outputPath, options.disableSslCertCheck)
   return outputPath
 
 proc getOfficialReleases*(options: Options): seq[Version] {.raises: [CatchableError].} =
@@ -639,7 +642,7 @@ proc getOfficialReleases*(options: Options): seq[Version] {.raises: [CatchableEr
     return @[]
   var parsedContents: JsonNode
   try:
-    let rawContents = retrieveUrl(releasesJsonUrl)
+    let rawContents = retrieveUrl(releasesJsonUrl, options.disableSslCertCheck)
     parsedContents = parseJson(rawContents)
   except CatchableError:
     display(
