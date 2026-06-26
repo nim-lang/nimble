@@ -443,6 +443,7 @@ proc downloadFile*(url, outputPath: string, disableSslCertCheck = false) =
       "Couldn't download file from $1.\nResponse was: $2" %
       [url, getCurrentExceptionMsg()]
     display("Info:", msg, Warning, MediumPriority)
+    if tempOutputPath.fileExists: removeFile(tempOutputPath)
     raise
 
   moveFile(tempOutputPath, outputPath)
