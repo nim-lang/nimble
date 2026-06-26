@@ -432,8 +432,9 @@ proc downloadFile*(url, outputPath: string, disableSslCertCheck = false) =
   # Create outputPath's directory if it doesn't exist already.
   createDir(outputPath.splitFile.dir)
 
-  # Download to temporary file to prevent problems when choosenim crashes.
-  let tempOutputPath = outputPath & "_temp"
+  # Download to a unique temporary file to avoid collisions when concurrent
+  # downloads target the same output path (e.g. parallel nim#devel resolution).
+  let tempOutputPath = outputPath & "_temp_" & $int(epochTime() * 1000)
   try:
     downloadFileNim(url, tempOutputPath, disableSslCertCheck)
   except HttpRequestError:
