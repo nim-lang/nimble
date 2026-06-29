@@ -849,7 +849,6 @@ proc dump(options: var Options, nimBin: var Option[string]) =
   fn "srcDir", p.srcDir
   fn "backend", p.backend
   fn "paths", p.paths
-  fn "nimDir", getNimDir(options, nimBin)
   fn "entryPoints", p.getEntryPoints(options)
   fn "testEntryPoint", p.testEntryPoint
   if json:
@@ -2391,6 +2390,9 @@ proc doAction(options: var Options, nimBinParam: Option[string]) {.instrument.} 
   of actionDump:
     needNim()
     dump(options, nimBin)
+  of actionGetNimDir:
+    needNim()
+    echo getNimDir(options, nimBin)
   of actionTasks:
     needNim()
     listTasks(options, nimBin)
@@ -2460,7 +2462,7 @@ when isMainModule:
       opt.disableValidation = true
     
     # Actions that don't go through the main resolving pipeline (no SAT solve / install).
-    const nonResolvingActions = {actionNil, actionRefresh, actionInit, actionDump,
+    const nonResolvingActions = {actionNil, actionRefresh, actionInit, actionDump, actionGetNimDir,
       actionPublish, actionSearch, actionList, actionPath, actionUninstall,
       actionCheck, actionTasks, actionClean, actionManual}
     var shouldRun = opt.action.typ notin nonResolvingActions
