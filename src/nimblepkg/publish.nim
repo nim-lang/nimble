@@ -117,7 +117,7 @@ proc forkExists(a: Auth): bool =
 proc createFork(a: Auth) =
   try:
     let req = HttpClientRequestRef.new(
-      a.session, ReposUrl & "nim-lang/packages/forks", MethodPost
+      a.session, ReposUrl & "nim-lang/packages/forks", MethodPost, headers = a.headers
     ).valueOr:
         raise nimbleError("Unable to create fork request: " & $error)
     discard waitFor req.send()
