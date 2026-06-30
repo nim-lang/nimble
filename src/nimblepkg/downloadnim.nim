@@ -711,22 +711,27 @@ proc extract*(path: string, extractDir: string) =
       raise newException(
         NimbleError, "Unable to extract. Tar.xz files are not supported on Windows."
       )
-    elif findExe("unxz") != "":
-      let tarFile = path.changeFileExt("")
-      removeFile(tarFile) # just in case it exists, if it does `unxz` fails.
-      doCmdRaw("unxz " & quoteShell(path))
-      extract(tarFile, extractDir) # We remove the .xz extension
-      return
-    elif findExe("tar") == "":
-      # No `unxz` (not shipped on macOS) and no libarchive-based `tar` to fall
-      # back on, so we cannot decompress the .xz at all.
-      raise newException(
-        NimbleError,
-        "Unable to extract. Need `unxz` or a libarchive-based `tar` to extract " &
-          ".tar.xz file. See https://github.com/dom96/choosenim/issues/290.",
-      )
-    # else: `tar` is available (bsdtar/libarchive on macOS, GNU tar with xz on
-    # Linux can both read .xz directly), so fall through to the case below.
+    else:
+      # NOTE: these checks must stay a runtime `if`, not a `when` `elif`, so that
+      # `findExe` resolves on the user's machine rather than being folded at
+      # compile time (which also breaks compilation on targets where the VM
+      # cannot evaluate `findExe`).
+      if findExe("unxz") != "":
+        let tarFile = path.changeFileExt("")
+        removeFile(tarFile) # just in case it exists, if it does `unxz` fails.
+        doCmdRaw("unxz " & quoteShell(path))
+        extract(tarFile, extractDir) # We remove the .xz extension
+        return
+      elif findExe("tar") == "":
+        # No `unxz` (not shipped on macOS) and no libarchive-based `tar` to fall
+        # back on, so we cannot decompress the .xz at all.
+        raise newException(
+          NimbleError,
+          "Unable to extract. Need `unxz` or a libarchive-based `tar` to extract " &
+            ".tar.xz file. See https://github.com/dom96/choosenim/issues/290.",
+        )
+      # else: `tar` is available (bsdtar/libarchive on macOS, GNU tar with xz on
+      # Linux can both read .xz directly), so fall through to the case below.
 
   let tempDir = getTempDir() / "choosenim-extraction"
   removeDir(tempDir)
