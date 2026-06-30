@@ -103,8 +103,13 @@ proc isCorrectFork(j: JsonNode): bool =
 
 proc forkExists(a: Auth): bool =
   try:
-    let x = waitFor a.session.fetch(parseUri(ReposUrl & a.user & "/packages"))
-    let j = parseJson(bytesToString(x.data))
+    let req = HttpClientRequestRef.new(
+      a.session, ReposUrl & a.user & "/packages", headers = a.headers
+    ).valueOr:
+        raise nimbleError("Unable to create fork request: " & $error)
+    let resp = waitFor req.send()
+    let data = bytesToString(waitFor resp.getBodyBytes())
+    let j = parseJson(data)
     result = isCorrectFork(j)
   except JsonParsingError, HttpError:
     result = false
