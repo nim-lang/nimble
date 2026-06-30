@@ -150,6 +150,7 @@ proc createPullRequest(a: Auth, pkg: PackageInfo, url, branch: string): string =
   let resp = waitFor req.send()
   let body = bytesToString(waitFor resp.getBodyBytes())
   var pr = parseJson(body)
+  waitFor resp.closeWait()
   return pr{"html_url"}.getStr()
 
 proc `%`(s: openArray[string]): JsonNode =
