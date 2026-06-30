@@ -111,6 +111,7 @@ proc forkExists(a: Auth): bool =
     let data = bytesToString(waitFor resp.getBodyBytes())
     let j = parseJson(data)
     result = isCorrectFork(j)
+    waitFor resp.closeWait()
   except JsonParsingError, HttpError:
     result = false
 
