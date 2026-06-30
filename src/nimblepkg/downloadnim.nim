@@ -1,5 +1,5 @@
-import std/[strutils, os, terminal, times, uri, sequtils, options, jsonutils]
-import compat/[json, osproc]
+import std/[strutils, terminal, times, uri, sequtils, options, jsonutils]
+import compat/[json, osproc, os]
 
 import chronos
 import chronos/apps/http/[httpclient, httpcommon]
@@ -383,14 +383,7 @@ proc downloadFileNim(url, outputPath: string, disableSslCertCheck = false) {.asy
     ).valueOr:
       raise newException(HttpRequestError, error)
 
-    var response = await request.send()
-    while response.status >= 300 and response.status < 400:
-      let newLocation = response.getNewLocation().valueOr:
-        raise newException(HttpRequestError, error)
-      await response.closeWait()
-      request = request.redirect(newLocation).valueOr:
-        raise newException(HttpRequestError, error)
-      response = await request.send()
+    var response = await request.sendWithRedirect()
     if response.status >= 400:
       await response.closeWait()
       raise newException(HttpRequestError, "Server returned status: " & $response.status)

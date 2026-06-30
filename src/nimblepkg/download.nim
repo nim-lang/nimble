@@ -449,6 +449,20 @@ proc getGitHubApiUrl(url, commit: string): string =
   ## an URL for the GitHub REST API query for the full commit hash.
   &"https://api.github.com/repos/{extractOwnerAndRepo(url)}/commits/{commit}"
 
+
+proc sendWithRedirect*(request: HttpClientRequestRef): Future[HttpClientResponseRef] {.
+     async: (raises: [CancelledError, HttpError]).} =
+    var request = request
+    result = await request.send()
+
+    while result.status >= 300 and result.status < 400:
+      let newLocation = result.getNewLocation().valueOr:
+        raise newException(HttpRequestError, error)
+      await result.closeWait()
+      request = request.redirect(newLocation).valueOr:
+        raise newException(HttpRequestError, error)
+      result = await request.send()
+
 proc retrieveUrl*(url: string, disableSslCertCheck = false): Future[string] {.async.} =
   display("Http", "Requesting " & url, priority = DebugPriority)
   let flags = if disableSslCertCheck:
@@ -463,15 +477,8 @@ proc retrieveUrl*(url: string, disableSslCertCheck = false): Future[string] {.as
       raise newException(HttpRequestError, error)
 
     while true:
-      let response = await request.send()
-      if response.status >= 300 and response.status < 400:
-        let newLocation = response.getNewLocation().valueOr:
-          raise newException(HttpRequestError, error)
-        await response.closeWait()
-        request = request.redirect(newLocation).valueOr:
-          raise newException(HttpRequestError, error)
-        continue
-      elif response.status >= 400:
+      let response = await request.sendWithRedirect()
+      if response.status >= 400:
         await response.closeWait()
         raise newException(HttpRequestError,
                            "Server returned status: " & $response.status)
