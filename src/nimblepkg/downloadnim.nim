@@ -429,27 +429,26 @@ proc downloadFileNim(url, outputPath: string, disableSslCertCheck = false) {.asy
     await session.closeWait()
 
 proc downloadFile*(url, outputPath: string, disableSslCertCheck = false) {.async.} =
-  {.cast(raises: [CatchableError]).}:
-    # For debugging.
-    display("GET:", url, priority = DebugPriority)
+  # For debugging.
+  display("GET:", url, priority = DebugPriority)
 
-    # Create outputPath's directory if it doesn't exist already.
-    createDir(outputPath.splitFile.dir)
+  # Create outputPath's directory if it doesn't exist already.
+  createDir(outputPath.splitFile.dir)
 
-    # Download to a temporary file
-    let tempOutputPath = outputPath & "_temp"
-    try:
-      await downloadFileNim(url, tempOutputPath, disableSslCertCheck)
-    except HttpRequestError:
-      echo("") # Skip line with progress bar.
-      let msg =
-        "Couldn't download file from $1.\nResponse was: $2" %
-        [url, getCurrentExceptionMsg()]
-      display("Info:", msg, Warning, MediumPriority)
-      if tempOutputPath.fileExists: removeFile(tempOutputPath)
-      raise
+  # Download to a temporary file
+  let tempOutputPath = outputPath & "_temp"
+  try:
+    await downloadFileNim(url, tempOutputPath, disableSslCertCheck)
+  except HttpRequestError as exc:
+    echo("") # Skip line with progress bar.
+    let msg =
+      "Couldn't download file from $1.\nResponse was: $2" %
+      [url, getCurrentExceptionMsg()]
+    display("Info:", msg, Warning, MediumPriority)
+    if tempOutputPath.fileExists: removeFile(tempOutputPath)
+    raise exc
 
-    moveFile(tempOutputPath, outputPath)
+  moveFile(tempOutputPath, outputPath)
 
 proc getDownloadPath*(downloadUrl: string, options: Options): string =
   let (_, name, ext) = downloadUrl.splitFile()
