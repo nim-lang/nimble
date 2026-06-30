@@ -120,7 +120,12 @@ proc createFork(a: Auth) =
       a.session, ReposUrl & "nim-lang/packages/forks", MethodPost, headers = a.headers
     ).valueOr:
         raise nimbleError("Unable to create fork request: " & $error)
-    discard waitFor req.send()
+    let resp = waitFor req.send()
+    if resp.status >= 400:
+      waitFor resp.closeWait()
+      raise newException(HttpRequestError,
+                         "Server returned status: " & $resp.status)
+    waitFor resp.closeWait()
   except HttpError:
     raise nimbleError("Unable to create fork. Access token" &
                        " might not have enough permissions.")
