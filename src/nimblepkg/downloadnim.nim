@@ -1,8 +1,8 @@
 import std/[strutils, os, terminal, times, uri, sequtils, options, jsonutils]
 import compat/[json, osproc]
 
-import chronos/apps/http/httpclient
-import chronos/apps/http/httpcommon
+import chronos
+import chronos/apps/http/[httpclient, httpcommon]
 
 import zippy/tarballs as zippy_tarballs
 import zippy/ziparchives as zippy_zips
@@ -370,7 +370,7 @@ proc finish(tracker: var ProgressTracker) =
     showBar(1, 0)
     echo ""
 
-proc downloadFileNim(url, outputPath: string, disableSslCertCheck = false) =
+proc downloadFileNim(url, outputPath: string, disableSslCertCheck = false) {.async.} =
   displayDebug("Downloading using Chronos")
   let flags = if disableSslCertCheck:
     {HttpClientFlag.NoVerifyHost, HttpClientFlag.NoVerifyServerName}
@@ -383,16 +383,16 @@ proc downloadFileNim(url, outputPath: string, disableSslCertCheck = false) =
     ).valueOr:
       raise newException(HttpRequestError, error)
 
-    var response = waitFor request.send()
+    var response = await request.send()
     while response.status >= 300 and response.status < 400:
       let newLocation = response.getNewLocation().valueOr:
         raise newException(HttpRequestError, error)
-      waitFor response.closeWait()
+      await response.closeWait()
       request = request.redirect(newLocation).valueOr:
         raise newException(HttpRequestError, error)
-      response = waitFor request.send()
+      response = await request.send()
     if response.status >= 400:
-      waitFor response.closeWait()
+      await response.closeWait()
       raise newException(HttpRequestError, "Server returned status: " & $response.status)
 
     try:
@@ -411,7 +411,7 @@ proc downloadFileNim(url, outputPath: string, disableSslCertCheck = false) =
         var buf = newSeq[byte](bufSize)
 
         while not reader.atEof:
-          let n = waitFor(reader.readOnce(addr buf[0], buf.len))
+          let n = await reader.readOnce(addr buf[0], buf.len)
 
           if n == 0:
             break
@@ -423,30 +423,30 @@ proc downloadFileNim(url, outputPath: string, disableSslCertCheck = false) =
           tracker.hadProgress = true
           tracker.tick()
       finally:
-        waitFor reader.closeWait()
+        await reader.closeWait()
         close(file)
 
       tracker.finish()
     finally:
-      waitFor response.closeWait()
+      await response.closeWait()
 
   except CatchableError:
     raise newException(HttpRequestError, getCurrentExceptionMsg())
   finally:
-    waitFor session.closeWait()
+    await session.closeWait()
 
-proc downloadFile*(url, outputPath: string, disableSslCertCheck = false) =
+proc downloadFile*(url, outputPath: string, disableSslCertCheck = false) {.async.} =
   # For debugging.
   display("GET:", url, priority = DebugPriority)
 
   # Create outputPath's directory if it doesn't exist already.
   createDir(outputPath.splitFile.dir)
 
-  # Download to a unique temporary file to avoid collisions when concurrent
-  # downloads target the same output path (e.g. parallel nim#devel resolution).
-  let tempOutputPath = outputPath & "_temp_" & $int(epochTime() * 1000)
+  # Download to a temporary file
+  let tempOutputPath = outputPath & "_temp_"
   try:
-    downloadFileNim(url, tempOutputPath, disableSslCertCheck)
+    await downloadFileNim(url, tempOutputPath, disableSslCertCheck)
+    moveFile(tempOutputPath, outputPath)
   except HttpRequestError:
     echo("") # Skip line with progress bar.
     let msg =
@@ -455,8 +455,8 @@ proc downloadFile*(url, outputPath: string, disableSslCertCheck = false) =
     display("Info:", msg, Warning, MediumPriority)
     if tempOutputPath.fileExists: removeFile(tempOutputPath)
     raise
-
-  moveFile(tempOutputPath, outputPath)
+  except:
+    raise newException(HttpRequestError, getCurrentExceptionMsg())
 
 proc getDownloadPath*(downloadUrl: string, options: Options): string =
   let (_, name, ext) = downloadUrl.splitFile()
@@ -481,7 +481,7 @@ proc getBinaryUrlFromReleases*(version: Version, arch: int, disableSslCertCheck 
   ## Get the binary download URL for a specific version and platform from releases.json
   ## Returns None if the platform/version combination is not available
   try:
-    let rawContents = retrieveUrl(releasesJsonUrl, disableSslCertCheck)
+    let rawContents = waitFor retrieveUrl(releasesJsonUrl, disableSslCertCheck)
     let parsedContents = parseJson(rawContents)
     let versionStr = $version
 
@@ -507,7 +507,7 @@ proc getBinaryUrlFromReleases*(version: Version, arch: int, disableSslCertCheck 
   except CatchableError:
     return none(string)
 
-proc downloadImpl(version: Version, options: Options): string =
+proc downloadImpl(version: Version, options: Options): Future[string] {.async.} =
   let arch = getGccArch(options)
   displayDebug("Detected", "arch as " & $arch & "bit")
   if version.isSpecial():
@@ -515,7 +515,7 @@ proc downloadImpl(version: Version, options: Options): string =
     if $version in ["#devel", "#head"]: # and not params.latest:
       # Install nightlies by default for devel channel
       try:
-        let rawContents = retrieveUrl(githubNightliesReleasesUrl, options.disableSslCertCheck)
+        let rawContents = await retrieveUrl(githubNightliesReleasesUrl, options.disableSslCertCheck)
         let parsedContents = parseJson(rawContents)
         (url, reference) = getNightliesUrl(parsedContents, arch)
         if url.len == 0:
@@ -551,7 +551,7 @@ proc downloadImpl(version: Version, options: Options): string =
     if not needsDownload(url, outputPath, options):
       return outputPath
 
-    downloadFile(url, outputPath, options.disableSslCertCheck)
+    await downloadFile(url, outputPath, options.disableSslCertCheck)
     result = outputPath
   else:
     display(
@@ -569,7 +569,7 @@ proc downloadImpl(version: Version, options: Options): string =
       if not needsDownload(binUrl, outputPath, options):
         return outputPath
       try:
-        downloadFile(binUrl, outputPath, options.disableSslCertCheck)
+        await downloadFile(binUrl, outputPath, options.disableSslCertCheck)
         return outputPath
       except HttpRequestError:
         display(
@@ -598,13 +598,13 @@ proc downloadImpl(version: Version, options: Options): string =
     let url = (if hasUnxz: websiteUrlXz else: websiteUrlGz) % $version
     if not needsDownload(url, outputPath, options):
       return outputPath
-    downloadFile(url, outputPath, options.disableSslCertCheck)
+    await downloadFile(url, outputPath, options.disableSslCertCheck)
     result = outputPath
 
-proc downloadNim*(version: Version, options: Options): string =
+proc downloadNim*(version: Version, options: Options): Future[string] {.async.} =
   ## Returns the path of the downloaded .tar.(gz|xz) file.
   try:
-    return downloadImpl(version, options)
+    await downloadImpl(version, options)
   except HttpRequestError:
     raise newException(NimbleError, "Version $1 does not exist." % $version)
 
@@ -619,7 +619,7 @@ proc downloadCSources*(options: Options): string =
     return outputPath
 
   display("Downloading", "Nim C sources from GitHub", priority = HighPriority)
-  downloadFile(csourcesArchiveUrl, outputPath, options.disableSslCertCheck)
+  waitFor downloadFile(csourcesArchiveUrl, outputPath, options.disableSslCertCheck)
   return outputPath
 
 proc downloadMingw*(options: Options): string =
@@ -631,7 +631,7 @@ proc downloadMingw*(options: Options): string =
     return outputPath
 
   display("Downloading", "C compiler (Mingw$1)" % $arch, priority = HighPriority)
-  downloadFile(url, outputPath, options.disableSslCertCheck)
+  waitFor downloadFile(url, outputPath, options.disableSslCertCheck)
   return outputPath
 
 proc getOfficialReleases*(options: Options): seq[Version] {.raises: [CatchableError].} =
@@ -654,7 +654,7 @@ proc getOfficialReleases*(options: Options): seq[Version] {.raises: [CatchableEr
     return @[]
   var parsedContents: JsonNode
   try:
-    let rawContents = retrieveUrl(releasesJsonUrl, options.disableSslCertCheck)
+    let rawContents = waitFor retrieveUrl(releasesJsonUrl, options.disableSslCertCheck)
     parsedContents = parseJson(rawContents)
   except CatchableError:
     display(
@@ -872,7 +872,7 @@ proc downloadAndExtractNim*(version: Version, options: Options): Option[string] 
       display("Info:", "Nim $1 already installed" % $version)
       saveNimMetaData(extractDir)
       return some extractDir
-    let path = downloadNim(version, options)
+    let path = waitFor downloadNim(version, options)
     let extracted = extractNimIfNeeded(path, extractDir, options)
     if extracted:
       # Compile if no binary exists (e.g., source tarballs from GitHub)

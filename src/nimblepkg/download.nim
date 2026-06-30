@@ -2,8 +2,9 @@
 # BSD License. Look at license.txt for more info.
 
 import parseutils, os, strutils, strscans, tables, uri, strformat,
-       sequtils, urls, chronos, std/options
+       sequtils, urls, std/options
 
+import chronos
 import chronos/apps/http/[httpclient, httpcommon]
 
 import compat/[json, osproc]
@@ -448,7 +449,7 @@ proc getGitHubApiUrl(url, commit: string): string =
   ## an URL for the GitHub REST API query for the full commit hash.
   &"https://api.github.com/repos/{extractOwnerAndRepo(url)}/commits/{commit}"
 
-proc retrieveUrl*(url: string, disableSslCertCheck = false): string =
+proc retrieveUrl*(url: string, disableSslCertCheck = false): Future[string] {.async.} =
   display("Http", "Requesting " & url, priority = DebugPriority)
   let flags = if disableSslCertCheck:
     {HttpClientFlag.NoVerifyHost, HttpClientFlag.NoVerifyServerName}
@@ -462,24 +463,24 @@ proc retrieveUrl*(url: string, disableSslCertCheck = false): string =
       raise newException(HttpRequestError, error)
 
     while true:
-      let response = waitFor request.send()
+      let response = await request.send()
       if response.status >= 300 and response.status < 400:
         let newLocation = response.getNewLocation().valueOr:
           raise newException(HttpRequestError, error)
-        waitFor response.closeWait()
+        await response.closeWait()
         request = request.redirect(newLocation).valueOr:
           raise newException(HttpRequestError, error)
         continue
       elif response.status >= 400:
-        waitFor response.closeWait()
+        await response.closeWait()
         raise newException(HttpRequestError,
                            "Server returned status: " & $response.status)
       else:
-        let data = bytesToString(waitFor response.getBodyBytes())
-        waitFor response.closeWait()
+        let data = bytesToString(await response.getBodyBytes())
+        await response.closeWait()
         return data
   finally:
-    waitFor(session.closeWait())
+    await session.closeWait()
 
 {.warning[ProveInit]: off.}
 proc getFullRevisionFromGitHubApi(url, version: string): Sha1Hash =
@@ -488,7 +489,7 @@ proc getFullRevisionFromGitHubApi(url, version: string): Sha1Hash =
   try:
     let gitHubApiUrl = getGitHubApiUrl(url, version)
     display("Get", gitHubApiUrl);
-    let content = retrieveUrl(gitHubApiUrl)
+    let content = waitFor retrieveUrl(gitHubApiUrl)
     let json = parseJson(content)
     if json.hasKey("sha"):
       return json["sha"].str.initSha1Hash
@@ -553,7 +554,7 @@ proc doDownloadTarball(url, downloadDir, version: string, queryRevision: bool):
 
   let downloadLink = getTarballDownloadLink(url, version)
   display("Downloading", downloadLink)
-  let data = retrieveUrl(downloadLink)
+  let data = waitFor retrieveUrl(downloadLink)
   display("Completed", "downloading " & downloadLink)
 
   let filePath = downloadDir / "tarball.tar.gz"
@@ -601,7 +602,7 @@ proc doDownloadTarballAsync*(url, downloadDir, version: string, queryRevision: b
   ## Note: HTTP download is still synchronous, but tar extraction is async.
   let downloadLink = getTarballDownloadLink(url, version)
   display("Downloading", downloadLink)
-  let data = retrieveUrl(downloadLink)
+  let data = waitFor retrieveUrl(downloadLink)
   display("Completed", "downloading " & downloadLink)
 
   let filePath = downloadDir / "tarball.tar.gz"

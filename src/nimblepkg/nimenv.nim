@@ -1,6 +1,8 @@
 import std/[strscans, os, strutils, strformat, options]
 import version, cli, common, options, download
 
+import chronos
+
 const nimBuildConfigUrl =
   "https://raw.githubusercontent.com/nim-lang/Nim/v$1/config/build_config.txt"
 
@@ -25,7 +27,7 @@ proc getCsourcesInfoForNim*(version: Version): Option[CsourcesInfo] =
   ## Using csources HEAD instead drifts and breaks the bootstrap with
   ## errors like `system module needs: raiseIndexError2`.
   try:
-    let content = retrieveUrl(nimBuildConfigUrl % $version)
+    let content = waitFor retrieveUrl(nimBuildConfigUrl % $version)
     var info = CsourcesInfo()
     for rawLine in content.splitLines:
       let line = rawLine.strip

@@ -40,7 +40,7 @@ suite "Nim binaries":
   test "can download a concrete version":
     var options = initOptions()
     let version = newVersion("1.2.8")
-    let path = downloadNim(version, options)
+    let path = waitFor downloadNim(version, options)
     check path.fileExists()
 
   test "can download and unzip a version. Should also compile it if the precompiled binaries are not available for the current platform":
