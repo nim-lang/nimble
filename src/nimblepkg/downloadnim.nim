@@ -443,7 +443,7 @@ proc downloadFile*(url, outputPath: string, disableSslCertCheck = false) {.async
   createDir(outputPath.splitFile.dir)
 
   # Download to a temporary file
-  let tempOutputPath = outputPath & "_temp_"
+  let tempOutputPath = outputPath & "_temp"
   try:
     await downloadFileNim(url, tempOutputPath, disableSslCertCheck)
     moveFile(tempOutputPath, outputPath)
