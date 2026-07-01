@@ -865,7 +865,9 @@ proc saveNimMetaData(extractDir: string) =
     metaData.url = "https://github.com/nim-lang/Nim.git"
     saveMetaData(metaData, extractDir, changeRoots = false)
 
-proc downloadAndExtractNim*(version: Version, options: Options): Option[string] =
+proc downloadAndExtractNim*(
+    version: Version, options: Options
+): Future[Option[string]] {.async.} =
   try:
     let extractDir = options.getNimInstallationDir(version)
     # Check if already properly installed (with working binary)
