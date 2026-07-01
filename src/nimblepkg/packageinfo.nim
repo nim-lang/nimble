@@ -131,7 +131,7 @@ proc validatePackagesList(path: string): bool =
   except ValueError, JsonParsingError:
     return false
 
-proc fetchList*(list: PackageList, options: Options) =
+proc fetchList*(list: PackageList, options: Options) {.async.} =
   ## Downloads or copies the specified package list and saves it in $nimbleDir.
   let verb = if list.urls.len > 0: "Downloading" else: "Copying"
   display(verb, list.name & " package list", priority = HighPriority)
@@ -167,17 +167,17 @@ proc fetchList*(list: PackageList, options: Options) =
               session, url, headers = {UserAgentHeader: nimbleUserAgent, "Accept-Encoding": "gzip"}
             ).valueOr:
               raise newException(HttpRequestError, error)
-            response = waitFor request.send()
+            response = await request.send()
           if response.status >= 400:
             raise newException(HttpRequestError,
               "Server returned status: " & $response.status)
-          var body = bytesToString(waitFor response.getBodyBytes())
+          var body = bytesToString(await response.getBodyBytes())
           let encoding = response.headers.getLastString("content-encoding").strip.toLowerAscii
           if encoding == "gzip":
             body = uncompress(body, dfGzip)
           writeFile(tempPath, body)
         finally:
-          waitFor session.closeWait()
+          await session.closeWait()
       except HttpConnectionError:
         let message = "Failed to verify the SSL certificate for " & url
         raise nimbleError(message, "Use --noSSLCheck to ignore this error.")
@@ -236,7 +236,7 @@ proc readPackageList(name: string, options: Options, ignorePackageCache = false)
     if options.prompt("No local packages.json found, download it from " &
             "internet?"):
       for name, list in options.config.packageLists:
-        fetchList(list, options)
+        waitFor fetchList(list, options)
     else:
       # The user might not need a package list for now. So let's try
       # going further.

@@ -469,11 +469,11 @@ proc needsDownload(
     display("Info:", "$1 already downloaded" % outputPath, priority = HighPriority)
     return false
 
-proc getBinaryUrlFromReleases*(version: Version, arch: int, disableSslCertCheck = false): Option[string] =
+proc getBinaryUrlFromReleases*(version: Version, arch: int, disableSslCertCheck = false): Future[Option[string]] {.async.} =
   ## Get the binary download URL for a specific version and platform from releases.json
   ## Returns None if the platform/version combination is not available
   try:
-    let rawContents = waitFor retrieveUrl(releasesJsonUrl, disableSslCertCheck)
+    let rawContents = await retrieveUrl(releasesJsonUrl, disableSslCertCheck)
     let parsedContents = parseJson(rawContents)
     let versionStr = $version
 
@@ -555,7 +555,7 @@ proc downloadImpl(version: Version, options: Options): Future[string] {.async.} 
     var outputPath: string
 
     # Try to get binary URL from releases.json
-    let binaryUrlOpt = getBinaryUrlFromReleases(version, arch, options.disableSslCertCheck)
+    let binaryUrlOpt = await getBinaryUrlFromReleases(version, arch, options.disableSslCertCheck)
     if binaryUrlOpt.isSome():
       let binUrl = binaryUrlOpt.get()
       if not needsDownload(binUrl, outputPath, options):
@@ -626,7 +626,7 @@ proc downloadMingw*(options: Options): string =
   waitFor downloadFile(url, outputPath, options.disableSslCertCheck)
   return outputPath
 
-proc getOfficialReleases*(options: Options): seq[Version] {.raises: [CatchableError].} =
+proc getOfficialReleases*(options: Options): Future[seq[Version]] {.async.} =
   #Avoid reaching rate limits by caching the releases
   #Later on, this file will be moved to a new global cache file that we are going to
   #introduce when enabling the "enumerate all versions" feature
@@ -646,7 +646,7 @@ proc getOfficialReleases*(options: Options): seq[Version] {.raises: [CatchableEr
     return @[]
   var parsedContents: JsonNode
   try:
-    let rawContents = waitFor retrieveUrl(releasesJsonUrl, options.disableSslCertCheck)
+    let rawContents = await retrieveUrl(releasesJsonUrl, options.disableSslCertCheck)
     parsedContents = parseJson(rawContents)
   except CatchableError:
     display(
@@ -883,7 +883,7 @@ proc downloadAndExtractNim*(
       let nimBin = extractDir / "bin" / "nim".addFileExt(ExeExt)
       if not nimBin.fileExists:
         display("Info:", "Compiling Nim $1 from source" % $version, priority = HighPriority)
-        compileNim(options, extractDir, version.toVersionRange)
+        await compileNim(options, extractDir, version.toVersionRange)
       saveNimMetaData(extractDir)
       return some extractDir
     else:
@@ -902,7 +902,7 @@ proc downloadAndExtractNimMatchedVersion*(
   # Handle special versions like #devel, #head, etc.
   if ver.kind == verSpecial:
     return await downloadAndExtractNim(newVersion($ver), options)
-  let releases = getOfficialReleases(options)
+  let releases = await getOfficialReleases(options)
     #TODO Use the cached make sure the order is correct
   for releaseVer in releases:
     if releaseVer.withinRange(ver):
@@ -945,7 +945,7 @@ proc installNimFromBinariesDir*(
 
       # Rebuild if necessary
       displayInfo "There is no nim binary in the downloaded directory or it is corrupted. Rebuilding it"
-      compileNim(options, extractedDir.get, require.ver)
+      await compileNim(options, extractedDir.get, require.ver)
       let rebuiltVer = getNimVersion(extractedDir.get)
       if rebuiltVer.isSome():
         return some (extractedDir.get, rebuiltVer.get)

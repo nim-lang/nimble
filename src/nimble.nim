@@ -409,7 +409,7 @@ proc install(packages: seq[PkgTuple], options: Options,
         var opt = options
         if pv.name.isNim:
           if not downloadDir.isSubdirOf(options.nimBinariesDir):
-            compileNim(opt, downloadDir, pv.ver)
+            waitFor compileNim(opt, downloadDir, pv.ver)
           opt.useNimFromDir(downloadDir, pv.ver, true)
         result = installFromDir(downloadDir, pv.ver, opt, url,
                                 first, fromLockFile, nimBin, vcsRevision,
@@ -2028,7 +2028,7 @@ proc solvePkgs(rootPackage: PackageInfo, options: var Options, nimBin: var Optio
   if nimPkgInfo.nimBinPath.isNone:
     if not fileExists(resolvedNimBin):
       if options.prompt("Develop version of nim was found but it is not compiled. Compile it now?"):
-        compileNim(options, nimPkgInfo.getRealDir, nimPkgInfo.basicInfo.version.toVersionRange())
+        waitFor compileNim(options, nimPkgInfo.getRealDir, nimPkgInfo.basicInfo.version.toVersionRange())
       else:
         raise nimbleError("Trying to use nim from $1 " % nimPkgInfo.getRealDir,
                           "If you are using develop mode nim make sure to compile it.")
@@ -2355,7 +2355,7 @@ proc doAction(options: var Options, nimBinParam: Option[string]) {.instrument.} 
         options.nimBin = some makeNimBin(options, nimBin.getNimBin)
   case options.action.typ
   of actionRefresh:
-    refresh(options)
+    waitFor refresh(options)
   of actionInstall:
     discard # handled by resolution pipeline
   of actionUninstall:

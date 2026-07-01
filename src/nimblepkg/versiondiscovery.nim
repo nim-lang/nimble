@@ -92,8 +92,8 @@ proc downloadPkInfoForPv*(pv: PkgTuple, options: Options, doPrompt = false, nimB
   let downloadRes = downloadPkgFromUrl(pv, options, doPrompt, nimBin)
   result = getPkgInfo(downloadRes[0].dir, options, nimBin, pikRequires)
 
-proc getAllNimReleases*(options: Options, nimVersion: Option[Version]): seq[PackageMinimalInfo] =
-  let releases = getOfficialReleases(options)
+proc getAllNimReleases*(options: Options, nimVersion: Option[Version]): Future[seq[PackageMinimalInfo]] {.async.} =
+  let releases = await getOfficialReleases(options)
   for release in releases:
     result.add PackageMinimalInfo(name: "nim", version: release)
 
@@ -365,7 +365,7 @@ proc downloadMinimalPackageImpl(pv: PkgTuple, options: Options, nimBin: Option[s
         # For special versions, use sync download (nim binary downloads don't benefit from async)
         {.gcsafe.}:
           return await downloadNimSpecialVersion(pv, options)
-      return getAllNimReleases(options, getNimVersionFromBin(nimBin.getNimBin))
+      return await getAllNimReleases(options, getNimVersionFromBin(nimBin.getNimBin))
 
     # During version discovery, we only need to read .nimble files, not compile code
     # So we ignore submodules to speed up cloning and avoid failures from broken submodules

@@ -214,7 +214,7 @@ proc setBootstrapNim*(systemNimPkg: Option[PackageInfo], pkgList: seq[PackageInf
     #if none of the above, we just set the version to be used. We dont want to install a nim until we
     #are clear that we need to actually use it. In order to pick the version, we get the releases.
     #Notice we should never call setNimBin for it. Rather we should attempt to use it directly.
-    let bestRelease = getOfficialReleases(options).max
+    let bestRelease = (waitFor getOfficialReleases(options)).max
     bootstrapNim.version = bestRelease
 
     # echo "SETTING BOOTSTRAP NIM TO BEST RELEASE: ", bestRelease

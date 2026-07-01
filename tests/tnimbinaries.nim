@@ -9,7 +9,7 @@ from nimblepkg/common import cd
 suite "Nim binaries":
   test "can get all releases":
     var options = initOptions()
-    let releases = getOfficialReleases(options)
+    let releases = waitFor getOfficialReleases(options)
     check releases.len > 0
 
   test "getCsourcesInfoForNim returns pinned hash for v2.0.0":
@@ -17,7 +17,7 @@ suite "Nim binaries":
     # when nimble has to build Nim from source, it must use the EXACT
     # csources commit Nim itself was built against (recorded in Nim's
     # `config/build_config.txt`), not csources_v2/v3 HEAD which drifts.
-    let info = getCsourcesInfoForNim(newVersion("2.0.0"))
+    let info = waitFor getCsourcesInfoForNim(newVersion("2.0.0"))
     check info.isSome
     let i = info.get
     check i.dir == "csources_v2"
@@ -26,7 +26,7 @@ suite "Nim binaries":
     check i.hash == "86742fb02c6606ab01a532a0085784effb2e753e"
 
   test "getCsourcesInfoForNim returns pinned hash for v2.2.10":
-    let info = getCsourcesInfoForNim(newVersion("2.2.10"))
+    let info = waitFor getCsourcesInfoForNim(newVersion("2.2.10"))
     check info.isSome
     let i = info.get
     check i.dir == "csources_v3"
@@ -34,7 +34,7 @@ suite "Nim binaries":
     check i.hash == "eeab3ac46e93f10efda8e58c4db02b9438319d71"
 
   test "getCsourcesInfoForNim returns none for nonexistent version":
-    let info = getCsourcesInfoForNim(newVersion("999.999.999"))
+    let info = waitFor getCsourcesInfoForNim(newVersion("999.999.999"))
     check info.isNone
 
   test "can download a concrete version":
@@ -53,7 +53,7 @@ suite "Nim binaries":
   test "Downloading minimal package with Nim should return all the versions":
     var options = initOptions()
     let pv = ("nim", VersionRange(kind: verAny))
-    let releases: seq[Version] = getOfficialReleases(options)
+    let releases: seq[Version] = waitFor getOfficialReleases(options)
     let nimBin = some("nim")
     let minimalPgks = waitFor downloadMinimalPackage(pv, options, nimBin)
 
