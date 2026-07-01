@@ -896,17 +896,17 @@ proc downloadAndExtractNim*(
 
 proc downloadAndExtractNimMatchedVersion*(
     ver: VersionRange, options: Options
-): Option[string] =
+): Future[Option[string]] {.async.} =
   if options.offline:
     raise nimbleError("Cannot download Nim in offline mode.")
   # Handle special versions like #devel, #head, etc.
   if ver.kind == verSpecial:
-    return downloadAndExtractNim(newVersion($ver), options)
+    return await downloadAndExtractNim(newVersion($ver), options)
   let releases = getOfficialReleases(options)
     #TODO Use the cached make sure the order is correct
   for releaseVer in releases:
     if releaseVer.withinRange(ver):
-      return downloadAndExtractNim(releaseVer, options)
+      return await downloadAndExtractNim(releaseVer, options)
   return none(string)
 
 type NimInstalled* = tuple[dir: string, ver: Version]
