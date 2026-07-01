@@ -609,7 +609,7 @@ proc doDownloadTarballAsync*(url, downloadDir, version: string, queryRevision: b
   ## Note: HTTP download is still synchronous, but tar extraction is async.
   let downloadLink = getTarballDownloadLink(url, version)
   display("Downloading", downloadLink)
-  let data = waitFor retrieveUrl(downloadLink)
+  let data = await retrieveUrl(downloadLink)
   display("Completed", "downloading " & downloadLink)
 
   let filePath = downloadDir / "tarball.tar.gz"
