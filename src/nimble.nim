@@ -5,6 +5,7 @@ import os, tables, browsers, algorithm, sets, sugar, strformat
 
 import nimblepkg/compat/[json, sequtils, osproc]
 import std/options as std_opt
+import chronos
 
 import strutils except toLower
 from unicode import toLower
@@ -396,7 +397,7 @@ proc install(packages: seq[PkgTuple], options: Options,
           downloadPath =  getCacheDownloadDir(url, pv.ver, options)
       var nimInstalled = none(NimInstalled)
       if pv.isNim:
-        nimInstalled = installNimFromBinariesDir(pv, options)
+        nimInstalled = waitFor installNimFromBinariesDir(pv, options)
 
       let (downloadDir, downloadVersion, vcsRevision) =
         if nimInstalled.isSome():
@@ -2002,7 +2003,7 @@ proc solvePkgs(rootPackage: PackageInfo, options: var Options, nimBin: var Optio
   withNimBinFallback(nimBin, options):
     resolvedNim = resolveAndConfigureNim(options.satResult.rootPackage, pkgList, options, nimBin)
   if resolvedNim.pkg.isNone:
-    let nimInstalled = installNimFromBinariesDir(("nim", resolvedNim.version.toVersionRange()), options)
+    let nimInstalled = waitFor installNimFromBinariesDir(("nim", resolvedNim.version.toVersionRange()), options)
     if nimInstalled.isSome:
       resolvedNim.pkg = some getPkgInfo(nimInstalled.get.dir, options, nimBin = none(string), level = pikRequires) #Can be empty as the code path for nim doesnt need it.
       resolvedNim.version = nimInstalled.get.ver
