@@ -1,5 +1,7 @@
-import std/[strscans, os, strutils, strformat, options]
+import std/[strscans, strutils, strformat, options]
+
 import version, cli, common, options, download
+import compat/os
 
 import chronos
 
