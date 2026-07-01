@@ -1,5 +1,9 @@
-import std/[strscans, os, strutils, strformat, options]
+import std/[strscans, strutils, strformat, options]
+
 import version, cli, common, options, download
+import compat/os
+
+import chronos
 
 const nimBuildConfigUrl =
   "https://raw.githubusercontent.com/nim-lang/Nim/v$1/config/build_config.txt"
@@ -13,7 +17,7 @@ type CsourcesInfo* = object
   branch*: string  ## tracking branch (almost always "master")
   hash*: string    ## exact commit Nim was bootstrapped against
 
-proc getCsourcesInfoForNim*(version: Version): Option[CsourcesInfo] =
+proc getCsourcesInfoForNim*(version: Version): Future[Option[CsourcesInfo]] {.async.} =
   ## Fetches the pinned csources info for the given Nim version from
   ## Nim's `config/build_config.txt` (the same file Nim's own
   ## `build_all.sh` reads). Returns `none` if the version tag has no
@@ -25,7 +29,7 @@ proc getCsourcesInfoForNim*(version: Version): Option[CsourcesInfo] =
   ## Using csources HEAD instead drifts and breaks the bootstrap with
   ## errors like `system module needs: raiseIndexError2`.
   try:
-    let content = retrieveUrl(nimBuildConfigUrl % $version)
+    let content = await retrieveUrl(nimBuildConfigUrl % $version)
     var info = CsourcesInfo()
     for rawLine in content.splitLines:
       let line = rawLine.strip
@@ -67,7 +71,7 @@ proc infoAboutActivation(nimDest, nimVersion: string) =
   else:
     display("Info", nimDest & "installed; activate with 'source nim-" & nimVersion & "activate.sh'")
 
-proc compileNim*(options: Options, nimDest: string, v: VersionRange) =
+proc compileNim*(options: Options, nimDest: string, v: VersionRange) {.async.} =
   #Most of the time we dont need to recompile, if we can get the nim version from the binary . 
   let nimCompVersion = getNimVersionFromBin(nimDest / "bin" / "nim".addFileExt(ExeExt))
   if nimCompVersion.isSome() and nimCompVersion.get.withinRange(v):
@@ -101,7 +105,7 @@ proc compileNim*(options: Options, nimDest: string, v: VersionRange) =
   # `system module needs: raiseIndexError2`.
   let pinned =
     if nimVersion.isSpecial: none(CsourcesInfo)
-    else: getCsourcesInfoForNim(nimVersion)
+    else: await getCsourcesInfoForNim(nimVersion)
   let csourcesVersion =
     if pinned.isSome:
       pinned.get.dir
@@ -182,7 +186,7 @@ proc useNimFromDir*(options: var Options, realDir: string, v: VersionRange, tryC
 
   if not fileExists(nim):
     if tryCompiling and options.prompt("Develop version of nim was found but it is not compiled. Compile it now?"):
-      compileNim(options, realDir, v)
+      waitFor compileNim(options, realDir, v)
     else:
       raise nimbleError("Trying to use nim from $1 " % realDir,
                         "If you are using develop mode nim make sure to compile it.")

@@ -3,9 +3,9 @@
 
 # Stdlib imports
 import system except TResult
-import hashes, strutils, os, sets, tables, times, httpclient, strformat
-from net import SslError
+import hashes, strutils, os, sets, tables, times, strformat
 
+import chronos/apps/http/httpclient
 import zippy
 
 import compat/json
@@ -131,7 +131,7 @@ proc validatePackagesList(path: string): bool =
   except ValueError, JsonParsingError:
     return false
 
-proc fetchList*(list: PackageList, options: Options) =
+proc fetchList*(list: PackageList, options: Options) {.async.} =
   ## Downloads or copies the specified package list and saves it in $nimbleDir.
   let verb = if list.urls.len > 0: "Downloading" else: "Copying"
   display(verb, list.name & " package list", priority = HighPriority)
@@ -146,28 +146,39 @@ proc fetchList*(list: PackageList, options: Options) =
       let tempPath = options.getNimbleDir() / "packages_temp.json"
 
       # Grab the proxy
-      let proxy = getProxy(options)
-      if not proxy.isNil:
-        var maskedUrl = proxy.url
+      let proxyUrl = getProxyUrl($options.config.httpProxy)
+      if proxyUrl.isSome:
+        var maskedUrl = parseUri(proxyUrl.get())
         if maskedUrl.password.len > 0: maskedUrl.password = "***"
         display("Connecting", "to proxy at " & $maskedUrl,
                 priority = LowPriority)
 
+      let
+        flags = if options.disableSslCertCheck:
+          {HttpClientFlag.NoVerifyHost, HttpClientFlag.NoVerifyServerName}
+        else:
+          {}
+
       try:
-        let ctx = newSSLContext(options.disableSslCertCheck)
-        let client = newHttpClient(proxy = proxy, sslContext = ctx,
-                                   userAgent = nimbleUserAgent)
-        client.headers = newHttpHeaders({"Accept-Encoding": "gzip"})
-        let resp = client.get(url)
-        if resp.code.is4xx or resp.code.is5xx:
-          raise newException(HttpRequestError,
-            "Server returned status: " & $resp.code & " " & resp.status)
-        var body = resp.body
-        let encoding = ($resp.headers.getOrDefault("content-encoding")).strip.toLowerAscii
-        if encoding == "gzip":
-          body = uncompress(body, dfGzip)
-        writeFile(tempPath, body)
-      except SslError:
+        let session = HttpSessionRef.new(flags = flags, provider = getProvider($options.config.httpProxy))
+        try:
+          let
+            request = HttpClientRequestRef.new(
+              session, url, headers = {UserAgentHeader: nimbleUserAgent, "Accept-Encoding": "gzip"}
+            ).valueOr:
+              raise newException(HttpRequestError, error)
+            response = await request.send()
+          if response.status >= 400:
+            raise newException(HttpRequestError,
+              "Server returned status: " & $response.status)
+          var body = bytesToString(await response.getBodyBytes())
+          let encoding = response.headers.getLastString("content-encoding").strip.toLowerAscii
+          if encoding == "gzip":
+            body = uncompress(body, dfGzip)
+          writeFile(tempPath, body)
+        finally:
+          await session.closeWait()
+      except HttpConnectionError:
         let message = "Failed to verify the SSL certificate for " & url
         raise nimbleError(message, "Use --noSSLCheck to ignore this error.")
 
@@ -183,7 +194,7 @@ proc fetchList*(list: PackageList, options: Options) =
         continue
 
       copyFromPath = tempPath
-      display("Success", "Package list downloaded.", Success, HighPriority)
+      display("Success", "Package list downloaded.", DisplayType.Success, HighPriority)
       lastError = ""
       break
 
@@ -193,7 +204,7 @@ proc fetchList*(list: PackageList, options: Options) =
       display("Warning:", lastError & ", discarding.", Warning)
     else:
       copyFromPath = list.path
-      display("Success", "Package list copied.", Success, HighPriority)
+      display("Success", "Package list copied.", DisplayType.Success, HighPriority)
 
   if lastError.len != 0:
     if list.name == "local":
@@ -225,7 +236,7 @@ proc readPackageList(name: string, options: Options, ignorePackageCache = false)
     if options.prompt("No local packages.json found, download it from " &
             "internet?"):
       for name, list in options.config.packageLists:
-        fetchList(list, options)
+        waitFor fetchList(list, options)
     else:
       # The user might not need a package list for now. So let's try
       # going further.

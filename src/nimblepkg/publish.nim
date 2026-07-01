@@ -5,17 +5,18 @@
 ## nim-lang/packages automatically.
 
 import system except TResult
-import httpclient, strutils, json, os, browsers, times, uri
+import strutils, json, os, browsers, times, uri
 import common, tools, cli, config, options, packageinfotypes, sha1hashes, version, download
 import strformat, sequtils, sets
+import chronos/apps/http/httpclient
 {.warning[UnusedImport]: off.}
-from net import SslCVerifyMode, newContext
 
 type
   Auth = object
     user: string
     token: string  ## GitHub access token
-    http: HttpClient ## http client for doing API requests
+    session: HttpSessionRef ## http session for doing API requests
+    headers: seq[HttpHeaderTuple]
 
 const
   ApiKeyFile = "github_api_token"
@@ -26,12 +27,13 @@ const
 proc userAborted() =
   raise nimbleError("User aborted the process.")
 
-proc createHeaders(a: Auth) =
-  a.http.headers = newHttpHeaders({
+proc createHeaders(a: var Auth) =
+  a.headers = @{
+    UserAgentHeader: nimbleUserAgent,
     "Authorization": "token $1" % a.token,
     "Content-Type": "application/x-www-form-urlencoded",
     "Accept": "*/*"
-  })
+  }
 
 proc requestNewToken(cfg: Config): string =
   display("Info:", "Please create a new personal access token on GitHub in" &
@@ -54,10 +56,18 @@ proc requestNewToken(cfg: Config): string =
   return token
 
 proc getGithubAuth(o: Options): Auth =
-  let cfg = o.config
-  let ctx = newSSLContext(o.disableSslCertCheck)
-  result.http = newHttpClient(proxy = getProxy(o), sslContext = ctx,
-                              userAgent = nimbleUserAgent)
+  let
+    cfg = o.config
+    flags =
+      if o.disableSslCertCheck:
+        {HttpClientFlag.NoVerifyHost, HttpClientFlag.NoVerifyServerName}
+      else:
+        {}
+
+  result.session = HttpSessionRef.new(
+    flags = flags, provider = getProvider($o.config.httpProxy)
+  )
+
   # always prefer the environment variable to asking for a new one
   if existsEnv(ApiTokenEnvironmentVariable):
     result.token = getEnv(ApiTokenEnvironmentVariable)
@@ -74,10 +84,16 @@ proc getGithubAuth(o: Options): Auth =
     except IOError:
       result.token = requestNewToken(cfg)
   createHeaders(result)
-  let resp = result.http.getContent("https://api.github.com/user").parseJson()
+  let
+    req = HttpClientRequestRef.new(
+      result.session, "https://api.github.com/user", headers = result.headers
+    ).valueOr:
+      raise newException(HttpRequestError, error)
+    resp = waitFor req.send()
+    respData = parseJson(bytesToString(waitFor resp.getBodyBytes()))
 
-  result.user = resp["login"].str
-  display("Success:", "Verified as " & result.user, Success, HighPriority)
+  result.user = respData["login"].str
+  display("Success:", "Verified as " & result.user, DisplayType.Success, HighPriority)
 
 proc isCorrectFork(j: JsonNode): bool =
   # Check whether this is a fork of the nimble packages repo.
@@ -87,16 +103,31 @@ proc isCorrectFork(j: JsonNode): bool =
 
 proc forkExists(a: Auth): bool =
   try:
-    let x = a.http.getContent(ReposUrl & a.user & "/packages")
-    let j = parseJson(x)
+    let req = HttpClientRequestRef.new(
+      a.session, ReposUrl & a.user & "/packages", headers = a.headers
+    ).valueOr:
+        raise nimbleError("Unable to create fork request: " & $error)
+    let resp = waitFor req.send()
+    let data = bytesToString(waitFor resp.getBodyBytes())
+    let j = parseJson(data)
     result = isCorrectFork(j)
-  except JsonParsingError, IOError:
+    waitFor resp.closeWait()
+  except JsonParsingError, HttpError:
     result = false
 
 proc createFork(a: Auth) =
   try:
-    discard a.http.postContent(ReposUrl & "nim-lang/packages/forks")
-  except HttpRequestError:
+    let req = HttpClientRequestRef.new(
+      a.session, ReposUrl & "nim-lang/packages/forks", MethodPost, headers = a.headers
+    ).valueOr:
+        raise nimbleError("Unable to create fork request: " & $error)
+    let resp = waitFor req.send()
+    if resp.status >= 400:
+      waitFor resp.closeWait()
+      raise newException(HttpRequestError,
+                         "Server returned status: " & $resp.status)
+    waitFor resp.closeWait()
+  except HttpError:
     raise nimbleError("Unable to create fork. Access token" &
                        " might not have enough permissions.")
 
@@ -108,8 +139,18 @@ proc createPullRequest(a: Auth, pkg: PackageInfo, url, branch: string): string =
       "base": defaultBranch,
       "body": &"{pkg.description}\n\n{url}"
   }
-  var body = a.http.postContent(ReposUrl & "nim-lang/packages/pulls", $payload)
+  let req = HttpClientRequestRef.new(
+      a.session,
+      ReposUrl & "nim-lang/packages/pulls",
+      MethodPost,
+      headers = a.headers,
+      body = stringToBytes($payload)
+    ).valueOr:
+      raise nimbleError("Unable to create PR request: " & $error)
+  let resp = waitFor req.send()
+  let body = bytesToString(waitFor resp.getBodyBytes())
   var pr = parseJson(body)
+  waitFor resp.closeWait()
   return pr{"html_url"}.getStr()
 
 proc `%`(s: openArray[string]): JsonNode =
@@ -247,4 +288,5 @@ proc publish*(p: PackageInfo, o: Options) =
     display("Pushing", "to remote of fork.", priority = HighPriority)
     doCmd("git push https://" & auth.token & "@github.com/" & auth.user & "/packages " & branchName)
     let prUrl = createPullRequest(auth, p, url, branchName)
-    display("Success:", "Pull request successful, check at " & prUrl , Success, HighPriority)
+    display("Success:", "Pull request successful, check at " & prUrl , DisplayType.Success, HighPriority)
+  waitFor auth.session.closeWait()

@@ -16,3 +16,9 @@
 [submodule "vendor/stew"]
 	path = vendor/stew
 	url = https://github.com/status-im/nim-stew.git
+[submodule "vendor/httputils"]
+	path = vendor/httputils
+	url = https://github.com/status-im/nim-http-utils
+[submodule "vendor/bearssl"]
+	path = vendor/bearssl
+	url = https://github.com/status-im/nim-bearssl

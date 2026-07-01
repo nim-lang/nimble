@@ -32,7 +32,7 @@ suite "nimble refresh":
       check inLines(lines, "official package list")
       check inLines(lines, "https://google.com")
       check inLines(lines, "packages.json file is invalid")
-      check inLines(lines, "404 not found")
+      check inLines(lines, "404")
       check inLines(lines, "Package list downloaded.")
 
   test "can refresh with local package list":
