@@ -1,9 +1,8 @@
 {.used.}
 import unittest
 import testscommon
-import std/[tables, strutils]
+import std/[tables]
 import nimblepkg/[version, nimblesat, options, packageinfotypes]
-from nimblepkg/common import NimbleError
 
 proc solveWith(pkgVersionTable: Table[string, PackageVersions],
                algorithm: ResolutionAlgorithm): Table[string, Version] =
