@@ -46,7 +46,7 @@ suite "Nim binaries":
   test "can download and unzip a version. Should also compile it if the precompiled binaries are not available for the current platform":
     var options = initOptions()
     let version = newVersion("2.0.4")
-    let extractDir = downloadAndExtractNim(version, options)
+    let extractDir = waitFor downloadAndExtractNim(version, options)
     check extractDir.isSome
 
 
@@ -65,14 +65,14 @@ suite "Nim binaries":
   test "installNimFromBinariesDir should return the installed version":
     var options = initOptions()
     let require: PkgTuple = (name: "nim", ver: parseVersionRange("2.0.4"))
-    let nimInstalled = installNimFromBinariesDir(require, options)
+    let nimInstalled = waitFor installNimFromBinariesDir(require, options)
     check nimInstalled.isSome
     check nimInstalled.get().ver == newVersion("2.0.4")
 
   test "should be able to get the package info from the nim extracted folder":
     var options = initOptions()
     let require: PkgTuple = (name: "nim", ver: parseVersionRange("2.0.4"))
-    let nimInstalled = installNimFromBinariesDir(require, options)
+    let nimInstalled = waitFor installNimFromBinariesDir(require, options)
     check nimInstalled.isSome
     check nimInstalled.get().ver == newVersion("2.0.4")
     options.nimBin = some options.makeNimBin("nim")
