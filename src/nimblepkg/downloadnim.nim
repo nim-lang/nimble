@@ -876,7 +876,7 @@ proc downloadAndExtractNim*(
       display("Info:", "Nim $1 already installed" % $version)
       saveNimMetaData(extractDir)
       return some extractDir
-    let path = waitFor downloadNim(version, options)
+    let path = await downloadNim(version, options)
     let extracted = extractNimIfNeeded(path, extractDir, options)
     if extracted:
       # Compile if no binary exists (e.g., source tarballs from GitHub)
