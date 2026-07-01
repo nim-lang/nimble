@@ -917,7 +917,6 @@ proc getNimVersion(nimDir: string): Option[Version] =
 
 proc installNimFromBinariesDir*(
     require: PkgTuple, options: Options
-): Option[NimInstalled] =
   if options.disableNimBinaries:
     return none(NimInstalled)
   # Check if already installed
@@ -936,7 +935,6 @@ proc installNimFromBinariesDir*(
   # Download if allowed
   if not options.offline and
       options.prompt("No nim version matching $1. Download it now?" % $require.ver):
-    let extractedDir = downloadAndExtractNimMatchedVersion(require.ver, options)
     if extractedDir.isSome():
       # Try using downloaded version
       let ver = getNimVersion(extractedDir.get)
