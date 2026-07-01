@@ -4,6 +4,7 @@ import std/[sequtils, sets, options, os, strutils, algorithm]
 import nimblesat, packageinfotypes, options, version, declarativeparser,
        packageinfo, common, lockfile, cli, downloadnim, tools,
        packageinstaller
+import chronos
 
 when defined(windows):
   import std/strscans
@@ -142,7 +143,7 @@ proc resolveNim*(rootPackage: PackageInfo, pkgListDecl: seq[PackageInfo], system
   else:
     if options.satResult.bootstrapNim.nimResolved.pkg.isNone:
       let nimPkg = (name: "nim", ver: parseVersionRange(options.satResult.bootstrapNim.nimResolved.version))
-      let nimInstalled = installNimFromBinariesDir(nimPkg, options)
+      let nimInstalled = waitFor installNimFromBinariesDir(nimPkg, options)
       if nimInstalled.isSome:
         options.satResult.bootstrapNim.nimResolved.pkg = some getPkgInfo(nimInstalled.get.dir, options, nimBin = none(string), level = pikRequires) #Can be empty as the code path for nim doesnt need it.
       else:
@@ -254,7 +255,7 @@ proc getBootstrapNimResolved*(options: Options): NimResolved =
   setBootstrapNim(getNimFromSystem(options), pkgList, options)
   var bootstrapNim = options.satResult.bootstrapNim
   if bootstrapNim.nimResolved.pkg.isNone:
-    let nimInstalled = installNimFromBinariesDir(("nim", bootstrapNim.nimResolved.version.toVersionRange()), options)
+    let nimInstalled = waitFor installNimFromBinariesDir(("nim", bootstrapNim.nimResolved.version.toVersionRange()), options)
     if nimInstalled.isSome:
       bootstrapNim.nimResolved.pkg = some getPkgInfo(nimInstalled.get.dir, options, nimBin = none(string), level = pikRequires) #Can be empty as the code path for nim doesnt need it.
     else:
@@ -301,7 +302,7 @@ proc resolveAndConfigureNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo]
         requestedVer = pkg.ver
         break
     let nimPkg = (name: "nim", ver: requestedVer)
-    let nimInstalled = installNimFromBinariesDir(nimPkg, options)
+    let nimInstalled = waitFor installNimFromBinariesDir(nimPkg, options)
     if nimInstalled.isSome:
       let resolvedNim = NimResolved(
         pkg: some getPkgInfo(nimInstalled.get.dir, options, nimBin = none(string), level = pikRequires), #Can be empty as the code path for nim doesnt need it.
@@ -338,7 +339,7 @@ proc resolveAndConfigureNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo]
     #TODO handle the case where the user doesnt want to reuse nim binaries
     #It can be done inside the installNimFromBinariesDir function to simplify things out by
     #forcing a recompilation of nim.
-    let nimInstalled = installNimFromBinariesDir(nimPkg, options)
+    let nimInstalled = waitFor installNimFromBinariesDir(nimPkg, options)
     if nimInstalled.isSome:
       resolvedNim.pkg = some getPkgInfo(nimInstalled.get.dir, options, nimBin = none(string), level = pikRequires) #Can be empty as the code path for nim doesnt need it.
       resolvedNim.version = nimInstalled.get.ver
