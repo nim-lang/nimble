@@ -290,6 +290,13 @@ proc readPackageInfo(pkgInfo: var PackageInfo, nf: NimbleFile, options: Options,
   pkgInfo = initPackageInfo(options, nf)
   if not nf.startsWith(options.getPkgsDir):
     pkgInfo.source = psDevelop
+  else:
+    # A .nimble file under pkgs2 belongs to an installed package. Mark it so
+    # getRealDir() does not append srcDir (installed packages have their sources
+    # at the package root). Without this, a package read straight from the cache
+    # (e.g. packageExists on a commit-pinned dep already downloaded) is left as
+    # psLocal and its --path wrongly points at a non-existent srcDir subdir.
+    pkgInfo.source = psInstalled
 
   validatePackageName(nf.splitFile.name)
 

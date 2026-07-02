@@ -773,6 +773,12 @@ proc getPkgInfoFromDirWithDeclarativeParser(dir: string, options: Options, nimBi
   fillPkgBasicInfo(result, nimbleFileInfo)
   if not nimbleFile.startsWith(options.getPkgsDir):
     result.source = psDevelop
+  else:
+    # A package whose .nimble file lives under pkgs2 is an installed package.
+    # Mark it as such so getRealDir() does not append srcDir (installed packages
+    # keep their sources at the package root). Mirrors the legacy reader
+    # (packageparser.nim) and getInstalledPkgsMin (packageinfo.nim).
+    result.source = psInstalled
   result.metadata = loadMetaData(result.getNimbleFileDir(), raiseIfNotFound = false, options)
   result = toRequiresInfo(result, options, nimBin, some nimbleFileInfo)
   # Uphold the invariant withinRange(pkgInfo, range) relies on (packageinfo.nim): for a
