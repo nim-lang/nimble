@@ -76,29 +76,30 @@ proc createRequirements(pkg: PackageMinimalInfo): Requirements =
   result.version = pkg.version
   result.nimVersion = pkg.requires.getNimVersion()
 
-proc cmp(a,b: DependencyVersion): int =
-  ## Compare dependency versions in ascending order (oldest first).
-  ## This ensures the SAT solver prefers newer versions because it tries
-  ## to set variables to FALSE first - by assigning variables to older
-  ## versions first (lower indices), the solver will try to set them false,
-  ## leaving newer versions (higher indices) more likely to be selected.
+proc cmp(a, b: DependencyVersion, algorithm: ResolutionAlgorithm): int =
+  ## Orders versions so the SAT solver's "try FALSE first" strategy lands on the
+  ## desired one. The solver assigns lower VarIds (earlier in this order) first
+  ## and tries them FALSE, so the LAST version in this order is the most
+  ## preferred. Special versions (#head, #branch, …) are always placed FIRST
+  ## (least preferred) so regular/tagged versions win, in both algorithms.
   ##
-  ## Special versions (#head, #branch, etc.) are always placed FIRST (as if they
-  ## were the "oldest"), so the SAT solver will try to set them FALSE first,
-  ## preferring tagged/regular versions over special versions.
+  ## - raMaxVer: regular versions ascending  -> newest is last  -> newest wins.
+  ## - raMinVer: regular versions descending -> oldest is last  -> oldest wins.
   let aIsSpecial = a.version.isSpecial
   let bIsSpecial = b.version.isSpecial
 
-  # Special versions come first (treated as oldest) so SAT solver prefers regular versions
+  # Special versions come first (treated as "least preferred") in both modes.
   if aIsSpecial and not bIsSpecial:
-    return -1  # a (special) comes before b (regular)
+    return -1
   elif bIsSpecial and not aIsSpecial:
-    return 1   # b (special) comes before a (regular), so a comes after
+    return 1
 
-  # Both special or both regular: use normal version comparison
-  if a.version < b.version: return -1
-  elif a.version == b.version: return 0
-  else: return 1
+  # Both special or both regular: normal comparison, reversed for raMinVer.
+  let c =
+    if a.version < b.version: -1
+    elif a.version == b.version: 0
+    else: 1
+  if algorithm == raMinVer: -c else: c
 
 proc getRequirementFromGraph(g: var DepGraph, pkg: PackageMinimalInfo): int =
   var temp = createRequirements(pkg)
@@ -137,15 +138,15 @@ proc toDepGraph*(versions: Table[string, PackageVersions]): DepGraph =
         # echo "ADDING URL: ", ver.url
         result.packageToDependency[ver.url] = i
 
-proc toFormular*(g: var DepGraph): Form =
+proc toFormular*(g: var DepGraph, algorithm = raMaxVer): Form =
   result = Form()
   var b = Builder()
   b.openOpr(AndForm)
-  
+
   # First pass: Assign variables and encode version selection constraints
   for p in mitems(g.nodes):
     if p.versions.len == 0: continue
-    p.versions.sort(cmp)
+    p.versions.sort(proc (x, y: DependencyVersion): int = cmp(x, y, algorithm))
     
     # Version selection constraint
     # Assign variables to all versions first (in ascending order, so older = lower VarId)
@@ -399,7 +400,7 @@ proc solve*(g: var DepGraph; f: Form, packages: var Table[string, Version], outp
               triedVersions.add(attempt)
               # echo "Trying package ", pkg.name, " version ", ver.version
               newGraph.nodes[idx].versions = @[ver]  # Try just this version
-              let newForm = toFormular(newGraph)
+              let newForm = toFormular(newGraph, options.resolutionAlgorithm)
               if solve(newGraph, newForm, packages, output, triedVersions, options):
                 return true
           # Restore original versions if no solution found
@@ -523,7 +524,7 @@ proc getSolvedPackages*(pkgVersionTable: Table[string, PackageVersions], output:
           output.add &"  - {err}\n"
       return newSeq[SolvedPackage]()
     
-  let form = toFormular(graph)
+  let form = toFormular(graph, options.resolutionAlgorithm)
   var packages = initTable[string, Version]()
   var triedVersions: seq[VersionAttempt] = @[]
   discard solve(graph, form, packages, output, triedVersions, options)
@@ -831,8 +832,10 @@ proc solvePackages*(rootPkg: PackageInfo, pkgList: seq[PackageInfo], pkgsToInsta
 
   # Try local solve first: if installed packages satisfy all constraints,
   # use them without fetching newer versions. Skip for upgrade/lock which
-  # explicitly want fresh resolution.
-  if pkgList.len > 0 and options.action.typ notin {actionUpgrade, actionLock}:
+  # explicitly want fresh resolution, and for minVer which must consider the
+  # full version set (installed packages are usually newer than the minimum).
+  if pkgList.len > 0 and options.action.typ notin {actionUpgrade, actionLock} and
+     options.resolutionAlgorithm != raMinVer:
     let localResult = solveLocalPackages(root, pkgList, options, output, solvedPkgs, nimBin)
     if localResult.len > 0 or solvedPkgs.len > 0:
       return localResult

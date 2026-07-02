@@ -25,6 +25,11 @@ type
 
   DumpMode* = enum kdumpIni, kdumpJson
 
+  ResolutionAlgorithm* = enum
+    ## How the SAT solver picks among versions satisfying a requirement.
+    raMinVer   ## lowest satisfying version (minimal version selection)
+    raMaxVer   ## newest satisfying version (default)
+
   VisitedHook* = object
     pkgName*: string #just the nimble file name
     action*: ActionType
@@ -57,6 +62,7 @@ type
                       # some commands, useful when processing deps
     nimBin*: Option[NimBin]
     localdeps*: bool # True if project local deps mode
+    resolutionAlgorithm*: ResolutionAlgorithm # How SAT picks among satisfying versions
     developLocaldeps*: bool # True if local deps + nimble develop pkg1 ...
     disableSslCertCheck*: bool
     disableLockFile*: bool
@@ -259,6 +265,8 @@ Nimble Options:
   -n, --reject                    Reject all interactive prompts.
   -l, --localdeps                 Run in project local dependency mode.
   -g, --global                    Run in global dependency mode.
+      --resolver:minver|maxver    Pick the lowest (minver) or newest (maxver,
+                                  default) version satisfying each requirement.
   -p, --package                   For which package in the dependency tree the
                                   command should be executed. If not provided by
                                   default it applies to the current directory
@@ -796,6 +804,14 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
     result.parallelDiscovery = false
   of "lenient":
     result.lenient = true
+  of "resolver":
+    # `--resolver:minver|maxver` chooses how SAT picks among satisfying versions.
+    case val.normalize
+    of "minver", "min": result.resolutionAlgorithm = raMinVer
+    of "maxver", "max", "": result.resolutionAlgorithm = raMaxVer
+    else:
+      raise nimbleError("Unknown resolver '" & val &
+        "'. Valid values: minver, maxver.")
   else: isGlobalFlag = false
 
   # Reject a value given to a global boolean flag, e.g. `-l:-static` or
@@ -948,7 +964,8 @@ proc initOptions*(): Options =
     # TEMPORARY: Changed to global-by-default. To revert to local-by-default, change to: localDeps: true
     localDeps: false,
     parallelDiscovery: true,
-    lenient: true
+    lenient: true,
+    resolutionAlgorithm: raMaxVer  # enum defaults to raMinVer; force the historical default
   )
 
   # Load visited hooks from environment variable to prevent recursive hook execution

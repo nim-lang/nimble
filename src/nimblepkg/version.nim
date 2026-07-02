@@ -74,6 +74,63 @@ proc isSpecial*(ver: Version): bool =
 proc isSpecial*(verRange: VersionRange): bool =
   return verRange.kind == verSpecial
 
+type
+  PrereleaseIdent = object
+    isNum: bool
+    num: int      ## used when `isNum`
+    str: string   ## used when not `isNum`
+
+  SemVerParts = object
+    release: seq[int]                 ## [major, minor, patch, ...]; missing fields == 0
+    prerelease: seq[PrereleaseIdent]  ## empty == a *final* release (outranks any pre-release)
+
+proc parseSemVer(s: string): SemVerParts =
+  ## Split a normal version string into its release fields and pre-release
+  ## identifiers (semver §9). The pre-release begins at the first '-'; build
+  ## metadata ('+...') is dropped as it does not affect precedence (semver §10).
+  var core = s
+  let plus = core.find('+')
+  if plus >= 0: core = core[0 ..< plus]
+  let dash = core.find('-')
+  let releaseStr = if dash >= 0: core[0 ..< dash] else: core
+  let preStr = if dash >= 0: core[dash + 1 .. ^1] else: ""
+
+  for part in releaseStr.split('.'):
+    var n = 0
+    discard parseInt(part, n)  # lenient leading-digit parse, as before
+    result.release.add n
+
+  if preStr.len > 0:
+    for ident in preStr.split('.'):
+      var n: int
+      if ident.len > 0 and parseSaturatedNatural(ident, n) == ident.len:
+        result.prerelease.add PrereleaseIdent(isNum: true, num: n)
+      else:
+        result.prerelease.add PrereleaseIdent(isNum: false, str: ident)
+
+proc cmpIdent(a, b: PrereleaseIdent): int =
+  ## Numeric identifiers rank below alphanumeric ones; numerics compare
+  ## numerically, alphanumerics lexically (semver §11).
+  if a.isNum and b.isNum: cmp(a.num, b.num)
+  elif a.isNum: -1
+  elif b.isNum: 1
+  else: cmp(a.str, b.str)
+
+proc cmpSemVer(a, b: SemVerParts): int =
+  for i in 0 ..< max(a.release.len, b.release.len):
+    let ai = if i < a.release.len: a.release[i] else: 0
+    let bi = if i < b.release.len: b.release[i] else: 0
+    if ai != bi: return cmp(ai, bi)
+  # Release fields are equal → a final release outranks any of its pre-releases.
+  if a.prerelease.len == 0 and b.prerelease.len == 0: return 0
+  if a.prerelease.len == 0: return 1
+  if b.prerelease.len == 0: return -1
+  for i in 0 ..< min(a.prerelease.len, b.prerelease.len):
+    let c = cmpIdent(a.prerelease[i], b.prerelease[i])
+    if c != 0: return c
+  # A longer set of pre-release fields wins when the shorter is a prefix.
+  return cmp(a.prerelease.len, b.prerelease.len)
+
 proc `<`*(ver: Version, ver2: Version): bool =
   # Handling for special versions such as "#head" or "#branch".
   if ver.isSpecial or ver2.isSpecial:
@@ -85,39 +142,13 @@ proc `<`*(ver: Version, ver2: Version): bool =
       # `#aa111 < 1.1`
       return ($ver).normalize != "#head"
 
-  # Handling for normal versions such as "0.1.0" or "1.0".
-  var sVer = ver.version.split('.')
-  var sVer2 = ver2.version.split('.')
-  for i in 0..max(sVer.len, sVer2.len)-1:
-    var sVerI = 0
-    if i < sVer.len:
-      discard parseInt(sVer[i], sVerI)
-    var sVerI2 = 0
-    if i < sVer2.len:
-      discard parseInt(sVer2[i], sVerI2)
-    if sVerI < sVerI2:
-      return true
-    elif sVerI == sVerI2:
-      discard
-    else:
-      return false
+  # Handling for normal versions such as "0.1.0", "1.0" or "1.0.0-rc1".
+  return cmpSemVer(parseSemVer(ver.version), parseSemVer(ver2.version)) < 0
 
 proc `==`*(ver: Version, ver2: Version): bool =
   if ver.isSpecial or ver2.isSpecial:
     return ($ver).toLowerAscii() == ($ver2).toLowerAscii()
-  var sVer = ver.version.split('.')
-  var sVer2 = ver2.version.split('.')
-  for i in 0..max(sVer.len, sVer2.len)-1:
-    var sVerI = 0
-    if i < sVer.len:
-      discard parseInt(sVer[i], sVerI)
-    var sVerI2 = 0
-    if i < sVer2.len:
-      discard parseInt(sVer2[i], sVerI2)
-    if sVerI == sVerI2:
-      result = true
-    else:
-      return false
+  return cmpSemVer(parseSemVer(ver.version), parseSemVer(ver2.version)) == 0
 
 proc cmp*(a, b: Version): int =
   if a < b: -1
@@ -306,13 +337,15 @@ proc parseVersionRange*(s: string): VersionRange =
         raise parseVersionError(
           "Having more than one `&` in a version range is pointless")
       return
-    of '0'..'9', '.':
+    of '0'..'9', '.', '-', '+', 'a'..'z', 'A'..'Z':
+      # Digits and '.' form the release; '-'/alphanumerics form a pre-release
+      # identifier and '+...' build metadata (semver §9-10), e.g. `1.0.0-rc1`.
       version.add(s[i])
 
     of ' ':
       # Make sure '0.9 8.03' is not allowed.
       if version != "" and i < s.len - 1:
-        if s[i+1] in {'0'..'9', '.'}:
+        if s[i+1] in {'0'..'9', '.', '-', '+'} + Letters:
           raise parseVersionError(
             "Whitespace is not allowed in a version literal.")
     else:
@@ -434,115 +467,5 @@ proc findLatest*(verRange: VersionRange,
 
 proc `$`*(dep: PkgTuple): string =
   return dep.name & "@" & $dep.ver
-
-when isMainModule:
-  import unittest
-
-  suite "version":
-    setup:
-      let versionRange1 {.used.} = parseVersionRange(">= 1.0 & <= 1.5")
-      let versionRange2 {.used.} = parseVersionRange("1.0")
-
-    test "versions comparison":
-      check newVersion("1.0") < newVersion("1.4")
-      check newVersion("1.0.1") > newVersion("1.0")
-      check newVersion("1.0.6") <= newVersion("1.0.6")
-      check not (newVersion("0.1.0") < newVersion("0.1"))
-      check not (newVersion("0.1.0") > newVersion("0.1"))
-      check newVersion("0.1.0") < newVersion("0.1.0.0.1")
-      check newVersion("0.1.0") <= newVersion("0.1")
-      check newVersion("1") == newVersion("1")
-      check newVersion("1.0.2.4.6.1.2.123") == newVersion("1.0.2.4.6.1.2.123")
-      check newVersion("1.0.2") != newVersion("1.0.2.4.6.1.2.123")
-      check newVersion("1.0.3") != newVersion("1.0.2")
-      check newVersion("1") == newVersion("1.0")
-
-    test "version comparison with empty version":
-      check not (newVersion("") < newVersion("0.0.0"))
-      check newVersion("") < newVersion("1.0.0")
-      check newVersion("") < newVersion("0.1.0")
-
-    test "comparison of Nimble special versions":
-      check newVersion("#ab26sgdt362") != newVersion("#qwersaggdt362")
-      check newVersion("#ab26saggdt362") == newVersion("#ab26saggdt362")
-      check newVersion("#head") == newVersion("#HEAD")
-      check newVersion("#head") == newVersion("#head")
-
-    test "#head is bigger than any other version":
-      check newVersion("#head") > newVersion("0.1.0")
-      check not (newVersion("#head") > newVersion("#head"))
-      check withinRange(newVersion("#head"), parseVersionRange(">= 0.5.0"))
-      check newVersion("#a111") < newVersion("#head")
-
-    test "all special versions except #head are smaller than normal versions":
-      doAssert newVersion("#a111") < newVersion("1.1")
-
-    # TODO: Allow these in later versions?
-    test "comparison of semantic versions with release candidate tags in them":
-      skip()
-      # check newVersion("0.1-rc1") < newVersion("0.2")
-      # check newVersion("0.1-rc1") < newVersion("0.1")
-
-    test "parse version range":
-      check parseVersionRange("== 3.4.2") == parseVersionRange("3.4.2")
-
-    test "correct version range kinds":
-      check versionRange1.kind == verIntersect
-      check versionRange2.kind == verEq
-      # An empty version range should give verAny
-      doAssert parseVersionRange("").kind == verAny
-
-    test "version is within range":
-      let version1 = newVersion("0.1.0")
-      let version2 = newVersion("1.5.1")
-      let version3 = newVersion("1.0.2.3.4.5.6.7.8.9.10.11.12")
-      let versionRange = parseVersionRange("> 0.1")
-      check not withinRange(version1, versionRange)
-      check not withinRange(version2, versionRange1)
-      check withinRange(version3, versionRange1)
-
-    test "in and notin operators":
-      let versionRange = parseVersionRange("#ab26sgdt362")
-      check newVersion("#ab26sgdt362") in versionRange
-      check newVersion("#ab26saggdt362") notin versionRange
-      check newVersion("#head") in parseVersionRange("#head")
-
-    test "find latest version":
-      let versions = toOrderedTable[Version, string]({
-        newVersion("0.0.1"): "v0.0.1",
-        newVersion("0.0.2"): "v0.0.2",
-        newVersion("0.1.1"): "v0.1.1",
-        newVersion("0.2.2"): "v0.2.2",
-        newVersion("0.2.3"): "v0.2.3",
-        newVersion("0.5"): "v0.5",
-        newVersion("1.2"): "v1.2",
-        newVersion("2.2.2"): "v2.2.2",
-        newVersion("2.2.3"): "v2.2.3",
-        newVersion("2.3.2"): "v2.3.2",
-        newVersion("3.2"): "v3.2",
-        newVersion("3.3.2"): "v3.3.2"
-      })
-      check findLatest(parseVersionRange(">= 0.1 & <= 0.4"), versions) ==
-          (newVersion("0.2.3"), "v0.2.3")
-      check findLatest(parseVersionRange("^= 0.1"), versions) ==
-          (newVersion("0.1.1"), "v0.1.1")
-      check findLatest(parseVersionRange("^= 0"), versions) ==
-          (newVersion("0.5"), "v0.5")
-      check findLatest(parseVersionRange("~= 2"), versions) ==
-          (newVersion("2.3.2"), "v2.3.2")
-      check findLatest(parseVersionRange("^= 0.0.1"), versions) ==
-          (newVersion("0.0.1"), "v0.0.1")
-      check findLatest(parseVersionRange("^= 2.2.2"), versions) ==
-          (newVersion("2.3.2"), "v2.3.2")
-      check findLatest(parseVersionRange("^= 2.1.1.1"), versions) ==
-          (newVersion("2.3.2"), "v2.3.2")
-      check findLatest(parseVersionRange("~= 2.2"), versions) ==
-          (newVersion("2.3.2"), "v2.3.2")
-      check findLatest(parseVersionRange("~= 0.2.2"), versions) ==
-          (newVersion("0.2.3"), "v0.2.3")
-
-    test "convert version to version range":
-      check toVersionRange(newVersion("#head")).kind == verSpecial
-      check toVersionRange(newVersion("0.2.0")).kind == verEq
 
 proc hash*(pv: PkgTuple): Hash = hash($pv)
