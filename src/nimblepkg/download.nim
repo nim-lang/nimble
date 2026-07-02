@@ -490,13 +490,13 @@ proc retrieveUrl*(url: string, disableSslCertCheck = false): Future[string] {.as
     await session.closeWait()
 
 {.warning[ProveInit]: off.}
-proc getFullRevisionFromGitHubApi(url, version: string): Sha1Hash =
+proc getFullRevisionFromGitHubApi(url, version: string): Future[Sha1Hash] {.async.} =
   ## By given a commit short hash and an URL to a GitHub repository retrieves
   ## the full hash of the commit by using GitHub REST API.
   try:
     let gitHubApiUrl = getGitHubApiUrl(url, version)
     display("Get", gitHubApiUrl);
-    let content = waitFor retrieveUrl(gitHubApiUrl)
+    let content = await retrieveUrl(gitHubApiUrl)
     let json = parseJson(content)
     if json.hasKey("sha"):
       return json["sha"].str.initSha1Hash
@@ -527,7 +527,7 @@ proc getRevision*(url, version: string): Sha1Hash =
   result = parseRevision(output)
   if result == notSetSha1Hash:
     if version.seemsLikeRevision:
-      result = getFullRevisionFromGitHubApi(url, version)
+      result = waitFor getFullRevisionFromGitHubApi(url, version)
     else:
       raise nimbleError(&"Cannot get revision for version \"{version}\" " &
                         &"of package at \"{url}\".")
@@ -538,7 +538,7 @@ proc getRevisionAsync(url, version: string): Future[Sha1Hash] {.async.} =
   result = parseRevision(output)
   if result == notSetSha1Hash:
     if version.seemsLikeRevision:
-      result = getFullRevisionFromGitHubApi(url, version)
+      result = await getFullRevisionFromGitHubApi(url, version)
     else:
       raise nimbleError(&"Cannot get revision for version \"{version}\" " &
                         &"of package at \"{url}\".")
