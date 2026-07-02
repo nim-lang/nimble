@@ -1,10 +1,11 @@
 {.used.}
 import unittest, os
 import testscommon
-import std/[tables, sequtils, strutils, options, strformat]
+import std/[tables, sequtils, strutils, options, strformat, osproc]
 import chronos
 import nimblepkg/[version, nimblesat, options, config, download, packageinfotypes, versiondiscovery]
 from nimblepkg/common import cd, NimbleError
+from nimblepkg/packageparser import validateVersion
 
 let nimBin = some("nim")
 
@@ -360,3 +361,118 @@ suite "Version Discovery":
     check "not_a_release_0" notin kept
     check "altona_v1" notin kept
     check "altair-beta" notin kept
+
+# --- Pre-release version discovery from real git tags -----------------------
+
+proc runGit(dir, args: string) =
+  let (output, code) = execCmdEx("git -C " & dir.quoteShell & " " & args)
+  doAssert code == 0, "git " & args & " failed:\n" & output
+
+proc nimbleContent(version: string, requires: seq[string] = @[]): string =
+  ## A minimal, declaratively-parseable nimble file.
+  result = "version = \"" & version & "\"\n" &
+           "author = \"t\"\ndescription = \"t\"\nlicense = \"MIT\"\n"
+  for r in requires:
+    result &= "requires \"" & r & "\"\n"
+
+proc makeTaggedRepo(remoteDir, pkgName: string,
+                    tags: seq[tuple[tag, content: string]]) =
+  ## Build a git repo where each tag points at a specific nimble file state.
+  removeDir(remoteDir)
+  createDir(remoteDir)
+  runGit(remoteDir, "init")
+  runGit(remoteDir, "config user.email test@test.com")
+  runGit(remoteDir, "config user.name test")
+  let nimbleFile = remoteDir / (pkgName & ".nimble")
+  for (tag, content) in tags:
+    writeFile(nimbleFile, content)
+    runGit(remoteDir, "add .")
+    runGit(remoteDir, "commit -m " & tag.quoteShell)
+    runGit(remoteDir, "tag " & tag)
+
+proc cloneLocalRepo(remoteDir, workDir: string) =
+  ## A local clone gets `origin` pointing at `remoteDir`, so the discovery
+  ## code's `git fetch --tags` works offline.
+  removeDir(workDir)
+  let (output, code) = execCmdEx(
+    "git clone " & remoteDir.quoteShell & " " & workDir.quoteShell)
+  doAssert code == 0, "git clone failed:\n" & output
+
+proc discoverVersions(workDir, reqStr, cacheDir: string): seq[PackageMinimalInfo] =
+  var options = initOptions()
+  options.nimBin = some options.makeNimBin("nim")
+  removeDir(cacheDir)
+  createDir(cacheDir)
+  options.pkgCachePath = cacheDir
+  let pv = parseRequires(reqStr)
+  result = waitFor getPackageMinimalVersionsFromRepo(
+    workDir, pv, DownloadMethod.git, options, nimBin = nimBin)
+
+suite "Pre-release version discovery (integration)":
+  let base = getTempDir() / "nimble_prerelease_it"
+
+  test "pre-release git tags are discovered and ordered below the final release":
+    let remote = base / "ordering_remote"
+    let work = base / "ordering_work"
+    let cache = base / "ordering_cache"
+    try:
+      makeTaggedRepo(remote, "prerelib", @[
+        ("v1.0.0-rc1", nimbleContent("1.0.0-rc1")),
+        ("v1.0.0", nimbleContent("1.0.0")),
+        ("v1.1.0", nimbleContent("1.1.0")),
+      ])
+      cloneLocalRepo(remote, work)
+      let vers = discoverVersions(work, "prerelib >= 1.0.0-rc1", cache).mapIt(it.version)
+      check newVersion("1.0.0-rc1") in vers
+      check newVersion("1.0.0") in vers
+      check newVersion("1.1.0") in vers
+      # the pre-release orders below its final release
+      check newVersion("1.0.0-rc1") < newVersion("1.0.0")
+    finally:
+      for d in [remote, work, cache]: removeDir(d)
+
+  test "a pre-release requires in a real nimble file is parsed end-to-end":
+    let remote = base / "requires_remote"
+    let work = base / "requires_work"
+    let cache = base / "requires_cache"
+    try:
+      makeTaggedRepo(remote, "reqlib", @[
+        ("v1.0.0", nimbleContent("1.0.0", @["dep >= 1.0.0-rc1"])),
+      ])
+      cloneLocalRepo(remote, work)
+      let versions = discoverVersions(work, "reqlib >= 1.0.0", cache)
+      let v = versions.filterIt(it.version == newVersion("1.0.0"))[0]
+      let depReq = v.requires.filterIt(it.name == "dep")[0]
+      check depReq.ver.kind == verEqLater
+      check depReq.ver.ver == newVersion("1.0.0-rc1")
+    finally:
+      for d in [remote, work, cache]: removeDir(d)
+
+  test "the package version field accepts a pre-release through the VM parser gate":
+    # validateVersion is the full/VM parser's gate on the `version` field. It
+    # must accept the same semver charset that newVersion and parseVersionRange
+    # accept, otherwise a package declaring `version = "1.0.0-rc1"` fails to
+    # parse whenever the VM fallback is used (complex/computed nimble files).
+    validateVersion("1.0.0-rc1")
+    validateVersion("2.0.0-alpha.1")
+    validateVersion("1.0.0+build.5")
+    # genuinely invalid characters are still rejected
+    expect NimbleError:
+      validateVersion("1.0.0/bad")
+
+  test "nimble file version field wins when it disagrees with the git tag":
+    # Tag says v2.0.0 but the nimble file declares 2.0.0-rc1. Discovery must use
+    # the nimble file version (declarativeparser: file version overrides the tag).
+    let remote = base / "mismatch_remote"
+    let work = base / "mismatch_work"
+    let cache = base / "mismatch_cache"
+    try:
+      makeTaggedRepo(remote, "mmlib", @[
+        ("v2.0.0", nimbleContent("2.0.0-rc1")),
+      ])
+      cloneLocalRepo(remote, work)
+      let vers = discoverVersions(work, "mmlib >= 1.0.0", cache).mapIt($it.version)
+      check "2.0.0-rc1" in vers   # file version wins
+      check "2.0.0" notin vers    # the tag's version is not used
+    finally:
+      for d in [remote, work, cache]: removeDir(d)

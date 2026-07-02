@@ -85,11 +85,14 @@ proc validatePackageName*(name: string) =
       "\"$1\" is an invalid package name: reserved name" % name, false)
 
 proc validateVersion*(ver: string) =
+  # Allow the full semver charset: digits and '.' for the release, plus '-'
+  # (pre-release), '+' (build metadata) and alphanumerics for their identifiers
+  # (e.g. `1.0.0-rc1`). This mirrors what newVersion and parseVersionRange accept.
   for c in ver:
-    if c notin ({'.'} + Digits):
+    if c notin ({'.', '-', '+'} + Digits + Letters):
       raise validationError(
-          "Version may only consist of numbers and the '.' character " &
-          "but found '" & c & "'.", false)
+          "Version may only consist of numbers, letters and the '.', '-', '+' " &
+          "characters but found '" & c & "'.", false)
 
 proc validatePackageInfo(pkgInfo: PackageInfo, options: Options) =
   let path = pkgInfo.myPath
