@@ -225,7 +225,7 @@ proc getGPackageJson(): TableRef[string, JsonNode] =
     gPackageJson = newTable[string, JsonNode]()
   return gPackageJson
 
-proc readPackageList(name: string, options: Options, ignorePackageCache = false): JsonNode =
+proc readPackageList(name: string, options: Options, ignorePackageCache = false): Future[JsonNode] {.async.} =
   # If packages.json is not present ask the user if they want to download it.
   if (not ignorePackageCache) and getGPackageJson().hasKey(name):
     return getGPackageJson()[name]
@@ -236,7 +236,7 @@ proc readPackageList(name: string, options: Options, ignorePackageCache = false)
     if options.prompt("No local packages.json found, download it from " &
             "internet?"):
       for name, list in options.config.packageLists:
-        waitFor fetchList(list, options)
+          await fetchList(list, options)
     else:
       # The user might not need a package list for now. So let's try
       # going further.
@@ -270,7 +270,7 @@ proc getPackage*(pkg: string, options: Options, resPkg: var Package, ignorePacka
   ##
   ## Aliases are handled and resolved.
   for name, list in options.config.packageLists:
-    let packages = readPackageList(name, options, ignorePackageCache)
+    let packages = waitFor readPackageList(name, options, ignorePackageCache)
     for p in packages:
       if normalize(p["name"].str) == normalize(pkg):
         resPkg = p.fromJson()
@@ -289,7 +289,7 @@ proc getPackageList*(options: Options): seq[Package] =
   ## Returns the list of packages found in the downloaded packages.json files.
   var namesAdded: HashSet[string]
   for name, list in options.config.packageLists:
-    let packages = readPackageList(name, options)
+    let packages = waitFor readPackageList(name, options)
     for p in packages:
       let pkg: Package = p.fromJson()
       if pkg.name notin namesAdded:
