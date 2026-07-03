@@ -446,7 +446,7 @@ proc addPackages(packages: seq[PkgTuple], options: var Options, nimBin: Option[s
   let
     dir = findNimbleFile(getCurrentDir(), true, options)
     pkgInfo = getPkgInfo(getCurrentDir(), options, nimBin = nimBin)
-    pkgList = options.getPackageList()
+    pkgList = waitFor options.getPackageList()
     deps = pkgInfo.requires
 
   var 
@@ -591,7 +591,7 @@ proc search(options: Options) =
     raise nimbleError("Please specify a search string.")
   if needsRefresh(options):
     raise nimbleError("Please run nimble refresh.")
-  let pkgList = getPackageList(options)
+  let pkgList = waitFor getPackageList(options)
   var found = false
   template onFound {.dirty.} =
     echoPackage(pkg)
@@ -618,7 +618,7 @@ proc search(options: Options) =
 proc list(options: Options) =
   if needsRefresh(options):
     raise nimbleError("Please run nimble refresh.")
-  let pkgList = getPackageList(options)
+  let pkgList = waitFor getPackageList(options)
   for pkg in pkgList:
     echoPackage(pkg)
     if pkg.alias.len == 0 and options.action.showListVersions:

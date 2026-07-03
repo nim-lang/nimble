@@ -285,11 +285,11 @@ proc getPackage*(name: string, options: Options): Package =
       "Cannot find package with name '" & name & "'.")
 {.warning[ProveInit]: on.}
 
-proc getPackageList*(options: Options): seq[Package] =
+proc getPackageList*(options: Options): Future[seq[Package]] {.async.} =
   ## Returns the list of packages found in the downloaded packages.json files.
   var namesAdded: HashSet[string]
   for name, list in options.config.packageLists:
-    let packages = waitFor readPackageList(name, options)
+    let packages = await readPackageList(name, options)
     for p in packages:
       let pkg: Package = p.fromJson()
       if pkg.name notin namesAdded:
