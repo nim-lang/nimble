@@ -296,10 +296,12 @@ proc resolveAndConfigureNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo]
     # Use the requested version from the command line (e.g. #head, #devel, >= 2.0.0)
     # not the declared version from nim.nimble (e.g. 2.3.1) which may not have binaries
     var requestedVer = parseVersionRange(rootPackage.basicInfo.version)
-    for pkg in options.action.packages:
-      if pkg.name.isNim:
-        requestedVer = pkg.ver
-        break
+    if options.action.typ in {actionInstall, actionPath, actionUninstall, actionDevelop,
+                               actionUpgrade, actionLock, actionAdd}:
+      for pkg in options.action.packages:
+        if pkg.name.isNim:
+          requestedVer = pkg.ver
+          break
     let nimPkg = (name: "nim", ver: requestedVer)
     let nimInstalled = installNimFromBinariesDir(nimPkg, options)
     if nimInstalled.isSome:
