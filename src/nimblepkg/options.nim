@@ -5,7 +5,8 @@ import strutils, os, parseopt, uri, tables, terminal, strscans, strformat
 import compat/json
 import sequtils, sugar
 import std/options as std_opt
-from httpclient import Proxy, newProxy
+
+import chronos/apps/http/httpclient
 
 import compat/osproc
 
@@ -581,7 +582,7 @@ proc setNimbleDir*(options: var Options) =
     let env = getEnv("NIMBLE_DIR")
     if env.len != 0:
       display("Info:", "Using the environment variable: NIMBLE_DIR='" &
-              env & "'", Success, priority = HighPriority)
+              env & "'", DisplayType.Success, priority = HighPriority)
       nimbleDir = env
       setPackageCache(options, options.config.nimbleDir) #Use the global nimbleDir so pkgcache is shared
     else:
@@ -1039,35 +1040,37 @@ proc parseCmdLine*(): Options =
     # nimble run foobar -v
     result.showVersion = false
 
-proc getProxy*(options: Options): Proxy =
-  ## Returns ``nil`` if no proxy is specified.
-  var url = ""
-  if ($options.config.httpProxy).len > 0:
-    url = $options.config.httpProxy
+proc getProxyUrl*(proxyConfig = ""): Opt[string] =
+  ## Checks configProxy if non-empty, then falls through to env vars.
+  if len(proxyConfig) > 0:
+    ok(proxyConfig)
   else:
     try:
       if existsEnv("http_proxy"):
-        url = getEnv("http_proxy")
+        ok(getEnv("http_proxy"))
       elif existsEnv("https_proxy"):
-        url = getEnv("https_proxy")
+        ok(getEnv("https_proxy"))
       elif existsEnv("HTTP_PROXY"):
-        url = getEnv("HTTP_PROXY")
+        ok(getEnv("HTTP_PROXY"))
       elif existsEnv("HTTPS_PROXY"):
-        url = getEnv("HTTPS_PROXY")
+        ok(getEnv("HTTPS_PROXY"))
+      else:
+        Opt.none(string)
     except ValueError:
       display("Warning:", "Unable to parse proxy from environment: " &
           getCurrentExceptionMsg(), Warning, HighPriority)
+      Opt.none(string)
 
-  if url.len > 0:
-    var parsed = parseUri(url)
-    if parsed.scheme.len == 0 or parsed.hostname.len == 0:
-      parsed = parseUri("http://" & url)
-    let auth =
-      if parsed.username.len > 0: parsed.username & ":" & parsed.password
-      else: ""
-    return newProxy($parsed, auth)
-  else:
-    return nil
+proc getProvider*(configProxy = ""): HttpConnectionProvider =
+  ## Creates an HttpConnectionProvider from a proxy URL (env var or config).
+  ## Returns nil when no proxy is configured.
+  let
+    proxyUrl = getProxyUrl(configProxy).valueOr:
+      return nil
+    addrRes = getHttpAddress(parseUri(proxyUrl)).valueOr:
+      return nil
+
+  httpProxyProvider(addrRes)
 
 proc shouldRemoveTmp*(options: Options, file: string): bool =
   result = true

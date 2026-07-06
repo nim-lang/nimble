@@ -9,7 +9,7 @@ from nimblepkg/common import cd
 suite "Nim binaries":
   test "can get all releases":
     var options = initOptions()
-    let releases = getOfficialReleases(options)
+    let releases = waitFor getOfficialReleases(options)
     check releases.len > 0
 
   test "getCsourcesInfoForNim returns pinned hash for v2.0.0":
@@ -17,7 +17,7 @@ suite "Nim binaries":
     # when nimble has to build Nim from source, it must use the EXACT
     # csources commit Nim itself was built against (recorded in Nim's
     # `config/build_config.txt`), not csources_v2/v3 HEAD which drifts.
-    let info = getCsourcesInfoForNim(newVersion("2.0.0"))
+    let info = waitFor getCsourcesInfoForNim(newVersion("2.0.0"))
     check info.isSome
     let i = info.get
     check i.dir == "csources_v2"
@@ -26,7 +26,7 @@ suite "Nim binaries":
     check i.hash == "86742fb02c6606ab01a532a0085784effb2e753e"
 
   test "getCsourcesInfoForNim returns pinned hash for v2.2.10":
-    let info = getCsourcesInfoForNim(newVersion("2.2.10"))
+    let info = waitFor getCsourcesInfoForNim(newVersion("2.2.10"))
     check info.isSome
     let i = info.get
     check i.dir == "csources_v3"
@@ -34,26 +34,26 @@ suite "Nim binaries":
     check i.hash == "eeab3ac46e93f10efda8e58c4db02b9438319d71"
 
   test "getCsourcesInfoForNim returns none for nonexistent version":
-    let info = getCsourcesInfoForNim(newVersion("999.999.999"))
+    let info = waitFor getCsourcesInfoForNim(newVersion("999.999.999"))
     check info.isNone
 
   test "can download a concrete version":
     var options = initOptions()
     let version = newVersion("1.2.8")
-    let path = downloadNim(version, options)
+    let path = waitFor downloadNim(version, options)
     check path.fileExists()
 
   test "can download and unzip a version. Should also compile it if the precompiled binaries are not available for the current platform":
     var options = initOptions()
     let version = newVersion("2.0.4")
-    let extractDir = downloadAndExtractNim(version, options)
+    let extractDir = waitFor downloadAndExtractNim(version, options)
     check extractDir.isSome
 
 
   test "Downloading minimal package with Nim should return all the versions":
     var options = initOptions()
     let pv = ("nim", VersionRange(kind: verAny))
-    let releases: seq[Version] = getOfficialReleases(options)
+    let releases: seq[Version] = waitFor getOfficialReleases(options)
     let nimBin = some("nim")
     let minimalPgks = waitFor downloadMinimalPackage(pv, options, nimBin)
 
@@ -65,14 +65,14 @@ suite "Nim binaries":
   test "installNimFromBinariesDir should return the installed version":
     var options = initOptions()
     let require: PkgTuple = (name: "nim", ver: parseVersionRange("2.0.4"))
-    let nimInstalled = installNimFromBinariesDir(require, options)
+    let nimInstalled = waitFor installNimFromBinariesDir(require, options)
     check nimInstalled.isSome
     check nimInstalled.get().ver == newVersion("2.0.4")
 
   test "should be able to get the package info from the nim extracted folder":
     var options = initOptions()
     let require: PkgTuple = (name: "nim", ver: parseVersionRange("2.0.4"))
-    let nimInstalled = installNimFromBinariesDir(require, options)
+    let nimInstalled = waitFor installNimFromBinariesDir(require, options)
     check nimInstalled.isSome
     check nimInstalled.get().ver == newVersion("2.0.4")
     options.nimBin = some options.makeNimBin("nim")

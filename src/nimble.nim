@@ -5,6 +5,7 @@ import os, tables, browsers, algorithm, sets, sugar, strformat
 
 import nimblepkg/compat/[json, sequtils, osproc]
 import std/options as std_opt
+import chronos
 
 import strutils except toLower
 from unicode import toLower
@@ -396,7 +397,7 @@ proc install(packages: seq[PkgTuple], options: Options,
           downloadPath =  getCacheDownloadDir(url, pv.ver, options)
       var nimInstalled = none(NimInstalled)
       if pv.isNim:
-        nimInstalled = installNimFromBinariesDir(pv, options)
+        nimInstalled = waitFor installNimFromBinariesDir(pv, options)
 
       let (downloadDir, downloadVersion, vcsRevision) =
         if nimInstalled.isSome():
@@ -408,7 +409,7 @@ proc install(packages: seq[PkgTuple], options: Options,
         var opt = options
         if pv.name.isNim:
           if not downloadDir.isSubdirOf(options.nimBinariesDir):
-            compileNim(opt, downloadDir, pv.ver)
+            waitFor compileNim(opt, downloadDir, pv.ver)
           opt.useNimFromDir(downloadDir, pv.ver, true)
         result = installFromDir(downloadDir, pv.ver, opt, url,
                                 first, fromLockFile, nimBin, vcsRevision,
@@ -445,7 +446,7 @@ proc addPackages(packages: seq[PkgTuple], options: var Options, nimBin: Option[s
   let
     dir = findNimbleFile(getCurrentDir(), true, options)
     pkgInfo = getPkgInfo(getCurrentDir(), options, nimBin = nimBin)
-    pkgList = options.getPackageList()
+    pkgList = waitFor options.getPackageList()
     deps = pkgInfo.requires
 
   var 
@@ -590,7 +591,7 @@ proc search(options: Options) =
     raise nimbleError("Please specify a search string.")
   if needsRefresh(options):
     raise nimbleError("Please run nimble refresh.")
-  let pkgList = getPackageList(options)
+  let pkgList = waitFor getPackageList(options)
   var found = false
   template onFound {.dirty.} =
     echoPackage(pkg)
@@ -617,7 +618,7 @@ proc search(options: Options) =
 proc list(options: Options) =
   if needsRefresh(options):
     raise nimbleError("Please run nimble refresh.")
-  let pkgList = getPackageList(options)
+  let pkgList = waitFor getPackageList(options)
   for pkg in pkgList:
     echoPackage(pkg)
     if pkg.alias.len == 0 and options.action.showListVersions:
@@ -2002,7 +2003,7 @@ proc solvePkgs(rootPackage: PackageInfo, options: var Options, nimBin: var Optio
   withNimBinFallback(nimBin, options):
     resolvedNim = resolveAndConfigureNim(options.satResult.rootPackage, pkgList, options, nimBin)
   if resolvedNim.pkg.isNone:
-    let nimInstalled = installNimFromBinariesDir(("nim", resolvedNim.version.toVersionRange()), options)
+    let nimInstalled = waitFor installNimFromBinariesDir(("nim", resolvedNim.version.toVersionRange()), options)
     if nimInstalled.isSome:
       resolvedNim.pkg = some getPkgInfo(nimInstalled.get.dir, options, nimBin = none(string), level = pikRequires) #Can be empty as the code path for nim doesnt need it.
       resolvedNim.version = nimInstalled.get.ver
@@ -2027,7 +2028,7 @@ proc solvePkgs(rootPackage: PackageInfo, options: var Options, nimBin: var Optio
   if nimPkgInfo.nimBinPath.isNone:
     if not fileExists(resolvedNimBin):
       if options.prompt("Develop version of nim was found but it is not compiled. Compile it now?"):
-        compileNim(options, nimPkgInfo.getRealDir, nimPkgInfo.basicInfo.version.toVersionRange())
+        waitFor compileNim(options, nimPkgInfo.getRealDir, nimPkgInfo.basicInfo.version.toVersionRange())
       else:
         raise nimbleError("Trying to use nim from $1 " % nimPkgInfo.getRealDir,
                           "If you are using develop mode nim make sure to compile it.")
@@ -2354,7 +2355,7 @@ proc doAction(options: var Options, nimBinParam: Option[string]) {.instrument.} 
         options.nimBin = some makeNimBin(options, nimBin.getNimBin)
   case options.action.typ
   of actionRefresh:
-    refresh(options)
+    waitFor refresh(options)
   of actionInstall:
     discard # handled by resolution pipeline
   of actionUninstall:

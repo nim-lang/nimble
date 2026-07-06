@@ -92,8 +92,8 @@ proc downloadPkInfoForPv*(pv: PkgTuple, options: Options, doPrompt = false, nimB
   let downloadRes = downloadPkgFromUrl(pv, options, doPrompt, nimBin)
   result = getPkgInfo(downloadRes[0].dir, options, nimBin, pikRequires)
 
-proc getAllNimReleases*(options: Options, nimVersion: Option[Version]): seq[PackageMinimalInfo] =
-  let releases = getOfficialReleases(options)
+proc getAllNimReleases*(options: Options, nimVersion: Option[Version]): Future[seq[PackageMinimalInfo]] {.async.} =
+  let releases = await getOfficialReleases(options)
   for release in releases:
     result.add PackageMinimalInfo(name: "nim", version: release)
 
@@ -314,11 +314,15 @@ proc getPackageMinimalVersionsFromRepo*(
     except CatchableError as e:
       displayWarning(&"Error saving tagged versions for {name}: {e.msg}", LowPriority)
 
-proc downloadNimSpecialVersion*(pv: PkgTuple, options: Options): seq[PackageMinimalInfo] =
+proc downloadNimSpecialVersion*(
+    pv: PkgTuple, options: Options
+): Future[seq[PackageMinimalInfo]] {.async.} =
   ## Downloads a special nim version (like #devel, #commit-sha) and extracts version info.
-  ## Used as a sync fallback from the async path since nim binary downloads don't benefit from async.
-  let extractedDir = downloadAndExtractNimMatchedVersion(pv.ver, options)
+  let extractedDir = await downloadAndExtractNimMatchedVersion(pv.ver, options)
   var ver = newVersion($pv.ver)
+  # Guard for the case when extraction failed (e.g. when a corrupt archive was downloaded).
+  if extractedDir.isNone:
+    return
   let nimbleFile = extractedDir.get / "nim.nimble"
   if nimbleFile.fileExists:
     let nimVersion = extractNimVersion(nimbleFile)
@@ -360,8 +364,8 @@ proc downloadMinimalPackageImpl(pv: PkgTuple, options: Options, nimBin: Option[s
       if pv.ver.kind == verSpecial:
         # For special versions, use sync download (nim binary downloads don't benefit from async)
         {.gcsafe.}:
-          return downloadNimSpecialVersion(pv, options)
-      return getAllNimReleases(options, getNimVersionFromBin(nimBin.getNimBin))
+          return await downloadNimSpecialVersion(pv, options)
+      return await getAllNimReleases(options, getNimVersionFromBin(nimBin.getNimBin))
 
     # During version discovery, we only need to read .nimble files, not compile code
     # So we ignore submodules to speed up cloning and avoid failures from broken submodules

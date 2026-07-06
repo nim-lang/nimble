@@ -2,7 +2,10 @@
 # BSD License. Look at license.txt for more info.
 
 import parseutils, os, strutils, strscans, tables, uri, strformat,
-       httpclient, sequtils, urls, chronos, std/options
+       sequtils, urls, std/options
+
+import chronos
+import chronos/apps/http/[httpclient, httpcommon]
 
 import compat/[json, osproc]
 from algorithm import SortOrder, sorted
@@ -446,49 +449,54 @@ proc getGitHubApiUrl(url, commit: string): string =
   ## an URL for the GitHub REST API query for the full commit hash.
   &"https://api.github.com/repos/{extractOwnerAndRepo(url)}/commits/{commit}"
 
-proc getProxy*(): Proxy =
-  ## Returns ``nil`` if no proxy is specified.
-  var url = ""
-  try:
-    if existsEnv("http_proxy"):
-      url = getEnv("http_proxy")
-    elif existsEnv("https_proxy"):
-      url = getEnv("https_proxy")
-  except ValueError:
-    display(
-      "Warning:",
-      "Unable to parse proxy from environment: " & getCurrentExceptionMsg(),
-      Warning,
-      HighPriority,
-    )
 
-  if url.len > 0:
-    var parsed = parseUri(url)
-    if parsed.scheme.len == 0 or parsed.hostname.len == 0:
-      parsed = parseUri("http://" & url)
-    let auth =
-      if parsed.username.len > 0:
-        parsed.username & ":" & parsed.password
-      else:
-        ""
-    return newProxy($parsed, auth)
-  else:
-    return nil
+proc sendWithRedirect*(request: HttpClientRequestRef): Future[HttpClientResponseRef] {.
+     async: (raises: [CancelledError, HttpError]).} =
+    var request = request
+    result = await request.send()
 
-proc retrieveUrl*(url: string): string =
+    while result.status >= 300 and result.status < 400:
+      let newLocation = result.getNewLocation().valueOr:
+        raise newException(HttpRequestError, error)
+      await result.closeWait()
+      request = request.redirect(newLocation).valueOr:
+        raise newException(HttpRequestError, error)
+      result = await request.send()
+
+proc retrieveUrl*(url: string, disableSslCertCheck = false): Future[string] {.async.} =
   display("Http", "Requesting " & url, priority = DebugPriority)
-  {.cast(raises: [CatchableError]).}:
-    var client = newHttpClient(proxy = getProxy(), userAgent = nimbleUserAgent)
-    return client.getContent(url)
+  let flags = if disableSslCertCheck:
+    {HttpClientFlag.NoVerifyHost, HttpClientFlag.NoVerifyServerName}
+  else: {}
+  let session = HttpSessionRef.new(flags = flags, provider = getProvider())
+
+  try:
+    var request = HttpClientRequestRef.new(
+      session, url, headers = {UserAgentHeader: nimbleUserAgent}
+    ).valueOr:
+      raise newException(HttpRequestError, error)
+
+    while true:
+      let response = await request.sendWithRedirect()
+      if response.status >= 400:
+        await response.closeWait()
+        raise newException(HttpRequestError,
+                           "Server returned status: " & $response.status)
+      else:
+        let data = bytesToString(await response.getBodyBytes())
+        await response.closeWait()
+        return data
+  finally:
+    await session.closeWait()
 
 {.warning[ProveInit]: off.}
-proc getFullRevisionFromGitHubApi(url, version: string): Sha1Hash =
+proc getFullRevisionFromGitHubApi(url, version: string): Future[Sha1Hash] {.async.} =
   ## By given a commit short hash and an URL to a GitHub repository retrieves
   ## the full hash of the commit by using GitHub REST API.
   try:
     let gitHubApiUrl = getGitHubApiUrl(url, version)
     display("Get", gitHubApiUrl);
-    let content = retrieveUrl(gitHubApiUrl)
+    let content = await retrieveUrl(gitHubApiUrl)
     let json = parseJson(content)
     if json.hasKey("sha"):
       return json["sha"].str.initSha1Hash
@@ -519,7 +527,7 @@ proc getRevision*(url, version: string): Sha1Hash =
   result = parseRevision(output)
   if result == notSetSha1Hash:
     if version.seemsLikeRevision:
-      result = getFullRevisionFromGitHubApi(url, version)
+      result = waitFor getFullRevisionFromGitHubApi(url, version)
     else:
       raise nimbleError(&"Cannot get revision for version \"{version}\" " &
                         &"of package at \"{url}\".")
@@ -530,7 +538,7 @@ proc getRevisionAsync(url, version: string): Future[Sha1Hash] {.async.} =
   result = parseRevision(output)
   if result == notSetSha1Hash:
     if version.seemsLikeRevision:
-      result = getFullRevisionFromGitHubApi(url, version)
+      result = await getFullRevisionFromGitHubApi(url, version)
     else:
       raise nimbleError(&"Cannot get revision for version \"{version}\" " &
                         &"of package at \"{url}\".")
@@ -553,7 +561,7 @@ proc doDownloadTarball(url, downloadDir, version: string, queryRevision: bool):
 
   let downloadLink = getTarballDownloadLink(url, version)
   display("Downloading", downloadLink)
-  let data = retrieveUrl(downloadLink)
+  let data = waitFor retrieveUrl(downloadLink)
   display("Completed", "downloading " & downloadLink)
 
   let filePath = downloadDir / "tarball.tar.gz"
@@ -601,7 +609,7 @@ proc doDownloadTarballAsync*(url, downloadDir, version: string, queryRevision: b
   ## Note: HTTP download is still synchronous, but tar extraction is async.
   let downloadLink = getTarballDownloadLink(url, version)
   display("Downloading", downloadLink)
-  let data = retrieveUrl(downloadLink)
+  let data = await retrieveUrl(downloadLink)
   display("Completed", "downloading " & downloadLink)
 
   let filePath = downloadDir / "tarball.tar.gz"
@@ -1088,7 +1096,7 @@ proc getDevelopDownloadDir*(url, subdir: string, options: Options,
     else:
       getCurrentDir() / options.action.path / downloadDirName
 
-proc refresh*(options: Options) =
+proc refresh*(options: Options) {.async.} =
   ## Downloads the package list from the specified URL.
   ##
   ## If the download is not successful, an exception is raised.
@@ -1104,17 +1112,17 @@ proc refresh*(options: Options) =
   if parameter.len > 0:
     if parameter.isUrl:
       let cmdLine = PackageList(name: "commandline", urls: @[parameter])
-      fetchList(cmdLine, options)
+      await fetchList(cmdLine, options)
     else:
       if parameter notin options.config.packageLists:
         let msg = "Package list with the specified name not found."
         raise nimbleError(msg)
 
-      fetchList(options.config.packageLists[parameter], options)
+      await fetchList(options.config.packageLists[parameter], options)
   else:
     # Try each package list in config
     for name, list in options.config.packageLists:
-      fetchList(list, options)
+      await fetchList(list, options)
 
 proc getDownloadInfo*(
     pv: PkgTuple, options: Options,
@@ -1144,7 +1152,7 @@ proc getDownloadInfo*(
     if doPrompt and not options.offline and
         options.prompt(pv.name & " not found in any local packages.json, " &
                         "check internet for updated packages?"):
-      refresh(options)
+      waitFor refresh(options)
 
       # Once we've refreshed, try again, but don't prompt if not found
       # (as we've already refreshed and a failure means it really
