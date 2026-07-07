@@ -490,6 +490,30 @@ requires "nim >= 2.0.0"
       checkWrapperInvoked(binDir / "calls.log", "--useSystemNim", "--debug", "build")
       putEnv("PATH", oldPath)
 
+  test "issue #1757 useSystemNim works with a Debian-style nim layout":
+    # Debian's apt `nim` package installs the compiler at /usr/bin/nim and the
+    # stdlib at /usr/lib/nim, with no nim.nimble next to either. getNimFromSystem
+    # then can't reconstruct a PackageInfo and used to return `none`, so
+    # --useSystemNim failed with "No system nim found" even though nim was on
+    # PATH. The wrapper reproduces that layout by faking querySetting(libPath).
+    let binDir = getCurrentDir() / "issue1757" / "bin"
+    let nimWrapper = binDir / (when defined(windows): "nim.cmd" else: "nim")
+    let log = binDir / "calls.log"
+    cd "issue1757":
+      cleanFiles log, "issue1757"
+      let sep = when defined(windows): ";" else: ":"
+      let oldPath = getEnv("PATH")
+      putEnv("PATH", binDir & sep & oldPath)
+      let res = execNimble("--useSystemNim", "--debug", "build")
+      putEnv("PATH", oldPath)
+      check res.exitCode == QuitSuccess
+      check not res.output.contains("No system nim found")
+      # The build must have gone through the system nim (our wrapper), proving
+      # it was detected rather than a fresh nim being downloaded.
+      check res.output.contains("Executing $1 c" % nimWrapper)
+      check fileExists(log)
+      check readFile(log).contains("c ")
+
   test "issue #1650 root project config.nims should not leak into dep binary build":
     # When building a dependency's binary in nimbledeps/buildtemp, the root
     # project's config.nims should NOT be picked up by the Nim compiler. This

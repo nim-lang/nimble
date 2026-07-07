@@ -1,0 +1,27 @@
+#!/bin/sh
+# Nim wrapper for issue #1757 test.
+#
+# Simulates a Debian/apt-style Nim layout: the compiler lives at /usr/bin/nim
+# and its stdlib at /usr/lib/nim, with NO nim.nimble anywhere near either path.
+# To reproduce that, we intercept the `querySetting(libPath)` probe that
+# getNimFromSystem() uses and answer with a libPath whose parent directory has
+# no nim.nimble. Every other invocation (including --version and real
+# compilation) is delegated to the real nim found in PATH.
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+echo "$@" >> "$SCRIPT_DIR/calls.log"
+
+case "$*" in
+  *querySetting*libPath*)
+    # Parent of this path (…/fakelib) intentionally contains no nim.nimble.
+    echo "$SCRIPT_DIR/fakelib/nim"
+    exit 0
+    ;;
+esac
+
+REAL_NIM=$(IFS=:; for dir in $PATH; do
+  if [ "$dir" != "$SCRIPT_DIR" ] && [ -x "$dir/nim" ]; then
+    echo "$dir/nim"
+    break
+  fi
+done)
+exec "$REAL_NIM" "$@"

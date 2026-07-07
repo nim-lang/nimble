@@ -701,6 +701,14 @@ proc isNim*(name: string): bool =
 
 proc isNim*(pv: PkgTuple): bool = pv.name.isNim
 
+proc isSynthetic*(pkgInfo: PackageInfo): bool =
+  ## A synthetic package has no `.nimble` file on disk. This is only produced for
+  ## a system Nim discovered by its binary alone (e.g. Debian's apt layout: nim
+  ## in /usr/bin, stdlib in /usr/lib/nim, no nim.nimble — see #1757). The `isNim`
+  ## guard keeps ordinary packages — whose `.nimble` file must exist — from ever
+  ## being classified as synthetic.
+  pkgInfo.basicInfo.name.isNim and not pkgInfo.myPath.fileExists
+
 proc hasLockFile*(pkgInfo: PackageInfo, options: Options): bool =
   return options.lockFile(pkgInfo.myPath.parentDir()).fileExists
 

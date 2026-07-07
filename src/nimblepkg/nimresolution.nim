@@ -45,8 +45,25 @@ proc getNimFromSystem*(options: Options): Option[PackageInfo] =
       var pkgInfo = getPkgInfo(dir, options, nimBin = none(string), level = pikRequires) #Can be empty as the code path for nim doesnt need it.
       pkgInfo.nimBinPath = some pnim  # preserve the PATH-resolved binary for later use
       return some pkgInfo
-    except CatchableError:
-      discard # Fall back to original pnim
+    except NimbleError:
+      # findNimbleFile raises NimbleError when there is no parseable nim.nimble
+      # for this layout (missing/absent file); synthesize one from the binary
+      # below. See #1757.
+      discard
+    except CatchableError as e:
+      # Any other failure while reading the system nim is unexpected — surface it
+      # with context instead of silently synthesizing over it.
+      raise nimbleError("Error reading system nim at " & dir & ": " & e.msg, details = e)
+    # Distro packages (e.g. Debian's apt `nim`) install the compiler at
+    # /usr/bin/nim and the stdlib at /usr/lib/nim, with no nim.nimble anywhere,
+    # so getPkgInfo above can't reconstruct a package. We still have a usable nim
+    # on PATH, so build a minimal package straight from the binary. See #1757.
+    let nimVer = getNimVersionFromBin(pnim)
+    if nimVer.isSome:
+      var pkgInfo = initPackageInfo(options, dir / "nim.nimble")
+      pkgInfo.basicInfo.version = nimVer.get
+      pkgInfo.nimBinPath = some pnim  # preserve the PATH-resolved binary for later use
+      return some pkgInfo
   return none(PackageInfo)
 
 proc isSystemNim*(resolvedNim: NimResolved, options: Options): bool =
