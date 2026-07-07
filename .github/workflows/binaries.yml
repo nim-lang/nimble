@@ -15,33 +15,33 @@ jobs:
       fail-fast: false
       matrix:
         target:
-          # Linux: cross-compiled to static musl binaries via musl-cross gcc
-          # toolchains. `cc` is the toolchain's gcc, `tool` is the tarball name
-          # on musl.cc, `nimCpu` is Nim's --cpu token (note: arm64, not aarch64).
+          # Linux: built natively inside a per-arch musl (Alpine) container run
+          # under QEMU emulation. No cross toolchain download -- the binary is a
+          # real, correct-arch, static musl build. `image` is the container base
+          # (official from-source Nim image where available, so $nim/compiler/*
+          # resolves), `platform` is the docker --platform, `needsNim` means the
+          # base image has no Nim so we apk-add it.
           - os: linux
             triple: x86_64-linux-musl
             name: linux_x64
-            nimCpu: amd64
-            tool: x86_64-linux-musl-cross
-            cc: x86_64-linux-musl-gcc
+            platform: linux/amd64
+            image: nimlang/nim:2.2.4-alpine
           - os: linux
             triple: i686-linux-musl
             name: linux_x32
-            nimCpu: i386
-            tool: i686-linux-musl-cross
-            cc: i686-linux-musl-gcc
+            platform: linux/386
+            image: i386/alpine:3.20
+            needsNim: "1"
           - os: linux
             triple: aarch64-linux-musl
             name: linux_aarch64
-            nimCpu: arm64
-            tool: aarch64-linux-musl-cross
-            cc: aarch64-linux-musl-gcc
+            platform: linux/arm64
+            image: nimlang/nim:2.2.4-alpine
           - os: linux
             triple: armv7l-linux-musleabihf
             name: linux_armv7l
-            nimCpu: arm
-            tool: armv7l-linux-musleabihf-cross
-            cc: armv7l-linux-musleabihf-gcc
+            platform: linux/arm/v7
+            image: nimlang/nim:2.2.4-alpine
           # macOS: native/cross via clang -target, universal via lipo
           - os: macosx
             triple: x86_64-apple-darwin14
@@ -86,31 +86,21 @@ jobs:
           fetch-depth: 0
           submodules: recursive
 
+      # Linux builds happen inside a container that already carries Nim, so the
+      # host Nim toolchain is only set up for macOS/Windows.
       - uses: jiro4989/setup-nim-action@v2
+        if: matrix.target.os != 'linux'
         with:
           nim-version: "stable"
           yes: true
 
       - name: Install dependencies
+        if: matrix.target.os != 'linux'
         run: nimble install -y
 
       - name: Install zip
         if: matrix.target.os == 'windows'
         run: choco install zip
-
-      # Fetch a static musl-cross gcc toolchain for the target arch and put it
-      # on PATH. This is what makes the Linux binaries real, correct-arch static
-      # musl builds (previously every Linux artifact was native x86_64 glibc).
-      - name: Setup musl toolchain
-        if: matrix.target.os == 'linux'
-        env:
-          TOOL: ${{ matrix.target.tool }}
-        run: |
-          set -eu
-          curl -fsSL "https://musl.cc/${TOOL}.tgz" -o "$RUNNER_TEMP/musl.tgz"
-          mkdir -p "$HOME/x-tools"
-          tar -xzf "$RUNNER_TEMP/musl.tgz" -C "$HOME/x-tools"
-          echo "$HOME/x-tools/${TOOL}/bin" >> "$GITHUB_PATH"
 
       # A single llvm-mingw toolchain can target every Windows arch (i686,
       # x86_64, armv7, arm64) and runs natively on the Windows runner, so it
@@ -129,7 +119,33 @@ jobs:
           unzip -q "$RUNNER_TEMP/llvm-mingw.zip" -d "$RUNNER_TEMP/llvm-mingw"
           echo "$RUNNER_TEMP/llvm-mingw/${pkg}/bin" >> "$GITHUB_PATH"
 
+      # Register binfmt handlers so non-native (arm64/armv7/i686) containers run.
+      - name: Set up QEMU
+        if: matrix.target.os == 'linux'
+        uses: docker/setup-qemu-action@v3
+
+      - name: build nimble (Linux, musl via Alpine container)
+        if: matrix.target.os == 'linux'
+        env:
+          PLATFORM: ${{ matrix.target.platform }}
+          IMAGE: ${{ matrix.target.image }}
+          NEEDS_NIM: ${{ matrix.target.needsNim }}
+        run: |
+          set -eu
+          docker run --rm --platform "$PLATFORM" \
+            -e NEEDS_NIM \
+            -v "$PWD":/ws -w /ws "$IMAGE" \
+            sh -euc '
+              if [ "${NEEDS_NIM:-}" = "1" ]; then
+                apk add --no-cache nim nim-dev gcc musl-dev
+              fi
+              # config.nims wires all vendor/ deps, so no "nimble install" is
+              # needed. Statically linked -> a portable musl binary.
+              nim c -d:release --passL:"-static" -o:src/nimble src/nimble.nim
+            '
+
       - name: build nimble
+        if: matrix.target.os != 'linux'
         env:
           TRIPLE: ${{ matrix.target.triple }}
           TARGET_OS: ${{ matrix.target.os }}
@@ -161,18 +177,6 @@ jobs:
             --passC:"-target arm64-apple-macos11" \
             -o:src/nimble_arm64 src/nimble.nim;
             lipo -create src/nimble_x64 src/nimble_arm64 -output src/nimble;
-          elif [[ "$TARGET_OS" == "linux" ]]; then
-            # Static musl cross build. Set both the generic gcc.exe and the
-            # $cpu.$os.gcc.exe key: the generic key covers the native-arch build
-            # (amd64), the qualified key covers cross builds and overrides Nim's
-            # default arm/arm64 mappings which point at the -gnu toolchains.
-            nim c -d:release \
-            -d:zippyNoSimd \
-            --os:linux --cpu:"$NIM_CPU" \
-            --gcc.exe:"$CC_BIN" --gcc.linkerexe:"$CC_BIN" \
-            --"$NIM_CPU".linux.gcc.exe:"$CC_BIN" --"$NIM_CPU".linux.gcc.linkerexe:"$CC_BIN" \
-            --passL:"-static" \
-            src/nimble.nim;
           else
             # Windows, via llvm-mingw.
             nim c -d:release \
@@ -181,6 +185,20 @@ jobs:
             --"$NIM_CPU".windows.gcc.exe:"$CC_BIN" --"$NIM_CPU".windows.gcc.linkerexe:"$CC_BIN" \
             --passL:"-static" \
             src/nimble.nim;
+          fi
+
+      # Confirm each binary is the architecture it claims to be (the exact check
+      # from issue #1123). Fails the job loudly if an arch is wrong.
+      - name: Verify binary architecture
+        if: matrix.target.os != 'macosx'
+        env:
+          TARGET_OS: ${{ matrix.target.os }}
+        run: |
+          set -eu
+          if [[ "$TARGET_OS" == "windows" ]]; then
+            file src/nimble.exe
+          else
+            file src/nimble
           fi
 
       - name: Compress binaries
