@@ -15,18 +15,34 @@ jobs:
       fail-fast: false
       matrix:
         target:
+          # Linux: cross-compiled to static musl binaries via musl-cross gcc
+          # toolchains. `cc` is the toolchain's gcc, `tool` is the tarball name
+          # on musl.cc, `nimCpu` is Nim's --cpu token (note: arm64, not aarch64).
           - os: linux
             triple: x86_64-linux-musl
             name: linux_x64
+            nimCpu: amd64
+            tool: x86_64-linux-musl-cross
+            cc: x86_64-linux-musl-gcc
           - os: linux
             triple: i686-linux-musl
             name: linux_x32
+            nimCpu: i386
+            tool: i686-linux-musl-cross
+            cc: i686-linux-musl-gcc
           - os: linux
             triple: aarch64-linux-musl
             name: linux_aarch64
+            nimCpu: arm64
+            tool: aarch64-linux-musl-cross
+            cc: aarch64-linux-musl-gcc
           - os: linux
             triple: armv7l-linux-musleabihf
             name: linux_armv7l
+            nimCpu: arm
+            tool: armv7l-linux-musleabihf-cross
+            cc: armv7l-linux-musleabihf-gcc
+          # macOS: native/cross via clang -target, universal via lipo
           - os: macosx
             triple: x86_64-apple-darwin14
             name: macosx_x64
@@ -36,12 +52,17 @@ jobs:
           - os: macosx
             triple: universal-apple-darwin
             name: macosx_universal
+          # Windows: single llvm-mingw toolchain targets both arches
           - os: windows
             triple: x86_64-w64-mingw32
             name: windows_x64
+            nimCpu: amd64
+            cc: x86_64-w64-mingw32-gcc
           - os: windows
             triple: i686-w64-mingw32
             name: windows_x32
+            nimCpu: i386
+            cc: i686-w64-mingw32-gcc
         include:
           - target:
               os: linux
@@ -77,21 +98,58 @@ jobs:
         if: matrix.target.os == 'windows'
         run: choco install zip
 
-      - name: build nimble
+      # Fetch a static musl-cross gcc toolchain for the target arch and put it
+      # on PATH. This is what makes the Linux binaries real, correct-arch static
+      # musl builds (previously every Linux artifact was native x86_64 glibc).
+      - name: Setup musl toolchain
+        if: matrix.target.os == 'linux'
+        env:
+          TOOL: ${{ matrix.target.tool }}
         run: |
-          if [[ "${{ matrix.target.triple }}" == "x86_64-apple-darwin14" ]]; then
+          set -eu
+          curl -fsSL "https://musl.cc/${TOOL}.tgz" -o "$RUNNER_TEMP/musl.tgz"
+          mkdir -p "$HOME/x-tools"
+          tar -xzf "$RUNNER_TEMP/musl.tgz" -C "$HOME/x-tools"
+          echo "$HOME/x-tools/${TOOL}/bin" >> "$GITHUB_PATH"
+
+      # A single llvm-mingw toolchain can target every Windows arch (i686,
+      # x86_64, armv7, arm64) and runs natively on the Windows runner, so it
+      # fixes windows_x32 (previously built as 64-bit).
+      - name: Setup llvm-mingw toolchain
+        if: matrix.target.os == 'windows'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          tag=$(curl -fsSL -H "Authorization: Bearer $GH_TOKEN" \
+            https://api.github.com/repos/mstorsjo/llvm-mingw/releases/latest \
+            | grep '"tag_name"' | head -1 | sed -E 's/.*"tag_name": *"([^"]+)".*/\1/')
+          pkg="llvm-mingw-${tag}-ucrt-x86_64"
+          curl -fsSL "https://github.com/mstorsjo/llvm-mingw/releases/download/${tag}/${pkg}.zip" -o "$RUNNER_TEMP/llvm-mingw.zip"
+          unzip -q "$RUNNER_TEMP/llvm-mingw.zip" -d "$RUNNER_TEMP/llvm-mingw"
+          echo "$RUNNER_TEMP/llvm-mingw/${pkg}/bin" >> "$GITHUB_PATH"
+
+      - name: build nimble
+        env:
+          TRIPLE: ${{ matrix.target.triple }}
+          TARGET_OS: ${{ matrix.target.os }}
+          CC_BIN: ${{ matrix.target.cc }}
+          NIM_CPU: ${{ matrix.target.nimCpu }}
+        run: |
+          set -eu
+          if [[ "$TRIPLE" == "x86_64-apple-darwin14" ]]; then
             nim c -d:release \
             -d:zippyNoSimd \
             --passL:"-target x86_64-apple-macos10.15" \
             --passC:"-target x86_64-apple-macos10.15" \
             src/nimble.nim;
-          elif [[ "${{ matrix.target.triple }}" == "aarch64-apple-darwin" ]]; then
+          elif [[ "$TRIPLE" == "aarch64-apple-darwin" ]]; then
             nim c -d:release \
             -d:zippyNoSimd \
             --passL:"-target arm64-apple-macos11" \
             --passC:"-target arm64-apple-macos11" \
             src/nimble.nim;
-          elif [[ "${{ matrix.target.triple }}" == "universal-apple-darwin" ]]; then
+          elif [[ "$TRIPLE" == "universal-apple-darwin" ]]; then
             nim c -d:release \
             -d:zippyNoSimd \
             --passL:"-target x86_64-apple-macos10.15" \
@@ -103,25 +161,40 @@ jobs:
             --passC:"-target arm64-apple-macos11" \
             -o:src/nimble_arm64 src/nimble.nim;
             lipo -create src/nimble_x64 src/nimble_arm64 -output src/nimble;
+          elif [[ "$TARGET_OS" == "linux" ]]; then
+            # Static musl cross build. Set both the generic gcc.exe and the
+            # $cpu.$os.gcc.exe key: the generic key covers the native-arch build
+            # (amd64), the qualified key covers cross builds and overrides Nim's
+            # default arm/arm64 mappings which point at the -gnu toolchains.
+            nim c -d:release \
+            -d:zippyNoSimd \
+            --os:linux --cpu:"$NIM_CPU" \
+            --gcc.exe:"$CC_BIN" --gcc.linkerexe:"$CC_BIN" \
+            --"$NIM_CPU".linux.gcc.exe:"$CC_BIN" --"$NIM_CPU".linux.gcc.linkerexe:"$CC_BIN" \
+            --passL:"-static" \
+            src/nimble.nim;
           else
-            nim -d:release c src/nimble.nim;
+            # Windows, via llvm-mingw.
+            nim c -d:release \
+            --os:windows --cpu:"$NIM_CPU" \
+            --gcc.exe:"$CC_BIN" --gcc.linkerexe:"$CC_BIN" \
+            --"$NIM_CPU".windows.gcc.exe:"$CC_BIN" --"$NIM_CPU".windows.gcc.linkerexe:"$CC_BIN" \
+            --passL:"-static" \
+            src/nimble.nim;
           fi
 
-      - name: Download OpenSSL DLLs
-        if: matrix.target.os == 'windows'
-        run: |
-          curl -sL "https://nim-lang.org/download/dlls.zip" -o dlls.zip
-          unzip -o dlls.zip -d src/ "libcrypto-*.dll" "libssl-*.dll" "cacert.pem"
-
       - name: Compress binaries
+        env:
+          TARGET_OS: ${{ matrix.target.os }}
+          ASSET: ${{ matrix.target.name }}
         run: |
           cd src
-          if [[ "${{ matrix.target.os }}" == "windows" ]]; then
-            # Create both formats for Windows (include OpenSSL DLLs)
-            tar -c -z -v -f ../nimble-${{ matrix.target.name }}.tar.gz nimble.exe libcrypto-*.dll libssl-*.dll cacert.pem
-            zip ../nimble-${{ matrix.target.name }}.zip nimble.exe libcrypto-*.dll libssl-*.dll cacert.pem
+          if [[ "$TARGET_OS" == "windows" ]]; then
+            # Create both formats for Windows
+            tar -c -z -v -f "../nimble-${ASSET}.tar.gz" nimble.exe
+            zip "../nimble-${ASSET}.zip" nimble.exe
           else
-            tar -c -z -v -f ../nimble-${{ matrix.target.name }}.tar.gz nimble
+            tar -c -z -v -f "../nimble-${ASSET}.tar.gz" nimble
           fi
 
       - name: Upload tar.gz artifact
