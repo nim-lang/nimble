@@ -2245,6 +2245,10 @@ proc warnVersionMismatches(options: Options) =
   ## Warn when an installed package's directory/tag version doesn't match the
   ## version declared in its `.nimble` file. Skips special versions (`#devel`).
   for pkgInfo in options.satResult.pkgs:
+    if pkgInfo.isSynthetic:
+      # A synthetic package (system Nim with no nim.nimble on disk, see #1757)
+      # has nothing to compare against and no file to parse.
+      continue
     try:
       if pkgInfo.basicInfo.version.isSpecial:
         continue
