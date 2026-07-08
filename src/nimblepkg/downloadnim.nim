@@ -499,6 +499,32 @@ proc getBinaryUrlFromReleases*(version: Version, arch: int, disableSslCertCheck 
   except CatchableError:
     return none(string)
 
+proc canExtractNimXz*(): bool =
+  ## Whether this system can decompress Nim's prebuilt `.tar.xz` binary.
+  ##
+  ## Nim ships Linux/macOS binaries only as `.tar.xz`. `unxz`/`xz` on PATH can
+  ## decompress it (directly, or via GNU tar which shells out to `xz`), and a
+  ## libarchive/bsdtar `tar` (e.g. macOS) decompresses xz itself. A GNU tar with
+  ## no `xz`/`unxz` available CANNOT — so we must not download the `.tar.xz`
+  ## there and should build from the `.tar.gz` source instead. See #1758.
+  when defined(windows):
+    # Windows uses a `.zip` binary (handled by zippy); xz is irrelevant here.
+    return true
+  else:
+    if findExe("unxz") != "" or findExe("xz") != "":
+      return true
+    let tarExe = findExe("tar")
+    if tarExe == "":
+      return false
+    try:
+      let (output, exitCode) = execCmdEx(tarExe.quoteShell & " --version")
+      if exitCode != 0:
+        return false
+      let lower = output.toLowerAscii
+      return "libarchive" in lower or "bsdtar" in lower
+    except CatchableError:
+      return false
+
 proc downloadImpl(version: Version, options: Options): Future[string] {.async.} =
   let arch = getGccArch(options)
   displayDebug("Detected", "arch as " & $arch & "bit")
@@ -554,8 +580,13 @@ proc downloadImpl(version: Version, options: Options): Future[string] {.async.} 
 
     var outputPath: string
 
-    # Try to get binary URL from releases.json
-    let binaryUrlOpt = await getBinaryUrlFromReleases(version, arch, options.disableSslCertCheck)
+    # Nim ships prebuilt binaries only as `.tar.xz`. Only consider the binary if
+    # this system can actually decompress xz; otherwise fall through to a source
+    # build from the `.tar.gz` (which `tar`/zippy can always unpack). See #1758.
+    let canXz = canExtractNimXz()
+    let binaryUrlOpt =
+      if canXz: await getBinaryUrlFromReleases(version, arch, options.disableSslCertCheck)
+      else: none(string)
     if binaryUrlOpt.isSome():
       let binUrl = binaryUrlOpt.get()
       if not needsDownload(binUrl, outputPath, options):
@@ -569,6 +600,15 @@ proc downloadImpl(version: Version, options: Options): Future[string] {.async.} 
           "Binary download failed, falling back to source",
           priority = HighPriority,
         )
+    elif not canXz:
+      # No xz decompressor and no libarchive `tar`, so the `.tar.xz` binary is
+      # unusable here. Build from source instead of failing. See #1758.
+      display(
+        "Info:",
+        "No xz decompressor found (install `xz-utils`/`unxz` for faster binary " &
+          "installs); building Nim $1 from source" % $version,
+        priority = HighPriority,
+      )
     else:
       # Platform/version not available in releases.json
       when defined(macosx):
@@ -585,9 +625,8 @@ proc downloadImpl(version: Version, options: Options): Future[string] {.async.} 
           priority = HighPriority,
         )
 
-    # Fall back to source tarball
-    let hasUnxz = findExe("unxz") != ""
-    let url = (if hasUnxz: websiteUrlXz else: websiteUrlGz) % $version
+    # Fall back to source tarball. Use `.tar.gz` when we can't decompress xz.
+    let url = (if canXz: websiteUrlXz else: websiteUrlGz) % $version
     if not needsDownload(url, outputPath, options):
       return outputPath
     await downloadFile(url, outputPath, options.disableSslCertCheck)
