@@ -1560,6 +1560,27 @@ proc lock(options: var Options, nimBin: Option[string]) =
             except CatchableError:
               displayWarning(&"Could not compute checksum for nim stdlib at {libDir}")
 
+      # Develop/vendor (working-copy) dependencies carry neither a metadata URL
+      # nor a checksum - those are only recorded for pkgs2 installs. Derive both
+      # from the working copy so the generated lock file stays usable instead of
+      # emitting entries with empty `url`/`checksums.sha1`.
+      block:
+        let realDir = pkgInfo.getRealDir()
+        if (lockUrl == "" or lockChecksum == notSetSha1Hash) and realDir.dirExists():
+          if lockUrl == "":
+            try:
+              let remotes = getRemotesNames(realDir.Path)
+              if remotes.len > 0:
+                let remote = if "origin" in remotes: "origin" else: remotes[0]
+                lockUrl = getRemoteFetchUrl(realDir.Path, remote)
+            except CatchableError:
+              discard
+          if lockChecksum == notSetSha1Hash:
+            try:
+              lockChecksum = calculateDirSha1Checksum(realDir)
+            except CatchableError:
+              discard
+
       lockDeps[noTask][pkgInfo.basicInfo.name] = LockFileDep(
         version: solvedPkg.version,
         vcsRevision: vcsRevision,

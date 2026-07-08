@@ -299,6 +299,32 @@ requires "nim >= 1.5.1"
       cd mainPkgRepoPath:
         testLockFile(@[(dep1PkgName, dep1PkgRepoPath)], isNew = true)
 
+  test "develop dependencies are locked with url and checksum":
+    # After `nimble develop -a:<dep>` + `nimble lock` each develop dependency
+    # must land in the lock file with a non-empty url and checksum. Regression
+    # for `develop --with-dependencies` producing an unusable lock file whose
+    # develop/vendor deps had empty `url` and `checksums.sha1`.
+    cleanUp()
+    withPkgListFile:
+      initNewNimblePackage(mainPkgOriginRepoPath, mainPkgRepoPath,
+                           @[dep1PkgName, dep2PkgName])
+      initNewNimblePackage(dep1PkgOriginRepoPath, dep1PkgRepoPath)
+      initNewNimblePackage(dep2PkgOriginRepoPath, dep2PkgRepoPath)
+      cd mainPkgRepoPath:
+        let (_, devExitCode) = execNimble("develop",
+          &"-a:{dep1PkgRepoPath}", &"-a:{dep2PkgRepoPath}")
+        check devExitCode == QuitSuccess
+
+        let (_, exitCode) = execNimbleYes("lock")
+        check exitCode == QuitSuccess
+
+        let json = defaultLockFileName.readFile.parseJson
+        for depName in @[dep1PkgName, dep2PkgName]:
+          check depName in json{$lfjkPackages}
+          let entry = json{$lfjkPackages}{depName}
+          check entry{"url"}.getStr.len > 0
+          check entry{"checksums"}{"sha1"}.getStr.len > 0
+
   test "can generate overridden lock file":
     cleanUp()
     withPkgListFile:
