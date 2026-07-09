@@ -2090,8 +2090,16 @@ proc developFromSolution(rootPkgName: string, options: var Options, nimBin: Opti
   except CatchableError:
     discard
 
+  # Vendor nim only when the project's lock file actually pins it: the lock entry
+  # carries a real source url/revision we can clone. Never with --useSystemNim,
+  # whose nim may be a binary-only install with no sources to develop against.
+  let shouldVendorNim = not options.useSystemNim and
+    lockFileHasNim(options.lockFile(getCurrentDir()), options)
+
   for solvedPkg in options.satResult.solvedPkgs:
-    if solvedPkg.pkgName.isNim:
+    # nim is the compiler, resolved separately. It is vendored only when the
+    # lock file pins it (see `shouldVendorNim`); otherwise skip it.
+    if solvedPkg.pkgName.isNim and not shouldVendorNim:
       continue
     if solvedPkg.pkgName.toLower == rootPkgName.toLower:
       continue

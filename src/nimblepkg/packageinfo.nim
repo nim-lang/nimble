@@ -701,6 +701,15 @@ proc isNim*(name: string): bool =
 
 proc isNim*(pv: PkgTuple): bool = pv.name.isNim
 
+proc lockFileHasNim*(lockFilePath: string, options: Options): bool =
+  ## Returns true when the lock file at `lockFilePath` exists and pins a nim
+  ## entry. `getLockedDependencies` yields nothing for a missing file, so this
+  ## is false when there is no lock file.
+  for name, _ in lockFilePath.getLockedDependencies.lockedDepsFor(options):
+    if name.isNim:
+      return true
+  false
+
 proc isSynthetic*(pkgInfo: PackageInfo): bool =
   ## A synthetic package has no `.nimble` file on disk. This is only produced for
   ## a system Nim discovered by its binary alone (e.g. Debian's apt layout: nim
