@@ -7,6 +7,8 @@ import unittest, os, osproc, strutils, strformat, json, sets
 import testscommon, nimblepkg/displaymessages, nimblepkg/paths
 
 from nimblepkg/common import cd
+from nimblepkg/packageinfo import lockFileHasNim
+from nimblepkg/options import initOptions
 from nimblepkg/developfile import developFileName, pkgFoundMoreThanOnceMsg
 from nimblepkg/version import newVersion, parseVersionRange
 from nimblepkg/nimbledatafile import nimbleDataFileName, NimbleDataJsonKeys
@@ -105,6 +107,73 @@ suite "develop feature":
         check dirExists(pkgBRoot / defaultPath / pkgAName.toLowerAscii)
         # paths file is generated inside the root package
         check fileExists(pkgBRoot / "nimble.paths")
+
+  test "develop --with-dependencies does not vendor nim without a nim lock entry":
+    # nim (the compiler) is vendored only when the project's nimble.lock pins it.
+    # PackageB has no lock file, so nim must not be cloned into vendor/.
+    cdCleanDir installDir:
+      usePackageListFile developPkgList:
+        let (_, exitCode) = execNimble(
+          "develop", "--with-dependencies", pkgBName)
+        check exitCode == QuitSuccess
+        let vendorDir = installDir / pkgBName.toLowerAscii / defaultPath
+        check dirExists(vendorDir)          # its library dep IS vendored
+        check not dirExists(vendorDir / "nim")
+
+  test "develop --with-dependencies --useSystemNim does not vendor nim":
+    # --useSystemNim must never vendor nim, even if a lock pinned it: the system
+    # nim may be a binary-only install with no sources to develop against.
+    cdCleanDir installDir:
+      usePackageListFile developPkgList:
+        let (_, exitCode) = execNimble(
+          "--useSystemNim", "develop", "--with-dependencies", pkgBName)
+        check exitCode == QuitSuccess
+        let vendorDir = installDir / pkgBName.toLowerAscii / defaultPath
+        check not dirExists(vendorDir / "nim")
+
+  test "lockFileHasNim gates nim vendoring (positive case, no clone)":
+    # Unit-level check of the predicate that decides nim vendoring, without the
+    # cost of actually cloning Nim: a lock that pins nim -> true; a lock without
+    # nim, or a missing lock -> false.
+    let opts = initOptions()
+    let tmp = getTempDir() / "tdevelop_lockhasnim"
+    createDir tmp
+    defer: removeDir tmp
+
+    let lockWithNim = tmp / "with_nim.lock"
+    writeFile(lockWithNim, """{
+  "version": 1,
+  "packages": {
+    "nim": {
+      "version": "2.0.8",
+      "vcsRevision": "28021a6356119aad32a00815e1dc63b934c5cb40",
+      "url": "https://github.com/nim-lang/Nim.git",
+      "downloadMethod": "git",
+      "dependencies": [],
+      "checksums": { "sha1": "83c1d893cb997417565b7208e3cbebb8f93222cb" }
+    }
+  },
+  "tasks": {}
+}""")
+    check lockFileHasNim(lockWithNim, opts)
+
+    let lockNoNim = tmp / "no_nim.lock"
+    writeFile(lockNoNim, """{
+  "version": 1,
+  "packages": {
+    "results": {
+      "version": "0.5.1",
+      "vcsRevision": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "url": "https://github.com/arnetheduck/nim-results",
+      "downloadMethod": "git",
+      "dependencies": [],
+      "checksums": { "sha1": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" }
+    }
+  },
+  "tasks": {}
+}""")
+    check not lockFileHasNim(lockNoNim, opts)
+    check not lockFileHasNim(tmp / "missing.lock", opts)
 
   test "develop inside a vendored package clones deps flat (no nesting)":
     cdCleanDir installDir:

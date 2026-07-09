@@ -104,14 +104,14 @@ proc doClone(meth: DownloadMethod, url, downloadDir: string, branch = "",
       branchArg = if branch == "": "" else: &"-b {branch.quoteShell}"
     discard tryDoCmdEx(
        "git clone --config core.autocrlf=false --config core.eol=lf " &
-      &"{submoduleFlag} {depthArg} {branchArg} {url} {downloadDir.quoteShell}")
+      &"{submoduleFlag} {depthArg} {branchArg} {url.quoteShell} {downloadDir.quoteShell}")
     if not options.ignoreSubmodules:
       downloadDir.updateSubmodules
   of DownloadMethod.hg:
     let
       tipArg = if onlyTip: "-r tip " else: ""
       branchArg = if branch == "": "" else: &"-b {branch.quoteShell}"
-    discard tryDoCmdEx(&"hg clone {tipArg} {branchArg} {url} {downloadDir.quoteShell}")
+    discard tryDoCmdEx(&"hg clone {tipArg} {branchArg} {url.quoteShell} {downloadDir.quoteShell}")
 
 proc doCloneAsync*(meth: DownloadMethod, url, downloadDir: string, branch = "",
                    onlyTip = true, options: Options): Future[void] {.async.} =
@@ -124,33 +124,33 @@ proc doCloneAsync*(meth: DownloadMethod, url, downloadDir: string, branch = "",
       branchArg = if branch == "": "" else: &"-b {branch.quoteShell}"
     discard await tryDoCmdExAsync(
        "git clone --config core.autocrlf=false --config core.eol=lf " &
-      &"{submoduleFlag} {depthArg} {branchArg} {url} {downloadDir.quoteShell}")
+      &"{submoduleFlag} {depthArg} {branchArg} {url.quoteShell} {downloadDir.quoteShell}")
     if not options.ignoreSubmodules:
       await downloadDir.updateSubmodulesAsync()
   of DownloadMethod.hg:
     let
       tipArg = if onlyTip: "-r tip " else: ""
       branchArg = if branch == "": "" else: &"-b {branch.quoteShell}"
-    discard await tryDoCmdExAsync(&"hg clone {tipArg} {branchArg} {url} {downloadDir.quoteShell}")
+    discard await tryDoCmdExAsync(&"hg clone {tipArg} {branchArg} {url.quoteShell} {downloadDir.quoteShell}")
 
 proc gitFetchTags*(repoDir: string, downloadMethod: DownloadMethod, options: Options) =
   case downloadMethod:
     of DownloadMethod.git:
       let submoduleFlag = if not options.ignoreSubmodules: " --recurse-submodules" else: ""
-      tryDoCmdEx(&"git -C {repoDir} fetch --tags" & submoduleFlag)
+      tryDoCmdEx(&"git -C {repoDir.quoteShell} fetch --tags" & submoduleFlag)
     of DownloadMethod.hg:
       # In Mercurial, pulling updates also fetches all remote tags
-      tryDoCmdEx(&"hg --cwd {repoDir} pull")
+      tryDoCmdEx(&"hg --cwd {repoDir.quoteShell} pull")
 
 proc gitFetchTagsAsync*(repoDir: string, downloadMethod: DownloadMethod, options: Options): Future[void] {.async.} =
   ## Async version of gitFetchTags that uses doCmdExAsync for non-blocking execution.
   case downloadMethod:
     of DownloadMethod.git:
       let submoduleFlag = if not options.ignoreSubmodules: " --recurse-submodules" else: ""
-      discard await tryDoCmdExAsync(&"git -C {repoDir} fetch --tags" & submoduleFlag)
+      discard await tryDoCmdExAsync(&"git -C {repoDir.quoteShell} fetch --tags" & submoduleFlag)
     of DownloadMethod.hg:
       # In Mercurial, pulling updates also fetches all remote tags
-      discard await tryDoCmdExAsync(&"hg --cwd {repoDir} pull")
+      discard await tryDoCmdExAsync(&"hg --cwd {repoDir.quoteShell} pull")
 
 proc getTagsList*(dir: string, meth: DownloadMethod): seq[string] =
   var output: string
@@ -317,18 +317,17 @@ proc cloneSpecificRevision(downloadMethod: DownloadMethod,
   display("Cloning", "revision: " & $vcsRevision, priority = MediumPriority)
   case downloadMethod
   of DownloadMethod.git:
-    let downloadDir = downloadDir.quoteShell
     createDir(downloadDir)
     discard tryDoCmdEx(&"git -C {downloadDir.quoteShell} init")
     discard tryDoCmdEx(&"git -C {downloadDir.quoteShell} config core.autocrlf false")
-    discard tryDoCmdEx(&"git -C {downloadDir.quoteShell} remote add origin {url}")
+    discard tryDoCmdEx(&"git -C {downloadDir.quoteShell} remote add origin {url.quoteShell}")
     discard tryDoCmdEx(
       &"git -C {downloadDir.quoteShell} fetch --depth 1 origin {($vcsRevision).quoteShell}")
     discard tryDoCmdEx(&"git -C {downloadDir.quoteShell} reset --hard FETCH_HEAD")
     if not options.ignoreSubmodules:
       downloadDir.updateSubmodules
   of DownloadMethod.hg:
-    discard tryDoCmdEx(&"hg clone {url} -r {($vcsRevision).quoteShell}")
+    discard tryDoCmdEx(&"hg clone -r {($vcsRevision).quoteShell} {url.quoteShell} {downloadDir.quoteShell}")
 
 proc cloneSpecificRevisionAsync*(downloadMethod: DownloadMethod,
                                   url, downloadDir: string,
@@ -339,18 +338,17 @@ proc cloneSpecificRevisionAsync*(downloadMethod: DownloadMethod,
   display("Cloning", "revision: " & $vcsRevision, priority = MediumPriority)
   case downloadMethod
   of DownloadMethod.git:
-    let downloadDir = downloadDir.quoteShell
     createDir(downloadDir)
     discard await tryDoCmdExAsync(&"git -C {downloadDir.quoteShell} init")
     discard await tryDoCmdExAsync(&"git -C {downloadDir.quoteShell} config core.autocrlf false")
-    discard await tryDoCmdExAsync(&"git -C {downloadDir.quoteShell} remote add origin {url}")
+    discard await tryDoCmdExAsync(&"git -C {downloadDir.quoteShell} remote add origin {url.quoteShell}")
     discard await tryDoCmdExAsync(
       &"git -C {downloadDir.quoteShell} fetch --depth 1 origin {($vcsRevision).quoteShell}")
     discard await tryDoCmdExAsync(&"git -C {downloadDir.quoteShell} reset --hard FETCH_HEAD")
     if not options.ignoreSubmodules:
       await downloadDir.updateSubmodulesAsync()
   of DownloadMethod.hg:
-    discard await tryDoCmdExAsync(&"hg clone {url} -r {($vcsRevision).quoteShell}")
+    discard await tryDoCmdExAsync(&"hg clone -r {($vcsRevision).quoteShell} {url.quoteShell} {downloadDir.quoteShell}")
 
 var tarExePathCache {.threadvar.}: string
 
@@ -523,7 +521,7 @@ proc parseRevision(lsRemoteOutput: string): Sha1Hash =
 proc getRevision*(url, version: string): Sha1Hash =
   ## Returns the commit hash corresponding to the given `version` of the package
   ## in repository at `url`.
-  let output = tryDoCmdEx(&"git ls-remote {url} {version}")
+  let output = tryDoCmdEx(&"git ls-remote {url.quoteShell} {version.quoteShell}")
   result = parseRevision(output)
   if result == notSetSha1Hash:
     if version.seemsLikeRevision:
@@ -534,7 +532,7 @@ proc getRevision*(url, version: string): Sha1Hash =
 
 proc getRevisionAsync(url, version: string): Future[Sha1Hash] {.async.} =
   ## Async version of getRevision that uses doCmdExAsync.
-  let output = await tryDoCmdExAsync(&"git ls-remote {url} {version}")
+  let output = await tryDoCmdExAsync(&"git ls-remote {url.quoteShell} {version.quoteShell}")
   result = parseRevision(output)
   if result == notSetSha1Hash:
     if version.seemsLikeRevision:
