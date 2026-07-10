@@ -467,10 +467,11 @@ proc extractRequiresFromFile*(nimbleFileDir: string): seq[string] =
 
 proc extractRequiresInfo*(nimbleFile: string, options: Options): NimbleFileInfo =
   ## Extract the `requires` information from a Nimble file. This does **not**
-  ## evaluate the Nimble file. Errors are produced on stderr/stdout and are
-  ## formatted as the Nim compiler does it. The parser uses the Nim compiler
-  ## as an API. The result can be empty, this is not an error, only parsing
-  ## errors are reported.
+  ## evaluate the Nimble file. Parse issues are recorded in the returned
+  ## NimbleFileInfo; they are NOT written to stderr/stdout so that errors in
+  ## unrelated cached packages do not leak into the output of the current
+  ## command (see https://github.com/nim-lang/nimble/issues/1717).
+  ## The parser uses the Nim compiler as an API.
   result.nimbleFile = nimbleFile
   if isNimbleFileNim(nimbleFile):
     let nimVersion = extractNimVersion(nimbleFile)
@@ -481,10 +482,13 @@ proc extractRequiresInfo*(nimbleFile: string, options: Options): NimbleFileInfo 
   conf.notes = {}
   conf.mainPackageNotes = {}
   conf.errorMax = high(int)
+  # Instead of calling localError (which writes to stderr via the Nim
+  # compiler message system), we just increment the error counter so that
+  # nfiParseError is set correctly — without leaking any terminal output.
   conf.structuredErrorHook = proc(
       config: ConfigRef, info: TLineInfo, msg: string, severity: Severity
   ) {.gcsafe.} =
-    localError(config, info, warnUser, msg)
+    inc config.errorCounter
 
   let fileIdx = fileInfoIdx(conf, AbsoluteFile nimbleFile)
   var parser: Parser
@@ -504,15 +508,17 @@ proc extractRequiresInfoFromContent*(content: string, options: Options): NimbleF
   ## Extract requires information from nimble file content (as a string).
   ## This is useful for parsing content obtained via `git show` without
   ## needing to write to a temp file.
+  ## Parse errors are silenced (see extractRequiresInfo for rationale).
   var conf = newConfigRef()
   conf.foreignPackageNotes = {}
   conf.notes = {}
   conf.mainPackageNotes = {}
   conf.errorMax = high(int)
+  # Same suppression as extractRequiresInfo: increment counter only.
   conf.structuredErrorHook = proc(
       config: ConfigRef, info: TLineInfo, msg: string, severity: Severity
   ) {.gcsafe.} =
-    localError(config, info, warnUser, msg)
+    inc config.errorCounter
 
   # Create a dummy file index for the parser (it needs one for error reporting)
   let fileIdx = fileInfoIdx(conf, AbsoluteFile "memory.nimble")
