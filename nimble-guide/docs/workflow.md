@@ -90,6 +90,10 @@ The develop command is used for putting packages in a development mode.
 When executed with a list of packages, it clones their repositories.
 If it is executed in a package directory, it adds cloned packages to the special `nimble.develop` file.
 This is a special file which is used for holding the paths to development mode dependencies of the current directory package.
+
+When executed **without any arguments** inside a package directory, `nimble develop` sets up all of the project's dependencies in develop mode.
+
+`nimble develop <pkg>` can also be run **outside of a project directory**; in that case it clones the given package and records a free develop file for it, so it can be included from another project's develop file.
 It has the following structure:
 
 ```json
@@ -131,9 +135,8 @@ The `develop` command has a list of options:
 * `--withDependencies` - Clones for develop also the dependencies of the packages for which the develop command is executed.
 * `--developFile` - Changes the name of the develop file which to be manipulated.
   It is useful for creating a free develop file which is not associated with any project intended for inclusion in some other develop file.
-* `-g, --global` - Creates an old style link file in the special `links` directory.
-  It is read by Nim to be able to use global develop mode packages.
-  Nimble uses it as a global develop file if a local one does not exist.
+
+> **Note**: The `-g, --global` option (old style global link files) has been removed. Use per-project or free develop files instead.
 
 The options for manipulation of the develop files could be given only when executing `develop` command from some package's directory, unless `--developFile` option with a name of develop file is explicitly given.
 
@@ -171,6 +174,18 @@ If found on more than one branch, it gives the user a choice whether to switch.
 Sync operation will also download non-develop mode dependencies versions described in the lock file if they are not already present in the Nimble cache.
 
 If the `-l, --listOnly` option is given then the command only lists development mode dependencies whose working copies are out of sync, without actually syncing them and without downloading missing non-develop mode dependencies.
+
+## `nimble upgrade`
+
+The `nimble upgrade` command updates dependencies in the lock file to the newest versions compatible with the package's requirements.
+
+* `nimble upgrade` with no arguments upgrades **all** dependencies to the newest compatible versions.
+* `nimble upgrade <pkg> [<pkg> ...]` upgrades **only** the named package(s), leaving the rest of the lock file untouched.
+
+```sh
+nimble upgrade            # upgrade everything
+nimble upgrade itertools  # upgrade only itertools
+```
 
 
 

@@ -108,4 +108,29 @@ nimble install --extra-requires:"chronicles,stew"
 
 Multiple packages can be specified, separated by commas.
 
+#### `--resolver` (experimental)
+
+Control which version the SAT solver picks when several versions of a dependency satisfy the requirements:
+
+- `--resolver:max` (default): select the **highest** compatible version.
+- `--resolver:min`: select the **lowest** compatible version. This is useful to verify that your declared version bounds are actually correct — i.e. that your package still builds against the oldest versions it claims to support.
+
+**Example**:
+```sh
+nimble build --resolver:min
+```
+
+This flag is experimental and its behaviour may change in future releases.
+
+#### `--discovery`
+
+Control how Nimble discovers the available versions of a package (by querying its git tags/branches):
+
+- `--discovery:async` (default): discover versions in parallel, which is significantly faster for projects with many dependencies.
+- `--discovery:sync`: fall back to the previous sequential discovery, e.g. for debugging or in constrained environments.
+
+**Example**:
+```sh
+nimble install --discovery:sync
+```
 

@@ -3,6 +3,15 @@
 
 # Nimble changelog
 
+## 0.24.0
+
+  - The declarative parser and SAT solver are now the default and only code path. Removed the `--legacy`, `--parser` and `--solver` flags, dropped Babel support, and dissolved the transitional "vnext" implementation. (A step toward Nimble 1.0, not the finish line — PubGrub-style error reporting, `nimble fetch`, and more are still ahead.)
+  - Replaced `asyncdispatch` with Chronos, with parallel package version discovery and downloads now the default (`--discovery:sync|async` to override). Uses the `packages.nim-lang.org` CDN by default.
+  - Added `--resolver:min|max` (experimental) to select the lowest or highest compatible version, and SemVer pre-release ordering support.
+  - Major `nimble develop` overhaul fixing a large number of long-standing issues: `--with-dependencies` recursively vendors dependencies under their canonical name and vendors Nim when the lock file pins it, `nimble develop <pkg>` now works outside a project directory, and `nimble develop` with no arguments sets up all dependencies. Removed the `-g`/`--global` develop flag and the global develop file.
+  - More robust Nim installation: detects a system Nim on layouts without a `nim.nimble`, and falls back to building Nim from source when the `.tar.xz` binary can't be extracted.
+  - Numerous bug fixes and stability improvements across resolution, locking, and installation.
+
 ## 0.20.0
   - Road to Nimble 1.0: New declarative parser and SAT solver as default. Still experimental and incomplete, to enable and test it set `--parser:declarative`
   - Introduced `testEntryPoint` configuration option

@@ -131,7 +131,7 @@ suite "develop feature":
         let vendorDir = installDir / pkgBName.toLowerAscii / defaultPath
         check not dirExists(vendorDir / "nim")
 
-  test "lockFileHasNim gates nim vendoring (positive case, no clone)":
+  test "lockFileHasNim gates nim vendoring":
     # Unit-level check of the predicate that decides nim vendoring, without the
     # cost of actually cloning Nim: a lock that pins nim -> true; a lock without
     # nim, or a missing lock -> false.
