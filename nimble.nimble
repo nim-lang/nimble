@@ -1,6 +1,6 @@
 # Package
 
-version       = "0.99.1"
+version       = "0.24.0"
 author        = "Dominik Picheta"
 description   = "Nim package manager."
 license       = "BSD"
