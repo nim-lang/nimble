@@ -78,10 +78,11 @@ requires "definitely_not_installed_pkg_xyz"
     let root = getTempDir() / "nimble1717"
     defer: removeDir root
 
+    const winExe = when defined(windows): ".exe" else: ""
     # (field, non-literal .nimble body, expected resolved dump line)
     let cases = @[
       ("srcDir", "const v = \"customsrc\"\nsrcDir = v", "srcDir: \"customsrc\""),
-      ("bin", "const v = \"mytool\"\nbin = @[v]", "bin: \"mytool\""),
+      ("bin", "const v = \"mytool\"\nbin = @[v]", "bin: \"mytool" & winExe & "\""),
       ("paths", "const v = \"mysrc\"\npaths = @[v]", "paths: \"mysrc\""),
     ]
     for (field, body, expected) in cases:
@@ -107,9 +108,12 @@ license = "MIT"
     # error is parsed by the declarative parser during the solve. Those errors
     # come from the Nim parser itself (not a field check), so they can't be
     # "not produced" — the parser config must route compiler output nowhere.
-    # They must not leak into dump's machine-readable output.
-    cleanDir installDir
-    let depDir = pkgsDir / "depbad-0.1.0-1111111111111111111111111111111111111111"
+    # They must not leak into dump's machine-readable output. Use an isolated
+    # nimbleDir so the deliberately-broken package can't affect other tests.
+    let nbDir = getTempDir() / "nimble1717nb"
+    removeDir nbDir
+    defer: removeDir nbDir
+    let depDir = nbDir / "pkgs2" / "depbad-0.1.0-1111111111111111111111111111111111111111"
     createDir depDir
     writeFile(depDir / "depbad.nimble", """
 version = "0.1.0"
@@ -133,7 +137,7 @@ description = "demo"
 license = "MIT"
 requires "depbad >= 0.1.0"
 """)
-    let (outp, _) = execNimble("dump", projDir / "proj.nimble")
+    let (outp, _) = execNimble("dump", "--nimbleDir:" & nbDir, projDir / "proj.nimble")
     check "invalid indentation" notin outp
     check "expression expected" notin outp
     check "depbad.nimble(" notin outp
