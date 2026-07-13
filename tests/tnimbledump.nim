@@ -67,6 +67,29 @@ requires "definitely_not_installed_pkg_xyz"
       check exitCode == QuitSuccess
       check outp.processOutput.inLines("nimDir: \"\"")
 
+  test "dump does not leak declarative-parser errors on normal verbosity (#1717)":
+    # Regression for nim-lang/nimble#1717: a nimble file whose `srcDir` is not a
+    # string literal used to make the declarative parser emit a Nim compiler
+    # error straight to stdout/stderr, bypassing Nimble's verbosity.
+    let badNimble = getTempDir() / "nimble1717" / "badsrc.nimble"
+    createDir badNimble.parentDir
+    defer: removeDir badNimble.parentDir
+    writeFile(badNimble, """
+version = "0.1.0"
+author = "x"
+description = "a package whose srcDir is not a string literal"
+license = "MIT"
+const sd = "customsrc"
+srcDir = sd
+""")
+
+    let (outp, exitCode) = execNimble("dump", badNimble)
+    check exitCode == QuitSuccess
+    # No raw compiler diagnostic leaks into the dump output...
+    check "must be string literals" notin outp
+    # ...and the value is still resolved correctly via the VM fallback.
+    check outp.processOutput.inLines("srcDir: \"customsrc\"")
+
   test "can dump when explicitly asking for INI format":
     let nimDir = parentDir findExe "nim"
     let nimblePath = "testdump" / "testdump.nimble"

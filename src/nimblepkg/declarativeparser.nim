@@ -22,6 +22,7 @@ type
     nfiParseError          ## hard parse/validation error (syntax, invalid literal)
     nfiNestedRequires      ## `requires`/`taskRequires` nested in control flow
     nfiNonLiteralVersion   ## `version` assigned a non-string-literal expression
+    nfiNonLiteralSrcDir    ## `srcDir` assigned a non-string-literal expression
 
   NimbleFileInfo* = object
     nimbleFile*: string
@@ -45,7 +46,7 @@ proc nestedRequires*(info: NimbleFileInfo): bool =
   nfiNestedRequires in info.issues
 
 proc requiresVmFallback*(info: NimbleFileInfo): bool =
-  {nfiNestedRequires, nfiNonLiteralVersion} * info.issues != {}
+  {nfiNestedRequires, nfiNonLiteralVersion, nfiNonLiteralSrcDir} * info.issues != {}
 
 proc eqIdent(a, b: string): bool {.inline.} =
   cmpIgnoreCase(a, b) == 0 and a[0] == b[0]
@@ -311,8 +312,9 @@ proc extract(n: PNode, conf: ConfigRef, result: var NimbleFileInfo, options: Opt
       if n[1].kind in {nkStrLit .. nkTripleStrLit}:
         result.srcDir = n[1].strVal
       else:
-        localError(conf, n[1].info, "assignments to 'srcDir' must be string literals")
-        result.issues.incl nfiParseError
+        result.issues.incl nfiNonLiteralSrcDir
+        result.declarativeParserErrorLines.add(
+          &"{result.nimbleFile}({n[1].info.line}, {n[1].info.col}) 'srcDir' is not a string literal; falling back to the VM parser")
     elif n[0].kind == nkIdent and eqIdent(n[0].ident.s, "version"):
       if n[1].kind in {nkStrLit .. nkTripleStrLit}:
         result.version = n[1].strVal
