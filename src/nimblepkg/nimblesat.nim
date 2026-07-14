@@ -802,6 +802,11 @@ proc solveLocalPackages(root: PackageMinimalInfo, pkgList: seq[PackageInfo], opt
   ## Try to solve using only installed packages (no cache, no downloads).
   ## Returns the solved packages if successful, or an empty set if local
   ## packages don't satisfy all constraints. See #1648.
+  # Reset the output param up front: on the failure path we return without
+  # touching `solvedPkgs`, so a solution left over from a previous solve pass
+  # (e.g. a retry via withNimBinFallback) would otherwise leak into the
+  # caller's local-solve early-return guard and skip full resolution.
+  solvedPkgs = @[]
   var localTable = initTable[string, PackageVersions]()
   localTable[root.name] = PackageVersions(pkgName: root.name, versions: @[root])
   let rootPkgName = root.name.toLowerAscii()
