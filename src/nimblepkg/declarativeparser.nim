@@ -22,6 +22,8 @@ type
     nfiParseError          ## hard parse/validation error (syntax, invalid literal)
     nfiNestedRequires      ## `requires`/`taskRequires` nested in control flow
     nfiNonLiteralVersion   ## `version` assigned a non-string-literal expression
+    nfiNonLiteralSrcDir    ## `srcDir` assigned a non-string-literal expression
+    nfiNonLiteralSeq       ## `bin`/`paths` seq with non-string-literal contents
 
   NimbleFileInfo* = object
     nimbleFile*: string
@@ -45,7 +47,22 @@ proc nestedRequires*(info: NimbleFileInfo): bool =
   nfiNestedRequires in info.issues
 
 proc requiresVmFallback*(info: NimbleFileInfo): bool =
-  {nfiNestedRequires, nfiNonLiteralVersion} * info.issues != {}
+  {nfiNestedRequires, nfiNonLiteralVersion, nfiNonLiteralSrcDir, nfiNonLiteralSeq} *
+    info.issues != {}
+
+proc newNimbleParserConfig(): ConfigRef =
+  ## A compiler `ConfigRef` for statically parsing nimble files. Notes/warnings
+  ## are silenced and message output is routed nowhere (`m.errorOutputs = {}`),
+  ## so parse diagnostics — including from unrelated packages read during a
+  ## solve — never leak to stdout/stderr and pollute machine-readable output
+  ## like `nimble dump` (#1717). `errorCounter` still increments, so callers can
+  ## detect failures via `conf.errorCounter`.
+  result = newConfigRef()
+  result.foreignPackageNotes = {}
+  result.notes = {}
+  result.mainPackageNotes = {}
+  result.errorMax = high(int)
+  result.m.errorOutputs = {}
 
 proc eqIdent(a, b: string): bool {.inline.} =
   cmpIgnoreCase(a, b) == 0 and a[0] == b[0]
@@ -98,19 +115,26 @@ proc validateNoNestedRequires(nfl: var NimbleFileInfo, n: PNode, conf: ConfigRef
   else:
     discard
 
-proc extractSeqLiteral(n: PNode, conf: ConfigRef, varName: string): seq[string] =
-  ## Extracts a sequence literal of the form @["item1", "item2"]
+proc flagNonLiteralSeq(nfl: var NimbleFileInfo, info: TLineInfo, msg: string) =
+  nfl.issues.incl nfiNonLiteralSeq
+  nfl.declarativeParserErrorLines.add(
+    &"{nfl.nimbleFile}({info.line}, {info.col}) {msg}")
+
+proc extractSeqLiteral(n: PNode, nfl: var NimbleFileInfo, varName: string): seq[string] =
+  ## Extracts a sequence literal of the form @["item1", "item2"]. A non-literal
+  ## element or shape (e.g. `bin = @[appName]`) can't be read statically, so it
+  ## is flagged for the VM parser rather than reported as a compiler error.
   if n.kind == nkPrefix and n[0].kind == nkIdent and n[0].ident.s == "@":
     if n[1].kind == nkBracket:
       for item in n[1]:
         if item.kind in {nkStrLit .. nkTripleStrLit}:
           result.add item.strVal
         else:
-          localError(conf, item.info, &"'{varName}' sequence items must be string literals")
+          nfl.flagNonLiteralSeq(item.info, &"'{varName}' sequence items must be string literals; falling back to the VM parser")
     else:
-      localError(conf, n.info, &"'{varName}' must be assigned a sequence of strings")
+      nfl.flagNonLiteralSeq(n.info, &"'{varName}' must be assigned a sequence of strings; falling back to the VM parser")
   else:
-    localError(conf, n.info, &"'{varName}' must be assigned a sequence with @ prefix")
+    nfl.flagNonLiteralSeq(n.info, &"'{varName}' must be assigned a sequence with @ prefix; falling back to the VM parser")
 
 proc validateFileUrlRequires(nfl: var NimbleFileInfo, n: PNode, conf: ConfigRef, currentFeature: string = "", options: Options) =
   if options.isFilePathDiscovering:
@@ -254,11 +278,7 @@ proc hasSideEffects(n: PNode): bool =
 
 proc contentHasStateModifyingOps*(content: string): bool =
   ## Parses nimble file content and checks if it contains state-modifying operations.
-  var conf = newConfigRef()
-  conf.foreignPackageNotes = {}
-  conf.notes = {}
-  conf.mainPackageNotes = {}
-  conf.errorMax = high(int)
+  var conf = newNimbleParserConfig()
   let fileIdx = fileInfoIdx(conf, AbsoluteFile "memory.nimble")
   let stream = llStreamOpen(content)
   var parser: Parser
@@ -311,8 +331,9 @@ proc extract(n: PNode, conf: ConfigRef, result: var NimbleFileInfo, options: Opt
       if n[1].kind in {nkStrLit .. nkTripleStrLit}:
         result.srcDir = n[1].strVal
       else:
-        localError(conf, n[1].info, "assignments to 'srcDir' must be string literals")
-        result.issues.incl nfiParseError
+        result.issues.incl nfiNonLiteralSrcDir
+        result.declarativeParserErrorLines.add(
+          &"{result.nimbleFile}({n[1].info.line}, {n[1].info.col}) 'srcDir' is not a string literal; falling back to the VM parser")
     elif n[0].kind == nkIdent and eqIdent(n[0].ident.s, "version"):
       if n[1].kind in {nkStrLit .. nkTripleStrLit}:
         result.version = n[1].strVal
@@ -324,7 +345,7 @@ proc extract(n: PNode, conf: ConfigRef, result: var NimbleFileInfo, options: Opt
         result.declarativeParserErrorLines.add(
           &"{result.nimbleFile}({n[1].info.line}, {n[1].info.col}) 'version' is not a string literal; falling back to the VM parser")
     elif n[0].kind == nkIdent and eqIdent(n[0].ident.s, "bin"):
-      let binSeq = extractSeqLiteral(n[1], conf, "bin")
+      let binSeq = extractSeqLiteral(n[1], result, "bin")
       for bin in binSeq:
         when defined(windows):
           var bin = bin & ".exe"
@@ -332,7 +353,8 @@ proc extract(n: PNode, conf: ConfigRef, result: var NimbleFileInfo, options: Opt
         else:
           result.bin[bin] = bin
     elif n[0].kind == nkIdent and eqIdent(n[0].ident.s, "paths"):
-      result.paths = extractSeqLiteral(n[1], conf, "paths")
+      let pathsSeq = extractSeqLiteral(n[1], result, "paths")
+      result.paths = pathsSeq
     else:
       discard
   else:
@@ -349,11 +371,7 @@ proc isNimbleFileNim(nimbleFilePath: string): bool =
 
 proc getNimCompilationPath*(nimbleFile: string): string =
   ## Extracts the path to the Nim compilation.nim file from the nimble file
-  var conf = newConfigRef()
-  conf.foreignPackageNotes = {}
-  conf.notes = {}
-  conf.mainPackageNotes = {}
-  conf.errorMax = high(int)
+  var conf = newNimbleParserConfig()
   
   let fileIdx = fileInfoIdx(conf, AbsoluteFile nimbleFile)
   var parser: Parser
@@ -391,11 +409,7 @@ proc extractNimVersion*(nimbleFile: string): string =
   # Now parse the compilation.nim file to get version numbers
   var major, minor, patch = 0
   
-  var conf = newConfigRef()
-  conf.foreignPackageNotes = {}
-  conf.notes = {}
-  conf.mainPackageNotes = {}
-  conf.errorMax = high(int)
+  var conf = newNimbleParserConfig()
   
   let compFileIdx = fileInfoIdx(conf, AbsoluteFile compilationPath)
   var parser: Parser
@@ -476,11 +490,7 @@ proc extractRequiresInfo*(nimbleFile: string, options: Options): NimbleFileInfo 
     let nimVersion = extractNimVersion(nimbleFile)
     result.version = nimVersion
     return result
-  var conf = newConfigRef()
-  conf.foreignPackageNotes = {}
-  conf.notes = {}
-  conf.mainPackageNotes = {}
-  conf.errorMax = high(int)
+  var conf = newNimbleParserConfig()
   conf.structuredErrorHook = proc(
       config: ConfigRef, info: TLineInfo, msg: string, severity: Severity
   ) {.gcsafe.} =
@@ -504,11 +514,7 @@ proc extractRequiresInfoFromContent*(content: string, options: Options): NimbleF
   ## Extract requires information from nimble file content (as a string).
   ## This is useful for parsing content obtained via `git show` without
   ## needing to write to a temp file.
-  var conf = newConfigRef()
-  conf.foreignPackageNotes = {}
-  conf.notes = {}
-  conf.mainPackageNotes = {}
-  conf.errorMax = high(int)
+  var conf = newNimbleParserConfig()
   conf.structuredErrorHook = proc(
       config: ConfigRef, info: TLineInfo, msg: string, severity: Severity
   ) {.gcsafe.} =
@@ -554,10 +560,7 @@ proc extractPlugin(
     discard
 
 proc extractPluginInfo*(nimscriptFile: string, info: var PluginInfo) =
-  var conf = newConfigRef()
-  conf.foreignPackageNotes = {}
-  conf.notes = {}
-  conf.mainPackageNotes = {}
+  var conf = newNimbleParserConfig()
 
   let fileIdx = fileInfoIdx(conf, AbsoluteFile nimscriptFile)
   var parser: Parser
@@ -654,11 +657,7 @@ proc isInPkgCache(pkgDir: string, options: Options): bool =
 
 proc fileHasStateModifyingOps*(nimbleFile: string): bool =
   ## Parses a nimble file and checks if it contains state-modifying operations.
-  var conf = newConfigRef()
-  conf.foreignPackageNotes = {}
-  conf.notes = {}
-  conf.mainPackageNotes = {}
-  conf.errorMax = high(int)
+  var conf = newNimbleParserConfig()
   let fileIdx = fileInfoIdx(conf, AbsoluteFile nimbleFile)
   var parser: Parser
   if setupParser(parser, fileIdx, newIdentCache(), conf):
