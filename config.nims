@@ -3,7 +3,6 @@
 import std/os
 #The duplication of the paths (see src/nimble.nim.cfg) is necessary so nimble test keeps working
 switch("warning", "ObservableStores:off")
-switch("define", "ssl")
 switch("path", "vendor" / "zippy" / "src")
 switch("path", "vendor" / "sat" / "src")
 switch("path", "vendor" / "checksums" / "src")
