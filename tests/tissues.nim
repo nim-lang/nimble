@@ -576,3 +576,38 @@ task hello, "hello":
       check output.contains("hello")
       # The key assertion: no newer version should be installed
       check not output.contains("Installing checksums")
+
+  test "useSystemNim install --depsOnly resolves freshly-fetched deps (confutils CI regression)":
+    # Regression: `nimble --useSystemNim install --depsOnly` on a project whose
+    # dependencies are not yet installed failed with
+    # "Package not found in solution: results <ver>".
+    #
+    # The --useSystemNim path runs the SAT solver while nimBin is still
+    # unresolved. Resolving a freshly-fetched dependency raises NeedsNimBinError,
+    # which makes withNimBinFallback retry the whole resolution. On the retry,
+    # solvedPkgs still held the solution from the first (aborted) pass, so
+    # solveLocalPackages' failure left it non-empty and solvePackages took the
+    # local-solve early-return — skipping full resolution and never queueing the
+    # deps for install.
+    let tmpDir = getTempDir() / "tissue_confutils_depsonly"
+    removeDir(tmpDir)
+    createDir(tmpDir)
+    defer: removeDir(tmpDir)
+
+    writeFile(tmpDir / "confutilsrepro.nimble", """
+version = "0.1.0"
+author = "test"
+description = "test"
+license = "MIT"
+requires "results"
+""")
+
+    # A fresh nimbleDir ensures `results` is discovered/fetched rather than
+    # resolved from installed packages — that is what exercises the retry path.
+    let nimbleDir = tmpDir / "nimbledir"
+    cd tmpDir:
+      let (output, exitCode) = execNimbleYes(
+        "--useSystemNim", "--nimbleDir:" & nimbleDir, "install", "--depsOnly")
+      checkpoint output
+      check exitCode == QuitSuccess
+      check not output.contains("Package not found in solution")
