@@ -8,8 +8,6 @@ import compat/pegs, strutils, os, uri, sets, json, parseutils, strformat,
 
 import compat/osproc
 
-from net import SslCVerifyMode, newContext, SslContext
-
 import version, cli, common, packageinfotypes, options, sha1hashes, chronos, chronos/asyncproc
 from "$nim" / compiler/nimblecmd import getPathVersionChecksum
 
@@ -288,13 +286,6 @@ proc removePackageDir*(files: seq[string], dir: string, reportSuccess = false) =
     displayWarning(
       &"Cannot completely remove the directory \"{dir}\".\n" &
        "Files not installed by Nimble are present.")
-
-proc newSSLContext*(disabled: bool): SslContext =
-  var sslVerifyMode = CVerifyPeer
-  if disabled:
-    display("Warning:", "disabling SSL certificate checking", Warning)
-    sslVerifyMode = CVerifyNone
-  return newContext(verifyMode = sslVerifyMode)
 
 when defined(instrument):
   import std/[tables, terminal, genasts]
