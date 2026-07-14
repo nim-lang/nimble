@@ -503,13 +503,13 @@ proc mergeVersionTables(dest: var Table[string, PackageVersions], source: Table[
       for ver in pkgVersions.versions:
         dest[pkgName].versions.addVersionUnique ver
 
-proc processRequirements*(pv: PkgTuple, visitedParam: HashSet[PkgTuple], getMinimalPackage: GetPackageMinimal, preferredPackages: seq[PackageMinimalInfo] = newSeq[PackageMinimalInfo](), options: Options, nimBin: Option[string]): Future[Table[string, PackageVersions]] {.async.} =
+proc processRequirements*(pv: PkgTuple, visitedParam: HashSet[PkgTuple], getMinimalPackage: GetPackageMinimal, preferredPackages: seq[PackageMinimalInfo] = newSeq[PackageMinimalInfo](), options: Options, nimBin: Option[string]): Future[TableRef[string, PackageVersions]] {.async.} =
   {.cast(raises: [CatchableError]).}:
     ## Async version of processRequirements that returns computed versions instead of mutating shared state.
     ## This allows for safe parallel execution since there's no shared mutable state.
     ## Takes visited by value since we pass separate copies to each top-level dependency branch.
     ## Processes all nested dependencies in parallel for maximum performance.
-    result = initTable[string, PackageVersions]()
+    result = newTable[string, PackageVersions]()
 
     # Make a local mutable copy
     var visited = visitedParam
@@ -526,7 +526,7 @@ proc processRequirements*(pv: PkgTuple, visitedParam: HashSet[PkgTuple], getMini
 
       # Expand any globally active features into package requires
       for pkgMin in pkgMins.mitems:
-        expandActiveFeatures(pkgMin, result)
+        expandActiveFeatures(pkgMin, result[])
 
       # Collect all unique requirements from all package versions.
       # Special versions (like #head) are kept separately even if the same
@@ -545,7 +545,7 @@ proc processRequirements*(pv: PkgTuple, visitedParam: HashSet[PkgTuple], getMini
 
       # Process all unique requirements (parallel or sequential based on flag)
       var failedReqs: seq[string] = @[]
-      var reqResults: seq[Table[string, PackageVersions]] = @[]
+      var reqResults: seq[TableRef[string, PackageVersions]] = @[]
       if not options.parallelDiscovery:
         for req in allRequirements:
           try:
@@ -554,7 +554,7 @@ proc processRequirements*(pv: PkgTuple, visitedParam: HashSet[PkgTuple], getMini
           except CatchableError:
             failedReqs.add req.name
       else:
-        var reqFutures: seq[Future[Table[string, PackageVersions]]] = @[]
+        var reqFutures: seq[Future[TableRef[string, PackageVersions]]] = @[]
         var reqNames: seq[string] = @[]
         for req in allRequirements:
           reqFutures.add processRequirements(req, visited, getMinimalPackage, preferredPackages, options, nimBin)
@@ -603,7 +603,7 @@ proc processRequirements*(pv: PkgTuple, visitedParam: HashSet[PkgTuple], getMini
 
       # Merge all successful requirement results
       for reqResult in reqResults:
-        mergeVersionTables(result, reqResult)
+        mergeVersionTables(result[], reqResult[])
 
       # Only add URL packages if we have valid versions
       if pv.name.isUrl and validPkgMins.len > 0:
@@ -614,25 +614,24 @@ proc processRequirements*(pv: PkgTuple, visitedParam: HashSet[PkgTuple], getMini
       # we need to avoid adding it to the package table as this will cause the solver to fail
       displayWarning(&"Error processing requirements for {pv.name}: {e.msg}", HighPriority)
 
-proc collectAllVersions*(package: PackageMinimalInfo, options: Options, getMinimalPackage: GetPackageMinimal, preferredPackages: seq[PackageMinimalInfo] = newSeq[PackageMinimalInfo](), nimBin: Option[string]): Future[Table[string, PackageVersions]] {.async.} =
+proc collectAllVersions*(package: PackageMinimalInfo, options: Options, getMinimalPackage: GetPackageMinimal, preferredPackages: seq[PackageMinimalInfo] = newSeq[PackageMinimalInfo](), nimBin: Option[string]): Future[TableRef[string, PackageVersions]] {.async.} =
   {.cast(raises: [CatchableError]).}:
     ## Collects all package versions for dependency resolution.
     ## Processes top-level dependencies in parallel (default) or sequentially (with --sync).
     ## Each branch gets its own visited set to avoid race conditions on shared state.
-    ## Returns the merged version table.
 
-    result = initTable[string, PackageVersions]()
+    result = newTable[string, PackageVersions]()
     if not options.parallelDiscovery:
       for pv in package.requires:
         var visitedCopy = initHashSet[PkgTuple]()
         let resultTable = await processRequirements(pv, visitedCopy, getMinimalPackage, preferredPackages, options, nimBin)
-        mergeVersionTables(result, resultTable)
+        mergeVersionTables(result[], resultTable[])
     else:
-      var futures: seq[Future[Table[string, PackageVersions]]] = @[]
+      var futures: seq[Future[TableRef[string, PackageVersions]]] = @[]
       for pv in package.requires:
         var visitedCopy = initHashSet[PkgTuple]()
         futures.add processRequirements(pv, visitedCopy, getMinimalPackage, preferredPackages, options, nimBin)
       await allFutures(futures)
       for fut in futures:
         if not fut.failed:
-          mergeVersionTables(result, fut.read())
+          mergeVersionTables(result[], fut.read()[])

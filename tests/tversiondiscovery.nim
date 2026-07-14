@@ -27,7 +27,7 @@ suite "Version Discovery":
     var pkgVersionTable = waitFor collectAllVersions(root, options, downloadMinimalPackage, nimBin = nimBin)
     pkgVersionTable[pkgName] = PackageVersions(pkgName: pkgName, versions: @[root])
 
-    var graph = pkgVersionTable.toDepGraph()
+    var graph = pkgVersionTable[].toDepGraph()
     let form = graph.toFormular()
     var packages = initTable[string, Version]()
     var output = ""
