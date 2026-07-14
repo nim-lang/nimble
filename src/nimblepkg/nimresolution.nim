@@ -297,12 +297,26 @@ proc resolveAndConfigureNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo]
     # If there's no lock file, we need to run the SAT solver with system nim
     if rootPackage.hasLockFile(options) and not options.disableLockFile:
       return NimResolved(pkg: some(systemNimPkg.get), version: systemNimPkg.get.basicInfo.version)
-    var pkgListDecl = pkgList.mapIt(it.toRequiresInfo(options, nimBin))
+    # The system nim is already resolved — thread its binary through discovery
+    # and solving instead of nimBin=none. With none, every freshly fetched
+    # dependency that needs the VM parser raises NeedsNimBinError inside the
+    # chronos discovery iterators (caught → "could not read package info"
+    # warnings) and the solve itself aborts with NeedsNimBinError only to be
+    # retried by withNimBinFallback. All that raise/catch churn inside closure
+    # iterators corrupts the exception stack on Nim <= 2.2 (SIGSEGV in
+    # popCurrentException; fixed in Nim 2.4) — and is pointless when nim is
+    # already known (#1669 regression).
+    let sysNimBin = some(
+      if systemNimPkg.get.nimBinPath.isSome:
+        systemNimPkg.get.nimBinPath.get  # System nim with non-standard layout (#1609)
+      else:
+        systemNimPkg.get.getNimPath())  # Standard layout
+    var pkgListDecl = pkgList.mapIt(it.toRequiresInfo(options, sysNimBin))
     pkgListDecl.add(systemNimPkg.get)
     pkgListDecl.sort(compPkgListByVersion)
     options.satResult.pkgList = pkgListDecl.toHashSet()
     options.satResult.pkgs = solvePackagesWithSystemNimFallback(
-        rootPackage, pkgListDecl, options, some(NimResolved(pkg: systemNimPkg, version: systemNimPkg.get.basicInfo.version)), nimBin)
+        rootPackage, pkgListDecl, options, some(NimResolved(pkg: systemNimPkg, version: systemNimPkg.get.basicInfo.version)), sysNimBin)
     if options.satResult.solvedPkgs.len == 0:
       displayError(options.satResult.output)
       raise newNimbleError[NimbleError]("Couldnt find a solution for the packages. Unsatisfiable dependencies.")
