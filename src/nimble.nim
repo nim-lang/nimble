@@ -38,11 +38,20 @@ const
 template withNimBinFallback*(nimBin: var Option[string], options: Options, body: untyped) =
   ## Catch NeedsNimBinError, resolve bootstrap nim lazily, and retry.
   ## Use around any call that may trigger VM-parser fallback with nimBin=none.
+  ##
+  ## The retry runs AFTER the `except` handler has unwound, not inside it:
+  ## re-running heavy async code (its own `waitFor`/try-except) while an
+  ## exception is still being handled corrupts Nim's current-exception stack on
+  ## Nim <= 2.0, so a later `popCurrentException` dereferences nil → SIGSEGV
+  ## (only surfaces on older Nim; 2.4/devel handle it). See #1669 regression.
+  var needsNimBinRetry = false
   try:
     body
   except NeedsNimBinError:
     if nimBin.isNone:
       nimBin = some(ensureBootstrapNim(options))
+    needsNimBinRetry = true
+  if needsNimBinRetry:
     body
 
 proc initPkgList(pkgInfo: PackageInfo, options: Options, nimBin: Option[string]): seq[PackageInfo] =
