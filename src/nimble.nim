@@ -2532,7 +2532,12 @@ when isMainModule:
       # After run(), the SAT solver has resolved nim for this project.
       # Read it out so subsequent setup()/doAction() can reuse the same binary.
       if opt.satResult.nimResolved.pkg.isSome:
-        nimBin = some(opt.satResult.nimResolved.getNimBin())
+        let nimPkgInfo = opt.satResult.nimResolved.pkg.get
+        nimBin = some(
+          if nimPkgInfo.nimBinPath.isSome:
+            nimPkgInfo.nimBinPath.get  # non-standard layout (#1609)
+          else:
+            nimPkgInfo.getNimPath())
 
     #if the action is different than setup we run setup
     #when not doing a global install (no nimble file in the current directory)
