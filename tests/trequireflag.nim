@@ -115,7 +115,7 @@ suite "requires flag":
 
   test "issue #1768: nimble run works with a special nim version":
     cd "nimrunspecial":
-      let (buildOut, buildCode) = execNimble("--requires:nim#devel", "build")
+      let (_, buildCode) = execNimble("--requires:nim#devel", "build")
       check buildCode == QuitSuccess
       let (runOut, runCode) = execNimble("--requires:nim#devel", "run")
       check runCode == QuitSuccess
