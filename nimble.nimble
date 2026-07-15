@@ -8,8 +8,8 @@ license       = "BSD"
 bin = @["nimble"]
 srcDir = "src"
 installExt = @["nim"]
-
-# Dependencies
+# TEST PR
+# Dependencies 
 requires "nim >= 1.6.20"
 
 when defined(nimdistros):
