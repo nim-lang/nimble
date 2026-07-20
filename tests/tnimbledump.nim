@@ -43,7 +43,7 @@ suite "nimble dump":
     check: exitCode == 0
     check: outp.processOutput.inLines("desc: \"Test package for dump command\"")
 
-  test "nimble dump skips dep discovery when local solve fails (#1713)":
+  test "nimble dump falls back to nimBin when local solve fails (#1713)":
     # Regression for nim-lang/nimble#1713: dump must be a read-only operation
     # and never trigger network discovery. When a dep isn't installed
     # locally, `solveLocalPackages` correctly refuses to solve — dump falls
@@ -61,6 +61,27 @@ author = "nigredo-tori"
 license = "BSD"
 
 requires "definitely_not_installed_pkg_xyz"
+""")
+      let (outp, exitCode) = execNimble("dump")
+      check exitCode == QuitSuccess
+      let nimDir = parentDir findExe "nim"
+      check outp.processOutput.inLines("nimDir: " & nimDir.escape)
+
+  test "nimble dump returns a nimDir when a special nim version is required (#1781)":
+    # Regression for nim-lang/nimble#1781: when a project requires a special
+    # nim version like #head, `nimble dump` must not return an empty nimDir.
+    # It should fall back to the bootstrap nim (needNim) when the special
+    # version isn't installed locally.
+    cd "testdump":
+      let nimbleBackup = readFile("testdump.nimble")
+      defer: writeFile("testdump.nimble", nimbleBackup)
+      writeFile("testdump.nimble", """
+description = "Test package for dump command"
+version = "0.1.0"
+author = "nigredo-tori"
+license = "BSD"
+
+requires "nim#head"
 """)
       let (outp, exitCode) = execNimble("dump")
       check exitCode == QuitSuccess
