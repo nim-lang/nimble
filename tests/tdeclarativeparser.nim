@@ -440,7 +440,7 @@ skip_dirs "tests"
 
   test "should build a package that uses snake_case src_dir (#1779)":
     cd "buildInstall/snakecasefields":
-      let (output, exitCode) = execNimbleYes("build")
+      let (_, exitCode) = execNimbleYes("build")
       check exitCode == QuitSuccess
 
 suite "isParsableByDeclarative":
