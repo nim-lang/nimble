@@ -46,10 +46,9 @@ suite "nimble dump":
   test "nimble dump skips dep discovery when local solve fails (#1713)":
     # Regression for nim-lang/nimble#1713: dump must be a read-only operation
     # and never trigger network discovery. When a dep isn't installed
-    # locally, `solveLocalPackages` correctly refuses to solve — dump should
-    # return `nimDir: ""` so the langserver can detect the situation and
-    # prompt the user to run `nimble install` instead of waiting on a hung
-    # `processRequirements` walk.
+    # locally, `solveLocalPackages` correctly refuses to solve — dump falls
+    # back to the available nim binary's parent directory so the langserver
+    # can still provide completions even when some deps are missing.
     cleanDir installDir
     cd "testdump":
       # Write a temp .nimble that requires a package guaranteed not installed.
@@ -65,7 +64,8 @@ requires "definitely_not_installed_pkg_xyz"
 """)
       let (outp, exitCode) = execNimble("dump")
       check exitCode == QuitSuccess
-      check outp.processOutput.inLines("nimDir: \"\"")
+      let nimDir = parentDir findExe "nim"
+      check outp.processOutput.inLines("nimDir: " & nimDir.escape)
 
   test "dump does not leak declarative-parser errors on normal verbosity (#1717)":
     # Regression for nim-lang/nimble#1717: a nimble file whose `srcDir`/`bin`/
