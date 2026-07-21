@@ -176,6 +176,52 @@ suite "SAT solver":
     expect NimbleError:
       pkgVersionTable2.normalizeSpecialVersions(options)
 
+  test "identical special versions are not a false conflict (#1785)":
+    # A single special version of 'dep' (e.g. chronos#ebc2d239) is reached via
+    # two requirement paths and lands in the table as two entries carrying the
+    # SAME special version. This must NOT be treated as a conflict: there is
+    # nothing to disambiguate. Counting occurrences instead of distinct values
+    # makes normalizeSpecialVersions report "using #commit_a, ignoring #commit_a"
+    # (lenient) or raise (non-lenient) over a version conflicting with itself.
+    proc initSameSpecialVersionTable(): Table[string, PackageVersions] =
+      {
+        "root": PackageVersions(pkgName: "root", versions: @[
+          PackageMinimalInfo(name: "root", version: newVersion "1.0", requires: @[
+            (name: "a", ver: parseVersionRange ">= 1.0"),
+            (name: "b", ver: parseVersionRange ">= 1.0"),
+          ], isRoot: true),
+        ]),
+        "a": PackageVersions(pkgName: "a", versions: @[
+          PackageMinimalInfo(name: "a", version: newVersion "1.0", requires: @[
+            (name: "dep", ver: parseVersionRange "#commit_a"),
+          ]),
+        ]),
+        "b": PackageVersions(pkgName: "b", versions: @[
+          PackageMinimalInfo(name: "b", version: newVersion "1.0", requires: @[
+            (name: "dep", ver: parseVersionRange "#commit_a"),
+          ]),
+        ]),
+        "dep": PackageVersions(pkgName: "dep", versions: @[
+          PackageMinimalInfo(name: "dep", version: newVersion "#commit_a"),
+          PackageMinimalInfo(name: "dep", version: newVersion "#commit_a"),
+        ]),
+      }.toTable()
+
+    # lenient=true: succeeds, the single special version survives untouched
+    var options = initOptions()
+    options.lenient = true
+    var pkgVersionTable = initSameSpecialVersionTable()
+    pkgVersionTable.normalizeSpecialVersions(options)
+    check pkgVersionTable["dep"].versions.allIt(it.version == newVersion "#commit_a")
+    check $pkgVersionTable["a"].versions[0].requires[0].ver.spe == "#commit_a"
+    check $pkgVersionTable["b"].versions[0].requires[0].ver.spe == "#commit_a"
+
+    # lenient=false: must NOT raise — a version does not conflict with itself
+    options.lenient = false
+    var pkgVersionTable2 = initSameSpecialVersionTable()
+    pkgVersionTable2.normalizeSpecialVersions(options)
+    check pkgVersionTable2["dep"].versions.allIt(it.version == newVersion "#commit_a")
+
   test "solves 'Conflicting dependency resolution' #1162":
     let pkgVersionTable = {
       "a": PackageVersions(pkgName: "a", versions: @[
