@@ -369,6 +369,80 @@ requires "nim >= 1.6.0"
     let nimbleFileInfo = extractRequiresInfoFromContent(content, options)
     check nimbleFileInfo.paths.len == 0
 
+suite "Declarative parser style insensitivity":
+  test "should parse snake_case src_dir as srcDir (#1779)":
+    let content = """
+version = "0.1.0"
+author = "test"
+description = "Test package"
+license = "MIT"
+src_dir = "src"
+
+requires "nim >= 1.6.0"
+"""
+    var options = initOptions()
+    let nimbleFileInfo = extractRequiresInfoFromContent(content, options)
+    check nimbleFileInfo.srcDir == "src"
+
+  test "should parse camelCase binDir (#1779)":
+    let content = """
+version = "0.1.0"
+binDir = "bin"
+requires "nim >= 1.6.0"
+"""
+    var options = initOptions()
+    let nimbleFileInfo = extractRequiresInfoFromContent(content, options)
+    check nimbleFileInfo.binDir == "bin"
+
+  test "should parse snake_case bin_dir as binDir (#1779)":
+    let content = """
+version = "0.1.0"
+bin_dir = "bin"
+requires "nim >= 1.6.0"
+"""
+    var options = initOptions()
+    let nimbleFileInfo = extractRequiresInfoFromContent(content, options)
+    check nimbleFileInfo.binDir == "bin"
+
+  test "should parse every assignment field in snake_case (#1779)":
+    # Exercises all style-insensitive assignment fields the declarative parser
+    # reads: srcDir, binDir, version, bin, paths.
+    let content = """
+ver_sion = "0.2.0"
+src_dir = "source"
+bin_dir = "binaries"
+paths = @["p1", "p2"]
+bin = @["app"]
+
+requires "nim >= 1.6.0"
+"""
+    var options = initOptions()
+    let nimbleFileInfo = extractRequiresInfoFromContent(content, options)
+    check nimbleFileInfo.version == "0.2.0"
+    check nimbleFileInfo.srcDir == "source"
+    check nimbleFileInfo.binDir == "binaries"
+    check nimbleFileInfo.paths == @["p1", "p2"]
+    when defined(windows):
+      check "app.exe" in nimbleFileInfo.bin
+    else:
+      check "app" in nimbleFileInfo.bin
+
+  test "snake_case old-style metadata call is not flagged as a side effect (#1779)":
+    # Call-form (rather than assignment) metadata written in snake_case must be
+    # recognised as a safe op, not misclassified as a state-modifying call.
+    let content = """
+version "0.1.0"
+src_dir "src"
+bin_dir "bin"
+skip_dirs "tests"
+"""
+    check contentHasStateModifyingOps(content) == false
+
+  test "should build a package that uses snake_case src_dir (#1779)":
+    cd "buildInstall/snakecasefields":
+      let (_, exitCode) = execNimbleYes("build")
+      check exitCode == QuitSuccess
+
 suite "isParsableByDeclarative":
   test "should return true for simple nimble content":
     let content = """
