@@ -452,6 +452,14 @@ proc fillPackageTableFromPreferred*(packages: var Table[string, PackageVersions]
         packages[pkg.name] = PackageVersions(pkgName: pkg.name, versions: @[pkg])
       else:
         packages[pkg.name].versions.add pkg
+    elif pkg.version.isSpecial and pkg.version.speSemanticVersion.isSome:
+      # Prefer the entry that carries a semantic version (derived from the
+      # Nim compiler's compilation.nim).  Without it satisfiesConstraint
+      # cannot handle numeric requirements like >= 1.6.0.
+      for i, existing in packages[pkg.name].versions:
+        if existing.version == pkg.version and not existing.version.speSemanticVersion.isSome:
+          packages[pkg.name].versions[i] = pkg
+          break
 
 proc getInstalledMinimalPackages*(options: Options): seq[PackageMinimalInfo] =
   getInstalledPkgsMin(options.getPkgsDir(), options).mapIt(it.getMinimalInfo(options))
