@@ -29,6 +29,7 @@ type
     nimbleFile*: string
     requires*: seq[string]
     srcDir*: string
+    binDir*: string
     version*: string
     tasks*: seq[(string, string)]
     features*: Table[string, seq[string]]
@@ -65,7 +66,7 @@ proc newNimbleParserConfig(): ConfigRef =
   result.m.errorOutputs = {}
 
 proc eqIdent(a, b: string): bool {.inline.} =
-  cmpIgnoreCase(a, b) == 0 and a[0] == b[0]
+  a.len > 0 and b.len > 0 and a[0] == b[0] and cmpIgnoreStyle(a, b) == 0
 
 proc collectRequiresFromNode(n: PNode, result: var seq[string]) =
   case n.kind
@@ -230,9 +231,8 @@ const safeNimbleOps = [
 ]
 
 proc isSafeOp(name: string): bool =
-  ## Case-insensitive check against the whitelist.
   for op in safeNimbleOps:
-    if cmpIgnoreCase(name, op) == 0:
+    if cmpIgnoreStyle(name, op) == 0:
       return true
   return false
 
@@ -334,6 +334,13 @@ proc extract(n: PNode, conf: ConfigRef, result: var NimbleFileInfo, options: Opt
         result.issues.incl nfiNonLiteralSrcDir
         result.declarativeParserErrorLines.add(
           &"{result.nimbleFile}({n[1].info.line}, {n[1].info.col}) 'srcDir' is not a string literal; falling back to the VM parser")
+    elif n[0].kind == nkIdent and eqIdent(n[0].ident.s, "binDir"):
+      if n[1].kind in {nkStrLit .. nkTripleStrLit}:
+        result.binDir = n[1].strVal
+      else:
+        result.issues.incl nfiNonLiteralSrcDir
+        result.declarativeParserErrorLines.add(
+          &"{result.nimbleFile}({n[1].info.line}, {n[1].info.col}) 'binDir' is not a string literal; falling back to the VM parser")
     elif n[0].kind == nkIdent and eqIdent(n[0].ident.s, "version"):
       if n[1].kind in {nkStrLit .. nkTripleStrLit}:
         result.version = n[1].strVal
@@ -728,6 +735,7 @@ proc toRequiresInfo*(pkgInfo: PackageInfo, options: Options, nimBin: Option[stri
 
   result.features = getFeatures(nimbleFileInfo)
   result.srcDir = nimbleFileInfo.srcDir
+  result.binDir = nimbleFileInfo.binDir
   result.paths = nimbleFileInfo.paths
   fillMetaData(result, result.getRealDir(), false, options)
   
@@ -756,6 +764,7 @@ proc fillPkgBasicInfo(pkgInfo: var PackageInfo, nimbleFileInfo: NimbleFileInfo) 
   pkgInfo.myPath = nimbleFileInfo.nimbleFile
   pkgInfo.basicInfo.version = newVersion nimbleFileInfo.version
   pkgInfo.srcDir = nimbleFileInfo.srcDir
+  pkgInfo.binDir = nimbleFileInfo.binDir
 
 proc getNimPkgInfo*(dir: string, options: Options, nimBin: Option[string]): PackageInfo =
   let nimbleFile = dir / "nim.nimble"
