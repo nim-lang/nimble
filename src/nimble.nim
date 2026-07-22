@@ -2372,9 +2372,7 @@ proc getNimDir(options: var Options, nimBin: var Option[string]): string =
     try:
       solvePkgs(rootPackage, options, nimBin)
     except CatchableError:
-      # Issue #1713: dump never raises on resolution failure — it returns ""
-      # so the langserver can detect "couldn't pick a nim"
-      return ""
+      return nimBin.getNimBin.parentDir
     if nimBin.isNone:
       return ""
     return nimBin.getNimBin.parentDir
