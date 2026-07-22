@@ -1974,7 +1974,7 @@ proc runAction(options: Options, nimBin: Option[string]) =
   if binary notin pkgInfo.bin:
     raise nimbleError(binaryNotDefinedInPkgMsg(binary, pkgInfo.basicInfo.name))
 
-  if pkgInfo.isLink:
+  if pkgInfo.isLink and not options.noBuild:
     # Use buildPkg for develop mode packages
     let isInRootDir = options.startDir == pkgInfo.myPath.parentDir and
       options.satResult.rootPackage.basicInfo.name == pkgInfo.basicInfo.name
