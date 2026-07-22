@@ -203,8 +203,59 @@ proc editJson(p: PackageInfo; url, tags, downloadMethod: string) =
   })
   writeFile("packages.json", contents.pretty.cleanupWhitespace)
 
+proc gatherPublishData*(p: PackageInfo, o: Options):
+    tuple[url, downloadMethod, tags: string] =
+  ## Collects everything the user must supply to publish `p`: the repository
+  ## URL and download method (derived from the *local* repository) plus the
+  ## list of tags (prompted). This performs no GitHub network I/O, so it must
+  ## run before the GitHub session is opened. Otherwise a slow answer to the
+  ## tags prompt lets the pooled connection go stale and the PR request fails
+  ## with "Connection was closed before full request has been made" (#1738).
+  var url = ""
+  var downloadMethod = ""
+  if dirExists(os.getCurrentDir() / ".git"):
+    let (output, exitCode) = doCmdEx("git ls-remote --get-url")
+    if exitCode == 0:
+      url = output.strip
+      if url.endsWith(".git"): url.setLen(url.len - 4)
+      downloadMethod = "git"
+    let parsed = parseUri(url)
+
+    if parsed.scheme == "":
+      # Assuming that we got an ssh write/read URL.
+      let sshUrl = parseUri("ssh://" & url)
+      url = "https://" & sshUrl.hostname & "/" & sshUrl.port & sshUrl.path
+    elif parsed.username != "" or parsed.password != "":
+      # check for any confidential information
+      # TODO: Use raiseNimbleError(msg, hintMsg) here
+      raise nimbleError(
+        "Cannot publish the repository URL because it contains username " &
+        "and/or password. Fix the remote URL. Hint: \"git remote -v\"")
+
+  elif dirExists(os.getCurrentDir() / ".hg"):
+    downloadMethod = "hg"
+    # TODO: Retrieve URL from hg.
+  else:
+    raise nimbleError(
+         "No .git nor .hg directory found. Stopping.")
+
+  if url.len == 0:
+    url = o.promptCustom("GitHub URL of " & p.basicInfo.name & "?", "")
+    if url.len == 0: userAborted()
+
+  let tags = o.promptCustom(
+    "Whitespace separated list of tags? (For example: web library wrapper)",
+    ""
+  )
+  result = (url, downloadMethod, tags)
+
 proc publish*(p: PackageInfo, o: Options) =
   ## Publishes the package p.
+  # Gather all user-provided data (repo URL, download method, tags) up front,
+  # before opening the GitHub session, so a slow answer to the tags prompt can
+  # never leave the pooled connection stale (#1738).
+  let (url, downloadMethod, tags) = gatherPublishData(p, o)
+
   let auth = getGithubAuth(o)
   var pkgsDir = getNimbleUserTempDir() / "nimble-packages-fork"
   if not forkExists(auth):
@@ -240,45 +291,6 @@ proc publish*(p: PackageInfo, o: Options) =
   if not fileExists(pkgsDir / "packages.json"):
     raise nimbleError(
         "No packages file found in cloned fork.")
-
-  # We need to do this **before** the cd:
-  # Determine what type of repo this is.
-  var url = ""
-  var downloadMethod = ""
-  if dirExists(os.getCurrentDir() / ".git"):
-    let (output, exitCode) = doCmdEx("git ls-remote --get-url")
-    if exitCode == 0:
-      url = output.strip
-      if url.endsWith(".git"): url.setLen(url.len - 4)
-      downloadMethod = "git"
-    let parsed = parseUri(url)
-
-    if parsed.scheme == "":
-      # Assuming that we got an ssh write/read URL.
-      let sshUrl = parseUri("ssh://" & url)
-      url = "https://" & sshUrl.hostname & "/" & sshUrl.port & sshUrl.path
-    elif parsed.username != "" or parsed.password != "":
-      # check for any confidential information
-      # TODO: Use raiseNimbleError(msg, hintMsg) here
-      raise nimbleError(
-        "Cannot publish the repository URL because it contains username " &
-        "and/or password. Fix the remote URL. Hint: \"git remote -v\"")
-
-  elif dirExists(os.getCurrentDir() / ".hg"):
-    downloadMethod = "hg"
-    # TODO: Retrieve URL from hg.
-  else:
-    raise nimbleError(
-         "No .git nor .hg directory found. Stopping.")
-
-  if url.len == 0:
-    url = promptCustom("GitHub URL of " & p.basicInfo.name & "?", "")
-    if url.len == 0: userAborted()
-
-  let tags = promptCustom(
-    "Whitespace separated list of tags? (For example: web library wrapper)",
-    ""
-  )
 
   cd pkgsDir:
     editJson(p, url, tags, downloadMethod)
