@@ -674,7 +674,10 @@ proc normalizeSpecialVersions*(pkgVersionTable: var Table[string, PackageVersion
       continue
     var specialVersions: seq[Version] = @[]
     for v in pkgVersions.versions:
-      if v.version.isSpecial:
+      # Compare distinct special versions, not raw occurrences: the same special
+      # version can reach the table via several requirement paths (name- vs
+      # URL-keyed), and a version never conflicts with itself.
+      if v.version.isSpecial and v.version notin specialVersions:
         specialVersions.add v.version
     if specialVersions.len > 1:
       let winner = specialVersions[0]  # first = topologically first (DFS order)
