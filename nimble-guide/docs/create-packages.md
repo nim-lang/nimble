@@ -214,13 +214,11 @@ when defined(windows):
   requires "puppy 1.5.4"
 ```
 
-### Declarative Parser (Experimental)
+### Declarative Parser
 
-Starting in `nimble 0.18.0`, the declarative parser can be used.  
-It can be activated using the flag `--parser:declarative` and will become the default parser in the future.  
+Starting with `nimble 0.18.0`, the declarative parser can be used using `--parser:declarative` flag, offering better speed and reliability in dependency resolution.
 
-The main advantage of the declarative parser is deterministic dependencies, allowing `nimble` to build a reliable cache.  
-Another benefit is improved speed, as there is no need to spin up the Nim VM for every dependency.
+In `nimble 0.24.0`, the declarative parser fully replaced the older VM-based one and is the default and only parser option.
 
 ---
 
