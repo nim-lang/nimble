@@ -476,3 +476,34 @@ suite "Pre-release version discovery (integration)":
       check "2.0.0" notin vers    # the tag's version is not used
     finally:
       for d in [remote, work, cache]: removeDir(d)
+
+suite "Special-version download memoization (#1785)":
+  # A special version (e.g. a pinned #<commit>) is downloaded on its own — it
+  # does NOT enumerate the repo's tags — and that download is what learns the
+  # commit's semantic version. A range/tag download of the same repo fetches
+  # tags but never that commit. So the two must NOT share a download-memoization
+  # cache entry: if a range download wins the shared entry first, the pinned
+  # commit is never fetched, its semantic version is never learned, and it can no
+  # longer satisfy a coexisting normal `>=` constraint. This made libp2p's
+  # `nimble install <url@#commit ...>` (install_pinned) fail nondeterministically.
+  test "a pinned special version and a range of the same repo get distinct cache keys":
+    var options = initOptions()
+    let url = "https://github.com/vacp2p/nim-boringssl"
+    let pinned: PkgTuple = (url, parseVersionRange("#e77caabae78fbc9aa5b78a0a521181b077c82571"))
+    let rangeReq: PkgTuple = (url, parseVersionRange(">= 0.0.8"))
+    # The pinned commit must not reuse the range download's result.
+    check computeDownloadCacheKey(pinned, options) !=
+          computeDownloadCacheKey(rangeReq, options)
+
+  test "two ranges of the same repo still share one download (dedup preserved)":
+    var options = initOptions()
+    let url = "https://github.com/vacp2p/nim-boringssl"
+    check computeDownloadCacheKey((url, parseVersionRange(">= 0.0.8")), options) ==
+          computeDownloadCacheKey((url, parseVersionRange(">= 0.0.4")), options)
+
+  test "the same pinned commit shares one download":
+    var options = initOptions()
+    let url = "https://github.com/vacp2p/nim-boringssl"
+    let a: PkgTuple = (url, parseVersionRange("#e77caabae78fbc9aa5b78a0a521181b077c82571"))
+    let b: PkgTuple = (url, parseVersionRange("#e77caabae78fbc9aa5b78a0a521181b077c82571"))
+    check computeDownloadCacheKey(a, options) == computeDownloadCacheKey(b, options)
