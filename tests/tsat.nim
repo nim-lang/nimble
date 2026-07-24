@@ -222,6 +222,45 @@ suite "SAT solver":
     pkgVersionTable2.normalizeSpecialVersions(options)
     check pkgVersionTable2["dep"].versions.allIt(it.version == newVersion "#commit_a")
 
+  test "root's pinned special version wins a genuine conflict (#1785)":
+    # Reproduces the libp2p failure: the root explicitly pins boringssl to a
+    # commit (#commit_root, whose real version is 0.0.8) while a transitive dep
+    # pulls a different special version (#commit_dep, version 0.0.4). Another dep
+    # requires `dep >= 0.0.8`. "First-#-wins" is traversal-order dependent: if it
+    # discards the root's pin and keeps #commit_dep (0.0.4), the `>= 0.0.8`
+    # constraint can no longer be met and resolution fails — nondeterministically
+    # across platforms. The root's authoritative pin must win.
+    proc initRootPinnedConflictTable(): Table[string, PackageVersions] =
+      {
+        "root": PackageVersions(pkgName: "root", versions: @[
+          PackageMinimalInfo(name: "root", version: newVersion "1.0", requires: @[
+            (name: "dep", ver: parseVersionRange "#commit_root"),
+            (name: "a", ver: parseVersionRange ">= 1.0"),
+          ], isRoot: true),
+        ]),
+        "a": PackageVersions(pkgName: "a", versions: @[
+          PackageMinimalInfo(name: "a", version: newVersion "1.0", requires: @[
+            (name: "dep", ver: parseVersionRange "#commit_dep"),
+          ]),
+        ]),
+        # Order matters: #commit_dep is first, so plain first-#-wins would keep
+        # the transitive version and drop the root's pin.
+        "dep": PackageVersions(pkgName: "dep", versions: @[
+          PackageMinimalInfo(name: "dep", version: newVersion "#commit_dep"),
+          PackageMinimalInfo(name: "dep", version: newVersion "#commit_root"),
+        ]),
+      }.toTable()
+
+    var options = initOptions()
+    options.lenient = true
+    var pkgVersionTable = initRootPinnedConflictTable()
+    pkgVersionTable.normalizeSpecialVersions(options)
+    # The surviving special version must be the one the ROOT pinned.
+    check pkgVersionTable["dep"].versions.len == 1
+    check pkgVersionTable["dep"].versions[0].version == newVersion "#commit_root"
+    # ...and the transitive requirement is rewritten to the root's pin.
+    check $pkgVersionTable["a"].versions[0].requires[0].ver.spe == "#commit_root"
+
   test "solves 'Conflicting dependency resolution' #1162":
     let pkgVersionTable = {
       "a": PackageVersions(pkgName: "a", versions: @[

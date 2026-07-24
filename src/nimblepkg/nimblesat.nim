@@ -660,6 +660,16 @@ proc normalizeRequirements*(pkgVersionTable: var Table[string, PackageVersions],
             options.satResult.normalizedRequirements[newPkgName] = oldReq
         req.name = req.name.resolveAlias(options)
 
+proc getRootSpecialRequirements(
+    pkgVersionTable: Table[string, PackageVersions]): Table[string, Version] =
+  for _, pkgVersions in pkgVersionTable:
+    for pkgVersion in pkgVersions.versions:
+      if pkgVersion.isRoot:
+        for req in pkgVersion.requires:
+          if req.ver.kind == verSpecial:
+            result[req.name.toLowerAscii] = req.ver.spe
+        return
+
 proc normalizeSpecialVersions*(pkgVersionTable: var Table[string, PackageVersions], options: Options) {.instrument.} =
   ## First-#-wins: when multiple special versions exist for the same package
   ## (e.g. asynctools#commit_a from jester, asynctools#commit_b from httpbeast),
@@ -668,7 +678,13 @@ proc normalizeSpecialVersions*(pkgVersionTable: var Table[string, PackageVersion
   ## special requirements for that package to use the winner.
   var winners = initTable[string, Version]()  # pkgName -> winning special version
 
-  # Phase 1: find packages with multiple special versions, pick the first one
+  # The special versions the ROOT explicitly requires. When a genuine conflict
+  # exists, the root's pin is authoritative and must win, rather than letting an
+  # arbitrary, traversal-order dependent choice discard it in favour of a
+  # transitive dep's special version.
+  let rootSpecialReqs = getRootSpecialRequirements(pkgVersionTable)
+
+  # Phase 1: find packages with multiple special versions, pick the winner
   for pkgName, pkgVersions in pkgVersionTable.mpairs:
     if pkgName.isNim:
       continue
@@ -680,12 +696,20 @@ proc normalizeSpecialVersions*(pkgVersionTable: var Table[string, PackageVersion
       if v.version.isSpecial and v.version notin specialVersions:
         specialVersions.add v.version
     if specialVersions.len > 1:
-      let winner = specialVersions[0]  # first = topologically first (DFS order)
-      let others = specialVersions[1..^1].mapIt($it).join(", ")
+      # Default to the first (topologically closest to root in DFS order), but
+      # let an explicit root pin of this package win when it is one of the
+      # candidates (#1785).
+      let canonicalName =
+        if pkgVersions.versions.len > 0: pkgVersions.versions[0].name.toLowerAscii
+        else: pkgName.toLowerAscii
+      var winner = specialVersions[0]
+      if canonicalName in rootSpecialReqs and rootSpecialReqs[canonicalName] in specialVersions:
+        winner = rootSpecialReqs[canonicalName]
+      let others = specialVersions.filterIt(it != winner).mapIt($it).join(", ")
       if not options.lenient:
         raise newNimbleError[NimbleError](
           &"Multiple dependencies require different special versions of '{pkgName}': " &
-          &"{specialVersions[0]}, {others}.")
+          &"{winner}, {others}.")
       winners[pkgName] = winner
       pkgVersions.versions = pkgVersions.versions.filterIt(
         not it.version.isSpecial or it.version == winner
