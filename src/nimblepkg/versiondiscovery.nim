@@ -399,12 +399,22 @@ proc downloadMinimalPackageImpl(pv: PkgTuple, options: Options, nimBin: Option[s
 
 proc computeDownloadCacheKey*(pv: PkgTuple, options: Options): string =
   ## Canonical cache key for a package's version discovery download.
-  ## Uses the package URL (not the version) since we download all versions anyway,
-  ## so name- and URL-based requirements for the same repo can share one download.
+  ## Uses the package URL (not the version) since a range/tag download fetches all
+  ## tagged versions anyway, so name- and URL-based range requirements for the same
+  ## repo can share one download.
+  ##
+  ## Exception: a special version (e.g. a pinned #<commit>) is downloaded on its
+  ## own — it does NOT enumerate tags (see the `verSpecial` early-out in
+  ## downloadMinimalPackageImpl) — and that download is what learns the commit's
+  ## semantic version. A range download of the same repo never fetches that commit,
+  ## so the two must not share a memoization entry: otherwise, whichever runs first
+  ## wins and, if the range wins, the pinned commit is never downloaded, its
+  ## semantic version is never learned, and it can no longer satisfy a coexisting
+  ## normal `>=` constraint — 
   try:
     if pv.name.isFileURL or pv.name.isURL or (pv.isNim and not options.disableNimBinaries):
       # For special cases, use the name as-is
-      return pv.name
+      result = pv.name
     else:
       # For package names, resolve to canonical URL for proper deduplication.
       # Include the subdir so packages that are different subdirs of the same
@@ -414,11 +424,12 @@ proc computeDownloadCacheKey*(pv: PkgTuple, options: Options): string =
         result = dlInfo.url
         if dlInfo.subdir.len > 0:
           result.add "?subdir=" & dlInfo.subdir
-        return result
       except:
-        return pv.name
+        result = pv.name
   except:
-    pv.name
+    result = pv.name
+  if pv.ver.kind == verSpecial:
+    result.add "@" & $pv.ver
 
 proc memoizedDownloadMinimal*(pv: PkgTuple, options: Options, nimBin: Option[string],
     fetch: GetPackageMinimal): Future[seq[PackageMinimalInfo]] {.async.} =
