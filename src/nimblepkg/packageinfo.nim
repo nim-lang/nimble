@@ -399,11 +399,25 @@ proc getRealDir*(pkgInfo: PackageInfo): string =
     result = pkgInfo.getNimbleFileDir()
   
 proc getOutputDir*(pkgInfo: PackageInfo, bin: string): string =
-  ## Returns a binary output dir for the package.
-  if pkgInfo.binDir != "":
-    result = pkgInfo.getNimbleFileDir() / pkgInfo.binDir / bin
-  else:
-    result = pkgInfo.mypath.splitFile.dir / bin
+  ## Returns a binary output path for the package.
+  ## With --outdir, nim places the output directly in the output directory
+  ## without preserving the subdirectory structure of `bin`.
+  let binName =
+    if bin.len != 0:
+      # With --outdir, nim derives the output filename from the source
+      # file name, not from the full `bin` path.  E.g. for
+      # `bin = "timezones/fetchjsontimezones"` the actual output is
+      # `fetchjsontimezones` (flat, no subdirectory).
+      bin.extractFilename
+    else:
+      ""
+
+  result =
+    if pkgInfo.binDir != "":
+      pkgInfo.getNimbleFileDir() / pkgInfo.binDir / binName
+    else:
+      pkgInfo.mypath.splitFile.dir / binName
+
   if bin.len != 0 and dirExists(result):
     result &= ".out"
 
