@@ -166,6 +166,10 @@ proc execScript(
     )
 
   if exitCode != 0:
+    if isCustomTask(actionName, options) and not isHook:
+      # The task ran with live output, so its errors are already visible.
+      # Propagate its exit code so `nimble <task>` is usable in scripts/CI.
+      raise nimbleQuit(exitCode)
     let errMsg =
       if stdout.len != 0:
         stdout
