@@ -400,15 +400,12 @@ proc getRealDir*(pkgInfo: PackageInfo): string =
   
 proc getOutputDir*(pkgInfo: PackageInfo, bin: string): string =
   ## Returns a binary output path for the package.
-  ## With --outdir, nim places the output directly in the output directory
-  ## without preserving the subdirectory structure of `bin`.
   let binName =
     if bin.len != 0:
-      # With --outdir, nim derives the output filename from the source
-      # file name, not from the full `bin` path.  E.g. for
-      # `bin = "timezones/fetchjsontimezones"` the actual output is
-      # `fetchjsontimezones` (flat, no subdirectory).
-      bin.extractFilename
+      if pkgInfo.isInstalled:
+        bin
+      else:
+        pkgInfo.bin.getOrDefault(bin, bin).extractFilename
     else:
       ""
 
