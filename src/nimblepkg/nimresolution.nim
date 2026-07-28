@@ -93,7 +93,8 @@ proc solvePackagesWithSystemNimFallback*(
   if resolvedNim.isSome and resolvedNim.get.isSystemNim(options):
     let nimReqs = rootPackage.requires.filterIt(it.name.isNim)
     let exactMismatch = nimReqs.anyIt(
-      it.ver.kind == verEq and it.ver.ver != resolvedNim.get.version)
+      it.ver.kind in {verEq, verSpecial} and
+        not resolvedNim.get.version.satisfiesConstraint(it.ver))
     if not exactMismatch:
       rootPackageWithSystemNim.requires.add(parseRequires("nim " & $resolvedNim.get.version))
       systemNimPass = true
@@ -145,7 +146,8 @@ proc resolveNim*(rootPackage: PackageInfo, pkgListDecl: seq[PackageInfo], system
 
     #TODO look in the installed binaries dir
     #If none is found return the latest version by looking at getOfficialReleases
-    raise newNimbleError[NimbleError]("No Nim found in lock file and no Nim in the system")
+    raise resolutionFailureError(
+      "No Nim found in lock file and no Nim in the system")
 
     #Then latest nim release
     # let latestNim = getLatestNimRelease()
@@ -171,7 +173,8 @@ proc resolveNim*(rootPackage: PackageInfo, pkgListDecl: seq[PackageInfo], system
       rootPackage, pkgListDecl, options,  resolvedNim, nimBin)
   if options.satResult.solvedPkgs.len == 0:
     displayError(options.satResult.output)
-    raise newNimbleError[NimbleError]("Couldnt find a solution for the packages. Unsatisfiable dependencies. Check there is no contradictory dependencies.")
+    raise resolutionFailureError(
+      "Couldnt find a solution for the packages. Unsatisfiable dependencies. Check there is no contradictory dependencies.")
 
   var nims = options.satResult.pkgs.toSeq.filterIt(it.basicInfo.name.isNim)
   if nims.len == 0:
@@ -204,7 +207,7 @@ proc resolveNim*(rootPackage: PackageInfo, pkgListDecl: seq[PackageInfo], system
       return NimResolved(pkg: some(bestNim.get), version: bestNim.get.basicInfo.version)
 
     #TODO if we ever reach this point, we should just download the latest nim release
-    raise newNimbleError[NimbleError]("No Nim found")
+    raise resolutionFailureError("No Nim found")
   if nims.len > 1:
     #Before erroying make sure the version are actually different
     var versions = nims.mapIt(it.basicInfo.version)
@@ -292,7 +295,7 @@ proc resolveAndConfigureNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo]
   let systemNimPkg = getNimFromSystem(options)
   if options.useSystemNim:
     if systemNimPkg.isNone:
-      raise newNimbleError[NimbleError]("No system nim found")
+      raise resolutionFailureError("No system nim found")
     # If there's a lock file, return early - solveLockFileDeps will handle resolution
     # If there's no lock file, we need to run the SAT solver with system nim
     if rootPackage.hasLockFile(options) and not options.disableLockFile:
@@ -319,7 +322,8 @@ proc resolveAndConfigureNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo]
         rootPackage, pkgListDecl, options, some(NimResolved(pkg: systemNimPkg, version: systemNimPkg.get.basicInfo.version)), sysNimBin)
     if options.satResult.solvedPkgs.len == 0:
       displayError(options.satResult.output)
-      raise newNimbleError[NimbleError]("Couldnt find a solution for the packages. Unsatisfiable dependencies.")
+      raise resolutionFailureError(
+        "Couldnt find a solution for the packages. Unsatisfiable dependencies.")
     return NimResolved(pkg: some(systemNimPkg.get), version: systemNimPkg.get.basicInfo.version)
 
   # Special case: when installing nim itself globally, we want to install that specific version

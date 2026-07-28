@@ -46,6 +46,34 @@ suite "Version Discovery":
     check pkgVersionTable.hasVersion("c", newVersion "0.1.0")
     check pkgVersionTable.hasVersion("c", newVersion "0.2.1")
 
+  test "duplicate special versions retain package identity and merge semantic metadata":
+    let nimRequirement = parseRequires("nim >= 1.6.0")
+    let installed = PackageMinimalInfo(
+      name: "nim",
+      version: newVersion("#head"),
+      requires: @[nimRequirement],
+      isRoot: true,
+      url: "local-install")
+    var discoveredVersion = newVersion("#head")
+    discoveredVersion.speSemanticVersion = some("2.2.8")
+    let discovered = PackageMinimalInfo(
+      name: "nim",
+      version: discoveredVersion,
+      url: "nimbinaries")
+
+    var pkgVersionTable = {
+      "nim": PackageVersions(pkgName: "nim", versions: @[installed])
+    }.toTable
+    pkgVersionTable.fillPackageTableFromPreferred(@[discovered])
+
+    check pkgVersionTable["nim"].versions.len == 1
+    let merged = pkgVersionTable["nim"].versions[0]
+    check merged.url == installed.url
+    check merged.requires == installed.requires
+    check merged.isRoot == installed.isRoot
+    check merged.version.speSemanticVersion == some("2.2.8")
+    check merged.version.satisfiesConstraint(parseVersionRange(">= 1.6.0"))
+
   test "should fallback to the download if the package is not found in the list of packages":
     let root =
       PackageMinimalInfo(

@@ -445,21 +445,28 @@ proc downloadMinimalPackage*(pv: PkgTuple, options: Options, nimBin: Option[stri
     ## Cache key uses canonical package URL (not version) since we download all versions anyway.
     return await memoizedDownloadMinimal(pv, options, nimBin, downloadMinimalPackageImpl)
 
+proc addVersionUnique*(versions: var seq[PackageMinimalInfo], incoming: PackageMinimalInfo) =
+  ## Adds a version if no entry with the same name+version already exists.
+  ## When duplicate special versions carry different amounts of metadata, keep
+  ## the existing package identity and enrich its version with the semantic
+  ## version discovered from the compiler.
+  for existing in versions.mitems:
+    if cmpIgnoreCase(existing.name, incoming.name) == 0 and
+        existing.version == incoming.version:
+      if existing.version.isSpecial and
+          existing.version.speSemanticVersion.isNone and
+          incoming.version.speSemanticVersion.isSome:
+        existing.version.speSemanticVersion =
+          incoming.version.speSemanticVersion
+      return
+  versions.add incoming
+
 proc fillPackageTableFromPreferred*(packages: var Table[string, PackageVersions], preferredPackages: seq[PackageMinimalInfo]) =
   for pkg in preferredPackages:
-    if not hasVersion(packages, pkg.name, pkg.version):
-      if not packages.hasKey(pkg.name):
-        packages[pkg.name] = PackageVersions(pkgName: pkg.name, versions: @[pkg])
-      else:
-        packages[pkg.name].versions.add pkg
-    elif pkg.version.isSpecial and pkg.version.speSemanticVersion.isSome:
-      # Prefer the entry that carries a semantic version (derived from the
-      # Nim compiler's compilation.nim).  Without it satisfiesConstraint
-      # cannot handle numeric requirements like >= 1.6.0.
-      for i, existing in packages[pkg.name].versions:
-        if existing.version == pkg.version and not existing.version.speSemanticVersion.isSome:
-          packages[pkg.name].versions[i] = pkg
-          break
+    if not packages.hasKey(pkg.name):
+      packages[pkg.name] = PackageVersions(pkgName: pkg.name, versions: @[pkg])
+    else:
+      packages[pkg.name].versions.addVersionUnique pkg
 
 proc getInstalledMinimalPackages*(options: Options): seq[PackageMinimalInfo] =
   getInstalledPkgsMin(options.getPkgsDir(), options).mapIt(it.getMinimalInfo(options))
@@ -492,15 +499,6 @@ proc expandActiveFeatures(pkgMin: var PackageMinimalInfo, versions: Table[string
     if featureName in pkgMin.features:
       for req in pkgMin.features[featureName]:
         pkgMin.requires.addUnique(convertNimAliasToNim(req))
-
-proc addVersionUnique*(versions: var seq[PackageMinimalInfo], ver: PackageMinimalInfo) =
-  ## Adds a version if no entry with the same name+version already exists.
-  ## Uses name+version comparison instead of full struct equality to avoid
-  ## duplicates from parallel branches that discover the same package independently.
-  for existing in versions:
-    if cmpIgnoreCase(existing.name, ver.name) == 0 and existing.version == ver.version:
-      return
-  versions.add ver
 
 proc mergeVersionTables(dest: var Table[string, PackageVersions], source: Table[string, PackageVersions]) =
   ## Helper proc to merge version tables.
