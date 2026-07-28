@@ -405,7 +405,7 @@ proc getOutputDir*(pkgInfo: PackageInfo, bin: string): string =
       if pkgInfo.isInstalled:
         bin
       else:
-        pkgInfo.bin.getOrDefault(bin, bin).extractFilename
+        pkgInfo.bin.getOrDefault(bin, bin).addFileExt(ExeExt).extractFilename()
     else:
       ""
 
