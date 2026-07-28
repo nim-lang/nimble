@@ -683,7 +683,7 @@ proc normalizeSpecialVersions*(pkgVersionTable: var Table[string, PackageVersion
       let winner = specialVersions[0]  # first = topologically first (DFS order)
       let others = specialVersions[1..^1].mapIt($it).join(", ")
       if not options.lenient:
-        raise newNimbleError[NimbleError](
+        raise resolutionFailureError(
           &"Multiple dependencies require different special versions of '{pkgName}': " &
           &"{specialVersions[0]}, {others}.")
       winners[pkgName] = winner
@@ -798,7 +798,7 @@ proc validateUpgradeCompat*(satResult: SATResult, solvedPkgs: seq[SolvedPackage]
   var output = ""
   let solved = compatTable.getSolvedPackages(output, options)
   if solved.len == 0:
-    raise newNimbleError[NimbleError](
+    raise resolutionFailureError(
       "Upgrade is incompatible with locked dependencies:\n" & output)
 
 proc solveLocalPackages(root: PackageMinimalInfo, pkgList: seq[PackageInfo], options: Options, output: var string, solvedPkgs: var seq[SolvedPackage], nimBin: Option[string]): HashSet[PackageInfo] =
@@ -1294,7 +1294,8 @@ proc solveLockFileDeps*(satResult: var SATResult, pkgList: seq[PackageInfo], opt
     )
     if satResult.solvedPkgs.len == 0:
       displayError(satResult.output)
-      raise newNimbleError[NimbleError]("Couldn't find a solution for the packages.")
+      raise resolutionFailureError(
+        "Couldn't find a solution for the packages.")
   elif options.action.typ == actionUpgrade:
     #[
     Retrocompatibility (goes against SAT in some edge cases)

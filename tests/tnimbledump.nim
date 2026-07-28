@@ -67,6 +67,95 @@ requires "definitely_not_installed_pkg_xyz"
       check exitCode == QuitSuccess
       check outp.processOutput.inLines("nimDir: \"\"")
 
+  test "dump selects a locally installed special Nim with ordinary Nim constraints (#1781)":
+    when defined(windows):
+      # The fixture uses a symlink to the running compiler so it remains small.
+      skip()
+    else:
+      let root = getTempDir().expandFilename / "nimble1781"
+      removeDir root
+      defer: removeDir root
+
+      let
+        fakeHome = root / "home"
+        fakeConfig = root / "config"
+        projectDir = root / "project"
+        localDepsDir = projectDir / "nimbledeps"
+        unittestDir = localDepsDir / "pkgs2" /
+          "unittest2-0.2.5-2222222222222222222222222222222222222222"
+        discoveredNimDir = fakeHome / ".nimble" / "nimbinaries" / "nim-#head"
+        semanticVersion = &"{NimMajor}.{NimMinor}.{NimPatch}"
+
+      createDir(unittestDir)
+      createDir(discoveredNimDir / "bin")
+      createDir(discoveredNimDir / "lib" / "system")
+      createDir(fakeConfig)
+
+      writeFile(projectDir / "project.nimble", """
+version = "0.1.0"
+author = "test"
+description = "special Nim dump integration test"
+license = "MIT"
+requires "nim#head", "unittest2"
+""")
+      writeFile(unittestDir / "unittest2.nimble", """
+version = "0.2.5"
+author = "test"
+description = "dependency with an ordinary Nim requirement"
+license = "MIT"
+requires "nim >= 1.6.0"
+""")
+      writeFile(discoveredNimDir / "nim.nimble", &"""
+include "lib/system/compilation.nim"
+version = "{semanticVersion}"
+author = "test"
+description = "special Nim discovery metadata"
+license = "MIT"
+""")
+      createSymlink(findExe("nim"), discoveredNimDir / "bin" / "nim")
+      writeFile(discoveredNimDir / "lib" / "system" / "compilation.nim", &"""
+const
+  NimMajor* = {NimMajor}
+  NimMinor* = {NimMinor}
+  NimPatch* = {NimPatch}
+""")
+      # Keep discovery fully offline. unittest2 is already installed, while the
+      # fake nimbinaries entry is installed locally by the command under test.
+      writeFile(localDepsDir / "packages_official.json", "[]")
+
+      let
+        oldHome = getEnv("HOME")
+        oldConfigHome = getEnv("XDG_CONFIG_HOME")
+      putEnv("HOME", fakeHome)
+      putEnv("XDG_CONFIG_HOME", fakeConfig)
+      defer:
+        putEnv("HOME", oldHome)
+        putEnv("XDG_CONFIG_HOME", oldConfigHome)
+
+      cd projectDir:
+        let (_, installExitCode) =
+          execNimbleYes("install", "-l", "--offline")
+        check installExitCode == QuitSuccess
+
+        var installedNimDir = ""
+        for kind, path in walkDir(localDepsDir / "pkgs2"):
+          if kind == pcDir and
+              path.extractFilename.startsWith("nim-#head-"):
+            installedNimDir = path
+            break
+        check installedNimDir != ""
+
+        let (_, setupExitCode) =
+          execNimble("setup", "-l", "--offline")
+        check setupExitCode == QuitSuccess
+
+        let (outp, dumpExitCode) =
+          execNimble("dump", "-l", "--offline")
+        check dumpExitCode == QuitSuccess
+        if installedNimDir != "":
+          check outp.processOutput.inLines(
+            "nimDir: " & (installedNimDir / "bin").escape)
+
   test "dump does not leak declarative-parser errors on normal verbosity (#1717)":
     # Regression for nim-lang/nimble#1717: a nimble file whose `srcDir`/`bin`/
     # `paths` are not string literals used to make the declarative parser emit a

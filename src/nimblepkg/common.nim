@@ -20,6 +20,9 @@ type
   PackageNotFoundError* = object of NimbleError
     ## Raised when a package cannot be found in any repository
 
+  ResolutionFailureError* = object of NimbleError
+    ## Raised when dependency or Nim selection has no usable solution.
+
   NeedsNimBinError* = object of NimbleError
     ## Raised when a Nim binary is needed but nimBin is not yet resolved.
     ## Callers catch this and retry after bootstrap resolution.
@@ -57,6 +60,11 @@ proc newNimbleError*[ErrorType](msg: string, hint = "",
 proc nimbleError*(msg: string, hint = "", details: ref CatchableError = nil):
     ref NimbleError =
   newNimbleError[NimbleError](msg, hint, details)
+
+proc resolutionFailureError*(msg: string, hint = "",
+                             details: ref CatchableError = nil):
+    ref ResolutionFailureError =
+  newNimbleError[ResolutionFailureError](msg, hint, details)
 
 proc buildFailed*(msg: string, details: ref CatchableError = nil):
     ref BuildFailed =
