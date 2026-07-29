@@ -10,6 +10,18 @@ from nimblepkg/version import newVersion
 from nimblepkg/displaymessages import cannotUninstallPkgMsg
 
 suite "issues":
+  test "action help does not require a nimble file (#1791)":
+    let tempDir = getTempDir() / "nimble_help_without_package"
+    removeDir(tempDir)
+    createDir(tempDir)
+    defer: removeDir(tempDir)
+
+    cd tempDir:
+      let (output, exitCode) = execNimble("upgrade", "--help")
+      check exitCode == QuitSuccess
+      check output.contains("Nimble Options:")
+      check not output.contains("Could not find a .nimble file")
+
   test "test params":
     cd "testParams":
       let (output, exitCode) = execNimbleYes("test", "Passing test")
