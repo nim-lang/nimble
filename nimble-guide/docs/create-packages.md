@@ -260,11 +260,11 @@ requires "awesomeAsyncPackage[chronos, feature2]"
 In Nim code, you can check if a given feature is activated using the `when` operator:
 
 ```nim
-when defined(feature.awesomeAsyncPackage.chronos):
+when defined(features.awesomeAsyncPackage.chronos):
   import chronos
 ```
 
-The format follows: `feature.packageName.featureName`.
+The format follows: `features.packageName.featureName`.
 
 ---
 
