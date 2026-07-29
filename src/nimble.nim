@@ -2506,7 +2506,8 @@ when isMainModule:
     const nonResolvingActions = {actionNil, actionRefresh, actionInit, actionDump,
       actionPublish, actionSearch, actionList, actionPath, actionUninstall,
       actionCheck, actionTasks, actionClean, actionManual}
-    var shouldRun = opt.action.typ notin nonResolvingActions
+    let shouldRun = not opt.showHelp and
+      opt.action.typ notin nonResolvingActions
 
     # Check if nimble file is required but not present
     # Actions like build, test, run, etc. require a nimble file
