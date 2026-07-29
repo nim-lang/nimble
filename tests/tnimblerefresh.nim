@@ -50,6 +50,28 @@ suite "nimble refresh":
       check inLines(lines, "Package list copied.")
       check exitCode == QuitSuccess
 
+  test "missing package refreshes a fresh package list only once (#1793)":
+    testRefresh():
+      let
+        tempNimbleDir = getTempDir() / "nimble_missing_package_refresh"
+        packageList = getCurrentDir() / "issue368" / "packages.json"
+      removeDir(tempNimbleDir)
+      defer: removeDir(tempNimbleDir)
+
+      writeFile(configFile, """
+        [PackageList]
+        name = "Official"
+        path = "$1"
+      """.unindent % packageList.replace("\\", "\\\\"))
+
+      let (output, exitCode) = execNimble(
+        "--nimbleDir:" & tempNimbleDir,
+        "-y", "install", "definitely-not-a-nimble-package")
+      checkpoint output
+      check exitCode == QuitFailure
+      check output.count("Copying Official package list") == 1
+      check output.contains("Package definitely-not-a-nimble-package")
+
   test "package list source required":
     testRefresh():
       writeFile(configFile, """

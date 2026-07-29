@@ -1129,6 +1129,9 @@ proc getDownloadInfo*(
 ): (DownloadMethod, string, Table[string, string]) =
 
   # echo "getDownloadInfo:pv.name: ", $pv.name
+  # getPackage refreshes missing package lists during the initial lookup.
+  # Remember that state so a miss does not immediately refresh them again.
+  let packageListsWereMissing = needsRefresh(options)
   var pkg = initPackage()
   if getPackage(pv.name, options, pkg, ignorePackageCache):
     let (url, metadata) = getUrlData(pkg.url)
@@ -1147,7 +1150,7 @@ proc getDownloadInfo*(
   else:
     # If package is not found give the user a chance to refresh
     # package.json
-    if doPrompt and not options.offline and
+    if doPrompt and not packageListsWereMissing and not options.offline and
         options.prompt(pv.name & " not found in any local packages.json, " &
                         "check internet for updated packages?"):
       waitFor refresh(options)
