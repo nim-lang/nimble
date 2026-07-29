@@ -2572,7 +2572,6 @@ when isMainModule:
     exitCode = quit.exitCode
   except CatchableError as error:
     exitCode = QuitFailure
-    displayTip()
     echo error.getStackTrace()
     displayError(error)
   finally:
