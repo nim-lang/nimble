@@ -153,7 +153,7 @@ proc buildFromDir*(pkgInfo: PackageInfo, paths: HashSet[string],
           binariesBuilt.inc()
           continue
 
-    let outputOpt = "-o:" & pkgInfo.getOutputDir(bin).quoteShell
+    let outputDirOpt = "--outdir:" & outputDir
     display("Building", "$1/$2 using $3 backend" %
             [pkginfo.basicInfo.name, bin, pkgInfo.backend], priority = HighPriority)
 
@@ -168,7 +168,7 @@ proc buildFromDir*(pkgInfo: PackageInfo, paths: HashSet[string],
 
     let cmd = "$# $# --colors:$# --noNimblePath $# $# $#" % [
       nimBin.getNimBin.quoteShell, pkgInfo.backend, if options.noColor: "off" else: "on", join(args, " "),
-      outputOpt, input.quoteShell]
+      outputDirOpt, input.quoteShell]
     try:
       doCmd(cmd)
       binariesBuilt.inc()

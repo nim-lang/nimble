@@ -96,10 +96,9 @@ proc cleanFromDir(pkgInfo: PackageInfo, nimBin: Option[string], options: Options
     return
 
   for bin, _ in pkgInfo.bin:
-    let outputDir = pkgInfo.getOutputDir("")
-    if dirExists(outputDir):
-      if fileExists(outputDir / bin):
-        removeFile(outputDir / bin)
+    let binaryPath = pkgInfo.getOutputDir(bin)
+    if fileExists(binaryPath):
+      removeFile(binaryPath)
 
   # Handle post-`clean` hook.
   cd pkgDir: # Make sure `execHook` executes the correct .nimble file.

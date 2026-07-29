@@ -399,11 +399,22 @@ proc getRealDir*(pkgInfo: PackageInfo): string =
     result = pkgInfo.getNimbleFileDir()
   
 proc getOutputDir*(pkgInfo: PackageInfo, bin: string): string =
-  ## Returns a binary output dir for the package.
-  if pkgInfo.binDir != "":
-    result = pkgInfo.getNimbleFileDir() / pkgInfo.binDir / bin
-  else:
-    result = pkgInfo.mypath.splitFile.dir / bin
+  ## Returns a binary output path for the package.
+  let binName =
+    if bin.len != 0:
+      if pkgInfo.isInstalled:
+        bin
+      else:
+        pkgInfo.bin.getOrDefault(bin, bin).addFileExt(ExeExt).extractFilename()
+    else:
+      ""
+
+  result =
+    if pkgInfo.binDir != "":
+      pkgInfo.getNimbleFileDir() / pkgInfo.binDir / binName
+    else:
+      pkgInfo.mypath.splitFile.dir / binName
+
   if bin.len != 0 and dirExists(result):
     result &= ".out"
 
