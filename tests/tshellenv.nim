@@ -3,7 +3,7 @@
 
 {.used.}
 
-import unittest, os, osproc, strutils
+import unittest, os, osproc, streams, strtabs, strutils
 import testscommon
 from nimblepkg/common import cd
 import std/sequtils
@@ -13,6 +13,33 @@ when not defined(windows):
 
 const
   separator = when defined(windows): ";" else: ":"
+  environmentMode =
+    when defined(windows): modeCaseInsensitive
+    else: modeCaseSensitive
+
+proc execShellCommand(args: varargs[string]): tuple[output: string,
+    exitCode: int] =
+  var
+    environment = newStringTable(environmentMode)
+    nimbleArgs = @[
+      "--global",
+      "--nimbleDir:" & installDir,
+      "--noColor",
+      "--info",
+      "shell",
+    ]
+  for key, value in envPairs():
+    environment[key] = value
+  const shellEnv = when defined(windows): "ComSpec" else: "SHELL"
+  environment[shellEnv] = nimblePath
+  nimbleArgs.add(args)
+
+  let process = startProcess(
+    nimblePath, args = nimbleArgs, env = environment,
+    options = {poStdErrToStdOut, poUsePath})
+  defer: process.close()
+  result.output = process.outputStream.readAll()
+  result.exitCode = process.waitForExit()
 
 suite "Shell env":
   test "Shell env":
@@ -43,6 +70,18 @@ suite "Shell env":
       check "shellenv" in dirs.mapIt(it.extractFileName)
       let testUtils = "testutils-0.5.0-756d0757c4dd06a068f9d38c7f238576ba5ee897"
       check testUtils in dirs.mapIt(it.extractFileName)
+
+  test "nimble shell runs a command with its arguments (#1794)":
+    cd "shellenv":
+      let (output, exitCode) = execShellCommand("nim", "-v")
+      checkpoint(output)
+      check exitCode == QuitSuccess
+      check output.contains("Nim Compiler Version")
+
+      let (failureOutput, failureExitCode) = execShellCommand(
+        "nim", "definitely-not-a-nim-command")
+      checkpoint(failureOutput)
+      check failureExitCode == QuitFailure
 
   when not defined(windows):
     test "nimble shell does not crash when dependencies are deleted inside shell":

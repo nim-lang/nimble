@@ -150,7 +150,9 @@ type
       depsAction*: string
     of actionPublish:
       publishAction*: string
-    of actionShellEnv, actionShell:
+    of actionShell:
+      shellCommand*: seq[string]
+    of actionShellEnv:
       discard
 
 const
@@ -252,8 +254,9 @@ Commands:
                                   system paths to the dependencies. Also
                                   includes the paths file in the `config.nims`
                                   file to make them available for the compiler.
-  shell                           Creates a new shell with PATH modified to contain
-                                  the bin folders of the dependencies.
+  shell     [command [args...]]   Runs a command with PATH modified to contain
+                                  the bin folders of the dependencies. Without a
+                                  command, creates a new shell instead.
   shellenv                        Similar to shell command but it returns the script to run in
                                   order to alter the environment. This is intended to be
                                   used in scripts.
@@ -1010,11 +1013,17 @@ proc parseCmdLine*(): Options =
 
   # Parse command line params first. A simple `--version` shouldn't require
   # a config to be parsed.
-  for kind, key, val in getOpt():
+  var parser = initOptParser()
+  for kind, key, val in parser.getOpt():
     case kind
     of cmdArgument:
       if result.action.typ == actionNil:
         parseCommand(key, result)
+        if result.action.typ == actionShell:
+          # Everything after `shell` belongs to the command, including flags
+          # that would otherwise be interpreted as Nimble options.
+          result.action.shellCommand = parser.remainingArgs()
+          break
       else:
         parseArgument(key, result)
     of cmdLongOption, cmdShortOption:
