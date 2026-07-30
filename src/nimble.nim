@@ -1930,6 +1930,19 @@ proc shellenv(options: var Options, nimBin: Option[string]) =
 proc shell(options: Options, nimBin: Option[string]) =
   putEnv("PATH", getAlteredPath(options, nimBin))
 
+  if options.action.shellCommand.len > 0:
+    let
+      command = options.action.shellCommand[0]
+      arguments =
+        if options.action.shellCommand.len > 1:
+          options.action.shellCommand[1 .. ^1]
+        else:
+          @[]
+      process = startProcess(
+        command, args = arguments, options = {poParentStreams, poUsePath})
+    defer: process.close()
+    raise nimbleQuit(process.waitForExit())
+
   when defined windows:
     var shell = getEnv("ComSpec")
     if shell == "": shell = "powershell"
@@ -1937,7 +1950,9 @@ proc shell(options: Options, nimBin: Option[string]) =
     var shell = getEnv("SHELL")
     if shell == "": shell = "bash"
 
-  discard waitForExit startProcess(shell, options = {poParentStreams, poUsePath})
+  let process = startProcess(shell, options = {poParentStreams, poUsePath})
+  defer: process.close()
+  discard process.waitForExit()
 
 proc getPackageForAction(pkgInfo: PackageInfo, options: Options, nimBin: Option[string]): PackageInfo =
   ## Returns the `PackageInfo` for the package in `pkgInfo`'s dependencies tree
