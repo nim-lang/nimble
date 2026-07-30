@@ -19,7 +19,6 @@ type
   CLI* = ref object
     level: Priority
     warnings: HashSet[(string, string)]
-    suppressionCount: int ## Amount of messages which were not shown.
     showColor: bool ## Whether messages should be colored.
     suppressMessages: bool ## Whether Warning, Message and Success messages
                            ## should be suppressed, useful for
@@ -120,10 +119,7 @@ proc display*(category, msg: string, displayType = Message,
       getGlobalCLI().warnings.incl(warningPair)
 
   # Suppress this message if its priority isn't high enough.
-  # TODO: Per-priority suppression counts?
   if priority < getGlobalCLI().level:
-    if priority != DebugPriority:
-      getGlobalCLI().suppressionCount.inc
     return
 
   # Display each line in the message.
@@ -174,14 +170,6 @@ proc displayDebug*(category, msg: string) =
 proc displayDebug*(msg: string) =
   ## Convenience for displaying debug messages with a default category.
   displayDebug("Debug:", msg)
-
-proc displayTip*() =
-  ## Called just before Nimble exits. Shows some tips for the user, for example
-  ## the amount of messages that were suppressed and how to show them.
-  if getGlobalCLI().suppressionCount > 0:
-    let msg = "$1 messages have been suppressed, use --verbose to show them." %
-             $getGlobalCLI().suppressionCount
-    display("Tip:", msg, Warning, HighPriority)
 
 proc prompt*(forcePrompts: ForcePrompt, question: string): bool =
   case forcePrompts

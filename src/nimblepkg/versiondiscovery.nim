@@ -399,12 +399,22 @@ proc downloadMinimalPackageImpl(pv: PkgTuple, options: Options, nimBin: Option[s
 
 proc computeDownloadCacheKey*(pv: PkgTuple, options: Options): string =
   ## Canonical cache key for a package's version discovery download.
-  ## Uses the package URL (not the version) since we download all versions anyway,
-  ## so name- and URL-based requirements for the same repo can share one download.
+  ## Uses the package URL (not the version) since a range/tag download fetches all
+  ## tagged versions anyway, so name- and URL-based range requirements for the same
+  ## repo can share one download.
+  ##
+  ## Exception: a special version (e.g. a pinned #<commit>) is downloaded on its
+  ## own — it does NOT enumerate tags (see the `verSpecial` early-out in
+  ## downloadMinimalPackageImpl) — and that download is what learns the commit's
+  ## semantic version. A range download of the same repo never fetches that commit,
+  ## so the two must not share a memoization entry: otherwise, whichever runs first
+  ## wins and, if the range wins, the pinned commit is never downloaded, its
+  ## semantic version is never learned, and it can no longer satisfy a coexisting
+  ## normal `>=` constraint — 
   try:
     if pv.name.isFileURL or pv.name.isURL or (pv.isNim and not options.disableNimBinaries):
       # For special cases, use the name as-is
-      return pv.name
+      result = pv.name
     else:
       # For package names, resolve to canonical URL for proper deduplication.
       # Include the subdir so packages that are different subdirs of the same
@@ -414,11 +424,12 @@ proc computeDownloadCacheKey*(pv: PkgTuple, options: Options): string =
         result = dlInfo.url
         if dlInfo.subdir.len > 0:
           result.add "?subdir=" & dlInfo.subdir
-        return result
       except:
-        return pv.name
+        result = pv.name
   except:
-    pv.name
+    result = pv.name
+  if pv.ver.kind == verSpecial:
+    result.add "@" & $pv.ver
 
 proc memoizedDownloadMinimal*(pv: PkgTuple, options: Options, nimBin: Option[string],
     fetch: GetPackageMinimal): Future[seq[PackageMinimalInfo]] {.async.} =
@@ -445,13 +456,28 @@ proc downloadMinimalPackage*(pv: PkgTuple, options: Options, nimBin: Option[stri
     ## Cache key uses canonical package URL (not version) since we download all versions anyway.
     return await memoizedDownloadMinimal(pv, options, nimBin, downloadMinimalPackageImpl)
 
+proc addVersionUnique*(versions: var seq[PackageMinimalInfo], incoming: PackageMinimalInfo) =
+  ## Adds a version if no entry with the same name+version already exists.
+  ## When duplicate special versions carry different amounts of metadata, keep
+  ## the existing package identity and enrich its version with the semantic
+  ## version discovered from the compiler.
+  for existing in versions.mitems:
+    if cmpIgnoreCase(existing.name, incoming.name) == 0 and
+        existing.version == incoming.version:
+      if existing.version.isSpecial and
+          existing.version.speSemanticVersion.isNone and
+          incoming.version.speSemanticVersion.isSome:
+        existing.version.speSemanticVersion =
+          incoming.version.speSemanticVersion
+      return
+  versions.add incoming
+
 proc fillPackageTableFromPreferred*(packages: var Table[string, PackageVersions], preferredPackages: seq[PackageMinimalInfo]) =
   for pkg in preferredPackages:
-    if not hasVersion(packages, pkg.name, pkg.version):
-      if not packages.hasKey(pkg.name):
-        packages[pkg.name] = PackageVersions(pkgName: pkg.name, versions: @[pkg])
-      else:
-        packages[pkg.name].versions.add pkg
+    if not packages.hasKey(pkg.name):
+      packages[pkg.name] = PackageVersions(pkgName: pkg.name, versions: @[pkg])
+    else:
+      packages[pkg.name].versions.addVersionUnique pkg
 
 proc getInstalledMinimalPackages*(options: Options): seq[PackageMinimalInfo] =
   getInstalledPkgsMin(options.getPkgsDir(), options).mapIt(it.getMinimalInfo(options))
@@ -484,15 +510,6 @@ proc expandActiveFeatures(pkgMin: var PackageMinimalInfo, versions: Table[string
     if featureName in pkgMin.features:
       for req in pkgMin.features[featureName]:
         pkgMin.requires.addUnique(convertNimAliasToNim(req))
-
-proc addVersionUnique*(versions: var seq[PackageMinimalInfo], ver: PackageMinimalInfo) =
-  ## Adds a version if no entry with the same name+version already exists.
-  ## Uses name+version comparison instead of full struct equality to avoid
-  ## duplicates from parallel branches that discover the same package independently.
-  for existing in versions:
-    if cmpIgnoreCase(existing.name, ver.name) == 0 and existing.version == ver.version:
-      return
-  versions.add ver
 
 proc mergeVersionTables(dest: var Table[string, PackageVersions], source: Table[string, PackageVersions]) =
   ## Helper proc to merge version tables.

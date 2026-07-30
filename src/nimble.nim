@@ -2371,9 +2371,9 @@ proc getNimDir(options: var Options, nimBin: var Option[string]): string =
       rootPackage.requires.add(options.action.packages)
     try:
       solvePkgs(rootPackage, options, nimBin)
-    except CatchableError:
-      # Issue #1713: dump never raises on resolution failure — it returns ""
-      # so the langserver can detect "couldn't pick a nim"
+    except ResolutionFailureError:
+      # dump never raises on resolution failure — it returns ""
+      # so the langserver can detect "couldn't pick a nim".
       return ""
     if nimBin.isNone:
       return ""
@@ -2506,7 +2506,8 @@ when isMainModule:
     const nonResolvingActions = {actionNil, actionRefresh, actionInit, actionDump,
       actionPublish, actionSearch, actionList, actionPath, actionUninstall,
       actionCheck, actionTasks, actionClean, actionManual}
-    var shouldRun = opt.action.typ notin nonResolvingActions
+    let shouldRun = not opt.showHelp and
+      opt.action.typ notin nonResolvingActions
 
     # Check if nimble file is required but not present
     # Actions like build, test, run, etc. require a nimble file
@@ -2572,7 +2573,6 @@ when isMainModule:
     exitCode = quit.exitCode
   except CatchableError as error:
     exitCode = QuitFailure
-    displayTip()
     echo error.getStackTrace()
     displayError(error)
   finally:
