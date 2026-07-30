@@ -218,8 +218,7 @@ when defined(windows):
 
 Starting with `nimble 0.18.0` and up to `0.22.3`, the declarative parser can be used using `--parser:declarative` flag, offering better speed and reliability in dependency resolution.
 
-In `nimble 0.24.0`, the declarative parser fully replaced the older VM-based one and is the default and only parser option.
-
+In `nimble 0.24.0`, the declarative parser became the default and only user-selectable parser, replacing the legacy Nim VM parser for normal operation. The Nim VM parser is retained solely as an automatic compatibility fallback.
 ---
 
 ### Features (Experimental)
