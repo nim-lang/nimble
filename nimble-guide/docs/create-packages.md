@@ -216,7 +216,7 @@ when defined(windows):
 
 ### Declarative Parser
 
-Starting with `nimble 0.18.0`, the declarative parser can be used using `--parser:declarative` flag, offering better speed and reliability in dependency resolution.
+Starting with `nimble 0.18.0` and up to `0.22.3`, the declarative parser can be used using `--parser:declarative` flag, offering better speed and reliability in dependency resolution.
 
 In `nimble 0.24.0`, the declarative parser fully replaced the older VM-based one and is the default and only parser option.
 
