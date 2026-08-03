@@ -70,6 +70,25 @@ suite "setup command":
 
       cleanFiles nimblePathsFileName, nimbleConfigFileName, "nimble.lock", ".gitignore"
     
+  test "nimble lock implies nimble setup (#1795)":
+    cd "setup/binary":
+      usePackageListFile "../../develop/packages.json":
+        cleanFiles nimblePathsFileName, nimbleConfigFileName, "nimble.lock",
+                   "binary"
+        let (_, exitCode) = execNimble("lock")
+        check exitCode == QuitSuccess
+        check fileExists("nimble.lock")
+        # Without the paths/config files the lock file is not enforced during
+        # compilation, so `lock` has to generate them too.
+        check fileExists(nimblePathsFileName)
+        check fileExists(nimbleConfigFileName)
+        let pathsFileContent = nimblePathsFileName.readFile
+        check pathsFileContent.contains(getPackageDir(pkgsDir, "packagea-0.2.0"))
+        check pathsFileContent.contains(getPackageDir(pkgsDir, "packageb-0.1.0"))
+        # A lock file is present now, so the config has to pin the paths.
+        check nimbleConfigFileName.readFile.contains("--noNimblePath")
+        cleanFiles nimblePathsFileName, nimbleConfigFileName, "nimble.lock"
+
   test "should add feature requirements to the nimble.paths file when activating the feature":
     cd "features":
       let (_, exitCode) = execNimble("--parser:declarative", "--features:feature1", "setup")
