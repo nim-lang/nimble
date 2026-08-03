@@ -2444,6 +2444,7 @@ proc doAction(options: var Options, nimBinParam: Option[string]) {.instrument.} 
     check(options, nimBin)
   of actionLock:
     lock(options, nimBin)
+    setup(options, nimBin)
   of actionDeps:
     deps(options, nimBin)
   of actionSync:
