@@ -446,7 +446,10 @@ proc install(packages: seq[PkgTuple], options: Options,
         else:
           raise
 
-proc addPackages(packages: seq[PkgTuple], options: var Options, nimBin: Option[string]) =
+proc addPackages(packages: seq[PkgTuple], options: var Options,
+                 nimBin: Option[string]): bool =
+  ## Appends `packages` as requirements of the package in the current
+  ## directory. Returns whether any requirement was actually written.
   if packages.len == 0:
     raise nimbleError(
       "Expected packages to add to dependencies, got none."
@@ -529,6 +532,8 @@ proc addPackages(packages: seq[PkgTuple], options: var Options, nimBin: Option[s
       "$1 as a dependency to $2" % [added, pkgInfo.name],
       priority = HighPriority
     )
+
+  result = addedPkgs.len > 0
 
 proc clean(options: Options, nimBin: Option[string]) =
   let dir = getCurrentDir()
@@ -2457,7 +2462,14 @@ proc doAction(options: var Options, nimBinParam: Option[string]) {.instrument.} 
   of actionNil:
     assert false
   of actionAdd:
-    addPackages(options.action.packages, options, nimBin)
+    if addPackages(options.action.packages, options, nimBin):
+      # The added packages are already installed in pkgs2 by the resolution
+      # pipeline, but that alone doesn't make them usable: refresh the paths
+      # and the lock file when the project uses them.
+      if fileExists(nimblePathsFileName):
+        setup(options, nimBin)
+      if options.lockFile(getCurrentDir()).fileExists:
+        lock(options, nimBin)
   of actionManual:
     openNimbleManual()
   of actionCustom:

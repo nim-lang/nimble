@@ -6,6 +6,7 @@ import testscommon
 # suits imports
 import ttaskdeps
 import tnimbinaries
+import taddcommand
 import tinitcommand
 import tcheckcommand
 import tcleancommand
