@@ -279,10 +279,12 @@ proc generateUnsatisfiableMessage(g: var DepGraph, f: Form, s: Solution): string
       for dep in req.deps:
         var dep = dep
         let depNodeIdx = findDependencyForDep(g, dep.name)
-        let depVersions = g.nodes[depNodeIdx].versions
-        let satisfiableVersions = 
+        let depVersions =
+          if depNodeIdx < 0: newSeq[DependencyVersion]()
+          else: g.nodes[depNodeIdx].versions
+        let satisfiableVersions =
           depVersions.filterIt(it.version.withinRange(dep.ver) and s.isTrue(it.v))
-        
+
         if satisfiableVersions.len == 0:
           # No version of this dependency could satisfy the requirement
           # Find which package/version had this requirement

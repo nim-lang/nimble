@@ -732,6 +732,44 @@ requires "nim >= 1.6.0"
       check roundTripped.name == original.name
       check roundTripped.ver.kind == original.ver.kind
 
+  test "unsatisfiable deps report a conflict instead of crashing (json-rpc/chronos)":
+    # nim-json-rpc's thread-chan branch: websock caps chronos below 4.4.0 while
+    # asyncchannels pins chronos at a commit that declares 4.4.0 — a genuine
+    # conflict. Dropping either requirement alone resolves fine, so the minimal
+    # failing set is empty and the failure is explained by
+    # generateUnsatisfiableMessage. That proc indexed g.nodes with the -1 that
+    # findDependencyForDep returns for a requirement whose package has no node
+    # (here: an old chronos needing a package that no longer exists), so the
+    # code meant to explain the conflict crashed with an IndexDefect.
+    var pkgVersionTable = initTable[string, PackageVersions]()
+    let root = PackageMinimalInfo(
+      name: "jsonrpc", version: newVersion("0.6.1"), isRoot: true,
+      requires: @[("websock", parseVersionRange(">= 0.2.1 & < 0.5.0")),
+                  ("asyncchannels", VersionRange(kind: verAny))])
+    pkgVersionTable["jsonrpc"] = PackageVersions(pkgName: "jsonrpc", versions: @[root])
+    pkgVersionTable["websock"] = PackageVersions(pkgName: "websock", versions: @[
+      PackageMinimalInfo(name: "websock", version: newVersion("0.4.0"),
+        requires: @[("chronos", parseVersionRange(">= 4.2.0 & < 4.4.0"))])])
+    pkgVersionTable["asyncchannels"] = PackageVersions(
+      pkgName: "asyncchannels", versions: @[
+        PackageMinimalInfo(name: "asyncchannels", version: newVersion("0.1.0"),
+          requires: @[("chronos", parseVersionRange("#b71392a13df707c0f02162b07caaddac2dd0103c"))])])
+    var chronosPinned = newVersion("#b71392a13df707c0f02162b07caaddac2dd0103c")
+    chronosPinned.speSemanticVersion = some("4.4.0")
+    pkgVersionTable["chronos"] = PackageVersions(pkgName: "chronos", versions: @[
+      PackageMinimalInfo(name: "chronos", version: chronosPinned),
+      PackageMinimalInfo(name: "chronos", version: newVersion("4.2.2")),
+      # An old version whose dependency no longer exists in the table.
+      PackageMinimalInfo(name: "chronos", version: newVersion("3.0.0"),
+        requires: @[("apackagethatdoesnotexist", VersionRange(kind: verAny))])])
+
+    var output = ""
+    var options = initOptions()
+    # No solution exists — the point is that we say so instead of crashing.
+    let solved = pkgVersionTable.getSolvedPackages(output, options)
+    check solved.len == 0
+    check output.len > 0
+
   test "issue #1691: solver succeeds when old versions depend on missing packages":
     # Reproduces: prologue 0.3.x depends on "cookies" which no longer exists.
     # Newer versions (0.6.x) don't need it. The solver should skip old versions
