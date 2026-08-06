@@ -191,7 +191,10 @@ template usePackageListFile*(fileName: string, body: untyped) =
       name = "local"
       path = "$1"
     """.unindent % (fileName).replace("\\", "\\\\"))
-    check execNimble(["refresh"]).exitCode == QuitSuccess
+    # --packageListOnly: these fixtures only want the package list swapped in.
+    # A plain `refresh` inside a package also fetches its dependency clones,
+    # which needs the project to resolve — several fixtures deliberately don't.
+    check execNimble(["refresh", "--packageListOnly"]).exitCode == QuitSuccess
     body
 
 template cleanFile*(fileName: string) =

@@ -88,7 +88,8 @@ type
     parallelDiscovery*: bool # When true (default), downloads and version discovery happen in parallel. Disabled with --sync
     explicitGlobal*: bool # Whether -g/--global was explicitly passed by the user
     lenient*: bool # When true, conflicting special versions produce warnings. When false, they error. For now it cant be disabled.
-    
+    forceFetch*: bool # When true, version discovery always git-fetches the repo instead of trusting the tagged versions cache. Set by `nimble refresh`.
+
   ActionType* = enum
     actionNil, actionRefresh, actionInit, actionDump, actionPublish, actionUpgrade
     actionInstall, actionSearch, actionList, actionBuild, actionPath,
@@ -110,6 +111,8 @@ type
       listOnly*: bool
     of actionRefresh:
       optionalURL*: string # Overrides default package list.
+      packageListOnly*: bool # Only refresh the package list(s), skip the
+                             # current project's dependency clones.
     of actionInstall, actionPath, actionUninstall, actionDevelop, actionUpgrade, actionLock, actionAdd:
       packages*: seq[PkgTuple] # Optional only for actionInstall,
                                # actionDevelop and actionAdd.
@@ -220,7 +223,11 @@ Commands:
   doc, doc2    [opts, ...] f.nim  Builds documentation for a file inside a
                                   package. Passes options to the Nim compiler.
   refresh      [url]              Refreshes the package list. A package list URL
-                                  can be optionally specified.
+                                  can be optionally specified. Inside a package,
+                                  also fetches the repos of its dependencies and
+                                  reports which newer versions became available.
+       [--packageListOnly]        Only refresh the package list, leaving the
+                                  project's dependency clones untouched.
   search       pkg/tag            Searches for a specified package. Search is
                                   performed by tag and by name.
                [--ver, --version] Queries remote server for package version.
@@ -930,6 +937,12 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
     case f
     of "l", "listonly":
       result.action.listOnly = true
+    else:
+      wasFlagHandled = false
+  of actionRefresh:
+    case f
+    of "packagelistonly":
+      result.action.packageListOnly = true
     else:
       wasFlagHandled = false
   of actionPublish:

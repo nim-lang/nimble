@@ -222,9 +222,12 @@ proc getPackageMinimalVersionsFromRepo*(
       # If anything fails, just use repoDir as-is
       gitRoot = repoDir
 
-    # Check cache first
+    # Check cache first. `nimble refresh` sets forceFetch so the cache is never
+    # trusted: the whole point of the command is to go look at the network.
     try:
-      let taggedVersions = getTaggedVersions(name, options)
+      let taggedVersions =
+        if options.forceFetch: none(seq[PackageMinimalInfo])
+        else: getTaggedVersions(name, options)
       if taggedVersions.isSome:
         var cacheFresh = true
         try:
