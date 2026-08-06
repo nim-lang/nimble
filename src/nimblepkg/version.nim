@@ -245,6 +245,84 @@ proc withinRange*(versions: HashSet[Version], range: VersionRange): bool =
 proc contains*(ran: VersionRange, ver: Version): bool =
   return withinRange(ver, ran)
 
+proc isSimpleRange*(r: VersionRange): bool =
+  ## Whether `r` can be intersected with another range (i.e. it expresses
+  ## simple bounds and no special version, `~=` or `^=`).
+  case r.kind
+  of verSpecial, verTilde, verCaret: false
+  of verIntersect: isSimpleRange(r.verILeft) and isSimpleRange(r.verIRight)
+  else: true
+
+proc intersectVersionRanges*(a, b: VersionRange): Option[VersionRange] =
+  ## Returns the intersection of two version ranges when it can be expressed as
+  ## a single range; returns none() otherwise (special versions, `~=`/`^=`, or
+  ## an empty/conflicting intersection). Callers keep both ranges separate when
+  ## this returns none().
+  if a.kind == verAny: return some(b)
+  if b.kind == verAny: return some(a)
+  if not isSimpleRange(a) or not isSimpleRange(b):
+    return none(VersionRange)
+
+  proc bounds(r: VersionRange): tuple[lo: Option[(Version, bool)],
+                                      hi: Option[(Version, bool)]] =
+    ## Lower/upper bound as (version, inclusive). `verEq` acts as both bounds.
+    case r.kind
+    of verLater: (some((r.ver, false)), none[(Version, bool)]())
+    of verEqLater: (some((r.ver, true)), none[(Version, bool)]())
+    of verEarlier: (none[(Version, bool)](), some((r.ver, false)))
+    of verEqEarlier: (none[(Version, bool)](), some((r.ver, true)))
+    of verEq: (some((r.ver, true)), some((r.ver, true)))
+    of verIntersect:
+      let l = bounds(r.verILeft)
+      let u = bounds(r.verIRight)
+      (l.lo, u.hi)
+    else: (none[(Version, bool)](), none[(Version, bool)]())
+
+  proc pickLo(x, y: Option[(Version, bool)]): Option[(Version, bool)] =
+    ## Highest lower bound wins; on equal versions the range must include both.
+    if x.isNone: y
+    elif y.isNone: x
+    elif x.get[0] > y.get[0]: x
+    elif x.get[0] < y.get[0]: y
+    else: some((x.get[0], x.get[1] and y.get[1]))
+
+  proc pickHi(x, y: Option[(Version, bool)]): Option[(Version, bool)] =
+    ## Lowest upper bound wins; on equal versions the range must include both.
+    if x.isNone: y
+    elif y.isNone: x
+    elif x.get[0] < y.get[0]: x
+    elif x.get[0] > y.get[0]: y
+    else: some((x.get[0], x.get[1] and y.get[1]))
+
+  let (alo, ahi) = bounds(a)
+  let (blo, bhi) = bounds(b)
+  let lo = pickLo(alo, blo)
+  let hi = pickHi(ahi, bhi)
+
+  # Empty/conflicting intersection.
+  if lo.isSome and hi.isSome:
+    if lo.get[0] > hi.get[0]: return none(VersionRange)
+    if lo.get[0] == hi.get[0] and not (lo.get[1] and hi.get[1]):
+      return none(VersionRange)
+
+  proc lowerRange(v: Version, incl: bool): VersionRange =
+    if incl: VersionRange(kind: verEqLater, ver: v)
+    else: VersionRange(kind: verLater, ver: v)
+  proc upperRange(v: Version, incl: bool): VersionRange =
+    if incl: VersionRange(kind: verEqEarlier, ver: v)
+    else: VersionRange(kind: verEarlier, ver: v)
+
+  if lo.isSome and hi.isSome:
+    return some(VersionRange(kind: verIntersect,
+      verILeft: lowerRange(lo.get[0], lo.get[1]),
+      verIRight: upperRange(hi.get[0], hi.get[1])))
+  elif lo.isSome:
+    return some(lowerRange(lo.get[0], lo.get[1]))
+  elif hi.isSome:
+    return some(upperRange(hi.get[0], hi.get[1]))
+  else:
+    return some(VersionRange(kind: verAny))
+
 proc getNextIncompatibleVersion(version: Version, semver: bool): Version = 
   ## try to get next higher version to exclude according to semver semantic
   var numbers = version.version.split('.')

@@ -233,11 +233,10 @@ proc getPackageMinimalVersionsFromRepo*(
         except CatchableError:
           discard
         if cacheFresh:
-          # The cache is range-agnostic (keyed by package name only), so filter
-          # out versions that can't satisfy the requested range. Versions outside
-          # the range can never be selected by the solver, and their (possibly
-          # historical) requirements must not be processed.
-          return taggedVersions.get.filterIt(it.version.withinRange(pkg.ver))
+          # The cache is range-agnostic (keyed by package name only); each
+          # requirement branch applies its own range filter downstream in
+          # getMinimalFromPreferred.
+          return taggedVersions.get
     except:
       discard
 
@@ -317,15 +316,6 @@ proc getPackageMinimalVersionsFromRepo*(
       saveTaggedVersions(name, result, options)
     except CatchableError as e:
       displayWarning(&"Error saving tagged versions for {name}: {e.msg}", LowPriority)
-
-    # Only return versions that can satisfy the requested range. Versions outside
-    # it can never be selected by the solver, so their (possibly historical)
-    # requirements must not be processed during requirement discovery.
-    var validVersions: seq[PackageMinimalInfo] = @[]
-    for pkgMin in result:
-      if pkgMin.version.withinRange(pkg.ver):
-        validVersions.add pkgMin
-    return validVersions
 
 proc downloadNimSpecialVersion*(
     pv: PkgTuple, options: Options
@@ -507,7 +497,13 @@ proc getMinimalFromPreferred*(pv: PkgTuple, getMinimalPackage: GetPackageMinimal
     try:
       let downloaded = await getMinimalPackage(pv, options, nimBin)
       for pkg in downloaded:
-        result.addUnique pkg
+        # Filter against this branch's own range. The underlying download is
+        # memoized by package URL (not range) and shared across requirement
+        # branches, so it may contain versions outside this branch's range —
+        # those can never be selected by the solver and their (possibly
+        # historical) requirements must not be processed.
+        if pkg.version.withinRange(pv.ver):
+          result.addUnique pkg
     except CatchableError as e:
       # If download fails but we have preferred packages, use those
       if result.len == 0:
@@ -558,19 +554,25 @@ proc processRequirements*(pv: PkgTuple, visitedParam: HashSet[PkgTuple], getMini
       for pkgMin in pkgMins.mitems:
         expandActiveFeatures(pkgMin, result[])
 
-      # Collect all unique requirements from all package versions.
-      # Special versions (like #head) are kept separately even if the same
-      # package name exists with a normal version, since they need their own resolution.
+      # Collect all unique requirements from all package versions. Requirements
+      # for the same package are merged into their intersection: if two versions
+      # of this package require `XYZ >= 0.1.4` and `XYZ >= 0.1.5`, the
+      # effective requirement is `XYZ >= 0.1.5`. Versions below it can never
+      # be selected by the solver, so they must not be discovered — otherwise
+      # their historical requirements (often pointing at deleted repos) would be
+      # resurrected and probed.
       var allRequirements: seq[PkgTuple] = @[]
       for pkgMin in pkgMins:
         for req in pkgMin.requires:
-          var found = false
-          for existing in allRequirements:
-            if existing.name == req.name and
-               existing.ver.kind == req.ver.kind:
-              found = true
-              break
-          if not found:
+          var merged = false
+          for existing in allRequirements.mitems:
+            if existing.name == req.name:
+              let inter = intersectVersionRanges(existing.ver, req.ver)
+              if inter.isSome:
+                existing.ver = inter.get
+                merged = true
+                break
+          if not merged:
             allRequirements.add req
 
       # Process all unique requirements (parallel or sequential based on flag)
@@ -594,6 +596,11 @@ proc processRequirements*(pv: PkgTuple, visitedParam: HashSet[PkgTuple], getMini
         for i, reqFut in reqFutures:
           if reqFut.failed:
             failedReqs.add reqNames[i]
+            # Consume the error so chronos doesn't log "future failed" noise.
+            try:
+              discard reqFut.read()
+            except CatchableError:
+              discard
           else:
             reqResults.add reqFut.read()
 
@@ -653,24 +660,47 @@ proc collectAllVersions*(package: PackageMinimalInfo, options: Options, getMinim
     ## Processes top-level dependencies in parallel (default) or sequentially (with --sync).
     ## Each branch gets its own visited set to avoid race conditions on shared state.
 
-    result = newTable[string, PackageVersions]()
-    if not options.parallelDiscovery:
-      for pv in package.requires:
-        var visitedCopy = initHashSet[PkgTuple]()
-        try:
-          let resultTable = await processRequirements(pv, visitedCopy, getMinimalPackage, preferredPackages, options, nimBin)
-          mergeVersionTables(result[], resultTable[])
-        except CatchableError:
-          # A top-level requirement that can't be resolved (e.g. a dead URL
-          # inherited from an old version of a dependency). The warning was
-          # already shown by processRequirements; skip it.
-          discard
-    else:
-      var futures: seq[Future[TableRef[string, PackageVersions]]] = @[]
-      for pv in package.requires:
-        var visitedCopy = initHashSet[PkgTuple]()
-        futures.add processRequirements(pv, visitedCopy, getMinimalPackage, preferredPackages, options, nimBin)
-      await allFutures(futures)
-      for fut in futures:
-        if not fut.failed:
-          mergeVersionTables(result[], fut.read()[])
+    # During discovery we must never block on an interactive git credential
+    # prompt: a candidate version may require a repo that was deleted or renamed,
+    # and git would ask for a username/password for it. Dead URLs should fail
+    # fast so the version gets excluded. Actual installs run outside this and
+    # keep interactive prompts for private repositories. Existing user-set
+    # values are respected.
+    let hadTerminalPrompt = existsEnv("GIT_TERMINAL_PROMPT")
+    let prevTerminalPrompt = getEnv("GIT_TERMINAL_PROMPT")
+    if not hadTerminalPrompt:
+      putEnv("GIT_TERMINAL_PROMPT", "0")
+    try:
+      result = newTable[string, PackageVersions]()
+      if not options.parallelDiscovery:
+        for pv in package.requires:
+          var visitedCopy = initHashSet[PkgTuple]()
+          try:
+            let resultTable = await processRequirements(pv, visitedCopy, getMinimalPackage, preferredPackages, options, nimBin)
+            mergeVersionTables(result[], resultTable[])
+          except CatchableError:
+            # A top-level requirement that can't be resolved (e.g. a dead URL
+            # inherited from an old version of a dependency). The warning was
+            # already shown by processRequirements; skip it.
+            discard
+      else:
+        var futures: seq[Future[TableRef[string, PackageVersions]]] = @[]
+        for pv in package.requires:
+          var visitedCopy = initHashSet[PkgTuple]()
+          futures.add processRequirements(pv, visitedCopy, getMinimalPackage, preferredPackages, options, nimBin)
+        await allFutures(futures)
+        for fut in futures:
+          if fut.failed:
+            # A top-level requirement that can't be resolved (e.g. a dead URL
+            # inherited from an old version of a dependency). The warning was
+            # already shown by processRequirements; skip it and consume the error
+            # so chronos doesn't log "future failed" noise.
+            try:
+              discard fut.read()
+            except CatchableError:
+              discard
+          else:
+            mergeVersionTables(result[], fut.read()[])
+    finally:
+      if hadTerminalPrompt: putEnv("GIT_TERMINAL_PROMPT", prevTerminalPrompt)
+      else: delEnv("GIT_TERMINAL_PROMPT")
