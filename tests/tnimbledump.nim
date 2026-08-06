@@ -125,12 +125,16 @@ const
 
       let
         oldHome = getEnv("HOME")
+        hadConfigHome = existsEnv("XDG_CONFIG_HOME")
         oldConfigHome = getEnv("XDG_CONFIG_HOME")
       putEnv("HOME", fakeHome)
       putEnv("XDG_CONFIG_HOME", fakeConfig)
       defer:
         putEnv("HOME", oldHome)
-        putEnv("XDG_CONFIG_HOME", oldConfigHome)
+        if hadConfigHome:
+          putEnv("XDG_CONFIG_HOME", oldConfigHome)
+        else:
+          delEnv("XDG_CONFIG_HOME")
 
       cd projectDir:
         let (_, installExitCode) =
