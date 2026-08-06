@@ -233,7 +233,11 @@ proc getPackageMinimalVersionsFromRepo*(
         except CatchableError:
           discard
         if cacheFresh:
-          return taggedVersions.get
+          # The cache is range-agnostic (keyed by package name only), so filter
+          # out versions that can't satisfy the requested range. Versions outside
+          # the range can never be selected by the solver, and their (possibly
+          # historical) requirements must not be processed.
+          return taggedVersions.get.filterIt(it.version.withinRange(pkg.ver))
     except:
       discard
 
@@ -308,11 +312,20 @@ proc getPackageMinimalVersionsFromRepo*(
       except CatchableError as e:
         displayInfo(&"Error reading tag {tag} for {name}: {e.msg}", LowPriority)
 
-    # Save to cache
+    # Save to cache (range-agnostic, shared across all requirement ranges)
     try:
       saveTaggedVersions(name, result, options)
     except CatchableError as e:
       displayWarning(&"Error saving tagged versions for {name}: {e.msg}", LowPriority)
+
+    # Only return versions that can satisfy the requested range. Versions outside
+    # it can never be selected by the solver, so their (possibly historical)
+    # requirements must not be processed during requirement discovery.
+    var validVersions: seq[PackageMinimalInfo] = @[]
+    for pkgMin in result:
+      if pkgMin.version.withinRange(pkg.ver):
+        validVersions.add pkgMin
+    return validVersions
 
 proc downloadNimSpecialVersion*(
     pv: PkgTuple, options: Options
@@ -628,8 +641,11 @@ proc processRequirements*(pv: PkgTuple, visitedParam: HashSet[PkgTuple], getMini
 
     except CatchableError as e:
       # Some old packages may have invalid requirements (i.e repos that doesn't exist anymore)
-      # we need to avoid adding it to the package table as this will cause the solver to fail
+      # we need to avoid adding it to the package table as this will cause the solver to fail.
+      # Re-raise so the caller can record this requirement in its `failedReqs` and
+      # exclude any package versions that depend on it.
       displayWarning(&"Error processing requirements for {pv.name}: {e.msg}", HighPriority)
+      raise e
 
 proc collectAllVersions*(package: PackageMinimalInfo, options: Options, getMinimalPackage: GetPackageMinimal, preferredPackages: seq[PackageMinimalInfo] = newSeq[PackageMinimalInfo](), nimBin: Option[string]): Future[TableRef[string, PackageVersions]] {.async.} =
   {.cast(raises: [CatchableError]).}:
@@ -641,8 +657,14 @@ proc collectAllVersions*(package: PackageMinimalInfo, options: Options, getMinim
     if not options.parallelDiscovery:
       for pv in package.requires:
         var visitedCopy = initHashSet[PkgTuple]()
-        let resultTable = await processRequirements(pv, visitedCopy, getMinimalPackage, preferredPackages, options, nimBin)
-        mergeVersionTables(result[], resultTable[])
+        try:
+          let resultTable = await processRequirements(pv, visitedCopy, getMinimalPackage, preferredPackages, options, nimBin)
+          mergeVersionTables(result[], resultTable[])
+        except CatchableError:
+          # A top-level requirement that can't be resolved (e.g. a dead URL
+          # inherited from an old version of a dependency). The warning was
+          # already shown by processRequirements; skip it.
+          discard
     else:
       var futures: seq[Future[TableRef[string, PackageVersions]]] = @[]
       for pv in package.requires:
