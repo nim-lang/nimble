@@ -660,47 +660,33 @@ proc collectAllVersions*(package: PackageMinimalInfo, options: Options, getMinim
     ## Processes top-level dependencies in parallel (default) or sequentially (with --sync).
     ## Each branch gets its own visited set to avoid race conditions on shared state.
 
-    # During discovery we must never block on an interactive git credential
-    # prompt: a candidate version may require a repo that was deleted or renamed,
-    # and git would ask for a username/password for it. Dead URLs should fail
-    # fast so the version gets excluded. Actual installs run outside this and
-    # keep interactive prompts for private repositories. Existing user-set
-    # values are respected.
-    let hadTerminalPrompt = existsEnv("GIT_TERMINAL_PROMPT")
-    let prevTerminalPrompt = getEnv("GIT_TERMINAL_PROMPT")
-    if not hadTerminalPrompt:
-      putEnv("GIT_TERMINAL_PROMPT", "0")
-    try:
-      result = newTable[string, PackageVersions]()
-      if not options.parallelDiscovery:
-        for pv in package.requires:
-          var visitedCopy = initHashSet[PkgTuple]()
+    result = newTable[string, PackageVersions]()
+    if not options.parallelDiscovery:
+      for pv in package.requires:
+        var visitedCopy = initHashSet[PkgTuple]()
+        try:
+          let resultTable = await processRequirements(pv, visitedCopy, getMinimalPackage, preferredPackages, options, nimBin)
+          mergeVersionTables(result[], resultTable[])
+        except CatchableError:
+          # A top-level requirement that can't be resolved (e.g. a dead URL
+          # inherited from an old version of a dependency). The warning was
+          # already shown by processRequirements; skip it.
+          discard
+    else:
+      var futures: seq[Future[TableRef[string, PackageVersions]]] = @[]
+      for pv in package.requires:
+        var visitedCopy = initHashSet[PkgTuple]()
+        futures.add processRequirements(pv, visitedCopy, getMinimalPackage, preferredPackages, options, nimBin)
+      await allFutures(futures)
+      for fut in futures:
+        if fut.failed:
+          # A top-level requirement that can't be resolved (e.g. a dead URL
+          # inherited from an old version of a dependency). The warning was
+          # already shown by processRequirements; skip it and consume the error
+          # so chronos doesn't log "future failed" noise.
           try:
-            let resultTable = await processRequirements(pv, visitedCopy, getMinimalPackage, preferredPackages, options, nimBin)
-            mergeVersionTables(result[], resultTable[])
+            discard fut.read()
           except CatchableError:
-            # A top-level requirement that can't be resolved (e.g. a dead URL
-            # inherited from an old version of a dependency). The warning was
-            # already shown by processRequirements; skip it.
             discard
-      else:
-        var futures: seq[Future[TableRef[string, PackageVersions]]] = @[]
-        for pv in package.requires:
-          var visitedCopy = initHashSet[PkgTuple]()
-          futures.add processRequirements(pv, visitedCopy, getMinimalPackage, preferredPackages, options, nimBin)
-        await allFutures(futures)
-        for fut in futures:
-          if fut.failed:
-            # A top-level requirement that can't be resolved (e.g. a dead URL
-            # inherited from an old version of a dependency). The warning was
-            # already shown by processRequirements; skip it and consume the error
-            # so chronos doesn't log "future failed" noise.
-            try:
-              discard fut.read()
-            except CatchableError:
-              discard
-          else:
-            mergeVersionTables(result[], fut.read()[])
-    finally:
-      if hadTerminalPrompt: putEnv("GIT_TERMINAL_PROMPT", prevTerminalPrompt)
-      else: delEnv("GIT_TERMINAL_PROMPT")
+        else:
+          mergeVersionTables(result[], fut.read()[])

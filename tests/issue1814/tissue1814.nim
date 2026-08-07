@@ -133,33 +133,3 @@ suite "issue1814: version discovery must not resurrect stale deps from old git t
     let table = collect(root, mock)
 
     check "dep" notin table
-
-  test "discovery forces GIT_TERMINAL_PROMPT=0 and restores it afterwards":
-    # Dead URLs must fail fast during discovery instead of prompting; the value
-    # must be forced even when the user set GIT_TERMINAL_PROMPT, and restored
-    # afterwards so actual installs keep interactive prompts.
-    var promptTotal = 0
-    var promptSeenZero = 0
-    proc mock(pv: PkgTuple, options: Options, nimBin: Option[string]): Future[seq[PackageMinimalInfo]] {.async.} =
-      inc promptTotal
-      if getEnv("GIT_TERMINAL_PROMPT") == "0":
-        inc promptSeenZero
-      return @[PackageMinimalInfo(name: "dep", version: newVersion("1.0.0"))]
-
-    let root = PackageMinimalInfo(
-      name: "root", version: newVersion("1.0.0"), isRoot: true,
-      requires: @[(name: "dep", ver: VersionRange(kind: verAny))])
-
-    putEnv("GIT_TERMINAL_PROMPT", "1")
-    discard collect(root, mock)
-    check promptTotal > 0
-    check promptSeenZero == promptTotal
-    check getEnv("GIT_TERMINAL_PROMPT") == "1"
-
-    # When it wasn't set before, it's removed again afterwards.
-    delEnv("GIT_TERMINAL_PROMPT")
-    promptTotal = 0
-    promptSeenZero = 0
-    discard collect(root, mock)
-    check promptSeenZero == promptTotal
-    check not existsEnv("GIT_TERMINAL_PROMPT")
