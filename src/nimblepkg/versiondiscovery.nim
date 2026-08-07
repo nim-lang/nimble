@@ -555,24 +555,16 @@ proc processRequirements*(pv: PkgTuple, visitedParam: HashSet[PkgTuple], getMini
         expandActiveFeatures(pkgMin, result[])
 
       # Collect all unique requirements from all package versions. Requirements
-      # for the same package are merged into their intersection: if two versions
-      # of this package require `XYZ >= 0.1.4` and `XYZ >= 0.1.5`, the
-      # effective requirement is `XYZ >= 0.1.5`. Versions below it can never
-      # be selected by the solver, so they must not be discovered — otherwise
-      # their historical requirements (often pointing at deleted repos) would be
-      # resurrected and probed.
+      # for the same package from DIFFERENT versions of this package are kept
+      # separate: those versions are alternatives (the solver picks one), so
+      # merging them into an intersection could drop a version the solver needs
+      # when it falls back to an older version of this package. Only exact
+      # duplicates are de-duplicated. Each requirement is pruned to its own
+      # range downstream in getMinimalFromPreferred.
       var allRequirements: seq[PkgTuple] = @[]
       for pkgMin in pkgMins:
         for req in pkgMin.requires:
-          var merged = false
-          for existing in allRequirements.mitems:
-            if existing.name == req.name:
-              let inter = intersectVersionRanges(existing.ver, req.ver)
-              if inter.isSome:
-                existing.ver = inter.get
-                merged = true
-                break
-          if not merged:
+          if req notin allRequirements:
             allRequirements.add req
 
       # Process all unique requirements (parallel or sequential based on flag)
