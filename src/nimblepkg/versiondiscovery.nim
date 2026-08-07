@@ -502,7 +502,12 @@ proc getMinimalFromPreferred*(pv: PkgTuple, getMinimalPackage: GetPackageMinimal
         # branches, so it may contain versions outside this branch's range —
         # those can never be selected by the solver and their (possibly
         # historical) requirements must not be processed.
-        if pkg.version.withinRange(pv.ver):
+        #
+        # Special versions (#branch/#commit) are exact pins and are exempt:
+        # the download resolves them to a concrete commit whose SHA doesn't
+        # necessarily equal the requested literal, so range filtering would
+        # wrongly drop them.
+        if pv.ver.kind == verSpecial or pkg.version.withinRange(pv.ver):
           result.addUnique pkg
     except CatchableError as e:
       # If download fails but we have preferred packages, use those
