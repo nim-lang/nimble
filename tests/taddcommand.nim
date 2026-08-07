@@ -45,6 +45,7 @@ suite "add command":
       check nimbleFileName.readFile.contains("requires \"packagea")
 
       # The dependency has to be installed and reachable by the compiler.
+      let pkgADir = getPackageDir(pkgsDir, "PackageA-")
       check pkgADir.len > 0
       check nimblePathsFileName.readFile.contains(pkgADir.escape)
 
