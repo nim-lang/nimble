@@ -50,6 +50,22 @@ let
   buildTests* = rootDir / "buildTests"
   pkgsDir* = installDir / nimblePackagesDirName
 
+var testNoBuild* = true
+  ## When true, execNimble auto-injects --noBuild for actions that don't
+  ## inherently compile (install, develop, lock, etc.).
+  ## Test files that explicitly verify built binaries can set this to false.
+
+template withBuild*(body: untyped) =
+  ## Temporarily disables --noBuild auto-injection for a block of code.
+  ## Use in individual tests that explicitly verify built binaries
+  ## or expect install to fail due to build errors.
+  let prev = testNoBuild
+  testNoBuild = false
+  try:
+    body
+  finally:
+    testNoBuild = prev
+
 proc execNimble*(args: varargs[string]): ProcessOutput =
   var quotedArgs = @args
   quotedArgs.insert("--info")
@@ -58,6 +74,10 @@ proc execNimble*(args: varargs[string]): ProcessOutput =
     quotedArgs.insert("--nimbleDir:" & installDir)
   if not args.anyIt("-l" == it or "--local" == it):
     quotedArgs.insert("--global") #default to global mode for tests
+  # Auto-inject --noBuild for actions that don't inherently compile.
+  let needsCompile = quotedArgs.anyIt(it in ["build", "run", "test", "c", "cc", "doc", "doc2"])
+  if testNoBuild and not needsCompile:
+    quotedArgs.add("--noBuild")
   quotedArgs.insert(nimblePath)
   quotedArgs = quotedArgs.map((x: string) => x.quoteShell)
 
