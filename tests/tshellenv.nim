@@ -3,7 +3,7 @@
 
 {.used.}
 
-import unittest, os, osproc, streams, strtabs, strutils
+import unittest, os, osproc, strutils
 import testscommon
 from nimblepkg/common import cd
 import std/sequtils
@@ -13,33 +13,24 @@ when not defined(windows):
 
 const
   separator = when defined(windows): ";" else: ":"
-  environmentMode =
-    when defined(windows): modeCaseInsensitive
-    else: modeCaseSensitive
 
 proc execShellCommand(args: varargs[string]): tuple[output: string,
     exitCode: int] =
-  var
-    environment = newStringTable(environmentMode)
-    nimbleArgs = @[
-      "--global",
-      "--nimbleDir:" & installDir,
-      "--noColor",
-      "--info",
-      "shell",
-    ]
-  for key, value in envPairs():
-    environment[key] = value
-  const shellEnv = when defined(windows): "ComSpec" else: "SHELL"
-  environment[shellEnv] = nimblePath
-  nimbleArgs.add(args)
-
-  let process = startProcess(
-    nimblePath, args = nimbleArgs, env = environment,
-    options = {poStdErrToStdOut, poUsePath})
-  defer: process.close()
-  result.output = process.outputStream.readAll()
-  result.exitCode = process.waitForExit()
+  ## Runs `nimble shell <args>`. Uses execCmdEx rather than a hand-rolled
+  ## startProcess for two reasons, both of which hung this test on Windows:
+  ##
+  ## * execCmdEx closes the child's stdin, so a prompt inside nimble gets EOF
+  ##   instead of blocking forever on a pipe nobody ever writes to. Reading the
+  ##   output first and only then waiting, with stdin left open, deadlocks.
+  ## * It does not override ComSpec. `nimble shell <cmd>` runs the command
+  ##   directly and never consults ComSpec/SHELL, but on Windows ComSpec is what
+  ##   execCmdEx uses to spawn `cmd /c ...` — pointing it at nimble.exe breaks
+  ##   every nested git invocation inside the child process.
+  var cmd = nimblePath.quoteShell &
+    " --global --nimbleDir:" & installDir.quoteShell & " --noColor --info shell"
+  for arg in args:
+    cmd.add " " & arg.quoteShell
+  execCmdEx(cmd)
 
 suite "Shell env":
   test "Shell env":

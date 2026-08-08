@@ -1,0 +1,14 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "gitea": {
+      "type": "local",
+      "command": [
+        "/bin/bash",
+        "-c",
+        "cd /Volumes/Store/Dropbox/Projects/mcps/gitea_mcp && PYTHONPATH=src GITEA_BASE_URL=https://git.jmgomez.me GITEA_TOKEN=${GITEA_TOKEN} /opt/homebrew/bin/uv run python -m server"
+      ],
+      "enabled": true
+    }
+  }
+}
