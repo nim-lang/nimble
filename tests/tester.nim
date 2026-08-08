@@ -33,6 +33,7 @@ import tuninstall
 import tsat
 import tver
 import tversiondiscovery
+import issue1814/tissue1814
 import tniminstall
 import trequireflag
 import tdeclarativeparser

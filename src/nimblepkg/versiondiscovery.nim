@@ -233,6 +233,9 @@ proc getPackageMinimalVersionsFromRepo*(
         except CatchableError:
           discard
         if cacheFresh:
+          # The cache is range-agnostic (keyed by package name only); each
+          # requirement branch applies its own range filter downstream in
+          # getMinimalFromPreferred.
           return taggedVersions.get
     except:
       discard
@@ -308,7 +311,7 @@ proc getPackageMinimalVersionsFromRepo*(
       except CatchableError as e:
         displayInfo(&"Error reading tag {tag} for {name}: {e.msg}", LowPriority)
 
-    # Save to cache
+    # Save to cache (range-agnostic, shared across all requirement ranges)
     try:
       saveTaggedVersions(name, result, options)
     except CatchableError as e:
@@ -494,7 +497,18 @@ proc getMinimalFromPreferred*(pv: PkgTuple, getMinimalPackage: GetPackageMinimal
     try:
       let downloaded = await getMinimalPackage(pv, options, nimBin)
       for pkg in downloaded:
-        result.addUnique pkg
+        # Filter against this branch's own range. The underlying download is
+        # memoized by package URL (not range) and shared across requirement
+        # branches, so it may contain versions outside this branch's range —
+        # those can never be selected by the solver and their (possibly
+        # historical) requirements must not be processed.
+        #
+        # Special versions (#branch/#commit) are exact pins and are exempt:
+        # the download resolves them to a concrete commit whose SHA doesn't
+        # necessarily equal the requested literal, so range filtering would
+        # wrongly drop them.
+        if pv.ver.kind == verSpecial or pkg.version.withinRange(pv.ver):
+          result.addUnique pkg
     except CatchableError as e:
       # If download fails but we have preferred packages, use those
       if result.len == 0:
@@ -545,19 +559,17 @@ proc processRequirements*(pv: PkgTuple, visitedParam: HashSet[PkgTuple], getMini
       for pkgMin in pkgMins.mitems:
         expandActiveFeatures(pkgMin, result[])
 
-      # Collect all unique requirements from all package versions.
-      # Special versions (like #head) are kept separately even if the same
-      # package name exists with a normal version, since they need their own resolution.
+      # Collect all unique requirements from all package versions. Requirements
+      # for the same package from DIFFERENT versions of this package are kept
+      # separate: those versions are alternatives (the solver picks one), so
+      # merging them into an intersection could drop a version the solver needs
+      # when it falls back to an older version of this package. Only exact
+      # duplicates are de-duplicated. Each requirement is pruned to its own
+      # range downstream in getMinimalFromPreferred.
       var allRequirements: seq[PkgTuple] = @[]
       for pkgMin in pkgMins:
         for req in pkgMin.requires:
-          var found = false
-          for existing in allRequirements:
-            if existing.name == req.name and
-               existing.ver.kind == req.ver.kind:
-              found = true
-              break
-          if not found:
+          if req notin allRequirements:
             allRequirements.add req
 
       # Process all unique requirements (parallel or sequential based on flag)
@@ -581,6 +593,11 @@ proc processRequirements*(pv: PkgTuple, visitedParam: HashSet[PkgTuple], getMini
         for i, reqFut in reqFutures:
           if reqFut.failed:
             failedReqs.add reqNames[i]
+            # Consume the error so chronos doesn't log "future failed" noise.
+            try:
+              discard reqFut.read()
+            except CatchableError:
+              discard
           else:
             reqResults.add reqFut.read()
 
@@ -628,8 +645,11 @@ proc processRequirements*(pv: PkgTuple, visitedParam: HashSet[PkgTuple], getMini
 
     except CatchableError as e:
       # Some old packages may have invalid requirements (i.e repos that doesn't exist anymore)
-      # we need to avoid adding it to the package table as this will cause the solver to fail
+      # we need to avoid adding it to the package table as this will cause the solver to fail.
+      # Re-raise so the caller can record this requirement in its `failedReqs` and
+      # exclude any package versions that depend on it.
       displayWarning(&"Error processing requirements for {pv.name}: {e.msg}", HighPriority)
+      raise e
 
 proc collectAllVersions*(package: PackageMinimalInfo, options: Options, getMinimalPackage: GetPackageMinimal, preferredPackages: seq[PackageMinimalInfo] = newSeq[PackageMinimalInfo](), nimBin: Option[string]): Future[TableRef[string, PackageVersions]] {.async.} =
   {.cast(raises: [CatchableError]).}:
@@ -641,8 +661,14 @@ proc collectAllVersions*(package: PackageMinimalInfo, options: Options, getMinim
     if not options.parallelDiscovery:
       for pv in package.requires:
         var visitedCopy = initHashSet[PkgTuple]()
-        let resultTable = await processRequirements(pv, visitedCopy, getMinimalPackage, preferredPackages, options, nimBin)
-        mergeVersionTables(result[], resultTable[])
+        try:
+          let resultTable = await processRequirements(pv, visitedCopy, getMinimalPackage, preferredPackages, options, nimBin)
+          mergeVersionTables(result[], resultTable[])
+        except CatchableError:
+          # A top-level requirement that can't be resolved (e.g. a dead URL
+          # inherited from an old version of a dependency). The warning was
+          # already shown by processRequirements; skip it.
+          discard
     else:
       var futures: seq[Future[TableRef[string, PackageVersions]]] = @[]
       for pv in package.requires:
@@ -650,5 +676,14 @@ proc collectAllVersions*(package: PackageMinimalInfo, options: Options, getMinim
         futures.add processRequirements(pv, visitedCopy, getMinimalPackage, preferredPackages, options, nimBin)
       await allFutures(futures)
       for fut in futures:
-        if not fut.failed:
+        if fut.failed:
+          # A top-level requirement that can't be resolved (e.g. a dead URL
+          # inherited from an old version of a dependency). The warning was
+          # already shown by processRequirements; skip it and consume the error
+          # so chronos doesn't log "future failed" noise.
+          try:
+            discard fut.read()
+          except CatchableError:
+            discard
+        else:
           mergeVersionTables(result[], fut.read()[])
