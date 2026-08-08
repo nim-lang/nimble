@@ -47,7 +47,7 @@ suite "add command":
       # The dependency has to be installed and reachable by the compiler.
       let pkgADir = getPackageDir(pkgsDir, "PackageA-")
       check pkgADir.len > 0
-      check nimblePathsFileName.readFile.contains(pkgADir)
+      check nimblePathsFileName.readFile.contains(pkgADir.escape)
 
   test "nimble add updates the lock file when there is one (#1796)":
     withAddFixture:
