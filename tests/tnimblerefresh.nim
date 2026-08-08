@@ -3,8 +3,12 @@
 
 {.used.}
 
-import unittest, os, strutils
+import unittest, os, strutils, strformat, json
 import testscommon
+
+from nimblepkg/common import cd, cdNewDir
+from nimblepkg/tools import tryDoCmdEx
+from nimblepkg/packageinfotypes import DownloadMethod
 
 suite "nimble refresh":
   test "can refresh with default urls":
@@ -98,3 +102,159 @@ suite "nimble refresh":
       check inLines(lines, "Attempted to specify `url` and `path` for the " &
                            "same package list 'local'")
       check exitCode == QuitFailure
+
+suite "nimble refresh dependencies":
+  ## `nimble refresh` inside a package also fetches the repos backing its
+  ## (transitive) dependencies and reports what newer versions that made
+  ## visible.
+  type
+    PackagesListFileRecord = object
+      name: string
+      url: string
+      `method`: DownloadMethod
+      tags: seq[string]
+      description: string
+      license: string
+
+  const
+    tempDir = getTempDir() / "trefreshdeps"
+    originsDirPath = tempDir / "origins"
+    pkgListFilePath = tempDir / "packages.json"
+    mainPkgPath = tempDir / "main"
+    depOriginPath = originsDirPath / "dep1"
+    depClonePath = tempDir / "dep1"
+    nimbleFileTemplate = """
+version       = "$1"
+author        = "John Doe"
+description   = "A test package"
+license       = "MIT"
+"""
+
+  proc configUserAndEmail() =
+    tryDoCmdEx("git config user.name \"John Doe\"")
+    tryDoCmdEx("git config user.email \"john.doe@example.com\"")
+
+  proc initRepo() =
+    tryDoCmdEx("git init")
+    configUserAndEmail()
+
+  proc commitAll(msg: string) =
+    tryDoCmdEx("git add .")
+    tryDoCmdEx("git commit -am " & msg.quoteShell)
+
+  proc writeDepVersion(version: string) =
+    ## Writes dep1.nimble at `version` in the cwd and tags it.
+    writeFile("dep1.nimble", nimbleFileTemplate % version)
+    commitAll(version)
+    tryDoCmdEx(&"git tag v{version}")
+
+  proc initDepOrigin(versions: seq[string]) =
+    cdNewDir depOriginPath:
+      initRepo()
+      for v in versions:
+        writeDepVersion(v)
+
+  proc addDepVersion(version: string) =
+    cd depOriginPath:
+      writeDepVersion(version)
+
+  proc initMainPkg(requirement: string) =
+    createDir mainPkgPath
+    cd mainPkgPath:
+      writeFile("main.nimble",
+        (nimbleFileTemplate % "0.1.0") & &"requires \"{requirement}\"\n")
+
+  proc writePkgListFile() =
+    createDir tempDir
+    let record = PackagesListFileRecord(
+      name: "dep1", url: depOriginPath, `method`: DownloadMethod.git,
+      tags: @["test"], description: "A test package.", license: "MIT")
+    writeFile(pkgListFilePath, (%(@[record])).pretty)
+
+  template withCleanDirs(body: untyped) =
+    removeDir tempDir
+    removeDir installDir
+    defer:
+      removeDir tempDir
+      removeDir installDir
+    body
+
+  template withDepProject(requirement: string, body: untyped) =
+    ## dep1 origin at 0.1.0, a main package requiring it, and a warm cache
+    ## (`nimble install` resolved dep1 once, so tagged_versions.json knows 0.1.0).
+    withCleanDirs:
+      writePkgListFile()
+      usePackageListFile pkgListFilePath:
+        initDepOrigin(@["0.1.0"])
+        initMainPkg(requirement)
+        cd mainPkgPath:
+          check execNimbleYes("install").exitCode == QuitSuccess
+        body
+
+  test "refresh makes a newly published tag visible":
+    withDepProject("dep1 >= 0.1.0"):
+      addDepVersion("0.2.0")   # published after the cache was warmed
+      cd mainPkgPath:
+        let (output, exitCode) = execNimbleYes("refresh")
+        check exitCode == QuitSuccess
+        check output.contains("dep1 0.1.0 -> 0.2.0")
+      # The new version is a real candidate for the next resolve.
+      let cache = (installDir / "pkgcache" / "tagged_versions.json").readFile
+      check cache.contains("0.2.0")
+
+  test "refresh --packageListOnly leaves the dependency clones alone":
+    withDepProject("dep1 >= 0.1.0"):
+      addDepVersion("0.2.0")
+      cd mainPkgPath:
+        let (output, exitCode) = execNimbleYes("refresh", "--packageListOnly")
+        check exitCode == QuitSuccess
+        check not output.contains("Refreshed")
+      let cache = (installDir / "pkgcache" / "tagged_versions.json").readFile
+      check not cache.contains("0.2.0")
+
+  test "refresh with nothing new is a no-op":
+    withDepProject("dep1 >= 0.1.0"):
+      cd mainPkgPath:
+        check execNimbleYes("refresh").exitCode == QuitSuccess
+        let (output, exitCode) = execNimbleYes("refresh")
+        check exitCode == QuitSuccess
+        check output.contains("Everything is up to date")
+        # picks nothing, writes no lock file
+        check not fileExists("nimble.lock")
+
+  test "refresh updates a clean develop dependency to its newest tag":
+    withDepProject("dep1 >= 0.1.0"):
+      tryDoCmdEx(&"git clone {depOriginPath} {depClonePath}")
+      cd depClonePath:
+        configUserAndEmail()
+        tryDoCmdEx("git checkout v0.1.0")
+      addDepVersion("0.2.0")
+      cd mainPkgPath:
+        writeDevelopFile("nimble.develop", @[], @[depClonePath])
+        let (output, exitCode) = execNimbleYes("refresh")
+        check exitCode == QuitSuccess
+        check output.contains("Updated develop dependencies")
+        check output.contains("dep1 0.1.0 -> 0.2.0")
+      cd depClonePath:
+        let tag = tryDoCmdEx("git describe --tags").strip
+        check tag == "v0.2.0"
+
+  test "refresh never touches a dirty develop dependency":
+    withDepProject("dep1 >= 0.1.0"):
+      tryDoCmdEx(&"git clone {depOriginPath} {depClonePath}")
+      cd depClonePath:
+        configUserAndEmail()
+        tryDoCmdEx("git checkout v0.1.0")
+      addDepVersion("0.2.0")
+      # A tracked file with uncommitted changes; untracked files don't count
+      # as dirty (see isWorkingCopyClean).
+      let depNimbleFile = depClonePath / "dep1.nimble"
+      writeFile(depNimbleFile, readFile(depNimbleFile) & "# local edit\n")
+      cd mainPkgPath:
+        writeDevelopFile("nimble.develop", @[], @[depClonePath])
+        let (output, exitCode) = execNimbleYes("refresh")
+        check exitCode == QuitSuccess
+        check output.contains("Skipped (uncommitted changes)")
+      cd depClonePath:
+        let tag = tryDoCmdEx("git describe --tags").strip
+        check tag == "v0.1.0"
