@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//Volumes/Store/Projects/nwaku_infinitie/**)",
+      "Bash(cat:*)",
+      "Read(//Users/jmgomez/.config/nimble/**)",
+      "Read(//Users/jmgomez/Downloads/nwaku/**)",
+      "Bash(nimble install:*)",
+      "Bash(curl:*)",
+      "Bash(nim c:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
