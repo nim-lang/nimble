@@ -226,8 +226,12 @@ Commands:
                                   can be optionally specified. Inside a package,
                                   also fetches the repos of its dependencies and
                                   reports which newer versions became available.
+                                  Outside a package it does that for every
+                                  globally known package instead.
+       [-g, --global]             Refresh every globally known package rather
+                                  than the current project's dependencies.
        [--packageListOnly]        Only refresh the package list, leaving the
-                                  project's dependency clones untouched.
+                                  dependency clones untouched.
   search       pkg/tag            Searches for a specified package. Search is
                                   performed by tag and by name.
                [--ver, --version] Queries remote server for package version.
@@ -577,6 +581,11 @@ proc setNimbleDir*(options: var Options) =
   var isActionGlobal = false
   if options.action.typ == actionInstall:
     isActionGlobal = options.action.global
+  elif options.action.typ == actionRefresh:
+    # `nimble refresh -g` refreshes the globally installed packages, so it has
+    # to look at the global package dir even when run from inside a project
+    # that keeps its dependencies in nimbledeps.
+    isActionGlobal = options.explicitGlobal
 
   if options.nimbleDir.len != 0:
     # --nimbleDir:<dir> takes priority...

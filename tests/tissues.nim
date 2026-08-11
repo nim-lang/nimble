@@ -407,8 +407,9 @@ suite "issues":
       inLines(lines, "check internet for updated packages")
       inLines(lines, "fusion installed successfully")
 
-    # Clean up package file
-    check execNimble(["refresh"]).exitCode == QuitSuccess
+    # Clean up package file. Only the list is of interest here; outside a
+    # package a plain refresh would go on to refresh every global package.
+    check execNimble(["refresh", "--packageListOnly"]).exitCode == QuitSuccess
 
   test "issue #1158":
     cd "issue1158":

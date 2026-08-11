@@ -2361,20 +2361,25 @@ proc refreshDevelopDeps(rootPkg: PackageInfo, options: Options,
       displayWarning(
         &"Failed to checkout {name} to version {target} at {dir}.", HighPriority)
 
-proc displayRefreshSummary(rootName: string, depNames: seq[string],
-                           before, after: TaggedVersionsCache,
-                           develop: tuple[updated, skipped: seq[string]]) =
-  display("Refreshed", &"{depNames.len} dependencies of {rootName}",
-          priority = HighPriority)
-  var upgrades: seq[string]
-  for name in depNames:
+proc newerVersions(names: seq[string],
+                   before, after: TaggedVersionsCache): seq[string] =
+  ## Lines describing the packages whose newest known version grew over the
+  ## course of a refresh, as `name old -> new`.
+  for name in names:
     let
       oldVer = maxCachedVersion(before, name)
       newVer = maxCachedVersion(after, name)
     if newVer.isNone: continue
     if oldVer.isNone or newVer.get > oldVer.get:
       let fromVer = if oldVer.isSome: $oldVer.get else: "(none)"
-      upgrades.add &"{name} {fromVer} -> {newVer.get}"
+      result.add &"{name} {fromVer} -> {newVer.get}"
+
+proc displayRefreshSummary(rootName: string, depNames: seq[string],
+                           before, after: TaggedVersionsCache,
+                           develop: tuple[updated, skipped: seq[string]]) =
+  display("Refreshed", &"{depNames.len} dependencies of {rootName}",
+          priority = HighPriority)
+  let upgrades = newerVersions(depNames, before, after)
 
   if upgrades.len > 0:
     display("Info:", "Newer versions available:", priority = HighPriority)
@@ -2414,6 +2419,81 @@ proc refreshProjectDeps(options: var Options, nimBin: var Option[string]) =
     depNames.addUnique solvedPkg.pkgName
   displayRefreshSummary(rootPackage.basicInfo.name, depNames, before,
                         readTaggedVersionsCache(options), develop)
+
+proc globalRefreshTargets(options: Options): seq[string] =
+  ## Everything a global refresh covers: the packages installed in the global
+  ## package dir, plus every package the tagged versions cache already knows
+  ## about. A package can be in either set alone - installed before the cache
+  ## existed, or only ever pulled in as a transitive dependency of some past
+  ## solve - and both are things the user expects `refresh -g` to update.
+  ##
+  ## Names are used exactly as they were recorded, because that is what
+  ## version discovery resolves: a package name goes through the package list,
+  ## a URL (a fork, say) is fetched directly. Rewriting one into the other
+  ## would refresh a different repo than the one the entry came from.
+  var seen: HashSet[string]
+  template consider(rawName: string) =
+    let name = rawName
+    if name.len > 0 and not name.isNim and
+       not seen.containsOrIncl(normalizePackageName(name)):
+      result.add name
+
+  for pkg in getInstalledMinimalPackages(options):
+    consider pkg.name
+  for cachedName in readTaggedVersionsCache(options).keys:
+    consider cachedName
+  result.sort()
+
+proc displayGlobalRefreshSummary(targets: seq[string],
+                                 before, after: TaggedVersionsCache,
+                                 failed: seq[string]) =
+  display("Refreshed", &"{targets.len} global packages", priority = HighPriority)
+  let upgrades = newerVersions(targets, before, after)
+  if upgrades.len > 0:
+    display("Info:", "Newer versions available:", priority = HighPriority)
+    for line in upgrades:
+      display("", "  " & line, priority = HighPriority)
+  else:
+    display("Info:", "Everything is up to date.", priority = HighPriority)
+  if failed.len > 0:
+    display("Info:", &"Could not refresh {failed.len} packages:",
+            priority = HighPriority)
+    for line in failed:
+      display("", "  " & line, priority = HighPriority)
+
+proc refreshGlobalDeps(options: var Options, nimBin: Option[string]) =
+  ## The global half of `nimble refresh`: re-run version discovery against the
+  ## network for every globally known package and report what newer versions
+  ## that made visible. Like the project half it picks no version and installs
+  ## nothing - it only updates what nimble knows is out there.
+  let
+    before = readTaggedVersionsCache(options)
+    targets = globalRefreshTargets(options)
+  if targets.len == 0:
+    display("Info:", "No global packages to refresh.", priority = HighPriority)
+    return
+
+  # This walks the network once per package, so say what is about to happen
+  # and keep reporting progress rather than going quiet for minutes.
+  display("Refreshing", &"{targets.len} global packages, this may take a while",
+          priority = HighPriority)
+  var failed: seq[string]
+  options.forceFetch = true
+  try:
+    for i, name in targets:
+      display("Fetching", &"({i + 1}/{targets.len}) {name}",
+              priority = HighPriority)
+      try:
+        discard waitFor downloadMinimalPackage(
+          (name: name, ver: VersionRange(kind: verAny)), options, nimBin)
+      except CatchableError as e:
+        # One unreachable repo must not abort the whole refresh.
+        failed.add &"{name}: {e.msg}"
+  finally:
+    options.forceFetch = false
+
+  displayGlobalRefreshSummary(targets, before, readTaggedVersionsCache(options),
+                              failed)
 
 proc run*(options: var Options, nimBin: var Option[string]) {.instrument.} =
   ## Main pipeline entry. Dispatches to the appropriate branch helper and
@@ -2516,9 +2596,16 @@ proc doAction(options: var Options, nimBinParam: Option[string]) {.instrument.} 
         options.nimBin = some makeNimBin(options, nimBin.getNimBin)
   case options.action.typ
   of actionRefresh:
+    # The package list is always refreshed first
     waitFor refresh(options)
-    if options.thereIsNimbleFile and not options.action.packageListOnly:
-      refreshProjectDeps(options, nimBin)
+    if not options.action.packageListOnly:
+      # `-g` is what switches a project refresh over to the global one. Without
+      # a nimble file there is no project to scope to, so global is all that is
+      # left and it does not need to be asked for.
+      if options.explicitGlobal or not options.thereIsNimbleFile:
+        refreshGlobalDeps(options, nimBin)
+      else:
+        refreshProjectDeps(options, nimBin)
   of actionInstall:
     discard # handled by resolution pipeline
   of actionUninstall:
