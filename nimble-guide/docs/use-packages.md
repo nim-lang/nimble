@@ -196,6 +196,34 @@ a third-party package list.
 
 Some commands may remind you to run `nimble refresh` or will run it for you if they fail.
 
+Refreshing the package list only tells Nimble which packages exist.
+To also learn which *versions* of them exist, `refresh` goes on to fetch the repositories behind the packages it knows about and reports the newer versions that became visible:
+
+```sh
+$ nimble refresh
+Downloading Official package list
+    Success Package list downloaded.
+  Refreshed 3 dependencies of myproject
+      Info: Newer versions available:
+              chronos 4.0.3 -> 4.0.4
+```
+
+Which packages that covers depends on where you run it:
+
+* **Inside a package** — its dependencies, including transitive ones.
+  Any `develop` dependency with a clean working copy is also moved to its newest tag; one with uncommitted changes is reported and left untouched.
+* **Outside a package**, or with `-g` / `--global` — every package Nimble knows about globally: those installed in the global package directory, plus every package already in its version cache.
+
+`nimble refresh` only updates what Nimble knows is available.
+It picks no versions, writes no lock file and installs nothing, so it is safe to run at any time; use `nimble install`, `nimble lock` or `nimble upgrade` afterwards to actually act on what it found.
+
+Since it contacts every relevant repository, a global refresh can take a while, and it reports its progress as it goes.
+To skip it entirely and update only the package list, use `--packageListOnly`:
+
+```sh
+$ nimble refresh --packageListOnly
+```
+
 
 
 

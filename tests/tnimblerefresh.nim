@@ -222,6 +222,36 @@ license       = "MIT"
         # picks nothing, writes no lock file
         check not fileExists("nimble.lock")
 
+  test "refresh -g refreshes every globally known package":
+    withDepProject("dep1 >= 0.1.0"):
+      addDepVersion("0.2.0")
+      cd mainPkgPath:
+        let (output, exitCode) = execNimbleYes("refresh", "-g")
+        check exitCode == QuitSuccess
+        # The global pass, not the project one.
+        check output.contains("global packages")
+        check not output.contains("dependencies of main")
+        check output.contains("dep1 0.1.0 -> 0.2.0")
+
+  test "refresh outside a package refreshes globally without -g":
+    withDepProject("dep1 >= 0.1.0"):
+      addDepVersion("0.2.0")
+      # tempDir holds the fixtures but no nimble file, so there is no project
+      # to scope the refresh to.
+      cd tempDir:
+        let (output, exitCode) = execNimbleYes("refresh")
+        check exitCode == QuitSuccess
+        check output.contains("global packages")
+        check output.contains("dep1 0.1.0 -> 0.2.0")
+
+  test "refresh inside a package stays scoped to it without -g":
+    withDepProject("dep1 >= 0.1.0"):
+      cd mainPkgPath:
+        let (output, exitCode) = execNimbleYes("refresh")
+        check exitCode == QuitSuccess
+        check output.contains("dependencies of main")
+        check not output.contains("global packages")
+
   test "refresh updates a clean develop dependency to its newest tag":
     withDepProject("dep1 >= 0.1.0"):
       tryDoCmdEx(&"git clone {depOriginPath} {depClonePath}")
