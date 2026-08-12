@@ -91,7 +91,7 @@ type
     forceFetch*: bool # When true, version discovery always git-fetches the repo instead of trusting the tagged versions cache. Set by `nimble refresh`.
 
   ActionType* = enum
-    actionNil, actionRefresh, actionInit, actionDump, actionPublish, actionUpgrade
+    actionNil, actionRefresh, actionInit, actionDump, actionGetNimDir, actionPublish, actionUpgrade
     actionInstall, actionSearch, actionList, actionBuild, actionPath,
     actionUninstall, actionCompile, actionDoc, actionCustom, actionTasks,
     actionDevelop, actionCheck, actionLock, actionRun, actionSync, actionSetup,
@@ -129,7 +129,7 @@ type
       onlyNimBinaries*: bool
       onlyInstalled*: bool
       showListVersions*: bool
-    of actionInit, actionDump:
+    of actionInit, actionDump, actionGetNimDir:
       projName*: string
       vcsOption*: string
       collect*: bool
@@ -250,6 +250,12 @@ Commands:
                [--ini, --json]    Selects the output format (the default is --ini). Only applicable to package information.
                [--collect]        Collects all the packages in the dependency tree of the given package and shows the result in the console.
                [--solve]          Solves the dependency tree of the given package and shows the result in the console.
+  getnimdir    [pkgname]          Outputs the Nim compiler directory for a
+                                  package. The argument can be a .nimble file,
+                                  a project directory or the name of an
+                                  installed package. This may trigger a SAT
+                                  solver run to determine the correct Nim
+                                  version.
   lock                            Generates or updates a package lock file.
   upgrade      [pkgname, ...]     Upgrades a list of packages in the lock file.
   deps                            Outputs dependencies for current package.
@@ -396,6 +402,8 @@ proc parseActionType*(action: string): ActionType =
     result = actionInit
   of "dump":
     result = actionDump
+  of "getnimdir":
+    result = actionGetNimDir
   of "update", "refresh":
     result = actionRefresh
   of "search":
@@ -701,7 +709,7 @@ proc parseArgument*(key: string, result: var Options) =
     result.action.optionalURL = key
   of actionSearch:
     result.action.search.add(key)
-  of actionInit, actionDump:
+  of actionInit, actionDump, actionGetNimDir:
     if result.action.projName != "":
       raise nimbleError(
         "Can only perform this action on one package at a time.")
