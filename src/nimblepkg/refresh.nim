@@ -6,7 +6,10 @@
 ## versions that made visible. Refreshing picks no versions, writes no lock
 ## file and installs nothing.
 
-import std/[os, algorithm, sets, sequtils, strformat, strutils, tables]
+import std/[os, algorithm, sets, strformat, strutils, tables]
+# Not std/sequtils: `addUnique` only exists there on newer Nim, and the compat
+# shim re-exports the rest of the module anyway.
+import compat/sequtils
 import std/options as std_opt
 import chronos
 
