@@ -7,6 +7,8 @@ import unittest, os, strutils
 import testscommon
 from nimblepkg/common import cd
 
+testNoBuild = false # This suite explicitly verifies built binaries
+
 suite "Build/Install refactor":
   setup:
     # Clean up nimbleDir before each test

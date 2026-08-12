@@ -9,6 +9,8 @@ import nimblepkg/displaymessages
 from nimblepkg/common import cd
 from nimblepkg/developfile import developFileName
 
+testNoBuild = false # One test installs a dependency and then runs its binary
+
 suite "nimble run":
   test "Invalid binary":
     cd "run":
