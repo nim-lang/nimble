@@ -335,7 +335,7 @@ proc readPackageInfo(pkgInfo: var PackageInfo, nf: NimbleFile, options: Options,
   if not fileDir.startsWith(options.getPkgsDir()):
     # If the `.nimble` file is not in the installation directory we have to get
     # some of the package meta data from its directory.
-    pkgInfo.basicInfo.checksum = calculateDirSha1Checksum(fileDir)
+    pkgInfo.basicInfo.checksum = calculateDirSha1Checksum(fileDir, pkgInfo.skipDirs)
     # By default specialVersion is the same as version.
     pkgInfo.metaData.specialVersions.incl pkgInfo.basicInfo.version
     # If the `fileDir` is a VCS repository we can get some of the package meta

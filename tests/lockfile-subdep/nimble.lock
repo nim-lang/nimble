@@ -10,7 +10,7 @@
         "downloadMethod": "git",
         "dependencies": [],
         "checksums": {
-          "sha1": "02cf5882b51550d7faddbce7eedac35c94dea729"
+          "sha1": "a27b39aa20dec862fa22c3a33137803cacbe2bbc"
         }
       },
       "x11": {
@@ -33,7 +33,7 @@
           "x11"
         ],
         "checksums": {
-          "sha1": "dd020f93fcf762e28d3d1462a7bba0c91a5a36dd"
+          "sha1": "59e9de65fac3d8123b5f1b677b3fa18beb02d855"
         }
       }
     }
