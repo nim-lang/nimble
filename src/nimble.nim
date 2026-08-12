@@ -25,7 +25,8 @@ import nimblepkg/packageinfotypes, nimblepkg/packageinfo, nimblepkg/version,
        nimblepkg/deps, nimblepkg/nimblesat, nimblepkg/nimenv,
        nimblepkg/downloadnim, nimblepkg/declarativeparser,
       nimblepkg/build, nimblepkg/install,
-      nimblepkg/versiondiscovery, nimblepkg/nimresolution
+      nimblepkg/versiondiscovery, nimblepkg/nimresolution,
+      nimblepkg/refresh
 
 const
   nimblePathsFileName* = "nimble.paths"
@@ -2316,185 +2317,6 @@ proc warnVersionMismatches(options: Options) =
     except CatchableError:
       discard
 
-proc maxCachedVersion(cache: TaggedVersionsCache, pkgName: string): Option[Version] =
-  ## Highest non-special version known for `pkgName` in the tagged versions cache.
-  let key = normalizePackageName(pkgName)
-  if key notin cache:
-    return none(Version)
-  for pkg in cache[key]:
-    if pkg.version.isSpecial:
-      continue
-    if result.isNone or pkg.version > result.get:
-      result = some pkg.version
-
-proc newestLocalTag(dir: string, options: Options): Option[(Version, string)] =
-  ## Highest version tag present in the local clone, with the tag that carries it.
-  for ver, tag in getTagsList(dir, DownloadMethod.git).getVersionList().pairs:
-    if result.isNone or ver > result.get[0]:
-      result = some (ver, tag)
-
-proc refreshDevelopDeps(rootPkg: PackageInfo, options: Options,
-                        nimBin: Option[string]): tuple[updated, skipped: seq[string]] =
-  ## Fetches every develop/vendor repo and moves it to its newest tag when the
-  ## working copy is clean. A dirty repo is reported and skipped, never touched;
-  ## one failing repo never aborts the refresh.
-  for dep in processDevelopDependencies(rootPkg, options, nimBin):
-    let
-      name = dep.basicInfo.name
-      dir = dep.getNimbleFileDir
-    try:
-      gitFetchTags(dir, DownloadMethod.git, options)
-    except CatchableError as e:
-      displayWarning(&"Could not fetch develop dependency {name} at {dir}: {e.msg}",
-                     HighPriority)
-      continue
-    let newest = newestLocalTag(dir, options)
-    if newest.isNone or newest.get[0] <= dep.basicInfo.version:
-      continue
-    let (target, tag) = newest.get
-    if not isWorkingCopyClean(dir.Path):
-      result.skipped.add &"{name} {dir}"
-      continue
-    if doCheckout(DownloadMethod.git, dir, tag, options):
-      result.updated.add &"{name} {dep.basicInfo.version} -> {target}"
-    else:
-      displayWarning(
-        &"Failed to checkout {name} to version {target} at {dir}.", HighPriority)
-
-proc newerVersions(names: seq[string],
-                   before, after: TaggedVersionsCache): seq[string] =
-  ## Lines describing the packages whose newest known version grew over the
-  ## course of a refresh, as `name old -> new`.
-  for name in names:
-    let
-      oldVer = maxCachedVersion(before, name)
-      newVer = maxCachedVersion(after, name)
-    if newVer.isNone: continue
-    if oldVer.isNone or newVer.get > oldVer.get:
-      let fromVer = if oldVer.isSome: $oldVer.get else: "(none)"
-      result.add &"{name} {fromVer} -> {newVer.get}"
-
-proc displayRefreshSummary(rootName: string, depNames: seq[string],
-                           before, after: TaggedVersionsCache,
-                           develop: tuple[updated, skipped: seq[string]]) =
-  display("Refreshed", &"{depNames.len} dependencies of {rootName}",
-          priority = HighPriority)
-  let upgrades = newerVersions(depNames, before, after)
-
-  if upgrades.len > 0:
-    display("Info:", "Newer versions available:", priority = HighPriority)
-    for line in upgrades:
-      display("", "  " & line, priority = HighPriority)
-  if develop.updated.len > 0:
-    display("Info:", "Updated develop dependencies:", priority = HighPriority)
-    for line in develop.updated:
-      display("", "  " & line, priority = HighPriority)
-  if develop.skipped.len > 0:
-    display("Info:", "Skipped (uncommitted changes):", priority = HighPriority)
-    for line in develop.skipped:
-      display("", "  " & line, priority = HighPriority)
-  if upgrades.len == 0 and develop.updated.len == 0:
-    display("Info:", "Everything is up to date.", priority = HighPriority)
-
-proc refreshProjectDeps(options: var Options, nimBin: var Option[string]) =
-  ## The clone half of `nimble refresh`: git-fetch every repo backing a
-  ## (transitive) dependency of the current project, repopulate version
-  ## discovery, and report what newer versions that made visible. Picks no
-  ## version, writes no lock file, installs nothing.
-  let before = readTaggedVersionsCache(options)
-  var rootPackage: PackageInfo
-  options.forceFetch = true
-  try:
-    rootPackage = runLocalProjectAction(options, nimBin)
-  finally:
-    options.forceFetch = false
-
-  let develop = refreshDevelopDeps(rootPackage, options, nimBin)
-
-  var depNames: seq[string]
-  for solvedPkg in options.satResult.solvedPkgs:
-    if solvedPkg.pkgName.isNim or
-       cmpIgnoreCase(solvedPkg.pkgName, rootPackage.basicInfo.name) == 0:
-      continue
-    depNames.addUnique solvedPkg.pkgName
-  displayRefreshSummary(rootPackage.basicInfo.name, depNames, before,
-                        readTaggedVersionsCache(options), develop)
-
-proc globalRefreshTargets(options: Options): seq[string] =
-  ## Everything a global refresh covers: the packages installed in the global
-  ## package dir, plus every package the tagged versions cache already knows
-  ## about. A package can be in either set alone - installed before the cache
-  ## existed, or only ever pulled in as a transitive dependency of some past
-  ## solve - and both are things the user expects `refresh -g` to update.
-  ##
-  ## Names are used exactly as they were recorded, because that is what
-  ## version discovery resolves: a package name goes through the package list,
-  ## a URL (a fork, say) is fetched directly. Rewriting one into the other
-  ## would refresh a different repo than the one the entry came from.
-  var seen: HashSet[string]
-  template consider(rawName: string) =
-    let name = rawName
-    if name.len > 0 and not name.isNim and
-       not seen.containsOrIncl(normalizePackageName(name)):
-      result.add name
-
-  for pkg in getInstalledMinimalPackages(options):
-    consider pkg.name
-  for cachedName in readTaggedVersionsCache(options).keys:
-    consider cachedName
-  result.sort()
-
-proc displayGlobalRefreshSummary(targets: seq[string],
-                                 before, after: TaggedVersionsCache,
-                                 failed: seq[string]) =
-  display("Refreshed", &"{targets.len} global packages", priority = HighPriority)
-  let upgrades = newerVersions(targets, before, after)
-  if upgrades.len > 0:
-    display("Info:", "Newer versions available:", priority = HighPriority)
-    for line in upgrades:
-      display("", "  " & line, priority = HighPriority)
-  else:
-    display("Info:", "Everything is up to date.", priority = HighPriority)
-  if failed.len > 0:
-    display("Info:", &"Could not refresh {failed.len} packages:",
-            priority = HighPriority)
-    for line in failed:
-      display("", "  " & line, priority = HighPriority)
-
-proc refreshGlobalDeps(options: var Options, nimBin: Option[string]) =
-  ## The global half of `nimble refresh`: re-run version discovery against the
-  ## network for every globally known package and report what newer versions
-  ## that made visible. Like the project half it picks no version and installs
-  ## nothing - it only updates what nimble knows is out there.
-  let
-    before = readTaggedVersionsCache(options)
-    targets = globalRefreshTargets(options)
-  if targets.len == 0:
-    display("Info:", "No global packages to refresh.", priority = HighPriority)
-    return
-
-  # This walks the network once per package, so say what is about to happen
-  # and keep reporting progress rather than going quiet for minutes.
-  display("Refreshing", &"{targets.len} global packages, this may take a while",
-          priority = HighPriority)
-  var failed: seq[string]
-  options.forceFetch = true
-  try:
-    for i, name in targets:
-      display("Fetching", &"({i + 1}/{targets.len}) {name}",
-              priority = HighPriority)
-      try:
-        discard waitFor downloadMinimalPackage(
-          (name: name, ver: VersionRange(kind: verAny)), options, nimBin)
-      except CatchableError as e:
-        # One unreachable repo must not abort the whole refresh.
-        failed.add &"{name}: {e.msg}"
-  finally:
-    options.forceFetch = false
-
-  displayGlobalRefreshSummary(targets, before, readTaggedVersionsCache(options),
-                              failed)
-
 proc run*(options: var Options, nimBin: var Option[string]) {.instrument.} =
   ## Main pipeline entry. Dispatches to the appropriate branch helper and
   ## runs the shared post-solve install/reverse-deps tail for branches that
@@ -2605,7 +2427,7 @@ proc doAction(options: var Options, nimBinParam: Option[string]) {.instrument.} 
       if options.explicitGlobal or not options.thereIsNimbleFile:
         refreshGlobalDeps(options, nimBin)
       else:
-        refreshProjectDeps(options, nimBin)
+        refreshProjectDeps(options, nimBin, runLocalProjectAction)
   of actionInstall:
     discard # handled by resolution pipeline
   of actionUninstall:
