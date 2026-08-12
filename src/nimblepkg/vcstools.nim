@@ -93,10 +93,14 @@ proc getVcsTypeAndSpecialDirPath*(dir: Path): VcsTypeAndSpecialDirPath =
   ## The procedure uses a in memory cache to bypass multiple checks for the same
   ## directory in single run of Nimble.
   ##
-  ## Raises a `NimbleError` in the case the directory `dir` does not exist.
+  ## Returns `(vcsTypeNone, "")` when `dir` is empty (e.g. unresolvable package path).
+  ## Raises a `NimbleError` when `dir` is non-empty but does not exist.
 
   if getVcsTypeAndSpecialDirPathCache().hasKey(dir):
     return getVcsTypeAndSpecialDirPathCache()[dir]
+
+  if dir == "":
+    return (vcsTypeNone, Path(""))
 
   if not dir.dirExists:
     raise nimbleError(dirDoesNotExistErrorMsg(dir))
@@ -121,7 +125,8 @@ proc getVcsTypeAndSpecialDirPath*(dir: Path): VcsTypeAndSpecialDirPath =
 
 proc getVcsType*(dir: Path): VcsType =
   ## Returns VCS type of the given directory.
-  ## Raises a `NimbleError` in the case the directory `dir` does not exist.
+  ## Returns `vcsTypeNone` if `dir` is empty (e.g. unresolvable package path).
+  ## Raises a `NimbleError` when `dir` is non-empty but does not exist.
   dir.getVcsTypeAndSpecialDirPath.vcsType
 
 proc git(path: Path): string =
