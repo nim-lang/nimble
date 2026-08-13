@@ -640,18 +640,33 @@ proc collectAllVersions*(package: PackageMinimalInfo, options: Options, getMinim
     ## Processes top-level dependencies in parallel (default) or sequentially (with --sync).
     ## Each branch gets its own visited set to avoid race conditions on shared state.
 
-    result = newTable[string, PackageVersions]()
-    if not options.parallelDiscovery:
-      for pv in package.requires:
-        var visitedCopy = initHashSet[PkgTuple]()
-        let resultTable = await processRequirements(pv, visitedCopy, getMinimalPackage, preferredPackages, options, nimBin)
-        mergeVersionTables(result[], resultTable[])
-    else:
-      var futures: seq[Future[TableRef[string, PackageVersions]]] = @[]
-      for pv in package.requires:
-        var visitedCopy = initHashSet[PkgTuple]()
-        futures.add processRequirements(pv, visitedCopy, getMinimalPackage, preferredPackages, options, nimBin)
-      await allFutures(futures)
-      for fut in futures:
-        if not fut.failed:
-          mergeVersionTables(result[], fut.read()[])
+    # During discovery we must never block on an interactive git credential
+    # prompt: a candidate version may require a repo that was deleted or renamed,
+    # and git would ask for a username/password for it. Dead URLs should fail
+    # fast so the version gets excluded. An explicit user-set value is respected;
+    # only the default (unset) case is forced to non-interactive. The previous
+    # value is restored afterwards, so actual installs keep interactive prompts
+    # for private repositories.
+    let hadTerminalPrompt = existsEnv("GIT_TERMINAL_PROMPT")
+    let prevTerminalPrompt = getEnv("GIT_TERMINAL_PROMPT")
+    if not hadTerminalPrompt:
+      putEnv("GIT_TERMINAL_PROMPT", "0")
+    try:
+      result = newTable[string, PackageVersions]()
+      if not options.parallelDiscovery:
+        for pv in package.requires:
+          var visitedCopy = initHashSet[PkgTuple]()
+          let resultTable = await processRequirements(pv, visitedCopy, getMinimalPackage, preferredPackages, options, nimBin)
+          mergeVersionTables(result[], resultTable[])
+      else:
+        var futures: seq[Future[TableRef[string, PackageVersions]]] = @[]
+        for pv in package.requires:
+          var visitedCopy = initHashSet[PkgTuple]()
+          futures.add processRequirements(pv, visitedCopy, getMinimalPackage, preferredPackages, options, nimBin)
+        await allFutures(futures)
+        for fut in futures:
+          if not fut.failed:
+            mergeVersionTables(result[], fut.read()[])
+    finally:
+      if hadTerminalPrompt: putEnv("GIT_TERMINAL_PROMPT", prevTerminalPrompt)
+      else: delEnv("GIT_TERMINAL_PROMPT")
