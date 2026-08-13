@@ -202,6 +202,18 @@ license       = "MIT"
       let cache = (installDir / "pkgcache" / "tagged_versions.json").readFile
       check cache.contains("0.2.0")
 
+  test "install --refresh picks up a version the warm cache hides":
+    withDepProject("dep1 >= 0.1.0"):
+      addDepVersion("0.2.0")   # published after the cache was warmed
+      cd mainPkgPath:
+        # 0.1.0 is installed and satisfies the requirement, so resolving from
+        # the cache never looks at the origin and never sees 0.2.0.
+        check execNimbleYes("install").exitCode == QuitSuccess
+        check getPackageDir(pkgsDir, "dep1-0.2.0") == ""
+
+        check execNimbleYes("install", "--refresh").exitCode == QuitSuccess
+        check getPackageDir(pkgsDir, "dep1-0.2.0") != ""
+
   test "refresh --packageListOnly leaves the dependency clones alone":
     withDepProject("dep1 >= 0.1.0"):
       addDepVersion("0.2.0")
