@@ -217,6 +217,13 @@ Which packages that covers depends on where you run it:
 `nimble refresh` only updates what Nimble knows is available.
 It picks no versions, writes no lock file and installs nothing, so it is safe to run at any time; use `nimble install`, `nimble lock` or `nimble upgrade` afterwards to actually act on what it found.
 
+Other commands resolve against that cached version information rather than the repositories, which is why a freshly published version can stay invisible to them until the cache is updated.
+Pass `--refresh` to any of them to resolve against the repositories instead:
+
+```sh
+$ nimble install --refresh   # also works with lock, upgrade, build, ...
+```
+
 Since it contacts every relevant repository, a global refresh can take a while.
 It fetches several of them at a time and reports its progress as it goes; pass `--sync` to fetch them one by one instead.
 To skip it entirely and update only the package list, use `--packageListOnly`:

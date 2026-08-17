@@ -312,6 +312,9 @@ Nimble Options:
       --features                  Activate features. Only used when using the declarative parser.
       --ignoreSubmodules          Ignore submodules when cloning a repository.
       --sync                       Disable parallel downloads and version discovery.
+      --refresh                   Resolve against the package repositories
+                                  instead of the cached version information,
+                                  so newly published versions are picked up.
 For more information read the GitHub readme:
   https://github.com/nim-lang/nimble#readme
 """
@@ -821,6 +824,11 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
     result.ignoreSubmodules = true
   of "sync":
     result.parallelDiscovery = false
+  of "refresh":
+    # Resolve against the remotes instead of the tagged versions cache, for the
+    # commands whose answer depends on how fresh that cache is. `nimble refresh`
+    # sets the same field; this is that behaviour as a flag.
+    result.forceFetch = true
   of "lenient":
     result.lenient = true
   of "resolver":
@@ -844,7 +852,7 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
     "silent", "info", "verbose", "debug", "offline", "nocolor",
     "disablevalidation", "localdeps", "local", "l", "global", "g",
     "nosslcheck", "nolockfile", "tarballs", "t", "usesystemnim",
-    "disablenimbinaries", "ignoresubmodules", "sync", "lenient"]
+    "disablenimbinaries", "ignoresubmodules", "sync", "lenient", "refresh"]
   if isGlobalFlag and val.len > 0 and f in valuelessGlobalFlags:
     raise nimbleError("The flag '" & getFlagString(kind, flag, "") &
       "' does not take a value (got '" & val & "').")
