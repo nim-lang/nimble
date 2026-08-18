@@ -250,8 +250,15 @@ Commands:
                [--ini, --json]    Selects the output format (the default is --ini). Only applicable to package information.
                [--collect]        Collects all the packages in the dependency tree of the given package and shows the result in the console.
                [--solve]          Solves the dependency tree of the given package and shows the result in the console.
-  lock                            Generates or updates a package lock file.
-  upgrade      [pkgname, ...]     Upgrades a list of packages in the lock file.
+  lock         [pkgname, ...]     Generates or updates a package lock file.
+                                  Every pin is kept unless the package's
+                                  requirements changed. Naming packages relocks
+                                  those and leaves the rest of the file pinned.
+       [--refresh]                Resolve against the package repositories
+                                  instead of the cached version information, so
+                                  newly published versions are picked up. With
+                                  no package named, relocks everything.
+  upgrade      [pkgname, ...]     Deprecated alias of `lock --refresh`.
   deps                            Outputs dependencies for current package.
                [--tree]           Outputs dependency tree.
                [--inverted]       Outputs inverted (reversed) dependency tree.
@@ -484,6 +491,24 @@ proc nim*(options: Options): string =
 proc getNimbleDir*(options: Options): string =
   return options.nimbleDir
 
+proc isUpgrade*(options: Options): bool =
+  ## Whether this run should relock rather than keep what the lock file pins.
+  ##
+  ## Two things ask `lock` to move a pin
+  ##
+  ## * naming packages - `nimble lock foo` relocks `foo` and leaves the rest of
+  ##   the lock file alone.
+  ## * `--refresh` - go look at the remotes first, instead of resolving against
+  ##   the tagged versions cache. With no packages named that means relocking
+  ##   everything to the newest available.
+  ##
+  ## So `nimble lock foo --refresh` fetches and then relocks just `foo`, and
+  ## plain `nimble lock` keeps every pin. `nimble upgrade` is the deprecated
+  ## spelling of `lock --refresh`.
+  options.action.typ == actionUpgrade or
+  (options.action.typ == actionLock and
+   (options.forceFetch or options.action.packages.len > 0))
+
 proc getPkgsDir*(options: Options): string =
   options.getNimbleDir() / nimblePackagesDirName
 
@@ -645,6 +670,13 @@ proc setNimbleDir*(options: var Options) =
 proc parseCommand*(key: string, result: var Options) =
   result.action = Action(typ: parseActionType(key))
   initAction(result, key)
+  # `nimble upgrade` is a deprecated alias of `nimble lock --refresh`. Set
+  # forceFetch here - at parse time, before the SAT solver runs - so version
+  # discovery goes to the remotes (not the tagged-versions cache) for the whole
+  # run. Setting it later, in the action dispatch, would be too late: the
+  # solver would already have resolved dependencies from the cache.
+  if result.action.typ == actionUpgrade:
+    result.forceFetch = true
 
 
 proc getRequiredNimVersion*(pkgInfo: PackageInfo): VersionRange =
@@ -666,7 +698,8 @@ proc parseArgument*(key: string, result: var Options) =
   case result.action.typ
   of actionNil:
     assert false
-  of actionInstall, actionPath, actionDevelop, actionUninstall, actionUpgrade, actionAdd:
+  of actionInstall, actionPath, actionDevelop, actionUninstall, actionUpgrade,
+     actionLock, actionAdd:
     # Parse pkg@verRange or git@github.com:nim-lang/nimble.git
     # First trim whitespace from the key
     let trimmedKey = key.strip()

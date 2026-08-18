@@ -1191,7 +1191,7 @@ proc debugSATResult*(options: Options, calledFrom: string) =
   echo color, "Root requires: ", reset, satResult.rootPackage.requires.mapIt(it.name & " " & $it.ver)
   echo color, "Solved packages: ", reset, satResult.solvedPkgs.mapIt(it.pkgName & " " & $it.version & " " & $it.deps.mapIt(it.pkgName))
   echo color, "Solution as Packages Info: ", reset, satResult.pkgs.mapIt(it.basicInfo.name & " " & $it.basicInfo.version)
-  if options.action.typ == actionUpgrade:
+  if options.isUpgrade:
     echo color, "Upgrade versions: ", reset, options.action.packages.mapIt(it.name & " " & $it.ver)
     echo color, "RESULT REVISIONS ", reset, satResult.pkgs.mapIt(it.basicInfo.name & " " & $it.metaData.vcsRevision)
     echo color, "PKG LIST REVISIONS ", reset, satResult.pkgList.mapIt(it.basicInfo.name & " " & $it.metaData.vcsRevision)
@@ -1267,7 +1267,7 @@ proc solveLockFileDeps*(satResult: var SATResult, pkgList: seq[PackageInfo], opt
   # in the shouldSolve check. When upgrading, changed requirements for the
   # upgraded packages are expected and should not trigger a full re-solve.
   var upgradePkgNames: seq[string]
-  if options.action.typ == actionUpgrade:
+  if options.isUpgrade:
     for pkg in options.action.packages:
       upgradePkgNames.add(pkg.name.resolveAlias(options).toLowerAscii())
   for current in currentRequires:
@@ -1294,7 +1294,7 @@ proc solveLockFileDeps*(satResult: var SATResult, pkgList: seq[PackageInfo], opt
   # named packages and keeps the rest locked, which is the wrong model here, so force
   # the full fresh solve. (The install-preferring local solve in solvePackages is
   # already skipped for actionUpgrade, so this resolves to newest.)
-  if options.action.typ == actionUpgrade and options.action.packages.len == 0:
+  if options.isUpgrade and options.action.packages.len == 0:
     shouldSolve = true
 
   var pkgListDecl: seq[PackageInfo]
@@ -1324,7 +1324,7 @@ proc solveLockFileDeps*(satResult: var SATResult, pkgList: seq[PackageInfo], opt
       displayError(satResult.output)
       raise resolutionFailureError(
         "Couldn't find a solution for the packages.")
-  elif options.action.typ == actionUpgrade:
+  elif options.isUpgrade:
     #[
     Retrocompatibility (goes against SAT in some edge cases)
     When upgrading dep1: Only dep1 should change, dep2 should stay at it is
@@ -1335,24 +1335,36 @@ proc solveLockFileDeps*(satResult: var SATResult, pkgList: seq[PackageInfo], opt
       # Populate requirements from lock file dependencies to preserve them
       let requirements = dep.dependencies.mapIt((name: it, ver: VersionRange(kind: verAny)))
       let solvedPkg = SolvedPackage(pkgName: name, version: dep.version, requirements: requirements)
-      if options.action.typ == actionUpgrade:
+      if options.isUpgrade:
         if solvedPkg.pkgName in satResult.solvedPkgs.mapIt(it.pkgName):
           satResult.solvedPkgs = satResult.solvedPkgs.filterIt(it.pkgName != name)
           satResult.pkgs = satResult.pkgs.toSeq.filterIt(it.basicInfo.name != name).toHashSet()
-        var addedUpgradePkg = false
+        var
+          addedUpgradePkg = false
+          versionComesFromSolve = false
         for upgradePkg in options.action.packages:
           if upgradePkg.name == name:
             if upgradePkg.ver.kind == verSpecial:
               satResult.pkgsToInstall.add((name, upgradePkg.ver.spe))
-            # For verAny (no version specified), the temp SAT solve below
-            # will determine the correct version to install.
+            else:
+              # For verAny (no version specified), the temp SAT solve below
+              # will determine the correct version to install.
+              versionComesFromSolve = true
             addedUpgradePkg = true
         if not addedUpgradePkg:
           for pkg in pkgListDecl.toHashSet():
             if pkg.basicInfo.name == name and pkg.basicInfo.version == dep.version and pkg.metaData.vcsRevision == dep.vcsRevision:
               satResult.pkgs.incl(pkg)
               break
-        satResult.solvedPkgs.add(solvedPkg)
+        # Carry the locked version over, EXCEPT when the temp solve below is the
+        # thing that picks the version. Re-adding it in that case pins the old
+        # one: the solve computes the new version, but the merge that follows
+        # skips any name already in solvedPkgs, so the stale entry wins and the
+        # named package silently never moves. A package pinned to an explicit
+        # special version still needs its entry - that path installs from
+        # pkgsToInstall above and the solve has nothing to contribute.
+        if not versionComesFromSolve:
+          satResult.solvedPkgs.add(solvedPkg)
       var pkgListDecl = pkgListDecl
       for upgradePkg in options.action.packages:
         for pkg in pkgList:

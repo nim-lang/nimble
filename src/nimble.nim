@@ -1490,7 +1490,7 @@ proc lock(options: var Options, nimBin: Option[string]) =
   # upgrading the libraries never moves the compiler. Captured here, BEFORE the
   # lock is rewritten below; written back in the dependency loop. 
   var prevNimDep = none(LockFileDep)
-  if options.action.typ == actionUpgrade and options.action.packages.len == 0 and lockExists:
+  if options.isUpgrade and options.action.packages.len == 0 and lockExists:
     for name, dep in currentLockFile.getLockedDependencies.lockedDepsFor(options):
       if name.isNim:
         prevNimDep = some(dep)
@@ -2450,6 +2450,11 @@ proc doAction(options: var Options, nimBinParam: Option[string]) {.instrument.} 
   of actionRun:
     runAction(options, nimBin)
   of actionUpgrade:
+    displayWarning("`nimble upgrade` is deprecated and will be removed in a " &
+                   "future release. Use `nimble lock --refresh` instead.",
+                   HighPriority)
+    # `upgrade` is an alias of `lock --refresh`; `forceFetch` is set at parse
+    # time (see parseCommand) so the solver fetches the remotes, not the cache.
     lock(options, nimBin)
   of actionCompile, actionDoc:
     var pkgInfo = getPkgInfo(getCurrentDir(), options, nimBin = nimBin)
