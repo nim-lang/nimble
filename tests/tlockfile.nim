@@ -15,7 +15,7 @@ import nimblepkg/vcstools
 from nimblepkg/common import cd, dump, cdNewDir
 from nimblepkg/tools import tryDoCmdEx, doCmdEx
 from nimblepkg/packageinfotypes import DownloadMethod
-from nimblepkg/version import PkgTuple, `$`
+from nimblepkg/version import PkgTuple, `$`, newVersion, withinRange
 from nimblepkg/lockfile import LockFileJsonKeys
 from nimblepkg/options import defaultLockFileName, defaultDevelopPath, initOptions
 from nimblepkg/developfile import ValidationError, ValidationErrorKind,
@@ -1068,7 +1068,9 @@ requires "dep2 >= 0.9.0"
       let requires = nimbleInfo.getRequires(activeFeatures)
       let nimReq = requires.filterIt(it.name == "nim")
       check nimReq.len > 0
-      let expectedNimVersion = $nimReq[0].ver
+      # Read the expectation out of langserver's own nimble file so it follows
+      # whatever they declare upstream.
+      let nimRequirement = nimReq[0].ver
 
       # Remove existing lock file to force regeneration
       removeFile defaultLockFileName
@@ -1078,7 +1080,7 @@ requires "dep2 >= 0.9.0"
       check defaultLockFileName.fileExists
       let lockJson = defaultLockFileName.readFile.parseJson
       let nimVersion = lockJson{$lfjkPackages, "nim", "version"}.getStr
-      check nimVersion == expectedNimVersion
+      check newVersion(nimVersion).withinRange(nimRequirement)
 
   test "lock file content is preserved when running nimble lock on existing lock file":
     # Test that running `nimble lock` on an existing lock file preserves:

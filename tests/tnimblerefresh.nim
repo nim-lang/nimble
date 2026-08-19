@@ -143,9 +143,11 @@ license       = "MIT"
     tryDoCmdEx("git add .")
     tryDoCmdEx("git commit -am " & msg.quoteShell)
 
-  proc writeDepVersion(version: string, name = "dep1") =
-    ## Writes <name>.nimble at `version` in the cwd and tags it.
-    writeFile(&"{name}.nimble", nimbleFileTemplate % version)
+  proc writeDepVersion(version: string, name = "dep1", requirement = "") =
+    ## Writes <name>.nimble at `version` in the cwd and tags it. `requirement`
+    ## lets a new version raise its floor on another dependency.
+    writeFile(&"{name}.nimble", (nimbleFileTemplate % version) &
+      (if requirement.len > 0: &"requires \"{requirement}\"\n" else: ""))
     commitAll(version)
     tryDoCmdEx(&"git tag v{version}")
 
@@ -155,9 +157,9 @@ license       = "MIT"
       for v in versions:
         writeDepVersion(v, name)
 
-  proc addDepVersion(version: string, name = "dep1") =
+  proc addDepVersion(version: string, name = "dep1", requirement = "") =
     cd originsDirPath / name:
-      writeDepVersion(version, name)
+      writeDepVersion(version, name, requirement)
 
   proc initMainPkg(requirement: string, underVcs = false) =
     createDir mainPkgPath
@@ -405,4 +407,31 @@ license       = "MIT"
         check execNimbleYes("refresh").exitCode == QuitSuccess
         check execNimbleYes("lock", "dep1").exitCode == QuitSuccess
         check lockedVersion("dep1") == "0.2.0"
+        check lockedVersion("dep2") == "0.1.0"
+
+  test "lock --refresh pkg drags along the dependencies its new version needs":
+    withTwoDepProject:
+      cd mainPkgPath:
+        check execNimbleYes("lock").exitCode == QuitSuccess
+        check lockedVersion("dep1") == "0.1.0"
+        check lockedVersion("dep2") == "0.1.0"
+      # dep1 0.2.0 raises its floor on dep2. Moving dep1 alone would leave the
+      # lock file contradicting dep1's own requirements.
+      addDepVersion("0.2.0", "dep2")
+      addDepVersion("0.2.0", "dep1", requirement = "dep2 >= 0.2.0")
+      cd mainPkgPath:
+        check execNimbleYes("lock", "--refresh", "dep1").exitCode == QuitSuccess
+        check lockedVersion("dep1") == "0.2.0"
+        check lockedVersion("dep2") == "0.2.0"
+
+  test "lock --requires moves a pin the tightened constraint rules out":
+    withTwoDepProject:
+      addDepVersion("0.2.0", "dep2")
+      cd mainPkgPath:
+        check execNimbleYes("lock", "--refresh").exitCode == QuitSuccess
+        check lockedVersion("dep2") == "0.2.0"
+        # The constraint has to survive as far as the lock file: dep2 is pinned
+        # at a version it forbids, so that pin cannot be carried over as-is.
+        check execNimbleYes("lock", "dep1", "--requires: dep2 < 0.2.0")
+          .exitCode == QuitSuccess
         check lockedVersion("dep2") == "0.1.0"
