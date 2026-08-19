@@ -1254,6 +1254,58 @@ proc getSolvedPkgFromInstalledPkgs*(satResult: SATResult, solvedPkg: SolvedPacka
       return some(pkg)
   return none(PackageInfo)
 
+proc violatesConstraints(pinned: SolvedPackage, constraints: seq[PkgTuple]): bool =
+  ## Whether any requirement on `pinned`'s name rules its version out.
+  for constraint in constraints:
+    if cmpIgnoreCase(constraint.name, pinned.pkgName) == 0 and
+       not pinned.version.withinRange(constraint.ver):
+      return true
+  false
+
+proc replacePin(satResult: var SATResult, index: int, replacement: SolvedPackage) =
+  ## Swap a carried-over pin for the version the solve chose. The old version's
+  ## PackageInfo must not linger, or the lock file is written from it; the
+  ## replacement is fetched via pkgsToInstall instead.
+  let stale = satResult.solvedPkgs[index].version
+  satResult.solvedPkgs[index] = replacement
+  satResult.pkgs = satResult.pkgs.toSeq.filterIt(
+    not (cmpIgnoreCase(it.basicInfo.name, replacement.pkgName) == 0 and
+         it.basicInfo.version == stale)).toHashSet()
+  if replacement.pkgName notin satResult.pkgsToInstall.mapIt(it[0]):
+    satResult.pkgsToInstall.add((replacement.pkgName, replacement.version))
+
+proc repairInconsistentPin(satResult: var SATResult, solution: seq[SolvedPackage]): bool =
+  ## Repair the first carried-over pin the merged requirements rule out,
+  ## reporting whether anything changed.
+  var constraints = satResult.rootPackage.requires
+  for solvedPkg in satResult.solvedPkgs:
+    constraints.add solvedPkg.requirements
+
+  for i in 0 ..< satResult.solvedPkgs.len:
+    let pinned = satResult.solvedPkgs[i]
+    if not pinned.violatesConstraints(constraints): continue
+    for solved in solution:
+      if cmpIgnoreCase(solved.pkgName, pinned.pkgName) == 0 and
+         solved.version != pinned.version:
+        satResult.replacePin(i, solved)
+        return true
+  false
+
+proc repairInconsistentPins(satResult: var SATResult, solution: seq[SolvedPackage]) =
+  ## Carrying the locked versions over keeps an upgrade minimal, but a pin can
+  ## contradict the solution it is being merged into: the upgraded package may
+  ## need a newer sibling, or `--requires` may have tightened a constraint on a
+  ## package that is already locked. Take `solution`'s answer for any
+  ## carried-over pin that the merged requirements rule out, so what gets
+  ## written is at least self-consistent. Everything else keeps its pin, which
+  ## is what makes this an upgrade rather than a re-solve.
+  ##
+  ## A repair pulls in the new version's own requirements, which can in turn
+  ## rule out another pin, so this repeats. At most one pin is repaired per
+  ## round, so their number bounds the rounds.
+  for _ in 0 .. satResult.solvedPkgs.len:
+    if not satResult.repairInconsistentPin(solution): break
+
 proc solveLockFileDeps*(satResult: var SATResult, pkgList: seq[PackageInfo], options: Options, nimBin: Option[string]) =
   let lockFile = options.lockFile(satResult.rootPackage.myPath.parentDir())
   let currentRequires = satResult.rootPackage.requires
@@ -1394,6 +1446,8 @@ proc solveLockFileDeps*(satResult: var SATResult, pkgList: seq[PackageInfo], opt
         if solvedPkg.pkgName notin satResult.solvedPkgs.mapIt(it.pkgName):
           satResult.solvedPkgs.add(solvedPkg)
 
+      satResult.repairInconsistentPins(tempSatResult.solvedPkgs)
+
       for upgradePkg in options.action.packages:
         satResult.pkgs = satResult.pkgs.toSeq.filterIt(it.basicInfo.name != upgradePkg.name).toHashSet()
 
@@ -1437,3 +1491,9 @@ proc solutionToFullInfo*(satResult: SATResult, options: var Options, nimBin: Opt
   if satResult.rootPackage.infoKind != pikFull and not satResult.rootPackage.basicInfo.name.isNim:
     satResult.rootPackage = getPkgInfo(satResult.rootPackage.getNimbleFileDir, options, nimBin = nimBin).toRequiresInfo(options, nimBin = nimBin)
     satResult.rootPackage.enableFeatures(options)
+    # Re-reading the root from disk drops whatever `solvePkgs` had appended to
+    # its requires. `--requires` has to survive: the lock file logic that runs
+    # after this reads the root's requires to decide what still satisfies the
+    # existing pins, and without the extras it silently keeps a pin the user
+    # just asked to constrain away.
+    satResult.rootPackage.requires &= options.extraRequires
