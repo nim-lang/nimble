@@ -1,0 +1,3 @@
+nimcache/
+tests/t[a-z]*
+!tests/t[a-z]*.nim
