@@ -9,6 +9,8 @@
 ## with an ordinary range. Those are exactly the graphs a purely ordered
 ## version set cannot even represent.
 
+{.used.}
+
 import std/[unittest, options, algorithm, tables, strutils]
 import pubgrub
 import ./registry

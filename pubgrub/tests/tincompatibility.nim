@@ -1,3 +1,5 @@
+{.used.}
+
 import std/unittest
 import pubgrub/[ranges, term, incompatibility]
 

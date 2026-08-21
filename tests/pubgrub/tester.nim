@@ -17,6 +17,8 @@
 ## do here. Order is bottom-up: a failure in `ranges` explains failures in
 ## everything after it.
 
+{.used.}
+
 import ../../pubgrub/tests/tranges
 import ../../pubgrub/tests/ttagged
 import ../../pubgrub/tests/tterm

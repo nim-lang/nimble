@@ -18,6 +18,8 @@
 ## solvers agree on the count; where they differ the solution alone is the
 ## contract.
 
+{.used.}
+
 import std/[unittest, strutils]
 import pubgrub/[ranges, solver, report]
 import ./registry

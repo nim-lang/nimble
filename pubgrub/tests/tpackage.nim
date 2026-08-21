@@ -1,3 +1,5 @@
+{.used.}
+
 import std/[unittest, options]
 import pubgrub
 

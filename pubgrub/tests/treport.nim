@@ -1,3 +1,5 @@
+{.used.}
+
 import std/[unittest, strutils]
 import pubgrub/[ranges, solver, report]
 import ./registry
