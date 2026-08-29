@@ -289,8 +289,8 @@ proc installFromDirDownloadInfo(nimBin: Option[string], downloadDir: string, url
       # Run before-install hook (in buildtemp, before build)
       executeHook(nimBin, workDir, options, actionInstall, before = true)
 
-      # Build binaries (only if there are any)
-      if hasBinaries:
+      # Build binaries (only if there are any and --noBuild is not set)
+      if hasBinaries and not options.noBuild:
         let paths = getPathsAllPkgs(options, nimBin)
         let flags = if options.action.typ in {actionInstall, actionPath, actionUninstall, actionDevelop}:
                       options.action.passNimFlags
@@ -328,8 +328,8 @@ proc installFromDirDownloadInfo(nimBin: Option[string], downloadDir: string, url
       let nimbleFileDest = changeRoot(workPkgInfo.myPath.splitFile.dir, pkgDestDir, workPkgInfo.myPath)
       filesInstalled.incl copyFileD(workPkgInfo.myPath, nimbleFileDest)
 
-      # Copy built binaries (only if there are any)
-      if hasBinaries:
+      # Copy built binaries (only if there are any and --noBuild is not set)
+      if hasBinaries and not options.noBuild:
         for bin, src in workPkgInfo.bin:
           let binDest = if dirExists(pkgDestDir / bin): bin & ".out" else: bin
           let srcBin = workPkgInfo.getOutputDir(bin)
@@ -347,8 +347,8 @@ proc installFromDirDownloadInfo(nimBin: Option[string], downloadDir: string, url
       # Run after-install hook
       executeHook(nimBin, pkgDestDir, options, actionInstall, before = false)
 
-      # Create bin symlinks (only if there are binaries)
-      if hasBinaries:
+      # Create bin symlinks (only if there are binaries and --noBuild is not set)
+      if hasBinaries and not options.noBuild:
         createBinSymlink(pkgInfo, options)
 
     finally:
@@ -611,10 +611,10 @@ proc installPkgs*(satResult: var SATResult, options: var Options, nimBin: Option
         continue
     # echo "Building package: ", pkgToBuild.basicInfo.name, " at ", pkgToBuild.myPath, " binaries: ", pkgToBuild.bin
     let isRoot = pkgToBuild.isRoot(options.satResult) and isInRootDir
-    if isRoot and options.action.typ in rootBuildActions:
+    if not options.noBuild and isRoot and options.action.typ in rootBuildActions:
       buildPkg(nimBin, pkgToBuild, isRoot, options)
       satResult.buildPkgs.add(pkgToBuild)
-    elif pkgToBuild.isLink:
+    elif not options.noBuild and pkgToBuild.isLink:
       # Build develop mode packages
       buildPkg(nimBin, pkgToBuild, false, options)
       satResult.buildPkgs.add(pkgToBuild)
