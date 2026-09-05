@@ -733,7 +733,8 @@ proc toRequiresInfo*(pkgInfo: PackageInfo, options: Options, nimBin: Option[stri
       if line notin result.declarativeParserErrors:
         result.declarativeParserErrors.add(line)
 
-  result.features = getFeatures(nimbleFileInfo)
+  if not result.isNimScript:
+    result.features = getFeatures(nimbleFileInfo)
   result.srcDir = nimbleFileInfo.srcDir
   result.binDir = nimbleFileInfo.binDir
   result.paths = nimbleFileInfo.paths

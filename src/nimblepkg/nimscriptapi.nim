@@ -29,6 +29,7 @@ var
   skipDirs*, skipFiles*, skipExt*, installDirs*, installFiles*,
     installExt*, bin*, paths*, entryPoints*: seq[string] = @[] ## Nimble metadata.
   requiresData*: seq[string] = @[] ## The package's dependencies.
+  featureRequiresData: Table[string, seq[string]] ## Dependencies grouped by feature.
   taskRequiresData*: Table[string, seq[string]] ## Task dependencies
   foreignDeps*: seq[string] = @[] ## The foreign dependencies. Only
                                   ## exported for 'distros.nim'.
@@ -40,6 +41,7 @@ var
   namedBin*: Table[string, string]
 
   command = "e"
+  currentFeature = ""
   project = ""
   success = false
   retVal = true
@@ -48,7 +50,11 @@ var
 proc requires*(deps: varargs[string]) =
   ## Call this to set the list of requirements of your Nimble
   ## package.
-  for d in deps: requiresData.add(d)
+  for d in deps:
+    if currentFeature.len > 0:
+      featureRequiresData[currentFeature].add(d)
+    else:
+      requiresData.add(d)
 
 proc taskRequires*(task: string, deps: varargs[string]) =
   ## Call this to set the list of requirements for a certain task
@@ -164,6 +170,11 @@ proc printPkgInfo(): string =
     for task, requiresData in taskRequiresData.pairs:
       result &= &"{task}Requires: \"{requiresData.join(\", \")}\"\n"
 
+  if featureRequiresData.len != 0:
+    result &= "\n[Features]\n"
+    for featureName, dependencies in featureRequiresData.pairs:
+      result &= &"{featureName}: \"{dependencies.join(\", \")}\"\n"
+
 
 proc onExit*() =
   if actionName.len == 0 or actionName == "help":
@@ -260,7 +271,16 @@ proc getPathsClause*(): string =
   return getPaths().mapIt("--path:" & it).join(" ")
 
 template feature*(name: string, body: untyped): untyped =
-  discard
+  if actionName == "printPkgInfo".normalize:
+    block:
+      let featureName = name
+      let previousFeature = currentFeature
+      currentFeature = featureName
+      if featureName notin featureRequiresData:
+        featureRequiresData[featureName] = @[]
+      body
+      currentFeature = previousFeature
 
 template dev*(body: untyped): untyped =
-  discard
+  feature("dev"):
+    body
