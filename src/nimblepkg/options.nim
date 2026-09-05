@@ -323,7 +323,7 @@ Nimble Options:
       --disableNimBinaries        Disable the use of nim precompiled binaries. Note in some platforms precompiled binaries are not available but the flag can still be used to avoid compile the Nim version once and reuse it.
       --maximumTaggedVersions     Maximum number of tags to check for a package when discovering versions for the SAT solver. 0 means all.
       --parser:declarative|nimvm  Use the declarative parser or the nimvm parser (default).
-      --features                  Activate features. Only used when using the declarative parser.
+      --features                  Activate package features.
       --ignoreSubmodules          Ignore submodules when cloning a repository.
       --sync                       Disable parallel downloads and version discovery.
       --refresh                   Resolve against the package repositories

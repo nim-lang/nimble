@@ -81,7 +81,7 @@ type
     metaData*: PackageMetaData
     paths*: seq[string] 
     entryPoints*: seq[string] #useful for tools like the lsp.
-    features*: Table[string, seq[PkgTuple]] #features requires defined in the nimble file. Declarative parser + SAT solver only.
+    features*: Table[string, seq[PkgTuple]] #Feature requirements defined in the nimble file.
     activeFeatures*: Table[PkgTuple, seq[string]] #features that dependencies of this package have activated. #i.e. requires package[feature1, feature2]
     testEntryPoint*: string ## The entry point for the test task.
     declarativeParserErrors*: seq[string] ## Errors from declarative parser (shown only for packages in solution)

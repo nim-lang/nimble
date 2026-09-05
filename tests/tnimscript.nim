@@ -4,10 +4,67 @@
 {.used.}
 
 import unittest, os, strutils, sequtils
+import std/options as stdoptions
+import std/tables
 import testscommon
 from nimblepkg/common import cd
+import nimblepkg/[declarativeparser, options, packageinfotypes, packageparser,
+  version]
 
 suite "nimscript":
+  test "collects feature blocks as VM metadata and through fallback":
+    let testDir = "test_vm_features"
+    removeDir(testDir)
+    createDir(testDir)
+    defer:
+      removeDir(testDir)
+    writeFile(testDir / "vmfeatures.nimble", """
+const packageVersion = "0.1.0"
+let featureDependency = "stew >= 0.2.0"
+const includeExtraDependency = true
+
+version = packageVersion
+author = "test"
+description = "VM feature test"
+license = "MIT"
+
+feature "feature1":
+  requires featureDependency
+  if includeExtraDependency:
+    requires "results"
+
+feature "empty":
+  discard
+
+dev:
+  requires "unittest2"
+""")
+
+    var vmOptions = initOptions()
+    vmOptions.nimBin = stdoptions.some(vmOptions.makeNimBin("nim"))
+    let vmPkgInfo = getPkgInfoVm(testDir, vmOptions, stdoptions.some("nim"))
+
+    var fallbackOptions = initOptions()
+    fallbackOptions.nimBin = stdoptions.some(fallbackOptions.makeNimBin("nim"))
+    let fallbackPkgInfo = getPkgInfo(
+      testDir, fallbackOptions, stdoptions.some("nim"), pikRequires
+    )
+
+    for pkgInfo in [vmPkgInfo, fallbackPkgInfo]:
+      check pkgInfo.isNimScript
+      check "feature1" in pkgInfo.features
+      check "empty" in pkgInfo.features
+      check "dev" in pkgInfo.features
+      if "feature1" in pkgInfo.features:
+        check pkgInfo.features["feature1"] == @[
+          parseRequires("stew >= 0.2.0"),
+          parseRequires("results"),
+        ]
+      if "empty" in pkgInfo.features:
+        check pkgInfo.features["empty"].len == 0
+      if "dev" in pkgInfo.features:
+        check pkgInfo.features["dev"] == @[parseRequires("unittest2")]
+
   test "can install nimscript package":
     cleanDir installDir
     cd "nimscript":
