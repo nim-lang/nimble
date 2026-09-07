@@ -575,22 +575,6 @@ suite "SAT solver":
     var output = ""
     check solve(graph, form, packages, output, initOptions())
    
-  #TODO package got updated. Review test (not related with the declarative parser work)
-  test "should be able to fallback to a previous version of a dependency when unsatisfable (complex case)":
-    #There is an issue with 
-    #[
-      "libp2p",
-      "https://github.com/status-im/nim-quic.git#8a97eeeb803614bce2eb0e4696127d813fea7526"
-    
-    Where libp2p needs to be set to an older version (15) as the constraints from nim-quic are incompatible with the 
-    constraints from libp2p > 15.
-    
-    ]#
-    cd "libp2pconflict": #0.16.2
-      removeDir("nimbledeps")
-      let (_, exitCode) = execNimbleYes("install", "-l")
-      check exitCode == QuitSuccess
-
   #disabled for being too slow. TODO replace with one from the cached pkgtable similar to nwaku
   # test "should be able to solve complex dep graphs":
   #   cd "sattests" / "mgtest":
@@ -902,4 +886,3 @@ requires "nim >= 1.6.0"
         check pkg.version == newVersion("0.6.8")
         foundPrologue = true
     check foundPrologue
-

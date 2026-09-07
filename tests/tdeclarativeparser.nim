@@ -38,6 +38,47 @@ suite "Declarative parsing":
     for pkg in expectedPkgs:
       check pkg in requires.mapIt(it[0])
   
+  test "should not split dependency feature lists on commas (#1832)":
+    let content = """
+version = "0.1.0"
+requires "figdraw[siwin, sharedlib, harfbuzz] >= 0.35.2"
+requires "sigils >= 0.27.4[sigNameAsString,closures,siwin,chronos]"
+requires "plaindep, otherdep"
+"""
+    var options = initOptions()
+    let nimbleFileInfo = extractRequiresInfoFromContent(content, options)
+    var activeFeatures = initTable[PkgTuple, seq[string]]()
+    let requires = nimbleFileInfo.getRequires(activeFeatures)
+    check requires.mapIt(it.name) == @["figdraw", "sigils", "plaindep", "otherdep"]
+    check activeFeatures.len == 2
+    if requires.len == 4:
+      check requires[0].ver == parseVersionRange(">= 0.35.2")
+      check requires[1].ver == parseVersionRange(">= 0.27.4")
+      check activeFeatures.getOrDefault(requires[0]) ==
+        @["siwin", "sharedlib", "harfbuzz"]
+      check activeFeatures.getOrDefault(requires[1]) ==
+        @["sigNameAsString", "closures", "siwin", "chronos"]
+
+  test "minimal package info retains feature dependencies":
+    let content = """
+version = "0.35.2"
+feature "harfbuzz":
+  requires "harfbuzzy >= 0.3.0"
+"""
+    var options = initOptions()
+    let pkgInfo = getMinimalInfoFromContent(
+      content, "figdraw", newVersion("0.0.0"), "", options)
+
+    check pkgInfo.isSome
+    if pkgInfo.isSome:
+      check pkgInfo.get.features.hasKey("harfbuzz")
+      if pkgInfo.get.features.hasKey("harfbuzz"):
+        let featureRequires = pkgInfo.get.features["harfbuzz"]
+        check featureRequires.len == 1
+        if featureRequires.len == 1:
+          check featureRequires[0].name == "harfbuzzy"
+          check featureRequires[0].ver == parseVersionRange(">= 0.3.0")
+
   test "should detect nested requires and fail":
     let nimbleFile = getNimbleFileFromPkgNameHelper("jester")
     var options = initOptions()

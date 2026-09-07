@@ -74,6 +74,72 @@ suite "Version Discovery":
     check merged.version.speSemanticVersion == some("2.2.8")
     check merged.version.satisfiesConstraint(parseVersionRange(">= 1.6.0"))
 
+  test "active feature requirements remain specific to each package version":
+    let oldFeatureReq = parseRequires("oldfeaturedep >= 1.0.0")
+    let newFeatureReq = parseRequires("newfeaturedep >= 2.0.0")
+
+    proc mockGetMinimalPackage(
+        pv: PkgTuple, options: Options,
+        nimBin: Option[string]
+    ): Future[seq[PackageMinimalInfo]] {.async.} =
+      case pv.name
+      of "featurepkg":
+        return @[
+          PackageMinimalInfo(
+            name: "featurepkg",
+            version: newVersion("1.0.0"),
+            features: {
+              "enabled": @[parseRequires("oldfeaturedep >= 1.0.0")]
+            }.toTable,
+          ),
+          PackageMinimalInfo(
+            name: "featurepkg",
+            version: newVersion("2.0.0"),
+            features: {
+              "enabled": @[parseRequires("newfeaturedep >= 2.0.0")]
+            }.toTable,
+          ),
+        ]
+      of "oldfeaturedep":
+        return @[
+          PackageMinimalInfo(
+            name: "oldfeaturedep", version: newVersion("1.0.0"))
+        ]
+      of "newfeaturedep":
+        return @[
+          PackageMinimalInfo(
+            name: "newfeaturedep", version: newVersion("2.0.0"))
+        ]
+      else:
+        return @[]
+
+    appendGloballyActiveFeatures("featurepkg", @["enabled"])
+    let root = PackageMinimalInfo(
+      name: "root",
+      version: newVersion("1.0.0"),
+      requires: @[parseRequires("featurepkg")],
+      isRoot: true,
+    )
+    let discovered = waitFor collectAllVersions(
+      root, initOptions(), mockGetMinimalPackage, nimBin = some("nim"))
+
+    check discovered.hasKey("featurepkg")
+    check discovered.hasKey("oldfeaturedep")
+    check discovered.hasKey("newfeaturedep")
+    if discovered.hasKey("featurepkg"):
+      let versions = discovered["featurepkg"].versions
+      check versions.len == 2
+      for pkg in versions:
+        case $pkg.version
+        of "1.0.0":
+          check oldFeatureReq in pkg.requires
+          check newFeatureReq notin pkg.requires
+        of "2.0.0":
+          check newFeatureReq in pkg.requires
+          check oldFeatureReq notin pkg.requires
+        else:
+          check false
+
   test "should fallback to the download if the package is not found in the list of packages":
     let root =
       PackageMinimalInfo(

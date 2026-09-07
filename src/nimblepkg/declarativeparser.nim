@@ -11,7 +11,7 @@ import compat/[msgs, sequtils, syntaxes]
 import version, packageinfotypes, packageinfo, options, packageparser, cli,
   packagemetadatafile, common
 import sha1hashes, vcstools, urls
-import std/[tables, strscans, strformat, os, options, sets, times]
+import std/[tables, strformat, os, options, sets, times]
 import tools
 
 type
@@ -618,15 +618,42 @@ iterator tokenizeRequires*(s: string): string =
     yield tok
 
 
+iterator splitRequirements(require: string): string =
+  ## Split package requirements on commas outside dependency feature lists.
+  var bracketDepth = 0
+  var start = 0
+  for i, c in require:
+    case c
+    of '[':
+      inc bracketDepth
+    of ']':
+      if bracketDepth > 0:
+        dec bracketDepth
+    of ',':
+      if bracketDepth == 0:
+        yield require[start ..< i].strip
+        start = i + 1
+    else:
+      discard
+
+  if start < require.len:
+    yield require[start .. ^1].strip
+  else:
+    yield ""
+
 proc parseRequiresWithFeatures(require: string): seq[(PkgTuple, seq[string])] =
-  #features are expressed like this: require[feature1, feature2]
-  result = newSeq[(PkgTuple, seq[string])]()
-  for req in require.split(",").mapIt(it.strip):
-    var featuresStr: string
-    var requireStr: string
-    var features = newSeq[string]()
-    if scanf(req, "$*[$*]", requireStr, featuresStr):
-      features = featuresStr.split(",")
+  # Features are expressed as require[feature1, feature2]. The version range
+  # may appear before or after that suffix, so remove only the bracketed list.
+  for req in splitRequirements(require):
+    if req.len == 0:
+      continue
+
+    let openBracket = req.find('[')
+    let closeBracket = req.find(']', openBracket + 1)
+    if openBracket >= 0 and closeBracket > openBracket:
+      let features = req[openBracket + 1 ..< closeBracket]
+        .split(",").mapIt(it.strip)
+      let requireStr = (req[0 ..< openBracket] & req[closeBracket + 1 .. ^1]).strip
       result.add((parseRequires(requireStr), features))
     else:
       result.add((parseRequires(req), @[]))
@@ -828,6 +855,7 @@ proc getMinimalInfoFromContent*(content: string, name: string, version: Version,
 
   # Parse requires from string list to PkgTuple list
   var activeFeatures = initTable[PkgTuple, seq[string]]()
+  pkgInfo.features = info.getFeatures()
   pkgInfo.requires = info.getRequires(activeFeatures).map(convertNimAliasToNim)
 
   return some(pkgInfo)
@@ -852,4 +880,3 @@ proc getMinimalInfo*(nimbleFile: string, options: Options, nimBin: Option[string
   # declarative parser is always used
   let pkg = getPkgInfo(nimbleFile.parentDir, options, nimBin, pikRequires)
   result = pkg.getMinimalInfo(options)
-
