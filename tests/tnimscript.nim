@@ -20,7 +20,7 @@ suite "nimscript":
       removeDir(testDir)
     writeFile(testDir / "vmfeatures.nimble", """
 const packageVersion = "0.1.0"
-let featureDependency = "stew >= 0.2.0"
+let featureDependency = "stew >= 0.2.0[featA, featB]"
 const includeExtraDependency = true
 
 version = packageVersion
@@ -57,7 +57,7 @@ dev:
       check "dev" in pkgInfo.features
       if "feature1" in pkgInfo.features:
         check pkgInfo.features["feature1"] == @[
-          parseRequires("stew >= 0.2.0"),
+          parseRequires("stew >= 0.2.0[featA, featB]"),
           parseRequires("results"),
         ]
       if "empty" in pkgInfo.features:

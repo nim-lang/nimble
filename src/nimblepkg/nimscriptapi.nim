@@ -173,7 +173,11 @@ proc printPkgInfo(): string =
   if featureRequiresData.len != 0:
     result &= "\n[Features]\n"
     for featureName, dependencies in featureRequiresData.pairs:
-      result &= &"{featureName}: \"{dependencies.join(\", \")}\"\n"
+      if dependencies.len == 0:
+        result &= &"{featureName}: \"\"\n"
+      else:
+        for dependency in dependencies:
+          result &= &"{featureName}: \"{dependency}\"\n"
 
 
 proc onExit*() =

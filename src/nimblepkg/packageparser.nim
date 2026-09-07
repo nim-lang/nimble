@@ -242,9 +242,10 @@ proc readPackageInfoFromNimble(path: string; result: var PackageInfo) =
             else:
               raise nimbleError("Invalid field: " & ev.key)
         of "features":
-          result.features[ev.key] = @[]
-          for dependency in ev.value.multiSplit:
-            result.features[ev.key].add(parseRequires(dependency))
+          if ev.key notin result.features:
+            result.features[ev.key] = @[]
+          if ev.value.len > 0:
+            result.features[ev.key].add(parseRequires(ev.value))
         else:
           raise nimbleError(
               "Invalid section: " & currentSection)
