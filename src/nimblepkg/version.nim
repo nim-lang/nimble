@@ -52,7 +52,18 @@ template `%`*(ver: Version): JsonNode = %ver.version
 
 proc toDirectoryName*(ver: Version): string =
   #strips '#' which causes issues with autoconf/shell
-  ver.version.strip(chars = {'#'})
+  ver.version.replace(" & >= #", "_since_").strip(chars = {'#'})
+
+proc gitAncestor*(ver: Version): string =
+  ## The minimum ancestor commit of a constrained Git reference, or empty.
+  let separator = ver.version.find(" & >= #")
+  if separator >= 0:
+    result = ver.version[separator + 7..^1]
+
+proc gitReference*(ver: Version): string =
+  ## The Git reference without its leading # or ancestry constraint.
+  let separator = ver.version.find(" & >= #")
+  result = if separator >= 0: ver.version[1..<separator] else: ver.version[1..^1]
 
 proc newVersion*(ver: string): Version =
   if ver.len != 0 and ver[0] notin {'#', '\0'} + Digits:
@@ -198,6 +209,8 @@ proc withinRange*(ver: Version, ran: VersionRange): bool =
     # a special version range (e.g., #branch) because the branch was downloaded
     # and its nimble file contains that version.
     # For SAT constraint building, use satisfiesConstraint instead.
+    if ran.spe.gitAncestor.len > 0:
+      return ver.isSpecial and ver == ran.spe
     return ver.isSpecial and ver == ran.spe or not ver.isSpecial
   of verIntersect, verTilde, verCaret:
     return withinRange(ver, ran.verILeft) and withinRange(ver, ran.verIRight)
@@ -308,12 +321,25 @@ proc makeRange*(version: Version, op: string): VersionRange =
 
 proc parseVersionRange*(s: string): VersionRange =
   # >= 1.5 & <= 1.8
+  let s = s.strip
   if s.len == 0:
     result = VersionRange(kind: verAny)
     return
 
   if s[0] == '#':
-    result = VersionRange(kind: verSpecial, spe: newVersion(s))
+    var special = s
+    if '&' in s:
+      let parts = s.split('&')
+      if parts.len != 2 or not parts[1].strip.startsWith(">="):
+        raise parseVersionError("Expected #ref & >= #commit for a Git ancestry requirement.")
+      let reference = parts[0].strip
+      let ancestor = parts[1].strip[2..^1].strip
+      if reference.len < 2 or reference.contains(Whitespace) or reference[1] == '-' or
+          ancestor.len < 5 or ancestor.len > 41 or ancestor[0] != '#' or
+          not ancestor[1..^1].allCharsInSet(HexDigits):
+        raise parseVersionError("Git ancestry requirements need a reference and a 4-40 digit commit hash.")
+      special = reference & " & >= " & ancestor.toLowerAscii
+    result = VersionRange(kind: verSpecial, spe: newVersion(special))
     return
 
   var i = 0
@@ -378,6 +404,10 @@ proc parseRequires*(req: string): PkgTuple =
     if req.strip.isFileUrl:
       result.name = req.strip
       result.ver = VersionRange(kind: verAny)
+    elif '#' in req and (req.find(' ') < 0 or req.find('#') < req.find(' ')):
+      let i = req.find('#')
+      result.name = req[0..<i]
+      result.ver = parseVersionRange(req[i..^1])
     elif ' ' in req:
       var i = skipUntil(req, Whitespace)
       result.name = req[0 .. i].strip
@@ -439,7 +469,7 @@ proc getSimpleString*(verRange: VersionRange): string =
   case verRange.kind
   of verSpecial:
     # Strip '#' for directory names - '#' causes issues with autoconf and shell scripts
-    result = ($verRange.spe).strip(chars = {'#'})
+    result = verRange.spe.toDirectoryName
   of verLater, verEarlier, verEqLater, verEqEarlier, verEq:
     result = $verRange.ver
   of verIntersect, verTilde, verCaret:

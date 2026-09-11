@@ -3,6 +3,7 @@
 
 import std/[os, tables, uri, options, strutils, sets, strformat, json, jsonutils]
 import chronos
+from pkg/checksums/sha1 import secureHash, `$`
 import version, packageinfotypes, download, packageinfo, packageparser, options,
   sha1hashes, tools, downloadnim, cli, declarativeparser, common
 import compat/[sequtils]
@@ -54,6 +55,9 @@ proc getCacheDownloadDir*(url: string, ver: VersionRange, options: Options, vcsR
       of strutils.Letters, strutils.Digits:
         dirName.add i
       else: discard
+  if ver.kind == verSpecial and ver.spe.gitAncestor.len > 0:
+    # Preserve punctuation: #master & >= #abcd must not share #masterabcd's cache.
+    dirName.add "_ancestry_" & $secureHash($ver)
   # When vcsRevision is specified (e.g., from lock file), include it in the cache directory
   # This ensures exact commits get their own cache directory
   if vcsRevision != notSetSha1Hash:

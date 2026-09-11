@@ -172,6 +172,26 @@ When installing a package that needs to be downloaded, Nimble will check the clo
 
 You can force the installation of the `HEAD` of the repository by specifying `#head` after the package name in your dependency list.
 
+For a Git dependency, you can require a branch's selected commit to contain a
+particular ancestor:
+
+```nim
+requires "foo#master & >= #abcdf"
+```
+
+This selects `master` and checks that `abcdf` is the selected commit itself or
+one of its ancestors, including ancestry through merges. The lower bound must
+be a hexadecimal commit hash (4–40 digits); abbreviated hashes must resolve
+unambiguously. This does not search older commits for a compatible version.
+Unknown commits and divergent histories fail resolution.
+
+Ancestry requirements use a full Git clone, including when `--tarballs` is
+enabled. Lock files retain the requirement and the exact selected commit.
+Cached Git checkouts are checked again before reuse. Conflicting special
+requirements involving an ancestry bound are errors even in lenient mode;
+Nimble never drops the bound to resolve a conflict. Mercurial and local
+`file://` package requirements do not support this syntax.
+
 There are several version selector operators you can use:
 
 | Operator | Meaning |
