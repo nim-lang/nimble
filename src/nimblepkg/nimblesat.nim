@@ -872,67 +872,6 @@ proc postProcessSolvedPkgs*(solvedPkgs: var seq[SolvedPackage], options: Options
         break
   solvedPkgs = solvedPkgs.filterIt(it notin toReplace)
 
-proc buildCompatTable*(satResult: SATResult, solvedPkgs: seq[SolvedPackage],
-    freshSolvedPkgs: seq[SolvedPackage], pkgListDecl: seq[PackageInfo],
-    options: Options): Table[string, PackageVersions] =
-  ## Build a pkgVersionTable with one version per package for compatibility
-  ## checking. Uses real requires from pkgListDecl for locked packages and
-  ## from freshSolvedPkgs for upgraded/new packages.
-  var freshLookup = initTable[string, SolvedPackage]()
-  for sp in freshSolvedPkgs:
-    freshLookup[sp.pkgName.toLowerAscii()] = sp
-
-  var rootMinimal = satResult.rootPackage.getMinimalInfo(options)
-  rootMinimal.isRoot = true
-  result[rootMinimal.name] = PackageVersions(pkgName: rootMinimal.name, versions: @[rootMinimal])
-
-  # Add nim so that `requires "nim >= X"` constraints can be validated
-  let nimVersion = satResult.nimResolved.version
-  if nimVersion != notSetVersion:
-    let nimMinimal = PackageMinimalInfo(name: "nim", version: nimVersion)
-    result["nim"] = PackageVersions(pkgName: "nim", versions: @[nimMinimal])
-
-  for solvedPkg in solvedPkgs:
-    if solvedPkg.pkgName == satResult.rootPackage.basicInfo.name: continue
-    if solvedPkg.pkgName.isNim: continue
-    let key = solvedPkg.pkgName.toLowerAscii()
-    # For upgraded/new packages, use requirements from the fresh SAT solve
-    if key in freshLookup:
-      let tempPkg = freshLookup[key]
-      let minimal = PackageMinimalInfo(
-        name: solvedPkg.pkgName, version: tempPkg.version,
-        requires: tempPkg.requirements)
-      result[solvedPkg.pkgName] = PackageVersions(
-        pkgName: solvedPkg.pkgName, versions: @[minimal])
-      continue
-    # For locked packages, get real requires from installed packages
-    var found = false
-    for pkg in pkgListDecl:
-      if cmpIgnoreCase(pkg.basicInfo.name, solvedPkg.pkgName) == 0 and
-        pkg.basicInfo.version == solvedPkg.version:
-        result[solvedPkg.pkgName] = PackageVersions(
-          pkgName: solvedPkg.pkgName, versions: @[pkg.getMinimalInfo(options)])
-        found = true
-        break
-    if not found:
-      let minimal = PackageMinimalInfo(
-        name: solvedPkg.pkgName, version: solvedPkg.version,
-        requires: solvedPkg.requirements)
-      result[solvedPkg.pkgName] = PackageVersions(
-        pkgName: solvedPkg.pkgName, versions: @[minimal])
-
-proc validateUpgradeCompat*(satResult: SATResult, solvedPkgs: seq[SolvedPackage],
-    freshSolvedPkgs: seq[SolvedPackage], pkgListDecl: seq[PackageInfo],
-    options: Options) =
-  ## Verify that the upgraded packages are compatible with the locked deps.
-  ## Raises NimbleError if the combination is unsatisfiable.
-  let compatTable = buildCompatTable(satResult, solvedPkgs, freshSolvedPkgs, pkgListDecl, options)
-  var output = ""
-  let solved = compatTable.getSolvedPackages(output, options)
-  if solved.len == 0:
-    raise resolutionFailureError(
-      "Upgrade is incompatible with locked dependencies:\n" & output)
-
 proc solveLocalPackages(root: PackageMinimalInfo, pkgList: seq[PackageInfo], options: Options, output: var string, solvedPkgs: var seq[SolvedPackage], nimBin: Option[string]): HashSet[PackageInfo] =
   ## Try to solve using only installed packages (no cache, no downloads).
   ## Returns the solved packages if successful, or an empty set if local
@@ -1360,64 +1299,170 @@ proc getSolvedPkgFromInstalledPkgs*(satResult: SATResult, solvedPkg: SolvedPacka
       return some(pkg)
   return none(PackageInfo)
 
-proc violatesConstraints(pinned: SolvedPackage, constraints: seq[PkgTuple]): bool =
-  ## Whether any requirement on `pinned`'s name rules its version out.
-  for constraint in constraints:
-    if cmpIgnoreCase(constraint.name, pinned.pkgName) == 0 and
-       not pinned.version.withinRange(constraint.ver):
-      return true
-  false
+proc preferLockedVersions(versions: var Table[string, PackageVersions],
+    locked: LockFileDeps, targets: HashSet[string], options: Options,
+    output: var string): seq[SolvedPackage] =
+  ## Select the requested upgrades first, then retain every compatible pin.
+  ## Pins restrict a package's candidates, rather than adding root requirements:
+  ## dependencies removed by an upgrade must still be able to leave the graph.
+  result = versions.getSolvedPackages(output, options)
+  if result.len == 0:
+    raise resolutionFailureError(
+      "Upgrade is incompatible with dependency requirements:\n" & output)
 
-proc replacePin(satResult: var SATResult, index: int, replacement: SolvedPackage) =
-  ## Swap a carried-over pin for the version the solve chose. The old version's
-  ## PackageInfo must not linger, or the lock file is written from it; the
-  ## replacement is fetched via pkgsToInstall instead.
-  let stale = satResult.solvedPkgs[index].version
-  satResult.solvedPkgs[index] = replacement
-  satResult.pkgs = satResult.pkgs.toSeq.filterIt(
-    not (cmpIgnoreCase(it.basicInfo.name, replacement.pkgName) == 0 and
-         it.basicInfo.version == stale)).toHashSet()
-  if replacement.pkgName notin satResult.pkgsToInstall.mapIt(it[0]):
-    satResult.pkgsToInstall.add((replacement.pkgName, replacement.version))
+  var selectedTargets = initTable[string, Version]()
+  for pkg in result:
+    if pkg.pkgName.toLowerAscii in targets:
+      selectedTargets[pkg.pkgName.toLowerAscii] = pkg.version
 
-proc repairInconsistentPin(satResult: var SATResult, solution: seq[SolvedPackage]): bool =
-  ## Repair the first carried-over pin the merged requirements rule out,
-  ## reporting whether anything changed.
-  var constraints = satResult.rootPackage.requires
-  for solvedPkg in satResult.solvedPkgs:
-    constraints.add solvedPkg.requirements
+  var pins = initTable[string, PackageVersions]()
+  for key, pv in versions.mpairs:
+    let name = pv.versions[0].name.toLowerAscii
+    if name in selectedTargets:
+      let selected = selectedTargets[name]
+      pv.versions = pv.versions.filterIt(it.version == selected)
+    elif name in locked:
+      let pinned = locked[name].version
+      let candidates = pv.versions.filterIt(it.version == pinned)
+      if candidates.len > 0:
+        pins[key] = PackageVersions(pkgName: pv.pkgName, versions: candidates)
 
-  for i in 0 ..< satResult.solvedPkgs.len:
-    let pinned = satResult.solvedPkgs[i]
-    if not pinned.violatesConstraints(constraints): continue
-    for solved in solution:
-      if cmpIgnoreCase(solved.pkgName, pinned.pkgName) == 0 and
-         solved.version != pinned.version:
-        satResult.replacePin(i, solved)
-        return true
-  false
+  # The common case needs only one more solve: all other pins still work.
+  var allPinned = versions
+  for key, pin in pins:
+    allPinned[key] = pin
+  var trialOutput = ""
+  let allPinnedSolution = allPinned.getSolvedPackages(trialOutput, options)
+  if allPinnedSolution.len > 0:
+    versions = allPinned
+    output = trialOutput
+    return allPinnedSolution
 
-proc repairInconsistentPins(satResult: var SATResult, solution: seq[SolvedPackage]) =
-  ## Carrying the locked versions over keeps an upgrade minimal, but a pin can
-  ## contradict the solution it is being merged into: the upgraded package may
-  ## need a newer sibling, or `--requires` may have tightened a constraint on a
-  ## package that is already locked. Take `solution`'s answer for any
-  ## carried-over pin that the merged requirements rule out, so what gets
-  ## written is at least self-consistent. Everything else keeps its pin, which
-  ## is what makes this an upgrade rather than a re-solve.
-  ##
-  ## A repair pulls in the new version's own requirements, which can in turn
-  ## rule out another pin, so this repeats. At most one pin is repaired per
-  ## round, so their number bounds the rounds.
-  for _ in 0 .. satResult.solvedPkgs.len:
-    if not satResult.repairInconsistentPin(solution): break
+  # Some pins conflict with the upgrade. Keep them one at a time whenever a
+  # complete solution still exists, including changes to reverse dependencies.
+  # Stable ordering makes the result independent of the lock file's ordering.
+  var names = toSeq(pins.keys)
+  names.sort()
+  for name in names:
+    let previous = versions[name]
+    versions[name] = pins[name]
+    trialOutput = ""
+    let solution = versions.getSolvedPackages(trialOutput, options)
+    if solution.len == 0:
+      versions[name] = previous
+    else:
+      result = solution
+      output = trialOutput
+
+proc solveSelectiveUpgrade(satResult: var SATResult, locked: LockFileDeps,
+    pkgList: seq[PackageInfo], options: Options, nimBin: Option[string]) =
+  var targets = initHashSet[string]()
+  var root = satResult.rootPackage
+  for requested in options.action.packages:
+    let name = requested.name.resolveAlias(options)
+    targets.incl(name.toLowerAscii)
+    var direct = false
+    for req in root.requires.mitems:
+      if cmpIgnoreCase(req.name.resolveAlias(options), name) == 0:
+        direct = true
+        if requested.ver.kind != verAny:
+          req.ver = requested.ver
+    if not direct:
+      root.requires.add((name: name, ver: requested.ver))
+
+  # A lock records dependency names, but not their version ranges. Read the
+  # actual manifests at the pinned revisions before deciding which pins work.
+  # In particular, never validate an old pin using a newer version's requires.
+  var pins: LockFileDeps
+  var pinnedPackages: seq[PackageInfo]
+  for name, dep in locked:
+    let key = name.toLowerAscii
+    if key in targets or name.isNim:
+      continue
+    pins[key] = dep
+    var pinned = none(PackageInfo)
+    for pkg in pkgList:
+      if cmpIgnoreCase(pkg.basicInfo.name, name) == 0 and
+         pkg.metadata.vcsRevision == dep.vcsRevision and
+         (pkg.basicInfo.version == dep.version or
+          dep.version in pkg.metadata.specialVersions):
+        pinned = some(pkg)
+        break
+    if pinned.isNone:
+      let dlInfo = getLockFileDownloadInfo(
+        (name: name, ver: dep.version.toVersionRange()), dep, options)
+      let (downloaded, _) = downloadFromDownloadInfo(dlInfo, options, nimBin)
+      pinned = some(getPkgInfo(downloaded.dir, options, nimBin, pikRequires))
+    var pkg = pinned.get
+    pkg.basicInfo.version = dep.version
+    pinnedPackages.add(pkg)
+
+  # Discover once. Installed versions of the requested packages must not mask
+  # an updated branch or revision. Pinned manifests also supply requirements
+  # that may no longer occur in any of the newest package versions.
+  let preferred = pkgList.filterIt(
+    it.basicInfo.name.toLowerAscii notin targets and
+    it.basicInfo.name.toLowerAscii notin pins) & pinnedPackages
+  var rootMinimal = root.getMinimalInfo(options)
+  rootMinimal.isRoot = true
+  let discovered = waitFor collectAllVersions(rootMinimal, options,
+    downloadMinimalPackage, preferred.mapIt(it.getMinimalInfo(options)), nimBin)
+  # Discovery already consults the cache and expands active features. Use its
+  # answer directly so older cache entries cannot mask refreshed manifests.
+  var versions = initTable[string, PackageVersions]()
+  for name, candidates in discovered:
+    versions[name] = candidates
+  versions[rootMinimal.name] = PackageVersions(
+    pkgName: rootMinimal.name, versions: @[rootMinimal])
+  versions.normalizeRequirements(options)
+  versions.normalizeSpecialVersions(options)
+
+  # Nim has already been resolved and configured by the caller.
+  if "nim" in versions and "nim" notin targets and
+     satResult.nimResolved.version != notSetVersion:
+    versions["nim"] = PackageVersions(pkgName: "nim", versions: @[
+      PackageMinimalInfo(name: "nim", version: satResult.nimResolved.version)])
+
+  satResult.output = ""
+  satResult.solvedPkgs = versions.preferLockedVersions(
+    pins, targets, options, satResult.output).topologicalSort()
+  satResult.solvedPkgs.postProcessSolvedPkgs(options, nimBin)
+  satResult.pkgVersionTable = versions
+
+  # Installation and locking must consume exactly the final solution. Carry
+  # source revisions over only for retained pins, and discard the fresh solve's
+  # speculative installation queue.
+  satResult.pkgs = satResult.pkgs.toSeq.filterIt(it.basicInfo.name.isNim).toHashSet()
+  satResult.pkgsToInstall = @[]
+  for solved in satResult.solvedPkgs:
+    if solved.pkgName == root.basicInfo.name or solved.pkgName.isNim:
+      continue
+    let key = solved.pkgName.toLowerAscii
+    let retained = key in pins and solved.version == pins[key].version
+    if retained:
+      satResult.lockFileDeps[solved.pkgName] = pins[key]
+    var installed = false
+    for pkg in pkgList:
+      if cmpIgnoreCase(pkg.basicInfo.name, solved.pkgName) == 0 and
+         (pkg.basicInfo.version == solved.version or
+          solved.version in pkg.metadata.specialVersions) and
+         (not retained or pkg.metadata.vcsRevision == pins[key].vcsRevision) and
+         key notin targets:
+        satResult.pkgs.incl(pkg)
+        installed = true
+        break
+    if not installed:
+      satResult.pkgsToInstall.add((solved.pkgName, solved.version))
+
 
 proc solveLockFileDeps*(satResult: var SATResult, pkgList: seq[PackageInfo], options: Options, nimBin: Option[string]) =
   let lockFile = options.lockFile(satResult.rootPackage.myPath.parentDir())
   let currentRequires = satResult.rootPackage.requires
   satResult.lockFileDeps.clear()
+  var locked: LockFileDeps
   var existingRequires = newSeq[(string, string, Version)]()
   for name, dep in lockFile.getLockedDependencies.lockedDepsFor(options):
+    locked[name] = dep
     existingRequires.add((name, dep.url, dep.version))
 
   # Check for new requirements not in lock file
@@ -1472,7 +1517,7 @@ proc solveLockFileDeps*(satResult: var SATResult, pkgList: seq[PackageInfo], opt
     shouldSolve = false
 
   satResult.pkgList = pkgListDecl.toHashSet()
-  if shouldSolve:
+  if shouldSolve and not (options.isUpgrade and options.action.packages.len > 0):
     # Create fresh package list and solve ALL requirements
     satResult.pkgs = solvePackages(
       satResult.rootPackage,
@@ -1488,98 +1533,7 @@ proc solveLockFileDeps*(satResult: var SATResult, pkgList: seq[PackageInfo], opt
       raise resolutionFailureError(
         "Couldn't find a solution for the packages.")
   elif options.isUpgrade:
-    #[
-    Retrocompatibility (goes against SAT in some edge cases)
-    When upgrading dep1: Only dep1 should change, dep2 should stay at it is
-    We also need to check if the upgraded version adds or removes any other deps.
-    ]#
-    for name, dep in lockFile.getLockedDependencies.lockedDepsFor(options):
-      if name.isNim: continue
-      # Populate requirements from lock file dependencies to preserve them
-      let requirements = dep.dependencies.mapIt((name: it, ver: VersionRange(kind: verAny)))
-      let solvedPkg = SolvedPackage(pkgName: name, version: dep.version, requirements: requirements)
-      if options.isUpgrade:
-        if solvedPkg.pkgName in satResult.solvedPkgs.mapIt(it.pkgName):
-          satResult.solvedPkgs = satResult.solvedPkgs.filterIt(it.pkgName != name)
-          satResult.pkgs = satResult.pkgs.toSeq.filterIt(it.basicInfo.name != name).toHashSet()
-        var
-          addedUpgradePkg = false
-          versionComesFromSolve = false
-        for upgradePkg in options.action.packages:
-          if upgradePkg.name == name:
-            if upgradePkg.ver.kind == verSpecial:
-              satResult.pkgsToInstall.add((name, upgradePkg.ver.spe))
-            else:
-              # For verAny (no version specified), the temp SAT solve below
-              # will determine the correct version to install.
-              versionComesFromSolve = true
-            addedUpgradePkg = true
-        if not addedUpgradePkg:
-          for pkg in pkgListDecl.toHashSet():
-            if pkg.basicInfo.name == name and pkg.basicInfo.version == dep.version and pkg.metaData.vcsRevision == dep.vcsRevision:
-              satResult.pkgs.incl(pkg)
-              break
-        # Carry the locked version over, EXCEPT when the temp solve below is the
-        # thing that picks the version. Re-adding it in that case pins the old
-        # one: the solve computes the new version, but the merge that follows
-        # skips any name already in solvedPkgs, so the stale entry wins and the
-        # named package silently never moves. A package pinned to an explicit
-        # special version still needs its entry - that path installs from
-        # pkgsToInstall above and the solve has nothing to contribute.
-        if not versionComesFromSolve:
-          satResult.solvedPkgs.add(solvedPkg)
-      var pkgListDecl = pkgListDecl
-      for upgradePkg in options.action.packages:
-        for pkg in pkgList:
-          if pkg.basicInfo.name == upgradePkg.name:
-            pkgListDecl = pkgListDecl.filterIt(it.name != upgradePkg.name)
-            for req in satResult.rootPackage.requires.mitems:
-              if req.name == upgradePkg.name:
-                req.ver = upgradePkg.ver
-                break
-            break
-
-      var tempSatResult = initSATResult(satResult.pass)
-      var newPkgsToInstall = newSeq[(string, Version)]()
-      discard solvePackages(
-            satResult.rootPackage,
-            pkgListDecl,
-            newPkgsToInstall,
-            options,
-            tempSatResult.output,
-            tempSatResult.solvedPkgs,
-            nimBin
-          )
-      for newPkgToInstall in newPkgsToInstall:
-        if newPkgToInstall[0] notin satResult.pkgsToInstall.mapIt(it[0]):
-          satResult.pkgsToInstall.add(newPkgToInstall)
-      for solvedPkg in tempSatResult.solvedPkgs:
-        if solvedPkg.pkgName notin satResult.solvedPkgs.mapIt(it.pkgName):
-          satResult.solvedPkgs.add(solvedPkg)
-
-      satResult.repairInconsistentPins(tempSatResult.solvedPkgs)
-
-      for upgradePkg in options.action.packages:
-        satResult.pkgs = satResult.pkgs.toSeq.filterIt(it.basicInfo.name != upgradePkg.name).toHashSet()
-
-      var actuallyNeededDeps = initHashSet[string]()
-      for solvedPkg in tempSatResult.solvedPkgs:
-        actuallyNeededDeps.incl(solvedPkg.pkgName)
-      for upgradePkg in options.action.packages:
-        actuallyNeededDeps.incl(upgradePkg.name)
-
-      satResult.solvedPkgs = satResult.solvedPkgs.filterIt(
-        it.pkgName in actuallyNeededDeps or it.pkgName == satResult.rootPackage.basicInfo.name
-      )
-      satResult.pkgs = satResult.pkgs.toSeq.filterIt(
-        it.basicInfo.name in actuallyNeededDeps or it.basicInfo.name == satResult.rootPackage.basicInfo.name
-      ).toHashSet()
-      satResult.pkgsToInstall = satResult.pkgsToInstall.filterIt(
-        it[0] in actuallyNeededDeps
-      )
-
-      validateUpgradeCompat(satResult, satResult.solvedPkgs,
-        tempSatResult.solvedPkgs, pkgListDecl, options)
+    satResult.solveSelectiveUpgrade(locked, pkgListDecl, options, nimBin)
 
   else:
     # No new requirements and not upgrading

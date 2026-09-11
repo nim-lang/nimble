@@ -70,6 +70,24 @@ proc getPackageDownloadInfo*(pv: PkgTuple, options: Options, doPrompt = false, v
   let downloadDir = getCacheDownloadDir(url, pv.ver, options, vcsRevision)
   PackageDownloadInfo(meth: some meth, url: url, subdir: subdir, downloadDir: downloadDir, pv: pv, vcsRevision: vcsRevision)
 
+proc getLockFileDownloadInfo*(pv: PkgTuple, dep: LockFileDep,
+                             options: Options): PackageDownloadInfo =
+  ## Builds download information directly from the lock entry. In particular,
+  ## this must not call getDownloadInfo: that resolves package names through
+  ## packages.json and can replace the locked repository with an indexed one.
+  let lockedPv = (name: dep.url, ver: pv.ver)
+  if dep.url.isFileURL:
+    return PackageDownloadInfo(meth: none(DownloadMethod), url: dep.url,
+      subdir: "", downloadDir: "", pv: lockedPv,
+      vcsRevision: notSetSha1Hash)
+
+  let (url, metadata) = getUrlData(dep.url)
+  let subdir = metadata.getOrDefault("subdir")
+  PackageDownloadInfo(meth: some(dep.downloadMethod), url: url,
+    subdir: subdir,
+    downloadDir: getCacheDownloadDir(url, pv.ver, options, dep.vcsRevision),
+    pv: lockedPv, vcsRevision: dep.vcsRevision)
+
 proc getPackageFromFileUrl*(fileUrl: string, options: Options, nimBin: Option[string]): PackageInfo = 
   let absPath = extractFilePathFromURL(fileUrl)
   getPkgInfo(absPath, options, nimBin, pikRequires)

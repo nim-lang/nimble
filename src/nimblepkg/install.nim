@@ -397,24 +397,6 @@ proc collectDownloadEntries(satResult: SATResult, pkgsToInstall: seq[(string, Ve
                 vcsRevision: vcsRevision, lockFileDep: lockFileDep,
                 isRoot: isRootPkg))
 
-proc getLockFileDownloadInfo(pv: PkgTuple, dep: LockFileDep,
-                             options: Options): PackageDownloadInfo =
-  ## Builds download information directly from the lock entry. In particular,
-  ## this must not call getDownloadInfo: that resolves package names through
-  ## packages.json and can replace the locked repository with an indexed one.
-  let lockedPv = (name: dep.url, ver: pv.ver)
-  if dep.url.isFileURL:
-    return PackageDownloadInfo(meth: none(DownloadMethod), url: dep.url,
-      subdir: "", downloadDir: "", pv: lockedPv,
-      vcsRevision: notSetSha1Hash)
-
-  let (url, metadata) = getUrlData(dep.url)
-  let subdir = metadata.getOrDefault("subdir")
-  PackageDownloadInfo(meth: some(dep.downloadMethod), url: url,
-    subdir: subdir,
-    downloadDir: getCacheDownloadDir(url, pv.ver, options, dep.vcsRevision),
-    pv: lockedPv, vcsRevision: dep.vcsRevision)
-
 proc resolveDownloadInfo(entries: var seq[PkgDownloadEntry], options: Options) =
   for i in 0 ..< entries.len:
     if entries[i].isRoot:

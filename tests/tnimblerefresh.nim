@@ -167,11 +167,16 @@ license       = "MIT"
     tryDoCmdEx("git add .")
     tryDoCmdEx("git commit -am " & msg.quoteShell)
 
-  proc writeDepVersion(version: string, name = "dep1", requirement = "") =
+  proc writeDepVersion(version: string, name = "dep1", requirement = "",
+                       requirements: seq[string] = @[]) =
     ## Writes <name>.nimble at `version` in the cwd and tags it. `requirement`
     ## lets a new version raise its floor on another dependency.
-    writeFile(&"{name}.nimble", (nimbleFileTemplate % version) &
-      (if requirement.len > 0: &"requires \"{requirement}\"\n" else: ""))
+    var content = nimbleFileTemplate % version
+    if requirement.len > 0:
+      content.add &"requires \"{requirement}\"\n"
+    for req in requirements:
+      content.add &"requires \"{req}\"\n"
+    writeFile(&"{name}.nimble", content)
     commitAll(version)
     tryDoCmdEx(&"git tag v{version}")
 
@@ -255,6 +260,38 @@ license       = "MIT"
       if name.cmpIgnoreCase(pkg) == 0:
         return dep["version"].getStr
     return ""
+
+  template withSharedDepProject(body: untyped) =
+    # json_rpc can keep the old chronos and websock. The newer websock needs
+    # the newer chronos, while the old websock explicitly rules it out.
+    withCleanDirs:
+      writePkgListFile(@["chronos", "websock", "json_rpc"])
+      testRefresh():
+        # Override the official list, since these fixture names also exist in
+        # the real registry. Every dependency must come from the local repos.
+        writeFile(configFile, """
+          [PackageList]
+          name = "official"
+          path = "$1"
+        """.unindent % pkgListFilePath.replace("\\", "\\\\"))
+        require execNimbleYes("refresh", "--packageListOnly").exitCode == QuitSuccess
+        initDepOrigin(@["4.2.3"], "chronos")
+        cdNewDir originsDirPath / "websock":
+          initRepo()
+          writeDepVersion("0.4.0", "websock", "chronos >= 4.2.0 & < 4.4.0")
+        let rpcRequirements = @[
+          "chronos >= 4.0.3 & < 5.0.0", "websock >= 0.2.1 & < 0.5.0"]
+        cdNewDir originsDirPath / "json_rpc":
+          initRepo()
+          writeDepVersion("0.6.1", "json_rpc", requirements = rpcRequirements)
+        initMainPkg("json_rpc >= 0.6.1", underVcs = true)
+        cd mainPkgPath:
+          require execNimbleYes("lock", "--useSystemNim").exitCode == QuitSuccess
+        addDepVersion("4.4.1", "chronos")
+        addDepVersion("0.4.1", "websock", "chronos >= 4.4.0 & < 5.0.0")
+        cd originsDirPath / "json_rpc":
+          writeDepVersion("0.7.0", "json_rpc", requirements = rpcRequirements)
+        body
 
   test "refresh makes a newly published tag visible":
     withDepProject("dep1 >= 0.1.0"):
@@ -415,6 +452,62 @@ license       = "MIT"
         # though 0.2.0 is available for it too.
         check lockedVersion("dep1") == "0.2.0"
         check lockedVersion("dep2") == "0.1.0"
+
+  test "lock --refresh preserves compatible transitive pins regardless of lock order (#1849)":
+    withSharedDepProject:
+      cd mainPkgPath:
+        let original = defaultLockFileName.readFile.parseJson
+        # Both orders describe exactly the same graph. Resolution must not
+        # depend on whether a shared dependency is visited before its users.
+        for order in [@["chronos", "websock", "json_rpc"],
+                      @["json_rpc", "websock", "chronos"]]:
+          var reordered = original.copy
+          reordered["packages"] = newJObject()
+          for name in order:
+            reordered["packages"][name] = original["packages"][name]
+          writeFile(defaultLockFileName, reordered.pretty)
+          let (output, exitCode) = execNimbleYes("lock", "--refresh", "json_rpc", "--useSystemNim")
+          checkpoint(output)
+          check exitCode == QuitSuccess
+          let updated = defaultLockFileName.readFile.parseJson
+          check updated["packages"]["json_rpc"]["version"].getStr == "0.7.0"
+          for name in ["chronos", "websock"]:
+            check updated["packages"][name] == original["packages"][name]
+          check not packageDirExists(pkgsDir, "chronos-4.4.1")
+          check not packageDirExists(pkgsDir, "websock-0.4.1")
+
+  test "lock --refresh upgrades an incompatible reverse dependency (#1849)":
+    withSharedDepProject:
+      cd mainPkgPath:
+        let original = defaultLockFileName.readFile.parseJson
+        let (output, exitCode) = execNimbleYes("lock", "--refresh", "chronos", "--useSystemNim")
+        checkpoint(output)
+        check exitCode == QuitSuccess
+        let updated = defaultLockFileName.readFile.parseJson
+        check lockedVersion("chronos") == "4.4.1"
+        check lockedVersion("websock") == "0.4.1"
+        check updated["packages"]["json_rpc"] == original["packages"]["json_rpc"]
+        check not packageDirExists(pkgsDir, "json_rpc-0.7.0")
+        let paths = readFile("nimble.paths")
+        check paths.contains("chronos-4.4.1")
+        check paths.contains("websock-0.4.1")
+        check not paths.contains("websock-0.4.0")
+
+  test "lock --refresh preserves pins whose packages are not installed (#1849)":
+    withSharedDepProject:
+      cd mainPkgPath:
+        let original = defaultLockFileName.readFile.parseJson
+        removeDir getPackageDir(pkgsDir, "chronos-4.2.3")
+        removeDir getPackageDir(pkgsDir, "websock-0.4.0")
+        let (output, exitCode) = execNimbleYes("lock", "--refresh", "json_rpc", "--useSystemNim")
+        checkpoint(output)
+        check exitCode == QuitSuccess
+        let updated = defaultLockFileName.readFile.parseJson
+        check lockedVersion("json_rpc") == "0.7.0"
+        for name in ["chronos", "websock"]:
+          check updated["packages"][name] == original["packages"][name]
+        check packageDirExists(pkgsDir, "chronos-4.2.3")
+        check packageDirExists(pkgsDir, "websock-0.4.0")
 
   test "lock pkg relocks from the cache without fetching":
     withTwoDepProject:
