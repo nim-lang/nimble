@@ -35,6 +35,10 @@ const
   gitIgnoreFileName = ".gitignore"
   hgIgnoreFileName = ".hgignore"
   separator = when defined(windows): ";" else: ":"
+  # The Nimble guide, published from `nimble-guide/` by .github/workflows/docs.yml.
+  nimbleGuideBaseUrl = "https://nim-lang.github.io/nimble/"
+  nimbleGuideUrl = nimbleGuideBaseUrl & "index.html"
+  packageTypesUrl = nimbleGuideBaseUrl & "package-types.html"
 
 template withNimBinFallback*(nimBin: var Option[string], options: Options, body: untyped) =
   ## Catch NeedsNimBinError, resolve bootstrap nim lazily, and retry.
@@ -1000,7 +1004,7 @@ Library - provides functionality for other packages.
 Binary  - produces an executable for the end-user.
 Hybrid  - combination of library and binary
 
-For more information see https://goo.gl/cm2RX5""",
+For more information see """ & packageTypesUrl,
     ["library", "binary", "hybrid"]
   )
 
@@ -2068,12 +2072,11 @@ proc runAction(options: Options, nimBin: Option[string]) =
   raise nimbleQuit(exitCode)
 
 proc openNimbleManual =
-  const NimbleGuideURL = "https://nim-lang.github.io/nimble/index.html"
   display(
     "Opened", "the Nimble guide in your default browser."
   )
-  displayInfo("If it did not open, you can try going to the link manually: " & NimbleGuideURL)
-  openDefaultBrowser(NimbleGuideURL)
+  displayInfo("If it did not open, you can try going to the link manually: " & nimbleGuideUrl)
+  openDefaultBrowser(nimbleGuideUrl)
 
 proc loadFilePathPkgs*(entryPkg: PackageInfo, options: var Options, nimBin: Option[string]) =
   addUnique(options.filePathPkgs, entryPkg)

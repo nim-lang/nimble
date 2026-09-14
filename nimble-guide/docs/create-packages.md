@@ -21,7 +21,7 @@ $ nimble init
         ... Library - provides functionality for other packages.
         ... Binary  - produces an executable for the end-user.
         ... Hybrid  - combination of library and binary
-        ... For more information see https://goo.gl/cm2RX5
+        ... For more information see https://nim-lang.github.io/nimble/package-types.html
      Select Cycle with 'Tab', 'Enter' when done
    Choices:> library <
              binary  
