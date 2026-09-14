@@ -814,7 +814,7 @@ proc normalizeSpecialVersions*(pkgVersionTable: var Table[string, PackageVersion
       if canonicalName in rootSpecialReqs and rootSpecialReqs[canonicalName] in specialVersions:
         winner = rootSpecialReqs[canonicalName]
       let others = specialVersions.filterIt(it != winner).mapIt($it).join(", ")
-      if not options.lenient:
+      if not options.lenient or specialVersions.anyIt(it.gitAncestor.len > 0):
         raise resolutionFailureError(
           &"Multiple dependencies require different special versions of '{pkgName}': " &
           &"{winner}, {others}.")

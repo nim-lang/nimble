@@ -32,6 +32,7 @@ import toffline
 import tuninstall
 import tsat
 import tver
+import tgitancestry
 import tversiondiscovery
 import tniminstall
 import trequireflag

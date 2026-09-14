@@ -16,6 +16,8 @@
 ##   special version on the line.
 ## - Special versions (`#head`, `#<commit>`) become tags, compared by their
 ##   lowercased spelling, which is how `Version.==` compares specials.
+##   An ancestry-constrained reference keeps its complete spelling as its tag;
+##   the Git downloader verifies the bound before it enters the universe.
 ## - A `verSpecial` requirement admits exactly its own tag.
 ## - `verAny` admits everything, tags included.
 ## - An ordinary range admits the special versions of the *universe* whose

@@ -487,6 +487,27 @@ proc retrieveUrl*(url: string, disableSslCertCheck = false): Future[string] {.as
   finally:
     await session.closeWait()
 
+proc checkGitAncestorResult(ver: Version, output: string, exitCode: int) =
+  if exitCode == 1:
+    raise nimbleError("Git ancestry requirement " & $ver &
+      " is not satisfied: the selected commit does not contain #" & ver.gitAncestor & ".")
+  elif exitCode != 0:
+    raise nimbleError("Cannot verify Git ancestry requirement " & $ver & ": " & output.strip)
+
+proc gitAncestorCommand(dir: string, ver: Version): string =
+  "git -C " & dir.quoteShell & " merge-base --is-ancestor " &
+    (ver.gitAncestor & "^{commit}").quoteShell & " HEAD"
+
+proc verifyGitAncestor*(dir: string, ver: Version) =
+  ## Verify the selected checkout, including cached checkouts. Ancestry must be
+  ## provable from the available history; Git errors never count as success.
+  let (output, exitCode) = doCmdEx(gitAncestorCommand(dir, ver))
+  checkGitAncestorResult(ver, output, exitCode)
+
+proc verifyGitAncestorAsync(dir: string, ver: Version): Future[void] {.async.} =
+  let (output, exitCode) = await doCmdExAsync(gitAncestorCommand(dir, ver))
+  checkGitAncestorResult(ver, output, exitCode)
+
 {.warning[ProveInit]: off.}
 proc getFullRevisionFromGitHubApi(url, version: string): Future[Sha1Hash] {.async.} =
   ## By given a commit short hash and an URL to a GitHub repository retrieves
@@ -664,6 +685,18 @@ proc doDownload(url, downloadDir: string, verRange: VersionRange,
   result.vcsRevision = notSetSha1Hash
 
   removeDir(downloadDir)
+  if verRange.kind == verSpecial and verRange.spe.gitAncestor.len > 0:
+    if downMethod != DownloadMethod.git:
+      raise nimbleError("Commit ancestry requirements are only supported for Git repositories.")
+    # A full Git clone is required even with --tarballs or a locked revision.
+    doClone(downMethod, url, downloadDir, onlyTip = false, options = options)
+    let reference = verRange.spe.gitReference
+    let target = if vcsRevision != notSetSha1Hash: $vcsRevision
+      elif reference.toLowerAscii == "head": "HEAD" else: reference
+    if not doCheckout(downMethod, downloadDir, target, options = options):
+      raise nimbleError("Cannot check out Git revision " & target)
+    verifyGitAncestor(downloadDir, verRange.spe)
+    return (verRange.spe, downloadDir.getVcsRevision)
   if vcsRevision != notSetSha1Hash:
     if downloadTarball(url, options):
       discard doDownloadTarball(url, downloadDir, $vcsRevision, false)
@@ -766,6 +799,17 @@ proc doDownloadAsync(url, downloadDir: string, verRange: VersionRange,
   result.vcsRevision = notSetSha1Hash
 
   removeDir(downloadDir)
+  if verRange.kind == verSpecial and verRange.spe.gitAncestor.len > 0:
+    if downMethod != DownloadMethod.git:
+      raise nimbleError("Commit ancestry requirements are only supported for Git repositories.")
+    await doCloneAsync(downMethod, url, downloadDir, onlyTip = false, options = options)
+    let reference = verRange.spe.gitReference
+    let target = if vcsRevision != notSetSha1Hash: $vcsRevision
+      elif reference.toLowerAscii == "head": "HEAD" else: reference
+    if not await doCheckoutAsync(downMethod, downloadDir, target, options = options):
+      raise nimbleError("Cannot check out Git revision " & target)
+    await verifyGitAncestorAsync(downloadDir, verRange.spe)
+    return (verRange.spe, downloadDir.getVcsRevision)
   if vcsRevision != notSetSha1Hash:
     if downloadTarball(url, options):
       discard await doDownloadTarballAsync(url, downloadDir, $vcsRevision, false)
@@ -860,6 +904,8 @@ proc isCacheVersionValid*(dir: string, verRange: VersionRange, options: Options)
   ## Used by downloadPkgs to detect stale cache entries (issue #1692).
   if not pkgDirHasNimble(dir, options):
     return false
+  if verRange.kind == verSpecial and verRange.spe.gitAncestor.len > 0:
+    verifyGitAncestor(dir, verRange.spe)
   if verRange.kind in {verAny, verSpecial}:
     return true
   try:
@@ -878,6 +924,8 @@ proc isCacheValid(pkgDir, downloadDir, downloadPath: string,
   ## deletes the stale cache directory and returns false.
   if not pkgDirHasNimble(pkgDir, options):
     return false
+  if verRange.kind == verSpecial and verRange.spe.gitAncestor.len > 0:
+    verifyGitAncestor(downloadDir, verRange.spe)
   if verRange.kind in {verAny, verSpecial} or downloadPath == "":
     return true
   try:
@@ -968,7 +1016,8 @@ proc downloadPkg*(url: string, verRange: VersionRange,
   ## Makes sure that the downloaded package's version satisfies the requested
   ## version range.
   pkginfo = getPkgInfo(result.dir, options, nimBin, pikRequires)
-  if pkginfo.basicInfo.version notin verRange:
+  let ancestryVerified = verRange.kind == verSpecial and verRange.spe.gitAncestor.len > 0
+  if not ancestryVerified and pkginfo.basicInfo.version notin verRange:
     raise nimbleError(
       "Downloaded package's version does not satisfy requested version " &
       "range: wanted $1 got $2." %
@@ -1036,7 +1085,8 @@ proc downloadPkgAsync*(url: string, verRange: VersionRange,
   ## Makes sure that the downloaded package's version satisfies the requested
   ## version range.
   pkginfo = getPkgInfo(result.dir, options, nimBin, pikRequires)
-  if pkginfo.basicInfo.version notin verRange:
+  let ancestryVerified = verRange.kind == verSpecial and verRange.spe.gitAncestor.len > 0
+  if not ancestryVerified and pkginfo.basicInfo.version notin verRange:
     raise nimbleError(
       "Downloaded package's version does not satisfy requested version " &
       "range: wanted $1 got $2." %
