@@ -839,3 +839,130 @@ version = "0.1.0"
 Requires "nim >= 1.6.0"
 """
     check contentHasStateModifyingOps(content) == false
+
+suite "Declarative parser full metadata (#1857)":
+  # `nimble dump` used to always go through the VM parser for full metadata,
+  # which forced it to bootstrap (and download) a Nim toolchain. These fields
+  # are plain literals in an ordinary .nimble file, so read them statically.
+  test "should extract every metadata field dump prints":
+    let content = """
+packageName    = "renamed"
+version        = "0.2.0"
+author         = "repro"
+description    = "dump must not need the VM"
+license        = "MIT"
+srcDir         = "src"
+binDir         = "build"
+backend        = "cpp"
+skipDirs       = @["tests"]
+skipFiles      = @["ignore.txt"]
+skipExt        = @["nim"]
+installDirs    = @["data"]
+installFiles   = @["readme.md"]
+installExt     = @["png"]
+entryPoints    = @["entry.nim"]
+testEntryPoint = "tests/tall.nim"
+
+requires "nim >= 2.0.8"
+"""
+    var options = initOptions()
+    let info = extractRequiresInfoFromContent(content, options)
+    check info.issues == {}
+    check info.packageName == "renamed"
+    check info.author == "repro"
+    check info.description == "dump must not need the VM"
+    check info.license == "MIT"
+    check info.backend == "cpp"
+    check info.skipDirs == @["tests"]
+    check info.skipFiles == @["ignore.txt"]
+    check info.skipExt == @["nim"]
+    check info.installDirs == @["data"]
+    check info.installFiles == @["readme.md"]
+    check info.installExt == @["png"]
+    check info.entryPoints == @["entry.nim"]
+    check info.testEntryPoint == "tests/tall.nim"
+
+  test "should parse metadata fields in snake_case":
+    let content = """
+package_name     = "renamed"
+skip_dirs        = @["tests"]
+install_ext      = @["png"]
+entry_points     = @["entry.nim"]
+test_entry_point = "tests/tall.nim"
+"""
+    var options = initOptions()
+    let info = extractRequiresInfoFromContent(content, options)
+    check info.packageName == "renamed"
+    check info.skipDirs == @["tests"]
+    check info.installExt == @["png"]
+    check info.entryPoints == @["entry.nim"]
+    check info.testEntryPoint == "tests/tall.nim"
+
+  test "should flag a non-literal metadata value for the VM parser":
+    let content = """
+version = "0.1.0"
+const who = "repro"
+author = who
+"""
+    var options = initOptions()
+    let info = extractRequiresInfoFromContent(content, options)
+    check nfiNonLiteralMetadata in info.issues
+
+  test "should flag old-style call metadata for the VM parser":
+    # `author "x"` (call form) carries a value the assignment walker never sees,
+    # so a static read would silently report an empty author.
+    let content = """
+version "0.1.0"
+author "repro"
+license "MIT"
+"""
+    var options = initOptions()
+    let info = extractRequiresInfoFromContent(content, options)
+    check nfiNonLiteralMetadata in info.issues
+
+  test "should flag namedBin for the VM parser":
+    let content = """
+version = "0.1.0"
+namedBin["src/app"] = "tool"
+"""
+    var options = initOptions()
+    let info = extractRequiresInfoFromContent(content, options)
+    check nfiNonLiteralMetadata in info.issues
+
+  test "should not flag an ordinary declarative nimble file":
+    let content = """
+version = "0.1.0"
+author = "repro"
+description = "ordinary"
+license = "MIT"
+srcDir = "src"
+
+requires "nim >= 2.0.8"
+"""
+    var options = initOptions()
+    let info = extractRequiresInfoFromContent(content, options)
+    check info.issues == {}
+
+  test "should stay parsable for minimal info when only metadata is unreadable":
+    # nfiNonLiteralMetadata must not knock a file off the fast discovery path:
+    # minimal info is name/version/requires, none of which it touches.
+    let content = """
+version = "0.1.0"
+author "old style"
+namedBin["src/app"] = "tool"
+
+requires "nim >= 1.6.0"
+"""
+    var options = initOptions()
+    check isParsableByDeclarative(content, options)
+
+  test "should extract foreignDep declarations":
+    let content = """
+version = "0.1.0"
+foreignDep "openssl"
+foreignDep "libcurl"
+"""
+    var options = initOptions()
+    let info = extractRequiresInfoFromContent(content, options)
+    check info.issues == {}
+    check info.foreignDeps == @["openssl", "libcurl"]

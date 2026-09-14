@@ -303,3 +303,80 @@ testEntryPoint: "tests/tall.nim"
     let (outp, exitCode) = execNimble("dump", "--json", "testdump")
     check: exitCode == 0
     check: outp == outpExpected
+
+  test "dump reads a declarative package without a Nim binary (#1857)":
+    # Regression for nim-lang/nimble#1857: `nimble dump` is read-only, but with
+    # no Nim on PATH and an empty nimble dir it bootstrap-installed a whole Nim
+    # toolchain (~270MB) just to VM-parse a .nimble file that the declarative
+    # parser can read statically.
+    when defined(windows):
+      # Hiding the compiler via PATH surgery is unreliable on the CI image.
+      skip()
+    else:
+      let root = getTempDir().expandFilename / "nimble1857"
+      removeDir root
+      defer: removeDir root
+
+      let
+        fakeHome = root / "home"
+        fakeConfig = root / "config"
+        fakeBin = root / "bin"
+        projectDir = root / "project"
+      createDir fakeHome
+      createDir fakeConfig
+      createDir fakeBin
+      createDir projectDir / "src"
+      # A PATH with no `nim` on it, but keeping the tools nimble shells out to.
+      for tool in ["git", "sh", "tar", "curl", "env"]:
+        let exe = findExe(tool)
+        if exe.len > 0:
+          createSymlink(exe, fakeBin / tool)
+
+      writeFile(projectDir / "project.nimble", """
+version        = "0.2.0"
+author         = "repro"
+description    = "dump must not install nim"
+license        = "MIT"
+srcDir         = "src"
+backend        = "cpp"
+skipDirs       = @["tests"]
+installExt     = @["png"]
+testEntryPoint = "tests/tall.nim"
+
+requires "nim >= 2.0.8"
+""")
+      writeFile(projectDir / "src" / "project.nim", "")
+
+      let
+        oldHome = getEnv("HOME")
+        oldPath = getEnv("PATH")
+        hadConfigHome = existsEnv("XDG_CONFIG_HOME")
+        oldConfigHome = getEnv("XDG_CONFIG_HOME")
+      putEnv("HOME", fakeHome)
+      putEnv("XDG_CONFIG_HOME", fakeConfig)
+      putEnv("PATH", fakeBin)
+      defer:
+        putEnv("HOME", oldHome)
+        putEnv("PATH", oldPath)
+        if hadConfigHome:
+          putEnv("XDG_CONFIG_HOME", oldConfigHome)
+        else:
+          delEnv("XDG_CONFIG_HOME")
+
+      # --offline makes a regression fail fast instead of downloading a toolchain.
+      let (outp, exitCode) = execNimble(
+        "dump", "--offline", "--nimbleDir:" & (root / "nimbleDir"), projectDir)
+      check exitCode == QuitSuccess
+      let lines = outp.processOutput
+      check lines.inLines("version: \"0.2.0\"")
+      check lines.inLines("author: \"repro\"")
+      check lines.inLines("desc: \"dump must not install nim\"")
+      check lines.inLines("license: \"MIT\"")
+      check lines.inLines("srcDir: \"src\"")
+      check lines.inLines("backend: \"cpp\"")
+      check lines.inLines("skipDirs: \"tests\"")
+      check lines.inLines("installExt: \"png\"")
+      check lines.inLines("testEntryPoint: \"tests/tall.nim\"")
+      # No Nim could be resolved, and above all none was installed.
+      check lines.inLines("nimDir: \"\"")
+      check not dirExists(fakeHome / ".nimble" / "nimbinaries")

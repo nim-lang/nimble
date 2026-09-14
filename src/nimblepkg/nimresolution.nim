@@ -66,6 +66,15 @@ proc getNimFromSystem*(options: Options): Option[PackageInfo] =
       return some pkgInfo
   return none(PackageInfo)
 
+proc checkMayInstallNim(options: Options) =
+  ## `nimble dump` is a read-only command: it may report which Nim it would use,
+  ## but it must never download or install one (#1857). Raised as a
+  ## ResolutionFailureError so `getNimDir` turns it into an empty `nimDir`, the
+  ## documented "couldn't pick a nim" signal for the langserver.
+  if options.action.typ == actionDump:
+    raise resolutionFailureError(
+      "No Nim is available and `nimble dump` must not install one")
+
 proc isSystemNim*(resolvedNim: NimResolved, options: Options): bool =
   if resolvedNim.pkg.isSome:
     let systemNimPkg = getNimFromSystem(options)
@@ -161,6 +170,7 @@ proc resolveNim*(rootPackage: PackageInfo, pkgListDecl: seq[PackageInfo], system
     nimBin = some(resolvedNim.get.getNimBin())
   else:
     if options.satResult.bootstrapNim.nimResolved.pkg.isNone:
+      options.checkMayInstallNim()
       let nimPkg = (name: "nim", ver: parseVersionRange(options.satResult.bootstrapNim.nimResolved.version))
       let nimInstalled = waitFor installNimFromBinariesDir(nimPkg, options)
       if nimInstalled.isSome:
@@ -338,6 +348,7 @@ proc resolveAndConfigureNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo]
         if pkg.name.isNim:
           requestedVer = pkg.ver
           break
+    options.checkMayInstallNim()
     let nimPkg = (name: "nim", ver: requestedVer)
     let nimInstalled = waitFor installNimFromBinariesDir(nimPkg, options)
     if nimInstalled.isSome:
@@ -372,6 +383,7 @@ proc resolveAndConfigureNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo]
   var resolvedNim = resolveNim(rootPackage, pkgListDecl, systemNimPkg, options)
   if resolvedNim.pkg.isNone:
     #we need to install it
+    options.checkMayInstallNim()
     let nimPkg = (name: "nim", ver: parseVersionRange(resolvedNim.version))
     #TODO handle the case where the user doesnt want to reuse nim binaries
     #It can be done inside the installNimFromBinariesDir function to simplify things out by

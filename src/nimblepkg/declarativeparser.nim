@@ -24,6 +24,12 @@ type
     nfiNonLiteralVersion   ## `version` assigned a non-string-literal expression
     nfiNonLiteralSrcDir    ## `srcDir` assigned a non-string-literal expression
     nfiNonLiteralSeq       ## `bin`/`paths` seq with non-string-literal contents
+    nfiNonLiteralMetadata  ## a `dump`-only metadata field (author, license, ...)
+                           ## that can't be read statically: assigned a
+                           ## non-literal, written in old-style call form, or a
+                           ## `namedBin` entry. Deliberately NOT part of
+                           ## `requiresVmFallback` — solving never looks at these
+                           ## fields, so only full-metadata readers need to care.
 
   NimbleFileInfo* = object
     nimbleFile*: string
@@ -37,6 +43,21 @@ type
     paths*: seq[string]
     preHooks*: HashSet[string]
     postHooks*: HashSet[string]
+    # Metadata only full-info readers (`nimble dump`) need. See #1857.
+    packageName*: string
+    author*: string
+    description*: string
+    license*: string
+    backend*: string
+    testEntryPoint*: string
+    skipDirs*: seq[string]
+    skipFiles*: seq[string]
+    skipExt*: seq[string]
+    installDirs*: seq[string]
+    installFiles*: seq[string]
+    installExt*: seq[string]
+    entryPoints*: seq[string]
+    foreignDeps*: seq[string]
     issues*: set[NimbleFileIssue]
       ## Problems found while parsing; empty means fully statically parseable.
     declarativeParserErrorLines*: seq[string]
@@ -116,26 +137,75 @@ proc validateNoNestedRequires(nfl: var NimbleFileInfo, n: PNode, conf: ConfigRef
   else:
     discard
 
-proc flagNonLiteralSeq(nfl: var NimbleFileInfo, info: TLineInfo, msg: string) =
-  nfl.issues.incl nfiNonLiteralSeq
+proc flagNonLiteralSeq(nfl: var NimbleFileInfo, info: TLineInfo, msg: string,
+                       issue = nfiNonLiteralSeq) =
+  nfl.issues.incl issue
   nfl.declarativeParserErrorLines.add(
     &"{nfl.nimbleFile}({info.line}, {info.col}) {msg}")
 
-proc extractSeqLiteral(n: PNode, nfl: var NimbleFileInfo, varName: string): seq[string] =
+proc extractSeqLiteral(n: PNode, nfl: var NimbleFileInfo, varName: string,
+                       issue = nfiNonLiteralSeq): seq[string] =
   ## Extracts a sequence literal of the form @["item1", "item2"]. A non-literal
   ## element or shape (e.g. `bin = @[appName]`) can't be read statically, so it
   ## is flagged for the VM parser rather than reported as a compiler error.
+  ## `issue` says which fallback it triggers: `bin`/`paths` feed the solver, so
+  ## they flag `nfiNonLiteralSeq`; metadata-only seqs flag `nfiNonLiteralMetadata`.
   if n.kind == nkPrefix and n[0].kind == nkIdent and n[0].ident.s == "@":
     if n[1].kind == nkBracket:
       for item in n[1]:
         if item.kind in {nkStrLit .. nkTripleStrLit}:
           result.add item.strVal
         else:
-          nfl.flagNonLiteralSeq(item.info, &"'{varName}' sequence items must be string literals; falling back to the VM parser")
+          nfl.flagNonLiteralSeq(item.info, &"'{varName}' sequence items must be string literals; falling back to the VM parser", issue)
     else:
-      nfl.flagNonLiteralSeq(n.info, &"'{varName}' must be assigned a sequence of strings; falling back to the VM parser")
+      nfl.flagNonLiteralSeq(n.info, &"'{varName}' must be assigned a sequence of strings; falling back to the VM parser", issue)
   else:
-    nfl.flagNonLiteralSeq(n.info, &"'{varName}' must be assigned a sequence with @ prefix; falling back to the VM parser")
+    nfl.flagNonLiteralSeq(n.info, &"'{varName}' must be assigned a sequence with @ prefix; falling back to the VM parser", issue)
+
+const metadataFields = [
+  "packageName", "name", "author", "description", "license", "backend",
+  "testEntryPoint", "skipDirs", "skipFiles", "skipExt", "installDirs",
+  "installFiles", "installExt", "entryPoints"]
+
+proc isMetadataField(name: string): bool =
+  ## True for the .nimble fields only full-metadata readers (`nimble dump`) need.
+  ## The solver never looks at them, which is why they get their own fallback
+  ## flag instead of joining `requiresVmFallback`. See #1857.
+  metadataFields.anyIt(eqIdent(name, it))
+
+proc extractMetadataAsgn(n: PNode, nfl: var NimbleFileInfo) =
+  ## Reads one `<metadata field> = <literal>` assignment. A non-literal value
+  ## flags `nfiNonLiteralMetadata` so the field is evaluated by the VM parser
+  ## rather than silently reported as empty.
+  # `name` is the nimscript alias of `packageName`.
+  let key = if eqIdent(n[0].ident.s, "name"): "packageName" else: n[0].ident.s
+  # The NimbleFileInfo field is named after its .nimble key, so the identifier
+  # passed in is also what the assignment is matched against.
+  template str(field: untyped) =
+    if eqIdent(key, astToStr(field)):
+      if n[1].kind in {nkStrLit .. nkTripleStrLit}:
+        nfl.field = n[1].strVal
+      else:
+        nfl.issues.incl nfiNonLiteralMetadata
+        nfl.declarativeParserErrorLines.add(
+          &"{nfl.nimbleFile}({n[1].info.line}, {n[1].info.col}) '{key}' is not a string literal; falling back to the VM parser")
+  template strs(field: untyped) =
+    if eqIdent(key, astToStr(field)):
+      nfl.field = extractSeqLiteral(n[1], nfl, key, nfiNonLiteralMetadata)
+
+  str packageName
+  str author
+  str description
+  str license
+  str backend
+  str testEntryPoint
+  strs skipDirs
+  strs skipFiles
+  strs skipExt
+  strs installDirs
+  strs installFiles
+  strs installExt
+  strs entryPoints
 
 proc validateFileUrlRequires(nfl: var NimbleFileInfo, n: PNode, conf: ConfigRef, currentFeature: string = "", options: Options) =
   if options.isFilePathDiscovering:
@@ -318,6 +388,9 @@ proc extract(n: PNode, conf: ConfigRef, result: var NimbleFileInfo, options: Opt
         if n.len >= 3 and n[1].kind == nkIdent and
             n[2].kind in {nkStrLit .. nkTripleStrLit}:
           result.tasks.add((n[1].ident.s, n[2].strVal))
+      of "foreignDep":
+        if n.len >= 2 and n[1].kind in {nkStrLit .. nkTripleStrLit}:
+          result.foreignDeps.add n[1].strVal
       of "before":
         if n.len >= 3 and n[1].kind == nkIdent and n[1].ident.s == "install":
           result.preHooks.incl("install")
@@ -325,7 +398,11 @@ proc extract(n: PNode, conf: ConfigRef, result: var NimbleFileInfo, options: Opt
         if n.len >= 3 and n[1].kind == nkIdent and n[1].ident.s == "install":
           result.postHooks.incl("install")
       else:
-        discard
+        # Old-style call form (`author "x"`) carries a value the assignment
+        # walker never sees. Flag it so full-metadata readers fall back to the
+        # VM instead of silently reporting the field as empty.
+        if isMetadataField(n[0].ident.s) or eqIdent(n[0].ident.s, "version"):
+          result.issues.incl nfiNonLiteralMetadata
   of nkAsgn, nkFastAsgn:
     if n[0].kind == nkIdent and eqIdent(n[0].ident.s, "srcDir"):
       if n[1].kind in {nkStrLit .. nkTripleStrLit}:
@@ -362,6 +439,12 @@ proc extract(n: PNode, conf: ConfigRef, result: var NimbleFileInfo, options: Opt
     elif n[0].kind == nkIdent and eqIdent(n[0].ident.s, "paths"):
       let pathsSeq = extractSeqLiteral(n[1], result, "paths")
       result.paths = pathsSeq
+    elif n[0].kind == nkIdent and isMetadataField(n[0].ident.s):
+      extractMetadataAsgn(n, result)
+    elif n[0].kind == nkBracketExpr and n[0].len > 0 and
+         n[0][0].kind == nkIdent and eqIdent(n[0][0].ident.s, "namedBin"):
+      # `namedBin["src/app"] = "tool"` is only read by the VM parser.
+      result.issues.incl nfiNonLiteralMetadata
     else:
       discard
   else:
@@ -542,8 +625,10 @@ proc isParsableByDeclarative*(content: string, options: Options): bool =
   ## Check if nimble file content can be fully parsed by the declarative parser.
   ## Returns true if the content has no errors and no nested requires
   ## (i.e., requires inside if/when blocks that need VM evaluation).
+  ## `nfiNonLiteralMetadata` is excluded: callers here want name/version/requires,
+  ## never the metadata fields that flag it (#1857).
   let info = extractRequiresInfoFromContent(content, options)
-  result = info.issues == {}
+  result = info.issues - {nfiNonLiteralMetadata} == {}
 
 type PluginInfo* = object
   builderPatterns*: seq[(string, string)]
@@ -802,9 +887,48 @@ proc getNimPkgInfo*(dir: string, options: Options, nimBin: Option[string]): Pack
   fillPkgBasicInfo(result, nimbleFileInfo)
   result = toRequiresInfo(result, options, nimBin, some nimbleFileInfo)
 
-proc getPkgInfoFromDirWithDeclarativeParser(dir: string, options: Options, nimBin: Option[string], shouldError: bool = true): PackageInfo =
-  let nimbleFile = findNimbleFile(dir, shouldError, options)
-  let nimbleFileInfo = extractRequiresInfo(nimbleFile, options)
+proc fillPkgFullInfo(pkgInfo: var PackageInfo, nimbleFileInfo: NimbleFileInfo) =
+  ## Copies the metadata that otherwise only the VM parser produces, so a full
+  ## PackageInfo can be built without a Nim binary. Mirrors the `[Package]`
+  ## section of readPackageInfoFromNimble (packageparser.nim). See #1857.
+  if nimbleFileInfo.packageName.len > 0:
+    pkgInfo.basicInfo.name = nimbleFileInfo.packageName
+  pkgInfo.author = nimbleFileInfo.author
+  pkgInfo.description = nimbleFileInfo.description
+  pkgInfo.license = nimbleFileInfo.license
+  pkgInfo.skipDirs = nimbleFileInfo.skipDirs
+  pkgInfo.skipFiles = nimbleFileInfo.skipFiles
+  pkgInfo.skipExt = nimbleFileInfo.skipExt
+  pkgInfo.installDirs = nimbleFileInfo.installDirs
+  pkgInfo.installFiles = nimbleFileInfo.installFiles
+  pkgInfo.installExt = nimbleFileInfo.installExt
+  pkgInfo.entryPoints = nimbleFileInfo.entryPoints
+  pkgInfo.testEntryPoint = nimbleFileInfo.testEntryPoint
+  pkgInfo.foreignDeps = nimbleFileInfo.foreignDeps
+  pkgInfo.backend =
+    if nimbleFileInfo.backend.len == 0: "c"
+    elif nimbleFileInfo.backend.normalize == "javascript": "js"
+    else: nimbleFileInfo.backend.toLowerAscii()
+  for (task, _) in nimbleFileInfo.tasks:
+    pkgInfo.nimbleTasks.incl task.normalize
+  # toRequiresInfo only copies `bin` when it was handed a pikRequires package,
+  # so set it here — and give the js backend the extension the VM would.
+  pkgInfo.bin.clear()
+  for bin, src in nimbleFileInfo.bin:
+    if pkgInfo.backend == "js":
+      pkgInfo.bin[bin.changeFileExt("js")] = src
+    else:
+      pkgInfo.bin[bin] = src
+
+proc getPkgInfoFromDirWithDeclarativeParser(dir: string, options: Options, nimBin: Option[string],
+                                            shouldError: bool = true,
+                                            preParsed: Option[NimbleFileInfo] = none(NimbleFileInfo)): PackageInfo =
+  ## `preParsed` lets a caller that already parsed the nimble file hand the
+  ## result over instead of paying for a second parse.
+  let nimbleFileInfo =
+    if preParsed.isSome: preParsed.get
+    else: extractRequiresInfo(findNimbleFile(dir, shouldError, options), options)
+  let nimbleFile = nimbleFileInfo.nimbleFile
   result = initPackageInfo()
   fillPkgBasicInfo(result, nimbleFileInfo)
   if not nimbleFile.startsWith(options.getPkgsDir):
@@ -826,6 +950,29 @@ proc getPkgInfoFromDirWithDeclarativeParser(dir: string, options: Options, nimBi
   if not nimbleFile.startsWith(options.getPkgsDir) and
       result.basicInfo.version != notSetVersion:
     result.metadata.specialVersions.incl result.basicInfo.version
+
+proc tryGetPkgInfoFullDeclarativeFromFile*(nimbleFile: string, options: Options,
+                                          nimBin: Option[string]): Option[PackageInfo] =
+  ## Full package metadata read straight from the .nimble AST, so read-only
+  ## consumers (`nimble dump`) neither need a Nim binary nor install one just to
+  ## print a package's fields (#1857).
+  ##
+  ## Returns `none` whenever anything at all stopped the file from parsing
+  ## cleanly — a non-literal value, old-style call metadata, `namedBin`,
+  ## `taskRequires`, nested requires, a syntax error. The caller must then fall
+  ## back to the VM parser, which is the only way those files can be read.
+  if nimbleFile.len == 0 or nimbleFile.splitFile.name.isNim:
+    # nim's own nimble file takes a bespoke, version-only path.
+    return none(PackageInfo)
+  let nimbleFileInfo = extractRequiresInfo(nimbleFile, options)
+  if nimbleFileInfo.issues != {}:
+    return none(PackageInfo)
+  var pkgInfo = getPkgInfoFromDirWithDeclarativeParser(
+    nimbleFile.parentDir, options, nimBin, shouldError = true,
+    preParsed = some nimbleFileInfo)
+  fillPkgFullInfo(pkgInfo, nimbleFileInfo)
+  pkgInfo.infoKind = pikFull
+  some pkgInfo
 
 proc convertNimAliasToNim*(pv: PkgTuple): PkgTuple =
   #Compiler needs to be treated as Nim as long as it isnt a separated package. See https://github.com/nim-lang/Nim/issues/23049
@@ -868,10 +1015,12 @@ proc getPkgInfo*(dir: string, options: Options, nimBin: Option[string],
   ## level=pikFull: VM parser directly (full metadata needed anyway)
   ## level=pikRequires: declarative parser with VM fallback for files that need it
   ##   (nested requires, computed/non-literal version — see NimbleFileIssue)
+  ## Read-only callers that must work without a Nim binary use
+  ## `tryGetPkgInfoFullDeclarativeFromFile` instead of pikFull. See #1857.
   if level == pikRequires:
     return getPkgInfoFromDirWithDeclarativeParser(dir, options, nimBin, shouldError)
   # pikFull: go straight to VM — we need full metadata (author, license, etc.)
-  # which the declarative parser can't provide
+  # which the declarative parser can't always provide
   return getPkgInfoVm(dir, options, nimBin, forValidation)
 
 proc getMinimalInfo*(nimbleFile: string, options: Options, nimBin: Option[string]): PackageMinimalInfo =
