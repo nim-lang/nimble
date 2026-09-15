@@ -834,27 +834,47 @@ proc join(x: seq[PkgTuple]; y: string): string =
     result.add y
     result.add x[i][0] & " " & $x[i][1]
 
-proc getPackageByPattern(pattern: string, options: Options, nimBin: Option[string]): PackageInfo =
+proc getPackageByPattern(pattern: string, options: var Options,
+                         nimBin: var Option[string]): PackageInfo =
   ## Search for a package file using multiple strategies.
-  if pattern == "":
-    # Not specified - using current directory
-    result = getPkgInfo(os.getCurrentDir(), options, nimBin = nimBin)
-  elif pattern.splitFile.ext == ".nimble" and pattern.fileExists:
-    # project file specified
-    result = getPkgInfoFromFile(nimBin, pattern, options)
-  elif pattern.dirExists:
-    # project directory specified
-    result = getPkgInfo(pattern, options, nimBin = nimBin)
-  else:
-    # Last resort - attempt to read as package identifier
-    let packages = getInstalledPkgsMin(options.getPkgsDir(), options)
-    let identTuple = parseRequires(pattern)
-    var skeletonInfo = initPackageInfo()
-    if not findPkg(packages, identTuple, skeletonInfo):
-      raise nimbleError(
-          "Specified package not found"
-      )
-    result = getPkgInfoFromFile(nimBin, skeletonInfo.myPath, options)
+  ##
+  ## Used only by `nimble dump`, which is read-only: full metadata is read
+  ## straight from the .nimble AST whenever the file allows it, so an ordinary
+  ## package never forces a Nim toolchain download just to have its fields
+  ## printed. Only a file the static parser cannot read (non-literal values,
+  ## old-style call metadata, `namedBin`, `taskRequires`, nested requires, a
+  ## syntax error) falls back to the VM parser — and only then is a Nim binary
+  ## resolved, because the VM is the only way to read those. See #1857.
+  let nimbleFile =
+    if pattern == "":
+      # Not specified - using current directory
+      findNimbleFile(os.getCurrentDir(), true, options)
+    elif pattern.splitFile.ext == ".nimble" and pattern.fileExists:
+      # project file specified
+      pattern
+    elif pattern.dirExists:
+      # project directory specified
+      findNimbleFile(pattern, true, options)
+    else:
+      # Last resort - attempt to read as package identifier
+      let packages = getInstalledPkgsMin(options.getPkgsDir(), options)
+      let identTuple = parseRequires(pattern)
+      var skeletonInfo = initPackageInfo()
+      if not findPkg(packages, identTuple, skeletonInfo):
+        raise nimbleError(
+            "Specified package not found"
+        )
+      skeletonInfo.myPath
+
+  let declarative = tryGetPkgInfoFullDeclarativeFromFile(nimbleFile, options, nimBin)
+  if declarative.isSome:
+    return declarative.get
+
+  if nimBin.isNone:
+    nimBin = some ensureBootstrapNim(options)
+    if options.nimBin.isNone:
+      options.nimBin = some makeNimBin(options, nimBin.getNimBin)
+  result = getPkgInfoFromFile(nimBin, nimbleFile, options)
 
 
 proc getEntryPoints(pkgInfo: PackageInfo, options: Options): seq[string] =
@@ -2525,7 +2545,8 @@ proc doAction(options: var Options, nimBinParam: Option[string]) {.instrument.} 
     var pkgInfo = getPkgInfo(getCurrentDir(), options, nimBin = nimBin)
     publish(pkgInfo, options)
   of actionDump:
-    needNim()
+    # No needNim() here: `dump` is read-only and resolves a Nim binary itself,
+    # and only for a .nimble file the static parser cannot read (#1857).
     dump(options, nimBin)
   of actionTasks:
     needNim()
