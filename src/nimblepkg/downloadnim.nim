@@ -77,7 +77,7 @@ proc getGccArch*(options: Options): int =
       putEnv("PATH", options.getMingwBin() & PathSep & pathEnv)
 
     (outp, errC) = execCmdEx(
-      "cmd /c echo int main^(^) { return sizeof^(void *^); } | gcc -xc - -o archtest && archtest"
+      "cmd /c echo int main^(^) { return sizeof^(void *^); } | gcc -xc - -o archtest && .\\archtest"
     )
 
     putEnv("PATH", pathEnv)
