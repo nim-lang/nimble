@@ -516,7 +516,20 @@ proc getMinimalFromPreferred*(pv: PkgTuple, getMinimalPackage: GetPackageMinimal
     ## Async version of getMinimalFromPreferred that uses async package fetching.
     # Check if we have a preferred package first
     for pp in preferredPackages:
-      if (pp.name == pv.name or pp.url == pv.name) and pp.version.withinRange(pv.ver):
+      if pp.name != pv.name and pp.url != pv.name:
+        continue
+      # A `#branch`/`#commit`/`#tag` requirement is only met by a package that
+      # actually is that ref, so it takes `satisfiesConstraint` rather than
+      # `withinRange`, which accepts any normal version for a special range.
+      # Being lenient here is not merely permissive: the caller relabels every
+      # candidate it gets back as the requested special version, so an installed
+      # `2.4.0` would enter the version table posing as `#<commit>` while still
+      # carrying 2.4.0's own requirements - and the solver would then hold that
+      # release's dependencies for a revision that changed them.
+      let satisfies =
+        if pv.ver.kind == verSpecial: pp.version.satisfiesConstraint(pv.ver)
+        else: pp.version.withinRange(pv.ver)
+      if satisfies:
         result.add pp
 
     # Try to download all versions to give the SAT solver full choice
