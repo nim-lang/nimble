@@ -1,6 +1,7 @@
 {.used.}
 import unittest
-import nimblepkg/[options, downloadnim, version, declarativeparser, versiondiscovery, nimenv]
+import nimblepkg/[options, downloadnim, version, declarativeparser, versiondiscovery,
+                  nimenv, packageinfotypes, packagemetadatafile]
 import std/[os, options, osproc, strutils]
 import chronos
 import testscommon
@@ -61,6 +62,49 @@ suite "Nim binaries":
     check minimalPgks.len == releases.len
     for pkg in minimalPgks:
       check pkg.version in releases
+
+  test "looking up an extracted Nim matches #special requirements strictly (#1855)":
+    # Two regressions guarded here. The version derived from the directory
+    # name must survive loading a `nimblemeta.json` that has no
+    # `specialVersions` (older nimbles wrote those), or nothing in the binaries
+    # dir is ever found and `installNimFromBinariesDir` re-prompts for a
+    # download on every run. And once it IS found, a `#devel` requirement must
+    # not be satisfied by a plain release: `withinRange` allows that on purpose
+    # for post-download validation, but here it would hand back `nim-2.0.4`
+    # for `nim#devel` and never install devel at all.
+    var options = initOptions()
+    let binariesDir = getTempDir() / "nimble_test_1855_nimbinaries"
+    removeDir(binariesDir)
+    defer: removeDir(binariesDir)
+    options.nimBinariesDir = binariesDir
+
+    proc fakeNim(dirName: string): string =
+      result = binariesDir / dirName
+      createDir(result / "bin")
+      createDir(result / "lib")
+      writeFile(result / "nim.nimble", "version = \"2.0.4\"\n")
+      var metaData = initPackageMetaData()
+      metaData.url = "https://github.com/nim-lang/Nim.git"
+      saveMetaData(metaData, result, changeRoots = false)
+
+    let releaseDir = fakeNim("nim-2.0.4")
+    let develDir = fakeNim("nim-#devel")
+
+    proc lookup(ver: string): Option[PackageInfo] =
+      findNimInBinariesDir((name: "nim", ver: parseVersionRange(ver)), options)
+
+    var found = lookup("2.0.4")
+    check found.isSome
+    check found.get.myPath.parentDir == releaseDir
+    check found.get.basicInfo.version == newVersion("2.0.4")
+
+    found = lookup("#devel")
+    check found.isSome
+    check found.get.myPath.parentDir == develDir
+
+    removeDir(develDir)
+    check lookup("#devel").isNone
+    check lookup("2.0.4").isSome
 
   test "installNimFromBinariesDir should return the installed version":
     var options = initOptions()
