@@ -380,3 +380,66 @@ requires "nim >= 2.0.8"
       # No Nim could be resolved, and above all none was installed.
       check lines.inLines("nimDir: \"\"")
       check not dirExists(fakeHome / ".nimble" / "nimbinaries")
+
+  test "dump does not go to the network for a VM-fallback package (#1857)":
+    # #1859 stopped `dump` installing Nim for a .nimble the declarative parser
+    # can read. A file it cannot read still falls back to the VM parser, and
+    # that path reached setBootstrapNim's "no Nim anywhere" branch, which asks
+    # nim-lang.org for a release list and then installs one.
+    when defined(windows):
+      # Hiding the compiler via PATH surgery is unreliable on the CI image.
+      skip()
+    else:
+      let root = getTempDir().expandFilename / "nimble1857vm"
+      removeDir root
+      defer: removeDir root
+
+      let
+        fakeHome = root / "home"
+        fakeConfig = root / "config"
+        fakeBin = root / "bin"
+        projectDir = root / "project"
+      createDir fakeHome
+      createDir fakeConfig
+      createDir fakeBin
+      createDir projectDir / "src"
+      for tool in ["git", "sh", "tar", "curl", "env"]:
+        let exe = findExe(tool)
+        if exe.len > 0:
+          createSymlink(exe, fakeBin / tool)
+
+      # taskRequires is one of the forms the declarative parser cannot read,
+      # so this file takes the VM fallback in getPackageByPattern.
+      writeFile(projectDir / "project.nimble", """
+version       = "0.2.0"
+author        = "repro"
+description   = "dump must not install nim"
+license       = "MIT"
+srcDir        = "src"
+
+requires "nim >= 2.0.8"
+taskRequires "test", "unittest2"
+""")
+      writeFile(projectDir / "src" / "project.nim", "")
+
+      let
+        oldHome = getEnv("HOME")
+        oldPath = getEnv("PATH")
+        hadConfigHome = existsEnv("XDG_CONFIG_HOME")
+        oldConfigHome = getEnv("XDG_CONFIG_HOME")
+      putEnv("HOME", fakeHome)
+      putEnv("XDG_CONFIG_HOME", fakeConfig)
+      putEnv("PATH", fakeBin)
+      defer:
+        putEnv("HOME", oldHome)
+        putEnv("PATH", oldPath)
+        if hadConfigHome:
+          putEnv("XDG_CONFIG_HOME", oldConfigHome)
+        else:
+          delEnv("XDG_CONFIG_HOME")
+
+      let (outp, exitCode) = execNimble(
+        "dump", "--offline", "--nimbleDir:" & (root / "nimbleDir"), projectDir)
+      check exitCode != QuitSuccess
+      check outp.processOutput.inLines("must not install one")
+      check not dirExists(fakeHome / ".nimble" / "nimbinaries")
