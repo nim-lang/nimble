@@ -7,7 +7,7 @@ import chronos/apps/http/[httpclient, httpcommon]
 import zippy/tarballs as zippy_tarballs
 import zippy/ziparchives as zippy_zips
 
-import common, options, packageinfo, nimenv, download, packagemetadatafile
+import common, options, packageinfo, packageinfotypes, nimenv, download, packagemetadatafile
 
 when defined(curl):
   import math
@@ -956,16 +956,29 @@ proc getNimVersion(nimDir: string): Option[Version] =
   if ver.isSome():
     return ver
 
+proc findNimInBinariesDir*(require: PkgTuple, options: Options): Option[PackageInfo] =
+  ## The newest Nim already extracted in the binaries dir that satisfies
+  ## `require`. Not `findPkg`: that matches with `withinRange`, which lets a
+  ## plain release satisfy a `#special` requirement (deliberate, for validating
+  ## a download), and here that would hand back e.g. `nim-2.0.4` for
+  ## `nim#devel` and devel would never be installed.
+  for pkg in getInstalledPkgsMin(options.nimBinariesDir, options):
+    if cmpIgnoreStyle(pkg.basicInfo.name, require.name) != 0:
+      continue
+    if not pkg.metaData.specialVersions.toSeq.anyIt(it.satisfiesConstraint(require.ver)):
+      continue
+    if result.isNone or result.get.basicInfo.version < pkg.basicInfo.version:
+      result = some pkg
+
 proc installNimFromBinariesDir*(
     require: PkgTuple, options: Options
 ): Future[Option[NimInstalled]] {.async.} =
   if options.disableNimBinaries:
     return none(NimInstalled)
   # Check if already installed
-  let nimBininstalledPkgs = getInstalledPkgsMin(options.nimBinariesDir, options)
-  var pkg = initPackageInfo()
-  if findPkg(nimBininstalledPkgs, require, pkg) and
-      isNimDirProperlyExtracted(pkg.getRealDir):
+  let found = findNimInBinariesDir(require, options)
+  if found.isSome and isNimDirProperlyExtracted(found.get.getRealDir):
+    let pkg = found.get
     let ver = getNimVersion(pkg.getRealDir)
     if ver.isSome():
       # Don't warn for special versions like #devel - they won't match the binary version

@@ -63,28 +63,48 @@ suite "Nim binaries":
     for pkg in minimalPgks:
       check pkg.version in releases
 
-  test "an already extracted Nim is found even though its nimblemeta.json has no versions (#1855)":
-    # Older nimbles wrote a `nimblemeta.json` with no `specialVersions` next
-    # to an extracted Nim, and loading it used to wipe the version derived from
-    # the directory name - so `findPkg` never matched and
-    # `installNimFromBinariesDir` re-prompted for a download on every run.
+  test "looking up an extracted Nim matches #special requirements strictly (#1855)":
+    # Two regressions guarded here. The version derived from the directory
+    # name must survive loading a `nimblemeta.json` that has no
+    # `specialVersions` (older nimbles wrote those), or nothing in the binaries
+    # dir is ever found and `installNimFromBinariesDir` re-prompts for a
+    # download on every run. And once it IS found, a `#devel` requirement must
+    # not be satisfied by a plain release: `withinRange` allows that on purpose
+    # for post-download validation, but here it would hand back `nim-2.0.4`
+    # for `nim#devel` and never install devel at all.
     var options = initOptions()
     let binariesDir = getTempDir() / "nimble_test_1855_nimbinaries"
     removeDir(binariesDir)
     defer: removeDir(binariesDir)
+    options.nimBinariesDir = binariesDir
 
-    let nimDir = binariesDir / "nim-2.0.4"
-    createDir(nimDir / "bin")
-    createDir(nimDir / "lib")
-    writeFile(nimDir / "nim.nimble", "version = \"2.0.4\"\n")
-    var metaData = initPackageMetaData()
-    metaData.url = "https://github.com/nim-lang/Nim.git"
-    saveMetaData(metaData, nimDir, changeRoots = false)
+    proc fakeNim(dirName: string): string =
+      result = binariesDir / dirName
+      createDir(result / "bin")
+      createDir(result / "lib")
+      writeFile(result / "nim.nimble", "version = \"2.0.4\"\n")
+      var metaData = initPackageMetaData()
+      metaData.url = "https://github.com/nim-lang/Nim.git"
+      saveMetaData(metaData, result, changeRoots = false)
 
-    var pkg = initPackageInfo()
-    let require: PkgTuple = (name: "nim", ver: parseVersionRange("2.0.4"))
-    check findPkg(getInstalledPkgsMin(binariesDir, options), require, pkg)
-    check pkg.basicInfo.version == newVersion("2.0.4")
+    let releaseDir = fakeNim("nim-2.0.4")
+    let develDir = fakeNim("nim-#devel")
+
+    proc lookup(ver: string): Option[PackageInfo] =
+      findNimInBinariesDir((name: "nim", ver: parseVersionRange(ver)), options)
+
+    var found = lookup("2.0.4")
+    check found.isSome
+    check found.get.myPath.parentDir == releaseDir
+    check found.get.basicInfo.version == newVersion("2.0.4")
+
+    found = lookup("#devel")
+    check found.isSome
+    check found.get.myPath.parentDir == develDir
+
+    removeDir(develDir)
+    check lookup("#devel").isNone
+    check lookup("2.0.4").isSome
 
   test "installNimFromBinariesDir should return the installed version":
     var options = initOptions()
