@@ -1,7 +1,7 @@
 {.used.}
 import unittest
 import nimblepkg/[options, downloadnim, version, declarativeparser, versiondiscovery,
-                  nimenv, packageinfo, packageinfotypes, packagemetadatafile]
+                  nimenv, packageinfotypes, packagemetadatafile]
 import std/[os, options, osproc, strutils]
 import chronos
 import testscommon
