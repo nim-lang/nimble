@@ -1,6 +1,7 @@
 {.used.}
 import unittest
-import nimblepkg/[options, downloadnim, version, declarativeparser, versiondiscovery, nimenv]
+import nimblepkg/[options, downloadnim, version, declarativeparser, versiondiscovery,
+                  nimenv, packageinfo, packageinfotypes, packagemetadatafile]
 import std/[os, options, osproc, strutils]
 import chronos
 import testscommon
@@ -61,6 +62,29 @@ suite "Nim binaries":
     check minimalPgks.len == releases.len
     for pkg in minimalPgks:
       check pkg.version in releases
+
+  test "an already extracted Nim is found even though its nimblemeta.json has no versions (#1855)":
+    # Older nimbles wrote a `nimblemeta.json` with no `specialVersions` next
+    # to an extracted Nim, and loading it used to wipe the version derived from
+    # the directory name - so `findPkg` never matched and
+    # `installNimFromBinariesDir` re-prompted for a download on every run.
+    var options = initOptions()
+    let binariesDir = getTempDir() / "nimble_test_1855_nimbinaries"
+    removeDir(binariesDir)
+    defer: removeDir(binariesDir)
+
+    let nimDir = binariesDir / "nim-2.0.4"
+    createDir(nimDir / "bin")
+    createDir(nimDir / "lib")
+    writeFile(nimDir / "nim.nimble", "version = \"2.0.4\"\n")
+    var metaData = initPackageMetaData()
+    metaData.url = "https://github.com/nim-lang/Nim.git"
+    saveMetaData(metaData, nimDir, changeRoots = false)
+
+    var pkg = initPackageInfo()
+    let require: PkgTuple = (name: "nim", ver: parseVersionRange("2.0.4"))
+    check findPkg(getInstalledPkgsMin(binariesDir, options), require, pkg)
+    check pkg.basicInfo.version == newVersion("2.0.4")
 
   test "installNimFromBinariesDir should return the installed version":
     var options = initOptions()

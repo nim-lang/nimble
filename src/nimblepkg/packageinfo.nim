@@ -320,13 +320,17 @@ proc setNameVersionChecksum*(pkgInfo: var PackageInfo, pkgDir: string) =
 
 proc getInstalledPackageMin*(options: Options, pkgDir, nimbleFilePath: string): PackageInfo =
   result = initPackageInfo(options, nimbleFilePath)
-  setNameVersionChecksum(result, pkgDir)
   result.infoKind = pikMinimal
   result.source = psInstalled
   try:
     fillMetaData(result, pkgDir, true, options)
   except MetaDataError:
     discard
+  # After `fillMetaData`, which replaces the whole `metaData`: this is what
+  # keeps the directory's version in `specialVersions`, the set `withinRange`
+  # and `findPkg` match on. Metadata files without it (Nim in the binaries
+  # dir) otherwise hide the package - see #1855.
+  setNameVersionChecksum(result, pkgDir)
 
 proc getInstalledPkgsMin*(libsDir: string, options: Options): seq[PackageInfo] =
   ## Gets a list of installed packages. The resulting package info is

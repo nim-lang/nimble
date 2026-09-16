@@ -1,4 +1,4 @@
-import std/[strutils, terminal, times, uri, sequtils, options, jsonutils]
+import std/[strutils, terminal, times, uri, sequtils, options, jsonutils, sets]
 import compat/[json, osproc, os]
 
 import chronos
@@ -895,13 +895,15 @@ proc extractNimIfNeeded*(
       writeFile(buildAll, "echo hello;")
   return extractNimIfNeeded(path, extractDir, options, attempts + 1)
 
-proc saveNimMetaData(extractDir: string) =
-  ## Save metadata for nim binaries installation with the canonical URL.
-  ## This ensures lock files can reference nim properly.
+proc saveNimMetaData(extractDir: string, version: Version) =
+  ## Save metadata for nim binaries installation with the canonical URL and
+  ## the version, as a regular install does. The URL lets lock files reference
+  ## nim; the version is what package lookups match on (#1855).
   let metaDataFile = extractDir / packageMetaDataFileName
   if not metaDataFile.fileExists:
     var metaData = initPackageMetaData()
     metaData.url = "https://github.com/nim-lang/Nim.git"
+    metaData.specialVersions.incl version
     saveMetaData(metaData, extractDir, changeRoots = false)
 
 proc downloadAndExtractNim*(
@@ -913,7 +915,7 @@ proc downloadAndExtractNim*(
     let nimBin = extractDir / "bin" / "nim".addFileExt(ExeExt)
     if extractDir.dirExists() and nimBin.fileExists:
       display("Info:", "Nim $1 already installed" % $version)
-      saveNimMetaData(extractDir)
+      saveNimMetaData(extractDir, version)
       return some extractDir
     let path = await downloadNim(version, options)
     let extracted = extractNimIfNeeded(path, extractDir, options)
@@ -923,7 +925,7 @@ proc downloadAndExtractNim*(
       if not nimBin.fileExists:
         display("Info:", "Compiling Nim $1 from source" % $version, priority = HighPriority)
         await compileNim(options, extractDir, version.toVersionRange)
-      saveNimMetaData(extractDir)
+      saveNimMetaData(extractDir, version)
       return some extractDir
     else:
       return none(string)
@@ -969,7 +971,7 @@ proc installNimFromBinariesDir*(
       # Don't warn for special versions like #devel - they won't match the binary version
       if not pkg.basicInfo.version.isSpecial and pkg.basicInfo.version != ver.get():
         displayWarning("Nim binary version doesn't match the package info version for Nim located at: " & pkg.getRealDir)
-      saveNimMetaData(pkg.getRealDir)
+      saveNimMetaData(pkg.getRealDir, pkg.basicInfo.version)
       return some (pkg.getRealDir, ver.get())
 
   # Download if allowed
