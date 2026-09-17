@@ -261,6 +261,14 @@ license       = "MIT"
         return dep["version"].getStr
     return ""
 
+  proc lockedRevision(pkg: string): string =
+    ## The revision `pkg` is pinned to in the main package's lock file.
+    let lock = parseJson(readFile(mainPkgPath / defaultLockFileName))
+    for name, dep in lock["packages"].pairs:
+      if name.cmpIgnoreCase(pkg) == 0:
+        return dep["vcsRevision"].getStr
+    return ""
+
   template withSharedDepProject(body: untyped) =
     # json_rpc can keep the old chronos and websock. The newer websock needs
     # the newer chronos, while the old websock explicitly rules it out.
@@ -552,3 +560,56 @@ license       = "MIT"
         check execNimbleYes("lock", "dep1", "--requires: dep2 < 0.2.0")
           .exitCode == QuitSuccess
         check lockedVersion("dep2") == "0.1.0"
+
+  template withCommitPinProject(body: untyped) =
+    ## dep1 0.1.0 requires dep2 == 0.1.0; a commit made afterwards raises that
+    ## floor to dep2 >= 0.2.0 and is exposed as `pinned`. The main package is
+    ## installed while still on dep1 0.1.0, so a cached release of dep1 is
+    ## present to be mistaken for the pinned revision.
+    withCleanDirs:
+      writePkgListFile(@["dep1", "dep2"])
+      usePackageListFile pkgListFilePath:
+        initDepOrigin(@["0.1.0", "0.2.0"], "dep2")
+        cdNewDir originsDirPath / "dep1":
+          initRepo()
+          writeDepVersion("0.1.0", "dep1", "dep2 == 0.1.0")
+        initMainPkg("dep1 == 0.1.0", underVcs = true)
+        cd mainPkgPath:
+          check execNimbleYes("install").exitCode == QuitSuccess
+        var pinned {.inject.} = ""
+        cd originsDirPath / "dep1":
+          writeDepVersion("0.2.0", "dep1", "dep2 >= 0.2.0")
+          pinned = tryDoCmdEx("git rev-parse HEAD").strip
+        body
+
+  proc requireCommit(pinned: string) =
+    ## Repoint the main package at dep1#<pinned>.
+    writeFile(mainPkgPath / "main.nimble",
+      (nimbleFileTemplate % "0.1.0") & &"requires \"dep1#{pinned}\"\n")
+
+  test "moving a requirement onto a commit pin relocks it":
+    withCommitPinProject:
+      cd mainPkgPath:
+        check execNimbleYes("lock", "--useSystemNim").exitCode == QuitSuccess
+        check lockedVersion("dep1") == "0.1.0"
+        requireCommit(pinned)
+        # The lock still pins the release the requirement used to name. That
+        # release does not answer `#<commit>`, so the lock cannot stand.
+        let (output, exitCode) = execNimbleYes("lock", "--useSystemNim")
+        checkpoint(output)
+        check exitCode == QuitSuccess
+        check lockedVersion("dep1") == "#" & pinned
+        check lockedRevision("dep1") == pinned
+
+  test "a commit pin locks the dependencies that revision asks for":
+    withCommitPinProject:
+      requireCommit(pinned)
+      cd mainPkgPath:
+        let (output, exitCode) = execNimbleYes("lock", "--useSystemNim")
+        checkpoint(output)
+        check exitCode == QuitSuccess
+        # dep1 at `pinned` needs dep2 >= 0.2.0. The installed dep1 0.1.0 must
+        # not stand in for the pinned revision, which would hold dep2 down to
+        # the floor that release asked for.
+        check lockedVersion("dep1") == "#" & pinned
+        check lockedVersion("dep2") == "0.2.0"

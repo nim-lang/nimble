@@ -1486,7 +1486,17 @@ proc solveLockFileDeps*(satResult: var SATResult, pkgList: seq[PackageInfo], opt
       let matches =
         if current.name.isURL: cmpIgnoreCase(current.name, existing[1]) == 0
         else: currentName == existingName
-      if matches and existing[2].withinRange(current.ver):
+      # A `#branch`/`#commit`/`#tag` requirement is only satisfied by that exact
+      # special version, so `satisfiesConstraint` - not `withinRange` - decides
+      # it here. `withinRange` deliberately accepts any normal version for a
+      # special range (post-download validation: the ref was fetched and its
+      # nimble file carries a normal version), which would report a requirement
+      # changed from `== 2.4.0` to `#<commit>` as already satisfied by the
+      # locked `2.4.0` and leave the whole lock file stale.
+      let satisfied =
+        if current.ver.kind == verSpecial: existing[2].satisfiesConstraint(current.ver)
+        else: existing[2].withinRange(current.ver)
+      if matches and satisfied:
         found = true
         break
     if not found:
