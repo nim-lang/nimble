@@ -24,6 +24,7 @@ type
   CauseKind* = enum
     ckNotRoot           ## The root package must be part of every solution.
     ckNoVersions        ## The provider offers no version inside the term's set.
+    ckNotFound          ## The provider does not know the package at all.
     ckFromDependencyOf  ## The first term's package declares the second.
     ckDerivedFrom       ## Conflict resolution produced this from two others.
 
@@ -141,6 +142,9 @@ proc describe*[P, VS](inc: Incompatibility[P, VS], root: P): string =
     if inc.terms.len == 1:
       return "no versions of " & $inc.terms[0].package & " match " &
         $inc.terms[0].term.versions
+  of ckNotFound:
+    if inc.terms.len == 1:
+      return $inc.terms[0].package & " doesn't exist"
   of ckNotRoot:
     if inc.terms.len == 1:
       return $inc.terms[0].package & " is " & $inc.terms[0].term.versions

@@ -1,4 +1,4 @@
-import unittest, chronos, strutils, os, tables
+import unittest, chronos, strutils, os, tables, strformat
 import std/options
 import nimblepkg/[tools, download, options, packageinfotypes, sha1hashes, version, versiondiscovery]
 
@@ -47,6 +47,34 @@ suite "Async Tools":
     let tags = getTagsList(cloneDir, DownloadMethod.git)
     check tags.len > 0
     check "v0.4.0" in tags
+
+    removeDir(tmpDir)
+
+  test "gitFetchTags survives a tag the remote has moved":
+    # nimbus-eth2 force-moves its rolling `nightly` tag. Against such a repo
+    # a plain `git fetch --tags` exits 1 with "would clobber existing tag",
+    # which loses every *other* new tag too and makes the package look
+    # versionless. Both fetch procs must tolerate it.
+    let tmpDir = getTempDir() / "nimble_moved_tag_test"
+    let originDir = tmpDir / "origin"
+    let cloneDir = tmpDir / "clone"
+    if dirExists(tmpDir):
+      removeDir(tmpDir)
+    createDir(originDir)
+    let git = &"git -c user.name=t -c user.email=t@t -C {originDir.quoteShell}"
+    tryDoCmdEx(&"{git} init -q")
+    tryDoCmdEx(&"{git} commit -q --allow-empty -m one")
+    tryDoCmdEx(&"{git} tag nightly")
+    tryDoCmdEx(&"git clone -q {originDir.quoteShell} {cloneDir.quoteShell}")
+    # Upstream moves the rolling tag and publishes a real release.
+    tryDoCmdEx(&"{git} commit -q --allow-empty -m two")
+    tryDoCmdEx(&"{git} tag -f nightly")
+    tryDoCmdEx(&"{git} tag v1.1.0")
+
+    let options = initOptions()
+    gitFetchTags(cloneDir, DownloadMethod.git, options)
+    waitFor gitFetchTagsAsync(cloneDir, DownloadMethod.git, options)
+    check "v1.1.0" in getTagsList(cloneDir, DownloadMethod.git)
 
     removeDir(tmpDir)
 

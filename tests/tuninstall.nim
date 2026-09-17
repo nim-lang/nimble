@@ -16,9 +16,6 @@ suite "uninstall":
     let args = ["install", pkgBin2Url]
     check execNimbleYes(args).exitCode == QuitSuccess
 
-  proc cannotSatisfyMsg(v1, v2: string): string =
-     &"Cannot satisfy the dependency on PackageA {v1} and PackageA {v2}"
-
   test "can reject same version dependencies":
     cleanDir(installDir)
     let (outp, exitCode) = execNimbleYes("install", pkgBinUrl)
@@ -26,9 +23,14 @@ suite "uninstall":
     # stderr output being generated and flushed without first flushing stdout
     let ls = outp.strip.processOutput()
     check exitCode != QuitSuccess
-    check ls.inLines(cannotSatisfyMsg("0.2.0", "0.5.0")) or
-          ls.inLines(cannotSatisfyMsg("0.5.0", "0.2.0")) or
-          ls.inLines("Unsatisfiable dependencies")
+    # The resolver explains the conflict - both irreconcilable constraints on
+    # packagea named - and that explanation is the *only* error: the generic
+    # "Couldnt find a solution" used to be printed underneath it as well.
+    check ls.inLines("version solving failed")
+    check ls.inLines("packagea [0.2, 0.2]")
+    check ls.inLines("packagea [0.5, 0.5]")
+    check not ls.inLines("Couldnt find a solution")
+    check not ls.inLines("Unsatisfiable dependencies")
 
   proc setupIssue27Packages() =
     # Install b

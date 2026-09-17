@@ -543,6 +543,21 @@ proc getReachablePackages(graph: DepGraph): HashSet[string] =
           if depLower in graphPackages:
             queue.add(graphPackages[depLower])  # Use graph's version of the name
 
+const solverDisagreementNote =
+  "\nNote: the dependency graph appears solvable (PubGrub found a solution " &
+  "where the SAT solver did not). This is a solver bug - please report it at " &
+  "https://github.com/nim-lang/nimble/issues\n"
+
+proc resolutionFailureMessage*(options: Options): string =
+  ## The single user-facing message for a failed resolution. The solver output
+  ## already carries the explanation (PubGrub's, when it could produce one), so
+  ## that output *is* the error - appending a generic sentence after it only
+  ## repeats "it failed" in vaguer words.
+  result = options.satResult.output.strip()
+  if result.len == 0:
+    result = "Couldnt find a solution for the packages. Unsatisfiable " &
+      "dependencies. Check there is no contradictory dependencies."
+
 proc getSolvedPackages*(pkgVersionTable: Table[string, PackageVersions], output: var string, options: Options): seq[SolvedPackage] {.instrument.} =
   var graph = pkgVersionTable.toDepGraph()
 
@@ -586,11 +601,24 @@ proc getSolvedPackages*(pkgVersionTable: Table[string, PackageVersions], output:
       if not allMissingAreOptional:
         break
     if not allMissingAreOptional:
-      output.add "Missing dependencies: " & missingDeps.join(", ") & "\n"
-      for k, v in pkgVersionTable:
-        output.add &"Package {k} \n"
-        for v in v.versions:
-          output.add &"\t \t Version {v.version} requires: {v.requires} \n"
+      # A package nothing can provide is a resolution failure like any other,
+      # so explain it the same way instead of dumping the whole universe: the
+      # table only helps when debugging the resolver itself (--verbose).
+      let (foundSolution, explanation) = explainSolveFailure(pkgVersionTable)
+      if explanation.len > 0 and options.verbosity > LowPriority:
+        output = "Dependency resolution failed:\n" & explanation & "\n"
+      else:
+        output.add "Missing dependencies: " & missingDeps.join(", ") & "\n"
+        for k, v in pkgVersionTable:
+          output.add &"Package {k} \n"
+          for v in v.versions:
+            output.add &"\t \t Version {v.version} requires: {v.requires} \n"
+        if explanation.len > 0:
+          output.add "\n" & explanation & "\n"
+        elif foundSolution:
+          # The missing-dependency heuristic above scans every node, reachable
+          # or not, so it can declare fatal what the solver would route around.
+          output.add solverDisagreementNote
       if options.satResult.gitErrors.len > 0:
         output.add "The following errors occurred during package discovery (could be network issues):\n"
         for err in options.satResult.gitErrors:
@@ -613,9 +641,7 @@ proc getSolvedPackages*(pkgVersionTable: Table[string, PackageVersions], output:
         # The explanation is the user-facing error; the search dump is noise.
         output = "Dependency resolution failed:\n" & explanation & "\n"
     elif foundSolution:
-      output.add "\nNote: the dependency graph appears solvable (PubGrub found a solution " &
-                 "where the SAT solver did not). This is a solver bug - please report it at " &
-                 "https://github.com/nim-lang/nimble/issues\n"
+      output.add solverDisagreementNote
 
   for pkg, ver in packages:
     let nodeIdx = graph.packageToDependency.getKey(pkg)
@@ -1539,9 +1565,7 @@ proc solveLockFileDeps*(satResult: var SATResult, pkgList: seq[PackageInfo], opt
       nimBin
     )
     if satResult.solvedPkgs.len == 0:
-      displayError(satResult.output)
-      raise resolutionFailureError(
-        "Couldn't find a solution for the packages.")
+      raise resolutionFailureError(options.resolutionFailureMessage)
   elif options.isUpgrade:
     satResult.solveSelectiveUpgrade(locked, pkgListDecl, options, nimBin)
 

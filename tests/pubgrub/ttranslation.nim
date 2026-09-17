@@ -189,7 +189,7 @@ suite "translation: failure report UX":
     var t: Table[string, PackageVersions]
     t.addPkg("myapp", "0.1.0", ["notthere >= 1.0"], isRoot = true)
     check explain(t) == @[
-      "Because myapp depends on notthere [1.0, inf) which doesn't match any versions, version solving failed."
+      "Because myapp depends on notthere which doesn't exist, version solving failed."
     ]
 
   test "two libraries with disjoint ranges on a shared dependency":
@@ -334,6 +334,47 @@ suite "translation: the explanation reaches getSolvedPackages' output":
     discard getSolvedPackages(t, output, opts)
     check "version solving failed" in output
     check "Failed to find satisfiable solution" in output
+
+  test "a package that does not exist is explained, not dumped":
+    # `nimble add <nonexistent>`: the requirement is reachable but absent from
+    # the table. This path returns before the SAT solve, and used to print
+    # "Missing dependencies:" followed by every cached package and its
+    # requires - pages of noise for a one-line problem.
+    var t: Table[string, PackageVersions]
+    t.addPkg("ne2", "0.1.0", ["nimbus_eth2"], isRoot = true)
+    # Unrelated packages that happen to sit in the cache, as in the report.
+    t.addPkg("serialization", "0.5.3", ["faststreams", "unittest2", "stew"])
+    t.addPkg("faststreams", "0.3.0")
+    t.addPkg("unittest2", "0.2.0")
+    t.addPkg("stew", "0.1.0")
+
+    var output = ""
+    var opts = initOptions()
+    let solved = getSolvedPackages(t, output, opts)
+    check solved.len == 0
+    check output.splitLines == @[
+      "Dependency resolution failed:",
+      "Because ne2 depends on nimbus_eth2 which doesn't exist, version " &
+        "solving failed.",
+      ""
+    ]
+    # None of the old noise.
+    check "Missing dependencies:" notin output
+    check "Package serialization" notin output
+
+  test "--verbose still dumps the table for a missing package":
+    var t: Table[string, PackageVersions]
+    t.addPkg("ne2", "0.1.0", ["nimbus_eth2"], isRoot = true)
+    t.addPkg("serialization", "0.5.3", ["faststreams"])
+    t.addPkg("faststreams", "0.3.0")
+
+    var output = ""
+    var opts = initOptions()
+    opts.verbosity = LowPriority
+    discard getSolvedPackages(t, output, opts)
+    check "Missing dependencies: nimbus_eth2" in output
+    check "Package serialization" in output
+    check "doesn't exist" in output
 
   test "a disagreement is flagged as a solver bug, not silence":
     # explainSolveFailure's contract when PubGrub *can* solve what SAT could

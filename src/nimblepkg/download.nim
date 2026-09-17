@@ -137,7 +137,11 @@ proc gitFetchTags*(repoDir: string, downloadMethod: DownloadMethod, options: Opt
   case downloadMethod:
     of DownloadMethod.git:
       let submoduleFlag = if not options.ignoreSubmodules: " --recurse-submodules" else: ""
-      tryDoCmdEx(&"git -C {repoDir.quoteShell} fetch --tags" & submoduleFlag)
+      # `--force`: a repository that moves a tag (nimbus-eth2's rolling
+      # `nightly`, for instance) makes a plain `fetch --tags` fail outright
+      # with "would clobber existing tag", which loses every *other* tag too
+      # and leaves the package looking versionless.
+      tryDoCmdEx(&"git -C {repoDir.quoteShell} fetch --tags --force" & submoduleFlag)
     of DownloadMethod.hg:
       # In Mercurial, pulling updates also fetches all remote tags
       tryDoCmdEx(&"hg --cwd {repoDir.quoteShell} pull")
@@ -147,7 +151,8 @@ proc gitFetchTagsAsync*(repoDir: string, downloadMethod: DownloadMethod, options
   case downloadMethod:
     of DownloadMethod.git:
       let submoduleFlag = if not options.ignoreSubmodules: " --recurse-submodules" else: ""
-      discard await tryDoCmdExAsync(&"git -C {repoDir.quoteShell} fetch --tags" & submoduleFlag)
+      # See gitFetchTags: --force keeps a moved tag from failing the whole fetch.
+      discard await tryDoCmdExAsync(&"git -C {repoDir.quoteShell} fetch --tags --force" & submoduleFlag)
     of DownloadMethod.hg:
       # In Mercurial, pulling updates also fetches all remote tags
       discard await tryDoCmdExAsync(&"hg --cwd {repoDir.quoteShell} pull")
