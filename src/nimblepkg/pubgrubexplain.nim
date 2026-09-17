@@ -173,6 +173,12 @@ proc dependencyRangeHook*(u: PubGrubUniverse, package: string,
       return singleton(toTaggedVersion(version))
   taggedFull[Version, NimbleTag]()
 
+proc packageExistsHook*(u: PubGrubUniverse, package: string): bool =
+  ## Whether the universe knows the package at all. Lets the report say
+  ## "foo doesn't exist" instead of "no versions of foo match ..." - the
+  ## difference between a typo and an unsatisfiable constraint.
+  package in u.packages
+
 proc versionCountHook*(u: PubGrubUniverse, package: string,
                        allowed: NimbleVersionSet): int =
   if package notin u.packages: return 0

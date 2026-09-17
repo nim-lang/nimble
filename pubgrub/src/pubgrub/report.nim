@@ -185,7 +185,11 @@ proc tryRequiresForbidden[P, VS](root: P, a, b: Incompatibility[P, VS],
     result = terse(subject.get, root, allowEvery = true)
     result.add(if prior.cause == ckFromDependencyOf: " depends on " else: " requires ")
 
-  if latter.cause == ckNoVersions:
+  if latter.cause == ckNotFound:
+    # No version set: the package itself is unknown, so the constraint that
+    # was asked of it is beside the point.
+    result.add $latter.terms[0].package & " which doesn't exist"
+  elif latter.cause == ckNoVersions:
     result.add terse(latter.terms[0], root) & " which doesn't match any versions"
   else:
     result.add terse(latter.terms[0], root) & " which is forbidden"

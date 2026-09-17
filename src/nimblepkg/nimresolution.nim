@@ -2,7 +2,7 @@
 
 import std/[sequtils, sets, options, os, strutils, algorithm]
 import nimblesat, packageinfotypes, options, version, declarativeparser,
-       packageinfo, common, lockfile, cli, downloadnim, tools,
+       packageinfo, common, lockfile, downloadnim, tools,
        packageinstaller
 import chronos
 
@@ -182,9 +182,7 @@ proc resolveNim*(rootPackage: PackageInfo, pkgListDecl: seq[PackageInfo], system
   options.satResult.pkgs = solvePackagesWithSystemNimFallback(
       rootPackage, pkgListDecl, options,  resolvedNim, nimBin)
   if options.satResult.solvedPkgs.len == 0:
-    displayError(options.satResult.output)
-    raise resolutionFailureError(
-      "Couldnt find a solution for the packages. Unsatisfiable dependencies. Check there is no contradictory dependencies.")
+    raise resolutionFailureError(options.resolutionFailureMessage)
 
   var nims = options.satResult.pkgs.toSeq.filterIt(it.basicInfo.name.isNim)
   if nims.len == 0:
@@ -332,9 +330,7 @@ proc resolveAndConfigureNim*(rootPackage: PackageInfo, pkgList: seq[PackageInfo]
     options.satResult.pkgs = solvePackagesWithSystemNimFallback(
         rootPackage, pkgListDecl, options, some(NimResolved(pkg: systemNimPkg, version: systemNimPkg.get.basicInfo.version)), sysNimBin)
     if options.satResult.solvedPkgs.len == 0:
-      displayError(options.satResult.output)
-      raise resolutionFailureError(
-        "Couldnt find a solution for the packages. Unsatisfiable dependencies.")
+      raise resolutionFailureError(options.resolutionFailureMessage)
     return NimResolved(pkg: some(systemNimPkg.get), version: systemNimPkg.get.basicInfo.version)
 
   # Special case: when installing nim itself globally, we want to install that specific version

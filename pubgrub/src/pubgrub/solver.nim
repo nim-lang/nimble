@@ -28,9 +28,9 @@
 ##   ## What that exact version requires.
 ## ```
 ##
-## Two further procs are optional hooks, named as such (the same convention as
-## the compiler's `writelnHook`). They are matched by their exact signature at
-## instantiation; a provider without them gets the default behaviour.
+## Three further procs are optional hooks, named as such (the same convention
+## as the compiler's `writelnHook`). They are matched by their exact signature
+## at instantiation; a provider without them gets the default behaviour.
 ##
 ## ```nim
 ## proc dependencyRangeHook(p: MyProvider, package: P, version: V,
@@ -48,6 +48,11 @@
 ##   ## in the order they were first required. Supplying it lets the solver
 ##   ## decide the most constrained package first, which is what makes
 ##   ## conflicts surface early instead of after a deep wrong guess.
+## proc packageExistsHook(p: MyProvider, package: P): bool
+##   ## Whether the package is known at all. When absent, a package with no
+##   ## usable version is always reported as "no versions match"; supplying it
+##   ## lets the report distinguish that from "the package doesn't exist",
+##   ## which is usually a typo rather than a conflict.
 ## ```
 
 import std/[tables, options]
@@ -256,7 +261,7 @@ proc makeDecision[P, V, VS, DP](s: Solver[P, V, VS, DP]): Option[P] =
   ## returns a package even when no version could be picked: that failure is
   ## recorded as a fact, and propagation deals with it on the next pass.
   mixin singleton, chooseVersion, dependencies, versionCountHook,
-        dependencyRangeHook
+        dependencyRangeHook, packageExistsHook
   var
     best: P
     bestVersions: VS
@@ -276,8 +281,14 @@ proc makeDecision[P, V, VS, DP](s: Solver[P, V, VS, DP]): Option[P] =
 
   let chosen = s.provider.chooseVersion(best, bestVersions)
   if chosen.isNone:
+    # "no version matched" and "the package is unknown" read very differently
+    # to a user, so a provider that can tell them apart is asked which it is.
+    let cause =
+      when compiles(s.provider.packageExistsHook(best)):
+        if s.provider.packageExistsHook(best): ckNoVersions else: ckNotFound
+      else: ckNoVersions
     discard s.addFact(newIncompatibility(
-      @[positiveTerm(best, bestVersions)], ckNoVersions))
+      @[positiveTerm(best, bestVersions)], cause))
     return some(best)
 
   let
