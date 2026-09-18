@@ -33,6 +33,7 @@ import tuninstall
 import tsat
 import tver
 import tversiondiscovery
+import tgitprompt
 import tniminstall
 import trequireflag
 import tdeclarativeparser
