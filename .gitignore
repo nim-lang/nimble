@@ -83,3 +83,5 @@ docs/
 tests/nimbleDir/
 vendor/
 gitlabcom_*
+
+.claude/
