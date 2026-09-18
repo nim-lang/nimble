@@ -1,8 +1,16 @@
-
 [comment]: # (Before releasing, make sure to follow the steps in https://github.com/nim-lang/nimble/wiki/Releasing-a-new-version)
 
 # Nimble changelog
 
+## 0.26.0
+
+  - **PubGrub-quality resolution errors.** When the SAT solver finds no solution, a PubGrub solver re-derives the same failure and explains it in prose instead of dumping a constraint set: *"Because every version of asyncchannels depends on chronos #b71392a (4.4.0) and every version of websock depends on chronos [4.2.0, 4.4.0), asyncchannels is incompatible with websock."* 
+  - A SAT search that exhausts its budget is no longer reported as unsatisfiable, and reporting an unsatisfiable set no longer crashes.
+  - `nimble refresh` inside a project now fetches its dependencies' repos and reports which newer versions became available; `nimble refresh -g` does that for every globally known package, and `--packageListOnly` restores the old package-list-only behaviour. There is also a `--refresh`` flag that implies the `refresh` in the current action.
+  - `nimble list` accepts package names and a version range spelled as in a requires line, e.g. `nimble list "chronos >= 4.0.4"`.
+  - `nimble install -d` with no package name installs the current project's dependencies.
+  - Numerous bug fixes and stability improvements
+              
 ## 0.24.0
 
   - The declarative parser and SAT solver are now the default and only code path. Removed the `--legacy`, `--parser` and `--solver` flags, dropped Babel support, and dissolved the transitional "vnext" implementation. (A step toward Nimble 1.0, not the finish line — PubGrub-style error reporting, `nimble fetch`, and more are still ahead.)
