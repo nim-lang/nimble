@@ -1,7 +1,7 @@
 {.used.}
 import unittest
 import nimblepkg/[options, downloadnim, version, declarativeparser, versiondiscovery,
-                  nimenv, packageinfotypes, packagemetadatafile]
+                  nimenv, packageinfotypes, packagemetadatafile, cli]
 import std/[os, options, osproc, strutils]
 import chronos
 import testscommon
@@ -105,6 +105,51 @@ suite "Nim binaries":
     removeDir(develDir)
     check lookup("#devel").isNone
     check lookup("2.0.4").isSome
+
+  test "--refresh looks past an already extracted Nim for a newer one (#1855 follow-up)":
+    # An unconstrained requirement is satisfied by whatever Nim is already in
+    # the binaries dir, and reusing it is the point of #1855. But `--refresh`
+    # means "go to the remotes", and it used to be ignored here, so a newly
+    # published release stayed invisible: 2.2.10 on disk was never upgraded.
+    when defined(windows):
+      skip() # the fixture fakes `nim` with a shell script
+    else:
+      var options = initOptions()
+      options.forcePrompts = forcePromptYes
+      let binariesDir = getTempDir() / "nimble_refresh_nimbinaries"
+      removeDir(binariesDir)
+      defer: removeDir(binariesDir)
+      options.nimBinariesDir = binariesDir
+
+      proc fakeNim(version: string, discoverable: bool) =
+        ## A directory `isNimDirProperlyExtracted` accepts, whose `bin/nim`
+        ## reports `version`. Without a `nim.nimble` the binaries-dir *lookup*
+        ## skips it while `downloadAndExtractNim` still sees it as already
+        ## extracted - which is how this test resolves a release without
+        ## downloading a toolchain.
+        let dir = binariesDir / ("nim-" & version)
+        createDir(dir / "lib")
+        createDir(dir / "bin")
+        let bin = dir / "bin" / "nim"
+        writeFile(bin, "#!/bin/sh\necho \"Nim Compiler Version " & version & " [Linux: amd64]\"\n")
+        setFilePermissions(bin, {fpUserExec, fpUserRead, fpUserWrite})
+        if discoverable:
+          writeFile(dir / "nim.nimble", "version = \"" & version & "\"\n")
+
+      let newest = (waitFor getOfficialReleases(options)).max
+      fakeNim("1.0.0", discoverable = true)    # what is already on disk
+      fakeNim($newest, discoverable = false)   # what a refresh should land on
+
+      let anyNim: PkgTuple = (name: "nim", ver: VersionRange(kind: verAny))
+
+      let reused = waitFor installNimFromBinariesDir(anyNim, options)
+      check reused.isSome
+      check reused.get().ver == newVersion("1.0.0")
+
+      options.forceFetch = true
+      let refreshed = waitFor installNimFromBinariesDir(anyNim, options)
+      check refreshed.isSome
+      check refreshed.get().ver == newest
 
   test "installNimFromBinariesDir should return the installed version":
     var options = initOptions()
