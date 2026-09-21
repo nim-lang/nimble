@@ -974,21 +974,21 @@ proc findNimInBinariesDir*(require: PkgTuple, options: Options): Option[PackageI
 
 proc reuseExtractedNim(found: Option[PackageInfo], options: Options): Option[NimInstalled] =
   ## The Nim `findNimInBinariesDir` turned up, when it is actually usable.
-  ## Deliberately a top-level proc rather than one nested in the `{.async.}`
-  ## proc below: a closure captured by the async state machine made the
-  ## generated C fail to assemble on armv7l ("invalid operands (.text and *UND*
-  ## sections)").
-  if found.isNone or not isNimDirProperlyExtracted(found.get.getRealDir):
-    return none(NimInstalled)
-  let pkg = found.get
-  let ver = getNimVersion(pkg.getRealDir)
-  if ver.isNone():
-    return none(NimInstalled)
-  # Don't warn for special versions like #devel - they won't match the binary version
-  if not pkg.basicInfo.version.isSpecial and pkg.basicInfo.version != ver.get():
-    displayWarning("Nim binary version doesn't match the package info version for Nim located at: " & pkg.getRealDir)
-  saveNimMetaData(pkg.getRealDir, pkg.basicInfo.version)
-  return some (pkg.getRealDir, ver.get())
+  ## Written with nested `if`s and a single exit rather than early `return`s:
+  ## GCC 13 at -O3 on armv7l dropped one of the early-return blocks but left
+  ## its TLS literal-pool entry behind, and the assembler rejected the orphaned
+  ## label ("invalid operands (.text and *UND* sections)"). This shape is what
+  ## the same logic had inline before and assembles fine.
+  result = none(NimInstalled)
+  if found.isSome and isNimDirProperlyExtracted(found.get.getRealDir):
+    let pkg = found.get
+    let ver = getNimVersion(pkg.getRealDir)
+    if ver.isSome():
+      # Don't warn for special versions like #devel - they won't match the binary version
+      if not pkg.basicInfo.version.isSpecial and pkg.basicInfo.version != ver.get():
+        displayWarning("Nim binary version doesn't match the package info version for Nim located at: " & pkg.getRealDir)
+      saveNimMetaData(pkg.getRealDir, pkg.basicInfo.version)
+      result = some (pkg.getRealDir, ver.get())
 
 proc installNimFromBinariesDir*(
     require: PkgTuple, options: Options
