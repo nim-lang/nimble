@@ -974,11 +974,6 @@ proc findNimInBinariesDir*(require: PkgTuple, options: Options): Option[PackageI
 
 proc reuseExtractedNim(found: Option[PackageInfo], options: Options): Option[NimInstalled] =
   ## The Nim `findNimInBinariesDir` turned up, when it is actually usable.
-  ## Written with nested `if`s and a single exit rather than early `return`s:
-  ## GCC 13 at -O3 on armv7l dropped one of the early-return blocks but left
-  ## its TLS literal-pool entry behind, and the assembler rejected the orphaned
-  ## label ("invalid operands (.text and *UND* sections)"). This shape is what
-  ## the same logic had inline before and assembles fine.
   result = none(NimInstalled)
   if found.isSome and isNimDirProperlyExtracted(found.get.getRealDir):
     let pkg = found.get
