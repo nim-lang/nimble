@@ -972,6 +972,24 @@ proc findNimInBinariesDir*(require: PkgTuple, options: Options): Option[PackageI
     if result.isNone or result.get.basicInfo.version < pkg.basicInfo.version:
       result = some pkg
 
+proc reuseExtractedNim(found: Option[PackageInfo], options: Options): Option[NimInstalled] =
+  ## The Nim `findNimInBinariesDir` turned up, when it is actually usable.
+  ## Deliberately a top-level proc rather than one nested in the `{.async.}`
+  ## proc below: a closure captured by the async state machine made the
+  ## generated C fail to assemble on armv7l ("invalid operands (.text and *UND*
+  ## sections)").
+  if found.isNone or not isNimDirProperlyExtracted(found.get.getRealDir):
+    return none(NimInstalled)
+  let pkg = found.get
+  let ver = getNimVersion(pkg.getRealDir)
+  if ver.isNone():
+    return none(NimInstalled)
+  # Don't warn for special versions like #devel - they won't match the binary version
+  if not pkg.basicInfo.version.isSpecial and pkg.basicInfo.version != ver.get():
+    displayWarning("Nim binary version doesn't match the package info version for Nim located at: " & pkg.getRealDir)
+  saveNimMetaData(pkg.getRealDir, pkg.basicInfo.version)
+  return some (pkg.getRealDir, ver.get())
+
 proc installNimFromBinariesDir*(
     require: PkgTuple, options: Options
 ): Future[Option[NimInstalled]] {.async.} =
@@ -980,26 +998,12 @@ proc installNimFromBinariesDir*(
   # Check if already installed
   let found = findNimInBinariesDir(require, options)
 
-  proc useFound(): Option[NimInstalled] =
-    ## The Nim already extracted in the binaries dir, when it is usable.
-    if found.isNone or not isNimDirProperlyExtracted(found.get.getRealDir):
-      return none(NimInstalled)
-    let pkg = found.get
-    let ver = getNimVersion(pkg.getRealDir)
-    if ver.isNone():
-      return none(NimInstalled)
-    # Don't warn for special versions like #devel - they won't match the binary version
-    if not pkg.basicInfo.version.isSpecial and pkg.basicInfo.version != ver.get():
-      displayWarning("Nim binary version doesn't match the package info version for Nim located at: " & pkg.getRealDir)
-    saveNimMetaData(pkg.getRealDir, pkg.basicInfo.version)
-    return some (pkg.getRealDir, ver.get())
-
   # `--refresh` means "resolve against the remotes", so an already extracted Nim
   # is not enough to stop here: an unconstrained requirement is satisfied by
   # whatever happens to be on disk, which is how a newly published release stays
   # invisible to `nimble install nim --refresh`.
   if not options.forceFetch:
-    let reused = useFound()
+    let reused = reuseExtractedNim(found, options)
     if reused.isSome:
       return reused
 
@@ -1023,4 +1027,4 @@ proc installNimFromBinariesDir*(
   # Nothing was downloaded - offline, declined, or no release matched. A refresh
   # that came up empty must still hand back the Nim that is already on disk,
   # otherwise `--refresh` would turn a working setup into "Failed to install nim".
-  return useFound()
+  return reuseExtractedNim(found, options)
