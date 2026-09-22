@@ -75,6 +75,23 @@ suite "add command":
       check nimblePathsFileName.readFile.contains(pkgBDir.escape)
       check defaultLockFileName.readFile.contains("packageb")
 
+  test "nimble add puts the requirement with the others, not after the tasks":
+    # `add` appended to the end of the file, so the new requirement landed
+    # below any task definitions and the file lost its trailing newline.
+    withAddFixture:
+      writeFile(nimbleFileName, nimbleFileContent & """
+requires "packagea"
+
+task greet, "Says hello":
+  echo "hello"
+""")
+      check execNimbleYes("add", "packageb").exitCode == QuitSuccess
+
+      let content = nimbleFileName.readFile
+      check content.contains("requires \"packageb")
+      check content.find("requires \"packageb") < content.find("task greet")
+      check content.endsWith("\n")
+
   test "nimble add does not create a paths or lock file on its own (#1796)":
     # Only projects already using them get them refreshed.
     withAddFixture:
