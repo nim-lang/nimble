@@ -53,20 +53,21 @@ suite "setup command":
         let (_, nimExitCode) = execCmdEx("nim c -r dependent")
         check nimExitCode == QuitSuccess
 
-  test "Check if upgrading of setup section":
+  test "config.nims stays the same when a lock file appears":
+    # The template used to be picked by whether a lock file existed, under the
+    # same header, so config.nims flipped every time one appeared or went away.
+    # `--noNimblePath` is already the first line of nimble.paths.
     cd "setupproject":
       cleanFiles nimblePathsFileName, nimbleConfigFileName, "nimble.lock", ".gitignore"
-      discard execNimble("setup")
-      var configFileContent = nimbleConfigFileName.readFile
-      check not configFileContent.contains("--noNimblePath")
-      let (_, developExitCode) = execNimble("lock")
-      check developExitCode == QuitSuccess
+      check execNimble("setup").exitCode == QuitSuccess
+      let withoutLock = nimbleConfigFileName.readFile
+      check not withoutLock.contains("--noNimblePath")
 
-      # update of the section works
-      discard execNimble("setup")
+      check execNimble("lock").exitCode == QuitSuccess
+      check execNimble("setup").exitCode == QuitSuccess
       check fileExists("nimble.lock")
-      configFileContent = nimbleConfigFileName.readFile
-      check configFileContent.contains("--noNimblePath")
+      check nimbleConfigFileName.readFile == withoutLock
+      check nimblePathsFileName.readFile.startsWith("--noNimblePath")
 
       cleanFiles nimblePathsFileName, nimbleConfigFileName, "nimble.lock", ".gitignore"
     
@@ -85,8 +86,8 @@ suite "setup command":
         let pathsFileContent = nimblePathsFileName.readFile
         check pathsFileContent.contains(getPackageDir(pkgsDir, "packagea-0.2.0"))
         check pathsFileContent.contains(getPackageDir(pkgsDir, "packageb-0.1.0"))
-        # A lock file is present now, so the config has to pin the paths.
-        check nimbleConfigFileName.readFile.contains("--noNimblePath")
+        # A lock file is present now, so the paths have to be pinned.
+        check pathsFileContent.startsWith("--noNimblePath")
         cleanFiles nimblePathsFileName, nimbleConfigFileName, "nimble.lock"
 
   test "should add feature requirements to the nimble.paths file when activating the feature":
