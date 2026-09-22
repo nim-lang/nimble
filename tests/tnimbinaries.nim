@@ -1,7 +1,12 @@
 {.used.}
 import unittest
 import nimblepkg/[options, downloadnim, version, declarativeparser, versiondiscovery,
-                  nimenv, packageinfotypes, packagemetadatafile, cli]
+                  nimenv, packageinfotypes, packagemetadatafile]
+when not defined(windows):
+  # Only the refresh fixture below needs `forcePromptYes`, and that test is
+  # skipped on Windows; an unconditional import trips "compilation without
+  # warnings" there with [UnusedImport].
+  import nimblepkg/cli
 import std/[os, options, osproc, strutils]
 import chronos
 import testscommon
