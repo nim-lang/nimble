@@ -1620,8 +1620,10 @@ proc lock(options: var Options, nimBin: Option[string]) =
           options.satResult.getPkgInfoFromSolved(solvedPkg, options)
       var vcsRevision = pkgInfo.metaData.vcsRevision
       
-      # For develop mode dependencies, ensure VCS revision is set from working copy
-      if (pkgInfo.isLink or (vcsRevision == notSetSha1Hash and pkgInfo.getRealDir().dirExists())) and vcsRevision == notSetSha1Hash:
+      # Only develop dependencies are working copies. An installed package is a
+      # copy inside the nimble dir, so this would walk up to whatever repository
+      # encloses it - with `--localdeps`, the user's own project.
+      if pkgInfo.isLink and vcsRevision == notSetSha1Hash:
         try:
           vcsRevision = getVcsRevision(pkgInfo.getRealDir())
         except CatchableError:
