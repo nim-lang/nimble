@@ -675,9 +675,11 @@ proc getOfficialReleases*(options: Options): Future[seq[Version]] {.async.} =
     if options.offline:
       # In offline mode, use cache regardless of age
       return oficialReleasesCachedFile.parseFile().to(seq[Version])
-    #We only store the file for a day.
+    #We only store the file for a day - unless `--refresh` asked to go to the
+    #remotes, ie case where a release published today must
+    #not stay hidden behind a cache written yesterday.
     let fileCreation = getTime() - getFileInfo(oficialReleasesCachedFile).lastWriteTime
-    if fileCreation.inDays <= 1:
+    if fileCreation.inDays <= 1 and not options.forceFetch:
       return oficialReleasesCachedFile.parseFile().to(seq[Version])
   if options.offline:
     # No cache available in offline mode - return empty list
@@ -970,13 +972,9 @@ proc findNimInBinariesDir*(require: PkgTuple, options: Options): Option[PackageI
     if result.isNone or result.get.basicInfo.version < pkg.basicInfo.version:
       result = some pkg
 
-proc installNimFromBinariesDir*(
-    require: PkgTuple, options: Options
-): Future[Option[NimInstalled]] {.async.} =
-  if options.disableNimBinaries:
-    return none(NimInstalled)
-  # Check if already installed
-  let found = findNimInBinariesDir(require, options)
+proc reuseExtractedNim(found: Option[PackageInfo], options: Options): Option[NimInstalled] =
+  ## The Nim `findNimInBinariesDir` turned up, when it is actually usable.
+  result = none(NimInstalled)
   if found.isSome and isNimDirProperlyExtracted(found.get.getRealDir):
     let pkg = found.get
     let ver = getNimVersion(pkg.getRealDir)
@@ -985,7 +983,24 @@ proc installNimFromBinariesDir*(
       if not pkg.basicInfo.version.isSpecial and pkg.basicInfo.version != ver.get():
         displayWarning("Nim binary version doesn't match the package info version for Nim located at: " & pkg.getRealDir)
       saveNimMetaData(pkg.getRealDir, pkg.basicInfo.version)
-      return some (pkg.getRealDir, ver.get())
+      result = some (pkg.getRealDir, ver.get())
+
+proc installNimFromBinariesDir*(
+    require: PkgTuple, options: Options
+): Future[Option[NimInstalled]] {.async.} =
+  if options.disableNimBinaries:
+    return none(NimInstalled)
+  # Check if already installed
+  let found = findNimInBinariesDir(require, options)
+
+  # `--refresh` means "resolve against the remotes", so an already extracted Nim
+  # is not enough to stop here: an unconstrained requirement is satisfied by
+  # whatever happens to be on disk, which is how a newly published release stays
+  # invisible to `nimble install nim --refresh`.
+  if not options.forceFetch:
+    let reused = reuseExtractedNim(found, options)
+    if reused.isSome:
+      return reused
 
   # Download if allowed
   if not options.offline and
@@ -1004,4 +1019,7 @@ proc installNimFromBinariesDir*(
       if rebuiltVer.isSome():
         return some (extractedDir.get, rebuiltVer.get)
 
-  return none(NimInstalled)
+  # Nothing was downloaded - offline, declined, or no release matched. A refresh
+  # that came up empty must still hand back the Nim that is already on disk,
+  # otherwise `--refresh` would turn a working setup into "Failed to install nim".
+  return reuseExtractedNim(found, options)
