@@ -935,12 +935,12 @@ proc solvePackages*(rootPkg: PackageInfo, pkgList: seq[PackageInfo], pkgsToInsta
   var root: PackageMinimalInfo = rootPkg.getMinimalInfo(options)
   root.isRoot = true
 
-  # Try local solve first: if installed packages satisfy all constraints,
-  # use them without fetching newer versions. Skip for upgrade/lock which
-  # explicitly want fresh resolution, for refresh whose whole job is to go look
-  # at the network, and for minVer which must consider the full version set
-  # (installed packages are usually newer than the minimum).
-  if pkgList.len > 0 and options.action.typ notin {actionUpgrade, actionLock} and
+  # Try local solve first: if installed packages satisfy all constraints, use
+  # them without fetching newer versions. `lock` has to agree with `install`
+  # here. Only the commands asking for something newer skip it: `isUpgrade`
+  # (`upgrade`, `lock --refresh`, `lock pkg`), `--refresh`, and minVer, which
+  # must consider the full version set.
+  if pkgList.len > 0 and not options.isUpgrade and
      not options.forceFetch and
      options.resolutionAlgorithm != raMinVer:
     let localResult = solveLocalPackages(root, pkgList, options, output, solvedPkgs, nimBin)

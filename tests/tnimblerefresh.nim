@@ -411,6 +411,20 @@ license       = "MIT"
         let tag = tryDoCmdEx("git describe --tags").strip
         check tag == "v0.1.0"
 
+  test "lock keeps an installed version a newer release would replace":
+    # `install` keeps an installed version that still satisfies the
+    # requirements; `lock` re-resolved and pinned whatever the cache had
+    # learned since. Only `--refresh` goes looking for something newer.
+    withDepProject("dep1 >= 0.1.0", true):
+      addDepVersion("0.2.0", "dep1")
+      cd mainPkgPath:
+        check execNimbleYes("refresh").exitCode == QuitSuccess
+        check execNimbleYes("lock").exitCode == QuitSuccess
+        check lockedVersion("dep1") == "0.1.0"
+        # ... and `--refresh` is what moves it.
+        check execNimbleYes("lock", "--refresh").exitCode == QuitSuccess
+        check lockedVersion("dep1") == "0.2.0"
+
   test "lock --refresh relocks to a newly published version":
     withDepProject("dep1 >= 0.1.0", true):
       cd mainPkgPath:
