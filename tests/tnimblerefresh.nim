@@ -461,6 +461,33 @@ license       = "MIT"
         check lockedVersion("dep1") == "0.2.0"
         check lockedVersion("dep2") == "0.1.0"
 
+  test "a new requirement leaves the other pins alone":
+    withCleanDirs:
+      writePkgListFile(@["dep1", "dep2"])
+      usePackageListFile pkgListFilePath:
+        initDepOrigin(@["0.1.0"], "dep1")
+        initDepOrigin(@["0.1.0"], "dep2")
+        createDir mainPkgPath
+        cd mainPkgPath:
+          writeFile("main.nimble", (nimbleFileTemplate % "0.1.0") &
+            "requires \"dep1 >= 0.1.0\"\n")
+          initRepo()
+          commitAll("main")
+          check execNimbleYes("lock").exitCode == QuitSuccess
+          check lockedVersion("dep1") == "0.1.0"
+        # dep1 0.2.0 is published and a refresh makes it visible to resolution,
+        # which is the stale-solution state the pins are supposed to hold in.
+        addDepVersion("0.2.0", "dep1")
+        cd mainPkgPath:
+          check execNimbleYes("refresh").exitCode == QuitSuccess
+          writeFile("main.nimble", readFile("main.nimble") &
+            "requires \"dep2 >= 0.1.0\"\n")
+          let (output, exitCode) = execNimbleYes("lock")
+          checkpoint(output)
+          check exitCode == QuitSuccess
+          check lockedVersion("dep2") == "0.1.0"  # the new one is resolved
+          check lockedVersion("dep1") == "0.1.0"  # the old pin is not dragged along
+
   test "lock --refresh preserves compatible transitive pins regardless of lock order (#1849)":
     withSharedDepProject:
       cd mainPkgPath:

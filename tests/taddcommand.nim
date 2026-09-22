@@ -58,6 +58,23 @@ suite "add command":
       check exitCode == QuitSuccess
       check defaultLockFileName.readFile.contains("packagea")
 
+  test "nimble add solves the new package in a project that already has locked deps":
+    withAddFixture:
+      writeFile(nimbleFileName, nimbleFileContent & "\nrequires \"packagea\"\n")
+      check execNimbleYes("lock").exitCode == QuitSuccess
+      check defaultLockFileName.readFile.contains("packagea")
+      check execNimble("setup").exitCode == QuitSuccess
+
+      let (_, exitCode) = execNimbleYes("add", "packageb")
+      check exitCode == QuitSuccess
+      check nimbleFileName.readFile.contains("requires \"packageb")
+
+      # Installed, reachable by the compiler, and recorded in the lock file.
+      let pkgBDir = getPackageDir(pkgsDir, "PackageB-")
+      check pkgBDir.len > 0
+      check nimblePathsFileName.readFile.contains(pkgBDir.escape)
+      check defaultLockFileName.readFile.contains("packageb")
+
   test "nimble add does not create a paths or lock file on its own (#1796)":
     # Only projects already using them get them refreshed.
     withAddFixture:

@@ -1334,7 +1334,8 @@ proc preferLockedVersions(versions: var Table[string, PackageVersions],
   result = versions.getSolvedPackages(output, options)
   if result.len == 0:
     raise resolutionFailureError(
-      "Upgrade is incompatible with dependency requirements:\n" & output)
+      "The requested versions are incompatible with the dependency " &
+      "requirements:\n" & output)
 
   var selectedTargets = initTable[string, Version]()
   for pkg in result:
@@ -1553,7 +1554,14 @@ proc solveLockFileDeps*(satResult: var SATResult, pkgList: seq[PackageInfo], opt
     shouldSolve = false
 
   satResult.pkgList = pkgListDecl.toHashSet()
-  if shouldSolve and not (options.isUpgrade and options.action.packages.len > 0):
+  # Upgrade-all (`lock --refresh`, the deprecated `upgrade`) is the only case
+  # that re-solves the whole graph from scratch - moving every pin is precisely
+  # what it was asked to do. A requirement the lock file does not cover has to
+  # be resolved as well, but there the pins that still satisfy the graph must
+  # survive: adding one dependency (by hand or through `nimble add`) must not
+  # drag every other one forward, nor move the compiler.
+  let upgradeAll = options.isUpgrade and options.action.packages.len == 0
+  if shouldSolve and upgradeAll:
     # Create fresh package list and solve ALL requirements
     satResult.pkgs = solvePackages(
       satResult.rootPackage,
@@ -1566,7 +1574,7 @@ proc solveLockFileDeps*(satResult: var SATResult, pkgList: seq[PackageInfo], opt
     )
     if satResult.solvedPkgs.len == 0:
       raise resolutionFailureError(options.resolutionFailureMessage)
-  elif options.isUpgrade:
+  elif shouldSolve or options.isUpgrade:
     satResult.solveSelectiveUpgrade(locked, pkgListDecl, options, nimBin)
 
   else:
@@ -1591,11 +1599,18 @@ proc solveLockFileDeps*(satResult: var SATResult, pkgList: seq[PackageInfo], opt
 
 proc solutionToFullInfo*(satResult: SATResult, options: var Options, nimBin: Option[string]) {.instrument.} =
   if satResult.rootPackage.infoKind != pikFull and not satResult.rootPackage.basicInfo.name.isNim:
+    # Re-reading the root from disk drops whatever was appended to its requires
+    # before the solve: `--requires`, the packages named by `install`/`add` and
+    # the task requires that `lock` folds in. Every one of them has to survive,
+    # because the lock file logic that runs after this reads the root's requires
+    # to decide what changed. Without them it concludes nothing did: it keeps a
+    # pin the user just asked to constrain away (`--requires`), and it drops a
+    # package that was just added (`add` on a project with a lock file - the
+    # package is solved, then silently discarded again).
+    let solvedRequires = satResult.rootPackage.requires
     satResult.rootPackage = getPkgInfo(satResult.rootPackage.getNimbleFileDir, options, nimBin = nimBin).toRequiresInfo(options, nimBin = nimBin)
     satResult.rootPackage.enableFeatures(options)
-    # Re-reading the root from disk drops whatever `solvePkgs` had appended to
-    # its requires. `--requires` has to survive: the lock file logic that runs
-    # after this reads the root's requires to decide what still satisfies the
-    # existing pins, and without the extras it silently keeps a pin the user
-    # just asked to constrain away.
-    satResult.rootPackage.requires &= options.extraRequires
+    for require in solvedRequires:
+      if not satResult.rootPackage.requires.anyIt(
+          cmpIgnoreCase(it.name, require.name) == 0 and it.ver == require.ver):
+        satResult.rootPackage.requires.add require
