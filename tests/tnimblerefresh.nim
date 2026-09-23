@@ -312,6 +312,23 @@ license       = "MIT"
       let cache = (installDir / "pkgcache" / "tagged_versions.json").readFile
       check cache.contains("0.2.0")
 
+  test "refresh keeps reporting a dependency that is behind":
+    # The summary diffed the cache against itself, so only the refresh that
+    # first learned of 0.2.0 mentioned it and every later one claimed everything
+    # was up to date - while 0.1.0 was still the version in use. What the
+    # project uses is what it has to be compared against.
+    withDepProject("dep1 >= 0.1.0"):
+      addDepVersion("0.2.0")
+      cd mainPkgPath:
+        let (first, firstCode) = execNimbleYes("refresh")
+        check firstCode == QuitSuccess
+        check first.contains("dep1 0.1.0 -> 0.2.0")
+
+        let (second, secondCode) = execNimbleYes("refresh")
+        check secondCode == QuitSuccess
+        check second.contains("dep1 0.1.0 -> 0.2.0")
+        check not second.contains("Everything is up to date")
+
   test "install --refresh picks up a version the warm cache hides":
     withDepProject("dep1 >= 0.1.0"):
       addDepVersion("0.2.0")   # published after the cache was warmed

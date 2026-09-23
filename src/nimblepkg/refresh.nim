@@ -14,7 +14,7 @@ import std/options as std_opt
 import chronos
 
 import common, options, packageinfotypes, packageinfo, version, cli,
-       versiondiscovery, developfile, vcstools, download, paths
+       versiondiscovery, developfile, vcstools, download, paths, lockfile
 
 type
   RefreshOutcome* = object
@@ -75,25 +75,47 @@ proc refreshDevelopDeps(rootPkg: PackageInfo, options: Options,
       displayWarning(
         &"Failed to checkout {name} to version {target} at {dir}.", HighPriority)
 
-proc newerVersions(names: seq[string],
-                   before, after: TaggedVersionsCache): seq[string] =
-  ## Lines describing the packages whose newest known version grew over the
-  ## course of a refresh, as `name old -> new`.
+proc installedVersions*(options: Options): Table[string, Version] =
+  ## Newest installed version of each package in the package dir.
+  for pkg in getInstalledPkgsMin(options.getPkgsDir(), options):
+    if pkg.basicInfo.version.isSpecial: continue
+    let key = normalizePackageName(pkg.basicInfo.name)
+    if key notin result or pkg.basicInfo.version > result[key]:
+      result[key] = pkg.basicInfo.version
+
+proc versionsInUse*(rootPkg: PackageInfo, options: Options):
+    Table[string, Version] =
+  ## What the project resolves to today: the lock file's pins when it has one,
+  ## otherwise what is installed.
+  if rootPkg.hasLockFile(options):
+    for name, dep in options.lockFile(rootPkg.myPath.parentDir)
+        .getLockedDependencies.lockedDepsFor(options):
+      result[normalizePackageName(name)] = dep.version
+  else:
+    result = installedVersions(options)
+
+proc newerVersions*(names: seq[string], inUse: Table[string, Version],
+                    cache: TaggedVersionsCache): seq[string] =
+  ## Lines for the dependencies the project is behind on, as
+  ## `name in-use -> newest`. The comparison is against the version in use, not
+  ## against what the cache knew a moment ago: diffing the cache with itself
+  ## only ever reports the one refresh that first learned of a version, and
+  ## every refresh after it claims everything is up to date.
   for name in names:
-    let
-      oldVer = maxCachedVersion(before, name)
-      newVer = maxCachedVersion(after, name)
-    if newVer.isNone: continue
-    if oldVer.isNone or newVer.get > oldVer.get:
-      let fromVer = if oldVer.isSome: $oldVer.get else: "(none)"
-      result.add &"{name} {fromVer} -> {newVer.get}"
+    let newest = maxCachedVersion(cache, name)
+    if newest.isNone: continue
+    let key = normalizePackageName(name)
+    if key notin inUse: continue
+    if newest.get > inUse[key]:
+      result.add &"{name} {inUse[key]} -> {newest.get}"
 
 proc displayRefreshSummary(rootName: string, depNames: seq[string],
-                           before, after: TaggedVersionsCache,
+                           inUse: Table[string, Version],
+                           cache: TaggedVersionsCache,
                            develop: tuple[updated, skipped: seq[string]]) =
   display("Refreshed", &"{depNames.len} dependencies of {rootName}",
           priority = HighPriority)
-  let upgrades = newerVersions(depNames, before, after)
+  let upgrades = newerVersions(depNames, inUse, cache)
 
   if upgrades.len > 0:
     display("Info:", "Newer versions available:", priority = HighPriority)
@@ -116,7 +138,6 @@ proc refreshProjectDeps*(options: var Options, nimBin: var Option[string],
   ## (transitive) dependency of the current project, repopulate version
   ## discovery, and report what newer versions that made visible. Picks no
   ## version, writes no lock file, installs nothing.
-  let before = readTaggedVersionsCache(options)
   var rootPackage: PackageInfo
   options.forceFetch = true
   try:
@@ -132,7 +153,8 @@ proc refreshProjectDeps*(options: var Options, nimBin: var Option[string],
        cmpIgnoreCase(solvedPkg.pkgName, rootPackage.basicInfo.name) == 0:
       continue
     depNames.addUnique solvedPkg.pkgName
-  displayRefreshSummary(rootPackage.basicInfo.name, depNames, before,
+  displayRefreshSummary(rootPackage.basicInfo.name, depNames,
+                        versionsInUse(rootPackage, options),
                         readTaggedVersionsCache(options), develop)
 
 proc globalRefreshTargets(options: Options): seq[string] =
@@ -160,10 +182,11 @@ proc globalRefreshTargets(options: Options): seq[string] =
   result.sort()
 
 proc displayGlobalRefreshSummary(targets: seq[string],
-                                 before, after: TaggedVersionsCache,
+                                 inUse: Table[string, Version],
+                                 cache: TaggedVersionsCache,
                                  outcome: RefreshOutcome) =
   display("Refreshed", &"{targets.len} global packages", priority = HighPriority)
-  let upgrades = newerVersions(targets, before, after)
+  let upgrades = newerVersions(targets, inUse, cache)
   if upgrades.len > 0:
     display("Info:", "Newer versions available:", priority = HighPriority)
     for line in upgrades:
@@ -227,9 +250,7 @@ proc refreshGlobalDeps*(options: var Options, nimBin: Option[string]) =
   ## network for every globally known package and report what newer versions
   ## that made visible. Like the project half it picks no version and installs
   ## nothing - it only updates what nimble knows is out there.
-  let
-    before = readTaggedVersionsCache(options)
-    targets = globalRefreshTargets(options)
+  let targets = globalRefreshTargets(options)
   if targets.len == 0:
     display("Info:", "No global packages to refresh.", priority = HighPriority)
     return
@@ -256,6 +277,6 @@ proc refreshGlobalDeps*(options: var Options, nimBin: Option[string]) =
   finally:
     options.forceFetch = false
 
-  displayGlobalRefreshSummary(targets, before, readTaggedVersionsCache(options),
-                              outcome)
+  displayGlobalRefreshSummary(targets, installedVersions(options),
+                              readTaggedVersionsCache(options), outcome)
 
