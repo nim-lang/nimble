@@ -464,6 +464,34 @@ proc install(packages: seq[PkgTuple], options: Options,
         else:
           raise
 
+proc withRequiresAdded(content, eol: string, newRequires: seq[string]): string =
+  ## Inserts `newRequires` after the last top-level `requires` line. Appending
+  ## at the end of the file instead would drop them below any task definitions.
+  var
+    insertAt = -1
+    pos = 0
+  while pos < content.len:
+    var lineEnd = content.find('\n', pos)
+    if lineEnd < 0: lineEnd = content.len
+    let line = content[pos ..< lineEnd].strip(leading = false)
+    # An indented `requires` belongs to a task, not to the package.
+    if line.startsWith("requires") and (line.len == "requires".len or
+        line["requires".len] in {' ', '\t', '(', '"'}):
+      insertAt = lineEnd
+    pos = lineEnd + 1
+
+  let added = newRequires.join(eol)
+  if insertAt >= 0:
+    result = content[0 ..< insertAt] & eol & added & content[insertAt .. ^1]
+  else:
+    # No requirements yet: start a block of them, set off from what is above.
+    result = content
+    if result.len > 0 and not result.endsWith(eol):
+      result.add eol
+    result.add eol & added
+  if not result.endsWith(eol):
+    result.add eol
+
 proc addPackages(packages: seq[PkgTuple], options: var Options,
                  nimBin: Option[string]): bool =
   ## Appends `packages` as requirements of the package in the current
@@ -479,8 +507,8 @@ proc addPackages(packages: seq[PkgTuple], options: var Options,
     pkgList = waitFor options.getPackageList()
     deps = pkgInfo.requires
 
-  var 
-    appendStr: string
+  var
+    newRequires: seq[string]
     addedPkgs: seq[string]
 
   for apkg in packages:
@@ -530,7 +558,7 @@ proc addPackages(packages: seq[PkgTuple], options: var Options,
 
     let prettyStr = apkg.name & '@' & finalVer
 
-    appendStr &= "\nrequires \"$1$2\"" % [
+    newRequires.add "requires \"$1$2\"" % [
       apkg.name,
       if finalVer != "":
         " >= " & finalVer
@@ -540,9 +568,10 @@ proc addPackages(packages: seq[PkgTuple], options: var Options,
 
     addedPkgs.add(prettyStr)
 
-  let file = open(dir, fmAppend)
-  file.write(appendStr)
-  file.close()
+  if newRequires.len > 0:
+    let content = dir.readFile
+    let eol = if content.contains("\r\n"): "\r\n" else: "\n"
+    writeFile(dir, content.withRequiresAdded(eol, newRequires))
 
   for added in addedPkgs:
     display(
