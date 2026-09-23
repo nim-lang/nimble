@@ -5,7 +5,7 @@
 
 import unittest, os
 import testscommon
-import std/[strformat, strutils]
+import std/[strformat, strutils, osproc]
 from nimblepkg/common import cd
 
 suite "nimble dump":
@@ -189,6 +189,25 @@ license = "MIT"
 """ & body & "\n")
 
       let (outp, exitCode) = execNimble("dump", badNimble)
+      if exitCode != QuitSuccess:
+        # TEMPORARY. This fails intermittently on the macOS runner, and when it
+        # does `dump` exits 1 having printed nothing at all, so the log says
+        # nothing about why. Re-run it with --debug, with stderr kept apart and
+        # bootstrap resolution traced, so the next red run explains itself.
+        # Remove once that is understood.
+        putEnv("NIMBLE_TRACE_BOOTSTRAP", "1")
+        let
+          errFile = root / (field & "-dump-stderr.txt")
+          cmd = nimblePath.quoteShell & " --nimbleDir:" & installDir.quoteShell &
+            " --noColor --debug dump " & badNimble.quoteShell &
+            " 2> " & errFile.quoteShell
+          (debugOut, debugCode) = execCmdEx(cmd)
+        delEnv("NIMBLE_TRACE_BOOTSTRAP")
+        echo &"### dump[{field}] exit={exitCode}, {outp.len} bytes of output"
+        echo &"### dump[{field}] re-run with --debug: exit={debugCode}"
+        echo &"### dump[{field}] --debug stdout:\n{debugOut}"
+        echo "### dump[", field, "] --debug stderr:\n",
+          (if errFile.fileExists: errFile.readFile else: "(no stderr captured)")
       check exitCode == QuitSuccess
       # No raw compiler diagnostic leaks into the dump output...
       check "must be" notin outp
