@@ -61,13 +61,14 @@ suite "setup command":
       cleanFiles nimblePathsFileName, nimbleConfigFileName, "nimble.lock", ".gitignore"
       check execNimble("setup").exitCode == QuitSuccess
       let withoutLock = nimbleConfigFileName.readFile
-      check not withoutLock.contains("--noNimblePath")
+      # The paths are pinned either way, and a missing nimble.paths says so.
+      check withoutLock.contains("--noNimblePath")
+      check withoutLock.contains("nimble setup")
 
       check execNimble("lock").exitCode == QuitSuccess
       check execNimble("setup").exitCode == QuitSuccess
       check fileExists("nimble.lock")
       check nimbleConfigFileName.readFile == withoutLock
-      check nimblePathsFileName.readFile.startsWith("--noNimblePath")
 
       cleanFiles nimblePathsFileName, nimbleConfigFileName, "nimble.lock", ".gitignore"
     
@@ -86,8 +87,8 @@ suite "setup command":
         let pathsFileContent = nimblePathsFileName.readFile
         check pathsFileContent.contains(getPackageDir(pkgsDir, "packagea-0.2.0"))
         check pathsFileContent.contains(getPackageDir(pkgsDir, "packageb-0.1.0"))
-        # A lock file is present now, so the paths have to be pinned.
-        check pathsFileContent.startsWith("--noNimblePath")
+        # A lock file is present now, so the config has to pin the paths.
+        check nimbleConfigFileName.readFile.contains("--noNimblePath")
         cleanFiles nimblePathsFileName, nimbleConfigFileName, "nimble.lock"
 
   test "should add feature requirements to the nimble.paths file when activating the feature":

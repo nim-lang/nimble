@@ -1903,12 +1903,13 @@ proc setupNimbleConfig(options: Options, nimBin: Option[string]) =
     sectionEnd = "# end Nimble config"
     sectionStart = "# begin Nimble config"
     configFileHeader = &"# begin Nimble config (version {configFileVersion})"
-    # The same with or without a lock file: nimble.paths already starts with
-    # `--noNimblePath`.
     configFileContent = fmt"""
 {configFileHeader}
+--noNimblePath
 when withDir(thisDir(), system.fileExists("{nimblePathsFileName}")):
   include "{nimblePathsFileName}"
+else:
+  echo "{nimblePathsFileName} not found - run `nimble setup` to generate it"
 {sectionEnd}
 """
 
