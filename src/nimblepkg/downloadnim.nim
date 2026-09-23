@@ -996,8 +996,10 @@ proc installNimFromBinariesDir*(
   # `--refresh` means "resolve against the remotes", so an already extracted Nim
   # is not enough to stop here: an unconstrained requirement is satisfied by
   # whatever happens to be on disk, which is how a newly published release stays
-  # invisible to `nimble install nim --refresh`.
-  if not options.forceFetch:
+  # invisible to `nimble install nim --refresh`. An exact requirement is the
+  # exception - the version asked for is the version on disk, and going to the
+  # remotes can only find the same one again, after offering to download it.
+  if not options.forceFetch or require.ver.kind == verEq:
     let reused = reuseExtractedNim(found, options)
     if reused.isSome:
       return reused
