@@ -57,7 +57,10 @@ proc refreshDevelopDeps(rootPkg: PackageInfo, options: Options,
       name = dep.basicInfo.name
       dir = dep.getNimbleFileDir
     try:
-      gitFetchTags(dir, DownloadMethod.git, options)
+      # Offline the repo still gets moved to its newest local tag; only the
+      # fetch that would have made a newer one visible is skipped.
+      if not options.offline:
+        gitFetchTags(dir, DownloadMethod.git, options)
     except CatchableError as e:
       displayWarning(&"Could not fetch develop dependency {name} at {dir}: {e.msg}",
                      HighPriority)

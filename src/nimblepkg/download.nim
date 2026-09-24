@@ -644,6 +644,175 @@ proc doDownloadTarballAsync*(url, downloadDir, version: string, queryRevision: b
   filePath.removeFile
   return if queryRevision: await getRevisionAsync(url, version) else: notSetSha1Hash
 
+proc getCacheDownloadDir*(url: string, ver: VersionRange, options: Options, vcsRevision: Sha1Hash = notSetSha1Hash): string =
+  # Use version-agnostic cache directory ONLY for verAny (used during package discovery).
+  # This allows enumerating all versions from a single git clone.
+  # For all other version types (specific versions, ranges, special versions),
+  # use version-specific directories to ensure correct version is checked out.
+  let puri = parseUri(url)
+  var dirName = ""
+  dirName.addAlphanumeric puri.hostname
+  dirName.add "_"
+  dirName.addAlphanumeric puri.path
+  # Include query string (e.g., ?subdir=generator) to differentiate subdirectories
+  if puri.query != "":
+    dirName.add "_"
+    dirName.addAlphanumeric puri.query
+  # For any version type other than verAny, include the version in the directory name
+  # This ensures each specific version gets its own cache directory
+  if ver.kind != verAny:
+    dirName.add "_"
+    dirName.addAlphanumeric $ver
+  # When vcsRevision is specified (e.g., from lock file), include it in the cache directory
+  # This ensures exact commits get their own cache directory
+  if vcsRevision != notSetSha1Hash:
+    dirName.add "_"
+    dirName.add $vcsRevision
+  options.pkgCachePath / dirName
+
+proc hasRevision(dir, rev: string): bool =
+  ## True if `rev` names a commit this clone already has.
+  doCmdEx(&"git -C {dir.quoteShell} rev-parse --verify --quiet " &
+          (rev & "^{commit}").quoteShell).exitCode == QuitSuccess
+
+proc localTags(dir: string): OrderedTable[Version, string] =
+  ## The version tags `dir` has, empty if it cannot be read as a git repository.
+  try:
+    getTagsList(dir, DownloadMethod.git).getVersionList()
+  except CatchableError:
+    initOrderedTable[Version, string]()
+
+proc cachedClonesOf(url: string, options: Options): seq[string] =
+  ## Every clone of `url` the package cache already holds: the one version
+  ## discovery fetches all the tags into, plus one per version installed so far.
+  ## They all share the name `getCacheDownloadDir` builds out of the URL alone.
+  let base = getCacheDownloadDir(url, VersionRange(kind: verAny), options)
+  let (parent, name) = base.splitPath
+  if not dirExists(parent):
+    return
+  for kind, path in walkDir(parent):
+    if kind notin {pcDir, pcLinkToDir}:
+      continue
+    let dirName = path.splitPath.tail
+    if (dirName == name or dirName.startsWith(name & "_")) and
+       dirExists(path / ".git"):
+      result.add path
+
+proc localSourceRepo*(url: string, verRange: VersionRange, options: Options,
+                      vcsRevision: Sha1Hash): string =
+  ## A clone already in the package cache that can stand in for the remote,
+  ## empty when there is none. `nimble refresh` fetches every tag into the clone
+  ## backing version discovery, so offline that clone is the only way to install
+  ## a version that was never installed before.
+  if not options.offline:
+    return ""
+  let target = getCacheDownloadDir(url, verRange, options, vcsRevision)
+  var bestVer: Version
+  for dir in cachedClonesOf(url, options):
+    # A clone cannot populate itself.
+    if dir == target:
+      continue
+    if vcsRevision != notSetSha1Hash:
+      if dir.hasRevision($vcsRevision):
+        return dir
+    elif verRange.kind == verSpecial:
+      if verRange.spe == getHeadName(DownloadMethod.git) or
+         dir.hasRevision(substr($verRange.spe, 1)):
+        return dir
+    else:
+      # Any of these clones may be the one that has the tag being asked for, so
+      # take the one whose tags come closest to satisfying the range.
+      let latest = findLatest(verRange, localTags(dir))
+      if latest.tag.len > 0 and (result.len == 0 or latest.ver > bestVer):
+        result = dir
+        bestVer = latest.ver
+
+proc localCheckoutTarget(srcDir, refName: string): string =
+  ## What to check out after cloning `srcDir`. These clones sit on a detached
+  ## HEAD, which a plain clone leaves with no files at all, so the checkout is
+  ## not optional: without a ref to ask for, take the commit the source is on.
+  if refName.len > 0:
+    return refName
+  let head = srcDir.getVcsRevision
+  if head != notSetSha1Hash: $head else: ""
+
+proc cloneFromLocalRepo(srcDir, downloadDir, refName: string, options: Options) =
+  ## Populates `downloadDir` from another clone on this machine. Cloning a path
+  ## shares the object database, so every commit the source holds is reachable
+  ## without a network. Submodules are best-effort: their remotes are not local.
+  display("Cloning", "cached " & srcDir.extractFilename, priority = MediumPriority)
+  discard tryDoCmdEx("git clone --config core.autocrlf=false --config core.eol=lf " &
+                     &"{srcDir.quoteShell} {downloadDir.quoteShell}")
+  let target = localCheckoutTarget(srcDir, refName)
+  if target.len > 0:
+    discard tryDoCmdEx(
+      &"git -C {downloadDir.quoteShell} checkout --force {target.quoteShell}")
+  if not options.ignoreSubmodules:
+    downloadDir.updateSubmodules
+
+proc cloneFromLocalRepoAsync(srcDir, downloadDir, refName: string,
+                             options: Options): Future[void] {.async.} =
+  ## Async version of cloneFromLocalRepo.
+  display("Cloning", "cached " & srcDir.extractFilename, priority = MediumPriority)
+  discard await tryDoCmdExAsync(
+    "git clone --config core.autocrlf=false --config core.eol=lf " &
+    &"{srcDir.quoteShell} {downloadDir.quoteShell}")
+  let target = localCheckoutTarget(srcDir, refName)
+  if target.len > 0:
+    discard await tryDoCmdExAsync(
+      &"git -C {downloadDir.quoteShell} checkout --force {target.quoteShell}")
+  if not options.ignoreSubmodules:
+    await downloadDir.updateSubmodulesAsync()
+
+proc doLocalDownload(srcDir, downloadDir: string, verRange: VersionRange,
+                     options: Options, vcsRevision: Sha1Hash):
+    tuple[version: Version, vcsRevision: Sha1Hash] =
+  ## Same job as `doDownload`, served from a clone already on this machine
+  ## instead of the remote. See `localSourceRepo` for when that is possible.
+  removeDir(downloadDir)
+  if vcsRevision != notSetSha1Hash:
+    cloneFromLocalRepo(srcDir, downloadDir, $vcsRevision, options)
+    result.vcsRevision = vcsRevision
+  elif verRange.kind == verSpecial:
+    let refName =
+      if verRange.spe == getHeadName(DownloadMethod.git): ""
+      else: substr($verRange.spe, 1)
+    cloneFromLocalRepo(srcDir, downloadDir, refName, options)
+    result.version = verRange.spe
+  else:
+    # The tags are read from the clone rather than from the remote, which is
+    # the whole point: discovery already fetched them all into it.
+    let latest = findLatest(
+      verRange, getTagsList(srcDir, DownloadMethod.git).getVersionList())
+    cloneFromLocalRepo(srcDir, downloadDir, latest.tag, options)
+    result.version =
+      if $latest.ver != "": latest.ver else: getHeadName(DownloadMethod.git)
+  if result.vcsRevision == notSetSha1Hash:
+    result.vcsRevision = downloadDir.getVcsRevision
+
+proc doLocalDownloadAsync(srcDir, downloadDir: string, verRange: VersionRange,
+                          options: Options, vcsRevision: Sha1Hash):
+    Future[tuple[version: Version, vcsRevision: Sha1Hash]] {.async.} =
+  ## Async version of doLocalDownload.
+  removeDir(downloadDir)
+  if vcsRevision != notSetSha1Hash:
+    await cloneFromLocalRepoAsync(srcDir, downloadDir, $vcsRevision, options)
+    result.vcsRevision = vcsRevision
+  elif verRange.kind == verSpecial:
+    let refName =
+      if verRange.spe == getHeadName(DownloadMethod.git): ""
+      else: substr($verRange.spe, 1)
+    await cloneFromLocalRepoAsync(srcDir, downloadDir, refName, options)
+    result.version = verRange.spe
+  else:
+    let latest = findLatest(
+      verRange, (await getTagsListAsync(srcDir, DownloadMethod.git)).getVersionList())
+    await cloneFromLocalRepoAsync(srcDir, downloadDir, latest.tag, options)
+    result.version =
+      if $latest.ver != "": latest.ver else: getHeadName(DownloadMethod.git)
+  if result.vcsRevision == notSetSha1Hash:
+    result.vcsRevision = downloadDir.getVcsRevision
+
 {.warning[ProveInit]: off.}
 proc doDownload(url, downloadDir: string, verRange: VersionRange,
                 downMethod: DownloadMethod, options: Options,
@@ -943,26 +1112,34 @@ proc downloadPkg*(url: string, verRange: VersionRange,
   if isCacheValid(result.dir, downloadDir, downloadPath, verRange, options):
     return
 
-  if options.offline:
+  # Offline, the clone version discovery keeps for this URL can stand in for the
+  # remote: it holds every tag discovery ever saw, so a version that was never
+  # installed is still installable from it.
+  let localSrc = localSourceRepo(url, verRange, options, vcsRevision)
+  if localSrc.len == 0 and options.offline:
     raise nimbleError("Cannot download in offline mode.")
 
   let modUrl = modifyUrl(url, options.config.cloneUsingHttps)
 
-  let downloadMethod = if downloadTarball(modUrl, options):
-    "http" else: $downMethod
-
-  let verStr = if verRange.kind == verAny: "" else: " (" & $verRange & ")"
-  let category = if options.satResult.pass != satDone: "Fetching" else: "Downloading"
-  if subdir.len > 0:
-    display(category, "$1$2 using $3 (subdir is '$4')" %
-                           [modUrl, verStr, downloadMethod, subdir],
-            priority = HighPriority)
+  if localSrc.len > 0:
+    (result.version, result.vcsRevision) = doLocalDownload(
+      localSrc, downloadDir, verRange, options, vcsRevision)
   else:
-    display(category, "$1$2 using $3" % [modUrl, verStr, downloadMethod],
-            priority = HighPriority)
+    let downloadMethod = if downloadTarball(modUrl, options):
+      "http" else: $downMethod
 
-  (result.version, result.vcsRevision) = doDownload(
-    modUrl, downloadDir, verRange, downMethod, options, vcsRevision)
+    let verStr = if verRange.kind == verAny: "" else: " (" & $verRange & ")"
+    let category = if options.satResult.pass != satDone: "Fetching" else: "Downloading"
+    if subdir.len > 0:
+      display(category, "$1$2 using $3 (subdir is '$4')" %
+                             [modUrl, verStr, downloadMethod, subdir],
+              priority = HighPriority)
+    else:
+      display(category, "$1$2 using $3" % [modUrl, verStr, downloadMethod],
+              priority = HighPriority)
+
+    (result.version, result.vcsRevision) = doDownload(
+      modUrl, downloadDir, verRange, downMethod, options, vcsRevision)
   
   var metaData = initPackageMetaData()
   metaData.url = modUrl
@@ -1011,26 +1188,34 @@ proc downloadPkgAsync*(url: string, verRange: VersionRange,
   if isCacheValid(result.dir, downloadDir, downloadPath, verRange, options):
     return
 
-  if options.offline:
+  # Offline, the clone version discovery keeps for this URL can stand in for the
+  # remote: it holds every tag discovery ever saw, so a version that was never
+  # installed is still installable from it.
+  let localSrc = localSourceRepo(url, verRange, options, vcsRevision)
+  if localSrc.len == 0 and options.offline:
     raise nimbleError("Cannot download in offline mode.")
 
   let modUrl = modifyUrl(url, options.config.cloneUsingHttps)
 
-  let downloadMethod = if downloadTarball(modUrl, options):
-    "http" else: $downMethod
-
-  let verStr = if verRange.kind == verAny: "" else: " (" & $verRange & ")"
-  let category = if options.satResult.pass != satDone: "Fetching" else: "Downloading"
-  if subdir.len > 0:
-    display(category, "$1$2 using $3 (subdir is '$4')" %
-                           [modUrl, verStr, downloadMethod, subdir],
-            priority = HighPriority)
+  if localSrc.len > 0:
+    (result.version, result.vcsRevision) = await doLocalDownloadAsync(
+      localSrc, downloadDir, verRange, options, vcsRevision)
   else:
-    display(category, "$1$2 using $3" % [modUrl, verStr, downloadMethod],
-            priority = HighPriority)
+    let downloadMethod = if downloadTarball(modUrl, options):
+      "http" else: $downMethod
 
-  (result.version, result.vcsRevision) = await doDownloadAsync(
-    modUrl, downloadDir, verRange, downMethod, options, vcsRevision)
+    let verStr = if verRange.kind == verAny: "" else: " (" & $verRange & ")"
+    let category = if options.satResult.pass != satDone: "Fetching" else: "Downloading"
+    if subdir.len > 0:
+      display(category, "$1$2 using $3 (subdir is '$4')" %
+                             [modUrl, verStr, downloadMethod, subdir],
+              priority = HighPriority)
+    else:
+      display(category, "$1$2 using $3" % [modUrl, verStr, downloadMethod],
+              priority = HighPriority)
+
+    (result.version, result.vcsRevision) = await doDownloadAsync(
+      modUrl, downloadDir, verRange, downMethod, options, vcsRevision)
 
   var metaData = initPackageMetaData()
   metaData.url = modUrl

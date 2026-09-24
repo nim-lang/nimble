@@ -2527,8 +2527,14 @@ proc doAction(options: var Options, nimBinParam: Option[string]) {.instrument.} 
         options.nimBin = some makeNimBin(options, nimBin.getNimBin)
   case options.action.typ
   of actionRefresh:
-    # The package list is always refreshed first
-    waitFor refresh(options)
+    # The package list is always refreshed first. Offline there is nothing to
+    # fetch, and the report below still has something to say: it comes from the
+    # caches, which `--refresh --offline` resolves against.
+    if options.offline:
+      display("Info:", "Offline: nothing is fetched, this reports what the " &
+              "caches already know.", priority = HighPriority)
+    else:
+      waitFor refresh(options)
     if not options.action.packageListOnly:
       # `-g` is what switches a project refresh over to the global one. Without
       # a nimble file there is no project to scope to, so global is all that is
