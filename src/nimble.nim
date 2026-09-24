@@ -2722,6 +2722,11 @@ when isMainModule:
     if not shouldRun or opt.action.typ != actionDevelop:
       opt.doAction(nimBin)
 
+    if shouldRun and opt.thereIsNimbleFile and
+       (opt.action.typ in {actionLock, actionSetup} or
+        (opt.action.typ == actionInstall and opt.action.packages.len == 0)):
+      displayAvailableUpgrades(opt)
+
   except NimbleQuit as quit:
     exitCode = quit.exitCode
   except CatchableError as error:

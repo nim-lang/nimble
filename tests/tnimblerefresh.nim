@@ -341,6 +341,21 @@ license       = "MIT"
         check execNimbleYes("install", "--refresh").exitCode == QuitSuccess
         check getPackageDir(pkgsDir, "dep1-0.2.0") != ""
 
+  test "install says when a dependency has a newer version waiting":
+    # Reusing what is installed is right, but silence about it is not: the cache
+    # already knows about 0.2.0, so say so and name the command that takes it.
+    withDepProject("dep1 >= 0.1.0"):
+      addDepVersion("0.2.0")
+      cd mainPkgPath:
+        check execNimbleYes("refresh").exitCode == QuitSuccess
+        let (output, exitCode) = execNimbleYes("install")
+        checkpoint(output)
+        check exitCode == QuitSuccess
+        check output.contains("dep1 0.1.0 -> 0.2.0")
+        check output.contains("--refresh")
+        # ... and it still installed nothing.
+        check getPackageDir(pkgsDir, "dep1-0.2.0") == ""
+
   test "refresh --packageListOnly leaves the dependency clones alone":
     withDepProject("dep1 >= 0.1.0"):
       addDepVersion("0.2.0")

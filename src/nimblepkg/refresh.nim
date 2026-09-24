@@ -132,6 +132,31 @@ proc displayRefreshSummary(rootName: string, depNames: seq[string],
   if upgrades.len == 0 and develop.updated.len == 0:
     display("Info:", "Everything is up to date.", priority = HighPriority)
 
+proc displayAvailableUpgrades*(options: Options) =
+  ## After a command that reused what was already installed or locked, name the
+  ## dependencies with something newer waiting and the command that takes it.
+  ## Reads the cache only - this never goes to the network.
+  let rootPkg = options.satResult.rootPackage
+  if rootPkg.myPath.len == 0:
+    return
+  var depNames: seq[string]
+  for solvedPkg in options.satResult.solvedPkgs:
+    if solvedPkg.pkgName.isNim or
+       cmpIgnoreCase(solvedPkg.pkgName, rootPkg.basicInfo.name) == 0:
+      continue
+    depNames.addUnique solvedPkg.pkgName
+  let upgrades = newerVersions(depNames, versionsInUse(rootPkg, options),
+                               readTaggedVersionsCache(options))
+  if upgrades.len == 0:
+    return
+  display("Info:", "Newer versions available:", priority = HighPriority)
+  for line in upgrades:
+    display("", "  " & line, priority = HighPriority)
+  let cmd =
+    if rootPkg.hasLockFile(options): "nimble lock --refresh"
+    else: "nimble install --refresh"
+  display("Info:", &"run `{cmd}` to upgrade", priority = HighPriority)
+
 proc refreshProjectDeps*(options: var Options, nimBin: var Option[string],
                          solveProject: SolveProjectDeps) =
   ## The clone half of `nimble refresh`: git-fetch every repo backing a
