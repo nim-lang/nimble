@@ -1,7 +1,7 @@
 # Copyright (C) the Nimble contributors. All rights reserved.
 # BSD License. Look at license.txt for more info.
 
-import std/[os, tables, uri, options, strutils, sets, strformat, json, jsonutils]
+import std/[os, tables, options, strutils, sets, strformat, json, jsonutils]
 import chronos
 import version, packageinfotypes, download, packageinfo, packageparser, options,
   sha1hashes, tools, downloadnim, cli, declarativeparser, common
