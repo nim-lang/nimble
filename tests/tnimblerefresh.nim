@@ -341,6 +341,46 @@ license       = "MIT"
         check execNimbleYes("install", "--refresh").exitCode == QuitSuccess
         check getPackageDir(pkgsDir, "dep1-0.2.0") != ""
 
+  test "install --refresh --offline installs from what refresh already fetched":
+    # `--refresh` means two things at once: don't reuse the current solution,
+    # and go look at the remotes. Offline only the first half is possible, and
+    # it is enough - refresh left the new version in the tagged versions cache
+    # and its objects in the clone discovery keeps for the package.
+    withDepProject("dep1 >= 0.1.0"):
+      addDepVersion("0.2.0")
+      cd mainPkgPath:
+        check execNimbleYes("refresh").exitCode == QuitSuccess
+        # 0.2.0 was never installed, so nothing but the clone can provide it.
+        check getPackageDir(pkgsDir, "dep1-0.2.0") == ""
+        let (output, exitCode) = execNimbleYes("install", "--refresh", "--offline")
+        checkpoint output
+        check exitCode == QuitSuccess
+      check getPackageDir(pkgsDir, "dep1-0.2.0") != ""
+
+  test "lock --refresh --offline moves the pin the same as with a network":
+    withDepProject("dep1 >= 0.1.0", underVcs = true):
+      cd mainPkgPath:
+        check execNimbleYes("lock").exitCode == QuitSuccess
+        check lockedVersion("dep1") == "0.1.0"
+      addDepVersion("0.2.0")
+      cd mainPkgPath:
+        check execNimbleYes("refresh").exitCode == QuitSuccess
+        let (output, exitCode) = execNimbleYes("lock", "--refresh", "--offline")
+        checkpoint output
+        check exitCode == QuitSuccess
+        check lockedVersion("dep1") == "0.2.0"
+
+  test "refresh --offline reports from the cache instead of failing":
+    withDepProject("dep1 >= 0.1.0"):
+      addDepVersion("0.2.0")
+      cd mainPkgPath:
+        check execNimbleYes("refresh").exitCode == QuitSuccess
+        let (output, exitCode) = execNimbleYes("refresh", "--offline")
+        checkpoint output
+        check exitCode == QuitSuccess
+        check output.contains("Offline")
+        check output.contains("dep1 0.1.0 -> 0.2.0")
+
   test "install says when a dependency has a newer version waiting":
     # Reusing what is installed is right, but silence about it is not: the cache
     # already knows about 0.2.0, so say so and name the command that takes it.
@@ -673,6 +713,24 @@ license       = "MIT"
         check exitCode == QuitSuccess
         check lockedVersion("dep1") == "#" & pinned
         check lockedRevision("dep1") == pinned
+
+  test "a commit pin resolves offline from a clone that already has the commit":
+    # The commit carries a tag here, but nothing ever cloned it on its own: what
+    # makes it reachable is that refresh fetched it into the clone backing dep1,
+    # and cloning that locally shares its objects.
+    withDepProject("dep1 >= 0.1.0", underVcs = true):
+      addDepVersion("0.2.0")
+      var pinned = ""
+      cd originsDirPath / "dep1":
+        pinned = tryDoCmdEx("git rev-parse HEAD").strip
+      cd mainPkgPath:
+        check execNimbleYes("refresh").exitCode == QuitSuccess
+        writeFile("main.nimble", (nimbleFileTemplate % "0.1.0") &
+          &"requires \"dep1#{pinned}\"\n")
+        let (output, exitCode) = execNimbleYes("lock", "--offline")
+        checkpoint output
+        check exitCode == QuitSuccess
+        check lockedVersion("dep1") == "#" & pinned
 
   test "a commit pin locks the dependencies that revision asks for":
     withCommitPinProject:

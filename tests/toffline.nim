@@ -14,10 +14,13 @@ suite "offline mode":
     check exitCode != QuitSuccess
     check output.contains("offline mode")
 
-  test "cannot refresh in --offline mode":
+  test "refresh in --offline mode reports without fetching":
+    # There is nothing to fetch, but there is still something to say: what the
+    # caches already know is exactly what `--refresh --offline` resolves against.
     let (output, exitCode) = execNimble(["--offline", "refresh"])
-    check exitCode != QuitSuccess
-    check output.contains("Cannot refresh package list in offline mode.")
+    check exitCode == QuitSuccess
+    check output.contains("Offline")
+    check not output.contains("Downloading Official package list")
 
   test "cannot check URL type in --offline mode":
     cleanDir(installDir)

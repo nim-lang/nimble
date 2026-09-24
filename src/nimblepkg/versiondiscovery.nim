@@ -19,48 +19,6 @@ const TaggedVersionsFileName* = "tagged_versions.json"
 proc isFileUrl*(pkgDownloadInfo: PackageDownloadInfo): bool =
   pkgDownloadInfo.meth.isNone and pkgDownloadInfo.url.isFileURL
 
-proc getCacheDownloadDir*(url: string, ver: VersionRange, options: Options, vcsRevision: Sha1Hash = notSetSha1Hash): string =
-  # Use version-agnostic cache directory ONLY for verAny (used during package discovery).
-  # This allows enumerating all versions from a single git clone.
-  # For all other version types (specific versions, ranges, special versions),
-  # use version-specific directories to ensure correct version is checked out.
-  let puri = parseUri(url)
-  var dirName = ""
-  for i in puri.hostname:
-    case i
-    of strutils.Letters, strutils.Digits:
-      dirName.add i
-    else: discard
-  dirName.add "_"
-  for i in puri.path:
-    case i
-    of strutils.Letters, strutils.Digits:
-      dirName.add i
-    else: discard
-  # Include query string (e.g., ?subdir=generator) to differentiate subdirectories
-  if puri.query != "":
-    dirName.add "_"
-    for i in puri.query:
-      case i
-      of strutils.Letters, strutils.Digits:
-        dirName.add i
-      else: discard
-  # For any version type other than verAny, include the version in the directory name
-  # This ensures each specific version gets its own cache directory
-  if ver.kind != verAny:
-    dirName.add "_"
-    for i in $ver:
-      case i
-      of strutils.Letters, strutils.Digits:
-        dirName.add i
-      else: discard
-  # When vcsRevision is specified (e.g., from lock file), include it in the cache directory
-  # This ensures exact commits get their own cache directory
-  if vcsRevision != notSetSha1Hash:
-    dirName.add "_"
-    dirName.add $vcsRevision
-  options.pkgCachePath / dirName
-
 proc getPackageDownloadInfo*(pv: PkgTuple, options: Options, doPrompt = false, vcsRevision: Sha1Hash = notSetSha1Hash): PackageDownloadInfo =
   if pv.name.isFileURL:
     return PackageDownloadInfo(meth: none(DownloadMethod), url: pv.name, subdir: "", downloadDir: "", pv: pv, vcsRevision: notSetSha1Hash)
@@ -242,10 +200,15 @@ proc getPackageMinimalVersionsFromRepo*(
 
     # Check cache first. `nimble refresh` sets forceFetch so the cache is never
     # trusted: the whole point of the command is to go look at the network.
+    # Offline there is no network to look at, so forceFetch keeps only its other
+    # meaning - don't reuse the current solution - and the cache is what we
+    # re-solve against.
     try:
       let taggedVersions =
-        if options.forceFetch: none(seq[PackageMinimalInfo])
-        else: getTaggedVersions(name, options)
+        if options.forceFetch and not options.offline:
+          none(seq[PackageMinimalInfo])
+        else:
+          getTaggedVersions(name, options)
       if taggedVersions.isSome:
         var cacheFresh = true
         try:
@@ -258,10 +221,11 @@ proc getPackageMinimalVersionsFromRepo*(
     except:
       discard
 
-    # Fetch all tags
+    # Fetch all tags. Offline, whatever the clone already has is all there is.
     var tags = initOrderedTable[Version, string]()
     try:
-      await gitFetchTagsAsync(gitRoot, downloadMethod, options)
+      if not options.offline:
+        await gitFetchTagsAsync(gitRoot, downloadMethod, options)
       tags = (await getTagsListAsync(gitRoot, downloadMethod)).getVersionList()
     except ref NimbleGitError as e:
       options.satResult.gitErrors.add(&"Git error fetching tags for {name} (could be a network issue): {e.msg}")

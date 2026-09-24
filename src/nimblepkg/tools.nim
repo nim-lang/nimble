@@ -187,21 +187,22 @@ proc createDirD*(dir: string) =
   display("Creating", "directory $#" % dir, priority = LowPriority)
   createDir(dir)
 
+proc addAlphanumeric*(name: var string, text: string) =
+  ## Appends `text` with everything that is not a letter or a digit dropped, so
+  ## a URL, a version or a query string can go into a directory name.
+  for c in text:
+    case c
+    of strutils.Letters, strutils.Digits:
+      name.add c
+    else: discard
+
 proc getDownloadDirName*(uri: string, verRange: VersionRange,
                          vcsRevision: Sha1Hash): string =
   ## Creates a directory name based on the specified ``uri`` (url)
   let puri = parseUri(uri)
-  for i in puri.hostname:
-    case i
-    of strutils.Letters, strutils.Digits:
-      result.add i
-    else: discard
+  result.addAlphanumeric puri.hostname
   result.add "_"
-  for i in puri.path:
-    case i
-    of strutils.Letters, strutils.Digits:
-      result.add i
-    else: discard
+  result.addAlphanumeric puri.path
 
   let verSimple = getSimpleString(verRange)
   if verSimple != "":
