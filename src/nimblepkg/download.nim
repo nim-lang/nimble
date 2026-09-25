@@ -1092,7 +1092,8 @@ proc downloadPkg*(url: string, verRange: VersionRange,
                   downloadPath: string,
                   vcsRevision: Sha1Hash,
                   nimBin: Option[string],
-                  validateRange = true): DownloadPkgResult =
+                  validateRange = true,
+                  writeMetaData = true): DownloadPkgResult =
   ## Downloads the repository as specified by ``url`` and ``verRange`` using
   ## the download method specified.
   ##
@@ -1104,6 +1105,10 @@ proc downloadPkg*(url: string, verRange: VersionRange,
   ## ``vcsRevision``
   ##   If specified this parameter will cause specific VCS revision to be
   ##   checked out.
+  ##
+  ## ``writeMetaData``
+  ##   Records the url and revision in a `nimblemeta.json`. Off for directories
+  ##   the user works in, where git is the live answer and a snapshot is a lie.
 
   let (downloadDir, pkgDir) = downloadPkgDir(url, verRange, subdir, options, vcsRevision, downloadPath)
   result.dir = pkgDir
@@ -1141,10 +1146,14 @@ proc downloadPkg*(url: string, verRange: VersionRange,
     (result.version, result.vcsRevision) = doDownload(
       modUrl, downloadDir, verRange, downMethod, options, vcsRevision)
   
-  var metaData = initPackageMetaData()
-  metaData.url = modUrl
-  metaData.vcsRevision = result.vcsRevision
-  saveMetaData(metaData, result.dir)
+  # Skipped for a develop checkout: there the directory is the user's own source
+  # tree, git already answers both questions, and a file frozen at clone time
+  # would go stale the moment they commit.
+  if writeMetaData:
+    var metaData = initPackageMetaData()
+    metaData.url = modUrl
+    metaData.vcsRevision = result.vcsRevision
+    saveMetaData(metaData, result.dir)
 
   var pkgInfo: PackageInfo
   ## Makes sure that the downloaded package's version satisfies the requested
@@ -1167,7 +1176,8 @@ proc downloadPkgAsync*(url: string, verRange: VersionRange,
                        downloadPath: string,
                        vcsRevision: Sha1Hash,
                        nimBin: Option[string],
-                       validateRange = true): Future[DownloadPkgResult] {.async.} =
+                       validateRange = true,
+                       writeMetaData = true): Future[DownloadPkgResult] {.async.} =
   ## Async version of downloadPkg that uses async operations for cloning and downloading.
   ## Downloads the repository as specified by ``url`` and ``verRange`` using
   ## the download method specified.
@@ -1180,6 +1190,10 @@ proc downloadPkgAsync*(url: string, verRange: VersionRange,
   ## ``vcsRevision``
   ##   If specified this parameter will cause specific VCS revision to be
   ##   checked out.
+  ##
+  ## ``writeMetaData``
+  ##   Records the url and revision in a `nimblemeta.json`. Off for directories
+  ##   the user works in, where git is the live answer and a snapshot is a lie.
 
   let (downloadDir, pkgDir) = downloadPkgDir(url, verRange, subdir, options, vcsRevision, downloadPath)
   result.dir = pkgDir
@@ -1217,10 +1231,14 @@ proc downloadPkgAsync*(url: string, verRange: VersionRange,
     (result.version, result.vcsRevision) = await doDownloadAsync(
       modUrl, downloadDir, verRange, downMethod, options, vcsRevision)
 
-  var metaData = initPackageMetaData()
-  metaData.url = modUrl
-  metaData.vcsRevision = result.vcsRevision
-  saveMetaData(metaData, result.dir)
+  # Skipped for a develop checkout: there the directory is the user's own source
+  # tree, git already answers both questions, and a file frozen at clone time
+  # would go stale the moment they commit.
+  if writeMetaData:
+    var metaData = initPackageMetaData()
+    metaData.url = modUrl
+    metaData.vcsRevision = result.vcsRevision
+    saveMetaData(metaData, result.dir)
 
   var pkgInfo: PackageInfo
   ## Makes sure that the downloaded package's version satisfies the requested

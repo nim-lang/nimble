@@ -1256,8 +1256,12 @@ proc installDevelopPackage(pkgTup: PkgTuple, options: var Options, nimBinParam: 
     else:
       pkgTup.ver
 
+  # No `nimblemeta.json`: this clone is the directory the user is about to work
+  # in, not a cache entry. Its url and revision come from git, which stays right
+  # as they commit, switch branches and add remotes.
   discard downloadPkg(url, ver, meth, subdir, options, downloadDir,
-                      vcsRevision = notSetSha1Hash, nimBin = nimBin)
+                      vcsRevision = notSetSha1Hash, nimBin = nimBin,
+                      writeMetaData = false)
 
   let pkgDir = downloadDir / subdir
   var pkgInfo: PackageInfo
@@ -1649,10 +1653,12 @@ proc lock(options: var Options, nimBin: Option[string]) =
           options.satResult.getPkgInfoFromSolved(solvedPkg, options)
       var vcsRevision = pkgInfo.metaData.vcsRevision
       
-      # Only develop dependencies are working copies. An installed package is a
-      # copy inside the nimble dir, so this would walk up to whatever repository
-      # encloses it - with `--localdeps`, the user's own project.
-      if pkgInfo.isLink and vcsRevision == notSetSha1Hash:
+      # Only develop dependencies are working copies, and for those the live
+      # revision is the answer - the metadata above can only be a snapshot taken
+      # when nimble cloned them. An installed package is a copy inside the nimble
+      # dir, so this would walk up to whatever repository encloses it - with
+      # `--localdeps`, the user's own project.
+      if pkgInfo.isLink:
         try:
           vcsRevision = getVcsRevision(pkgInfo.getRealDir())
         except CatchableError:

@@ -8,7 +8,7 @@ import testscommon, nimblepkg/displaymessages, nimblepkg/paths
 
 from nimblepkg/common import cd
 from nimblepkg/packageinfo import lockFileHasNim
-from nimblepkg/options import initOptions
+from nimblepkg/options import initOptions, defaultLockFileName
 from nimblepkg/developfile import developFileName, pkgFoundMoreThanOnceMsg
 from nimblepkg/version import newVersion, parseVersionRange
 from nimblepkg/nimbledatafile import nimbleDataFileName, NimbleDataJsonKeys
@@ -499,6 +499,80 @@ requires "nim >= 1.6.0", "t1566lib"
         check not setupOut.contains("Downloading file://")
         check dirExists(getCurrentDir() / defaultPath / "t1566lib")
         check dirExists(getCurrentDir() / defaultPath / "t1566dep")
+
+  test "a develop clone's revision is git's, not a snapshot from clone time":
+    # `downloadPkg` writes a `nimblemeta.json` into everything it downloads and
+    # `fillMetaData` lets that file win over git. In a cache directory it is the
+    # only record there is and nothing ever changes it. In a develop checkout it
+    # froze the revision at the moment nimble cloned, so the lock file went on
+    # pinning work the user had long since moved past.
+    let depRepo = getTempDir() / "tdevmeta-repo"
+    let pkgListFile = getTempDir() / "tdevmeta_packages.json"
+    removeDir depRepo
+    createDir depRepo
+    writeFile(depRepo / "tdevmeta.nimble", """
+version = "0.1.0"
+author = "Test"
+description = "Test"
+license = "MIT"
+""")
+    cd depRepo:
+      check execCmdEx("git init -q").exitCode == 0
+      check execCmdEx("git config user.name t").exitCode == 0
+      check execCmdEx("git config user.email t@t").exitCode == 0
+      # The develop checkout pushes back here, and this repo is not bare.
+      check execCmdEx("git config receive.denyCurrentBranch ignore").exitCode == 0
+      check execCmdEx("git add .").exitCode == 0
+      check execCmdEx("git commit -q -m initial").exitCode == 0
+      check execCmdEx("git tag v0.1.0").exitCode == 0
+    proc toFileUrl(p: string): string =
+      when defined(windows): "file:///" & p.replace('\\', '/')
+      else: "file://" & p
+    writeFile(pkgListFile, $(%* [
+      {"name": "tdevmeta", "url": toFileUrl(depRepo), "method": "git",
+       "tags": ["test"], "description": "Test", "license": "MIT"}]))
+    defer:
+      removeDir depRepo
+      removeFile pkgListFile
+    cdCleanDir installDir:
+      usePackageListFile pkgListFile:
+        writeFile("testproject.nimble", """
+version = "0.1.0"
+author = "Test"
+description = "Test"
+license = "MIT"
+requires "tdevmeta"
+""")
+        # `lock` writes a sync file, which needs the project under version
+        # control. Only the nimble file is committed; the nimble dir around it
+        # is scratch.
+        check execCmdEx("git init -q").exitCode == 0
+        check execCmdEx("git config user.name t").exitCode == 0
+        check execCmdEx("git config user.email t@t").exitCode == 0
+        check execCmdEx("git add testproject.nimble").exitCode == 0
+        check execCmdEx("git commit -q -m project").exitCode == 0
+
+        check execNimble("develop", "-l", "tdevmeta").exitCode == QuitSuccess
+        let clone = getCurrentDir() / defaultPath / "tdevmeta"
+        check dirExists(clone)
+        # It is the user's own source tree: nimble leaves no bookkeeping in it.
+        check not fileExists(clone / "nimblemeta.json")
+
+        var head = ""
+        cd clone:
+          # The clone inherits no identity: CI runners have no global git user.
+          check execCmdEx("git config user.name t").exitCode == 0
+          check execCmdEx("git config user.email t@t").exitCode == 0
+          writeFile("tdevmeta.nimble",
+                    readFile("tdevmeta.nimble") & "# local work\n")
+          check execCmdEx("git commit -q -am work").exitCode == 0
+          check execCmdEx("git push -q origin HEAD").exitCode == 0
+          head = execCmdEx("git rev-parse HEAD").output.strip
+
+        let (output, exitCode) = execNimbleYes("lock", "-l")
+        checkpoint(output)
+        check exitCode == QuitSuccess
+        check readFile(defaultLockFileName).contains(head)
 
   test "develop overrides == pinned dependency (#1000)":
     let depDir = getTempDir() / "nimble_t1000_depa"
