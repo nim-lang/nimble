@@ -53,20 +53,22 @@ suite "setup command":
         let (_, nimExitCode) = execCmdEx("nim c -r dependent")
         check nimExitCode == QuitSuccess
 
-  test "Check if upgrading of setup section":
+  test "config.nims stays the same when a lock file appears":
+    # The template used to be picked by whether a lock file existed, under the
+    # same header, so config.nims flipped every time one appeared or went away.
+    # `--noNimblePath` is already the first line of nimble.paths.
     cd "setupproject":
       cleanFiles nimblePathsFileName, nimbleConfigFileName, "nimble.lock", ".gitignore"
-      discard execNimble("setup")
-      var configFileContent = nimbleConfigFileName.readFile
-      check not configFileContent.contains("--noNimblePath")
-      let (_, developExitCode) = execNimble("lock")
-      check developExitCode == QuitSuccess
+      check execNimble("setup").exitCode == QuitSuccess
+      let withoutLock = nimbleConfigFileName.readFile
+      # The paths are pinned either way, and a missing nimble.paths says so.
+      check withoutLock.contains("--noNimblePath")
+      check withoutLock.contains("nimble setup")
 
-      # update of the section works
-      discard execNimble("setup")
+      check execNimble("lock").exitCode == QuitSuccess
+      check execNimble("setup").exitCode == QuitSuccess
       check fileExists("nimble.lock")
-      configFileContent = nimbleConfigFileName.readFile
-      check configFileContent.contains("--noNimblePath")
+      check nimbleConfigFileName.readFile == withoutLock
 
       cleanFiles nimblePathsFileName, nimbleConfigFileName, "nimble.lock", ".gitignore"
     

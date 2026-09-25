@@ -1934,26 +1934,19 @@ proc setupNimbleConfig(options: Options, nimBin: Option[string]) =
     sectionEnd = "# end Nimble config"
     sectionStart = "# begin Nimble config"
     configFileHeader = &"# begin Nimble config (version {configFileVersion})"
-    configFileContentNoLock = fmt"""
-{configFileHeader}
-when withDir(thisDir(), system.fileExists("{nimblePathsFileName}")):
-  include "{nimblePathsFileName}"
-{sectionEnd}
-"""
-    configFileContentWithLock = fmt"""
+    configFileContent = fmt"""
 {configFileHeader}
 --noNimblePath
 when withDir(thisDir(), system.fileExists("{nimblePathsFileName}")):
   include "{nimblePathsFileName}"
+else:
+  echo "{nimblePathsFileName} not found - run `nimble setup` to generate it"
 {sectionEnd}
 """
 
   let
     currentDir = getCurrentDir()
     pkgInfo = getPkgInfo(currentDir, options, nimBin = nimBin)
-    lockFileExists = options.lockFile(currentDir).fileExists
-    configFileContent = if lockFileExists: configFileContentWithLock
-                        else: configFileContentNoLock
 
   updatePathsFile(pkgInfo, options, nimBin)
 
