@@ -851,14 +851,22 @@ proc toRequiresInfo*(pkgInfo: PackageInfo, options: Options, nimBin: Option[stri
   result.binDir = nimbleFileInfo.binDir
   result.paths = nimbleFileInfo.paths
   fillMetaData(result, result.getRealDir(), false, options)
-  
-  # For develop mode dependencies, ensure VCS revision is set
-  if result.isLink and result.metaData.vcsRevision == notSetSha1Hash:
+
+  # A develop dependency is a working copy, so its revision is whatever HEAD is
+  # right now. 
+  if result.isLink:
+    let realDir = result.getRealDir()
     try:
-      result.metaData.vcsRevision = getVcsRevision(result.getRealDir())
+      result.metaData.vcsRevision = getVcsRevision(realDir)
     except CatchableError:
-      # If we can't get VCS revision, leave it as notSetSha1Hash
+      # Not a repository we can read - keep whatever the metadata had.
       discard
+    if result.metaData.url.len == 0:
+      try:
+        result.metaData.url = getRemoteFetchUrl(
+          realDir, getCorrespondingRemoteAndBranch(realDir).remote)
+      except CatchableError:
+        discard
   
   if pkgInfo.infoKind == pikRequires:
     result.bin = nimbleFileInfo.bin #Noted that we are not parsing namedBins here, they are only parsed wit full info
