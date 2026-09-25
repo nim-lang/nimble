@@ -560,6 +560,9 @@ requires "tdevmeta"
 
         var head = ""
         cd clone:
+          # The clone inherits no identity: CI runners have no global git user.
+          check execCmdEx("git config user.name t").exitCode == 0
+          check execCmdEx("git config user.email t@t").exitCode == 0
           writeFile("tdevmeta.nimble",
                     readFile("tdevmeta.nimble") & "# local work\n")
           check execCmdEx("git commit -q -am work").exitCode == 0
