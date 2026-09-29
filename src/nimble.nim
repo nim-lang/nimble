@@ -2377,6 +2377,23 @@ proc runInstallRootGloballyAction(options: var Options, nimBin: var Option[strin
   options.satResult.installPkgs(options, nimBin)
   options.satResult.addReverseDeps(options)
 
+proc newestKnownVersion(pkg: PkgTuple, options: Options,
+                        nimBin: Option[string]): Option[Version] =
+  ## The newest release version discovery knows of for `pkg`, if any. Answered
+  ## from the tagged versions cache, or from the remotes under `--refresh`.
+  ## Special versions are skipped: they are not releases and never the answer to
+  ## "install the newest".
+  try:
+    for minimal in waitFor downloadMinimalPackage(pkg, options, nimBin):
+      if minimal.version.isSpecial:
+        continue
+      if result.isNone or minimal.version > result.get:
+        result = some minimal.version
+  except CatchableError:
+    # Discovery is an improvement on the download below, not a precondition for
+    # it. If it fails, fall back to what the download would have picked anyway.
+    discard
+
 proc runInstallPackagesAction(options: var Options, nimBin: var Option[string]) =
   ## Global install of named packages: `nimble install foo bar`.
   for pkg in options.action.packages:
@@ -2387,9 +2404,21 @@ proc runInstallPackagesAction(options: var Options, nimBin: var Option[string]) 
     var dlOptions = options
     dlOptions.ignoreSubmodules = true
     dlOptions.enableTarballs = false
+
     var rootPackage: PackageInfo
     withNimBinFallback(nimBin, options):
       rootPackage = downloadPkInfoForPv(pkg, dlOptions, doPrompt = true, nimBin = nimBin)
+
+      if pkg.ver.kind == verAny and not pkg.name.isNim:
+        # Discovery reads a nimble file per tag, and one that needs the VM parser
+        # needs a nim to read it. Without one it warns its way through every tag.
+        if nimBin.isNone:
+          nimBin = some(ensureBootstrapNim(options))
+        let newest = newestKnownVersion(pkg, dlOptions, nimBin)
+        if newest.isSome and newest.get > rootPackage.basicInfo.version:
+          rootPackage = downloadPkInfoForPv(
+            (name: pkg.name, ver: newest.get.toVersionRange), dlOptions,
+            doPrompt = false, nimBin = nimBin)
     solvePkgs(rootPackage, options, nimBin)
 
     let rootSolvedPkg = SolvedPackage(
