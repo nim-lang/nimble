@@ -341,6 +341,27 @@ license       = "MIT"
         check execNimbleYes("install", "--refresh").exitCode == QuitSuccess
         check getPackageDir(pkgsDir, "dep1-0.2.0") != ""
 
+  test "install <pkg> is not pinned to the version its cached clone sits on":
+    # The version of an explicitly named package used to come from whatever tag
+    # the shared pkgcache clone happened to be parked on: `downloadPkg` treats a
+    # `verAny` request as always cache-valid, so it never looked further, and
+    # `--refresh` could not move it either.
+    withCleanDirs:
+      writePkgListFile()
+      usePackageListFile pkgListFilePath:
+        initDepOrigin(@["0.1.0"])
+        createDir mainPkgPath        # a plain directory, not a package
+        cd mainPkgPath:
+          check execNimbleYes("install", "dep1").exitCode == QuitSuccess
+        check getPackageDir(pkgsDir, "dep1-0.1.0") != ""
+
+        addDepVersion("0.2.0")
+        cd mainPkgPath:
+          let (output, exitCode) = execNimbleYes("install", "dep1", "--refresh")
+          checkpoint output
+          check exitCode == QuitSuccess
+        check getPackageDir(pkgsDir, "dep1-0.2.0") != ""
+
   test "install --refresh --offline installs from what refresh already fetched":
     # `--refresh` means two things at once: don't reuse the current solution,
     # and go look at the remotes. Offline only the first half is possible, and
