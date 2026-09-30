@@ -234,26 +234,43 @@ On its own it keeps every pin it already has, only re-solving when a package's r
 $ nimble lock
 ```
 
-Two things ask it to move a pin, and they combine.
+There are two ways to move a pin, and these two ways can be used together:
 
-**Naming packages** relocks those and leaves the rest of the file alone:
+- **passing a package name** relocks it and leaves the rest of the file alone:
 
-```sh
-$ nimble lock chronos
-```
+    ```sh
+    $ nimble lock chronos
+    ```
 
-**`--refresh`** resolves against the package repositories instead of the cached version information, so versions published since the last lock are picked up.
-With no package named it relocks everything to the newest available:
+- **adding `--refresh`** resolves against the package repositories instead of the cached version information, so versions published since the last lock are picked up.
+With no package name it relocks everything to the newest available version:
 
-```sh
-$ nimble lock --refresh          # everything, to the newest published
-$ nimble lock --refresh chronos  # just chronos, to the newest published
-```
+    ```sh
+    $ nimble lock --refresh          # everything, to the newest published
+    $ nimble lock --refresh chronos  # just chronos, to the newest published
+    ```
 
 The distinction matters because `lock` normally resolves from Nimble's version cache.
 Without `--refresh`, `nimble lock chronos` moves chronos only as far as the newest version Nimble already knows about, which may be older than what upstream has published.
 
-`nimble upgrade` is a deprecated alias of `lock --refresh`; it still works but prints a warning.
+!!! note
+
+    `nimble upgrade` is a deprecated alias of `lock --refresh`; it still works but prints a warning.
+
+### When to use `nimble lock`
+
+*You don't have to use `nimble lock`*. Nimble can resolve your dependencies based on the `requires` constaints in your `.nimble` file alone and it does it in a reliable, reproducible, and deterministic way.
+
+However, locking the dependencies adds a layer of control and determinism, at the cost of having to maintain your dependency updates manually. Your package will not automatically receive bug fixes but it also will not receive unexpected breaking updates. It's a compromise worth accepting for some packages.
+
+Here are some situations where using `nimble lock` and accepting the maintenance tax associated with it is justified:
+
+- **Collaborative development with many active contributors.** Lock your deps to make sure everyone on the team gets exactly the same environment, including bug-compatibility. Move pins with separate CI-testable commits to avoid unexpected breaking changes from updated dependencies.
+- **Saving time on dependency resolution.** If your packages has many dependencies and you need to reduce time spent resolving them (for example, when you need to optimize the CI runs), resolve the deps once and lock them. Nimble will not spend time resolving and will simply install the versions from the lock file.
+- **Shipping reproducible app builds.** If you distribute your app in the form of code and want to make sure any user can build the same version locally, lock the dependencies in your release and ship it with the lock files.
+
+
+
 
 ## `nimble refresh`
 
