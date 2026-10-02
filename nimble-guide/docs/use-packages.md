@@ -259,9 +259,11 @@ Without `--refresh`, `nimble lock chronos` moves chronos only as far as the newe
 
 ### When to use `nimble lock`
 
-*You don't have to use `nimble lock`*. Nimble can resolve your dependencies based on the `requires` constaints in your `.nimble` file alone and it does it in a reliable, reproducible, and deterministic way.
+*You don't have to use `nimble lock`*. Nimble can resolve your dependencies based solely on the `requires` constaints in your `.nimble` file.
 
-However, locking the dependencies adds a layer of control and determinism, at the cost of having to maintain your dependency updates manually. Your package will not automatically receive bug fixes but it also will not receive unexpected breaking updates. It's a compromise worth accepting for some packages.
+Hovewer, dependency resolution finds the best match for the given constaint *at the time it's invoked*. That means, if the best match changes (for example, because a dependency is updated), two users will end up having differrent versions of the same package installed even with identical `.nimble` files: the one that had installed the dependencies gets the older best match while the other one, who installed the dependencies later, gets the newer best match.
+
+Locking the dependencies adds a layer of control and determinism (at the cost of having to maintain your dependency updates manually). Your package will not automatically receive bug fixes but it also will not receive unexpected breaking updates. It's a compromise worth accepting for some packages.
 
 Here are some situations where using `nimble lock` and accepting the maintenance tax associated with it is justified:
 
