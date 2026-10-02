@@ -2393,6 +2393,33 @@ proc newestKnownVersion(pkg: PkgTuple, options: Options,
     # Discovery is an improvement on the download below, not a precondition for
     # it. If it fails, fall back to what the download would have picked anyway.
     discard
+proc warnIfNimbleIsShadowed(installedVersion: Version, options: Options) =
+  ## After nimble installs itself, the copy the user's shell resolves `nimble`
+  ## to may be a different one - a distro package, choosenim, grabnim - and they
+  ## go on running the old version and conclude the update did nothing. The
+  ## binary running right now is precisely what their shell picked, so comparing
+  ## against it answers the question they are about to ask.
+  ##
+  let installed = options.getBinDir() / "nimble".addFileExt(ExeExt)
+  if not fileExists(installed):
+    return
+  let running = getAppFilename()
+  try:
+    if sameFile(running, installed):
+      return
+  except OSError:
+    discard
+  # Running something at least as new is not a problem - replacing the binary
+  # somewhere else on PATH is a perfectly good way to update, and nagging
+  # someone whose setup already works is worse than saying nothing.
+  if newVersion(nimbleVersion) >= installedVersion:
+    return
+
+  displayWarning(
+    &"nimble {installedVersion} was installed to {installed}, but the nimble " &
+    &"you are running is {running}, which is {nimbleVersion}.", HighPriority)
+  display("Hint:", &"put {installed.parentDir} earlier on your PATH, or " &
+          &"replace {running} with the binary above.", priority = HighPriority)
 
 proc runInstallPackagesAction(options: var Options, nimBin: var Option[string]) =
   ## Global install of named packages: `nimble install foo bar`.
@@ -2430,6 +2457,8 @@ proc runInstallPackagesAction(options: var Options, nimBin: var Option[string]) 
     options.satResult.solvedPkgs.add(rootSolvedPkg)
     options.satResult.installPkgs(options, nimBin)
     options.satResult.addReverseDeps(options)
+    if rootPackage.basicInfo.name.cmpIgnoreCase("nimble") == 0:
+      warnIfNimbleIsShadowed(rootPackage.basicInfo.version, options)
 
 proc runLocalProjectAction(options: var Options, nimBin: var Option[string]): PackageInfo =
   ## Loads the local project root package and runs the SAT solver. Returns
