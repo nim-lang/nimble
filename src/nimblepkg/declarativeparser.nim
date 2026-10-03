@@ -833,7 +833,8 @@ proc toRequiresInfo*(pkgInfo: PackageInfo, options: Options, nimBin: Option[stri
   if pkgInfo.infoKind != pikFull: #dont update as full implies pik requires
     result.infoKind = pikRequires
 
-  if nimbleFileInfo.requiresVmFallback and options.action.typ != actionCheck: #When checking we want to fail on porpuse
+  let usedVmFallback = nimbleFileInfo.requiresVmFallback and options.action.typ != actionCheck
+  if usedVmFallback: #When checking we want to fail on porpuse
     let resolvedBin = resolveNimBinOrBootstrap(nimBin, options)
 
     if options.verbosity <= LowPriority:
@@ -847,9 +848,12 @@ proc toRequiresInfo*(pkgInfo: PackageInfo, options: Options, nimBin: Option[stri
 
   if not result.isNimScript:
     result.features = getFeatures(nimbleFileInfo)
-  result.srcDir = nimbleFileInfo.srcDir
-  result.binDir = nimbleFileInfo.binDir
-  result.paths = nimbleFileInfo.paths
+  # A VM fallback has already evaluated these fields. Do not replace them with
+  # the declarative parser's incomplete values (for example, non-literal paths).
+  if not usedVmFallback:
+    result.binDir = nimbleFileInfo.binDir
+    result.srcDir = nimbleFileInfo.srcDir
+    result.paths = nimbleFileInfo.paths
   fillMetaData(result, result.getRealDir(), false, options)
 
   # A develop dependency is a working copy, so its revision is whatever HEAD is

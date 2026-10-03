@@ -601,6 +601,49 @@ requires "nim"
     check pkgInfo.basicInfo.version == newVersion("0.5.0")
     removeDir(testDir)
 
+  test "VM fallback evaluates non-literal requires":
+    let testDir = "test_vm_fallback_requires"
+    removeDir(testDir)
+    createDir(testDir)
+    writeFile(testDir / "pkgrequires.nimble", """
+version = "0.1.0"
+author = "test"
+description = "VM fallback requires"
+license = "MIT"
+
+let suffix = "_dependency"
+when defined(js):
+  requires "js" & suffix
+else:
+  requires "other" & suffix
+""")
+    var options = initOptions()
+    options.nimBin = some options.makeNimBin("nim")
+    let pkgInfo = getPkgInfo(testDir, options, nimBin = some("nim"), level = pikRequires)
+    let expected = when defined(js): "js_dependency" else: "other_dependency"
+    check pkgInfo.requires.mapIt(it.name) == @[expected]
+    removeDir(testDir)
+
+  test "VM fallback preserves evaluated paths":
+    let testDir = "test_vm_fallback_paths"
+    removeDir(testDir)
+    createDir(testDir)
+    writeFile(testDir / "pkgpaths.nimble", """
+version = "0.5.0"
+author = "test"
+description = "VM fallback paths"
+license = "MIT"
+let dependencyPath = "lib"
+paths = @[dependencyPath]
+requires "nim"
+""")
+    createDir(testDir / "lib")
+    var options = initOptions()
+    options.nimBin = some options.makeNimBin("nim")
+    let pkgInfo = getPkgInfo(testDir, options, nimBin = some("nim"), level = pikRequires)
+    check pkgInfo.paths == @["lib"]
+    removeDir(testDir)
+
 suite "fileHasStateModifyingOps":
   test "should detect state ops in fixture with mkDir":
     check fileHasStateModifyingOps("buildInstall/pkgWithStateOps/pkgWithStateOps.nimble") == true
