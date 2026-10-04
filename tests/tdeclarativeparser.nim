@@ -624,6 +624,27 @@ else:
     check pkgInfo.requires.mapIt(it.name) == @[expected]
     removeDir(testDir)
 
+  test "VM fallback evaluates requires inside templates":
+    let testDir = "test_vm_fallback_template_requires"
+    removeDir(testDir)
+    createDir(testDir)
+    writeFile(testDir / "pkgtemplate.nimble", """
+version = "0.1.0"
+author = "test"
+description = "VM fallback template requires"
+license = "MIT"
+
+template addDependency(name: string) =
+  requires name
+
+addDependency "template_dependency"
+""")
+    var options = initOptions()
+    options.nimBin = some options.makeNimBin("nim")
+    let pkgInfo = getPkgInfo(testDir, options, nimBin = some("nim"), level = pikRequires)
+    check pkgInfo.requires.mapIt(it.name) == @["template_dependency"]
+    removeDir(testDir)
+
   test "VM fallback preserves evaluated paths":
     let testDir = "test_vm_fallback_paths"
     removeDir(testDir)

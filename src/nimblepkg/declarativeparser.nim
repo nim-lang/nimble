@@ -135,7 +135,10 @@ proc validateNoNestedRequires(nfl: var NimbleFileInfo, n: PNode, conf: ConfigRef
       for child in n:
         validateNoNestedRequires(nfl, child, conf, inControlFlow)
   else:
-    discard
+    # Requires inside nested declarations are evaluated by NimScript and cannot
+    # be represented by the declarative parser.
+    for child in n:
+      validateNoNestedRequires(nfl, child, conf, true)
 
 proc flagNonLiteralSeq(nfl: var NimbleFileInfo, info: TLineInfo, msg: string,
                        issue = nfiNonLiteralSeq) =
