@@ -15,7 +15,7 @@
 ## - solver-level scenarios whose universes are declared entirely as
 ##   requires strings, ending in `explainSolveFailure`'s report.
 
-import std/[unittest, options, tables, strutils]
+import std/[unittest, tables, strutils]
 import nimblepkg/version
 import nimblepkg/packageinfotypes
 import nimblepkg/pubgrubexplain
@@ -23,14 +23,7 @@ import nimblepkg/nimblesat
 import nimblepkg/options as nimbleopts
 import nimblepkg/cli
 import pubgrub
-
-proc sv(spe: string, semver = ""): Version =
-  ## A special version, optionally carrying the semantic version it resolved
-  ## to after download (`speSemanticVersion`).
-  result = newVersion(spe)
-  doAssert result.isSpecial
-  if semver.len > 0:
-    result.speSemanticVersion = some(semver)
+import ./universe
 
 let candidates = @[
   newVersion("0.9.0"), newVersion("1.0.0"), newVersion("1.2.0"),
@@ -89,23 +82,6 @@ suite "translation: structure":
     check not vs.contains(toTaggedVersion(sv("#head")))
 
 # ------------------------------------------------------------------ solving
-
-proc addPkg(t: var Table[string, PackageVersions], name, version: string,
-            requires: openArray[string] = [], isRoot = false) =
-  ## Declares one package version, its requirements written exactly as they
-  ## would be in a .nimble file.
-  var mi = PackageMinimalInfo(name: name, version: newVersion(version),
-                              isRoot: isRoot)
-  for r in requires:
-    mi.requires.add parseRequires(r)
-  t.mgetOrPut(name, PackageVersions(pkgName: name)).versions.add mi
-
-proc addPkg(t: var Table[string, PackageVersions], name: string,
-            version: Version, requires: openArray[string] = []) =
-  var mi = PackageMinimalInfo(name: name, version: version)
-  for r in requires:
-    mi.requires.add parseRequires(r)
-  t.mgetOrPut(name, PackageVersions(pkgName: name)).versions.add mi
 
 suite "translation: solving universes declared as requires strings":
   test "a solvable universe is reported as a solver disagreement":
@@ -291,6 +267,8 @@ suite "translation: failure report UX":
     ]
 
 suite "translation: the explanation reaches getSolvedPackages' output":
+  # What is under test here is SAT's failure path - PubGrub re-solving what
+  # SAT gave up on - so these pin `--solver:sat` whatever the default is.
   test "SAT failure output ends with the PubGrub report":
     # The real-world shape from tsat's #generateUnsatisfiableMessage
     # regression: websock wants chronos < 4.4.0 while asyncchannels pins a
@@ -305,6 +283,7 @@ suite "translation: the explanation reaches getSolvedPackages' output":
 
     var output = ""
     var opts = initOptions()
+    opts.solver = skSat
     let solved = getSolvedPackages(t, output, opts)
     check solved.len == 0
     # At normal verbosity the explanation IS the whole error - none of the
@@ -330,6 +309,7 @@ suite "translation: the explanation reaches getSolvedPackages' output":
 
     var output = ""
     var opts = initOptions()
+    opts.solver = skSat
     opts.verbosity = LowPriority
     discard getSolvedPackages(t, output, opts)
     check "version solving failed" in output
@@ -350,6 +330,7 @@ suite "translation: the explanation reaches getSolvedPackages' output":
 
     var output = ""
     var opts = initOptions()
+    opts.solver = skSat
     let solved = getSolvedPackages(t, output, opts)
     check solved.len == 0
     check output.splitLines == @[
@@ -370,6 +351,7 @@ suite "translation: the explanation reaches getSolvedPackages' output":
 
     var output = ""
     var opts = initOptions()
+    opts.solver = skSat
     opts.verbosity = LowPriority
     discard getSolvedPackages(t, output, opts)
     check "Missing dependencies: nimbus_eth2" in output

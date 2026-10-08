@@ -30,6 +30,11 @@ type
     raMinVer   ## lowest satisfying version (minimal version selection)
     raMaxVer   ## newest satisfying version (default)
 
+  SolverKind* = enum
+    ## Which algorithm resolves the dependency graph (`--solver`).
+    skSat = "sat"           ## the SAT solver (default)
+    skPubGrub = "pubgrub"   ## PubGrub; same version preference as SAT
+
   VisitedHook* = object
     pkgName*: string #just the nimble file name
     action*: ActionType
@@ -63,6 +68,7 @@ type
     nimBin*: Option[NimBin]
     localdeps*: bool # True if project local deps mode
     resolutionAlgorithm*: ResolutionAlgorithm # How SAT picks among satisfying versions
+    solver*: SolverKind # Which algorithm resolves the dependency graph
     developLocaldeps*: bool # True if local deps + nimble develop pkg1 ...
     disableSslCertCheck*: bool
     disableLockFile*: bool
@@ -295,6 +301,9 @@ Nimble Options:
   -g, --global                    Run in global dependency mode.
       --resolver:minver|maxver    Pick the lowest (minver) or newest (maxver,
                                   default) version satisfying each requirement.
+      --solver:sat|pubgrub        The algorithm that resolves the dependency
+                                  graph: the SAT solver (sat, default) or
+                                  PubGrub (pubgrub).
   -p, --package                   For which package in the dependency tree the
                                   command should be executed. If not provided by
                                   default it applies to the current directory
@@ -895,6 +904,14 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
     else:
       raise nimbleError("Unknown resolver '" & val &
         "'. Valid values: minver, maxver.")
+  of "solver":
+    # `--solver:sat|pubgrub` chooses the algorithm that resolves the graph.
+    case val.normalize
+    of "sat": result.solver = skSat
+    of "pubgrub": result.solver = skPubGrub
+    else:
+      raise nimbleError("Unknown solver '" & val &
+        "'. Valid values: sat, pubgrub.")
   else: isGlobalFlag = false
 
   # Reject a value given to a global boolean flag, e.g. `-l:-static` or
@@ -1054,7 +1071,8 @@ proc initOptions*(): Options =
     localDeps: false,
     parallelDiscovery: true,
     lenient: true,
-    resolutionAlgorithm: raMaxVer  # enum defaults to raMinVer; force the historical default
+    resolutionAlgorithm: raMaxVer,  # enum defaults to raMinVer; force the historical default
+    solver: skSat
   )
 
   # Load visited hooks from environment variable to prevent recursive hook execution

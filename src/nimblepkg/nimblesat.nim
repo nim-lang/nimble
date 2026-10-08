@@ -558,8 +558,72 @@ proc resolutionFailureMessage*(options: Options): string =
     result = "Couldnt find a solution for the packages. Unsatisfiable " &
       "dependencies. Check there is no contradictory dependencies."
 
+proc addDiscoveryErrors(output: var string, options: Options) =
+  ## The git errors version discovery ran into: a package that seems not to
+  ## exist may only have been unreachable.
+  if options.satResult.gitErrors.len > 0:
+    output.add "The following errors occurred during package discovery (could be network issues):\n"
+    for err in options.satResult.gitErrors:
+      output.add &"  - {err}\n"
+
+proc toSolvedPackages(graph: DepGraph, packages: Table[string, Version]): seq[SolvedPackage] =
+  ## The chosen version of every package, with what it requires and what
+  ## requires it - the shape installation and lock files read, whichever
+  ## solver made the choice.
+  for pkg, ver in packages:
+    let nodeIdx = graph.packageToDependency.getKey(pkg)
+    for dep in graph.nodes[nodeIdx].versions:
+      if dep.version == ver:
+        let reqIdx = dep.req
+        let deps =  graph.reqs[reqIdx].deps
+        let solvedPkg = SolvedPackage(pkgName: pkg, version: ver, 
+          requirements: deps, 
+          reverseDependencies: collectReverseDependencies(pkg, graph),
+        )
+        result.add solvedPkg
+  
+  # Create lookup table for O(1) package access
+  var pkgLookup = initTable[string, SolvedPackage]()
+  for pkg in result:
+    pkgLookup[pkg.pkgName] = pkg
+
+  # Collect the deps for every solved package
+  for solvedPkg in result.mitems:
+    for (depName, depVer) in solvedPkg.requirements:
+      if pkgLookup.hasKey(depName):
+        let otherPkg = pkgLookup[depName]
+        if otherPkg.version.withinRange(depVer):
+          solvedPkg.deps.add(otherPkg)
+  # Collect reverse deps as solved package
+  for solvedPkg in result.mitems:
+    for (depName, depVer) in solvedPkg.reverseDependencies:
+      if pkgLookup.hasKey(depName):
+        solvedPkg.reverseDeps.add(pkgLookup[depName])
+
+proc pubGrubPackages(pkgVersionTable: Table[string, PackageVersions],
+                     output: var string, options: Options): Table[string, Version] =
+  ## `--solver:pubgrub`. PubGrub needs none of the scaffolding SAT has around
+  ## it - the missing-dependency pre-check, the retries, the explanation
+  ## after the fact: an absent package is part of its answer like any other
+  ## conflict, and on failure its report is the error.
+  displayInfo("Resolving dependencies with PubGrub", LowPriority)
+  let answer = solveWithPubGrub(pkgVersionTable, options.resolutionAlgorithm)
+  if answer.solved:
+    # PubGrub names packages by their lowercased table key; the graph, and
+    # everything downstream of it, by `PackageVersions.pkgName`.
+    var nodeName = initTable[string, string]()
+    for key, pv in pkgVersionTable:
+      nodeName[key.toLowerAscii] = pv.pkgName
+    for (package, version) in answer.packages:
+      result[nodeName.getOrDefault(package, package)] = version
+  else:
+    output = "Dependency resolution failed:\n" & answer.explanation & "\n"
+    output.addDiscoveryErrors(options)
+
 proc getSolvedPackages*(pkgVersionTable: Table[string, PackageVersions], output: var string, options: Options): seq[SolvedPackage] {.instrument.} =
   var graph = pkgVersionTable.toDepGraph()
+  if options.solver == skPubGrub:
+    return graph.toSolvedPackages(pubGrubPackages(pkgVersionTable, output, options))
 
   # Only validate packages reachable from root, not ALL packages in the table.
   # Pre-loaded cached packages may have deps not relevant to this resolution;
@@ -619,10 +683,7 @@ proc getSolvedPackages*(pkgVersionTable: Table[string, PackageVersions], output:
           # The missing-dependency heuristic above scans every node, reachable
           # or not, so it can declare fatal what the solver would route around.
           output.add solverDisagreementNote
-      if options.satResult.gitErrors.len > 0:
-        output.add "The following errors occurred during package discovery (could be network issues):\n"
-        for err in options.satResult.gitErrors:
-          output.add &"  - {err}\n"
+      output.addDiscoveryErrors(options)
       return newSeq[SolvedPackage]()
     
   let form = toFormular(graph, options.resolutionAlgorithm)
@@ -643,35 +704,7 @@ proc getSolvedPackages*(pkgVersionTable: Table[string, PackageVersions], output:
     elif foundSolution:
       output.add solverDisagreementNote
 
-  for pkg, ver in packages:
-    let nodeIdx = graph.packageToDependency.getKey(pkg)
-    for dep in graph.nodes[nodeIdx].versions:
-      if dep.version == ver:
-        let reqIdx = dep.req
-        let deps =  graph.reqs[reqIdx].deps
-        let solvedPkg = SolvedPackage(pkgName: pkg, version: ver, 
-          requirements: deps, 
-          reverseDependencies: collectReverseDependencies(pkg, graph),
-        )
-        result.add solvedPkg
-  
-  # Create lookup table for O(1) package access
-  var pkgLookup = initTable[string, SolvedPackage]()
-  for pkg in result:
-    pkgLookup[pkg.pkgName] = pkg
-
-  # Collect the deps for every solved package
-  for solvedPkg in result.mitems:
-    for (depName, depVer) in solvedPkg.requirements:
-      if pkgLookup.hasKey(depName):
-        let otherPkg = pkgLookup[depName]
-        if otherPkg.version.withinRange(depVer):
-          solvedPkg.deps.add(otherPkg)
-  # Collect reverse deps as solved package
-  for solvedPkg in result.mitems:
-    for (depName, depVer) in solvedPkg.reverseDependencies:
-      if pkgLookup.hasKey(depName):
-        solvedPkg.reverseDeps.add(pkgLookup[depName])
+  result = graph.toSolvedPackages(packages)
 
 proc topologicalSort*(solvedPkgs: seq[SolvedPackage]): seq[SolvedPackage] {.instrument.}  =
   var inDegree = initTable[string, int]()

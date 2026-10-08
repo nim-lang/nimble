@@ -122,6 +122,20 @@ nimble build --resolver:min
 
 This flag is experimental and its behaviour may change in future releases.
 
+#### `--solver` (experimental)
+
+Select the algorithm that resolves the dependency graph:
+
+- `--solver:sat` 
+- `--solver:pubgrub` 
+
+**Example**:
+```sh
+nimble install --solver:pubgrub
+```
+
+This flag is experimental and its behaviour may change in future releases.
+
 #### `--discovery`
 
 Control how Nimble discovers the available versions of a package (by querying its git tags/branches):

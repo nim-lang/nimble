@@ -2,11 +2,13 @@
 # BSD License. Look at license.txt for more info.
 
 ## The bridge between Nimble's package universe and the standalone PubGrub
-## library (`pubgrub/` at the repository root), used on the resolution
-## *failure* path only: when the SAT solver finds no solution, PubGrub
-## re-solves the same `pkgVersionTable` and its derivation-based report is
-## appended to the error output. SAT remains the solver; a disagreement
-## between the two is a solver bug and is surfaced as such.
+## library (`pubgrub/` at the repository root). It serves two callers:
+##
+## - `--solver:pubgrub`, where PubGrub resolves the dependency graph;
+## - the failure path of the default SAT solver: when SAT finds no solution,
+##   PubGrub re-solves the same `pkgVersionTable` and its derivation-based
+##   report becomes the error. A disagreement between the two is a solver
+##   bug and is surfaced as such.
 ##
 ## The translation mirrors `satisfiesConstraint` (version.nim) - the strict
 ## matcher SAT builds its constraints from - exactly:
@@ -23,11 +25,13 @@
 ##   by asking `satisfiesConstraint` itself, so the two can never drift.
 ##
 ## Package names are lowercased throughout, matching Nimble's
-## case-insensitive name comparisons. Feature requirements are deliberately
-## not translated yet: the explanation covers the base dependency graph.
+## case-insensitive name comparisons. Like SAT, the bridge reads `requires`
+## only: the active features have already been folded into the root's
+## requirements by then (`enableFeatures`).
 
 import std/[tables, options, strutils]
 import ./[version, packageinfotypes]
+from ./options import ResolutionAlgorithm, raMaxVer, raMinVer
 import pubgrub
 
 type
@@ -113,13 +117,16 @@ proc singleton*(v: Version): NimbleVersionSet =
 
 type
   PubGrubUniverse* = object
-    ## `pkgVersionTable` re-keyed by lowercased name, plus the root's identity.
+    ## `pkgVersionTable` re-keyed by lowercased name, plus the root's identity
+    ## and the version preference to search with.
     packages: Table[string, PackageVersions]
     rootName: string
     rootVersion: Version
+    algorithm: ResolutionAlgorithm
 
-proc initPubGrubUniverse*(pkgVersionTable: Table[string, PackageVersions]):
-    PubGrubUniverse =
+proc initPubGrubUniverse*(pkgVersionTable: Table[string, PackageVersions],
+                          algorithm = raMaxVer): PubGrubUniverse =
+  result.algorithm = algorithm
   for name, pv in pkgVersionTable:
     result.packages[name.toLowerAscii] = pv
     for mi in pv.versions:
@@ -132,15 +139,22 @@ proc availableVersions(u: PubGrubUniverse, package: string): seq[Version] =
     for mi in u.packages[package].versions:
       result.add mi.version
 
+proc prefers(u: PubGrubUniverse, a, b: Version): bool =
+  ## Whether `a` is tried before `b` - the SAT solver's order (`cmp` in
+  ## nimblesat). Special versions come last whatever `Version.<` says (it
+  ## ranks `#head` above every release): a range a pinned commit or `#head`
+  ## happens to satisfy should still get a tagged release. Within each kind,
+  ## newest first, or oldest first under `--minVer`.
+  if a.isSpecial != b.isSpecial: not a.isSpecial
+  elif u.algorithm == raMinVer: a < b
+  else: b < a
+
 proc chooseVersion*(u: PubGrubUniverse, package: string,
                     allowed: NimbleVersionSet): Option[Version] =
-  ## Newest-first, like the SAT solver's default preference. `Version.<`
-  ## already prefers `#head` over everything and tagged releases over other
-  ## specials, so it doubles as the preference order here.
   if package notin u.packages: return none(Version)
   for mi in u.packages[package].versions:
     if allowed.contains(toTaggedVersion(mi.version)) and
-        (result.isNone or result.get < mi.version):
+        (result.isNone or u.prefers(mi.version, result.get)):
       result = some(mi.version)
 
 proc dependencies*(u: PubGrubUniverse, package: string,
@@ -185,6 +199,33 @@ proc versionCountHook*(u: PubGrubUniverse, package: string,
   for mi in u.packages[package].versions:
     if allowed.contains(toTaggedVersion(mi.version)): inc result
 
+# ------------------------------------------------------------------ solving
+
+type
+  PubGrubAnswer* = object
+    ## PubGrub's answer for a universe.
+    solved*: bool
+    packages*: seq[tuple[package: string, version: Version]]
+      ## When solved: every decided package, root included, names lowercased.
+    explanation*: string
+      ## When not: the report saying why.
+
+proc solveWithPubGrub*(pkgVersionTable: Table[string, PackageVersions],
+                       algorithm = raMaxVer): PubGrubAnswer =
+  ## Resolves the universe with PubGrub. Both uses go through here - the
+  ## solver under `--solver:pubgrub` and the explanation of a SAT failure -
+  ## so the generic solver is instantiated once, next to the provider hooks
+  ## it looks up by `compiles`, and searches the same way for both.
+  let u = initPubGrubUniverse(pkgVersionTable, algorithm)
+  if u.rootName.len == 0:
+    raise newException(ValueError, "the universe has no root package")
+  let res = solve(u, u.rootName, u.rootVersion)
+  case res.outcome
+  of soSolved:
+    PubGrubAnswer(solved: true, packages: res.packages)
+  of soUnsolvable:
+    PubGrubAnswer(solved: false, explanation: report(res.failure, u.rootName))
+
 # ------------------------------------------------------------ failure path
 
 proc explainSolveFailure*(pkgVersionTable: Table[string, PackageVersions]):
@@ -194,11 +235,7 @@ proc explainSolveFailure*(pkgVersionTable: Table[string, PackageVersions]):
   ## `foundSolution` is true and the caller should flag a solver bug. Never
   ## raises: an error in the bridge must not mask the original failure.
   try:
-    let u = initPubGrubUniverse(pkgVersionTable)
-    if u.rootName.len == 0: return (false, "")
-    let res = solve(u, u.rootName, u.rootVersion)
-    case res.outcome
-    of soUnsolvable: (false, report(res.failure, u.rootName))
-    of soSolved: (true, "")
+    let answer = solveWithPubGrub(pkgVersionTable)
+    (answer.solved, answer.explanation)
   except CatchableError:
     (false, "")

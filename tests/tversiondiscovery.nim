@@ -27,14 +27,12 @@ suite "Version Discovery":
     var pkgVersionTable = waitFor collectAllVersions(root, options, downloadMinimalPackage, nimBin = nimBin)
     pkgVersionTable[pkgName] = PackageVersions(pkgName: pkgName, versions: @[root])
 
-    var graph = pkgVersionTable[].toDepGraph()
-    let form = graph.toFormular()
-    var packages = initTable[string, Version]()
+    # Resolved by the default solver, like any nimble command would.
     var output = ""
-    check solve(graph, form, packages, output, initOptions())
-    if packages.len == 0:
+    let solved = pkgVersionTable[].getSolvedPackages(output, options)
+    if solved.len == 0:
       echo output
-    check packages.len > 0
+    check solved.len > 0
 
   test "should be able to retrieve the package minimal info from the nimble directory":
     var options = initOptions()
