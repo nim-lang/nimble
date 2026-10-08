@@ -15,7 +15,7 @@
 ## - solver-level scenarios whose universes are declared entirely as
 ##   requires strings, ending in `explainSolveFailure`'s report.
 
-import std/[unittest, tables, strutils]
+import std/[unittest, tables, strutils, os, json, jsonutils]
 import nimblepkg/version
 import nimblepkg/packageinfotypes
 import nimblepkg/pubgrubexplain
@@ -367,3 +367,47 @@ suite "translation: the explanation reaches getSolvedPackages' output":
     t.addPkg("foo", "1.2.0")
     let (foundSolution, explanation) = explainSolveFailure(t)
     check foundSolution and explanation.len == 0
+
+proc fromJsonHook(pv: var PkgTuple, jsonNode: JsonNode,
+                  opt = Joptions()) {.used.} =
+  ## `tests/packageMinimal` stores requirements as requires strings.
+  pv = parseRequires(jsonNode.getStr())
+
+const nimbusEth1 = currentSourcePath().parentDir.parentDir / "packageMinimal" /
+  "nimbus-eth1.json"
+
+suite "translation: each version is parsed once":
+  test "the line orders and equates versions exactly like Version":
+    # The solver compares `LineVersion`s, parsed once, instead of `Version`s;
+    # that is only sound if the two agree on every pair.
+    let battery = ["0.9", "0.10", "0.1", "0.1.0", "1", "1.0", "1.0.0",
+      "1.0.1", "1.0.9", "1.0.10", "1.0.0-rc1", "1.0.0-alpha",
+      "1.0.0-alpha.1", "1.0.0-alpha.beta", "1.0.0-beta.2", "1.0.0-beta.11",
+      "1.0.0-1", "1.0.0+build.1", "2.2.12", "10.0"]
+    for a in battery:
+      for b in battery:
+        let (va, vb) = (newVersion(a), newVersion(b))
+        checkpoint a & " vs " & b
+        check (toLineVersion(va) < toLineVersion(vb)) == (va < vb)
+        check (toLineVersion(va) == toLineVersion(vb)) == (va == vb)
+
+  test "a search compares versions without re-parsing them":
+    # PubGrub's range algebra compares version bounds constantly, and parsing
+    # both strings on every comparison made it slower than SAT on big trees
+    # (over two million parses for this one). Each listed version is parsed
+    # once and each requirement once its package is first needed; checking
+    # special versions against ranges and placing each decision add a few
+    # more - a small multiple of the universe, not one per comparison.
+    let t = parseJson(readFile(nimbusEth1)).jsonTo(
+      Table[string, PackageVersions], Joptions(allowMissingKeys: true))
+    var versions, bounds = 0
+    for pv in t.values:
+      versions += pv.versions.len
+      for mi in pv.versions:
+        bounds += 2 * mi.requires.len  # a range has at most two bounds
+    let before = semVerParses
+    check solveWithPubGrub(t).solved
+    let parses = semVerParses - before
+    checkpoint $parses & " parses for " & $versions & " versions and " &
+      $bounds & " bounds"
+    check parses <= 2 * (versions + bounds)
