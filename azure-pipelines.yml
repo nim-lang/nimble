@@ -1,0 +1,42 @@
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  CHOOSENIM_NO_ANALYTICS: 1
+  CHOOSENIM_CHOOSE_VERSION: '#ab525cc48abdbbbed1f772e58e9fe21474f70f07'
+  # bump everytime choosenim has to be updated
+  CHOOSENIM_REVISION: 1
+  CHOOSENIM_CACHE_SIGNATURE: '"$(CHOOSENIM_CHOOSE_VERSION)" | "$(CHOOSENIM_REVISION)" | "$(Agent.OS)"'
+
+steps:
+  - task: Cache@2
+    inputs:
+      key: 'toolchain | $(CHOOSENIM_CACHE_SIGNATURE)'
+      path: $(HOME)/.choosenim
+      cacheHitVar: CHOOSENIM_CACHED
+    displayName: 'Restore choosenim toolchains'
+
+  - task: Cache@2
+    inputs:
+      key: 'choosenim | $(CHOOSENIM_CACHE_SIGNATURE)'
+      path: $(HOME)/.nimble/bin
+      cacheHitVar: CHOOSENIM_CACHED
+    displayName: 'Restore choosenim'
+
+  - bash: echo "##vso[task.prependpath]$HOME/.nimble/bin"
+    displayName: 'Setup environment'
+
+  - bash: |
+      curl https://nim-lang.org/choosenim/init.sh -sSfo init.sh
+      sh init.sh -y
+    displayName: 'Install Nim with choosenim'
+    condition: eq(variables.CHOOSENIM_CACHED, false)
+
+  - bash: nim c -r src/nimble install -y
+    displayName: 'Build and install nimble'
+
+  - bash: |
+      testament cat nimble-packages || echo '#vso[task.complete result=SucceededWithIssues;]'
+    displayName: 'Test important packages'
+    env:
+      SYSTEM_ACCESSTOKEN: $(System.AccessToken)
