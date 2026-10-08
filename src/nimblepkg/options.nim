@@ -1072,7 +1072,7 @@ proc initOptions*(): Options =
     parallelDiscovery: true,
     lenient: true,
     resolutionAlgorithm: raMaxVer,  # enum defaults to raMinVer; force the historical default
-    solver: skPubGrub     
+    solver: skSat
   )
 
   # Load visited hooks from environment variable to prevent recursive hook execution
