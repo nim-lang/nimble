@@ -43,8 +43,16 @@ type
     spelling*: string
     semver*: string
 
-  NimbleTaggedVersion* = TaggedVersion[Version, NimbleTag]
-  NimbleVersionSet* = TaggedRanges[Version, NimbleTag]
+  LineVersion* = ref object
+    ## An ordinary version as the solver keeps it on its ordered line: the
+    ## `Version` with its semantic-version parts parsed once. The range
+    ## algebra compares bounds constantly, and `Version.<`/`==` re-parse both
+    ## strings on every call. A `ref`, so the algebra's copies are cheap.
+    version: Version
+    parts: SemVerParts
+
+  NimbleTaggedVersion* = TaggedVersion[LineVersion, NimbleTag]
+  NimbleVersionSet* = TaggedRanges[LineVersion, NimbleTag]
   NimbleDependency* = Dependency[string, NimbleVersionSet]
 
 proc `==`*(a, b: NimbleTag): bool = a.spelling == b.spelling
@@ -53,30 +61,40 @@ proc `$`*(t: NimbleTag): string =
   if t.semver.len > 0: t.spelling & " (" & t.semver & ")"
   else: t.spelling
 
+proc toLineVersion*(v: Version): LineVersion =
+  ## `v` placed on the ordered line. Only for ordinary versions: a special
+  ## version is a tag (`toTaggedVersion`).
+  LineVersion(version: v, parts: parseSemVer($v))
+
+proc `<`*(a, b: LineVersion): bool = cmpSemVer(a.parts, b.parts) < 0
+proc `==`*(a, b: LineVersion): bool = cmpSemVer(a.parts, b.parts) == 0
+proc `$`*(v: LineVersion): string = $v.version
+
 proc toTag(v: Version): NimbleTag =
   NimbleTag(spelling: ($v).toLowerAscii,
             semver: v.speSemanticVersion.get(""))
 
 proc toTaggedVersion*(v: Version): NimbleTaggedVersion =
   if v.isSpecial:
-    tagVersion[Version, NimbleTag](v.toTag)
+    tagVersion[LineVersion, NimbleTag](v.toTag)
   else:
-    lineVersion[Version, NimbleTag](v)
+    lineVersion[LineVersion, NimbleTag](toLineVersion(v))
 
-proc lineSet(ran: VersionRange): Ranges[Version] =
+proc lineSet(ran: VersionRange): Ranges[LineVersion] =
   ## The ordered-line part of a requirement. Special requirements admit no
   ## point on the line at all.
   case ran.kind
-  of verLater: greaterThan(ran.ver)
-  of verEarlier: lessThan(ran.ver)
-  of verEqLater: atLeast(ran.ver)
-  of verEqEarlier: atMost(ran.ver)
+  of verLater: greaterThan(toLineVersion(ran.ver))
+  of verEarlier: lessThan(toLineVersion(ran.ver))
+  of verEqLater: atLeast(toLineVersion(ran.ver))
+  of verEqEarlier: atMost(toLineVersion(ran.ver))
   of verEq:
-    if ran.ver.isSpecial: emptyRange[Version]() else: singleton(ran.ver)
-  of verAny: fullRange[Version]()
+    if ran.ver.isSpecial: emptyRange[LineVersion]()
+    else: singleton(toLineVersion(ran.ver))
+  of verAny: fullRange[LineVersion]()
   of verIntersect, verTilde, verCaret:
     intersection(lineSet(ran.verILeft), lineSet(ran.verIRight))
-  of verSpecial: emptyRange[Version]()
+  of verSpecial: emptyRange[LineVersion]()
 
 proc toVersionSet*(ran: VersionRange,
                    universe: openArray[Version] = []): NimbleVersionSet =
@@ -98,15 +116,15 @@ proc toVersionSet*(ran: VersionRange,
           if candidate == tag and candidate.semver.len > 0:
             tag.semver = candidate.semver
             break
-    onlyTags[Version, NimbleTag](@[tag])
+    onlyTags[LineVersion, NimbleTag](@[tag])
   of verAny:
-    taggedFull[Version, NimbleTag]()
+    taggedFull[LineVersion, NimbleTag]()
   else:
     var tags: seq[NimbleTag]
     for v in universe:
       if v.isSpecial and satisfiesConstraint(v, ran):
         tags.add v.toTag
-    tagged[Version, NimbleTag](lineSet(ran), tags)
+    tagged[LineVersion, NimbleTag](lineSet(ran), tags)
 
 proc singleton*(v: Version): NimbleVersionSet =
   ## `V → VS` for the solver's `mixin singleton`: the set holding exactly
@@ -116,10 +134,33 @@ proc singleton*(v: Version): NimbleVersionSet =
 # ------------------------------------------------------------------ provider
 
 type
+  Entry = object
+    ## One listed version of a package, prepared for the search: where it
+    ## sits in the version universe, parsed once, and - from the first time
+    ## the package is needed - its requirements as version sets.
+    version: Version
+    tagged: NimbleTaggedVersion
+    requires: seq[PkgTuple]
+    dependencies: seq[NimbleDependency]
+
+  PreparedPackage = object
+    entries: seq[Entry]
+    specials: seq[Version]
+      ## The special versions listed: they decide what an ordinary range on
+      ## this package admits (`toVersionSet`).
+    translated: bool
+
+  Prepared = object
+    index: Table[string, int]  ## lowercased name -> `packages`
+    packages: seq[PreparedPackage]
+
   PubGrubUniverse* = object
-    ## `pkgVersionTable` re-keyed by lowercased name, plus the root's identity
-    ## and the version preference to search with.
-    packages: Table[string, PackageVersions]
+    ## `pkgVersionTable` prepared for the search - re-keyed by lowercased
+    ## name, every version parsed once, requirements translated once - plus
+    ## the root's identity and the version preference to search with. The
+    ## preparation sits behind a `ref` so the provider procs can fill it in
+    ## as the search reaches each package.
+    data: ref Prepared
     rootName: string
     rootVersion: Version
     algorithm: ResolutionAlgorithm
@@ -127,52 +168,74 @@ type
 proc initPubGrubUniverse*(pkgVersionTable: Table[string, PackageVersions],
                           algorithm = raMaxVer): PubGrubUniverse =
   result.algorithm = algorithm
+  result.data = new Prepared
   for name, pv in pkgVersionTable:
-    result.packages[name.toLowerAscii] = pv
+    let key = name.toLowerAscii
+    var package = PreparedPackage()
     for mi in pv.versions:
+      package.entries.add Entry(version: mi.version,
+                                tagged: toTaggedVersion(mi.version),
+                                requires: mi.requires)
+      if mi.version.isSpecial:
+        package.specials.add mi.version
       if mi.isRoot:
-        result.rootName = name.toLowerAscii
+        result.rootName = key
         result.rootVersion = mi.version
+    result.data.index[key] = result.data.packages.len
+    result.data.packages.add package
 
-proc availableVersions(u: PubGrubUniverse, package: string): seq[Version] =
-  if package in u.packages:
-    for mi in u.packages[package].versions:
-      result.add mi.version
+proc packageIndex(u: PubGrubUniverse, package: string): int =
+  u.data.index.getOrDefault(package, -1)
 
-proc prefers(u: PubGrubUniverse, a, b: Version): bool =
+proc translate(u: PubGrubUniverse, i: int) =
+  ## Translates the requirements of every version of package `i` the first
+  ## time any of them is needed; afterwards they are only looked up.
+  if u.data.packages[i].translated: return
+  for e in u.data.packages[i].entries.mitems:
+    for (depName, depRange) in e.requires:
+      let key = depName.toLowerAscii
+      let d = u.packageIndex(key)
+      let versions =
+        if d >= 0: toVersionSet(depRange, u.data.packages[d].specials)
+        else: toVersionSet(depRange)
+      e.dependencies.add (package: key, versions: versions)
+  u.data.packages[i].translated = true
+
+proc prefers(u: PubGrubUniverse, a, b: Entry): bool =
   ## Whether `a` is tried before `b` - the SAT solver's order (`cmp` in
   ## nimblesat). Special versions come last whatever `Version.<` says (it
   ## ranks `#head` above every release): a range a pinned commit or `#head`
   ## happens to satisfy should still get a tagged release. Within each kind,
   ## newest first, or oldest first under `--minVer`.
-  if a.isSpecial != b.isSpecial: not a.isSpecial
-  elif u.algorithm == raMinVer: a < b
-  else: b < a
+  let aSpecial = a.tagged.kind == tvTag
+  if aSpecial != (b.tagged.kind == tvTag): not aSpecial
+  elif aSpecial:
+    if u.algorithm == raMinVer: a.version < b.version
+    else: b.version < a.version
+  elif u.algorithm == raMinVer: a.tagged.version < b.tagged.version
+  else: b.tagged.version < a.tagged.version
 
 proc chooseVersion*(u: PubGrubUniverse, package: string,
                     allowed: NimbleVersionSet): Option[Version] =
-  if package notin u.packages: return none(Version)
-  for mi in u.packages[package].versions:
-    if allowed.contains(toTaggedVersion(mi.version)) and
-        (result.isNone or u.prefers(mi.version, result.get)):
-      result = some(mi.version)
+  let i = u.packageIndex(package)
+  if i < 0: return none(Version)
+  var best = -1
+  for j, e in u.data.packages[i].entries:
+    if allowed.contains(e.tagged) and
+        (best < 0 or u.prefers(e, u.data.packages[i].entries[best])):
+      best = j
+  if best >= 0:
+    result = some(u.data.packages[i].entries[best].version)
 
 proc dependencies*(u: PubGrubUniverse, package: string,
                    version: Version): seq[NimbleDependency] =
-  if package notin u.packages: return
-  for mi in u.packages[package].versions:
-    if mi.version == version:
-      for (depName, depRange) in mi.requires:
-        let key = depName.toLowerAscii
-        result.add (package: key,
-                    versions: toVersionSet(depRange, u.availableVersions(key)))
-      return
-
-proc constraintOn(u: PubGrubUniverse, mi: PackageMinimalInfo,
-                  package: string): Option[NimbleVersionSet] =
-  for (depName, depRange) in mi.requires:
-    if depName.toLowerAscii == package:
-      return some(toVersionSet(depRange, u.availableVersions(package)))
+  let i = u.packageIndex(package)
+  if i < 0: return
+  u.translate(i)
+  let target = toTaggedVersion(version)
+  for e in u.data.packages[i].entries:
+    if e.tagged == target:
+      return e.dependencies
 
 proc dependencyRangeHook*(u: PubGrubUniverse, package: string,
                           version: Version,
@@ -181,23 +244,31 @@ proc dependencyRangeHook*(u: PubGrubUniverse, package: string,
   ## interval widening: either every version of `package` declares this exact
   ## constraint (then it holds for all of them, and the report says "every
   ## version of ..."), or it is stated for the one version it was read from.
-  for mi in u.packages[package].versions:
-    let c = u.constraintOn(mi, dependency.package)
-    if c.isNone or c.get != dependency.versions:
+  let i = u.packageIndex(package)
+  if i < 0: return singleton(toTaggedVersion(version))
+  u.translate(i)
+  for e in u.data.packages[i].entries:
+    var declared = false
+    for d in e.dependencies:
+      if d.package == dependency.package:
+        declared = d.versions == dependency.versions
+        break
+    if not declared:
       return singleton(toTaggedVersion(version))
-  taggedFull[Version, NimbleTag]()
+  taggedFull[LineVersion, NimbleTag]()
 
 proc packageExistsHook*(u: PubGrubUniverse, package: string): bool =
   ## Whether the universe knows the package at all. Lets the report say
   ## "foo doesn't exist" instead of "no versions of foo match ..." - the
   ## difference between a typo and an unsatisfiable constraint.
-  package in u.packages
+  u.packageIndex(package) >= 0
 
 proc versionCountHook*(u: PubGrubUniverse, package: string,
                        allowed: NimbleVersionSet): int =
-  if package notin u.packages: return 0
-  for mi in u.packages[package].versions:
-    if allowed.contains(toTaggedVersion(mi.version)): inc result
+  let i = u.packageIndex(package)
+  if i < 0: return 0
+  for e in u.data.packages[i].entries:
+    if allowed.contains(e.tagged): inc result
 
 # ------------------------------------------------------------------ solving
 

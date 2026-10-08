@@ -80,14 +80,24 @@ type
     num: int      ## used when `isNum`
     str: string   ## used when not `isNum`
 
-  SemVerParts = object
+  SemVerParts* = object
+    ## A normal version split for comparison. Parse once with `parseSemVer`
+    ## and compare with `cmpSemVer` when the same versions are compared often.
     release: seq[int]                 ## [major, minor, patch, ...]; missing fields == 0
     prerelease: seq[PrereleaseIdent]  ## empty == a *final* release (outranks any pre-release)
 
-proc parseSemVer(s: string): SemVerParts =
+when defined(nimbleCountSemVerParses):
+  var semVerParses*: int
+    ## How many version strings have been parsed for comparison. Tests use it
+    ## to check that a hot path compares versions parsed once, not re-parsed.
+
+proc parseSemVer*(s: string): SemVerParts =
   ## Split a normal version string into its release fields and pre-release
   ## identifiers (semver §9). The pre-release begins at the first '-'; build
   ## metadata ('+...') is dropped as it does not affect precedence (semver §10).
+  when defined(nimbleCountSemVerParses):
+    {.cast(noSideEffect).}:  # a test-only counter; comparison stays pure
+      inc semVerParses
   var core = s
   let plus = core.find('+')
   if plus >= 0: core = core[0 ..< plus]
@@ -116,7 +126,7 @@ proc cmpIdent(a, b: PrereleaseIdent): int =
   elif b.isNum: 1
   else: cmp(a.str, b.str)
 
-proc cmpSemVer(a, b: SemVerParts): int =
+proc cmpSemVer*(a, b: SemVerParts): int =
   for i in 0 ..< max(a.release.len, b.release.len):
     let ai = if i < a.release.len: a.release[i] else: 0
     let bi = if i < b.release.len: b.release[i] else: 0
