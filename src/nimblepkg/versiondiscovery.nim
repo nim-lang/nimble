@@ -658,3 +658,11 @@ proc collectAllVersions*(package: PackageMinimalInfo, options: Options, getMinim
       for fut in futures:
         if not fut.failed:
           mergeVersionTables(result[], fut.read()[])
+
+proc addDiscoveryErrors*(output: var string, options: Options) =
+  ## The git errors version discovery ran into: a package that seems not to
+  ## exist may only have been unreachable.
+  if options.satResult.gitErrors.len > 0:
+    output.add "The following errors occurred during package discovery (could be network issues):\n"
+    for err in options.satResult.gitErrors:
+      output.add &"  - {err}\n"

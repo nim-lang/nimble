@@ -1,10 +1,12 @@
 # Copyright (C) the Nimble contributors. All rights reserved.
 # BSD License. Look at license.txt for more info.
 
-## The bridge between Nimble's package universe and the standalone PubGrub
-## library (`pubgrub/` at the repository root). It serves two callers:
+## The PubGrub solver, `nimblesat`'s counterpart: the bridge between Nimble's
+## package universe and the standalone PubGrub library (`pubgrub/` at the
+## repository root). It serves two callers:
 ##
-## - `--solver:pubgrub`, where PubGrub resolves the dependency graph;
+## - `--solver:pubgrub` (`pubGrubPackages`), where PubGrub resolves the
+##   dependency graph;
 ## - the failure path of the default SAT solver: when SAT finds no solution,
 ##   PubGrub re-solves the same `pkgVersionTable` and its derivation-based
 ##   report becomes the error. A disagreement between the two is a solver
@@ -31,7 +33,9 @@
 
 import std/[tables, options, strutils]
 import ./[version, packageinfotypes]
-from ./options import ResolutionAlgorithm, raMaxVer, raMinVer
+from ./options import Options, ResolutionAlgorithm, raMaxVer, raMinVer
+from ./cli import displayInfo, LowPriority
+from ./versiondiscovery import addDiscoveryErrors
 import pubgrub
 
 type
@@ -296,6 +300,26 @@ proc solveWithPubGrub*(pkgVersionTable: Table[string, PackageVersions],
     PubGrubAnswer(solved: true, packages: res.packages)
   of soUnsolvable:
     PubGrubAnswer(solved: false, explanation: report(res.failure, u.rootName))
+
+proc pubGrubPackages*(pkgVersionTable: Table[string, PackageVersions],
+                      output: var string, options: Options): Table[string, Version] =
+  ## `--solver:pubgrub`. PubGrub needs none of the scaffolding SAT has around
+  ## it - the missing-dependency pre-check, the retries, the explanation
+  ## after the fact: an absent package is part of its answer like any other
+  ## conflict, and on failure its report is the error.
+  displayInfo("Resolving dependencies with PubGrub", LowPriority)
+  let answer = solveWithPubGrub(pkgVersionTable, options.resolutionAlgorithm)
+  if answer.solved:
+    # PubGrub names packages by their lowercased table key; the graph, and
+    # everything downstream of it, by `PackageVersions.pkgName`.
+    var nodeName = initTable[string, string]()
+    for key, pv in pkgVersionTable:
+      nodeName[key.toLowerAscii] = pv.pkgName
+    for (package, version) in answer.packages:
+      result[nodeName.getOrDefault(package, package)] = version
+  else:
+    output = "Dependency resolution failed:\n" & answer.explanation & "\n"
+    output.addDiscoveryErrors(options)
 
 # ------------------------------------------------------------ failure path
 

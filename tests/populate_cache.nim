@@ -7,7 +7,7 @@
 ##   # Default cacheDir: /tmp/nimble_fallback_cache
 
 import os, osproc, strutils
-import ../src/nimblepkg/nimblesat
+import ../src/nimblepkg/download
 import ../src/nimblepkg/options
 import ../src/nimblepkg/version
 

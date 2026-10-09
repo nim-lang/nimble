@@ -3,7 +3,7 @@
 # Copyright (C) the Nimble contributors. All rights reserved.
 # BSD License. Look at license.txt for more info.
 
-## The `requires` → PubGrub translation (`nimblepkg/pubgrubexplain`), tested
+## The `requires` → PubGrub translation (`nimblepkg/nimblepubgrub`), tested
 ## in terms of Nimble requirement strings - never PubGrub terms - because the
 ## thing under test is equivalence with the SAT solver's reading of the same
 ## requirement:
@@ -18,8 +18,8 @@
 import std/[unittest, tables, strutils, os, json, jsonutils]
 import nimblepkg/version
 import nimblepkg/packageinfotypes
-import nimblepkg/pubgrubexplain
-import nimblepkg/nimblesat
+import nimblepkg/nimblepubgrub
+import nimblepkg/nimblesolver
 import nimblepkg/options as nimbleopts
 import nimblepkg/cli
 import pubgrub

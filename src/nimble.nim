@@ -22,7 +22,7 @@ import nimblepkg/packageinfotypes, nimblepkg/packageinfo, nimblepkg/version,
        nimblepkg/nimscriptwrapper, nimblepkg/developfile, nimblepkg/paths,
        nimblepkg/packagemetadatafile,
        nimblepkg/displaymessages, nimblepkg/sha1hashes, nimblepkg/syncfile,
-       nimblepkg/deps, nimblepkg/nimblesat, nimblepkg/nimenv,
+       nimblepkg/deps, nimblepkg/nimblesolver, nimblepkg/nimenv,
        nimblepkg/downloadnim, nimblepkg/declarativeparser,
       nimblepkg/build, nimblepkg/install,
       nimblepkg/versiondiscovery, nimblepkg/nimresolution,
@@ -1665,7 +1665,7 @@ proc lock(options: var Options, nimBin: Option[string]) =
           discard
       var lockUrl = pkgInfo.metaData.url
       if lockUrl == "":
-        lockUrl = nimblesat.getUrlFromPkgName(solvedPkg.pkgName, options.satResult.pkgVersionTable, options)
+        lockUrl = nimblesolver.getUrlFromPkgName(solvedPkg.pkgName, options.satResult.pkgVersionTable, options)
       # Fallback for nim when no metadata URL is available (e.g., system nim or old binaries installation)
       if lockUrl == "" and solvedPkg.pkgName.isNim:
         lockUrl = "https://github.com/nim-lang/Nim.git"

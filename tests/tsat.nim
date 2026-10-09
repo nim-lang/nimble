@@ -4,7 +4,7 @@ import testscommon
 # from nimblepkg/common import cd, NimbleError Used in the commented tests
 import std/[tables, json, jsonutils, strutils, sequtils, options, algorithm]
 import chronos
-import nimblepkg/[version, nimblesat, options, packageinfotypes, urls, download]
+import nimblepkg/[version, nimblesat, nimblesolver, options, packageinfotypes, urls, download]
 from nimblepkg/common import cd, NimbleError
 
 proc fromJsonHook(pv: var PkgTuple, jsonNode: JsonNode, opt = Joptions()) =

@@ -3,7 +3,7 @@ import unittest, os
 import testscommon
 import std/[tables, sequtils, strutils, options, strformat, osproc]
 import chronos
-import nimblepkg/[version, nimblesat, options, config, download, packageinfotypes, versiondiscovery]
+import nimblepkg/[version, nimblesolver, options, config, download, packageinfotypes, versiondiscovery]
 from nimblepkg/common import cd, NimbleError
 from nimblepkg/packageparser import validateVersion
 
