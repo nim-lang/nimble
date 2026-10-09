@@ -3,7 +3,7 @@
 
 import std/[sequtils, sets, options, os, strutils, tables, strformat]
 import chronos
-import nimblesat, packageinfotypes, options, version, declarativeparser, packageinfo, common,
+import nimblesolver, packageinfotypes, options, version, declarativeparser, packageinfo, common,
   cli, tools, nimscriptexecutor, packagemetadatafile,
   displaymessages, reversedeps, developfile, urls, download, sha1hashes,
   versiondiscovery, nimresolution, build

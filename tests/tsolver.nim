@@ -7,7 +7,7 @@ import unittest, os, osproc
 import testscommon
 import std/[tables, json, jsonutils, strutils, sequtils, times, options]
 import chronos
-import nimblepkg/[version, nimblesat, options, config, packageinfotypes,
+import nimblepkg/[version, nimblesolver, options, config, packageinfotypes,
                   versiondiscovery, urls, download]
 from nimblepkg/common import cd, NimbleError
 

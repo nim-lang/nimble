@@ -1,7 +1,7 @@
 ## Nim binary discovery, bootstrap, and SAT-driven Nim selection.
 
 import std/[sequtils, sets, options, os, strutils, algorithm]
-import nimblesat, packageinfotypes, options, version, declarativeparser,
+import nimblesolver, packageinfotypes, options, version, declarativeparser,
        packageinfo, common, lockfile, downloadnim, tools,
        packageinstaller
 import chronos
