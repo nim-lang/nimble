@@ -250,10 +250,17 @@ There are two ways to activate a feature:
    requires "awesomeAsyncPackage[chronos]"
    ```
 
-Multiple features can be activated for a package as follows:  
-```nim
-requires "awesomeAsyncPackage[chronos, feature2]"
-```
+Multiple features can be activated for a package as follows:
+
+1. By passing multiple features with the `--features`, separated by semicolons:
+   ```sh
+   nimble --features:"chronos;feature2" install
+   ```
+   Note that you may need to protect the semicolons from being interpreted by your shell by quoting the feature list argument value.
+2. By listing several features separated by commas using the `[]` operator:
+   ```nim
+   requires "awesomeAsyncPackage[chronos, feature2]"
+   ```
 
 #### Checking Active Features in Code
 
