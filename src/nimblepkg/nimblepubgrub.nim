@@ -152,6 +152,8 @@ type
     specials: seq[Version]
       ## The special versions listed: they decide what an ordinary range on
       ## this package admits (`toVersionSet`).
+    preferred: int
+      ## The entry to try before any other while it is allowed, or -1.
     translated: bool
 
   Prepared = object
@@ -161,7 +163,7 @@ type
   PubGrubUniverse* = object
     ## `pkgVersionTable` prepared for the search - re-keyed by lowercased
     ## name, every version parsed once, requirements translated once - plus
-    ## the root's identity and the version preference to search with. The
+    ## the root's identity and the version preferences to search with. The
     ## preparation sits behind a `ref` so the provider procs can fill it in
     ## as the search reaches each package.
     data: ref Prepared
@@ -170,15 +172,24 @@ type
     algorithm: ResolutionAlgorithm
 
 proc initPubGrubUniverse*(pkgVersionTable: Table[string, PackageVersions],
-                          algorithm = raMaxVer): PubGrubUniverse =
+                          algorithm = raMaxVer,
+                          preferred = initTable[string, Version]()):
+    PubGrubUniverse =
+  ## `preferred` names, per package, a version to try before the others
+  ## whenever it is still allowed (`chooseVersion`).
   result.algorithm = algorithm
   result.data = new Prepared
+  var wanted = initTable[string, NimbleTaggedVersion]()
+  for name, version in preferred:
+    wanted[name.toLowerAscii] = toTaggedVersion(version)
   for name, pv in pkgVersionTable:
     let key = name.toLowerAscii
-    var package = PreparedPackage()
+    var package = PreparedPackage(preferred: -1)
     for mi in pv.versions:
-      package.entries.add Entry(version: mi.version,
-                                tagged: toTaggedVersion(mi.version),
+      let tagged = toTaggedVersion(mi.version)
+      if package.preferred < 0 and key in wanted and tagged == wanted[key]:
+        package.preferred = package.entries.len
+      package.entries.add Entry(version: mi.version, tagged: tagged,
                                 requires: mi.requires)
       if mi.version.isSpecial:
         package.specials.add mi.version
@@ -219,10 +230,18 @@ proc prefers(u: PubGrubUniverse, a, b: Entry): bool =
   elif u.algorithm == raMinVer: a.tagged.version < b.tagged.version
   else: b.tagged.version < a.tagged.version
 
+proc preferredAllowed(u: PubGrubUniverse, i: int,
+                      allowed: NimbleVersionSet): bool =
+  let p = u.data.packages[i].preferred
+  p >= 0 and allowed.contains(u.data.packages[i].entries[p].tagged)
+
 proc chooseVersion*(u: PubGrubUniverse, package: string,
                     allowed: NimbleVersionSet): Option[Version] =
+  ## The preferred version while it is allowed, else the best by `prefers`.
   let i = u.packageIndex(package)
   if i < 0: return none(Version)
+  if u.preferredAllowed(i, allowed):
+    return some(u.data.packages[i].entries[u.data.packages[i].preferred].version)
   var best = -1
   for j, e in u.data.packages[i].entries:
     if allowed.contains(e.tagged) and
@@ -269,8 +288,12 @@ proc packageExistsHook*(u: PubGrubUniverse, package: string): bool =
 
 proc versionCountHook*(u: PubGrubUniverse, package: string,
                        allowed: NimbleVersionSet): int =
+  ## A preferred version still allowed counts as the only one, so its package
+  ## is decided early, before the choices that could rule it out - the way
+  ## Dart's pub treats a locked version.
   let i = u.packageIndex(package)
   if i < 0: return 0
+  if u.preferredAllowed(i, allowed): return 1
   for e in u.data.packages[i].entries:
     if allowed.contains(e.tagged): inc result
 
@@ -286,12 +309,14 @@ type
       ## When not: the report saying why.
 
 proc solveWithPubGrub*(pkgVersionTable: Table[string, PackageVersions],
-                       algorithm = raMaxVer): PubGrubAnswer =
-  ## Resolves the universe with PubGrub. Both uses go through here - the
-  ## solver under `--solver:pubgrub` and the explanation of a SAT failure -
-  ## so the generic solver is instantiated once, next to the provider hooks
-  ## it looks up by `compiles`, and searches the same way for both.
-  let u = initPubGrubUniverse(pkgVersionTable, algorithm)
+                       algorithm = raMaxVer,
+                       preferred = initTable[string, Version]()): PubGrubAnswer =
+  ## Resolves the universe with PubGrub, trying the `preferred` versions
+  ## first. Both uses go through here - the solver under `--solver:pubgrub`
+  ## and the explanation of a SAT failure - so the generic solver is
+  ## instantiated once, next to the provider hooks it looks up by `compiles`,
+  ## and searches the same way for both.
+  let u = initPubGrubUniverse(pkgVersionTable, algorithm, preferred)
   if u.rootName.len == 0:
     raise newException(ValueError, "the universe has no root package")
   let res = solve(u, u.rootName, u.rootVersion)
@@ -302,13 +327,17 @@ proc solveWithPubGrub*(pkgVersionTable: Table[string, PackageVersions],
     PubGrubAnswer(solved: false, explanation: report(res.failure, u.rootName))
 
 proc pubGrubPackages*(pkgVersionTable: Table[string, PackageVersions],
-                      output: var string, options: Options): Table[string, Version] =
+                      output: var string, options: Options,
+                      preferred = initTable[string, Version]()):
+    Table[string, Version] =
   ## `--solver:pubgrub`. PubGrub needs none of the scaffolding SAT has around
   ## it - the missing-dependency pre-check, the retries, the explanation
   ## after the fact: an absent package is part of its answer like any other
-  ## conflict, and on failure its report is the error.
+  ## conflict, and on failure its report is the error. Nor the repeated
+  ## solves SAT uses to prefer a version: `preferred` is tried first.
   displayInfo("Resolving dependencies with PubGrub", LowPriority)
-  let answer = solveWithPubGrub(pkgVersionTable, options.resolutionAlgorithm)
+  let answer = solveWithPubGrub(pkgVersionTable, options.resolutionAlgorithm,
+                                preferred)
   if answer.solved:
     # PubGrub names packages by their lowercased table key; the graph, and
     # everything downstream of it, by `PackageVersions.pkgName`.
