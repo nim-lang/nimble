@@ -1,6 +1,6 @@
 ## Nim binary discovery, bootstrap, and SAT-driven Nim selection.
 
-import std/[sequtils, sets, options, os, strutils, algorithm]
+import std/[sequtils, sets, options, os, strutils, algorithm, tables]
 import nimblesolver, packageinfotypes, options, version, declarativeparser,
        packageinfo, common, lockfile, downloadnim, tools,
        packageinstaller
@@ -89,9 +89,12 @@ proc solvePackagesWithSystemNimFallback*(
     resolvedNim: Option[NimResolved], nimBin: Option[string]): HashSet[PackageInfo] {.instrument.} =
   ## Solves packages with system Nim as a hard requirement, falling back to
   ## solving without it if the first attempt fails due to unsatisfiable dependencies.
+  ## Under `--solver:pubgrub` the system Nim is a preference instead, so a
+  ## single solve both tries it first and gives it up when nothing works with it.
 
   var rootPackageWithSystemNim = rootPackage
   var systemNimPass = false
+  var preferred = initTable[string, Version]()
 
   # If there is systemNim, we will try to do a first pass with the systemNim
   # as a hard requirement. If it fails, we will fallback to
@@ -101,16 +104,26 @@ proc solvePackagesWithSystemNimFallback*(
   # doesn't match system nim — the pass would be guaranteed to fail.
   if resolvedNim.isSome and resolvedNim.get.isSystemNim(options):
     let nimReqs = rootPackage.requires.filterIt(it.name.isNim)
-    let exactMismatch = nimReqs.anyIt(
-      it.ver.kind in {verEq, verSpecial} and
-        not resolvedNim.get.version.satisfiesConstraint(it.ver))
-    if not exactMismatch:
-      rootPackageWithSystemNim.requires.add(parseRequires("nim " & $resolvedNim.get.version))
-      systemNimPass = true
+    if options.solver == skPubGrub:
+      # Nothing to prefer if the root itself rules the system Nim out. The
+      # root asks for some Nim, so Nim is decided before the packages whose
+      # versions depend on it.
+      if nimReqs.allIt(resolvedNim.get.version.satisfiesConstraint(it.ver)):
+        if nimReqs.len == 0:
+          rootPackageWithSystemNim.requires.add(parseRequires("nim"))
+        preferred["nim"] = resolvedNim.get.version
+    else:
+      let exactMismatch = nimReqs.anyIt(
+        it.ver.kind in {verEq, verSpecial} and
+          not resolvedNim.get.version.satisfiesConstraint(it.ver))
+      if not exactMismatch:
+        rootPackageWithSystemNim.requires.add(parseRequires("nim " & $resolvedNim.get.version))
+        systemNimPass = true
 
   result = solvePackages(rootPackageWithSystemNim, pkgList,
                         options.satResult.pkgsToInstall, options,
-                        options.satResult.output, options.satResult.solvedPkgs, nimBin)
+                        options.satResult.output, options.satResult.solvedPkgs, nimBin,
+                        preferred)
   if options.satResult.solvedPkgs.len == 0 and systemNimPass:
     # If the first pass failed, we will retry without the systemNim as a hard requirement
     result = solvePackages(rootPackage, pkgList,

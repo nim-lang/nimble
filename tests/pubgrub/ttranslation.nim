@@ -411,3 +411,43 @@ suite "translation: each version is parsed once":
     checkpoint $parses & " parses for " & $versions & " versions and " &
       $bounds & " bounds"
     check parses <= 2 * (versions + bounds)
+
+proc chosen(answer: PubGrubAnswer): Table[string, string] =
+  ## The version decided for each package, as written.
+  for (package, version) in answer.packages:
+    result[package] = $version
+
+suite "a preferred version is tried first":
+  # How `--solver:pubgrub` prefers the system Nim: as a preference rather than
+  # a requirement, so a single solve both honours it and, when it cannot hold,
+  # gives it up - where SAT requires it and, on failure, solves again without.
+  proc universe(): Table[string, PackageVersions] =
+    result.addPkg("myapp", "0.1.0", ["nim", "foo"], isRoot = true)
+    result.addPkg("foo", "1.0.0", ["nim >= 2.0.0"])
+    result.addPkg("foo", "2.0.0", ["nim >= 2.4.0"])
+    result.addPkg("nim", "2.2.0")
+    result.addPkg("nim", "2.4.0")
+
+  test "without one, the newest versions are chosen":
+    let answer = solveWithPubGrub(universe())
+    check answer.solved
+    check answer.chosen["nim"] == "2.4.0"
+    check answer.chosen["foo"] == "2.0.0"
+
+  test "the preferred version is chosen, and the rest adapts to it":
+    let answer = solveWithPubGrub(universe(),
+                                  preferred = {"nim": newVersion("2.2.0")}.toTable)
+    check answer.solved
+    check answer.chosen["nim"] == "2.2.0"
+    check answer.chosen["foo"] == "1.0.0"
+
+  test "a preference that cannot hold gives way within the same solve":
+    var t: Table[string, PackageVersions]
+    t.addPkg("myapp", "0.1.0", ["nim", "foo"], isRoot = true)
+    t.addPkg("foo", "2.0.0", ["nim >= 2.4.0"])
+    t.addPkg("nim", "2.2.0")
+    t.addPkg("nim", "2.4.0")
+    let answer = solveWithPubGrub(t, preferred = {"nim": newVersion("2.2.0")}.toTable)
+    check answer.solved
+    check answer.chosen["nim"] == "2.4.0"
+    check answer.chosen["foo"] == "2.0.0"

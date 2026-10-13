@@ -8,7 +8,7 @@ import testscommon
 import std/[tables, json, jsonutils, strutils, sequtils, times, options]
 import chronos
 import nimblepkg/[version, nimblesolver, options, config, packageinfotypes,
-                  versiondiscovery, urls, download]
+                  versiondiscovery, urls, download, packageinfo, nimresolution]
 from nimblepkg/common import cd, NimbleError
 
 let nimBin = some("nim")
@@ -92,6 +92,48 @@ proc table(root: PackageMinimalInfo,
   result[root.name] = PackageVersions(pkgName: root.name, versions: @[root])
   for d in deps:
     result[d.pkgName] = d
+
+proc installed(name, version: string,
+               requires: openArray[string] = []): PackageInfo =
+  ## A package as the installed-package list hands it to the solver.
+  result = initPackageInfo()
+  result.basicInfo.name = name
+  result.basicInfo.version = newVersion(version)
+  for r in requires:
+    result.requires.add parseRequires(r)
+
+proc minimal(name, version: string,
+             requires: openArray[string] = []): PackageMinimalInfo =
+  ## A package version as discovery, or its cache, knows it.
+  result = PackageMinimalInfo(name: name, version: newVersion(version))
+  for r in requires:
+    result.requires.add parseRequires(r)
+
+proc solveWithSystemNim(solver: SolverKind, root: PackageInfo,
+                        installed: seq[PackageInfo],
+                        cached: openArray[PackageMinimalInfo] = []):
+    Table[string, Version] =
+  ## Resolves `root` the way nimble does when there is a Nim on the PATH:
+  ## against the `installed` packages plus that Nim, then against everything
+  ## discovery knows - offline here, so only the version cache, holding
+  ## `cached`. Returns the version chosen for each package.
+  var options = initOptions()
+  options.solver = solver
+  options.offline = true
+  options.nimbleDir = getTempDir() / "tsolver-systemnim"
+  removeDir options.nimbleDir
+  options.pkgCachePath = options.nimbleDir / "pkgcache"
+  var cache: TaggedVersionsCache
+  for mi in cached:
+    cache.mgetOrPut(mi.name, @[]).add mi
+  writeTaggedVersionsCache(cache, options)
+  let systemNim = getNimFromSystem(options).get
+  let resolved = some NimResolved(pkg: some systemNim,
+                                  version: systemNim.basicInfo.version)
+  discard solvePackagesWithSystemNimFallback(root, installed & systemNim,
+    options, resolved, systemNim.nimBinPath)
+  for pkg in options.satResult.solvedPkgs:
+    result[pkg.pkgName] = pkg.version
 
 for solver in SolverKind:
   suite "dependency resolution (" & $solver & ")":
@@ -557,3 +599,36 @@ for solver in SolverKind:
       check picked["b"] == newVersion "#head"
       check picked["b"].isSpecial
       check picked["c"] == newVersion "1.0.0"
+
+  suite "the system Nim (" & $solver & ")":
+    # With a Nim on the PATH, nimble keeps to it whenever some solution
+    # allows: with the installed packages if they fit it, else with older
+    # versions it would fetch. Only then does it take another Nim - again
+    # with the installed packages first. SAT gets there by requiring the
+    # system Nim and, failing that, solving again without; PubGrub prefers
+    # it within one solve.
+    let systemNim = $getNimFromSystem(initOptions()).get.basicInfo.version
+    let newerNim = installed("nim", "99.0.0")
+    let myapp = installed("myapp", "0.1.0", ["foo"])
+
+    test "the installed packages adapt to it":
+      let picked = solveWithSystemNim(solver, myapp, @[newerNim,
+        installed("foo", "1.0.0", ["nim >= " & systemNim]),
+        installed("foo", "2.0.0", ["nim >= 99.0.0"])])
+      check picked["nim"] == newVersion(systemNim)
+      check picked["foo"] == newVersion("1.0.0")
+
+    test "older versions are fetched rather than leave it":
+      let picked = solveWithSystemNim(solver, myapp,
+        @[newerNim, installed("foo", "2.0.0", ["nim >= 99.0.0"])],
+        cached = [minimal("foo", "1.0.0", ["nim >= " & systemNim]),
+                  minimal("foo", "2.0.0", ["nim >= 99.0.0"])])
+      check picked["nim"] == newVersion(systemNim)
+      check picked["foo"] == newVersion("1.0.0")
+
+    test "when it cannot work, the installed packages still come first":
+      let picked = solveWithSystemNim(solver, myapp,
+        @[newerNim, installed("foo", "2.0.0", ["nim >= 99.0.0"])],
+        cached = [minimal("foo", "3.0.0", ["nim >= 99.0.0"])])
+      check picked["nim"] == newVersion("99.0.0")
+      check picked["foo"] == newVersion("2.0.0")
