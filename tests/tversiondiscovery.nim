@@ -11,7 +11,11 @@ let nimBin = some("nim")
 
 suite "Version Discovery":
   test "should be able to download a package and select its deps":
-
+    # Solves the latest release of a real package, so its dependencies have to
+    # be looked up in the live package list too. With no nimble dir of its own
+    # the test would read the snapshot checked in as `packages_official.json`,
+    # which misses every package published since (e.g. `intops`, required by
+    # stint 0.9.0).
     let pkgName: string = "nimlangserver"
     let pv: PkgTuple = (pkgName, VersionRange(kind: verAny))
     var options = initOptions()
@@ -20,6 +24,13 @@ suite "Version Discovery":
       "https://raw.githubusercontent.com/nim-lang/packages/master/packages.json",
       "https://nim-lang.org/nimble/packages.json"
     ])
+    let nimbleDir = installDir.parentDir / "versionDiscoveryNimbleDir"
+    removeDir(nimbleDir)
+    createDir(nimbleDir)
+    defer: removeDir(nimbleDir)
+    options.nimbleDir = nimbleDir
+    options.pkgCachePath = nimbleDir / "pkgcache"
+    waitFor refresh(options)
 
     var pkgInfo = downloadPkInfoForPv(pv, options, nimBin = nimBin)
     var root = pkgInfo.getMinimalInfo(options)
