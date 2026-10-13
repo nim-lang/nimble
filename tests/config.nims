@@ -12,3 +12,7 @@ switch("path", repoDir / "pubgrub" / "src")
 # Counts version-string parses (`version.semVerParses`), so tests can check that
 # the solver compares versions parsed once rather than re-parsing them.
 switch("define", "nimbleCountSemVerParses")
+
+# Counts solves (`nimblesolver.solveCount`), so tests can check that a
+# preference is honoured within one solve instead of by solving again.
+switch("define", "nimbleCountSolves")

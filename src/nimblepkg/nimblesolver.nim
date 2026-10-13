@@ -17,12 +17,19 @@ proc resolutionFailureMessage*(options: Options): string =
     result = "Couldnt find a solution for the packages. Unsatisfiable " &
       "dependencies. Check there is no contradictory dependencies."
 
+when defined(nimbleCountSolves):
+  var solveCount*: int
+    ## How many solves `getSolvedPackages` has run. Tests use it to check that
+    ## a preference is honoured within a solve rather than by solving again.
+
 proc getSolvedPackages*(pkgVersionTable: Table[string, PackageVersions], output: var string, options: Options, preferred = initTable[string, Version]()): seq[SolvedPackage] {.instrument.} =
   ## The solution for `pkgVersionTable` from the solver `--solver` selects:
   ## each chosen package with what it requires and what requires it, or
   ## nothing, with the reason in `output`. Only PubGrub reads `preferred`,
   ## the versions to try first; SAT prefers a version by solving again
   ## (`solvePackagesWithSystemNimFallback`).
+  when defined(nimbleCountSolves):
+    inc solveCount
   var graph = pkgVersionTable.toDepGraph()
   let packages =
     case options.solver
@@ -709,12 +716,14 @@ proc getSolvedPkgFromInstalledPkgs*(satResult: SATResult, solvedPkg: SolvedPacka
       return some(pkg)
   return none(PackageInfo)
 
-proc preferLockedVersions(versions: var Table[string, PackageVersions],
+proc preferLockedVersions*(versions: var Table[string, PackageVersions],
     locked: LockFileDeps, targets: HashSet[string], options: Options,
     output: var string): seq[SolvedPackage] =
   ## Select the requested upgrades first, then retain every compatible pin.
   ## Pins restrict a package's candidates, rather than adding root requirements:
   ## dependencies removed by an upgrade must still be able to leave the graph.
+  ## Under SAT, keeping them takes a solve with all of them and, if one is in
+  ## the way, a solve per pin; PubGrub prefers them within a single solve.
   result = versions.getSolvedPackages(output, options)
   if result.len == 0:
     raise resolutionFailureError(
@@ -737,6 +746,24 @@ proc preferLockedVersions(versions: var Table[string, PackageVersions],
       let candidates = pv.versions.filterIt(it.version == pinned)
       if candidates.len > 0:
         pins[key] = PackageVersions(pkgName: pv.pkgName, versions: candidates)
+
+  if options.solver == skPubGrub:
+    # PubGrub takes the pins as preferences, so one solve keeps every pin a
+    # complete solution allows. The table then reads as SAT leaves it: each
+    # retained pin narrowed to its version.
+    var lockedVersions = initTable[string, Version]()
+    for key, pin in pins:
+      lockedVersions[key] = pin.versions[0].version
+    var pinnedOutput = ""
+    let solution = versions.getSolvedPackages(pinnedOutput, options, lockedVersions)
+    if solution.len > 0:
+      for key, pin in pins:
+        if solution.anyIt(cmpIgnoreCase(it.pkgName, pin.pkgName) == 0 and
+                          it.version == pin.versions[0].version):
+          versions[key] = pin
+      output = pinnedOutput
+      result = solution
+    return
 
   # The common case needs only one more solve: all other pins still work.
   var allPinned = versions

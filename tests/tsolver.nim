@@ -5,7 +5,7 @@
 
 import unittest, os, osproc
 import testscommon
-import std/[tables, json, jsonutils, strutils, sequtils, times, options]
+import std/[tables, json, jsonutils, strutils, sequtils, times, options, sets]
 import chronos
 import nimblepkg/[version, nimblesolver, options, config, packageinfotypes,
                   versiondiscovery, urls, download, packageinfo, nimresolution]
@@ -133,6 +133,31 @@ proc solveWithSystemNim(solver: SolverKind, root: PackageInfo,
   discard solvePackagesWithSystemNimFallback(root, installed & systemNim,
     options, resolved, systemNim.nimBinPath)
   for pkg in options.satResult.solvedPkgs:
+    result[pkg.pkgName] = pkg.version
+
+proc universe(packages: varargs[PackageMinimalInfo]): Table[string, PackageVersions] =
+  for mi in packages:
+    result.mgetOrPut(mi.name, PackageVersions(pkgName: mi.name)).versions.add mi
+
+proc lockedAt(versions: openArray[(string, string)]): LockFileDeps =
+  for (name, version) in versions:
+    result[name] = LockFileDep(version: newVersion(version))
+
+proc keepLocked(solver: SolverKind, locked: LockFileDeps,
+                targets: openArray[string]): Table[string, Version] =
+  ## Resolves the lock tests' universe keeping the `locked` versions, with
+  ## `targets` being upgraded. Returns the version chosen for each package.
+  var root = minimal("myapp", "0.1.0", ["foo", "bar", "baz"])
+  root.isRoot = true
+  var versions = universe(root,
+    minimal("foo", "1.0.0", ["bar >= 1.0.0"]),
+    minimal("foo", "2.0.0", ["bar >= 2.0.0"]),
+    minimal("bar", "1.0.0"), minimal("bar", "2.0.0"), minimal("bar", "3.0.0"),
+    minimal("baz", "1.0.0"), minimal("baz", "1.1.0"))
+  var options = initOptions()
+  options.solver = solver
+  var output = ""
+  for pkg in versions.preferLockedVersions(locked, targets.toHashSet, options, output):
     result[pkg.pkgName] = pkg.version
 
 for solver in SolverKind:
@@ -632,3 +657,30 @@ for solver in SolverKind:
         cached = [minimal("foo", "3.0.0", ["nim >= 99.0.0"])])
       check picked["nim"] == newVersion("99.0.0")
       check picked["foo"] == newVersion("2.0.0")
+
+  suite "keeping the lock file's versions (" & $solver & ")":
+    # A lock file's versions stay unless an upgrade needs them moved: the
+    # requested packages go to their newest versions, every pin that still
+    # fits is kept, and only the pins in the way move.
+    let locked = lockedAt({"foo": "1.0.0", "bar": "1.0.0", "baz": "1.0.0"})
+
+    test "without an upgrade, every pin is kept":
+      let picked = keepLocked(solver, locked, targets = [])
+      check picked["foo"] == newVersion("1.0.0")
+      check picked["bar"] == newVersion("1.0.0")
+      check picked["baz"] == newVersion("1.0.0")
+
+    test "an upgrade moves its target and the pins in its way, and no others":
+      let picked = keepLocked(solver, locked, targets = ["foo"])
+      check picked["foo"] == newVersion("2.0.0")
+      check picked["bar"] == newVersion("3.0.0")
+      check picked["baz"] == newVersion("1.0.0")
+
+suite "PubGrub keeps the lock file's versions in one solve":
+  test "one solve chooses the upgrade, one more keeps every pin that fits":
+    # SAT tries all the pins at once and, when one is in the way, each pin
+    # on its own: two more solves here. PubGrub prefers them in one.
+    let locked = lockedAt({"foo": "1.0.0", "bar": "1.0.0", "baz": "1.0.0"})
+    let before = solveCount
+    discard keepLocked(skPubGrub, locked, targets = ["foo"])
+    check solveCount - before == 2
