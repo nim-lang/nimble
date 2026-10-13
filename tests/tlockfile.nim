@@ -1422,3 +1422,50 @@ requires "checksums >= 0.1.0"
     # sha1 of no input at all - what hashing the empty listing produced.
     check $nestedChecksum != "da39a3ee5e6b4b0d3255bfef95601890afd80709"
     check nestedChecksum == calculateDirSha1Checksum(standalone)
+
+  test "building with a lock file does not re-download commit-pinned deps":
+    # Packages that had a special version (e.g. a commit) would always get redownloaded
+    # since the cache compared the version (e.g. 0.12.0) against the special version (e.g. #12345abcd)
+    cleanUp()
+    
+    withPkgListFile:
+      initNewNimblePackage(dep1PkgOriginRepoPath, dep1PkgRepoPath)
+      var dep1Rev: string
+      cd dep1PkgOriginRepoPath:
+        dep1Rev = getRepoRevision()
+        
+      cdNewDir mainPkgOriginRepoPath:
+        initRepo()
+        writeFile(mainPkgNimbleFileName, &"""
+version       = "0.1.0"
+author        = "Ivan Bobev"
+description   = "A new awesome nimble package"
+license       = "MIT"
+srcDir        = "src"
+bin           = @["main"]
+requires "nim >= 2.0.0"
+requires "{dep1PkgName}#{dep1Rev}"
+""")
+        createDir("src")
+        writeFile("src" / "main.nim", "echo \"hello\"\n")
+        addFiles(mainPkgNimbleFileName, "src" / "main.nim")
+        commit("Initial commit")
+
+      clone(mainPkgOriginRepoPath, mainPkgRepoPath)
+      
+      cd mainPkgRepoPath:
+        # `nimble lock` writes nimble.lock with dep1 pinned to `#<rev>` and its
+        # setup phase installs dep1 into pkgs2 under its declared version.
+        let (_, lockExitCode) = execNimbleYes("lock")
+        check lockExitCode == QuitSuccess
+        check fileExists(defaultLockFileName)
+        let lockJson = defaultLockFileName.readFile.parseJson
+        check lockJson{$lfjkPackages}{dep1PkgName}{$lfjkVersion}.str ==
+          "#" & dep1Rev
+        check packageDirExists(pkgsDir, dep1PkgName & "-0.1.0-")
+        
+        # A build with the warm cache must reuse the installed dep instead of
+        # re-downloading it.
+        let (output, exitCode) = execNimbleYes("build")
+        check exitCode == QuitSuccess
+        check not output.contains(&"Downloading {dep1PkgOriginRepoPath}")
