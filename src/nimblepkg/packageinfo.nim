@@ -131,6 +131,19 @@ proc validatePackagesList(path: string): bool =
   except ValueError, JsonParsingError:
     return false
 
+# Cache after first call. Keyed by the list's file rather than its name: one
+# process can read the same list from more than one nimble dir.
+var
+  gPackageJson {.threadvar.}: TableRef[string, JsonNode]
+
+proc getGPackageJson(): TableRef[string, JsonNode] =
+  if gPackageJson.isNil:
+    gPackageJson = newTable[string, JsonNode]()
+  return gPackageJson
+
+proc packageListFile(name: string, options: Options): string =
+  options.getNimbleDir() / "packages_" & name.toLowerAscii() & ".json"
+
 proc fetchList*(list: PackageList, options: Options) {.async.} =
   ## Downloads or copies the specified package list and saves it in $nimbleDir.
   let verb = if list.urls.len > 0: "Downloading" else: "Copying"
@@ -225,22 +238,16 @@ proc fetchList*(list: PackageList, options: Options) {.async.} =
       raise nimbleError("Refresh failed\n" & lastError, lastErrorHint)
 
   if copyFromPath.len > 0:
-    copyFile(copyFromPath,
-        options.getNimbleDir() / "packages_$1.json" % list.name.toLowerAscii())
-
-# Cache after first call
-var
-  gPackageJson {.threadvar.}: TableRef[string, JsonNode]
-
-proc getGPackageJson(): TableRef[string, JsonNode] =
-  if gPackageJson.isNil:
-    gPackageJson = newTable[string, JsonNode]()
-  return gPackageJson
+    let listFile = packageListFile(list.name, options)
+    copyFile(copyFromPath, listFile)
+    # Whatever was read from the old file is out of date now.
+    getGPackageJson().del(listFile)
 
 proc readPackageList(name: string, options: Options, ignorePackageCache = false): Future[JsonNode] {.async.} =
   # If packages.json is not present ask the user if they want to download it.
-  if (not ignorePackageCache) and getGPackageJson().hasKey(name):
-    return getGPackageJson()[name]
+  let file = packageListFile(name, options)
+  if (not ignorePackageCache) and getGPackageJson().hasKey(file):
+    return getGPackageJson()[file]
 
   display("Reading", "$1 package list" % name, priority = LowPriority)
 
@@ -252,14 +259,13 @@ proc readPackageList(name: string, options: Options, ignorePackageCache = false)
     else:
       # The user might not need a package list for now. So let's try
       # going further.
-      getGPackageJson()[name] = newJArray()
-      return getGPackageJson()[name]
-  let file = options.getNimbleDir() / "packages_" & name.toLowerAscii() & ".json"
+      getGPackageJson()[file] = newJArray()
+      return getGPackageJson()[file]
   if file.fileExists:
-    getGPackageJson()[name] = parseFile(file)
+    getGPackageJson()[file] = parseFile(file)
   else:
-    getGPackageJson()[name] = newJArray()
-  return getGPackageJson()[name]
+    getGPackageJson()[file] = newJArray()
+  return getGPackageJson()[file]
 
 proc getPackage*(pkg: string, options: Options, resPkg: var Package, ignorePackageCache = false): bool {.gcsafe, raises: [CatchableError].}
 proc resolveAlias(pkg: Package, options: Options): Package =
@@ -751,3 +757,41 @@ when isMainModule:
   test "toValidPackageName":
     check toValidPackageName("foo__bar") == "foo_bar"
     check toValidPackageName("jhbasdh!£$@%#^_&*_()qwe") == "jhbasdh_qwe"
+
+  test "a package list is read from its own nimble dir, and again once refreshed":
+    # Lists stay cached for the whole process, and the test runner shares one
+    # process between every suite. A cached list must stand in neither for
+    # another nimble dir's list nor for the one a refresh just replaced.
+    let dir = getTempDir() / "tpackagelistcache"
+    let source = dir / "packages.json"
+    removeDir(dir)
+    createDir(dir)
+    defer: removeDir(dir)
+    proc writeList(names: varargs[string]) =
+      var list = newJArray()
+      for name in names:
+        list.add %*{"name": name, "url": "https://example.com/" & name,
+                    "method": "git", "tags": [], "description": "",
+                    "license": "MIT"}
+      writeFile(source, $list)
+
+    var options = initOptions()
+    let list = PackageList(name: "test", path: source)
+    options.config.packageLists = {"test": list}.toTable
+    var pkg: Package
+
+    options.nimbleDir = dir / "a"
+    createDir(options.nimbleDir)
+    writeList("first")
+    waitFor fetchList(list, options)
+    check getPackage("first", options, pkg)
+
+    options.nimbleDir = dir / "b"
+    createDir(options.nimbleDir)
+    writeList("second")
+    waitFor fetchList(list, options)
+    check getPackage("second", options, pkg)
+
+    writeList("second", "third")
+    waitFor fetchList(list, options)
+    check getPackage("third", options, pkg)

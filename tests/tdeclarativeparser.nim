@@ -4,7 +4,7 @@ import testscommon
 import std/[options, tables, sequtils, os, strutils, sets]
 import chronos
 import
-  nimblepkg/[packageinfotypes, packageinfo, version, options, config, declarativeparser, versiondiscovery, cli, common]
+  nimblepkg/[packageinfotypes, packageinfo, version, options, config, declarativeparser, versiondiscovery, cli, common, packageparser]
 
 proc getNimbleFileFromPkgNameHelper(pkgName: string, ver = VersionRange(kind: verAny)): string =
   let pv: PkgTuple = (pkgName, ver)
@@ -27,16 +27,18 @@ suite "Declarative parsing":
     removeDir(installDir)
 
   test "should parse requires from a nimble file":
+    # The latest nimlangserver release changes its dependencies over time, so
+    # rather than listing them the test checks the declarative parser finds the
+    # same ones as evaluating the nimble file with NimScript.
     let nimbleFile = getNimbleFileFromPkgNameHelper("nimlangserver")
     var options = initOptions()
     let nimbleFileInfo = extractRequiresInfo(nimbleFile, options)
     var activeFeatures = initTable[PkgTuple, seq[string]]()
     let requires = nimbleFileInfo.getRequires(activeFeatures)
+    let vmRequires = getPkgInfoVm(nimbleFile.parentDir, options, some("nim")).requires
 
-    let expectedPkgs =
-      @["nim", "json_rpc", "with", "chronicles", "serialization", "stew", "regex"]
-    for pkg in expectedPkgs:
-      check pkg in requires.mapIt(it[0])
+    check "nim" in requires.mapIt(it.name)
+    check requires == vmRequires
   
   test "should not split dependency feature lists on commas (#1832)":
     let content = """
