@@ -673,11 +673,17 @@ proc enableFeatures*(rootPackage: var PackageInfo, options: var Options) =
 
 proc getSolvedPkgFromInstalledPkgs*(satResult: SATResult, solvedPkg: SolvedPackage, options: Options, vcsRevision: Sha1Hash = notSetSha1Hash): Option[PackageInfo] =
   for pkg in satResult.pkgList:
-    if pkg.basicInfo.name == solvedPkg.pkgName and pkg.basicInfo.version == solvedPkg.version:
-      # If vcsRevision is specified (from lock file), also check that it matches
-      if vcsRevision != notSetSha1Hash and pkg.metaData.vcsRevision != vcsRevision:
-        continue
-      return some(pkg)
+    if pkg.basicInfo.name == solvedPkg.pkgName:
+      # If the lock entry is a commit, then the version will also be that (instead of whats in the nimble file)
+      # So we need to compare it to the special versions also
+      let versionMatches =
+        pkg.basicInfo.version == solvedPkg.version or
+        solvedPkg.version in pkg.metaData.specialVersions
+      if versionMatches:
+        # If vcsRevision is specified (from lock file), also check that it matches
+        if vcsRevision != notSetSha1Hash and pkg.metaData.vcsRevision != vcsRevision:
+          continue
+        return some(pkg)
   return none(PackageInfo)
 
 proc preferLockedVersions(versions: var Table[string, PackageVersions],
