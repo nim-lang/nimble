@@ -17,15 +17,24 @@ proc resolutionFailureMessage*(options: Options): string =
     result = "Couldnt find a solution for the packages. Unsatisfiable " &
       "dependencies. Check there is no contradictory dependencies."
 
-proc getSolvedPackages*(pkgVersionTable: Table[string, PackageVersions], output: var string, options: Options): seq[SolvedPackage] {.instrument.} =
+when defined(nimbleCountSolves):
+  var solveCount*: int
+    ## How many solves `getSolvedPackages` has run. Tests use it to check that
+    ## a preference is honoured within a solve rather than by solving again.
+
+proc getSolvedPackages*(pkgVersionTable: Table[string, PackageVersions], output: var string, options: Options, preferred = initTable[string, Version]()): seq[SolvedPackage] {.instrument.} =
   ## The solution for `pkgVersionTable` from the solver `--solver` selects:
   ## each chosen package with what it requires and what requires it, or
-  ## nothing, with the reason in `output`.
+  ## nothing, with the reason in `output`. Only PubGrub reads `preferred`,
+  ## the versions to try first; SAT prefers a version by solving again
+  ## (`solvePackagesWithSystemNimFallback`).
+  when defined(nimbleCountSolves):
+    inc solveCount
   var graph = pkgVersionTable.toDepGraph()
   let packages =
     case options.solver
     of skSat: graph.satPackages(pkgVersionTable, output, options)
-    of skPubGrub: pubGrubPackages(pkgVersionTable, output, options)
+    of skPubGrub: pubGrubPackages(pkgVersionTable, output, options, preferred)
   graph.toSolvedPackages(packages)
 
 proc topologicalSort*(solvedPkgs: seq[SolvedPackage]): seq[SolvedPackage] {.instrument.}  =
@@ -253,7 +262,7 @@ proc postProcessSolvedPkgs*(solvedPkgs: var seq[SolvedPackage], options: Options
         break
   solvedPkgs = solvedPkgs.filterIt(it notin toReplace)
 
-proc solveLocalPackages(root: PackageMinimalInfo, pkgList: seq[PackageInfo], options: Options, output: var string, solvedPkgs: var seq[SolvedPackage], nimBin: Option[string]): HashSet[PackageInfo] =
+proc solveLocalPackages(root: PackageMinimalInfo, pkgList: seq[PackageInfo], options: Options, output: var string, solvedPkgs: var seq[SolvedPackage], nimBin: Option[string], preferred: Table[string, Version]): HashSet[PackageInfo] =
   ## Try to solve using only installed packages (no cache, no downloads).
   ## Returns the solved packages if successful, or an empty set if local
   ## packages don't satisfy all constraints. See #1648.
@@ -268,13 +277,13 @@ proc solveLocalPackages(root: PackageMinimalInfo, pkgList: seq[PackageInfo], opt
   let nonRootPkgs = pkgList.filterIt(it.basicInfo.name.toLowerAscii() != rootPkgName)
   localTable.fillPackageTableFromPreferred(nonRootPkgs.mapIt(it.getMinimalInfo(options)))
   var localOutput = ""
-  let localSolved = localTable.getSolvedPackages(localOutput, options)
+  let localSolved = localTable.getSolvedPackages(localOutput, options, preferred)
   if localSolved.len == 0:
     return  # Local solve failed, caller should fall back to full resolution
   localTable.normalizeRequirements(options)
   localTable.normalizeSpecialVersions(options)
   options.satResult.pkgVersionTable = localTable
-  solvedPkgs = localTable.getSolvedPackages(output, options).topologicalSort()
+  solvedPkgs = localTable.getSolvedPackages(output, options, preferred).topologicalSort()
   solvedPkgs.postProcessSolvedPkgs(options, nimBin)
   var pkgs: HashSet[PackageInfo]
   for solvedPkg in solvedPkgs:
@@ -286,9 +295,24 @@ proc solveLocalPackages(root: PackageMinimalInfo, pkgList: seq[PackageInfo], opt
         break
   return pkgs
 
-proc solvePackages*(rootPkg: PackageInfo, pkgList: seq[PackageInfo], pkgsToInstall: var seq[(string, Version)], options: Options, output: var string, solvedPkgs: var seq[SolvedPackage], nimBin: Option[string]): HashSet[PackageInfo] {.instrument.} =
+proc honors(solvedPkgs: seq[SolvedPackage], preferred: Table[string, Version]): bool =
+  ## Whether every preferred package in the solution got its preferred version.
+  for pkg in solvedPkgs:
+    for name, version in preferred:
+      if cmpIgnoreCase(pkg.pkgName, name) == 0 and pkg.version != version:
+        return false
+  true
+
+proc solvePackages*(rootPkg: PackageInfo, pkgList: seq[PackageInfo], pkgsToInstall: var seq[(string, Version)], options: Options, output: var string, solvedPkgs: var seq[SolvedPackage], nimBin: Option[string], preferred = initTable[string, Version]()): HashSet[PackageInfo] {.instrument.} =
+  ## `preferred` (PubGrub only, see `getSolvedPackages`) also outranks the
+  ## installed packages: a local solution without the preferred versions is
+  ## kept only until discovery shows no solution has them either.
   var root: PackageMinimalInfo = rootPkg.getMinimalInfo(options)
   root.isRoot = true
+  # A local solution missing a preferred version, held back in case
+  # discovery finds one that has it.
+  var local = none(tuple[pkgs: HashSet[PackageInfo], solvedPkgs: seq[SolvedPackage],
+                         table: Table[string, PackageVersions], output: string])
 
   # Try local solve first: if installed packages satisfy all constraints, use
   # them without fetching newer versions. `lock` has to agree with `install`
@@ -298,15 +322,25 @@ proc solvePackages*(rootPkg: PackageInfo, pkgList: seq[PackageInfo], pkgsToInsta
   if pkgList.len > 0 and not options.isUpgrade and
      not options.forceFetch and
      options.resolutionAlgorithm != raMinVer:
-    let localResult = solveLocalPackages(root, pkgList, options, output, solvedPkgs, nimBin)
+    let localResult = solveLocalPackages(root, pkgList, options, output, solvedPkgs, nimBin, preferred)
     if localResult.len > 0 or solvedPkgs.len > 0:
-      return localResult
+      if solvedPkgs.honors(preferred):
+        return localResult
+      local = some (pkgs: localResult, solvedPkgs: solvedPkgs,
+                    table: options.satResult.pkgVersionTable, output: output)
+
+  template answerLocally() =
+    solvedPkgs = local.get.solvedPkgs
+    options.satResult.pkgVersionTable = local.get.table
+    output = local.get.output
+    return local.get.pkgs
 
   #`nimble dump` is a read-only command and must never trigger
   # network discovery. When the local solve fails, just return — callers
   # (getNimDir) interpret the empty result as "no nim resolved" and emit an
   # empty nimDir, letting the langserver prompt the user to install.
   if options.action.typ == actionDump:
+    if local.isSome: answerLocally()
     return
 
   var pkgVersionTable: Table[system.string, packageinfotypes.PackageVersions]
@@ -326,8 +360,10 @@ proc solvePackages*(rootPkg: PackageInfo, pkgList: seq[PackageInfo], pkgsToInsta
   pkgVersionTable.normalizeSpecialVersions(options)
 
   options.satResult.pkgVersionTable = pkgVersionTable
-  solvedPkgs = pkgVersionTable.getSolvedPackages(output, options).topologicalSort()
+  solvedPkgs = pkgVersionTable.getSolvedPackages(output, options, preferred).topologicalSort()
   solvedPkgs.postProcessSolvedPkgs(options, nimBin)
+  if local.isSome and (solvedPkgs.len == 0 or not solvedPkgs.honors(preferred)):
+    answerLocally()
   
   let systemNimCompatible = solvedPkgs.isSystemNimCompatible(options, getNimVersionFromBin(nimBin.getNimBin))
   # echo "DEBUG: SolvedPkgs after post processing: ", solvedPkgs.mapIt(it.pkgName & " " & $it.version).join(", ")
@@ -686,12 +722,14 @@ proc getSolvedPkgFromInstalledPkgs*(satResult: SATResult, solvedPkg: SolvedPacka
         return some(pkg)
   return none(PackageInfo)
 
-proc preferLockedVersions(versions: var Table[string, PackageVersions],
+proc preferLockedVersions*(versions: var Table[string, PackageVersions],
     locked: LockFileDeps, targets: HashSet[string], options: Options,
     output: var string): seq[SolvedPackage] =
   ## Select the requested upgrades first, then retain every compatible pin.
   ## Pins restrict a package's candidates, rather than adding root requirements:
   ## dependencies removed by an upgrade must still be able to leave the graph.
+  ## Under SAT, keeping them takes a solve with all of them and, if one is in
+  ## the way, a solve per pin; PubGrub prefers them within a single solve.
   result = versions.getSolvedPackages(output, options)
   if result.len == 0:
     raise resolutionFailureError(
@@ -714,6 +752,24 @@ proc preferLockedVersions(versions: var Table[string, PackageVersions],
       let candidates = pv.versions.filterIt(it.version == pinned)
       if candidates.len > 0:
         pins[key] = PackageVersions(pkgName: pv.pkgName, versions: candidates)
+
+  if options.solver == skPubGrub:
+    # PubGrub takes the pins as preferences, so one solve keeps every pin a
+    # complete solution allows. The table then reads as SAT leaves it: each
+    # retained pin narrowed to its version.
+    var lockedVersions = initTable[string, Version]()
+    for key, pin in pins:
+      lockedVersions[key] = pin.versions[0].version
+    var pinnedOutput = ""
+    let solution = versions.getSolvedPackages(pinnedOutput, options, lockedVersions)
+    if solution.len > 0:
+      for key, pin in pins:
+        if solution.anyIt(cmpIgnoreCase(it.pkgName, pin.pkgName) == 0 and
+                          it.version == pin.versions[0].version):
+          versions[key] = pin
+      output = pinnedOutput
+      result = solution
+    return
 
   # The common case needs only one more solve: all other pins still work.
   var allPinned = versions
