@@ -2467,7 +2467,8 @@ proc runLocalProjectAction(options: var Options, nimBin: var Option[string]): Pa
   options.isFilePathDiscovering = true
   #we need to skip validation for root
   withNimBinFallback(nimBin, options):
-    result = getPkgInfo(getCurrentDir(), options, nimBin = nimBin, level = pikRequires)
+    result = getPkgInfo(getCurrentDir(), options, nimBin = nimBin, level = pikRequires,
+                        readTaskRequires = true)
   options.isFilePathDiscovering = false
   if options.action.typ in {actionInstall, actionAdd}:
     result.requires.add(options.action.packages)

@@ -481,6 +481,67 @@ skip_dirs "tests"
 """
     check contentHasStateModifyingOps(content) == false
 
+  test "taskRequires in any spelling sends the root package to the VM parser (#1889)":
+    # Nim reads `taskrequires` and `task_requires` as `taskRequires`. Only the
+    # VM parser reads task requirements, so the root package has to go there
+    # for every spelling; otherwise the task's dependencies are silently
+    # dropped. A dependency's task requirements are never used, so it doesn't.
+    var options = initOptions()
+    for spelling in ["taskRequires", "taskrequires", "task_requires"]:
+      let content = """
+version = "0.1.0"
+requires "nim >= 1.6.0"
+$1 "clitest", "cligen"
+""" % spelling
+      checkpoint spelling
+      let nimbleFileInfo = extractRequiresInfoFromContent(content, options)
+      check nfiTaskRequires in nimbleFileInfo.issues
+      check nimbleFileInfo.requiresVmFallback(readTaskRequires = true)
+      check not nimbleFileInfo.requiresVmFallback()
+      check isParsableByDeclarative(content, options)
+
+  test "a dependency with taskRequires is read without the VM parser (#1889)":
+    let testDir = "test_dep_task_requires"
+    removeDir(testDir)
+    createDir(testDir)
+    defer: removeDir(testDir)
+    writeFile(testDir / "deptask.nimble", """
+version = "0.1.0"
+author = "test"
+description = "dependency with task requirements"
+license = "MIT"
+
+requires "stew"
+taskRequires "test", "unittest2"
+""")
+    var options = initOptions()
+    # No Nim binary, so going to the VM would raise.
+    let pkgInfo = getPkgInfo(testDir, options, nimBin = none(string), level = pikRequires)
+    check pkgInfo.requires.mapIt(it.name) == @["stew"]
+    expect NeedsNimBinError:
+      discard getPkgInfo(testDir, options, nimBin = none(string), level = pikRequires,
+                         readTaskRequires = true)
+
+  test "a call spelled another way Nim allows falls back to the VM parser (#1889)":
+    # The declarative parser only reads the exact spelling. Any other spelling
+    # is left to the VM rather than silently dropped.
+    var options = initOptions()
+    for content in ["""
+version = "0.1.0"
+re_quires "nim >= 1.6.0"
+""", """
+version = "0.1.0"
+foreigndep "openssl"
+""", """
+version = "0.1.0"
+feature "ssl":
+  requireS "bearssl"
+"""]:
+      checkpoint content
+      let nimbleFileInfo = extractRequiresInfoFromContent(content, options)
+      check nfiNestedRequires in nimbleFileInfo.issues
+      check not isParsableByDeclarative(content, options)
+
   test "should build a package that uses snake_case src_dir (#1779)":
     cd "buildInstall/snakecasefields":
       let (_, exitCode) = execNimbleYes("build")

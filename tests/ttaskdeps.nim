@@ -35,6 +35,36 @@ suite "Task level dependencies":
       check exitCode == QuitSuccess
       check packageDirExists(pkgsDir, "benchy-0.0.1")
 
+  test "Dependency is used when taskRequires is spelled taskrequires (#1889)":
+    # Nim reads `taskrequires` as `taskRequires`, so nimble has to as well.
+    let dir = getTempDir() / "taskdeps-lowercase"
+    removeDir dir
+    createDir dir
+    defer: removeDir dir
+    writeFile(dir / "lowercase.nimble", """
+version       = "0.1.0"
+author        = "John Doe"
+description   = "taskRequires written in lowercase"
+license       = "MIT"
+
+requires "nim >= 0.19.0"
+
+taskrequires "benchmark", "benchy == 0.0.1"
+
+task benchmark, "Runs benchmarks":
+  setCommand("c", "benchmark")
+""")
+    writeFile(dir / "benchmark.nim", """
+import benchy
+
+timeIt "test":
+  discard
+""")
+    cd dir:
+      let (_, exitCode) = execNimbleYes("benchmark")
+      check exitCode == QuitSuccess
+      check packageDirExists(pkgsDir, "benchy-0.0.1")
+
 
   test "Dependency is not used when not running task":
     inDir:
