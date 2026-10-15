@@ -49,11 +49,13 @@ jobs:
             name: windows_x64
             nimCpu: amd64
             cc: x86_64-w64-mingw32-gcc
+            windres: x86_64-w64-mingw32-windres
           - os: windows
             triple: i686-w64-mingw32
             name: windows_x32
             nimCpu: i386
             cc: i686-w64-mingw32-gcc
+            windres: i686-w64-mingw32-windres
         include:
           - target:
               os: linux
@@ -135,6 +137,7 @@ jobs:
           TARGET_OS: ${{ matrix.target.os }}
           CC_BIN: ${{ matrix.target.cc }}
           NIM_CPU: ${{ matrix.target.nimCpu }}
+          WINDRES: ${{ matrix.target.windres }}
         run: |
           set -eu
           if [[ "$TRIPLE" == "x86_64-apple-darwin14" ]]; then
@@ -163,11 +166,12 @@ jobs:
             lipo -create src/nimble_x64 src/nimble_arm64 -output src/nimble;
           else
             # Windows, via llvm-mingw.
+            "$WINDRES" src/nimble.rc -O coff -o "$RUNNER_TEMP/nimble_res.o"
             nim c -d:release \
             --os:windows --cpu:"$NIM_CPU" \
             --gcc.exe:"$CC_BIN" --gcc.linkerexe:"$CC_BIN" \
             --"$NIM_CPU".windows.gcc.exe:"$CC_BIN" --"$NIM_CPU".windows.gcc.linkerexe:"$CC_BIN" \
-            --passL:"-static" \
+            --passL:"-static" --passL:"$RUNNER_TEMP/nimble_res.o" \
             src/nimble.nim;
           fi
 
@@ -181,6 +185,7 @@ jobs:
           set -eu
           if [[ "$TARGET_OS" == "windows" ]]; then
             file src/nimble.exe
+            llvm-readobj --coff-resources src/nimble.exe | grep -q 'MANIFEST'
           else
             file src/nimble
             if [[ "$TARGET_OS" == "linux" ]]; then
