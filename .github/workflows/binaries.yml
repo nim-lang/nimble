@@ -15,33 +15,24 @@ jobs:
       fail-fast: false
       matrix:
         target:
-          # Linux: built natively inside a per-arch musl (Alpine) container run
-          # under QEMU emulation. No cross toolchain download -- the binary is a
-          # real, correct-arch, static musl build. `image` is the container base
-          # (official from-source Nim image where available, so $nim/compiler/*
-          # resolves), `platform` is the docker --platform, `needsNim` means the
-          # base image has no Nim so we apk-add it.
+          # Linux: build with Nim 2.2.12 in a native per-arch container under
+          # QEMU. musl-gcc produces the same static musl release binaries.
           - os: linux
             triple: x86_64-linux-musl
             name: linux_x64
             platform: linux/amd64
-            image: nimlang/nim:2.2.4-alpine
           - os: linux
             triple: i686-linux-musl
             name: linux_x32
             platform: linux/386
-            image: i386/alpine:3.22  # apk nim 2.2.0; 3.20 ships 2.0.4, which chronos >= c662a40 does not compile on
-            needsNim: "1"
           - os: linux
             triple: aarch64-linux-musl
             name: linux_aarch64
             platform: linux/arm64
-            image: nimlang/nim:2.2.4-alpine
           - os: linux
             triple: armv7l-linux-musleabihf
             name: linux_armv7l
             platform: linux/arm/v7
-            image: nimlang/nim:2.2.4-alpine
           # macOS: native/cross via clang -target, universal via lipo
           - os: macosx
             triple: x86_64-apple-darwin14
@@ -91,16 +82,12 @@ jobs:
       - uses: jiro4989/setup-nim-action@v2
         if: matrix.target.os != 'linux'
         with:
-          nim-version: "stable"
+          nim-version: "2.2.12"
           yes: true
 
       - name: Install dependencies
         if: matrix.target.os != 'linux'
         run: nimble install -y
-
-      - name: Install zip
-        if: matrix.target.os == 'windows'
-        run: choco install zip
 
       # A single llvm-mingw toolchain can target every Windows arch (i686,
       # x86_64, armv7, arm64) and runs natively on the Windows runner, so it
@@ -124,28 +111,21 @@ jobs:
         if: matrix.target.os == 'linux'
         uses: docker/setup-qemu-action@v3
 
-      - name: build nimble (Linux, musl via Alpine container)
+      - name: build nimble (Linux, static musl)
         if: matrix.target.os == 'linux'
         env:
           PLATFORM: ${{ matrix.target.platform }}
-          IMAGE: ${{ matrix.target.image }}
-          NEEDS_NIM: ${{ matrix.target.needsNim }}
         run: |
           set -eu
           docker run --rm --platform "$PLATFORM" \
-            -e NEEDS_NIM \
-            -v "$PWD":/ws -w /ws "$IMAGE" \
+            -v "$PWD":/ws -w /ws nim:2.2.12 \
             sh -euc '
-              if [ "${NEEDS_NIM:-}" = "1" ]; then
-                apk add --no-cache nim gcc musl-dev
-                # apk ships Nim compiler sources as a nimble pkg outside $nim
-                # (/usr/lib/nim); symlink them in so `import compiler/...` resolves.
-                compsrc=$(find /usr/share/nimble/pkgs -type f -name nimblecmd.nim -path "*/compiler/*" 2>/dev/null | head -1)
-                [ -n "$compsrc" ] && ln -sfn "$(dirname "$compsrc")" /usr/lib/nim/compiler
-              fi
-              # config.nims wires all vendor/ deps, so no "nimble install" is
-              # needed. Statically linked -> a portable musl binary.
-              nim c -d:release --passL:"-static" -o:src/nimble src/nimble.nim
+              apt-get update
+              DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends musl-tools
+              nim --version
+              # config.nims wires all vendor/ deps, so no "nimble install" is needed.
+              nim c -d:release --gcc.exe:musl-gcc --gcc.linkerexe:musl-gcc \
+                --passL:"-static" -o:src/nimble src/nimble.nim
             '
 
       - name: build nimble
@@ -203,6 +183,9 @@ jobs:
             file src/nimble.exe
           else
             file src/nimble
+            if [[ "$TARGET_OS" == "linux" ]]; then
+              file src/nimble | grep -q 'statically linked'
+            fi
           fi
 
       - name: Compress binaries
@@ -212,12 +195,17 @@ jobs:
         run: |
           cd src
           if [[ "$TARGET_OS" == "windows" ]]; then
-            # Create both formats for Windows
             tar -c -z -v -f "../nimble-${ASSET}.tar.gz" nimble.exe
-            zip "../nimble-${ASSET}.zip" nimble.exe
           else
             tar -c -z -v -f "../nimble-${ASSET}.tar.gz" nimble
           fi
+
+      - name: Compress Windows zip
+        if: matrix.target.os == 'windows'
+        shell: pwsh
+        env:
+          ASSET: ${{ matrix.target.name }}
+        run: Compress-Archive -LiteralPath src/nimble.exe -DestinationPath "nimble-$env:ASSET.zip" -Force
 
       - name: Upload tar.gz artifact
         uses: actions/upload-artifact@v7
