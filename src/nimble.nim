@@ -44,19 +44,22 @@ template withNimBinFallback*(nimBin: var Option[string], options: Options, body:
   ## Catch NeedsNimBinError, resolve bootstrap nim lazily, and retry.
   ## Use around any call that may trigger VM-parser fallback with nimBin=none.
   ##
-  ## The retry runs AFTER the `except` handler has unwound, not inside it:
-  ## re-running heavy async code (its own `waitFor`/try-except) while an
-  ## exception is still being handled corrupts Nim's current-exception stack on
-  ## Nim <= 2.0, so a later `popCurrentException` dereferences nil → SIGSEGV
-  ## (only surfaces on older Nim; 2.4/devel handle it). See #1669 regression.
+  ## Installing the bootstrap nim and the retry both run AFTER the `except`
+  ## handler has unwound, not inside it: heavy async code (its own
+  ## `waitFor`/try-except) run while an exception is still being handled
+  ## corrupts Nim's current-exception stack on older compilers, including
+  ## Nim 2.2.4 and 2.2.6, so a later
+  ## `popCurrentException` dereferences nil → SIGSEGV. See #1669 regression; the
+  ## Linux release binaries, built with 2.2.4, crashed this way after
+  ## downloading nim.
   var needsNimBinRetry = false
   try:
     body
   except NeedsNimBinError:
-    if nimBin.isNone:
-      nimBin = some(ensureBootstrapNim(options))
     needsNimBinRetry = true
   if needsNimBinRetry:
+    if nimBin.isNone:
+      nimBin = some(ensureBootstrapNim(options))
     body
 
 proc initPkgList(pkgInfo: PackageInfo, options: Options, nimBin: Option[string]): seq[PackageInfo] =
@@ -2691,10 +2694,17 @@ proc doAction(options: var Options, nimBinParam: Option[string]) {.instrument.} 
       nimbleFile = findNimbleFile(getCurrentDir(), true, options)
       pkgInfo = getPkgInfoFromFile(nimBin, nimbleFile, optsCopy)
 
+    # This solve (`--requires`, the task's taskRequires) can differ from the
+    # one an earlier `nimble setup` wrote to nimble.paths, and Nim takes the
+    # paths config.nims includes from there over the `--path`s on its command
+    # line. So keep an existing nimble.paths in step; don't create one (#1617).
+    if fileExists(nimblePathsFileName):
+      updatePathsFile(pkgInfo, optsCopy, nimBin)
+
     if optsCopy.task in pkgInfo.nimbleTasks:
-      # Make sure we have dependencies for the task.
-      # We do that here to make sure that any binaries from dependencies
-      # are installed
+      # run() already solved and installed the task's dependencies, its
+      # taskRequires included; tell the task where they are.
+      setTaskPathsEnv(optsCopy, nimBin)
       # If valid task defined in nimscript, run it
       var execResult: ExecutionResult[bool]
       if execCustom(nimBin, nimbleFile, optsCopy, execResult):

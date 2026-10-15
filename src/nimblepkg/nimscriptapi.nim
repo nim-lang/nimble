@@ -268,7 +268,10 @@ proc thisDir*(): string = getPkgDir()
 
 proc getPaths*(): seq[string] =
   ## Returns the paths to the dependencies
-  return getEnv(nimblePathsEnv).split("|")
+  # Unset (e.g. in a hook), there are none: `"".split` would give one empty
+  # path, and `getPathsClause()` a bare `--path:` that eats the next argument.
+  let paths = getEnv(nimblePathsEnv)
+  if paths.len > 0: paths.split("|") else: @[]
 
 proc getPathsClause*(): string =
   ## Returns the paths to the dependencies as consumed by the nim compiler.

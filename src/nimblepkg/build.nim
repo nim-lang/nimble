@@ -65,6 +65,16 @@ proc getPathsAllPkgs*(options: Options, nimBin: Option[string]): HashSet[string]
     for path in pkg.expandPaths(nimBin, options):
       result.incl(path)
 
+proc setTaskPathsEnv*(options: Options, nimBin: Option[string]) =
+  ## Hands the solved packages' paths, the task's `taskRequires` included, to
+  ## `getPaths()`/`getPathsClause()` in the task's NimScript, which reads them
+  ## from `__NIMBLE_PATHS` (see nimscriptapi.nim). Quoted, as tasks splice
+  ## `getPathsClause()` into the commands they `exec`.
+  var paths: seq[string]
+  for path in options.getPathsAllPkgs(nimBin):
+    paths.add path.quoteShell
+  putEnv("__NIMBLE_PATHS", paths.join("|"))
+
 proc buildFromDir*(pkgInfo: PackageInfo, paths: HashSet[string],
                    args: seq[string], options: Options, nimBin: Option[string]) =
   ## Builds a package as specified by ``pkgInfo``.

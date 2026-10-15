@@ -5,6 +5,7 @@ import testscommon
 
 # suits imports
 import ttaskdeps
+import tgetpaths
 import tnimbinaries
 import taddcommand
 import tinitcommand
