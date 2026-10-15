@@ -89,10 +89,6 @@ jobs:
         if: matrix.target.os != 'linux'
         run: nimble install -y
 
-      - name: Install zip
-        if: matrix.target.os == 'windows'
-        run: choco install zip
-
       # A single llvm-mingw toolchain can target every Windows arch (i686,
       # x86_64, armv7, arm64) and runs natively on the Windows runner, so it
       # fixes windows_x32 (previously built as 64-bit).
@@ -199,12 +195,17 @@ jobs:
         run: |
           cd src
           if [[ "$TARGET_OS" == "windows" ]]; then
-            # Create both formats for Windows
             tar -c -z -v -f "../nimble-${ASSET}.tar.gz" nimble.exe
-            zip "../nimble-${ASSET}.zip" nimble.exe
           else
             tar -c -z -v -f "../nimble-${ASSET}.tar.gz" nimble
           fi
+
+      - name: Compress Windows zip
+        if: matrix.target.os == 'windows'
+        shell: pwsh
+        env:
+          ASSET: ${{ matrix.target.name }}
+        run: Compress-Archive -LiteralPath src/nimble.exe -DestinationPath "nimble-$env:ASSET.zip" -Force
 
       - name: Upload tar.gz artifact
         uses: actions/upload-artifact@v7
