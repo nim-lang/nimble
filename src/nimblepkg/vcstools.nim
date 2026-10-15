@@ -414,7 +414,7 @@ proc isVcsRevisionPresentOnSomeRemote*(
       for remotePushUrl in path.getRemotesPushUrls:
         let
           remotePushUrl = remotePushUrl.quoteShell
-          (_, fetchCmdExitCode) = doCmdEx(&"{git(path)} fetch {remotePushUrl}")
+          (_, fetchCmdExitCode) = doCmdEx(&"{git(path)} fetch -- {remotePushUrl}")
         if fetchCmdExitCode == QuitFailure:
           continue
         if checkContains(): return true
@@ -427,7 +427,7 @@ proc isVcsRevisionPresentOnSomeRemote*(
       let
         remotePushUrl = remotePushUrl.quoteShell
         (_, exitCode) = doCmdEx(
-          &"{hg(path)} pull {remotePushUrl} -r {vcsRevision} -q")
+          &"{hg(path)} pull -r {vcsRevision} -q -- {remotePushUrl}")
       if exitCode == QuitSuccess:
         return true
   else:

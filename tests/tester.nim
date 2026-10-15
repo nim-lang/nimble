@@ -42,6 +42,7 @@ import tforgeparser
 import tfilepathrequires
 import tglobalinstall
 import tasynctools
+import tvcsarguments
 import tbuildinstall
 import tpublish
 

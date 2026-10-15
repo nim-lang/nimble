@@ -63,10 +63,19 @@ proc doCmdExAsync*(cmd: string): Future[ProcessOutput] {.async.} =
   result = (res.stdOutput, res.status)
   displayDebug("Output", result.output)
 
+proc isOptionLike*(arg: string): bool =
+  ## True if git or hg would read `arg` as an option where a ref goes. Refs and
+  ## tags come from package authors, and options can run a command (hg's
+  ## `--config=hooks.…`) or write a file (`git show --output=…`), so such a ref
+  ## must never be passed. URLs are passed after `--` instead.
+  arg.startsWith("-")
+
 proc gitShowFile*(repoDir: string, commitish: string, filePath: string): string =
   ## Reads file content directly from git object database without checkout (sync version).
   ## commitish can be: tag name, commit hash, branch name
   ## Example: gitShowFile("/path/to/repo", "v1.0.5", "mypackage.nimble")
+  if commitish.isOptionLike:
+    raise nimbleError(&"Could not read {filePath} from {commitish}: not a ref")
   let cmd = &"git -C {repoDir.quoteShell} show {commitish.quoteShell}:{filePath.quoteShell}"
   let (output, exitCode) = doCmdEx(cmd)
   if exitCode == 0:
@@ -78,6 +87,8 @@ proc gitShowFileAsync*(repoDir: string, commitish: string, filePath: string): Fu
   ## Reads file content directly from git object database without checkout.
   ## commitish can be: tag name, commit hash, branch name
   ## Example: await gitShowFileAsync("/path/to/repo", "v1.0.5", "mypackage.nimble")
+  if commitish.isOptionLike:
+    raise nimbleError(&"Could not read {filePath} from {commitish}: not a ref")
   let cmd = &"git -C {repoDir.quoteShell} show {commitish.quoteShell}:{filePath.quoteShell}"
   let (output, exitCode) = await doCmdExAsync(cmd)
   if exitCode == 0:
@@ -89,6 +100,8 @@ proc gitListNimbleFilesInCommit*(repoDir: string, commitish: string): seq[string
   ## Lists .nimble files in a specific commit without checkout (sync version).
   ## Uses git ls-tree to list files directly from git object database.
   ## Example: gitListNimbleFilesInCommit("/path/to/repo", "v1.0.5")
+  if commitish.isOptionLike:
+    raise nimbleError(&"Could not list files in {commitish}: not a ref")
   let cmd = &"git -C {repoDir.quoteShell} ls-tree --name-only -r {commitish.quoteShell}"
   let (output, exitCode) = doCmdEx(cmd)
   if exitCode != 0:
@@ -104,6 +117,8 @@ proc gitListNimbleFilesInCommitAsync*(repoDir: string, commitish: string): Futur
   ## Lists .nimble files in a specific commit without checkout.
   ## Uses git ls-tree to list files directly from git object database.
   ## Example: await gitListNimbleFilesInCommitAsync("/path/to/repo", "v1.0.5")
+  if commitish.isOptionLike:
+    raise nimbleError(&"Could not list files in {commitish}: not a ref")
   let cmd = &"git -C {repoDir.quoteShell} ls-tree --name-only -r {commitish.quoteShell}"
   let (output, exitCode) = await doCmdExAsync(cmd)
   if exitCode != 0:

@@ -49,6 +49,8 @@ proc updateSubmodulesAsync(dir: string): Future[void] {.async.} =
 
 proc doCheckout*(meth: DownloadMethod, downloadDir, branch: string, options: Options): bool =
   ## Performs checkout and returns true if successful, false otherwise.
+  if branch.isOptionLike:
+    return false
   case meth
   of DownloadMethod.git:
     # Force is used here because local changes may appear straight after a clone
@@ -73,6 +75,8 @@ proc doCheckout*(meth: DownloadMethod, downloadDir, branch: string, options: Opt
 proc doCheckoutAsync*(meth: DownloadMethod, downloadDir, branch: string, options: Options): Future[bool] {.async.} =
   ## Async version of doCheckout that uses doCmdExAsync for non-blocking execution.
   ## Returns true if successful, false otherwise.
+  if branch.isOptionLike:
+    return false
   case meth
   of DownloadMethod.git:
     # Force is used here because local changes may appear straight after a clone
@@ -104,14 +108,14 @@ proc doClone(meth: DownloadMethod, url, downloadDir: string, branch = "",
       branchArg = if branch == "": "" else: &"-b {branch.quoteShell}"
     discard tryDoCmdEx(
        "git clone --config core.autocrlf=false --config core.eol=lf " &
-      &"{submoduleFlag} {depthArg} {branchArg} {url.quoteShell} {downloadDir.quoteShell}")
+      &"{submoduleFlag} {depthArg} {branchArg} -- {url.quoteShell} {downloadDir.quoteShell}")
     if not options.ignoreSubmodules:
       downloadDir.updateSubmodules
   of DownloadMethod.hg:
     let
       tipArg = if onlyTip: "-r tip " else: ""
       branchArg = if branch == "": "" else: &"-b {branch.quoteShell}"
-    discard tryDoCmdEx(&"hg clone {tipArg} {branchArg} {url.quoteShell} {downloadDir.quoteShell}")
+    discard tryDoCmdEx(&"hg clone {tipArg} {branchArg} -- {url.quoteShell} {downloadDir.quoteShell}")
 
 proc doCloneAsync*(meth: DownloadMethod, url, downloadDir: string, branch = "",
                    onlyTip = true, options: Options): Future[void] {.async.} =
@@ -124,14 +128,14 @@ proc doCloneAsync*(meth: DownloadMethod, url, downloadDir: string, branch = "",
       branchArg = if branch == "": "" else: &"-b {branch.quoteShell}"
     discard await tryDoCmdExAsync(
        "git clone --config core.autocrlf=false --config core.eol=lf " &
-      &"{submoduleFlag} {depthArg} {branchArg} {url.quoteShell} {downloadDir.quoteShell}")
+      &"{submoduleFlag} {depthArg} {branchArg} -- {url.quoteShell} {downloadDir.quoteShell}")
     if not options.ignoreSubmodules:
       await downloadDir.updateSubmodulesAsync()
   of DownloadMethod.hg:
     let
       tipArg = if onlyTip: "-r tip " else: ""
       branchArg = if branch == "": "" else: &"-b {branch.quoteShell}"
-    discard await tryDoCmdExAsync(&"hg clone {tipArg} {branchArg} {url.quoteShell} {downloadDir.quoteShell}")
+    discard await tryDoCmdExAsync(&"hg clone {tipArg} {branchArg} -- {url.quoteShell} {downloadDir.quoteShell}")
 
 proc gitFetchTags*(repoDir: string, downloadMethod: DownloadMethod, options: Options) =
   case downloadMethod:
@@ -214,7 +218,7 @@ proc getTagsListRemote*(url: string, meth: DownloadMethod): seq[string] =
   result = @[]
   case meth
   of DownloadMethod.git:
-    var (output, exitCode) = doCmdEx(&"git ls-remote --tags {url}")
+    var (output, exitCode) = doCmdEx(&"git ls-remote --tags -- {url.quoteShell}")
     if exitCode != QuitSuccess:
       raise nimbleError("Unable to query remote tags for " & url &
                         " . Git returned: " & output)
@@ -235,7 +239,7 @@ proc getTagsListRemoteAsync*(url: string, meth: DownloadMethod): Future[seq[stri
   result = @[]
   case meth
   of DownloadMethod.git:
-    var (output, exitCode) = await doCmdExAsync(&"git ls-remote --tags {url}")
+    var (output, exitCode) = await doCmdExAsync(&"git ls-remote --tags -- {url.quoteShell}")
     if exitCode != QuitSuccess:
       raise nimbleError("Unable to query remote tags for " & url &
                         " . Git returned: " & output)
@@ -258,7 +262,10 @@ proc isReleaseVersionTag*(tag: string): bool =
   ## `v` prefix — a bare `2024` is rejected, since releases should be namespaced
   ## with `v` and there are no known bare single-segment versions to support.
   ## Junk tags (`nightly`, `delete`, `201903-testnet0`, `altona_v1`,
-  ## `altair-beta`) are rejected so they don't pollute version discovery.
+  ## `altair-beta`) are rejected so they don't pollute version discovery. So is
+  ## a tag git would read as an option (`--output=/x/1.0`).
+  if tag.isOptionLike:
+    return false
   let i = skipUntil(tag, Digits)   # skip an optional non-digit prefix (e.g. `v`)
   if i >= tag.len:
     return false
@@ -297,9 +304,9 @@ proc checkUrlType*(url: string, options: Options): DownloadMethod =
   ## Determines the download method based on the URL.
   if options.offline:
     raise nimbleError("Cannot check URL type in offline mode: " & url)
-  if doCmdEx("git ls-remote " & url.quoteShell()).exitCode == QuitSuccess:
+  if doCmdEx("git ls-remote -- " & url.quoteShell()).exitCode == QuitSuccess:
     return DownloadMethod.git
-  elif doCmdEx("hg identify " & url.quoteShell()).exitCode == QuitSuccess:
+  elif doCmdEx("hg identify -- " & url.quoteShell()).exitCode == QuitSuccess:
     return DownloadMethod.hg
   else:
     raise nimbleError("Unable to identify url: " & url)
@@ -325,14 +332,14 @@ proc cloneSpecificRevision(downloadMethod: DownloadMethod,
     createDir(downloadDir)
     discard tryDoCmdEx(&"git -C {downloadDir.quoteShell} init")
     discard tryDoCmdEx(&"git -C {downloadDir.quoteShell} config core.autocrlf false")
-    discard tryDoCmdEx(&"git -C {downloadDir.quoteShell} remote add origin {url.quoteShell}")
+    discard tryDoCmdEx(&"git -C {downloadDir.quoteShell} remote add origin -- {url.quoteShell}")
     discard tryDoCmdEx(
       &"git -C {downloadDir.quoteShell} fetch --depth 1 origin {($vcsRevision).quoteShell}")
     discard tryDoCmdEx(&"git -C {downloadDir.quoteShell} reset --hard FETCH_HEAD")
     if not options.ignoreSubmodules:
       downloadDir.updateSubmodules
   of DownloadMethod.hg:
-    discard tryDoCmdEx(&"hg clone -r {($vcsRevision).quoteShell} {url.quoteShell} {downloadDir.quoteShell}")
+    discard tryDoCmdEx(&"hg clone -r {($vcsRevision).quoteShell} -- {url.quoteShell} {downloadDir.quoteShell}")
 
 proc cloneSpecificRevisionAsync*(downloadMethod: DownloadMethod,
                                   url, downloadDir: string,
@@ -346,14 +353,14 @@ proc cloneSpecificRevisionAsync*(downloadMethod: DownloadMethod,
     createDir(downloadDir)
     discard await tryDoCmdExAsync(&"git -C {downloadDir.quoteShell} init")
     discard await tryDoCmdExAsync(&"git -C {downloadDir.quoteShell} config core.autocrlf false")
-    discard await tryDoCmdExAsync(&"git -C {downloadDir.quoteShell} remote add origin {url.quoteShell}")
+    discard await tryDoCmdExAsync(&"git -C {downloadDir.quoteShell} remote add origin -- {url.quoteShell}")
     discard await tryDoCmdExAsync(
       &"git -C {downloadDir.quoteShell} fetch --depth 1 origin {($vcsRevision).quoteShell}")
     discard await tryDoCmdExAsync(&"git -C {downloadDir.quoteShell} reset --hard FETCH_HEAD")
     if not options.ignoreSubmodules:
       await downloadDir.updateSubmodulesAsync()
   of DownloadMethod.hg:
-    discard await tryDoCmdExAsync(&"hg clone -r {($vcsRevision).quoteShell} {url.quoteShell} {downloadDir.quoteShell}")
+    discard await tryDoCmdExAsync(&"hg clone -r {($vcsRevision).quoteShell} -- {url.quoteShell} {downloadDir.quoteShell}")
 
 var tarExePathCache {.threadvar.}: string
 
@@ -526,7 +533,7 @@ proc parseRevision(lsRemoteOutput: string): Sha1Hash =
 proc getRevision*(url, version: string): Sha1Hash =
   ## Returns the commit hash corresponding to the given `version` of the package
   ## in repository at `url`.
-  let output = tryDoCmdEx(&"git ls-remote {url.quoteShell} {version.quoteShell}")
+  let output = tryDoCmdEx(&"git ls-remote -- {url.quoteShell} {version.quoteShell}")
   result = parseRevision(output)
   if result == notSetSha1Hash:
     if version.seemsLikeRevision:
@@ -537,7 +544,7 @@ proc getRevision*(url, version: string): Sha1Hash =
 
 proc getRevisionAsync(url, version: string): Future[Sha1Hash] {.async.} =
   ## Async version of getRevision that uses doCmdExAsync.
-  let output = await tryDoCmdExAsync(&"git ls-remote {url.quoteShell} {version.quoteShell}")
+  let output = await tryDoCmdExAsync(&"git ls-remote -- {url.quoteShell} {version.quoteShell}")
   result = parseRevision(output)
   if result == notSetSha1Hash:
     if version.seemsLikeRevision:
