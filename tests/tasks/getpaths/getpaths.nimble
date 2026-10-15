@@ -10,8 +10,17 @@ bin           = @["run"]
 
 # Dependencies
 
-requires "benchy", "unittest2"
+requires "unittest2"
+
+taskRequires "echoPaths", "benchy"
 
 task echoPaths, "":
-    echo getPaths()
-    echo getPathsClause()
+    echo "paths: ", getPathsClause()
+
+task echoOtherPaths, "":
+    echo "paths: ", getPathsClause()
+
+task checkEmptyPaths, "":
+    delEnv("__NIMBLE_PATHS")
+    doAssert getPaths().len == 0
+    doAssert getPathsClause() == ""
