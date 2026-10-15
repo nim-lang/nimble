@@ -2,6 +2,19 @@
 
 # Nimble changelog
 
+## 0.26.1
+
+  - Added `--solver:pubgrub` to use PubGrub for dependency resolution; SAT remains the default. Improved PubGrub performance by parsing versions once and handling lock file pins and the preferred system Nim version within a single solve.
+  - Named package installs now resolve the requested version instead of reusing a cached checkout of another version.
+  - Fixed dependency paths for `requires` evaluated through NimScript, including declarations inside templates.
+  - Fixed `taskRequires` parsing to accept Nim identifier spelling variations and use task dependencies only from the root package.
+  - Fixed `getPaths()` and `getPathsClause()` in custom tasks, including task dependencies and paths containing spaces. Existing `nimble.paths` files are refreshed before running tasks.
+  - Fixed a crash when bootstrapping Nim with binaries built using affected Nim compiler versions.
+  - Repository detection now ignores stray `.git` and `.hg` directories that are not repositories.
+  - Added a warning when updating Nimble installs a newer copy at a different path from the running executable.
+  - Release binaries are now built with Nim 2.2.12. Linux binaries remain statically linked, and Windows binaries support long paths when enabled in Windows.
+  - Fixed shell and option injection in Git and Mercurial commands by quoting repository URLs, separating options from URL arguments, and rejecting revisions that could be interpreted as options.
+
 ## 0.26.0
 
   - **PubGrub-quality resolution errors.** When the SAT solver finds no solution, a PubGrub solver re-derives the same failure and explains it in prose instead of dumping a constraint set: *"Because every version of asyncchannels depends on chronos #b71392a (4.4.0) and every version of websock depends on chronos [4.2.0, 4.4.0), asyncchannels is incompatible with websock."* 
