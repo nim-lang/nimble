@@ -217,7 +217,13 @@ proc getPackageMinimalVersionsFromRepo*(
         except CatchableError:
           discard
         if cacheFresh:
-          return taggedVersions.get
+          # A stricter requirement may have downloaded an untagged HEAD after
+          # an earlier request cached only releases. Covering the tags is not
+          # enough: discovery must also include the checkout we just downloaded.
+          let checkoutVersion = getPkgInfo(repoDir, options, nimBin).basicInfo.version
+          for cached in taggedVersions.get:
+            if cached.version == checkoutVersion:
+              return taggedVersions.get
     except:
       discard
 
