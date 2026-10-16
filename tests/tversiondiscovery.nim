@@ -1,7 +1,7 @@
 {.used.}
 import unittest, os
 import testscommon
-import std/[tables, sequtils, strutils, options, strformat, osproc]
+import std/[tables, sequtils, strutils, options, strformat, osproc, tempfiles]
 import chronos
 import nimblepkg/[version, nimblesolver, options, config, download, packageinfotypes, versiondiscovery]
 from nimblepkg/common import cd, NimbleError
@@ -510,6 +510,55 @@ proc discoverVersions(workDir, reqStr, cacheDir: string): seq[PackageMinimalInfo
   let pv = parseRequires(reqStr)
   result = waitFor getPackageMinimalVersionsFromRepo(
     workDir, pv, DownloadMethod.git, options, nimBin = nimBin)
+
+suite "Cached HEAD version discovery":
+  test "a cached release must not hide a newer untagged checkout":
+    let base = createTempDir("nimble_head_discovery_", "")
+    defer: removeDir(base)
+    let remote = base / "remote"
+    let releaseWork = base / "release"
+    let headWork = base / "head"
+    let cache = base / "cache"
+
+    makeTaggedRepo(remote, "headlib", @[
+      ("v0.6.3", nimbleContent("0.6.3")),
+    ])
+    writeFile(remote / "headlib.nimble", nimbleContent("0.6.4"))
+    runGit(remote, "add .")
+    runGit(remote, "commit -m untagged")
+    cloneLocalRepo(remote, releaseWork)
+    runGit(releaseWork, "checkout v0.6.3")
+    cloneLocalRepo(remote, headWork)
+
+    # An earlier package discovers the latest release. A later requirement
+    # has no matching tag, so its download falls back to the untagged HEAD.
+    let released = discoverVersions(releaseWork, "headlib >= 0.6.3", cache)
+    check newVersion("0.6.4") notin released.mapIt(it.version)
+    let fresh = discoverVersions(headWork, "headlib >= 0.6.4", base / "fresh")
+    check newVersion("0.6.4") in fresh.mapIt(it.version)
+
+    var options = initOptions()
+    options.nimBin = some options.makeNimBin("nim")
+    options.pkgCachePath = cache
+    let req = parseRequires("headlib >= 0.6.4")
+    let cached = waitFor getPackageMinimalVersionsFromRepo(
+      headWork, req, DownloadMethod.git, options, nimBin)
+    check cached.mapIt(it.version) == fresh.mapIt(it.version)
+    check newVersion("0.6.4") in getTaggedVersions("headlib", options).get.mapIt(it.version)
+
+    # The discovered checkout must be usable by either dependency solver.
+    let root = PackageMinimalInfo(name: "root", version: newVersion("1.0.0"),
+      requires: @[req], isRoot: true)
+    let versions = {
+      "root": PackageVersions(pkgName: "root", versions: @[root]),
+      "headlib": PackageVersions(pkgName: "headlib", versions: cached),
+    }.toTable
+    for solver in [skSat, skPubGrub]:
+      options.solver = solver
+      var output = ""
+      let solved = versions.getSolvedPackages(output, options)
+      checkpoint output
+      check solved.anyIt(it.pkgName == "headlib" and it.version == newVersion("0.6.4"))
 
 suite "Pre-release version discovery (integration)":
   let base = getTempDir() / "nimble_prerelease_it"
