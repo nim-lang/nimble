@@ -8,6 +8,7 @@ import ttaskdeps
 import tgetpaths
 import tnimbinaries
 import tdownloadplatform
+import tarchiveextract
 import taddcommand
 import tinitcommand
 import tcheckcommand
