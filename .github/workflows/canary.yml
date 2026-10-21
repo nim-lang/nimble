@@ -1,0 +1,136 @@
+# Builds Status' Nim repos with the latest nimble release and with nimble HEAD
+# (the nightly build), and fails when a repo gets less far with HEAD: a
+# regression we'd otherwise ship. Every repo builds the same way, the way a
+# nimble package should build in CI (the build job below): setup-nimble-action
+# installs nimble, nimble installs Nim and the dependencies, and `nimble test`
+# runs the tests. The repos are in .github/canary/repos.txt, and the canary's
+# own steps are the tasks of the nimble package there. To try a branch or a PR
+# on a few repos:
+#   gh workflow run canary.yml -f nimble-ref=refs/pull/<n>/head -f repos=status-im/nim-chronos
+#
+# The build jobs run the repos' own code, so they get no secrets and a read-only
+# token, and checkouts don't keep credentials.
+name: Status canary
+
+on:
+  schedule:
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+    inputs:
+      nimble-ref:
+        description: "nimble to test instead of the nightly build: a branch, tag, SHA or refs/pull/<n>/head (built from source)"
+        default: ""
+      baseline:
+        description: "nimble release to compare with (default: the latest)"
+        default: ""
+      repos:
+        description: "Comma-separated repos from repos.txt (default: all)"
+        default: ""
+      tests:
+        description: "Run nimble test (off: install the dependencies only)"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: canary-${{ inputs.nimble-ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      runner: ${{ steps.release.outputs.latest }}
+      baseline: ${{ steps.release.outputs.baseline }}
+      matrix: ${{ steps.plan.outputs.matrix }}
+      head: ${{ steps.plan.outputs.head }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: .github/canary
+          persist-credentials: false
+      - name: Find the latest nimble release
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BASELINE: ${{ inputs.baseline }}
+        run: |
+          latest=$(gh api repos/nim-lang/nimble/releases/latest --jq .tag_name)
+          echo "latest=$latest" >> "$GITHUB_OUTPUT"
+          echo "baseline=${BASELINE:-$latest}" >> "$GITHUB_OUTPUT"
+      # The latest release runs the canary's tasks, and installs their Nim.
+      - uses: nim-lang/setup-nimble-action@v2
+        with:
+          nimble-version: ${{ steps.release.outputs.latest }}
+          repo-token: ${{ github.token }}
+      - id: plan
+        working-directory: .github/canary
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BASELINE: ${{ steps.release.outputs.baseline }}
+          NIMBLE_REF: ${{ inputs.nimble-ref }}
+          ONLY: ${{ inputs.repos }}
+          TESTS: ${{ inputs.tests }}
+        run: nimble -y plan
+
+  build:
+    needs: plan
+    # The report finds the jobs by this name.
+    name: ${{ matrix.repo }} (${{ matrix.nimble }})
+    # Status needs GCC >= 14 and Clang >= 20; ubuntu-latest once that is 26.04.
+    runs-on: ubuntu-26.04
+    timeout-minutes: 150
+    strategy:
+      fail-fast: false
+      max-parallel: 12
+      matrix:
+        include: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    # How a nimble package builds: nimble installs the Nim and the dependencies
+    # the package requires, then runs its tests. The report reads these steps'
+    # names.
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          repository: ${{ matrix.repo }}
+          ref: ${{ matrix.sha }}  # the same commit for both nimbles
+          submodules: true
+          persist-credentials: false
+      - name: Set up nimble
+        uses: nim-lang/setup-nimble-action@v2
+        with:
+          nimble-version: ${{ matrix.version }}
+          repo-token: ${{ github.token }}
+      - name: Install dependencies
+        timeout-minutes: 30
+        run: nimble install -y --depsOnly
+      - name: Test
+        if: matrix.tests
+        timeout-minutes: 90
+        run: nimble test
+
+  report:
+    needs: [plan, build]
+    if: ${{ !cancelled() && needs.plan.result == 'success' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read  # the build jobs' results
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: .github/canary
+          persist-credentials: false
+      - uses: nim-lang/setup-nimble-action@v2
+        with:
+          nimble-version: ${{ needs.plan.outputs.runner }}
+          repo-token: ${{ github.token }}
+      - name: Report
+        working-directory: .github/canary
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PLANNED: ${{ needs.plan.outputs.matrix }}
+          BASELINE: ${{ needs.plan.outputs.baseline }}
+          HEAD_LABEL: ${{ needs.plan.outputs.head }}
+        run: nimble -y report

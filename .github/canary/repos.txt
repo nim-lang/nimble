@@ -1,0 +1,47 @@
+# The repos the canary builds, one per line: Status' Nim libraries (the status-im
+# repos on Status' shared CI workflow) and two of the projects built on them.
+# Each one is built the same way, as the build job in
+# .github/workflows/canary.yml shows; `install-only` skips `nimble test`.
+#
+# To look for status-im repos on the shared workflow that aren't listed yet:
+#   gh search code "nimbus-common-workflow/.github/workflows/common.yml" --owner status-im
+
+status-im/nim-async-channels
+status-im/nim-bearssl
+status-im/nim-blscurve
+status-im/nim-chronicles
+status-im/nim-chronos
+status-im/nim-confutils
+status-im/nim-dnsdisc
+status-im/nim-eth
+status-im/nim-ethash
+status-im/nim-faststreams
+status-im/nim-graphql
+status-im/nim-http-utils
+status-im/nim-json-rpc
+status-im/nim-json-serialization
+status-im/nim-kzg4844
+status-im/nim-libbacktrace
+status-im/nim-metrics
+status-im/nim-minilru
+status-im/nim-nat-traversal
+status-im/nim-presto
+status-im/nim-protobuf-serialization
+status-im/nim-raft
+status-im/nim-secp256k1
+status-im/nim-serialization
+status-im/nim-ssz-serialization
+status-im/nim-stew
+status-im/nim-stint
+status-im/nim-taskpools
+status-im/nim-testutils
+status-im/nim-toml-serialization
+status-im/nim-ttmath
+status-im/nim-unittest2
+status-im/nim-web3
+status-im/nim-websock
+status-im/nim-zlib
+status-im/nim-zxcvbn
+
+vacp2p/nim-libp2p
+status-im/nimbus-eth1 install-only  # its dependency graph is the point; its tests build a full node
