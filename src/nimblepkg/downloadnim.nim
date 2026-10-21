@@ -82,8 +82,11 @@ proc getGccArch*(options: Options): int =
 
     putEnv("PATH", pathEnv)
   else:
+    # Match Nim's target: GCC defaults to 32-bit output on some illumos hosts.
+    const gccFlags = when defined(illumos) and defined(amd64): " -m64" else: ""
     (outp, errC) = execCmdEx(
-      "echo \"int main() { return sizeof(void *); }\" | gcc -xc - -o archtest && ./archtest"
+      "echo \"int main() { return sizeof(void *); }\" | gcc" & gccFlags &
+        " -xc - -o archtest && ./archtest"
     )
 
   removeFile("archtest".addFileExt(ExeExt))
@@ -129,9 +132,10 @@ proc getPlatformString*(arch: int): string =
       return os & "_arm64"
     else:
       return os & "_x64"
-  else:
-    # For Windows and Linux
+  elif defined(windows) or defined(linux):
     return os & "_x" & $arch
+  else:
+    return os
 
 proc getNightliesUrl*(parsedContents: JsonNode, arch: int): (string, string) =
   let os =
@@ -147,6 +151,12 @@ proc getNightliesUrl*(parsedContents: JsonNode, arch: int): (string, string) =
       "openbsd"
     elif defined(haiku):
       "haiku"
+    else:
+      ""
+  # No native nightly binaries: let the caller fall back to source. An empty
+  # string would otherwise match every asset, including incompatible binaries.
+  if os.len == 0:
+    return ("", "")
   for jn in parsedContents.getElems():
     if jn["name"].getStr().contains("devel"):
       let tagName = jn{"tag_name"}.getStr("")
