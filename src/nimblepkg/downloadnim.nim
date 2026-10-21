@@ -921,10 +921,14 @@ proc saveNimMetaData(extractDir: string, version: Version) =
 proc downloadAndExtractNim*(
     version: Version, options: Options
 ): Future[Option[string]] {.async.} =
+  let extractDir = options.getNimInstallationDir(version)
+  let nimBin = extractDir / "bin" / "nim".addFileExt(ExeExt)
+  # Keep this outside the download error handler: an unsupported bootstrap
+  # must not silently trigger another source-download fallback in the caller.
+  if not (extractDir.dirExists() and nimBin.fileExists):
+    ensureNimBootstrapSupported()
   try:
-    let extractDir = options.getNimInstallationDir(version)
     # Check if already properly installed (with working binary)
-    let nimBin = extractDir / "bin" / "nim".addFileExt(ExeExt)
     if extractDir.dirExists() and nimBin.fileExists:
       display("Info:", "Nim $1 already installed" % $version)
       saveNimMetaData(extractDir, version)

@@ -799,7 +799,7 @@ proc getFlagString(kind: CmdLineKind, flag, val: string): string =
     return prefix & flag & ":" & val
 
 proc getNimVersionFromBin*(nimBin: string): Option[Version] =
-  let cmd = nimBin & " --version"
+  let cmd = nimBin.quoteShell & " --version"
   if nimBin.fileExists:
     let info = execProcess(cmd)
     var major, minor, patch: int
