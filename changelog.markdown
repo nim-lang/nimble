@@ -4,7 +4,7 @@
 
 ## 0.26.2
 
-  - Bumped bearssl to 0.3.1 to address a certificate issue.
+  - Bumped bearssl to 0.2.15 to address a certificate issue.
   - Dependencies pinned to a commit in a lock file now reuse the cached download instead of fetching it again.
 
 ## 0.26.1
