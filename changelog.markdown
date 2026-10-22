@@ -2,6 +2,11 @@
 
 # Nimble changelog
 
+## 0.26.2
+
+  - Bumped bearssl to 0.3.1 to address a certificate issue.
+  - Dependencies pinned to a commit in a lock file now reuse the cached download instead of fetching it again.
+
 ## 0.26.1
 
   - Added `--solver:pubgrub` to use PubGrub for dependency resolution; SAT remains the default. Improved PubGrub performance by parsing versions once and handling lock file pins and the preferred system Nim version within a single solve.
