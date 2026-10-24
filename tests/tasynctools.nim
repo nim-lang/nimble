@@ -1,5 +1,5 @@
 import unittest, chronos, strutils, os, tables, strformat
-import std/options
+import std/[options, tempfiles]
 import nimblepkg/[tools, download, options, packageinfotypes, sha1hashes, version, versiondiscovery]
 
 {.used.}
@@ -108,12 +108,29 @@ suite "Async Tools":
 
     removeDir(tmpDir)
 
+  test "synchronous package tarballs extract in paths with spaces":
+    let tmpDir = createTempDir("nimble sync tarball ", "")
+    defer: removeDir(tmpDir)
+    var opts = initOptions()
+    opts.nimbleDir = tmpDir / "store"
+    opts.enableTarballs = true
+    opts.ignoreSubmodules = true
+    let revision = initSha1Hash("8a03fb2e00dccbf35807c869e0184933b0cffa37")
+    let downloaded = downloadPkg("https://github.com/arnetheduck/nim-results",
+      newVersion("0.4.0").toVersionRange, DownloadMethod.git, "", opts,
+      downloadPath = tmpDir / "download path", vcsRevision = revision,
+      nimBin = some(findExe("nim")))
+    check fileExists(downloaded.dir / "README.md")
+    check not dirExists(downloaded.dir / ".git")
+    check downloaded.vcsRevision == revision
+
   test "doDownloadTarballAsync downloads and extracts tarball":
     # Skip on systems without tar
     if findExe("tar") == "":
       skip()
 
-    let tmpDir = getTempDir() / "nimble_async_test_tarball"
+    # Exercise quoting of both the extraction directory and archive filename.
+    let tmpDir = getTempDir() / "nimble async test tarball"
     let downloadDir = tmpDir / "download"
 
     if dirExists(tmpDir):

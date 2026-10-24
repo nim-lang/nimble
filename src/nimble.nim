@@ -138,7 +138,9 @@ proc reinstallSymlinksForOlderVersion(pkgDir: string, options: Options, nimBin: 
   let pkgList = getInstalledPkgsMin(options.getPkgsDir(), options)
   var newPkgInfo = initPackageInfo()
   if pkgList.findPkg((pkgName, newVRAny()), newPkgInfo):
-    newPkgInfo = newPkgInfo.toFullInfo(options, nimBin)
+    var nimBin = nimBin
+    withNimBinFallback(nimBin, options):
+      newPkgInfo = newPkgInfo.toFullInfo(options, nimBin)
     for bin, _ in newPkgInfo.bin:
       let symlinkDest = newPkgInfo.getOutputDir(bin)
       let symlinkFilename = options.getBinDir() / bin.extractFilename
@@ -1143,8 +1145,11 @@ Please specify a valid SPDX identifier.""",
     HighPriority)
 
 proc removePackages(pkgs: HashSet[ReverseDependency], options: var Options, nimBin: Option[string]) =
+  var nimBin = nimBin
   for pkg in pkgs:
-    let pkgInfo = pkg.toPkgInfo(options, nimBin = nimBin)
+    var pkgInfo: PackageInfo
+    withNimBinFallback(nimBin, options):
+      pkgInfo = pkg.toPkgInfo(options, nimBin = nimBin)
     case pkg.kind
     of rdkInstalled:
       pkgInfo.removePackage(options, nimBin)

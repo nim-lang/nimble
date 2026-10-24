@@ -390,6 +390,10 @@ proc getTarExePath: string =
             findExe("tar")
         else:
           findExe("tar")
+      elif defined(illumos):
+        # Package tarballs use --strip-components, which native tar lacks.
+        let gtar = findExe("gtar")
+        if gtar != "": gtar else: findExe("tar")
       else:
         findExe("tar")
     tarExePathCache = tarExePathCache.quoteShell
@@ -559,10 +563,10 @@ proc getTarCmdLine(downloadDir, filePath: string): string {.gcsafe.} =
   when defined(Windows):
     let downloadDir = downloadDir.replace('\\', '/')
     let filePath = filePath.replace('\\', '/')
-    &"{getTarExePath()} -C {downloadDir.quoteShell} -xf {filePath} --strip-components 1 " &
+    &"{getTarExePath()} -C {downloadDir.quoteShell} -xf {filePath.quoteShell} --strip-components 1 " &
      "--force-local"
   else:
-    &"tar -C {downloadDir.quoteShell} -xf {filePath} --strip-components 1"
+    &"{getTarExePath()} -C {downloadDir.quoteShell} -xf {filePath.quoteShell} --strip-components 1"
 
 proc doDownloadTarball(url, downloadDir, version: string, queryRevision: bool):
     Sha1Hash =

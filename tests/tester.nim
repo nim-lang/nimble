@@ -7,6 +7,9 @@ import testscommon
 import ttaskdeps
 import tgetpaths
 import tnimbinaries
+import tdownloadplatform
+import tarchiveextract
+import tnimbootstrap
 import taddcommand
 import tinitcommand
 import tcheckcommand

@@ -326,6 +326,9 @@ proc readPackageInfo(pkgInfo: var PackageInfo, nf: NimbleFile, options: Options,
       try:
         readPackageInfoFromNims(nimBin, nf, options, pkgInfo)
         pkgInfo.isNimScript = true
+      except NeedsNimBinError as exc:
+        # Preserve the signal used by callers to resolve a compiler lazily.
+        raise exc
       except NimbleError as exc:
         if exc.hint.len > 0:
           raise exc
