@@ -1,5 +1,5 @@
 import unittest, chronos, strutils, os, tables, strformat
-import std/[options, tempfiles]
+import std/[options, tempfiles, osproc]
 import nimblepkg/[tools, download, options, packageinfotypes, sha1hashes, version, versiondiscovery]
 
 {.used.}
@@ -9,6 +9,22 @@ suite "Async Tools":
     let (output, exitCode) = waitFor doCmdExAsync("echo hello")
     check exitCode == 0
     check "hello" == output.strip
+
+  test "doCmdExAsync preserves quoted executable and arguments with spaces":
+    let tmpDir = createTempDir("nimble async command ", "")
+    defer: removeDir(tmpDir)
+    let source = tmpDir / "echoargs.nim"
+    let executable = tmpDir / "argument echo".addFileExt(ExeExt)
+    writeFile(source, "import std/os\nfor i in 1 .. paramCount(): echo paramStr(i)\n")
+    let compiled = execCmdEx(findExe("nim").quoteShell &
+      " c --hints:off --skipUserCfg --skipParentCfg --noNimblePath -o:" &
+      executable.quoteShell & " " & source.quoteShell)
+    checkpoint(compiled.output)
+    require compiled.exitCode == QuitSuccess
+    let (output, exitCode) = waitFor doCmdExAsync(executable.quoteShell &
+      " " & "first argument".quoteShell & " " & "second argument".quoteShell)
+    check exitCode == QuitSuccess
+    check output.strip().splitLines() == @["first argument", "second argument"]
 
   test "doCloneAsync clones a repo":
     let tmpDir = getTempDir() / "nimble_async_test"

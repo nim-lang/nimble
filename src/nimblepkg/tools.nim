@@ -59,7 +59,10 @@ proc doCmdExAsync*(cmd: string): Future[ProcessOutput] {.async.} =
   if findExe(bin) == "":
     raise nimbleError("'" & bin & "' not in PATH.")
   displayDebug("Executing", cmd)
-  let res = await execCommandEx(cmd)
+  # Chronos uses `cmd /C` on Windows. Its command needs an outer pair of
+  # quotes so cmd preserves a quoted executable path followed by quoted args.
+  let shellCmd = when defined(windows): "\"" & cmd & "\"" else: cmd
+  let res = await execCommandEx(shellCmd)
   result = (res.stdOutput, res.status)
   displayDebug("Output", result.output)
 
