@@ -3,7 +3,10 @@
 
 import testscommon
 
-# suits imports
+# Run async/download tests first to surface HTTP regressions early in CI.
+import tasynctools
+
+# Other suite imports
 import ttaskdeps
 import tgetpaths
 import tnimbinaries
@@ -45,7 +48,6 @@ import tforgeinstall
 import tforgeparser
 import tfilepathrequires
 import tglobalinstall
-import tasynctools
 import tvcsarguments
 import tbuildinstall
 import tpublish
