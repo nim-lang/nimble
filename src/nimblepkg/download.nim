@@ -603,7 +603,7 @@ proc doDownloadTarball(url, downloadDir, version: string, queryRevision: bool):
     # path in them. For that reason here we parse the tar file content to
     # extract the symbolic links and add their paths manually to the content of
     # their files.
-    let listCmd = &"{getTarExePath()} -ztvf {filePath} --force-local"
+    let listCmd = &"{getTarExePath()} -ztvf {filePath.quoteShell} --force-local"
     let (cmdOutput, cmdExitCode) = doCmdEx(listCmd)
     if cmdExitCode != QuitSuccess:
       raise nimbleError(tryDoCmdExErrorMessage(listCmd, cmdOutput, cmdExitCode))
@@ -640,7 +640,7 @@ proc doDownloadTarballAsync*(url, downloadDir, version: string, queryRevision: b
   display("Completed", "unpacking " & filePath)
 
   when defined(windows):
-    let listCmd = &"{getTarExePath()} -ztvf {filePath} --force-local"
+    let listCmd = &"{getTarExePath()} -ztvf {filePath.quoteShell} --force-local"
     let (cmdOutput, cmdExitCode) = await doCmdExAsync(listCmd)
     if cmdExitCode != QuitSuccess:
       raise nimbleError(tryDoCmdExErrorMessage(listCmd, cmdOutput, cmdExitCode))
