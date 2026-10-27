@@ -10,7 +10,7 @@ when not defined(windows):
 import std/[os, options, osproc, strutils]
 import chronos
 import testscommon
-from nimblepkg/common import cd
+from nimblepkg/common import cd, NimbleError
 
 suite "Nim binaries":
   test "can get all releases":
@@ -48,6 +48,32 @@ suite "Nim binaries":
     let version = newVersion("1.2.8")
     let path = waitFor downloadNim(version, options)
     check path.fileExists()
+
+  test "a Nim branch that doesn't exist is reported as missing":
+    var options = initOptions()
+    var message = ""
+    try:
+      discard waitFor downloadNim(newVersion("#no-such-branch-1903"), options)
+    except NimbleError as error:
+      message = error.msg
+    check message == "Version #no-such-branch-1903 does not exist."
+
+  test "a failed Nim download says why, not that the version doesn't exist (#1903)":
+    # Through a proxy nothing listens on, the download fails before reaching
+    # GitHub, which says nothing about whether the branch exists.
+    var options = initOptions()
+    let proxy = getEnv("http_proxy")
+    putEnv("http_proxy", "http://127.0.0.1:1")
+    var message = ""
+    try:
+      discard waitFor downloadNim(newVersion("#no-such-branch-1903"), options)
+    except NimbleError as error:
+      message = error.msg
+    finally:
+      if proxy.len > 0: putEnv("http_proxy", proxy) else: delEnv("http_proxy")
+    check message.startsWith(
+      "https://github.com/nim-lang/Nim/archive/no-such-branch-1903.tar.gz: ")
+    check "does not exist" notin message
 
   test "can download and unzip a version. Should also compile it if the precompiled binaries are not available for the current platform":
     var options = initOptions()
