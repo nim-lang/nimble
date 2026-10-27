@@ -1,7 +1,8 @@
-## Status canary: builds Status' Nim repos with two nimbles, the latest release
-## ("baseline") and the one under test ("head"), and reports the repos that get
-## less far with head. .github/workflows/canary.yml runs it through the tasks in
-## canary.nimble; the repos are in repos.txt. Inputs come from the environment:
+## Canary: builds Nim repos, Status' and the community's, with two nimbles, the
+## latest release ("baseline") and the one under test ("head"), and reports the
+## repos that get less far with head. .github/workflows/canary.yml runs it
+## through the tasks in canary.nimble; the repos are in repos.txt. Inputs come
+## from the environment:
 ##
 ## nimble plan    $BASELINE (a nimble release), $NIMBLE_REF (the nimble branch,
 ##                tag, SHA or refs/pull/<n>/head to test; default the nightly
@@ -248,7 +249,7 @@ proc report() =
   for v, label in Verdicts:
     if counts[v] > 0:
       summary.add &"{counts[v]} {label}"
-  var lines = @[&"## Status canary: nimble {head} vs {baseline}", "",
+  var lines = @[&"## Canary: nimble {head} vs {baseline}", "",
                 &"{rows.len} repos: " & summary.join(", "), "",
                 &"| Repo | Commit | {baseline} | {head} | Verdict |", "|---|---|---|---|---|"]
   for r in rows:

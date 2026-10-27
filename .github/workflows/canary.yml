@@ -1,16 +1,16 @@
-# Builds Status' Nim repos with the latest nimble release and with nimble HEAD
-# (the nightly build), and fails when a repo gets less far with HEAD: a
-# regression we'd otherwise ship. Every repo builds the same way, the way a
-# nimble package should build in CI (the build job below): setup-nimble-action
-# installs nimble, nimble installs Nim and the dependencies, and `nimble test`
-# runs the tests. The repos are in .github/canary/repos.txt, and the canary's
-# own steps are the tasks of the nimble package there. To try a branch or a PR
-# on a few repos:
+# Builds Nim repos, Status' and the community's, with the latest nimble release
+# and with nimble HEAD (the nightly build), and fails when a repo gets less far
+# with HEAD: a regression we'd otherwise ship. Every repo builds the same way,
+# the way a nimble package should build in CI (the build job below):
+# setup-nimble-action installs nimble, nimble installs Nim and the dependencies,
+# and `nimble test` runs the tests. The repos are in .github/canary/repos.txt,
+# and the canary's own steps are the tasks of the nimble package there. To try a
+# branch or a PR on a few repos:
 #   gh workflow run canary.yml -f nimble-ref=refs/pull/<n>/head -f repos=status-im/nim-chronos
 #
 # The build jobs run the repos' own code, so they get no secrets and a read-only
 # token, and checkouts don't keep credentials.
-name: Status canary
+name: Canary
 
 on:
   schedule:
