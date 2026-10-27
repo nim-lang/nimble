@@ -23,7 +23,7 @@ suite "Nim source bootstrap policy":
       for name in ["make", "gmake"]:
         writeFile(tools / name, "#!/bin/sh\nexit 99\n")
         setFilePermissions(tools / name, {fpUserRead, fpUserWrite, fpUserExec})
-      when defined(illumos):
+      when defined(illumos) or defined(bsd):
         check getCsourcesBuildCommand() == (tools / "gmake").quoteShell
         removeFile(tools / "gmake")
         check getCsourcesBuildCommand() == "sh build.sh"
