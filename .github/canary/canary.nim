@@ -7,7 +7,8 @@
 ##                tag, SHA or refs/pull/<n>/head to test; default the nightly
 ##                build), $ONLY (repos, comma-separated), $TESTS (`false` skips
 ##                `nimble test`). Writes the build `matrix` and the `head` label
-##                to $GITHUB_OUTPUT. Needs an authenticated `gh`.
+##                to $GITHUB_OUTPUT, slowest repos first by the last scheduled
+##                run of $GITHUB_REPOSITORY. Needs an authenticated `gh`.
 ## nimble report  $PLANNED (the matrix), $BASELINE, $HEAD_LABEL, and Actions'
 ##                $GITHUB_REPOSITORY and $GITHUB_RUN_ID, whose build jobs it
 ##                reads. Needs an authenticated `gh`.
@@ -32,6 +33,13 @@ proc sh(args: openArray[string]): string =
 
 proc short(sha: string): string = sha[0 ..< min(8, sha.len)]
 
+proc seconds(node: JsonNode): int =
+  ## How long a job or a step ran, from the jobs API's timestamps.
+  const format = "yyyy-MM-dd'T'HH:mm:ss'Z'"
+  let (started, completed) = (node{"started_at"}.getStr, node{"completed_at"}.getStr)
+  if started.len > 0 and completed.len > 0:
+    result = int(inSeconds(parse(completed, format, utc()) - parse(started, format, utc())))
+
 # plan ------------------------------------------------------------------------
 
 proc headNimble(): (string, string) =
@@ -52,6 +60,31 @@ proc headNimble(): (string, string) =
   let sha = sh(["gh", "api", &"repos/nim-lang/nimble/commits/{nimbleRef}", "--jq", ".sha"]).strip
   (sha, nimbleRef & "@" & short(sha))
 
+proc lastTimes(): Table[string, int] =
+  ## How long each repo took in the last scheduled run, which builds them all:
+  ## the longer of its two build jobs, in seconds. Empty if that can't be read,
+  ## as the times only decide the order.
+  let repository = getEnv("GITHUB_REPOSITORY", "nim-lang/nimble")
+  let (run, code) = execCmdEx(quoteShellCommand(["gh", "api",
+    &"repos/{repository}/actions/workflows/canary.yml/runs?event=schedule&status=completed&per_page=1",
+    "--jq", ".workflow_runs[0].id // empty"]))
+  if code != 0 or run.strip.len == 0:
+    return
+  let (jobs, jobsCode) = execCmdEx(quoteShellCommand(["gh", "api", "--paginate",
+    &"repos/{repository}/actions/runs/{run.strip}/jobs?per_page=100",
+    "--jq", ".jobs[] | {name, started_at, completed_at}"]))
+  if jobsCode != 0:
+    return
+  for line in jobs.splitLines:
+    if line.startsWith("{"):
+      let job = parseJson(line)
+      let (name, s) = (job["name"].getStr, seconds(job))
+      # The build job's name in canary.yml.
+      for suffix in [" (baseline)", " (head)"]:
+        if name.endsWith(suffix) and s > 0:
+          let repo = name[0 ..< name.len - suffix.len]
+          result[repo] = max(result.getOrDefault(repo), s)
+
 proc plan() =
   var repos: seq[(string, bool)] # the repo, and whether to run its tests
   for line in lines("repos.txt"):
@@ -62,6 +95,13 @@ proc plan() =
   let unknown = only - repos.mapIt(it[0]).toHashSet
   if unknown.len > 0:
     quit("not in repos.txt: " & toSeq(unknown).sorted.join(", "))
+  # The build jobs start in the matrix's order, a few at a time: start the
+  # slowest repos first, so they aren't the ones still building at the end.
+  # Repos the last scheduled run didn't build go first too, as they may be slow.
+  # The sort is stable, so ties keep the file's order.
+  let times = lastTimes()
+  repos.sort(proc (a, b: (string, bool)): int =
+    cmp(times.getOrDefault(b[0], int.high), times.getOrDefault(a[0], int.high)))
 
   let baseline = need("BASELINE")
   let (head, label) = headNimble()
@@ -91,18 +131,12 @@ type
   Build = object
     ## One build job, as the jobs API has it.
     found: bool
-    url, conclusion: string
+    url: string
     stages: seq[Stage]
     broken: string # why the job failed, if not in a stage: the canary's own failure
 
-proc seconds(step: JsonNode): int =
-  const format = "yyyy-MM-dd'T'HH:mm:ss'Z'"
-  let (started, completed) = (step{"started_at"}.getStr, step{"completed_at"}.getStr)
-  if started.len > 0 and completed.len > 0:
-    result = int(inSeconds(parse(completed, format, utc()) - parse(started, format, utc())))
-
 proc toBuild(job: JsonNode): Build =
-  result = Build(found: true, url: job["html_url"].getStr, conclusion: job{"conclusion"}.getStr)
+  result = Build(found: true, url: job["html_url"].getStr)
   for step in job{"steps"}.getElems:
     let (name, conclusion) = (step["name"].getStr, step{"conclusion"}.getStr)
     if name in Stages:
@@ -110,9 +144,15 @@ proc toBuild(job: JsonNode): Build =
     elif conclusion in ["failure", "cancelled"] and result.broken.len == 0 and
         result.stages.allIt(it.conclusion == "success"):
       result.broken = &"`{name}` failed"
-  if result.broken.len == 0 and result.conclusion == "cancelled" and
+  if result.broken.len > 0:
+    return
+  # The stages decide how far a job got, not its conclusion: GitHub has left a
+  # finished job "in_progress", with no conclusion, after the run was over.
+  if job{"conclusion"}.getStr == "cancelled" and
       not result.stages.anyIt(it.conclusion == "failure"):
     result.broken = "the job was cancelled"
+  elif result.stages.len == 0 or result.stages.anyIt(it.conclusion.len == 0):
+    result.broken = "the job didn't finish"
 
 proc reached(b: Build): int =
   ## How many stages passed before the first one that didn't.
@@ -121,12 +161,16 @@ proc reached(b: Build): int =
       break
     inc result
 
+proc passed(b: Build): bool =
+  ## Whether every stage that ran passed.
+  b.stages.allIt(it.conclusion in ["success", "skipped"])
+
 proc verdict(baseline, head: Build): string =
   if not baseline.found or not head.found: "missing"
   elif baseline.broken.len > 0 or head.broken.len > 0: "error"
   elif head.reached < baseline.reached: "regression"
   elif head.reached > baseline.reached: "fixed"
-  elif baseline.conclusion == "success" and head.conclusion == "success": "ok"
+  elif baseline.passed and head.passed: "ok"
   else: "red"
 
 proc duration(seconds: int): string =
