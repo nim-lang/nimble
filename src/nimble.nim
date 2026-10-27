@@ -1434,8 +1434,9 @@ proc test(options: Options, nimBin: Option[string]) =
     let error = "Only " & $(tests - failures) & "/" & $tests & " tests files passed"
     display("Error:", error, Error, HighPriority)
 
-  if not execHook(nimBin, options, actionCustom, false):
-    return
+  discard execHook(nimBin, options, actionCustom, false)
+  if failures > 0:
+    raise nimbleQuit(QuitFailure)
 
 proc notInRequiredRangeMsg*(dependentPkg, dependencyPkg: PackageInfo,
                             versionRange: VersionRange): string =
