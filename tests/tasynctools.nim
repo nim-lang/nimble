@@ -1,5 +1,5 @@
 import unittest, chronos, strutils, os, tables, strformat
-import std/options
+import std/[options, tempfiles, osproc]
 import nimblepkg/[tools, download, options, packageinfotypes, sha1hashes, version, versiondiscovery]
 
 {.used.}
@@ -9,6 +9,22 @@ suite "Async Tools":
     let (output, exitCode) = waitFor doCmdExAsync("echo hello")
     check exitCode == 0
     check "hello" == output.strip
+
+  test "doCmdExAsync preserves quoted executable and arguments with spaces":
+    let tmpDir = createTempDir("nimble async command ", "")
+    defer: removeDir(tmpDir)
+    let source = tmpDir / "echoargs.nim"
+    let executable = tmpDir / "argument echo".addFileExt(ExeExt)
+    writeFile(source, "import std/os\nfor i in 1 .. paramCount(): echo paramStr(i)\n")
+    let compiled = execCmdEx(findExe("nim").quoteShell &
+      " c --hints:off --skipUserCfg --skipParentCfg --noNimblePath -o:" &
+      executable.quoteShell & " " & source.quoteShell)
+    checkpoint(compiled.output)
+    require compiled.exitCode == QuitSuccess
+    let (output, exitCode) = waitFor doCmdExAsync(executable.quoteShell &
+      " " & "first argument".quoteShell & " " & "second argument".quoteShell)
+    check exitCode == QuitSuccess
+    check output.strip().splitLines() == @["first argument", "second argument"]
 
   test "doCloneAsync clones a repo":
     let tmpDir = getTempDir() / "nimble_async_test"
@@ -108,12 +124,29 @@ suite "Async Tools":
 
     removeDir(tmpDir)
 
+  test "synchronous package tarballs extract in paths with spaces":
+    let tmpDir = createTempDir("nimble sync tarball ", "")
+    defer: removeDir(tmpDir)
+    var opts = initOptions()
+    opts.nimbleDir = tmpDir / "store"
+    opts.enableTarballs = true
+    opts.ignoreSubmodules = true
+    let revision = initSha1Hash("8a03fb2e00dccbf35807c869e0184933b0cffa37")
+    let downloaded = downloadPkg("https://github.com/arnetheduck/nim-results",
+      newVersion("0.4.0").toVersionRange, DownloadMethod.git, "", opts,
+      downloadPath = tmpDir / "download path", vcsRevision = revision,
+      nimBin = some(findExe("nim")))
+    check fileExists(downloaded.dir / "README.md")
+    check not dirExists(downloaded.dir / ".git")
+    check downloaded.vcsRevision == revision
+
   test "doDownloadTarballAsync downloads and extracts tarball":
     # Skip on systems without tar
     if findExe("tar") == "":
       skip()
 
-    let tmpDir = getTempDir() / "nimble_async_test_tarball"
+    # Exercise quoting of both the extraction directory and archive filename.
+    let tmpDir = getTempDir() / "nimble async test tarball"
     let downloadDir = tmpDir / "download"
 
     if dirExists(tmpDir):

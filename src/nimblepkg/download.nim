@@ -390,6 +390,10 @@ proc getTarExePath: string =
             findExe("tar")
         else:
           findExe("tar")
+      elif defined(illumos):
+        # Package tarballs use --strip-components, which native tar lacks.
+        let gtar = findExe("gtar")
+        if gtar != "": gtar else: findExe("tar")
       else:
         findExe("tar")
     tarExePathCache = tarExePathCache.quoteShell
@@ -559,10 +563,10 @@ proc getTarCmdLine(downloadDir, filePath: string): string {.gcsafe.} =
   when defined(Windows):
     let downloadDir = downloadDir.replace('\\', '/')
     let filePath = filePath.replace('\\', '/')
-    &"{getTarExePath()} -C {downloadDir.quoteShell} -xf {filePath} --strip-components 1 " &
+    &"{getTarExePath()} -C {downloadDir.quoteShell} -xf {filePath.quoteShell} --strip-components 1 " &
      "--force-local"
   else:
-    &"tar -C {downloadDir.quoteShell} -xf {filePath} --strip-components 1"
+    &"{getTarExePath()} -C {downloadDir.quoteShell} -xf {filePath.quoteShell} --strip-components 1"
 
 proc doDownloadTarball(url, downloadDir, version: string, queryRevision: bool):
     Sha1Hash =
@@ -599,7 +603,7 @@ proc doDownloadTarball(url, downloadDir, version: string, queryRevision: bool):
     # path in them. For that reason here we parse the tar file content to
     # extract the symbolic links and add their paths manually to the content of
     # their files.
-    let listCmd = &"{getTarExePath()} -ztvf {filePath} --force-local"
+    let listCmd = &"{getTarExePath()} -ztvf {filePath.quoteShell} --force-local"
     let (cmdOutput, cmdExitCode) = doCmdEx(listCmd)
     if cmdExitCode != QuitSuccess:
       raise nimbleError(tryDoCmdExErrorMessage(listCmd, cmdOutput, cmdExitCode))
@@ -636,7 +640,7 @@ proc doDownloadTarballAsync*(url, downloadDir, version: string, queryRevision: b
   display("Completed", "unpacking " & filePath)
 
   when defined(windows):
-    let listCmd = &"{getTarExePath()} -ztvf {filePath} --force-local"
+    let listCmd = &"{getTarExePath()} -ztvf {filePath.quoteShell} --force-local"
     let (cmdOutput, cmdExitCode) = await doCmdExAsync(listCmd)
     if cmdExitCode != QuitSuccess:
       raise nimbleError(tryDoCmdExErrorMessage(listCmd, cmdOutput, cmdExitCode))

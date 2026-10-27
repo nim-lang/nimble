@@ -71,11 +71,31 @@ proc infoAboutActivation(nimDest, nimVersion: string) =
   else:
     display("Info", nimDest & "installed; activate with 'source nim-" & nimVersion & "activate.sh'")
 
+proc ensureNimBootstrapSupported*() =
+  ## Revisit once an illumos-capable release and its csources chain are available.
+  when defined(illumos):
+    raise nimbleError(
+      "Automatic Nim source bootstrapping is not yet supported on illumos. " &
+        "Use an already-built illumos-capable Nim compiler on PATH, or select it " &
+        "with --nim:<path> --useSystemNim. Released Nim versions predate illumos support.")
+
+proc getCsourcesBuildCommand*(): string =
+  when defined(windows):
+    return "build.bat"
+  else:
+    # illumos and BSD system make is not GNU make. Use gmake instead of make.
+    let makeExe = when defined(illumos) or defined(bsd): findExe("gmake") else: findExe("make")
+    if makeExe.len == 0:
+      return "sh build.sh"
+    return makeExe.quoteShell
+
 proc compileNim*(options: Options, nimDest: string, v: VersionRange) {.async.} =
   #Most of the time we dont need to recompile, if we can get the nim version from the binary . 
   let nimCompVersion = getNimVersionFromBin(nimDest / "bin" / "nim".addFileExt(ExeExt))
   if nimCompVersion.isSome() and nimCompVersion.get.withinRange(v):
     return
+
+  ensureNimBootstrapSupported()
 
   let keepCsources = true # SAT Solver uses a cache instead of a temp dir for downloads
   template exec(command: string) =
@@ -135,17 +155,7 @@ proc compileNim*(options: Options, nimDest: string, v: VersionRange) {.async.} =
   var csourcesSucceed = false
   if canUseCsources:
     cd workspace / csourcesVersion:
-      when defined(windows):
-        let cmd = "build.bat"
-        csourcesSucceed = os.execShellCmd(cmd) == 0
-      else:
-        let makeExe = findExe("make")
-        if makeExe.len == 0:
-          let cmd = "sh build.sh"
-          csourcesSucceed = os.execShellCmd(cmd) == 0
-        else:
-          let cmd = "make"
-          csourcesSucceed = os.execShellCmd(cmd) == 0
+      csourcesSucceed = os.execShellCmd(getCsourcesBuildCommand()) == 0
 
   cd nimDest:
     #Sometimes building from csources fails and we cant do much about it. So we fallback to the slow build_all method
