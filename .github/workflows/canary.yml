@@ -41,6 +41,9 @@ concurrency:
 jobs:
   plan:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read  # the last scheduled run's times, to start the slowest repos first
     outputs:
       runner: ${{ steps.release.outputs.latest }}
       baseline: ${{ steps.release.outputs.baseline }}
@@ -82,6 +85,9 @@ jobs:
     # Status needs GCC >= 14 and Clang >= 20; ubuntu-latest once that is 26.04.
     runs-on: ubuntu-26.04
     timeout-minutes: 150
+    # A repo that fails to build doesn't fail the run; the report does, when it
+    # gets less far with head.
+    continue-on-error: true
     strategy:
       fail-fast: false
       max-parallel: 12
@@ -95,13 +101,16 @@ jobs:
         with:
           repository: ${{ matrix.repo }}
           ref: ${{ matrix.sha }}  # the same commit for both nimbles
-          submodules: true
+          submodules: recursive
           persist-credentials: false
       - name: Set up nimble
         uses: nim-lang/setup-nimble-action@v2
         with:
           nimble-version: ${{ matrix.version }}
           repo-token: ${{ github.token }}
+      # Where nimble links the dependencies' binaries, such as testutils' ntu.
+      - name: Add nimble's bin to PATH
+        run: echo "$HOME/.nimble/bin" >> "$GITHUB_PATH"
       - name: Install dependencies
         timeout-minutes: 30
         run: nimble install -y --depsOnly

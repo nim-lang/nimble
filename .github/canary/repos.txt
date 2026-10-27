@@ -1,7 +1,8 @@
 # The repos the canary builds, one per line: Status' Nim libraries (the status-im
 # repos on Status' shared CI workflow) and two of the projects built on them.
 # Each one is built the same way, as the build job in
-# .github/workflows/canary.yml shows; `install-only` skips `nimble test`.
+# .github/workflows/canary.yml shows; `install-only` skips `nimble test`. The
+# order doesn't matter: the slowest repos start first.
 #
 # To look for status-im repos on the shared workflow that aren't listed yet:
 #   gh search code "nimbus-common-workflow/.github/workflows/common.yml" --owner status-im
