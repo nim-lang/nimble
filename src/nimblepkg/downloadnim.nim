@@ -380,6 +380,9 @@ proc finish(tracker: var ProgressTracker) =
     showBar(1, 0)
     echo ""
 
+type HttpNotFoundError = object of HttpRequestError
+  ## The server answered 404: the only answer that says the file doesn't exist.
+
 proc downloadFileNim(url, outputPath: string, disableSslCertCheck = false) {.async.} =
   displayDebug("Downloading using Chronos")
   let flags = if disableSslCertCheck:
@@ -396,7 +399,10 @@ proc downloadFileNim(url, outputPath: string, disableSslCertCheck = false) {.asy
     var response = await request.sendWithRedirect()
     if response.status >= 400:
       await response.closeWait()
-      raise newException(HttpRequestError, "Server returned status: " & $response.status)
+      let msg = "Server returned status: " & $response.status
+      if response.status == 404:
+        raise newException(HttpNotFoundError, msg)
+      raise newException(HttpRequestError, msg)
 
     try:
       const bufSize = 65536
@@ -433,6 +439,8 @@ proc downloadFileNim(url, outputPath: string, disableSslCertCheck = false) {.asy
     finally:
       await response.closeWait()
 
+  except HttpRequestError as exc:
+    raise exc # a 404 stays an HttpNotFoundError
   except CatchableError:
     raise newException(HttpRequestError, getCurrentExceptionMsg())
   finally:
@@ -456,6 +464,8 @@ proc downloadFile*(url, outputPath: string, disableSslCertCheck = false) {.async
       [url, getCurrentExceptionMsg()]
     display("Info:", msg, Warning, MediumPriority)
     if tempOutputPath.fileExists: removeFile(tempOutputPath)
+    # Callers report the message, so it says which file failed.
+    exc.msg = url & ": " & exc.msg
     raise exc
 
   moveFile(tempOutputPath, outputPath)
@@ -646,8 +656,13 @@ proc downloadNim*(version: Version, options: Options): Future[string] {.async.} 
   ## Returns the path of the downloaded .tar.(gz|xz) file.
   try:
     await downloadImpl(version, options)
-  except HttpRequestError:
+  except HttpNotFoundError:
     raise newException(NimbleError, "Version $1 does not exist." % $version)
+  except HttpRequestError as exc:
+    # Anything else, such as a TLS or connection error, a rate limit or a
+    # server error, says nothing about the version, so report it as it is
+    # (#1903).
+    raise newException(NimbleError, exc.msg)
 
 proc downloadCSources*(options: Options): string =
   let
