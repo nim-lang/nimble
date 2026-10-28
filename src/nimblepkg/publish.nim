@@ -86,7 +86,8 @@ proc getGithubAuth(o: Options): Auth =
   createHeaders(result)
   let
     req = HttpClientRequestRef.new(
-      result.session, "https://api.github.com/user", headers = result.headers
+      result.session, "https://api.github.com/user",
+      maxResponseHeadersSize = nimbleMaxResponseHeadersSize, headers = result.headers
     ).valueOr:
       raise newException(HttpRequestError, error)
     resp = waitFor req.send()
@@ -104,7 +105,8 @@ proc isCorrectFork(j: JsonNode): bool =
 proc forkExists(a: Auth): bool =
   try:
     let req = HttpClientRequestRef.new(
-      a.session, ReposUrl & a.user & "/packages", headers = a.headers
+      a.session, ReposUrl & a.user & "/packages",
+      maxResponseHeadersSize = nimbleMaxResponseHeadersSize, headers = a.headers
     ).valueOr:
         raise nimbleError("Unable to create fork request: " & $error)
     let resp = waitFor req.send()
@@ -118,7 +120,8 @@ proc forkExists(a: Auth): bool =
 proc createFork(a: Auth) =
   try:
     let req = HttpClientRequestRef.new(
-      a.session, ReposUrl & "nim-lang/packages/forks", MethodPost, headers = a.headers
+      a.session, ReposUrl & "nim-lang/packages/forks", MethodPost,
+      maxResponseHeadersSize = nimbleMaxResponseHeadersSize, headers = a.headers
     ).valueOr:
         raise nimbleError("Unable to create fork request: " & $error)
     let resp = waitFor req.send()
@@ -143,6 +146,7 @@ proc createPullRequest(a: Auth, pkg: PackageInfo, url, branch: string): string =
       a.session,
       ReposUrl & "nim-lang/packages/pulls",
       MethodPost,
+      maxResponseHeadersSize = nimbleMaxResponseHeadersSize,
       headers = a.headers,
       body = stringToBytes($payload)
     ).valueOr:

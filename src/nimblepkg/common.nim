@@ -48,6 +48,9 @@ proc getVersionFromNimble(): string =
 const
   nimbleVersion* = getVersionFromNimble()
   nimbleUserAgent* = "nimble/" & nimbleVersion
+  nimbleMaxResponseHeadersSize* = 64 * 1024
+    ## chronos's HTTP client fails on response headers over 8 KB, its default.
+    ## GitHub sends about 5 KB and was briefly over (#1903).
   nimblePackagesDirName* = "pkgs2"
   nimbleBinariesDirName* = "bin"
 

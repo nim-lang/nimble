@@ -467,14 +467,24 @@ proc getGitHubApiUrl(url, commit: string): string =
 proc sendWithRedirect*(request: HttpClientRequestRef): Future[HttpClientResponseRef] {.
      async: (raises: [CancelledError, HttpError]).} =
     var request = request
+    var redirects = 0
     result = await request.send()
 
     while result.status >= 300 and result.status < 400:
       let newLocation = result.getNewLocation().valueOr:
         raise newException(HttpRequestError, error)
       await result.closeWait()
-      request = request.redirect(newLocation).valueOr:
-        raise newException(HttpRequestError, error)
+      inc redirects
+      if redirects > request.session.maxRedirections:
+        raise newException(HttpRequestError, "Maximum number of redirects exceeded")
+      # Not `request.redirect(newLocation)`: it drops `maxResponseHeadersSize`,
+      # so the next response would be held to chronos's 8 KB default again.
+      var headers = request.headers
+      headers.set(HostHeader, newLocation.hostname)
+      request = HttpClientRequestRef.new(
+        request.session, newLocation, request.meth, request.version,
+        maxResponseHeadersSize = nimbleMaxResponseHeadersSize,
+        headers = headers.toList(), body = request.buffer)
       result = await request.send()
 
 proc retrieveUrl*(url: string, disableSslCertCheck = false): Future[string] {.async.} =
@@ -486,7 +496,8 @@ proc retrieveUrl*(url: string, disableSslCertCheck = false): Future[string] {.as
 
   try:
     var request = HttpClientRequestRef.new(
-      session, url, headers = {UserAgentHeader: nimbleUserAgent}
+      session, url, maxResponseHeadersSize = nimbleMaxResponseHeadersSize,
+      headers = {UserAgentHeader: nimbleUserAgent}
     ).valueOr:
       raise newException(HttpRequestError, error)
 
