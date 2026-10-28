@@ -1,8 +1,8 @@
 # The repos the canary builds, one per line: Status' Nim libraries (the status-im
-# repos on Status' shared CI workflow) and two of the projects built on them.
-# Each one is built the same way, as the build job in
-# .github/workflows/canary.yml shows; `install-only` skips `nimble test`. The
-# order doesn't matter: the slowest repos start first.
+# repos on Status' shared CI workflow) and two of the projects built on them, then
+# packages from the wider Nim community. Each one is built the same way, as the
+# build job in .github/workflows/canary.yml shows; `install-only` skips
+# `nimble test`. The order doesn't matter: the slowest repos start first.
 #
 # To look for status-im repos on the shared workflow that aren't listed yet:
 #   gh search code "nimbus-common-workflow/.github/workflows/common.yml" --owner status-im
@@ -46,3 +46,32 @@ status-im/nim-zxcvbn
 
 vacp2p/nim-libp2p
 status-im/nimbus-eth1 install-only  # its dependency graph is the point; its tests build a full node
+
+# The community: packages whose `nimble test` passes on a plain runner (most are on
+# Nim's own package CI, testament/important_packages.nim), and, install-only,
+# projects whose dependencies exercise nimble: lock files, `#sha`, URL and forked
+# requirements, features, and dependencies with binaries, hooks or submodules.
+treeform/pixie
+SciNim/Datamancer
+karaxnim/karax
+PMunch/nimlsp
+nim-lang/langserver
+nim-lang/c2nim
+nitely/nim-regex
+yglukhov/yasync
+niv/neverwinter.nim
+squattingmonk/nasher
+Vindaar/ggplotnim install-only         # its tests need cairo
+HugoGranstrom/nimiSlides install-only  # no tests
+fox0430/moe install-only               # its tests need X11
+HapticX/happyx install-only            # its tests run servers
+zedeus/nitter install-only             # its tests need Redis and libpcre
+nim-lang/nimforum install-only         # its tests need a browser
+nim-lang/choosenim install-only        # its tests download Nim
+arnetheduck/nph install-only           # no tests
+dom96/jester install-only              # its tests need libpcre
+planety/prologue install-only          # `nimble test` finds no tests
+treeform/boxy install-only             # its tests need OpenGL
+crashappsec/chalk install-only         # its tests need Docker
+inv2004/ttop install-only              # no tests
+krisppurg/dimscord install-only        # its tests aren't run upstream either

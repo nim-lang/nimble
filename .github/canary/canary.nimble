@@ -2,7 +2,7 @@
 
 version       = "0.1.0"
 author        = "The Nimble contributors"
-description   = "Status canary: builds Status' Nim repos with two nimbles"
+description   = "Canary: builds Nim repos, Status' and the community's, with two nimbles"
 license       = "BSD"
 
 # Dependencies
