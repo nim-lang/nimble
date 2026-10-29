@@ -28,6 +28,9 @@ proc serveLargeHeaders(server: StreamServer, client: StreamTransport) {.async: (
       else:
         "HTTP/1.1 200 OK\r\nContent-Length: 4\r\n" & padding & "\r\nnim!"
     discard await client.write(response)
+    # Close only after the client hangs up. Closing first can reset the
+    # connection on Windows, and the client loses whatever it hasn't read yet.
+    discard await client.read()
   except CatchableError:
     discard
   finally:
