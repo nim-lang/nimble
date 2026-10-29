@@ -392,7 +392,8 @@ proc downloadFileNim(url, outputPath: string, disableSslCertCheck = false) {.asy
 
   try:
     var request = HttpClientRequestRef.new(
-      session, url, headers = {UserAgentHeader: nimbleUserAgent}
+      session, url, maxResponseHeadersSize = nimbleMaxResponseHeadersSize,
+      headers = {UserAgentHeader: nimbleUserAgent}
     ).valueOr:
       raise newException(HttpRequestError, error)
 

@@ -178,7 +178,8 @@ proc fetchList*(list: PackageList, options: Options) {.async.} =
         try:
           let
             request = HttpClientRequestRef.new(
-              session, url, headers = {UserAgentHeader: nimbleUserAgent, "Accept-Encoding": "gzip"}
+              session, url, maxResponseHeadersSize = nimbleMaxResponseHeadersSize,
+              headers = {UserAgentHeader: nimbleUserAgent, "Accept-Encoding": "gzip"}
             ).valueOr:
               raise newException(HttpRequestError, error)
             response = await request.send()

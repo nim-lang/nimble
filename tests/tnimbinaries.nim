@@ -12,6 +12,30 @@ import chronos
 import testscommon
 from nimblepkg/common import cd, NimbleError
 
+proc serveLargeHeaders(server: StreamServer, client: StreamTransport) {.async: (raises: []).} =
+  ## `/redirect` redirects to `/nim.tar.gz`, which answers "nim!". Both send
+  ## about 10 KB of headers, past chronos's 8 KB default.
+  try:
+    let path = (await client.readLine()).split(' ')[1]
+    while (await client.readLine()).len > 0: discard
+    var padding = "Connection: close\r\n"
+    for i in 1 .. 10:
+      padding.add "X-Padding-" & $i & ": " & 'x'.repeat(1000) & "\r\n"
+    let response =
+      if path == "/redirect":
+        "HTTP/1.1 302 Found\r\nLocation: http://" & $server.localAddress() &
+          "/nim.tar.gz\r\nContent-Length: 0\r\n" & padding & "\r\n"
+      else:
+        "HTTP/1.1 200 OK\r\nContent-Length: 4\r\n" & padding & "\r\nnim!"
+    discard await client.write(response)
+    # Close only after the client hangs up. Closing first can reset the
+    # connection on Windows, and the client loses whatever it hasn't read yet.
+    discard await client.read()
+  except CatchableError:
+    discard
+  finally:
+    await client.closeWait()
+
 suite "Nim binaries":
   test "can get all releases":
     var options = initOptions()
@@ -74,6 +98,21 @@ suite "Nim binaries":
     check message.startsWith(
       "https://github.com/nim-lang/Nim/archive/no-such-branch-1903.tar.gz: ")
     check "does not exist" notin message
+
+  test "a Nim download works when the response headers exceed 8 KB (#1903)":
+    # GitHub sends about 5 KB of headers. While they were briefly past chronos's
+    # 8 KB default, every Nim download failed with "Could not read response
+    # headers: Buffer limit reached".
+    let server = createStreamServer(initTAddress("127.0.0.1:0"), serveLargeHeaders)
+    server.start()
+    let outputPath = getTempDir() / "nimble_test_1903_headers" / "nim.tar.gz"
+    try:
+      waitFor downloadFile("http://" & $server.localAddress() & "/redirect", outputPath)
+      check readFile(outputPath) == "nim!"
+    finally:
+      removeDir(outputPath.parentDir)
+      server.stop()
+      waitFor server.closeWait()
 
   test "can download and unzip a version. Should also compile it if the precompiled binaries are not available for the current platform":
     var options = initOptions()
