@@ -912,14 +912,19 @@ proc getPackageByPattern(pattern: string, options: var Options,
 
 
 proc getEntryPoints(pkgInfo: PackageInfo, options: Options): seq[string] =
-  ## Returns the entry points for a package. 
+  ## Returns the entry points for a package, each once: its main module, the
+  ## `entryPoints` it lists and its binaries' sources.
   ## This is useful for tools like the lsp.
-  let main = pkgInfo.srcDir / pkgInfo.basicInfo.name & ".nim"
-  result.add main
-  let entries = pkgInfo.entryPoints & pkgInfo.bin.keys.toSeq
-  for entry in entries:
-    result.add if entry.endsWith(".nim"): entry else: entry & ".nim"
-  
+  proc addOnce(entries: var seq[string], entry: string) =
+    if entry notin entries: entries.add entry
+  result.add pkgInfo.srcDir / pkgInfo.basicInfo.name & ".nim"
+  for entry in pkgInfo.entryPoints:
+    result.addOnce if entry.endsWith(".nim"): entry else: entry & ".nim"
+  # The sources are the values, found the way the build finds them. The keys
+  # are output names: renamed by `namedBin`, ending in `.exe` on Windows.
+  for src in pkgInfo.bin.values:
+    result.addOnce pkgInfo.srcDir / src.changeFileExt("nim")
+
 proc dump(options: var Options, nimBin: var Option[string]) =
   var p = getPackageByPattern(options.action.projName, options, nimBin)
   if options.action.collect or options.action.solve:
