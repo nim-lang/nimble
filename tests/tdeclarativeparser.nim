@@ -87,8 +87,31 @@ feature "harfbuzz":
     let nimbleFileInfo = extractRequiresInfo(nimbleFile, options)
 
     check nimbleFileInfo.nestedRequires
-  
-  
+
+  test "an INI-format nimble file is read by the INI reader":
+    # pragmagic/uuids, which nim-raft requires, still has one. Read as Nim it
+    # has no version, so installing it failed with "wanted >= 0.1.11 got .",
+    # and `Requires:` lines were skipped altogether.
+    let dir = getTempDir() / "nimble_ini_format"
+    createDir(dir)
+    defer: removeDir(dir)
+    writeFile(dir / "uuids.nimble", """
+[Package]
+name = "uuids"
+version: "0.1.12"
+author: "Xored Software, Inc."
+description: "UUID library"
+license: "MIT"
+
+[Deps]
+Requires: "nim >= 1.0, isaac >= 0.1.3"
+""")
+    var options = initOptions()
+    check not isParsableByDeclarative(readFile(dir / "uuids.nimble"), options)
+    let pkgInfo = getPkgInfo(dir, options, none(string), pikRequires)
+    check pkgInfo.basicInfo.version == newVersion("0.1.12")
+    check pkgInfo.requires.mapIt(it.name) == @["nim", "isaac"]
+
   test "should parse bin from a nimble file":
     let nimbleFile = getNimbleFileFromPkgNameHelper("nimlangserver")
     var options = initOptions()
