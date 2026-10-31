@@ -78,6 +78,8 @@ proc setTaskPathsEnv*(options: Options, nimBin: Option[string]) =
 proc buildFromDir*(pkgInfo: PackageInfo, paths: HashSet[string],
                    args: seq[string], options: Options, nimBin: Option[string]) =
   ## Builds a package as specified by ``pkgInfo``.
+  if options.noBuild:
+    return
   # Handle pre-`build` hook.
   let
     realDir = pkgInfo.getRealDir()
