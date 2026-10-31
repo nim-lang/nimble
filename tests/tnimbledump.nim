@@ -5,7 +5,7 @@
 
 import unittest, os
 import testscommon
-import std/[strformat, strutils]
+import std/[json, strformat, strutils]
 from nimblepkg/common import cd
 
 suite "nimble dump":
@@ -303,6 +303,21 @@ testEntryPoint: "tests/tall.nim"
     let (outp, exitCode) = execNimble("dump", "--json", "testdump")
     check: exitCode == 0
     check: outp == outpExpected
+
+  test "entryPoints lists each binary's source once (#1911, #1912, #1913)":
+    # It listed `bin`'s keys, the output names: renamed by `namedBin`, ending in
+    # `.exe` on Windows, without srcDir, and the main module again when a binary
+    # has the package's name.
+    let (outp, exitCode) = execNimble("dump", "--json", "dumpentrypoints")
+    check exitCode == 0
+    check parseJson(outp)["entryPoints"].to(seq[string]) ==
+      @["src" / "dumpentrypoints.nim", "src" / "cli" / "main.nim"]
+    # Without `namedBin` the declarative parser reads the package, and on
+    # Windows it keeps `.exe` in the sources' names too.
+    let (binOutp, binExitCode) = execNimble("dump", "--json", "dumpentrypointsbin")
+    check binExitCode == 0
+    check parseJson(binOutp)["entryPoints"].to(seq[string]) ==
+      @["src" / "dumpentrypointsbin.nim", "src" / "thebin.nim"]
 
   test "dump reads a declarative package without a Nim binary (#1857)":
     # Regression for nim-lang/nimble#1857: `nimble dump` is read-only, but with
