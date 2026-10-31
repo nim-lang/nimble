@@ -20,7 +20,7 @@ jobs:
           - stable
     name: ${{ matrix.os }} - ${{ matrix.nimversion }}
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 120
+    timeout-minutes: 180
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
@@ -32,6 +32,9 @@ jobs:
         with:
           nim-version: ${{ matrix.nimversion }}
       - run: nim --version
+      - name: Install Mercurial on Linux
+        if: matrix.os == 'ubuntu-latest'
+        run: sudo apt-get update && sudo apt-get install -y mercurial
       - name: Install Mercurial on macOS
         if: matrix.os == 'macos-latest'
         run: brew install mercurial
