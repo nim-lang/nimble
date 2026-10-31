@@ -34,6 +34,10 @@ type
                            ## `namedBin` entry. Deliberately NOT part of
                            ## `requiresVmFallback` — solving never looks at these
                            ## fields, so only full-metadata readers need to care.
+    nfiIniFormat           ## the INI format nimble files had before NimScript
+                           ## (`[Package]`, `version: "1.0"`, `Requires: "a, b"`).
+                           ## It parses as Nim but means something else, so
+                           ## packageparser's INI reader reads it instead.
 
   NimbleFileInfo* = object
     nimbleFile*: string
@@ -393,6 +397,10 @@ proc extract(n: PNode, conf: ConfigRef, result: var NimbleFileInfo, options: Opt
   of nkStmtList, nkStmtListExpr:
     for child in n:
       extract(child, conf, result, options)
+  of nkBracket:
+    # A `[Package]` section header. NimScript can't have a bare array as a
+    # statement, so this is an INI-format file.
+    result.issues.incl nfiIniFormat
   of nkIfStmt, nkWhenStmt:
     # Only extract hooks from conditional blocks, not requires or other declarations
     extractHooksOnly(n, result)
@@ -865,9 +873,15 @@ proc toRequiresInfo*(pkgInfo: PackageInfo, options: Options, nimBin: Option[stri
   if pkgInfo.infoKind != pikFull: #dont update as full implies pik requires
     result.infoKind = pikRequires
 
-  let usedVmFallback = nimbleFileInfo.requiresVmFallback(readTaskRequires) and
+  # The INI reader needs no Nim. `nimble check` sends INI files there too: the
+  # declarative parser has no reading of them to check.
+  let iniFormat = nfiIniFormat in nimbleFileInfo.issues
+  let usedVmFallback = not iniFormat and
+    nimbleFileInfo.requiresVmFallback(readTaskRequires) and
     options.action.typ != actionCheck
-  if usedVmFallback: #When checking we want to fail on porpuse
+  if iniFormat:
+    result = getPkgInfoFromFile(nimBin, result.myPath, options)
+  elif usedVmFallback: #When checking we want to fail on porpuse
     let resolvedBin = resolveNimBinOrBootstrap(nimBin, options)
 
     if options.verbosity <= LowPriority:
@@ -879,11 +893,11 @@ proc toRequiresInfo*(pkgInfo: PackageInfo, options: Options, nimBin: Option[stri
       if line notin result.declarativeParserErrors:
         result.declarativeParserErrors.add(line)
 
-  if not result.isNimScript:
+  if not result.isNimScript and not iniFormat:
     result.features = getFeatures(nimbleFileInfo)
   # A VM fallback has already evaluated these fields. Do not replace them with
   # the declarative parser's incomplete values (for example, non-literal paths).
-  if not usedVmFallback:
+  if not usedVmFallback and not iniFormat:
     result.binDir = nimbleFileInfo.binDir
     result.srcDir = nimbleFileInfo.srcDir
     result.paths = nimbleFileInfo.paths
