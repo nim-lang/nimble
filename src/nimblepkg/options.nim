@@ -541,7 +541,10 @@ proc getBuildTempDir*(options: Options): string =
 
 proc getPkgBuildTempDir*(options: Options, pkgName: string, version: string, checksum: string): string =
   ## Returns the temporary build directory for a specific package.
-  options.getBuildTempDir() / &"{pkgName}-{version}-{checksum}"
+  ## Includes the current process id so that two nimble processes installing
+  ## the same package version concurrently don't share (and clobber) the same
+  ## build directory. See #1910.
+  options.getBuildTempDir() / &"{pkgName}-{version}-{checksum}-{getCurrentProcessId()}"
 
 proc setPackageCache(options: var Options, baseDir: string) =
   options.pkgCachePath = baseDir / "pkgcache"
