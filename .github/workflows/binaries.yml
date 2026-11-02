@@ -62,7 +62,7 @@ jobs:
             builder: ubuntu-22.04
           - target:
               os: macosx
-            builder: macos-14
+            builder: macos-15
           - target:
               os: windows
             builder: windows-2025
