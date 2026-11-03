@@ -13,6 +13,7 @@ import tnimbootstrap
 import taddcommand
 import tinitcommand
 import tcheckcommand
+import tconcurrentinstall
 import tcleancommand
 import tdevelopfeature
 import tissues

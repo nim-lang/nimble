@@ -228,78 +228,79 @@ proc installFromDirDownloadInfo(nimBin: Option[string], downloadDir: string, url
         $pkgInfo.basicInfo.checksum
       )
 
-      # Clean up any existing temp dir from previous failed install
-      if dirExists(buildTempDir):
-        removeDir(buildTempDir)
-      createDir(buildTempDir)
-
-      # Copy ALL files and directories from pkgcache to temp build dir
-      let buildTempBase = options.getBuildTempDir()
-      let nimbleDirBase = options.getNimbleDir()
-      let buildTempIsInsideDownload = buildTempBase.len > 0 and
-                                       buildTempBase.startsWith(downloadDir & "/")
-      let nimbleDirIsInsideDownload = nimbleDirBase.len > 0 and
-                                       nimbleDirBase.startsWith(downloadDir & "/")
-
-      # Use yieldFilter to also yield directories (important for empty dirs like .git/refs/)
-      # and symlinks. Issue #1730: symlinked files (a shared source module a binary
-      # imports, a shared binary.nim.cfg, ...) were skipped here, so the build in
-      # buildtemp failed even though `nimble build` (which builds in place) worked.
-      for path in walkDirRec(downloadDir,
-                             yieldFilter = {pcFile, pcDir, pcLinkToFile, pcLinkToDir}):
-        if buildTempIsInsideDownload and path.startsWith(buildTempBase):
-          continue
-        if nimbleDirIsInsideDownload and path.startsWith(nimbleDirBase):
-          continue
-        let relPath = path.substr(downloadDir.len)
-        if (DirSep & "nimbledeps" & DirSep) in relPath or
-           relPath.endsWith(DirSep & "nimbledeps"):
-          continue
-
-        if (DirSep & "tests" & DirSep) in relPath or
-           (DirSep & "testdata" & DirSep) in relPath:
-          continue
-
-        let destPath = changeRoot(downloadDir, buildTempDir, path)
-        if path.symlinkExists:
-          # Recreate the symlink so the build can resolve it (e.g. a shared
-          # source module or binary.nim.cfg). Fall back to copying the
-          # dereferenced content when the symlink can't be recreated (e.g.
-          # unprivileged Windows).
-          createDir(destPath.splitFile.dir)
-          try:
-            createSymlink(expandSymlink(path), destPath)
-          except OSError:
-            if path.fileExists:
-              discard copyFileD(path, destPath)
-        elif path.dirExists:
-          createDir(destPath)
-        else:
-          createDir(destPath.splitFile.dir)
-          discard copyFileD(path, destPath)
-
-      workPkgInfo = getPkgInfo(buildTempDir, options, nimBin = nimBin)
-      if pv.ver.kind == verEq and workPkgInfo.basicInfo.version != pv.ver.ver:
-        workPkgInfo.basicInfo.version = pv.ver.ver
-      workDir = buildTempDir
-
-      # Populate submodules in buildtemp
-      if hasSubmodules:
-        updateSubmodules(workDir)
-
-      # Run before-install hook (in buildtemp, before build)
-      executeHook(nimBin, workDir, options, actionInstall, before = true)
-
-      # Build binaries (only if there are any)
-      if hasBinaries:
-        let paths = getPathsAllPkgs(options, nimBin)
-        let flags = if options.action.typ in {actionInstall, actionPath, actionUninstall, actionDevelop}:
-                      options.action.passNimFlags
-                    else:
-                      @[]
-        buildFromDir(workPkgInfo, paths, "-d:release" & flags, options, nimBin)
-
+    # The try starts right after the buildtemp directory is created, so the
+    # finally below cleans it up even when the copy, the before-install hook
+    # or the build fails: nothing else removes a per-process buildtemp
+    # directory (on master the next install reused the same name and cleaned
+    # up the leftover).
     try:
+      if not canSkipBuildTemp:
+        # Copy ALL files and directories from pkgcache to temp build dir
+        let buildTempBase = options.getBuildTempDir()
+        let nimbleDirBase = options.getNimbleDir()
+        let buildTempIsInsideDownload = buildTempBase.len > 0 and
+                                         buildTempBase.startsWith(downloadDir & "/")
+        let nimbleDirIsInsideDownload = nimbleDirBase.len > 0 and
+                                         nimbleDirBase.startsWith(downloadDir & "/")
+
+        # Use yieldFilter to also yield directories (important for empty dirs like .git/refs/)
+        # and symlinks. Issue #1730: symlinked files (a shared source module a binary
+        # imports, a shared binary.nim.cfg, ...) were skipped here, so the build in
+        # buildtemp failed even though `nimble build` (which builds in place) worked.
+        for path in walkDirRec(downloadDir,
+                               yieldFilter = {pcFile, pcDir, pcLinkToFile, pcLinkToDir}):
+          if buildTempIsInsideDownload and path.startsWith(buildTempBase):
+            continue
+          if nimbleDirIsInsideDownload and path.startsWith(nimbleDirBase):
+            continue
+          let relPath = path.substr(downloadDir.len)
+          if (DirSep & "nimbledeps" & DirSep) in relPath or
+             relPath.endsWith(DirSep & "nimbledeps"):
+            continue
+
+          if (DirSep & "tests" & DirSep) in relPath or
+             (DirSep & "testdata" & DirSep) in relPath:
+            continue
+
+          let destPath = changeRoot(downloadDir, buildTempDir, path)
+          if path.symlinkExists:
+            # Recreate the symlink so the build can resolve it (e.g. a shared
+            # source module or binary.nim.cfg). Fall back to copying the
+            # dereferenced content when the symlink can't be recreated (e.g.
+            # unprivileged Windows).
+            createDir(destPath.splitFile.dir)
+            try:
+              createSymlink(expandSymlink(path), destPath)
+            except OSError:
+              if path.fileExists:
+                discard copyFileD(path, destPath)
+          elif path.dirExists:
+            createDir(destPath)
+          else:
+            createDir(destPath.splitFile.dir)
+            discard copyFileD(path, destPath)
+
+        workPkgInfo = getPkgInfo(buildTempDir, options, nimBin = nimBin)
+        if pv.ver.kind == verEq and workPkgInfo.basicInfo.version != pv.ver.ver:
+          workPkgInfo.basicInfo.version = pv.ver.ver
+        workDir = buildTempDir
+
+        # Populate submodules in buildtemp
+        if hasSubmodules:
+          updateSubmodules(workDir)
+
+        # Run before-install hook (in buildtemp, before build)
+        executeHook(nimBin, workDir, options, actionInstall, before = true)
+
+        # Build binaries (only if there are any)
+        if hasBinaries:
+          let paths = getPathsAllPkgs(options, nimBin)
+          let flags = if options.action.typ in {actionInstall, actionPath, actionUninstall, actionDevelop}:
+                        options.action.passNimFlags
+                      else:
+                        @[]
+          buildFromDir(workPkgInfo, paths, "-d:release" & flags, options, nimBin)
+
       createDir(pkgDestDir)
       # For global installs, flatten srcDir so --nimblePath scanning finds modules
       # at the package root (e.g. pkgs2/intops-xxx/intops.nim instead of .../src/intops.nim).
@@ -353,7 +354,9 @@ proc installFromDirDownloadInfo(nimBin: Option[string], downloadDir: string, url
         createBinSymlink(pkgInfo, options)
 
     finally:
-      # Cleanup buildtemp if used
+      # Cleanup buildtemp if used. This used to start only after the build,
+      # which left the per-process buildtemp dir behind on a failed copy,
+      # hook or build (see the comment above the try).
       if not canSkipBuildTemp and dirExists(buildTempDir):
         removeDir(buildTempDir)
 
