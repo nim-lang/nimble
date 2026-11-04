@@ -2,6 +2,7 @@
 # BSD License. Look at license.txt for more info.
 
 import strutils, os, parseopt, uri, tables, terminal, strscans, strformat
+import std/tempfiles
 import compat/json
 import sequtils, sugar
 import std/options as std_opt
@@ -540,8 +541,18 @@ proc getBuildTempDir*(options: Options): string =
   options.config.nimbleDir / "buildtemp"
 
 proc getPkgBuildTempDir*(options: Options, pkgName: string, version: string, checksum: string): string =
-  ## Returns the temporary build directory for a specific package.
-  options.getBuildTempDir() / &"{pkgName}-{version}-{checksum}"
+  ## Creates and returns a unique temporary build directory for a specific
+  ## package version, so that two nimble processes installing the same package
+  ## version concurrently don't share (and clobber) the same build directory.
+  ## See #1910.
+  ##
+  ## The random suffix comes from `std/tempfiles`, which keeps the name unique
+  ## even when pids repeat across containers sharing a mounted ~/.nimble, and
+  ## unlike a pid-suffixed name the directory is created atomically (the name
+  ## cannot silently collide with an existing one).
+  let buildTempBase = options.getBuildTempDir()
+  createDir(buildTempBase)
+  createTempDir(&"{pkgName}-{version}-{checksum}-", "", buildTempBase)
 
 proc setPackageCache(options: var Options, baseDir: string) =
   options.pkgCachePath = baseDir / "pkgcache"
