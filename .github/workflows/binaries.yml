@@ -247,6 +247,12 @@ jobs:
           prerelease: true
           tag: latest
 
+      - name: Move the latest tag to this build
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api --method PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/latest" -f sha="$GITHUB_SHA" -F force=true
+
       # Generate release notes and create a versioned release if this is a tag push
       - if: startsWith(github.ref, 'refs/tags/v')
         name: Generate release notes
