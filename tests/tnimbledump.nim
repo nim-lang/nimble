@@ -3,31 +3,36 @@
 
 {.used.}
 
-import unittest, os, osproc
+import unittest, os
 import testscommon
 import std/[json, strformat, strutils]
 from nimblepkg/common import cd
 
-proc createFakeNim(nimDir, version: string) =
-  ## A Nim in the binaries dir that says it is `version`. Its bin/nim is a
-  ## symlink to the running compiler, so the fixture stays small.
-  let parts = version.split('.')
-  createDir(nimDir / "bin")
-  createDir(nimDir / "lib" / "system")
-  writeFile(nimDir / "nim.nimble", &"""
+# Only the tests that skip Windows use these: on Windows they'd be unused,
+# which fails tmisctests' "compilation without warnings".
+when not defined(windows):
+  import std/osproc
+
+  proc createFakeNim(nimDir, version: string) =
+    ## A Nim in the binaries dir that says it is `version`. Its bin/nim is a
+    ## symlink to the running compiler, so the fixture stays small.
+    let parts = version.split('.')
+    createDir(nimDir / "bin")
+    createDir(nimDir / "lib" / "system")
+    writeFile(nimDir / "nim.nimble", &"""
 include "lib/system/compilation.nim"
 version = "{version}"
 author = "test"
 description = "fake Nim"
 license = "MIT"
 """)
-  writeFile(nimDir / "lib" / "system" / "compilation.nim", &"""
+    writeFile(nimDir / "lib" / "system" / "compilation.nim", &"""
 const
   NimMajor* = {parts[0]}
   NimMinor* = {parts[1]}
   NimPatch* = {parts[2]}
 """)
-  createSymlink(findExe("nim"), nimDir / "bin" / "nim")
+    createSymlink(findExe("nim"), nimDir / "bin" / "nim")
 
 suite "nimble dump":
   test "can dump for current project":
