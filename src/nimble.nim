@@ -2196,7 +2196,10 @@ proc solvePkgs(rootPackage: PackageInfo, options: var Options, nimBin: var Optio
   #Its kinda a big refactor getPkgInfo to parametrize it. At some point we will do it.
   # Install nim to pkgs2 if not already there (for consistency with other packages)
   # This returns a PackageInfo pointing to pkgs2 instead of nimbinaries
-  let nimPkgInfo = installNimToPkgs2(resolvedNim.pkg.get, options, nimBin)
+  # `nimble dump` reports the Nim where it is and copies nothing (#1920).
+  let nimPkgInfo =
+    if options.action.typ == actionDump: resolvedNim.pkg.get
+    else: installNimToPkgs2(resolvedNim.pkg.get, options, nimBin)
   resolvedNim.pkg = some nimPkgInfo
   # Derive nimBin path from resolved package
   let resolvedNimBin = if nimPkgInfo.nimBinPath.isSome:
@@ -2835,7 +2838,9 @@ when isMainModule:
       displayDetails(error)
 
     try:
-      saveNimbleData(opt)
+      # `nimble dump` writes nothing (#1920), and changes no reverse deps.
+      if opt.action.typ != actionDump:
+        saveNimbleData(opt)
     except CatchableError as error:
       exitCode = QuitFailure
       displayError(&"Couldn't save \"{nimbleDataFileName}\".")
