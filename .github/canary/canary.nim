@@ -1,24 +1,30 @@
-## Canary: builds Nim repos, Status' and the community's, with two nimbles, the
-## latest release ("baseline") and the one under test ("head"), and reports the
-## repos that get less far with head. .github/workflows/canary.yml runs it
-## through the tasks in canary.nimble; the repos are in repos.txt. Inputs come
-## from the environment:
+## Canary: builds Nim repos with two nimbles, the latest release ("baseline")
+## and the one under test ("head"), and reports the repos that get less far
+## with head. .github/workflows/canary.yml runs it through the tasks in
+## canary.nimble. The repos are those of the packages Nim's CI tests (Nim
+## devel's testament/important_packages.nim), and Status' and the community's
+## in repos.txt. Inputs come from the environment:
 ##
 ## nimble plan    $BASELINE (a nimble release), $NIMBLE_REF (the nimble branch,
 ##                tag, SHA or refs/pull/<n>/head to test; default the nightly
 ##                build), $ONLY (repos, comma-separated), $TESTS (`false` skips
 ##                `nimble test`). Writes the build `matrix` and the `head` label
 ##                to $GITHUB_OUTPUT, slowest repos first by the last scheduled
-##                run of $GITHUB_REPOSITORY. Needs an authenticated `gh`.
-## nimble report  $PLANNED (the matrix), $BASELINE, $HEAD_LABEL, and Actions'
-##                $GITHUB_REPOSITORY and $GITHUB_RUN_ID, whose build jobs it
-##                reads. Needs an authenticated `gh`.
+##                run of $GITHUB_REPOSITORY; a matrix has at most 256 jobs, so
+##                the rest go to `more`. Needs an authenticated `gh`.
+## nimble report  $PLANNED and $PLANNED_MORE (the matrices), $BASELINE,
+##                $HEAD_LABEL, and Actions' $GITHUB_REPOSITORY and
+##                $GITHUB_RUN_ID, whose build jobs it reads. Needs an
+##                authenticated `gh`.
 
-import std/[algorithm, json, os, osproc, sequtils, sets, strformat, strutils, tables, times]
+import std/[algorithm, json, os, osproc, sequtils, sets, strformat, strutils, tables, tempfiles,
+            times]
 
 const
   # The build job's steps that run the recipe, in order, as canary.yml names them.
   Stages = {"Install dependencies": "install", "Test": "test"}.toOrderedTable
+  # The Nim that runs the canary, which evaluates Nim CI's list of packages.
+  NimExe = getCurrentCompilerExe()
 
 proc need(name: string): string =
   result = getEnv(name)
@@ -86,16 +92,59 @@ proc lastTimes(): Table[string, int] =
           let repo = name[0 ..< name.len - suffix.len]
           result[repo] = max(result.getOrDefault(repo), s)
 
-proc plan() =
-  var repos: seq[(string, bool)] # the repo, and whether to run its tests
+proc reposTxt(): seq[(string, bool)] =
+  ## The repos in repos.txt, and whether to run their tests.
   for line in lines("repos.txt"):
     let words = line.split('#')[0].splitWhitespace
     if words.len > 0:
-      repos.add (words[0], "install-only" notin words[1 .. ^1])
+      result.add (words[0], "install-only" notin words[1 .. ^1])
+
+proc githubFile(path: string): string =
+  ## A file, through GitHub's contents API.
+  sh(["gh", "api", "-H", "Accept: application/vnd.github.raw", path])
+
+proc nimCiRepos(): seq[(string, bool)] =
+  ## The GitHub repos of the packages Nim's CI tests, listed the way testament
+  ## lists them: Nim devel's testament/important_packages.nim, evaluated for
+  ## Linux amd64 (it has `when defined(...)` blocks), with each package's URL
+  ## from packages.json unless the list gives one.
+  let dir = createTempDir("canary", "")
+  defer: removeDir(dir)
+  writeFile(dir / "important_packages.nim",
+            githubFile("repos/nim-lang/Nim/contents/testament/important_packages.nim?ref=devel"))
+  writeFile(dir / "list.nims", "import std/json, important_packages\necho %packages\n")
+  let list = sh([NimExe, "e", "--hints:off", "--warnings:off", "--os:linux", "--cpu:amd64",
+                 dir / "list.nims"])
+  var urls = initTable[string, string]()
+  for p in parseJson(githubFile("repos/nim-lang/packages/contents/packages.json")):
+    if p.hasKey("url"):
+      urls[p["name"].getStr] = p["url"].getStr
+  const github = "https://github.com/"
+  for p in parseJson(list.strip.splitLines[^1]):
+    let name = p["name"].getStr
+    let url = if p["url"].getStr.len > 0: p["url"].getStr else: urls.getOrDefault(name)
+    var repo = url.strip(leading = false, chars = {'/'})
+    repo.removeSuffix(".git")
+    # The build job checks it out of GitHub, and the plan asks GitHub's API
+    # about it.
+    if not repo.toLowerAscii.startsWith(github) or repo.count('/') != 4 or
+        not repo.allCharsInSet(Letters + Digits + {':', '/', '-', '_', '.'}):
+      echo &"Not on GitHub, so not built: {name} ({url})"
+      continue
+    result.add (repo[github.len .. ^1], true)
+
+proc plan() =
+  # The repos, each once. repos.txt's go first, so a repo on both lists builds
+  # as repos.txt has it: that's how one of Nim CI's packages is install-only.
+  var repos: seq[(string, bool)] # the repo, and whether to run its tests
+  var seen = initHashSet[string]()
+  for (repo, repoTests) in reposTxt() & nimCiRepos():
+    if not seen.containsOrIncl(repo.toLowerAscii):
+      repos.add (repo, repoTests)
   let only = getEnv("ONLY").split(',').mapIt(it.strip).filterIt(it.len > 0).toHashSet
   let unknown = only - repos.mapIt(it[0]).toHashSet
   if unknown.len > 0:
-    quit("not in repos.txt: " & toSeq(unknown).sorted.join(", "))
+    quit("not in repos.txt or Nim CI's packages: " & toSeq(unknown).sorted.join(", "))
   # The build jobs start in the matrix's order, a few at a time: start the
   # slowest repos first, so they aren't the ones still building at the end.
   # Repos the last scheduled run didn't build go first too, as they may be slow.
@@ -116,7 +165,10 @@ proc plan() =
         matrix.add %*{"repo": repo, "sha": sha, "nimble": nimble, "version": version,
                       "tests": tests and repoTests}
 
-  let outputs = &"matrix={matrix}\nhead={label}\n"
+  # A matrix has at most 256 jobs: canary.yml's build-more job builds the rest.
+  let jobs = matrix.getElems
+  let first = min(256, jobs.len)
+  let outputs = &"matrix={%jobs[0 ..< first]}\nmore={%jobs[first .. ^1]}\nhead={label}\n"
   stdout.write outputs
   if existsEnv("GITHUB_OUTPUT"):
     let f = open(getEnv("GITHUB_OUTPUT"), fmAppend)
@@ -205,6 +257,13 @@ proc cell(b: Build): string =
   parts.add &"[log]({b.url})"
   parts.join("<br>")
 
+proc planned(): seq[JsonNode] =
+  ## The planned build jobs, of both matrices.
+  result = parseJson(need("PLANNED")).getElems
+  let more = getEnv("PLANNED_MORE")
+  if more.len > 0:
+    result.add parseJson(more).getElems
+
 type Row = object
   repo, sha, verdict: string
   baseline, head: Build
@@ -221,7 +280,7 @@ proc report() =
       jobs[job["name"].getStr] = toBuild(job)
 
   var rows: seq[Row]
-  for e in parseJson(need("PLANNED")):
+  for e in planned():
     if e["nimble"].getStr != "baseline":
       continue
     let repo = e["repo"].getStr
