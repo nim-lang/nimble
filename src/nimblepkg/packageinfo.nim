@@ -253,7 +253,9 @@ proc readPackageList(name: string, options: Options, ignorePackageCache = false)
   display("Reading", "$1 package list" % name, priority = LowPriority)
 
   if needsRefresh(options):
-    if options.prompt("No local packages.json found, download it from " &
+    # `nimble dump` reads a package list but never downloads one (#1920).
+    if options.action.typ != actionDump and
+        options.prompt("No local packages.json found, download it from " &
             "internet?"):
       for name, list in options.config.packageLists:
           await fetchList(list, options)

@@ -8,6 +8,32 @@ import testscommon
 import std/[json, strformat, strutils]
 from nimblepkg/common import cd
 
+# Only the tests that skip Windows use these: on Windows they'd be unused,
+# which fails tmisctests' "compilation without warnings".
+when not defined(windows):
+  import std/osproc
+
+  proc createFakeNim(nimDir, version: string) =
+    ## A Nim in the binaries dir that says it is `version`. Its bin/nim is a
+    ## symlink to the running compiler, so the fixture stays small.
+    let parts = version.split('.')
+    createDir(nimDir / "bin")
+    createDir(nimDir / "lib" / "system")
+    writeFile(nimDir / "nim.nimble", &"""
+include "lib/system/compilation.nim"
+version = "{version}"
+author = "test"
+description = "fake Nim"
+license = "MIT"
+""")
+    writeFile(nimDir / "lib" / "system" / "compilation.nim", &"""
+const
+  NimMajor* = {parts[0]}
+  NimMinor* = {parts[1]}
+  NimPatch* = {parts[2]}
+""")
+    createSymlink(findExe("nim"), nimDir / "bin" / "nim")
+
 suite "nimble dump":
   test "can dump for current project":
     cd "testdump":
@@ -458,3 +484,165 @@ taskRequires "test", "unittest2"
       check exitCode != QuitSuccess
       check outp.processOutput.inLines("must not install one")
       check not dirExists(fakeHome / ".nimble" / "nimbinaries")
+
+  test "dump reports the installed Nim a lock file pins (#1919)":
+    # With a lock file, dump looked no further than the locked Nim's version
+    # and left that Nim to be installed, which dump may not do: it reported an
+    # empty nimDir although the Nim was installed in nimbledeps.
+    when defined(windows):
+      # The fixture uses a symlink to the running compiler so it remains small.
+      skip()
+    else:
+      let root = getTempDir().expandFilename / "nimble1919"
+      removeDir root
+      defer: removeDir root
+
+      let
+        fakeHome = root / "home"
+        fakeConfig = root / "config"
+        projectDir = root / "project"
+        depsDir = projectDir / "nimbledeps"
+        # Not the Nim on PATH, so it has to come from the binaries dir.
+        pinnedNim = &"{NimMajor}.{NimMinor}.{NimPatch + 1}"
+      createFakeNim(fakeHome / ".nimble" / "nimbinaries" / ("nim-" & pinnedNim), pinnedNim)
+      createDir fakeConfig
+      createDir projectDir
+      writeFile(projectDir / "project.nimble", &"""
+version = "0.1.0"
+author = "test"
+description = "dump with a lock file"
+license = "MIT"
+requires "nim == {pinnedNim}"
+""")
+      # Keep the lock and the install offline.
+      createDir root / "nimbleDir"
+      writeFile(root / "nimbleDir" / "packages_official.json", "[]")
+
+      let
+        oldHome = getEnv("HOME")
+        hadConfigHome = existsEnv("XDG_CONFIG_HOME")
+        oldConfigHome = getEnv("XDG_CONFIG_HOME")
+      putEnv("HOME", fakeHome)
+      putEnv("XDG_CONFIG_HOME", fakeConfig)
+      defer:
+        putEnv("HOME", oldHome)
+        if hadConfigHome:
+          putEnv("XDG_CONFIG_HOME", oldConfigHome)
+        else:
+          delEnv("XDG_CONFIG_HOME")
+
+      cd projectDir:
+        # The lock file's sync file needs the project under git.
+        check execCmdEx("git init -q").exitCode == 0
+        check execCmdEx("git config user.name t").exitCode == 0
+        check execCmdEx("git config user.email t@t").exitCode == 0
+        check execCmdEx("git add .").exitCode == 0
+        check execCmdEx("git commit -q -m initial").exitCode == 0
+        let (_, lockExitCode) = execNimble(
+          "lock", "--offline", "--nimbleDir:" & (root / "nimbleDir"))
+        check lockExitCode == QuitSuccess
+        check "\"nim\"" in readFile("nimble.lock")
+
+        createDir depsDir
+        writeFile(depsDir / "packages_official.json", "[]")
+        let (_, installExitCode) =
+          execNimbleYes("install", "-l", "--depsOnly", "--offline")
+        check installExitCode == QuitSuccess
+        var installedNimDir = ""
+        for kind, path in walkDir(depsDir / "pkgs2"):
+          if kind == pcDir and
+              path.extractFilename.startsWith("nim-" & pinnedNim & "-"):
+            installedNimDir = path
+        check installedNimDir != ""
+
+        let (outp, dumpExitCode) = execNimble("dump", "-l")
+        check dumpExitCode == QuitSuccess
+        if installedNimDir != "":
+          check outp.processOutput.inLines(
+            "nimDir: " & (installedNimDir / "bin").escape)
+
+        # A locked Nim that isn't built, then one that isn't installed at all:
+        # dump has no Nim to report, and it neither builds nor installs one.
+        let binariesDir = fakeHome / ".nimble" / "nimbinaries"
+        proc nims(): seq[string] =
+          for dir in [binariesDir, depsDir / "pkgs2"]:
+            for _, path in walkDir(dir):
+              if path.extractFilename.startsWith("nim-"):
+                result.add path.extractFilename &
+                  (if fileExists(path / "bin" / "nim"): " (built)" else: "")
+        if installedNimDir != "":
+          removeFile(installedNimDir / "bin" / "nim")
+          removeFile(binariesDir / ("nim-" & pinnedNim) / "bin" / "nim")
+          for state in ["not built", "not installed"]:
+            if state == "not installed":
+              removeDir(installedNimDir)
+              removeDir(binariesDir / ("nim-" & pinnedNim))
+            let before = nims()
+            # --offline makes a regression fail fast instead of downloading.
+            let (outp, exitCode) = execNimble("dump", "-l", "--offline")
+            checkpoint state
+            check exitCode == QuitSuccess
+            check outp.processOutput.inLines("nimDir: \"\"")
+            check nims() == before
+
+  test "dump writes nothing into nimbledeps (#1920)":
+    # dump is read-only, yet in a project with an empty nimbledeps it copied
+    # the Nim it picked into nimbledeps/pkgs2, downloaded a package list there
+    # and saved nimbledata2.json.
+    when defined(windows):
+      # The fixture uses a symlink to the running compiler so it remains small.
+      skip()
+    else:
+      let root = getTempDir().expandFilename / "nimble1920"
+      removeDir root
+      defer: removeDir root
+
+      let
+        fakeHome = root / "home"
+        fakeConfig = root / "config"
+        projectDir = root / "project"
+        depsDir = projectDir / "nimbledeps"
+        # Not the Nim on PATH, so it has to come from the binaries dir.
+        pinnedNim = &"{NimMajor}.{NimMinor}.{NimPatch + 1}"
+        pinnedNimDir = fakeHome / ".nimble" / "nimbinaries" / ("nim-" & pinnedNim)
+      createFakeNim(pinnedNimDir, pinnedNim)
+      createDir fakeConfig
+      createDir depsDir
+
+      let
+        oldHome = getEnv("HOME")
+        hadConfigHome = existsEnv("XDG_CONFIG_HOME")
+        oldConfigHome = getEnv("XDG_CONFIG_HOME")
+      putEnv("HOME", fakeHome)
+      putEnv("XDG_CONFIG_HOME", fakeConfig)
+      defer:
+        putEnv("HOME", oldHome)
+        if hadConfigHome:
+          putEnv("XDG_CONFIG_HOME", oldConfigHome)
+        else:
+          delEnv("XDG_CONFIG_HOME")
+
+      # A Nim pinned to the binaries dir's, then one the Nim on PATH satisfies.
+      for (requirement, nimDir) in [
+          (&"nim == {pinnedNim}", (pinnedNimDir / "bin").escape),
+          (&"nim >= {NimMajor}.{NimMinor}.0", "")]:
+        writeFile(projectDir / "project.nimble", &"""
+version = "0.1.0"
+author = "test"
+description = "dump in a project with nimbledeps"
+license = "MIT"
+requires "{requirement}"
+""")
+        cd projectDir:
+          let (outp, exitCode) = execNimble("dump", "-l")
+          check exitCode == QuitSuccess
+          let lines = outp.processOutput
+          if nimDir.len > 0:
+            check lines.inLines("nimDir: " & nimDir)
+          else:
+            check not lines.inLines("nimDir: \"\"")
+        var written: seq[string]
+        for _, path in walkDir(depsDir):
+          written.add path.extractFilename
+        checkpoint requirement & ": nimbledeps holds " & $written
+        check written.len == 0

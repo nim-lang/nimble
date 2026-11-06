@@ -157,6 +157,15 @@ proc resolveNim*(rootPackage: PackageInfo, pkgListDecl: seq[PackageInfo], system
           #Test if the version in the lock is the same as in the system nim (in case devel is set in the lock file and system nim is devel)
           if systemNimPkg.isSome and dep.version == systemNimPkg.get.basicInfo.version:
             return NimResolved(pkg: some(systemNimPkg.get), version: systemNimPkg.get.basicInfo.version)
+          # Use the locked Nim when it is installed and built (pkgs2, nimbledeps
+          # or the binaries dir) instead of leaving it to be installed: `nimble
+          # dump` may not install one, so it reported no Nim at all (#1919). Not
+          # a develop (vendored) Nim, which this path has never picked.
+          for nimPkg in pkgListDecl:
+            if nimPkg.basicInfo.name.isNim and nimPkg.source != psDevelop and
+                nimPkg.basicInfo.version == dep.version and
+                fileExists(nimPkg.getNimPath()):
+              return NimResolved(pkg: some(nimPkg), version: dep.version)
           return NimResolved(version: dep.version)
 
   let runSolver = options.satResult.pass notin [satLockFile]

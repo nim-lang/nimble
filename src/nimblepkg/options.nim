@@ -700,7 +700,8 @@ proc setNimbleDir*(options: var Options) =
     if options.nimbleDir notin path:
       putEnv("PATH", options.nimbleDir / "bin" & PathSep & path)
 
-  if not options.developLocaldeps:
+  # `nimble dump` writes nothing, not even an empty pkgs dir (#1920).
+  if not options.developLocaldeps and options.action.typ != actionDump:
     # Create nimbleDir/pkgs if it doesn't exist - will create nimbleDir as well
     let pkgsDir = options.getPkgsDir()
     if not dirExists(pkgsDir):
