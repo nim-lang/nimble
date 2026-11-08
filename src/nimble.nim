@@ -2206,16 +2206,20 @@ proc solvePkgs(rootPackage: PackageInfo, options: var Options, nimBin: var Optio
                          nimPkgInfo.nimBinPath.get  # System nim with non-standard layout (#1609)
                        else:
                          nimPkgInfo.getNimPath()  # Standard layout
+  # A Nim without its binary is a source tree, such as a develop Nim: offer to
+  # build it before makeNimBin runs the binary. `nimble dump` builds nothing,
+  # and its prompts answer yes, so it gets the error instead.
+  if nimPkgInfo.nimBinPath.isNone and not fileExists(resolvedNimBin):
+    if options.action.typ != actionDump and
+        options.prompt("Develop version of nim was found but it is not compiled. Compile it now?"):
+      waitFor compileNim(options, nimPkgInfo.getRealDir, nimPkgInfo.basicInfo.version.toVersionRange())
+    else:
+      raise nimbleError("Trying to use nim from $1 " % nimPkgInfo.getRealDir,
+                        "If you are using develop mode nim make sure to compile it.")
   nimBin = some(resolvedNimBin)
   options.nimBin = some makeNimBin(options, resolvedNimBin)
-  # Add nim to PATH for subprocesses and handle compilation (only for non-system nim in standard layout)
+  # Add nim to PATH for subprocesses (only for non-system nim in standard layout)
   if nimPkgInfo.nimBinPath.isNone:
-    if not fileExists(resolvedNimBin):
-      if options.prompt("Develop version of nim was found but it is not compiled. Compile it now?"):
-        waitFor compileNim(options, nimPkgInfo.getRealDir, nimPkgInfo.basicInfo.version.toVersionRange())
-      else:
-        raise nimbleError("Trying to use nim from $1 " % nimPkgInfo.getRealDir,
-                          "If you are using develop mode nim make sure to compile it.")
     prependNimBinDirToPath(nimPkgInfo.getRealDir / "bin")
   display("Info:", "using $1 for compilation" % resolvedNimBin, priority = HighPriority)
   options.satResult.nimResolved = resolvedNim #TODO maybe we should consider the sat fallback pass. Not sure if we should just warn the user so the packages are corrected

@@ -175,6 +175,49 @@ suite "develop feature":
     check not lockFileHasNim(lockNoNim, opts)
     check not lockFileHasNim(tmp / "missing.lock", opts)
 
+  test "an unbuilt develop Nim is offered to be built, except by dump":
+    # A develop Nim is a source tree, so nimble asks to build it before running
+    # it; it ran it first and failed with "Unable to get version" instead. The
+    # test answers no, so as not to build Nim.
+    let root = getTempDir() / "tdevelop_unbuiltnim"
+    removeDir root
+    defer: removeDir root
+    createDir root / "nim" / "lib" / "system"
+    createDir root / "pkg"
+    # 2.3.1 is a version no Nim release has: only the develop Nim provides it.
+    writeFile(root / "nim" / "nim.nimble", """
+include "lib/system/compilation.nim"
+version = "2.3.1"
+author = "test"
+description = "an unbuilt Nim"
+license = "MIT"
+""")
+    writeFile(root / "nim" / "lib" / "system" / "compilation.nim", """
+const
+  NimMajor* = 2
+  NimMinor* = 3
+  NimPatch* = 1
+""")
+    writeFile(root / "pkg" / "pkg.nimble", """
+version = "0.1.0"
+author = "test"
+description = "test"
+license = "MIT"
+requires "nim == 2.3.1"
+""")
+    writeDevelopFile(root / "pkg" / developFileName, @[], @[root / "nim"])
+    cd root / "pkg":
+      let (output, exitCode) = execNimble("install", "--depsOnly", "-n")
+      check exitCode == QuitFailure
+      check output.contains(
+        "Develop version of nim was found but it is not compiled. Compile it now?")
+      check output.contains("make sure to compile it")
+      # dump answers its prompts yes, but must build nothing: building clones
+      # csources next to the Nim.
+      discard execNimble("dump")
+      for _, path in walkDir(root):
+        check path.extractFilename in ["nim", "pkg"]
+
   test "develop inside a vendored package clones deps flat (no nesting)":
     cdCleanDir installDir:
       usePackageListFile developPkgList:
