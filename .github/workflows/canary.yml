@@ -106,8 +106,15 @@ jobs:
         with:
           repository: ${{ matrix.repo }}
           ref: ${{ matrix.sha }}  # the same commit for both nimbles
-          submodules: recursive
           persist-credentials: false
+      # The submodules, fetched as checkout fetches them, except that one the
+      # repo breaks (mratsim/weave's has no URL) doesn't stop the build: a build
+      # that needs it fails with both nimbles.
+      - name: Fetch submodules
+        run: >-
+          git -c protocol.version=2 -c url.https://github.com/.insteadOf=git@github.com:
+          submodule update --init --force --depth=1 --recursive
+          || echo "::warning::Some submodules couldn't be fetched"
       - name: Set up nimble
         uses: nim-lang/setup-nimble-action@v2
         with:

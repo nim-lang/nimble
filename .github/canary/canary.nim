@@ -38,6 +38,24 @@ proc sh(args: openArray[string]): string =
     quit(&"`{args.join(\" \")}` failed ({code}):\n{output}")
   output
 
+proc tryGh(args: openArray[string]): tuple[output: string, code: int] =
+  ## Runs `gh`, up to three times: GitHub's API sometimes answers 5xx, and a
+  ## 502 once lost a night's report.
+  for attempt in 1 .. 3:
+    let (output, code) = execCmdEx(quoteShellCommand(@["gh"] & @args))
+    result = (output, code)
+    if code == 0:
+      return
+    if attempt < 3:
+      sleep(attempt * 10_000)
+
+proc gh(args: openArray[string]): string =
+  ## Runs `gh` (see tryGh) and returns its output; quits if it fails.
+  let (output, code) = tryGh(args)
+  if code != 0:
+    quit(&"`gh {args.join(\" \")}` failed ({code}):\n{output}")
+  output
+
 proc short(sha: string): string = sha[0 ..< min(8, sha.len)]
 
 proc seconds(node: JsonNode): int =
@@ -56,7 +74,7 @@ proc headNimble(): (string, string) =
     # The nightly's commit, for the label. binaries.yml republishes the nightly
     # for every push to master and every release tag, so the latest successful
     # run built it.
-    let sha = sh(["gh", "api", "repos/nim-lang/nimble/actions/workflows/binaries.yml/runs" &
+    let sha = gh(["api", "repos/nim-lang/nimble/actions/workflows/binaries.yml/runs" &
                   "?event=push&status=success&per_page=1",
                   "--jq", ".workflow_runs[0].head_sha"]).strip
     return ("nightly", "nightly@" & short(sha))
@@ -64,22 +82,22 @@ proc headNimble(): (string, string) =
   if not nimbleRef.allCharsInSet(Letters + Digits + {'.', '_', '/', '-'}) or ".." in nimbleRef:
     quit(&"not a git ref: {nimbleRef}")
   # Every head job builds this commit, even if the branch moves meanwhile.
-  let sha = sh(["gh", "api", &"repos/nim-lang/nimble/commits/{nimbleRef}", "--jq", ".sha"]).strip
+  let sha = gh(["api", &"repos/nim-lang/nimble/commits/{nimbleRef}", "--jq", ".sha"]).strip
   (sha, nimbleRef & "@" & short(sha))
 
 proc lastTimes(): Table[string, int] =
   ## How long each repo took in the last scheduled run, which builds them all:
   ## the longer of its two build jobs, in seconds. Empty if that can't be read,
-  ## as the times only decide the order.
+  ## as the times only decide the order. A cancelled run has few times, if any.
   let repository = getEnv("GITHUB_REPOSITORY", "nim-lang/nimble")
-  let (run, code) = execCmdEx(quoteShellCommand(["gh", "api",
-    &"repos/{repository}/actions/workflows/canary.yml/runs?event=schedule&status=completed&per_page=1",
-    "--jq", ".workflow_runs[0].id // empty"]))
+  let (run, code) = tryGh(["api",
+    &"repos/{repository}/actions/workflows/canary.yml/runs?event=schedule&status=completed&per_page=10",
+    "--jq", "[.workflow_runs[] | select(.conclusion != \"cancelled\")][0].id // empty"])
   if code != 0 or run.strip.len == 0:
     return
-  let (jobs, jobsCode) = execCmdEx(quoteShellCommand(["gh", "api", "--paginate",
+  let (jobs, jobsCode) = tryGh(["api", "--paginate",
     &"repos/{repository}/actions/runs/{run.strip}/jobs?per_page=100",
-    "--jq", ".jobs[] | {name, started_at, completed_at}"]))
+    "--jq", ".jobs[] | {name, started_at, completed_at}"])
   if jobsCode != 0:
     return
   for line in jobs.splitLines:
@@ -101,7 +119,7 @@ proc reposTxt(): seq[(string, bool)] =
 
 proc githubFile(path: string): string =
   ## A file, through GitHub's contents API.
-  sh(["gh", "api", "-H", "Accept: application/vnd.github.raw", path])
+  gh(["api", "-H", "Accept: application/vnd.github.raw", path])
 
 proc nimCiRepos(): seq[(string, bool)] =
   ## The GitHub repos of the packages Nim's CI tests, listed the way testament
@@ -160,7 +178,7 @@ proc plan() =
   for (repo, repoTests) in repos:
     if only.len == 0 or repo in only:
       # Both nimbles build the same commit.
-      let sha = sh(["gh", "api", &"repos/{repo}/commits/HEAD", "--jq", ".sha"]).strip
+      let sha = gh(["api", &"repos/{repo}/commits/HEAD", "--jq", ".sha"]).strip
       for (nimble, version) in [("baseline", baseline), ("head", head)]:
         matrix.add %*{"repo": repo, "sha": sha, "nimble": nimble, "version": version,
                       "tests": tests and repoTests}
@@ -188,10 +206,15 @@ type
     stages: seq[Stage]
     broken: string # why the job failed, if not in a stage: the canary's own failure
 
-proc toBuild(job: JsonNode): Build =
+proc toBuild(job: JsonNode, tests: bool): Build =
   result = Build(found: true, url: job["html_url"].getStr)
+  # GitHub can leave steps of a job that succeeded "in progress" or "pending"
+  # for good: none of them failed, and Test ran exactly when `tests` is on.
+  let succeeded = job{"conclusion"}.getStr == "success"
   for step in job{"steps"}.getElems:
-    let (name, conclusion) = (step["name"].getStr, step{"conclusion"}.getStr)
+    var (name, conclusion) = (step["name"].getStr, step{"conclusion"}.getStr)
+    if succeeded and conclusion.len == 0:
+      conclusion = if Stages.getOrDefault(name) == "test" and not tests: "skipped" else: "success"
     if name in Stages:
       result.stages.add Stage(name: Stages[name], conclusion: conclusion, seconds: seconds(step))
     elif conclusion in ["failure", "cancelled"] and result.broken.len == 0 and
@@ -271,23 +294,24 @@ type Row = object
 
 proc report() =
   let (repository, run) = (need("GITHUB_REPOSITORY"), need("GITHUB_RUN_ID"))
-  var jobs = initTable[string, Build]()
-  for line in sh(["gh", "api", "--paginate", &"repos/{repository}/actions/runs/{run}/jobs?per_page=100",
+  var jobs = initTable[string, JsonNode]()
+  for line in gh(["api", "--paginate", &"repos/{repository}/actions/runs/{run}/jobs?per_page=100",
                   "--jq", ".jobs[] | {name, conclusion, html_url, " &
                           "steps: [.steps[] | {name, conclusion, started_at, completed_at}]}"]).splitLines:
     if line.len > 0:
       let job = parseJson(line)
-      jobs[job["name"].getStr] = toBuild(job)
+      jobs[job["name"].getStr] = job
 
   var rows: seq[Row]
   for e in planned():
     if e["nimble"].getStr != "baseline":
       continue
-    let repo = e["repo"].getStr
+    let (repo, tests) = (e["repo"].getStr, e["tests"].getBool)
     # The build job's name in canary.yml.
+    proc build(name: string): Build =
+      if name in jobs: toBuild(jobs[name], tests) else: Build()
     var row = Row(repo: repo, sha: e["sha"].getStr,
-                  baseline: jobs.getOrDefault(repo & " (baseline)"),
-                  head: jobs.getOrDefault(repo & " (head)"))
+                  baseline: build(repo & " (baseline)"), head: build(repo & " (head)"))
     row.verdict = verdict(row.baseline, row.head)
     for (nimble, b) in [("baseline", row.baseline), ("head", row.head)]:
       if not b.found:
