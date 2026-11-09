@@ -161,7 +161,9 @@ proc copyInstallFiles(srcDir, destDir: string, pkgInfo: PackageInfo,
   copied
 
 
-proc installFromDirDownloadInfo(nimBin: Option[string], downloadDir: string, url: string, pv: PkgTuple, options: var Options): PackageInfo {.instrument.} =
+proc installFromDirDownloadInfo(nimBin: Option[string], downloadDir: string,
+    url: string, pv: PkgTuple, options: var Options,
+    relinkExistingBinaries = false): PackageInfo {.instrument.} =
   ## Installs a package from a download directory (pkgcache).
   ## flow: pkgcache -> buildtemp (build) -> pkgs2 (install minimum)
 
@@ -182,8 +184,7 @@ proc installFromDirDownloadInfo(nimBin: Option[string], downloadDir: string, url
 
   let oldPkg = packageExists(nimBin, pkgInfo, options)
   if oldPkg.isSome:
-    # In the case we already have the same package in the cache then only merge
-    # the new package special versions to the old one.
+    # Merge the new package special versions into the cached package.
     displayWarning(pkgAlreadyExistsInTheCacheMsg(pkgInfo), MediumPriority)
     var oldPkg = oldPkg.get
     # Add the requested version to specialVersions so this package can satisfy
@@ -191,6 +192,8 @@ proc installFromDirDownloadInfo(nimBin: Option[string], downloadDir: string, url
     oldPkg.metaData.specialVersions.incl pkgInfo.basicInfo.version
     oldPkg.metaData.specialVersions.incl pkgInfo.metaData.specialVersions
     saveMetaData(oldPkg.metaData, oldPkg.getNimbleFileDir, changeRoots = false)
+    if relinkExistingBinaries:
+      createBinSymlink(oldPkg, options)
     return oldPkg
 
   let pkgDestDir = pkgInfo.getPkgDest(options)
@@ -495,7 +498,13 @@ proc installEntry(entry: PkgDownloadEntry, satResult: var SATResult,
       else:
         let tempPkgInfo = getPkgInfo(satResult.rootPackage.getNimbleFileDir(), options, nimBin = nimBin)
         let oldPkg = packageExists(nimBin, tempPkgInfo, options)
-        installedPkgInfo = installFromDirDownloadInfo(nimBin, satResult.rootPackage.getNimbleFileDir(), satResult.rootPackage.metaData.url, entry.pv, options).toRequiresInfo(options, nimBin = nimBin)
+        # Explicit root installs select the active binaries even when cached.
+        # Dependency installs must not change the user's selected version.
+        installedPkgInfo = installFromDirDownloadInfo(nimBin,
+          satResult.rootPackage.getNimbleFileDir(), satResult.rootPackage.metaData.url,
+          entry.pv, options,
+          relinkExistingBinaries = options.action.typ == actionInstall and
+            not options.depsOnly).toRequiresInfo(options, nimBin = nimBin)
         wasNewlyInstalled = oldPkg.isNone
   else:
     let dlInfo = entry.dlInfo.get
