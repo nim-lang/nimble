@@ -400,6 +400,15 @@ suite "Version Discovery":
     check res.len == 1
     check attempt == 2
 
+  test "a git:// URL is looked up over https, like its download":
+    # bump 1.8.13 requires git://github.com/disruptek/cutelog.git. Its download
+    # uses https (cloneUsingHttps, on by default), but the lookup before it used
+    # git:// as written, which GitHub no longer serves: every lookup hung until
+    # the connection timed out, then failed.
+    var options = initOptions()
+    options.config.cloneUsingHttps = true
+    check checkUrlType("git://github.com/nim-lang/sat.git", options) == DownloadMethod.git
+
   test "verAny uses version-agnostic cache directory for discovery":
     # Test that verAny (used during package discovery) uses version-agnostic cache
     # to avoid downloading the same repo multiple times.

@@ -12,10 +12,10 @@
 
 status-im/nim-async-channels
 status-im/nim-bearssl
-status-im/nim-blscurve
-status-im/nim-dnsdisc
+status-im/nim-blscurve install-only    # its tests need the eth2 test vectors its CI downloads
+status-im/nim-dnsdisc install-only     # it requires any eth, and the latest moved a module it imports
 status-im/nim-ethash
-status-im/nim-graphql
+status-im/nim-graphql install-only     # its test task passes nim `--styleCheck: error` (a typo)
 status-im/nim-kzg4844
 status-im/nim-libbacktrace
 status-im/nim-minilru
@@ -25,8 +25,8 @@ status-im/nim-secp256k1
 status-im/nim-ttmath
 status-im/nim-zlib
 
-vacp2p/nim-libp2p
-status-im/nimbus-eth1 install-only  # its dependency graph is the point; its tests build a full node
+vacp2p/nim-libp2p install-only         # its tests are timing-sensitive
+status-im/nimbus-eth1 install-only     # its dependency graph is the point; its tests build a full node
 
 # The community: packages whose `nimble test` passes on a plain runner, and,
 # install-only, projects whose dependencies exercise nimble: lock files, `#sha`,
@@ -34,7 +34,6 @@ status-im/nimbus-eth1 install-only  # its dependency graph is the point; its tes
 # submodules.
 nim-lang/langserver
 yglukhov/yasync
-niv/neverwinter.nim
 squattingmonk/nasher
 HugoGranstrom/nimiSlides install-only  # no tests
 fox0430/moe install-only               # its tests need X11
@@ -47,8 +46,33 @@ treeform/boxy install-only             # its tests need OpenGL
 crashappsec/chalk install-only         # its tests need Docker
 inv2004/ttop install-only              # no tests
 krisppurg/dimscord install-only        # its tests aren't run upstream either
+niv/neverwinter.nim install-only       # its tests need the game's base scripts
 
-# Nim CI's packages whose tests can't run here.
-Vindaar/ggplotnim install-only         # its tests need cairo
-zedeus/nitter install-only             # its tests need Redis and libpcre
+# Nim CI's packages whose tests fail with both nimbles for reasons of their own:
+# they need what a plain runner lacks, install their test dependencies some
+# other way, or don't build with Nim 2.4 or GCC 14.
+andreaferretti/neo install-only        # it uses shallowCopy, which ORC lacks
+Araq/ormin install-only                # its tests run atlas-run
+bluenote10/NimSvg install-only         # its tests need libpcre
+brentp/hts-nim install-only            # its tests need libhts
+disruptek/sigv4 install-only           # its tests import balls, which it doesn't require
+fowlmouth/nake install-only            # its tests need libpcre
+genotrance/nimgen install-only         # its tests need X11 headers
+jblindsay/kdtree install-only          # its tests' float checks fail
+moigagoo/norm install-only             # its tests need PostgreSQL
+mratsim/Arraymancer install-only       # its tests need BLAS
+mratsim/constantine install-only       # its tests don't compile with Nim 2.4
+nim-lang/nimterop install-only         # its tests need Nim's source tree
+pietroppeter/nimib install-only        # its tests need libpcre
 planety/prologue install-only          # `nimble test` finds no tests
+SciNim/Measuremancer install-only      # its testDeps task installs what its tests import
+SciNim/nim-plotly install-only         # its tests need libpcre
+SciNim/numericalnim install-only       # its testDeps task installs what its tests import
+soasme/nim-markdown install-only       # its tests need libpcre
+status-im/nim-confutils install-only   # its tests import toml_serialization, which it doesn't require
+status-im/nim-toml-serialization install-only  # its tests import stint, which it doesn't require
+Vindaar/ggplotnim install-only         # its tests need cairo
+yglukhov/asyncthreadpool install-only  # its tests don't compile with GCC 14
+yglukhov/nimpy install-only            # its tests need python2
+zedeus/nitter install-only             # its tests need Redis and libpcre
+zevv/npeg install-only                 # its C++ tests crash
