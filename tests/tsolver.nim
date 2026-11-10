@@ -573,6 +573,32 @@ for solver in SolverKind:
           foundPrologue = true
       check foundPrologue
 
+    test "a package whose every version needs a missing package is avoided":
+      # alaviss/union's test deps: cps 0.0.1 needs diffoutput, every version of
+      # which needs diff, which no package list has. Newer cps versions need
+      # neither, so diffoutput is never needed.
+      var pkgVersionTable = initTable[string, PackageVersions]()
+      let root = PackageMinimalInfo(
+        name: "union", version: newVersion("0.2.0"), isRoot: true,
+        requires: @[("cps", VersionRange(kind: verAny))])
+      pkgVersionTable["union"] = PackageVersions(pkgName: "union", versions: @[root])
+      pkgVersionTable["cps"] = PackageVersions(pkgName: "cps", versions: @[
+        PackageMinimalInfo(name: "cps", version: newVersion("0.0.1"),
+          requires: @[("diffoutput", VersionRange(kind: verAny))]),
+        PackageMinimalInfo(name: "cps", version: newVersion("0.11.4"))])
+      pkgVersionTable["diffoutput"] = PackageVersions(
+        pkgName: "diffoutput", versions: @[
+          PackageMinimalInfo(name: "diffoutput", version: newVersion("0.1.2"),
+            requires: @[("diff", parseVersionRange(">= 0.5.0"))])])
+
+      var output = ""
+      var options = initOptions()
+      options.solver = solver
+      let solved = pkgVersionTable.getSolvedPackages(output, options)
+      checkpoint(output)
+      check solved.anyIt(it.pkgName == "cps" and it.version == newVersion("0.11.4"))
+      check not solved.anyIt(it.pkgName == "diffoutput")
+
   suite "resolution algorithm (" & $solver & ")":
     let root = PackageMinimalInfo(
       name: "a", version: newVersion "1.0.0", isRoot: true,
