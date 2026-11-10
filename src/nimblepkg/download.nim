@@ -304,9 +304,13 @@ proc checkUrlType*(url: string, options: Options): DownloadMethod =
   ## Determines the download method based on the URL.
   if options.offline:
     raise nimbleError("Cannot check URL type in offline mode: " & url)
-  if doCmdEx("git ls-remote -- " & url.quoteShell()).exitCode == QuitSuccess:
+  # Check the URL the download will use: by default a git:// URL is fetched over
+  # https, and GitHub no longer serves git://, so asking it as written hangs
+  # until the connection times out.
+  let checkedUrl = modifyUrl(url, options.config.cloneUsingHttps)
+  if doCmdEx("git ls-remote -- " & checkedUrl.quoteShell()).exitCode == QuitSuccess:
     return DownloadMethod.git
-  elif doCmdEx("hg identify -- " & url.quoteShell()).exitCode == QuitSuccess:
+  elif doCmdEx("hg identify -- " & checkedUrl.quoteShell()).exitCode == QuitSuccess:
     return DownloadMethod.hg
   else:
     raise nimbleError("Unable to identify url: " & url)
