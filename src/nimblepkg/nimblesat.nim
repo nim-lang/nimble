@@ -596,33 +596,13 @@ proc satPackages*(graph: var DepGraph, pkgVersionTable: Table[string, PackageVer
   for pkgName in reachable:
     if pkgName.toLowerAscii notin lowerCasePackages:
       missingDeps.add pkgName
+  let form = toFormular(graph, options.resolutionAlgorithm)
   if missingDeps.len > 0:
-    # Check if ALL versions that require the missing deps also have alternative
-    # versions that don't. If so, the solver can still find a solution by picking
-    # versions that don't need the missing packages.
-    var allMissingAreOptional = true
-    for missing in missingDeps:
-      # Find which packages require this missing dep
-      for node in graph.nodes:
-        var hasVersionWithout = false
-        var hasVersionWith = false
-        for ver in node.versions:
-          var needsMissing = false
-          for dep, q in items graph.reqs[ver.req].deps:
-            if dep.toLowerAscii == missing.toLowerAscii:
-              needsMissing = true
-              break
-          if needsMissing:
-            hasVersionWith = true
-          else:
-            hasVersionWithout = true
-        # If a package has versions requiring the missing dep but no alternatives, it's fatal
-        if hasVersionWith and not hasVersionWithout:
-          allMissingAreOptional = false
-          break
-      if not allMissingAreOptional:
-        break
-    if not allMissingAreOptional:
+    # toFormular rules out every version that needs a missing package, so the
+    # solver may still find a solution without them: they only make the
+    # resolution fail when there is none.
+    var s = createSolution(form.idgen)
+    if attemptSatisfiable(form, s) == saoUnsat:
       # A package nothing can provide is a resolution failure like any other,
       # so explain it the same way instead of dumping the whole universe: the
       # table only helps when debugging the resolver itself (--verbose).
@@ -638,13 +618,10 @@ proc satPackages*(graph: var DepGraph, pkgVersionTable: Table[string, PackageVer
         if explanation.len > 0:
           output.add "\n" & explanation & "\n"
         elif foundSolution:
-          # The missing-dependency heuristic above scans every node, reachable
-          # or not, so it can declare fatal what the solver would route around.
           output.add solverDisagreementNote
       output.addDiscoveryErrors(options)
       return
-    
-  let form = toFormular(graph, options.resolutionAlgorithm)
+
   var packages = initTable[string, Version]()
   var triedVersions: seq[VersionAttempt] = @[]
   if not solve(graph, form, packages, output, triedVersions, options):
