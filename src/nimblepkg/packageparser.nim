@@ -58,7 +58,7 @@ proc validatePackageName*(name: string) =
   if name.len == 0: return
 
   if name[0] in {'0'..'9'}:
-    raise validationError(name &
+    raise validationError(
         "\"$1\" is an invalid package name: cannot begin with $2" %
         [name, $name[0]], true)
 
@@ -78,8 +78,8 @@ proc validatePackageName*(name: string) =
       prevWasUnderscore = false
 
   if name.endsWith("pkg"):
-    raise validationError("\"$1\" is an invalid package name: cannot end" &
-                          " with \"pkg\"" % name, false)
+    raise validationError(
+      "\"$1\" is an invalid package name: cannot end with \"pkg\"" % name, false)
   if name.toUpperAscii() in reservedNames:
     raise validationError(
       "\"$1\" is an invalid package name: reserved name" % name, false)
@@ -489,3 +489,15 @@ when isMainModule:
     validatePackageName("foo_bar")
     validatePackageName("f_oo_b_a_r")
     expect NimbleError, validatePackageName("foo__bar")
+
+  test "an invalid package name error names the package once":
+    proc errorFor(name: string): string =
+      try:
+        validatePackageName(name)
+      except NimbleError as e:
+        result = e.msg
+
+    check errorFor("1foo") ==
+      "\"1foo\" is an invalid package name: cannot begin with 1"
+    check errorFor("foopkg") ==
+      "\"foopkg\" is an invalid package name: cannot end with \"pkg\""
