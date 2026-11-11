@@ -413,10 +413,20 @@ proc findMinimalFailingSet*(g: var DepGraph): tuple[failingSet, implicated: seq[
   (minimalFailingSet, implicated, output)
 
 proc solve*(g: var DepGraph; f: Form, packages: var Table[string, Version], output: var string,
-           triedVersions: var seq[VersionAttempt], options: Options): bool {.instrument.} =
+           triedVersions: var seq[VersionAttempt], options: Options,
+           unsolvable: proc (): bool = nil): bool {.instrument.} =
+  ## `unsolvable`, if given, tells whether the dependencies have no solution
+  ## at all. It is asked when the search runs out of budget: the other node
+  ## orders, the analysis and the pinned retries that follow can only find a
+  ## solution that exists, and on a large graph each of them runs out of
+  ## budget too.
   var fUsed = f
   var s = createSolution(fUsed.idgen)
   var outcome = attemptSatisfiable(fUsed, s)
+  if outcome == saoOverflow and unsolvable != nil and unsolvable():
+    output.add "\nThe dependency search exceeded its iteration budget, and " &
+               "there is no solution.\n"
+    return false
   if outcome == saoOverflow:
     # Retry under rotated node orders before concluding anything; adopt the
     # ordering that produced a definitive answer (see decideSatisfiable).
@@ -624,7 +634,15 @@ proc satPackages*(graph: var DepGraph, pkgVersionTable: Table[string, PackageVer
 
   var packages = initTable[string, Version]()
   var triedVersions: seq[VersionAttempt] = @[]
-  if not solve(graph, form, packages, output, triedVersions, options):
+  # The SAT search can run out of budget on a large graph that has no
+  # solution, which PubGrub proves in moments. An error in PubGrub proves
+  # nothing.
+  let unsolvable = proc (): bool =
+    try:
+      not solveWithPubGrub(pkgVersionTable).solved
+    except CatchableError:
+      false
+  if not solve(graph, form, packages, output, triedVersions, options, unsolvable):
     # SAT found no solution. PubGrub re-solves the same universe to produce
     # an explanation of *why* - and if it finds a solution instead, one of
     # the two solvers is wrong, which is worth surfacing loudly.
