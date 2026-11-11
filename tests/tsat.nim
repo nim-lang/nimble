@@ -2,7 +2,7 @@
 import unittest, os, osproc
 import testscommon
 # from nimblepkg/common import cd, NimbleError Used in the commented tests
-import std/[tables, json, jsonutils, strutils, sequtils, options, algorithm]
+import std/[tables, json, jsonutils, strutils, sequtils, options, algorithm, times]
 import chronos
 import nimblepkg/[version, nimblesat, nimblesolver, options, packageinfotypes, urls, download]
 from nimblepkg/common import cd, NimbleError
@@ -39,6 +39,30 @@ suite "SAT solver":
     var output = ""
     check solve(graph, form, packages, output, initOptions())
     check packages.len > 0
+
+  test "a search that runs out of budget stops when there is no solution":
+    # nimbus-eth1 now requires nim >= 2.2.14, while every beacon_chain version
+    # pins an older Nim (this snapshot of its table predates the bump). The
+    # SAT search runs out of budget on that table, and the rotations, analysis
+    # and pinned retries that followed took about 25 minutes in the canary to
+    # report the conflict. PubGrub proves there is no solution in moments.
+    var pkgVersionTable = parseJson(readFile("packageMinimal" / "nimbus-eth1.json")).jsonTo(Table[string, PackageVersions], Joptions(allowMissingKeys: true))
+    pkgVersionTable.normalizeRequirements(initOptions())
+    var bumped = 0
+    for pv in pkgVersionTable.mvalues:
+      if pv.versions[0].isRoot:
+        for req in pv.versions[0].requires.mitems:
+          if req.name == "nim":
+            req.ver = parseVersionRange(">= 2.2.14")
+            inc bumped
+    check bumped == 1
+
+    var output = ""
+    let started = epochTime()
+    check pkgVersionTable.getSolvedPackages(output, initOptions()).len == 0
+    checkpoint output
+    check "version solving failed" in output
+    check epochTime() - started < 60
 
   test "findMinimalFailingSet separates implicated deps from unaffected ones":
     # The conflict is alpha (needs common >= 2.0) vs pin (needs common < 2.0):
