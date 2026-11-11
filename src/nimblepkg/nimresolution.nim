@@ -232,11 +232,14 @@ proc resolveNim*(rootPackage: PackageInfo, pkgListDecl: seq[PackageInfo], system
       #TODO test if its compatible with the current solution.
       if bestNim.isNone or pkg.basicInfo.version > bestNim.get.basicInfo.version:
         bestNim = some(pkg)
+    # Nothing requires a Nim and none was installed before this run, so any Nim
+    # will do: the bootstrap one installed above, which the next run would find.
+    if bestNim.isNone:
+      bestNim = options.satResult.bootstrapNim.nimResolved.pkg
     if bestNim.isSome:
       options.satResult.pkgs.incl(bestNim.get)
       return NimResolved(pkg: some(bestNim.get), version: bestNim.get.basicInfo.version)
 
-    #TODO if we ever reach this point, we should just download the latest nim release
     raise resolutionFailureError("No Nim found")
   if nims.len > 1:
     #Before erroying make sure the version are actually different

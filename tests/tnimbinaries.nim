@@ -270,6 +270,37 @@ suite "Nim binaries":
     let (develVer, _) = execCmdEx(develNim & " --version")
     check installedVer.splitLines[0] == develVer.splitLines[0]
 
+  when not defined(windows):
+    test "a package that requires nothing installs where there is no Nim":
+      # Nothing asks for a Nim, so the one nimble downloads to read the packages
+      # is the one to use. It failed with "No Nim found" until a second run.
+      let root = getTempDir() / "nimble_test_no_nim_requires_nothing"
+      removeDir(root)
+      createDir(root / "home") # no Nim in its binaries dir
+      createDir(root / "requiresnothing")
+      defer: removeDir(root)
+      writeFile(root / "requiresnothing" / "requiresnothing.nimble", """
+version = "0.1.0"
+author = "nimble"
+description = "Requires nothing"
+license = "MIT"
+""")
+      var path: seq[string]
+      for dir in getEnv("PATH").split(PathSep):
+        if not fileExists(dir / "nim"):
+          path.add dir
+      let cmd = "HOME=$1 PATH=$2 $3 --nimbleDir:$4 install -y --depsOnly" % [
+        quoteShell(root / "home"), quoteShell(path.join($PathSep)),
+        nimblePath.quoteShell, quoteShell(root / "nimbleDir")]
+      let (output, exitCode) = execCmdEx(cmd, workingDir = root / "requiresnothing")
+      checkpoint(output)
+      check exitCode == QuitSuccess
+      var nims: seq[string]
+      for _, dir in walkDir(root / "nimbleDir" / "pkgs2"):
+        if dir.extractFilename.startsWith("nim-"):
+          nims.add dir
+      check nims.len == 1
+
   test "nimble builds with all supported Nim versions":
     const
       projectRoot = currentSourcePath().parentDir.parentDir
