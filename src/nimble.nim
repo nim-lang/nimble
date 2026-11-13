@@ -2207,11 +2207,13 @@ proc solvePkgs(rootPackage: PackageInfo, options: var Options, nimBin: var Optio
                        else:
                          nimPkgInfo.getNimPath()  # Standard layout
   # A Nim without its binary is a source tree, such as a develop Nim: offer to
-  # build it before makeNimBin runs the binary. `nimble dump` builds nothing,
-  # and its prompts answer yes, so it gets the error instead.
+  # build it before makeNimBin runs the binary. `nimble dump` builds nothing
+  # (its prompts answer yes), so it reports no Nim.
   if nimPkgInfo.nimBinPath.isNone and not fileExists(resolvedNimBin):
-    if options.action.typ != actionDump and
-        options.prompt("Develop version of nim was found but it is not compiled. Compile it now?"):
+    if options.action.typ == actionDump:
+      raise newNimbleError[NimNotBuiltError]("The Nim at $1 is not built, and `nimble dump` must not build it" %
+                                             nimPkgInfo.getRealDir)
+    if options.prompt("Develop version of nim was found but it is not compiled. Compile it now?"):
       waitFor compileNim(options, nimPkgInfo.getRealDir, nimPkgInfo.basicInfo.version.toVersionRange())
     else:
       raise nimbleError("Trying to use nim from $1 " % nimPkgInfo.getRealDir,
@@ -2587,8 +2589,8 @@ proc getNimDir(options: var Options, nimBin: var Option[string]): string =
       rootPackage.requires.add(options.action.packages)
     try:
       solvePkgs(rootPackage, options, nimBin)
-    except ResolutionFailureError:
-      # dump never raises on resolution failure — it returns ""
+    except ResolutionFailureError, NimNotBuiltError:
+      # dump never raises when it has no Nim to report — it returns ""
       # so the langserver can detect "couldn't pick a nim".
       return ""
     if nimBin.isNone:
