@@ -212,9 +212,12 @@ requires "nim == 2.3.1"
       check output.contains(
         "Develop version of nim was found but it is not compiled. Compile it now?")
       check output.contains("make sure to compile it")
-      # dump answers its prompts yes, but must build nothing: building clones
-      # csources next to the Nim.
-      discard execNimble("dump")
+      # dump answers its prompts yes, but must build nothing. It reports no
+      # Nim and the rest of the package; it used to exit 1 and print nothing.
+      let (dumpOutput, dumpExitCode) = execNimble("dump")
+      check dumpExitCode == QuitSuccess
+      check dumpOutput.contains("name: \"pkg\"")
+      check dumpOutput.contains("nimDir: \"\"")
       for _, path in walkDir(root):
         check path.extractFilename in ["nim", "pkg"]
 

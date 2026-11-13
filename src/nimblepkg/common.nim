@@ -23,6 +23,10 @@ type
   ResolutionFailureError* = object of NimbleError
     ## Raised when dependency or Nim selection has no usable solution.
 
+  NimNotBuiltError* = object of NimbleError
+    ## Raised when the selected Nim is a source tree without its binary, such
+    ## as a develop Nim, and the action must not build it (`nimble dump`).
+
   NeedsNimBinError* = object of NimbleError
     ## Raised when a Nim binary is needed but nimBin is not yet resolved.
     ## Callers catch this and retry after bootstrap resolution.
