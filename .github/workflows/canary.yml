@@ -102,14 +102,25 @@ jobs:
     # the package requires, then runs its tests. The report reads these steps'
     # names.
     steps: &build
-      - uses: actions/checkout@v7
-        with:
-          repository: ${{ matrix.repo }}
-          ref: ${{ matrix.sha }}  # the same commit for both nimbles
-          persist-credentials: false
-      # The submodules, fetched as checkout fetches them, except that one the
-      # repo breaks (mratsim/weave's has no URL) doesn't stop the build: a build
-      # that needs it fails with both nimbles.
+      # The same commit for both nimbles, fetched without credentials: the repos
+      # are public. Not actions/checkout: without persisted credentials it runs
+      # `git submodule foreach` to remove them, which fails on a repo with a
+      # broken submodule (mratsim/weave's has no URL).
+      - name: Check out the repo
+        env:
+          REPO: ${{ matrix.repo }}
+          SHA: ${{ matrix.sha }}
+        run: |
+          git init -q .
+          git remote add origin "https://github.com/$REPO"
+          for attempt in 1 2 3; do
+            git -c protocol.version=2 fetch -q --no-tags --depth=1 origin "$SHA" && break
+            sleep 15
+          done
+          git checkout -q FETCH_HEAD
+      # The submodules, fetched as actions/checkout fetches them, except that one
+      # the repo breaks doesn't stop the build: a build that needs it fails with
+      # both nimbles.
       - name: Fetch submodules
         run: >-
           git -c protocol.version=2 -c url.https://github.com/.insteadOf=git@github.com:
