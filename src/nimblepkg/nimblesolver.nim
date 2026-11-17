@@ -262,6 +262,34 @@ proc postProcessSolvedPkgs*(solvedPkgs: var seq[SolvedPackage], options: Options
         break
   solvedPkgs = solvedPkgs.filterIt(it notin toReplace)
 
+proc overrideWithFileCopies(pkgVersionTable: var Table[string, PackageVersions]) =
+  ## PubGrub only. A package required through `file://` - discovery keys it
+  ## by its URL - stands in for its name the way Dart's
+  ## `dependency_overrides` do: it is the only version there, and every
+  ## requirement on the name is met by it, whatever range it asks for. It
+  ## keeps its URL as its name; installation finds it on disk through it. SAT
+  ## swaps it in after solving instead (`postProcessSolvedPkgs`).
+  var standIn = initTable[string, string]()
+    ## A lowercased package name -> the `file://` URL standing in for it.
+  var fileUrls: seq[string]
+  for key, pv in pkgVersionTable:
+    if key.isFileURL and pv.versions.len > 0:
+      fileUrls.add key
+  for url in fileUrls:
+    let copy = pkgVersionTable[url].versions[0]
+    pkgVersionTable[url].versions = @[copy]
+    standIn[copy.name.toLowerAscii] = url
+    # The name's own node only holds the published versions the copy replaces.
+    for name in toSeq(pkgVersionTable.keys):
+      if cmpIgnoreCase(name, copy.name) == 0:
+        pkgVersionTable.del name
+  for pv in pkgVersionTable.mvalues:
+    for version in pv.versions.mitems:
+      for req in version.requires.mitems:
+        let url = standIn.getOrDefault(req.name.toLowerAscii)
+        if url.len > 0:
+          req = (name: url, ver: VersionRange(kind: verAny))
+
 proc solveLocalPackages(root: PackageMinimalInfo, pkgList: seq[PackageInfo], options: Options, output: var string, solvedPkgs: var seq[SolvedPackage], nimBin: Option[string], preferred: Table[string, Version]): HashSet[PackageInfo] =
   ## Try to solve using only installed packages (no cache, no downloads).
   ## Returns the solved packages if successful, or an empty set if local
@@ -358,6 +386,8 @@ proc solvePackages*(rootPkg: PackageInfo, pkgList: seq[PackageInfo], pkgsToInsta
 
   pkgVersionTable.normalizeRequirements(options)
   pkgVersionTable.normalizeSpecialVersions(options)
+  if options.solver == skPubGrub:
+    pkgVersionTable.overrideWithFileCopies()
 
   options.satResult.pkgVersionTable = pkgVersionTable
   solvedPkgs = pkgVersionTable.getSolvedPackages(output, options, preferred).topologicalSort()

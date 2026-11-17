@@ -5,7 +5,8 @@
 
 import unittest, os, osproc
 import testscommon
-import std/[tables, json, jsonutils, strutils, sequtils, times, options, sets]
+import std/[tables, json, jsonutils, strutils, sequtils, times, options, sets,
+           strformat]
 import chronos
 import nimblepkg/[version, nimblesolver, options, config, packageinfotypes,
                   versiondiscovery, urls, download, packageinfo, nimresolution]
@@ -109,6 +110,22 @@ proc minimal(name, version: string,
   for r in requires:
     result.requires.add parseRequires(r)
 
+proc offline(solver: SolverKind, nimbleDir: string,
+             cached: openArray[PackageMinimalInfo]): Options =
+  ## Options resolving with `solver` in a fresh `nimbleDir` under the temp
+  ## dir, without the network: discovery knows only the version cache,
+  ## holding `cached`.
+  result = initOptions()
+  result.solver = solver
+  result.offline = true
+  result.nimbleDir = getTempDir() / nimbleDir
+  removeDir result.nimbleDir
+  result.pkgCachePath = result.nimbleDir / "pkgcache"
+  var cache: TaggedVersionsCache
+  for mi in cached:
+    cache.mgetOrPut(mi.name, @[]).add mi
+  writeTaggedVersionsCache(cache, result)
+
 proc solveWithSystemNim(solver: SolverKind, root: PackageInfo,
                         installed: seq[PackageInfo],
                         cached: openArray[PackageMinimalInfo] = []):
@@ -117,22 +134,26 @@ proc solveWithSystemNim(solver: SolverKind, root: PackageInfo,
   ## against the `installed` packages plus that Nim, then against everything
   ## discovery knows - offline here, so only the version cache, holding
   ## `cached`. Returns the version chosen for each package.
-  var options = initOptions()
-  options.solver = solver
-  options.offline = true
-  options.nimbleDir = getTempDir() / "tsolver-systemnim"
-  removeDir options.nimbleDir
-  options.pkgCachePath = options.nimbleDir / "pkgcache"
-  var cache: TaggedVersionsCache
-  for mi in cached:
-    cache.mgetOrPut(mi.name, @[]).add mi
-  writeTaggedVersionsCache(cache, options)
+  var options = offline(solver, "tsolver-systemnim", cached)
   let systemNim = getNimFromSystem(options).get
   let resolved = some NimResolved(pkg: some systemNim,
                                   version: systemNim.basicInfo.version)
   discard solvePackagesWithSystemNimFallback(root, installed & systemNim,
     options, resolved, systemNim.nimBinPath)
   for pkg in options.satResult.solvedPkgs:
+    result[pkg.pkgName] = pkg.version
+
+proc solveWithFileCopies(root: PackageInfo): Table[string, Version] =
+  ## Resolves `root` with PubGrub, offline: its `file://` requires are read
+  ## from disk and nothing else can be fetched. Returns the version chosen
+  ## for each package.
+  var options = offline(skPubGrub, "tsolver-filecopies-nimbledir", [])
+  var pkgsToInstall: seq[(string, Version)]
+  var output = ""
+  var solved: seq[SolvedPackage]
+  discard solvePackages(root, @[], pkgsToInstall, options, output, solved,
+                        nimBin)
+  for pkg in solved:
     result[pkg.pkgName] = pkg.version
 
 proc universe(packages: varargs[PackageMinimalInfo]): Table[string, PackageVersions] =
@@ -710,3 +731,35 @@ suite "PubGrub keeps the lock file's versions in one solve":
     let before = solveCount
     discard keepLocked(skPubGrub, locked, targets = ["foo"])
     check solveCount - before == 2
+
+suite "PubGrub takes file:// packages as they are":
+  # A dependency required through `file://` is the package nimble uses,
+  # whatever version it says it is - the way Dart's `dependency_overrides`
+  # work: its local copy is the only version of that name, and every
+  # requirement on the name is met by it. SAT swaps it in after solving, so
+  # a requirement on the name its version doesn't meet still sinks the solve.
+  proc package(name, version: string, requires: openArray[string] = []):
+      string =
+    ## A package directory for `file://` requires; returns its URL.
+    let pkgDir = getTempDir() / "tsolver-filecopies" / name
+    createDir pkgDir
+    var nimble = &"""
+version = "{version}"
+author = "Test"
+description = "Test"
+license = "MIT"
+"""
+    for r in requires:
+      nimble.add &"requires \"{r}\"\n"
+    writeFile(pkgDir / name & ".nimble", nimble)
+    "file://" & pkgDir
+
+  test "a file:// copy meets the requirements made on its name":
+    removeDir getTempDir() / "tsolver-filecopies"
+    let results = package("results", "0.5.1")
+    let dep = package("dep", "0.1.0", ["results == 0.5.0"])
+    let picked = solveWithFileCopies(
+      installed("myapp", "0.1.0", [dep, results]))
+    check picked[results] == newVersion("0.5.1")
+    check picked[dep] == newVersion("0.1.0")
+    check "results" notin picked
