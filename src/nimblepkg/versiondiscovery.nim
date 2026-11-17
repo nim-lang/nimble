@@ -351,6 +351,8 @@ proc downloadPkInfoForPvAsync*(pv: PkgTuple, options: Options, doPrompt = false,
 
 var downloadCache {.threadvar.}: Table[string, Future[seq[PackageMinimalInfo]]]
 
+var cloneLocks {.threadvar.}: Table[string, AsyncLock]
+
 proc downloadMinimalPackageImpl(pv: PkgTuple, options: Options, nimBin: Option[string]): Future[seq[PackageMinimalInfo]] {.async.} =
   {.cast(raises: [CatchableError]).}:
     ## Internal implementation of async download without caching.
@@ -370,12 +372,20 @@ proc downloadMinimalPackageImpl(pv: PkgTuple, options: Options, nimBin: Option[s
     if pv.name.isFileURL:
       return @[getPackageFromFileUrl(pv.name, versionDiscoveryOptions, nimBin).getMinimalInfo(versionDiscoveryOptions)]
 
-    if pv.ver.kind in [verSpecial, verEq]: #if special or equal, we dont retrieve more versions as we only need one.
-      let pkgInfo = await downloadPkInfoForPvAsync(pv, versionDiscoveryOptions, false, nimBin)
-      result = @[pkgInfo.getMinimalInfo(versionDiscoveryOptions)]
-    else:
-      let (downloadRes, downloadMeth) = await downloadPkgFromUrlAsync(pv, versionDiscoveryOptions, false, nimBin)
-      result = await getPackageMinimalVersionsFromRepo(downloadRes.dir, pv, downloadMeth.get, versionDiscoveryOptions, nimBin)
+    # Packages in different subdirectories of one repository share its clone,
+    # and a download starts by deleting it: one at a time.
+    let dlInfo = getPackageDownloadInfoUnchecked(pv, versionDiscoveryOptions)
+    let clone = cloneLocks.mgetOrPut(dlInfo.downloadDir, newAsyncLock())
+    await clone.acquire()
+    try:
+      let (downloadRes, downloadMeth) = await downloadFromDownloadInfoAsync(dlInfo, versionDiscoveryOptions, nimBin)
+      if pv.ver.kind in [verSpecial, verEq]: #if special or equal, we dont retrieve more versions as we only need one.
+        let pkgInfo = getPkgInfo(downloadRes.dir, versionDiscoveryOptions, nimBin, pikRequires)
+        result = @[pkgInfo.getMinimalInfo(versionDiscoveryOptions)]
+      else:
+        result = await getPackageMinimalVersionsFromRepo(downloadRes.dir, pv, downloadMeth.get, versionDiscoveryOptions, nimBin)
+    finally:
+      clone.release()
 
     #Make sure the url is set for the package
     if pv.name.isUrl:

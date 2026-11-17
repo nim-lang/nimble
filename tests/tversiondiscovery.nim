@@ -400,6 +400,23 @@ suite "Version Discovery":
     check res.len == 1
     check attempt == 2
 
+  test "packages in subdirectories of one repository are discovered together":
+    # Both live in github.com/nimble-test/issue678, so their discoveries share
+    # its pkgcache clone, and both run at once. Each download starts by
+    # deleting the clone, so one of them used to fail.
+    var options = initOptions()
+    options.pkgCachePath = installDir.parentDir / "subdirsDiscoveryPkgCache"
+    removeDir(options.pkgCachePath)
+    defer: removeDir(options.pkgCachePath)
+    let repo = "https://github.com/nimble-test/issue678"
+    let subdirs = [repo & "?subdir=dependency_2", repo & "?subdir=dependency_1"]
+    let root = PackageMinimalInfo(name: "root", version: newVersion("1.0.0"), isRoot: true,
+      requires: subdirs.mapIt((name: it, ver: VersionRange(kind: verAny))))
+    let found = waitFor collectAllVersions(root, options, downloadMinimalPackage, nimBin = nimBin)
+    for subdir in subdirs:
+      check subdir in found[]
+      check found[].getOrDefault(subdir).versions.len > 0
+
   test "a git:// URL is looked up over https, like its download":
     # bump 1.8.13 requires git://github.com/disruptek/cutelog.git. Its download
     # uses https (cloneUsingHttps, on by default), but the lookup before it used
