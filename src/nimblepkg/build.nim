@@ -2,7 +2,7 @@
 ## plus the helpers used to assemble the `--path` flag list and the bin-symlink
 ## helper that buildPkg invokes.
 
-import std/[sets, options, os, strutils, tables, strformat]
+import std/[algorithm, sequtils, sets, options, os, strutils, tables, strformat]
 import packageinfotypes, options, version, packageinfo, common,
   cli, tools, packageinstaller, urls,
   declarativeparser, nimscriptexecutor, displaymessages
@@ -65,6 +65,14 @@ proc getPathsAllPkgs*(options: Options, nimBin: Option[string]): HashSet[string]
     for path in pkg.expandPaths(nimBin, options):
       result.incl(path)
 
+proc getFeatureDefines*(pkgInfo: PackageInfo, options: Options): seq[string] =
+  let rootName = options.satResult.rootPackage.basicInfo.name
+  let packageName = if rootName.len > 0: rootName else: pkgInfo.basicInfo.name
+  var defines = getGloballyActiveFeatures().toHashSet
+  for feature in options.features:
+    defines.incl &"features.{packageName}.{feature}"
+  result = toSeq(defines.items).sorted
+
 proc setTaskPathsEnv*(options: Options, nimBin: Option[string]) =
   ## Hands the solved packages' paths, the task's `taskRequires` included, to
   ## `getPaths()`/`getPathsClause()` in the task's NimScript, which reads them
@@ -107,14 +115,8 @@ proc buildFromDir*(pkgInfo: PackageInfo, paths: HashSet[string],
     # Disable coloured output
     args.add("--colors:off")
 
-  for feature in options.features: #Features enabled with the cli
-    let featureStr = &"features.{pkgInfo.basicInfo.name}.{feature}"
-    # displayInfo &"Adding feature {featureStr}", priority = HighPriority
-    args.add &"-d:{featureStr}"
-
-  # displayInfo &"All active features: {getGloballyActiveFeatures()}", priority = HighPriority
-  for featureStr in getGloballyActiveFeatures():
-    args.add &"-d:{featureStr}"
+  for feature in pkgInfo.getFeatureDefines(options):
+    args.add quoteShell("-d:" & feature)
 
   let binToBuild =
     # Only build binaries specified by user if any, but only if top-level package,
