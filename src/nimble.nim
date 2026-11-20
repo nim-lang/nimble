@@ -1298,15 +1298,6 @@ proc installDevelopPackage(pkgTup: PkgTuple, options: var Options, nimBinParam: 
 
 proc updateSyncFile(dependentPkg: PackageInfo, options: Options, nimBin: Option[string])
 
-proc readSetupFeatures(): Option[seq[string]] =
-  if fileExists(nimblePathsFileName):
-    for line in lines(nimblePathsFileName):
-      if line.startsWith(setupFeaturesPrefix):
-        var features: seq[string]
-        for feature in parseJson(line[setupFeaturesPrefix.len..^1]):
-          features.add feature.getStr()
-        return some(features)
-
 proc hasFeatureOverride(options: Options): bool =
   options.action.typ != actionSetup and options.setupFeatures.isSome and
     options.features != options.setupFeatures.get()
@@ -2805,6 +2796,15 @@ proc doAction(options: var Options, nimBinParam: Option[string]) {.instrument.} 
 
 
 when isMainModule:
+  proc readSetupFeatures(): Option[seq[string]] =
+    if fileExists(nimblePathsFileName):
+      for line in lines(nimblePathsFileName):
+        if line.startsWith(setupFeaturesPrefix):
+          var features: seq[string]
+          for feature in parseJson(line[setupFeaturesPrefix.len..^1]):
+            features.add feature.getStr()
+          return some(features)
+
   var exitCode = QuitSuccess
 
   var opt: Options

@@ -1369,7 +1369,7 @@ requires "checksums >= 0.1.0"
       # A package may have multiple paths (root and src), but all should be same version
       var checksumsVersions: seq[string] = @[]
       for line in pathsContent.splitLines():
-        if "checksums-" in line and line.startsWith("--path:"):
+        if "checksums-" in line and line.strip(trailing = false).startsWith("--path:"):
           # Extract version from path like "checksums-0.1.0-hash"
           let pathStart = line.find("checksums-")
           if pathStart >= 0:
@@ -1380,12 +1380,8 @@ requires "checksums >= 0.1.0"
               if version notin checksumsVersions:
                 checksumsVersions.add(version)
 
-      # There should be exactly one VERSION of checksums (though possibly multiple paths)
-      # The bug would cause both 0.1.0 and 0.2.x to appear
-      check checksumsVersions.len == 1
-
-      # And it should be the version from the lock file (0.1.0), not the latest
-      check checksumsVersions[0] == "0.1.0"
+      # All paths should use the locked version.
+      check checksumsVersions == @["0.1.0"]
 
     # Cleanup
     removeDir(testDir)
