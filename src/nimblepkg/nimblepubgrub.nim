@@ -3,10 +3,13 @@
 
 ## The PubGrub solver, `nimblesat`'s counterpart: the bridge between Nimble's
 ## package universe and the standalone PubGrub library (`pubgrub/` at the
-## repository root). It serves two callers:
+## repository root). It serves three callers:
 ##
 ## - `--solver:pubgrub` (`pubGrubPackages`), where PubGrub resolves the
 ##   dependency graph;
+## - `discoverLazily` (nimblesolver), which searches what it has fetched so
+##   far, leaving out the requirements not fetched yet (`Unfetched`), and is
+##   told which versions the search tried and what it is missing;
 ## - the failure path of the default SAT solver: when SAT finds no solution,
 ##   PubGrub re-solves the same `pkgVersionTable` and its derivation-based
 ##   report becomes the error. A disagreement between the two is a solver
@@ -159,6 +162,15 @@ type
   Prepared = object
     index: Table[string, int]  ## lowercased name -> `packages`
     packages: seq[PreparedPackage]
+    visited: seq[tuple[package: string, version: Version]]
+      ## Every version the search asked the dependencies of.
+    missing: seq[PkgTuple]
+      ## The requirements it left out because they are `Unfetched`.
+
+  Unfetched* = proc (req: PkgTuple): bool
+    ## Whether a requirement's package is still to be fetched. The search
+    ## goes on as if a version did not have such a requirement, and reports
+    ## it, so whoever fetches can fetch it and search again.
 
   PubGrubUniverse* = object
     ## `pkgVersionTable` prepared for the search - re-keyed by lowercased
@@ -170,14 +182,17 @@ type
     rootName: string
     rootVersion: Version
     algorithm: ResolutionAlgorithm
+    unfetched: Unfetched
 
 proc initPubGrubUniverse*(pkgVersionTable: Table[string, PackageVersions],
                           algorithm = raMaxVer,
-                          preferred = initTable[string, Version]()):
+                          preferred = initTable[string, Version](),
+                          unfetched: Unfetched = nil):
     PubGrubUniverse =
   ## `preferred` names, per package, a version to try before the others
   ## whenever it is still allowed (`chooseVersion`).
   result.algorithm = algorithm
+  result.unfetched = unfetched
   result.data = new Prepared
   var wanted = initTable[string, NimbleTaggedVersion]()
   for name, version in preferred:
@@ -255,10 +270,17 @@ proc dependencies*(u: PubGrubUniverse, package: string,
   let i = u.packageIndex(package)
   if i < 0: return
   u.translate(i)
+  u.data.visited.add (package: package, version: version)
   let target = toTaggedVersion(version)
   for e in u.data.packages[i].entries:
     if e.tagged == target:
-      return e.dependencies
+      if u.unfetched.isNil:
+        return e.dependencies
+      # `translate` keeps one dependency per requirement, in order.
+      for k, req in e.requires:
+        if u.unfetched(req): u.data.missing.add req
+        else: result.add e.dependencies[k]
+      return
 
 proc dependencyRangeHook*(u: PubGrubUniverse, package: string,
                           version: Version,
@@ -307,24 +329,34 @@ type
       ## When solved: every decided package, root included, names lowercased.
     explanation*: string
       ## When not: the report saying why.
+    visited*: seq[tuple[package: string, version: Version]]
+      ## Every version the search asked the dependencies of, lowercased.
+    missing*: seq[PkgTuple]
+      ## The `unfetched` requirements of those versions, left out of the
+      ## search. Unless empty, the answer is only what the universe fetched
+      ## so far allows.
 
 proc solveWithPubGrub*(pkgVersionTable: Table[string, PackageVersions],
                        algorithm = raMaxVer,
-                       preferred = initTable[string, Version]()): PubGrubAnswer =
+                       preferred = initTable[string, Version](),
+                       unfetched: Unfetched = nil): PubGrubAnswer =
   ## Resolves the universe with PubGrub, trying the `preferred` versions
   ## first. Both uses go through here - the solver under `--solver:pubgrub`
   ## and the explanation of a SAT failure - so the generic solver is
   ## instantiated once, next to the provider hooks it looks up by `compiles`,
   ## and searches the same way for both.
-  let u = initPubGrubUniverse(pkgVersionTable, algorithm, preferred)
+  let u = initPubGrubUniverse(pkgVersionTable, algorithm, preferred, unfetched)
   if u.rootName.len == 0:
     raise newException(ValueError, "the universe has no root package")
   let res = solve(u, u.rootName, u.rootVersion)
   case res.outcome
   of soSolved:
-    PubGrubAnswer(solved: true, packages: res.packages)
+    result = PubGrubAnswer(solved: true, packages: res.packages)
   of soUnsolvable:
-    PubGrubAnswer(solved: false, explanation: report(res.failure, u.rootName))
+    result = PubGrubAnswer(solved: false,
+                           explanation: report(res.failure, u.rootName))
+  result.visited = u.data.visited
+  result.missing = u.data.missing
 
 proc pubGrubPackages*(pkgVersionTable: Table[string, PackageVersions],
                       output: var string, options: Options,

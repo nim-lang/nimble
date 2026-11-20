@@ -164,6 +164,134 @@ proc cacheToPackageVersionTable*(options: Options): Table[string, PackageVersion
     if validVersions.len > 0:
       result[pkgName] = PackageVersions(pkgName: pkgName, versions: validVersions)
 
+proc locateGitRoot(repoDir: string): tuple[gitRoot, subdirPath: string] =
+  ## The git repository `repoDir` is in, and where in it `repoDir` is. When
+  ## no `.git` is found, `repoDir` itself: git commands might still work.
+  result = (gitRoot: repoDir, subdirPath: "")
+  try:
+    if not dirExists(repoDir / ".git"):
+      var currentDir = repoDir
+      while not dirExists(currentDir / ".git") and currentDir.parentDir() != currentDir:
+        currentDir = currentDir.parentDir()
+      if dirExists(currentDir / ".git"):
+        result = (gitRoot: currentDir,
+                  subdirPath: repoDir.relativePath(currentDir).replace("\\", "/"))
+  except CatchableError:
+    discard
+
+proc cachedVersions(name: string, options: Options): Option[seq[PackageMinimalInfo]] =
+  ## The versions of `name` the cache holds. `nimble refresh` sets forceFetch
+  ## so the cache is never trusted: the whole point of the command is to go
+  ## look at the network. Offline there is no network to look at, so
+  ## forceFetch keeps only its other meaning - don't reuse the current
+  ## solution - and the cache is what we re-solve against.
+  if options.forceFetch and not options.offline:
+    return none(seq[PackageMinimalInfo])
+  try:
+    getTaggedVersions(name, options)
+  except CatchableError:
+    none(seq[PackageMinimalInfo])
+
+proc cacheIsFresh(cached: seq[PackageMinimalInfo], gitRoot, repoDir: string,
+                  downloadMethod: DownloadMethod, options: Options,
+                  nimBin: Option[string]): Future[bool] {.async.} =
+  {.cast(raises: [CatchableError]).}:
+    ## Whether the cached versions are all there is to the clone: one for
+    ## every tag it has, and one for its checkout.
+    var fresh = true
+    try:
+      let localTags = await getTagsListAsync(gitRoot, downloadMethod)
+      fresh = cachedTagsCoverLocalTags(cached, localTags)
+    except CatchableError:
+      discard
+    if not fresh:
+      return false
+    # A stricter requirement may have downloaded an untagged HEAD after an
+    # earlier request cached only releases. Covering the tags is not enough:
+    # discovery must also include the checkout we just downloaded.
+    try:
+      let checkoutVersion = getPkgInfo(repoDir, options, nimBin).basicInfo.version
+      return cached.anyIt(it.version == checkoutVersion)
+    except CatchableError:
+      return false
+
+proc fetchTags(gitRoot, name: string, downloadMethod: DownloadMethod,
+               options: Options, fetch: bool): Future[Option[OrderedTable[Version, string]]] {.async.} =
+  {.cast(raises: [CatchableError]).}:
+    ## The clone's tags, by version, after fetching them all when `fetch`
+    ## (never offline: whatever the clone already has is all there is). None
+    ## when git fails.
+    try:
+      if fetch and not options.offline:
+        await gitFetchTagsAsync(gitRoot, downloadMethod, options)
+      return some((await getTagsListAsync(gitRoot, downloadMethod)).getVersionList())
+    except ref NimbleGitError as e:
+      options.satResult.gitErrors.add(&"Git error fetching tags for {name} (could be a network issue): {e.msg}")
+      displayWarning(&"Git error fetching tags for {name}: {e.msg}", HighPriority)
+    except CatchableError as e:
+      displayWarning(&"Error fetching tags for {name}: {e.msg}", HighPriority)
+
+proc readCheckout(repoDir, name: string, options: Options,
+                  nimBin: Option[string]): Option[PackageMinimalInfo] =
+  ## The version checked out (the files already on disk).
+  try:
+    return some(getPkgInfo(repoDir, options, nimBin).getMinimalInfo(options))
+  except CatchableError as e:
+    displayWarning(&"Error getting package info for {name}: {e.msg}", HighPriority)
+
+proc readTaggedVersion(gitRoot, subdirPath, name: string, ver: Version,
+                       tag: string, options: Options,
+                       nimBin: Option[string]): Future[Option[PackageMinimalInfo]] {.async.} =
+  {.cast(raises: [CatchableError]).}:
+    ## The version a tag holds, read from its nimble file straight out of git
+    ## (git ls-tree and git show, no checkout). None when the tag has no
+    ## nimble file to read.
+    try:
+      let nimbleFiles = await gitListNimbleFilesInCommitAsync(gitRoot, tag)
+      if nimbleFiles.len == 0:
+        displayInfo(&"No nimble file found in tag {tag} for {name}", LowPriority)
+        return
+
+      # Filter nimble files to those in the subdirectory (if applicable)
+      var relevantNimbleFiles: seq[string] = @[]
+      if subdirPath != "":
+        for nf in nimbleFiles:
+          if nf.startsWith(subdirPath & "/") or nf.startsWith(subdirPath):
+            relevantNimbleFiles.add(nf)
+      else:
+        relevantNimbleFiles = nimbleFiles
+
+      if relevantNimbleFiles.len == 0:
+        displayInfo(&"No nimble file found in tag {tag} (subdir: {subdirPath}) for {name}", LowPriority)
+        return
+
+      # Prefer nimble file matching package name
+      var nimbleFilePath = relevantNimbleFiles[0]
+      let expectedName = name & ".nimble"
+      for nf in relevantNimbleFiles:
+        if nf.endsWith(expectedName) or nf == expectedName:
+          nimbleFilePath = nf
+          break
+
+      let nimbleContent = await gitShowFileAsync(gitRoot, tag, nimbleFilePath)
+
+      # Try declarative parser first (faster, no temp file needed)
+      let minimalInfo = getMinimalInfoFromContent(nimbleContent, name, ver, url = "", options)
+      if minimalInfo.isSome:
+        return minimalInfo
+      # Fall back to temp file + VM parser for complex nimble files
+      let tempNimbleFile = getTempDir() / &"{name}_{tag}.nimble"
+      try:
+        writeFile(tempNimbleFile, nimbleContent)
+        let pkgInfo = getPkgInfoFromFile(nimBin, tempNimbleFile, options, useCache=false)
+        return some(pkgInfo.getMinimalInfo(options))
+      finally:
+        try:
+          removeFile(tempNimbleFile)
+        except: discard
+    except CatchableError as e:
+      displayInfo(&"Error reading tag {tag} for {name}: {e.msg}", LowPriority)
+
 proc getPackageMinimalVersionsFromRepo*(
     repoDir: string,
     pkg: PkgTuple,
@@ -172,138 +300,110 @@ proc getPackageMinimalVersionsFromRepo*(
     nimBin: Option[string]
 ): Future[seq[PackageMinimalInfo]] {.async.} =
   {.cast(raises: [CatchableError]).}:
-    ## Reads nimble files directly from git tags without checkout, using
-    ## git ls-tree and git show to avoid expensive checkout + copyDir operations.
+    ## Every version of the package: its checkout and each of its tags, read
+    ## from the cache when it covers them all.
     result = newSeq[PackageMinimalInfo]()
     let name = pkg[0]
+    let (gitRoot, subdirPath) = locateGitRoot(repoDir)
 
-    # Find the git repository root (repoDir might be a subdirectory)
-    var gitRoot = repoDir
-    var subdirPath = ""
+    let cached = cachedVersions(name, options)
+    if cached.isSome and
+        await cacheIsFresh(cached.get, gitRoot, repoDir, downloadMethod, options, nimBin):
+      return cached.get
 
-    # Check if we're in a subdirectory by looking for .git
-    try:
-      if not dirExists(gitRoot / ".git"):
-        # Walk up to find the git root
-        var currentDir = repoDir
-        while not dirExists(currentDir / ".git") and currentDir.parentDir() != currentDir:
-          currentDir = currentDir.parentDir()
-
-        if dirExists(currentDir / ".git"):
-          gitRoot = currentDir
-          # Calculate relative path from git root to repoDir
-          subdirPath = repoDir.relativePath(gitRoot).replace("\\", "/")
-        # If no .git found, proceed anyway - git commands might still work
-    except:
-      # If anything fails, just use repoDir as-is
-      gitRoot = repoDir
-
-    # Check cache first. `nimble refresh` sets forceFetch so the cache is never
-    # trusted: the whole point of the command is to go look at the network.
-    # Offline there is no network to look at, so forceFetch keeps only its other
-    # meaning - don't reuse the current solution - and the cache is what we
-    # re-solve against.
-    try:
-      let taggedVersions =
-        if options.forceFetch and not options.offline:
-          none(seq[PackageMinimalInfo])
-        else:
-          getTaggedVersions(name, options)
-      if taggedVersions.isSome:
-        var cacheFresh = true
-        try:
-          let localTags = await getTagsListAsync(gitRoot, downloadMethod)
-          cacheFresh = cachedTagsCoverLocalTags(taggedVersions.get, localTags)
-        except CatchableError:
-          discard
-        if cacheFresh:
-          # A stricter requirement may have downloaded an untagged HEAD after
-          # an earlier request cached only releases. Covering the tags is not
-          # enough: discovery must also include the checkout we just downloaded.
-          let checkoutVersion = getPkgInfo(repoDir, options, nimBin).basicInfo.version
-          for cached in taggedVersions.get:
-            if cached.version == checkoutVersion:
-              return taggedVersions.get
-    except:
-      discard
-
-    # Fetch all tags. Offline, whatever the clone already has is all there is.
-    var tags = initOrderedTable[Version, string]()
-    try:
-      if not options.offline:
-        await gitFetchTagsAsync(gitRoot, downloadMethod, options)
-      tags = (await getTagsListAsync(gitRoot, downloadMethod)).getVersionList()
-    except ref NimbleGitError as e:
-      options.satResult.gitErrors.add(&"Git error fetching tags for {name} (could be a network issue): {e.msg}")
-      displayWarning(&"Git error fetching tags for {name}: {e.msg}", HighPriority)
-      return
-    except CatchableError as e:
-      displayWarning(&"Error fetching tags for {name}: {e.msg}", HighPriority)
+    let tags = await fetchTags(gitRoot, name, downloadMethod, options, fetch = true)
+    if tags.isNone:
       return
 
-    # Get current HEAD version info (files already on disk)
-    try:
-      result.add getPkgInfo(repoDir, options, nimBin).getMinimalInfo(options)
-    except CatchableError as e:
-      displayWarning(&"Error getting package info for {name}: {e.msg}", HighPriority)
+    let checkout = readCheckout(repoDir, name, options, nimBin)
+    if checkout.isSome:
+      result.add checkout.get
 
-    # Process each tag - read nimble file directly from git
-    for (ver, tag) in tags.pairs:
-      try:
-        # List nimble files in this tag
-        let nimbleFiles = await gitListNimbleFilesInCommitAsync(gitRoot, tag)
-        if nimbleFiles.len == 0:
-          displayInfo(&"No nimble file found in tag {tag} for {name}", LowPriority)
-          continue
-
-        # Filter nimble files to those in the subdirectory (if applicable)
-        var relevantNimbleFiles: seq[string] = @[]
-        if subdirPath != "":
-          for nf in nimbleFiles:
-            if nf.startsWith(subdirPath & "/") or nf.startsWith(subdirPath):
-              relevantNimbleFiles.add(nf)
-        else:
-          relevantNimbleFiles = nimbleFiles
-
-        if relevantNimbleFiles.len == 0:
-          displayInfo(&"No nimble file found in tag {tag} (subdir: {subdirPath}) for {name}", LowPriority)
-          continue
-
-        # Prefer nimble file matching package name
-        var nimbleFilePath = relevantNimbleFiles[0]
-        let expectedName = name & ".nimble"
-        for nf in relevantNimbleFiles:
-          if nf.endsWith(expectedName) or nf == expectedName:
-            nimbleFilePath = nf
-            break
-
-        # Read nimble file content from git
-        let nimbleContent = await gitShowFileAsync(gitRoot, tag, nimbleFilePath)
-
-        # Try declarative parser first (faster, no temp file needed)
-        let minimalInfo = getMinimalInfoFromContent(nimbleContent, name, ver, url = "", options)
-        if minimalInfo.isSome:
-          result.addUnique(minimalInfo.get)
-        else:
-          # Fall back to temp file + VM parser for complex nimble files
-          let tempNimbleFile = getTempDir() / &"{name}_{tag}.nimble"
-          try:
-            writeFile(tempNimbleFile, nimbleContent)
-            let pkgInfo = getPkgInfoFromFile(nimBin, tempNimbleFile, options, useCache=false)
-            result.addUnique(pkgInfo.getMinimalInfo(options))
-          finally:
-            try:
-              removeFile(tempNimbleFile)
-            except: discard
-
-      except CatchableError as e:
-        displayInfo(&"Error reading tag {tag} for {name}: {e.msg}", LowPriority)
+    for (ver, tag) in tags.get.pairs:
+      let read = await readTaggedVersion(gitRoot, subdirPath, name, ver, tag, options, nimBin)
+      if read.isSome:
+        result.addUnique(read.get)
 
     # Save to cache
     try:
       saveTaggedVersions(name, result, options)
     except CatchableError as e:
       displayWarning(&"Error saving tagged versions for {name}: {e.msg}", LowPriority)
+
+type
+  UnreadTag = object
+    ## A tag listed, its nimble file not read yet: what reading it takes.
+    gitRoot, subdirPath, tag, lockDir: string
+    name: string
+      ## The package as the requirement named it, which is how
+      ## `getPackageMinimalVersionsFromRepo` names what it reads and caches.
+    version: Version
+
+var unreadTags {.threadvar.}: Table[string, UnreadTag]
+  ## The versions listed without reading, by `unreadKey`.
+
+proc unreadKey(mi: PackageMinimalInfo): string =
+  ## A listed version's name is the package as its requirement named it: a
+  ## URL tells forks apart.
+  mi.name.toLowerAscii & "\t" & $mi.version
+
+proc isUnreadVersion*(mi: PackageMinimalInfo): bool =
+  ## Whether `mi` is a version listed without reading
+  ## (`listPackageMinimalVersionsFromRepo`): nothing known of it but its name
+  ## and version, its requirements still to be read (`readUnreadVersions`).
+  mi.requires.len == 0 and mi.features.len == 0 and mi.unreadKey in unreadTags
+
+proc listPackageMinimalVersionsFromRepo*(
+    repoDir: string,
+    pkg: PkgTuple,
+    downloadMethod: DownloadMethod,
+    options: Options,
+    nimBin: Option[string],
+    lockDir = ""
+): Future[tuple[read, unread: seq[PackageMinimalInfo]]] {.async.} =
+  {.cast(raises: [CatchableError]).}:
+    ## `getPackageMinimalVersionsFromRepo` reading only what is at hand: the
+    ## checkout, and the versions the cache holds. Every other tag is listed
+    ## unread, nothing known of it but its version, to be read when it is
+    ## needed (`readUnreadVersions`). `lockDir` is the clone's download
+    ## directory, which a read takes turns on with its download.
+    let name = pkg[0]
+    let (gitRoot, subdirPath) = locateGitRoot(repoDir)
+
+    let cached = cachedVersions(name, options)
+    if cached.isSome and
+        await cacheIsFresh(cached.get, gitRoot, repoDir, downloadMethod, options, nimBin):
+      result.read = cached.get
+      return
+
+    # The tags of a package the cache knows are those of its clone, as
+    # current as the cache: reading the cache doesn't fetch either. Only
+    # some of its versions are cached when it was read this way, and fetching
+    # whenever the cache doesn't cover the clone would fetch on every run.
+    let tags = await fetchTags(gitRoot, name, downloadMethod, options,
+                               fetch = cached.isNone)
+    if tags.isNone:
+      return
+
+    result.read = cached.get(@[])
+    let checkout = readCheckout(repoDir, name, options, nimBin)
+    if checkout.isSome:
+      result.read.addUnique checkout.get
+    if cached.isNone:
+      try:
+        saveTaggedVersions(name, result.read, options)
+      except CatchableError as e:
+        displayWarning(&"Error saving tagged versions for {name}: {e.msg}", LowPriority)
+
+    for (ver, tag) in tags.get.pairs:
+      if not result.read.anyIt(it.version == ver):
+        let listed = PackageMinimalInfo(name: if name.isNim: "nim" else: name,
+                                        version: ver)
+        unreadTags[listed.unreadKey] = UnreadTag(
+          gitRoot: gitRoot, subdirPath: subdirPath, tag: tag,
+          lockDir: if lockDir.len > 0: lockDir else: gitRoot,
+          name: name, version: ver)
+        result.unread.add listed
 
 proc downloadNimSpecialVersion*(
     pv: PkgTuple, options: Options
@@ -353,9 +453,12 @@ var downloadCache {.threadvar.}: Table[string, Future[seq[PackageMinimalInfo]]]
 
 var cloneLocks {.threadvar.}: Table[string, AsyncLock]
 
-proc downloadMinimalPackageImpl(pv: PkgTuple, options: Options, nimBin: Option[string]): Future[seq[PackageMinimalInfo]] {.async.} =
+proc minimalPackageImpl(pv: PkgTuple, options: Options, nimBin: Option[string],
+                        lazy: bool): Future[seq[PackageMinimalInfo]] {.async.} =
   {.cast(raises: [CatchableError]).}:
-    ## Internal implementation of async download without caching.
+    ## Internal implementation of async download without caching. `lazy`
+    ## reads only what is at hand of a range's versions
+    ## (`listPackageMinimalVersionsFromRepo`).
     if pv.name == "": return newSeq[PackageMinimalInfo]()
     if pv.isNim and not options.disableNimBinaries:
       if pv.ver.kind == verSpecial:
@@ -376,16 +479,20 @@ proc downloadMinimalPackageImpl(pv: PkgTuple, options: Options, nimBin: Option[s
     # and a download starts by deleting it: one at a time.
     let dlInfo = getPackageDownloadInfoUnchecked(pv, versionDiscoveryOptions)
     let clone = cloneLocks.mgetOrPut(dlInfo.downloadDir, newAsyncLock())
+    var unread: seq[PackageMinimalInfo]
     await clone.acquire()
     try:
       let (downloadRes, downloadMeth) = await downloadFromDownloadInfoAsync(dlInfo, versionDiscoveryOptions, nimBin)
       if pv.ver.kind in [verSpecial, verEq]: #if special or equal, we dont retrieve more versions as we only need one.
         let pkgInfo = getPkgInfo(downloadRes.dir, versionDiscoveryOptions, nimBin, pikRequires)
         result = @[pkgInfo.getMinimalInfo(versionDiscoveryOptions)]
+      elif lazy:
+        (result, unread) = await listPackageMinimalVersionsFromRepo(downloadRes.dir, pv, downloadMeth.get, versionDiscoveryOptions, nimBin, dlInfo.downloadDir)
       else:
         result = await getPackageMinimalVersionsFromRepo(downloadRes.dir, pv, downloadMeth.get, versionDiscoveryOptions, nimBin)
     finally:
       clone.release()
+    result.add unread
 
     #Make sure the url is set for the package
     if pv.name.isUrl:
@@ -401,6 +508,14 @@ proc downloadMinimalPackageImpl(pv: PkgTuple, options: Options, nimBin: Option[s
           r.url = dlInfo.url
       except CatchableError:
         discard
+
+proc downloadMinimalPackageImpl(pv: PkgTuple, options: Options, nimBin: Option[string]): Future[seq[PackageMinimalInfo]] {.async.} =
+  {.cast(raises: [CatchableError]).}:
+    return await minimalPackageImpl(pv, options, nimBin, lazy = false)
+
+proc listMinimalPackageImpl(pv: PkgTuple, options: Options, nimBin: Option[string]): Future[seq[PackageMinimalInfo]] {.async.} =
+  {.cast(raises: [CatchableError]).}:
+    return await minimalPackageImpl(pv, options, nimBin, lazy = true)
 
 proc computeDownloadCacheKey*(pv: PkgTuple, options: Options): string =
   ## Canonical cache key for a package's version discovery download.
@@ -441,10 +556,11 @@ proc computeDownloadCacheKeyUnchecked(pv: PkgTuple, options: Options): string {.
     computeDownloadCacheKey(pv, options)
 
 proc memoizedDownloadMinimal*(pv: PkgTuple, options: Options, nimBin: Option[string],
-    fetch: GetPackageMinimal): Future[seq[PackageMinimalInfo]] {.async.} =
+    fetch: GetPackageMinimal, kind = ""): Future[seq[PackageMinimalInfo]] {.async.} =
   {.cast(raises: [CatchableError]).}:
-    ## Memoizes version discovery downloads for the lifetime of a resolution pass.
-    let cacheKey = computeDownloadCacheKeyUnchecked(pv, options)
+    ## Memoizes version discovery downloads for the lifetime of a resolution
+    ## pass. Fetches of another `kind` don't share their answers.
+    let cacheKey = kind & computeDownloadCacheKeyUnchecked(pv, options)
 
     if downloadCache.hasKey(cacheKey):
       return await downloadCache[cacheKey]
@@ -464,6 +580,15 @@ proc downloadMinimalPackage*(pv: PkgTuple, options: Options, nimBin: Option[stri
     ## If multiple calls request the same package concurrently, they share the same download.
     ## Cache key uses canonical package URL (not version) since we download all versions anyway.
     return await memoizedDownloadMinimal(pv, options, nimBin, downloadMinimalPackageImpl)
+
+proc listMinimalPackage*(pv: PkgTuple, options: Options, nimBin: Option[string]): Future[seq[PackageMinimalInfo]] {.async.} =
+  {.cast(raises: [CatchableError]).}:
+    ## `downloadMinimalPackage` reading only what is at hand of a package's
+    ## versions - its checkout, and what the cache holds. It lists the others
+    ## unread (`isUnreadVersion`), for `readUnreadVersions` to read when they
+    ## are needed.
+    return await memoizedDownloadMinimal(pv, options, nimBin, listMinimalPackageImpl,
+                                         kind = "listed ")
 
 proc addVersionUnique*(versions: var seq[PackageMinimalInfo], incoming: PackageMinimalInfo) =
   ## Adds a version if no entry with the same name+version already exists.
@@ -533,7 +658,7 @@ proc expandActiveFeatures(pkgMin: var PackageMinimalInfo, versions: Table[string
       for req in pkgMin.features[featureName]:
         pkgMin.requires.addUnique(convertNimAliasToNim(req))
 
-proc mergeVersionTables(dest: var Table[string, PackageVersions], source: Table[string, PackageVersions]) =
+proc mergeVersionTables*(dest: var Table[string, PackageVersions], source: Table[string, PackageVersions]) =
   ## Helper proc to merge version tables.
   for pkgName, pkgVersions in source:
     if pkgName notin dest:
@@ -541,6 +666,78 @@ proc mergeVersionTables(dest: var Table[string, PackageVersions], source: Table[
     else:
       for ver in pkgVersions.versions:
         dest[pkgName].versions.addVersionUnique ver
+
+proc addDiscovered(table: var Table[string, PackageVersions], pv: PkgTuple,
+                   pkgMins: var seq[PackageMinimalInfo]) =
+  ## Files the versions found for `pv` under their package name. A version
+  ## found for a special requirement becomes that special version, keeping
+  ## the version its nimble file declares as its semantic version.
+  for pkgMin in pkgMins.mitems:
+    let pkgName = pkgMin.name.toLower
+    if pv.ver.kind == verSpecial and pkgMin.version.speSemanticVersion.isNone:
+      var specialVer = newVersion($pv.ver)
+      specialVer.speSemanticVersion = some($pkgMin.version)
+      pkgMin.version = specialVer
+    if pkgName notin table:
+      table[pkgName] = PackageVersions(pkgName: pkgName, versions: @[pkgMin])
+    else:
+      table[pkgName].versions.addVersionUnique pkgMin
+
+proc discoverRequirement*(pv: PkgTuple, getMinimalPackage: GetPackageMinimal,
+    preferredPackages: seq[PackageMinimalInfo], options: Options,
+    nimBin: Option[string]): Future[TableRef[string, PackageVersions]] {.async.} =
+  {.cast(raises: [CatchableError]).}:
+    ## The versions that can meet `pv`, filed the way `processRequirements`
+    ## files them, without going on to their own requirements: the step a
+    ## search that fetches as it goes takes for each requirement it reaches.
+    result = newTable[string, PackageVersions]()
+    try:
+      var pkgMins = await getMinimalFromPreferred(pv, getMinimalPackage, preferredPackages, options, nimBin)
+      for pkgMin in pkgMins.mitems:
+        expandActiveFeatures(pkgMin, result[])
+      result[].addDiscovered(pv, pkgMins)
+      if pv.name.isUrl and pkgMins.len > 0:
+        result[pv.name] = PackageVersions(pkgName: pv.name, versions: pkgMins)
+    except CatchableError as e:
+      displayWarning(&"Error processing requirements for {pv.name}: {e.msg}", HighPriority)
+
+proc readUnreadVersion(mi: PackageMinimalInfo, options: Options,
+                       nimBin: Option[string]): Future[Option[PackageMinimalInfo]] {.async.} =
+  {.cast(raises: [CatchableError]).}:
+    let tag = unreadTags[mi.unreadKey]
+    let clone = cloneLocks.mgetOrPut(tag.lockDir, newAsyncLock())
+    await clone.acquire()
+    try:
+      return await readTaggedVersion(tag.gitRoot, tag.subdirPath, tag.name,
+                                     tag.version, tag.tag, options, nimBin)
+    finally:
+      clone.release()
+
+proc readUnreadVersions*(versions: seq[PackageMinimalInfo], options: Options,
+                         nimBin: Option[string]): Future[seq[Option[PackageMinimalInfo]]] {.async.} =
+  {.cast(raises: [CatchableError]).}:
+    ## Reads versions `listMinimalPackage` listed unread, all at once: each as
+    ## `discoverRequirement` files what `downloadMinimalPackage` reads of it,
+    ## or none when its tag has no nimble file to read. The cache keeps them.
+    var versionDiscoveryOptions = options
+    versionDiscoveryOptions.ignoreSubmodules = true
+    var reading: seq[Future[Option[PackageMinimalInfo]]]
+    for mi in versions:
+      reading.add readUnreadVersion(mi, versionDiscoveryOptions, nimBin)
+    await allFutures(reading)
+    var cache = readTaggedVersionsCache(options)
+    var cached = false
+    for i, read in reading:
+      var found = if read.failed: none(PackageMinimalInfo) else: read.read()
+      if found.isSome:
+        let name = unreadTags[versions[i].unreadKey].name
+        cache.mgetOrPut(normalizePackageName(name), @[]).addUnique found.get
+        cached = true
+        found.get.url = versions[i].url
+        expandActiveFeatures(found.get, initTable[string, PackageVersions]())
+      result.add found
+    if cached:
+      writeTaggedVersionsCache(cache, options)
 
 proc processRequirements*(pv: PkgTuple, visitedParam: HashSet[PkgTuple], getMinimalPackage: GetPackageMinimal, preferredPackages: seq[PackageMinimalInfo] = newSeq[PackageMinimalInfo](), options: Options, nimBin: Option[string]): Future[TableRef[string, PackageVersions]] {.async.} =
   {.cast(raises: [CatchableError]).}:
@@ -619,26 +816,7 @@ proc processRequirements*(pv: PkgTuple, visitedParam: HashSet[PkgTuple], getMini
           validPkgMins.add pkgMin
 
       # Add valid packages to the result table
-      for pkgMin in validPkgMins.mitems:
-        let pkgName = pkgMin.name.toLower
-        if pv.ver.kind == verSpecial:
-          # Keep both the commit hash and the actual semantic version
-          if pkgMin.version.speSemanticVersion.isSome:
-            discard
-          else:
-            var specialVer = newVersion($pv.ver)
-            specialVer.speSemanticVersion = some($pkgMin.version)
-            pkgMin.version = specialVer
-
-          if pkgName notin result:
-            result[pkgName] = PackageVersions(pkgName: pkgName, versions: @[pkgMin])
-          else:
-            result[pkgName].versions.addVersionUnique pkgMin
-        else:
-          if pkgName notin result:
-            result[pkgName] = PackageVersions(pkgName: pkgName, versions: @[pkgMin])
-          else:
-            result[pkgName].versions.addVersionUnique pkgMin
+      result[].addDiscovered(pv, validPkgMins)
 
       # Merge all successful requirement results
       for reqResult in reqResults:

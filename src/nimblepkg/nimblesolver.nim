@@ -168,12 +168,13 @@ proc getRootSpecialRequirements(
             result[req.name.toLowerAscii] = req.ver.spe
         return
 
-proc normalizeSpecialVersions*(pkgVersionTable: var Table[string, PackageVersions], options: Options) {.instrument.} =
+proc normalizeSpecialVersions*(pkgVersionTable: var Table[string, PackageVersions], options: Options, warn = true) {.instrument.} =
   ## First-#-wins: when multiple special versions exist for the same package
   ## (e.g. asynctools#commit_a from jester, asynctools#commit_b from httpbeast),
   ## keep only the first one encountered (topologically closest to root, since
   ## processRequirements traverses depth-first from root). Rewrite all other
-  ## special requirements for that package to use the winner.
+  ## special requirements for that package to use the winner. `warn` says so
+  ## for each package rewritten.
   var winners = initTable[string, Version]()  # pkgName -> winning special version
 
   # The special versions the ROOT explicitly requires. When a genuine conflict
@@ -212,8 +213,9 @@ proc normalizeSpecialVersions*(pkgVersionTable: var Table[string, PackageVersion
       pkgVersions.versions = pkgVersions.versions.filterIt(
         not it.version.isSpecial or it.version == winner
       )
-      displayWarning(&"Multiple dependencies require different special versions of '{pkgName}': " &
-        &"using {winner}, ignoring {others}. This will become an error in future versions.", HighPriority)
+      if warn:
+        displayWarning(&"Multiple dependencies require different special versions of '{pkgName}': " &
+          &"using {winner}, ignoring {others}. This will become an error in future versions.", HighPriority)
 
   # Phase 2: remove URL-keyed table entries for packages that have a winner
   # and fix normalizedRequirements so it points to the correct URL
@@ -289,6 +291,180 @@ proc overrideWithFileCopies(pkgVersionTable: var Table[string, PackageVersions])
         let url = standIn.getOrDefault(req.name.toLowerAscii)
         if url.len > 0:
           req = (name: url, ver: VersionRange(kind: verAny))
+
+type
+  Fetched* = tuple[req: PkgTuple, versions: Table[string, PackageVersions]]
+    ## The versions that can meet a requirement, filed the way discovery
+    ## files them (`discoverRequirement`). A version may come unread: listed,
+    ## its requirements not read yet.
+
+  LazyDiscovery* = object
+    ## How `discoverLazily` fetches packages and reads their versions.
+    fetch*: proc (reqs: seq[PkgTuple])
+      ## Starts fetching what can meet each requirement.
+    fetched*: proc (wait: bool): seq[Fetched]
+      ## The fetches finished since last asked. When `wait`, and some are
+      ## still going, waits for one first.
+    unread*: proc (version: PackageMinimalInfo): bool
+    read*: proc (versions: seq[PackageMinimalInfo]): seq[Option[PackageMinimalInfo]]
+      ## Reads unread versions: each as discovery up front has it, or none
+      ## when there is nothing to read.
+
+proc fetchKey(req: PkgTuple): string =
+  req.name.toLowerAscii & " " & $req.ver
+
+proc identity(mi: PackageMinimalInfo): (string, string, string) =
+  (mi.name.toLowerAscii, mi.url, $mi.version)
+
+proc discoverLazily*(root: PackageMinimalInfo, discovery: LazyDiscovery,
+                     options: Options,
+                     preferred = initTable[string, Version]()):
+    Table[string, PackageVersions] =
+  ## PubGrub only. The part of the root's dependency graph a search reaches,
+  ## fetched and read as it reaches it. `collectAllVersions` fetches up front
+  ## every package any version of any package ever required, and reads every
+  ## version of each. This fetches only what the versions the search tries
+  ## require, and reads only those versions.
+  ##
+  ## Searches what has been fetched, normalized the way `solvePackages`
+  ## normalizes the full table, leaving out the requirements not fetched yet
+  ## and taking a version not read yet to require nothing. Then reads the
+  ## versions it tried unread, starts fetching what the versions it tried
+  ## require, and searches again - right away when it read something, or
+  ## else once a fetch is in: a slow one holds up only what depends on it.
+  ## Stops when a search tries only versions read and needs nothing that
+  ## isn't in. That search saw every requirement of every version it tried,
+  ## so solving the table returned - not normalized yet, the versions never
+  ## tried still unread - answers as solving everything would.
+  result = {root.name: PackageVersions(pkgName: root.name,
+                                       versions: @[root])}.toTable
+  var requested = initHashSet[string]()
+    ## The requirements being fetched or fetched, by `fetchKey`.
+  var arrived = initHashSet[string]()
+    ## The requirements fetched, by `fetchKey`.
+  var pending = 0
+    ## The fetches still going.
+  var known = initHashSet[string]()
+    ## The keys the fetches filed versions under, with the range fetched: a
+    ## requirement that normalization renamed to one of them (a URL to the
+    ## package's name, an alias to the package) needs no fetch of its own.
+  var readAs = initTable[(string, string, string), Option[PackageMinimalInfo]]()
+    ## What reading each version gave, by `identity`.
+  proc settle(table: var Table[string, PackageVersions]) =
+    ## Puts the versions read in place of their unread listings.
+    for pv in table.mvalues:
+      var versions: seq[PackageMinimalInfo]
+      for mi in pv.versions:
+        if mi.identity in readAs and discovery.unread(mi):
+          let read = readAs[mi.identity]
+          if read.isSome:
+            versions.addVersionUnique read.get
+        else:
+          versions.addVersionUnique mi
+      pv.versions = versions
+  let normalized = options.satResult.normalizedRequirements
+  while true:
+    var universe = result
+    universe.normalizeRequirements(options)
+    universe.normalizeSpecialVersions(options, warn = false)
+    universe.overrideWithFileCopies()
+    options.satResult.normalizedRequirements = normalized
+    let answer = universe.solveWithPubGrub(options.resolutionAlgorithm,
+      preferred, unfetched = proc (req: PkgTuple): bool =
+        req.fetchKey notin arrived and req.fetchKey notin known)
+
+    # A `file://` copy stands in for its name, so the name needs no fetch.
+    var overridden = initHashSet[string]()
+    for key, pv in result:
+      if key.isFileURL and pv.versions.len > 0:
+        overridden.incl pv.versions[0].name.toLowerAscii
+    var reqs: seq[PkgTuple]
+    proc want(req: PkgTuple) =
+      if req.name.toLowerAscii notin overridden and
+          not requested.containsOrIncl(req.fetchKey):
+        reqs.add req
+    for req in answer.missing:
+      want req
+
+    # The versions the search tried, as fetched (normalization may have
+    # filed them under another key). Fetch each requirement they state as
+    # stated too, as discovery up front would have: normalization rewrote
+    # the ones the search saw.
+    var listed = initTable[(string, string), seq[PackageMinimalInfo]]()
+    for pv in result.values:
+      for mi in pv.versions:
+        listed.mgetOrPut((mi.name.toLowerAscii, $mi.version), @[]).add mi
+    var searched = initTable[string, seq[PackageMinimalInfo]]()
+    for key, pv in universe:
+      searched.mgetOrPut(key.toLowerAscii, @[]).add pv.versions
+    var unread: seq[PackageMinimalInfo]
+    var reading = initHashSet[(string, string, string)]()
+    for (package, version) in answer.visited:
+      for mi in searched.getOrDefault(package):
+        if mi.version == version:
+          for tried in listed.getOrDefault((mi.name.toLowerAscii, $version)):
+            if tried.identity in readAs or not discovery.unread(tried):
+              for req in tried.requires:
+                want req
+            elif not reading.containsOrIncl(tried.identity):
+              unread.add tried
+    if unread.len > 0:
+      for i, read in discovery.read(unread):
+        readAs[unread[i].identity] = read
+        if read.isSome:
+          for req in read.get.requires:
+            want req
+      result.settle()
+    if reqs.len > 0:
+      discovery.fetch(reqs)
+      pending += reqs.len
+    if unread.len == 0 and pending == 0:
+      return
+
+    # Nothing read: the next search would be this one, until a fetch is in.
+    for (req, found) in discovery.fetched(wait = unread.len == 0):
+      var found = found
+      found.settle()
+      for key in found.keys:
+        known.incl (name: key, ver: req.ver).fetchKey
+      result.mergeVersionTables(found)
+      arrived.incl req.fetchKey
+      dec pending
+
+proc fromDiscovery(installed: seq[PackageMinimalInfo], options: Options,
+                   nimBin: Option[string]): LazyDiscovery =
+  ## `discoverLazily` fetching the way `solvePackages` discovers up front:
+  ## from the installed packages, the clones or the network, and the version
+  ## cache. A version neither installed nor cached is read from its clone
+  ## when the search tries it.
+  let cached = cacheToPackageVersionTable(options)
+  let going = new seq[tuple[req: PkgTuple, future: Future[TableRef[string, PackageVersions]]]]
+  result.unread = isUnreadVersion
+  result.read = proc (versions: seq[PackageMinimalInfo]): seq[Option[PackageMinimalInfo]] =
+    waitFor readUnreadVersions(versions, options, nimBin)
+  result.fetch = proc (reqs: seq[PkgTuple]) =
+    for req in reqs:
+      let found = discoverRequirement(req, listMinimalPackage, installed,
+                                      options, nimBin)
+      if not options.parallelDiscovery:
+        discard waitFor found
+      going[].add (req: req, future: found)
+  result.fetched = proc (wait: bool): seq[Fetched] =
+    if wait and going[].len > 0 and not going[].anyIt(it.future.finished):
+      discard waitFor race(going[].mapIt(it.future))
+    var still: typeof(going[])
+    for (req, found) in going[]:
+      if not found.finished:
+        still.add (req: req, future: found)
+        continue
+      var table =
+        if found.failed: initTable[string, PackageVersions]()
+        else: found.read()[]
+      for key, pv in cached:
+        if cmpIgnoreCase(key, req.name) == 0:
+          table.mergeVersionTables({key: pv}.toTable)
+      result.add (req: req, versions: table)
+    going[] = still
 
 proc solveLocalPackages(root: PackageMinimalInfo, pkgList: seq[PackageInfo], options: Options, output: var string, solvedPkgs: var seq[SolvedPackage], nimBin: Option[string], preferred: Table[string, Version]): HashSet[PackageInfo] =
   ## Try to solve using only installed packages (no cache, no downloads).
@@ -372,17 +548,22 @@ proc solvePackages*(rootPkg: PackageInfo, pkgList: seq[PackageInfo], pkgsToInsta
     return
 
   var pkgVersionTable: Table[system.string, packageinfotypes.PackageVersions]
-  # Load cached package versions to skip re-fetching known packages
-  pkgVersionTable = cacheToPackageVersionTable(options)
-  pkgVersionTable[root.name] = PackageVersions(pkgName: root.name, versions: @[root])
+  let installed = pkgList.mapIt(it.getMinimalInfo(options))
+  if options.solver == skPubGrub:
+    pkgVersionTable = root.discoverLazily(
+      fromDiscovery(installed, options, nimBin), options, preferred)
+  else:
+    # Load cached package versions to skip re-fetching known packages
+    pkgVersionTable = cacheToPackageVersionTable(options)
+    pkgVersionTable[root.name] = PackageVersions(pkgName: root.name, versions: @[root])
 
-  let discoveredVersions = waitFor collectAllVersions(root, options, downloadMinimalPackage, pkgList.mapIt(it.getMinimalInfo(options)), nimBin)
-  for pkgName, pkgVersions in discoveredVersions:
-    if pkgName notin pkgVersionTable:
-      pkgVersionTable[pkgName] = pkgVersions
-    else:
-      for ver in pkgVersions.versions:
-        pkgVersionTable[pkgName].versions.addVersionUnique ver
+    let discoveredVersions = waitFor collectAllVersions(root, options, downloadMinimalPackage, installed, nimBin)
+    for pkgName, pkgVersions in discoveredVersions:
+      if pkgName notin pkgVersionTable:
+        pkgVersionTable[pkgName] = pkgVersions
+      else:
+        for ver in pkgVersions.versions:
+          pkgVersionTable[pkgName].versions.addVersionUnique ver
 
   pkgVersionTable.normalizeRequirements(options)
   pkgVersionTable.normalizeSpecialVersions(options)
