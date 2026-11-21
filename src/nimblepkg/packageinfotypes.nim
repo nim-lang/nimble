@@ -204,6 +204,9 @@ const noTask* = "" # Means that noTask is being ran. Use this as key for base de
 #For instance, if a dependency of a package requires the feature "feature1", it will be added to this table although the root package may not explicitly require it.
 var globallyActiveFeatures {.threadvar.}: Table[string, seq[string]]
 
+proc clearGloballyActiveFeatures*() =
+  globallyActiveFeatures.clear()
+
 proc appendGloballyActiveFeatures*(pkgName: string, features: seq[string]) =
   if pkgName notin globallyActiveFeatures:
     globallyActiveFeatures[pkgName] = features

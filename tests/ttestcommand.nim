@@ -4,10 +4,107 @@
 {.used.}
 
 import unittest, os
+import std/tempfiles
 import testscommon
 from nimblepkg/common import cd
 
 suite "test command":
+  test "custom tasks and build hooks use the requested features":
+    let projectDir = createTempDir("nimble-feature-hooks-", "")
+    defer: removeDir(projectDir)
+    cd projectDir:
+      writeFile("featurehooks.nimble", """
+version = "0.1.0"
+author = "Test"
+description = "Feature selection in tasks and hooks"
+license = "MIT"
+bin = @["featurehooks"]
+feature "foo":
+  requires "nim"
+feature "bar":
+  requires "nim"
+before build:
+  exec "nim c --compileOnly probe.nim"
+task test, "Compile a probe":
+  exec "nim c --compileOnly probe.nim"
+""")
+      writeFile("probe.nim", """
+static:
+  doAssert defined(features.featurehooks.foo)
+  doAssert not defined(features.featurehooks.bar)
+""")
+      verify execNimble("--useSystemNim", "--features:foo", "test")
+      check not fileExists("nimble.paths")
+      verify execNimble("--useSystemNim", "--features:foo", "setup")
+      let savedPaths = readFile("nimble.paths")
+      let barProbe = """
+static:
+  doAssert defined(features.featurehooks.bar)
+  doAssert not defined(features.featurehooks.foo)
+"""
+      writeFile("probe.nim", barProbe)
+      writeFile("featurehooks.nim", barProbe)
+      verify execNimble("--useSystemNim", "--features:bar", "test")
+      verify execNimble("--useSystemNim", "--features:bar", "build")
+      check readFile("nimble.paths") == savedPaths
+
+  test "setup saves default features for tests and builds":
+    let projectDir = createTempDir("nimble-test-features-", "")
+    defer: removeDir(projectDir)
+    cd projectDir:
+      writeFile("featuretest.nimble", """
+version = "0.1.0"
+author = "Test"
+description = "Tests feature defines in the built-in test runner"
+license = "MIT"
+bin = @["featuretest"]
+feature "foo":
+  requires "nim"
+feature "bar":
+  requires "nim"
+""")
+      createDir("tests")
+      let
+        featureTest = "tests" / "tfeatures.nim"
+        fooEnabled = """
+static:
+  doAssert defined(features.featuretest.foo)
+  doAssert not defined(features.featuretest.bar)
+"""
+        noFeatures = """
+static:
+  doAssert not defined(features.featuretest.foo)
+  doAssert not defined(features.featuretest.bar)
+"""
+      writeFile(featureTest, fooEnabled)
+      verify execNimble("--useSystemNim", "--features:foo", "test")
+      check not fileExists("nimble.paths")
+
+      verify execNimble("--useSystemNim", "--features:foo", "setup")
+      verify execNimble("--useSystemNim", "test")
+      writeFile("featuretest.nim", fooEnabled)
+      verify execNimble("--useSystemNim", "build")
+
+      let savedPaths = readFile("nimble.paths")
+      writeFile(featureTest, """
+static:
+  doAssert defined(features.featuretest.bar)
+  doAssert not defined(features.featuretest.foo)
+""")
+      verify execNimble("--useSystemNim", "--features:bar", "test")
+      check readFile("nimble.paths") == savedPaths
+
+      writeFile(featureTest, noFeatures)
+      verify execNimble("--useSystemNim", "--features", "test")
+      check readFile("nimble.paths") == savedPaths
+
+      writeFile(featureTest, fooEnabled)
+      verify execNimble("--useSystemNim", "test")
+
+      verify execNimble("--useSystemNim", "setup")
+      writeFile(featureTest, noFeatures)
+      verify execNimble("--useSystemNim", "test")
+
   test "Runs passing unit tests":
     cd "testCommand/testsPass":
       # Pass flags to test #726, #757

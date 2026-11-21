@@ -31,6 +31,10 @@ import nimblepkg/packageinfotypes, nimblepkg/packageinfo, nimblepkg/version,
 const
   nimblePathsFileName* = "nimble.paths"
   nimbleConfigFileName* = "config.nims"
+  setupFeaturesPrefix = "# nimble setup features: "
+  taskPathsProjectEnv = "__NIMBLE_TASK_PATHS_PROJECT"
+  taskPathsOverrideEnv = "__NIMBLE_TASK_PATHS_OVERRIDE"
+  taskOriginalPathEnv = "__NIMBLE_TASK_ORIGINAL_PATH"
   nimbledepsFolderName = "nimbledeps"
   gitIgnoreFileName = ".gitignore"
   hgIgnoreFileName = ".hgignore"
@@ -610,9 +614,12 @@ proc execBackend(pkgInfo: PackageInfo, options: Options, nimBin: Option[string])
   if not execHook(nimBin, options, options.action.typ, true):
     raise nimbleError("Pre-hook prevented further execution.")
 
-  var args = @["-d:NimblePkgVersion=" & $pkgInfo.basicInfo.version]
+  var args = @["-d:NimblePkgVersion=" & $pkgInfo.basicInfo.version,
+               "-d:NimbleManagedCompilation"]
   for path in options.getPathsAllPkgs(nimBin):
     args.add("--path:" & path.quoteShell)
+  for feature in pkgInfo.getFeatureDefines(options):
+    args.add quoteShell("-d:" & feature)
   if options.verbosity >= HighPriority:
     # Hide Nim hints by default
     args.add("--hints:off")
@@ -1293,18 +1300,81 @@ proc installDevelopPackage(pkgTup: PkgTuple, options: var Options, nimBinParam: 
 
 proc updateSyncFile(dependentPkg: PackageInfo, options: Options, nimBin: Option[string])
 
+proc hasFeatureOverride(options: Options): bool =
+  options.action.typ != actionSetup and options.setupFeatures.isSome and
+    options.features != options.setupFeatures.get()
+
 proc updatePathsFile(pkgInfo: PackageInfo, options: Options, nimBin: Option[string]) =
-  var paths = initHashSet[seq[string]]()
-  for path in options.getPathsAllPkgs(nimBin):
-    paths.incl @[path]
+  if options.hasFeatureOverride():
+    return
+
   var pathsFileContent = "--noNimblePath\n"
-  for path in paths:
-    for p in path:
-      pathsFileContent &= &"--path:{p.escape}\n"
+  if options.setupFeatures.isSome:
+    pathsFileContent &= setupFeaturesPrefix & $(%options.setupFeatures.get()) & "\n"
+
+  # Nimble-managed compilations get the current paths and defines on the command line.
+  let paths = options.getPathsAllPkgs(nimBin)
+  let featureDefines = pkgInfo.getFeatureDefines(options)
+  if paths.len > 0 or featureDefines.len > 0:
+    pathsFileContent &= "when not defined(NimbleManagedCompilation):\n"
+    var indent = "  "
+    if options.setupFeatures.isSome:
+      pathsFileContent &= fmt"""
+  when system.getEnv("{taskPathsProjectEnv}") == thisDir() and
+      system.fileExists(system.getEnv("{taskPathsOverrideEnv}")):
+    import std/json as nimbleJson
+    block:
+      let flags = nimbleJson.parseJson(system.readFile(system.getEnv("{taskPathsOverrideEnv}")))
+      for path in nimbleJson.items(flags["paths"]):
+        switch("path", nimbleJson.getStr(path))
+      for feature in nimbleJson.items(flags["defines"]):
+        switch("define", nimbleJson.getStr(feature))
+  else:
+"""
+      indent = "    "
+    for path in paths:
+      pathsFileContent &= &"{indent}--path:{path.escape}\n"
+    for feature in featureDefines:
+      pathsFileContent &= &"{indent}--define:{feature.escape}\n"
   var action = if fileExists(nimblePathsFileName): "updated" else: "generated"
   writeFile(nimblePathsFileName, pathsFileContent)
   var msgPriority = if options.action.typ == actionSetup: HighPriority else: LowPriority
   displayInfo(&"\"{nimblePathsFileName}\" is {action}.", msgPriority)
+
+proc setTaskPathsOverride(pkgInfo: PackageInfo, options: Options, nimBin: Option[string]) =
+  # A task can invoke Nim itself. Give that compiler the invocation's paths and
+  # defines without changing the saved configuration used by other processes.
+  if options.hasFeatureOverride():
+    let dir = getNimbleTempDir()
+    createDir(dir)
+    let file = dir / "task-paths.json"
+    writeFile(file, $(%*{
+      "paths": toSeq(options.getPathsAllPkgs(nimBin).items),
+      "defines": pkgInfo.getFeatureDefines(options)
+    }))
+    putEnv(taskPathsProjectEnv, getCurrentDir())
+    putEnv(taskPathsOverrideEnv, file)
+
+proc taskCompilerPath(pkgInfo: PackageInfo, options: Options, nimBin: Option[string]): string =
+  let dir = getNimbleTempDir() / "task-compiler"
+  createDir(dir)
+  let compiler = findExe("nim")
+  if compiler.len == 0:
+    return ""
+  var flags: seq[string]
+  for path in options.getPathsAllPkgs(nimBin):
+    flags.add quoteShell("--path:" & path)
+  for feature in pkgInfo.getFeatureDefines(options):
+    flags.add quoteShell("-d:" & feature)
+  when defined(windows):
+    writeFile(dir / "nim.cmd", "@echo off\r\n" & compiler.quoteShell & " " &
+      flags.join(" ") & " %*\r\n")
+  else:
+    let script = dir / "nim"
+    writeFile(script, "#!/bin/sh\nexec " & compiler.quoteShell & " " &
+      flags.join(" ") & " \"$@\"\n")
+    setFilePermissions(script, {fpUserRead, fpUserWrite, fpUserExec})
+  result = dir
 
 proc develop(options: var Options, nimBinParam: Option[string]) =
   var nimBin = nimBinParam
@@ -2163,6 +2233,7 @@ proc loadFilePathPkgs(options: var Options, nimBin: Option[string]) =
   options.isFilePathDiscovering = false
 
 proc solvePkgs(rootPackage: PackageInfo, options: var Options, nimBin: var Option[string]) {.instrument.} =
+  clearGloballyActiveFeatures()
   options.satResult.rootPackage = rootPackage
   options.satResult.rootPackage.requires &= options.extraRequires
   # Add task-specific requirements if a task is being executed
@@ -2397,6 +2468,7 @@ proc runInstallRootGloballyAction(options: var Options, nimBin: var Option[strin
     deps: options.satResult.solvedPkgs.filterIt(it.pkgName.toLower != rootPackage.basicInfo.name.toLower)
   )
   options.satResult.solvedPkgs.add(rootSolvedPkg)
+  setTaskPathsOverride(rootPackage, options, nimBin)
   options.satResult.installPkgs(options, nimBin)
   options.satResult.addReverseDeps(options)
 
@@ -2558,6 +2630,7 @@ proc run*(options: var Options, nimBin: var Option[string]) {.instrument.} =
     developFromSolution(rootPackage.basicInfo.name, options, nimBin)
     return
 
+  setTaskPathsOverride(rootPackage, options, nimBin)
   options.satResult.installPkgs(options, nimBin)
   options.satResult.addReverseDeps(options)
   warnVersionMismatches(options)
@@ -2725,12 +2798,26 @@ proc doAction(options: var Options, nimBinParam: Option[string]) {.instrument.} 
       # run() already solved and installed the task's dependencies, its
       # taskRequires included; tell the task where they are.
       setTaskPathsEnv(optsCopy, nimBin)
+      setTaskPathsOverride(pkgInfo, optsCopy, nimBin)
+      for feature in pkgInfo.getFeatureDefines(optsCopy):
+        optsCopy.getCompilationFlags().add quoteShell("-d:" & feature)
       # If valid task defined in nimscript, run it
       var execResult: ExecutionResult[bool]
-      if execCustom(nimBin, nimbleFile, optsCopy, execResult):
-        if execResult.hasTaskRequestedCommand():
-          var options = execResult.getOptionsForCommand(optsCopy)
-          doAction(options, nimBin)
+      let originalPath = getEnv("PATH")
+      if not fileExists(nimblePathsFileName) and optsCopy.features.len > 0:
+        let compilerPath = taskCompilerPath(pkgInfo, optsCopy, nimBin)
+        if compilerPath.len > 0:
+          putEnv(taskOriginalPathEnv, originalPath)
+          putEnv("PATH", compilerPath & separator & originalPath)
+      var taskSucceeded = false
+      try:
+        taskSucceeded = execCustom(nimBin, nimbleFile, optsCopy, execResult)
+      finally:
+        putEnv("PATH", originalPath)
+        delEnv(taskOriginalPathEnv)
+      if taskSucceeded and execResult.hasTaskRequestedCommand():
+        var options = execResult.getOptionsForCommand(optsCopy)
+        doAction(options, nimBin)
     elif optsCopy.task == "test":
       # If there is no task defined for the `test` task, we run the pre-defined
       # fallback logic.
@@ -2745,10 +2832,25 @@ proc doAction(options: var Options, nimBinParam: Option[string]) {.instrument.} 
 
 
 when isMainModule:
+  proc readSetupFeatures(): Option[seq[string]] =
+    if fileExists(nimblePathsFileName):
+      for line in lines(nimblePathsFileName):
+        if line.startsWith(setupFeaturesPrefix):
+          var features: seq[string]
+          for feature in parseJson(line[setupFeaturesPrefix.len..^1]):
+            features.add feature.getStr()
+          return some(features)
+
   var exitCode = QuitSuccess
 
   var opt: Options
   try:
+    # A nested Nimble command starts its own solve.
+    if existsEnv(taskOriginalPathEnv):
+      putEnv("PATH", getEnv(taskOriginalPathEnv))
+      delEnv(taskOriginalPathEnv)
+    delEnv(taskPathsProjectEnv)
+    delEnv(taskPathsOverrideEnv)
     opt = parseCmdLine()
     opt.setNimbleDir()
     opt.loadNimbleData()
@@ -2789,6 +2891,13 @@ when isMainModule:
     # uninstall, clean, manual, init, nil — and --version/--help) stay free.
     var nimBin = none(string)
     if shouldRun:
+      if opt.action.typ == actionSetup:
+        opt.setupFeatures = some(opt.features)
+      elif opt.thereIsNimbleFile and
+          (opt.action.typ != actionInstall or opt.action.packages.len == 0):
+        opt.setupFeatures = readSetupFeatures()
+        if not opt.featuresSpecified and opt.setupFeatures.isSome:
+          opt.features = opt.setupFeatures.get()
       # For actionCustom, set the task name before calling run
       if opt.action.typ == actionCustom:
         opt.task = opt.action.command.normalize
@@ -2820,6 +2929,8 @@ when isMainModule:
       setup(opt, nimBin)
 
     # develop is handled inside run (it must run before the solver)
+    if shouldRun and opt.thereIsNimbleFile:
+      setTaskPathsOverride(opt.satResult.rootPackage, opt, nimBin)
     if not shouldRun or opt.action.typ != actionDevelop:
       opt.doAction(nimBin)
 

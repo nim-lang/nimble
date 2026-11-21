@@ -30,6 +30,9 @@ suite "setup command":
         # build the project.
         let (_, nimExitCode) = execCmdEx("nim c -r binary")
         check nimExitCode == QuitSuccess
+        let (_, versionedExitCode) =
+          execCmdEx("nim c -d:NimblePkgVersion=1.0.0 binary")
+        check versionedExitCode == QuitSuccess
 
   test "nimble setup (with develop file)":
     cd "setup/dependent":
@@ -89,17 +92,27 @@ suite "setup command":
         check nimbleConfigFileName.readFile.contains("--noNimblePath")
         cleanFiles nimblePathsFileName, nimbleConfigFileName, "nimble.lock"
 
-  test "should add feature requirements to the nimble.paths file when activating the feature":
+  test "nimble setup writes active feature paths and defines":
     cd "features":
-      let (_, exitCode) = execNimble("--parser:declarative", "--features:feature1", "setup")
-      check exitCode == QuitSuccess
-      let nimblePathsFileContent = nimblePathsFileName.readFile
-      check nimblePathsFileContent.contains("stew")
-  
-  test "should not add feature requirements to the nimble.paths file when not activating the feature":
-    cd "features":
-      let (_, exitCode) = execNimble("--parser:declarative", "setup")
-      check exitCode == QuitSuccess
-      let nimblePathsFileContent = nimblePathsFileName.readFile
-      check not nimblePathsFileContent.contains("stew")
+      let binary = addFileExt("setup_features_test", ExeExt)
+      cleanFiles nimblePathsFileName, nimbleConfigFileName, binary
+      for features in ["--features:feature1,dev", "--features:feature1;dev"]:
+        verify execNimble("setup", features)
+        let pathsFileContent = nimblePathsFileName.readFile
+        check pathsFileContent.contains("stew")
+        check pathsFileContent.count("--define:\"features.features.feature1\"") == 1
+        check pathsFileContent.count("--define:\"features.features.dev\"") == 1
+        check pathsFileContent.count("--define:\"features.result.resultfeature\"") == 1
+
+      let (output, nimExitCode) =
+        execCmdEx("nim c -r --out:" & binary.quoteShell & " src/features.nim")
+      checkpoint output
+      check nimExitCode == QuitSuccess
+      check output.processOutput.inLines("feature1 is enabled\nresultfeature is enabled")
+
+      verify execNimble("setup")
+      let pathsFileContent = nimblePathsFileName.readFile
+      check not pathsFileContent.contains("stew")
+      check not pathsFileContent.contains("features.features.feature1")
+      check pathsFileContent.contains("--define:\"features.result.resultfeature\"")
 
