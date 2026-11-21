@@ -160,6 +160,73 @@ proc universe(packages: varargs[PackageMinimalInfo]): Table[string, PackageVersi
   for mi in packages:
     result.mgetOrPut(mi.name, PackageVersions(pkgName: mi.name)).versions.add mi
 
+proc registry(versions: Table[string, PackageVersions],
+              requested: ref seq[string], read: ref seq[string],
+              unreadable, slow: seq[string]): LazyDiscovery =
+  ## Fetching from `versions` alone, as if they were all there was to
+  ## discover: a requirement fetches its package, filed under the name or URL
+  ## asked for and, as discovery files a URL's versions, under the package's
+  ## name. A fetch is in when next asked for, or, for a `slow` package, the
+  ## time after. Its versions come unread, the way discovery lists a clone's
+  ## tags, and reading one gives it as `versions` has it - nothing, for the
+  ## `unreadable` ones ("name version"). Records, lowercased, each package a
+  ## fetch asks for and each version read.
+  var originals = initTable[(string, string, string), PackageMinimalInfo]()
+  for pv in versions.values:
+    for mi in pv.versions:
+      discard originals.hasKeyOrPut((mi.name.toLowerAscii, mi.url, $mi.version), mi)
+  proc listed(pv: PackageVersions): PackageVersions =
+    result = pv
+    for mi in result.versions.mitems:
+      if not mi.isRoot:
+        mi.requires = @[]
+        mi.features = initTable[string, seq[PkgTuple]]()
+  result.unread = proc (mi: PackageMinimalInfo): bool = not mi.isRoot
+  result.read = proc (unread: seq[PackageMinimalInfo]): seq[Option[PackageMinimalInfo]] =
+    for mi in unread:
+      let spelled = &"{mi.name.toLowerAscii} {mi.version}"
+      read[].add spelled
+      if spelled in unreadable: result.add none(PackageMinimalInfo)
+      else: result.add some(originals[(mi.name.toLowerAscii, mi.url, $mi.version)])
+  let going = new seq[tuple[req: PkgTuple, held: bool]]
+  result.fetch = proc (reqs: seq[PkgTuple]) =
+    for req in reqs:
+      requested[].add req.name.toLowerAscii
+      going[].add (req: req, held: req.name.toLowerAscii in slow)
+  result.fetched = proc (wait: bool): seq[Fetched] =
+    var still: typeof(going[])
+    for (req, held) in going[]:
+      if held:
+        still.add (req: req, held: false)
+        continue
+      var found = initTable[string, PackageVersions]()
+      for key, pv in versions:
+        if cmpIgnoreCase(key, req.name) == 0:
+          found[key] = pv.listed
+          for mi in pv.versions:
+            let name = mi.name.toLowerAscii
+            if name in versions: found[name] = versions[name].listed
+      result.add (req: req, versions: found)
+    going[] = still
+
+proc solveLazily(versions: Table[string, PackageVersions],
+                 requested: ref seq[string],
+                 read = new seq[string],
+                 unreadable, slow: openArray[string] = []): Table[string, Version] =
+  ## Resolves the root of `versions` with PubGrub, fetching from `versions`
+  ## only what the search reaches and reading only the versions it tries
+  ## (`discoverLazily`). Returns the version chosen for each package.
+  var root: PackageMinimalInfo
+  for pv in versions.values:
+    for mi in pv.versions:
+      if mi.isRoot: root = mi
+  var options = initOptions()
+  options.solver = skPubGrub
+  var table = root.discoverLazily(registry(versions, requested, read, @unreadable, @slow), options)
+  table.normalizeRequirements(options)
+  table.normalizeSpecialVersions(options, warn = false)
+  resolve(table, skPubGrub).packages
+
 proc lockedAt(versions: openArray[(string, string)]): LockFileDeps =
   for (name, version) in versions:
     result[name] = LockFileDep(version: newVersion(version))
@@ -200,9 +267,8 @@ for solver in SolverKind:
       check packages["b"] == newVersion "0.1.0"
 
     test "nitter: same package from different fork URLs (asynctools)":
-      # nitter's dep tree requires asynctools from multiple URLs:
-      # - jester#baca3f requires "https://github.com/timotheecour/asynctools#pr_fix_compilation"
-      # - httpbeast requires "asynctools#0e6bdc3ed5bae8c7cc9" (name-based → official)
+      # nitter's dep tree requires asynctools from multiple URLs, through
+      # httpbeast's versions (see below).
       # normalizeSpecialVersions picks the first special version (topologically)
       # and rewrites all other requirements to use it.
 
@@ -226,13 +292,22 @@ for solver in SolverKind:
       discard solvePackages(pkgInfo, @[], pkgsToInstall, options, output, solvedPkgs, nimBin)
       check solvedPkgs.len > 0
 
-      # lenient=false: should fail with NimbleError on Linux/macOS where httpbeast is used (not used in windows)
+      # lenient=false, on Linux/macOS where httpbeast is used (not on Windows):
+      # httpbeast 0.4 requires asynctools#0e6bdc3ed5bae8c7cc9, 0.3.0 iffy's fork
+      # and 0.2.2 timotheecour's. SAT reads every version's requirements and
+      # fails; PubGrub reads only those of the versions it tries, and its
+      # solution needs one of them (httpbeast 0.4's).
       options.lenient = false
       when defined(windows):
         discard solvePackages(pkgInfo, @[], pkgsToInstall, options, output, solvedPkgs, nimBin)
       else:
-        expect NimbleError:
+        if solver == skSat:
+          expect NimbleError:
+            discard solvePackages(pkgInfo, @[], pkgsToInstall, options, output, solvedPkgs, nimBin)
+        else:
+          solvedPkgs = @[]
           discard solvePackages(pkgInfo, @[], pkgsToInstall, options, output, solvedPkgs, nimBin)
+          check solvedPkgs.len > 0
 
     test "URL-keyed discovery versions reach the name node (websock split-brain)":
       # Mirrors the libp2pconflict failure: libp2p 1.x requires websock by name,
@@ -763,3 +838,119 @@ license = "MIT"
     check picked[results] == newVersion("0.5.1")
     check picked[dep] == newVersion("0.1.0")
     check "results" notin picked
+
+suite "PubGrub fetches as it searches":
+  # Discovery up front fetches every package any version of any package
+  # requires - a clone each, for a package not in the cache. PubGrub fetches
+  # what the versions it tries require, as it tries them.
+  test "it solves every recorded universe as fetching all of it would":
+    var everything, reached, allVersions, readVersions = 0
+    for jsonFile in walkPattern("packageMinimal/*.json"):
+      let versions = parseJson(readFile(jsonFile)).jsonTo(
+        Table[string, PackageVersions], Joptions(allowMissingKeys: true))
+      var all = versions
+      all.normalizeRequirements(initOptions())
+      all.normalizeSpecialVersions(initOptions(), warn = false)
+      # The recorded root is filed under the name or URL it was asked for by,
+      # `discoverLazily` files it under its own name.
+      var roots: seq[string]
+      for key, pv in versions:
+        for mi in pv.versions:
+          if mi.isRoot: roots.add [key.toLowerAscii, mi.name.toLowerAscii]
+      proc dependencies(picked: Table[string, Version]): Table[string, Version] =
+        for name, version in picked:
+          if name.toLowerAscii notin roots:
+            result[name.toLowerAscii] = version
+      let requested = new seq[string]
+      let read = new seq[string]
+      let picked = solveLazily(versions, requested, read).dependencies
+      let expected = resolve(all, skPubGrub).packages.dependencies
+      if picked != expected:
+        for name in toSeq(picked.keys) & toSeq(expected.keys):
+          if picked.getOrDefault(name) != expected.getOrDefault(name):
+            checkpoint &"{jsonFile}: {name} {picked.getOrDefault(name)} " &
+              &"instead of {expected.getOrDefault(name)}"
+        fail()
+      everything += versions.len
+      reached += requested[].deduplicate.len
+      var listed: seq[string]
+      for pv in versions.values:
+        for mi in pv.versions:
+          if not mi.isRoot: listed.add &"{mi.name.toLowerAscii} {mi.version}"
+      allVersions += listed.deduplicate.len
+      readVersions += read[].deduplicate.len
+    echo &"Fetched {reached} of the {everything} packages discovery fetches " &
+      &"up front, and read {readVersions} of the {allVersions} versions it reads up front"
+    check reached < everything
+    check readVersions < allVersions
+
+  test "a requirement of a version the search doesn't try is never fetched":
+    var root = minimal("myapp", "0.1.0", ["a"])
+    root.isRoot = true
+    let requested = new seq[string]
+    let picked = solveLazily(universe(root,
+      minimal("a", "1.0.0", ["gone"]),
+      minimal("a", "2.0.0", ["b"]),
+      minimal("b", "1.0.0")), requested)
+    check picked["a"] == newVersion("2.0.0")
+    check picked["b"] == newVersion("1.0.0")
+    check "gone" notin requested[]
+
+  test "a dependency that doesn't exist sends the search to an older version":
+    var root = minimal("myapp", "0.1.0", ["a"])
+    root.isRoot = true
+    let requested = new seq[string]
+    let picked = solveLazily(universe(root,
+      minimal("a", "1.0.0", ["b"]),
+      minimal("a", "2.0.0", ["gone"]),
+      minimal("b", "1.0.0")), requested)
+    check picked["a"] == newVersion("1.0.0")
+    check picked["b"] == newVersion("1.0.0")
+    check "gone" in requested[]
+
+  test "a version the search doesn't try is never read":
+    var root = minimal("myapp", "0.1.0", ["a"])
+    root.isRoot = true
+    let read = new seq[string]
+    let picked = solveLazily(universe(root,
+      minimal("a", "1.0.0", ["b"]),
+      minimal("a", "2.0.0", ["b"]),
+      minimal("b", "1.0.0")), new seq[string], read)
+    check picked["a"] == newVersion("2.0.0")
+    check "a 2.0.0" in read[]
+    check "a 1.0.0" notin read[]
+
+  test "what a version reads as can send the search to an older one":
+    # Until 2.0.0 is read, nothing says it needs a b that doesn't exist.
+    var root = minimal("myapp", "0.1.0", ["a"])
+    root.isRoot = true
+    let read = new seq[string]
+    let picked = solveLazily(universe(root,
+      minimal("a", "1.0.0", ["b"]),
+      minimal("a", "2.0.0", ["b >= 2.0.0"]),
+      minimal("b", "1.0.0")), new seq[string], read)
+    check picked["a"] == newVersion("1.0.0")
+    check picked["b"] == newVersion("1.0.0")
+    check "a 2.0.0" in read[]
+
+  test "a version with nothing to read is passed over":
+    var root = minimal("myapp", "0.1.0", ["a"])
+    root.isRoot = true
+    let picked = solveLazily(universe(root,
+      minimal("a", "1.0.0"),
+      minimal("a", "2.0.0")), new seq[string], unreadable = ["a 2.0.0"])
+    check picked["a"] == newVersion("1.0.0")
+
+  test "a package still being fetched holds up only what needs it":
+    # While b is on its way, the search goes on without it - it doesn't take
+    # b not to exist and turn to a 1.0.0.
+    var root = minimal("myapp", "0.1.0", ["a"])
+    root.isRoot = true
+    let read = new seq[string]
+    let picked = solveLazily(universe(root,
+      minimal("a", "1.0.0"),
+      minimal("a", "2.0.0", ["b"]),
+      minimal("b", "1.0.0")), new seq[string], read, slow = ["b"])
+    check picked["a"] == newVersion("2.0.0")
+    check picked["b"] == newVersion("1.0.0")
+    check "a 1.0.0" notin read[]

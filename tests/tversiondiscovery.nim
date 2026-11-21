@@ -1,7 +1,7 @@
 {.used.}
 import unittest, os
 import testscommon
-import std/[tables, sequtils, strutils, options, strformat, osproc, tempfiles]
+import std/[tables, sequtils, strutils, options, strformat, osproc, tempfiles, algorithm]
 import chronos
 import nimblepkg/[version, nimblesolver, options, config, download, packageinfotypes, versiondiscovery]
 from nimblepkg/common import cd, NimbleError
@@ -685,3 +685,61 @@ suite "Special-version download memoization (#1785)":
     let a: PkgTuple = (url, parseVersionRange("#e77caabae78fbc9aa5b78a0a521181b077c82571"))
     let b: PkgTuple = (url, parseVersionRange("#e77caabae78fbc9aa5b78a0a521181b077c82571"))
     check computeDownloadCacheKey(a, options) == computeDownloadCacheKey(b, options)
+
+suite "Reading versions as they are needed":
+  # PubGrub reads a package's versions as its search tries them. Listing a
+  # package reads what is at hand - its checkout, and what the cache holds -
+  # and lists its other tags unread.
+  proc lazyOptions(cacheDir: string): Options =
+    result = initOptions()
+    result.nimBin = some result.makeNimBin("nim")
+    result.pkgCachePath = cacheDir
+
+  proc list(workDir, reqStr: string, options: Options):
+      tuple[read, unread: seq[PackageMinimalInfo]] =
+    waitFor listPackageMinimalVersionsFromRepo(
+      workDir, parseRequires(reqStr), DownloadMethod.git, options, nimBin = nimBin)
+
+  test "an unread version reads as it does when all are read at once":
+    let base = createTempDir("nimble_lazy_read_", "")
+    defer: removeDir(base)
+    makeTaggedRepo(base / "remote", "lazylib", @[
+      ("v0.1.0", nimbleContent("0.1.0", @["foo"])),
+      ("v0.2.0", nimbleContent("0.2.0", @["bar >= 1.0"])),
+      ("v0.3.0", nimbleContent("0.3.0", @["foo", "bar"]))])
+    cloneLocalRepo(base / "remote", base / "work")
+    let options = lazyOptions(base / "cache")
+    let listed = list(base / "work", "lazylib >= 0.1.0", options)
+    check listed.read.mapIt($it.version) == @["0.3.0"]  # the checkout
+    check listed.unread.mapIt($it.version).sorted == @["0.1.0", "0.2.0"]
+    check listed.unread.allIt(it.isUnreadVersion and it.requires.len == 0)
+
+    let all = discoverVersions(base / "work", "lazylib >= 0.1.0", base / "eager")
+    for read in waitFor readUnreadVersions(listed.unread, options, nimBin):
+      check read.isSome
+      check all.anyIt(it.version == read.get.version and it.requires == read.get.requires)
+
+    # The cache keeps what was read: listed again, nothing is left unread.
+    check list(base / "work", "lazylib >= 0.1.0", options).unread.len == 0
+
+  test "a listing doesn't fetch the tags of a package the cache knows":
+    # Only `nimble refresh` (forceFetch) looks for new ones, as for a package
+    # whose versions are all cached.
+    let base = createTempDir("nimble_lazy_fetch_", "")
+    defer: removeDir(base)
+    makeTaggedRepo(base / "remote", "fetchlib", @[
+      ("v0.1.0", nimbleContent("0.1.0")),
+      ("v0.2.0", nimbleContent("0.2.0"))])
+    cloneLocalRepo(base / "remote", base / "work")
+    var options = lazyOptions(base / "cache")
+    check list(base / "work", "fetchlib >= 0.1.0", options).unread.mapIt($it.version) == @["0.1.0"]
+
+    writeFile(base / "remote" / "fetchlib.nimble", nimbleContent("0.3.0"))
+    runGit(base / "remote", "commit -am v0.3.0")
+    runGit(base / "remote", "tag v0.3.0")
+    let again = list(base / "work", "fetchlib >= 0.1.0", options)
+    check "0.3.0" notin (again.read & again.unread).mapIt($it.version)
+
+    options.forceFetch = true
+    let refreshed = list(base / "work", "fetchlib >= 0.1.0", options)
+    check "0.3.0" in refreshed.unread.mapIt($it.version)
