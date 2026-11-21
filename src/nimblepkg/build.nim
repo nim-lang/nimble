@@ -103,6 +103,7 @@ proc buildFromDir*(pkgInfo: PackageInfo, paths: HashSet[string],
     binariesBuilt = 0
     args = args
   args.add "-d:NimblePkgVersion=" & $pkgInfo.basicInfo.version
+  args.add "-d:NimbleManagedCompilation"
   for path in paths:
       args.add("--path:" & path.quoteShell)
   if options.verbosity >= HighPriority:

@@ -30,6 +30,9 @@ suite "setup command":
         # build the project.
         let (_, nimExitCode) = execCmdEx("nim c -r binary")
         check nimExitCode == QuitSuccess
+        let (_, versionedExitCode) =
+          execCmdEx("nim c -d:NimblePkgVersion=1.0.0 binary")
+        check versionedExitCode == QuitSuccess
 
   test "nimble setup (with develop file)":
     cd "setup/dependent":

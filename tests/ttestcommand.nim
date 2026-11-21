@@ -9,6 +9,45 @@ import testscommon
 from nimblepkg/common import cd
 
 suite "test command":
+  test "custom tasks and build hooks use the requested features":
+    let projectDir = createTempDir("nimble-feature-hooks-", "")
+    defer: removeDir(projectDir)
+    cd projectDir:
+      writeFile("featurehooks.nimble", """
+version = "0.1.0"
+author = "Test"
+description = "Feature selection in tasks and hooks"
+license = "MIT"
+bin = @["featurehooks"]
+feature "foo":
+  requires "nim"
+feature "bar":
+  requires "nim"
+before build:
+  exec "nim c --compileOnly probe.nim"
+task test, "Compile a probe":
+  exec "nim c --compileOnly probe.nim"
+""")
+      writeFile("probe.nim", """
+static:
+  doAssert defined(features.featurehooks.foo)
+  doAssert not defined(features.featurehooks.bar)
+""")
+      verify execNimble("--useSystemNim", "--features:foo", "test")
+      check not fileExists("nimble.paths")
+      verify execNimble("--useSystemNim", "--features:foo", "setup")
+      let savedPaths = readFile("nimble.paths")
+      let barProbe = """
+static:
+  doAssert defined(features.featurehooks.bar)
+  doAssert not defined(features.featurehooks.foo)
+"""
+      writeFile("probe.nim", barProbe)
+      writeFile("featurehooks.nim", barProbe)
+      verify execNimble("--useSystemNim", "--features:bar", "test")
+      verify execNimble("--useSystemNim", "--features:bar", "build")
+      check readFile("nimble.paths") == savedPaths
+
   test "setup saves default features for tests and builds":
     let projectDir = createTempDir("nimble-test-features-", "")
     defer: removeDir(projectDir)
