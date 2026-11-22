@@ -110,7 +110,7 @@ Multiple packages can be specified, separated by commas.
 
 #### `--resolver` (experimental)
 
-Control which version the SAT solver picks when several versions of a dependency satisfy the requirements:
+When several versions satisfy a dependency, `--resolver` controls which one Nimble selects.
 
 - `--resolver:max` (default): select the **highest** compatible version.
 - `--resolver:min`: select the **lowest** compatible version. This is useful to verify that your declared version bounds are actually correct — i.e. that your package still builds against the oldest versions it claims to support.
@@ -124,14 +124,11 @@ This flag is experimental and its behaviour may change in future releases.
 
 #### `--solver` (experimental)
 
-Select the algorithm that resolves the dependency graph:
+Nimble uses PubGrub by default. You can select it explicitly with
+`--solver:pubgrub` or use the SAT solver for a command with `--solver:sat`.
 
-- `--solver:sat` 
-- `--solver:pubgrub` 
-
-**Example**:
 ```sh
-nimble install --solver:pubgrub
+nimble install --solver:sat
 ```
 
 This flag is experimental and its behaviour may change in future releases.

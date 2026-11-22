@@ -10,7 +10,7 @@
 ## - `discoverLazily` (nimblesolver), which searches what it has fetched so
 ##   far, leaving out the requirements not fetched yet (`Unfetched`), and is
 ##   told which versions the search tried and what it is missing;
-## - the failure path of the default SAT solver: when SAT finds no solution,
+## - the failure path of `--solver:sat`. When SAT finds no solution,
 ##   PubGrub re-solves the same `pkgVersionTable` and its derivation-based
 ##   report becomes the error. A disagreement between the two is a solver
 ##   bug and is surfaced as such.

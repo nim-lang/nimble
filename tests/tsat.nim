@@ -46,8 +46,10 @@ suite "SAT solver":
     # SAT search runs out of budget on that table, and the rotations, analysis
     # and pinned retries that followed took about 25 minutes in the canary to
     # report the conflict. PubGrub proves there is no solution in moments.
+    var options = initOptions()
+    options.solver = skSat
     var pkgVersionTable = parseJson(readFile("packageMinimal" / "nimbus-eth1.json")).jsonTo(Table[string, PackageVersions], Joptions(allowMissingKeys: true))
-    pkgVersionTable.normalizeRequirements(initOptions())
+    pkgVersionTable.normalizeRequirements(options)
     var bumped = 0
     for pv in pkgVersionTable.mvalues:
       if pv.versions[0].isRoot:
@@ -59,7 +61,7 @@ suite "SAT solver":
 
     var output = ""
     let started = epochTime()
-    check pkgVersionTable.getSolvedPackages(output, initOptions()).len == 0
+    check pkgVersionTable.getSolvedPackages(output, options).len == 0
     checkpoint output
     check "version solving failed" in output
     check epochTime() - started < 60

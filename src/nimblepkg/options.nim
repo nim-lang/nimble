@@ -27,14 +27,14 @@ type
   DumpMode* = enum kdumpIni, kdumpJson
 
   ResolutionAlgorithm* = enum
-    ## How the SAT solver picks among versions satisfying a requirement.
+    ## How the solver picks among versions satisfying a requirement.
     raMinVer   ## lowest satisfying version (minimal version selection)
     raMaxVer   ## newest satisfying version (default)
 
   SolverKind* = enum
     ## Which algorithm resolves the dependency graph (`--solver`).
-    skSat = "sat"           ## the SAT solver (default)
-    skPubGrub = "pubgrub"   ## PubGrub; same version preference as SAT
+    skSat = "sat"           ## the SAT solver
+    skPubGrub = "pubgrub"   ## PubGrub (default)
 
   VisitedHook* = object
     pkgName*: string #just the nimble file name
@@ -68,7 +68,7 @@ type
                       # some commands, useful when processing deps
     nimBin*: Option[NimBin]
     localdeps*: bool # True if project local deps mode
-    resolutionAlgorithm*: ResolutionAlgorithm # How SAT picks among satisfying versions
+    resolutionAlgorithm*: ResolutionAlgorithm # How the solver picks among satisfying versions
     solver*: SolverKind # Which algorithm resolves the dependency graph
     developLocaldeps*: bool # True if local deps + nimble develop pkg1 ...
     disableSslCertCheck*: bool
@@ -302,9 +302,8 @@ Nimble Options:
   -g, --global                    Run in global dependency mode.
       --resolver:minver|maxver    Pick the lowest (minver) or newest (maxver,
                                   default) version satisfying each requirement.
-      --solver:sat|pubgrub        The algorithm that resolves the dependency
-                                  graph: the SAT solver (sat, default) or
-                                  PubGrub (pubgrub).
+      --solver:pubgrub|sat        Resolve dependencies with PubGrub (default)
+                                  or the SAT solver.
   -p, --package                   For which package in the dependency tree the
                                   command should be executed. If not provided by
                                   default it applies to the current directory
@@ -1084,7 +1083,7 @@ proc initOptions*(): Options =
     parallelDiscovery: true,
     lenient: true,
     resolutionAlgorithm: raMaxVer,  # enum defaults to raMinVer; force the historical default
-    solver: skSat
+    solver: skPubGrub
   )
 
   # Load visited hooks from environment variable to prevent recursive hook execution
