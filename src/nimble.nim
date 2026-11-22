@@ -1367,8 +1367,9 @@ proc taskCompilerPath(pkgInfo: PackageInfo, options: Options, nimBin: Option[str
   for feature in pkgInfo.getFeatureDefines(options):
     flags.add quoteShell("-d:" & feature)
   when defined(windows):
-    writeFile(dir / "nim.cmd", "@echo off\r\n" & compiler.quoteShell & " " &
-      flags.join(" ") & " %*\r\n")
+    let command = compiler.quoteShell & " " & flags.join(" ")
+    writeFile(dir / "nim.cmd", "@echo off\r\n" & command & " %*\r\n")
+    putEnv(taskCompilerCommandEnv, command)
   else:
     let script = dir / "nim"
     writeFile(script, "#!/bin/sh\nexec " & compiler.quoteShell & " " &
@@ -2815,6 +2816,8 @@ proc doAction(options: var Options, nimBinParam: Option[string]) {.instrument.} 
       finally:
         putEnv("PATH", originalPath)
         delEnv(taskOriginalPathEnv)
+        when defined(windows):
+          delEnv(taskCompilerCommandEnv)
       if taskSucceeded and execResult.hasTaskRequestedCommand():
         var options = execResult.getOptionsForCommand(optsCopy)
         doAction(options, nimBin)
@@ -2849,6 +2852,8 @@ when isMainModule:
     if existsEnv(taskOriginalPathEnv):
       putEnv("PATH", getEnv(taskOriginalPathEnv))
       delEnv(taskOriginalPathEnv)
+    when defined(windows):
+      delEnv(taskCompilerCommandEnv)
     delEnv(taskPathsProjectEnv)
     delEnv(taskPathsOverrideEnv)
     opt = parseCmdLine()

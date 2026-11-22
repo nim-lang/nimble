@@ -21,6 +21,7 @@ type
     stdout*: string
 
 const
+  taskCompilerCommandEnv* = "__NIMBLE_TASK_COMPILER_COMMAND"
   internalCmd = "e"
   nimscriptApi = staticRead("nimscriptapi.nim")
   printPkgInfo = "printPkgInfo"
@@ -125,10 +126,20 @@ import system except getCommand, setCommand, switch, `--`, thisDir,
 
 import strutils
 import "$1"
+
+when defined(windows) and system.getEnv("$3").len > 0:
+  # NimScript starts executables directly on Windows, bypassing the nim.cmd on PATH.
+  proc exec(command: string) =
+    let parts = command.splitWhitespace(maxsplit = 1)
+    if parts.len > 0 and parts[0].toLowerAscii in ["nim", "nim.exe", "\"nim\"", "\"nim.exe\""]:
+      system.exec(system.getEnv("$3") & " " & (if parts.len == 2: parts[1] else: ""))
+    else:
+      system.exec(command)
+
 include "$2"
 
 onExit()
-""" % [nimscriptApiFile.replace("\\", "/"), scriptName.replace("\\", "/")])
+""" % [nimscriptApiFile.replace("\\", "/"), scriptName.replace("\\", "/"), taskCompilerCommandEnv])
     discard tryRemoveFile(iniFile)
 
   result = nimsFile
