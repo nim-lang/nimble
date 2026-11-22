@@ -248,6 +248,13 @@ proc keepLocked(solver: SolverKind, locked: LockFileDeps,
   for pkg in versions.preferLockedVersions(locked, targets.toHashSet, options, output):
     result[pkg.pkgName] = pkg.version
 
+suite "solver selection":
+  test "Nimble uses PubGrub when no solver is specified":
+    cd "testCommand/testsPass":
+      let (output, exitCode) = execNimble("--offline", "--useSystemNim", "--verbose", "deps")
+      check exitCode == QuitSuccess
+      check "Resolving dependencies with PubGrub" in output
+
 for solver in SolverKind:
   suite "dependency resolution (" & $solver & ")":
     test "can solve a simple graph":
