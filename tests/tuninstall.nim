@@ -72,8 +72,8 @@ bin = @["uncachedrestore"]
     # packagea named - and that explanation is the *only* error: the generic
     # "Couldnt find a solution" used to be printed underneath it as well.
     check ls.inLines("version solving failed")
-    check ls.inLines("packagea [0.2, 0.2]")
-    check ls.inLines("packagea [0.5, 0.5]")
+    check ls.inLines("packagea == 0.2")
+    check ls.inLines("packagea == 0.5")
     check not ls.inLines("Couldnt find a solution")
     check not ls.inLines("Unsatisfiable dependencies")
 
