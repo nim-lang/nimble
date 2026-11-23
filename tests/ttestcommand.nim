@@ -3,7 +3,7 @@
 
 {.used.}
 
-import unittest, os
+import unittest, os, strutils
 import std/tempfiles
 import testscommon
 from nimblepkg/common import cd
@@ -13,6 +13,7 @@ suite "test command":
     let projectDir = createTempDir("nimble-feature-hooks-", "")
     defer: removeDir(projectDir)
     cd projectDir:
+      let nimbleDir = "--nimbleDir:" & (projectDir / "cache")
       writeFile("featurehooks.nimble", """
 version = "0.1.0"
 author = "Test"
@@ -22,31 +23,109 @@ bin = @["featurehooks"]
 feature "foo":
   requires "nim"
 feature "bar":
-  requires "nim"
+  requires "https://github.com/arnetheduck/nim-results == 0.4.0"
 before build:
-  exec "nim c --compileOnly probe.nim"
+  doAssert defined(features.featurehooks.foo) xor defined(features.featurehooks.bar)
+  when defined(features.featurehooks.bar):
+    exec "nim c --compileOnly probe.nim"
+  else:
+    exec "nim c --compileOnly freshprobe.nim"
+after build:
+  doAssert defined(features.featurehooks.foo) xor defined(features.featurehooks.bar)
 task test, "Compile a probe":
   exec "nim c --compileOnly probe.nim"
 """)
-      writeFile("probe.nim", """
+      let fooProbe = """
 static:
   doAssert defined(features.featurehooks.foo)
   doAssert not defined(features.featurehooks.bar)
-""")
-      verify execNimble("--useSystemNim", "--features:foo", "test")
+"""
+      writeFile("probe.nim", fooProbe)
+      writeFile("freshprobe.nim", fooProbe)
+      writeFile("featurehooks.nim", fooProbe)
+      verify execNimble(nimbleDir, "--useSystemNim", "--features:foo", "test")
+      verify execNimble(nimbleDir, "--useSystemNim", "--features:foo", "build")
       check not fileExists("nimble.paths")
-      verify execNimble("--useSystemNim", "--features:foo", "setup")
+
+      verify execNimble(nimbleDir, "--useSystemNim", "--features:foo", "setup")
       let savedPaths = readFile("nimble.paths")
       let barProbe = """
+import results
 static:
   doAssert defined(features.featurehooks.bar)
   doAssert not defined(features.featurehooks.foo)
+  doAssert Result[int, string].default.isErr
 """
       writeFile("probe.nim", barProbe)
       writeFile("featurehooks.nim", barProbe)
-      verify execNimble("--useSystemNim", "--features:bar", "test")
-      verify execNimble("--useSystemNim", "--features:bar", "build")
+      # Build first so the dependency is installed during this invocation.
+      verify execNimbleYes(nimbleDir, "--useSystemNim", "--features:bar", "build")
+      verify execNimble(nimbleDir, "--useSystemNim", "--features:bar", "test")
       check readFile("nimble.paths") == savedPaths
+
+  test "fresh custom tasks forward features selected by dependencies":
+    let projectDir = createTempDir("nimble-task-dep-feature-", "")
+    defer: removeDir(projectDir)
+    cd projectDir:
+      createDir("reviewoptdep")
+      writeFile("reviewoptdep" / "reviewoptdep.nimble", """
+version = "0.1.0"
+author = "Test"
+description = "A dependency with an optional feature"
+license = "MIT"
+feature "on":
+  requires "nim"
+""")
+      writeFile("reviewoptdep" / "reviewoptdep.nim", """
+const optFeature* = defined(features.reviewoptdep.on)
+""")
+      writeFile("featuretask.nimble", """
+version = "0.1.0"
+author = "Test"
+description = "Uses a dependency feature in a custom test"
+license = "MIT"
+requires "file://./reviewoptdep[on]"
+task test, "Compile a probe":
+  doAssert defined(features.reviewoptdep.on)
+  exec "nim c --compileOnly probe.nim"
+""")
+      writeFile("probe.nim", """
+import reviewoptdep
+static:
+  doAssert optFeature
+""")
+      verify execNimble("--useSystemNim", "test")
+      check not fileExists("nimble.paths")
+
+  test "nested Nimble commands preserve task PATH changes":
+    let projectDir = createTempDir("nimble-task-path-", "")
+    defer: removeDir(projectDir)
+    cd projectDir:
+      createDir("tools")
+      let nimbleDir = "--nimbleDir:" & (projectDir / "cache")
+      writeFile("nestedfeature.nimble", """
+import std/[os, strutils]
+version = "0.1.0"
+author = "Test"
+description = "Changes PATH before running another task"
+license = "MIT"
+feature "foo":
+  requires "nim"
+task outer, "Run a nested Nimble command":
+  doAssert defined(features.nestedfeature.foo)
+  let tools = thisDir() / "tools"
+  putEnv("PATH", tools & PathSep & getEnv("PATH"))
+  exec getEnv("NIMBLE_TEST_BINARY_PATH").quoteShell & " --useSystemNim --global " &
+    $1 & " inner"
+task inner, "Check the inherited environment":
+  doAssert (thisDir() / "tools") in getEnv("PATH").split(PathSep)
+  exec "nim c --compileOnly probe.nim"
+""" % nimbleDir.quoteShell.escape)
+      writeFile("probe.nim", """
+static:
+  doAssert not defined(features.nestedfeature.foo)
+""")
+      verify execNimble(nimbleDir, "--useSystemNim", "--features:foo", "outer")
 
   test "setup saves default features for tests and builds":
     let projectDir = createTempDir("nimble-test-features-", "")

@@ -28,13 +28,10 @@ import nimblepkg/packageinfotypes, nimblepkg/packageinfo, nimblepkg/version,
       nimblepkg/versiondiscovery, nimblepkg/nimresolution,
       nimblepkg/refresh
 
+export nimblePathsFileName, nimbleConfigFileName
+
 const
-  nimblePathsFileName* = "nimble.paths"
-  nimbleConfigFileName* = "config.nims"
   setupFeaturesPrefix = "# nimble setup features: "
-  taskPathsProjectEnv = "__NIMBLE_TASK_PATHS_PROJECT"
-  taskPathsOverrideEnv = "__NIMBLE_TASK_PATHS_OVERRIDE"
-  taskOriginalPathEnv = "__NIMBLE_TASK_ORIGINAL_PATH"
   nimbledepsFolderName = "nimbledeps"
   gitIgnoreFileName = ".gitignore"
   hgIgnoreFileName = ".hgignore"
@@ -1300,10 +1297,6 @@ proc installDevelopPackage(pkgTup: PkgTuple, options: var Options, nimBinParam: 
 
 proc updateSyncFile(dependentPkg: PackageInfo, options: Options, nimBin: Option[string])
 
-proc hasFeatureOverride(options: Options): bool =
-  options.action.typ != actionSetup and options.setupFeatures.isSome and
-    options.features != options.setupFeatures.get()
-
 proc updatePathsFile(pkgInfo: PackageInfo, options: Options, nimBin: Option[string]) =
   if options.hasFeatureOverride():
     return
@@ -1340,42 +1333,6 @@ proc updatePathsFile(pkgInfo: PackageInfo, options: Options, nimBin: Option[stri
   writeFile(nimblePathsFileName, pathsFileContent)
   var msgPriority = if options.action.typ == actionSetup: HighPriority else: LowPriority
   displayInfo(&"\"{nimblePathsFileName}\" is {action}.", msgPriority)
-
-proc setTaskPathsOverride(pkgInfo: PackageInfo, options: Options, nimBin: Option[string]) =
-  # A task can invoke Nim itself. Give that compiler the invocation's paths and
-  # defines without changing the saved configuration used by other processes.
-  if options.hasFeatureOverride():
-    let dir = getNimbleTempDir()
-    createDir(dir)
-    let file = dir / "task-paths.json"
-    writeFile(file, $(%*{
-      "paths": toSeq(options.getPathsAllPkgs(nimBin).items),
-      "defines": pkgInfo.getFeatureDefines(options)
-    }))
-    putEnv(taskPathsProjectEnv, getCurrentDir())
-    putEnv(taskPathsOverrideEnv, file)
-
-proc taskCompilerPath(pkgInfo: PackageInfo, options: Options, nimBin: Option[string]): string =
-  let dir = getNimbleTempDir() / "task-compiler"
-  createDir(dir)
-  let compiler = findExe("nim")
-  if compiler.len == 0:
-    return ""
-  var flags: seq[string]
-  for path in options.getPathsAllPkgs(nimBin):
-    flags.add quoteShell("--path:" & path)
-  for feature in pkgInfo.getFeatureDefines(options):
-    flags.add quoteShell("-d:" & feature)
-  when defined(windows):
-    let command = compiler.quoteShell & " " & flags.join(" ")
-    writeFile(dir / "nim.cmd", "@echo off\r\n" & command & " %*\r\n")
-    putEnv(taskCompilerCommandEnv, command)
-  else:
-    let script = dir / "nim"
-    writeFile(script, "#!/bin/sh\nexec " & compiler.quoteShell & " " &
-      flags.join(" ") & " \"$@\"\n")
-    setFilePermissions(script, {fpUserRead, fpUserWrite, fpUserExec})
-  result = dir
 
 proc develop(options: var Options, nimBinParam: Option[string]) =
   var nimBin = nimBinParam
@@ -2469,7 +2426,6 @@ proc runInstallRootGloballyAction(options: var Options, nimBin: var Option[strin
     deps: options.satResult.solvedPkgs.filterIt(it.pkgName.toLower != rootPackage.basicInfo.name.toLower)
   )
   options.satResult.solvedPkgs.add(rootSolvedPkg)
-  setTaskPathsOverride(rootPackage, options, nimBin)
   options.satResult.installPkgs(options, nimBin)
   options.satResult.addReverseDeps(options)
 
@@ -2631,7 +2587,6 @@ proc run*(options: var Options, nimBin: var Option[string]) {.instrument.} =
     developFromSolution(rootPackage.basicInfo.name, options, nimBin)
     return
 
-  setTaskPathsOverride(rootPackage, options, nimBin)
   options.satResult.installPkgs(options, nimBin)
   options.satResult.addReverseDeps(options)
   warnVersionMismatches(options)
@@ -2798,26 +2753,16 @@ proc doAction(options: var Options, nimBinParam: Option[string]) {.instrument.} 
     if optsCopy.task in pkgInfo.nimbleTasks:
       # run() already solved and installed the task's dependencies, its
       # taskRequires included; tell the task where they are.
-      setTaskPathsEnv(optsCopy, nimBin)
-      setTaskPathsOverride(pkgInfo, optsCopy, nimBin)
-      for feature in pkgInfo.getFeatureDefines(optsCopy):
+      let
+        paths = optsCopy.getPathsAllPkgs(nimBin)
+        featureDefines = pkgInfo.getFeatureDefines(optsCopy)
+      setTaskPathsEnv(paths)
+      for feature in featureDefines:
         optsCopy.getCompilationFlags().add quoteShell("-d:" & feature)
-      # If valid task defined in nimscript, run it
       var execResult: ExecutionResult[bool]
-      let originalPath = getEnv("PATH")
-      if not fileExists(nimblePathsFileName) and optsCopy.features.len > 0:
-        let compilerPath = taskCompilerPath(pkgInfo, optsCopy, nimBin)
-        if compilerPath.len > 0:
-          putEnv(taskOriginalPathEnv, originalPath)
-          putEnv("PATH", compilerPath & separator & originalPath)
       var taskSucceeded = false
-      try:
+      withTaskCompiler(paths, featureDefines, nimBin):
         taskSucceeded = execCustom(nimBin, nimbleFile, optsCopy, execResult)
-      finally:
-        putEnv("PATH", originalPath)
-        delEnv(taskOriginalPathEnv)
-        when defined(windows):
-          delEnv(taskCompilerCommandEnv)
       if taskSucceeded and execResult.hasTaskRequestedCommand():
         var options = execResult.getOptionsForCommand(optsCopy)
         doAction(options, nimBin)
@@ -2848,12 +2793,8 @@ when isMainModule:
 
   var opt: Options
   try:
-    # A nested Nimble command starts its own solve.
-    if existsEnv(taskOriginalPathEnv):
-      putEnv("PATH", getEnv(taskOriginalPathEnv))
-      delEnv(taskOriginalPathEnv)
-    when defined(windows):
-      delEnv(taskCompilerCommandEnv)
+    # Nested commands keep the task's PATH changes, but solve for their own compiler.
+    clearTaskCompiler()
     delEnv(taskPathsProjectEnv)
     delEnv(taskPathsOverrideEnv)
     opt = parseCmdLine()
@@ -2934,8 +2875,6 @@ when isMainModule:
       setup(opt, nimBin)
 
     # develop is handled inside run (it must run before the solver)
-    if shouldRun and opt.thereIsNimbleFile:
-      setTaskPathsOverride(opt.satResult.rootPackage, opt, nimBin)
     if not shouldRun or opt.action.typ != actionDevelop:
       opt.doAction(nimBin)
 

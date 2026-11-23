@@ -566,6 +566,7 @@ proc installPkgs*(satResult: var SATResult, options: var Options, nimBin: Option
     pkgsToInstall = remaining
 
   if isInRootDir and options.action.typ == actionInstall and not options.depsOnly:
+    setTaskPathsOverride(satResult.rootPackage, options, nimBin)
     executeHook(nimBin, getCurrentDir(), options, actionInstall, before = true)
 
   var downloadEntries = collectDownloadEntries(satResult, pkgsToInstall, rootName, installedPkgs, options)
@@ -587,6 +588,10 @@ proc installPkgs*(satResult: var SATResult, options: var Options, nimBin: Option
     var pkg = pkg
     # fillMetaData(pkg, pkg.getRealDir(), false, options)
     options.satResult.pkgs.incl pkg
+
+  # Build hooks can now use the installed paths for the active features.
+  if isInRootDir:
+    setTaskPathsOverride(satResult.rootPackage, options, nimBin)
 
   #Only build root for this actions
   let rootBuildActions = { actionInstall, actionBuild, actionRun }

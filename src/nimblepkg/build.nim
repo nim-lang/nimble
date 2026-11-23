@@ -6,6 +6,16 @@ import std/[algorithm, sequtils, sets, options, os, strutils, tables, strformat]
 import packageinfotypes, options, version, packageinfo, common,
   cli, tools, packageinstaller, urls,
   declarativeparser, nimscriptexecutor, displaymessages
+import compat/json
+when defined(windows):
+  from nimscriptwrapper import taskCompilerCommandEnv
+
+const
+  nimblePathsFileName* = "nimble.paths"
+  nimbleConfigFileName* = "config.nims"
+  taskPathsProjectEnv* = "__NIMBLE_TASK_PATHS_PROJECT"
+  taskPathsOverrideEnv* = "__NIMBLE_TASK_PATHS_OVERRIDE"
+  taskCompilerDirEnv = "__NIMBLE_TASK_COMPILER_DIR"
 
 proc nameMatches*(pkg: PackageInfo, pv: PkgTuple, options: Options): bool =
   let pvName = pv.resolveAlias(options).name
@@ -73,15 +83,77 @@ proc getFeatureDefines*(pkgInfo: PackageInfo, options: Options): seq[string] =
     defines.incl &"features.{packageName}.{feature}"
   result = toSeq(defines.items).sorted
 
-proc setTaskPathsEnv*(options: Options, nimBin: Option[string]) =
+proc hasFeatureOverride*(options: Options): bool =
+  options.action.typ != actionSetup and options.setupFeatures.isSome and
+    options.features != options.setupFeatures.get()
+
+proc setTaskPathsOverride*(pkgInfo: PackageInfo, options: Options, nimBin: Option[string]) =
+  # A task can invoke Nim itself. Give that compiler the invocation's paths and
+  # defines without changing the saved configuration used by other processes.
+  if options.hasFeatureOverride():
+    let dir = getNimbleTempDir()
+    createDir(dir)
+    let file = dir / "task-paths.json"
+    writeFile(file, $(%*{
+      "paths": toSeq(options.getPathsAllPkgs(nimBin).items),
+      "defines": pkgInfo.getFeatureDefines(options)
+    }))
+    putEnv(taskPathsProjectEnv, getCurrentDir())
+    putEnv(taskPathsOverrideEnv, file)
+
+proc taskCompilerPath(paths: HashSet[string], featureDefines: seq[string],
+                      nimBin: Option[string]): string =
+  let dir = getNimbleTempDir() / "task-compiler"
+  createDir(dir)
+  let pathCompiler = findExe("nim")
+  let compiler = if pathCompiler.len > 0: pathCompiler else: nimBin.getNimBin
+  var flags: seq[string]
+  for path in paths:
+    flags.add quoteShell("--path:" & path)
+  for feature in featureDefines:
+    flags.add quoteShell("-d:" & feature)
+  when defined(windows):
+    let command = compiler.quoteShell & " " & flags.join(" ")
+    writeFile(dir / "nim.cmd", "@echo off\r\n" & command & " %*\r\n")
+    putEnv(taskCompilerCommandEnv, command)
+  else:
+    let script = dir / "nim"
+    writeFile(script, "#!/bin/sh\nexec " & compiler.quoteShell & " " &
+      flags.join(" ") & " \"$@\"\n")
+    setFilePermissions(script, {fpUserRead, fpUserWrite, fpUserExec})
+  result = dir
+
+proc clearTaskCompiler*() =
+  let dir = getEnv(taskCompilerDirEnv)
+  if dir.len > 0:
+    let path = getEnv("PATH").split(PathSep).filterIt(it != dir)
+    putEnv("PATH", path.join($PathSep))
+    delEnv(taskCompilerDirEnv)
+  when defined(windows):
+    delEnv(taskCompilerCommandEnv)
+
+template withTaskCompiler*(paths: HashSet[string], featureDefines: seq[string],
+                           nimBin: Option[string], body: untyped) =
+  # Configured projects get their paths and defines from nimble.paths. For a
+  # fresh project, pass the same configuration to bare nim calls from NimScript.
+  if featureDefines.len > 0 and
+     not (fileExists(nimblePathsFileName) and fileExists(nimbleConfigFileName)):
+    let dir = taskCompilerPath(paths, featureDefines, nimBin)
+    putEnv(taskCompilerDirEnv, dir)
+    putEnv("PATH", dir & PathSep & getEnv("PATH"))
+    try:
+      body
+    finally:
+      clearTaskCompiler()
+  else:
+    body
+
+proc setTaskPathsEnv*(paths: HashSet[string]) =
   ## Hands the solved packages' paths, the task's `taskRequires` included, to
   ## `getPaths()`/`getPathsClause()` in the task's NimScript, which reads them
   ## from `__NIMBLE_PATHS` (see nimscriptapi.nim). Quoted, as tasks splice
   ## `getPathsClause()` into the commands they `exec`.
-  var paths: seq[string]
-  for path in options.getPathsAllPkgs(nimBin):
-    paths.add path.quoteShell
-  putEnv("__NIMBLE_PATHS", paths.join("|"))
+  putEnv("__NIMBLE_PATHS", toSeq(paths.items).map(quoteShell).join("|"))
 
 proc buildFromDir*(pkgInfo: PackageInfo, paths: HashSet[string],
                    args: seq[string], options: Options, nimBin: Option[string]) =
@@ -90,9 +162,11 @@ proc buildFromDir*(pkgInfo: PackageInfo, paths: HashSet[string],
   let
     realDir = pkgInfo.getRealDir()
     pkgDir = pkgInfo.myPath.parentDir()
+  let featureDefines = pkgInfo.getFeatureDefines(options)
   cd pkgDir: # Make sure `execHook` executes the correct .nimble file.
-    if not execHook(nimBin, options, actionBuild, true):
-      raise nimbleError("Pre-hook prevented further execution.")
+    withTaskCompiler(paths, featureDefines, nimBin):
+      if not execHook(nimBin, options, actionBuild, true, featureDefines):
+        raise nimbleError("Pre-hook prevented further execution.")
 
   if pkgInfo.bin.len == 0:
     raise nimbleError(
@@ -116,7 +190,7 @@ proc buildFromDir*(pkgInfo: PackageInfo, paths: HashSet[string],
     # Disable coloured output
     args.add("--colors:off")
 
-  for feature in pkgInfo.getFeatureDefines(options):
+  for feature in featureDefines:
     args.add quoteShell("-d:" & feature)
 
   let binToBuild =
@@ -200,7 +274,8 @@ proc buildFromDir*(pkgInfo: PackageInfo, paths: HashSet[string],
 
   # Handle post-`build` hook.
   cd pkgDir: # Make sure `execHook` executes the correct .nimble file.
-    discard execHook(nimBin, options, actionBuild, false)
+    withTaskCompiler(paths, featureDefines, nimBin):
+      discard execHook(nimBin, options, actionBuild, false, featureDefines)
 
 proc createBinSymlink*(pkgInfo: PackageInfo, options: Options) =
   var binariesInstalled: HashSet[string]
