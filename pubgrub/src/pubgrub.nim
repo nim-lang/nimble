@@ -10,7 +10,7 @@
 ## names - can supply its own instead without touching the solver.
 ##
 ## A provider is any type with `chooseVersion` and `dependencies` procs
-## acting on it (plus two optional `...Hook` procs - see `pubgrub/solver`).
+## acting on it (plus optional `...Hook` procs - see `pubgrub/solver`).
 ## Give one to `solve` and it either returns a solution or an incompatibility
 ## explaining why there is none:
 ##

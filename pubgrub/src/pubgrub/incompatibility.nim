@@ -42,6 +42,13 @@ type
       conflict*, other*: Incompatibility[P, VS]
     else: discard
 
+  VersionsWriter*[P, VS] = proc (package: P, versions: VS,
+                                 positive: bool): string
+    ## How `describe` writes the versions of a term about `package`, in place
+    ## of `$`. `positive` tells the two kinds of set apart: the versions the
+    ## package is at, or else the versions a dependency allows. An empty
+    ## string stands for every version, so a full set must give one.
+
 proc positiveTerm*[P, VS](package: P, versions: VS): PackageTerm[P, VS] =
   ## "`package` is at some version in `versions`".
   PackageTerm[P, VS](package: package, term: positiveTerm(versions))
@@ -114,37 +121,54 @@ proc sameTerms*[P, VS](a, b: Incompatibility[P, VS]): bool =
     if a.terms[i] != b.terms[i]: return false
   true
 
-proc terse[P, VS](pt: PackageTerm[P, VS], root: P,
-                  allowEvery = false): string =
-  ## The root package is named bare: it is at one version by definition, so
+proc terse*[P, VS](pt: PackageTerm[P, VS], root: P, allowEvery = false,
+                   write: VersionsWriter[P, VS] = nil): string =
+  ## A term as the report names it: the package and its versions, "every
+  ## version of" a package when `allowEvery` and the term leaves its versions
+  ## open, and the root package bare - it is at one version by definition, so
   ## printing that version is noise in every sentence it appears in.
   mixin isFull
   if pt.package == root:
     $pt.package
-  elif allowEvery and pt.term.versions.isFull:
-    "every version of " & $pt.package
+  elif write.isNil:
+    if allowEvery and pt.term.versions.isFull: "every version of " & $pt.package
+    else: $pt.package & " " & $pt.term.versions
   else:
-    $pt.package & " " & $pt.term.versions
+    let versions = write(pt.package, pt.term.versions, pt.term.positive)
+    if versions.len > 0: $pt.package & " " & versions
+    elif allowEvery: "every version of " & $pt.package
+    else: $pt.package
 
-proc describe*[P, VS](inc: Incompatibility[P, VS], root: P): string =
-  ## The one-clause English rendering the report is built out of.
+proc describe*[P, VS](inc: Incompatibility[P, VS], root: P,
+                      write: VersionsWriter[P, VS] = nil): string =
+  ## The one-clause English rendering the report is built out of, with
+  ## versions written by `write` when given and by `$` otherwise.
   ##
   ## Phrasing is chosen so that the sentence reads as a statement of fact
   ## rather than as the negation an incompatibility literally is: the reader
   ## should never have to think in terms of "these cannot all hold".
   mixin isFull
+  proc named(pt: PackageTerm[P, VS]): string =
+    ## Like `terse`, with no versions at all for a term that leaves them open.
+    if write.isNil and pt.term.versions.isFull: $pt.package
+    else: terse(pt, root, write = write)
+
   case inc.cause
   of ckFromDependencyOf:
     if inc.terms.len == 2:
-      return terse(inc.terms[0], root, allowEvery = true) & " depends on " &
-        terse(inc.terms[1], root)
+      return terse(inc.terms[0], root, allowEvery = true, write) &
+        " depends on " & terse(inc.terms[1], root, write = write)
   of ckNoVersions:
     if inc.terms.len == 1:
-      return "no versions of " & $inc.terms[0].package & " match " &
-        $inc.terms[0].term.versions
+      let t = inc.terms[0]
+      if write.isNil:
+        return "no versions of " & $t.package & " match " & $t.term.versions
+      let versions = write(t.package, t.term.versions, true)
+      if versions.len == 0: return $t.package & " has no versions"
+      return "no versions of " & $t.package & " match " & versions
   of ckNotFound:
     if inc.terms.len == 1:
-      return $inc.terms[0].package & " doesn't exist"
+      return $inc.terms[0].package & " couldn't be found"
   of ckNotRoot:
     if inc.terms.len == 1:
       return $inc.terms[0].package & " is " & $inc.terms[0].term.versions
@@ -156,24 +180,21 @@ proc describe*[P, VS](inc: Incompatibility[P, VS], root: P): string =
   if inc.terms.len == 1:
     let t = inc.terms[0]
     let verb = if t.term.positive: " is forbidden" else: " is required"
-    return terse(t, root, allowEvery = t.term.versions.isFull) & verb
+    return terse(t, root, allowEvery = true, write) & verb
 
   if inc.terms.len == 2 and
       inc.terms[0].term.positive == inc.terms[1].term.positive:
     if inc.terms[0].term.positive:
-      let
-        a = if inc.terms[0].term.versions.isFull: $inc.terms[0].package
-            else: terse(inc.terms[0], root)
-        b = if inc.terms[1].term.versions.isFull: $inc.terms[1].package
-            else: terse(inc.terms[1], root)
-      return a & " is incompatible with " & b
+      return named(inc.terms[0]) & " is incompatible with " &
+        named(inc.terms[1])
     else:
-      return "either " & terse(inc.terms[0], root) & " or " & terse(inc.terms[1], root)
+      return "either " & terse(inc.terms[0], root, write = write) & " or " &
+        terse(inc.terms[1], root, write = write)
 
   var positive, negative: seq[string]
   for t in inc.terms:
-    if t.term.positive: positive.add terse(t, root)
-    else: negative.add terse(t, root)
+    if t.term.positive: positive.add terse(t, root, write = write)
+    else: negative.add terse(t, root, write = write)
 
   proc joined(parts: seq[string], sep: string): string =
     for i, p in parts:
@@ -184,7 +205,7 @@ proc describe*[P, VS](inc: Incompatibility[P, VS], root: P): string =
     if positive.len == 1:
       for t in inc.terms:
         if t.term.positive:
-          return terse(t, root, allowEvery = true) & " requires " &
+          return terse(t, root, allowEvery = true, write) & " requires " &
             joined(negative, " or ")
     return "if " & joined(positive, " and ") & " then " &
       joined(negative, " or ")

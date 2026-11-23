@@ -1,6 +1,6 @@
 {.used.}
 
-import std/[unittest, strutils, options]
+import std/[unittest, strutils, options, tables]
 import pubgrub/[ranges, solver, report]
 import ./registry
 
@@ -140,20 +140,83 @@ suite "report: one subject per clause":
         "version solving failed."
     ]
 
-  test "a dependency chains only into a dead end of the package it names":
-    # Running out of foo's versions is a fact about foo. With foo's versions
-    # far from nim's, nim [1.0, 1.0] fits inside the versions foo doesn't
-    # have, which must not read as "foo 10.0 depends on foo ... which doesn't
-    # match any versions".
+  test "the versions a package doesn't have are not a clause of their own":
+    # Stated version by version, foo running out of versions is a fact of its
+    # own: no versions of foo match the gaps around 10.0 and 20.0. That is how
+    # the solver knows there are no more, not something the reader needs -
+    # and with foo's versions far from nim's, nim [1.0, 1.0] fits inside
+    # those gaps, which once read as "foo 10.0 depends on foo ... which
+    # doesn't match any versions".
     check PerVersion(reg: nimPins([10, 20])).explain == @[
-      "Because no versions of foo match (-inf, 10.0) | (10.0, 20.0) | " &
-        "(20.0, inf) and foo [10.0, 10.0] depends on nim [1.0, 1.0], " &
-        "foo (-inf, 20.0) | (20.0, inf) requires nim [1.0, 1.0].",
-      "And because foo [20.0, 20.0] depends on nim [2.0, 2.0], every " &
-        "version of foo requires nim [1.0, 1.0] | [2.0, 2.0].",
+      "Because foo [20.0, 20.0] depends on nim [2.0, 2.0] and " &
+        "foo [10.0, 10.0] depends on nim [1.0, 1.0], every version of foo " &
+        "requires nim [1.0, 1.0] | [2.0, 2.0].",
       "So, because root depends on both nim [3.0, inf) and foo *, " &
         "version solving failed."
     ]
+
+  test "what a dependency allows keeps the versions no one has":
+    # Only the versions a package is said to be at lose the gaps. Here a gap
+    # is the conflict: the only versions foo and bar both allow, [2.9, 3.0),
+    # don't exist.
+    var reg: Registry
+    reg.add("root", v(1, 0), dep("foo", anyVersion()),
+            dep("bar", anyVersion()))
+    reg.add("foo", v(1, 0), dep("shared", between(v(2), v(3))))
+    reg.add("bar", v(1, 0), dep("shared", between(v(2, 9), v(4))))
+    reg.add("shared", v(3, 5))
+    reg.add("shared", v(2, 5))
+    check reg.explain == @[
+      "Because every version of foo depends on shared [2.0, 3.0) and no " &
+        "versions of shared match [2.9, 3.0), every version of foo requires " &
+        "shared [2.0, 2.9).",
+      "And because every version of bar depends on shared [2.9, 4.0), bar " &
+        "is incompatible with foo.",
+      "So, because root depends on both foo * and bar *, version solving " &
+        "failed."
+    ]
+
+type Listing = object
+  ## The registry with a `versionsTextHook`: the versions a package is at are
+  ## the ones it has, and what a dependency allows is marked as such.
+  reg: Registry
+
+proc chooseVersion(p: Listing, package: string,
+                   allowed: VerSet): Option[Ver] =
+  p.reg.chooseVersion(package, allowed)
+
+proc dependencies(p: Listing, package: string, version: Ver): seq[Dep] =
+  p.reg.dependencies(package, version)
+
+proc dependencyRangeHook(p: Listing, package: string, version: Ver,
+                         dependency: Dep): VerSet =
+  p.reg.dependencyRangeHook(package, version, dependency)
+
+proc versionsTextHook(p: Listing, package: string, versions: VerSet,
+                      positive: bool): string =
+  if versions.isFull: return ""
+  if not positive: return "in " & $versions
+  var listed: seq[string]
+  for (version, _) in p.reg.packages[package]:
+    if versions.contains(version): listed.add $version
+  listed.join(" or ")
+
+suite "report: versions written by the provider":
+  test "its hook writes every set, by the side it is on":
+    let listing = Listing(reg: nimPins([1, 2]))
+    let res = solve(listing, "root", v(1, 0))
+    check report(res.failure, "root", listing).splitLines == @[
+      "Because foo 1.0 depends on nim in [1.0, 1.0] and foo 2.0 depends on " &
+        "nim in [2.0, 2.0], every version of foo requires nim in " &
+        "[1.0, 1.0] | [2.0, 2.0].",
+      "So, because root depends on both nim in [3.0, inf) and foo, version " &
+        "solving failed."
+    ]
+
+  test "without the hook, versions are written by `$`":
+    let reg = nimPins([1, 2])
+    let res = solve(reg, "root", v(1, 0))
+    check report(res.failure, "root", reg) == report(res.failure, "root")
 
 suite "report: properties":
   setup:

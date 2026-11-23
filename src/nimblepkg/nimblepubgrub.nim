@@ -34,7 +34,7 @@
 ## only: the active features have already been folded into the root's
 ## requirements by then (`enableFeatures`).
 
-import std/[tables, options, strutils]
+import std/[tables, options, strutils, algorithm]
 import ./[version, packageinfotypes]
 from ./options import Options, ResolutionAlgorithm, raMaxVer, raMinVer
 from ./cli import displayInfo, LowPriority
@@ -158,6 +158,9 @@ type
     preferred: int
       ## The entry to try before any other while it is allowed, or -1.
     translated: bool
+    ordered: seq[int]
+      ## The entries of ordinary versions, oldest first (`lineOrder`).
+    sorted: bool
 
   Prepared = object
     index: Table[string, int]  ## lowercased name -> `packages`
@@ -231,6 +234,23 @@ proc translate(u: PubGrubUniverse, i: int) =
       e.dependencies.add (package: key, versions: versions)
   u.data.packages[i].translated = true
 
+proc lineOrder(u: PubGrubUniverse, i: int): seq[int] =
+  ## The ordinary versions of package `i`, oldest first, sorted the first time
+  ## they are asked for. A version listed twice is its first listing, the one
+  ## `dependencies` reads.
+  if not u.data.packages[i].sorted:
+    var line: seq[tuple[version: LineVersion, entry: int]]
+    for k, e in u.data.packages[i].entries:
+      if e.tagged.kind == tvVersion: line.add (e.tagged.version, k)
+    # Stable, so equal versions stay in listing order.
+    line.sort(proc (a, b: tuple[version: LineVersion, entry: int]): int =
+      if a.version < b.version: -1 elif b.version < a.version: 1 else: 0)
+    for k, (version, entry) in line:
+      if k == 0 or not (line[k - 1].version == version):
+        u.data.packages[i].ordered.add entry
+    u.data.packages[i].sorted = true
+  u.data.packages[i].ordered
+
 proc prefers(u: PubGrubUniverse, a, b: Entry): bool =
   ## Whether `a` is tried before `b` - the SAT solver's order (`cmp` in
   ## nimblesat). Special versions come last whatever `Version.<` says (it
@@ -282,30 +302,74 @@ proc dependencies*(u: PubGrubUniverse, package: string,
         else: result.add e.dependencies[k]
       return
 
+proc declares(u: PubGrubUniverse, e: Entry,
+              dependency: NimbleDependency): bool =
+  ## Whether the search sees version `e` require exactly `dependency`. It
+  ## leaves out a requirement still to be fetched (`dependencies`).
+  for k, d in e.dependencies:
+    if d.package == dependency.package and d.versions == dependency.versions:
+      return u.unfetched.isNil or not u.unfetched(e.requires[k])
+
 proc dependencyRangeHook*(u: PubGrubUniverse, package: string,
                           version: Version,
                           dependency: NimbleDependency): NimbleVersionSet =
-  ## Nimble universes routinely mix ordered and special versions, so no
-  ## interval widening: either every version of `package` declares this exact
-  ## constraint (then it holds for all of them, and the report says "every
-  ## version of ..."), or it is stated for the one version it was read from.
+  ## The versions of `package` the solver states this dependency for at once.
+  ## Of the ordinary versions, the run around `version` that declares exactly
+  ## it, up to the next version that doesn't - open past the oldest and the
+  ## newest, where no version could differ - or, for a special `version`, all
+  ## of them if they all do. Of the special versions, all but those that
+  ## don't. A range of ordinary versions never holds a special version, so the
+  ## two never mix. A run is one fact instead of one per version, which is
+  ## fewer facts to search and what lets the report say "foo 1.2.0 to 1.4.1
+  ## depends on ...".
+  ##
+  ## Only what the search sees counts. A version not read yet requires nothing
+  ## (`discoverLazily`), so it ends a run, and so does a version whose
+  ## requirement waits on a fetch.
+  let exact = singleton(toTaggedVersion(version))
   let i = u.packageIndex(package)
-  if i < 0: return singleton(toTaggedVersion(version))
+  if i < 0: return exact
   u.translate(i)
-  for e in u.data.packages[i].entries:
-    var declared = false
-    for d in e.dependencies:
-      if d.package == dependency.package:
-        declared = d.versions == dependency.versions
-        break
-    if not declared:
-      return singleton(toTaggedVersion(version))
-  taggedFull[LineVersion, NimbleTag]()
+  template entries: untyped = u.data.packages[i].entries
+  var differing: seq[NimbleTag]
+  for k, e in entries:
+    if e.tagged.kind == tvTag and not u.declares(e, dependency):
+      # A tag listed twice is its first listing, the one `dependencies` reads.
+      var first = true
+      for earlier in 0 ..< k:
+        if entries[earlier].tagged == e.tagged: first = false
+      if first: differing.add e.tagged.tag
+  let
+    target = toTaggedVersion(version)
+    order = u.lineOrder(i)
+  var line = emptyRange[LineVersion]()
+  if target.kind == tvTag:
+    var every = true
+    for k in order:
+      if not u.declares(entries[k], dependency): every = false
+    if every: line = fullRange[LineVersion]()
+  else:
+    var at = -1
+    for k, e in order:
+      if entries[e].tagged == target: at = k
+    if at < 0: return exact
+    var (low, high) = (at, at)
+    while low > 0 and u.declares(entries[order[low - 1]], dependency): dec low
+    while high < order.high and
+        u.declares(entries[order[high + 1]], dependency):
+      inc high
+    line = interval(
+      if low == 0: noBound[LineVersion]()
+      else: inclBound(entries[order[low]].tagged.version),
+      if high == order.high: noBound[LineVersion]()
+      else: exclBound(entries[order[high + 1]].tagged.version))
+  tagged[LineVersion, NimbleTag](line, differing, cofinite = true)
 
 proc packageExistsHook*(u: PubGrubUniverse, package: string): bool =
   ## Whether the universe knows the package at all. Lets the report say
-  ## "foo doesn't exist" instead of "no versions of foo match ..." - the
-  ## difference between a typo and an unsatisfiable constraint.
+  ## "foo couldn't be found" instead of "no versions of foo match ..." - the
+  ## difference between a typo or an unreachable repository and an
+  ## unsatisfiable constraint.
   u.packageIndex(package) >= 0
 
 proc versionCountHook*(u: PubGrubUniverse, package: string,
@@ -318,6 +382,75 @@ proc versionCountHook*(u: PubGrubUniverse, package: string,
   if u.preferredAllowed(i, allowed): return 1
   for e in u.data.packages[i].entries:
     if allowed.contains(e.tagged): inc result
+
+proc orList(parts: openArray[string]): string =
+  ## "a", "a or b", "a, b or c".
+  for k, part in parts:
+    if k > 0: result.add(if k == parts.high: " or " else: ", ")
+    result.add part
+
+proc requirementText(versions: NimbleVersionSet): string =
+  ## `versions` the way a requirement on them is written: `>= 2.2.14`,
+  ## `>= 1.0 & < 2.0`, `== 2.2.12`, `#head`, or several joined by "or".
+  var parts: seq[string]
+  let alone = versions.line.segments.len == 1 and not versions.cofinite and
+    versions.tags.len == 0
+  for (lower, upper) in versions.line.segments:
+    if lower.kind == bkIncluded and upper.kind == bkIncluded and
+        lower.value == upper.value:
+      parts.add((if alone: "== " else: "") & $lower.value)
+      continue
+    var sides: seq[string]
+    case lower.kind
+    of bkIncluded: sides.add ">= " & $lower.value
+    of bkExcluded: sides.add "> " & $lower.value
+    of bkUnbounded: discard
+    case upper.kind
+    of bkIncluded: sides.add "<= " & $upper.value
+    of bkExcluded: sides.add "< " & $upper.value
+    of bkUnbounded: discard
+    parts.add(if sides.len == 0: "any release" else: sides.join(" & "))
+  var tags: seq[string]
+  for t in versions.tags: tags.add $t
+  if not versions.cofinite: parts.add tags
+  elif tags.len == 0: parts.add "any special version"
+  else: parts.add "any special version but " & tags.join(", ")
+  parts.orList
+
+proc versionsTextHook*(u: PubGrubUniverse, package: string,
+                       versions: NimbleVersionSet, positive: bool): string =
+  ## How PubGrub's report writes versions. What a dependency allows is
+  ## written as a requirement is (`requirementText`). The versions a package
+  ## is at are the listed ones the set holds - `1.4.2`, `26.9.0 to 26.10.2` -
+  ## rather than the bounds the solver widened it to, and nothing at all when
+  ## it holds every one; a set holding none is written as a requirement.
+  if versions.isFull: return ""
+  let i = u.packageIndex(package)
+  if positive and i >= 0:
+    template entries: untyped = u.data.packages[i].entries
+    var
+      parts: seq[string]
+      run: seq[Version]
+      every = true
+    proc endRun(parts: var seq[string], run: var seq[Version]) =
+      if run.len == 1: parts.add $run[0]
+      elif run.len > 1: parts.add $run[0] & " to " & $run[^1]
+      run.setLen 0
+    for k in u.lineOrder(i):
+      if versions.contains(entries[k].tagged): run.add entries[k].version
+      else:
+        every = false
+        endRun(parts, run)
+    endRun(parts, run)
+    var seen: seq[NimbleTag]
+    for e in entries:
+      if e.tagged.kind == tvTag and e.tagged.tag notin seen:
+        seen.add e.tagged.tag
+        if versions.contains(e.tagged): parts.add $e.tagged.tag
+        else: every = false
+    if parts.len > 0:
+      return if every: "" else: parts.orList
+  requirementText(versions)
 
 # ------------------------------------------------------------------ solving
 
@@ -354,7 +487,7 @@ proc solveWithPubGrub*(pkgVersionTable: Table[string, PackageVersions],
     result = PubGrubAnswer(solved: true, packages: res.packages)
   of soUnsolvable:
     result = PubGrubAnswer(solved: false,
-                           explanation: report(res.failure, u.rootName))
+                           explanation: report(res.failure, u.rootName, u))
   result.visited = u.data.visited
   result.missing = u.data.missing
 

@@ -19,6 +19,17 @@
 ## The phrasing helpers exist for the same reason: a reader should see
 ## "foo 1.0.0 depends on both bar and baz", not two separate statements they
 ## have to combine themselves.
+##
+## Before any of that, the versions that don't exist are taken out. Running
+## out of a package's versions is a fact of its own, "no versions of foo match
+## <every gap between its versions>", and conflict resolution unions that set
+## into whatever it derives about foo. Printed as is, every later line about
+## foo would spell out those gaps, and the step that took them in would read
+## as a premise restated. So the set of versions a term says a package is at
+## is shown without the ones the provider said it doesn't have, and a step
+## that, without them, only restates one of its premises is skipped. What a
+## dependency allows is left as stated: there, a set holding no version can
+## be the very reason two requirements conflict.
 
 import std/[options, strutils]
 import ./[term, incompatibility]
@@ -26,6 +37,14 @@ import ./[term, incompatibility]
 type
   Reporter[P, VS] = object
     root: P
+    writeVersions: VersionsWriter[P, VS]
+      ## How versions are written; `$` when nil.
+    gaps: seq[tuple[package: P, versions: VS]]
+      ## Per package, every version the provider said it has none of: the
+      ## union of its `ckNoVersions` facts in the graph.
+    shown: seq[tuple[stated, shown: Incompatibility[P, VS]]]
+      ## Each incompatibility of the graph and the one printed in its place,
+      ## without the gaps (`tidy`). By identity, like `derivations`.
     failure: Incompatibility[P, VS]
       ## The top of the graph. Only its line gets "So," - every other line is
       ## a step along the way, not the conclusion.
@@ -63,15 +82,86 @@ proc countDerivations[P, VS](r: var Reporter[P, VS],
     r.countDerivations inc.conflict
     r.countDerivations inc.other
 
-proc terse[P, VS](pt: PackageTerm[P, VS], root: P,
-                  allowEvery = false): string =
-  mixin isFull
-  if pt.package == root:
-    $pt.package
-  elif allowEvery and pt.term.versions.isFull:
-    "every version of " & $pt.package
-  else:
-    $pt.package & " " & $pt.term.versions
+proc collectGaps[P, VS](r: var Reporter[P, VS], inc: Incompatibility[P, VS],
+                        seen: var seq[Incompatibility[P, VS]]) =
+  mixin union
+  if inc in seen: return
+  seen.add inc
+  if inc.cause == ckNoVersions and inc.terms.len == 1:
+    let t = inc.terms[0]
+    for gap in r.gaps.mitems:
+      if gap.package == t.package:
+        gap.versions = union(gap.versions, t.term.versions)
+        return
+    r.gaps.add (t.package, t.term.versions)
+  elif inc.isDerived:
+    r.collectGaps(inc.conflict, seen)
+    r.collectGaps(inc.other, seen)
+
+proc withoutGaps[P, VS](r: Reporter[P, VS],
+                        pt: PackageTerm[P, VS]): PackageTerm[P, VS] =
+  ## `pt` as the report shows it. A positive term loses the versions its
+  ## package doesn't have - and covers every version if those are all it
+  ## leaves out - unless they are all it holds. A negative term is what some
+  ## dependency allows, and stays as stated.
+  mixin union, difference, isFull, isEmpty
+  result = pt
+  if not pt.term.positive: return
+  for gap in r.gaps:
+    if gap.package == pt.package:
+      let every = union(pt.term.versions, gap.versions)
+      if every.isFull:
+        result.term.versions = every
+      else:
+        let existing = difference(pt.term.versions, gap.versions)
+        if not existing.isEmpty: result.term.versions = existing
+      return
+
+proc sameTermsInAnyOrder[P, VS](a, b: seq[PackageTerm[P, VS]]): bool =
+  if a.len != b.len: return false
+  for pt in a:
+    if pt notin b: return false
+  true
+
+proc tidy[P, VS](r: var Reporter[P, VS],
+                 inc: Incompatibility[P, VS]): Incompatibility[P, VS] =
+  ## The incompatibility printed in place of `inc`: its terms without the gaps,
+  ## or, for a step that without them concludes what one of its premises
+  ## already says, that premise. The provider's statements about what it
+  ## doesn't have are printed as stated.
+  for entry in r.shown:
+    if entry.stated == inc: return entry.shown
+  var terms: seq[PackageTerm[P, VS]]
+  for pt in inc.terms: terms.add r.withoutGaps(pt)
+  case inc.cause
+  of ckNoVersions, ckNotFound, ckNotRoot:
+    result = inc
+  of ckFromDependencyOf:
+    result =
+      if terms == inc.terms: inc
+      else: Incompatibility[P, VS](terms: terms, cause: ckFromDependencyOf)
+  of ckDerivedFrom:
+    let
+      conflict = r.tidy(inc.conflict)
+      other = r.tidy(inc.other)
+    result =
+      if sameTermsInAnyOrder(terms, conflict.terms): conflict
+      elif sameTermsInAnyOrder(terms, other.terms): other
+      elif terms == inc.terms and conflict == inc.conflict and
+          other == inc.other: inc
+      else: Incompatibility[P, VS](terms: terms, cause: ckDerivedFrom,
+                                   conflict: conflict, other: other)
+  r.shown.add (inc, result)
+
+proc covers[P, VS](r: Reporter[P, VS], allowed, subject: PackageTerm[P, VS]):
+    bool =
+  ## Whether every version the dependency `allowed` (a negative term) admits,
+  ## of those that exist, is one `subject` is about. The package too, not just
+  ## the versions: `satisfies` compares sets only.
+  allowed.package == subject.package and
+    r.withoutGaps(PackageTerm[P, VS](package: allowed.package,
+                                     term: allowed.term.inverse))
+      .term.satisfies(subject.term)
 
 proc singleTerm[P, VS](inc: Incompatibility[P, VS], positive: bool):
     Option[PackageTerm[P, VS]] =
@@ -81,11 +171,12 @@ proc singleTerm[P, VS](inc: Incompatibility[P, VS], positive: bool):
       if result.isSome: return none(PackageTerm[P, VS])
       result = some(pt)
 
-proc termsOfSign[P, VS](inc: Incompatibility[P, VS], root: P, positive: bool,
-                        sep = " or "): string =
+proc termsOfSign[P, VS](r: Reporter[P, VS], inc: Incompatibility[P, VS],
+                        positive: bool, sep = " or "): string =
   var parts: seq[string]
   for pt in inc.terms:
-    if pt.term.positive == positive: parts.add terse(pt, root)
+    if pt.term.positive == positive:
+      parts.add terse(pt, r.root, write = r.writeVersions)
   parts.join(sep)
 
 proc countOfSign[P, VS](inc: Incompatibility[P, VS], positive: bool): int =
@@ -95,7 +186,7 @@ proc countOfSign[P, VS](inc: Incompatibility[P, VS], positive: bool): int =
 proc reference(line: int): string =
   if line == 0: "" else: " (" & $line & ")"
 
-proc tryRequiresBoth[P, VS](root: P, a, b: Incompatibility[P, VS],
+proc tryRequiresBoth[P, VS](r: Reporter[P, VS], a, b: Incompatibility[P, VS],
                             aLine, bLine: int): string =
   ## "foo depends on both bar and baz" - both incompatibilities constrain the
   ## same versions of the same package, so the reader should see one subject,
@@ -114,11 +205,11 @@ proc tryRequiresBoth[P, VS](root: P, a, b: Incompatibility[P, VS],
       "depends on"
     else:
       "requires"
-  terse(aPositive.get, root, allowEvery = true) & " " & verb & " both " &
-    a.termsOfSign(root, false) & reference(aLine) & " and " &
-    b.termsOfSign(root, false) & reference(bLine)
+  terse(aPositive.get, r.root, allowEvery = true, r.writeVersions) & " " &
+    verb & " both " & r.termsOfSign(a, false) & reference(aLine) & " and " &
+    r.termsOfSign(b, false) & reference(bLine)
 
-proc tryRequiresThrough[P, VS](root: P, a, b: Incompatibility[P, VS],
+proc tryRequiresThrough[P, VS](r: Reporter[P, VS], a, b: Incompatibility[P, VS],
                                aLine, bLine: int): string =
   ## "foo depends on bar which depends on baz" - one incompatibility's
   ## conclusion is the other's subject, so they chain into a single clause.
@@ -136,34 +227,35 @@ proc tryRequiresThrough[P, VS](root: P, a, b: Incompatibility[P, VS],
     priorNegative: PackageTerm[P, VS]
     priorLine, latterLine: int
   if aNegative.isSome and bPositive.isSome and
-      aNegative.get.package == bPositive.get.package and
-      aNegative.get.term.inverse.satisfies(bPositive.get.term):
+      r.covers(aNegative.get, bPositive.get):
     prior = a; priorNegative = aNegative.get; priorLine = aLine
     latter = b; latterLine = bLine
   elif bNegative.isSome and aPositive.isSome and
-      bNegative.get.package == aPositive.get.package and
-      bNegative.get.term.inverse.satisfies(aPositive.get.term):
+      r.covers(bNegative.get, aPositive.get):
     prior = b; priorNegative = bNegative.get; priorLine = bLine
     latter = a; latterLine = aLine
   else:
     return ""
 
   if prior.countOfSign(true) > 1:
-    result = "if " & prior.termsOfSign(root, true) & " then "
+    result = "if " & r.termsOfSign(prior, true) & " then "
   else:
     let subject = prior.singleTerm(true)
     if subject.isNone: return ""
     let verb = if prior.cause == ckFromDependencyOf: " depends on " else: " requires "
-    result = terse(subject.get, root, allowEvery = true) & verb
+    result = terse(subject.get, r.root, allowEvery = true, r.writeVersions) &
+      verb
 
-  result.add terse(priorNegative, root) & reference(priorLine) & " which "
+  result.add terse(priorNegative, r.root, write = r.writeVersions) &
+    reference(priorLine) & " which "
   result.add(if latter.cause == ckFromDependencyOf: "depends on " else: "requires ")
-  result.add latter.termsOfSign(root, false) & reference(latterLine)
+  result.add r.termsOfSign(latter, false) & reference(latterLine)
 
-proc tryRequiresForbidden[P, VS](root: P, a, b: Incompatibility[P, VS],
+proc tryRequiresForbidden[P, VS](r: Reporter[P, VS],
+                                 a, b: Incompatibility[P, VS],
                                  aLine, bLine: int): string =
-  ## "foo depends on bar which doesn't exist" - the second incompatibility is
-  ## a single-term dead end, which reads better inline than as its own line.
+  ## "foo depends on bar which couldn't be found" - the second incompatibility
+  ## is a single-term dead end, which reads better inline than as its own line.
   if a.terms.len != 1 and b.terms.len != 1: return ""
   var
     prior, latter: Incompatibility[P, VS]
@@ -177,43 +269,44 @@ proc tryRequiresForbidden[P, VS](root: P, a, b: Incompatibility[P, VS],
 
   let negative = prior.singleTerm(false)
   if negative.isNone: return ""
-  # `satisfies` compares versions only, so check the package first: "foo 1.0
-  # depends on bar" and "no versions of foo match ..." do not make "foo 1.0
-  # depends on foo ... which doesn't match any versions".
-  if negative.get.package != latter.terms[0].package: return ""
-  if not negative.get.term.inverse.satisfies(latter.terms[0].term): return ""
+  # The package too: "foo 1.0 depends on bar" and "no versions of foo match
+  # ..." do not make "foo 1.0 depends on foo ... which doesn't match any
+  # versions".
+  if not r.covers(negative.get, latter.terms[0]): return ""
   if prior.countOfSign(true) == 0: return ""
 
   if prior.countOfSign(true) > 1:
-    result = "if " & prior.termsOfSign(root, true) & " then "
+    result = "if " & r.termsOfSign(prior, true) & " then "
   else:
     let subject = prior.singleTerm(true)
     if subject.isNone: return ""
-    result = terse(subject.get, root, allowEvery = true)
+    result = terse(subject.get, r.root, allowEvery = true, r.writeVersions)
     result.add(if prior.cause == ckFromDependencyOf: " depends on " else: " requires ")
 
   if latter.cause == ckNotFound:
     # No version set: the package itself is unknown, so the constraint that
     # was asked of it is beside the point.
-    result.add $latter.terms[0].package & " which doesn't exist"
+    result.add $latter.terms[0].package & " which couldn't be found"
   elif latter.cause == ckNoVersions:
-    result.add terse(latter.terms[0], root) & " which doesn't match any versions"
+    result.add terse(latter.terms[0], r.root, write = r.writeVersions) &
+      " which doesn't match any versions"
   else:
-    result.add terse(latter.terms[0], root) & " which is forbidden"
+    result.add terse(latter.terms[0], r.root, write = r.writeVersions) &
+      " which is forbidden"
   result.add reference(priorLine) & reference(latterLine)
 
 proc andToString[P, VS](r: Reporter[P, VS], a, b: Incompatibility[P, VS],
                         aLine = 0, bLine = 0): string =
   ## Two incompatibilities as one clause, phrased specially when they fit a
   ## recognisable shape and joined with a plain "and" otherwise.
-  result = tryRequiresBoth(r.root, a, b, aLine, bLine)
+  result = r.tryRequiresBoth(a, b, aLine, bLine)
   if result.len > 0: return
-  result = tryRequiresThrough(r.root, a, b, aLine, bLine)
+  result = r.tryRequiresThrough(a, b, aLine, bLine)
   if result.len > 0: return
-  result = tryRequiresForbidden(r.root, a, b, aLine, bLine)
+  result = r.tryRequiresForbidden(a, b, aLine, bLine)
   if result.len > 0: return
-  return describe(a, r.root) & reference(aLine) & " and " &
-    describe(b, r.root) & reference(bLine)
+  return describe(a, r.root, r.writeVersions) & reference(aLine) & " and " &
+    describe(b, r.root, r.writeVersions) & reference(bLine)
 
 proc write[P, VS](r: var Reporter[P, VS], inc: Incompatibility[P, VS],
                   message: string, numbered = false) =
@@ -251,7 +344,7 @@ proc visit[P, VS](r: var Reporter[P, VS], inc: Incompatibility[P, VS],
   let
     numbered = isConclusion or r.derivationCount(inc) > 1
     conjunction = if isConclusion or inc == r.failure: "So," else: "And"
-    conclusion = describe(inc, r.root)
+    conclusion = describe(inc, r.root, r.writeVersions)
     conflict = inc.conflict
     other = inc.other
 
@@ -270,8 +363,9 @@ proc visit[P, VS](r: var Reporter[P, VS], inc: Incompatibility[P, VS],
         withoutLine = if conflictLine != 0: other else: conflict
         line = if conflictLine != 0: conflictLine else: otherLine
       r.visit withoutLine
-      r.write(inc, conjunction & " because " & describe(withLine, r.root) &
-        " (" & $line & "), " & conclusion & ".", numbered)
+      r.write(inc, conjunction & " because " &
+        describe(withLine, r.root, r.writeVersions) & " (" & $line & "), " &
+        conclusion & ".", numbered)
     elif conflict.isSingleLine or other.isSingleLine:
       # Explaining the one-liner second keeps it next to the conclusion it
       # feeds, so the reader does not have to hold it in mind.
@@ -309,25 +403,27 @@ proc visit[P, VS](r: var Reporter[P, VS], inc: Incompatibility[P, VS],
         r.andToString(collapsedFact, fact) & ", " & conclusion & ".", numbered)
     else:
       r.visit derived
-      r.write(inc, conjunction & " because " & describe(fact, r.root) & ", " &
-        conclusion & ".", numbered)
+      r.write(inc, conjunction & " because " &
+        describe(fact, r.root, r.writeVersions) & ", " & conclusion & ".",
+        numbered)
   else:
     r.write(inc, "Because " & r.andToString(conflict, other) & ", " &
       conclusion & ".", numbered)
 
-proc report*[P, VS](failure: Incompatibility[P, VS], root: P): string =
-  ## The human-readable explanation of why solving failed.
-  ##
-  ## `failure` is the incompatibility from an unsolvable `SolveResult`; `root`
-  ## is the package solving started from.
+proc explain[P, VS](failure: Incompatibility[P, VS], root: P,
+                    writeVersions: VersionsWriter[P, VS]): string =
   if not failure.isDerived:
     # Nothing was derived - the very first fact the solver stated already
     # ruled the root package out.
-    return "Because " & describe(failure, root) & ", version solving failed."
+    return "Because " & describe(failure, root, writeVersions) &
+      ", version solving failed."
 
-  var r = Reporter[P, VS](root: root, failure: failure)
-  r.countDerivations failure
-  r.visit failure
+  var r = Reporter[P, VS](root: root, writeVersions: writeVersions)
+  var seen: seq[Incompatibility[P, VS]]
+  r.collectGaps(failure, seen)
+  r.failure = r.tidy(failure)
+  r.countDerivations r.failure
+  r.visit r.failure
 
   var padding = 0
   if r.lineNumbers.len > 0:
@@ -347,3 +443,35 @@ proc report*[P, VS](failure: Incompatibility[P, VS], root: P): string =
     result.add line.text
     result.add "\n"
   result.setLen max(result.len - 1, 0)
+
+proc report*[P, VS](failure: Incompatibility[P, VS], root: P): string =
+  ## The human-readable explanation of why solving failed, with versions
+  ## written by `$`.
+  ##
+  ## `failure` is the incompatibility from an unsolvable `SolveResult`; `root`
+  ## is the package solving started from.
+  explain(failure, root, nil)
+
+proc report*[P, VS, DP](failure: Incompatibility[P, VS], root: P,
+                        provider: DP): string =
+  ## The same explanation, with versions written by the provider the solve ran
+  ## against, when it has the optional hook
+  ##
+  ## ```nim
+  ## proc versionsTextHook(p: MyProvider, package: P, versions: VS,
+  ##                       positive: bool): string
+  ##   ## How the report writes `versions` of `package` (a `VersionsWriter`).
+  ##   ## The provider knows what the solver doesn't - which versions there
+  ##   ## are, and how its users write requirements - so it can name the
+  ##   ## versions a set holds instead of the bounds the solver keeps.
+  ## ```
+  ##
+  ## matched by its exact signature at instantiation, like the solver's hooks.
+  ## Without it, versions are written by `$`.
+  mixin versionsTextHook
+  when compiles(provider.versionsTextHook(root, default(VS), true)):
+    explain(failure, root,
+      proc (package: P, versions: VS, positive: bool): string =
+        provider.versionsTextHook(package, versions, positive))
+  else:
+    explain(failure, root, nil)

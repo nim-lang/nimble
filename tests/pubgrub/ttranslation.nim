@@ -158,14 +158,14 @@ suite "translation: failure report UX":
     t.addPkg("myapp", "0.1.0", ["foo >= 2.0"], isRoot = true)
     t.addPkg("foo", "1.2.0")
     check explain(t) == @[
-      "Because myapp depends on foo [2.0, inf) which doesn't match any versions, version solving failed."
+      "Because myapp depends on foo >= 2.0 which doesn't match any versions, version solving failed."
     ]
 
   test "a dependency that does not exist at all":
     var t: Table[string, PackageVersions]
     t.addPkg("myapp", "0.1.0", ["notthere >= 1.0"], isRoot = true)
     check explain(t) == @[
-      "Because myapp depends on notthere which doesn't exist, version solving failed."
+      "Because myapp depends on notthere which couldn't be found, version solving failed."
     ]
 
   test "two libraries with disjoint ranges on a shared dependency":
@@ -176,8 +176,8 @@ suite "translation: failure report UX":
     t.addPkg("shared", "4.1.0")
     t.addPkg("shared", "2.5.0")
     check explain(t) == @[
-      "Because every version of blib depends on shared [4.0, inf) and every version of alib depends on shared [2.0, 3.0), blib is incompatible with alib.",
-      "So, because myapp depends on both alib * and blib *, version solving failed."
+      "Because every version of blib depends on shared >= 4.0 and every version of alib depends on shared >= 2.0 & < 3.0, blib is incompatible with alib.",
+      "So, because myapp depends on both alib and blib, version solving failed."
     ]
 
   test "two exact pins that cannot both hold":
@@ -188,8 +188,8 @@ suite "translation: failure report UX":
     t.addPkg("shared", "2.0.0")
     t.addPkg("shared", "1.0.0")
     check explain(t) == @[
-      "Because every version of blib depends on shared [2.0.0, 2.0.0] and every version of alib depends on shared [1.0.0, 1.0.0], blib is incompatible with alib.",
-      "So, because myapp depends on both alib * and blib *, version solving failed."
+      "Because every version of blib depends on shared == 2.0.0 and every version of alib depends on shared == 1.0.0, blib is incompatible with alib.",
+      "So, because myapp depends on both alib and blib, version solving failed."
     ]
 
   test "conflicting commit pins on the same dependency":
@@ -201,7 +201,7 @@ suite "translation: failure report UX":
     t.addPkg("asynctools", sv("#0e6bdc3"))
     check explain(t) == @[
       "Because every version of httpbeast depends on asynctools #0e6bdc3 and every version of jester depends on asynctools #pr_fix_compilation, httpbeast is incompatible with jester.",
-      "So, because myapp depends on both jester * and httpbeast *, version solving failed."
+      "So, because myapp depends on both jester and httpbeast, version solving failed."
     ]
 
   test "a commit pin against a version range":
@@ -213,8 +213,8 @@ suite "translation: failure report UX":
     t.addPkg("chronos", sv("#b71392a", "4.4.0"))
     t.addPkg("chronos", "4.2.2")
     check explain(t) == @[
-      "Because every version of asyncchannels depends on chronos #b71392a (4.4.0) and every version of websock depends on chronos [4.2.0, 4.4.0), asyncchannels is incompatible with websock.",
-      "So, because jsonrpc depends on both websock [0.2.1, 0.5.0) and asyncchannels *, version solving failed."
+      "Because every version of asyncchannels depends on chronos #b71392a (4.4.0) and every version of websock depends on chronos >= 4.2.0 & < 4.4.0, asyncchannels is incompatible with websock.",
+      "So, because jsonrpc depends on both websock >= 0.2.1 & < 0.5.0 and asyncchannels, version solving failed."
     ]
 
   test "a conflict two hops away is collapsed into one sentence":
@@ -224,8 +224,8 @@ suite "translation: failure report UX":
     t.addPkg("helper", "1.2.0", ["base >= 3.0"])
     t.addPkg("base", "2.9.0")
     check explain(t) == @[
-      "Because every version of mylib depends on helper [1.0, 2.0.0) which depends on base [3.0, inf), every version of mylib requires base [3.0, inf).",
-      "So, because no versions of base match [3.0, inf) and myapp depends on mylib [1.0, inf), version solving failed."
+      "Because every version of mylib depends on helper >= 1.0 & < 2.0.0 which depends on base >= 3.0, every version of mylib requires base >= 3.0.",
+      "So, because no versions of base match >= 3.0 and myapp depends on mylib >= 1.0, version solving failed."
     ]
 
   test "requiring #head of a package that only has releases":
@@ -249,13 +249,13 @@ suite "translation: failure report UX":
     t.addPkg("y", "2.0.0")
     t.addPkg("y", "1.0.0")
     check explain(t) == @[
-      "    Because foo [1.0.0, 1.0.0] depends on a [1.0, 2.0.0) which depends on b [2.0, 3.0.0), foo [1.0.0, 1.0.0] requires b [2.0, 3.0.0).",
-      "(1) So, because foo [1.0.0, 1.0.0] depends on b [1.0, 2.0.0) and no versions of foo match (1.0.0, 1.1.0) | (1.1.0, 2.0), foo [1.0.0, 1.1.0) | (1.1.0, 2.0) is forbidden.",
+      "    Because foo 1.0.0 depends on a >= 1.0 & < 2.0.0 which depends on b >= 2.0 & < 3.0.0, foo 1.0.0 requires b >= 2.0 & < 3.0.0.",
+      "(1) So, because foo 1.0.0 depends on b >= 1.0 & < 2.0.0, foo 1.0.0 is forbidden.",
       "",
-      "    Because foo [1.1.0, 1.1.0] depends on x [1.0, 2.0.0) which depends on y [2.0, 3.0.0), foo [1.1.0, 1.1.0] requires y [2.0, 3.0.0).",
-      "    And because foo [1.1.0, 1.1.0] depends on y [1.0, 2.0.0), foo [1.1.0, 1.1.0] is forbidden.",
-      "    And foo [1.0.0, 2.0) is forbidden.",
-      "    So, because myapp depends on foo [1.0, 2.0), version solving failed."
+      "    Because foo 1.1.0 depends on x >= 1.0 & < 2.0.0 which depends on y >= 2.0 & < 3.0.0, foo 1.1.0 requires y >= 2.0 & < 3.0.0.",
+      "    And because foo 1.1.0 depends on y >= 1.0 & < 2.0.0, foo 1.1.0 is forbidden.",
+      "    And every version of foo is forbidden.",
+      "    So, because myapp depends on foo >= 1.0 & < 2.0, version solving failed."
     ]
 
   test "nim itself is just another package in the explanation":
@@ -263,7 +263,29 @@ suite "translation: failure report UX":
     t.addPkg("myapp", "0.1.0", ["nim >= 2.0.0"], isRoot = true)
     t.addPkg("nim", "1.6.20")
     check explain(t) == @[
-      "Because myapp depends on nim [2.0.0, inf) which doesn't match any versions, version solving failed."
+      "Because myapp depends on nim >= 2.0.0 which doesn't match any versions, version solving failed."
+    ]
+
+  test "versions that require the same are one clause":
+    # nimbus-eth1's conflict in the canary: it needs a newer Nim than any
+    # version of beacon_chain allows, and each stretch of beacon_chain
+    # versions pins a Nim of its own. Stated version by version, that was a
+    # line for each, spelling out every gap between them.
+    var t: Table[string, PackageVersions]
+    t.addPkg("nimbus", "0.1.0", ["nim >= 2.2.14", "beacon_chain"], isRoot = true)
+    for n in ["2.0.12", "2.2.4", "2.2.12", "2.2.14"]: t.addPkg("nim", n)
+    t.addPkg("beacon_chain", "1.4.2",
+             ["https://gitlab.com/status-im/nimbus-security-resources.git"])
+    t.addPkg("beacon_chain", "24.12.0", ["nim == 2.0.12"])
+    for bc in ["25.9.0", "25.11.0", "26.3.0"]:
+      t.addPkg("beacon_chain", bc, ["nim == 2.2.4"])
+    for bc in ["26.9.0", "26.10.1", "26.10.2"]:
+      t.addPkg("beacon_chain", bc, ["nim == 2.2.12"])
+    check explain(t) == @[
+      "Because beacon_chain 26.9.0 to 26.10.2 depends on nim == 2.2.12 and beacon_chain 25.9.0 to 26.3.0 depends on nim == 2.2.4, beacon_chain 25.9.0 to 26.10.2 requires nim 2.2.4 or 2.2.12.",
+      "And because beacon_chain 24.12.0 depends on nim == 2.0.12, beacon_chain 24.12.0 to 26.10.2 requires nim 2.0.12, 2.2.4 or 2.2.12.",
+      "And because beacon_chain 1.4.2 depends on https://gitlab.com/status-im/nimbus-security-resources.git which couldn't be found, every version of beacon_chain requires nim 2.0.12, 2.2.4 or 2.2.12.",
+      "So, because nimbus depends on both nim >= 2.2.14 and beacon_chain, version solving failed."
     ]
 
 suite "translation: the explanation reaches getSolvedPackages' output":
@@ -291,10 +313,10 @@ suite "translation: the explanation reaches getSolvedPackages' output":
     check output.splitLines == @[
       "Dependency resolution failed:",
       "Because every version of asyncchannels depends on chronos #b71392a (4.4.0) " &
-        "and every version of websock depends on chronos [4.2.0, 4.4.0), " &
+        "and every version of websock depends on chronos >= 4.2.0 & < 4.4.0, " &
         "asyncchannels is incompatible with websock.",
-      "So, because jsonrpc depends on both websock [0.2.1, 0.5.0) and " &
-        "asyncchannels *, version solving failed.",
+      "So, because jsonrpc depends on both websock >= 0.2.1 & < 0.5.0 and " &
+        "asyncchannels, version solving failed.",
       ""
     ]
 
@@ -335,7 +357,7 @@ suite "translation: the explanation reaches getSolvedPackages' output":
     check solved.len == 0
     check output.splitLines == @[
       "Dependency resolution failed:",
-      "Because ne2 depends on nimbus_eth2 which doesn't exist, version " &
+      "Because ne2 depends on nimbus_eth2 which couldn't be found, version " &
         "solving failed.",
       ""
     ]
@@ -356,7 +378,7 @@ suite "translation: the explanation reaches getSolvedPackages' output":
     discard getSolvedPackages(t, output, opts)
     check "Missing dependencies: nimbus_eth2" in output
     check "Package serialization" in output
-    check "doesn't exist" in output
+    check "couldn't be found" in output
 
   test "a disagreement is flagged as a solver bug, not silence":
     # explainSolveFailure's contract when PubGrub *can* solve what SAT could
@@ -451,3 +473,110 @@ suite "a preferred version is tried first":
     check answer.solved
     check answer.chosen["nim"] == "2.4.0"
     check answer.chosen["foo"] == "2.0.0"
+
+# ------------------------------------------------------------------ grouping
+
+proc statedFor(t: Table[string, PackageVersions], package, version, on: string,
+               unfetched: Unfetched = nil): seq[string] =
+  ## The listed versions of `package` the solver states the dependency of
+  ## `package` `version` on `on` for (`dependencyRangeHook`).
+  let u = initPubGrubUniverse(t, unfetched = unfetched)
+  for dependency in u.dependencies(package, newVersion(version)):
+    if dependency.package == on:
+      let versions = u.dependencyRangeHook(package, newVersion(version),
+                                           dependency)
+      for mi in t[package].versions:
+        if versions.contains(toTaggedVersion(mi.version)):
+          result.add $mi.version
+      return
+  doAssert false, package & " " & version & " doesn't require " & on
+
+suite "translation: a dependency is stated for the versions that share it":
+  test "the neighbouring versions that require the same":
+    var t: Table[string, PackageVersions]
+    t.addPkg("foo", "1.0.0", ["bar >= 1.0"])
+    t.addPkg("foo", "1.1.0", ["bar >= 2.0"])
+    t.addPkg("foo", "1.2.0", ["bar >= 2.0", "baz"])
+    t.addPkg("foo", "1.3.0", ["bar >= 2.0"])
+    t.addPkg("foo", "2.0.0", ["bar >= 3.0"])
+    check statedFor(t, "foo", "1.2.0", "bar") == @["1.1.0", "1.2.0", "1.3.0"]
+
+  test "not past a version that requires otherwise":
+    var t: Table[string, PackageVersions]
+    t.addPkg("foo", "1.0.0", ["bar >= 2.0"])
+    t.addPkg("foo", "1.1.0", ["bar >= 3.0"])
+    t.addPkg("foo", "1.2.0", ["bar >= 2.0"])
+    check statedFor(t, "foo", "1.2.0", "bar") == @["1.2.0"]
+
+  test "not past a version not read yet":
+    # `discoverLazily` lists a version it hasn't read as requiring nothing.
+    var t: Table[string, PackageVersions]
+    t.addPkg("foo", "1.0.0", ["bar >= 2.0"])
+    t.addPkg("foo", "1.1.0")
+    t.addPkg("foo", "1.2.0", ["bar >= 2.0"])
+    check statedFor(t, "foo", "1.2.0", "bar") == @["1.2.0"]
+
+  test "not past a version whose requirement is still being fetched":
+    # The search leaves that requirement out, so as far as it knows the
+    # version doesn't have it - though it reads the same as its neighbours'.
+    var t: Table[string, PackageVersions]
+    t.addPkg("foo", "1.0.0", ["bar >= 2.0.0"])
+    t.addPkg("foo", "1.1.0", ["bar >= 2.0"])
+    t.addPkg("foo", "1.2.0", ["bar >= 2.0"])
+    let fetching = proc (req: PkgTuple): bool = $req.ver == ">= 2.0.0"
+    check statedFor(t, "foo", "1.2.0", "bar", fetching) == @["1.1.0", "1.2.0"]
+
+  test "every version, when they all require it":
+    var t: Table[string, PackageVersions]
+    t.addPkg("foo", "1.0.0", ["bar >= 2.0"])
+    t.addPkg("foo", "1.1.0", ["bar >= 2.0"])
+    let u = initPubGrubUniverse(t)
+    let dependency = u.dependencies("foo", newVersion("1.0.0"))[0]
+    check u.dependencyRangeHook("foo", newVersion("1.0.0"), dependency).isFull
+
+  test "the special versions that require the same, and only those":
+    var t: Table[string, PackageVersions]
+    t.addPkg("foo", "1.0.0", ["bar >= 2.0"])
+    t.addPkg("foo", sv("#head"), ["bar >= 2.0"])
+    t.addPkg("foo", sv("#devel"), ["bar >= 3.0"])
+    check statedFor(t, "foo", "1.0.0", "bar") == @["1.0.0", "#head"]
+    check statedFor(t, "foo", "#head", "bar") == @["1.0.0", "#head"]
+    check statedFor(t, "foo", "#devel", "bar") == @["#devel"]
+
+# ------------------------------------------------------------------ wording
+
+proc written(versions: NimbleVersionSet, positive: bool): string =
+  ## How the report writes `versions` of foo (`versionsTextHook`), foo being
+  ## listed at 1.0.0, 1.1.0, 1.2.0, 2.0.0 and #head.
+  var t: Table[string, PackageVersions]
+  for v in ["1.0.0", "1.1.0", "1.2.0", "2.0.0"]: t.addPkg("foo", v)
+  t.addPkg("foo", sv("#head"))
+  initPubGrubUniverse(t).versionsTextHook("foo", versions, positive)
+
+proc vs(requirement: string): NimbleVersionSet =
+  toVersionSet(parseVersionRange(requirement))
+
+suite "translation: how the report writes versions":
+  test "what a dependency allows reads as a requirement":
+    check written(vs(">= 1.1"), positive = false) == ">= 1.1"
+    check written(vs(">= 1.0 & < 2.0"), positive = false) == ">= 1.0 & < 2.0"
+    check written(vs("1.2.0"), positive = false) == "== 1.2.0"
+    check written(vs("#head"), positive = false) == "#head"
+    check written(union(vs("1.0.0"), union(vs("1.2.0"), vs("2.0.0"))),
+                  positive = false) == "1.0.0, 1.2.0 or 2.0.0"
+    check written(vs(""), positive = false) == ""
+
+  test "the versions a package is at are the ones listed":
+    check written(vs("1.1.0"), positive = true) == "1.1.0"
+    check written(vs(">= 1.1 & < 2.0"), positive = true) == "1.1.0 to 1.2.0"
+    check written(union(vs("1.0.0"), vs(">= 1.2")), positive = true) ==
+      "1.0.0 or 1.2.0 to 2.0.0"
+    check written(union(vs(">= 1.1"), vs("#head")), positive = true) ==
+      "1.1.0 to 2.0.0 or #head"
+
+  test "nothing, when that is all of them":
+    check written(union(vs(">= 1.0"), vs("#head")), positive = true) == ""
+    check written(vs(""), positive = true) == ""
+
+  test "a set holding none of them reads as a requirement":
+    check written(vs(">= 3.0"), positive = true) == ">= 3.0"
