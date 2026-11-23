@@ -1,6 +1,6 @@
 {.used.}
 
-import std/[unittest, strutils]
+import std/[unittest, strutils, options]
 import pubgrub/[ranges, solver, report]
 import ./registry
 
@@ -10,8 +10,23 @@ import ./registry
 ## intervals, so `^1.0.0` shows up as `[1.0, 2.0)`. Comparing line by line
 ## keeps a failure readable and stops trailing whitespace from mattering.
 
-proc explain(reg: Registry): seq[string] =
-  let res = solve(reg, "root", v(1, 0))
+type PerVersion = object
+  ## The registry without its `dependencyRangeHook`: each dependency is stated
+  ## for the one version it was read from, the way Nimble's provider does.
+  reg: Registry
+
+proc chooseVersion(p: PerVersion, package: string,
+                   allowed: VerSet): Option[Ver] =
+  p.reg.chooseVersion(package, allowed)
+
+proc dependencies(p: PerVersion, package: string, version: Ver): seq[Dep] =
+  p.reg.dependencies(package, version)
+
+proc versionCountHook(p: PerVersion, package: string, allowed: VerSet): int =
+  p.reg.versionCountHook(package, allowed)
+
+proc explain[Provider](provider: Provider): seq[string] =
+  let res = solve(provider, "root", v(1, 0))
   doAssert res.outcome == soUnsolvable, "expected solving to fail"
   report(res.failure, "root").splitLines()
 
@@ -101,6 +116,42 @@ suite "report: two roots of the same conflict":
       "Because every version of b depends on shared [2.0, 3.0) and every " &
         "version of a depends on shared [1.0, 2.0), b is incompatible with a.",
       "So, because root depends on both a [1.0, 2.0) and b [1.0, 2.0), " &
+        "version solving failed."
+    ]
+
+proc nimPins(fooVersions: openArray[int]): Registry =
+  ## root needs nim 3.0 or newer, and the n-th version of foo pins nim n.0, so
+  ## every version of foo is ruled out - by a different dependency each.
+  result.add("root", v(1, 0), dep("nim", atLeast(v(3, 0))),
+             dep("foo", anyVersion()))
+  for n in 1 .. 3: result.add("nim", v(n, 0))
+  for i, fooVersion in fooVersions:
+    result.add("foo", v(fooVersion, 0), dep("nim", exactly(i + 1)))
+
+suite "report: one subject per clause":
+  test "two versions with their own dependencies are two facts":
+    # Not "foo [2.0, inf) depends on both nim [2.0, 2.0] and nim [1.0, 1.0]",
+    # which is false and never names foo 1.0.
+    check nimPins([1, 2]).explain == @[
+      "Because foo [2.0, inf) depends on nim [2.0, 2.0] and foo (-inf, 2.0) " &
+        "depends on nim [1.0, 1.0], every version of foo requires " &
+        "nim [1.0, 1.0] | [2.0, 2.0].",
+      "So, because root depends on both nim [3.0, inf) and foo *, " &
+        "version solving failed."
+    ]
+
+  test "a dependency chains only into a dead end of the package it names":
+    # Running out of foo's versions is a fact about foo. With foo's versions
+    # far from nim's, nim [1.0, 1.0] fits inside the versions foo doesn't
+    # have, which must not read as "foo 10.0 depends on foo ... which doesn't
+    # match any versions".
+    check PerVersion(reg: nimPins([10, 20])).explain == @[
+      "Because no versions of foo match (-inf, 10.0) | (10.0, 20.0) | " &
+        "(20.0, inf) and foo [10.0, 10.0] depends on nim [1.0, 1.0], " &
+        "foo (-inf, 20.0) | (20.0, inf) requires nim [1.0, 1.0].",
+      "And because foo [20.0, 20.0] depends on nim [2.0, 2.0], every " &
+        "version of foo requires nim [1.0, 1.0] | [2.0, 2.0].",
+      "So, because root depends on both nim [3.0, inf) and foo *, " &
         "version solving failed."
     ]
 

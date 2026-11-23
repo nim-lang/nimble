@@ -98,13 +98,16 @@ proc reference(line: int): string =
 proc tryRequiresBoth[P, VS](root: P, a, b: Incompatibility[P, VS],
                             aLine, bLine: int): string =
   ## "foo depends on both bar and baz" - both incompatibilities constrain the
-  ## same package, so the reader should see one subject, not two sentences.
+  ## same versions of the same package, so the reader should see one subject,
+  ## not two sentences.
   if a.terms.len == 1 or b.terms.len == 1: return ""
   let
     aPositive = a.singleTerm(true)
     bPositive = b.singleTerm(true)
   if aPositive.isNone or bPositive.isNone: return ""
-  if aPositive.get.package != bPositive.get.package: return ""
+  # The versions too, not just the package: "foo 1.0 depends on bar" and
+  # "foo 2.0 depends on baz" do not make "foo 2.0 depends on both bar and baz".
+  if aPositive.get != bPositive.get: return ""
 
   let verb =
     if a.cause == ckFromDependencyOf and b.cause == ckFromDependencyOf:
@@ -174,6 +177,10 @@ proc tryRequiresForbidden[P, VS](root: P, a, b: Incompatibility[P, VS],
 
   let negative = prior.singleTerm(false)
   if negative.isNone: return ""
+  # `satisfies` compares versions only, so check the package first: "foo 1.0
+  # depends on bar" and "no versions of foo match ..." do not make "foo 1.0
+  # depends on foo ... which doesn't match any versions".
+  if negative.get.package != latter.terms[0].package: return ""
   if not negative.get.term.inverse.satisfies(latter.terms[0].term): return ""
   if prior.countOfSign(true) == 0: return ""
 
