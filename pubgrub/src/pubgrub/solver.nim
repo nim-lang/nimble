@@ -51,9 +51,12 @@
 ## proc packageExistsHook(p: MyProvider, package: P): bool
 ##   ## Whether the package is known at all. When absent, a package with no
 ##   ## usable version is always reported as "no versions match"; supplying it
-##   ## lets the report distinguish that from "the package doesn't exist",
+##   ## lets the report distinguish that from "the package couldn't be found",
 ##   ## which is usually a typo rather than a conflict.
 ## ```
+##
+## The report has a hook of its own, `versionsTextHook`, for how versions are
+## written (see `pubgrub/report`).
 
 import std/[tables, options]
 import ./[term, incompatibility, partialsolution]
