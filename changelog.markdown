@@ -2,6 +2,13 @@
 
 # Nimble changelog
 
+## 0.28.0
+
+  - **PubGrub is now the default solver.** The SAT solver is still available with `--solver:sat`.
+  - PubGrub lazy enumeration: fetches a package's versions, and reads what a version requires, only when the search gets to them instead of discovering the whole dependency graph first, so large graphs resolve faster. 
+  - When resolution fails, PubGrub's explanation is shorter and writes versions as `requires` lines do (`chronos >= 4.2.0 & < 4.4.0`).
+  - Various other fixes.
+
 ## 0.26.2
 
   - Bumped bearssl to 0.2.15 to address a certificate issue.
