@@ -139,7 +139,11 @@ proc compileNim*(options: Options, nimDest: string, v: VersionRange) {.async.} =
       "csources" # has some chance of working
     else:
       "csources_v1"
-  cd workspace:
+  # csources go with the Nims nimble downloads, not next to nimDest: a develop
+  # Nim sits in a folder of the user's, and csources take about 2 GB once built.
+  let csourcesParent = options.nimBinariesDir
+  createDir csourcesParent
+  cd csourcesParent:
     if not dirExists(csourcesVersion):
       let cloneUrl =
         if pinned.isSome: pinned.get.url
@@ -154,7 +158,7 @@ proc compileNim*(options: Options, nimDest: string, v: VersionRange) {.async.} =
 
   var csourcesSucceed = false
   if canUseCsources:
-    cd workspace / csourcesVersion:
+    cd csourcesParent / csourcesVersion:
       csourcesSucceed = os.execShellCmd(getCsourcesBuildCommand()) == 0
 
   cd nimDest:
@@ -166,7 +170,7 @@ proc compileNim*(options: Options, nimDest: string, v: VersionRange) {.async.} =
         else: "sh build_all.sh"
       exec cmd
     let nimExe = "bin" / "nim".addFileExt(ExeExt)
-    let nimExe0 = ".." / csourcesVersion / "bin" / "nim".addFileExt(ExeExt)
+    let nimExe0 = csourcesParent / csourcesVersion / "bin" / "nim".addFileExt(ExeExt)
     if csourcesSucceed:      
       copyFileWithPermissions nimExe0, nimExe
     exec nimExe & " c --noNimblePath --skipUserCfg --skipParentCfg --hints:off koch"
@@ -176,7 +180,7 @@ proc compileNim*(options: Options, nimDest: string, v: VersionRange) {.async.} =
     # unless --keep is used delete the csources because it takes up about 2GB and
     # is not necessary afterwards:
     if not keepCsources:
-      removeDir workspace / csourcesVersion / "c_code"
+      removeDir csourcesParent / csourcesVersion / "c_code"
     let pathEntry = workspace / nimDest / "bin"
     #remove nimble so it doesnt interfer with the current one:
     removeFile "bin" / "nimble".addFileExt(ExeExt)
