@@ -11,7 +11,9 @@ when defined(windows):
   import std/tempfiles
   from nimscriptwrapper import taskCompilerCommandEnv
 else:
-  import std/posix_utils
+  # macOS declares mkdtemp in unistd.h.
+  const mkdtempHeader = when defined(macosx): "<unistd.h>" else: "<stdlib.h>"
+  proc mkdtemp(path: cstring): cstring {.importc, header: mkdtempHeader.}
 
 const
   nimblePathsFileName* = "nimble.paths"
@@ -110,6 +112,16 @@ proc hasConfiguredFeatures(): bool =
       if line.strip(leading = true, trailing = false).startsWith("--define:\"features."):
         return true
 
+proc createTaskCompilerDir(): string =
+  const prefix = "nimble-task-compiler-"
+  when defined(windows):
+    result = createTempDir(prefix, "")
+  else:
+    # mkdtemp replaces the trailing Xs in place and creates the directory with mode 0700.
+    result = getTempDir() / (prefix & "XXXXXX")
+    if mkdtemp(result.cstring) == nil:
+      raiseOSError(osLastError(), result)
+
 proc writeTaskCompiler(dir: string, paths: HashSet[string], featureDefines: seq[string],
                        nimBin: Option[string]) =
   let pathCompiler = findExe("nim")
@@ -143,9 +155,7 @@ template withTaskCompiler*(paths: HashSet[string], featureDefines: seq[string],
   # Bare Nim calls need the resolved features even if nimble.paths contains
   # a selection from an earlier invocation and the current selection is empty.
   if featureDefines.len > 0 or hasConfiguredFeatures():
-    let dir =
-      when defined(windows): createTempDir("nimble-task-compiler-", "")
-      else: mkdtemp(getTempDir() / "nimble-task-compiler-")
+    let dir = createTaskCompilerDir()
     defer: removeDir(dir)
     try:
       writeTaskCompiler(dir, paths, featureDefines, nimBin)
