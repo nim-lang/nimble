@@ -1425,8 +1425,13 @@ proc test(options: Options, nimBin: Option[string]) =
     display("Warning:", "No tests found!", Warning, HighPriority)
     return
 
-  if not execHook(nimBin, options, actionCustom, true):
-    raise nimbleError("Pre-hook prevented further execution.")
+  let
+    paths = options.getPathsAllPkgs(nimBin)
+    featureDefines = pkgInfo.getFeatureDefines(options)
+  setTaskPathsEnv(paths)
+  withTaskCompiler(paths, featureDefines, nimBin):
+    if not execHook(nimBin, options, actionCustom, true, featureDefines):
+      raise nimbleError("Pre-hook prevented further execution.")
 
   files.sort((a, b) => cmp(a.path, b.path))
 
@@ -1472,7 +1477,8 @@ proc test(options: Options, nimBin: Option[string]) =
     let error = "Only " & $(tests - failures) & "/" & $tests & " tests files passed"
     display("Error:", error, Error, HighPriority)
 
-  discard execHook(nimBin, options, actionCustom, false)
+  withTaskCompiler(paths, featureDefines, nimBin):
+    discard execHook(nimBin, options, actionCustom, false, featureDefines)
   if failures > 0:
     raise nimbleQuit(QuitFailure)
 

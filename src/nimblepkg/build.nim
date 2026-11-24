@@ -8,7 +8,10 @@ import packageinfotypes, options, version, packageinfo, common,
   declarativeparser, nimscriptexecutor, displaymessages
 import compat/json
 when defined(windows):
+  import std/tempfiles
   from nimscriptwrapper import taskCompilerCommandEnv
+else:
+  import std/posix_utils
 
 const
   nimblePathsFileName* = "nimble.paths"
@@ -101,13 +104,17 @@ proc setTaskPathsOverride*(pkgInfo: PackageInfo, options: Options, nimBin: Optio
     putEnv(taskPathsProjectEnv, getCurrentDir())
     putEnv(taskPathsOverrideEnv, file)
 
-proc taskCompilerPath(paths: HashSet[string], featureDefines: seq[string],
-                      nimBin: Option[string]): string =
-  let dir = getNimbleTempDir() / "task-compiler"
-  createDir(dir)
+proc hasConfiguredFeatures(): bool =
+  if fileExists(nimblePathsFileName):
+    for line in lines(nimblePathsFileName):
+      if line.strip(leading = true, trailing = false).startsWith("--define:\"features."):
+        return true
+
+proc writeTaskCompiler(dir: string, paths: HashSet[string], featureDefines: seq[string],
+                       nimBin: Option[string]) =
   let pathCompiler = findExe("nim")
   let compiler = if pathCompiler.len > 0: pathCompiler else: nimBin.getNimBin
-  var flags: seq[string]
+  var flags = @["-d:NimbleManagedCompilation"]
   for path in paths:
     flags.add quoteShell("--path:" & path)
   for feature in featureDefines:
@@ -121,7 +128,6 @@ proc taskCompilerPath(paths: HashSet[string], featureDefines: seq[string],
     writeFile(script, "#!/bin/sh\nexec " & compiler.quoteShell & " " &
       flags.join(" ") & " \"$@\"\n")
     setFilePermissions(script, {fpUserRead, fpUserWrite, fpUserExec})
-  result = dir
 
 proc clearTaskCompiler*() =
   let dir = getEnv(taskCompilerDirEnv)
@@ -134,14 +140,17 @@ proc clearTaskCompiler*() =
 
 template withTaskCompiler*(paths: HashSet[string], featureDefines: seq[string],
                            nimBin: Option[string], body: untyped) =
-  # Configured projects get their paths and defines from nimble.paths. For a
-  # fresh project, pass the same configuration to bare nim calls from NimScript.
-  if featureDefines.len > 0 and
-     not (fileExists(nimblePathsFileName) and fileExists(nimbleConfigFileName)):
-    let dir = taskCompilerPath(paths, featureDefines, nimBin)
-    putEnv(taskCompilerDirEnv, dir)
-    putEnv("PATH", dir & PathSep & getEnv("PATH"))
+  # Bare Nim calls need the resolved features even if nimble.paths contains
+  # a selection from an earlier invocation and the current selection is empty.
+  if featureDefines.len > 0 or hasConfiguredFeatures():
+    let dir =
+      when defined(windows): createTempDir("nimble-task-compiler-", "")
+      else: mkdtemp(getTempDir() / "nimble-task-compiler-")
+    defer: removeDir(dir)
     try:
+      writeTaskCompiler(dir, paths, featureDefines, nimBin)
+      putEnv(taskCompilerDirEnv, dir)
+      putEnv("PATH", dir & PathSep & getEnv("PATH"))
       body
     finally:
       clearTaskCompiler()

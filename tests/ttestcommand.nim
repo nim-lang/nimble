@@ -63,6 +63,59 @@ static:
       verify execNimble(nimbleDir, "--useSystemNim", "--features:bar", "test")
       check readFile("nimble.paths") == savedPaths
 
+  test "build hooks use current features with generated and legacy paths files":
+    let projectDir = createTempDir("nimble-generated-features-", "")
+    defer: removeDir(projectDir)
+    cd projectDir:
+      writeFile("generatedfeatures.nimble", """
+version = "0.1.0"
+author = "Test"
+description = "Build hooks with a pre-existing paths file"
+license = "MIT"
+bin = @["generatedfeatures"]
+feature "foo":
+  requires "nim"
+feature "bar":
+  requires "nim"
+before build:
+  exec "nim c -r probe.nim"
+after build:
+  exec "nim c -r probe.nim"
+""")
+      let checkFeatures = """
+static:
+  let expected = staticRead("expected-feature")
+  doAssert defined(features.generatedfeatures.foo) == (expected == "foo")
+  doAssert defined(features.generatedfeatures.bar) == (expected == "bar")
+"""
+      writeFile("generatedfeatures.nim", checkFeatures)
+      writeFile("probe.nim", checkFeatures & """
+when defined(posix):
+  import std/[os, strutils]
+  let wrapperDir = getEnv("PATH").split(PathSep)[0]
+  doAssert getFilePermissions(wrapperDir) == {fpUserRead, fpUserWrite, fpUserExec}
+  writeFile("wrapper-dir", wrapperDir)
+""")
+      writeFile("seed.nim", "discard")
+      verify execNimble("--useSystemNim", "--features:foo", "c", "seed.nim")
+      let generatedPaths = readFile("nimble.paths")
+      check generatedPaths.contains("--define:\"features.generatedfeatures.foo\"")
+
+      writeFile("expected-feature", "bar")
+      verify execNimble("--useSystemNim", "--features:bar", "build")
+      when defined(posix):
+        check not dirExists(readFile("wrapper-dir"))
+
+      writeFile("expected-feature", "none")
+      verify execNimble("--useSystemNim", "build")
+      check readFile("nimble.paths") == generatedPaths
+
+      let legacyPaths = "--noNimblePath\n--path:" & projectDir.escape & "\n"
+      writeFile("nimble.paths", legacyPaths)
+      writeFile("expected-feature", "bar")
+      verify execNimble("--useSystemNim", "--features:bar", "build")
+      check readFile("nimble.paths") == legacyPaths
+
   test "fresh custom tasks forward features selected by dependencies":
     let projectDir = createTempDir("nimble-task-dep-feature-", "")
     defer: removeDir(projectDir)
@@ -141,6 +194,15 @@ feature "foo":
   requires "nim"
 feature "bar":
   requires "nim"
+proc checkFeatures() =
+  let expected = system.readFile("expected-feature")
+  doAssert defined(features.featuretest.foo) == (expected == "foo")
+  doAssert defined(features.featuretest.bar) == (expected == "bar")
+  exec "nim c --compileOnly tests/tfeatures.nim"
+before test:
+  checkFeatures()
+after test:
+  checkFeatures()
 """)
       createDir("tests")
       let
@@ -156,6 +218,7 @@ static:
   doAssert not defined(features.featuretest.bar)
 """
       writeFile(featureTest, fooEnabled)
+      writeFile("expected-feature", "foo")
       verify execNimble("--useSystemNim", "--features:foo", "test")
       check not fileExists("nimble.paths")
 
@@ -170,19 +233,27 @@ static:
   doAssert defined(features.featuretest.bar)
   doAssert not defined(features.featuretest.foo)
 """)
+      writeFile("expected-feature", "bar")
       verify execNimble("--useSystemNim", "--features:bar", "test")
       check readFile("nimble.paths") == savedPaths
 
       writeFile(featureTest, noFeatures)
+      writeFile("expected-feature", "none")
       verify execNimble("--useSystemNim", "--features", "test")
       check readFile("nimble.paths") == savedPaths
 
       writeFile(featureTest, fooEnabled)
+      writeFile("expected-feature", "foo")
       verify execNimble("--useSystemNim", "test")
 
       verify execNimble("--useSystemNim", "setup")
       writeFile(featureTest, noFeatures)
+      writeFile("expected-feature", "none")
       verify execNimble("--useSystemNim", "test")
+
+      writeFile(featureTest, fooEnabled)
+      writeFile("expected-feature", "foo")
+      verify execNimble("--useSystemNim", "--local", "--features:foo", "test")
 
   test "Runs passing unit tests":
     cd "testCommand/testsPass":
