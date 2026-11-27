@@ -743,3 +743,22 @@ suite "Reading versions as they are needed":
     options.forceFetch = true
     let refreshed = list(base / "work", "fetchlib >= 0.1.0", options)
     check "0.3.0" in refreshed.unread.mapIt($it.version)
+
+  test "a checkout is read the way its tags are":
+    # Tags are read with the declarative parser: a version is what its nimble
+    # file declares. So is the checkout, both on its first read and when the
+    # cache is checked against it. Nothing in the file is evaluated.
+    let base = createTempDir("nimble_checkout_read_", "")
+    defer: removeDir(base)
+    let evaluated = base / "evaluated"
+    makeTaggedRepo(base / "remote", "checkoutlib", @[
+      ("v0.1.0", nimbleContent("0.1.0") &
+                 "writeFile(" & evaluated.escape & ", \"\")\n")])
+    cloneLocalRepo(base / "remote", base / "work")
+    for i in 1 .. 2:
+      # Fresh options each time: the second listing finds the cache the
+      # first one wrote, and checks it against the checkout.
+      let listed = list(base / "work", "checkoutlib >= 0.1.0",
+                        lazyOptions(base / "cache"))
+      check listed.read.mapIt($it.version) == @["0.1.0"]
+      check not fileExists(evaluated)
