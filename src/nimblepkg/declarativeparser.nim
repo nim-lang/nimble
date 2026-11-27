@@ -30,8 +30,8 @@ type
     nfiNonLiteralSeq       ## `bin`/`paths` seq with non-string-literal contents
     nfiNonLiteralMetadata  ## a `dump`-only metadata field (author, license, ...)
                            ## that can't be read statically: assigned a
-                           ## non-literal, written in old-style call form, or a
-                           ## `namedBin` entry. Deliberately NOT part of
+                           ## non-literal, written in old-style call form, or
+                           ## `namedBin`, written any way. Deliberately NOT part of
                            ## `requiresVmFallback` — solving never looks at these
                            ## fields, so only full-metadata readers need to care.
     nfiIniFormat           ## the INI format nimble files had before NimScript
@@ -391,8 +391,20 @@ proc contentHasStateModifyingOps*(content: string): bool =
   result = hasSideEffects(ast)
   closeParser(parser)
 
+proc mentions(n: PNode, ident: string): bool =
+  ## Whether the identifier `ident` appears anywhere in `n`.
+  if n.kind == nkIdent:
+    return eqIdent(n.ident.s, ident)
+  for child in n:
+    if child.mentions(ident):
+      return true
+
 proc extract(n: PNode, conf: ConfigRef, result: var NimbleFileInfo, options: Options)  {.raises: [CatchableError].}=
   validateNoNestedRequires(result, n, conf)
+  if n.kind notin {nkStmtList, nkStmtListExpr} and n.mentions("namedBin"):
+    # Only the VM parser reads `namedBin`, however it is written: an entry
+    # (`namedBin["src/app"] = "tool"`), a whole table, a loop, a `when` branch.
+    result.issues.incl nfiNonLiteralMetadata
   case n.kind
   of nkStmtList, nkStmtListExpr:
     for child in n:
@@ -479,10 +491,6 @@ proc extract(n: PNode, conf: ConfigRef, result: var NimbleFileInfo, options: Opt
       result.paths = pathsSeq
     elif n[0].kind == nkIdent and isMetadataField(n[0].ident.s):
       extractMetadataAsgn(n, result)
-    elif n[0].kind == nkBracketExpr and n[0].len > 0 and
-         n[0][0].kind == nkIdent and eqIdent(n[0][0].ident.s, "namedBin"):
-      # `namedBin["src/app"] = "tool"` is only read by the VM parser.
-      result.issues.incl nfiNonLiteralMetadata
     else:
       discard
   else:

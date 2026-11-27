@@ -1079,6 +1079,31 @@ namedBin["src/app"] = "tool"
     let info = extractRequiresInfoFromContent(content, options)
     check nfiNonLiteralMetadata in info.issues
 
+  test "should flag namedBin however it is written (#1946)":
+    # A static read finds no binaries in any of these. They stay parsable for
+    # minimal info: only full-metadata readers (`nimble dump`) need the VM.
+    for content in ["""
+version = "0.1.0"
+import std/tables
+namedBin = {"src/app": "tool"}.toTable()
+""", """
+version = "0.1.0"
+import std/tables
+namedBin = toTable({"src/app": "tool"})
+""", """
+version = "0.1.0"
+for (src, name) in [("src/app", "tool")]:
+  namedBin[src] = name
+""", """
+version = "0.1.0"
+when defined(windows):
+  namedBin["src/app"] = "tool"
+"""]:
+      checkpoint content
+      var options = initOptions()
+      check nfiNonLiteralMetadata in extractRequiresInfoFromContent(content, options).issues
+      check isParsableByDeclarative(content, options)
+
   test "should not flag an ordinary declarative nimble file":
     let content = """
 version = "0.1.0"
