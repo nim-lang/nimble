@@ -132,6 +132,66 @@ proc getRevDeps*(nimbleData: JsonNode, pkg: ReverseDependency):
          checksum: revDep[$ndjkRevDepChecksum].str.initSha1Hash)
       result.incl ReverseDependency(kind: rdkInstalled, pkgInfo: pkgBasicInfo)
 
+proc removeStaleDevelopRevDeps*(nimbleData: JsonNode, pkgName: string,
+                                options: Options, nimBin: Option[string]) =
+  ## Removes develop-mode (path-based) reverse dependency records for
+  ## `pkgName` whose project no longer requires `pkgName`.
+  ##
+  ## A project that was once set up in develop mode (e.g. via
+  ## `nimble setup`) leaves a path-based record under `reverseDeps` for
+  ## each of its dependencies. When the dependency line is later removed
+  ## from the project's .nimble file, the record survives forever: the
+  ## directory still exists (so it is not treated as dead by
+  ## `removeDeadDevelopReverseDeps`) and `nimble remove` refuses to
+  ## uninstall the package because of the stale record (#1831).
+  ##
+  ## Each path record is resolved against the project's current .nimble
+  ## file: records whose project does not list `pkgName` in its
+  ## requirements are dropped, as are records pointing at directories
+  ## that no longer contain a valid package.
+  let reverseDependencies = nimbleData{$ndjkRevDep, pkgName}
+  if reverseDependencies.isNil:
+    return
+
+  var hasDeleted = false
+  for verKey, hashSums in reverseDependencies:
+    for csKey, dependencies in hashSums:
+      var kept = newJArray()
+      for dep in dependencies:
+        if not dep.hasKey($ndjkRevDepPath):
+          # Installed-package records are compared by checksum; they are
+          # managed by `removeRevDep` and are not stale-pruned here.
+          kept.add dep
+          continue
+        let path = dep[$ndjkRevDepPath].str
+        var isStale = false
+        if path.dirExists:
+          try:
+            let pkgInfo = getPkgInfo(path, options, nimBin)
+            isStale = true
+            for req in pkgInfo.requires:
+              if req.name == pkgName:
+                # The project still requires `pkgName`: keep the record.
+                isStale = false
+                break
+          except CatchableError:
+            # The directory no longer holds a valid package; the record
+            # cannot be honored anyway.
+            isStale = true
+        else:
+          # Missing directories are also pruned by
+          # `removeDeadDevelopReverseDeps` on load; pruning them here as
+          # well keeps this check self-contained.
+          isStale = true
+        if isStale:
+          hasDeleted = true
+        else:
+          kept.add dep
+      hashSums[csKey] = kept
+
+  if hasDeleted:
+    nimbleData[$ndjkRevDep] = cleanUpEmptyObjects(reverseDependencies)
+
 proc toPkgInfo*(revDep: ReverseDependency, options: Options, nimBin: Option[string]): PackageInfo =
   case revDep.kind
   of rdkInstalled:

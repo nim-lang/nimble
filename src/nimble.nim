@@ -1184,6 +1184,11 @@ proc uninstall(options: var Options, nimBin: Option[string]) =
       raise nimbleError("Package not found")
 
     display("Checking", "reverse dependencies", priority = HighPriority)
+    # Prune develop-mode reverse dependency records whose projects no
+    # longer require this package, so that stale records cannot block
+    # the uninstall (#1831).
+    removeStaleDevelopRevDeps(options.nimbleData, pkgTup.name, options,
+                              nimBin)
     for pkg in pkgList:
       # Check whether any packages depend on the ones the user is trying to
       # uninstall.
