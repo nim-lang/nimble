@@ -210,7 +210,7 @@ proc cacheIsFresh(cached: seq[PackageMinimalInfo], gitRoot, repoDir: string,
     # earlier request cached only releases. Covering the tags is not enough:
     # discovery must also include the checkout we just downloaded.
     try:
-      let checkoutVersion = getPkgInfo(repoDir, options, nimBin).basicInfo.version
+      let checkoutVersion = getPkgInfo(repoDir, options, nimBin, pikRequires).basicInfo.version
       return cached.anyIt(it.version == checkoutVersion)
     except CatchableError:
       return false
@@ -233,9 +233,11 @@ proc fetchTags(gitRoot, name: string, downloadMethod: DownloadMethod,
 
 proc readCheckout(repoDir, name: string, options: Options,
                   nimBin: Option[string]): Option[PackageMinimalInfo] =
-  ## The version checked out (the files already on disk).
+  ## The version checked out (the files already on disk), read the way its
+  ## tags are (`readTaggedVersion`): with the declarative parser, and with the
+  ## VM only for a nimble file that parser can't read.
   try:
-    return some(getPkgInfo(repoDir, options, nimBin).getMinimalInfo(options))
+    return some(getPkgInfo(repoDir, options, nimBin, pikRequires).getMinimalInfo(options))
   except CatchableError as e:
     displayWarning(&"Error getting package info for {name}: {e.msg}", HighPriority)
 
