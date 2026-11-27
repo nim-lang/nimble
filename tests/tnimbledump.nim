@@ -345,6 +345,12 @@ testEntryPoint: "tests/tall.nim"
     check parseJson(binOutp)["entryPoints"].to(seq[string]) ==
       @["src" / "dumpentrypointsbin.nim", "src" / "thebin.nim"]
 
+  test "entryPoints lists a namedBin built as a whole table (#1946)":
+    let (outp, exitCode) = execNimble("dump", "--json", "dumpentrypointstable")
+    check exitCode == 0
+    check parseJson(outp)["entryPoints"].to(seq[string]) ==
+      @["src" / "dumpentrypointstable.nim", "src" / "cli" / "main.nim"]
+
   test "dump reads a declarative package without a Nim binary (#1857)":
     # Regression for nim-lang/nimble#1857: `nimble dump` is read-only, but with
     # no Nim on PATH and an empty nimble dir it bootstrap-installed a whole Nim
