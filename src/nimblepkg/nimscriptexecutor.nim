@@ -5,7 +5,8 @@ import os, strutils, sets, std/options
 
 import packageparser, common, options, nimscriptwrapper, cli
 
-proc execHook*(nimBin: Option[string], options: Options, hookAction: ActionType, before: bool): bool =
+proc execHook*(nimBin: Option[string], options: Options, hookAction: ActionType, before: bool,
+               featureDefines: seq[string] = @[]): bool =
   ## Returns whether to continue.
   result = true
 
@@ -26,7 +27,7 @@ proc execHook*(nimBin: Option[string], options: Options, hookAction: ActionType,
     if before: actionName.normalize in pkgInfo.preHooks
     else: actionName.normalize in pkgInfo.postHooks
   if pkgInfo.isNimScript and hookExists:
-    let res = execHook(nimBin, nimbleFile, actionName, before, options)
+    let res = execHook(nimBin, nimbleFile, actionName, before, options, featureDefines)
     if res.success:
       result = res.retVal
 

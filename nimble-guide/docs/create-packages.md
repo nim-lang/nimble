@@ -252,11 +252,15 @@ There are two ways to activate a feature:
 
 Multiple features can be activated for a package as follows:
 
-1. By passing multiple features with the `--features`, separated by semicolons:
+1. By passing multiple features with `--features`, separated by commas:
    ```sh
-   nimble --features:"chronos;feature2" install
+   nimble --features:chronos,feature2 install
    ```
-   Note that you may need to protect the semicolons from being interpreted by your shell by quoting the feature list argument value.
+   Semicolons (`;`) still work as separators. Quote the list so your shell
+   passes it as one argument:
+   ```sh
+   nimble --features:'chronos;feature2' install
+   ```
 2. By listing several features separated by commas using the `[]` operator:
    ```nim
    requires "awesomeAsyncPackage[chronos, feature2]"
@@ -272,6 +276,17 @@ when defined(features.awesomeAsyncPackage.chronos):
 ```
 
 The format follows: `features.packageName.featureName`.
+
+Run `nimble setup --features:chronos,feature2` to save the project's default
+feature selection. Later commands such as `nimble test` and `nimble build` use
+that selection. Setup also writes the feature defines and dependency paths to
+`nimble.paths` for direct `nim` builds.
+
+Pass `--features` to override the selection for one command. For example,
+`nimble --features:chronos test` tests with just `chronos` from the command
+line, and `nimble --features test` runs with no command-line features. Run
+`nimble setup` without `--features` to clear the saved selection. Features
+activated by the package or its dependencies still apply.
 
 ---
 

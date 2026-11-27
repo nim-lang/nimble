@@ -87,6 +87,8 @@ type
     nimBinariesDir*: string # Directory where nim binaries are stored. Separated from nimbleDir as it can be changed by the user/tests
     disableNimBinaries*: bool # Whether to disable the use of nim binaries
     features*: seq[string] # Features to be activated
+    featuresSpecified*: bool
+    setupFeatures*: Option[seq[string]] # Root features saved by an explicit setup
     ignoreSubmodules*: bool # Whether to ignore submodules when cloning a repository
     satResult*: SatResult
     filePathPkgs*: seq[PackageInfo] #Packages loaded from file:// requires. Top level is always included.
@@ -332,7 +334,7 @@ Nimble Options:
       --disableNimBinaries        Disable the use of nim precompiled binaries. Note in some platforms precompiled binaries are not available but the flag can still be used to avoid compile the Nim version once and reuse it.
       --maximumTaggedVersions     Maximum number of tags to check for a package when discovering versions for the SAT solver. 0 means all.
       --parser:declarative|nimvm  Use the declarative parser or the nimvm parser (default).
-      --features                  Activate package features.
+      --features:foo,bar           Activate a comma-separated list of package features.
       --ignoreSubmodules          Ignore submodules when cloning a repository.
       --sync                       Disable parallel downloads and version discovery.
       --refresh                   Resolve against the package repositories
@@ -895,7 +897,8 @@ proc parseFlag*(flag, val: string, result: var Options, kind = cmdLongOption) =
   of "disablenimbinaries":
     result.disableNimBinaries = true
   of "features":
-    result.features = val.split(";").mapIt(it.strip)
+    result.featuresSpecified = true
+    result.features = val.split({',', ';'}).mapIt(it.strip).filterIt(it.len > 0)
   of "ignoresubmodules":
     result.ignoreSubmodules = true
   of "sync":

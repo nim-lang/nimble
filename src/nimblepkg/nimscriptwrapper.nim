@@ -21,6 +21,7 @@ type
     stdout*: string
 
 const
+  taskCompilerCommandEnv* = "__NIMBLE_TASK_COMPILER_COMMAND"
   internalCmd = "e"
   nimscriptApi = staticRead("nimscriptapi.nim")
   printPkgInfo = "printPkgInfo"
@@ -42,13 +43,15 @@ proc getNimblecache(): string =
   getTempDir() / "nimblecache-" & $getEnv("USER").hash().abs()
 
 proc execNimscript(nimBin: Option[string],
-  nimbleFile, nimsFile, actionName: string, options: Options, isHook: bool
+  nimbleFile, nimsFile, actionName: string, options: Options, isHook: bool,
+  featureDefines: seq[string] = @[]
 ): tuple[output: string, exitCode: int, stdout: string] =
   let
     outFile = getNimbleTempDir() & ".out"
     isCustomTask = isCustomTask(actionName, options)
-    compFlags = if isCustomTask: join(options.getCompilationFlags(), " ")
-      else: ""
+  var compFlags = if isCustomTask: options.getCompilationFlags() else: @[]
+  for feature in featureDefines:
+    compFlags.add quoteShell("-d:" & feature)
 
   # Set environment variable with visited hooks to prevent recursion
   # This ensures child nimble processes know which hooks have already been executed
@@ -58,14 +61,14 @@ proc execNimscript(nimBin: Option[string],
   let nimbleVersion = common.nimbleVersion.split(".")
   var cmd = (
     "$# e $# $# --colors:on $# $# $# $# $# $# $# $# $#" % [
-      nimBin.getNimBin,
+      nimBin.getNimBin.quoteShell,
       "--hints:off --verbosity:0",
       "--define:nimbleExe=" & getAppFilename().quoteShell,
       "--define:NimbleVersion=" & common.nimbleVersion,
       "--define:NimbleMajor=" & nimbleVersion[0],
       "--define:NimbleMinor=" & nimbleVersion[1],
       "--define:NimblePatch=" & nimbleVersion[2],
-      compFlags,
+      compFlags.join(" "),
       nimsFile.quoteShell,
       nimbleFile.quoteShell,
       outFile.quoteShell,
@@ -125,10 +128,20 @@ import system except getCommand, setCommand, switch, `--`, thisDir,
 
 import strutils
 import "$1"
+
+when defined(windows) and system.getEnv("$3").len > 0:
+  # NimScript starts executables directly on Windows, bypassing the nim.cmd on PATH.
+  proc exec(command: string) =
+    let parts = command.splitWhitespace(maxsplit = 1)
+    if parts.len > 0 and parts[0].toLowerAscii in ["nim", "nim.exe", "\"nim\"", "\"nim.exe\""]:
+      system.exec(system.getEnv("$3") & " " & (if parts.len == 2: parts[1] else: ""))
+    else:
+      system.exec(command)
+
 include "$2"
 
 onExit()
-""" % [nimscriptApiFile.replace("\\", "/"), scriptName.replace("\\", "/")])
+""" % [nimscriptApiFile.replace("\\", "/"), scriptName.replace("\\", "/"), taskCompilerCommandEnv])
     discard tryRemoveFile(iniFile)
 
   result = nimsFile
@@ -156,13 +169,14 @@ proc getIniFile*(scriptName: string, options: Options, nimBin: Option[string]): 
       raise nimbleError(stdout & "\nprintPkgInfo() failed")
 
 proc execScript(
-  nimBin: Option[string], scriptName, actionName: string, options: Options, isHook: bool
+  nimBin: Option[string], scriptName, actionName: string, options: Options, isHook: bool,
+  featureDefines: seq[string] = @[]
 ): ExecutionResult[bool] =
   let nimsFile = getNimsFile(scriptName, options)
 
   let (output, exitCode, stdout) =
     execNimscript(
-      nimBin, scriptName, nimsFile, actionName, options, isHook
+      nimBin, scriptName, nimsFile, actionName, options, isHook, featureDefines
     )
 
   if exitCode != 0:
@@ -209,7 +223,7 @@ proc execTask*(nimBin: Option[string], scriptName, taskName: string,
   result = execScript(nimBin, scriptName, taskName, options, isHook=false)
 
 proc execHook*(nimBin: Option[string], scriptName, actionName: string, before: bool,
-    options: Options): ExecutionResult[bool] =
+    options: Options, featureDefines: seq[string] = @[]): ExecutionResult[bool] =
   ## Executes the specified action's hook. Depending on ``before``, either
   ## the "before" or the "after" hook.
   ##
@@ -220,7 +234,7 @@ proc execHook*(nimBin: Option[string], scriptName, actionName: string, before: b
   display("Attempting", "to execute hook $# in $#" % [hookName, scriptName],
           priority = MediumPriority)
 
-  result = execScript(nimBin, scriptName, hookName, options, isHook=true)
+  result = execScript(nimBin, scriptName, hookName, options, isHook=true, featureDefines=featureDefines)
 
 proc hasTaskRequestedCommand*(execResult: ExecutionResult): bool =
   ## Determines whether the last executed task used ``setCommand``
